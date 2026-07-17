@@ -1,0 +1,59 @@
+# Dependencies (pnpm's virtual store is inside node_modules, so this covers everything)
+node_modules/
+
+# Build output
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# TypeScript compiled output
+*.tsbuildinfo
+
+# Environment variables (keep example files)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Turbo (if using Turborepo)
+.turbo/
+
+# Vite
+vite.config.*.timestamp-*
+
+# Testing
+coverage/
+.nyc_output/
+
+# pnpm store path (if you ever set a custom store locally – usually not needed)
+.pnpm-store/
+
+# Optional: if you use vercel/netlify
+.vercel
+.netlify
+
+vendor/*
+!vendor/README.md

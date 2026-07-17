@@ -1,0 +1,15 @@
+{
+	"name": "pgsid",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "tsx src/index.ts"
+	},
+	"dependencies": {
+		"@electric-sql/pglite": "file:./vendor/electric-sql-pglite-0.5.4.tgz",
+		"@electric-sql/pglite-plpgsql-check": "file:./vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz"
+	},
+	"devDependencies": {
+		"tsx": "^4.20.3"
+	}
+}
