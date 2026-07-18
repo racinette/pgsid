@@ -44,10 +44,15 @@ Constraints:
 | Codegen driver target    | **`pg` only (MVP)**                                | `target` enum; `postgres` added later without config migration.            |
 | Query convention         | **`sqlc`** (`:one` / `:many` / `:exec`)            | Extensible later; MVP ships this convention only.                          |
 | Distribution             | **`pgsid`: LSP + CLI one binary**                  | Embed in CI/CD (`pgsid check`, codegen, …) without a separate daemon.      |
-| Architecture             | **Four disjoint components**                        | FS Tracker, Engine, LSP Adapter, CLI — communicate only via events.       |
-| Engine                   | **One system (pool + schema-apply + typecheck)**   | Owns file map, pool, state machine; too tightly coupled to separate.      |
-| Event vocabulary         | **`FileChangeEvent` + `DiagnosticEvent`**          | Two disjoined event types across two boundaries; no unification.          |
+| Architecture             | **Four disjoint components**                        | FS Tracker, Engine, LSP Adapter, CLI, Codegen — communicate only via events. |
+| Engine                   | **One system (pool + schema-apply + typecheck + deps)** | Owns file map, pool, state machine, dependency graph; too coupled to separate. |
+| Event vocabulary         | **`FileChangeEvent` + `EngineEvent`**               | Two boundaries; `EngineEvent` = typechecked + schema-error + schema-ready. |
 | Schema failure behavior  | **Clear query diagnostics, no partial catalog**    | On failure: emit diagnostics on failing migration, clear all query diags, pool has no generation. |
+| Query signature          | **PREPARE + pg_prepared_statements + EXECUTE**      | Standard PG introspection; works for SELECT, INSERT RETURNING, etc. Always emitted. |
+| Selective re-typecheck   | **Column-level dependency graph + schema diff**    | Track per-column (type, NOT NULL, DEFAULT, GENERATED). Transitive closure through functions + views. |
+| Dependency extraction    | **AST walking + body parsing**                      | Query AST: column-level. SQL functions: parse body. Views: parse definition. plpgsql: statement extractor (conservative for dynamic SQL). |
+| Subscriptions            | **By name, not by existence**                       | `nonexistent_table` subscribes; events arrive when the entity is created. |
+| Codegen                  | **Separate consumer of `EngineEvent`s**             | Subscribes to `typechecked` (signature) + `schema-ready` (catalog). Signature comparison skips unchanged. |
 | LSP library              | **`vscode-languageserver`** + textdocument         | VSCode-first; stdio transport.                                             |
 | Query cancellation       | **No WASM-level cancel**                           | "Cancel" = discard stale-generation results; PREPARE is sub-100ms.         |
 | Testing                  | **E2E-first**                                      | Real Engine + pool + FS Tracker harness; unit tests for pure pieces.      |
@@ -62,37 +67,47 @@ Four disjoint components communicating only via events — no shared mutable sta
 ```
 ┌──────────────┐                    ┌─────────────────────────────────────────┐                    ┌──────────────────┐
 │  FS Tracker  │                    │  Engine (one system)                    │                    │  LSP Adapter     │
-│              │  FileChangeEvent  │                                         │ DiagnosticEvent   │  (publishDiag)   │
+│              │  FileChangeEvent  │                                         │ EngineEvent       │  (publishDiag)   │
 │  - raw FS    │───────────────────►│  ┌─────────────┐  ┌─────────────┐       │───────────────────►│                  │
 │    watcher   │                    │  │ File map    │  │ PGlite pool │       │                    └──────────────────┘
 │  - LSP       │                    │  │ (path→text, │  │ (gen/epoch) │       │                    ┌──────────────────┐
 │    didChange │                    │  │  statements,│  │             │       │                    │  CLI             │
 │    didSave   │                    │  │  astHash)   │  │             │       │                    │  (collect, exit) │
 │  - AST dedup │                    │  └─────────────┘  └─────────────┘       │                    └──────────────────┘
-│  - tip/retro │                    │  ┌─────────────┐  ┌──────────────┐      │
-│    classify  │                    │  │ Snapshot    │  │ Internal     │      │
-│  - debounce  │                    │  │ cache       │  │ loop (state  │      │
-│              │                    │  │ (.pgsid/)   │  │ machine)     │      │
-└──────────────┘                    │  └─────────────┘  └──────────────┘      │
-       ▲                            │                                         │
-       │ didChange/didSave          │  Schema apply + Typecheck (PREPARE,     │
-       │                            │  plpgsql_check) share the pool + file   │
-┌──────────────┐                   │  map — too tightly coupled to separate.│
-│  LSP Adapter │                   └─────────────────────────────────────────┘
-│  (forward)   │
-└──────────────┘
+│  - tip/retro │                    │  ┌─────────────┐  ┌──────────────┐      │                    ┌──────────────────┐
+│    classify  │                    │  │ Snapshot    │  │ Internal     │      │  typechecked      │  Codegen         │
+│  - debounce  │                    │  │ cache       │  │ loop (state  │      │  (signature) ────►│  (query types +  │
+│              │                    │  │ (.pgsid/)   │  │ machine)     │      │  schema-ready      │   wrappers)      │
+└──────────────┘                    │  └─────────────┘  └──────────────┘      │  (catalog) ──────►│  (schema types)  │
+       ▲                            │                                         │                    └──────────────────┘
+       │ didChange/didSave          │  ┌──────────────────────────────────┐  │                            │
+       │                            │  │ Dependency graph + subscriber idx │  │                            ▼
+┌──────────────┐                   │  │ (column-level pub/sub)            │  │                    Generated .ts/.d.ts
+│  LSP Adapter │                   │  │ - query AST → table/column refs   │  │
+│  (forward)   │                   │  │ - function body → deps (SQL parse│  │
+└──────────────┘                   │  │   or plpgsql extract)            │  │
+                                   │  │ - view definition → deps         │  │
+                                   │  │ - schema diff → selective re-TC  │  │
+                                   │  └──────────────────────────────────┘  │
+                                   │                                         │
+                                   │  Schema apply + Typecheck (PREPARE,     │
+                                   │  plpgsql_check, signature extraction)   │
+                                   │  share the pool + file map — too        │
+                                   │  tightly coupled to separate.           │
+                                   └─────────────────────────────────────────┘
 ```
 
-**Note:** the LSP Adapter appears twice — once as a producer (forwarding `didChange`/`didSave` to the FS Tracker) and once as a consumer (receiving `DiagnosticEvent`s from the Engine). Two separate channels, no shared state.
+**Note:** the LSP Adapter appears twice — once as a producer (forwarding `didChange`/`didSave` to the FS Tracker) and once as a consumer (receiving `EngineEvent`s from the Engine). Two separate channels, no shared state.
 
 ### Components
 
 1. **FS Tracker** — merges raw filesystem events and LSP `didChange`/`didSave` notifications. Owns: glob patterns, AST-hash map (dedup), tip/retro classification, debounce policy. Emits `FileChangeEvent`s. Reads nothing from outside (resolves globs itself for tip classification). See [FS Tracker](#fs-tracker).
-2. **Engine** — one system: owns the file map (`{path → {text, statements, astHash}}`), the PGlite pool (generation/epoch), the snapshot cache, the schema-apply pipeline, and the typecheck pipeline. Has an internal loop (state machine) that consumes `FileChangeEvent`s, coalesces them, dispatches workers, and emits `DiagnosticEvent`s. Does not access the filesystem (computes migration order from config globs + known paths). See [Engine](#engine).
-3. **LSP Adapter** — stdio LSP server. As a **producer**: forwards `didChange`/`didSave` to the FS Tracker. As a **consumer**: subscribes to `DiagnosticEvent`s and calls `publishDiagnostics`. No completions/hover in MVP.
-4. **CLI** — the `pgsid` binary/entry: headless `check`, codegen for CI/CD (exit codes, machine-readable diagnostics). Pushes a control signal to the Engine, calls `drainUntilIdle()`, collects diagnostics, exits.
-5. **libpg-query** (`@pg18`) — statement **scan/split** (tracking byte offsets), top-level statement classification for preprocess, and AST production for change detection. Used by both the FS Tracker (AST-hash dedup) and the Engine (split + typecheck).
-6. **Logger** — structured log interface (no-op default); single seam at the Engine's internal loop for observability.
+2. **Engine** — one system: owns the file map (`{path → {text, statements, astHash}}`), the PGlite pool (generation/epoch), the snapshot cache, the schema-apply pipeline, the typecheck pipeline, the catalog snapshot (introspection result), the dependency graph (column-level pub/sub), and the subscriber index (entity → queries). Has an internal loop (state machine) that consumes `FileChangeEvent`s, coalesces them, dispatches workers, and emits `EngineEvent`s. Does not access the filesystem (computes migration order from config globs + known paths). See [Engine](#engine).
+3. **LSP Adapter** — stdio LSP server. As a **producer**: forwards `didChange`/`didSave` to the FS Tracker. As a **consumer**: subscribes to `EngineEvent`s (`typechecked` + `schema-error`) and calls `publishDiagnostics`. No completions/hover in MVP.
+4. **CLI** — the `pgsid` binary/entry: headless `check`, codegen for CI/CD (exit codes, machine-readable diagnostics). Pushes a control signal to the Engine, calls `drainUntilIdle()`, collects `EngineEvent`s, exits.
+5. **Codegen** — a separate consumer of `EngineEvent`s. Subscribes to `typechecked` (uses `signature` for query types + wrappers) and `schema-ready` (uses `catalog` for schema types). Compares signatures to skip unchanged files. Writes generated `.ts`/`.d.ts` atomically. Never accesses the pool or Engine state. See [Codegen](#codegen).
+6. **libpg-query** (`@pg18`) — statement **scan/split** (tracking byte offsets), top-level statement classification for preprocess, AST production for change detection, and dependency extraction (RangeVar, ColumnRef, FuncCall walking). Used by the FS Tracker (AST-hash dedup), the Engine (split + typecheck + dependency extraction), and the codegen (not directly — it consumes signatures).
+7. **Logger** — structured log interface (no-op default); single seam at the Engine's internal loop for observability.
 
 ---
 
@@ -139,32 +154,43 @@ type FileChangeEvent =
 **Event vocabulary (output):**
 
 ```ts
-type DiagnosticEvent = { event: 'diagnostics'; path: string; diagnostics: Diagnostic[] }
+type EngineEvent =
+  | { event: 'typechecked'; path: string; diagnostics: Diagnostic[]; signature: QuerySignature }
+  | { event: 'schema-error'; path: string; diagnostics: Diagnostic[] }
+  | { event: 'schema-ready'; catalog: CatalogSnapshot; diff: SchemaDiff }
 ```
 
-One shape: "here are the current diagnostics for file X." Empty array = clear. The downstream consumer (LSP adapter, CLI) does one thing: replace the diagnostics for `event.path`. Whether they came from PREPARE, plpgsql_check, or a migration apply failure is encoded in `diagnostic.source`, not in the event type.
+Three shapes, three consumers:
+
+- **`typechecked`** — emitted for a query file after typecheck. Always carries a `signature` (return columns, parameter types, sqlc name + cardinality). The LSP adapter / CLI use `diagnostics`; the codegen uses `signature`.
+- **`schema-error`** — emitted for a migration file that failed to apply. The LSP adapter / CLI use `diagnostics`; the codegen ignores this.
+- **`schema-ready`** — emitted after a successful schema rebuild. Carries the full `catalog` snapshot (tables, columns, enums, domains, functions, views) and the `diff` (what changed, with old + new states). The codegen uses `catalog` for schema types; the Engine uses `diff` internally for selective re-typecheck.
+
+Downstream consumers subscribe and pick what they need:
+- **LSP adapter / CLI:** `typechecked` + `schema-error` (diagnostics only).
+- **Codegen:** `typechecked` (signature) + `schema-ready` (catalog).
 
 **Internal loop (state machine):**
 
 ```
                   ┌──────────┐
            ┌──────│  IDLE    │◄──────────────────────────┐
-           │      └──────┬───┘                            │ all query buffers
-           │             │ query event                    │ drained
-           │             ▼                                │
-           │      ┌──────────────┐                        │
-           │      │TYPECHECKING  │────────────────────────┘
+           │      └──────┬───┘                           │ all query buffers
+           │             │ query event                   │ drained
+           │             ▼                               │
+           │      ┌──────────────┐                       │
+           │      │TYPECHECKING  │───────────────────────┘
            │      └──────┬───────┘
            │             │ migration event
            ▼             ▼
-  ┌────────────┐  ┌──────────────┐
+  ┌────────────┐  ┌───────────────┐
   │ DISCOVERING│─►│SCHEMA_BUILDING│
-  └────────────┘  └──────┬───────┘
+  └────────────┘  └──────┬────────┘
                          │ worker: schema-built (success)
                          ▼
-                  ┌──────────────┐
+                  ┌───────────────┐
                   │ POOL_SWAPPING │
-                  └──────┬───────┘
+                  └──────┬────────┘
                          │ worker: pool-swapped
                          ▼
                   ┌──────────────┐
@@ -178,9 +204,11 @@ One shape: "here are the current diagnostics for file X." Empty array = clear. T
 - `TYPECHECKING`: draining dirty query buffers — dispatching typechecks to the pool. On all-drained → `IDLE`.
 - `IDLE`: waiting for events. On query event → `TYPECHECKING` (just the affected buffer). On migration event → `SCHEMA_BUILDING`.
 
-**Query file coalescing:** the Engine maintains `Map<path, {text, dirty: boolean}>` per query file. Multiple rapid edits to the same file just overwrite the buffer — only the latest content survives. `deleted` removes the buffer and emits `{path, diagnostics: []}`. No `setTimeout` debounce; coalescing is structural.
+**Query file coalescing:** the Engine maintains `Map<path, {text, dirty: boolean}>` per query file. Multiple rapid edits to the same file just overwrite the buffer — only the latest content survives. `deleted` removes the buffer and emits `{event: 'typechecked', path, diagnostics: [], signature: null}`. No `setTimeout` debounce; coalescing is structural.
 
 **Migration coalescing:** any migration event sets `schemaRebuildPending = true`. No new query typechecks are dispatched while pending. The rebuild uses the latest file map state (which includes all edits). One outstanding schema rebuild at a time.
+
+**Dependency graph + selective re-typecheck:** on schema rebuild success, the Engine computes a schema diff (old vs new catalog snapshot), expands the affected set transitively (through type deps, function deps, view deps), and re-typechecks only queries whose dependencies intersect the affected set. Unaffected queries keep their existing diagnostics + signatures. See [Codegen > Dependency model](#dependency-model-column-level-pubsub).
 
 **Worker completion is internal:** workers report back to the Engine's loop via an internal completion queue (not the `FileChangeEvent` stream). The loop processes both external events and internal completions. Idle = input queue empty + no dirty buffers + no in-flight workers.
 
@@ -275,7 +303,7 @@ For each resolved file, in order:
 
 **Cache key:** `orderedAstHashes ‖ configFingerprint` (`preprocess`, `schema` patterns, PG major, extensions, plpgsql_check on/off). Stored as `.pgsid/cache/<hash>.bin.gz`. Using AST hashes (not raw content) means cosmetic edits don't invalidate the cache. Only successful full builds are cached — no partial snapshots.
 
-**Boot:** `migrations-discovered` → cache hit/miss → pool swap (generation++) + `plpgsql_check` loaded → ready; typecheck all discovered queries. See [PGlite pool model](#pglite-pool-model).
+**Boot:** `migrations-discovered` → cache hit/miss → pool swap (generation++) + `plpgsql_check` loaded → introspect catalog snapshot → compute diff (first boot: everything added) → selective re-typecheck affected queries → emit `schema-ready` + `typechecked` events. See [PGlite pool model](#pglite-pool-model) and [Codegen > Dependency model](#dependency-model-column-level-pubsub).
 
 ---
 
@@ -306,11 +334,11 @@ Each statement is typechecked independently; a failing PREPARE in statement 3 do
 3. `BEGIN; SET LOCAL search_path = <config>;`
 4. For each statement: `SAVEPOINT s_n; PREPARE p_n AS <stmt>` → on error, `ROLLBACK TO s_n` (un-aborts the txn), map `err.position` (1-based into prepared text) to a file offset → diagnostic. Continue to next statement.
 5. Unless `sql.typecheck.plpgsql: false`, for each `CREATE FUNCTION … LANGUAGE plpgsql`: `SET LOCAL check_function_bodies=off`, `CREATE OR REPLACE`, `SELECT plpgsql_check_function(..., format:='json')` → diagnostics.
-6. `DEALLOCATE ALL` (prepared statements are session-scoped, not txn-scoped — `ROLLBACK` alone doesn't clean them up).
-7. `ROLLBACK` (discards `SET LOCAL`, the created function, savepoints).
-8. Release instance. If `pool.current.generation !== G`, discard results (schema changed under us).
-9. Emit `DiagnosticEvent` for this file.
-10. If codegen enabled for that file → refresh query types [/ wrappers].
+6. **Signature extraction:** `SELECT parameter_types FROM pg_prepared_statements WHERE name = 'p_n'` → input types. `EXECUTE p_n(NULL, ...)` → return columns (from `result.fields`). Safe inside the ROLLBACK txn.
+7. `DEALLOCATE ALL` (prepared statements are session-scoped, not txn-scoped).
+8. `ROLLBACK` (discards `SET LOCAL`, the created function, savepoints, any DML from EXECUTE).
+9. Release instance. If `pool.current.generation !== G`, discard results (schema changed under us).
+10. Emit `{event: 'typechecked', path, diagnostics, signature}` for this file.
 
 **Why a txn for read-only PREPARE?** (a) `SET LOCAL` requires a txn to scope `search_path` per check without leaking to the next check on the pooled instance; (b) `ROLLBACK` cleans up created functions and savepoints; (c) parity with the plpgsql_check flow (one code path). **Savepoints** ensure a failed PREPARE doesn't abort the txn — without them, PostgreSQL poisons the txn after any error and all subsequent commands fail. **No `statement_timeout`:** PREPARE is parse+analyze+plan only — it doesn't execute, so there's nothing to time out (the catalog is schema-only, no rows).
 
@@ -324,7 +352,7 @@ The same `pgsid` package/binary exposes a **CLI** so pipelines do not need an ed
 - **`pgsid generate`** — run TypeScript (and later other) codegen from the same config.
 - Shared config discovery with the language server.
 
-LSP and CLI share the Engine. The CLI pushes a control signal to the Engine, then calls **`drainUntilIdle()`** and collects `DiagnosticEvent`s. Same Engine code path as LSP; different transport.
+LSP and CLI share the Engine. The CLI pushes a control signal to the Engine, then calls **`drainUntilIdle()`** and collects `EngineEvent`s (`typechecked` + `schema-error`). Same Engine code path as LSP; different transport.
 
 ---
 
@@ -339,11 +367,167 @@ That combination makes schema-aware and migration-aware rules far cheaper to aut
 
 ---
 
-## TypeScript codegen
+## Codegen
+
+The codegen is a **separate system** — a consumer of `EngineEvent`s and a producer of generated `.ts`/`.d.ts` files. It subscribes to the Engine's output stream alongside the LSP adapter and CLI. It never accesses the pool or the Engine's internal state.
+
+```
+                    EngineEvent
+Engine ─────────────────────────────────► Codegen
+  typechecked {path, diagnostics,       │  signature → query types + wrappers
+              signature}                │  (skip if signature unchanged)
+  schema-ready {catalog, diff}          │  catalog → schema types
+                                        │  (full regen, atomic write, skip-if-unchanged)
+                                        ▼
+                                   Generated .ts / .d.ts files
+```
+
+### Query signature extraction
+
+During typecheck, the Engine extracts the query signature using standard PostgreSQL introspection:
+
+1. `PREPARE pgsid_stmt_N AS <sql>` — typecheck (catch errors). On failure: emit `typechecked` with empty signature + error diagnostics.
+2. `SELECT parameter_types FROM pg_prepared_statements WHERE name = 'pgsid_stmt_N'` — input parameter types (array of OIDs).
+3. `EXECUTE pgsid_stmt_N(NULL, NULL, ...)` — return columns (from `result.fields`). Safe because we're inside a `BEGIN…ROLLBACK` txn — any DML mutation is rolled back. The catalog is schema-only, so SELECTs return 0 rows but still produce field descriptions.
+4. `DEALLOCATE pgsid_stmt_N` — cleanup.
+
+Works for ALL statement types: SELECT, INSERT RETURNING, UPDATE RETURNING, DELETE RETURNING (return columns), and plain INSERT/UPDATE/DELETE (no return columns → `:exec` → void signature).
+
+```ts
+interface QuerySignature {
+  /** sqlc directive: name + cardinality */
+  name: string                    // "GetUser"
+  cardinality: 'one' | 'many' | 'exec'
+
+  /** Return columns (empty for :exec or non-returning DML) */
+  columns: {
+    name: string                  // "id"
+    pgTypeOid: number             // 20 (int8)
+    pgTypeName: string            // "int8"
+    nullable: boolean             // from NOT NULL constraint
+  }[]
+
+  /** Parameter types */
+  params: {
+    pgTypeOid: number
+    pgTypeName: string
+  }[]
+}
+```
+
+The Engine emits raw PG types. The codegen applies the type-mapping chain (`column → domain brand → enum → pgType → driver default`) using the `typeMappings` config — it owns the mapping logic, not the Engine.
+
+### Catalog snapshot
+
+After every successful schema rebuild, the Engine introspects a pool instance and emits a `CatalogSnapshot`:
+
+```ts
+interface CatalogSnapshot {
+  tables: {
+    schema: string
+    name: string
+    columns: {
+      name: string
+      typeOid: number
+      typeName: string
+      notNull: boolean
+      hasDefault: boolean
+      generated: 'always' | 'byDefault' | 'none'
+    }[]
+  }[]
+  functions: {
+    schema: string
+    name: string
+    argTypes: string[]
+    returnType: string
+    language: string
+    body: string              // for dependency extraction (SQL: parse; plpgsql: statement extraction)
+  }[]
+  views: {
+    schema: string
+    name: string
+    columns: { name: string; typeOid: number; typeName: string }[]
+    definition: string        // SQL text from pg_views.definition — parse for deps
+  }[]
+  enums: {
+    schema: string
+    name: string
+    values: string[]
+  }[]
+  domains: {
+    schema: string
+    name: string
+    baseType: string
+    notNull: boolean
+    default: string | null
+  }[]
+}
+```
+
+### Schema diff
+
+Computed by comparing the old and new `CatalogSnapshot`. Carries old + new states for future features (constraint analysis, transpilation):
+
+```ts
+interface SchemaDiff {
+  added: EntityId[]                                                    // new entities
+  removed: EntityId[]                                                  // dropped entities
+  modified: { entityId: EntityId; old: EntityState; new: EntityState }[]  // changed entities
+}
+
+// EntityId is a schema-qualified, column-level identifier:
+//   "public.users.id"     — a specific column
+//   "public.users"        — a table (for existence tracking)
+//   "public.calculate_total" — a function
+//   "public.active_status"   — an enum
+//   "public.user_id"         — a domain
+```
+
+### Dependency model (column-level pub/sub)
+
+The Engine maintains a **dependency graph** and a **subscriber index** — the core optimization that avoids re-typechecking all queries on every schema change.
+
+**What we track per column:** type (OID + name), NOT NULL, DEFAULT (present/absent), GENERATED (`always` / `byDefault` / `none`). These are the four properties that affect type generation. Primary key is not tracked separately (it implies NOT NULL, already covered). Indexes, triggers, foreign keys, check constraints do not affect type generation. (Check constraints are interesting for future transpilation to Zod/valibot — the catalog snapshot is extensible for this, but not MVP.)
+
+**Dependency extraction:**
+
+| Source | Method | Precision |
+|---|---|---|
+| Query AST | Walk `RangeVar` (tables) + `ColumnRef` (columns) + `FuncCall` (functions). Resolve unqualified names via `search_path`. Recurse into subqueries, CTEs, JOINs. | Column-level, precise |
+| SQL functions (`LANGUAGE sql`) | Parse `pg_proc.prosrc` body with libpg-query → walk AST → extract same. | Column-level, precise |
+| Views | Parse `pg_views.definition` with libpg-query → walk AST → extract same. | Column-level, precise |
+| plpgsql functions | **plpgsql statement extractor:** tokenize the body to find SQL-bearing constructs (`SELECT INTO`, `PERFORM`, `INSERT/UPDATE/DELETE`, `RETURN QUERY`, `FOR r IN SELECT`, `IF (SELECT…)`). Parse each extracted SQL fragment with libpg-query → walk AST → extract deps. | Column-level for static SQL; **conservative** (depends on everything) for `EXECUTE` (dynamic SQL) |
+| Enums/domains | Tracked indirectly: if an enum/domain changes, all columns using that type are affected (propagated via the catalog snapshot's type OIDs). | Automatic |
+
+**Subscription by name, not by existence:** a query referencing `nonexistent_table` subscribes to the *name* `public.nonexistent_table` regardless of whether the entity exists. When the table later appears (migration adds it), the diff includes it as `added`, the subscription matches → re-typecheck. The typecheck error (PREPARE fails) and the subscription are separate concerns.
+
+**Transitive closure on schema change:**
+
+1. Start with directly changed entities (from the diff).
+2. **Propagate through type deps:** enum/domain change → all columns using that type are affected.
+3. **Propagate through function deps:** table/column change → functions referencing it are affected → queries using those functions are affected. Walk transitively (function A calls B which references table T → if T changes, B affected, A affected, queries using A affected).
+4. **Propagate through view deps:** table/column change → views referencing it are affected → queries using those views are affected. Walk transitively (view V1 references V2 which references table T → if T changes, V2 affected, V1 affected, queries using V1 affected).
+5. The result is a set of affected query paths → re-typecheck ONLY those. Emit `typechecked` for each. Unaffected queries keep their existing diagnostics + signatures.
+
+**On query file change (not schema):** re-parse the query AST → re-extract dependencies → update the dependency graph + subscriber index → re-typecheck this query only.
+
+**On first boot:** no previous catalog snapshot → all entities are "added" → all queries are affected → typecheck all. One-time cost.
+
+### Codegen behavior
+
+**On `schema-ready`:** regenerate ALL schema types from `catalog`. Full regeneration (a few file writes). Write-back is atomic + skip-if-unchanged, so unchanged files don't cause IDE churn. The codegen doesn't use the diff for this — it regenerates everything from the current catalog.
+
+**On `typechecked`:** compare `signature` to the stored signature for that path. If unchanged → skip (the query's types didn't change, even though the schema changed). If changed → regenerate query types + wrappers for that file. Double optimization: the Engine's selective re-typecheck ensures only affected queries produce events; the codegen's signature comparison ensures only changed signatures trigger regeneration.
+
+**On `schema-error`:** the codegen does nothing. No schema types to generate (the catalog is broken). Existing generated files are left as-is (stale but not wrong — they represent the last known-good schema).
+
+**Codegen failure must not block diagnostics.** If type mapping fails (e.g., an unknown pg type with no mapping), the codegen logs the error and skips the file. The `typechecked` event (with diagnostics) is already emitted by the Engine before the codegen processes it.
+
+### TypeScript emit
 
 Nested under `sql.codegen` by language (multi-language later). **Driver target: `pg` only in MVP** (the `target` field is an enum; `postgres` is added later without a config migration).
 
-### Schema types (`codegen.typescript.schema`)
+#### Schema types (`codegen.typescript.schema`)
 
 From the catalog (full build):
 
@@ -367,7 +551,7 @@ outDir/
     …
 ```
 
-### Query codegen (`codegen.typescript.queries`)
+#### Query codegen (`codegen.typescript.queries`)
 
 - **Convention:** `sqlc` only in MVP (`:one` / `:many` / `:exec`).
 - `:one` → `T | undefined` (missing row = `undefined`; SQL NULL stays `null` in fields).
@@ -390,7 +574,7 @@ Rules:
 - Omit wrappers (split without `wrappers`, or no `queries` block) → types-only / Kysely-friendly.
 - Wrappers without a types destination (when not collocated) → invalid config.
 
-### Type mappings
+#### Type mappings
 
 Resolution: **column → domain brand → enum →** `pgType` **→ driver default**.
 
@@ -400,15 +584,9 @@ typeMappings:
   column: { public.users.metadata: 'import("../../user-meta").UserMeta' }
 ```
 
-Emit-time only; runtime driver parsers remain the app’s job.
+Emit-time only; runtime driver parsers remain the app's job.
 
-### Regeneration
-
-- Schema rebuild → schema types (+ pool swap).
-- Query file change → that query's types/wrappers (if mapped).
-- Codegen failure must not block diagnostics.
-
-### Write-back & determinism
+#### Write-back & determinism
 
 - **Atomic writes:** tmp file + rename; never partial output visible to readers.
 - **Skip-if-unchanged:** byte-compare before writing; avoids needless IDE reload churn.
@@ -481,13 +659,14 @@ Desirable or worth a later design pass, but **not** in the first ship:
 - **Guest-doc typechecking** (open `.sql` files not under `sql.paths`) — on-demand or via a config flag; default off.
 - **Open-editor detection** for codegen write-back (skip files being actively edited).
 - Down/undo migrations and custom migrator format adapters (Flyway/Prisma/Liquibase drivers, etc.).
-- Codegen for composite **UDTs**; validation-library emitters (Zod/valibot, etc.) until their design is settled.
+- Codegen for composite **UDTs**.
 - `postgres` driver target (MVP ships `pg` only).
 
 Rejected alternatives and operational limits are documented elsewhere in this design (e.g. strip `CONCURRENTLY`, TypeScript+PGlite host, PREPARE always on).
 
 ## Future goals
 
+- **Check constraint transpilation** — `CHECK (age > 0)` → `z.number().min(0)` (Zod/valibot). The catalog snapshot is extensible (add `checkConstraints` field); the dependency graph already tracks column-level references; the codegen emit is additive. The architecture supports this without redesign.
 - **Lint framework** — rules over catalog IR + SQL ASTs (built-in + user plugins).
 - **Multi-language codegen** — additional `sql.codegen.<lang>` emitters.
 - **ORM-oriented targets** — beyond raw `pg` / `postgres` wrappers (e.g. tighter Kysely/Drizzle/etc. integration), without replacing the core IR.
@@ -501,11 +680,11 @@ Rejected alternatives and operational limits are documented elsewhere in this de
 | `@electric-sql/pglite`                           | In-process Postgres + `dumpDataDir` / `loadDataDir`             |
 | PGlite `plpgsql_check` extension                 | PL/pgSQL analysis                                               |
 | `libpg-query@pg18`                               | Split + preprocess classification + AST-hash dedup; PG18 pinned |
-| `fast-glob` + `picomatch`                        | `schema` / `sql.paths` glob expansion + `!` negation matching    |
+| `fast-glob` + `picomatch`                        | `schema` / `sql.paths` glob expansion + `!` negation matching   |
 | `chokidar`                                       | Raw filesystem watching (FS Tracker)                            |
 | `yaml`                                           | Config parse                                                    |
 | `zod`                                            | Config validation → typed config object                         |
-| `vscode-languageserver` + `vscode-languageserver-textdocument` | LSP shell (VSCode-first, stdio)                  |
+| `vscode-languageserver` + `vscode-languageserver-textdocument` | LSP shell (VSCode-first, stdio)                   |
 
 ---
 
@@ -520,6 +699,9 @@ Rejected alternatives and operational limits are documented elsewhere in this de
 7. Exact relative-path root when mirroring query outputs (longest `out` prefix match).
 8. PGlite query cancellation — accepted: no WASM-level cancel; "cancel" = discard stale-generation results. PREPARE is sub-100ms (schema-only, no execution). Revisit if a pathological case appears.
 9. ~~State inconsistency between runtime and reboot on schema failure~~ — mitigated: dropped furthest-correct; on failure the pool has no generation both at runtime and on reboot (cache only stores successful full builds).
+10. plpgsql function dependency extraction — the statement extractor may miss edge cases (unusual control flow, nested BEGIN/END). Conservative fallback for dynamic SQL (`EXECUTE`): depends on everything. Over-checking is correct; under-checking would be a bug.
+11. Column-level dependency tracking precision — `SELECT *` expands to all columns of the table (from the catalog). If the catalog changes (column added/removed), the expansion changes, and the query is affected. Tracked correctly via the diff.
+12. Future: check constraint transpilation — architecture supports it (extensible catalog snapshot, column-level deps, additive codegen emit) but not implemented.
 
 ---
 
@@ -541,16 +723,23 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 - Live SQL typecheck; plpgsql_check **on by default**.
 - CLI `pgsid check` (+ exit codes) for CI; shared engine with LSP.
 
-### Phase 2 — TypeScript codegen
+### Phase 2 — Dependency model + codegen
 
-- Schema types (`Infer*`, brands, enums).
-- sqlc queries: types / wrappers / collocated `out` forms; `:one` → `T | undefined`.
+- Catalog snapshot introspection (tables, columns, enums, domains, functions, views).
+- Schema diff computation (old vs new, with old/new states).
+- Dependency graph: query AST → column-level table/column refs + function refs.
+- Function dependency extraction: SQL functions (parse body), plpgsql (statement extractor), views (parse definition).
+- Transitive closure: type deps + function deps + view deps → affected query set.
+- Selective re-typecheck: only affected queries.
+- Query signature extraction (PREPARE + pg_prepared_statements + EXECUTE).
+- Codegen: schema types from catalog, query types from signatures, `pg` wrappers.
+- Signature comparison: skip unchanged codegen output.
 - CLI `pgsid generate`.
 
 ### Phase 3 — Polish / direction
 
-- Filter/codegen telemetry; agent JSON API.
-- Lint IR groundwork; Zod/valibot radar; UDT revisit.
+- Check constraint transpilation (Zod/valibot) — catalog snapshot extensible, dependency graph already tracks column refs.
+- Lint IR groundwork; UDT revisit.
 - Later: multi-lang codegen, ORM-specific emitters.
 
 ---
@@ -570,8 +759,10 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 - One Node/Bun `pgsid` entrypoint (LSP **and** CLI); no Postgres install; no DB port.
 - `schema` + `preprocess` build a cached schema-only catalog; failure clears query diagnostics and leaves the pool without a generation (consistent runtime + reboot).
 - `sql.paths` get PREPARE + plpgsql_check by default (`searchPath: [public]`).
+- Selective re-typecheck: only queries whose column-level dependencies changed are re-typechecked on schema rebuild.
+- Codegen produces schema types (from catalog) + query types/wrappers (from signatures); signature comparison skips unchanged files.
 - Codegen can split FE types vs BE wrappers or collocate; no schema function wrappers.
-- Schema/query edits refresh pool and generated outputs deterministically.
+- Schema/query edits refresh pool, generated outputs, and diagnostics deterministically.
 - CI can run `pgsid check` / `pgsid generate` without running an editor.
 
 ---
