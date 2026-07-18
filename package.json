@@ -1,15 +1,42 @@
 {
-	"name": "pgsid",
-	"private": true,
-	"type": "module",
-	"scripts": {
-		"dev": "tsx src/index.ts"
-	},
-	"dependencies": {
-		"@electric-sql/pglite": "file:./vendor/electric-sql-pglite-0.5.4.tgz",
-		"@electric-sql/pglite-plpgsql-check": "file:./vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz"
-	},
-	"devDependencies": {
-		"tsx": "^4.20.3"
-	}
+  "name": "pgsid",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "file:./vendor/electric-sql-pglite-0.5.4.tgz",
+    "@electric-sql/pglite-plpgsql-check": "file:./vendor/electric-sql-pglite-plpgsql-check-0.0.1.tgz",
+    "fast-glob": "^3.3.3",
+    "libpg-query": "18.0.1",
+    "picomatch": "^4.0.5",
+    "vscode-languageserver": "^10.1.0",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "yaml": "^2.9.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/picomatch": "^4.0.3",
+    "eslint": "^9.20.0",
+    "prettier": "^3.4.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
 }

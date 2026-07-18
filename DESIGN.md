@@ -36,7 +36,7 @@ Constraints:
 | Statement splitting      | **`libpg-query@pg18` scan/split**                  | Accurate boundaries; PG18 build pinned to match PGlite.                    |
 | Change detection         | **AST-hash per file**                              | Cosmetic edits (whitespace, comments, keyword case) don't trigger rebuilds.|
 | Schema cache             | **`dumpDataDir` in `.pgsid/cache/`**               | Keyed on `orderedAstHashes ‖ configFingerprint`; not SQL `pg_dump`.        |
-| Migration validation     | **Sequential txn apply; furthest-correct catalog** | Stop at first failing stmt (txn poisoned) → first failing file; keep last good file. |
+| Migration validation     | **Sequential txn apply; halt on failure**         | Stop at first failing stmt (txn poisoned) → first failing file; no partial catalog. |
 | Live SQL check           | **Always PREPARE**; **`plpgsql` default on**       | Per-statement PREPARE; continue after errors; toggle plpgsql_check via `sql.typecheck.plpgsql`. |
 | `searchPath`             | **Default `["public"]`**, `SET LOCAL` per check    | Unqualified-name policy; `SET LOCAL` inside txn auto-reverts on ROLLBACK.  |
 | Functions                | **In schema/migrations only**                      | No schema `functions.ts` wrappers; call via sqlc queries.                  |
@@ -44,92 +44,161 @@ Constraints:
 | Codegen driver target    | **`pg` only (MVP)**                                | `target` enum; `postgres` added later without config migration.            |
 | Query convention         | **`sqlc`** (`:one` / `:many` / `:exec`)            | Extensible later; MVP ships this convention only.                          |
 | Distribution             | **`pgsid`: LSP + CLI one binary**                  | Embed in CI/CD (`pgsid check`, codegen, …) without a separate daemon.      |
-| File tracking            | **Single event-loop dispatcher**                   | One queue, one consumer, big switch; producers only push events.           |
-| Diagnostics fan-out      | **Dispatcher-owned**                               | LSP and CLI both subscribe to the dispatcher's diagnostic stream.          |
-| Schema rebuild trigger   | **Hybrid debounce**                                | Latest migration: live `didChange` (~500ms); old migrations: `didSave` only.|
+| Architecture             | **Four disjoint components**                        | FS Tracker, Engine, LSP Adapter, CLI — communicate only via events.       |
+| Engine                   | **One system (pool + schema-apply + typecheck)**   | Owns file map, pool, state machine; too tightly coupled to separate.      |
+| Event vocabulary         | **`FileChangeEvent` + `DiagnosticEvent`**          | Two disjoined event types across two boundaries; no unification.          |
+| Schema failure behavior  | **Clear query diagnostics, no partial catalog**    | On failure: emit diagnostics on failing migration, clear all query diags, pool has no generation. |
 | LSP library              | **`vscode-languageserver`** + textdocument         | VSCode-first; stdio transport.                                             |
 | Query cancellation       | **No WASM-level cancel**                           | "Cancel" = discard stale-generation results; PREPARE is sub-100ms.         |
-| Testing                  | **E2E-first**                                      | Real workspace + pool + watcher harness; unit tests for pure pieces.      |
+| Testing                  | **E2E-first**                                      | Real Engine + pool + FS Tracker harness; unit tests for pure pieces.      |
 | Completions / hover      | **Out of scope (MVP)**                             | —                                                                          |
 | Lint rule framework      | **Project goal** (post-MVP)                        | Catalog object tree + per-file ASTs = high-leverage lint context.          |
 | Multi-lang / ORM codegen | **Future**                                         | More codegen languages; ORM targets beyond raw `pg` / `postgres`.          |
 
 ## Architecture
 
+Four disjoint components communicating only via events — no shared mutable state.
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Node/Bun process                                               │
-│                                                                 │
-│  Producers                Event dispatcher         Consumers    │
-│  ┌──────────────┐ push    ┌──────────────────┐    ┌──────────┐ │
-│  │ LSP adapter  │──────▶  │ single loop +    │──▶ │ LSP pub  │ │
-│  │ CLI          │──────▶  │ big switch(e)    │    │ Diags    │ │
-│  │ FS watcher   │──────▶  │                  │    │ CLI exit │ │
-│  └──────────────┘         │ schedules/cancels│    └──────────┘ │
-│                           │ async jobs       │                 │
-│                           └────────┬─────────┘                 │
-│                                    ▼                           │
-│                           ┌──────────────────┐                 │
-│                           │ Workspace        │                 │
-│                           │  schema: resolve → preprocess →    │
-│                           │    txn apply → cache → pool swap   │
-│                           │  sql.paths: split → PREPARE +      │
-│                           │    plpgsql_check → codegen         │
-│                           └────────┬─────────┘                 │
-│                                    ▼                           │
-│                           ┌──────────────────┐                 │
-│                           │ PGlite pool      │                 │
-│                           │  generation G    │                 │
-│                           │  inst₁ … instₙ  │                 │
-│                           │  acquire()/      │                 │
-│                           │  release()       │                 │
-│                           └──────────────────┘                 │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────┐                    ┌─────────────────────────────────────────┐                    ┌──────────────────┐
+│  FS Tracker  │                    │  Engine (one system)                    │                    │  LSP Adapter     │
+│              │  FileChangeEvent  │                                         │ DiagnosticEvent   │  (publishDiag)   │
+│  - raw FS    │───────────────────►│  ┌─────────────┐  ┌─────────────┐       │───────────────────►│                  │
+│    watcher   │                    │  │ File map    │  │ PGlite pool │       │                    └──────────────────┘
+│  - LSP       │                    │  │ (path→text, │  │ (gen/epoch) │       │                    ┌──────────────────┐
+│    didChange │                    │  │  statements,│  │             │       │                    │  CLI             │
+│    didSave   │                    │  │  astHash)   │  │             │       │                    │  (collect, exit) │
+│  - AST dedup │                    │  └─────────────┘  └─────────────┘       │                    └──────────────────┘
+│  - tip/retro │                    │  ┌─────────────┐  ┌──────────────┐      │
+│    classify  │                    │  │ Snapshot    │  │ Internal     │      │
+│  - debounce  │                    │  │ cache       │  │ loop (state  │      │
+│              │                    │  │ (.pgsid/)   │  │ machine)     │      │
+└──────────────┘                    │  └─────────────┘  └──────────────┘      │
+       ▲                            │                                         │
+       │ didChange/didSave          │  Schema apply + Typecheck (PREPARE,     │
+       │                            │  plpgsql_check) share the pool + file   │
+┌──────────────┐                   │  map — too tightly coupled to separate.│
+│  LSP Adapter │                   └─────────────────────────────────────────┘
+│  (forward)   │
+└──────────────┘
 ```
+
+**Note:** the LSP Adapter appears twice — once as a producer (forwarding `didChange`/`didSave` to the FS Tracker) and once as a consumer (receiving `DiagnosticEvent`s from the Engine). Two separate channels, no shared state.
 
 ### Components
 
-1. **LSP adapter** — stdio LSP; document sync; `publishDiagnostics`. Translates LSP notifications into dispatcher events. No completions/hover in MVP.
-2. **CLI** — the `pgsid` binary/entry: headless `check`, codegen, schema rebuild for CI/CD (exit codes, machine-readable diagnostics). Pushes synthetic events into the dispatcher and drains until idle.
-3. **Event dispatcher** — single async queue + one consumer loop with a big `switch (event.type)`. Every state mutation flows through this point. Schedules/cancels async jobs (schema rebuild, doc typecheck, codegen) with generation tagging. Owns diagnostic fan-out to subscribers (LSP, CLI). See [Event dispatcher](#event-dispatcher).
-4. **Workspace** — loads YAML config (zod-validated); resolves schema/`sql.paths` globs; owns the per-file `{ text, ast, astHash }` map; drives rebuild/check/codegen in response to dispatcher events. See [File tracking & change detection](#file-tracking--change-detection).
-5. **libpg-query** (`@pg18`) — statement **scan/split** (tracking byte offsets), top-level statement classification for preprocess, and AST production for change detection. Not used as a second syntax diagnostics engine.
-6. **Schema engine pool** — `PgEngine` interface over N PGlite instances sharing a `dumpDataDir` snapshot. Generation-tagged: only `pool.current` serves checks; stale instances drain + close. See [PGlite pool model](#pglite-pool-model).
-7. **Logger** — structured log interface (no-op default); single seam at the dispatcher for observability.
+1. **FS Tracker** — merges raw filesystem events and LSP `didChange`/`didSave` notifications. Owns: glob patterns, AST-hash map (dedup), tip/retro classification, debounce policy. Emits `FileChangeEvent`s. Reads nothing from outside (resolves globs itself for tip classification). See [FS Tracker](#fs-tracker).
+2. **Engine** — one system: owns the file map (`{path → {text, statements, astHash}}`), the PGlite pool (generation/epoch), the snapshot cache, the schema-apply pipeline, and the typecheck pipeline. Has an internal loop (state machine) that consumes `FileChangeEvent`s, coalesces them, dispatches workers, and emits `DiagnosticEvent`s. Does not access the filesystem (computes migration order from config globs + known paths). See [Engine](#engine).
+3. **LSP Adapter** — stdio LSP server. As a **producer**: forwards `didChange`/`didSave` to the FS Tracker. As a **consumer**: subscribes to `DiagnosticEvent`s and calls `publishDiagnostics`. No completions/hover in MVP.
+4. **CLI** — the `pgsid` binary/entry: headless `check`, codegen for CI/CD (exit codes, machine-readable diagnostics). Pushes a control signal to the Engine, calls `drainUntilIdle()`, collects diagnostics, exits.
+5. **libpg-query** (`@pg18`) — statement **scan/split** (tracking byte offsets), top-level statement classification for preprocess, and AST production for change detection. Used by both the FS Tracker (AST-hash dedup) and the Engine (split + typecheck).
+6. **Logger** — structured log interface (no-op default); single seam at the Engine's internal loop for observability.
 
 ---
 
-## Event dispatcher
+## FS Tracker
 
-One async queue, one consumer loop, one big `switch (event.type)`. Producers (LSP adapter, CLI, filesystem watcher, internal timers) only **push** events; they never touch workspace state directly.
+Merges raw filesystem events (from `chokidar`/`node:fs`) and LSP `didChange`/`didSave` notifications into a unified `FileChangeEvent` stream. Owns: glob patterns, AST-hash map (dedup), tip/retro classification, debounce policy. Does not access the pool or any Engine state.
 
-**Event taxonomy:**
+**Responsibilities:**
 
-- `ConfigChanged` — `pgsid.yaml` changed → invalidate everything, rebuild.
-- `SchemaFileChanged { path, text, source }` / `SchemaFileDeleted` / `SchemaFileAdded` — from watching `schema` globs. `source: 'buffer' | 'save'` (observability only).
-- `SqlFileChanged { path, text, source }` / `Deleted` / `Added` — from watching `sql.paths`.
-- `DocumentOpened { uri, text }` / `DocumentChanged { uri, text }` / `DocumentClosed { uri }` — from LSP. CLI emits synthetic `DocumentOpened` per `sql.paths` file so the same pipeline runs.
-- `RebuildRequested` — manual trigger (CLI `check`).
-- `Shutdown`.
+1. **Initial scan:** scans `schema` and `sql.paths` globs. For migrations, emits a single batch `{source: 'migrations-discovered', files: [...]}` (the full ordered list). For queries, emits individual `{source: 'query', event: 'discovered', ...}` per file.
+2. **AST-aware dedup:** on every change (raw FS or LSP), parses the file and computes an AST hash. If the hash matches the previous hash for that path, suppresses the event (cosmetic edit — whitespace, comments, keyword case).
+3. **Tip/retro classification:** resolves the schema globs to determine which migration is the tip (last in sorted order). Applies the debounce policy:
+   - `didChange` on the **tip** migration → debounce ~500ms → emit `FileChangeEvent`.
+   - `didChange` on a **retro** migration → suppress (wait for `didSave`).
+   - `didSave` on any migration → emit immediately.
+   - `didChange` on a query → debounce ~150ms → emit.
+   - Raw FS write (always "saved") → emit immediately.
+4. **Merge:** both raw FS events and LSP events feed into the same dedup + debounce pipeline. The Engine never knows whether a `FileChangeEvent` came from the filesystem or the editor.
 
-**Rules:**
+**Why tip/retro is internal to the FS Tracker:** the Engine treats all migration events identically (rebuild the schema). The tip/retro distinction only affects *when* the event is emitted (debounce policy), which is the FS Tracker's concern. The event `source` field is `'migration'` — no tip/retro in the event type.
 
-- **Debounce at the producer, not the dispatcher.** File-watch bursts collapse (~150ms quiet); LSP doc edits (~30ms). The dispatcher is always responsive.
-- **Dispatcher never `await`s a slow job inline.** Sync cases update state in microseconds; slow work (schema build, typecheck, codegen) is launched as a tracked async job.
-- **Generation tagging.** Every job captures `currentGeneration` at scheduling time; on completion it checks whether it's still current and discards results silently if not. This is the single mechanism preventing stale-write races.
-- **Coalescing.** A `SchemaFileChanged` while a schema rebuild is in flight → cancel the in-flight (let it finish, discard) and start fresh from the latest file set. One outstanding schema rebuild at a time. Per-document, only the latest pending typecheck for a given URI survives.
-- **Diagnostics fan-out.** Jobs produce diagnostic blobs and hand them back to the dispatcher, which fans them out to subscribers (LSP `publishDiagnostics`, CLI collector). Keeps the LSP adapter purely a transport.
-- **Drain-until-idle.** A primitive the CLI uses: push events, then wait for the dispatcher + all jobs to reach idle before collecting results.
+The FS Tracker maintains its own set of known migration paths to compute the tip. When files are created/deleted, it re-evaluates. This is independent from the Engine's own ordering (both read the same config globs; acceptable duplication — different purposes).
+
+---
+
+## Engine
+
+One system: schema-apply + typecheck + pool + file map + internal loop. These are too tightly coupled to separate — a typecheck needs the current pool generation; a schema build bumps the generation; both need the file map.
+
+**Event vocabulary (input):**
+
+```ts
+type FileChangeEvent =
+  | { source: 'migrations-discovered'; files: { path: string; text: string }[] }
+  | { source: 'migration' | 'query'; event: 'discovered' | 'modified'; path: string; text: string }
+  | { source: 'migration' | 'query'; event: 'deleted'; path: string }
+```
+
+- `migrations-discovered` — the full ordered batch (initial scan or config-change re-scan). Receiving it means the Engine has the complete migration set and can build. This replaces individual migration discoveries (which are useless — the Engine needs the full sequence to build).
+- `discovered` (individual) — a single file is now present. For migrations: add to set, rebuild. For queries: add to buffer, typecheck when pool ready.
+- `modified` — content changed. Update file, rebuild (migrations) or re-typecheck (queries).
+- `deleted` — file gone. Remove from set, rebuild (migrations) or clear diagnostics (queries).
+
+**Event vocabulary (output):**
+
+```ts
+type DiagnosticEvent = { event: 'diagnostics'; path: string; diagnostics: Diagnostic[] }
+```
+
+One shape: "here are the current diagnostics for file X." Empty array = clear. The downstream consumer (LSP adapter, CLI) does one thing: replace the diagnostics for `event.path`. Whether they came from PREPARE, plpgsql_check, or a migration apply failure is encoded in `diagnostic.source`, not in the event type.
+
+**Internal loop (state machine):**
+
+```
+                  ┌──────────┐
+           ┌──────│  IDLE    │◄──────────────────────────┐
+           │      └──────┬───┘                            │ all query buffers
+           │             │ query event                    │ drained
+           │             ▼                                │
+           │      ┌──────────────┐                        │
+           │      │TYPECHECKING  │────────────────────────┘
+           │      └──────┬───────┘
+           │             │ migration event
+           ▼             ▼
+  ┌────────────┐  ┌──────────────┐
+  │ DISCOVERING│─►│SCHEMA_BUILDING│
+  └────────────┘  └──────┬───────┘
+                         │ worker: schema-built (success)
+                         ▼
+                  ┌──────────────┐
+                  │ POOL_SWAPPING │
+                  └──────┬───────┘
+                         │ worker: pool-swapped
+                         ▼
+                  ┌──────────────┐
+                  │TYPECHECKING  │
+                  └──────────────┘
+```
+
+- `DISCOVERING`: collecting `migrations-discovered` + query `discovered` events. On receiving the migration batch → transition to `SCHEMA_BUILDING`.
+- `SCHEMA_BUILDING`: builder instance applies migrations. `schemaRebuildPending = true` — no new query typechecks dispatched. On success → `POOL_SWAPPING`. On failure → emit diagnostics on failing migration, clear all query diagnostics, pool has no generation, back to `IDLE` (or `SCHEMA_BUILDING` if another migration event is pending).
+- `POOL_SWAPPING`: creating N fresh PGlite instances from the snapshot. On complete → `TYPECHECKING`.
+- `TYPECHECKING`: draining dirty query buffers — dispatching typechecks to the pool. On all-drained → `IDLE`.
+- `IDLE`: waiting for events. On query event → `TYPECHECKING` (just the affected buffer). On migration event → `SCHEMA_BUILDING`.
+
+**Query file coalescing:** the Engine maintains `Map<path, {text, dirty: boolean}>` per query file. Multiple rapid edits to the same file just overwrite the buffer — only the latest content survives. `deleted` removes the buffer and emits `{path, diagnostics: []}`. No `setTimeout` debounce; coalescing is structural.
+
+**Migration coalescing:** any migration event sets `schemaRebuildPending = true`. No new query typechecks are dispatched while pending. The rebuild uses the latest file map state (which includes all edits). One outstanding schema rebuild at a time.
+
+**Worker completion is internal:** workers report back to the Engine's loop via an internal completion queue (not the `FileChangeEvent` stream). The loop processes both external events and internal completions. Idle = input queue empty + no dirty buffers + no in-flight workers.
+
+**Engine does not access the filesystem.** It maintains the set of known migration paths (from events) and computes the order itself (config glob ordering + lexicographic sort). The FS Tracker independently does the same for tip classification. Acceptable duplication — different purposes.
+
+**`drainUntilIdle()`** — a primitive the CLI uses: push control signal, wait for the Engine's queue + buffers + workers to all reach idle, collect diagnostics, exit.
 
 ---
 
 ## PGlite pool model
 
+The pool is owned by the Engine. It's the resource manager for PGlite instances; the Engine's internal loop decides when to acquire and swap.
+
 **Core invariant:** at any instant, `pool.current` is a set of N PGlite instances all carrying exactly the same catalog snapshot, tagged with `generation = G`. Only `pool.current` serves check requests. Stale instances drain (finish in-flight work) then close.
 
 **Build → swap protocol:**
 
-1. Schema rebuild computes the new catalog in a _builder_ PGlite (apply files txn-by-txn, `CREATE EXTENSION plpgsql_check`, run to furthest-correct). On success: `dumpDataDir('gzip')` → `snapshot`.
+1. Schema rebuild computes the new catalog in a _builder_ PGlite (a throwaway instance, not from the pool). Applies files txn-by-txn, `CREATE EXTENSION plpgsql_check` first. On success: `dumpDataDir('gzip')` → `snapshot`.
 2. Bump `targetGeneration = G+1`. Spin up N fresh PGlite instances with `loadDataDir: snapshot` + the `plpgsql_check` extension (`loadDataDir` rehydrates extension state; no re-`CREATE EXTENSION` needed).
 3. Atomic swap: `pool.current = { generation: G+1, instances }`. The previous `current` becomes `draining`.
 4. New acquires go to the new generation. In-flight acquires on the old generation finish (PGlite checks are fast; we don't interrupt WASM mid-query).
@@ -141,41 +210,32 @@ One async queue, one consumer loop, one big `switch (event.type)`. Producers (LS
 acquire(): { generation, instance, release() }
 ```
 
-The caller checks `generation === pool.current.generation` before using the result; if mismatched, discard (the check ran against a stale catalog). Per-instance hygiene: every check runs in a `BEGIN…ROLLBACK` txn, so `SET LOCAL`, prepared statements, and `CREATE OR REPLACE FUNCTION` (plpgsql_check) are all discarded automatically — no `DEALLOCATE ALL` needed.
+The caller checks `generation === pool.current.generation` before using the result; if mismatched, discard (the check ran against a stale catalog). Per-instance hygiene: every check runs in a `BEGIN…ROLLBACK` txn with `SAVEPOINT` per PREPARE, so `SET LOCAL`, prepared statements, and `CREATE OR REPLACE FUNCTION` (plpgsql_check) are all discarded. `DEALLOCATE ALL` runs before `ROLLBACK` to clean up session-scoped prepared statements.
 
-**On rebuild failure (furthest-correct):** swap the pool to the furthest-correct snapshot (last fully-committed file's catalog) and surface the failure as diagnostics on the failing file. The previous-good generation still drains. `sql.paths` typechecks continue against the partial catalog.
+**On schema failure (no partial catalog):** the builder is closed, the pool is **not** swapped. The previous generation, if any, is **dropped** — the pool has no generation. The Engine emits diagnostics on the failing migration file and `{diagnostics: []}` for every query file (clear all). No typechecks run until the schema is fixed. This avoids state inconsistency: at runtime, a broken schema means no typechecks; on reboot, the cache misses (AST hashes changed) → failed rebuild → no pool → cleared diagnostics. Same state. Keeping a previous-good generation would be mildly useful (stale-but-valid query checkmarks) but mostly confusing (inconsistent between runs).
 
-**`PgEngine` interface** sits in front of the concrete `PGlite` so a future `PGliteWorker` (PGlite in a `worker_threads` thread) is a drop-in. MVP runs main-thread PGlite; checks are sub-100ms with an empty catalog. `PGliteWorker` itself is a thin client that talks to a real `PGlite` in a Web Worker (browser-oriented, leader-elected); the same pattern applies on Node via `worker_threads`.
+**`PgEngine` interface** sits in front of the concrete `PGlite` so a future `PGliteWorker` (PGlite in a `worker_threads` thread) is a drop-in. MVP runs main-thread PGlite; checks are sub-100ms with an empty catalog.
 
-**Pool size:** default 2 (`engine.poolSize`). Concurrency beyond N queues at the dispatcher level. PGlite instances are single-connection; `acquire()` serializes via a free-list of idle instances.
+**Pool size:** default 2 (`engine.poolSize`). Concurrency beyond N queues at the Engine's loop level. PGlite instances are single-connection; `acquire()` serializes via a free-list of idle instances.
+
+**Snapshot cache** is internal to the schema-apply module. The Engine calls `applySchema({files, config, cacheDir})` and gets back `{snapshot, success, diagnostics}`. Whether the snapshot came from cache or a fresh build is invisible to the Engine. Cache key = `orderedAstHashes ‖ configFingerprint`; stored as `.pgsid/cache/<hash>.bin.gz`. Only successful full builds are cached.
 
 ---
 
-## File tracking & change detection
+## AST-hash change detection
 
-The Workspace maintains `Map<path, { text, ast, astHash }>` rather than raw text. On any change:
+Both the FS Tracker (for dedup) and the Engine (for cache keys) use AST hashing:
 
 1. Parse text → AST (libpg-query). On parse failure, `ast = null`, `astHash = null` → treat as "definitely changed."
 2. Canonicalize the AST for hashing (strip location/position fields, strip comments, normalize semantically-unordered lists).
 3. `astHash = sha256(canonicalAst)`.
-4. Compare to the previous `astHash` for this path. Unchanged → cosmetic edit (whitespace, comments, keyword case) → no downstream work. Changed → proceed.
+4. Compare to the previous `astHash` for this path. Unchanged → cosmetic edit (whitespace, comments, keyword case) → suppress (FS Tracker) or skip re-PREPARE (Engine).
 
-**Pay-offs:**
+**FS Tracker dedup:** on every raw FS or LSP change, parses the file and computes the AST hash. If it matches the previous hash for that path, suppresses the `FileChangeEvent` entirely. The Engine never sees cosmetic edits.
 
-- **Schema cache key** uses `orderedAstHashes ‖ configFingerprint`, so format-on-save and comment edits no longer trigger a full rebuild + pool swap.
-- **Query typecheck skip:** an unchanged AST means unchanged diagnostics → skip re-PREPARE and don't republish (avoids IDE flicker).
-- **Free:** we parse every file anyway (splitter + preprocess classification need the AST).
+**Engine cache key:** `orderedAstHashes ‖ configFingerprint` — so format-on-save and comment edits that do slip through (e.g., from the raw FS watcher) don't invalidate the snapshot cache.
 
-**Hybrid debounce (schema files):**
-
-| File role                 | Trigger                              | Debounce     |
-| ------------------------- | ------------------------------------ | ------------ |
-| Latest migration file     | `didChange` (LSP unsaved buffer)     | ~500ms, live |
-| Old migration files       | `didSave` (LSP) / FS `change`        | immediate    |
-| Query files (`sql.paths`) | `didChange` (LSP unsaved buffer)     | ~150ms, live |
-| Query files (not open)    | FS `change`                          | immediate    |
-
-"Latest" = the last file in the resolved ordered list; recomputed when the file set changes. The "is this latest?" gate happens in the Workspace before pushing events, so the dispatcher stays simple. Editing an old migration requires saving to see feedback — a deliberate tradeoff (the common workflow is writing the new migration at the end, which gets live tracking).
+**Engine query typecheck skip:** if a query file's AST hash hasn't changed, the Engine skips re-PREPARE and doesn't republish diagnostics (avoids IDE flicker).
 
 ---
 
@@ -210,12 +270,12 @@ For each resolved file, in order:
 - Strip `CONCURRENTLY` on supported DDL so the file can run in a transaction (optional hint).
 
 3. Apply file in a **transaction**.
-4. On failure → rollback the file's txn (Postgres poisons the txn after an error; subsequent statements would fail too), emit a diagnostic on the failing statement, and **halt the chain**. **Furthest-correct = last fully-committed file's catalog.** Pool/codegen serve from furthest-correct. Files after the failing one are not attempted. The diagnostic on the failing file makes clear: "migration chain halted here; subsequent migrations not applied."
+4. On failure → rollback the file's txn (Postgres poisons the txn after an error; subsequent statements would fail too), emit a diagnostic on the failing statement, and **halt the chain**. The pool is **not** swapped to a partial catalog. The Engine emits diagnostics on the failing migration file and `{diagnostics: []}` for every query file (clear all). No typechecks run until the schema is fixed. Files after the failing one are not attempted. The diagnostic on the failing file makes clear: "migration chain halted here; subsequent migrations not applied."
 5. On success of full chain → `dumpDataDir` cache.
 
-**Cache key:** `orderedAstHashes ‖ configFingerprint` (`preprocess`, `schema` patterns, PG major, extensions, plpgsql_check on/off). Stored as `.pgsid/cache/<hash>.bin.gz`. Using AST hashes (not raw content) means cosmetic edits don't invalidate the cache.
+**Cache key:** `orderedAstHashes ‖ configFingerprint` (`preprocess`, `schema` patterns, PG major, extensions, plpgsql_check on/off). Stored as `.pgsid/cache/<hash>.bin.gz`. Using AST hashes (not raw content) means cosmetic edits don't invalidate the cache. Only successful full builds are cached — no partial snapshots.
 
-**Boot:** resolve → cache hit/miss → pool swap (generation++) + `plpgsql_check` loaded → ready; refresh open docs; run schema codegen if enabled. See [PGlite pool model](#pglite-pool-model).
+**Boot:** `migrations-discovered` → cache hit/miss → pool swap (generation++) + `plpgsql_check` loaded → ready; typecheck all discovered queries. See [PGlite pool model](#pglite-pool-model).
 
 ---
 
@@ -239,19 +299,20 @@ Omit `sql.typecheck` → same as `sql.typecheck.plpgsql: true`.
 
 ### Per document (debounced)
 
-Each statement is typechecked independently; a failing PREPARE in statement 3 does not poison statement 4 (no shared txn). Continue and collect all diagnostics.
+Each statement is typechecked independently; a failing PREPARE in statement 3 does not poison statement 4 (savepoints). Continue and collect all diagnostics.
 
 1. Split via libpg-query (tracking byte offsets for diagnostic ranges).
 2. Acquire instance from pool (generation G).
 3. `BEGIN; SET LOCAL search_path = <config>;`
-4. For each statement: `PREPARE p_n AS <stmt>` → on error, map `err.position` (1-based into prepared text) to a file offset → diagnostic. Continue to next statement.
+4. For each statement: `SAVEPOINT s_n; PREPARE p_n AS <stmt>` → on error, `ROLLBACK TO s_n` (un-aborts the txn), map `err.position` (1-based into prepared text) to a file offset → diagnostic. Continue to next statement.
 5. Unless `sql.typecheck.plpgsql: false`, for each `CREATE FUNCTION … LANGUAGE plpgsql`: `SET LOCAL check_function_bodies=off`, `CREATE OR REPLACE`, `SELECT plpgsql_check_function(..., format:='json')` → diagnostics.
-6. `ROLLBACK` (discards `SET LOCAL`, prepared statements, and the created function).
-7. Release instance. If `pool.current.generation !== G`, discard results (schema changed under us).
-8. Publish diagnostics (via dispatcher fan-out).
-9. If codegen enabled for that file → refresh query types [/ wrappers].
+6. `DEALLOCATE ALL` (prepared statements are session-scoped, not txn-scoped — `ROLLBACK` alone doesn't clean them up).
+7. `ROLLBACK` (discards `SET LOCAL`, the created function, savepoints).
+8. Release instance. If `pool.current.generation !== G`, discard results (schema changed under us).
+9. Emit `DiagnosticEvent` for this file.
+10. If codegen enabled for that file → refresh query types [/ wrappers].
 
-**Why a txn for read-only PREPARE?** (a) `SET LOCAL` requires a txn to scope `search_path` per check without leaking to the next check on the pooled instance; (b) `ROLLBACK` cleans up prepared statements (no `DEALLOCATE ALL` needed); (c) parity with the plpgsql_check flow (one code path). **No `statement_timeout`:** PREPARE is parse+analyze+plan only — it doesn't execute, so there's nothing to time out (the catalog is schema-only, no rows).
+**Why a txn for read-only PREPARE?** (a) `SET LOCAL` requires a txn to scope `search_path` per check without leaking to the next check on the pooled instance; (b) `ROLLBACK` cleans up created functions and savepoints; (c) parity with the plpgsql_check flow (one code path). **Savepoints** ensure a failed PREPARE doesn't abort the txn — without them, PostgreSQL poisons the txn after any error and all subsequent commands fail. **No `statement_timeout`:** PREPARE is parse+analyze+plan only — it doesn't execute, so there's nothing to time out (the catalog is schema-only, no rows).
 
 ---
 
@@ -259,11 +320,11 @@ Each statement is typechecked independently; a failing PREPARE in statement 3 do
 
 The same `pgsid` package/binary exposes a **CLI** so pipelines do not need an editor or long-running LSP:
 
-- **`pgsid check`** — build/load schema (furthest-correct), typecheck `sql.paths` (plpgsql on by default), non-zero exit on errors; optional machine-readable report later.
+- **`pgsid check`** — build/load schema, typecheck `sql.paths` (plpgsql on by default), non-zero exit on errors; optional machine-readable report later.
 - **`pgsid generate`** — run TypeScript (and later other) codegen from the same config.
 - Shared config discovery with the language server.
 
-LSP and CLI share the workspace/engine/codegen implementation. The CLI pushes a `RebuildRequested` event + synthetic `DocumentOpened` per `sql.paths` file into the dispatcher, then calls **drain-until-idle** and collects diagnostics from the dispatcher's fan-out. Same code path as LSP; different transport.
+LSP and CLI share the Engine. The CLI pushes a control signal to the Engine, then calls **`drainUntilIdle()`** and collects `DiagnosticEvent`s. Same Engine code path as LSP; different transport.
 
 ---
 
@@ -284,7 +345,7 @@ Nested under `sql.codegen` by language (multi-language later). **Driver target: 
 
 ### Schema types (`codegen.typescript.schema`)
 
-From the catalog (furthest-correct / full build):
+From the catalog (full build):
 
 - Tables/views with `NOT NULL` / `DEFAULT` / `GENERATED` → `InferSelect` / `InferInsert` / `InferUpdate`
 - Enums
@@ -439,8 +500,9 @@ Rejected alternatives and operational limits are documented elsewhere in this de
 | ------------------------------------------------ | --------------------------------------------------------------- |
 | `@electric-sql/pglite`                           | In-process Postgres + `dumpDataDir` / `loadDataDir`             |
 | PGlite `plpgsql_check` extension                 | PL/pgSQL analysis                                               |
-| `libpg-query@pg18`                               | Split + preprocess classification; PG18 build pinned to PGlite  |
-| multimatch-style globs                           | `schema` / `sql.paths` / `!` negation                           |
+| `libpg-query@pg18`                               | Split + preprocess classification + AST-hash dedup; PG18 pinned |
+| `fast-glob` + `picomatch`                        | `schema` / `sql.paths` glob expansion + `!` negation matching    |
+| `chokidar`                                       | Raw filesystem watching (FS Tracker)                            |
 | `yaml`                                           | Config parse                                                    |
 | `zod`                                            | Config validation → typed config object                         |
 | `vscode-languageserver` + `vscode-languageserver-textdocument` | LSP shell (VSCode-first, stdio)                  |
@@ -451,12 +513,13 @@ Rejected alternatives and operational limits are documented elsewhere in this de
 
 1. ~~libpg-query ↔ PGlite version skew~~ — mitigated: `libpg-query@pg18` pinned to match PGlite's PG18.
 2. Preprocess limits (`DO` / dynamic SQL) — flags + warnings.
-3. Checks must not permanently mutate pool instances — mitigated: every check runs in `BEGIN…ROLLBACK` (see [PGlite pool model](#pglite-pool-model)).
+3. Checks must not permanently mutate pool instances — mitigated: every check runs in `BEGIN…ROLLBACK` with savepoints + `DEALLOCATE ALL` (see [PGlite pool model](#pglite-pool-model)).
 4. ~~Pool identity on schema reload~~ — mitigated: generation/epoch swap (atomic replace; stale instances drain).
-5. Stale-result races — mitigated: generation tagging on every job; discard if `pool.current.generation` moved.
-6. Debounce / check-on-idle for incomplete buffers — hybrid debounce (live for latest migration + queries; save-only for old migrations).
+5. Stale-result races — mitigated: generation tagging; discard if `pool.current.generation` moved.
+6. ~~Debounce / check-on-idle for incomplete buffers~~ — mitigated: FS Tracker handles debounce (tip vs retro migration); Engine uses structural coalescing (per-file buffer = latest-content-wins).
 7. Exact relative-path root when mirroring query outputs (longest `out` prefix match).
 8. PGlite query cancellation — accepted: no WASM-level cancel; "cancel" = discard stale-generation results. PREPARE is sub-100ms (schema-only, no execution). Revisit if a pathological case appears.
+9. ~~State inconsistency between runtime and reboot on schema failure~~ — mitigated: dropped furthest-correct; on failure the pool has no generation both at runtime and on reboot (cache only stores successful full builds).
 
 ---
 
@@ -466,11 +529,11 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 
 ### Phase 0 — Spike + harness
 
-- E2E harness: `runWorkspace(tmpDir, config, actions[])` with real PGlite pool, dispatcher, watcher; actions `writeFile`/`editFile`/`deleteFile`/`waitIdle`/`getDiagnostics`/`getGenerated`/`getPoolGeneration`.
-- YAML config load (zod); schema glob resolve; preprocess strip; txn apply; furthest-correct.
+- E2E harness: `createWorkspace(tmpDir, config, files)` with real Engine (pool + schema-apply + typecheck) and FS Tracker; actions `writeFile`/`editFile`/`deleteFile`/`waitIdle`/`getDiagnostics`/`getPoolGeneration`.
+- YAML config load (zod); schema glob resolve; preprocess strip; txn apply; halt-on-failure (no furthest-correct).
 - `dumpDataDir` cache round-trip (`.pgsid/cache/`).
 - PREPARE + plpgsql_check diagnostics on sample `sql.paths`.
-- Dispatcher + pool generation model landed early.
+- Engine state machine + pool generation model landed early.
 
 ### Phase 1 — MVP LS + CLI
 
@@ -494,7 +557,7 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 
 ## Testing strategy
 
-**E2E-first.** The E2E harness (`runWorkspace`) is the backbone: it spins up the entire machinery (real PGlite pool, dispatcher, watcher) pointed at a temp dir of migrations/queries, then drives it with actions and asserts on observable state after `waitIdle`. Cover as many scenarios as possible here — schema edits mid-typecheck, pool swaps, furthest-correct on failure, codegen regeneration, CLI drain.
+**E2E-first.** The E2E harness (`createWorkspace`) is the backbone: it spins up the entire machinery (real Engine with PGlite pool, FS Tracker, schema-apply, typecheck) pointed at a temp dir of migrations/queries, then drives it with file operations and asserts on observable state after `waitIdle`. Cover as many scenarios as possible here — schema edits mid-typecheck, pool swaps, schema failure (diagnostics cleared), codegen regeneration, CLI drain.
 
 **Unit tests** for pure pieces that are painful to test E2E: offset→LSP mapping, sqlc directive parser, type-mapping resolver, codegen output snapshots, config schema validation, AST-hash canonicalization. These run without PGlite → fast feedback.
 
@@ -505,7 +568,7 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 ## Success criteria
 
 - One Node/Bun `pgsid` entrypoint (LSP **and** CLI); no Postgres install; no DB port.
-- `schema` + `preprocess` build a cached schema-only catalog; failure keeps furthest-correct.
+- `schema` + `preprocess` build a cached schema-only catalog; failure clears query diagnostics and leaves the pool without a generation (consistent runtime + reboot).
 - `sql.paths` get PREPARE + plpgsql_check by default (`searchPath: [public]`).
 - Codegen can split FE types vs BE wrappers or collocate; no schema function wrappers.
 - Schema/query edits refresh pool and generated outputs deterministically.

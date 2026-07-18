@@ -1,3 +1,5 @@
+## vendor (temporary)
+
 Currently these aren't yet merged into the upstream, so locally produced tarballs are used for development.
 
 Links to PRs:
