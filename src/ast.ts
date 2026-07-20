@@ -10,6 +10,63 @@ export async function parseSql(sql: string): Promise<ParseResult> {
 }
 
 /**
+ * Per-statement info: AST node, kind, byte range in the source, and text.
+ * Used by the apply pipeline to exec statements one at a time and to
+ * compute diagnostic ranges.
+ */
+export interface StatementInfo {
+  raw: RawStmt;
+  stmt: Node;
+  kind: string;
+  /** 0-based byte offset of the statement in `source` (excludes leading whitespace). */
+  start: number;
+  /** 0-based byte end of the statement (excludes trailing `;` and whitespace). */
+  end: number;
+  /** The statement text (slice of `source`). */
+  text: string;
+}
+
+/**
+ * Extract per-statement info from a parse result. Handles the libpg-query
+ * quirks: `stmt_location` is omitted when 0, `stmt_len` is omitted for the
+ * last statement (derived from the next statement's location or EOF).
+ *
+ * Statement ranges exclude trailing `;` and whitespace, so `text` is the
+ * bare statement without the semicolon.
+ */
+export function getStatements(parsed: ParseResult, source: Buffer): StatementInfo[] {
+  const stmts = parsed.stmts ?? [];
+  return stmts.map((raw, i) => {
+    const start = raw.stmt_location ?? 0;
+    let end: number;
+    if (typeof raw.stmt_len === "number") {
+      end = start + raw.stmt_len;
+    } else if (i + 1 < stmts.length) {
+      const nextStart = stmts[i + 1]?.stmt_location ?? 0;
+      end = nextStart;
+      while (end > start && isTrailingSep(source.readUInt8(end - 1))) {
+        end--;
+      }
+    } else {
+      end = source.length;
+      while (end > start && isTrailingSep(source.readUInt8(end - 1))) {
+        end--;
+      }
+    }
+    end = Math.max(end, start);
+    const stmt = raw.stmt!;
+    return {
+      raw,
+      stmt,
+      kind: Object.keys(stmt)[0]!,
+      start,
+      end,
+      text: source.subarray(start, end).toString("utf8"),
+    };
+  });
+}
+
+/**
  * A byte range to delete from the source. `offset` is RELATIVE TO THE STATEMENT
  * (zero-based), not to the whole source — `preprocess` translates it to
  * source-absolute before splicing. This keeps filters statement-local.
@@ -242,63 +299,6 @@ export function mapOriginalToStripped(removals: Removal[], originalPos: number):
 }
 
 /** Compose multiple filters into one (left-to-right; outputs concatenated). */
-export function combine(...filters: StatementFilter[]): StatementFilter {
-  return (ctx) => {
-    const out: Removal[] = [];
-    for (const f of filters) {
-      const r = f(ctx);
-      if (r) out.push(...r);
-    }
-    return out.length ? out : undefined;
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Built-in filters derived from DESIGN.md "Schema build pipeline > preprocess"
-// ---------------------------------------------------------------------------
-
-const DML_KINDS = new Set([
-  "SelectStmt",
-  "InsertStmt",
-  "UpdateStmt",
-  "DeleteStmt",
-  "CopyStmt",
-  "TruncateStmt",
-  "MergeStmt",
-]);
-
-/**
- * `preprocess.strip.dml: true` — drop top-level DML statements
- * (SELECT/INSERT/UPDATE/DELETE/COPY/TRUNCATE/MERGE). SELECT is included
- * per the conventional definition of DML (Data Manipulation Language =
- * read + write); a top-level SELECT in a migration is typically seeding
- * or a function-call side effect, which we don't want applied to the
- * schema-only catalog.
- */
-export function stripDml(): StatementFilter {
-  return (ctx) => {
-    if (DML_KINDS.has(ctx.kind)) {
-      return [{ offset: 0, length: ctx.length }];
-    }
-  };
-}
-
-/**
- * `preprocess.strip.do: true` — drop `DO` blocks. The optional `onStrip`
- * hook lets the Engine surface the DESIGN-mandated ambiguity warning
- * ("DO blocks can perform DDL the catalog won't see").
- */
-export function stripDo(
-  onStrip?: (ctx: StatementContext) => void,
-): StatementFilter {
-  return (ctx) => {
-    if (ctx.kind === "DoStmt") {
-      onStrip?.(ctx);
-      return [{ offset: 0, length: ctx.length }];
-    }
-  };
-}
-
 /**
  * DESIGN: "Strip `CONCURRENTLY` on supported DDL so the file can run in a
  * transaction (optional hint)."
@@ -391,4 +391,123 @@ function scanConcurrently(buf: Buffer, start: number, end: number): number | nul
 /** `;`, space, tab, newline, CR — the bytes that can trail a statement. */
 function isTrailingSep(byte: number): boolean {
   return byte === 0x3b || byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d;
+}
+
+// ---------------------------------------------------------------------------
+// Function-AST helpers: extract language, name, body, arg types from
+// CreateFunctionStmt nodes. Used by the apply pipeline to decide whether
+// to use plpgsql_check (LANGUAGE plpgsql) or PG native validation (LANGUAGE sql).
+// ---------------------------------------------------------------------------
+
+type CreateFunctionNode = {
+  CreateFunctionStmt?: {
+    funcname?: { String?: { sval?: string } }[];
+    parameters?: { FunctionParameter?: { name?: string; argType?: { names?: { String?: { sval?: string } }[] } } }[];
+    options?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } } | { List?: { items?: { String?: { sval?: string } }[] } } } }[];
+  };
+};
+
+/**
+ * Extract the LANGUAGE from a CreateFunctionStmt (e.g. "plpgsql", "sql").
+ * Returns `undefined` if the node isn't a CreateFunctionStmt or has no
+ * language option.
+ */
+export function getFunctionLanguage(stmt: Node): string | undefined {
+  const node = stmt as CreateFunctionNode;
+  if (!node.CreateFunctionStmt) return undefined;
+  for (const opt of node.CreateFunctionStmt.options ?? []) {
+    const def = opt?.DefElem;
+    if (def?.defname === "language" && def.arg && "String" in def.arg) {
+      return def.arg.String?.sval;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Extract the function name as `{ schema, name }` from a CreateFunctionStmt.
+ * The `funcname` list is a path like `["public", "my_func"]`; the last
+ * element is the function name, the second-to-last is the schema.
+ */
+export function getFunctionName(stmt: Node): { schema: string | undefined; name: string } | undefined {
+  const node = stmt as CreateFunctionNode;
+  if (!node.CreateFunctionStmt) return undefined;
+  const parts = (node.CreateFunctionStmt.funcname ?? [])
+    .map(n => n?.String?.sval)
+    .filter((s): s is string => typeof s === "string");
+  if (parts.length === 0) return undefined;
+  if (parts.length === 1) return { schema: undefined, name: parts[0]! };
+  return { schema: parts[parts.length - 2], name: parts[parts.length - 1]! };
+}
+
+/**
+ * Extract the function body text (the SQL/PL/pgSQL source between `$$ ... $$`).
+ * Returns the decoded body without the dollar-quote delimiters.
+ */
+export function getFunctionBody(stmt: Node): string | undefined {
+  const node = stmt as CreateFunctionNode;
+  if (!node.CreateFunctionStmt) return undefined;
+  for (const opt of node.CreateFunctionStmt.options ?? []) {
+    const def = opt?.DefElem;
+    if (def?.defname === "as" && def.arg && "String" in def.arg) {
+      return def.arg.String?.sval;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Extract the function's argument type names (last part of the qualified
+ * type name, e.g. "int4" from ["pg_catalog", "int4"]).
+ * Used to construct the regprocedure text for plpgsql_check_function_tb.
+ */
+export function getFunctionArgTypes(stmt: Node): string[] {
+  const node = stmt as CreateFunctionNode;
+  if (!node.CreateFunctionStmt) return [];
+  return (node.CreateFunctionStmt.parameters ?? []).map(p => {
+    const names = p?.FunctionParameter?.argType?.names ?? [];
+    const last = names[names.length - 1]?.String?.sval;
+    return last ?? "unknown";
+  });
+}
+
+/**
+ * Format the function name + arg types as a regprocedure text string
+ * (e.g. `"public"."my_func"(integer, text)`), suitable for passing to
+ * `plpgsql_check_function_tb`.
+ */
+export function formatFunctionRef(stmt: Node): string | undefined {
+  const name = getFunctionName(stmt);
+  if (!name) return undefined;
+  const types = getFunctionArgTypes(stmt);
+  const schemaPart = name.schema ? `"${name.schema}".` : "";
+  const typesPart = types.length > 0 ? types.join(", ") : "";
+  return `${schemaPart}"${name.name}"(${typesPart})`;
+}
+
+// ---------------------------------------------------------------------------
+// DO block helpers: extract the body from a DoStmt node.
+// DO blocks are anonymous PL/pgSQL code blocks, always LANGUAGE plpgsql.
+// ---------------------------------------------------------------------------
+
+type DoStmtNode = {
+  DoStmt?: {
+    args?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } } } }[];
+  };
+};
+
+/**
+ * Extract the body text from a DoStmt (the PL/pgSQL code between `$$ ... $$`).
+ * DO blocks are always LANGUAGE plpgsql.
+ */
+export function getDoBlockBody(stmt: Node): string | undefined {
+  const node = stmt as DoStmtNode;
+  if (!node.DoStmt) return undefined;
+  for (const opt of node.DoStmt.args ?? []) {
+    const def = opt?.DefElem;
+    if (def?.defname === "as" && def.arg && "String" in def.arg) {
+      return def.arg.String?.sval;
+    }
+  }
+  return undefined;
 }

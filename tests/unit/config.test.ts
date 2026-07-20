@@ -7,8 +7,6 @@ describe('config schema', () => {
       schema: migrations/*.up.sql
     `)
     expect(cfg.schema).toEqual(['migrations/*.up.sql'])
-    expect(cfg.preprocess.strip.dml).toBe(true)
-    expect(cfg.preprocess.strip.do).toBe(true)
     expect(cfg.engine.poolSize).toBe(2)
     expect(cfg.sql.searchPath).toEqual(['public'])
     expect(cfg.sql.typecheck.plpgsql).toBe(true)
@@ -19,11 +17,6 @@ describe('config schema', () => {
       schema:
         - migrations/*.up.sql
         - "!migrations/*_test.up.sql"
-
-      preprocess:
-        strip:
-          dml: false
-          do: true
 
       engine:
         poolSize: 4
@@ -51,8 +44,6 @@ describe('config schema', () => {
                   wrappers: apps/api/src/db/queries
     `)
     expect(cfg.schema).toEqual(['migrations/*.up.sql', '!migrations/*_test.up.sql'])
-    expect(cfg.preprocess.strip.dml).toBe(false)
-    expect(cfg.preprocess.strip.do).toBe(true)
     expect(cfg.engine.poolSize).toBe(4)
     expect(cfg.sql.paths).toEqual(['sql/queries/**/*.sql'])
     expect(cfg.sql.searchPath).toEqual(['public', 'app'])

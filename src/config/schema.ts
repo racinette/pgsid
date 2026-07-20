@@ -1,18 +1,5 @@
 import { z } from 'zod'
 
-export const stripSchema = z
-  .object({
-    dml: z.boolean().default(true),
-    do: z.boolean().default(true),
-  })
-  .default({})
-
-export const preprocessSchema = z
-  .object({
-    strip: stripSchema,
-  })
-  .default({})
-
 export const engineSchema = z
   .object({
     poolSize: z.number().int().min(1).max(16).default(2),
@@ -75,14 +62,11 @@ export const sqlSchema = z.object({
 
 export const configSchema = z.object({
   schema: z.union([z.string(), z.array(z.string())]).transform((v) => (Array.isArray(v) ? v : [v])),
-  preprocess: preprocessSchema,
   engine: engineSchema,
   sql: sqlSchema.default({}),
 })
 
 export type Config = z.infer<typeof configSchema>
-export type StripConfig = z.infer<typeof stripSchema>
-export type PreprocessConfig = z.infer<typeof preprocessSchema>
 export type EngineConfig = z.infer<typeof engineSchema>
 export type TypecheckConfig = z.infer<typeof typecheckSchema>
 export type TypeMappingsConfig = z.infer<typeof typeMappingsSchema>

@@ -32,7 +32,7 @@ Constraints:
 | Engine abstraction       | **`PgEngine` interface**                           | Decouples pool from concrete `PGlite`; future `PGliteWorker` drop-in.      |
 | Pool model               | **Generation/epoch swap**                          | Only current generation serves checks; stale instances drain + close.      |
 | Schema input             | **`schema`: string \| string[]**                   | Paths/globs/`!` negation; one file or migrations = ordered UP apply chain. |
-| Preprocess               | **`preprocess.strip.{dml,do}`**                    | Schema-only catalog; steer ambiguous `DO` blocks.                          |
+| Preprocess               | **Strip `CONCURRENTLY` only**                     | Enables in-txn apply of CONCURRENTLY-bearing DDL (rollback safety).        |
 | Statement splitting      | **`libpg-query@pg18` scan/split**                  | Accurate boundaries; PG18 build pinned to match PGlite.                    |
 | Change detection         | **AST-hash per file**                              | Cosmetic edits (whitespace, comments, keyword case) don't trigger rebuilds.|
 | Schema cache             | **`dumpDataDir` in `.pgsid/cache/`**               | Keyed on `orderedAstHashes ‖ configFingerprint`; not SQL `pg_dump`.        |
@@ -106,7 +106,7 @@ Four disjoint components communicating only via events — no shared mutable sta
 3. **LSP Adapter** — stdio LSP server. As a **producer**: forwards `didChange`/`didSave` to the FS Tracker. As a **consumer**: subscribes to `EngineEvent`s (`typechecked` + `schema-error`) and calls `publishDiagnostics`. No completions/hover in MVP.
 4. **CLI** — the `pgsid` binary/entry: headless `check`, codegen for CI/CD (exit codes, machine-readable diagnostics). Pushes a control signal to the Engine, calls `drainUntilIdle()`, collects `EngineEvent`s, exits.
 5. **Codegen** — a separate consumer of `EngineEvent`s. Subscribes to `typechecked` (uses `signature` for query types + wrappers) and `schema-ready` (uses `catalog` for schema types). Compares signatures to skip unchanged files. Writes generated `.ts`/`.d.ts` atomically. Never accesses the pool or Engine state. See [Codegen](#codegen).
-6. **libpg-query** (`@pg18`) — statement **scan/split** (tracking byte offsets), top-level statement classification for preprocess, AST production for change detection, and dependency extraction (RangeVar, ColumnRef, FuncCall walking). Used by the FS Tracker (AST-hash dedup), the Engine (split + typecheck + dependency extraction), and the codegen (not directly — it consumes signatures).
+6. **libpg-query** (`@pg18`) — statement **scan/split** (tracking byte offsets), top-level statement classification, AST production for change detection, and dependency extraction (RangeVar, ColumnRef, FuncCall walking). Used by the FS Tracker (AST-hash dedup), the Engine (split + typecheck + dependency extraction), and the codegen (not directly — it consumes signatures).
 7. **Logger** — structured log interface (no-op default); single seam at the Engine's internal loop for observability.
 
 ---
@@ -289,19 +289,12 @@ No custom migrator format drivers. Exclude downs with `!*.down.sql` / `!U*.sql` 
 For each resolved file, in order:
 
 1. Split (libpg-query).
-2. **Preprocess** (`preprocess.strip`):
-
-- Allowlist schema DDL + `SET` (esp. `search_path`).
-- Keep whole `CREATE FUNCTION` / views / etc.; do not inspect bodies.
-- `strip.dml: true` → drop `INSERT`/`UPDATE`/`DELETE`/`COPY`/`TRUNCATE`/…
-- `strip.do: true` → drop `DO` blocks (warn when ambiguity matters).
-- Strip `CONCURRENTLY` on supported DDL so the file can run in a transaction (optional hint).
-
+2. **Preprocess** — strip `CONCURRENTLY` from `CREATE INDEX`, `DROP INDEX`, `REINDEX` statements so the file can run inside a transaction. No other statement removal: DML and `DO` blocks are applied as-is, because stripping them would skip validation (PREPARE can't catch trigger-induced schema mutations or runtime errors) and the snapshot bloat from typical small seed INSERTs is negligible. Position remapping translates PGlite error positions in the stripped content back to original file offsets.
 3. Apply file in a **transaction**.
 4. On failure → rollback the file's txn (Postgres poisons the txn after an error; subsequent statements would fail too), emit a diagnostic on the failing statement, and **halt the chain**. The pool is **not** swapped to a partial catalog. The Engine emits diagnostics on the failing migration file and `{diagnostics: []}` for every query file (clear all). No typechecks run until the schema is fixed. Files after the failing one are not attempted. The diagnostic on the failing file makes clear: "migration chain halted here; subsequent migrations not applied."
 5. On success of full chain → `dumpDataDir` cache.
 
-**Cache key:** `orderedAstHashes ‖ configFingerprint` (`preprocess`, `schema` patterns, PG major, extensions, plpgsql_check on/off). Stored as `.pgsid/cache/<hash>.bin.gz`. Using AST hashes (not raw content) means cosmetic edits don't invalidate the cache. Only successful full builds are cached — no partial snapshots.
+**Cache key:** `orderedAstHashes ‖ configFingerprint` (`schema` patterns, PG major, extensions, plpgsql_check on/off). Stored as `.pgsid/cache/<hash>.bin.gz`. Using AST hashes (not raw content) means cosmetic edits don't invalidate the cache. Only successful full builds are cached — no partial snapshots.
 
 **Boot:** `migrations-discovered` → cache hit/miss → pool swap (generation++) + `plpgsql_check` loaded → introspect catalog snapshot → compute diff (first boot: everything added) → selective re-typecheck affected queries → emit `schema-ready` + `typechecked` events. See [PGlite pool model](#pglite-pool-model) and [Codegen > Dependency model](#dependency-model-column-level-pubsub).
 
@@ -605,11 +598,6 @@ schema:
   - migrations/*.up.sql
   - "!migrations/*_test.up.sql"
 
-preprocess:
-  strip:
-    dml: true
-    do: true
-
 engine:
   poolSize: 2
 
@@ -679,7 +667,7 @@ Rejected alternatives and operational limits are documented elsewhere in this de
 | ------------------------------------------------ | --------------------------------------------------------------- |
 | `@electric-sql/pglite`                           | In-process Postgres + `dumpDataDir` / `loadDataDir`             |
 | PGlite `plpgsql_check` extension                 | PL/pgSQL analysis                                               |
-| `libpg-query@pg18`                               | Split + preprocess classification + AST-hash dedup; PG18 pinned |
+| `libpg-query@pg18`                               | Split + AST-hash dedup + CONCURRENTLY stripping; PG18 pinned |
 | `fast-glob` + `picomatch`                        | `schema` / `sql.paths` glob expansion + `!` negation matching   |
 | `chokidar`                                       | Raw filesystem watching (FS Tracker)                            |
 | `yaml`                                           | Config parse                                                    |
@@ -712,7 +700,7 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 ### Phase 0 — Spike + harness
 
 - E2E harness: `createWorkspace(tmpDir, config, files)` with real Engine (pool + schema-apply + typecheck) and FS Tracker; actions `writeFile`/`editFile`/`deleteFile`/`waitIdle`/`getDiagnostics`/`getPoolGeneration`.
-- YAML config load (zod); schema glob resolve; preprocess strip; txn apply; halt-on-failure (no furthest-correct).
+- YAML config load (zod); schema glob resolve; CONCURRENTLY strip; txn apply; halt-on-failure (no furthest-correct).
 - `dumpDataDir` cache round-trip (`.pgsid/cache/`).
 - PREPARE + plpgsql_check diagnostics on sample `sql.paths`.
 - Engine state machine + pool generation model landed early.
@@ -757,7 +745,7 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 ## Success criteria
 
 - One Node/Bun `pgsid` entrypoint (LSP **and** CLI); no Postgres install; no DB port.
-- `schema` + `preprocess` build a cached schema-only catalog; failure clears query diagnostics and leaves the pool without a generation (consistent runtime + reboot).
+- `schema` applies a cached schema-only catalog; failure clears query diagnostics and leaves the pool without a generation (consistent runtime + reboot).
 - `sql.paths` get PREPARE + plpgsql_check by default (`searchPath: [public]`).
 - Selective re-typecheck: only queries whose column-level dependencies changed are re-typechecked on schema rebuild.
 - Codegen produces schema types (from catalog) + query types/wrappers (from signatures); signature comparison skips unchanged files.
