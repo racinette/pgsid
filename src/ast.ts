@@ -50,6 +50,16 @@ export interface PreprocessResult {
   modified: boolean;
   /** Preprocessed source as a new Buffer (the input is never mutated). */
   content: Buffer;
+  /**
+   * Sorted (ascending by `offset`), merged (non-overlapping) list of byte
+   * ranges removed from `source`. Source-absolute coordinates. Empty when
+   * `modified === false`.
+   *
+   * Used by `mapStrippedToOriginal` to translate error positions reported
+   * by a downstream consumer (e.g. PGlite applying the stripped content)
+   * back to positions in the original un-preprocessed file.
+   */
+  removals: Removal[];
 }
 
 /**
@@ -136,7 +146,7 @@ export function preprocess(
     }
   }
   if (removals.length === 0) {
-    return { modified: false, content: source };
+    return { modified: false, content: source, removals: [] };
   }
   // Sort ascending, merge overlaps, then stitch kept segments.
   removals.sort((a, b) => a.offset - b.offset);
@@ -156,7 +166,79 @@ export function preprocess(
     cursor = offset + length;
   }
   if (cursor < source.length) chunks.push(source.subarray(cursor));
-  return { modified: true, content: Buffer.concat(chunks) };
+  return { modified: true, content: Buffer.concat(chunks), removals: merged };
+}
+
+/**
+ * Translate a byte position in the preprocessed (stripped) content back to
+ * the corresponding byte position in the original un-preprocessed source.
+ *
+ * Use case: a downstream consumer (e.g. PGlite applying the stripped content
+ * in a transaction) reports an error at position `p` into the string it
+ * received. We need to map `p` back to a position in the original migration
+ * file so the diagnostic points at the right place in the user's editor.
+ *
+ * Algorithm: walk the removals in ascending order. Each removal
+ * `[offset, offset+length)` in the original doesn't appear in the stripped
+ * content, so every byte at/after `offset+length` in the original is shifted
+ * left by `length` in the stripped content. To invert, we add back the
+ * cumulative length of all removals that precede the stripped position.
+ *
+ * Complexity: O(N) where N = removals.length. For migrations this is tiny
+ * (typically 0 or 1 for CONCURRENTLY, or a handful for stripped DML/DO).
+ * Could be made O(log N) with binary search if needed; not worth it now.
+ *
+ * Edge cases:
+ * - `removals` must be sorted ascending and non-overlapping (as produced by
+ *   `preprocess`). If not, results are undefined.
+ * - A `strippedPos` that would land inside a removed range (impossible for
+ *   valid stripped content, but defensive) maps to the byte immediately
+ *   after the removal in the original.
+ * - `strippedPos` beyond the stripped content length maps beyond the
+ *   original length (caller's responsibility to clamp).
+ */
+export function mapStrippedToOriginal(removals: Removal[], strippedPos: number): number {
+  let removedSoFar = 0;
+  for (const r of removals) {
+    // The byte at stripped position `strippedPos` came from original
+    // position `strippedPos + removedSoFar`. If that position falls inside
+    // this removal [r.offset, r.offset + r.length), then the stripped
+    // position is actually the first byte AFTER this removal in the
+    // original — so we accumulate this removal's length and continue.
+    const strippedOffsetOfThisRemoval = r.offset - removedSoFar;
+    if (strippedPos < strippedOffsetOfThisRemoval) {
+      // Before this removal — no more adjustments needed.
+      return strippedPos + removedSoFar;
+    }
+    removedSoFar += r.length;
+  }
+  return strippedPos + removedSoFar;
+}
+
+/**
+ * Inverse of `mapStrippedToOriginal`: translate a byte position in the
+ * original source to the corresponding position in the stripped content.
+ *
+ * Less commonly needed (the apply pipeline runs the stripped content and
+ * reports errors there), but useful for e.g. mapping a known original
+ * statement boundary into the stripped view.
+ *
+ * If `originalPos` falls inside a removed range, returns the position of
+ * the first kept byte after that range in the stripped content.
+ */
+export function mapOriginalToStripped(removals: Removal[], originalPos: number): number {
+  let removedSoFar = 0;
+  for (const r of removals) {
+    if (originalPos < r.offset) {
+      return originalPos - removedSoFar;
+    }
+    if (originalPos < r.offset + r.length) {
+      // Inside this removal — snap to the byte after it in the stripped view.
+      return r.offset - removedSoFar;
+    }
+    removedSoFar += r.length;
+  }
+  return originalPos - removedSoFar;
 }
 
 /** Compose multiple filters into one (left-to-right; outputs concatenated). */
