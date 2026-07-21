@@ -374,13 +374,16 @@ function fillStatementRange(
  */
 function findBodyOffsetInStatement(stmtText: string, bodyText: string): number {
   // The body text from the AST is the decoded content (without `$$`).
-  // Find it directly in the statement text.
+  // Use byte-level search to handle multi-byte UTF-8 correctly.
+  const stmtBytes = Buffer.from(stmtText, "utf8");
   if (bodyText) {
-    const idx = stmtText.indexOf(bodyText);
+    const idx = stmtBytes.indexOf(bodyText, 0, "utf8");
     if (idx !== -1) return idx;
   }
   // Fallback: find the first `$$` or `$tag$` delimiter.
-  const m = /\$[\w]*\$/.exec(stmtText);
+  // latin1 preserves 1 char ↔ 1 byte, so match.index is a byte offset.
+  const latin1 = stmtBytes.toString("latin1");
+  const m = /\$[\w]*\$/.exec(latin1);
   if (m) return m.index + m[0].length;
   return -1;
 }

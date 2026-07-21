@@ -402,7 +402,7 @@ function isTrailingSep(byte: number): boolean {
 type CreateFunctionNode = {
   CreateFunctionStmt?: {
     funcname?: { String?: { sval?: string } }[];
-    parameters?: { FunctionParameter?: { name?: string; argType?: { names?: { String?: { sval?: string } }[] } } }[];
+    parameters?: { FunctionParameter?: { name?: string; argType?: { names?: { String?: { sval?: string } }[] }; mode?: string } }[];
     options?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } } | { List?: { items?: { String?: { sval?: string } }[] } } } }[];
   };
 };

@@ -308,8 +308,15 @@ export function extractPlpgsqlCheckDiagnostic(
 
   // Strategy 1: find `query` in the body, use `position` as offset into it,
   // expand to a token range.
+  //
+  // Both `query` search and `position` must be byte-level: plpgsql_check's
+  // `position` is a 1-based byte offset into the UTF-8 body, and we need a
+  // byte offset into the file. Using `String.indexOf` here would return a
+  // UTF-16 code unit index, which differs from the byte offset when the body
+  // contains multi-byte UTF-8 characters before the query.
   if (row.position !== null && row.query) {
-    const queryOffsetInBody = functionBodyText.indexOf(row.query);
+    const bodyBytes = Buffer.from(functionBodyText, "utf8");
+    const queryOffsetInBody = bodyBytes.indexOf(row.query, 0, "utf8");
     if (queryOffsetInBody !== -1) {
       const pos0IntoQuery = row.position - 1;
       const pos0IntoBody = queryOffsetInBody + pos0IntoQuery;
