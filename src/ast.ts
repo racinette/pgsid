@@ -449,8 +449,18 @@ export function getFunctionBody(stmt: Node): string | undefined {
   if (!node.CreateFunctionStmt) return undefined;
   for (const opt of node.CreateFunctionStmt.options ?? []) {
     const def = opt?.DefElem;
-    if (def?.defname === "as" && def.arg && "String" in def.arg) {
-      return def.arg.String?.sval;
+    if (def?.defname === "as" && def.arg) {
+      // libpg-query wraps the body string in a List of String nodes:
+      //   { List: { items: [{ String: { sval: <body> } }] } }
+      // (Older versions emitted the String directly. Handle both.)
+      if ("String" in def.arg) return def.arg.String?.sval;
+      if ("List" in def.arg) {
+        const items = def.arg.List?.items ?? [];
+        // The body is a single string; concatenate just in case.
+        return items
+          .map(it => it?.String?.sval ?? "")
+          .join("");
+      }
     }
   }
   return undefined;
