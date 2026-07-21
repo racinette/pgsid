@@ -62,7 +62,7 @@ export async function applyMigration(
     parsed = await parseSql(source.toString("utf8"));
   } catch (err) {
     // Parse error in the original file — libpg-query couldn't parse it.
-    const diag = extractParseDiagnostic(err, 0);
+    const diag = extractParseDiagnostic(err, 0, source);
     return { success: false, diagnostics: [diag] };
   }
 
@@ -79,12 +79,14 @@ export async function applyMigration(
   } catch (err) {
     // Parse error in the stripped content. This shouldn't happen (stripping
     // CONCURRENTLY doesn't break syntax), but handle it defensively.
-    // The parse error position is 0-based into the stripped content;
-    // we use extractParseDiagnostic with sqlOffset=0 and then manually
-    // map the position to the original file.
-    const diag = extractParseDiagnostic(err, 0);
-    if (diag.position !== null) {
-      diag.position = mapStrippedToOriginal(removals, diag.position);
+    // The parse error range is 0-based into the stripped content; we need
+    // to remap it to the original file coordinates.
+    const diag = extractParseDiagnostic(err, 0, strippedContent);
+    if (diag.range) {
+      diag.range = {
+        start: mapStrippedToOriginal(removals, diag.range.start),
+        end: mapStrippedToOriginal(removals, diag.range.end),
+      };
     }
     return { success: false, diagnostics: [diag] };
   }
@@ -100,7 +102,7 @@ export async function applyMigration(
 
   try {
     for (const stmtInfo of statements) {
-      const result = await execStatement(pg, stmtInfo, removals, doBlockCounter);
+      const result = await execStatement(pg, stmtInfo, removals, source, doBlockCounter);
       if (result) {
         // Failure — rollback and return diagnostics.
         await pg.query("ROLLBACK");
@@ -117,6 +119,7 @@ export async function applyMigration(
       stmtStrippedOffset: 0,
       removals,
       mapStrippedToOriginal,
+      source,
     });
     return { success: false, diagnostics: [diag] };
   }
@@ -130,6 +133,7 @@ async function execStatement(
   pg: PGlite,
   stmtInfo: StatementInfo,
   removals: Removal[],
+  source: Buffer,
   doBlockCounter: { n: number },
 ): Promise<SqlDiagnostic[] | null> {
   const { stmt, kind } = stmtInfo;
@@ -137,18 +141,18 @@ async function execStatement(
   if (kind === "CreateFunctionStmt") {
     const lang = getFunctionLanguage(stmt);
     if (lang === "plpgsql") {
-      return execPlpgsqlFunction(pg, stmtInfo, removals);
+      return execPlpgsqlFunction(pg, stmtInfo, removals, source);
     }
     // LANGUAGE sql (or other) — PG validates the body natively.
-    return execSimple(pg, stmtInfo, removals);
+    return execSimple(pg, stmtInfo, removals, source);
   }
 
   if (kind === "DoStmt") {
-    return execDoBlock(pg, stmtInfo, removals, doBlockCounter);
+    return execDoBlock(pg, stmtInfo, removals, source, doBlockCounter);
   }
 
   // Regular DDL/DML.
-  return execSimple(pg, stmtInfo, removals);
+  return execSimple(pg, stmtInfo, removals, source);
 }
 
 /**
@@ -159,6 +163,7 @@ async function execPlpgsqlFunction(
   pg: PGlite,
   stmtInfo: StatementInfo,
   removals: Removal[],
+  source: Buffer,
 ): Promise<SqlDiagnostic[] | null> {
   const { stmt, start, text } = stmtInfo;
 
@@ -174,10 +179,14 @@ async function execPlpgsqlFunction(
       stmtStrippedOffset: start,
       removals,
       mapStrippedToOriginal,
+      source,
     });
     fillStatementRange(diag, stmtInfo, removals);
     // Restore check_function_bodies for subsequent SQL functions.
-    await pg.query("SET LOCAL check_function_bodies TO on");
+    // Wrap in try/catch: the transaction may be aborted (the exec error
+    // above leaves the txn in a failed state), in which case SET LOCAL
+    // also fails. The outer applyMigration catch will ROLLBACK anyway.
+    try { await pg.query("SET LOCAL check_function_bodies TO on"); } catch { /* txn aborted */ }
     return [diag];
   }
 
@@ -197,13 +206,14 @@ async function execPlpgsqlFunction(
     checkRows = res.rows;
   } catch {
     // plpgsql_check might fail for various reasons (e.g. function not found
-    // due to a subtle name mismatch). Don't block the migration — just skip.
-    await pg.query("SET LOCAL check_function_bodies TO on");
+    // due to a subtle name mismatch, or the regprocedure cast aborts the
+    // transaction). Don't block the migration — just skip.
+    try { await pg.query("SET LOCAL check_function_bodies TO on"); } catch { /* txn aborted */ }
     return null;
   }
 
   // Restore check_function_bodies for subsequent SQL functions.
-  await pg.query("SET LOCAL check_function_bodies TO on");
+  try { await pg.query("SET LOCAL check_function_bodies TO on"); } catch { /* txn aborted */ }
 
   if (checkRows.length === 0) {
     return null; // no issues found
@@ -217,12 +227,12 @@ async function execPlpgsqlFunction(
     : mapStrippedToOriginal(removals, start);
 
   const diagnostics: SqlDiagnostic[] = checkRows.map(row =>
-    extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, bodyText),
+    extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, bodyText, source),
   );
 
-  // Fill in statement range for diagnostics without a precise position.
+  // Fill in statement range for diagnostics without a range.
   for (const diag of diagnostics) {
-    if (diag.position === null) {
+    if (diag.range === null) {
       fillStatementRange(diag, stmtInfo, removals);
     }
   }
@@ -238,6 +248,7 @@ async function execSimple(
   pg: PGlite,
   stmtInfo: StatementInfo,
   removals: Removal[],
+  source: Buffer,
 ): Promise<SqlDiagnostic[] | null> {
   const { start, text } = stmtInfo;
   try {
@@ -248,6 +259,7 @@ async function execSimple(
       stmtStrippedOffset: start,
       removals,
       mapStrippedToOriginal,
+      source,
     });
     fillStatementRange(diag, stmtInfo, removals);
     return [diag];
@@ -264,15 +276,12 @@ async function execSimple(
  *   3. Run `plpgsql_check_function_tb` on the temp function.
  *   4. If errors: extract diagnostics, drop temp function, return (halt).
  *   5. If no errors: drop temp function, exec the DO block (for side effects).
- *
- * This gives us the same rich diagnostics (lineno, statement, query,
- * position) as regular PL/pgSQL functions. Without this approach, DO
- * block semantic errors from direct exec have NO position at all.
  */
 async function execDoBlock(
   pg: PGlite,
   stmtInfo: StatementInfo,
   removals: Removal[],
+  source: Buffer,
   counter: { n: number },
 ): Promise<SqlDiagnostic[] | null> {
   const { stmt, start, text } = stmtInfo;
@@ -293,7 +302,7 @@ async function execDoBlock(
     // Fall back to exec'ing the DO block directly (PG will report the
     // same syntax error with a position).
     await pg.query("SET LOCAL check_function_bodies TO on");
-    return execSimple(pg, stmtInfo, removals);
+    return execSimple(pg, stmtInfo, removals, source);
   }
 
   // Run plpgsql_check on the temp function.
@@ -307,7 +316,7 @@ async function execDoBlock(
     // plpgsql_check failed — drop the temp function and exec the DO block directly.
     try { await pg.exec(`DROP FUNCTION ${tempName}();`); } catch { /* ignore */ }
     await pg.query("SET LOCAL check_function_bodies TO on");
-    return execSimple(pg, stmtInfo, removals);
+    return execSimple(pg, stmtInfo, removals, source);
   }
 
   // Drop the temp function.
@@ -322,11 +331,11 @@ async function execDoBlock(
       : mapStrippedToOriginal(removals, start);
 
     const diagnostics: SqlDiagnostic[] = checkRows.map(row =>
-      extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, bodyText),
+      extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, bodyText, source),
     );
 
     for (const diag of diagnostics) {
-      if (diag.position === null) {
+      if (diag.range === null) {
         fillStatementRange(diag, stmtInfo, removals);
       }
     }
@@ -335,20 +344,20 @@ async function execDoBlock(
   }
 
   // No errors from plpgsql_check — exec the DO block for its side effects.
-  return execSimple(pg, stmtInfo, removals);
+  return execSimple(pg, stmtInfo, removals, source);
 }
 
 /**
- * When a diagnostic has no precise `position`, set `range` to the
- * statement's byte range in the original file. The LSP consumer uses
- * this to underline the whole statement.
+ * When a diagnostic has no `range`, set it to the statement's byte range
+ * in the original file. The LSP consumer uses this to underline the whole
+ * statement as a last-resort fallback.
  */
 function fillStatementRange(
   diag: SqlDiagnostic,
   stmtInfo: StatementInfo,
   removals: Removal[],
 ): void {
-  if (diag.position !== null) return; // precise position already set
+  if (diag.range !== null) return; // range already set
   const startInOriginal = mapStrippedToOriginal(removals, stmtInfo.start);
   const endInOriginal = mapStrippedToOriginal(removals, stmtInfo.end);
   diag.range = { start: startInOriginal, end: endInOriginal };

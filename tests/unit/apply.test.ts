@@ -138,7 +138,7 @@ describe("apply: migration pipeline", () => {
       expect(result.diagnostics.length).toBe(1);
       const d = result.diagnostics[0]!;
       expect(d.message).toContain('"KY"');
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
       expect(d.original.source).toBe("libpg-query");
     });
 
@@ -153,7 +153,7 @@ describe("apply: migration pipeline", () => {
       const d = result.diagnostics[0]!;
       expect(d.code).toBe("42703");
       expect(d.message).toContain("badcol");
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
       expect(d.original.source).toBe("pglite");
     });
 
@@ -171,7 +171,6 @@ describe("apply: migration pipeline", () => {
       const d = result.diagnostics[0]!;
       expect(d.code).toBe("42P01");
       expect(d.message).toContain("nonexistent_table");
-      expect(d.position).toBeNull(); // no position for this error class
       expect(d.range).not.toBeNull();  // fallback: whole statement range
       // The range should point at the CREATE INDEX statement in the file.
       const rangeText = source.subarray(d.range!.start, d.range!.end).toString("utf8");
@@ -215,9 +214,9 @@ describe("apply: migration pipeline", () => {
       const d = result.diagnostics[0]!;
       expect(d.code).toBe("42703");
       expect(d.message).toContain("badcol");
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
       // The mapped position must point at "badcol" in the ORIGINAL file.
-      expect(source.toString("utf8").slice(d.position!, d.position! + 6)).toBe("badcol");
+      expect(source.toString("utf8").slice(d.range!.start, d.range!.start + 6)).toBe("badcol");
     });
   });
 
@@ -250,7 +249,7 @@ describe("apply: migration pipeline", () => {
       expect(d.message).toContain("missing_column");
       expect(d.original.source).toBe("plpgsql-check");
       // plpgsql_check provides lineno and/or position for body-relative info.
-      expect(d.lineNumber).not.toBeNull();
+      expect(d.range).not.toBeNull();
     });
 
     it("reports a type mismatch in a PL/pgSQL function body", async () => {
@@ -368,7 +367,7 @@ describe("apply: migration pipeline", () => {
       expect(d.message).toContain("emial");
       expect(d.hint).toContain("email"); // "Perhaps you meant..."
       expect(d.original.source).toBe("pglite");
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
     });
 
     it("check_function_bodies is restored to on after a PL/pgSQL function", async () => {
@@ -469,7 +468,7 @@ describe("apply: migration pipeline", () => {
       expect(d.message).toContain("badcol");
       expect(d.original.source).toBe("plpgsql-check");
       // plpgsql_check gives us lineno and/or position for the body.
-      expect(d.lineNumber).not.toBeNull();
+      expect(d.range).not.toBeNull();
     });
 
     it("reports a nonexistent table in a DO block via plpgsql_check", async () => {
@@ -536,7 +535,7 @@ describe("apply: migration pipeline", () => {
       expect(d.message).toContain("nonexistent_table");
       expect(d.original.source).toBe("pglite");
       // PG native validation gives a position into the CREATE FUNCTION string.
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
     });
 
     it("reports a type mismatch in a SQL function body", async () => {
@@ -554,7 +553,7 @@ describe("apply: migration pipeline", () => {
       expect(d.code).toBe("22P02");
       expect(d.message).toContain("invalid input syntax for type bigint");
       expect(d.original.source).toBe("pglite");
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
     });
 
     it("reports a syntax error in a SQL function body", async () => {

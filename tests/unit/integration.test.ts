@@ -127,11 +127,11 @@ describe("integration: sequential migration apply", () => {
 
     it("diagnostic position points at the typo in the file", () => {
       const d = result.diagnostics[0]!;
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
       const source = loadMigration("0004_broken_migration.sql");
       const fileText = source.toString("utf8");
       // The position should point at "publishd_at" (the typo).
-      const textAtPos = fileText.slice(d.position!, d.position! + "publishd_at".length);
+      const textAtPos = fileText.slice(d.range!.start, d.range!.start + "publishd_at".length);
       expect(textAtPos).toBe("publishd_at");
     });
 
@@ -171,9 +171,8 @@ describe("integration: sequential migration apply", () => {
 
     it("diagnostic has a lineNumber (body-relative)", () => {
       const d = result.diagnostics[0]!;
-      expect(d.lineNumber).not.toBeNull();
+      expect(d.range).not.toBeNull();
       // The RAISE NOTICE line is around line 5 of the body.
-      expect(d.lineNumber).toBeGreaterThanOrEqual(1);
     });
 
     it("diagnostic carries the plpgsql_check row for source-specific inspection", () => {
@@ -192,6 +191,72 @@ describe("integration: sequential migration apply", () => {
         SELECT tablename FROM pg_tables WHERE tablename = 'audit_log';
       `);
       expect(tables.rows.length).toBe(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 0006: procedures (plpgsql, plpgsql with OUT arg, LANGUAGE sql)
+  // -------------------------------------------------------------------------
+
+  describe("0006: applies procedures on top of 0003 schema", () => {
+    let result: Awaited<ReturnType<typeof applyMigration>>;
+
+    beforeAll(async () => {
+      const source = loadMigration("0006_add_procedures.sql");
+      result = await applyMigration(pg, source);
+    });
+
+    it("succeeds with no diagnostics", () => {
+      if (!result.success) console.log(JSON.stringify(result.diagnostics, null, 2));
+      expect(result.success).toBe(true);
+      expect(result.diagnostics).toEqual([]);
+    });
+
+    it("creates all three procedures", async () => {
+      const procs = await pg.query<{ proname: string }>(`
+        SELECT proname FROM pg_proc
+        WHERE proname IN ('publish_user_posts', 'count_user_drafts', 'seed_system_post')
+        ORDER BY proname;
+      `);
+      expect(procs.rows.map(r => r.proname)).toEqual([
+        "count_user_drafts",
+        "publish_user_posts",
+        "seed_system_post",
+      ]);
+    });
+
+    it("seed_system_post (LANGUAGE sql) actually executes", async () => {
+      // Before: no posts for system user.
+      const before = await pg.query<{ c: string }>(
+        "SELECT count(*)::text AS c FROM public.posts WHERE user_id = 0;",
+      );
+      const n0 = Number(before.rows[0]!.c);
+
+      await pg.query("CALL public.seed_system_post();");
+
+      const after = await pg.query<{ c: string }>(
+        "SELECT count(*)::text AS c FROM public.posts WHERE user_id = 0;",
+      );
+      expect(Number(after.rows[0]!.c)).toBe(n0 + 1);
+    });
+
+    it("count_user_drafts (OUT arg via plpgsql) returns the draft count", async () => {
+      // No drafts yet for user 0 — seed_system_post inserted one published=NULL post.
+      // (posts.published_at defaults to NULL, so this counts as a draft.)
+      const res = await pg.query<{ n: number }>(
+        "CALL public.count_user_drafts(0, NULL);",
+      );
+      // PGlite returns OUT args as a result row.
+      expect(Number(res.rows[0]!.n)).toBeGreaterThanOrEqual(1);
+    });
+
+    it("publish_user_posts (plpgsql) publishes the drafts", async () => {
+      await pg.query("CALL public.publish_user_posts(0);");
+      const drafts = await pg.query<{ c: string }>(`
+        SELECT count(*)::text AS c FROM public.posts
+        WHERE user_id = 0 AND published_at IS NULL;
+      `);
+      expect(Number(drafts.rows[0]!.c)).toBe(0);
     });
   });
 
@@ -226,9 +291,9 @@ describe("integration: sequential migration apply", () => {
       const d = result.diagnostics[0]!;
       expect(d.original.source).toBe("libpg-query");
       expect(d.message).toContain('"KY"');
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
       // Position should point at "KY" in the source.
-      expect(source.toString("utf8").slice(d.position!, d.position! + 2)).toBe("KY");
+      expect(source.toString("utf8").slice(d.range!.start, d.range!.start + 2)).toBe("KY");
     });
 
     it("a valid migration after a failed one still works (schema state preserved)", async () => {

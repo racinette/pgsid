@@ -460,15 +460,26 @@ export function getFunctionBody(stmt: Node): string | undefined {
  * Extract the function's argument type names (last part of the qualified
  * type name, e.g. "int4" from ["pg_catalog", "int4"]).
  * Used to construct the regprocedure text for plpgsql_check_function_tb.
+ *
+ * Only *input* arguments are included (IN, INOUT, VARIADIC) — OUT-only
+ * parameters are not part of a function's regprocedure signature, and
+ * plpgsql_check_function_tb rejects a regprocedure with extra args.
  */
 export function getFunctionArgTypes(stmt: Node): string[] {
   const node = stmt as CreateFunctionNode;
   if (!node.CreateFunctionStmt) return [];
-  return (node.CreateFunctionStmt.parameters ?? []).map(p => {
-    const names = p?.FunctionParameter?.argType?.names ?? [];
-    const last = names[names.length - 1]?.String?.sval;
-    return last ?? "unknown";
-  });
+  return (node.CreateFunctionStmt.parameters ?? [])
+    .filter(p => {
+      const mode = p?.FunctionParameter?.mode;
+      // mode is undefined for plain IN args in some PG versions; treat
+      // absence as IN. Exclude OUT-only.
+      return mode !== "FUNC_PARAM_OUT";
+    })
+    .map(p => {
+      const names = p?.FunctionParameter?.argType?.names ?? [];
+      const last = names[names.length - 1]?.String?.sval;
+      return last ?? "unknown";
+    });
 }
 
 /**

@@ -39,15 +39,18 @@ export interface PlpgsqlCheckRow {
 /**
  * A structured SQL diagnostic extracted from any error source.
  *
- * Positions are normalized to **file-absolute 0-based byte offsets**
- * where the source provides enough information to compute one. When the
- * source doesn't provide a byte position, `lineNumber` is used as a
- * fallback (1-based line in the file). When neither is available, the
- * diagnostic is file-level (no range).
+ * `range` is a file-absolute byte range [start, end) to highlight, or
+ * `null` when the error source gives us no location information (in which
+ * case the caller falls back to the whole failing statement's range).
  *
- * Downstream consumers (the diagnostic emitter) read `position` / `lineNumber`
- * and produce an LSP range — they don't need to know which source the
- * error came from.
+ * Each extractor computes the most precise `range` it can from the source:
+ * - libpg-query parse errors: the offending token (expanded from cursorPosition).
+ * - PGlite exec errors: the offending token (expanded from `position`).
+ * - plpgsql_check: the offending line (from `lineno`) or precise point
+ *   (from `query` + `position` when the query is found verbatim in the body).
+ *
+ * The consumer doesn't need to know which source the error came from —
+ * just underline `range` (or the whole statement if null).
  */
 export interface SqlDiagnostic {
   /** Primary error message, e.g. `column "emial" does not exist`. */
@@ -62,34 +65,16 @@ export interface SqlDiagnostic {
   detail: string | undefined;
 
   /**
-   * 0-based byte offset into the FILE. `null` when the source doesn't
-   * provide a byte position (callers fall back to `range` or emit a
-   * file-level diagnostic).
+   * File-absolute byte range [start, end) to highlight, or `null` when
+   * the source provides no location (caller underlines the whole statement).
    *
-   * For PGlite exec errors: translated through `mapStrippedToOriginal`
-   * when preprocessing was applied (CONCURRENTLY removal shifts positions).
-   *
-   * Consumer expands this to a token range (e.g. via AST node lookup).
-   */
-  position: number | null;
-
-  /**
-   * Explicit byte range [start, end) in the FILE. Used as a fallback
-   * when `position` is null — e.g. underline the whole failing statement.
-   * The apply pipeline sets this from the statement's byte range when
-   * the error source doesn't provide a precise position.
-   *
-   * When both `position` and `range` are set, the consumer should prefer
-   * `position` (more precise). When `position` is null and `range` is set,
-   * use `range`. When both are null, emit a file-level diagnostic.
+   * Precision varies by source:
+   * - Token-level (libpg-query, PGlite with position): the error token.
+   * - Line-level (plpgsql_check with lineno but no query): the whole line.
+   * - Statement-level (PGlite without position): null → caller fills
+   *   the statement range.
    */
   range: { start: number; end: number } | null;
-
-  /**
-   * 1-based line number (source-specific; for plpgsql-check it's body-relative).
-   * `null` when not applicable. The caller translates to a file line number.
-   */
-  lineNumber: number | null;
 
   /**
    * The original error, preserved for source-specific inspection.
@@ -109,6 +94,46 @@ function normalizeSeverity(raw: string | undefined): "error" | "warning" | "info
   return "info";
 }
 
+/**
+ * Expand a 0-based byte position into a token range by walking outward
+ * over word characters (letters, digits, underscore). Used for PGlite
+ * and libpg-query errors that report a point, not a range.
+ *
+ * If the byte at `pos` is not a word character (e.g. it's whitespace or
+ * punctuation), the range is just `[pos, pos+1)` — a single-byte
+ * highlight. This is acceptable for cases like syntax errors at a
+ * punctuation token.
+ *
+ * @param source The file content (for boundary detection).
+ * @param pos 0-based byte offset into `source`.
+ */
+function expandTokenRange(source: Buffer, pos: number): { start: number; end: number } {
+  if (pos < 0 || pos >= source.length) {
+    return { start: Math.max(0, pos), end: Math.max(0, pos) + 1 };
+  }
+  let start = pos;
+  let end = pos + 1;
+  // Walk backward over word chars.
+  while (start > 0 && isWordByte(source.readUInt8(start - 1))) {
+    start--;
+  }
+  // Walk forward over word chars.
+  while (end < source.length && isWordByte(source.readUInt8(end))) {
+    end++;
+  }
+  return { start, end };
+}
+
+function isWordByte(byte: number): boolean {
+  // A-Z, a-z, 0-9, underscore
+  return (
+    (byte >= 0x41 && byte <= 0x5a) || // A-Z
+    (byte >= 0x61 && byte <= 0x7a) || // a-z
+    (byte >= 0x30 && byte <= 0x39) || // 0-9
+    byte === 0x5f                      // _
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Extractor 1: libpg-query parse errors
 // ---------------------------------------------------------------------------
@@ -120,16 +145,22 @@ function normalizeSeverity(raw: string | undefined): "error" | "warning" | "info
  * @param sqlOffset 0-based byte offset of the parsed SQL string in the file.
  *   If parsing the whole file, pass 0. If parsing one statement, pass the
  *   statement's file offset.
+ * @param source The file content (for token-range expansion). If omitted,
+ *   `range` is null (caller falls back to statement range).
  */
 export function extractParseDiagnostic(
   err: unknown,
   sqlOffset: number,
+  source?: Buffer,
 ): SqlDiagnostic {
   if (err instanceof SqlError && err.sqlDetails) {
     const d = err.sqlDetails;
     // cursorPosition is 0-based into the SQL string passed to parse().
-    const position = d.cursorPosition !== undefined
+    const pos = d.cursorPosition !== undefined
       ? sqlOffset + d.cursorPosition
+      : null;
+    const range = pos !== null && source
+      ? expandTokenRange(source, pos)
       : null;
     return {
       message: d.message,
@@ -137,9 +168,7 @@ export function extractParseDiagnostic(
       severity: "error",
       hint: undefined,
       detail: undefined,
-      position,
-      range: null,
-      lineNumber: null,
+      range,
       original: { source: "libpg-query", error: err },
     };
   }
@@ -151,9 +180,7 @@ export function extractParseDiagnostic(
     severity: "error",
     hint: undefined,
     detail: undefined,
-    position: null,
     range: null,
-    lineNumber: null,
     original: err instanceof SqlError
       ? { source: "libpg-query", error: err }
       : { source: "libpg-query", error: new SqlError(message) },
@@ -175,6 +202,8 @@ export interface ExtractExecOptions {
   removals: { offset: number; length: number }[];
   /** A function that maps stripped positions to original file positions. */
   mapStrippedToOriginal: (removals: { offset: number; length: number }[], pos: number) => number;
+  /** The original file content (for token-range expansion). If omitted, `range` is null. */
+  source?: Buffer;
 }
 
 /**
@@ -190,6 +219,7 @@ export interface ExtractExecOptions {
  *   content.
  * - We map through `removals` to get a 0-based offset into the original
  *   file.
+ * - We expand to a token range using `source` (if provided).
  *
  * @param prefixLen byte length of the prefix before the statement body
  *   (0 for `exec`, `preparePrefixLength(name)` for PREPARE).
@@ -200,7 +230,7 @@ export function extractExecDiagnostic(
   ctx: ExtractExecOptions,
 ): SqlDiagnostic {
   if (err instanceof DatabaseError) {
-    let position: number | null = null;
+    let range: { start: number; end: number } | null = null;
     if (err.position !== undefined) {
       const parsed = parseInt(err.position, 10);
       if (!Number.isNaN(parsed)) {
@@ -211,7 +241,11 @@ export function extractExecDiagnostic(
         // Add the statement's offset in the stripped content.
         const pos0IntoStripped = ctx.stmtStrippedOffset + pos0IntoStmt;
         // Map through removals to get 0-based into the original file.
-        position = ctx.mapStrippedToOriginal(ctx.removals, pos0IntoStripped);
+        const pos0IntoFile = ctx.mapStrippedToOriginal(ctx.removals, pos0IntoStripped);
+        // Expand to a token range if we have the source.
+        if (ctx.source) {
+          range = expandTokenRange(ctx.source, pos0IntoFile);
+        }
       }
     }
     return {
@@ -220,13 +254,11 @@ export function extractExecDiagnostic(
       severity: normalizeSeverity(err.severity),
       hint: err.hint,
       detail: err.detail,
-      position,
-      range: null,
-      lineNumber: null,
+      range,
       original: { source: "pglite", error: err },
     };
   }
-  // Non-DatabaseError (e.g. a JS-side bug). Surface the message; no position.
+  // Non-DatabaseError (e.g. a JS-side bug). Surface the message; no range.
   const message = err instanceof Error ? err.message : String(err);
   return {
     message,
@@ -234,9 +266,7 @@ export function extractExecDiagnostic(
     severity: "error",
     hint: undefined,
     detail: undefined,
-    position: null,
     range: null,
-    lineNumber: null,
     original: { source: "pglite", error: new Error(message) as DatabaseError },
   };
 }
@@ -248,56 +278,64 @@ export function extractExecDiagnostic(
 /**
  * Extract a diagnostic from a plpgsql_check_function_tb row.
  *
- * Position translation:
+ * Range computation (decreasing precision):
  * - When `row.position` is set and `row.query` is set: find `query` in
- *   the function body, add the body's file offset, add `position - 1`.
- *   (Fragile — `query` may appear multiple times, or may be transformed
- *   by plpgsql_check e.g. PERFORM → SELECT. First match is used; falls
- *   back to `lineno` when not found.)
- * - When `position`/`query` are null or `query` isn't found in the body
- *   but `lineno` is set: compute the 0-based byte offset of the start
- *   of line `lineno` in the body, add the body's file offset. Used as
- *   `position` (imprecise — points at the line start).
- * - When neither is set: `position` is null (file-level diagnostic).
- *
- * `lineNumber` is always set to `row.lineno` (1-based, body-relative)
- * when available. The caller translates to a file line number using
- * the body's starting line in the file (which the caller knows but
- * we don't).
+ *   the function body, add the body's file offset, add `position - 1`,
+ *   expand to a token range. (Fragile — `query` may be transformed by
+ *   plpgsql_check e.g. PERFORM → SELECT. First match is used; falls back
+ *   to `lineno` when not found.)
+ * - When `query` isn't found but `lineno` is set: compute the byte range
+ *   of the whole line (from line start to line end, excluding the newline),
+ *   add the body's file offset. Set as `range`.
+ * - When neither is set: `range` is null (caller underlines the whole
+ *   statement).
  *
  * @param row The plpgsql_check_function_tb row.
  * @param functionBodyOffset 0-based byte offset of the function body
  *   (the text between `$$` and the closing `$$`) in the file.
  * @param functionBodyText The function body text (between `$$` and `$$`).
+ * @param source The file content (for token-range expansion). If omitted,
+ *   the `query`+`position` path returns a single-byte range instead of a
+ *   token range.
  */
 export function extractPlpgsqlCheckDiagnostic(
   row: PlpgsqlCheckRow,
   functionBodyOffset: number,
   functionBodyText: string,
+  source?: Buffer,
 ): SqlDiagnostic {
-  let position: number | null = null;
+  let range: { start: number; end: number } | null = null;
 
-  // Strategy 1: find `query` in the body, use `position` as offset into it.
+  // Strategy 1: find `query` in the body, use `position` as offset into it,
+  // expand to a token range.
   if (row.position !== null && row.query) {
     const queryOffsetInBody = functionBodyText.indexOf(row.query);
     if (queryOffsetInBody !== -1) {
       const pos0IntoQuery = row.position - 1;
       const pos0IntoBody = queryOffsetInBody + pos0IntoQuery;
-      position = functionBodyOffset + pos0IntoBody;
+      const pos0IntoFile = functionBodyOffset + pos0IntoBody;
+      range = source
+        ? expandTokenRange(source, pos0IntoFile)
+        : { start: pos0IntoFile, end: pos0IntoFile + 1 };
     }
     // If query not found (e.g. PERFORM → SELECT transformation), fall through
     // to the lineno-based fallback below.
   }
 
-  // Strategy 2: use `lineno` to compute the byte offset of the line start.
-  if (position === null && row.lineno !== null) {
+  // Strategy 2: use `lineno` to compute the byte range of the whole line.
+  if (range === null && row.lineno !== null) {
     const lines = functionBodyText.split("\n");
     if (row.lineno >= 1 && row.lineno <= lines.length) {
-      let byteOffset = 0;
+      let lineStart = 0;
       for (let i = 0; i < row.lineno - 1; i++) {
-        byteOffset += Buffer.byteLength(lines[i]!, "utf8") + 1; // +1 for \n
+        lineStart += Buffer.byteLength(lines[i]!, "utf8") + 1; // +1 for \n
       }
-      position = functionBodyOffset + byteOffset;
+      const lineText = lines[row.lineno - 1]!;
+      const lineEnd = lineStart + Buffer.byteLength(lineText, "utf8");
+      range = {
+        start: functionBodyOffset + lineStart,
+        end: functionBodyOffset + lineEnd,
+      };
     }
   }
 
@@ -307,11 +345,7 @@ export function extractPlpgsqlCheckDiagnostic(
     severity: normalizeSeverity(row.level),
     hint: row.hint ?? undefined,
     detail: row.detail ?? undefined,
-    position,
-    range: null,
-    // lineNumber is body-relative (1-based). The caller translates to a
-    // file line number using the body's starting line in the file.
-    lineNumber: row.lineno,
+    range,
     original: { source: "plpgsql-check", row },
   };
 }

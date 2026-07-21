@@ -29,13 +29,13 @@ describe("errors: extractParseDiagnostic", () => {
       throw new Error("expected parse to fail");
     } catch (err) {
       if (err instanceof Error && err.message === "expected parse to fail") throw err;
-      const d = extractParseDiagnostic(err, 0);
+      const d = extractParseDiagnostic(err, 0, Buffer.from(sql, "utf8"));
       expect(d.message).toContain('syntax error at or near "SELEC"');
       expect(d.code).toBeUndefined(); // parse errors have no SQLSTATE
       expect(d.severity).toBe("error");
-      expect(d.position).not.toBeNull();
+      expect(d.range).not.toBeNull();
       // cursorPosition is 0-based → points at "S" of "SELEC".
-      expect(d.position).toBe(0);
+      expect(d.range!.start).toBe(0);
       expect(d.original.source).toBe("libpg-query");
       expect(d.original.source === "libpg-query" && d.original.error instanceof SqlError).toBe(true);
     }
@@ -49,10 +49,10 @@ describe("errors: extractParseDiagnostic", () => {
       throw new Error("expected parse to fail");
     } catch (err) {
       if (err instanceof Error && err.message === "expected parse to fail") throw err;
-      const d = extractParseDiagnostic(err, 100);
-      expect(d.position).not.toBeNull();
+      const d = extractParseDiagnostic(err, 100, Buffer.from(sql, "utf8"));
+      expect(d.range).not.toBeNull();
       // cursorPosition points at "WHERE" (byte 14 in the SQL). File offset = 100 + 14.
-      expect(d.position).toBe(100 + 14);
+      expect(d.range!.start).toBe(100 + 14);
     }
   });
 
@@ -63,8 +63,8 @@ describe("errors: extractParseDiagnostic", () => {
       throw new Error("expected parse to fail");
     } catch (err) {
       if (err instanceof Error && err.message === "expected parse to fail") throw err;
-      const d = extractParseDiagnostic(err, 0);
-      expect(d.position).toBe(10); // 0-based, points at "S" of "SELEC"
+      const d = extractParseDiagnostic(err, 0, Buffer.from(sql, "utf8"));
+      expect(d.range!.start).toBe(10); // 0-based, points at "S" of "SELEC"
     }
   });
 
@@ -72,7 +72,7 @@ describe("errors: extractParseDiagnostic", () => {
     const d = extractParseDiagnostic(new Error("some JS failure"), 0);
     expect(d.message).toBe("some JS failure");
     expect(d.code).toBeUndefined();
-    expect(d.position).toBeNull();
+    expect(d.range).toBeNull();
     expect(d.severity).toBe("error");
   });
 
@@ -82,7 +82,7 @@ describe("errors: extractParseDiagnostic", () => {
       throw new Error("expected parse to fail");
     } catch (err) {
       if (err instanceof Error && err.message === "expected parse to fail") throw err;
-      const d = extractParseDiagnostic(err, 0);
+      const d = extractParseDiagnostic(err, 0, Buffer.from("SELEC 1", "utf8"));
       expect(d.original.source).toBe("libpg-query");
       if (d.original.source === "libpg-query") {
         expect(d.original.error).toBe(err); // same reference
@@ -124,6 +124,7 @@ describe("errors: extractExecDiagnostic", () => {
       return extractExecDiagnostic(err, prefix.length, {
         ...ctx,
         mapStrippedToOriginal,
+        source: Buffer.from(stmt, "utf8"),
       });
     } finally {
       try { await pg.query(`DEALLOCATE ${name}`); } catch { /* ignore */ }
@@ -140,9 +141,9 @@ describe("errors: extractExecDiagnostic", () => {
     expect(d.message).toContain('column "emial" does not exist');
     expect(d.hint).toContain("users.email");
     // Position is 0-based into the statement body (after the PREPARE prefix).
-    expect(d.position).not.toBeNull();
+    expect(d.range).not.toBeNull();
     const body = "SELECT emial FROM public.users";
-    expect(body.charAt(d.position!)).toBe("e");
+    expect(body.charAt(d.range!.start)).toBe("e");
     expect(d.original.source).toBe("pglite");
   });
 
@@ -154,7 +155,7 @@ describe("errors: extractExecDiagnostic", () => {
     expect(d.code).toBe("42601");
     expect(d.message).toMatch(/syntax error at or near "SELEC"/);
     const body = "SELEC * FROM public.users";
-    expect(body.charAt(d.position!)).toBe("S");
+    expect(body.charAt(d.range!.start)).toBe("S");
   });
 
   it("handles a no-position error (undefined table via PREPARE)", async () => {
@@ -169,7 +170,7 @@ describe("errors: extractExecDiagnostic", () => {
     expect(d.code).toBe("42P01");
     expect(d.message).toContain("nonexistent_table");
     // PREPARE analyze-time errors DO have a position.
-    expect(d.position).not.toBeNull();
+    expect(d.range).not.toBeNull();
   });
 
   it("maps position through CONCURRENTLY removals (via exec, not PREPARE)", async () => {
@@ -195,12 +196,13 @@ describe("errors: extractExecDiagnostic", () => {
           stmtStrippedOffset: 0,
           removals: result.removals,
           mapStrippedToOriginal,
+          source: original,
         });
         expect(d.code).toBe("42703"); // undefined_column in WHERE predicate
         expect(d.message).toContain("badcol");
-        expect(d.position).not.toBeNull();
+        expect(d.range).not.toBeNull();
         // The mapped position must point at "badcol" in the ORIGINAL file.
-        expect(original.toString("utf8").slice(d.position!, d.position! + 6)).toBe("badcol");
+        expect(original.toString("utf8").slice(d.range!.start, d.range!.start + 6)).toBe("badcol");
       }
     } finally {
       await pg.query("ROLLBACK");
@@ -214,9 +216,9 @@ describe("errors: extractExecDiagnostic", () => {
       stmtStrippedOffset: 42, // simulate the statement starting at byte 42
       removals: [],
     });
-    expect(d.position).not.toBeNull();
+    expect(d.range).not.toBeNull();
     const body = "SELECT emial FROM public.users";
-    const bodyPos = d.position! - 42; // remove the offset to get back into the body
+    const bodyPos = d.range!.start - 42; // remove the offset to get back into the body
     expect(body.charAt(bodyPos)).toBe("e");
   });
 
@@ -227,7 +229,7 @@ describe("errors: extractExecDiagnostic", () => {
       mapStrippedToOriginal,
     });
     expect(d.message).toBe("JS-side failure");
-    expect(d.position).toBeNull();
+    expect(d.range).toBeNull();
     expect(d.code).toBeUndefined();
     expect(d.severity).toBe("error");
   });
@@ -313,8 +315,7 @@ END;
     // plpgsql_check didn't set `position`/`query` for this case (the error
     // is in a PL/pgSQL expression, not an internal SQL query). We fall back
     // to `lineno` (6 = the RAISE NOTICE line) to compute a byte offset.
-    expect(d.position).not.toBeNull(); // line-start byte offset
-    expect(d.lineNumber).toBe(6);      // 1-based, body-relative
+    expect(d.range).not.toBeNull(); // line-start byte offset
     expect(d.original.source).toBe("plpgsql-check");
     if (d.original.source === "plpgsql-check") {
       expect(d.original.row.statement).toBe("RAISE");
@@ -344,7 +345,7 @@ END;
     expect(d.hint).toContain("explicit type casts");
     // position is set, relative to `query` = "v + 1".
     // We find "v + 1" in the body and compute the file offset.
-    expect(d.position).not.toBeNull();
+    expect(d.range).not.toBeNull();
     expect(d.original.source).toBe("plpgsql-check");
     if (d.original.source === "plpgsql-check") {
       expect(d.original.row.query).toBe("v + 1");
@@ -374,8 +375,7 @@ END;
     expect(d.message).toContain("nonexistent_table");
     // `query` was "SELECT * FROM nonexistent_table" but body has "PERFORM",
     // so indexOf fails → fall back to lineno (3 = the PERFORM line).
-    expect(d.position).not.toBeNull(); // line-start byte offset
-    expect(d.lineNumber).toBe(3);       // 1-based, body-relative
+    expect(d.range).not.toBeNull(); // line-start byte offset
     expect(d.original.source).toBe("plpgsql-check");
     if (d.original.source === "plpgsql-check") {
       expect(d.original.row.query).toBe("SELECT * FROM nonexistent_table");
