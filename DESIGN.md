@@ -36,7 +36,7 @@ Constraints:
 | Statement splitting      | **`libpg-query@pg18` scan/split**                  | Accurate boundaries; PG18 build pinned to match PGlite.                    |
 | Change detection         | **AST-hash per file**                              | Cosmetic edits (whitespace, comments, keyword case) don't trigger rebuilds.|
 | Schema cache             | **`dumpDataDir` in `.pgsid/cache/`**               | Keyed on `orderedAstHashes ‖ configFingerprint`; not SQL `pg_dump`.        |
-| Migration validation     | **Sequential txn apply; halt on failure**         | Stop at first failing stmt (txn poisoned) → first failing file; no partial catalog. |
+| Migration validation     | **Two-phase: apply + deferred validate**         | Phase 1: `check_function_bodies=off`, apply all migrations, diff `pg_proc` per-statement to track provenance (OID → file/byte-range/body). DDL/DML errors halt immediately. DO blocks validated inline via temp-function + plpgsql_check. Phase 2: query surviving `pg_proc`, run `plpgsql_check_function_tb` (plpgsql) or re-CREATE with `check_function_bodies=on` (sql) on each, collect all diagnostics. |
 | Live SQL check           | **Always PREPARE**; **`plpgsql` default on**       | Per-statement PREPARE; continue after errors; toggle plpgsql_check via `sql.typecheck.plpgsql`. |
 | `searchPath`             | **Default `["public"]`**, `SET LOCAL` per check    | Unqualified-name policy; `SET LOCAL` inside txn auto-reverts on ROLLBACK.  |
 | Functions                | **In schema/migrations only**                      | No schema `functions.ts` wrappers; call via sqlc queries.                  |
@@ -47,7 +47,7 @@ Constraints:
 | Architecture             | **Four disjoint components**                        | FS Tracker, Engine, LSP Adapter, CLI, Codegen — communicate only via events. |
 | Engine                   | **One system (pool + schema-apply + typecheck + deps)** | Owns file map, pool, state machine, dependency graph; too coupled to separate. |
 | Event vocabulary         | **`FileChangeEvent` + `EngineEvent`**               | Two boundaries; `EngineEvent` = typechecked + schema-error + schema-ready. |
-| Schema failure behavior  | **Clear query diagnostics, no partial catalog**    | On failure: emit diagnostics on failing migration, clear all query diags, pool has no generation. |
+| Schema failure behavior  | **Apply-phase: clear query diagnostics, no pool; Validate-phase: pool swaps, function diags emitted** | Apply failures (DDL/DML/DO): no partial catalog, pool has no generation. Validate failures (function bodies): schema committed, pool swaps, function diagnostics on the defining migration file. |
 | Query signature          | **PREPARE + pg_prepared_statements + EXECUTE**      | Standard PG introspection; works for SELECT, INSERT RETURNING, etc. Always emitted. |
 | Selective re-typecheck   | **Column-level dependency graph + schema diff**    | Track per-column (type, NOT NULL, DEFAULT, GENERATED). Transitive closure through functions + views. |
 | Dependency extraction    | **AST walking + body parsing**                      | Query AST: column-level. SQL functions: parse body. Views: parse definition. plpgsql: statement extractor (conservative for dynamic SQL). |
@@ -199,7 +199,7 @@ Downstream consumers subscribe and pick what they need:
 ```
 
 - `DISCOVERING`: collecting `migrations-discovered` + query `discovered` events. On receiving the migration batch → transition to `SCHEMA_BUILDING`.
-- `SCHEMA_BUILDING`: builder instance applies migrations. `schemaRebuildPending = true` — no new query typechecks dispatched. On success → `POOL_SWAPPING`. On failure → emit diagnostics on failing migration, clear all query diagnostics, pool has no generation, back to `IDLE` (or `SCHEMA_BUILDING` if another migration event is pending).
+- `SCHEMA_BUILDING`: `SchemaBuilder` applies migrations (phase 1: `check_function_bodies=off`, diff-based provenance) then validates functions (phase 2: deferred plpgsql_check + SQL re-CREATE). `schemaRebuildPending = true` — no new query typechecks dispatched. On apply-phase success + validate-phase success → `POOL_SWAPPING`. On apply-phase failure (DDL/DML/DO) → emit diagnostics on failing migration, clear all query diagnostics, pool has no generation, back to `IDLE`. On validate-phase failure (function body errors) → pool IS swapped (schema committed), function diagnostics emitted, → `POOL_SWAPPING` (queries can still be typechecked; broken functions will cause their own query errors).
 - `POOL_SWAPPING`: creating N fresh PGlite instances from the snapshot. On complete → `TYPECHECKING`.
 - `TYPECHECKING`: draining dirty query buffers — dispatching typechecks to the pool. On all-drained → `IDLE`.
 - `IDLE`: waiting for events. On query event → `TYPECHECKING` (just the affected buffer). On migration event → `SCHEMA_BUILDING`.
@@ -226,7 +226,7 @@ The pool is owned by the Engine. It's the resource manager for PGlite instances;
 
 **Build → swap protocol:**
 
-1. Schema rebuild computes the new catalog in a _builder_ PGlite (a throwaway instance, not from the pool). Applies files txn-by-txn, `CREATE EXTENSION plpgsql_check` first. On success: `dumpDataDir('gzip')` → `snapshot`.
+1. Schema rebuild computes the new catalog in a _builder_ PGlite (a throwaway instance, not from the pool). `CREATE EXTENSION plpgsql_check` first, then `SchemaBuilder.applyMigration()` per file (phase 1: `check_function_bodies=off`, diff-based provenance tracking). After all files: `SchemaBuilder.validate()` (phase 2: deferred function validation). On success: `dumpDataDir('gzip')` → `snapshot`. On apply-phase failure (DDL/DML/DO-block): diagnostics on the failing file, halt. On validate-phase failure (function body errors): the schema IS committed (functions are valid syntax, just semantically broken); diagnostics are emitted but the pool is still swapped — the catalog is usable for query typechecking (queries that reference broken functions will get their own errors).
 2. Bump `targetGeneration = G+1`. Spin up N fresh PGlite instances with `loadDataDir: snapshot` + the `plpgsql_check` extension (`loadDataDir` rehydrates extension state; no re-`CREATE EXTENSION` needed).
 3. Atomic swap: `pool.current = { generation: G+1, instances }`. The previous `current` becomes `draining`.
 4. New acquires go to the new generation. In-flight acquires on the old generation finish (PGlite checks are fast; we don't interrupt WASM mid-query).
@@ -240,13 +240,15 @@ acquire(): { generation, instance, release() }
 
 The caller checks `generation === pool.current.generation` before using the result; if mismatched, discard (the check ran against a stale catalog). Per-instance hygiene: every check runs in a `BEGIN…ROLLBACK` txn with `SAVEPOINT` per PREPARE, so `SET LOCAL`, prepared statements, and `CREATE OR REPLACE FUNCTION` (plpgsql_check) are all discarded. `DEALLOCATE ALL` runs before `ROLLBACK` to clean up session-scoped prepared statements.
 
-**On schema failure (no partial catalog):** the builder is closed, the pool is **not** swapped. The previous generation, if any, is **dropped** — the pool has no generation. The Engine emits diagnostics on the failing migration file and `{diagnostics: []}` for every query file (clear all). No typechecks run until the schema is fixed. This avoids state inconsistency: at runtime, a broken schema means no typechecks; on reboot, the cache misses (AST hashes changed) → failed rebuild → no pool → cleared diagnostics. Same state. Keeping a previous-good generation would be mildly useful (stale-but-valid query checkmarks) but mostly confusing (inconsistent between runs).
+**On schema failure (no partial catalog):** there are two failure modes:
+- **Apply-phase failure** (DDL/DML exec error, DO-block plpgsql_check error): the builder txn is rolled back, the pool is **not** swapped. Diagnostics emitted on the failing migration file; `{diagnostics: []}` for every query file. No typechecks run until the schema is fixed.
+- **Validate-phase failure** (function body errors caught by deferred validation): the schema IS committed (the apply phase succeeded). The pool IS swapped — the catalog is usable. Function body diagnostics are emitted on the migration file that last defined the broken function. Queries that reference broken functions will get their own typecheck errors. This is correct behavior: a function with a broken body is still a catalog object (it exists in `pg_proc`), it just can't be called without error.
 
 **`PgEngine` interface** sits in front of the concrete `PGlite` so a future `PGliteWorker` (PGlite in a `worker_threads` thread) is a drop-in. MVP runs main-thread PGlite; checks are sub-100ms with an empty catalog.
 
 **Pool size:** default 2 (`engine.poolSize`). Concurrency beyond N queues at the Engine's loop level. PGlite instances are single-connection; `acquire()` serializes via a free-list of idle instances.
 
-**Snapshot cache** is internal to the schema-apply module. The Engine calls `applySchema({files, config, cacheDir})` and gets back `{snapshot, success, diagnostics}`. Whether the snapshot came from cache or a fresh build is invisible to the Engine. Cache key = `orderedAstHashes ‖ configFingerprint`; stored as `.pgsid/cache/<hash>.bin.gz`. Only successful full builds are cached.
+**Snapshot cache** is internal to the schema-apply module. The Engine calls `SchemaBuilder` (apply + validate) and gets back `{snapshot, success, diagnostics}`. Whether the snapshot came from cache or a fresh build is invisible to the Engine. Cache key = `orderedAstHashes ‖ configFingerprint`; stored as `.pgsid/cache/<hash>.bin.gz`. Only successful full builds (apply + validate both pass) are cached.
 
 ---
 
@@ -286,13 +288,48 @@ No custom migrator format drivers. Exclude downs with `!*.down.sql` / `!U*.sql` 
 
 ## Schema build pipeline
 
-For each resolved file, in order:
+Two-phase: **apply** (no body validation) then **deferred validation** (check all surviving functions against the final schema state). This allows forward references — a function in migration 2 can reference a table created in migration 3.
 
-1. Split (libpg-query).
-2. **Preprocess** — strip `CONCURRENTLY` from `CREATE INDEX`, `DROP INDEX`, `REINDEX` statements so the file can run inside a transaction. No other statement removal: DML and `DO` blocks are applied as-is, because stripping them would skip validation (PREPARE can't catch trigger-induced schema mutations or runtime errors) and the snapshot bloat from typical small seed INSERTs is negligible. Position remapping translates PGlite error positions in the stripped content back to original file offsets.
-3. Apply file in a **transaction**.
-4. On failure → rollback the file's txn (Postgres poisons the txn after an error; subsequent statements would fail too), emit a diagnostic on the failing statement, and **halt the chain**. The pool is **not** swapped to a partial catalog. The Engine emits diagnostics on the failing migration file and `{diagnostics: []}` for every query file (clear all). No typechecks run until the schema is fixed. Files after the failing one are not attempted. The diagnostic on the failing file makes clear: "migration chain halted here; subsequent migrations not applied."
-5. On success of full chain → `dumpDataDir` cache.
+### Phase 1: Apply
+
+For each resolved migration file, in order, via `SchemaBuilder.applyMigration(pg, source, migrationIndex)`:
+
+1. Parse with libpg-query (byte offsets). On parse error → diagnostic, halt.
+2. **Preprocess** — strip `CONCURRENTLY` from `CREATE INDEX`, `DROP INDEX`, `REINDEX` statements so the file can run inside a transaction. No other statement removal. Position remapping translates PGlite error positions in the stripped content back to original file offsets.
+3. `SET LOCAL check_function_bodies TO off` for the whole transaction — functions are stored without body validation.
+4. Execute statements one at a time. **Hooks** fire before/after each statement:
+   - `onBeforeStatementApplied(ctx)` — **DO blocks**: create `pg_temp` function with same body → `plpgsql_check_function_tb` → if dirty, throw `StmtDiagnosticsError` (halts this file). If clean, let the executor run the DO block. **Function statements**: snapshot `pg_proc` (oid → `{ prosrc, xmin, ctid }`) for the diff.
+   - `onAfterStatementApplied(ctx, before)` — re-query `pg_proc`, diff against snapshot. New OID → record provenance. Changed `xmin`/`ctid` (even with same body) → update provenance. Missing OID → remove provenance.
+   - `onStatementApplicationFailed(ctx, err)` — wrap exec error into `StmtDiagnosticsError`.
+5. DDL/DML exec errors halt immediately (txn poisoned). DO-block plpgsql_check errors halt immediately. **Function body errors do NOT halt** — the function is created, the migration succeeds, the error surfaces in phase 2.
+6. On failure → rollback the file's txn, emit diagnostics, halt the chain. On success → commit, proceed to next file.
+
+**Provenance tracking** — the `SchemaBuilder` accumulates `oid → FunctionProvenance` across all migrations:
+- `migration` — reference to the `MigrationContext` (source buffer, removals, index).
+- `stmtStart`/`stmtEnd` — byte range of the CREATE FUNCTION statement (stripped space).
+- `bodyOffset` — byte offset of the body within the statement (computed via `Buffer.indexOf`, byte-level).
+- `bodyText` — the function body (= `pg_proc.prosrc`, decoded identically by libpg-query on both sides).
+- `language`, `signature` — for `plpgsql_check_function_tb` calls.
+
+**Why `xmin` + `ctid` for the diff:** `xmin` (transaction ID) changes across transactions (between migration files). `ctid` (physical tuple location) changes within the same transaction (multiple CREATE OR REPLACE in one file). Using both detects same-body REPLACE (PG still UPDATEs the row, bumping both) and disambiguates in the multi-schema case (only the replaced function's row changes).
+
+**DO-block-created functions** — when a DO block `EXECUTE 'CREATE FUNCTION ...'` creates a function dynamically, the broad `pg_proc` snapshot catches it. Provenance is recorded pointing at the DO block's byte range (the body text is extracted from `pg_get_functiondef` since the DoStmt AST doesn't have a `CreateFunctionStmt`).
+
+### Phase 2: Deferred validation
+
+After all migrations are applied, `SchemaBuilder.validate(pg)`:
+
+1. `BEGIN` (validation uses SAVEPOINTs for SQL function re-CREATE, which requires a transaction block).
+2. Query surviving user functions from `pg_proc` (filter: user schemas, `lanname IN ('plpgsql','sql')`, no extension deps).
+3. For each surviving OID with provenance:
+   - **PL/pgSQL**: `plpgsql_check_function_tb(signature)` → map diagnostics via stored `bodyOffset` + `bodyText` → provenance byte range in the original migration file.
+   - **SQL**: re-CREATE via `pg_get_functiondef` output with `check_function_bodies=on` inside a SAVEPOINT → on error, map the position from the re-issued text to the original migration file via the body offset (body is verbatim in both texts), `ROLLBACK TO SAVEPOINT`.
+4. Collect all diagnostics (no halt on first failure — functions are independent).
+5. `ROLLBACK` (validation txn discards any re-CREATE side effects).
+
+**Byte-level offset correctness** — all offset computations use `Buffer.indexOf(value, 0, "utf8")`, not `String.indexOf`. This is critical when multi-byte UTF-8 characters (e.g. comments with `café ☕ 日本語`) appear before the function body: `String.indexOf` returns UTF-16 code unit indices, which differ from byte offsets. Both `findBodyOffsetInStatement` and `extractPlpgsqlCheckDiagnostic` use byte-level search.
+
+**SQL function position mapping** — the re-issued `pg_get_functiondef` text has a different header format than the original migration (`CREATE OR REPLACE`, `$function$` tags), but the body is byte-identical. The error `position` from PG is into the re-issued text. We translate: `errorPosInBody = (position - 1) - defBodyOffset`, then `errorPosInStripped = prov.stmtStart + prov.bodyOffset + errorPosInBody`, then `mapStrippedToOriginal(removals, ...)`. If the error is in the header (before the body), the mapping doesn't apply → fall back to the whole statement range.
 
 **Cache key:** `orderedAstHashes ‖ configFingerprint` (`schema` patterns, PG major, extensions, plpgsql_check on/off). Stored as `.pgsid/cache/<hash>.bin.gz`. Using AST hashes (not raw content) means cosmetic edits don't invalidate the cache. Only successful full builds are cached — no partial snapshots.
 
@@ -686,10 +723,11 @@ Rejected alternatives and operational limits are documented elsewhere in this de
 6. ~~Debounce / check-on-idle for incomplete buffers~~ — mitigated: FS Tracker handles debounce (tip vs retro migration); Engine uses structural coalescing (per-file buffer = latest-content-wins).
 7. Exact relative-path root when mirroring query outputs (longest `out` prefix match).
 8. PGlite query cancellation — accepted: no WASM-level cancel; "cancel" = discard stale-generation results. PREPARE is sub-100ms (schema-only, no execution). Revisit if a pathological case appears.
-9. ~~State inconsistency between runtime and reboot on schema failure~~ — mitigated: dropped furthest-correct; on failure the pool has no generation both at runtime and on reboot (cache only stores successful full builds).
+9. ~~State inconsistency between runtime and reboot on schema failure~~ — mitigated: apply-phase failures drop the pool (no generation); validate-phase failures swap the pool (schema committed). On reboot, cache misses (AST hashes changed) → same behavior. Cache only stores successful full builds (apply + validate).
 10. plpgsql function dependency extraction — the statement extractor may miss edge cases (unusual control flow, nested BEGIN/END). Conservative fallback for dynamic SQL (`EXECUTE`): depends on everything. Over-checking is correct; under-checking would be a bug.
 11. Column-level dependency tracking precision — `SELECT *` expands to all columns of the table (from the catalog). If the catalog changes (column added/removed), the expansion changes, and the query is affected. Tracked correctly via the diff.
 12. Future: check constraint transpilation — architecture supports it (extensible catalog snapshot, column-level deps, additive codegen emit) but not implemented.
+13. Future: pool-based parallel validation — the `SchemaBuilder.validate()` loop is sequential. When the PGlite pool is available, function validation could be distributed across pool instances for parallel checking. Deferred until after first release.
 
 ---
 
@@ -700,7 +738,7 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 ### Phase 0 — Spike + harness
 
 - E2E harness: `createWorkspace(tmpDir, config, files)` with real Engine (pool + schema-apply + typecheck) and FS Tracker; actions `writeFile`/`editFile`/`deleteFile`/`waitIdle`/`getDiagnostics`/`getPoolGeneration`.
-- YAML config load (zod); schema glob resolve; CONCURRENTLY strip; txn apply; halt-on-failure (no furthest-correct).
+- YAML config load (zod); schema glob resolve; CONCURRENTLY strip; `SchemaBuilder` two-phase apply (check_function_bodies=off + deferred validation).
 - `dumpDataDir` cache round-trip (`.pgsid/cache/`).
 - PREPARE + plpgsql_check diagnostics on sample `sql.paths`.
 - Engine state machine + pool generation model landed early.
@@ -745,7 +783,7 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 ## Success criteria
 
 - One Node/Bun `pgsid` entrypoint (LSP **and** CLI); no Postgres install; no DB port.
-- `schema` applies a cached schema-only catalog; failure clears query diagnostics and leaves the pool without a generation (consistent runtime + reboot).
+- `schema` applies a cached schema-only catalog; apply-phase failures (DDL/DML/DO) clear query diagnostics and leave the pool without a generation; validate-phase failures (function bodies) still swap the pool (schema is committed) and emit function diagnostics on the defining migration file.
 - `sql.paths` get PREPARE + plpgsql_check by default (`searchPath: [public]`).
 - Selective re-typecheck: only queries whose column-level dependencies changed are re-typechecked on schema rebuild.
 - Codegen produces schema types (from catalog) + query types/wrappers (from signatures); signature comparison skips unchanged files.
@@ -759,6 +797,9 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 
 | Concern                       | Where to look                                                |
 | ----------------------------- | ------------------------------------------------------------ |
+| SchemaBuilder (apply + validate) | `pgsid/src/schema-builder.ts`                              |
+| AST helpers (getFunctionBody, etc.) | `pgsid/src/ast.ts`                                      |
+| Diagnostic extractors         | `pgsid/src/errors.ts`                                        |
 | PREPARE + error→diagnostic    | `postgres-language-server/crates/pgls_typecheck/`            |
 | plpgsql_check txn flow        | `postgres-language-server/crates/pgls_plpgsql_check/`        |
 | Statement scan/split          | `postgres-language-server/crates/pgls_statement_splitter/`   |

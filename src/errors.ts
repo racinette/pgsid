@@ -77,6 +77,19 @@ export interface SqlDiagnostic {
   range: { start: number; end: number } | null;
 
   /**
+   * Zero or more related locations — secondary places the user should look.
+   *
+   * Maps to LSP `DiagnosticRelatedInformation`: IDEs render these as
+   * clickable "see also" links. Each carries its own message and byte range.
+   *
+   * Use case: a trigger function error is reported at the function body
+   * (primary `range`), but a related location points at the `CREATE TRIGGER`
+   * statement ("trigger on table 'bar'") so the user sees the binding
+   * that caused the error.
+   */
+  relatedLocations?: { range: { start: number; end: number }; message: string }[];
+
+  /**
    * The original error, preserved for source-specific inspection.
    * Carries the raw error object from the source library.
    */

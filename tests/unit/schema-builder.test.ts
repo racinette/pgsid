@@ -745,3 +745,183 @@ describe("SchemaBuilder: DO block replacing existing functions", () => {
     expect(myDiags).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 9. Trigger function validation
+// ---------------------------------------------------------------------------
+
+describe("SchemaBuilder: trigger function validation", () => {
+  let pg: PGlite;
+
+  beforeAll(async () => {
+    pg = await PGlite.create({ extensions: { plpgsql_check } });
+    await pg.exec("CREATE EXTENSION plpgsql_check;");
+  });
+  afterAll(async () => { if (!pg.closed) await pg.close(); });
+
+  it("broken trigger function — dual diagnostics (body + CREATE TRIGGER)", async () => {
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE TABLE public.trg_test (a int, b int);\n" +
+      "CREATE FUNCTION public.trg_fn() RETURNS trigger " +
+      "LANGUAGE plpgsql AS $$\nBEGIN\n  NEW.c := NEW.a + NEW.b;\nRETURN NEW;\nEND;\n$$;\n" +
+      "CREATE TRIGGER trg BEFORE INSERT OR UPDATE ON public.trg_test " +
+      "FOR EACH ROW EXECUTE FUNCTION public.trg_fn();\n",
+      "utf8",
+    );
+
+    const result = await builder.applyMigration(pg, source, 0);
+    expect(result.success).toBe(true);
+
+    const diags = await builder.validate(pg);
+    const trgDiags = diags.filter(d => d.message.includes("field \"c\""));
+    expect(trgDiags.length).toBeGreaterThanOrEqual(1);
+
+    const diag = trgDiags[0]!;
+    expect(diag.original.source).toBe("plpgsql-check");
+    expect(diag.message).toContain("record \"new\" has no field \"c\"");
+
+    // Primary range: should point into the function body.
+    const sourceText = source.toString("utf8");
+    const bodyText = sourceText.slice(diag.range!.start, diag.range!.end);
+    expect(bodyText).toContain("c");
+
+    // Related location: should point at the CREATE TRIGGER statement.
+    expect(diag.relatedLocations).toBeDefined();
+    expect(diag.relatedLocations!.length).toBe(1);
+    const relLoc = diag.relatedLocations![0]!;
+    const trgText = sourceText.slice(relLoc.range.start, relLoc.range.end);
+    expect(trgText).toContain("CREATE TRIGGER");
+    expect(relLoc.message).toContain("trg_test");
+  });
+
+  it("valid trigger function — no diagnostics", async () => {
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE TABLE public.trg_ok (a int, b int, c int);\n" +
+      "CREATE FUNCTION public.trg_ok_fn() RETURNS trigger " +
+      "LANGUAGE plpgsql AS $$\nBEGIN\n  NEW.c := NEW.a + NEW.b;\nRETURN NEW;\nEND;\n$$;\n" +
+      "CREATE TRIGGER trg_ok BEFORE INSERT OR UPDATE ON public.trg_ok " +
+      "FOR EACH ROW EXECUTE FUNCTION public.trg_ok_fn();\n",
+      "utf8",
+    );
+
+    await builder.applyMigration(pg, source, 0);
+    const diags = await builder.validate(pg);
+    const myDiags = diags.filter(d => d.message.includes("trg_ok"));
+    expect(myDiags).toEqual([]);
+  });
+
+  it("orphan trigger function (no CREATE TRIGGER) — skipped, no diagnostics", async () => {
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE TABLE public.trg_orphan_t (a int);\n" +
+      "CREATE FUNCTION public.orphan_trg_fn() RETURNS trigger " +
+      "LANGUAGE plpgsql AS $$\nBEGIN\n  NEW.nonexistent := 1;\nRETURN NEW;\nEND;\n$$;\n",
+      "utf8",
+    );
+
+    await builder.applyMigration(pg, source, 0);
+    const diags = await builder.validate(pg);
+    // Orphan trigger functions can't be validated (no relation to bind NEW/OLD).
+    const myDiags = diags.filter(d => d.message.includes("orphan_trg"));
+    expect(myDiags).toEqual([]);
+  });
+
+  it("transition table trigger — validated with newtable parameter", async () => {
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE TABLE public.footab (a int, b int, c int, d int);\n" +
+      "CREATE FUNCTION public.footab_trig_fn() RETURNS trigger " +
+      "LANGUAGE plpgsql AS $$\nDECLARE x int;\nBEGIN\n" +
+      "  IF false THEN\n" +
+      "    SELECT count(*) FROM newtab INTO x;\n" +
+      "    SELECT count(*) FROM newtab WHERE nonexistent_col = 10 INTO x;\n" +
+      "  END IF;\n" +
+      "  RETURN NULL;\nEND;\n$$;\n" +
+      "CREATE TRIGGER footab_trig AFTER INSERT ON public.footab " +
+      "REFERENCING NEW TABLE AS newtab " +
+      "FOR EACH STATEMENT EXECUTE FUNCTION public.footab_trig_fn();\n",
+      "utf8",
+    );
+
+    const result = await builder.applyMigration(pg, source, 0);
+    expect(result.success).toBe(true);
+
+    const diags = await builder.validate(pg);
+    // Should find the error on "nonexistent_col" — this only works if
+    // the newtable parameter was correctly passed to plpgsql_check.
+    const colDiags = diags.filter(d => d.message.includes("nonexistent_col"));
+    expect(colDiags.length).toBeGreaterThanOrEqual(1);
+
+    // Should have a related location at the CREATE TRIGGER statement.
+    expect(colDiags[0]!.relatedLocations).toBeDefined();
+    expect(colDiags[0]!.relatedLocations![0]!.message).toContain("footab");
+  });
+
+  it("same trigger function on two tables — error only on the table missing the column", async () => {
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      // Table 1: has column c — trigger function works.
+      "CREATE TABLE public.tbl_with_c (a int, b int, c int);\n" +
+      // Table 2: no column c — trigger function fails.
+      "CREATE TABLE public.tbl_no_c (a int, b int);\n" +
+      "CREATE FUNCTION public.shared_trg_fn() RETURNS trigger " +
+      "LANGUAGE plpgsql AS $$\nBEGIN\n  NEW.c := NEW.a + NEW.b;\nRETURN NEW;\nEND;\n$$;\n" +
+      "CREATE TRIGGER trg1 BEFORE INSERT ON public.tbl_with_c " +
+      "FOR EACH ROW EXECUTE FUNCTION public.shared_trg_fn();\n" +
+      "CREATE TRIGGER trg2 BEFORE INSERT ON public.tbl_no_c " +
+      "FOR EACH ROW EXECUTE FUNCTION public.shared_trg_fn();\n",
+      "utf8",
+    );
+
+    await builder.applyMigration(pg, source, 0);
+    const diags = await builder.validate(pg);
+    const cDiags = diags.filter(d => d.message.includes("field \"c\""));
+    // Only the trigger on tbl_no_c should report the error.
+    expect(cDiags.length).toBe(1);
+    expect(cDiags[0]!.relatedLocations![0]!.message).toContain("tbl_no_c");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. CREATE AGGREGATE — filtered out (no body to validate)
+// ---------------------------------------------------------------------------
+
+describe("SchemaBuilder: CREATE AGGREGATE", () => {
+  let pg: PGlite;
+
+  beforeAll(async () => {
+    pg = await PGlite.create({ extensions: { plpgsql_check } });
+    await pg.exec("CREATE EXTENSION plpgsql_check;");
+  });
+  afterAll(async () => { if (!pg.closed) await pg.close(); });
+
+  it("aggregate is not validated (prokind = 'a' filtered out)", async () => {
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE TABLE public.agg_test (val int);\n" +
+      // State function (valid).
+      "CREATE FUNCTION public.agg_sfunc(state int, val int) RETURNS int " +
+      "LANGUAGE sql AS $$ SELECT state + val; $$;\n" +
+      // Aggregate using the state function.
+      "CREATE AGGREGATE public.sum_val (int) (\n" +
+      "  SFUNC = public.agg_sfunc,\n" +
+      "  STYPE = int,\n" +
+      "  INITCOND = '0'\n" +
+      ");\n",
+      "utf8",
+    );
+
+    const result = await builder.applyMigration(pg, source, 0);
+    expect(result.success).toBe(true);
+
+    const diags = await builder.validate(pg);
+    // The aggregate should NOT appear in diagnostics — it's filtered out.
+    const aggDiags = diags.filter(d => d.message.includes("sum_val"));
+    expect(aggDiags).toEqual([]);
+    // The state function should be validated normally (it's a SQL function).
+    const sfuncDiags = diags.filter(d => d.message.includes("agg_sfunc"));
+    expect(sfuncDiags).toEqual([]);
+  });
+});

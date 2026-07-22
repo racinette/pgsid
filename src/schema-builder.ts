@@ -64,6 +64,28 @@ interface FunctionProvenance {
 }
 
 /**
+ * Provenance for a trigger that survives in pg_trigger.
+ *
+ * Used at validation time to emit `relatedLocations` diagnostics pointing at
+ * the `CREATE TRIGGER` statement when the trigger function has an error.
+ */
+interface TriggerProvenance {
+  /** pg_trigger OID. */
+  oid: number;
+  /** The migration file where this trigger was last created. */
+  migration: MigrationContext;
+  /** Byte range of the CREATE TRIGGER statement in stripped space. */
+  stmtStart: number;
+  stmtEnd: number;
+  /** The relation (table/view) the trigger is on. */
+  relation: string;
+  /** NEW TABLE transition table name, or null. */
+  newTable: string | null;
+  /** OLD TABLE transition table name, or null. */
+  oldTable: string | null;
+}
+
+/**
  * Context passed to every hook. Carries everything the hooks need to:
  * - decide whether to snapshot (inspect `kind`),
  * - extract function metadata (inspect `stmt`),
@@ -109,16 +131,34 @@ interface PgProcRowState {
 }
 
 /**
+ * A snapshot of a pg_trigger row. Diffs the whole row (we compare all fields)
+ * to detect whether a trigger was created/modified/dropped.
+ */
+interface PgTriggerRowState {
+  /** The relation (table/view) the trigger is on. */
+  relation: string;
+  /** The function OID the trigger calls. */
+  tgfoid: number;
+  /** NEW TABLE transition table name, or null. */
+  tgnewtable: string | null;
+  /** OLD TABLE transition table name, or null. */
+  tgoldtable: string | null;
+  /** xmin for change detection (same rationale as pg_proc). */
+  xmin: string;
+  /** ctid for change detection within the same transaction. */
+  ctid: string;
+}
+
+/**
  * Before-state returned by `onBeforeStatementApplied`. An extensible object —
  * each field is an optional snapshot of a system catalog. `onAfterStatementApplied`
  * checks which fields are present and diffs accordingly.
- *
- * Currently only `pg_proc` is snapshotted. Future extensions may add
- * `pg_class`, `pg_type`, etc. without changing this type.
  */
 interface BeforeState {
   /** oid → row state for user functions (filtered by proname when targeted). */
   pg_proc?: Map<number, PgProcRowState>;
+  /** oid → row state for user triggers (filtered by function OID when targeted). */
+  pg_trigger?: Map<number, PgTriggerRowState>;
 }
 
 /**
@@ -155,8 +195,11 @@ class StmtDiagnosticsError extends Error {
  * `validate()` via the stored `removals` per migration.
  */
 export class SchemaBuilder {
-  // oid → provenance. Updated during apply; read during validate.
+  // oid → function provenance. Updated during apply; read during validate.
   private provenance = new Map<number, FunctionProvenance>();
+
+  // oid → trigger provenance. Updated during apply; read during validate.
+  private triggerProvenance = new Map<number, TriggerProvenance>();
 
   // Per-migration contexts (source + removals). Referenced by provenance entries.
   private migrations: MigrationContext[] = [];
@@ -328,8 +371,11 @@ export class SchemaBuilder {
     if (ctx.kind === "DoStmt") {
       // Validate the DO block body before execution.
       await this.validateDoBlock(ctx);
-      // DO blocks can dynamically CREATE FUNCTION — snapshot broadly.
-      return { pg_proc: await this.snapshotPgProc(ctx.pg) };
+      // DO blocks can dynamically CREATE FUNCTION/CREATE TRIGGER — snapshot broadly.
+      return {
+        pg_proc: await this.snapshotPgProc(ctx.pg),
+        pg_trigger: await this.snapshotPgTrigger(ctx.pg),
+      };
     }
 
     if (ctx.kind === "CreateFunctionStmt" || ctx.kind === "DropFunctionStmt") {
@@ -338,10 +384,20 @@ export class SchemaBuilder {
       const snapshot = proname
         ? await this.snapshotPgProc(ctx.pg, proname)
         : await this.snapshotPgProc(ctx.pg);
-      return { pg_proc: snapshot };
+      // CREATE/DROP FUNCTION can also affect triggers (e.g. DROP FUNCTION CASCADE
+      // drops triggers using that function). Snapshot triggers too.
+      return {
+        pg_proc: snapshot,
+        pg_trigger: await this.snapshotPgTrigger(ctx.pg),
+      };
     }
 
-    // TODO: handle CreateAggStmt, AlterFunctionStmt if needed.
+    if (ctx.kind === "CreateTrigStmt" || ctx.kind === "DropTrigStmt") {
+      // Snapshot all user triggers — we can't easily extract the trigger name
+      // from the AST without more AST helpers, and the trigger set is small.
+      return { pg_trigger: await this.snapshotPgTrigger(ctx.pg) };
+    }
+
     return {};
   }
 
@@ -373,16 +429,13 @@ export class SchemaBuilder {
       for (const [oid, afterState] of after) {
         const beforeState = before.pg_proc.get(oid);
         if (beforeState === undefined) {
-          // New function — record provenance.
           await this.recordProvenance(ctx, oid, afterState.prosrc);
         } else if (
           beforeState.xmin !== afterState.xmin ||
           beforeState.ctid !== afterState.ctid
         ) {
-          // Replaced function (xmin or ctid changed) — update provenance.
           await this.recordProvenance(ctx, oid, afterState.prosrc);
         }
-        // else: unchanged, skip.
       }
 
       // Diff: dropped.
@@ -392,7 +445,30 @@ export class SchemaBuilder {
         }
       }
     }
-    // Future: diff other catalogs here.
+
+    if (before.pg_trigger) {
+      const after = await this.snapshotPgTrigger(ctx.pg);
+
+      // Diff: new + changed.
+      for (const [oid, afterState] of after) {
+        const beforeState = before.pg_trigger.get(oid);
+        if (beforeState === undefined) {
+          this.recordTriggerProvenance(ctx, oid, afterState);
+        } else if (
+          beforeState.xmin !== afterState.xmin ||
+          beforeState.ctid !== afterState.ctid
+        ) {
+          this.recordTriggerProvenance(ctx, oid, afterState);
+        }
+      }
+
+      // Diff: dropped.
+      for (const oid of before.pg_trigger.keys()) {
+        if (!after.has(oid)) {
+          this.triggerProvenance.delete(oid);
+        }
+      }
+    }
   }
 
   /**
@@ -438,22 +514,25 @@ export class SchemaBuilder {
     // isolation, which requires a transaction block.
     await pg.query("BEGIN");
     try {
-      // Query surviving user functions.
+      // Query surviving user functions (exclude aggregates — no body to validate).
       const surviving = await pg.query<{
         oid: number;
         proname: string;
         lanname: string;
         prosrc: string;
         def: string;
+        is_trigger: boolean;
       }>(`
         SELECT p.oid, p.proname, l.lanname AS lanname, p.prosrc,
-               pg_get_functiondef(p.oid) AS def
+               pg_get_functiondef(p.oid) AS def,
+               (p.prorettype = (SELECT oid FROM pg_type WHERE typname = 'trigger')) AS is_trigger
         FROM pg_proc p
         JOIN pg_namespace n ON n.oid = p.pronamespace
         JOIN pg_language l  ON l.oid  = p.prolang
         WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
           AND n.nspname NOT LIKE 'pg_temp_%'
           AND l.lanname IN ('plpgsql', 'sql')
+          AND p.prokind != 'a'
           AND NOT EXISTS (
             SELECT 1 FROM pg_depend d
             WHERE d.objid = p.oid AND d.deptype = 'e'
@@ -471,7 +550,9 @@ export class SchemaBuilder {
         }
 
         if (row.lanname === "plpgsql") {
-          const diags = await this.validatePlpgsqlFunction(pg, row.oid, prov);
+          const diags = await this.validatePlpgsqlFunction(
+            pg, row.oid, prov, row.is_trigger,
+          );
           allDiagnostics.push(...diags);
         } else if (row.lanname === "sql") {
           const diags = await this.validateSqlFunction(pg, row.oid, prov);
@@ -528,6 +609,42 @@ export class SchemaBuilder {
     const res = await pg.query<{ oid: number; prosrc: string; xmin: string; ctid: string }>(query, params);
     return new Map(res.rows.map(r => [r.oid, {
       prosrc: r.prosrc,
+      xmin: r.xmin,
+      ctid: r.ctid,
+    }]));
+  }
+
+  /**
+   * Snapshot `pg_trigger` as `oid → row state` for user triggers.
+   * Only non-internal triggers (user-created, not system-generated constraints).
+   */
+  private async snapshotPgTrigger(
+    pg: PGlite,
+  ): Promise<Map<number, PgTriggerRowState>> {
+    const res = await pg.query<{
+      oid: number; relation: string; tgfoid: number;
+      tgnewtable: string | null; tgoldtable: string | null;
+      xmin: string; ctid: string;
+    }>(`
+      SELECT t.oid,
+             t.tgrelid::regclass::text AS relation,
+             t.tgfoid,
+             t.tgnewtable,
+             t.tgoldtable,
+             t.xmin::text AS xmin,
+             t.ctid::text AS ctid
+      FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE NOT t.tgisinternal
+        AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND n.nspname NOT LIKE 'pg_temp_%';
+    `);
+    return new Map(res.rows.map(r => [r.oid, {
+      relation: r.relation,
+      tgfoid: r.tgfoid,
+      tgnewtable: r.tgnewtable,
+      tgoldtable: r.tgoldtable,
       xmin: r.xmin,
       ctid: r.ctid,
     }]));
@@ -593,6 +710,27 @@ export class SchemaBuilder {
       bodyText,
       language,
       signature,
+    });
+  }
+
+  /**
+   * Record or update provenance for a trigger OID.
+   * Called from `onAfterStatementApplied` when the diff detects a new or
+   * replaced trigger.
+   */
+  private recordTriggerProvenance(
+    ctx: StmtContext,
+    oid: number,
+    state: PgTriggerRowState,
+  ): void {
+    this.triggerProvenance.set(oid, {
+      oid,
+      migration: ctx.migration,
+      stmtStart: ctx.stmtStart,
+      stmtEnd: ctx.stmtEnd,
+      relation: state.relation,
+      newTable: state.tgnewtable,
+      oldTable: state.tgoldtable,
     });
   }
 
@@ -694,47 +832,108 @@ export class SchemaBuilder {
   /**
    * Validate a PL/pgSQL function via `plpgsql_check_function_tb`.
    * Maps diagnostics to the original migration file using stored provenance.
+   *
+   * For trigger functions (`RETURNS trigger`):
+   * - Query `pg_trigger` for all triggers using this function (non-internal).
+   * - For each trigger, call `plpgsql_check_function_tb` with the relation
+   *   and transition table names (`newtable`/`oldtable` parameters).
+   * - A function used by multiple triggers is checked once per trigger —
+   *   the body might reference a column that exists on one table but not another.
+   * - If no triggers are attached (orphan), skip validation — plpgsql_check
+   *   can't resolve `NEW`/`OLD` without a relation.
+   * - For each error, attach a `relatedLocations` entry pointing at the
+   *   `CREATE TRIGGER` statement (from trigger provenance).
    */
   private async validatePlpgsqlFunction(
     pg: PGlite,
-    _oid: number,
+    oid: number,
     prov: FunctionProvenance,
+    isTrigger: boolean,
   ): Promise<SqlDiagnostic[]> {
     const { removals, source } = prov.migration;
 
-    let checkRows: PlpgsqlCheckRow[];
-    try {
-      const res = await pg.query<PlpgsqlCheckRow>(
-        `SELECT * FROM plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}');`,
-      );
-      checkRows = res.rows;
-    } catch {
-      // plpgsql_check failed — skip this function.
-      return [];
+    // For trigger functions, query pg_trigger for all trigger bindings.
+    let triggerBindings: { relation: string; newTable: string | null; oldTable: string | null; triggerOid: number }[] = [];
+    if (isTrigger) {
+      const trgRes = await pg.query<{
+        oid: number; relation: string; tgnewtable: string | null; tgoldtable: string | null;
+      }>(`
+        SELECT t.oid, t.tgrelid::regclass::text AS relation,
+               t.tgnewtable, t.tgoldtable
+        FROM pg_trigger t
+        WHERE t.tgfoid = $1 AND NOT t.tgisinternal;
+      `, [oid]);
+      triggerBindings = trgRes.rows.map(r => ({
+        relation: r.relation,
+        newTable: r.tgnewtable,
+        oldTable: r.tgoldtable,
+        triggerOid: r.oid,
+      }));
+      if (triggerBindings.length === 0) return []; // orphan — can't validate
     }
 
-    if (checkRows.length === 0) return [];
+    const allDiagnostics: SqlDiagnostic[] = [];
 
-    // Map body offset from stripped to original file space.
-    const bodyOffsetInFile = mapStrippedToOriginal(
-      removals,
-      prov.stmtStart + prov.bodyOffset,
-    );
+    // For non-trigger functions: one check call.
+    // For trigger functions: one check call per trigger binding.
+    const checkCalls = isTrigger
+      ? triggerBindings.map(b => ({
+          query: `SELECT * FROM plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}', '${b.relation.replace(/'/g, "''")}'${b.newTable ? `, newtable := '${b.newTable.replace(/'/g, "''")}'` : ""}${b.oldTable ? `, oldtable := '${b.oldTable.replace(/'/g, "''")}'` : ""});`,
+          triggerOid: b.triggerOid,
+        }))
+      : [{
+          query: `SELECT * FROM plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}');`,
+          triggerOid: null as number | null,
+        }];
 
-    const diagnostics: SqlDiagnostic[] = checkRows.map(row =>
-      extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, prov.bodyText, source),
-    );
-
-    // Fill statement range for diagnostics without a precise range.
-    const stmtStartOriginal = mapStrippedToOriginal(removals, prov.stmtStart);
-    const stmtEndOriginal = mapStrippedToOriginal(removals, prov.stmtEnd);
-    for (const diag of diagnostics) {
-      if (diag.range === null) {
-        diag.range = { start: stmtStartOriginal, end: stmtEndOriginal };
+    for (const { query, triggerOid } of checkCalls) {
+      let checkRows: PlpgsqlCheckRow[];
+      try {
+        const res = await pg.query<PlpgsqlCheckRow>(query);
+        checkRows = res.rows;
+      } catch {
+        continue; // plpgsql_check failed for this binding — skip.
       }
+
+      if (checkRows.length === 0) continue;
+
+      // Map body offset from stripped to original file space.
+      const bodyOffsetInFile = mapStrippedToOriginal(
+        removals,
+        prov.stmtStart + prov.bodyOffset,
+      );
+
+      const diagnostics: SqlDiagnostic[] = checkRows.map(row =>
+        extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, prov.bodyText, source),
+      );
+
+      // Fill statement range for diagnostics without a precise range.
+      const stmtStartOriginal = mapStrippedToOriginal(removals, prov.stmtStart);
+      const stmtEndOriginal = mapStrippedToOriginal(removals, prov.stmtEnd);
+      for (const diag of diagnostics) {
+        if (diag.range === null) {
+          diag.range = { start: stmtStartOriginal, end: stmtEndOriginal };
+        }
+
+        // For trigger functions, attach a related location at the CREATE TRIGGER
+        // statement (from trigger provenance) to create the mental connection.
+        if (triggerOid !== null) {
+          const trgProv = this.triggerProvenance.get(triggerOid);
+          if (trgProv) {
+            const trgStart = mapStrippedToOriginal(trgProv.migration.removals, trgProv.stmtStart);
+            const trgEnd = mapStrippedToOriginal(trgProv.migration.removals, trgProv.stmtEnd);
+            diag.relatedLocations = [{
+              range: { start: trgStart, end: trgEnd },
+              message: `trigger on table "${trgProv.relation}"`,
+            }];
+          }
+        }
+      }
+
+      allDiagnostics.push(...diagnostics);
     }
 
-    return diagnostics;
+    return allDiagnostics;
   }
 
   /**
