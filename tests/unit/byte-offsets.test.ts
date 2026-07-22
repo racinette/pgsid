@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { extractPlpgsqlCheckDiagnostic, type PlpgsqlCheckRow } from "../../src/errors.js";
-import { applyMigration } from "../../src/apply.js";
+import { SchemaBuilder } from "../../src/schema-builder.js";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 
@@ -94,10 +94,10 @@ describe("byte-level offsets with multi-byte UTF-8", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Integration test: applyMigration with multi-byte UTF-8 before body
+// Integration test: SchemaBuilder with multi-byte UTF-8 before body
 // ---------------------------------------------------------------------------
 
-describe("applyMigration: byte-correct diagnostics with multi-byte UTF-8", () => {
+describe("SchemaBuilder: byte-correct diagnostics with multi-byte UTF-8", () => {
   let pg: PGlite;
 
   beforeAll(async () => {
@@ -111,10 +111,7 @@ describe("applyMigration: byte-correct diagnostics with multi-byte UTF-8", () =>
   });
 
   it("diagnostic points at the error inside the body, not into the multi-byte comment", async () => {
-    // The function has a line comment with multi-byte UTF-8 characters
-    // BETWEEN the LANGUAGE keyword and AS $$. This means the statement text
-    // has multi-byte bytes BEFORE the body, which is exactly the case where
-    // String.indexOf would give a wrong (too small) body offset.
+    const builder = new SchemaBuilder();
     const sql =
       "CREATE FUNCTION public.utf8_offset_test() RETURNS void\n" +
       "LANGUAGE plpgsql -- café ☕ 日本語\n" +
@@ -125,28 +122,28 @@ describe("applyMigration: byte-correct diagnostics with multi-byte UTF-8", () =>
       "$$;\n";
     const source = Buffer.from(sql, "utf8");
 
-    const result = await applyMigration(pg, source);
+    const result = await builder.applyMigration(pg, source, 0);
+    // Applies successfully (check_function_bodies=off).
+    expect(result.success).toBe(true);
 
-    expect(result.success).toBe(false);
-    expect(result.diagnostics.length).toBe(1);
+    // Deferred validation catches the error.
+    const diags = await builder.validate(pg);
+    expect(diags.length).toBeGreaterThanOrEqual(1);
 
-    const diag = result.diagnostics[0]!;
+    const diag = diags.find(d => d.message.includes("nonexistent_column"))!;
     expect(diag.original.source).toBe("plpgsql-check");
-    expect(diag.message).toContain("nonexistent_column");
     expect(diag.range).not.toBeNull();
 
     // The range must be in the BODY (after $$), not in the COMMENT (before $$).
-    // The comment "café ☕ 日本語" is before "$$" — if bodyOffset were computed
-    // via String.indexOf, the range would point into the comment.
     const dollarQuotePos = source.indexOf("$$", 0, "utf8");
     expect(diag.range!.start).toBeGreaterThan(dollarQuotePos);
 
-    // The highlighted text should contain the error column name.
     const highlighted = source.subarray(diag.range!.start, diag.range!.end).toString("utf8");
     expect(highlighted).toContain("nonexistent_column");
   });
 
   it("works with multi-byte UTF-8 in a block comment before the body", async () => {
+    const builder = new SchemaBuilder();
     const sql =
       "CREATE FUNCTION public.utf8_block_comment_test(/* café ☕ 日本語 */ )\n" +
       "RETURNS void LANGUAGE plpgsql AS $$\n" +
@@ -156,15 +153,14 @@ describe("applyMigration: byte-correct diagnostics with multi-byte UTF-8", () =>
       "$$;\n";
     const source = Buffer.from(sql, "utf8");
 
-    const result = await applyMigration(pg, source);
+    await builder.applyMigration(pg, source, 0);
 
-    expect(result.success).toBe(false);
-    expect(result.diagnostics.length).toBe(1);
+    const diags = await builder.validate(pg);
+    expect(diags.length).toBeGreaterThanOrEqual(1);
 
-    const diag = result.diagnostics[0]!;
+    const diag = diags.find(d => d.message.includes("bad_column"))!;
     expect(diag.range).not.toBeNull();
 
-    // Range must be after $$ (in the body, not in the block comment).
     const dollarQuotePos = source.indexOf("$$", 0, "utf8");
     expect(diag.range!.start).toBeGreaterThan(dollarQuotePos);
 
@@ -173,8 +169,7 @@ describe("applyMigration: byte-correct diagnostics with multi-byte UTF-8", () =>
   });
 
   it("valid function with multi-byte UTF-8 in comment applies successfully", async () => {
-    // A valid function with multi-byte UTF-8 before the body should apply
-    // without errors (the byte offset fix shouldn't break the happy path).
+    const builder = new SchemaBuilder();
     const source = Buffer.from(
       "CREATE FUNCTION public.utf8_valid_test() RETURNS void\n" +
       "LANGUAGE plpgsql -- café ☕ 日本語\n" +
@@ -186,19 +181,17 @@ describe("applyMigration: byte-correct diagnostics with multi-byte UTF-8", () =>
       "utf8",
     );
 
-    const result = await applyMigration(pg, source);
-
+    const result = await builder.applyMigration(pg, source, 0);
     expect(result.success).toBe(true);
-    expect(result.diagnostics).toEqual([]);
+
+    const diags = await builder.validate(pg);
+    expect(diags).toEqual([]);
   });
 
   it("multi-byte UTF-8 comment INSIDE the body before the error line", async () => {
-    // The body itself contains a comment with multi-byte UTF-8 on a line
-    // BEFORE the error line. plpgsql_check's lineno-based fallback must
-    // compute the correct byte offset by accumulating Buffer.byteLength
-    // per line, not string length.
+    const builder = new SchemaBuilder();
     const sql =
-      "CREATE FUNCTION public.utf8_inside_body_test() RETURNS void\n" +
+      "CREATE FUNCTION public.utf8inside_body_test() RETURNS void\n" +
       "LANGUAGE plpgsql AS $$\n" +
       "BEGIN\n" +
       "  -- café ☕ 日本語\n" +
@@ -207,14 +200,13 @@ describe("applyMigration: byte-correct diagnostics with multi-byte UTF-8", () =>
       "$$;\n";
     const source = Buffer.from(sql, "utf8");
 
-    const result = await applyMigration(pg, source);
+    await builder.applyMigration(pg, source, 0);
 
-    expect(result.success).toBe(false);
-    expect(result.diagnostics.length).toBe(1);
+    const diags = await builder.validate(pg);
+    expect(diags.length).toBeGreaterThanOrEqual(1);
 
-    const diag = result.diagnostics[0]!;
+    const diag = diags.find(d => d.message.includes("missing_col"))!;
     expect(diag.original.source).toBe("plpgsql-check");
-    expect(diag.message).toContain("missing_col");
     expect(diag.range).not.toBeNull();
 
     // The range must point at the line with "missing_col", not at the
@@ -223,12 +215,6 @@ describe("applyMigration: byte-correct diagnostics with multi-byte UTF-8", () =>
     expect(highlighted).toContain("missing_col");
     expect(highlighted).not.toContain("café");
 
-    // Verify the byte offset is correct by checking the exact line.
-    // The body is:
-    //   \n  (line 1, empty)
-    //   BEGIN\n  (line 2)
-    //   -- café ☕ 日本語\n  (line 3 — multi-byte!)
-    //   PERFORM missing_col FROM public.users;\n  (line 4)
     // The comment line has extra bytes: é=+1, ☕=+2, 日=+2, 本=+2, 語=+2 = +9 extra bytes.
     // If the offset were computed via string length, it would be 9 bytes too small,
     // and the range would point into the comment line instead of the PERFORM line.

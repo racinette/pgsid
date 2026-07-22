@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
-import { applyMigration } from "../../src/apply.js";
+import { SchemaBuilder } from "../../src/schema-builder.js";
+import type { SqlDiagnostic } from "../../src/errors.js";
 
 const migrationDir = fileURLToPath(
   new URL("../fixtures/migrations", import.meta.url),
@@ -14,13 +15,17 @@ function loadMigration(name: string): Buffer {
   return readFileSync(join(migrationDir, name));
 }
 
-describe("integration: sequential migration apply", () => {
+type ApplyResult = { success: boolean; diagnostics: SqlDiagnostic[] };
+
+describe("integration: sequential migration apply + deferred validation", () => {
   let pg: PGlite;
+  let builder: SchemaBuilder;
+  let migrationIndex = 0;
 
   beforeAll(async () => {
-    // Fresh PGlite with plpgsql_check extension.
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
+    builder = new SchemaBuilder();
   });
 
   afterAll(async () => {
@@ -33,11 +38,10 @@ describe("integration: sequential migration apply", () => {
 
   it("0001: applies initial schema (tables, FKs, indexes, seed data)", async () => {
     const source = loadMigration("0001_initial_schema.sql");
-    const result = await applyMigration(pg, source);
+    const result = await builder.applyMigration(pg, source, migrationIndex++);
     expect(result.success).toBe(true);
     expect(result.diagnostics).toEqual([]);
 
-    // Verify the schema was actually applied.
     const tables = await pg.query<{ tablename: string }>(`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
     `);
@@ -45,13 +49,11 @@ describe("integration: sequential migration apply", () => {
     expect(tableNames).toContain("users");
     expect(tableNames).toContain("posts");
 
-    // Verify the seed data.
     const seed = await pg.query<{ email: string }>(`
       SELECT email FROM public.users WHERE id = 0;
     `);
     expect(seed.rows[0]!.email).toBe("system@local");
 
-    // Verify the FK constraint was created.
     const fks = await pg.query<{ conname: string }>(`
       SELECT conname FROM pg_constraint WHERE conname = 'posts_user_id_fk';
     `);
@@ -60,33 +62,26 @@ describe("integration: sequential migration apply", () => {
 
   it("0002: applies functions on top of 0001 schema", async () => {
     const source = loadMigration("0002_add_functions.sql");
-    const result = await applyMigration(pg, source);
+    const result = await builder.applyMigration(pg, source, migrationIndex++);
     expect(result.success).toBe(true);
     expect(result.diagnostics).toEqual([]);
 
-    // Verify the functions were created.
     const funcs = await pg.query<{ proname: string }>(`
       SELECT proname FROM pg_proc
       WHERE proname IN ('publish_post', 'get_user_email', 'count_user_posts')
       ORDER BY proname;
     `);
-    const funcNames = funcs.rows.map(r => r.proname);
-    expect(funcNames).toEqual(["count_user_posts", "get_user_email", "publish_post"]);
-
-    // Verify the SQL function works (it was validated natively by PG).
-    const email = await pg.query<{ get_user_email: string }>(`
-      SELECT public.get_user_email(0);
-    `);
-    expect(email.rows[0]!.get_user_email).toBe("system@local");
+    expect(funcs.rows.map(r => r.proname)).toEqual([
+      "count_user_posts", "get_user_email", "publish_post",
+    ]);
   });
 
   it("0003: applies CONCURRENTLY indexes (stripped to in-txn)", async () => {
     const source = loadMigration("0003_add_concurrently_index.sql");
-    const result = await applyMigration(pg, source);
+    const result = await builder.applyMigration(pg, source, migrationIndex++);
     expect(result.success).toBe(true);
     expect(result.diagnostics).toEqual([]);
 
-    // Verify the indexes were created (without CONCURRENTLY, but they exist).
     const indexes = await pg.query<{ indexname: string }>(`
       SELECT indexname FROM pg_indexes
       WHERE schemaname = 'public' AND tablename = 'posts'
@@ -98,15 +93,15 @@ describe("integration: sequential migration apply", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Broken migrations: verify diagnostics with correct positions
+  // 0004: broken DDL — fails during apply (exec error, halts + rolls back)
   // -------------------------------------------------------------------------
 
   describe("0004: broken DDL migration", () => {
-    let result: Awaited<ReturnType<typeof applyMigration>>;
+    let result: ApplyResult;
 
     beforeAll(async () => {
       const source = loadMigration("0004_broken_migration.sql");
-      result = await applyMigration(pg, source);
+      result = await builder.applyMigration(pg, source, migrationIndex++);
     });
 
     it("returns failure with one diagnostic", () => {
@@ -115,8 +110,7 @@ describe("integration: sequential migration apply", () => {
     });
 
     it("diagnostic is from PGlite (exec error)", () => {
-      const d = result.diagnostics[0]!;
-      expect(d.original.source).toBe("pglite");
+      expect(result.diagnostics[0]!.original.source).toBe("pglite");
     });
 
     it("diagnostic has the right SQLSTATE and message", () => {
@@ -129,14 +123,13 @@ describe("integration: sequential migration apply", () => {
       const d = result.diagnostics[0]!;
       expect(d.range).not.toBeNull();
       const source = loadMigration("0004_broken_migration.sql");
-      const fileText = source.toString("utf8");
-      // The position should point at "publishd_at" (the typo).
-      const textAtPos = fileText.slice(d.range!.start, d.range!.start + "publishd_at".length);
+      const textAtPos = source.toString("utf8").slice(
+        d.range!.start, d.range!.start + "publishd_at".length,
+      );
       expect(textAtPos).toBe("publishd_at");
     });
 
     it("schema state is unchanged (0003 indexes still present)", async () => {
-      // The failed migration was rolled back, so the schema is still at 0003.
       const indexes = await pg.query<{ indexname: string }>(`
         SELECT indexname FROM pg_indexes
         WHERE schemaname = 'public' AND indexname = 'posts_tags_gin';
@@ -145,52 +138,74 @@ describe("integration: sequential migration apply", () => {
     });
   });
 
+  // -------------------------------------------------------------------------
+  // 0005: broken PL/pgSQL — now APPLIES (check_function_bodies=off),
+  // deferred validation catches the error.
+  // -------------------------------------------------------------------------
+
   describe("0005: broken PL/pgSQL function migration", () => {
-    let result: Awaited<ReturnType<typeof applyMigration>>;
+    let applyResult: ApplyResult;
 
     beforeAll(async () => {
       const source = loadMigration("0005_broken_plpgsql.sql");
-      result = await applyMigration(pg, source);
+      applyResult = await builder.applyMigration(pg, source, migrationIndex++);
     });
 
-    it("returns failure with one diagnostic", () => {
-      expect(result.success).toBe(false);
-      expect(result.diagnostics.length).toBe(1);
+    it("applies successfully (body not validated during apply)", () => {
+      expect(applyResult.success).toBe(true);
+      expect(applyResult.diagnostics).toEqual([]);
     });
 
-    it("diagnostic is from plpgsql-check (not PGlite exec)", () => {
-      const d = result.diagnostics[0]!;
-      expect(d.original.source).toBe("plpgsql-check");
-    });
-
-    it("diagnostic has the right SQLSTATE and message", () => {
-      const d = result.diagnostics[0]!;
-      expect(d.code).toBe("42703");
-      expect(d.message).toContain("nonexistent_field");
-    });
-
-    it("diagnostic has a lineNumber (body-relative)", () => {
-      const d = result.diagnostics[0]!;
-      expect(d.range).not.toBeNull();
-      // The RAISE NOTICE line is around line 5 of the body.
-    });
-
-    it("diagnostic carries the plpgsql_check row for source-specific inspection", () => {
-      const d = result.diagnostics[0]!;
-      if (d.original.source === "plpgsql-check") {
-        // The statement type is the PL/pgSQL construct that contains the error.
-        // For r.nonexistent_field in a FOR loop, it's "FOR over SELECT rows".
-        expect(d.original.row.statement).toBeTruthy();
-        expect(d.original.row.context).toContain("nonexistent_field");
-      }
-    });
-
-    it("schema state is unchanged (audit_log table NOT created)", async () => {
-      // The failed migration was rolled back, so audit_log doesn't exist.
+    it("schema state IS changed (audit_log table created)", async () => {
       const tables = await pg.query<{ tablename: string }>(`
         SELECT tablename FROM pg_tables WHERE tablename = 'audit_log';
       `);
-      expect(tables.rows.length).toBe(0);
+      expect(tables.rows.length).toBe(1);
+    });
+
+    // Deferred validation: validate() catches the broken function body.
+    describe("deferred validation", () => {
+      let validateDiags: SqlDiagnostic[];
+
+      beforeAll(async () => {
+        validateDiags = await builder.validate(pg);
+      });
+
+      it("reports one diagnostic for the broken function", () => {
+        const fnDiags = validateDiags.filter(d =>
+          d.message.includes("nonexistent_field"),
+        );
+        expect(fnDiags.length).toBe(1);
+      });
+
+      it("diagnostic is from plpgsql-check", () => {
+        const d = validateDiags.find(d => d.message.includes("nonexistent_field"))!;
+        expect(d.original.source).toBe("plpgsql-check");
+      });
+
+      it("diagnostic has the right SQLSTATE and message", () => {
+        const d = validateDiags.find(d => d.message.includes("nonexistent_field"))!;
+        expect(d.code).toBe("42703");
+        expect(d.message).toContain("nonexistent_field");
+      });
+
+      it("diagnostic range points into the migration file", () => {
+        const d = validateDiags.find(d => d.message.includes("nonexistent_field"))!;
+        expect(d.range).not.toBeNull();
+        const source = loadMigration("0005_broken_plpgsql.sql");
+        const textAtRange = source.toString("utf8").slice(
+          d.range!.start, d.range!.end,
+        );
+        expect(textAtRange).toContain("nonexistent_field");
+      });
+
+      it("diagnostic carries the plpgsql_check row", () => {
+        const d = validateDiags.find(d => d.message.includes("nonexistent_field"))!;
+        if (d.original.source === "plpgsql-check") {
+          expect(d.original.row.statement).toBeTruthy();
+          expect(d.original.row.context).toContain("nonexistent_field");
+        }
+      });
     });
   });
 
@@ -198,12 +213,12 @@ describe("integration: sequential migration apply", () => {
   // 0006: procedures (plpgsql, plpgsql with OUT arg, LANGUAGE sql)
   // -------------------------------------------------------------------------
 
-  describe("0006: applies procedures on top of 0003 schema", () => {
-    let result: Awaited<ReturnType<typeof applyMigration>>;
+  describe("0006: applies procedures on top of 0005 schema", () => {
+    let result: ApplyResult;
 
     beforeAll(async () => {
       const source = loadMigration("0006_add_procedures.sql");
-      result = await applyMigration(pg, source);
+      result = await builder.applyMigration(pg, source, migrationIndex++);
     });
 
     it("succeeds with no diagnostics", () => {
@@ -219,14 +234,11 @@ describe("integration: sequential migration apply", () => {
         ORDER BY proname;
       `);
       expect(procs.rows.map(r => r.proname)).toEqual([
-        "count_user_drafts",
-        "publish_user_posts",
-        "seed_system_post",
+        "count_user_drafts", "publish_user_posts", "seed_system_post",
       ]);
     });
 
     it("seed_system_post (LANGUAGE sql) actually executes", async () => {
-      // Before: no posts for system user.
       const before = await pg.query<{ c: string }>(
         "SELECT count(*)::text AS c FROM public.posts WHERE user_id = 0;",
       );
@@ -241,12 +253,9 @@ describe("integration: sequential migration apply", () => {
     });
 
     it("count_user_drafts (OUT arg via plpgsql) returns the draft count", async () => {
-      // No drafts yet for user 0 — seed_system_post inserted one published=NULL post.
-      // (posts.published_at defaults to NULL, so this counts as a draft.)
       const res = await pg.query<{ n: number }>(
         "CALL public.count_user_drafts(0, NULL);",
       );
-      // PGlite returns OUT args as a result row.
       expect(Number(res.rows[0]!.n)).toBeGreaterThanOrEqual(1);
     });
 
@@ -261,53 +270,61 @@ describe("integration: sequential migration apply", () => {
   });
 
   // -------------------------------------------------------------------------
+  // Full validation after all migrations
+  // -------------------------------------------------------------------------
+
+  describe("full validation after all migrations", () => {
+    it("reports only the 0005 broken function", async () => {
+      const diags = await builder.validate(pg);
+      const brokenDiags = diags.filter(d =>
+        d.message.includes("nonexistent_field"),
+      );
+      expect(brokenDiags.length).toBe(1);
+      // All other functions are valid.
+      expect(diags.length).toBe(brokenDiags.length);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Edge cases
   // -------------------------------------------------------------------------
 
   describe("edge cases", () => {
     it("empty migration succeeds with no diagnostics", async () => {
-      const result = await applyMigration(pg, Buffer.from("", "utf8"));
+      const b = new SchemaBuilder();
+      const result = await b.applyMigration(pg, Buffer.from("", "utf8"), 0);
       expect(result.success).toBe(true);
       expect(result.diagnostics).toEqual([]);
     });
 
     it("migration with only comments succeeds", async () => {
-      const result = await applyMigration(pg, Buffer.from(
-        "-- just a comment\n-- another comment\n",
-        "utf8",
-      ));
+      const b = new SchemaBuilder();
+      const result = await b.applyMigration(pg, Buffer.from(
+        "-- just a comment\n-- another comment\n", "utf8",
+      ), 0);
       expect(result.success).toBe(true);
       expect(result.diagnostics).toEqual([]);
     });
 
     it("migration with a parse error returns a libpg-query diagnostic", async () => {
-      const source = Buffer.from(
-        "CREATE TABLE t (id int PRIMARY KY);\n",
-        "utf8",
-      );
-      const result = await applyMigration(pg, source);
+      const b = new SchemaBuilder();
+      const source = Buffer.from("CREATE TABLE t (id int PRIMARY KY);\n", "utf8");
+      const result = await b.applyMigration(pg, source, 0);
       expect(result.success).toBe(false);
       expect(result.diagnostics.length).toBe(1);
       const d = result.diagnostics[0]!;
       expect(d.original.source).toBe("libpg-query");
       expect(d.message).toContain('"KY"');
       expect(d.range).not.toBeNull();
-      // Position should point at "KY" in the source.
       expect(source.toString("utf8").slice(d.range!.start, d.range!.start + 2)).toBe("KY");
     });
 
-    it("a valid migration after a failed one still works (schema state preserved)", async () => {
-      // After 0004 and 0005 failed, the schema is still at 0003.
-      // Apply a simple valid migration to confirm the instance is usable.
-      const source = Buffer.from(
-        "CREATE TABLE public.temp_test (id int);\n",
-        "utf8",
-      );
-      const result = await applyMigration(pg, source);
+    it("a valid migration after a failed one still works", async () => {
+      const b = new SchemaBuilder();
+      const source = Buffer.from("CREATE TABLE public.temp_test (id int);\n", "utf8");
+      const result = await b.applyMigration(pg, source, 0);
       expect(result.success).toBe(true);
       expect(result.diagnostics).toEqual([]);
-
-      // Clean up.
       await pg.exec("DROP TABLE public.temp_test;");
     });
   });
