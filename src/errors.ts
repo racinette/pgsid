@@ -99,7 +99,7 @@ export interface SqlDiagnostic {
 /**
  * Normalize a severity string from any source to our three-level scale.
  */
-function normalizeSeverity(raw: string | undefined): "error" | "warning" | "info" {
+export function normalizeSeverity(raw: string | undefined): "error" | "warning" | "info" {
   if (!raw) return "error";
   const lower = raw.toLowerCase();
   if (lower === "error" || lower === "fatal" || lower === "panic") return "error";

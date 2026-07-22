@@ -403,7 +403,7 @@ type CreateFunctionNode = {
   CreateFunctionStmt?: {
     funcname?: { String?: { sval?: string } }[];
     parameters?: { FunctionParameter?: { name?: string; argType?: { names?: { String?: { sval?: string } }[] }; mode?: string } }[];
-    options?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } } | { List?: { items?: { String?: { sval?: string } }[] } } } }[];
+    options?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } } | { List?: { items?: { String?: { sval?: string } }[] } }; location?: number } }[];
   };
 };
 
@@ -513,9 +513,111 @@ export function formatFunctionRef(stmt: Node): string | undefined {
 
 type DoStmtNode = {
   DoStmt?: {
-    args?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } } } }[];
+    args?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } }; location?: number } }[];
   };
 };
+
+/**
+ * Find the byte offset of the function body within the statement, using
+ * the AST's `location` field on the `AS` DefElem.
+ *
+ * The `location` field is an absolute byte offset into the parsed string
+ * (the stripped content). We convert it to a relative offset within the
+ * statement, then scan forward past `AS`, whitespace, and the dollar-quote
+ * delimiter (or single quote) to find where the decoded body begins.
+ *
+ * Returns the byte offset relative to the start of the statement, or -1 if
+ * the AST doesn't provide a location or the scan fails.
+ *
+ * @param stmt The AST node (CreateFunctionStmt or DoStmt).
+ * @param stmtBytes The statement's bytes in stripped space.
+ * @param stmtStart The byte offset of the statement's start in the parsed
+ *   string (stripped content). Used to convert the absolute `location` to
+ *   a relative offset within `stmtBytes`.
+ */
+export function getBodyOffsetFromAst(
+  stmt: Node,
+  stmtBytes: Buffer,
+  stmtStart: number,
+): number {
+  // Find the 'as' DefElem and its location.
+  let asLocation: number | undefined;
+
+  const fnNode = (stmt as CreateFunctionNode).CreateFunctionStmt;
+  const doNode = (stmt as DoStmtNode).DoStmt;
+
+  if (fnNode) {
+    for (const opt of fnNode.options ?? []) {
+      const def = opt?.DefElem;
+      if (def?.defname === "as") {
+        asLocation = def.location;
+        break;
+      }
+    }
+  } else if (doNode) {
+    for (const opt of doNode.args ?? []) {
+      const def = opt?.DefElem;
+      if (def?.defname === "as") {
+        asLocation = def.location;
+        break;
+      }
+    }
+  }
+
+  if (asLocation === undefined) return -1;
+
+  // asLocation is absolute in the parsed string; convert to relative.
+  const pos = asLocation - stmtStart;
+  if (pos < 0 || pos >= stmtBytes.length) return -1;
+
+  // Scan forward to find the body start.
+  return scanToBodyStart(stmtBytes, pos, fnNode !== undefined);
+}
+
+/**
+ * Scan forward from a position to find the start of the function body,
+ * skipping the `AS` keyword (for functions), whitespace, and the opening
+ * dollar-quote delimiter or single quote.
+ */
+function scanToBodyStart(
+  stmtBytes: Buffer,
+  pos: number,
+  skipAsKeyword: boolean,
+): number {
+  let p = pos;
+
+  if (skipAsKeyword) {
+    // Skip "AS" keyword (case-insensitive).
+    if (p + 2 <= stmtBytes.length &&
+        (stmtBytes.readUInt8(p) === 0x41 || stmtBytes.readUInt8(p) === 0x61) &&
+        (stmtBytes.readUInt8(p + 1) === 0x53 || stmtBytes.readUInt8(p + 1) === 0x73)) {
+      p += 2;
+    }
+    // Skip whitespace.
+    while (p < stmtBytes.length && isSpaceByte(stmtBytes.readUInt8(p))) p++;
+  }
+
+  if (p >= stmtBytes.length) return -1;
+
+  const byte = stmtBytes.readUInt8(p);
+  if (byte === 0x24) {
+    // Dollar-quote: $$ or $tag$
+    p++; // skip first $
+    while (p < stmtBytes.length && stmtBytes.readUInt8(p) !== 0x24) p++;
+    if (p >= stmtBytes.length) return -1;
+    p++; // skip closing $
+    return p;
+  } else if (byte === 0x27) {
+    // Single-quote: body starts after the quote.
+    return p + 1;
+  }
+
+  return -1;
+}
+
+function isSpaceByte(byte: number): boolean {
+  return byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d;
+}
 
 /**
  * Extract the body text from a DoStmt (the PL/pgSQL code between `$$ ... $$`).

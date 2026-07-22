@@ -11,6 +11,7 @@ import {
   formatFunctionRef,
   getFunctionLanguage,
   getDoBlockBody,
+  getBodyOffsetFromAst,
   type Removal,
 } from "./ast.js";
 import {
@@ -20,6 +21,7 @@ import {
   extractParseDiagnostic,
   extractExecDiagnostic,
   extractPlpgsqlCheckDiagnostic,
+  normalizeSeverity,
 } from "./errors.js";
 
 // ---------------------------------------------------------------------------
@@ -363,42 +365,34 @@ export class SchemaBuilder {
    * - **DO blocks**: validate the body via a temp function + plpgsql_check.
    *   If dirty, throw `StmtDiagnosticsError` to halt this file. If clean,
    *   let the executor run the DO block.
-   * - **Function statements** (`CreateFunctionStmt`, `DropFunctionStmt`):
-   *   snapshot `pg_proc` by `proname` for the diff in `onAfterStatementApplied`.
-   * - **Other statements**: return empty `{}` (no snapshot).
+   * - **All statements**: snapshot `pg_proc` and `pg_trigger` before and
+   *   after. Any statement can indirectly create/modify/drop functions or
+   *   triggers — e.g. `SELECT setup()` where `setup()` does
+   *   `EXECUTE 'CREATE FUNCTION ...'`, or `INSERT INTO t` firing a trigger
+   *   that creates functions, or `ALTER TABLE ... DROP COLUMN ... CASCADE`
+   *   dropping functions using `%TYPE`. Snapshotting around every statement
+   *   ensures 100% coverage without maintaining a fragile allowlist.
+   *
+   * For `CreateFunctionStmt`/`DropFunctionStmt`, the `pg_proc` snapshot is
+   * filtered by `proname` (targeted, cheaper). For all other statements,
+   * the snapshot is broad (all user functions).
    */
   async onBeforeStatementApplied(ctx: StmtContext): Promise<BeforeState> {
     if (ctx.kind === "DoStmt") {
-      // Validate the DO block body before execution.
       await this.validateDoBlock(ctx);
-      // DO blocks can dynamically CREATE FUNCTION/CREATE TRIGGER — snapshot broadly.
-      return {
-        pg_proc: await this.snapshotPgProc(ctx.pg),
-        pg_trigger: await this.snapshotPgTrigger(ctx.pg),
-      };
     }
 
-    if (ctx.kind === "CreateFunctionStmt" || ctx.kind === "DropFunctionStmt") {
-      const name = getFunctionName(ctx.stmt);
-      const proname = name?.name;
-      const snapshot = proname
-        ? await this.snapshotPgProc(ctx.pg, proname)
-        : await this.snapshotPgProc(ctx.pg);
-      // CREATE/DROP FUNCTION can also affect triggers (e.g. DROP FUNCTION CASCADE
-      // drops triggers using that function). Snapshot triggers too.
-      return {
-        pg_proc: snapshot,
-        pg_trigger: await this.snapshotPgTrigger(ctx.pg),
-      };
-    }
+    // Snapshot pg_proc around every statement. For CreateFunctionStmt/
+    // DropFunctionStmt, filter by proname (targeted). For everything else,
+    // snapshot broadly — any statement could indirectly touch pg_proc.
+    const proname = (ctx.kind === "CreateFunctionStmt" || ctx.kind === "DropFunctionStmt")
+      ? getFunctionName(ctx.stmt)?.name
+      : undefined;
 
-    if (ctx.kind === "CreateTrigStmt" || ctx.kind === "DropTrigStmt") {
-      // Snapshot all user triggers — we can't easily extract the trigger name
-      // from the AST without more AST helpers, and the trigger set is small.
-      return { pg_trigger: await this.snapshotPgTrigger(ctx.pg) };
-    }
-
-    return {};
+    return {
+      pg_proc: await this.snapshotPgProc(ctx.pg, proname),
+      pg_trigger: await this.snapshotPgTrigger(ctx.pg),
+    };
   }
 
   /**
@@ -416,14 +410,11 @@ export class SchemaBuilder {
    */
   async onAfterStatementApplied(ctx: StmtContext, before: BeforeState): Promise<void> {
     if (before.pg_proc) {
-      // Re-query the same set of functions.
-      let after: Map<number, PgProcRowState>;
-      if (ctx.kind === "CreateFunctionStmt" || ctx.kind === "DropFunctionStmt") {
-        const name = getFunctionName(ctx.stmt);
-        after = await this.snapshotPgProc(ctx.pg, name?.name);
-      } else {
-        after = await this.snapshotPgProc(ctx.pg);
-      }
+      // Re-query with the same filter as the before snapshot.
+      const proname = (ctx.kind === "CreateFunctionStmt" || ctx.kind === "DropFunctionStmt")
+        ? getFunctionName(ctx.stmt)?.name
+        : undefined;
+      const after = await this.snapshotPgProc(ctx.pg, proname);
 
       // Diff: new + changed.
       for (const [oid, afterState] of after) {
@@ -699,14 +690,52 @@ export class SchemaBuilder {
       }
     }
 
-    const bodyOffset = this.findBodyOffsetInStatement(ctx.stmtBytes, bodyText);
+    // Compute the body's byte offset within the statement.
+    //
+    // Primary: AST location — the `as` DefElem has a `location` field pointing
+    // at the `AS` keyword (or first `$` for DO blocks). We scan forward past
+    // the delimiter to find the body start. This is deterministic and
+    // self-documenting.
+    //
+    // Fallback: byte search — search for the body text in the statement bytes.
+    // Used when the AST doesn't provide a location (shouldn't happen for
+    // well-formed statements, but kept as a safety net).
+    //
+    // -1 (both methods failed): the body isn't in the statement text (e.g.
+    // a function created dynamically via SELECT fn() or INSERT-fired trigger).
+    // At validation time, -1 signals that precise position mapping is
+    // impossible; diagnostics fall back to the whole statement range.
+    let bodyOffset: number;
+    if (ctx.kind === "CreateFunctionStmt") {
+      // Primary: AST location — the `as` DefElem has a `location` field.
+      // Deterministic, self-documenting, no string search. Only valid
+      // when the AST node IS the function being recorded (CreateFunctionStmt).
+      bodyOffset = getBodyOffsetFromAst(ctx.stmt, ctx.stmtBytes, ctx.stmtStart);
+      if (bodyOffset < 0) {
+        // Fallback: byte search (safety net for malformed ASTs).
+        bodyOffset = this.findBodyOffsetInStatement(ctx.stmtBytes, bodyText);
+      }
+    } else if (ctx.kind === "DoStmt") {
+      // DO blocks can create functions dynamically. The DO block's AST `as`
+      // location points at the DO block's own body — NOT at the dynamically
+      // created function's body. Use byte search: the function's body text
+      // (from pg_get_functiondef) may appear inside the DO block's EXECUTE
+      // string. If found, we get precise offset. If not, returns -1 →
+      // whole-statement fallback at validation time.
+      bodyOffset = this.findBodyOffsetInStatement(ctx.stmtBytes, bodyText);
+    } else {
+      // Dynamic creation (SELECT fn(), INSERT-fired trigger, etc.) —
+      // the body is inside a different statement's function body,
+      // not in the current statement text.
+      bodyOffset = -1;
+    }
 
     this.provenance.set(oid, {
       oid,
       migration: ctx.migration,
       stmtStart: ctx.stmtStart,
       stmtEnd: ctx.stmtEnd,
-      bodyOffset: bodyOffset >= 0 ? bodyOffset : 0,
+      bodyOffset,
       bodyText,
       language,
       signature,
@@ -897,14 +926,29 @@ export class SchemaBuilder {
 
       if (checkRows.length === 0) continue;
 
+      // If bodyOffset is -1, the body text wasn't found in the statement
+      // (dynamically created function — body is inside a different statement's
+      // function body). Precise position mapping is impossible; all diagnostics
+      // fall back to the whole statement range.
+      const canMapPosition = prov.bodyOffset >= 0;
+
       // Map body offset from stripped to original file space.
-      const bodyOffsetInFile = mapStrippedToOriginal(
-        removals,
-        prov.stmtStart + prov.bodyOffset,
-      );
+      const bodyOffsetInFile = canMapPosition
+        ? mapStrippedToOriginal(removals, prov.stmtStart + prov.bodyOffset)
+        : -1;
 
       const diagnostics: SqlDiagnostic[] = checkRows.map(row =>
-        extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, prov.bodyText, source),
+        canMapPosition
+          ? extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, prov.bodyText, source)
+          : {
+              message: row.message,
+              code: row.sqlstate,
+              severity: normalizeSeverity(row.level),
+              hint: row.hint ?? undefined,
+              detail: row.detail ?? undefined,
+              range: null,
+              original: { source: "plpgsql-check" as const, row },
+            },
       );
 
       // Fill statement range for diagnostics without a precise range.
