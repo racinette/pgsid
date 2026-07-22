@@ -88,6 +88,26 @@ interface StmtContext {
 }
 
 /**
+ * A snapshot of a pg_proc row. We diff `xmin` and `ctid` to detect whether
+ * a function was touched by a statement:
+ * - `xmin` (transaction ID) changes across transactions (between migration files).
+ * - `ctid` (physical tuple location) changes within the same transaction
+ *   (multiple CREATE OR REPLACE of the same function in one migration file).
+ * - `prosrc` is the body text, used for provenance recording.
+ *
+ * Using both `xmin` and `ctid` gives full coverage: if either changed, the
+ * function was modified (even when the body is identical — PG still UPDATEs
+ * the row, bumping both). This also disambiguates in the multi-schema case:
+ * if `s1.foo()` and `s2.foo()` have the same name and body, only the
+ * replaced one's `xmin`/`ctid` changes.
+ */
+interface PgProcRowState {
+  prosrc: string;
+  xmin: string;
+  ctid: string;
+}
+
+/**
  * Before-state returned by `onBeforeStatementApplied`. An extensible object —
  * each field is an optional snapshot of a system catalog. `onAfterStatementApplied`
  * checks which fields are present and diffs accordingly.
@@ -96,8 +116,8 @@ interface StmtContext {
  * `pg_class`, `pg_type`, etc. without changing this type.
  */
 interface BeforeState {
-  /** oid → prosrc for user functions (filtered by proname when targeted). */
-  pg_proc?: Map<number, string>;
+  /** oid → row state for user functions (filtered by proname when targeted). */
+  pg_proc?: Map<number, PgProcRowState>;
 }
 
 /**
@@ -142,6 +162,30 @@ export class SchemaBuilder {
 
   // Counter for temp functions created during DO block pre-checks.
   private doBlockCounter = 0;
+
+  /**
+   * @internal — for testing only. Returns a snapshot of the provenance map
+   * with plain data (no internal references).
+   */
+  getProvenanceForTesting(): Map<number, {
+    migrationIndex: number;
+    stmtStart: number;
+    stmtEnd: number;
+    bodyOffset: number;
+    bodyText: string;
+    language: string;
+    signature: string;
+  }> {
+    return new Map([...this.provenance.entries()].map(([oid, prov]) => [oid, {
+      migrationIndex: prov.migration.index,
+      stmtStart: prov.stmtStart,
+      stmtEnd: prov.stmtEnd,
+      bodyOffset: prov.bodyOffset,
+      bodyText: prov.bodyText,
+      language: prov.language,
+      signature: prov.signature,
+    }]));
+  }
 
   // -------------------------------------------------------------------------
   // Phase 1: Apply
@@ -306,14 +350,17 @@ export class SchemaBuilder {
    * Checks which fields are present in `before` and diffs accordingly.
    * For `pg_proc`:
    * - New OID → CREATE. Record provenance.
-   * - Same OID, prosrc changed → REPLACE. Update provenance.
+   * - Same OID, xmin or ctid changed → REPLACE. Update provenance.
+   *   This detects same-body CREATE OR REPLACE (PG still UPDATEs the row,
+   *   bumping xmin/ctid even when prosrc is identical) and disambiguates
+   *   in the multi-schema case (only the replaced function's row changes).
    * - Unchanged → skip.
    * - OID in before but not after → DROP. Remove provenance.
    */
   async onAfterStatementApplied(ctx: StmtContext, before: BeforeState): Promise<void> {
     if (before.pg_proc) {
       // Re-query the same set of functions.
-      let after: Map<number, string>;
+      let after: Map<number, PgProcRowState>;
       if (ctx.kind === "CreateFunctionStmt" || ctx.kind === "DropFunctionStmt") {
         const name = getFunctionName(ctx.stmt);
         after = await this.snapshotPgProc(ctx.pg, name?.name);
@@ -322,14 +369,17 @@ export class SchemaBuilder {
       }
 
       // Diff: new + changed.
-      for (const [oid, prosrc] of after) {
-        const beforeSrc = before.pg_proc.get(oid);
-        if (beforeSrc === undefined) {
+      for (const [oid, afterState] of after) {
+        const beforeState = before.pg_proc.get(oid);
+        if (beforeState === undefined) {
           // New function — record provenance.
-          this.recordProvenance(ctx, oid, prosrc);
-        } else if (beforeSrc !== prosrc) {
-          // Replaced function — update provenance.
-          this.recordProvenance(ctx, oid, prosrc);
+          await this.recordProvenance(ctx, oid, afterState.prosrc);
+        } else if (
+          beforeState.xmin !== afterState.xmin ||
+          beforeState.ctid !== afterState.ctid
+        ) {
+          // Replaced function (xmin or ctid changed) — update provenance.
+          await this.recordProvenance(ctx, oid, afterState.prosrc);
         }
         // else: unchanged, skip.
       }
@@ -383,49 +433,55 @@ export class SchemaBuilder {
    * Returns all diagnostics (collect-all, no halt).
    */
   async validate(pg: PGlite): Promise<SqlDiagnostic[]> {
-    // Query surviving user functions.
-    const surviving = await pg.query<{
-      oid: number;
-      proname: string;
-      lanname: string;
-      prosrc: string;
-      def: string;
-    }>(`
-      SELECT p.oid, p.proname, l.lanname AS lanname, p.prosrc,
-             pg_get_functiondef(p.oid) AS def
-      FROM pg_proc p
-      JOIN pg_namespace n ON n.oid = p.pronamespace
-      JOIN pg_language l  ON l.oid  = p.prolang
-      WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-        AND n.nspname NOT LIKE 'pg_temp_%'
-        AND l.lanname IN ('plpgsql', 'sql')
-        AND NOT EXISTS (
-          SELECT 1 FROM pg_depend d
-          WHERE d.objid = p.oid AND d.deptype = 'e'
-        );
-    `);
+    // Wrap in a transaction: validateSqlFunction uses SAVEPOINT for
+    // isolation, which requires a transaction block.
+    await pg.query("BEGIN");
+    try {
+      // Query surviving user functions.
+      const surviving = await pg.query<{
+        oid: number;
+        proname: string;
+        lanname: string;
+        prosrc: string;
+        def: string;
+      }>(`
+        SELECT p.oid, p.proname, l.lanname AS lanname, p.prosrc,
+               pg_get_functiondef(p.oid) AS def
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        JOIN pg_language l  ON l.oid  = p.prolang
+        WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+          AND n.nspname NOT LIKE 'pg_temp_%'
+          AND l.lanname IN ('plpgsql', 'sql')
+          AND NOT EXISTS (
+            SELECT 1 FROM pg_depend d
+            WHERE d.objid = p.oid AND d.deptype = 'e'
+          );
+      `);
 
-    const allDiagnostics: SqlDiagnostic[] = [];
+      const allDiagnostics: SqlDiagnostic[] = [];
 
-    for (const row of surviving.rows) {
-      const prov = this.provenance.get(row.oid);
-      if (!prov) {
-        // No provenance — function existed before our apply or was created
-        // by an extension/DO block we didn't track. Skip validation.
-        // TODO: handle DO-block-created functions (provenance points at DO block).
-        continue;
+      for (const row of surviving.rows) {
+        const prov = this.provenance.get(row.oid);
+        if (!prov) {
+          // No provenance — function existed before our apply or was created
+          // by an extension/DO block we didn't track. Skip validation.
+          continue;
+        }
+
+        if (row.lanname === "plpgsql") {
+          const diags = await this.validatePlpgsqlFunction(pg, row.oid, prov);
+          allDiagnostics.push(...diags);
+        } else if (row.lanname === "sql") {
+          const diags = await this.validateSqlFunction(pg, row.oid, prov);
+          allDiagnostics.push(...diags);
+        }
       }
 
-      if (row.lanname === "plpgsql") {
-        const diags = await this.validatePlpgsqlFunction(pg, row.oid, prov);
-        allDiagnostics.push(...diags);
-      } else if (row.lanname === "sql") {
-        const diags = await this.validateSqlFunction(pg, row.oid, prov);
-        allDiagnostics.push(...diags);
-      }
+      return allDiagnostics;
+    } finally {
+      await pg.query("ROLLBACK");
     }
-
-    return allDiagnostics;
   }
 
   // -------------------------------------------------------------------------
@@ -433,7 +489,12 @@ export class SchemaBuilder {
   // -------------------------------------------------------------------------
 
   /**
-   * Snapshot `pg_proc` as `oid → prosrc` for user functions.
+   * Snapshot `pg_proc` as `oid → { prosrc, xmin, ctid }` for user functions.
+   *
+   * `xmin` and `ctid` are used to detect whether a function was touched by
+   * a statement — even when the body is identical (PG still UPDATEs the row,
+   * bumping both). This also disambiguates when multiple schemas have the
+   * same function name and body: only the replaced one's row is modified.
    *
    * @param proname If provided, filter by function name (targeted snapshot
    *   for `CreateFunctionStmt`/`DropFunctionStmt`). If omitted, snapshot all
@@ -442,7 +503,7 @@ export class SchemaBuilder {
   private async snapshotPgProc(
     pg: PGlite,
     proname?: string,
-  ): Promise<Map<number, string>> {
+  ): Promise<Map<number, PgProcRowState>> {
     const baseWhere = `
       n.nspname NOT IN ('pg_catalog', 'information_schema')
       AND n.nspname NOT LIKE 'pg_temp_%'
@@ -452,18 +513,23 @@ export class SchemaBuilder {
         WHERE d.objid = p.oid AND d.deptype = 'e'
       )
     `;
+    const select = "p.oid, p.prosrc, p.xmin::text AS xmin, p.ctid::text AS ctid";
     const query = proname
-      ? `SELECT p.oid, p.prosrc FROM pg_proc p
+      ? `SELECT ${select} FROM pg_proc p
          JOIN pg_namespace n ON n.oid = p.pronamespace
          JOIN pg_language l  ON l.oid  = p.prolang
          WHERE ${baseWhere} AND p.proname = $1;`
-      : `SELECT p.oid, p.prosrc FROM pg_proc p
+      : `SELECT ${select} FROM pg_proc p
          JOIN pg_namespace n ON n.oid = p.pronamespace
          JOIN pg_language l  ON l.oid  = p.prolang
          WHERE ${baseWhere};`;
     const params = proname ? [proname] : [];
-    const res = await pg.query<{ oid: number; prosrc: string }>(query, params);
-    return new Map(res.rows.map(r => [r.oid, r.prosrc]));
+    const res = await pg.query<{ oid: number; prosrc: string; xmin: string; ctid: string }>(query, params);
+    return new Map(res.rows.map(r => [r.oid, {
+      prosrc: r.prosrc,
+      xmin: r.xmin,
+      ctid: r.ctid,
+    }]));
   }
 
   // -------------------------------------------------------------------------
@@ -474,16 +540,48 @@ export class SchemaBuilder {
    * Record or update provenance for a function OID.
    * Called from `onAfterStatementApplied` when the diff detects a new or
    * replaced function.
+   *
+   * For `CreateFunctionStmt`: extract body, language, and signature from the
+   * AST (fast path).
+   * For dynamically-created functions (e.g. via DO block `EXECUTE`): query
+   * pg_proc and parse `pg_get_functiondef` to extract the same metadata.
    */
-  private recordProvenance(
+  private async recordProvenance(
     ctx: StmtContext,
     oid: number,
     prosrc: string,
-  ): void {
-    const bodyText = getFunctionBody(ctx.stmt) ?? prosrc;
+  ): Promise<void> {
+    let bodyText: string;
+    let language: string;
+    let signature: string;
+
+    if (ctx.kind === "CreateFunctionStmt") {
+      bodyText = getFunctionBody(ctx.stmt) ?? prosrc;
+      language = getFunctionLanguage(ctx.stmt) ?? "sql";
+      signature = formatFunctionRef(ctx.stmt) ?? "";
+    } else {
+      // Dynamic creation (e.g. via DO block EXECUTE).
+      // Query pg_proc for metadata, parse pg_get_functiondef for body+signature.
+      const meta = await ctx.pg.query<{ lanname: string; def: string }>(
+        `SELECT l.lanname, pg_get_functiondef(p.oid) AS def
+         FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang
+         WHERE p.oid = $1`,
+        [oid],
+      );
+      if (meta.rows.length > 0) {
+        language = meta.rows[0]!.lanname;
+        const defParsed = await parseSql(meta.rows[0]!.def);
+        const defStmt = defParsed.stmts![0]!.stmt!;
+        bodyText = getFunctionBody(defStmt) ?? prosrc;
+        signature = formatFunctionRef(defStmt) ?? "";
+      } else {
+        bodyText = prosrc;
+        language = "sql";
+        signature = "";
+      }
+    }
+
     const bodyOffset = this.findBodyOffsetInStatement(ctx.stmtBytes, bodyText);
-    const language = getFunctionLanguage(ctx.stmt) ?? "sql";
-    const signature = formatFunctionRef(ctx.stmt) ?? "";
 
     this.provenance.set(oid, {
       oid,

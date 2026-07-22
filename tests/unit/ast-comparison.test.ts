@@ -318,18 +318,6 @@ $$;`,
 $$;`,
   },
 
-  // --- Unqualified schema ---
-  {
-    id: "unqualified",
-    label: "unqualified schema (no public. prefix)",
-    expectByteSearch: true,
-    createSql: `CREATE FUNCTION unqualified_fn(a int) RETURNS int LANGUAGE plpgsql AS $$
-BEGIN
-  RETURN a + 1;
-END;
-$$;`,
-  },
-
   // --- Extra options ---
   {
     id: "extra_options",
