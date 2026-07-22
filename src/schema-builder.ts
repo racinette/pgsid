@@ -16,6 +16,7 @@ import {
 import {
   type SqlDiagnostic,
   type PlpgsqlCheckRow,
+  DatabaseError,
   extractParseDiagnostic,
   extractExecDiagnostic,
   extractPlpgsqlCheckDiagnostic,
@@ -738,8 +739,21 @@ export class SchemaBuilder {
 
   /**
    * Validate a SQL function by re-issuing `pg_get_functiondef` with
-   * `check_function_bodies=on`. Maps the error position (into the re-issued
-   * text) back to the original migration file using stored provenance.
+   * `check_function_bodies=on`. The body is verbatim in both the re-issued
+   * text and the original migration (verified by the AST comparison test
+   * suite), so we can map the error position through the body offset.
+   *
+   * Position mapping:
+   * - `err.position` is a 1-based byte offset into the re-issued `defText`.
+   * - `defBodyOffset` is the byte offset of the body within `defText`.
+   * - If `position > defBodyOffset` (error is in the body), we translate:
+   *     `errorPosInBody = (position - 1) - defBodyOffset`
+   *     `errorPosInStripped = prov.stmtStart + prov.bodyOffset + errorPosInBody`
+   *     `errorPosInOriginal = mapStrippedToOriginal(removals, errorPosInStripped)`
+   *   This works because the body text is identical in both texts.
+   * - If the error is in the header (before the body), the re-issued text's
+   *   header differs from the original migration's — we can't map. Fall back
+   *   to the whole statement range.
    */
   private async validateSqlFunction(
     pg: PGlite,
@@ -771,27 +785,43 @@ export class SchemaBuilder {
       await pg.query("ROLLBACK TO SAVEPOINT pgsid_sql_validate");
       await pg.query("SET LOCAL check_function_bodies TO off");
 
-      // The error position is into the re-issued defText. Find the body
-      // in the re-issued text to compute the offset, then map to the
-      // original migration file's body offset.
-      const defBodyOffset = this.findBodyOffsetInStatement(Buffer.from(defText, "utf8"), prov.bodyText);
-      const stmtStrippedOffset = defBodyOffset >= 0 ? defBodyOffset : 0;
+      // Find the body's offset in the re-issued text.
+      const defBodyOffset = this.findBodyOffsetInStatement(
+        Buffer.from(defText, "utf8"), prov.bodyText,
+      );
 
-      const diag = extractExecDiagnostic(err, 0, {
-        stmtStrippedOffset,
-        removals,
-        mapStrippedToOriginal,
-        source,
-      });
+      // Check if the error position is inside the body.
+      const pos1 = err instanceof DatabaseError && err.position
+        ? parseInt(err.position, 10) : NaN;
 
-      // The position from the re-issued text needs to be remapped:
-      //   errorPosInOriginal = errorPosInDefText - defBodyOffset + bodyOffsetInOriginal
-      // TODO: this mapping needs careful implementation. The extractExecDiagnostic
-      // above uses stmtStrippedOffset = defBodyOffset, which is the offset in the
-      // RE-ISSUED text, not the original migration text. We need a custom mapping
-      // that translates the re-issued position to the original body position.
-      //
-      // For now, fall back to the statement range.
+      let diag: SqlDiagnostic;
+
+      if (defBodyOffset >= 0 && !Number.isNaN(pos1) && pos1 > defBodyOffset) {
+        // Error is in the body — map through provenance.
+        // stmtStrippedOffset = prov.stmtStart + prov.bodyOffset - defBodyOffset
+        // so: pos0IntoStripped = stmtStrippedOffset + (pos1 - 1)
+        //                        = prov.stmtStart + prov.bodyOffset - defBodyOffset + (pos1 - 1)
+        //                        = prov.stmtStart + prov.bodyOffset + (pos1 - 1 - defBodyOffset)
+        //                        = prov.stmtStart + prov.bodyOffset + errorPosInBody
+        diag = extractExecDiagnostic(err, 0, {
+          stmtStrippedOffset: prov.stmtStart + prov.bodyOffset - defBodyOffset,
+          removals,
+          mapStrippedToOriginal,
+          source,
+        });
+      } else {
+        // Error is in the header, or body not found, or position unknown.
+        // Can't map — produce a diagnostic with no range; we'll fill the
+        // statement range as fallback below.
+        diag = extractExecDiagnostic(err, 0, {
+          stmtStrippedOffset: 0,
+          removals: [],
+          mapStrippedToOriginal,
+          source: undefined, // prevents token expansion — range stays null
+        });
+      }
+
+      // Fall back to the whole statement range in the original file.
       if (diag.range === null) {
         diag.range = {
           start: mapStrippedToOriginal(removals, prov.stmtStart),

@@ -350,6 +350,90 @@ describe("SchemaBuilder: byte-level offsets with multi-byte UTF-8", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 7. SQL function re-validation with precise position mapping
+// ---------------------------------------------------------------------------
+
+describe("SchemaBuilder: SQL function re-validation", () => {
+  let pg: PGlite;
+
+  beforeAll(async () => {
+    pg = await PGlite.create({ extensions: { plpgsql_check } });
+    await pg.exec("CREATE EXTENSION plpgsql_check;");
+    await pg.exec("CREATE TABLE public.sql_val_test (id int, name text);");
+  });
+  afterAll(async () => { if (!pg.closed) await pg.close(); });
+
+  it("broken SQL function body — diagnostic points at the error token", async () => {
+    // SQL function with a broken column reference. The function applies
+    // (check_function_bodies=off), then validate re-CREATES with
+    // check_function_bodies=on and catches the error. The diagnostic
+    // range should point at the broken column name in the migration file.
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE FUNCTION public.sql_val_broken() RETURNS int " +
+      "LANGUAGE sql AS $$\n  SELECT badcol FROM public.sql_val_test;\n$$;\n",
+      "utf8",
+    );
+
+    const result = await builder.applyMigration(pg, source, 0);
+    expect(result.success).toBe(true);
+
+    const diags = await builder.validate(pg);
+    expect(diags.length).toBeGreaterThanOrEqual(1);
+    expect(diags[0]!.message).toContain("badcol");
+
+    // The range should point at "badcol" in the original migration file.
+    const highlighted = source.subarray(
+      diags[0]!.range!.start,
+      diags[0]!.range!.end,
+    ).toString("utf8");
+    expect(highlighted).toBe("badcol");
+  });
+
+  it("valid SQL function body — no diagnostics", async () => {
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE FUNCTION public.sql_val_ok() RETURNS int " +
+      "LANGUAGE sql AS $$\n  SELECT id FROM public.sql_val_test;\n$$;\n",
+      "utf8",
+    );
+
+    await builder.applyMigration(pg, source, 0);
+    const diags = await builder.validate(pg);
+    const myDiags = diags.filter(d => d.message.includes("sql_val_ok"));
+    expect(myDiags).toEqual([]);
+  });
+
+  it("broken SQL function with multi-byte UTF-8 before body — byte-correct range", async () => {
+    // The re-issued pg_get_functiondef text has a different header format
+    // (CREATE OR REPLACE, $function$ tags), but the body is verbatim.
+    // The error position from PG is into the re-issued text. We map it
+    // through the body offset to the original migration file.
+    // Multi-byte UTF-8 in a comment before the body tests that the
+    // mapping is byte-correct.
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE FUNCTION public.sql_val_utf8() RETURNS int -- café ☕ 日本語\n" +
+      "LANGUAGE sql AS $$\n  SELECT broken_col FROM public.sql_val_test;\n$$;\n",
+      "utf8",
+    );
+
+    await builder.applyMigration(pg, source, 0);
+
+    const diags = await builder.validate(pg);
+    expect(diags.length).toBeGreaterThanOrEqual(1);
+    expect(diags[0]!.message).toContain("broken_col");
+
+    // The range should point at "broken_col" in the original migration file.
+    const highlighted = source.subarray(
+      diags[0]!.range!.start,
+      diags[0]!.range!.end,
+    ).toString("utf8");
+    expect(highlighted).toBe("broken_col");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 7. Provenance tracking: xmin/ctid diff for same-body CREATE OR REPLACE
 // ---------------------------------------------------------------------------
 
