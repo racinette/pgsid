@@ -1,4 +1,5 @@
 import { parse, type ParseResult, type RawStmt, type Node } from "libpg-query";
+import { createHash } from "node:crypto";
 
 
 export async function parseSql(sql: string): Promise<ParseResult> {
@@ -633,4 +634,175 @@ export function getDoBlockBody(stmt: Node): string | undefined {
     }
   }
   return undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Statement chain: canonicalized AST hashing + ParsedStatement / MigrationFile
+// ---------------------------------------------------------------------------
+
+/**
+ * A parsed statement in a migration file. Carries:
+ * - `hash`: canonicalized AST hash — stable identity across cosmetic edits.
+ * - `raw`: the raw AST node (with location info for byte-offset retrieval).
+ * - `stmtStart`/`stmtEnd`/`text`/`bytes`: byte offsets and text in the
+ *   stripped content (CONCURRENTLY removed).
+ *
+ * The hash is computed by stripping all location-related fields from the
+ * AST, then JSON-stringifying and sha256-hashing the result. This means
+ * comments, whitespace, and keyword case don't affect the hash — two
+ * statements that differ only cosmetically have the same hash.
+ *
+ * The hash is NOT a semantic equivalence check. Two statements with
+ * different hashes might produce the same schema (e.g., `CREATE TABLE t
+ * (a int, b int)` vs `CREATE TABLE t (b int, a int)` — same columns,
+ * different order → different AST → different hash). This is intentional:
+ * we conservatively re-apply when the hash changes, because proving
+ * semantic equivalence would require running both and diffing the catalog.
+ */
+export interface ParsedStatement {
+  /** Canonicalized AST hash — stable across cosmetic edits. */
+  hash: string;
+  /** The raw AST statement (with stmt_location, stmt_len, location fields). */
+  raw: RawStmt;
+  /** The statement node (raw.stmt). */
+  stmt: Node;
+  /** AST kind string, e.g. "CreateFunctionStmt", "DoStmt". */
+  kind: string;
+  /** 0-based byte offset of the statement in the stripped content. */
+  stmtStart: number;
+  /** 0-based byte end in the stripped content. */
+  stmtEnd: number;
+  /** Statement text in the stripped content. */
+  text: string;
+  /** Statement bytes in the stripped content (for byte-level offset search). */
+  bytes: Buffer;
+}
+
+/**
+ * A migration file parsed into a chain of statements. Mutable: `source`,
+ * `removals`, and `statements` are re-computed when the file is edited.
+ *
+ * Provenance entries reference statements by `migrationIndex` + `statementHash`,
+ * NOT by byte offsets or object references. This decouples provenance
+ * (immutable, set during apply) from the file state (mutable, updated on edit).
+ */
+export interface MigrationFile {
+  index: number;
+  source: Buffer;
+  removals: Removal[];
+  statements: ParsedStatement[];
+}
+
+/**
+ * Canonicalize an AST node for hashing: recursively strip all
+ * location-related fields (`location`, `stmt_location`, `stmt_len`).
+ *
+ * Comments and whitespace are already absent from the AST (the parser
+ * discards them). Keyword case is normalized by the parser. So the only
+ * formatting-dependent fields are the location integers.
+ */
+function canonicalizeNode(obj: unknown): unknown {
+  if (Array.isArray(obj)) {
+    return obj.map(canonicalizeNode);
+  }
+  if (obj !== null && typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(obj as Record<string, unknown>)) {
+      if (key === "location" || key === "stmt_location" || key === "stmt_len") {
+        continue;
+      }
+      result[key] = canonicalizeNode((obj as Record<string, unknown>)[key]);
+    }
+    return result;
+  }
+  return obj;
+}
+
+/**
+ * Compute a canonicalized AST hash for a statement.
+ *
+ * Strips location fields, JSON-stringifies, sha256-hashes. Two statements
+ * that differ only in comments/whitespace/keyword-case have the same hash.
+ * Two statements with different structure (different columns, different body,
+ * different order) have different hashes.
+ */
+export function statementHash(stmt: Node): string {
+  const canonical = canonicalizeNode(stmt);
+  const json = JSON.stringify(canonical);
+  return createHash("sha256").update(json).digest("hex");
+}
+
+/**
+ * Parse a migration file into a chain of ParsedStatements.
+ *
+ * Steps:
+ * 1. Parse the original source (for CONCURRENTLY stripping).
+ * 2. Preprocess: strip CONCURRENTLY → stripped content + removals.
+ * 3. Re-parse the stripped content.
+ * 4. Split into statements (getStatements).
+ * 5. Hash each statement's AST node.
+ *
+ * The result is a `MigrationFile` with the source, removals, and the
+ * statement chain. The statement hashes are the stable identity —
+ * they survive cosmetic edits to the file.
+ */
+export async function parseMigrationFile(
+  source: Buffer,
+  index: number,
+): Promise<MigrationFile> {
+  // 1. Parse the original source.
+  const parsed = await parseSql(source.toString("utf8"));
+
+  // 2. Preprocess (strip CONCURRENTLY).
+  const preprocessed = preprocess(source, parsed, stripConcurrently());
+  const strippedContent = preprocessed.content;
+  const removals = preprocessed.removals;
+
+  // 3. Re-parse the stripped content.
+  const strippedParsed = await parseSql(strippedContent.toString("utf8"));
+
+  // 4. Split into statements.
+  const stmts = getStatements(strippedParsed, strippedContent);
+
+  // 5. Hash each statement.
+  const statements: ParsedStatement[] = stmts.map(stmtInfo => ({
+    hash: statementHash(stmtInfo.stmt),
+    raw: stmtInfo.raw,
+    stmt: stmtInfo.stmt,
+    kind: stmtInfo.kind,
+    stmtStart: stmtInfo.start,
+    stmtEnd: stmtInfo.end,
+    text: stmtInfo.text,
+    bytes: strippedContent.subarray(stmtInfo.start, stmtInfo.end),
+  }));
+
+  return {
+    index,
+    source,
+    removals,
+    statements,
+  };
+}
+
+/**
+ * Compare two statement chains and return the index of the first differing
+ * statement, or null if they're identical.
+ *
+ * Used to determine whether a file-modified event requires re-applying:
+ * if the chains match (all hashes in the same order), the edit was cosmetic
+ * and no re-apply is needed.
+ */
+export function diffStatementChains(
+  before: ParsedStatement[],
+  after: ParsedStatement[],
+): number | null {
+  const maxLen = Math.max(before.length, after.length);
+  for (let i = 0; i < maxLen; i++) {
+    const beforeHash = before[i]?.hash;
+    const afterHash = after[i]?.hash;
+    if (beforeHash !== afterHash) {
+      return i;
+    }
+  }
+  return null;
 }
