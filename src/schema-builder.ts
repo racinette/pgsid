@@ -2,17 +2,15 @@ import type { PGlite } from "@electric-sql/pglite";
 import type { Node } from "libpg-query";
 import {
   parseSql,
-  getStatements,
-  preprocess,
-  stripConcurrently,
+  parseMigrationFile,
   mapStrippedToOriginal,
-  getFunctionBody,
   getFunctionName,
   formatFunctionRef,
   getFunctionLanguage,
   getDoBlockBody,
   getBodyOffsetFromAst,
-  type Removal,
+  type MigrationFile,
+  type ParsedStatement,
 } from "./ast.js";
 import {
   type SqlDiagnostic,
@@ -29,39 +27,29 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * Per-migration context: the original file and its CONCURRENTLY-stripping
- * metadata. Stored once per migration file; referenced by provenance entries
- * so no lookup-by-index is needed at validation time.
- */
-interface MigrationContext {
-  index: number;
-  source: Buffer;
-  removals: Removal[];
-}
-
-/**
  * Provenance for a function that survives in pg_proc.
  *
- * All byte offsets are in **stripped** coordinate space (the preprocessed
- * migration text with CONCURRENTLY removed). They are remapped to original
- * file coordinates at diagnostic-emission time via `mapStrippedToOriginal`
- * using `migration.removals`.
+ * References the statement that last defined the body by `(migrationIndex, statementHash)`
+ * — NOT by byte offsets. Byte offsets are resolved on demand at validation time
+ * via `MigrationFile.statements` (which are re-parsed when the file is edited).
+ *
+ * Body fields (`statementHash`, `bodyText`) are updated only when `prosrc`
+ * changes (body change). Metadata fields (`signature`, `language`) are updated
+ * on any change (xmin/ctid). The invariant `prov.bodyText === current prosrc`
+ * holds at all times.
  */
 interface FunctionProvenance {
   /** pg_proc OID of the function. */
   oid: number;
-  /** The migration file where this function was last created/replaced. */
-  migration: MigrationContext;
-  /** Byte range of the CREATE FUNCTION statement in stripped space. */
-  stmtStart: number;
-  stmtEnd: number;
-  /** Byte offset of the function body (text between `$$ ... $$`) within the statement. */
-  bodyOffset: number;
-  /** The function body text (= pg_proc.prosrc, decoded by libpg-query). */
+  /** Which migration file (index into `migrations` map). */
+  migrationIndex: number;
+  /** Canonicalized AST hash of the statement that last defined the body. */
+  statementHash: string;
+  /** The function body text (= pg_proc.prosrc). Always matches current prosrc. */
   bodyText: string;
   /** Language name: "plpgsql" or "sql". */
   language: string;
-  /** Regprocedure signature, e.g. `"public"."my_func"(int4)`. */
+  /** Regprocedure signature, e.g. `"public"."my_func"(int4)`. Updated on any change. */
   signature: string;
 }
 
@@ -74,11 +62,10 @@ interface FunctionProvenance {
 interface TriggerProvenance {
   /** pg_trigger OID. */
   oid: number;
-  /** The migration file where this trigger was last created. */
-  migration: MigrationContext;
-  /** Byte range of the CREATE TRIGGER statement in stripped space. */
-  stmtStart: number;
-  stmtEnd: number;
+  /** Which migration file. */
+  migrationIndex: number;
+  /** Canonicalized AST hash of the statement that created this trigger. */
+  statementHash: string;
   /** The relation (table/view) the trigger is on. */
   relation: string;
   /** NEW TABLE transition table name, or null. */
@@ -88,78 +75,51 @@ interface TriggerProvenance {
 }
 
 /**
- * Context passed to every hook. Carries everything the hooks need to:
- * - decide whether to snapshot (inspect `kind`),
- * - extract function metadata (inspect `stmt`),
- * - compute provenance byte ranges (`stmtStart`, `stmtEnd`, `stmtText`),
- * - map diagnostics to original file space (`migration.removals`, `migration.source`).
+ * Context passed to every hook. Carries everything the hooks need.
+ * The `migration` is a `MigrationFile` (mutable — re-parsed on edit).
+ * Byte offsets (`stmtStart`, `stmtEnd`, `stmtBytes`) are the current
+ * statement's offsets in stripped space — used for execution and diff,
+ * NOT stored in provenance.
  */
 interface StmtContext {
-  /** The PGlite instance (same transaction as the executor). */
   pg: PGlite;
-  /** The migration context for this file. */
-  migration: MigrationContext;
-  /** The parsed AST node for this statement. */
+  migration: MigrationFile;
   stmt: Node;
-  /** AST kind string, e.g. "CreateFunctionStmt", "DoStmt", "DropFunctionStmt". */
   kind: string;
-  /** Byte range of the statement in stripped space [stmtStart, stmtEnd). */
+  statementHash: string;
   stmtStart: number;
   stmtEnd: number;
-  /** The statement text in stripped space (what was actually exec'd). */
   stmtText: string;
-  /** The statement bytes in stripped space (for byte-level offset computation). */
   stmtBytes: Buffer;
 }
 
 /**
- * A snapshot of a pg_proc row. We diff `xmin` and `ctid` to detect whether
- * a function was touched by a statement:
- * - `xmin` (transaction ID) changes across transactions (between migration files).
- * - `ctid` (physical tuple location) changes within the same transaction
- *   (multiple CREATE OR REPLACE of the same function in one migration file).
- * - `prosrc` is the body text, used for provenance recording.
- *
- * Using both `xmin` and `ctid` gives full coverage: if either changed, the
- * function was modified (even when the body is identical — PG still UPDATEs
- * the row, bumping both). This also disambiguates in the multi-schema case:
- * if `s1.foo()` and `s2.foo()` have the same name and body, only the
- * replaced one's `xmin`/`ctid` changes.
+ * Lightweight pg_proc row state — no `prosrc` (fetched on-demand when a
+ * change is detected). We diff `xmin` and `ctid` to detect whether a
+ * function was touched by a statement.
  */
 interface PgProcRowState {
-  prosrc: string;
   xmin: string;
   ctid: string;
 }
 
 /**
- * A snapshot of a pg_trigger row. Diffs the whole row (we compare all fields)
- * to detect whether a trigger was created/modified/dropped.
+ * A snapshot of a pg_trigger row.
  */
 interface PgTriggerRowState {
-  /** The relation (table/view) the trigger is on. */
   relation: string;
-  /** The function OID the trigger calls. */
   tgfoid: number;
-  /** NEW TABLE transition table name, or null. */
   tgnewtable: string | null;
-  /** OLD TABLE transition table name, or null. */
   tgoldtable: string | null;
-  /** xmin for change detection (same rationale as pg_proc). */
   xmin: string;
-  /** ctid for change detection within the same transaction. */
   ctid: string;
 }
 
 /**
- * Before-state returned by `onBeforeStatementApplied`. An extensible object —
- * each field is an optional snapshot of a system catalog. `onAfterStatementApplied`
- * checks which fields are present and diffs accordingly.
+ * Before-state returned by `onBeforeStatementApplied`.
  */
 interface BeforeState {
-  /** oid → row state for user functions (filtered by proname when targeted). */
   pg_proc?: Map<number, PgProcRowState>;
-  /** oid → row state for user triggers (filtered by function OID when targeted). */
   pg_trigger?: Map<number, PgTriggerRowState>;
 }
 
@@ -203,8 +163,8 @@ export class SchemaBuilder {
   // oid → trigger provenance. Updated during apply; read during validate.
   private triggerProvenance = new Map<number, TriggerProvenance>();
 
-  // Per-migration contexts (source + removals). Referenced by provenance entries.
-  private migrations: MigrationContext[] = [];
+  // Per-migration files (mutable — re-parsed on edit). Keyed by migration index.
+  private migrations = new Map<number, MigrationFile>();
 
   // Counter for temp functions created during DO block pre-checks.
   private doBlockCounter = 0;
@@ -215,18 +175,14 @@ export class SchemaBuilder {
    */
   getProvenanceForTesting(): Map<number, {
     migrationIndex: number;
-    stmtStart: number;
-    stmtEnd: number;
-    bodyOffset: number;
+    statementHash: string;
     bodyText: string;
     language: string;
     signature: string;
   }> {
     return new Map([...this.provenance.entries()].map(([oid, prov]) => [oid, {
-      migrationIndex: prov.migration.index,
-      stmtStart: prov.stmtStart,
-      stmtEnd: prov.stmtEnd,
-      bodyOffset: prov.bodyOffset,
+      migrationIndex: prov.migrationIndex,
+      statementHash: prov.statementHash,
       bodyText: prov.bodyText,
       language: prov.language,
       signature: prov.signature,
@@ -250,57 +206,35 @@ export class SchemaBuilder {
     source: Buffer,
     migrationIndex: number,
   ): Promise<{ success: boolean; diagnostics: SqlDiagnostic[] }> {
-    // 1. Parse the original source.
-    let parsed;
+    // 1. Parse the migration file into a statement chain with hashes.
+    let migration: MigrationFile;
     try {
-      parsed = await parseSql(source.toString("utf8"));
+      migration = await parseMigrationFile(source, migrationIndex);
     } catch (err) {
+      // Parse error — could be in the original source or the stripped content.
       const diag = extractParseDiagnostic(err, 0, source);
       return { success: false, diagnostics: [diag] };
     }
 
-    // 2. Preprocess (strip CONCURRENTLY only).
-    const preprocessed = preprocess(source, parsed, stripConcurrently());
-    const strippedContent = preprocessed.content;
-    const removals = preprocessed.removals;
+    // 2. Store the migration file (mutable — re-parsed on edit).
+    this.migrations.set(migrationIndex, migration);
 
-    // 3. Re-parse the stripped content to get statement boundaries.
-    let strippedParsed;
-    try {
-      strippedParsed = await parseSql(strippedContent.toString("utf8"));
-    } catch (err) {
-      const diag = extractParseDiagnostic(err, 0, strippedContent);
-      if (diag.range) {
-        diag.range = {
-          start: mapStrippedToOriginal(removals, diag.range.start),
-          end: mapStrippedToOriginal(removals, diag.range.end),
-        };
-      }
-      return { success: false, diagnostics: [diag] };
-    }
-
-    // 4. Get per-statement info.
-    const statements = getStatements(strippedParsed, strippedContent);
-
-    // 5. Build migration context (stored once, referenced by provenance).
-    const migration: MigrationContext = { index: migrationIndex, source, removals };
-    this.migrations.push(migration);
-
-    // 6. Begin transaction. Disable function body validation for the whole txn.
+    // 3. Begin transaction. Disable function body validation for the whole txn.
     await pg.query("BEGIN");
     await pg.query("SET LOCAL check_function_bodies TO off");
 
     try {
-      for (const stmtInfo of statements) {
+      for (const stmt of migration.statements) {
         const ctx: StmtContext = {
           pg,
           migration,
-          stmt: stmtInfo.stmt,
-          kind: stmtInfo.kind,
-          stmtStart: stmtInfo.start,
-          stmtEnd: stmtInfo.end,
-          stmtText: stmtInfo.text,
-          stmtBytes: strippedContent.subarray(stmtInfo.start, stmtInfo.end),
+          stmt: stmt.stmt,
+          kind: stmt.kind,
+          statementHash: stmt.hash,
+          stmtStart: stmt.stmtStart,
+          stmtEnd: stmt.stmtEnd,
+          stmtText: stmt.text,
+          stmtBytes: stmt.bytes,
         };
 
         // --- Before: pre-checks, snapshots ---
@@ -317,7 +251,7 @@ export class SchemaBuilder {
 
         // --- Execute ---
         try {
-          await pg.exec(stmtInfo.text);
+          await pg.exec(stmt.text);
         } catch (err) {
           // Exec failed — wrap into StmtDiagnosticsError (always throws).
           try { await this.onStatementApplicationFailed(ctx, err); } catch (e) {
@@ -420,12 +354,18 @@ export class SchemaBuilder {
       for (const [oid, afterState] of after) {
         const beforeState = before.pg_proc.get(oid);
         if (beforeState === undefined) {
-          await this.recordProvenance(ctx, oid, afterState.prosrc);
+          // New function — fetch prosrc, record body provenance.
+          const prosrc = await this.fetchProsrc(ctx.pg, oid);
+          await this.recordProvenance(ctx, oid, prosrc, true);
         } else if (
           beforeState.xmin !== afterState.xmin ||
           beforeState.ctid !== afterState.ctid
         ) {
-          await this.recordProvenance(ctx, oid, afterState.prosrc);
+          // Row touched — fetch prosrc, compare with stored bodyText.
+          const prosrc = await this.fetchProsrc(ctx.pg, oid);
+          const existing = this.provenance.get(oid);
+          const isBodyChange = !existing || existing.bodyText !== prosrc;
+          await this.recordProvenance(ctx, oid, prosrc, isBodyChange);
         }
       }
 
@@ -597,12 +537,23 @@ export class SchemaBuilder {
          JOIN pg_language l  ON l.oid  = p.prolang
          WHERE ${baseWhere};`;
     const params = proname ? [proname] : [];
-    const res = await pg.query<{ oid: number; prosrc: string; xmin: string; ctid: string }>(query, params);
+    const res = await pg.query<{ oid: number; xmin: string; ctid: string }>(query, params);
     return new Map(res.rows.map(r => [r.oid, {
-      prosrc: r.prosrc,
       xmin: r.xmin,
       ctid: r.ctid,
     }]));
+  }
+
+  /**
+   * Fetch `prosrc` for a single function OID (tier-2 on-demand fetch).
+   * Called only when the lightweight snapshot detects a change.
+   */
+  private async fetchProsrc(pg: PGlite, oid: number): Promise<string> {
+    const res = await pg.query<{ prosrc: string }>(
+      "SELECT prosrc FROM pg_proc WHERE oid = $1",
+      [oid],
+    );
+    return res.rows[0]?.prosrc ?? "";
   }
 
   /**
@@ -651,26 +602,35 @@ export class SchemaBuilder {
    * replaced function.
    *
    * For `CreateFunctionStmt`: extract body, language, and signature from the
-   * AST (fast path).
-   * For dynamically-created functions (e.g. via DO block `EXECUTE`): query
-   * pg_proc and parse `pg_get_functiondef` to extract the same metadata.
+  /**
+   * Record or update provenance for a function OID.
+   *
+   * When `isBodyChange` is true (or new function): update all fields —
+   * `statementHash` points at the current statement, `bodyText` is the
+   * current prosrc.
+   *
+   * When `isBodyChange` is false (metadata-only: RENAME, OWNER, SET):
+   * preserve `statementHash` and `bodyText` from the existing provenance
+   * (pointing at the last body-defining statement), update only `signature`
+   * and `language`.
    */
   private async recordProvenance(
     ctx: StmtContext,
     oid: number,
     prosrc: string,
+    isBodyChange: boolean,
   ): Promise<void> {
-    let bodyText: string;
+    const existing = this.provenance.get(oid);
+
+    // Always fetch metadata for the signature (name may have changed via RENAME).
     let language: string;
     let signature: string;
 
     if (ctx.kind === "CreateFunctionStmt") {
-      bodyText = getFunctionBody(ctx.stmt) ?? prosrc;
       language = getFunctionLanguage(ctx.stmt) ?? "sql";
       signature = formatFunctionRef(ctx.stmt) ?? "";
     } else {
-      // Dynamic creation (e.g. via DO block EXECUTE).
-      // Query pg_proc for metadata, parse pg_get_functiondef for body+signature.
+      // Dynamic creation or metadata-only change — query pg_proc.
       const meta = await ctx.pg.query<{ lanname: string; def: string }>(
         `SELECT l.lanname, pg_get_functiondef(p.oid) AS def
          FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang
@@ -681,71 +641,35 @@ export class SchemaBuilder {
         language = meta.rows[0]!.lanname;
         const defParsed = await parseSql(meta.rows[0]!.def);
         const defStmt = defParsed.stmts![0]!.stmt!;
-        bodyText = getFunctionBody(defStmt) ?? prosrc;
         signature = formatFunctionRef(defStmt) ?? "";
       } else {
-        bodyText = prosrc;
-        language = "sql";
-        signature = "";
+        language = existing?.language ?? "sql";
+        signature = existing?.signature ?? "";
       }
     }
 
-    // Compute the body's byte offset within the statement.
-    //
-    // Primary: AST location — the `as` DefElem has a `location` field pointing
-    // at the `AS` keyword (or first `$` for DO blocks). We scan forward past
-    // the delimiter to find the body start. This is deterministic and
-    // self-documenting.
-    //
-    // Fallback: byte search — search for the body text in the statement bytes.
-    // Used when the AST doesn't provide a location (shouldn't happen for
-    // well-formed statements, but kept as a safety net).
-    //
-    // -1 (both methods failed): the body isn't in the statement text (e.g.
-    // a function created dynamically via SELECT fn() or INSERT-fired trigger).
-    // At validation time, -1 signals that precise position mapping is
-    // impossible; diagnostics fall back to the whole statement range.
-    let bodyOffset: number;
-    if (ctx.kind === "CreateFunctionStmt") {
-      // Primary: AST location — the `as` DefElem has a `location` field.
-      // Deterministic, self-documenting, no string search. Only valid
-      // when the AST node IS the function being recorded (CreateFunctionStmt).
-      bodyOffset = getBodyOffsetFromAst(ctx.stmt, ctx.stmtBytes, ctx.stmtStart);
-      if (bodyOffset < 0) {
-        // Fallback: byte search (safety net for malformed ASTs).
-        bodyOffset = this.findBodyOffsetInStatement(ctx.stmtBytes, bodyText);
-      }
-    } else if (ctx.kind === "DoStmt") {
-      // DO blocks can create functions dynamically. The DO block's AST `as`
-      // location points at the DO block's own body — NOT at the dynamically
-      // created function's body. Use byte search: the function's body text
-      // (from pg_get_functiondef) may appear inside the DO block's EXECUTE
-      // string. If found, we get precise offset. If not, returns -1 →
-      // whole-statement fallback at validation time.
-      bodyOffset = this.findBodyOffsetInStatement(ctx.stmtBytes, bodyText);
+    if (isBodyChange || !existing) {
+      // Body change (or new function) — update everything.
+      this.provenance.set(oid, {
+        oid,
+        migrationIndex: ctx.migration.index,
+        statementHash: ctx.statementHash,
+        bodyText: prosrc,
+        language,
+        signature,
+      });
     } else {
-      // Dynamic creation (SELECT fn(), INSERT-fired trigger, etc.) —
-      // the body is inside a different statement's function body,
-      // not in the current statement text.
-      bodyOffset = -1;
+      // Metadata-only change — preserve body provenance, update metadata.
+      this.provenance.set(oid, {
+        ...existing,
+        language,
+        signature,
+      });
     }
-
-    this.provenance.set(oid, {
-      oid,
-      migration: ctx.migration,
-      stmtStart: ctx.stmtStart,
-      stmtEnd: ctx.stmtEnd,
-      bodyOffset,
-      bodyText,
-      language,
-      signature,
-    });
   }
 
   /**
    * Record or update provenance for a trigger OID.
-   * Called from `onAfterStatementApplied` when the diff detects a new or
-   * replaced trigger.
    */
   private recordTriggerProvenance(
     ctx: StmtContext,
@@ -754,9 +678,8 @@ export class SchemaBuilder {
   ): void {
     this.triggerProvenance.set(oid, {
       oid,
-      migration: ctx.migration,
-      stmtStart: ctx.stmtStart,
-      stmtEnd: ctx.stmtEnd,
+      migrationIndex: ctx.migration.index,
+      statementHash: ctx.statementHash,
       relation: state.relation,
       newTable: state.tgnewtable,
       oldTable: state.tgoldtable,
@@ -780,6 +703,26 @@ export class SchemaBuilder {
     const m = /\$[\w]*\$/.exec(stmtText);
     if (m) return m.index + m[0].length;
     return -1;
+  }
+
+  /**
+   * Resolve `(migrationIndex, statementHash)` to the matching `ParsedStatement`
+   * and its `MigrationFile`. Returns null if the migration file or the statement
+   * is not found (deleted or fundamentally changed).
+   *
+   * This is the bridge between immutable provenance (set during apply) and
+   * mutable file state (re-parsed on edit). The statement's byte offsets are
+   * always fresh from the latest parse.
+   */
+  private resolveStatement(
+    migrationIndex: number,
+    stmtHash: string,
+  ): { file: MigrationFile; stmt: ParsedStatement } | null {
+    const file = this.migrations.get(migrationIndex);
+    if (!file) return null;
+    const stmt = file.statements.find(s => s.hash === stmtHash);
+    if (!stmt) return null;
+    return { file, stmt };
   }
 
   // -------------------------------------------------------------------------
@@ -879,7 +822,24 @@ export class SchemaBuilder {
     prov: FunctionProvenance,
     isTrigger: boolean,
   ): Promise<SqlDiagnostic[]> {
-    const { removals, source } = prov.migration;
+    // Resolve statement hash to current byte offsets.
+    const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash);
+    if (!resolved) return []; // statement not found — stale provenance.
+    const { file: migration, stmt } = resolved;
+    const { removals, source } = migration;
+
+    // Compute body offset within the statement.
+    let bodyOffset: number;
+    if (stmt.kind === "CreateFunctionStmt") {
+      bodyOffset = getBodyOffsetFromAst(stmt.stmt, stmt.bytes, stmt.stmtStart);
+      if (bodyOffset < 0) {
+        bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText);
+      }
+    } else if (stmt.kind === "DoStmt") {
+      bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText);
+    } else {
+      bodyOffset = -1;
+    }
 
     // For trigger functions, query pg_trigger for all trigger bindings.
     let triggerBindings: { relation: string; newTable: string | null; oldTable: string | null; triggerOid: number }[] = [];
@@ -903,8 +863,6 @@ export class SchemaBuilder {
 
     const allDiagnostics: SqlDiagnostic[] = [];
 
-    // For non-trigger functions: one check call.
-    // For trigger functions: one check call per trigger binding.
     const checkCalls = isTrigger
       ? triggerBindings.map(b => ({
           query: `SELECT * FROM plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}', '${b.relation.replace(/'/g, "''")}'${b.newTable ? `, newtable := '${b.newTable.replace(/'/g, "''")}'` : ""}${b.oldTable ? `, oldtable := '${b.oldTable.replace(/'/g, "''")}'` : ""});`,
@@ -921,20 +879,14 @@ export class SchemaBuilder {
         const res = await pg.query<PlpgsqlCheckRow>(query);
         checkRows = res.rows;
       } catch {
-        continue; // plpgsql_check failed for this binding — skip.
+        continue;
       }
 
       if (checkRows.length === 0) continue;
 
-      // If bodyOffset is -1, the body text wasn't found in the statement
-      // (dynamically created function — body is inside a different statement's
-      // function body). Precise position mapping is impossible; all diagnostics
-      // fall back to the whole statement range.
-      const canMapPosition = prov.bodyOffset >= 0;
-
-      // Map body offset from stripped to original file space.
+      const canMapPosition = bodyOffset >= 0;
       const bodyOffsetInFile = canMapPosition
-        ? mapStrippedToOriginal(removals, prov.stmtStart + prov.bodyOffset)
+        ? mapStrippedToOriginal(removals, stmt.stmtStart + bodyOffset)
         : -1;
 
       const diagnostics: SqlDiagnostic[] = checkRows.map(row =>
@@ -951,25 +903,26 @@ export class SchemaBuilder {
             },
       );
 
-      // Fill statement range for diagnostics without a precise range.
-      const stmtStartOriginal = mapStrippedToOriginal(removals, prov.stmtStart);
-      const stmtEndOriginal = mapStrippedToOriginal(removals, prov.stmtEnd);
+      const stmtStartOriginal = mapStrippedToOriginal(removals, stmt.stmtStart);
+      const stmtEndOriginal = mapStrippedToOriginal(removals, stmt.stmtEnd);
       for (const diag of diagnostics) {
         if (diag.range === null) {
           diag.range = { start: stmtStartOriginal, end: stmtEndOriginal };
         }
 
-        // For trigger functions, attach a related location at the CREATE TRIGGER
-        // statement (from trigger provenance) to create the mental connection.
         if (triggerOid !== null) {
           const trgProv = this.triggerProvenance.get(triggerOid);
           if (trgProv) {
-            const trgStart = mapStrippedToOriginal(trgProv.migration.removals, trgProv.stmtStart);
-            const trgEnd = mapStrippedToOriginal(trgProv.migration.removals, trgProv.stmtEnd);
-            diag.relatedLocations = [{
-              range: { start: trgStart, end: trgEnd },
-              message: `trigger on table "${trgProv.relation}"`,
-            }];
+            const trgResolved = this.resolveStatement(trgProv.migrationIndex, trgProv.statementHash);
+            if (trgResolved) {
+              const { file: trgFile, stmt: trgStmt } = trgResolved;
+              const trgStart = mapStrippedToOriginal(trgFile.removals, trgStmt.stmtStart);
+              const trgEnd = mapStrippedToOriginal(trgFile.removals, trgStmt.stmtEnd);
+              diag.relatedLocations = [{
+                range: { start: trgStart, end: trgEnd },
+                message: `trigger on table "${trgProv.relation}"`,
+              }];
+            }
           }
         }
       }
@@ -1003,7 +956,22 @@ export class SchemaBuilder {
     _oid: number,
     prov: FunctionProvenance,
   ): Promise<SqlDiagnostic[]> {
-    const { removals, source } = prov.migration;
+    // Resolve statement hash to current byte offsets.
+    const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash);
+    if (!resolved) return [];
+    const { file: migration, stmt } = resolved;
+    const { removals, source } = migration;
+
+    // Compute body offset within the statement.
+    let bodyOffset: number;
+    if (stmt.kind === "CreateFunctionStmt") {
+      bodyOffset = getBodyOffsetFromAst(stmt.stmt, stmt.bytes, stmt.stmtStart);
+      if (bodyOffset < 0) {
+        bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText);
+      }
+    } else {
+      bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText);
+    }
 
     // Get the function definition (re-runnable CREATE OR REPLACE).
     const res = await pg.query<{ def: string }>(
@@ -1012,63 +980,46 @@ export class SchemaBuilder {
     );
     const defText = res.rows[0]!.def;
 
-    // Re-CREATE with check_function_bodies=on inside a savepoint.
-    // The re-CREATE is a no-op (same body) but triggers PG's body validation.
-    // The savepoint ensures we can continue even if validation fails.
     await pg.query("SAVEPOINT pgsid_sql_validate");
     try {
       await pg.query("SET LOCAL check_function_bodies TO on");
       await pg.exec(defText);
-      // Success — body is valid. Restore and release.
       await pg.query("ROLLBACK TO SAVEPOINT pgsid_sql_validate");
       await pg.query("SET LOCAL check_function_bodies TO off");
       return [];
     } catch (err) {
-      // Validation failed — extract diagnostic.
       await pg.query("ROLLBACK TO SAVEPOINT pgsid_sql_validate");
       await pg.query("SET LOCAL check_function_bodies TO off");
 
-      // Find the body's offset in the re-issued text.
       const defBodyOffset = this.findBodyOffsetInStatement(
         Buffer.from(defText, "utf8"), prov.bodyText,
       );
 
-      // Check if the error position is inside the body.
       const pos1 = err instanceof DatabaseError && err.position
         ? parseInt(err.position, 10) : NaN;
 
       let diag: SqlDiagnostic;
 
-      if (defBodyOffset >= 0 && !Number.isNaN(pos1) && pos1 > defBodyOffset) {
-        // Error is in the body — map through provenance.
-        // stmtStrippedOffset = prov.stmtStart + prov.bodyOffset - defBodyOffset
-        // so: pos0IntoStripped = stmtStrippedOffset + (pos1 - 1)
-        //                        = prov.stmtStart + prov.bodyOffset - defBodyOffset + (pos1 - 1)
-        //                        = prov.stmtStart + prov.bodyOffset + (pos1 - 1 - defBodyOffset)
-        //                        = prov.stmtStart + prov.bodyOffset + errorPosInBody
+      if (defBodyOffset >= 0 && !Number.isNaN(pos1) && pos1 > defBodyOffset && bodyOffset >= 0) {
         diag = extractExecDiagnostic(err, 0, {
-          stmtStrippedOffset: prov.stmtStart + prov.bodyOffset - defBodyOffset,
+          stmtStrippedOffset: stmt.stmtStart + bodyOffset - defBodyOffset,
           removals,
           mapStrippedToOriginal,
           source,
         });
       } else {
-        // Error is in the header, or body not found, or position unknown.
-        // Can't map — produce a diagnostic with no range; we'll fill the
-        // statement range as fallback below.
         diag = extractExecDiagnostic(err, 0, {
           stmtStrippedOffset: 0,
           removals: [],
           mapStrippedToOriginal,
-          source: undefined, // prevents token expansion — range stays null
+          source: undefined,
         });
       }
 
-      // Fall back to the whole statement range in the original file.
       if (diag.range === null) {
         diag.range = {
-          start: mapStrippedToOriginal(removals, prov.stmtStart),
-          end: mapStrippedToOriginal(removals, prov.stmtEnd),
+          start: mapStrippedToOriginal(removals, stmt.stmtStart),
+          end: mapStrippedToOriginal(removals, stmt.stmtEnd),
         };
       }
 

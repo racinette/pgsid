@@ -447,7 +447,7 @@ describe("SchemaBuilder: provenance with same-body REPLACE and multi-schema", ()
   });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
 
-  it("same-body CREATE OR REPLACE updates provenance to the latest migration", async () => {
+  it("same-body CREATE OR REPLACE preserves body provenance (metadata-only change)", async () => {
     const builder = new SchemaBuilder();
 
     // Migration 0: CREATE FUNCTION with body X.
@@ -466,12 +466,15 @@ describe("SchemaBuilder: provenance with same-body REPLACE and multi-schema", ()
     );
     await builder.applyMigration(pg, mig1, 1);
 
-    // Check provenance: should point to migration 1 (the latest REPLACE),
-    // not migration 0 (the original CREATE).
+    // Body provenance should be preserved — points at migration 0 (where
+    // the body was last defined), NOT migration 1 (which only touched the
+    // row with the same body). This is the "useful false positive" behavior:
+    // the diagnostic points at the static definition, and self-corrects when
+    // the user fixes it (next run, prosrc changes → provenance shifts).
     const prov = builder.getProvenanceForTesting();
     expect(prov.size).toBe(1);
     const entry = [...prov.values()][0]!;
-    expect(entry.migrationIndex).toBe(1);
+    expect(entry.migrationIndex).toBe(0);
   });
 
   it("multi-schema: only the replaced function's provenance is updated", async () => {
@@ -510,12 +513,14 @@ describe("SchemaBuilder: provenance with same-body REPLACE and multi-schema", ()
 
     const prov = builder.getProvenanceForTesting();
 
-    // ms1.multi_prov was replaced — provenance should point to migration 1.
+    // ms1.multi_prov was replaced (same body) — body provenance preserved
+    // (points to migration 0, where the body was defined). This is correct:
+    // same-body REPLACE is a metadata-only change.
     const ms1Prov = prov.get(ms1Oid);
     expect(ms1Prov).toBeDefined();
-    expect(ms1Prov!.migrationIndex).toBe(1);
+    expect(ms1Prov!.migrationIndex).toBe(0);
 
-    // ms2.multi_prov was NOT replaced — provenance should still point to migration 0.
+    // ms2.multi_prov was NOT replaced — provenance also points to migration 0.
     const ms2Prov = prov.get(ms2Oid);
     expect(ms2Prov).toBeDefined();
     expect(ms2Prov!.migrationIndex).toBe(0);
@@ -614,8 +619,9 @@ describe("SchemaBuilder: provenance with same-body REPLACE and multi-schema", ()
 
     const prov = builder.getProvenanceForTesting();
 
-    // mt1 was replaced (search_path first match) → migration 1.
-    expect(prov.get(mt1Oid)!.migrationIndex).toBe(1);
+    // mt1 was replaced (same body) — body provenance preserved (migration 0).
+    // Same-body REPLACE is metadata-only → body provenance stays at original definition.
+    expect(prov.get(mt1Oid)!.migrationIndex).toBe(0);
     // mt2 was NOT replaced → migration 0.
     expect(prov.get(mt2Oid)!.migrationIndex).toBe(0);
   });
@@ -669,7 +675,9 @@ describe("SchemaBuilder: DO block replacing existing functions", () => {
 
     const prov = builder.getProvenanceForTesting();
     expect(prov.has(oid)).toBe(true);
-    expect(prov.get(oid)!.migrationIndex).toBe(1);
+    // Same-body REPLACE → metadata-only change → body provenance preserved.
+    // Points at migration 0 (where the body was defined), not migration 1.
+    expect(prov.get(oid)!.migrationIndex).toBe(0);
   });
 
   it("DO block CREATE OR REPLACE with same body — same transaction (ctid)", async () => {
@@ -1265,5 +1273,210 @@ describe("SchemaBuilder: implicit creation via side effects", () => {
     diags = await builder.validate(pg);
     droppedDiags = diags.filter(d => d.message.includes("to_be_dropped"));
     expect(droppedDiags).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 13. Body/metadata provenance split + self-correction
+// ---------------------------------------------------------------------------
+
+describe("SchemaBuilder: body/metadata provenance split", () => {
+  let pg: PGlite;
+
+  beforeAll(async () => {
+    pg = await PGlite.create({ extensions: { plpgsql_check } });
+    await pg.exec("CREATE EXTENSION plpgsql_check;");
+    await pg.exec("CREATE TABLE public.split_test_t (id int);");
+  });
+  afterAll(async () => { if (!pg.closed) await pg.close(); });
+
+  it("static CREATE → dynamic RENAME: body provenance stays at static CREATE", async () => {
+    const builder = new SchemaBuilder();
+
+    // Migration 0: CREATE FUNCTION with a broken body.
+    const mig0 = Buffer.from(
+      "CREATE FUNCTION public.split_rename() RETURNS void " +
+      "LANGUAGE plpgsql AS $$\nBEGIN\n  PERFORM bad_col FROM public.split_test_t;\nEND;\n$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, mig0, 0);
+
+    // Migration 1: DO block that renames the function.
+    const mig1 = Buffer.from(
+      "DO $$\nBEGIN\n" +
+      "  EXECUTE 'ALTER FUNCTION public.split_rename() RENAME TO split_renamed';\n" +
+      "END;\n$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, mig1, 1);
+
+    // Validate — the error should be found, and the diagnostic should point
+    // at migration 0 (the CREATE FUNCTION where the body was defined),
+    // NOT migration 1 (the DO block that only renamed).
+    const diags = await builder.validate(pg);
+    const fnDiags = diags.filter(d => d.message.includes("bad_col"));
+    expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+
+    const diag = fnDiags[0]!;
+    const mig0Text = mig0.toString("utf8");
+    const textAtRange = mig0Text.slice(diag.range!.start, diag.range!.end);
+    expect(textAtRange).toContain("bad_col");
+
+    // The range should NOT point into migration 1 (the DO block).
+    // Check that the range is within mig0's bounds.
+    expect(diag.range!.start).toBeGreaterThanOrEqual(0);
+    expect(diag.range!.end).toBeLessThanOrEqual(mig0.length);
+  });
+
+  it("static CREATE → dynamic same-body recreate: body provenance stays at static (useful false positive)", async () => {
+    const builder = new SchemaBuilder();
+
+    const body = "\nBEGIN\n  PERFORM bad_recreate_col FROM public.split_test_t;\nEND;\n";
+    const mig0 = Buffer.from(
+      "CREATE FUNCTION public.split_recreate() RETURNS void " +
+      "LANGUAGE plpgsql AS $$" + body + "$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, mig0, 0);
+
+    // Migration 1: DO block recreates with the SAME body.
+    const mig1 = Buffer.from(
+      "DO $$\nBEGIN\n" +
+      "  EXECUTE 'CREATE OR REPLACE FUNCTION public.split_recreate() RETURNS void " +
+      "LANGUAGE plpgsql AS $func$" + body + "$func$';\n" +
+      "END;\n$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, mig1, 1);
+
+    // Validate — diagnostic points at migration 0 (body unchanged → preserved).
+    const diags = await builder.validate(pg);
+    const fnDiags = diags.filter(d => d.message.includes("bad_recreate_col"));
+    expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+
+    const diag = fnDiags[0]!;
+    const mig0Text = mig0.toString("utf8");
+    const textAtRange = mig0Text.slice(diag.range!.start, diag.range!.end);
+    expect(textAtRange).toContain("bad_recreate_col");
+    expect(diag.range!.end).toBeLessThanOrEqual(mig0.length);
+  });
+
+  it("static CREATE → dynamic different-body recreate: provenance shifts to dynamic block", async () => {
+    const builder = new SchemaBuilder();
+
+    // Migration 0: valid body.
+    const mig0 = Buffer.from(
+      "CREATE FUNCTION public.split_diff_body() RETURNS void " +
+      "LANGUAGE plpgsql AS $$\nBEGIN\n  PERFORM 1;\nEND;\n$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, mig0, 0);
+
+    // Migration 1: DO block recreates with a BROKEN body.
+    const mig1 = Buffer.from(
+      "DO $$\nBEGIN\n" +
+      "  EXECUTE 'CREATE OR REPLACE FUNCTION public.split_diff_body() RETURNS void " +
+      "LANGUAGE plpgsql AS $func$\nBEGIN\n  PERFORM diff_bad_col FROM public.split_test_t;\nEND;\n$func$';\n" +
+      "END;\n$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, mig1, 1);
+
+    // Validate — prosrc changed → provenance should shift to migration 1.
+    const diags = await builder.validate(pg);
+    const fnDiags = diags.filter(d => d.message.includes("diff_bad_col"));
+    expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+
+    // The diagnostic should point somewhere in migration 1 (the DO block).
+    const diag = fnDiags[0]!;
+    const mig1Text = mig1.toString("utf8");
+    // The range should contain the error column name.
+    const sourceText = mig1Text;
+    const textAtRange = sourceText.slice(diag.range!.start, diag.range!.end);
+    expect(textAtRange).toContain("diff_bad_col");
+  });
+
+  it("self-correction: fix static → next run, prosrc changes → provenance shifts", async () => {
+    // This test demonstrates the "useful false positive" self-correction:
+    // 1. Static CREATE with broken body → points at static (correct).
+    // 2. Dynamic same-body recreate → still points at static (useful false positive).
+    // 3. User fixes static → next run, prosrc changes → provenance shifts to dynamic.
+    const builder = new SchemaBuilder();
+
+    const brokenBody = "\nBEGIN\n  PERFORM self_correct_col FROM public.split_test_t;\nEND;\n";
+    const fixedBody = "\nBEGIN\n  PERFORM 1;\nEND;\n";
+
+    // Migration 0: CREATE with broken body.
+    const mig0Broken = Buffer.from(
+      "CREATE FUNCTION public.self_correct() RETURNS void " +
+      "LANGUAGE plpgsql AS $$" + brokenBody + "$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, mig0Broken, 0);
+
+    // Migration 1: DO block recreates with the SAME broken body.
+    const mig1 = Buffer.from(
+      "DO $$\nBEGIN\n" +
+      "  EXECUTE 'CREATE OR REPLACE FUNCTION public.self_correct() RETURNS void " +
+      "LANGUAGE plpgsql AS $func$" + brokenBody + "$func$';\n" +
+      "END;\n$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, mig1, 1);
+
+    // Step 1: validate → error found, points at migration 0.
+    let diags = await builder.validate(pg);
+    expect(diags.filter(d => d.message.includes("self_correct_col")).length).toBeGreaterThanOrEqual(1);
+
+    // Step 2: user fixes migration 0 — now the static CREATE has a fixed body.
+    // But the DO block in migration 1 still recreates with the broken body.
+    // So the function's prosrc is STILL the broken body (from the DO block).
+    // The fix to migration 0 doesn't help because migration 1 overwrites it.
+    //
+    // To simulate the "next run", we need a fresh SchemaBuilder (the old one
+    // has provenance from the previous apply). We re-apply from scratch with
+    // the fixed migration 0.
+    const builder2 = new SchemaBuilder();
+    const mig0Fixed = Buffer.from(
+      "CREATE FUNCTION public.self_correct() RETURNS void " +
+      "LANGUAGE plpgsql AS $$" + fixedBody + "$$;\n",
+      "utf8",
+    );
+    // Drop the old function first (fresh schema).
+    await pg.exec("DROP FUNCTION IF EXISTS public.self_correct();");
+    await builder2.applyMigration(pg, mig0Fixed, 0);
+    await builder2.applyMigration(pg, mig1, 1);
+
+    // The DO block in mig1 still recreates with brokenBody — so prosrc is
+    // still brokenBody. The diff detects: mig0 creates fixedBody, mig1's DO
+    // block changes it to brokenBody → prosrc changed → provenance shifts
+    // to the DO block in mig1.
+    diags = await builder2.validate(pg);
+    const fnDiags = diags.filter(d => d.message.includes("self_correct_col"));
+    expect(fnDiags.length).toBeGreaterThanOrEqual(1);
+
+    // The diagnostic should now point at migration 1 (the DO block),
+    // because that's where the broken body was last defined.
+    const diag = fnDiags[0]!;
+    const mig1Text = mig1.toString("utf8");
+    const textAtRange = mig1Text.slice(diag.range!.start, diag.range!.end);
+    expect(textAtRange).toContain("self_correct_col");
+  });
+
+  it("provenance stores statementHash (stable identity, not byte offsets)", async () => {
+    const builder = new SchemaBuilder();
+    const source = Buffer.from(
+      "CREATE FUNCTION public.hash_test() RETURNS void " +
+      "LANGUAGE plpgsql AS $$\nBEGIN\n  PERFORM 1;\nEND;\n$$;\n",
+      "utf8",
+    );
+    await builder.applyMigration(pg, source, 0);
+
+    const prov = builder.getProvenanceForTesting();
+    expect(prov.size).toBe(1);
+    const entry = [...prov.values()][0]!;
+    expect(entry.migrationIndex).toBe(0);
+    expect(entry.statementHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(entry.bodyText).toBe("\nBEGIN\n  PERFORM 1;\nEND;\n");
   });
 });

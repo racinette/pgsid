@@ -305,35 +305,114 @@ For each resolved migration file, in order, via `SchemaBuilder.applyMigration(pg
 6. On failure → rollback the file's txn, emit diagnostics, halt the chain. On success → commit, proceed to next file.
 
 **Provenance tracking** — the `SchemaBuilder` accumulates `oid → FunctionProvenance` across all migrations:
-- `migration` — reference to the `MigrationContext` (source buffer, removals, index).
-- `stmtStart`/`stmtEnd` — byte range of the CREATE FUNCTION statement (stripped space).
-- `bodyOffset` — byte offset of the body within the statement (computed via `Buffer.indexOf`, byte-level).
-- `bodyText` — the function body (= `pg_proc.prosrc`, decoded identically by libpg-query on both sides).
-- `language`, `signature` — for `plpgsql_check_function_tb` calls.
+- `migrationIndex` + `statementHash` — stable identity pointing at the statement that last defined the body. The hash is a canonicalized AST hash (location fields stripped, sha256). Byte offsets are resolved on demand at validation time via `MigrationFile.statements` — NOT stored in provenance. This decouples immutable provenance (set during apply) from mutable file state (re-parsed on edit).
+- `bodyText` — the function body (= `pg_proc.prosrc`). Always matches the current `prosrc` (invariant).
+- `language`, `signature` — for `plpgsql_check_function_tb` calls. Updated on any change (including metadata-only).
+
+**Body/metadata provenance split** — when the diff detects a row change (xmin/ctid), `prosrc` is fetched on-demand (tier-2) and compared with `prov.bodyText`:
+- **`prosrc` changed** (body change: CREATE OR REPLACE with different body) → update all provenance fields. `statementHash` points at the new statement.
+- **`prosrc` unchanged** (metadata-only: RENAME, OWNER, SET, same-body CREATE OR REPLACE) → preserve `statementHash` and `bodyText` (pointing at the previous body-defining statement), update only `signature` and `language`.
+
+This split enables the "useful false positive" behavior (see [Dynamic code limitations](#dynamic-code-limitations)).
+
+**Two-tier snapshot** — the before/after `pg_proc` snapshot fetches only `(oid, xmin, ctid)` per statement (lightweight — no `prosrc`). When a change is detected, `prosrc` is fetched on-demand for the changed OID only (tier-2). For a 50-statement migration with 20 user functions, this is ~100 lightweight queries + ~3-5 tier-2 queries — negligible on a schema-only catalog.
+
+**Universal snapshotting** — `pg_proc` and `pg_trigger` are snapshotted around **every** statement, not just `CreateFunctionStmt`/`DropFunctionStmt`. Any statement can indirectly create/modify/drop functions: `SELECT fn()` where `fn` does `EXECUTE 'CREATE FUNCTION ...'`, `INSERT` firing a trigger that creates functions, `ALTER TABLE ... DROP COLUMN ... CASCADE`, etc. Drawing a subset of "function-affecting statements" would be fragile and incomplete. The cost is two lightweight queries per statement — negligible on a schema-only catalog.
+
+**Statement chain** — each migration file is parsed into a `MigrationFile` containing a chain of `ParsedStatement[]`, each with a canonicalized AST hash. When a file is edited, `diffStatementChains(before, after)` returns the index of the first differing statement (or null if identical). If null, the edit was cosmetic (comments, whitespace, keyword case) — no re-apply needed, byte offsets are refreshed from the re-parse. If non-null, re-apply from the changed statement onward. This is the foundation for file-modified event handling.
 
 **Why `xmin` + `ctid` for the diff:** `xmin` (transaction ID) changes across transactions (between migration files). `ctid` (physical tuple location) changes within the same transaction (multiple CREATE OR REPLACE in one file). Using both detects same-body REPLACE (PG still UPDATEs the row, bumping both) and disambiguates in the multi-schema case (only the replaced function's row changes).
 
-**DO-block-created functions** — when a DO block `EXECUTE 'CREATE FUNCTION ...'` creates a function dynamically, the broad `pg_proc` snapshot catches it. Provenance is recorded pointing at the DO block's byte range (the body text is extracted from `pg_get_functiondef` since the DoStmt AST doesn't have a `CreateFunctionStmt`).
+**DO-block-created functions** — when a DO block `EXECUTE 'CREATE FUNCTION ...'` creates a function dynamically, the universal snapshot catches it. Provenance is recorded with the DO block's `statementHash`. The body text is extracted from `pg_get_functiondef` (since the DoStmt AST doesn't have a `CreateFunctionStmt`). The body offset is computed via byte search (`findBodyOffsetInStatement`) — the body may appear inside the DO block's `EXECUTE` string, in which case precise position mapping is possible. If not found (body is inside a different function's body), `bodyOffset = -1` → diagnostics fall back to the whole-statement range.
+
+**Trigger provenance** — `pg_trigger` is also snapshotted around every statement. Trigger provenance stores `(migrationIndex, statementHash, relation, newTable, oldTable)`. At validation time, trigger function errors carry `relatedLocations` pointing at the `CREATE TRIGGER` statement, creating a mental connection between the error in the function body and the trigger binding that exposes it.
 
 ### Phase 2: Deferred validation
 
 After all migrations are applied, `SchemaBuilder.validate(pg)`:
 
 1. `BEGIN` (validation uses SAVEPOINTs for SQL function re-CREATE, which requires a transaction block).
-2. Query surviving user functions from `pg_proc` (filter: user schemas, `lanname IN ('plpgsql','sql')`, no extension deps).
+2. Query surviving user functions from `pg_proc` (filter: user schemas, `lanname IN ('plpgsql','sql')`, no extension deps, `prokind != 'a'` to exclude aggregates).
 3. For each surviving OID with provenance:
-   - **PL/pgSQL**: `plpgsql_check_function_tb(signature)` → map diagnostics via stored `bodyOffset` + `bodyText` → provenance byte range in the original migration file.
+   - **Resolve `statementHash`** → `MigrationFile.statements.find(s => s.hash === hash)` → `ParsedStatement` with fresh byte offsets (`stmtStart`, `stmtEnd`, `bytes`).
+   - **Compute `bodyOffset`** — primary: `getBodyOffsetFromAst` (AST `DefElem.location` for `CreateFunctionStmt`). Fallback: `findBodyOffsetInStatement` (byte search for DO blocks). `-1` for dynamic creation (body not in statement text) → whole-statement fallback.
+   - **PL/pgSQL**: `plpgsql_check_function_tb(signature)` → map diagnostics via resolved `bodyOffset` + `bodyText` → byte range in the original migration file.
+   - **PL/pgSQL trigger functions**: query `pg_trigger` for all trigger bindings (relation + transition tables). Call `plpgsql_check_function_tb` per binding with the relation + `newtable`/`oldtable` parameters. Attach `relatedLocations` pointing at the `CREATE TRIGGER` statement. Orphan trigger functions (no trigger attached) are skipped.
    - **SQL**: re-CREATE via `pg_get_functiondef` output with `check_function_bodies=on` inside a SAVEPOINT → on error, map the position from the re-issued text to the original migration file via the body offset (body is verbatim in both texts), `ROLLBACK TO SAVEPOINT`.
 4. Collect all diagnostics (no halt on first failure — functions are independent).
 5. `ROLLBACK` (validation txn discards any re-CREATE side effects).
 
 **Byte-level offset correctness** — all offset computations use `Buffer.indexOf(value, 0, "utf8")`, not `String.indexOf`. This is critical when multi-byte UTF-8 characters (e.g. comments with `café ☕ 日本語`) appear before the function body: `String.indexOf` returns UTF-16 code unit indices, which differ from byte offsets. Both `findBodyOffsetInStatement` and `extractPlpgsqlCheckDiagnostic` use byte-level search.
 
-**SQL function position mapping** — the re-issued `pg_get_functiondef` text has a different header format than the original migration (`CREATE OR REPLACE`, `$function$` tags), but the body is byte-identical. The error `position` from PG is into the re-issued text. We translate: `errorPosInBody = (position - 1) - defBodyOffset`, then `errorPosInStripped = prov.stmtStart + prov.bodyOffset + errorPosInBody`, then `mapStrippedToOriginal(removals, ...)`. If the error is in the header (before the body), the mapping doesn't apply → fall back to the whole statement range.
+**SQL function position mapping** — the re-issued `pg_get_functiondef` text has a different header format than the original migration (`CREATE OR REPLACE`, `$function$` tags), but the body is byte-identical. The error `position` from PG is into the re-issued text. We translate: `errorPosInBody = (position - 1) - defBodyOffset`, then `errorPosInStripped = stmt.stmtStart + bodyOffset + errorPosInBody`, then `mapStrippedToOriginal(removals, ...)`. If the error is in the header (before the body), the mapping doesn't apply → fall back to the whole statement range.
 
 **Cache key:** `orderedAstHashes ‖ configFingerprint` (`schema` patterns, PG major, extensions, plpgsql_check on/off). Stored as `.pgsid/cache/<hash>.bin.gz`. Using AST hashes (not raw content) means cosmetic edits don't invalidate the cache. Only successful full builds are cached — no partial snapshots.
 
 **Boot:** `migrations-discovered` → cache hit/miss → pool swap (generation++) + `plpgsql_check` loaded → introspect catalog snapshot → compute diff (first boot: everything added) → selective re-typecheck affected queries → emit `schema-ready` + `typechecked` events. See [PGlite pool model](#pglite-pool-model) and [Codegen > Dependency model](#dependency-model-column-level-pubsub).
+
+---
+
+## Dynamic code limitations
+
+The provenance tracking system uses `pg_proc` diffing to determine which statement last defined each function's body. This works perfectly for static SQL (`CREATE FUNCTION`, `CREATE OR REPLACE`). For dynamic SQL (`DO` blocks with `EXECUTE`, triggers that create functions, `SELECT fn()` where `fn` does `EXECUTE 'CREATE FUNCTION ...'`), there are inherent limitations — and a deliberate design choice that makes them manageable.
+
+### The "useful false positive"
+
+Consider this scenario:
+
+```sql
+-- Migration 0 (static):
+CREATE FUNCTION foo() RETURNS void AS $$ BEGIN PERFORM bad_col FROM t; END; $$;
+
+-- Migration 1 (dynamic):
+DO $$ BEGIN
+  EXECUTE 'CREATE OR REPLACE FUNCTION foo() RETURNS void AS $inner$ BEGIN PERFORM bad_col FROM t; END; $inner$';
+END; $$;
+```
+
+The DO block recreates `foo()` with the **same broken body**. The `pg_proc` diff sees: `prosrc` unchanged, `xmin`/`ctid` changed. Since `prosrc` is unchanged, body provenance is **preserved** — the diagnostic still points at migration 0's `CREATE FUNCTION`, not at the DO block.
+
+This is a **useful false positive**:
+
+1. **First run**: diagnostic points at migration 0 (the static definition). The user sees the error and fixes it there.
+2. **Second run**: the user fixed migration 0, but the DO block in migration 1 still recreates with the old broken body. Now `prosrc` **changes** (fixed body → broken body). The diff detects the body change → provenance shifts to the DO block in migration 1. The diagnostic now correctly points at the dynamic block.
+3. **Self-correcting**: the system always converges to the correct location after one iteration.
+
+### Why not parse EXECUTE strings?
+
+Parsing `EXECUTE 'CREATE FUNCTION ...'` inside a DO block would require:
+- Evaluating the dynamic SQL string (which may be constructed at runtime, not a literal).
+- Handling nested dollar-quoting (`$inner$` inside `$$` inside `$func$`).
+- Supporting `format()`, string concatenation, and other PL/pgSQL string-building constructs.
+
+This is intractable for general dynamic SQL. The provenance system deliberately does not attempt it.
+
+### What the system CAN and CANNOT do
+
+| Scenario | Behavior |
+|----------|----------|
+| Static `CREATE FUNCTION` with broken body | Diagnostic points at the `CREATE FUNCTION`. ✓ |
+| Static → dynamic RENAME | `prosrc` unchanged → body provenance preserved → diagnostic points at static `CREATE FUNCTION`. ✓ |
+| Static → dynamic same-body recreate | `prosrc` unchanged → body provenance preserved → diagnostic points at static `CREATE FUNCTION`. Useful false positive — self-corrects on fix. ✓ |
+| Static → dynamic different-body recreate | `prosrc` changed → provenance shifts to dynamic block. ✓ |
+| Dynamic → dynamic different-body | `prosrc` changed → provenance shifts to latest dynamic block. ✓ |
+| Dynamic → dynamic same-body | `prosrc` unchanged → provenance preserved at previous definition. Useful false positive. ✓ |
+| `SELECT fn()` creates function | Universal snapshot catches it. Body offset may be -1 (body not in `SELECT` text) → whole-statement fallback. ✓ |
+| `INSERT` fires trigger that creates function | Same as above. ✓ |
+
+### The invariant
+
+`prov.bodyText === current pg_proc.prosrc` **always holds**. This is because:
+- Body changes (`prosrc` differs) → `bodyText` is updated.
+- Metadata-only changes (`prosrc` same) → `bodyText` is preserved (it already matches).
+- New functions → `bodyText` is set to `prosrc`.
+- Dropped functions → provenance is deleted.
+
+The diagnostic always points at a statement where the body text **is** present (either a `CREATE FUNCTION` or a DO block where the body appears in an `EXECUTE` string). When the body is not found in the statement text (dynamic creation via `SELECT` or trigger), the diagnostic falls back to the whole-statement range.
+
+### Recommendation: prefer static definitions
+
+The more static the migration code, the more precise the diagnostics. `CREATE FUNCTION` statements produce exact byte-level diagnostic ranges. Dynamic creation (DO blocks, `EXECUTE`) produces either byte-search-based ranges (when the body appears in the `EXECUTE` string) or whole-statement fallbacks. This is not a limitation of the tool — it's inherent to dynamic SQL. Static migrations are better for maintainability, reviewability, and tooling support.
 
 ---
 
@@ -728,12 +807,8 @@ Rejected alternatives and operational limits are documented elsewhere in this de
 11. Column-level dependency tracking precision — `SELECT *` expands to all columns of the table (from the catalog). If the catalog changes (column added/removed), the expansion changes, and the query is affected. Tracked correctly via the diff.
 12. Future: check constraint transpilation — architecture supports it (extensible catalog snapshot, column-level deps, additive codegen emit) but not implemented.
 13. Future: pool-based parallel validation — the `SchemaBuilder.validate()` loop is sequential. When the PGlite pool is available, function validation could be distributed across pool instances for parallel checking. Deferred until after first release.
-14. **`%TYPE` / `%ROWTYPE` resolution semantics** — two distinct behaviors confirmed by spike testing. **This is counter-intuitive: both constructs appear in `DECLARE`, but they resolve differently.**
-    - **`%TYPE` (in signatures AND in DECLARE): frozen at CREATE time.** Resolves to a scalar type OID (e.g., 23 for `int4`) when the function is compiled. This OID is baked into the function's compiled representation — there's no indirection. `ALTER TABLE ... ALTER COLUMN` does NOT update it. Operators on the variable still use the old type (e.g. `r + 1` works if `r` was `int` at CREATE time, even if the column is now `text`). `plpgsql_check` does NOT flag this — there's no mismatch because the variable is still `int`. This is correct PG behavior, not a bug.
-    - **`%ROWTYPE` (in DECLARE only): dynamic.** Creates a composite-type variable that references the table's row type via `pg_class` → `pg_attribute`. This indirection is live — dropping a column removes the `pg_attribute` row, the composite type changes, and `r.dropped_col` becomes an error (`record "r" has no field "dropped_col"`). `plpgsql_check` catches this because it re-resolves `%ROWTYPE` against the current catalog at check time.
-    - **Why the asymmetry?** `%TYPE` bakes in a scalar OID (immutable, no catalog indirection). `%ROWTYPE` references a composite type (mutable catalog object — its `pg_attribute` rows can change). The PL/pgSQL compiler treats them differently: `%TYPE` → static type OID; `%ROWTYPE` → live composite-type reference.
-    - **`%ROWTYPE` cannot appear in function signatures** (args or RETURNS) — it's a syntax error. Only `%TYPE` is valid there, and it's frozen.
-    - **Stale `%TYPE` is a linter concern, not a type error.** A function created with `RETURNS col%TYPE` when `col` was `text`, where `col` is now `varchar(50)`, still claims `RETURNS text`. The function works (PG implicit casts handle calls), but the signature is semantically stale. A future lint rule could flag this ("column type changed since function was created — consider `CREATE OR REPLACE` to refresh"). The typecheck pipeline does not enforce this.
+14. **`%TYPE` / `%ROWTYPE` resolution semantics** — see [Dynamic code limitations](#dynamic-code-limitations) for the "useful false positive" behavior. `%TYPE` (in signatures AND DECLARE) is frozen at CREATE time — resolved to a scalar type OID, not updated by `ALTER TABLE`. `%ROWTYPE` (in DECLARE only) is dynamic — references the table's live composite type via `pg_class` → `pg_attribute`. Column drops are caught (`record "r" has no field "c"`); column type changes are not (the variable retains its frozen OID). `%ROWTYPE` cannot appear in function signatures (syntax error). Stale `%TYPE` is a linter concern, not a type error.
+15. **Dynamic code provenance** — see [Dynamic code limitations](#dynamic-code-limitations). Functions created/modified via `EXECUTE` inside DO blocks, `SELECT fn()`, or trigger-fired creation are tracked via universal `pg_proc` snapshotting. The "useful false positive" behavior ensures diagnostics converge to the correct location after one iteration. The invariant `prov.bodyText === current prosrc` always holds.
 
 ---
 
@@ -804,8 +879,9 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 | Concern                       | Where to look                                                |
 | ----------------------------- | ------------------------------------------------------------ |
 | SchemaBuilder (apply + validate) | `pgsid/src/schema-builder.ts`                              |
-| AST helpers (getFunctionBody, etc.) | `pgsid/src/ast.ts`                                      |
-| Diagnostic extractors         | `pgsid/src/errors.ts`                                        |
+| AST helpers + statement chain | `pgsid/src/ast.ts` (`parseMigrationFile`, `statementHash`, `diffStatementChains`, `getBodyOffsetFromAst`, `getFunctionBody`, etc.) |
+| Diagnostic extractors + `SqlDiagnostic` | `pgsid/src/errors.ts`                               |
+| Tests (schema-builder, integration, byte-offsets, domain, type-behavior, statement-chain, ast-comparison) | `pgsid/tests/unit/` |
 | PREPARE + error→diagnostic    | `postgres-language-server/crates/pgls_typecheck/`            |
 | plpgsql_check txn flow        | `postgres-language-server/crates/pgls_plpgsql_check/`        |
 | Statement scan/split          | `postgres-language-server/crates/pgls_statement_splitter/`   |
