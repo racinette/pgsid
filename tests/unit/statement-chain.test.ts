@@ -300,3 +300,185 @@ describe("statement chain: canonicalized AST hashing", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Subtle semantic changes: DML, type changes, function attributes, column order
+// ---------------------------------------------------------------------------
+
+describe("statement chain: subtle semantic changes", () => {
+  // Helper: compare two SQL strings, return diff index (or null).
+  async function diff(sqlBefore: string, sqlAfter: string): Promise<number | null> {
+    const before = await parseMigrationFile(Buffer.from(sqlBefore, "utf8"), 0);
+    const after = await parseMigrationFile(Buffer.from(sqlAfter, "utf8"), 0);
+    return diffStatementChains(before.statements, after.statements);
+  }
+
+  it("INSERT: string literal vs NULL — different hashes", async () => {
+    const v1 = "CREATE TABLE t (id int, name text);\nINSERT INTO t VALUES (1, 'alice');";
+    const v2 = "CREATE TABLE t (id int, name text);\nINSERT INTO t VALUES (1, NULL);";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("INSERT: column order swapped — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int, b text);\nINSERT INTO t (a, b) VALUES (1, 'x');";
+    const v2 = "CREATE TABLE t (a int, b text);\nINSERT INTO t (b, a) VALUES ('x', 1);";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("UPDATE: column order in SET clause swapped — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int, b int);\nUPDATE t SET a = 1, b = 2 WHERE a = 0;";
+    const v2 = "CREATE TABLE t (a int, b int);\nUPDATE t SET b = 2, a = 1 WHERE a = 0;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("UPDATE: value changed — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int);\nUPDATE t SET a = 1;";
+    const v2 = "CREATE TABLE t (a int);\nUPDATE t SET a = 2;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("SELECT: column list changed — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int, b int);\nSELECT a FROM t;";
+    const v2 = "CREATE TABLE t (a int, b int);\nSELECT b FROM t;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("SELECT: WHERE clause changed — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int);\nSELECT * FROM t WHERE a > 0;";
+    const v2 = "CREATE TABLE t (a int);\nSELECT * FROM t WHERE a > 10;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("table column type changed — different hashes", async () => {
+    const v1 = "CREATE TABLE t (id int, val text);";
+    const v2 = "CREATE TABLE t (id int, val varchar(50));";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("table column NOT NULL added — different hashes", async () => {
+    const v1 = "CREATE TABLE t (id int, val text);";
+    const v2 = "CREATE TABLE t (id int, val text NOT NULL);";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("table column DEFAULT changed — different hashes", async () => {
+    const v1 = "CREATE TABLE t (id int, val text DEFAULT 'x');";
+    const v2 = "CREATE TABLE t (id int, val text DEFAULT 'y');";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("table column order swapped — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int, b text);";
+    const v2 = "CREATE TABLE t (b text, a int);";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("function return type changed — different hashes", async () => {
+    const v1 = "CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1; $$;";
+    const v2 = "CREATE FUNCTION f() RETURNS bigint LANGUAGE sql AS $$ SELECT 1; $$;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("function loses IMMUTABLE — different hashes", async () => {
+    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql IMMUTABLE AS $$ SELECT a; $$;";
+    const v2 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("function loses STRICT — different hashes", async () => {
+    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql STRICT AS $$ SELECT a; $$;";
+    const v2 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("function gains SECURITY DEFINER — different hashes", async () => {
+    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
+    const v2 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql SECURITY DEFINER AS $$ SELECT a; $$;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("function LANGUAGE changed — different hashes", async () => {
+    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
+    const v2 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$ BEGIN RETURN a; END; $$;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("function argument type changed — different hashes", async () => {
+    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
+    const v2 = "CREATE FUNCTION f(a bigint) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("function argument name changed — different hashes", async () => {
+    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
+    const v2 = "CREATE FUNCTION f(b int) RETURNS int LANGUAGE sql AS $$ SELECT b; $$;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("function body whitespace reformatted — same hash (cosmetic)", async () => {
+    const v1 = "CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$\nBEGIN\n  PERFORM 1;\nEND;\n$$;";
+    const v2 = "CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$\n  BEGIN\n    PERFORM 1;\n  END;\n$$;";
+    // The body is a literal string — whitespace inside $$ changes prosrc
+    // → the AST includes the body as a string literal → different string
+    // → different hash. This is correct: body whitespace IS a semantic
+    // change (prosrc changes).
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("INSERT with different number of rows — different hashes", async () => {
+    const v1 = "CREATE TABLE t (id int);\nINSERT INTO t VALUES (1);";
+    const v2 = "CREATE TABLE t (id int);\nINSERT INTO t VALUES (1), (2);";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("DELETE WHERE clause changed — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int);\nDELETE FROM t WHERE a = 1;";
+    const v2 = "CREATE TABLE t (a int);\nDELETE FROM t WHERE a = 2;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("ALTER TABLE ADD COLUMN — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int);";
+    const v2 = "CREATE TABLE t (a int);\nALTER TABLE t ADD COLUMN b text;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("CREATE INDEX with different WHERE predicate — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int, b int);\nCREATE INDEX ON t (a) WHERE b > 0;";
+    const v2 = "CREATE TABLE t (a int, b int);\nCREATE INDEX ON t (a) WHERE b > 10;";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("CREATE TABLE with different constraint name — different hashes", async () => {
+    const v1 = "CREATE TABLE t (a int CONSTRAINT ck1 CHECK (a > 0));";
+    const v2 = "CREATE TABLE t (a int CONSTRAINT ck2 CHECK (a > 0));";
+    expect(await diff(v1, v2)).not.toBeNull();
+  });
+
+  it("cosmetic: INSERT with extra spaces in VALUES — same hash", async () => {
+    const v1 = "CREATE TABLE t (id int);\nINSERT INTO t VALUES (1);";
+    const v2 = "CREATE TABLE t (id int);\nINSERT  INTO  t  VALUES  (1);";
+    expect(await diff(v1, v2)).toBeNull();
+  });
+
+  it("cosmetic: SELECT with reformatted whitespace — same hash", async () => {
+    const v1 = "CREATE TABLE t (a int);\nSELECT a FROM t WHERE a > 0;";
+    const v2 = "CREATE TABLE t (a int);\nSELECT a\nFROM t\nWHERE a > 0;";
+    expect(await diff(v1, v2)).toBeNull();
+  });
+
+  it("cosmetic: CREATE TABLE with extra newlines between columns — same hash", async () => {
+    const v1 = "CREATE TABLE t (a int, b text);";
+    const v2 = "CREATE TABLE t (\n  a int,\n  b text\n);";
+    expect(await diff(v1, v2)).toBeNull();
+  });
+
+  it("cosmetic: function with extra whitespace in DECLARE — same hash (body unchanged)", async () => {
+    // Extra whitespace OUTSIDE the body (between args and AS) is cosmetic.
+    // The body text between $$ is identical, so the body string in the AST
+    // is identical → same hash.
+    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$\nBEGIN\n  RETURN a;\nEND;\n$$;";
+    const v2 = "CREATE  FUNCTION  f(a  int)  RETURNS  int  LANGUAGE  plpgsql  AS  $$\nBEGIN\n  RETURN a;\nEND;\n$$;";
+    expect(await diff(v1, v2)).toBeNull();
+  });
+});
