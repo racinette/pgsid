@@ -350,6 +350,35 @@ After all migrations are applied, `SchemaBuilder.validate(pg)`:
 
 **Boot:** `migrations-discovered` → cache hit/miss → pool swap (generation++) + `plpgsql_check` loaded → introspect catalog snapshot → compute diff (first boot: everything added) → selective re-typecheck affected queries → emit `schema-ready` + `typechecked` events. See [PGlite pool model](#pglite-pool-model) and [Codegen > Dependency model](#dependency-model-column-level-pubsub).
 
+### Pre-migration snapshot and validation scope
+
+`SchemaBuilder.snapshotBeforeMigrations(pg)` is called once, before the first `applyMigration`. It snapshots all existing `pg_proc` OIDs (user functions, same filter as the validate query). This establishes the boundary between "pre-existing" and "created by our migrations."
+
+At validation time, each surviving function is classified:
+
+| Condition | Behavior |
+|-----------|----------|
+| Has provenance (created/replaced during migrations) | **Validated** — body checked via `plpgsql_check_function_tb` or re-CREATE. |
+| In `preExistingOids` (existed before migrations) | **Skipped** — not our responsibility. Pre-existing schema is assumed correct. |
+| Not in provenance, not in `preExistingOids` | **Engine error** — "function has no provenance, this indicates a bug in the migration tracking pipeline." Should never happen with universal snapshotting; surfaced as an internal error. |
+
+**What we validate:**
+- Functions created or replaced by our migrations (`CREATE FUNCTION`, `CREATE OR REPLACE FUNCTION`, dynamic creation via DO blocks / `SELECT fn()` / trigger-fired creation).
+- Both `LANGUAGE plpgsql` and `LANGUAGE sql` functions.
+- Trigger functions (`RETURNS trigger`) — validated per trigger binding with the relation + transition table names.
+- Procedures (`CREATE PROCEDURE`) — treated the same as functions.
+
+**What we DON'T validate:**
+- **Extension functions** — filtered by `deptype='e'` (extension membership) in both the snapshot and validate queries. When a migration does `CREATE EXTENSION some_ext`, the extension's functions are automatically excluded — even if the extension ships broken `LANGUAGE plpgsql` functions, we don't touch them. This is the third-party extension author's responsibility, not the migration author's.
+- **Pre-existing functions** — existed before our migrations started. Skipped via the pre-migration snapshot. The pre-existing schema is assumed correct.
+- **Aggregates** (`prokind = 'a'`) — no body to validate. The aggregate's support functions (SFUNC, FINALFUNC) are separate `CREATE FUNCTION` statements that ARE validated if created by our migrations.
+- **Non-plpgsql/sql functions** (`LANGUAGE C`, `plpython`, `plv8`, etc.) — filtered by `lanname IN ('plpgsql', 'sql')`. These languages aren't covered by `plpgsql_check` or PG's re-CREATE validation.
+- **Views** — not validated by the pipeline. PG validates view definitions at CREATE time (exec error if the view references a non-existent table). Deferred validation of views against a changed schema (e.g., a column referenced by the view was dropped in a later migration) is a separate feature, not implemented.
+- **Rules** (`CREATE RULE`) — not in `pg_proc`, not validated. Rule bodies are stored in `pg_rewrite.ev_action`, outside our pipeline's scope.
+- **Policies** (`CREATE POLICY`) — validated by PG at CREATE time. The pipeline's `SET LOCAL check_function_bodies TO off` doesn't affect policy expression validation. If a policy references a non-existent column, PG rejects it at exec time → `onStatementApplicationFailed` catches it.
+
+**The opinionated stance:** we validate what our migrations create — nothing more, nothing less. Extension functions, pre-existing schema, and non-plpgsql/sql languages are all excluded by design. There is no opt-in to validate pre-existing functions (if a user wants to check a legacy function, they include `CREATE OR REPLACE` in their migration). There is no opt-out from validating migration-created functions (if a function has a body error, the user should know about it).
+
 ---
 
 ## Dynamic code limitations
