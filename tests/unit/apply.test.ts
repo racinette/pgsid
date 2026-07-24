@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { SchemaBuilder } from "../../src/schema-builder.js";
+import { cleanupPg } from "../helpers/cleanup.js";
 import type { SqlDiagnostic } from "../../src/errors.js";
 
 type ApplyResult = { success: boolean; diagnostics: SqlDiagnostic[] };

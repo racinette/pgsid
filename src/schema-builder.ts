@@ -166,6 +166,12 @@ export class SchemaBuilder {
   // Per-migration files (mutable — re-parsed on edit). Keyed by migration index.
   private migrations = new Map<number, MigrationFile>();
 
+  // OIDs of functions that existed before any migration was applied.
+  // Populated by `snapshotBeforeMigrations()`. At validate() time,
+  // functions in this set are "pre-existing" — skipped (not our responsibility).
+  // Functions NOT in this set and NOT in provenance → engine error.
+  private preExistingOids = new Set<number>();
+
   // Counter for temp functions created during DO block pre-checks.
   private doBlockCounter = 0;
 
@@ -187,6 +193,20 @@ export class SchemaBuilder {
       language: prov.language,
       signature: prov.signature,
     }]));
+  }
+
+  /**
+   * Snapshot all existing user functions BEFORE any migration is applied.
+   * Call this once, before the first `applyMigration`.
+   *
+   * Functions in this snapshot are "pre-existing" — they were there before
+   * our migrations started. At validate() time, they're skipped (not our
+   * responsibility). Functions NOT in this set and NOT in provenance →
+   * engine error (the diff should have caught them).
+   */
+  async snapshotBeforeMigrations(pg: PGlite): Promise<void> {
+    const snapshot = await this.snapshotPgProc(pg);
+    this.preExistingOids = new Set(snapshot.keys());
   }
 
   // -------------------------------------------------------------------------
@@ -443,18 +463,27 @@ export class SchemaBuilder {
   async validate(pg: PGlite): Promise<SqlDiagnostic[]> {
     // Wrap in a transaction: validateSqlFunction uses SAVEPOINT for
     // isolation, which requires a transaction block.
+    // Don't override search_path — a migration may have done
+    // `SET search_path TO s1` (non-LOCAL) which persists into the session.
+    // The function bodies may reference unqualified tables that need that
+    // search_path to resolve. Instead, we qualify plpgsql_check_function_tb
+    // with its schema (public) in the query strings.
     await pg.query("BEGIN");
     try {
       // Query surviving user functions (exclude aggregates — no body to validate).
+      // Also query the schema name for constructing a fully-qualified signature
+      // (prov.signature may be unqualified if the function was created via
+      // SET search_path + unqualified CREATE FUNCTION).
       const surviving = await pg.query<{
         oid: number;
         proname: string;
+        nspname: string;
         lanname: string;
         prosrc: string;
         def: string;
         is_trigger: boolean;
       }>(`
-        SELECT p.oid, p.proname, l.lanname AS lanname, p.prosrc,
+        SELECT p.oid, p.proname, n.nspname, l.lanname AS lanname, p.prosrc,
                pg_get_functiondef(p.oid) AS def,
                (p.prorettype = (SELECT oid FROM pg_type WHERE typname = 'trigger')) AS is_trigger
         FROM pg_proc p
@@ -475,18 +504,39 @@ export class SchemaBuilder {
       for (const row of surviving.rows) {
         const prov = this.provenance.get(row.oid);
         if (!prov) {
-          // No provenance — function existed before our apply or was created
-          // by an extension/DO block we didn't track. Skip validation.
+          // No provenance. Check if it's pre-existing (before our migrations).
+          if (this.preExistingOids.has(row.oid)) {
+            // Pre-existing — not our responsibility. Skip.
+            continue;
+          }
+          // Unknown origin — this should never happen with universal
+          // snapshotting. The diff should have caught it. Emit an
+          // engine-level warning (no file position — internal error).
+          allDiagnostics.push({
+            message: `function "${row.nspname}"."${row.proname}" has no provenance — this may indicate a bug in the migration tracking pipeline`,
+            code: undefined,
+            severity: "warning" as const,
+            hint: undefined,
+            detail: undefined,
+            range: null,
+            original: { source: "internal" as const, error: new Error("missing provenance") },
+          });
           continue;
         }
 
+        // Construct a fully-qualified signature for plpgsql_check_function_tb.
+        // prov.signature may be unqualified (from formatFunctionRef on an
+        // unqualified CREATE FUNCTION). Use the pg_proc row's schema + name
+        // + identity arguments to build a qualified regprocedure text.
+        const qualifiedSignature = `"${row.nspname}"."${row.proname}"(${prov.signature.match(/\(([^)]*)\)/)?.[1] ?? ""})`;
+
         if (row.lanname === "plpgsql") {
           const diags = await this.validatePlpgsqlFunction(
-            pg, row.oid, prov, row.is_trigger,
+            pg, row.oid, { ...prov, signature: qualifiedSignature }, row.is_trigger,
           );
           allDiagnostics.push(...diags);
         } else if (row.lanname === "sql") {
-          const diags = await this.validateSqlFunction(pg, row.oid, prov);
+          const diags = await this.validateSqlFunction(pg, row.oid, { ...prov, signature: qualifiedSignature });
           allDiagnostics.push(...diags);
         }
       }
@@ -760,7 +810,7 @@ export class SchemaBuilder {
     let checkRows: PlpgsqlCheckRow[];
     try {
       const res = await ctx.pg.query<PlpgsqlCheckRow>(
-        `SELECT * FROM plpgsql_check_function_tb('${tempName}()');`,
+        `SELECT * FROM public.plpgsql_check_function_tb('${tempName}()');`,
       );
       checkRows = res.rows;
     } catch {
@@ -824,7 +874,22 @@ export class SchemaBuilder {
   ): Promise<SqlDiagnostic[]> {
     // Resolve statement hash to current byte offsets.
     const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash);
-    if (!resolved) return []; // statement not found — stale provenance.
+    if (!resolved) {
+      // This should never happen in a single apply→validate session: the
+      // statementHash was computed from the same ParsedStatement array that
+      // resolveStatement searches. If it fires, it's a bug in the pipeline
+      // (e.g. MigrationFile was replaced between apply and validate, which
+      // only happens when file-modified event handling is implemented).
+      return [{
+        message: `internal error: function provenance references a statement (hash ${prov.statementHash.slice(0, 12)}…) that does not exist in migration ${prov.migrationIndex}. This indicates a bug in the migration tracking pipeline.`,
+        code: undefined,
+        severity: "error" as const,
+        hint: undefined,
+        detail: undefined,
+        range: null,
+        original: { source: "internal" as const, error: new Error("unresolvable provenance") },
+      }];
+    }
     const { file: migration, stmt } = resolved;
     const { removals, source } = migration;
 
@@ -865,11 +930,11 @@ export class SchemaBuilder {
 
     const checkCalls = isTrigger
       ? triggerBindings.map(b => ({
-          query: `SELECT * FROM plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}', '${b.relation.replace(/'/g, "''")}'${b.newTable ? `, newtable := '${b.newTable.replace(/'/g, "''")}'` : ""}${b.oldTable ? `, oldtable := '${b.oldTable.replace(/'/g, "''")}'` : ""});`,
+          query: `SELECT * FROM public.plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}', '${b.relation.replace(/'/g, "''")}'${b.newTable ? `, newtable := '${b.newTable.replace(/'/g, "''")}'` : ""}${b.oldTable ? `, oldtable := '${b.oldTable.replace(/'/g, "''")}'` : ""});`,
           triggerOid: b.triggerOid,
         }))
       : [{
-          query: `SELECT * FROM plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}');`,
+          query: `SELECT * FROM public.plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}');`,
           triggerOid: null as number | null,
         }];
 
@@ -878,7 +943,22 @@ export class SchemaBuilder {
       try {
         const res = await pg.query<PlpgsqlCheckRow>(query);
         checkRows = res.rows;
-      } catch {
+      } catch (err) {
+        // plpgsql_check itself failed for this function/binding.
+        // Emit a warning diagnostic so the user knows validation was skipped.
+        // This is an engine-level warning, not a migration file diagnostic.
+        const errmsg = err instanceof Error ? err.message : String(err);
+        const stmtStartOriginal = mapStrippedToOriginal(migration.removals, stmt.stmtStart);
+        const stmtEndOriginal = mapStrippedToOriginal(migration.removals, stmt.stmtEnd);
+        allDiagnostics.push({
+          message: `plpgsql_check failed: ${errmsg}`,
+          code: undefined,
+          severity: "warning" as const,
+          hint: undefined,
+          detail: undefined,
+          range: { start: stmtStartOriginal, end: stmtEndOriginal },
+          original: { source: "internal" as const, error: err instanceof Error ? err : new Error(String(err)) },
+        });
         continue;
       }
 
@@ -958,7 +1038,17 @@ export class SchemaBuilder {
   ): Promise<SqlDiagnostic[]> {
     // Resolve statement hash to current byte offsets.
     const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash);
-    if (!resolved) return [];
+    if (!resolved) {
+      return [{
+        message: `internal error: function provenance references a statement (hash ${prov.statementHash.slice(0, 12)}…) that does not exist in migration ${prov.migrationIndex}. This indicates a bug in the migration tracking pipeline.`,
+        code: undefined,
+        severity: "error" as const,
+        hint: undefined,
+        detail: undefined,
+        range: null,
+        original: { source: "internal" as const, error: new Error("unresolvable provenance") },
+      }];
+    }
     const { file: migration, stmt } = resolved;
     const { removals, source } = migration;
 

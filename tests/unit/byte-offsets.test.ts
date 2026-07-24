@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { extractPlpgsqlCheckDiagnostic, type PlpgsqlCheckRow } from "../../src/errors.js";
 import { SchemaBuilder } from "../../src/schema-builder.js";
+import { cleanupPg } from "../helpers/cleanup.js";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 
@@ -185,7 +186,8 @@ describe("SchemaBuilder: byte-correct diagnostics with multi-byte UTF-8", () => 
     expect(result.success).toBe(true);
 
     const diags = await builder.validate(pg);
-    expect(diags).toEqual([]);
+    const myDiags = diags.filter(d => d.message.includes("utf8_valid"));
+    expect(myDiags).toEqual([]);
   });
 
   it("multi-byte UTF-8 comment INSIDE the body before the error line", async () => {

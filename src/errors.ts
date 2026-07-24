@@ -16,7 +16,8 @@ export { DatabaseError, SqlError, hasSqlDetails };
 export type DiagnosticSource =
   | { source: "libpg-query"; error: SqlError }
   | { source: "pglite"; error: DatabaseError }
-  | { source: "plpgsql-check"; row: PlpgsqlCheckRow };
+  | { source: "plpgsql-check"; row: PlpgsqlCheckRow }
+  | { source: "internal"; error: Error };
 
 /**
  * A row returned by `plpgsql_check_function_tb(...)`. One row per issue

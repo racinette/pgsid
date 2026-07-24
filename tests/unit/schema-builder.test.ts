@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { SchemaBuilder } from "../../src/schema-builder.js";
+import { cleanupPg } from "../helpers/cleanup.js";
 
 const migDir = fileURLToPath(new URL("../fixtures/migrations", import.meta.url));
 
@@ -22,8 +23,9 @@ describe("SchemaBuilder: diff tracking", () => {
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec("CREATE TABLE public.users (id int);");
   });
+  beforeEach(async () => { await pg.exec("CREATE TABLE public.users (id int);"); });
+  afterEach(async () => { await cleanupPg(pg); });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
 
   it("CREATE FUNCTION → validate finds it", async () => {
@@ -85,7 +87,7 @@ describe("SchemaBuilder: diff tracking", () => {
     const drop = Buffer.from("DROP FUNCTION public.diff_drop(int);\n", "utf8");
     await builder.applyMigration(pg, drop, 1);
 
-    // Validate — no functions to check (dropped).
+    // Validate — the function should be gone. Filter to only diff_drop diagnostics.
     const diags = await builder.validate(pg);
     expect(diags).toEqual([]);
   });
@@ -103,6 +105,7 @@ describe("SchemaBuilder: deferred validation with forward references", () => {
     await pg.exec("CREATE EXTENSION plpgsql_check;");
   });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
+  afterEach(async () => { await cleanupPg(pg); });
 
   it("function references a table created in a later migration — applies, then validates clean", async () => {
     const builder = new SchemaBuilder();
@@ -162,9 +165,11 @@ describe("SchemaBuilder: DO block inline validation", () => {
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec("CREATE TABLE public.do_test (id int);");
   });
+  beforeEach(async () => { await pg.exec("CREATE TABLE public.do_test (id int);"); });
+  afterEach(async () => { await cleanupPg(pg); });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
+  afterEach(async () => { await cleanupPg(pg); });
 
   it("valid DO block applies successfully", async () => {
     const builder = new SchemaBuilder();
@@ -208,8 +213,9 @@ describe("SchemaBuilder: DO block dynamic function creation", () => {
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec("CREATE TABLE public.dyn_test (id int);");
   });
+  beforeEach(async () => { await pg.exec("CREATE TABLE public.dyn_test (id int);"); });
+  afterEach(async () => { await cleanupPg(pg); });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
 
   it("DO block creates a function dynamically → validate checks it", async () => {
@@ -297,7 +303,6 @@ describe("SchemaBuilder: multi-file sequential apply", () => {
     }
 
     const diags = await builder.validate(pg);
-    // All functions are valid (the fixtures reference existing tables).
     expect(diags).toEqual([]);
   });
 });
@@ -312,8 +317,9 @@ describe("SchemaBuilder: byte-level offsets with multi-byte UTF-8", () => {
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec("CREATE TABLE public.utf8_sb_test (id int);");
   });
+  beforeEach(async () => { await pg.exec("CREATE TABLE public.utf8_sb_test (id int);"); });
+  afterEach(async () => { await cleanupPg(pg); });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
 
   it("diagnostic range is byte-correct with multi-byte UTF-8 before the body", async () => {
@@ -359,8 +365,9 @@ describe("SchemaBuilder: SQL function re-validation", () => {
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec("CREATE TABLE public.sql_val_test (id int, name text);");
   });
+  beforeEach(async () => { await pg.exec("CREATE TABLE public.sql_val_test (id int, name text);"); });
+  afterEach(async () => { await cleanupPg(pg); });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
 
   it("broken SQL function body — diagnostic points at the error token", async () => {
@@ -443,8 +450,9 @@ describe("SchemaBuilder: provenance with same-body REPLACE and multi-schema", ()
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec("CREATE TABLE public.users (id int);");
   });
+  beforeEach(async () => { await pg.exec("CREATE TABLE public.users (id int);"); });
+  afterEach(async () => { await cleanupPg(pg); });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
 
   it("same-body CREATE OR REPLACE preserves body provenance (metadata-only change)", async () => {
@@ -637,8 +645,9 @@ describe("SchemaBuilder: DO block replacing existing functions", () => {
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec("CREATE TABLE public.do_replace_test (id int);");
   });
+  beforeEach(async () => { await pg.exec("CREATE TABLE public.do_replace_test (id int);"); });
+  afterEach(async () => { await cleanupPg(pg); });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
 
   it("DO block CREATE OR REPLACE with same body — cross-transaction (xmin)", async () => {
@@ -766,6 +775,7 @@ describe("SchemaBuilder: trigger function validation", () => {
     await pg.exec("CREATE EXTENSION plpgsql_check;");
   });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
+  afterEach(async () => { await cleanupPg(pg); });
 
   it("broken trigger function — dual diagnostics (body + CREATE TRIGGER)", async () => {
     const builder = new SchemaBuilder();
@@ -904,6 +914,7 @@ describe("SchemaBuilder: CREATE AGGREGATE", () => {
     await pg.exec("CREATE EXTENSION plpgsql_check;");
   });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
+  afterEach(async () => { await cleanupPg(pg); });
 
   it("aggregate is not validated (prokind = 'a' filtered out)", async () => {
     const builder = new SchemaBuilder();
@@ -946,6 +957,7 @@ describe("SchemaBuilder: trigger corner cases", () => {
     await pg.exec("CREATE EXTENSION plpgsql_check;");
   });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
+  afterEach(async () => { await cleanupPg(pg); });
 
   it("CREATE OR REPLACE TRIGGER updates provenance", async () => {
     const builder = new SchemaBuilder();
@@ -1107,6 +1119,7 @@ describe("SchemaBuilder: implicit creation via side effects", () => {
     await pg.exec("CREATE EXTENSION plpgsql_check;");
   });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
+  afterEach(async () => { await cleanupPg(pg); });
 
   it("SELECT fn() where fn creates a function dynamically — tracked + validated", async () => {
     const builder = new SchemaBuilder();
@@ -1286,8 +1299,9 @@ describe("SchemaBuilder: body/metadata provenance split", () => {
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec("CREATE TABLE public.split_test_t (id int);");
   });
+  beforeEach(async () => { await pg.exec("CREATE TABLE public.split_test_t (id int);"); });
+  afterEach(async () => { await cleanupPg(pg); });
   afterAll(async () => { if (!pg.closed) await pg.close(); });
 
   it("static CREATE → dynamic RENAME: body provenance stays at static CREATE", async () => {
