@@ -1,0 +1,929 @@
+import type { PGlite } from "@electric-sql/pglite";
+import type {
+  CatalogSnapshot,
+  ColumnInfo,
+  CompositeTypeInfo,
+  CompositeTypeAttrInfo,
+  ConstraintInfo,
+  ConstraintType,
+  DomainInfo,
+  EnumInfo,
+  ExtensionInfo,
+  FunctionArgInfo,
+  FunctionInfo,
+  ArgMode,
+  IndexInfo,
+  SchemaInfo,
+  SequenceInfo,
+  TableInfo,
+  ViewInfo,
+  Volatility,
+} from "./types.js";
+
+// ---------------------------------------------------------------------------
+// User-schema filter (excludes system + temp schemas).
+// Mirrors the filter used by SchemaBuilder so the snapshot covers exactly the
+// same set of user entities that the apply/validate pipeline tracks.
+// ---------------------------------------------------------------------------
+
+const USER_SCHEMA_EXCLUDE = `('pg_catalog', 'information_schema', 'pg_toast')`;
+const NOT_TEMP = `n.nspname NOT LIKE 'pg_temp_%' AND n.nspname NOT LIKE 'pg_toast_temp_%'`;
+const USER_NS = `n.nspname NOT IN ${USER_SCHEMA_EXCLUDE} AND ${NOT_TEMP}`;
+
+// ---------------------------------------------------------------------------
+// Row types (internal — the raw shape returned by each catalog query).
+// ---------------------------------------------------------------------------
+
+interface TableRow {
+  oid: number;
+  schema: string;
+  name: string;
+  reloptions: string[] | null;
+}
+
+interface ColumnRow {
+  attrelid: number;
+  name: string;
+  attnum: number;
+  type_oid: number;
+  type_name: string;
+  type_mod: number | null;
+  not_null: boolean;
+  has_default: boolean;
+  default_expr: string | null;
+  generated: string; // 'a' | 's' | ''
+  identity: string;  // 'a' | 'd' | ''
+}
+
+interface ConstraintRow {
+  name: string;
+  contype: string; // 'p' | 'u' | 'f' | 'c' | 'x'
+  conrelid: number;
+  foreign_schema: string | null;
+  foreign_table: string | null;
+  conkey: number[] | string | null;
+  confkey: number[] | string | null;
+  definition: string;
+}
+
+interface ViewRow {
+  schemaname: string;
+  viewname: string;
+  definition: string;
+}
+
+interface IndexRow {
+  oid: number;
+  schema: string;
+  name: string;
+  table_schema: string;
+  table_name: string;
+  indkey: number[] | string;
+  indisunique: boolean;
+  indisprimary: boolean;
+  partial: string | null;
+  amname: string;
+  definition: string;
+}
+
+interface FunctionRow {
+  oid: number;
+  schema: string;
+  name: string;
+  arg_types: string;
+  return_type: string;
+  return_type_oid: number;
+  language: string;
+  prokind: string;
+  prosecdef: boolean;
+  proisstrict: boolean;
+  provolatile: string;
+  procost: number;
+  prorows: number;
+  prosrc: string;
+  definition: string;
+  // Raw argument arrays:
+  proallargtypes: number[] | null;
+  proargtypes: string | null; // oidvector → text
+  proargnames: string[] | null;
+  proargmodes: string[] | null;
+  pronargs: number;
+  pronargdefaults: number;
+}
+
+interface EnumTypeRow {
+  oid: number;
+  schema: string;
+  name: string;
+}
+
+interface EnumValueRow {
+  enumtypid: number;
+  enumlabel: string;
+  enumsortorder: number;
+}
+
+interface DomainRow {
+  oid: number;
+  schema: string;
+  name: string;
+  base_type_oid: number;
+  base_type_name: string;
+  not_null: boolean;
+  default_expr: string | null;
+  check_expr: string | null;
+}
+
+interface CompositeTypeRow {
+  oid: number;
+  typrelid: number;
+  schema: string;
+  name: string;
+}
+
+interface CompositeAttrRow {
+  typrelid: number;
+  name: string;
+  type_oid: number;
+  type_name: string;
+  attnum: number;
+}
+
+interface SequenceRow {
+  oid: number;
+  schema: string;
+  name: string;
+  type_oid: number;
+  type_name: string;
+  /** `int8` — PGlite returns number (small values) or bigint (large values). */
+  start: number | bigint;
+  increment: number | bigint;
+  min: number | bigint;
+  max: number | bigint;
+  cache: number | bigint;
+  cycle: boolean;
+  owned_by_schema: string | null;
+  owned_by_table: string | null;
+  owned_by_column: string | null;
+}
+
+interface ExtensionRow {
+  name: string;
+  version: string;
+  schema: string;
+}
+
+interface SchemaRow {
+  name: string;
+  owner: string;
+}
+
+interface TypeNameRow {
+  oid: number;
+  name: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse an oidvector / int2vector value (returned by PGlite as either a
+ * space-delimited string like "1 2 3" or already a number[]) into a number[].
+ * OID arrays are 32-bit unsigned → safe to coerce to `number`.
+ */
+function toNumArray(v: number[] | string | null | undefined): number[] {
+  if (v == null) return [];
+  if (Array.isArray(v)) return (v as (number | bigint)[]).map(Number);
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (s === "") return [];
+    return s.split(/\s+/).map(n => Number(n));
+  }
+  return [];
+}
+
+/** Map `attgenerated` char to the ColumnInfo `generated` enum. */
+function mapGenerated(c: string): ColumnInfo["generated"] {
+  if (c === "a") return "always";
+  if (c === "s") return "byDefault";
+  return "none";
+}
+
+/** Map `attidentity` char to the ColumnInfo `identity` enum (or null). */
+function mapIdentity(c: string): ColumnInfo["identity"] {
+  if (c === "a") return "always";
+  if (c === "d") return "byDefault";
+  return null;
+}
+
+/** Map `contype` char to the ConstraintInfo `type` enum. */
+function mapConstraintType(c: string): ConstraintType {
+  switch (c) {
+    case "p": return "primaryKey";
+    case "u": return "unique";
+    case "f": return "foreign";
+    case "c": return "check";
+    case "x": return "exclusion";
+    default: return "check";
+  }
+}
+
+/** Map `proargmodes` char to the ArgMode enum. */
+function mapArgMode(c: string): ArgMode {
+  switch (c) {
+    case "i": return "in";
+    case "o": return "out";
+    case "b": return "inout";
+    case "v": return "variadic";
+    case "t": return "table";
+    default: return "in";
+  }
+}
+
+/** Map `provolatile` char to the Volatility enum. */
+function mapVolatility(c: string): Volatility {
+  if (c === "i") return "immutable";
+  if (c === "s") return "stable";
+  return "volatile";
+}
+
+/** Parse `reloptions` (text[] like ["fillfactor=80"]) into a record. */
+function parseStorageParams(reloptions: string[] | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!reloptions) return out;
+  for (const opt of reloptions) {
+    const eq = opt.indexOf("=");
+    if (eq >= 0) {
+      out[opt.slice(0, eq)] = opt.slice(eq + 1);
+    } else {
+      out[opt] = "";
+    }
+  }
+  return out;
+}
+
+/**
+ * Build a `(relid, attnum) → column-name` map from the column rows. Used to
+ * resolve `conkey`/`confkey`/`indkey` integer attnums back to column names.
+ */
+function buildAttnumIndex(
+  columnRows: ColumnRow[],
+): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const c of columnRows) {
+    m.set(`${c.attrelid}:${c.attnum}`, c.name);
+  }
+  return m;
+}
+
+/** Resolve an array of attnums for a given relid to column names (skip 0s). */
+function resolveAttnums(
+  relid: number,
+  attnums: number[],
+  idx: Map<string, string>,
+): string[] {
+  const out: string[] = [];
+  for (const a of attnums) {
+    if (a === 0) continue; // 0 = expression, not a column reference
+    const name = idx.get(`${relid}:${a}`);
+    if (name) out.push(name);
+  }
+  return out;
+}
+
+/**
+ * Resolve a function's arguments from the raw pg_proc arrays into a typed
+ * `FunctionArgInfo[]`, using the type-name map for OID→name resolution.
+ *
+ * - `proallargtypes` (oid[]) is present when any arg is not plain IN; it
+ *   carries the full type list. Otherwise `proargtypes` (oidvector) holds the
+ *   all-IN types.
+ * - `proargmodes` (char[]) is null when all args are IN.
+ * - `proargnames` (text[]) is null when all args are unnamed.
+ * - The last `pronargdefaults` args have defaults (PG stores trailing defaults).
+ */
+function resolveFunctionArgs(
+  row: FunctionRow,
+  typeNames: Map<number, string>,
+): FunctionArgInfo[] {
+  const allTypes = row.proallargtypes;
+  let typeOids: number[];
+  let modes: string[];
+
+  if (allTypes && allTypes.length > 0) {
+    typeOids = allTypes;
+    modes = row.proargmodes ?? allTypes.map(() => "i");
+  } else {
+    typeOids = toNumArray(row.proargtypes);
+    modes = row.proargmodes ?? typeOids.map(() => "i");
+  }
+
+  const names = row.proargnames ?? typeOids.map(() => "");
+  const nargs = typeOids.length;
+  const nDefaults = row.pronargdefaults ?? 0;
+  const firstDefault = nargs - nDefaults;
+
+  const args: FunctionArgInfo[] = [];
+  for (let i = 0; i < nargs; i++) {
+    const oid = typeOids[i]!;
+    args.push({
+      name: names[i] ?? "",
+      typeOid: oid,
+      typeName: typeNames.get(oid) ?? "unknown",
+      mode: mapArgMode(modes[i] ?? "i"),
+      hasDefault: i >= firstDefault,
+    });
+  }
+  return args;
+}
+
+/** Lexicographic comparator for `[a, b]` string tuples (schema, name). */
+function bySchemaName<T extends { schema: string; name: string }>(a: T, b: T): number {
+  return a.schema < b.schema ? -1 : a.schema > b.schema ? 1
+    : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+}
+
+// ---------------------------------------------------------------------------
+// snapshotCatalog
+// ---------------------------------------------------------------------------
+
+/**
+ * Capture the full catalog state from a PGlite instance's system catalogs.
+ *
+ * Runs a set of parameterized catalog queries and assembles a typed
+ * `CatalogSnapshot`. All arrays are sorted deterministically (schema, name,
+ * attnum, enumsortorder) so two snapshots of identical schema state are
+ * byte-identical — enabling stable diffing and future cache persistence.
+ *
+ * Call this after `SchemaBuilder.validate()` succeeds (or any time the schema
+ * state is known-good). The snapshot is the single source of truth for
+ * query typechecking, codegen, selective re-typecheck, and future linting.
+ */
+export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
+  // Run all independent catalog queries in parallel.
+  const [
+    typeRows,
+    tableRows,
+    columnRows,
+    constraintRows,
+    viewRows,
+    matviewRows,
+    indexRows,
+    functionRows,
+    enumTypeRows,
+    enumValueRows,
+    domainRows,
+    compositeTypeRows,
+    compositeAttrRows,
+    sequenceRows,
+    extensionRows,
+    schemaRows,
+  ] = await Promise.all([
+    queryTypeNames(pg),
+    queryTables(pg),
+    queryColumns(pg),
+    queryConstraints(pg),
+    queryViews(pg),
+    queryMatViews(pg),
+    queryIndexes(pg),
+    queryFunctions(pg),
+    queryEnumTypes(pg),
+    queryEnumValues(pg),
+    queryDomains(pg),
+    queryCompositeTypes(pg),
+    queryCompositeAttrs(pg),
+    querySequences(pg),
+    queryExtensions(pg),
+    querySchemas(pg),
+  ]);
+
+  // Global type-name map (oid → format_type name) for resolving arg OIDs.
+  const typeNames = new Map<number, string>();
+  for (const t of typeRows) typeNames.set(t.oid, t.name);
+
+  // (relid, attnum) → column-name index for resolving conkey/confkey/indkey.
+  const attnumIdx = buildAttnumIndex(columnRows);
+
+  // --- Columns grouped by relid (sorted by attnum, which the query does). ---
+  const columnsByRel = new Map<number, ColumnInfo[]>();
+  for (const c of columnRows) {
+    const ci: ColumnInfo = {
+      name: c.name,
+      typeOid: c.type_oid,
+      typeName: c.type_name,
+      typeMod: c.type_mod,
+      notNull: c.not_null,
+      hasDefault: c.has_default,
+      defaultExpr: c.default_expr,
+      generated: mapGenerated(c.generated),
+      identity: mapIdentity(c.identity),
+    };
+    const arr = columnsByRel.get(c.attrelid);
+    if (arr) arr.push(ci);
+    else columnsByRel.set(c.attrelid, [ci]);
+  }
+
+  // --- Constraints grouped by conrelid. ---
+  const constraintsByRel = new Map<number, ConstraintInfo[]>();
+  for (const con of constraintRows) {
+    const ci: ConstraintInfo = {
+      name: con.name,
+      type: mapConstraintType(con.contype),
+      columns: resolveAttnums(con.conrelid, toNumArray(con.conkey), attnumIdx),
+      foreignSchema: con.foreign_schema,
+      foreignTable: con.foreign_table,
+      foreignColumns: con.contype === "f"
+        ? resolveAttnums(con.conrelid, toNumArray(con.confkey), attnumIdx)
+        : null,
+      definition: con.definition,
+    };
+    const arr = constraintsByRel.get(con.conrelid);
+    if (arr) arr.push(ci);
+    else constraintsByRel.set(con.conrelid, [ci]);
+  }
+  // Constraints aren't ordered by the query; sort by name for determinism.
+  for (const arr of constraintsByRel.values()) {
+    arr.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+  }
+
+  // --- Tables. ---
+  const tables: TableInfo[] = tableRows.map(t => ({
+    schema: t.schema,
+    name: t.name,
+    columns: columnsByRel.get(t.oid) ?? [],
+    constraints: constraintsByRel.get(t.oid) ?? [],
+    storageParams: parseStorageParams(t.reloptions),
+  })).sort(bySchemaName);
+
+  // For views/matviews we need their column lists. The view-definition
+  // queries (pg_views/pg_matviews) don't expose the OID, so look up the
+  // relid per (schema, name, relkind) in a single query each.
+  const viewRelIds = await queryRelIdsByKind(pg, "v");
+  const matviewRelIds = await queryRelIdsByKind(pg, "m");
+
+  const views: ViewInfo[] = viewRows.map(v => {
+    const relid = viewRelIds.get(`${v.schemaname}.${v.viewname}`);
+    return {
+      schema: v.schemaname,
+      name: v.viewname,
+      columns: relid !== undefined ? (columnsByRel.get(relid) ?? []) : [],
+      definition: v.definition,
+    };
+  }).sort(bySchemaName);
+
+  const materializedViews: ViewInfo[] = matviewRows.map(v => {
+    const relid = matviewRelIds.get(`${v.schemaname}.${v.viewname}`);
+    return {
+      schema: v.schemaname,
+      name: v.viewname,
+      columns: relid !== undefined ? (columnsByRel.get(relid) ?? []) : [],
+      definition: v.definition,
+    };
+  }).sort(bySchemaName);
+
+  // --- Indexes. ---
+  const indexes: IndexInfo[] = indexRows.map(ix => ({
+    schema: ix.schema,
+    name: ix.name,
+    tableSchema: ix.table_schema,
+    tableName: ix.table_name,
+    // indkey's attnums are relative to the *table* (indrelid), not the index.
+    // We resolve via the table's columns. For the index we only know the
+    // index relid; the table relid isn't returned, so resolve against the
+    // table columns by matching table name. Simpler: resolve by looking up
+    // the table's relid from tableRows.
+    columns: resolveIndexColumns(ix, tableRows, attnumIdx),
+    unique: ix.indisunique,
+    primary: ix.indisprimary,
+    partial: ix.partial,
+    method: ix.amname,
+    definition: ix.definition,
+  })).sort((a, b) =>
+    a.schema < b.schema ? -1 : a.schema > b.schema ? 1
+      : a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+  );
+
+  // --- Functions. ---
+  const functions: FunctionInfo[] = functionRows.map(f => ({
+    schema: f.schema,
+    name: f.name,
+    argTypes: f.arg_types,
+    args: resolveFunctionArgs(f, typeNames),
+    returnType: f.return_type,
+    returnTypeOid: f.return_type_oid,
+    language: f.language,
+    isProcedure: f.prokind === "p",
+    isAggregate: f.prokind === "a",
+    isWindow: f.prokind === "w",
+    securityDefiner: f.prosecdef,
+    strict: f.proisstrict,
+    volatile: mapVolatility(f.provolatile),
+    cost: f.procost,
+    rows: f.prorows,
+    body: f.prosrc,
+    definition: f.definition,
+  })).sort(bySchemaName);
+
+  // --- Enums. ---
+  const enumValuesByType = new Map<number, string[]>();
+  for (const ev of enumValueRows) {
+    const arr = enumValuesByType.get(ev.enumtypid);
+    if (arr) arr.push(ev.enumlabel);
+    else enumValuesByType.set(ev.enumtypid, [ev.enumlabel]);
+  }
+  const enums: EnumInfo[] = enumTypeRows.map(e => ({
+    schema: e.schema,
+    name: e.name,
+    values: enumValuesByType.get(e.oid) ?? [],
+  })).sort(bySchemaName);
+
+  // --- Domains. ---
+  const domains: DomainInfo[] = domainRows.map(d => ({
+    schema: d.schema,
+    name: d.name,
+    baseTypeOid: d.base_type_oid,
+    baseTypeName: d.base_type_name,
+    notNull: d.not_null,
+    default: d.default_expr,
+    check: d.check_expr,
+  })).sort(bySchemaName);
+
+  // --- Composite types (user-defined CREATE TYPE AS (...), not table row types). ---
+  const attrsByRel = new Map<number, CompositeTypeAttrInfo[]>();
+  for (const a of compositeAttrRows) {
+    const ai: CompositeTypeAttrInfo = {
+      name: a.name,
+      typeOid: a.type_oid,
+      typeName: a.type_name,
+    };
+    const arr = attrsByRel.get(a.typrelid);
+    if (arr) arr.push(ai);
+    else attrsByRel.set(a.typrelid, [ai]);
+  }
+  const compositeTypes: CompositeTypeInfo[] = compositeTypeRows.map(t => ({
+    schema: t.schema,
+    name: t.name,
+    attributes: attrsByRel.get(t.typrelid) ?? [],
+  })).sort(bySchemaName);
+
+  // --- Sequences. ---
+  const sequences: SequenceInfo[] = sequenceRows.map(s => {
+    const ownedTable = s.owned_by_schema && s.owned_by_table
+      ? `${s.owned_by_schema}.${s.owned_by_table}` : null;
+    return {
+      schema: s.schema,
+      name: s.name,
+      typeOid: s.type_oid,
+      typeName: s.type_name,
+      start: s.start,
+      increment: s.increment,
+      min: s.min,
+      max: s.max,
+      cache: s.cache,
+      cycle: s.cycle,
+      ownedByTable: ownedTable,
+      ownedByColumn: s.owned_by_column,
+    };
+  }).sort(bySchemaName);
+
+  // --- Extensions. ---
+  const extensions: ExtensionInfo[] = extensionRows.map(e => ({
+    name: e.name,
+    version: e.version,
+    schema: e.schema,
+  })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+  // --- Schemas. ---
+  const schemas: SchemaInfo[] = schemaRows.map(s => ({
+    name: s.name,
+    owner: s.owner,
+  })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+  return {
+    tables,
+    views,
+    materializedViews,
+    indexes,
+    functions,
+    enums,
+    domains,
+    compositeTypes,
+    sequences,
+    extensions,
+    schemas,
+  };
+}
+
+/**
+ * Resolve an index's key column names. `indkey` attnums are relative to the
+ * *table* (indrelid); we look up the table relid by (schema, name) from the
+ * table rows, then resolve attnums via the global attnum index.
+ */
+function resolveIndexColumns(
+  ix: IndexRow,
+  tableRows: TableRow[],
+  attnumIdx: Map<string, string>,
+): string[] {
+  // Find the table's relid by matching schema + table name.
+  let tableOid: number | undefined;
+  for (const t of tableRows) {
+    if (t.schema === ix.table_schema && t.name === ix.table_name) {
+      tableOid = t.oid;
+      break;
+    }
+  }
+  if (tableOid === undefined) return [];
+  return resolveAttnums(tableOid, toNumArray(ix.indkey), attnumIdx);
+}
+
+/**
+ * Look up `pg_class.oid` for every (schema, name) of a given relkind in user
+ * schemas, in a single query. Used to attach the right column list to each
+ * view/matview (the view-definition queries don't expose the OID).
+ */
+async function queryRelIdsByKind(
+  pg: PGlite,
+  relkind: string,
+): Promise<Map<string, number>> {
+  const res = await pg.query<{ oid: number; schema: string; name: string }>(
+    `SELECT c.oid, n.nspname AS schema, c.relname AS name
+     FROM pg_class c
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind = $1 AND ${USER_NS};`,
+    [relkind],
+  );
+  const out = new Map<string, number>();
+  for (const r of res.rows) out.set(`${r.schema}.${r.name}`, r.oid);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Individual catalog queries
+// ---------------------------------------------------------------------------
+
+/** All type OIDs → canonical names (format_type). Used for arg-type resolution. */
+async function queryTypeNames(pg: PGlite): Promise<TypeNameRow[]> {
+  const res = await pg.query<TypeNameRow>(
+    `SELECT t.oid, COALESCE(format_type(t.oid, null), t.typname) AS name
+     FROM pg_type t;`,
+  );
+  return res.rows;
+}
+
+async function queryTables(pg: PGlite): Promise<TableRow[]> {
+  const res = await pg.query<TableRow>(
+    `SELECT c.oid, n.nspname AS schema, c.relname AS name, c.reloptions
+     FROM pg_class c
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind = 'r' AND ${USER_NS}
+     ORDER BY n.nspname, c.relname;`,
+  );
+  return res.rows;
+}
+
+/**
+ * Columns for tables (relkind 'r'), views ('v'), and materialized views ('m').
+ * One row per (relid, attnum). Sorted by relid then attnum so grouping
+ * preserves column order.
+ */
+async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
+  const res = await pg.query<ColumnRow>(
+    `SELECT a.attrelid, a.attname AS name, a.attnum,
+            a.atttypid AS type_oid,
+            format_type(a.atttypid, a.atttypmod) AS type_name,
+            a.atttypmod AS type_mod,
+            a.attnotnull AS not_null,
+            (ad.adbin IS NOT NULL) AS has_default,
+            pg_get_expr(ad.adbin, ad.adrelid) AS default_expr,
+            a.attgenerated AS generated,
+            a.attidentity AS identity
+     FROM pg_attribute a
+     JOIN pg_class c ON c.oid = a.attrelid
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     LEFT JOIN pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
+     WHERE c.relkind IN ('r', 'v', 'm')
+       AND ${USER_NS}
+       AND a.attnum > 0 AND NOT a.attisdropped
+     ORDER BY a.attrelid, a.attnum;`,
+  );
+  return res.rows;
+}
+
+async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
+  const res = await pg.query<ConstraintRow>(
+    `SELECT con.conname AS name, con.contype, con.conrelid,
+            tn.nspname AS foreign_schema,
+            tc.relname AS foreign_table,
+            con.conkey, con.confkey,
+            pg_get_constraintdef(con.oid) AS definition
+     FROM pg_constraint con
+     JOIN pg_class c ON c.oid = con.conrelid
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     LEFT JOIN pg_class tc ON tc.oid = con.confrelid
+     LEFT JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+     WHERE ${USER_NS};`,
+  );
+  return res.rows;
+}
+
+async function queryViews(pg: PGlite): Promise<ViewRow[]> {
+  const res = await pg.query<ViewRow>(
+    `SELECT schemaname, viewname, definition
+     FROM pg_views
+     WHERE schemaname NOT IN ${USER_SCHEMA_EXCLUDE}
+       AND schemaname NOT LIKE 'pg_temp_%'
+       AND schemaname NOT LIKE 'pg_toast_temp_%'
+     ORDER BY schemaname, viewname;`,
+  );
+  return res.rows;
+}
+
+async function queryMatViews(pg: PGlite): Promise<ViewRow[]> {
+  const res = await pg.query<ViewRow>(
+    `SELECT schemaname, matviewname AS viewname, definition
+     FROM pg_matviews
+     WHERE schemaname NOT IN ${USER_SCHEMA_EXCLUDE}
+       AND schemaname NOT LIKE 'pg_temp_%'
+       AND schemaname NOT LIKE 'pg_toast_temp_%'
+     ORDER BY schemaname, matviewname;`,
+  );
+  return res.rows;
+}
+
+async function queryIndexes(pg: PGlite): Promise<IndexRow[]> {
+  const res = await pg.query<IndexRow>(
+    `SELECT c.oid, n.nspname AS schema, c.relname AS name,
+            tn.nspname AS table_schema, tc.relname AS table_name,
+            i.indkey, i.indisunique, i.indisprimary,
+            pg_get_expr(i.indpred, i.indrelid) AS partial,
+            am.amname,
+            pg_get_indexdef(c.oid) AS definition
+     FROM pg_class c
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     JOIN pg_index i ON i.indexrelid = c.oid
+     JOIN pg_class tc ON tc.oid = i.indrelid
+     JOIN pg_namespace tn ON tn.oid = tc.relnamespace
+     JOIN pg_am am ON am.oid = c.relam
+     WHERE c.relkind = 'i' AND ${USER_NS}
+     ORDER BY n.nspname, c.relname;`,
+  );
+  return res.rows;
+}
+
+/**
+ * Functions/procedures in user schemas. Extension functions (deptype='e') are
+ * INCLUDED — they're part of the schema state even though the validate
+ * pipeline skips them. Aggregates are included too (prokind='a') for the
+ * snapshot; the diff handles them like any function.
+ */
+async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
+  const res = await pg.query<FunctionRow>(
+    `SELECT p.oid, n.nspname AS schema, p.proname AS name,
+            pg_get_function_identity_arguments(p.oid) AS arg_types,
+            pg_get_function_result(p.oid) AS return_type,
+            p.prorettype AS return_type_oid,
+            l.lanname AS language,
+            p.prokind,
+            p.prosecdef,
+            p.proisstrict,
+            p.provolatile,
+            p.procost,
+            p.prorows,
+            p.prosrc,
+            pg_get_functiondef(p.oid) AS definition,
+            p.proallargtypes,
+            p.proargtypes::text AS proargtypes,
+            p.proargnames,
+            p.proargmodes,
+            p.pronargs,
+            p.pronargdefaults
+     FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     JOIN pg_language l ON l.oid = p.prolang
+     WHERE ${USER_NS}
+     ORDER BY n.nspname, p.proname;`,
+  );
+  return res.rows;
+}
+
+async function queryEnumTypes(pg: PGlite): Promise<EnumTypeRow[]> {
+  const res = await pg.query<EnumTypeRow>(
+    `SELECT t.oid, n.nspname AS schema, t.typname AS name
+     FROM pg_type t
+     JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE t.typtype = 'e' AND ${USER_NS}
+     ORDER BY n.nspname, t.typname;`,
+  );
+  return res.rows;
+}
+
+async function queryEnumValues(pg: PGlite): Promise<EnumValueRow[]> {
+  // All enum values (filtered to user enums at assembly time via the type map).
+  const res = await pg.query<EnumValueRow>(
+    `SELECT e.enumtypid, e.enumlabel, e.enumsortorder
+     FROM pg_enum e
+     ORDER BY e.enumtypid, e.enumsortorder;`,
+  );
+  return res.rows;
+}
+
+async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
+  const res = await pg.query<DomainRow>(
+    `SELECT t.oid, n.nspname AS schema, t.typname AS name,
+            t.typbasetype AS base_type_oid,
+            format_type(t.typbasetype, null) AS base_type_name,
+            t.typnotnull AS not_null,
+            -- Domain defaults: typdefault is the pre-deparsed SQL text
+            -- (e.g. 'unknown'::text). pg_get_expr(typdefaultbin, oid) returns
+            -- null for domains, so use typdefault directly.
+            t.typdefault AS default_expr,
+            (SELECT pg_get_constraintdef(con.oid)
+               FROM pg_constraint con
+              WHERE con.contypid = t.oid AND con.contype = 'c'
+              LIMIT 1) AS check_expr
+     FROM pg_type t
+     JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE t.typtype = 'd' AND ${USER_NS}
+     ORDER BY n.nspname, t.typname;`,
+  );
+  return res.rows;
+}
+
+/** User-defined composite types (CREATE TYPE AS (...)), excluding table row types. */
+async function queryCompositeTypes(pg: PGlite): Promise<CompositeTypeRow[]> {
+  const res = await pg.query<CompositeTypeRow>(
+    `SELECT t.oid, t.typrelid, n.nspname AS schema, t.typname AS name
+     FROM pg_type t
+     JOIN pg_namespace n ON n.oid = t.typnamespace
+     JOIN pg_class c ON c.oid = t.typrelid
+     WHERE t.typtype = 'c' AND c.relkind = 'c' AND ${USER_NS}
+     ORDER BY n.nspname, t.typname;`,
+  );
+  return res.rows;
+}
+
+async function queryCompositeAttrs(pg: PGlite): Promise<CompositeAttrRow[]> {
+  const res = await pg.query<CompositeAttrRow>(
+    `SELECT a.attrelid AS typrelid, a.attname AS name,
+            a.atttypid AS type_oid,
+            format_type(a.atttypid, a.atttypmod) AS type_name,
+            a.attnum
+     FROM pg_attribute a
+     JOIN pg_type t ON t.typrelid = a.attrelid
+     JOIN pg_class c ON c.oid = t.typrelid
+     JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE t.typtype = 'c' AND c.relkind = 'c' AND ${USER_NS}
+       AND a.attnum > 0 AND NOT a.attisdropped
+     ORDER BY a.attrelid, a.attnum;`,
+  );
+  return res.rows;
+}
+
+async function querySequences(pg: PGlite): Promise<SequenceRow[]> {
+  const res = await pg.query<SequenceRow>(
+    `SELECT c.oid, n.nspname AS schema, c.relname AS name,
+            s.seqtypid AS type_oid,
+            format_type(s.seqtypid, null) AS type_name,
+            s.seqstart AS start, s.seqincrement AS increment,
+            s.seqmin AS min, s.seqmax AS max,
+            s.seqcache AS cache, s.seqcycle AS cycle,
+            own_ns.nspname AS owned_by_schema,
+            own_tbl.relname AS owned_by_table,
+            own_att.attname AS owned_by_column
+     FROM pg_class c
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     JOIN pg_sequence s ON s.seqrelid = c.oid
+     LEFT JOIN pg_depend d ON d.objid = c.oid AND d.deptype IN ('a', 'i')
+     LEFT JOIN pg_attribute own_att
+            ON own_att.attrelid = d.refobjid AND own_att.attnum = d.refobjsubid
+     LEFT JOIN pg_class own_tbl ON own_tbl.oid = own_att.attrelid
+     LEFT JOIN pg_namespace own_ns ON own_ns.oid = own_tbl.relnamespace
+     WHERE c.relkind = 'S' AND ${USER_NS}
+     ORDER BY n.nspname, c.relname;`,
+  );
+  return res.rows;
+}
+
+async function queryExtensions(pg: PGlite): Promise<ExtensionRow[]> {
+  const res = await pg.query<ExtensionRow>(
+    `SELECT e.extname AS name, e.extversion AS version, n.nspname AS schema
+     FROM pg_extension e
+     JOIN pg_namespace n ON n.oid = e.extnamespace
+     ORDER BY e.extname;`,
+  );
+  return res.rows;
+}
+
+async function querySchemas(pg: PGlite): Promise<SchemaRow[]> {
+  const res = await pg.query<SchemaRow>(
+    `SELECT n.nspname AS name, r.rolname AS owner
+     FROM pg_namespace n
+     JOIN pg_roles r ON r.oid = n.nspowner
+     WHERE n.nspname NOT IN ${USER_SCHEMA_EXCLUDE}
+       AND n.nspname NOT LIKE 'pg_temp_%'
+       AND n.nspname NOT LIKE 'pg_toast_temp_%'
+     ORDER BY n.nspname;`,
+  );
+  return res.rows;
+}

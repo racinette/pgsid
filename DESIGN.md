@@ -557,69 +557,64 @@ The Engine emits raw PG types. The codegen applies the type-mapping chain (`colu
 
 ### Catalog snapshot
 
-After every successful schema rebuild, the Engine introspects a pool instance and emits a `CatalogSnapshot`:
+After every successful schema rebuild, the Engine introspects a pool instance and emits a `CatalogSnapshot`. Implemented in `pgsid/src/catalog/{types,snapshot}.ts`. The snapshot captures **everything available from the system catalogs** (tables, views, materialized views, indexes, functions/procedures, enums, domains, composite types, sequences, extensions, schemas) at maximum data quality — it is the single source of truth for query typechecking, codegen, selective re-typecheck, and future linting.
 
 ```ts
 interface CatalogSnapshot {
-  tables: {
-    schema: string
-    name: string
-    columns: {
-      name: string
-      typeOid: number
-      typeName: string
-      notNull: boolean
-      hasDefault: boolean
-      generated: 'always' | 'byDefault' | 'none'
-    }[]
-  }[]
-  functions: {
-    schema: string
-    name: string
-    argTypes: string[]
-    returnType: string
-    language: string
-    body: string              // for dependency extraction (SQL: parse; plpgsql: statement extraction)
-  }[]
-  views: {
-    schema: string
-    name: string
-    columns: { name: string; typeOid: number; typeName: string }[]
-    definition: string        // SQL text from pg_views.definition — parse for deps
-  }[]
-  enums: {
-    schema: string
-    name: string
-    values: string[]
-  }[]
-  domains: {
-    schema: string
-    name: string
-    baseType: string
-    notNull: boolean
-    default: string | null
-  }[]
+  tables: TableInfo[]             // + columns (incl. typeMod, defaultExpr, identity, generated),
+                                  //   constraints (PK/UNIQUE/FK/CHECK/EXCLUSION, cols, FK target),
+                                  //   storageParams (reloptions)
+  views: ViewInfo[]               // + columns + definition (pg_views.definition)
+  materializedViews: ViewInfo[]   // from pg_matviews
+  indexes: IndexInfo[]           // cols, unique, primary, partial (indpred), method (amname),
+                                  //   definition (pg_get_indexdef)
+  functions: FunctionInfo[]      // argTypes (pg_get_function_identity_arguments), args
+                                  //   (name/oid/name/mode/hasDefault), returnType, language,
+                                  //   isProcedure/isAggregate/isWindow, securityDefiner, strict,
+                                  //   volatile, cost, rows, body (prosrc), definition (pg_get_functiondef)
+  enums: EnumInfo[]               // values in enum order
+  domains: DomainInfo[]           // baseType, notNull, default (typdefault), check
+  compositeTypes: CompositeTypeInfo[]  // attributes (CREATE TYPE AS (...), not table row types)
+  sequences: SequenceInfo[]      // start/increment/min/max/cache/cycle (int8 → number|bigint),
+                                  //   ownedByTable/ownedByColumn
+  extensions: ExtensionInfo[]    // name, version, schema
+  schemas: SchemaInfo[]          // name, owner
 }
 ```
 
+Notes on the implementation:
+- Extension functions (e.g. `plpgsql_check`) are **included** in the snapshot (they're part of the schema state even though the validate pipeline skips them). Aggregates (`prokind='a'`) are included too.
+- Composite types exclude table/view/matview row types (filtered to `pg_class.relkind='c'`) to avoid colliding with table `EntityId`s.
+- `int8` catalog columns (sequence bounds) come back from PGlite as a JS `number` (when the value fits in `Number.MAX_SAFE_INTEGER`) or `bigint` (e.g. the default `seqmax` 2^63-1). The type is `number | bigint`. JSON serialization of snapshots is **deferred to a dedicated serializer layer** (kept separate from the data model) — the diff uses a bigint-aware structural deep-equal, not `JSON.stringify`.
+
 ### Schema diff
 
-Computed by comparing the old and new `CatalogSnapshot`. Carries old + new states for future features (constraint analysis, transpilation):
+Computed by comparing the old and new `CatalogSnapshot` via `diffCatalogs(before, after)` in `pgsid/src/catalog/diff.ts` — a pure function (no PGlite, no side effects). Reports added/removed/modified at **column-level granularity**. Carries old + new states for future features (constraint analysis, transpilation):
 
 ```ts
 interface SchemaDiff {
   added: EntityId[]                                                    // new entities
   removed: EntityId[]                                                  // dropped entities
-  modified: { entityId: EntityId; old: EntityState; new: EntityState }[]  // changed entities
+  modified: { entityId: EntityId; old: unknown; new: unknown }[]       // changed entities
 }
 
 // EntityId is a schema-qualified, column-level identifier:
-//   "public.users.id"     — a specific column
-//   "public.users"        — a table (for existence tracking)
-//   "public.calculate_total" — a function
-//   "public.active_status"   — an enum
-//   "public.user_id"         — a domain
+//   "public.users.id"            — a specific column (table or view)
+//   "public.users"               — a table / view / matview / sequence / composite type / enum / domain
+//   "public.calculate_total(integer, text)" — a function (pg_get_function_identity_arguments;
+//                                  includes arg names + IN/OUT modes when present)
+//   "public.users_email_uniq"    — an index
+//   "plpgsql_check"              — an extension (globally-unique name, no schema qualifier)
+//   "public"                     — a schema
 ```
+
+Diff semantics:
+- **Column property changes** (type, NOT NULL, DEFAULT, GENERATED) are reported at the *column* `EntityId` — the parent table/view is **not** flagged modified.
+- **Table-level** changes (storage params, constraints) → table `EntityId` modified. Table existence is tracked via added/removed.
+- **Function** changes compare signature-defining properties only (arg types, return type, language, strict, volatile, security definer). A **body-only** change (CREATE OR REPLACE with the same signature) is intentionally **not** a modification — it doesn't affect query type signatures, so selective re-typecheck skips it.
+- **Enum**: values compared (order-sensitive). **Domain**: base type, NOT NULL, default, check. **Composite type**: attributes. **Index**: all fields. **Extension**: version/schema. **Schema**: owner.
+- Added/removed tables (and views/matviews) emit **all their columns** as added/removed too, so a column-level dependency graph matches column references without separately expanding the relation.
+- Output is deterministic: `added`, `removed`, `modified` are each sorted by `entityId` (lexicographic). On first boot (empty `before`), every entity is `added`.
 
 ### Dependency model (column-level pub/sub)
 
@@ -910,6 +905,7 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 | SchemaBuilder (apply + validate) | `pgsid/src/schema-builder.ts`                              |
 | AST helpers + statement chain | `pgsid/src/ast.ts` (`parseMigrationFile`, `statementHash`, `diffStatementChains`, `getBodyOffsetFromAst`, `getFunctionBody`, etc.) |
 | Diagnostic extractors + `SqlDiagnostic` | `pgsid/src/errors.ts`                               |
+| Catalog snapshot + diff        | `pgsid/src/catalog/` (`types.ts`, `snapshot.ts`, `diff.ts`)  |
 | Tests (schema-builder, integration, byte-offsets, domain, type-behavior, statement-chain, ast-comparison) | `pgsid/tests/unit/` |
 | PREPARE + error→diagnostic    | `postgres-language-server/crates/pgls_typecheck/`            |
 | plpgsql_check txn flow        | `postgres-language-server/crates/pgls_plpgsql_check/`        |
