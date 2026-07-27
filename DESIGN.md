@@ -629,8 +629,16 @@ The Engine maintains a **dependency graph** and a **subscriber index** — the c
 | Query AST | Walk `RangeVar` (tables) + `ColumnRef` (columns) + `FuncCall` (functions). Resolve unqualified names via `search_path`. Recurse into subqueries, CTEs, JOINs. | Column-level, precise |
 | SQL functions (`LANGUAGE sql`) | Parse `pg_proc.prosrc` body with libpg-query → walk AST → extract same. | Column-level, precise |
 | Views | Parse `pg_views.definition` with libpg-query → walk AST → extract same. | Column-level, precise |
-| plpgsql functions | **plpgsql statement extractor:** tokenize the body to find SQL-bearing constructs (`SELECT INTO`, `PERFORM`, `INSERT/UPDATE/DELETE`, `RETURN QUERY`, `FOR r IN SELECT`, `IF (SELECT…)`). Parse each extracted SQL fragment with libpg-query → walk AST → extract deps. | Column-level for static SQL; **conservative** (depends on everything) for `EXECUTE` (dynamic SQL) |
-| Enums/domains | Tracked indirectly: if an enum/domain changes, all columns using that type are affected (propagated via the catalog snapshot's type OIDs). | Automatic |
+| plpgsql functions | **`plpgsql_show_dependency_tb`** — the plpgsql_check extension walks the compiled PL/pgSQL internally and returns relation/function/operator dependencies. No body parsing by pgsid. | Table-level (relation), name-level (function) |
+| Enums/domains/composite types | Tracked via catalog type OIDs: when a type changes in the diff, find all functions whose `proargtypes`/`prorettype` contain that OID → re-typecheck. Also propagated to columns: a column whose `typeOid` is a changed enum/domain is affected. | Automatic, OID-based |
+
+**Function dependency tracking is name-level, not overload-level.** A query calling `public.calculate_total(...)` depends on `"public.calculate_total"` (no arg types in the `EntityId`). When any overload of that name changes (added/removed/modified), queries referencing the name are re-typechecked. Overloads are rare; over-checking is a negligible cost. This avoids the need to infer argument types during dependency extraction. The **diff remains granular** (function `EntityId`s include arg types, e.g. `"public.ovl_fn(integer)"`); the dependency graph does prefix matching: a dep on `"public.ovl_fn"` matches any diff entry starting with `"public.ovl_fn("`.
+
+**Why not parse PL/pgSQL bodies ourselves:** the PL/pgSQL grammar is a separate parser (not SQL, not libpg-query). Writing a PL/pgSQL parser in TypeScript is a large, fragile undertaking that no JS/TS tool currently attempts (sqlc doesn't either). `plpgsql_show_dependency_tb` gives us the complete set of relation/function/operator dependencies for free — it walks PG's own compiled `PLpgSQL_function` tree internally. The only gap is `%ROWTYPE`-in-DECLARE-only references (filed as a bug to plpgsql_check); this is a niche edge case caught by the validate pipeline (`plpgsql_check_function_tb`) on full schema rebuild.
+
+**`%TYPE` and `%ROWTYPE` behavior (documented, not tracked):**
+- `%TYPE` (in args, returns, DECLARE) is **frozen at CREATE time** — PG resolves it to a scalar type OID. The original column reference is gone; no trace in `pg_proc` or `plpgsql_show_dependency_tb`. If the underlying column changes type, the function's signature stays stale. This is a PG limitation, not a pgsid limitation. Stale `%TYPE` is a future linter concern.
+- `%ROWTYPE` (DECLARE only, cannot be in RETURNS) is **dynamic** — PG re-resolves it to the table's live composite type at each call. Column drops are caught by `plpgsql_check_function_tb` in the validate pipeline. `%ROWTYPE`-only DECLARE references (no SQL statement touching the table) are not in `plpgsql_show_dependency_tb` output — niche gap, filed as bug.
 
 **Subscription by name, not by existence:** a query referencing `nonexistent_table` subscribes to the *name* `public.nonexistent_table` regardless of whether the entity exists. When the table later appears (migration adds it), the diff includes it as `added`, the subscription matches → re-typecheck. The typecheck error (PREPARE fails) and the subscription are separate concerns.
 
@@ -645,6 +653,110 @@ The Engine maintains a **dependency graph** and a **subscriber index** — the c
 **On query file change (not schema):** re-parse the query AST → re-extract dependencies → update the dependency graph + subscriber index → re-typecheck this query only.
 
 **On first boot:** no previous catalog snapshot → all entities are "added" → all queries are affected → typecheck all. One-time cost.
+
+### Query type inference: three separable concerns
+
+Type inference for query files is split into three independent pieces, each with a different mechanism:
+
+**1. Dependency extraction** — `extractDeps(ast, depCatalog, searchPath) → EntityId[]`
+
+A pure function. Walks the libpg-query AST to find `RangeVar` (tables/views), `ColumnRef` (columns), and `FuncCall` (functions). Resolves unqualified names via `search_path` against a minimal catalog interface (name resolution only — no types, no nullability). Recurses into CTEs (resolved AST-internally), subqueries, and JOINs. Returns the set of `EntityId`s the query depends on.
+
+The `DepCatalog` interface is intentionally minimal:
+```ts
+interface DepCatalog {
+  resolveTable(schema: string | undefined, name: string): { schema: string; name: string; columns: string[] } | null;
+  resolveFunction(schema: string | undefined, name: string): { schema: string; name: string } | null;
+}
+```
+Function deps are name-level (no overload resolution). Built once from the `CatalogSnapshot` when the schema is ready; rebuilt on schema change.
+
+**2. Output column nullability** — `inferJoinNullability(ast) → { alias: string; joinNullable: boolean }[]`
+
+A pure function. Input: AST only (no catalog, no types). Walks the FROM/JOIN tree and marks each table alias as `joinNullable` if it's on the optional side of a LEFT/RIGHT/FULL outer join. This is purely structural analysis — "is this alias's table on the nullable side of an outer join?"
+
+The three-state recursive walk (per sqlc's `isTableRequired`):
+- `INNER JOIN`: both sides keep prior nullability.
+- `LEFT JOIN`: right side → nullable; left side keeps prior.
+- `RIGHT JOIN`: left side → nullable; right side keeps prior.
+- `FULL JOIN`: both sides → nullable.
+
+The final per-column nullability is a trivial merge at the codegen layer:
+```
+for each output column:
+  if joinNullable(alias) → nullable
+  else → catalog column's intrinsic notNull
+```
+
+Join nullability **overrides** intrinsic nullability — a NOT NULL domain on the nullable side of a LEFT JOIN is nullable in the output (the NULL comes from the join, not the column). This matches PG's own behavior: domain constraints are enforced at insert/update, not at join time.
+
+**3. Output column types + parameter types** — PREPARE (runtime, PGlite)
+
+PG's own type inference. Authoritative — handles `SELECT *` expansion, CTEs, subqueries, function returns, casts, everything. pgsid does not reimplement type inference.
+
+```
+BEGIN → SET LOCAL search_path → SAVEPOINT
+PREPARE p_n AS <sql>              → diagnostics (typecheck errors)
+SELECT parameter_types FROM pg_prepared_statements  → param type names
+EXECUTE p_n(NULL, ...)            → result.fields (output column names + type OIDs)
+DEALLOCATE p_n
+ROLLBACK
+```
+
+`PreparedResult`:
+```ts
+interface PreparedResult {
+  columns: { name: string; typeOid: number; typeName: string }[];
+  params: { typeName: string }[];
+}
+```
+
+- `result.fields` gives `{ name, dataTypeID }` (number, not bigint — OIDs are 32-bit).
+- `pg_prepared_statements.parameter_types` gives type *names* as strings (e.g. `["bigint", "text"]`), not OIDs. Resolved to OIDs via the catalog's type map when needed.
+- Overload resolution is PG's problem — PREPARE resolves overloads based on the declared parameter types. pgsid does not match function signatures for the typecheck path.
+- `returnsRows` is not stored — derivable from `columns.length > 0` (INSERT without RETURNING → zero columns → `:exec` → void).
+
+**Merging the three:** the codegen layer combines all three at emission time:
+```
+for each column in PreparedResult:
+  typeOid/typeName from PREPARE
+  notNull = !joinNullable(column's alias) && catalog.notNull(column)
+params from PREPARE
+deps from extractDeps
+→ QuerySignature { columns, params, deps }
+```
+
+### Nullability rules (beyond join structure)
+
+For non-`ColumnRef` output expressions (function calls, casts, CASE, COALESCE, etc.), the nullability is computed by a recursive expression typer — the pass sqlc skipped (sqlc's `toColumn` hard-codes `NotNull: true` for TypeCast with a `// XXX: How do we know if this should be null?` comment). The rules:
+
+| Expression | Nullability | Source |
+|---|---|---|
+| `ColumnRef` | intrinsic `notNull` from catalog, overridden by join structure | catalog + join walk |
+| `TypeCast` | nullable iff source expression is nullable (cast changes type, not nullability) | recursive typer |
+| `COALESCE(a, b, ...)` | non-null iff any arg is non-null; nullable iff all args nullable | recursive typer |
+| `CASE WHEN ... THEN ... [ELSE ...] END` | nullable if any branch nullable; nullable if no ELSE | recursive typer (improves on sqlc which only checks the ELSE branch) |
+| `IS NULL` / `IS NOT NULL` | non-null (always returns bool) | rule |
+| `EXISTS (subquery)` | non-null (always returns bool) | rule |
+| `A_Const` (literal) | non-null (except `NULL` literal → nullable) | rule |
+| `FuncCall` — see function nullability table below | varies | catalog + rules |
+| `SubLink` (EXPR subquery) | inherit from subquery's first output column | recursive |
+| `A_Expr` (operator) | comparison → non-null bool; math → inherit from args | rule |
+
+**Function return nullability:**
+
+| Function kind | Return nullability | Precision |
+|---|---|---|
+| Built-in aggregate (`max`, `sum`, `avg`, ...) | nullable (returns NULL over zero rows) | correct (hand table, ~15 entries) |
+| `count(*)` | non-null | correct |
+| Built-in scalar, STRICT (`lower`, `upper`, ...) | nullable if any call-site arg is nullable | correct (nullable direction) |
+| Built-in scalar, non-strict | conservative-nullable | imprecise |
+| User `LANGUAGE sql` | parse body, type the last statement's output | **precise** |
+| User `LANGUAGE plpgsql`, STRICT | nullable if any call-site arg is nullable | correct (nullable direction) |
+| User `LANGUAGE plpgsql`, non-strict | conservative-nullable | imprecise |
+| Any function returning a NOT NULL domain | non-null (PG enforces at call boundary) | **precise** |
+
+The conservative-nullable default for arbitrary plpgsql functions is correct but imprecise (`T | null` where `T` might suffice). This trades sqlc's false-precision (non-null, often wrong) for honest imprecision. The NOT NULL domain path is the PG-native way to guarantee non-null returns — no comment hints or pragmas needed.
 
 ### Codegen behavior
 
@@ -827,7 +939,7 @@ Rejected alternatives and operational limits are documented elsewhere in this de
 7. Exact relative-path root when mirroring query outputs (longest `out` prefix match).
 8. PGlite query cancellation — accepted: no WASM-level cancel; "cancel" = discard stale-generation results. PREPARE is sub-100ms (schema-only, no execution). Revisit if a pathological case appears.
 9. ~~State inconsistency between runtime and reboot on schema failure~~ — mitigated: apply-phase failures drop the pool (no generation); validate-phase failures swap the pool (schema committed). On reboot, cache misses (AST hashes changed) → same behavior. Cache only stores successful full builds (apply + validate).
-10. plpgsql function dependency extraction — the statement extractor may miss edge cases (unusual control flow, nested BEGIN/END). Conservative fallback for dynamic SQL (`EXECUTE`): depends on everything. Over-checking is correct; under-checking would be a bug.
+10. plpgsql function dependency extraction — resolved: uses `plpgsql_show_dependency_tb` (table-level deps from plpgsql_check's internal AST walk). No body parsing by pgsid. Known gap: `%ROWTYPE`-in-DECLARE-only references not surfaced (filed as bug to plpgsql_check); niche edge case, caught by `plpgsql_check_function_tb` in the validate pipeline on full rebuild.
 11. Column-level dependency tracking precision — `SELECT *` expands to all columns of the table (from the catalog). If the catalog changes (column added/removed), the expansion changes, and the query is affected. Tracked correctly via the diff.
 12. Future: check constraint transpilation — architecture supports it (extensible catalog snapshot, column-level deps, additive codegen emit) but not implemented.
 13. Future: pool-based parallel validation — the `SchemaBuilder.validate()` loop is sequential. When the PGlite pool is available, function validation could be distributed across pool instances for parallel checking. Deferred until after first release.
@@ -906,6 +1018,13 @@ Phases are guidelines, not gates — if a better ordering emerges, take it. The 
 | AST helpers + statement chain | `pgsid/src/ast.ts` (`parseMigrationFile`, `statementHash`, `diffStatementChains`, `getBodyOffsetFromAst`, `getFunctionBody`, etc.) |
 | Diagnostic extractors + `SqlDiagnostic` | `pgsid/src/errors.ts`                               |
 | Catalog snapshot + diff        | `pgsid/src/catalog/` (`types.ts`, `snapshot.ts`, `diff.ts`)  |
+| Query dependency extraction    | `pgsid/src/query/` (`resolver.ts` — `extractDeps`, `inferJoinNullability`) |
+| PREPARE-based typecheck        | `pgsid/src/schema-builder.ts` (`prepareStatement` method)    |
+| sqlc reference (output columns + join nullability) | `sqlc/internal/compiler/output_columns.go` (`isTableRequired`, `outputColumnRefs`) |
+| sqlc reference (TypeCast nullability gap) | `sqlc/internal/compiler/to_column.go` (`// XXX: How do we know if this should be null?`) |
+| sqlc reference (ReturnTypeNullable — never set for PG) | `sqlc/internal/sql/catalog/func.go`, `sqlc/internal/tools/sqlc-pg-gen/proc.go` |
+| plpgsql_check dependency walker | `plpgsql_check/src/expr_walk.c` (`detect_dependency_walker`) |
+| plpgsql_check statement tree (static, no execution) | `plpgsql_check` — `plpgsql_profiler_function_statements_tb()` |
 | Tests (schema-builder, integration, byte-offsets, domain, type-behavior, statement-chain, ast-comparison) | `pgsid/tests/unit/` |
 | PREPARE + error→diagnostic    | `postgres-language-server/crates/pgls_typecheck/`            |
 | plpgsql_check txn flow        | `postgres-language-server/crates/pgls_plpgsql_check/`        |
