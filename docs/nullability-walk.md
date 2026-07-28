@@ -59,7 +59,10 @@ We stand at the SELECT. We look at the FROM clause and walk the join tree. For e
 - Its alias.
 - What kind of thing it is: real table, view, subquery-in-FROM, CTE, VALUES, or table function.
 - Its output columns (column names for tables/views from the catalog; for subqueries/CTEs, the output column names of the inner query; for VALUES, positional).
-- Whether it's on the optional side of an outer join (a three-state walk of the join tree: REQUIRED / OPTIONAL / NOT_FOUND — INNER preserves both sides, LEFT makes the right optional, RIGHT makes the left optional, FULL makes both optional).
+- Whether it's on the optional side of an outer join, as a three-state value assigned during the join-tree walk:
+  - **REQUIRED** — the relation is not on the optional side of any outer join. `joinNullable = false`. INNER preserves both sides as required. LEFT makes the right side optional, RIGHT makes the left side optional, FULL makes both sides optional.
+  - **OPTIONAL** — the relation is on the optional side of an outer join. `joinNullable = true`. A column from this alias is nullable regardless of the catalog's intrinsic `notNull` flag, because the join can produce NULL-extended rows. A WHERE predicate that guarantees the column is non-null can *promote* the alias back to REQUIRED (see ColumnRef leaf rules).
+  - **NOT_FOUND** — the alias wasn't located in the address book at all. This is the defensive fallback for a ColumnRef that can't be resolved to any relation in the FROM clause (e.g. an unresolvable correlated reference). A NOT_FOUND ColumnRef is conservatively nullable. This should not happen for a valid query, but the walk returns nullable rather than crashing.
 
 We do NOT analyze nullability yet. We're just building the address book: "in this scope, alias `a` means this table, alias `b` means that subquery, alias `c` means this table on the optional side of a LEFT JOIN."
 
@@ -166,7 +169,13 @@ If `isAggregate` is false and `strict` is true (from `FunctionInfo.strict` in th
 
 If the function is a user-defined `LANGUAGE sql` function → **recurse into the function body**. Parse the body (available in `FunctionInfo.body` / `FunctionInfo.definition`), find the last statement's output expression, and run the nullability walk on it. This gives precise results for `LANGUAGE sql` functions — their bodies are plain SQL we can analyze.
 
-**Implementation note:** this means the walk may parse and analyze function bodies, not just the query AST. The body is a SQL string; parse it with `parseSql`, find the last statement, extract its output expressions, and walk them with the same procedure. Arguments to the function are treated as ColumnRef-like leaves whose nullability comes from the call site's resolved arg nullability (mapped by parameter name/position).
+**Body format handling:** `FunctionInfo.body` (`prosrc`) can be in two formats:
+- **Old-style** (pre-PG 14 default): raw SQL, e.g. `SELECT $1 * 2`. Parse directly with `parseSql`.
+- **SQL-standard** (PG 14+ `BEGIN ATOMIC`): `BEGIN ATOMIC\n  SELECT $1 * 2;\nEND`. Parse directly first; if parsing fails, strip the `BEGIN ATOMIC ... END` wrapper and parse the inner statements.
+
+In both cases, the last statement's output expression is the function's return value. Find it, walk it with the same procedure. Arguments to the function are treated as ColumnRef-like leaves whose nullability comes from the call site's resolved arg nullability (mapped by parameter name/position).
+
+**Implementation note:** this means the walk may parse and analyze function bodies, not just the query AST. Transitive recursion (a `LANGUAGE sql` function calling another `LANGUAGE sql` function) is supported with cycle detection: maintain a set of function names currently being analyzed; if a name re-enters, treat it as conservative nullable.
 
 ### Priority 6: Non-strict scalar / `LANGUAGE plpgsql` / unknown
 
@@ -291,8 +300,15 @@ interface NullabilityCatalog {
   // Column nullability (intrinsic):
   resolveColumnNotNull(schema: string, table: string, column: string): boolean;
 
-  // Function metadata (for FuncCall dispatch):
-  resolveFunctionMetadata(schema: string | undefined, name: string, argTypes: string[]): FunctionInfo | null;
+  // Function metadata (for FuncCall dispatch).
+  // Resolves by (schema, name) only — arg types are NOT available to the walk
+  // (they come from PREPARE, which the walk does not run). If the catalog has
+  // exactly one FunctionInfo for this (schema, name), return it. If multiple
+  // overloads exist, return null — the walk treats it as an unknown function
+  // (conservative nullable, with `count` as the hardcoded exception). This is
+  // correct because we cannot determine which overload is being called without
+  // arg types, and guessing is never correct.
+  resolveFunctionMetadata(schema: string | undefined, name: string): FunctionInfo | null;
 
   // Domain metadata (for NOT NULL domain returns):
   isNotNullDomain(typeOid: number): boolean;
@@ -375,6 +391,7 @@ Each category should have multiple fixtures covering the cases listed:
 17. **BoolExpr:** AND → nullable; OR → nullable; NOT EXISTS → non-null; NOT (col = 5) → nullable.
 18. **RowExpr / ArrayExpr:** → non-null.
 19. **MinMaxExpr (GREATEST/LEAST):** → nullable.
+20. **RETURNING:** INSERT/UPDATE/DELETE RETURNING — target table is required (no join nullability), columns use catalog `notNull` directly; expressions in RETURNING (e.g. COALESCE) follow the normal expression rules.
 
 ---
 
@@ -513,7 +530,8 @@ The overall architecture is in `pgsid/DESIGN.md`. The relevant sections for null
    - The `SELECT *` expansion.
    - The set-operation handling (UNION/INTERSECT/EXCEPT → AND of operands).
    - The VALUES handling.
-   - The `LANGUAGE sql` function body recursion (parse body, walk last statement's output, map args by position).
+   - The `LANGUAGE sql` function body recursion (parse body — handle both old-style raw SQL and `BEGIN ATOMIC ... END`; walk last statement's output, map args by position; transitive recursion with cycle detection).
+   - The RETURNING handling (INSERT/UPDATE/DELETE — target table is the sole required relation, no join nullability; RETURNING list treated as the target list).
 
 3. **Create the fixtures directory** `tests/unit/query/fixtures/` with `.sql` files covering all categories from section 9. Start with the simple categories (literals, ColumnRefs, joins, COALESCE, CASE) and progress to the complex ones (CTEs, subqueries, functions, set operations).
 
@@ -525,12 +543,24 @@ The overall architecture is in `pgsid/DESIGN.md`. The relevant sections for null
 
 ---
 
-## 14. Open questions (to resolve during implementation)
+## 14. Resolved design decisions
 
-These may need decisions once the implementation reveals edge cases:
+These decisions are final — implement per these rules:
 
-- **`LANGUAGE sql` function body recursion depth:** if a `LANGUAGE sql` function calls another `LANGUAGE sql` function, do we recurse transitively? Likely yes, with a depth limit or cycle detection.
-- **Function overload resolution:** the walk needs to resolve a `FuncCall` to a specific `FunctionInfo` to read `strict`, `isAggregate`, `returnTypeOid`, etc. PG resolves overloads by arg types. The walk has arg *expressions* but not arg *types* (types come from PREPARE). Options: (a) use the resolver's name-level `resolveFunction` (any overload), (b) do a simple arg-count match, (c) defer to PREPARE for type info. For nullability, `strict` and `isAggregate` are usually the same across overloads, so (a) is likely sufficient.
+1. **`LANGUAGE sql` function body recursion depth:** transitively recurse with cycle detection. Maintain a set of `(schema, name)` keys currently being analyzed; if a key re-enters, treat it as conservative nullable. This prevents infinite recursion when functions are mutually recursive.
+
+2. **Function overload resolution:** name-level only — `resolveFunctionMetadata(schema, name)` ignores arg types (they come from PREPARE, not the AST). If the catalog has exactly one `FunctionInfo` for `(schema, name)`, return it. If multiple overloads exist, return `null` → the walk treats it as an unknown function → conservative nullable (with `count` as the hardcoded exception). This is correct because we cannot determine which overload is being called without arg types; guessing is never correct.
+
+3. **`LANGUAGE sql` body format:** handle both old-style (raw SQL like `SELECT $1 * 2`) and SQL-standard (`BEGIN ATOMIC ... END`). Try parsing the body string directly with `parseSql`; if that fails, strip the `BEGIN ATOMIC ... END` wrapper and parse the inner statements.
+
+4. **RETURNING in scope:** INSERT/UPDATE/DELETE RETURNING is handled in the initial implementation. The target table is the sole relation in scope and is always REQUIRED (no join nullability). The RETURNING list is treated as the target list. Fixture category 20 (section 9) covers this.
+
+---
+
+## 15. Open questions (to resolve during implementation)
+
+These remain open and may need decisions once the implementation reveals edge cases:
+
 - **`SELECT *` with `JOIN ... USING`:** the USING columns appear once in the output. Need to handle the deduplication.
 - **Composite types:** `SELECT t FROM t` where `t` is a table — the output is a row type. Is a row type ever NULL? Only if `t` is on the optional side of a join. The `RowExpr` rule says non-null, but a whole-row ColumnRef is different from a RowExpr constructor.
 - **Domain over composite:** a domain with `NOT NULL` over a composite type — does the column `notNull` flag already account for this? (Likely yes — PG propagates domain NOT NULL to `pg_attribute.attnotnull`.)
