@@ -180,6 +180,6 @@ For each output column:
 | Join nullability | `src/query/join-nullability.ts` | ✅ Built, 22 tests |
 | WHERE constraints | (not yet) | Designed, not built |
 | Expression nullability | (not yet) | Designed, not built |
-| extractDeps (dependency tracking) | `src/query/resolver.ts` | ✅ Built, 50 tests |
+| extractDeps (dependency tracking) | `src/query/resolver.ts` | ✅ Built, 80 tests |
 | PREPARE (runtime types) | (on SchemaBuilder) | Designed in DESIGN.md, not built |
 | Composition layer | (codegen) | Not built |

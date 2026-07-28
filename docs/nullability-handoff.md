@@ -18,7 +18,7 @@ Read these first:
 | File | What it does | Tests |
 |---|---|---|
 | `src/query/types.ts` | `DepCatalog`, `ResolvedTable`, `ResolvedFunction`, `AliasNullability` interfaces | — |
-| `src/query/resolver.ts` | `extractDeps(stmt, catalog, searchPath) → EntityId[]` — walks AST for deps | 50 tests |
+| `src/query/resolver.ts` | `extractDeps(stmt, catalog, searchPath) → EntityId[]` — walks AST for deps | 80 tests |
 | `src/query/join-nullability.ts` | `inferJoinNullability(stmt) → AliasNullability[]` — join tree walk | 22 tests |
 | `src/catalog/snapshot.ts` | `snapshotCatalog(pg)` — full catalog from PG catalogs | 20 tests |
 | `src/catalog/diff.ts` | `diffCatalogs(before, after)` — column-level diff | 37 tests |
@@ -141,8 +141,8 @@ Pure AST, no catalog, no callback. `ColumnRef` returns `false` (conservatively n
 ```bash
 cd pgsid
 pnpm typecheck          # tsc --noEmit (ignore engine.ts errors — pre-existing)
-pnpm vitest run tests/unit/query/   # the new tests + existing 72 tests
-pnpm test               # full suite (currently 400 tests)
+pnpm vitest run tests/unit/query/   # the new tests + existing 102 tests
+pnpm test               # full suite (currently 430 tests)
 ```
 
-The full suite includes catalog tests (57), schema-builder tests (271), and query tests (72). All must pass.
+The full suite includes catalog tests (57), schema-builder tests (271), and query tests (102). All must pass.
