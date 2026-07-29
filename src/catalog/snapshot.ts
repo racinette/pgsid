@@ -542,6 +542,7 @@ export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   const domains: DomainInfo[] = domainRows.map(d => ({
     schema: d.schema,
     name: d.name,
+    oid: d.oid,
     baseTypeOid: d.base_type_oid,
     baseTypeName: d.base_type_name,
     notNull: d.not_null,
@@ -791,7 +792,10 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
             p.procost,
             p.prorows,
             p.prosrc,
-            pg_get_functiondef(p.oid) AS definition,
+            CASE WHEN p.prokind != 'a'
+                 THEN pg_get_functiondef(p.oid)
+                 ELSE NULL
+            END AS definition,
             p.proallargtypes,
             p.proargtypes::text AS proargtypes,
             p.proargnames,

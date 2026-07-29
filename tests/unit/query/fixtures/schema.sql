@@ -1,0 +1,350 @@
+-- Base migration for nullability-walk fixtures.
+-- All tables, functions, and domains the fixtures reference.
+
+-- Tables -------------------------------------------------------------
+
+CREATE TABLE t (
+  id     integer  NOT NULL,
+  name   text,
+  val    text,
+  active boolean NOT NULL
+);
+
+CREATE TABLE u (
+  id     integer NOT NULL,
+  t_id   integer NOT NULL,
+  email  text    NOT NULL,
+  val    text,
+  status text
+);
+
+CREATE TABLE v (
+  id     integer  NOT NULL,
+  u_id   integer  NOT NULL,
+  amount numeric
+);
+
+-- Domains ------------------------------------------------------------
+
+CREATE DOMAIN nn_text AS text NOT NULL;
+
+-- Functions ----------------------------------------------------------
+
+-- Strict scalar function: lower_strict(text) → text
+CREATE FUNCTION lower_strict(x text) RETURNS text
+  LANGUAGE sql STRICT
+  AS $$ SELECT $1 $$;
+
+-- User-defined aggregate: count_it(integer) → bigint
+CREATE FUNCTION count_it_sfunc(state bigint, val integer) RETURNS bigint
+  LANGUAGE sql
+  AS 'SELECT state + 1';
+
+CREATE AGGREGATE count_it(integer) (
+  SFUNC    = count_it_sfunc,
+  STYPE    = bigint,
+  INITCOND = '0'
+);
+
+-- LANGUAGE sql function with old-style body: double_val(integer)
+CREATE FUNCTION double_val(x integer) RETURNS integer
+  LANGUAGE sql
+  AS $$ SELECT $1 $$;
+
+-- LANGUAGE sql function with BEGIN ATOMIC body: pass_through(text)
+CREATE FUNCTION pass_through(x text) RETURNS text
+  LANGUAGE sql
+  BEGIN ATOMIC
+    SELECT $1;
+  END;
+
+-- Function returning a NOT NULL domain: always_text(text) → nn_text
+CREATE FUNCTION always_text(x text) RETURNS nn_text
+  LANGUAGE sql
+  AS $$ SELECT 'hello' $$;
+
+-- LANGUAGE sql function with two params, old-style body using $1/$2:
+-- concat_val(text, text) → text — returns $2 if $1 is not null
+CREATE FUNCTION concat_val(a text, b text) RETURNS text
+  LANGUAGE sql
+  AS $$ SELECT $2 $$;
+
+-- LANGUAGE sql function with two params, BEGIN ATOMIC body using named params:
+-- pass_two(text, text) → text — returns the second param
+CREATE FUNCTION pass_two(a text, b text) RETURNS text
+  LANGUAGE sql
+  BEGIN ATOMIC
+    SELECT b;
+  END;
+
+-- ====================================================================
+-- E-commerce schema (realistic SaaS domain).
+-- The original t/u/v tables and functions above are retained so existing
+-- fixtures keep working. Everything below extends the schema with a
+-- self-referencing hierarchy, soft-delete columns, foreign keys, views,
+-- and additional functions for complex fixture queries.
+-- ====================================================================
+
+-- Tables ---------------------------------------------------------------
+
+-- Self-referencing category hierarchy (for recursive CTEs).
+CREATE TABLE categories (
+  id          integer  NOT NULL PRIMARY KEY,
+  parent_id   integer  REFERENCES categories(id),
+  slug        text     NOT NULL,
+  name        text     NOT NULL,
+  deleted_at  timestamptz
+);
+
+-- Customers (soft-delete via deleted_at).
+CREATE TABLE customers (
+  id          integer  NOT NULL PRIMARY KEY,
+  email       text     NOT NULL,
+  name        text,
+  deleted_at  timestamptz
+);
+
+-- Products (nullable category FK for uncatalogued products; soft-delete).
+CREATE TABLE products (
+  id           integer  NOT NULL PRIMARY KEY,
+  category_id  integer  REFERENCES categories(id),
+  sku          text     NOT NULL,
+  name         text     NOT NULL,
+  price        numeric  NOT NULL,
+  deleted_at   timestamptz
+);
+
+-- Orders (customer FK is NOT NULL; soft-delete).
+CREATE TABLE orders (
+  id           integer  NOT NULL PRIMARY KEY,
+  customer_id  integer  NOT NULL REFERENCES customers(id),
+  status       text     NOT NULL,
+  placed_at    timestamptz NOT NULL,
+  deleted_at   timestamptz
+);
+
+-- Order line items (both FKs NOT NULL).
+CREATE TABLE order_items (
+  id           integer  NOT NULL PRIMARY KEY,
+  order_id     integer  NOT NULL REFERENCES orders(id),
+  product_id   integer  NOT NULL REFERENCES products(id),
+  quantity     integer  NOT NULL,
+  unit_price   numeric  NOT NULL
+);
+
+-- Product reviews (nullable comment; both FKs NOT NULL).
+CREATE TABLE reviews (
+  id           integer  NOT NULL PRIMARY KEY,
+  product_id   integer  NOT NULL REFERENCES products(id),
+  customer_id  integer  NOT NULL REFERENCES customers(id),
+  rating       integer  NOT NULL,
+  comment      text
+);
+
+-- Views ----------------------------------------------------------------
+
+-- Simple updatable view (PG propagates attnotnull from base columns).
+CREATE VIEW active_products AS
+  SELECT id, category_id, sku, name, price
+  FROM products
+  WHERE deleted_at IS NULL;
+
+-- Aggregate view (all columns nullable — aggregates over optional rows).
+CREATE VIEW order_summary AS
+  SELECT
+    order_id,
+    count(*)    AS item_count,
+    sum(unit_price * quantity) AS total
+  FROM order_items
+  GROUP BY order_id;
+
+-- ====================================================================
+-- Extended schema for extreme fixtures.
+-- Only new entities are added here; existing tables/functions are not
+-- modified.
+-- ====================================================================
+
+-- Domains ---------------------------------------------------------------
+
+-- numeric NOT NULL, strictly positive.
+CREATE DOMAIN positive_amount AS numeric NOT NULL CHECK (VALUE > 0);
+
+-- text NOT NULL, non-empty.
+CREATE DOMAIN non_empty_text AS text NOT NULL CHECK (length(VALUE) > 0);
+
+-- numeric NOT NULL, 0-100 range.
+CREATE DOMAIN discount_percent AS numeric NOT NULL CHECK (VALUE >= 0 AND VALUE <= 100);
+
+-- Tables ---------------------------------------------------------------
+
+-- Payment methods (all columns NOT NULL).
+CREATE TABLE payment_methods (
+  id     integer NOT NULL PRIMARY KEY,
+  name   text   NOT NULL,
+  active boolean NOT NULL DEFAULT true
+);
+
+-- Addresses with nullable columns (line2, postal_code) and a self-reference.
+CREATE TABLE addresses (
+  id                 integer NOT NULL PRIMARY KEY,
+  customer_id        integer NOT NULL REFERENCES customers(id),
+  line1              text NOT NULL,
+  line2              text,
+  city               text NOT NULL,
+  state              text NOT NULL,
+  postal_code        text,
+  country            text NOT NULL DEFAULT 'US',
+  default_address_id integer REFERENCES addresses(id)
+);
+
+-- Tags for many-to-many product tagging.
+CREATE TABLE tags (
+  id   integer NOT NULL PRIMARY KEY,
+  name text NOT NULL
+);
+
+CREATE TABLE product_tags (
+  product_id integer NOT NULL REFERENCES products(id),
+  tag_id     integer NOT NULL REFERENCES tags(id),
+  PRIMARY KEY (product_id, tag_id)
+);
+
+-- Coupons with a discount_percent domain column.
+CREATE TABLE coupons (
+  id                integer NOT NULL PRIMARY KEY,
+  code              text NOT NULL,
+  discount_percent  discount_percent NOT NULL,
+  expires_at        timestamptz
+);
+
+-- Shipments linking to orders with nullable timestamps.
+CREATE TABLE shipments (
+  id           integer NOT NULL PRIMARY KEY,
+  order_id     integer NOT NULL REFERENCES orders(id),
+  carrier      text NOT NULL,
+  tracking_no  text,
+  shipped_at   timestamptz,
+  delivered_at timestamptz
+);
+
+-- Views -----------------------------------------------------------------
+
+-- View over a FULL JOIN (both sides optional in every column).
+CREATE VIEW order_shipment_summary AS
+  SELECT
+    o.id   AS order_id,
+    s.id   AS shipment_id,
+    s.carrier
+  FROM orders o
+  FULL JOIN shipments s ON s.order_id = o.id;
+
+-- Functions -------------------------------------------------------------
+
+-- LANGUAGE sql function with 3 params, old-style body using $1/$2/$3.
+-- Returns the concatenation of all three params. Since || is an A_Expr
+-- (operator), the walk treats the body as nullable regardless of arg
+-- nullability (conservative).
+CREATE FUNCTION format_address_3(line1 text, line2 text, city text) RETURNS text
+  LANGUAGE sql
+  AS $$ SELECT $1 || COALESCE(', ' || $2, '') || ', ' || $3 $$;
+
+-- Strict function with 3 params: non-null only if ALL args are non-null.
+CREATE FUNCTION strict_concat_3(a text, b text, c text) RETURNS text
+  LANGUAGE sql STRICT
+  AS $$ SELECT $1 || $2 || $3 $$;
+
+-- Function returning a NOT NULL domain (positive_amount).
+CREATE FUNCTION always_positive(x numeric) RETURNS positive_amount
+  LANGUAGE sql
+  AS $$ SELECT 1 $$;
+
+-- Function returning a NOT NULL domain (non_empty_text).
+CREATE FUNCTION safe_name(x text) RETURNS non_empty_text
+  LANGUAGE sql
+  AS $$ SELECT 'safe' $$;
+
+-- Function returning SETOF order_items (table function in FROM).
+CREATE FUNCTION get_order_items(p_order_id integer) RETURNS SETOF order_items
+  LANGUAGE sql
+  AS $$ SELECT * FROM order_items WHERE order_id = $1 $$;
+
+-- LANGUAGE sql function (BEGIN ATOMIC) with 3 named params, body uses
+-- all three. Used to test named-param body recursion with 3 args.
+CREATE FUNCTION build_label(a text, b text, c text) RETURNS text
+  LANGUAGE sql
+  BEGIN ATOMIC
+    SELECT a || '-' || b || '-' || c;
+  END;
+
+-- Strict function with 3 params and BEGIN ATOMIC body.
+CREATE FUNCTION strict_build(a text, b text, c text) RETURNS text
+  LANGUAGE sql STRICT
+  BEGIN ATOMIC
+    SELECT a || b || c;
+  END;
+
+-- Multi-statement LANGUAGE sql function: INSERT then SELECT from table.
+-- The catalog-adapter takes the last statement (SELECT). The walk must
+-- detect that this SELECT has a FROM clause and is not an aggregate →
+-- can return zero rows → function returns NULL.
+CREATE TABLE multi_stmt_log (
+  id     integer NOT NULL,
+  val    text   NOT NULL
+);
+
+CREATE FUNCTION multi_stmt_fn(x text) RETURNS text
+  LANGUAGE sql
+  AS $$ INSERT INTO multi_stmt_log VALUES (1, $1); SELECT val FROM multi_stmt_log WHERE val = $1 $$;
+
+-- Multi-statement LANGUAGE sql with BEGIN ATOMIC body and named params.
+-- The last statement is SELECT b FROM table (has FROM → can be zero rows).
+CREATE FUNCTION multi_stmt_atomic(a text, b text) RETURNS text
+  LANGUAGE sql
+  BEGIN ATOMIC
+    INSERT INTO multi_stmt_log VALUES (2, a);
+    SELECT b FROM multi_stmt_log WHERE val = a;
+  END;
+
+-- Multi-statement STRICT LANGUAGE sql (old-style, positional $1).
+-- Strict = skip body when any arg is NULL. When all args are non-null,
+-- the walk's strict dispatch returns true without analyzing the body.
+CREATE FUNCTION strict_multi(x text) RETURNS text
+  LANGUAGE sql STRICT
+  AS $$ INSERT INTO multi_stmt_log VALUES (3, $1); SELECT $1 $$;
+
+-- Multi-statement STRICT LANGUAGE sql (BEGIN ATOMIC, named params).
+-- Same strict dispatch; body has multiple statements but is never
+-- analyzed by the walk (strict short-circuits before body recursion).
+CREATE FUNCTION strict_multi_atomic(a text, b text) RETURNS text
+  LANGUAGE sql STRICT
+  BEGIN ATOMIC
+    INSERT INTO multi_stmt_log VALUES (4, a);
+    SELECT b;
+  END;
+
+-- LANGUAGE plpgsql function returning a NOT NULL domain.
+-- Priority 1 (NOT NULL domain return) wins over the language dispatch,
+-- so even though we can't analyze plpgsql bodies, the result is non-null.
+CREATE FUNCTION plpgsql_domain_fn(x text) RETURNS nn_text
+  LANGUAGE plpgsql
+  AS $$ BEGIN RETURN 'hello'; END; $$;
+
+-- Table with JSONB columns for JSONB operator/function testing.
+CREATE TABLE events (
+  id     integer NOT NULL PRIMARY KEY,
+  data   jsonb  NOT NULL,
+  meta   jsonb
+);
+
+-- LANGUAGE sql function wrapping INSERT...RETURNING (single-row VALUES).
+-- The walk detects single-row VALUES INSERT → single-row-guaranteed →
+-- propagates the RETURNING column's nullability (tags.id is NOT NULL).
+CREATE FUNCTION insert_tag(p_name text) RETURNS integer
+  LANGUAGE sql
+  AS $$ INSERT INTO tags (id, name) VALUES (200, $1) RETURNING id $$;
+
+-- LANGUAGE sql function wrapping UPDATE...RETURNING (can match zero rows).
+-- The walk conservatively returns nullable (UPDATE WHERE may match nothing).
+CREATE FUNCTION update_tag_price(p_id integer, p_name text) RETURNS text
+  LANGUAGE sql
+  AS $$ UPDATE tags SET name = $2 WHERE id = $1 RETURNING name $$;

@@ -169,6 +169,8 @@ export interface EnumInfo {
 export interface DomainInfo {
   schema: string;
   name: string;
+  /** The domain's own type OID (pg_type.oid). Used to match FunctionInfo.returnTypeOid. */
+  oid: number;
   baseTypeOid: number;
   baseTypeName: string;
   notNull: boolean;
