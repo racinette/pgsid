@@ -64,6 +64,46 @@ We stand at the SELECT. We look at the FROM clause and walk the join tree. For e
   - **OPTIONAL** — the relation is on the optional side of an outer join. `joinNullable = true`. A column from this alias is nullable regardless of the catalog's intrinsic `notNull` flag, because the join can produce NULL-extended rows. A WHERE predicate that guarantees the column is non-null can *promote* the alias back to REQUIRED (see ColumnRef leaf rules).
   - **NOT_FOUND** — the alias wasn't located in the address book at all. This is the defensive fallback for a ColumnRef that can't be resolved to any relation in the FROM clause (e.g. an unresolvable correlated reference). A NOT_FOUND ColumnRef is conservatively nullable. This should not happen for a valid query, but the walk returns nullable rather than crashing.
 
+A scope keeps two distinct things, because they answer two different questions:
+
+- **`aliases`** — qualifier → relation. This is what `a.id` resolves against.
+- **`visible`** — the scope's output columns, in order. This is what `SELECT *`
+  expands to and what an *unqualified* name resolves against.
+
+They differ wherever a join merges columns. `a JOIN b USING (id)` makes one
+merged `id` visible, followed by the left's remaining columns and then the
+right's; the constituents' own copies stop being visible even though `a.id` and
+`b.id` still resolve through `aliases`. NATURAL is the same rule over every
+commonly-named column. This mirrors PostgreSQL, where a join contributes its own
+column list while the base relations stay addressable.
+
+Separating the two also settles ambiguity. A name matching more than one visible
+column is one PostgreSQL rejects outright, so the walk reports **nullable**
+rather than picking a candidate — otherwise the answer depends on FROM-clause
+order, which produced opposite results for the same unrunnable query. The trace
+records `resolved = AMBIGUOUS` with the candidates.
+
+A **merged** column is not either constituent and has its own rule. Every row of
+the join has at least one side present and the column is drawn from whichever
+that is:
+
+| Join | Merged column non-null when |
+|---|---|
+| INNER | either side's column is (both present, values equal) |
+| LEFT | the left column is |
+| RIGHT | the right column is |
+| FULL | **both** are — which makes it strictly less nullable than either |
+
+Because star expansion resolves each visible column through the same path as a
+named reference, view definitions, WHERE promotion, null groups and branch
+guards all apply to `SELECT *` too. They previously did not: a star over a view
+lost every NOT NULL, since a view's own catalog columns are all
+`attnotnull = false`.
+
+An alias column list (`v(a, b)`, `f() AS t(x, y)`) renames positionally, and
+partially: naming fewer columns than exist leaves the rest at their default,
+and only naming *more* than exist is an error.
+
 Alongside the join state we record a **null group**: the set of relations that are NULL-extended *together*. An outer join NULL-extends its optional side as a unit — in `(a JOIN b) LEFT JOIN c`, either both `a` and `b` are present or the whole composite row is absent; they can never be half-NULL-extended. Relations joined by INNER JOIN inherit the enclosing group; each side that an outer join makes optional starts a fresh one.
 
 This matters for promotion: a WHERE predicate proving *one* member's row exists proves it for every member of its group. In `FROM o JOIN oi ON … RIGHT JOIN c ON …`, `WHERE o.id IS NOT NULL` promotes `oi` as well, because `o` and `oi` share a group.
@@ -393,6 +433,43 @@ The combination rule depends on the operator (`combineSetOpColumn`):
 These statements have a RETURNING list that produces output columns. The target table is always required (it's the row being modified, not a join). RETURNING columns are ColumnRefs to the target table; their nullability is `catalog.notNull(col)` (no join nullability). The walk handles RETURNING lists the same way as SELECT target lists, with the FROM scope being just the target table.
 
 `UPDATE ... FROM` and `DELETE ... USING` add further relations to that scope. They join to the target with **inner-join** semantics — a target row with no match is simply not modified — so those relations are REQUIRED, not OPTIONAL. Outer joins written *inside* the FROM/USING list are still honoured normally.
+
+---
+
+## 5b. Refusing rather than guessing
+
+Results are a **positional array** zipped against PostgreSQL's RowDescription,
+which makes the output column *list* load-bearing: getting it wrong misassigns
+every flag past the divergence, and does so while looking authoritative. Arity
+is a weak guard on its own — a construct can preserve the count and change the
+order. `USING` is the standing example: PostgreSQL emits the merged column
+**first**, so an implementation that instead dropped the right-hand duplicate
+would produce `x, id, y` against PostgreSQL's `id, x, y` — same arity, wrong
+order, silently wrong flags.
+
+So the walk refuses where silence would corrupt the column list, and degrades
+where it would merely blunt a value. The distinction is the **dispatch site**:
+
+| Site | Unknown node costs | Behaviour |
+|---|---|---|
+| expression | nothing structural — one target-list entry is one output column whatever the expression is | report nullable |
+| FROM item | contributes columns; an unknown one silently removes them | throw `UnsupportedNodeError` |
+| statement | an unknown one yields no columns at all | throw `UnsupportedNodeError` |
+
+This means DDL, `SET`, `EXPLAIN` and `SHOW` all raise at the top level. DDL has
+no output columns and no parameters, so there is nothing to be nullable and
+asking is a caller mistake; `EXPLAIN` and `SHOW` *do* return columns we cannot
+model, which is precisely why returning an empty list would be a bug rather
+than an answer.
+
+A **function body is an expression site in disguise** — it decides one value's
+nullability, not a column list. So a SQL function whose body is DDL reports
+nullable rather than raising: `SELECT f()` is a perfectly good query whatever
+`f`'s body does, and only its return value is unknowable.
+
+The caller always has a correct escape, because it runs PREPARE for types
+anyway: catch the error and treat every column as nullable. That is always
+sound, just imprecise.
 
 ---
 

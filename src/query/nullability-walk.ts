@@ -62,6 +62,40 @@ export type UnhandledNodeObserver = (
   nodeType: string,
 ) => void;
 
+/**
+ * Thrown when the walk meets a construct it has no branch for *and* silence
+ * would corrupt the result rather than merely blunt it.
+ *
+ * The three dispatch sites fail differently, so only two of them raise:
+ *
+ * - An unrecognised **expression** is contained. Whatever it is, it occupies
+ *   exactly one target-list entry, so the column list is still right and the
+ *   column is reported nullable. Safe; no exception.
+ * - An unrecognised **FROM item** contributes no columns, so `SELECT *`
+ *   silently loses them.
+ * - An unrecognised **statement** yields no columns at all.
+ *
+ * The last two shift every subsequent column, which makes a positional
+ * nullability array actively wrong rather than pessimistic — and wrong in a
+ * way that reads as authoritative. Since the caller holds PostgreSQL's own
+ * RowDescription (it runs PREPARE for types), it always has a correct escape:
+ * catch this and treat every column as nullable.
+ */
+export class UnsupportedNodeError extends Error {
+  constructor(
+    readonly site: "from-item" | "statement",
+    readonly nodeType: string,
+  ) {
+    super(
+      `Nullability analysis does not support the ${site} node type '${nodeType}'. ` +
+        `Unlike an unknown expression, this changes the output column list, so ` +
+        `the result would be misaligned rather than merely conservative. ` +
+        `Treat every column of this statement as nullable.`,
+    );
+    this.name = "UnsupportedNodeError";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // TraceNode builder — a mutable helper that collects facts and children
 // during the walk, then freezes into a TraceNode. When tracing is disabled,
@@ -161,6 +195,33 @@ interface RelationEntry {
   nullGroup: number;
 }
 
+/**
+ * One column visible in a scope.
+ *
+ * Either produced by a single relation, or merged from both sides of a
+ * USING/NATURAL join — in which case it is a distinct column from either
+ * constituent and has its own nullability rule.
+ */
+interface VisibleColumn {
+  name: string;
+  /** Producing relation; null for a merged column. */
+  entry: RelationEntry | null;
+  /** Set only for a USING/NATURAL merged column. */
+  merged: MergedColumn | null;
+}
+
+/**
+ * A column merged by USING or NATURAL. Every row of the join supplies it from
+ * whichever side is present, so it is drawn from the left when the left is
+ * there and the right otherwise — which makes it strictly less nullable than
+ * either constituent in a FULL join.
+ */
+interface MergedColumn {
+  left: RelationEntry;
+  right: RelationEntry;
+  jointype: string;
+}
+
 // ---------------------------------------------------------------------------
 // Scope: the address book for one SELECT level.
 // ---------------------------------------------------------------------------
@@ -168,8 +229,21 @@ interface RelationEntry {
 interface Scope {
   /** alias → entry */
   aliases: Map<string, RelationEntry>;
-  /** Un-aliased tables (for unqualified column resolution). */
-  tables: RelationEntry[];
+  /**
+   * The scope's output columns, in order — what `SELECT *` expands to and
+   * what an unqualified column name resolves against.
+   *
+   * Separate from `aliases` because the two answer different questions.
+   * `aliases` maps a qualifier to a relation, which is how `a.id` resolves.
+   * This list is the flattened, ordered set of *visible* columns, which is
+   * what PostgreSQL exposes: a USING join contributes one merged column plus
+   * each side's remainder, and the constituents' own copies stop being
+   * visible even though `a.id` still resolves through `aliases`.
+   *
+   * A name occurring more than once here is ambiguous — PostgreSQL rejects
+   * such a reference outright, so the walk must not silently pick one.
+   */
+  visible: VisibleColumn[];
   /** CTE name → (AST node, column names, generated SEARCH/CYCLE columns). */
   ctes: Map<string, { ast: Node; columns: string[]; extraColumns: OutputNullability[] }>;
   /** WHERE clause node (consulted at ColumnRef leaves). */
@@ -334,10 +408,12 @@ class NullabilityEngine {
       if ("MergeStmt" in node) {
         return this.analyzeMerge(node["MergeStmt"] as MergeStmt, outerScope, depth);
       }
-      // An unrecognised statement contributes no columns at all, so this is a
-      // shape defect rather than a conservative flag.
-      this.onUnhandled?.("statement", this.nodeTag(node));
-      return [];
+      // An unrecognised statement contributes no columns at all — a shape
+      // defect, not a conservative flag. Refuse rather than return a column
+      // list we know is wrong.
+      const tag = this.nodeTag(node);
+      this.onUnhandled?.("statement", tag);
+      throw new UnsupportedNodeError("statement", tag);
     } finally {
       this.guards = saved;
     }
@@ -369,7 +445,7 @@ class NullabilityEngine {
       }
       // For normal SELECT, build scope and trace each target.
       if (!sel.valuesLists || sel.valuesLists.length === 0) {
-        const scope = this.buildScope(sel, outerScope);
+        const scope = this.buildScope(sel, outerScope, depth);
         const results: OutputNullabilityTraced[] = [];
         for (const target of sel.targetList ?? []) {
           const rt = this.unwrapResTarget(target);
@@ -396,19 +472,19 @@ class NullabilityEngine {
     if ("InsertStmt" in node) {
       const ins = node["InsertStmt"] as InsertStmt;
       if (!ins.returningClause) return [];
-      const scope = this.buildDmlScope(ins.relation, outerScope);
+      const scope = this.buildDmlScope(ins.relation, outerScope, depth);
       this.registerCtes(ins.withClause, scope);
       return this.analyzeReturningTraced(ins.returningClause, scope, depth);
     }
     if ("UpdateStmt" in node) {
       const upd = node["UpdateStmt"] as UpdateStmt;
       if (!upd.returningClause) return [];
-      const scope = this.buildDmlScope(upd.relation, outerScope);
+      const scope = this.buildDmlScope(upd.relation, outerScope, depth);
       this.registerCtes(upd.withClause, scope);
       if (upd.fromClause) {
         // Inner-join semantics — see analyzeUpdate.
         for (const item of upd.fromClause) {
-          this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup());
+          scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
         }
       }
       return this.analyzeReturningTraced(upd.returningClause, scope, depth);
@@ -416,18 +492,18 @@ class NullabilityEngine {
     if ("MergeStmt" in node) {
       const mrg = node["MergeStmt"] as MergeStmt;
       if (!mrg.returningClause) return [];
-      const scope = this.buildMergeScope(mrg, outerScope);
+      const scope = this.buildMergeScope(mrg, outerScope, depth);
       return this.analyzeReturningTraced(mrg.returningClause, scope, depth);
     }
     if ("DeleteStmt" in node) {
       const del = node["DeleteStmt"] as DeleteStmt;
       if (!del.returningClause) return [];
-      const scope = this.buildDmlScope(del.relation, outerScope);
+      const scope = this.buildDmlScope(del.relation, outerScope, depth);
       this.registerCtes(del.withClause, scope);
       if (del.usingClause) {
         // Inner-join semantics — see analyzeDelete.
         for (const item of del.usingClause) {
-          this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup());
+          scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
         }
       }
       return this.analyzeReturningTraced(del.returningClause, scope, depth);
@@ -523,7 +599,7 @@ class NullabilityEngine {
     }
 
     // Build the scope (address book).
-    const scope = this.buildScope(stmt, outerScope);
+    const scope = this.buildScope(stmt, outerScope, depth);
 
     // Process the target list.
     const results: OutputNullability[] = [];
@@ -566,12 +642,13 @@ class NullabilityEngine {
   private buildScope(
     stmt: SelectStmt,
     outerScope: Scope | null,
+    depth: number,
   ): Scope {
     const scope: Scope = {
       aliases: new Map(),
-      tables: [],
       ctes: new Map(),
       whereClause: stmt.whereClause,
+      visible: [],
       groupGuaranteesNonEmpty: this.groupingGuaranteesNonEmptyGroups(stmt),
       groupingSetColumns: this.collectGroupingSetColumns(stmt.groupClause),
       outer: outerScope,
@@ -585,7 +662,9 @@ class NullabilityEngine {
     // items are comma-joined, so each is its own null group.
     if (stmt.fromClause) {
       for (const item of stmt.fromClause) {
-        this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup());
+        scope.visible.push(
+          ...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth),
+        );
       }
     }
 
@@ -596,30 +675,130 @@ class NullabilityEngine {
     return ++this.nullGroupCounter;
   }
 
+  /** The columns a single relation contributes, in declaration order. */
+  private visibleColumnsOf(
+    entry: RelationEntry,
+    scope: Scope,
+    depth: number,
+  ): VisibleColumn[] {
+    return this.relationColumnsIntrinsic(entry, scope, depth).map(c => ({
+      name: c.name,
+      entry,
+      merged: null,
+    }));
+  }
+
+  /**
+   * Combine the two sides of a join into the columns it makes visible.
+   *
+   * Without USING or NATURAL that is simply left-then-right. With them,
+   * PostgreSQL emits each merged column ONCE and FIRST, then the left's
+   * remaining columns, then the right's — and the constituents' own copies
+   * stop being visible, though `a.id` still resolves through the alias map.
+   */
+  private mergeJoinColumns(
+    join: JoinExpr,
+    left: VisibleColumn[],
+    right: VisibleColumn[],
+  ): VisibleColumn[] {
+    let mergedNames: string[];
+    if (join.usingClause && join.usingClause.length > 0) {
+      mergedNames = join.usingClause.map(n => this.stringVal(n));
+    } else if (join.isNatural) {
+      // NATURAL is USING over every commonly-named column, in left order.
+      const rightNames = new Set(right.map(c => c.name));
+      mergedNames = left.filter(c => rightNames.has(c.name)).map(c => c.name);
+    } else {
+      return [...left, ...right];
+    }
+    if (mergedNames.length === 0) return [...left, ...right];
+
+    const isMerged = new Set(mergedNames);
+    const merged: VisibleColumn[] = [];
+    for (const name of mergedNames) {
+      const l = left.find(c => c.name === name);
+      const r = right.find(c => c.name === name);
+      // A USING name that does not exist on both sides is a query PostgreSQL
+      // rejects; keep whatever we can rather than inventing a column.
+      if (!l?.entry || !r?.entry) {
+        if (l ?? r) merged.push((l ?? r)!);
+        continue;
+      }
+      merged.push({
+        name,
+        entry: null,
+        merged: { left: l.entry, right: r.entry, jointype: join.jointype ?? "JOIN_INNER" },
+      });
+    }
+    return [
+      ...merged,
+      ...left.filter(c => !isMerged.has(c.name)),
+      ...right.filter(c => !isMerged.has(c.name)),
+    ];
+  }
+
+  /**
+   * Nullability of a merged USING/NATURAL column.
+   *
+   * Every row of the join has at least one side present and the column is
+   * drawn from whichever that is, so the rule follows from which sides are
+   * guaranteed present — not from the join state of either constituent.
+   * In a FULL join both sides' columns must be non-null, which makes the
+   * merged column strictly less nullable than either of them.
+   */
+  private mergedColumnNotNull(
+    name: string,
+    m: MergedColumn,
+    scope: Scope,
+    depth: number,
+  ): boolean {
+    const side = (entry: RelationEntry): boolean =>
+      this.relationColumnsIntrinsic(entry, scope, depth)
+        .find(c => c.name === name)?.notNull ?? false;
+    const left = side(m.left);
+    const right = side(m.right);
+    switch (m.jointype) {
+      case "JOIN_LEFT":
+        return left;
+      case "JOIN_RIGHT":
+        return right;
+      case "JOIN_FULL":
+        return left && right;
+      default:
+        // INNER: both rows are present and the values are equal by
+        // construction, so either side proving non-null is enough.
+        return left || right;
+    }
+  }
+
   private walkFromItem(
     item: Node,
     joinState: JoinState,
     scope: Scope,
     nullGroup: number,
-  ): void {
+    depth: number,
+  ): VisibleColumn[] {
     const node = item as Record<string, unknown>;
     if ("RangeVar" in node) {
       const rv = node["RangeVar"] as RangeVar;
-      this.addRangeVar(rv, joinState, scope, nullGroup);
+      const entry = this.addRangeVar(rv, joinState, scope, nullGroup);
+      return entry ? this.visibleColumnsOf(entry, scope, depth) : [];
     } else if ("RangeSubselect" in node) {
       const sub = node["RangeSubselect"] as RangeSubselect;
       const aliasName = sub.alias?.aliasname ?? "";
       const colNames = sub.alias?.colnames
         ? sub.alias.colnames.map((n: Node) => this.stringVal(n))
         : [];
-      scope.aliases.set(aliasName, {
+      const subEntry: RelationEntry = {
         alias: aliasName,
         kind: "subquery",
         ast: sub.subquery,
         cteColumns: colNames,
         joinState,
         nullGroup,
-      });
+      };
+      scope.aliases.set(aliasName, subEntry);
+      return this.visibleColumnsOf(subEntry, scope, depth);
     } else if ("JoinExpr" in node) {
       const join = node["JoinExpr"] as JoinExpr;
       let leftState = joinState;
@@ -646,12 +825,13 @@ class NullabilityEngine {
           rightGroup = this.nextNullGroup();
           break;
       }
-      if (join.larg) this.walkFromItem(join.larg, leftState, scope, leftGroup);
-      if (join.rarg) this.walkFromItem(join.rarg, rightState, scope, rightGroup);
+      const left = join.larg ? this.walkFromItem(join.larg, leftState, scope, leftGroup, depth) : [];
+      const right = join.rarg ? this.walkFromItem(join.rarg, rightState, scope, rightGroup, depth) : [];
+      return this.mergeJoinColumns(join, left, right);
     } else if ("RangeFunction" in node) {
       const rf = node["RangeFunction"] as RangeFunction;
       const aliasName = rf.alias?.aliasname ?? "";
-      scope.aliases.set(aliasName, {
+      const fnEntry: RelationEntry = {
         alias: aliasName,
         kind: "function",
         rangeFunction: rf,
@@ -660,7 +840,9 @@ class NullabilityEngine {
           : [],
         joinState,
         nullGroup,
-      });
+      };
+      scope.aliases.set(aliasName, fnEntry);
+      return this.visibleColumnsOf(fnEntry, scope, depth);
     } else if ("RangeTableFunc" in node) {
       // XMLTABLE(... COLUMNS a int PATH '...', n FOR ORDINALITY)
       const rtf = node["RangeTableFunc"] as RangeTableFunc;
@@ -674,21 +856,24 @@ class NullabilityEngine {
         // enforced — PostgreSQL raises rather than emitting NULL.
         cols.push({ name: col.colname, notNull: !!col.for_ordinality || !!col.is_not_null });
       }
-      this.addColumnListRelation(rtf.alias?.aliasname ?? "", cols, rtf.alias?.colnames, joinState, scope, nullGroup);
+      return this.addColumnListRelation(rtf.alias?.aliasname ?? "", cols, rtf.alias?.colnames, joinState, scope, nullGroup);
     } else if ("JsonTable" in node) {
       // JSON_TABLE(... COLUMNS (n FOR ORDINALITY, a int PATH '...', NESTED ...))
       const jt = node["JsonTable"] as JsonTable;
       const cols: { name: string; notNull: boolean }[] = [];
       this.collectJsonTableColumns(jt.columns, cols);
-      this.addColumnListRelation(jt.alias?.aliasname ?? "", cols, jt.alias?.colnames, joinState, scope, nullGroup);
+      return this.addColumnListRelation(jt.alias?.aliasname ?? "", cols, jt.alias?.colnames, joinState, scope, nullGroup);
     } else if ("RangeTableSample" in node) {
       const rts = node["RangeTableSample"] as { relation?: Node };
-      if (rts.relation) this.walkFromItem(rts.relation, joinState, scope, nullGroup);
+      if (rts.relation) return this.walkFromItem(rts.relation, joinState, scope, nullGroup, depth);
     } else {
       // An unrecognised FROM item contributes no columns and no alias, so
       // `SELECT *` over it silently loses them. A shape defect, not a flag.
-      this.onUnhandled?.("from-item", this.nodeTag(node));
+      const tag = this.nodeTag(node);
+      this.onUnhandled?.("from-item", tag);
+      throw new UnsupportedNodeError("from-item", tag);
     }
+    return [];
   }
 
   /**
@@ -704,15 +889,17 @@ class NullabilityEngine {
     joinState: JoinState,
     scope: Scope,
     nullGroup: number,
-  ): void {
+  ): VisibleColumn[] {
     const names = aliasColnames?.map(n => this.stringVal(n)) ?? [];
-    scope.aliases.set(aliasName, {
+    const entry: RelationEntry = {
       alias: aliasName,
       kind: "function",
       functionColumns: columns.map((c, i) => ({ name: names[i] ?? c.name, notNull: c.notNull })),
       joinState,
       nullGroup,
-    });
+    };
+    scope.aliases.set(aliasName, entry);
+    return entry.functionColumns!.map(c => ({ name: c.name, entry, merged: null }));
   }
 
   /**
@@ -741,7 +928,12 @@ class NullabilityEngine {
     }
   }
 
-  private addRangeVar(rv: RangeVar, joinState: JoinState, scope: Scope, nullGroup: number): void {
+  private addRangeVar(
+    rv: RangeVar,
+    joinState: JoinState,
+    scope: Scope,
+    nullGroup: number,
+  ): RelationEntry | null {
     const aliasName = rv.alias?.aliasname ?? rv.relname;
 
     // Check if it's a CTE — search this scope and all outer scopes.
@@ -749,7 +941,7 @@ class NullabilityEngine {
     // scopes (e.g., CTEs in the outer query are visible in subqueries).
     const cte = this.findCte(rv.relname, scope);
     if (cte) {
-      scope.aliases.set(aliasName, {
+      const cteEntry: RelationEntry = {
         alias: aliasName,
         kind: "cte",
         ast: cte.ast,
@@ -757,8 +949,9 @@ class NullabilityEngine {
         extraColumns: cte.extraColumns,
         joinState,
         nullGroup,
-      });
-      return;
+      };
+      scope.aliases.set(aliasName, cteEntry);
+      return cteEntry;
     }
 
     // Resolve from catalog.
@@ -776,20 +969,19 @@ class NullabilityEngine {
         nullGroup,
       };
       scope.aliases.set(aliasName, entry);
-      if (!rv.alias) {
-        scope.tables.push(entry);
-      }
-      return;
+      return entry;
     }
 
     // Could be a VALUES alias or unresolved — register as table with empty columns.
-    scope.aliases.set(aliasName, {
+    const fallback: RelationEntry = {
       alias: aliasName,
       kind: "table",
       table: { schema: "", name: rv.relname, columns: [] },
       joinState,
       nullGroup,
-    });
+    };
+    scope.aliases.set(aliasName, fallback);
+    return fallback;
   }
 
   // -------------------------------------------------------------------------
@@ -802,7 +994,7 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
-    const scope = this.buildDmlScope(stmt.relation, outerScope);
+    const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
     return this.analyzeReturning(stmt.returningClause, scope, depth);
   }
@@ -813,7 +1005,7 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
-    const scope = this.buildDmlScope(stmt.relation, outerScope);
+    const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
 
     // UPDATE...FROM: add FROM clause relations too. The target is joined to
@@ -823,7 +1015,7 @@ class NullabilityEngine {
     // joins *within* the FROM list are still handled by walkFromItem.)
     if (stmt.fromClause) {
       for (const item of stmt.fromClause) {
-        this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup());
+        scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
       }
     }
 
@@ -836,7 +1028,7 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
-    const scope = this.buildDmlScope(stmt.relation, outerScope);
+    const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
 
     // DELETE...USING: add USING clause relations. Same inner-join semantics as
@@ -844,7 +1036,7 @@ class NullabilityEngine {
     // are never NULL-extended in RETURNING.
     if (stmt.usingClause) {
       for (const item of stmt.usingClause) {
-        this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup());
+        scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
       }
     }
 
@@ -866,15 +1058,17 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
-    const scope = this.buildMergeScope(stmt, outerScope);
+    const scope = this.buildMergeScope(stmt, outerScope, depth);
     return this.analyzeReturning(stmt.returningClause, scope, depth);
   }
 
-  private buildMergeScope(stmt: MergeStmt, outerScope: Scope | null): Scope {
-    const scope = this.buildDmlScope(stmt.relation, outerScope);
+  private buildMergeScope(stmt: MergeStmt, outerScope: Scope | null, depth: number): Scope {
+    const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
     if (stmt.sourceRelation) {
-      this.walkFromItem(stmt.sourceRelation, OPTIONAL, scope, this.nextNullGroup());
+      scope.visible.push(
+        ...this.walkFromItem(stmt.sourceRelation, OPTIONAL, scope, this.nextNullGroup(), depth),
+      );
     }
     return scope;
   }
@@ -882,11 +1076,12 @@ class NullabilityEngine {
   private buildDmlScope(
     relation: Node | undefined,
     outerScope: Scope | null,
+    depth: number,
   ): Scope {
     const scope: Scope = {
       aliases: new Map(),
-      tables: [],
       ctes: new Map(),
+      visible: [],
       groupGuaranteesNonEmpty: false,
       groupingSetColumns: EMPTY_STRING_SET,
       outer: outerScope,
@@ -895,7 +1090,8 @@ class NullabilityEngine {
     if (relation) {
       const rv = relation as unknown as RangeVar;
       if (rv.relname) {
-        this.addRangeVar(rv, REQUIRED, scope, this.nextNullGroup());
+        const entry = this.addRangeVar(rv, REQUIRED, scope, this.nextNullGroup());
+        if (entry) scope.visible.push(...this.visibleColumnsOf(entry, scope, depth));
       }
     }
     return scope;
@@ -1024,8 +1220,8 @@ class NullabilityEngine {
   private emptyScope(outer: Scope | null): Scope {
     return {
       aliases: new Map(),
-      tables: [],
       ctes: new Map(),
+      visible: [],
       groupGuaranteesNonEmpty: false,
       groupingSetColumns: EMPTY_STRING_SET,
       outer,
@@ -1073,44 +1269,38 @@ class NullabilityEngine {
     const cr = node["ColumnRef"] as ColumnRef;
     const fields = cr.fields ?? [];
 
-    // Check if it's `alias.*` (qualified star).
+    // `alias.*` — just that relation's columns.
     if (fields.length === 2 && "String" in (fields[0] as Record<string, unknown>)) {
       const aliasName = this.stringVal(fields[0]!);
       const entry = this.resolveAlias(aliasName, scope);
-      if (entry) {
-        return this.expandRelationColumns(entry, scope, depth);
-      }
-      return [];
+      if (!entry) return [];
+      return this.relationColumnsIntrinsic(entry, scope, depth).map(col => ({
+        name: col.name,
+        notNull: this.computeColumnNullability(entry, col.name, scope, depth),
+      }));
     }
 
-    // Unqualified `*` — expand all visible relations in FROM order.
-    // `aliases` contains all relations (including un-aliased ones, which use
-    // the table name as the alias key). `tables` only has un-aliased tables.
-    // Skip `tables` entries already covered by `aliases` to avoid duplicates.
-    const aliasKeys = new Set(scope.aliases.keys());
-    const results: OutputNullability[] = [];
-    for (const [, entry] of scope.aliases) {
-      const expanded = this.expandRelationColumns(entry, scope, depth);
-      for (const e of expanded) results.push(e);
-    }
-    for (const entry of scope.tables) {
-      if (aliasKeys.has(entry.alias)) continue;
-      const expanded = this.expandRelationColumns(entry, scope, depth);
-      for (const e of expanded) results.push(e);
-    }
-    return results;
+    // Unqualified `*` — the scope's visible columns, in order. Each is
+    // resolved exactly as a named reference would be, so views, WHERE
+    // promotion, null groups and branch guards all apply here too.
+    return scope.visible.map(vc => ({
+      name: vc.name,
+      notNull: vc.merged
+        ? this.mergedColumnNotNull(vc.name, vc.merged, scope, depth)
+        : vc.entry
+          ? this.computeColumnNullability(vc.entry, vc.name, scope, depth)
+          : false,
+    }));
   }
 
-  private expandRelationColumns(
+  /** Untraced form of computeColumnNullabilityTraced. */
+  private computeColumnNullability(
     entry: RelationEntry,
+    colName: string,
     scope: Scope,
     depth: number,
-  ): OutputNullability[] {
-    const columns = this.getRelationColumns(entry, scope, depth);
-    return columns.map(col => ({
-      name: col.name,
-      notNull: col.notNull,
-    }));
+  ): boolean {
+    return this.computeColumnNullabilityTraced(entry, colName, scope, depth, NOOP);
   }
 
   // -------------------------------------------------------------------------
@@ -1254,40 +1444,48 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!entry.ast) return [];
     const results = this.analyzeStatement(entry.ast, scope, depth + 1);
-    return entry.extraColumns?.length ? [...results, ...entry.extraColumns] : results;
+    const all = entry.extraColumns?.length ? [...results, ...entry.extraColumns] : results;
+    // An alias column list renames positionally, and PostgreSQL applies it
+    // partially: naming fewer columns than exist leaves the rest alone, and
+    // only naming more than exist is an error.
+    const names = entry.cteColumns ?? [];
+    if (names.length === 0) return all;
+    return all.map((r, i) => ({ name: names[i] ?? r.name, notNull: r.notNull }));
   }
 
-  private getRelationColumns(
+  /**
+   * A relation's columns with their *intrinsic* nullability — before this
+   * relation's join state, WHERE promotion or branch guards are applied.
+   *
+   * This is what a merged USING column needs (the merge accounts for presence
+   * itself) and what scope building needs to know the column names.
+   */
+  private relationColumnsIntrinsic(
     entry: RelationEntry,
     scope: Scope,
     depth: number,
   ): { name: string; notNull: boolean }[] {
-    // Table functions: resolve the return type into columns.
     if (entry.kind === "function") {
-      return this.resolveTableFunctionColumns(entry).map(c => ({
-        name: c.name,
-        notNull: c.notNull && entry.joinState !== OPTIONAL,
-      }));
+      return this.resolveTableFunctionColumns(entry);
     }
-
-    // For subqueries/CTEs: recurse into inner scope.
     if (entry.kind === "subquery" || entry.kind === "cte") {
-      return this.innerRelationColumns(entry, scope, depth).map(r => ({
-        name: r.name,
-        notNull: r.notNull && entry.joinState !== OPTIONAL,
+      return this.innerRelationColumns(entry, scope, depth);
+    }
+    // A view's catalog columns are all attnotnull=false, so its definition is
+    // the only source of truth — the same path a named reference takes.
+    if (entry.kind === "view" && entry.ast && entry.table) {
+      const inner = this.analyzeStatement(entry.ast, scope, depth + 1);
+      return entry.table.columns.map((col, i) => ({
+        name: col,
+        notNull: inner[i]?.notNull ?? false,
       }));
     }
-
-    // For tables/views: read from catalog.
     if (entry.table) {
       return entry.table.columns.map(col => ({
         name: col,
-        notNull:
-          this.catalog.resolveColumnNotNull(entry.table!.schema, entry.table!.name, col) &&
-          entry.joinState !== OPTIONAL,
+        notNull: this.catalog.resolveColumnNotNull(entry.table!.schema, entry.table!.name, col),
       }));
     }
-
     return [];
   }
 
@@ -1820,38 +2018,68 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    // Search inner-scope aliases first, then outer (correlated), then tables.
-    for (const [, entry] of scope.aliases) {
-      if (this.entryHasColumn(entry, colName, scope, depth)) {
-        trace.addFact("resolved", `alias '${entry.alias}' (inner scope)`);
-        return this.computeColumnNullabilityTraced(entry, colName, scope, depth, trace);
-      }
-    }
-    // Outer scope (correlated references).
+    // An unqualified name resolves against the scope's visible columns — the
+    // same set `SELECT *` expands to. A USING join's merged column is what is
+    // visible under that name; the constituents are reachable only when
+    // qualified.
+    const here = this.resolveVisible(colName, scope, scope, depth, trace, "inner scope");
+    if (here !== undefined) return here;
+
+    // Correlated reference into the enclosing query.
     if (scope.outer) {
-      for (const [, entry] of scope.outer.aliases) {
-        if (this.entryHasColumn(entry, colName, scope.outer, depth)) {
-          trace.addFact("resolved", `alias '${entry.alias}' (outer/correlated scope)`);
-          return this.computeColumnNullabilityTraced(entry, colName, scope.outer, depth, trace);
-        }
-      }
-      for (const entry of scope.outer.tables) {
-        if (this.entryHasColumn(entry, colName, scope.outer, depth)) {
-          trace.addFact("resolved", `table '${entry.alias}' (outer/correlated scope)`);
-          return this.computeColumnNullabilityTraced(entry, colName, scope.outer, depth, trace);
-        }
-      }
+      const outer = this.resolveVisible(
+        colName, scope.outer, scope.outer, depth, trace, "outer/correlated scope",
+      );
+      if (outer !== undefined) return outer;
     }
-    // Un-aliased tables.
-    for (const entry of scope.tables) {
-      if (this.entryHasColumn(entry, colName, scope, depth)) {
-        trace.addFact("resolved", `table '${entry.alias}' (un-aliased)`);
-        return this.computeColumnNullabilityTraced(entry, colName, scope, depth, trace);
-      }
-    }
+
     trace.addFact("resolved", "NOT_FOUND");
     trace.conclude(false, `column '${colName}' not found in any scope → nullable`);
     return false;
+  }
+
+  /**
+   * Look `colName` up among `lookupScope`'s visible columns.
+   *
+   * Returns undefined when the name is not visible there, so the caller can
+   * continue searching outward. A name matching more than one visible column
+   * is ambiguous: PostgreSQL rejects such a query outright, so rather than
+   * picking one — which makes the answer depend on FROM-clause order — the
+   * walk reports nullable, the same treatment it gives a name it cannot find.
+   */
+  private resolveVisible(
+    colName: string,
+    lookupScope: Scope,
+    resolveScope: Scope,
+    depth: number,
+    trace: ITrace,
+    where: string,
+  ): boolean | undefined {
+    const matches = lookupScope.visible.filter(vc => vc.name === colName);
+    if (matches.length === 0) return undefined;
+
+    if (matches.length > 1) {
+      const owners = matches.map(m => m.entry?.alias ?? "<merged>").join(", ");
+      trace.addFact("resolved", "AMBIGUOUS");
+      trace.addFact("candidates", owners);
+      trace.conclude(
+        false,
+        `column '${colName}' is ambiguous in the ${where} (${matches.length} visible columns: ${owners}) → nullable`,
+      );
+      return false;
+    }
+
+    const vc = matches[0]!;
+    if (vc.merged) {
+      const result = this.mergedColumnNotNull(colName, vc.merged, resolveScope, depth);
+      trace.addFact("resolved", `merged join column (${where})`);
+      trace.addFact("jointype", vc.merged.jointype);
+      trace.conclude(result, `merged USING/NATURAL column '${colName}' → ${result ? "notNull" : "nullable"}`);
+      return result;
+    }
+    if (!vc.entry) return undefined;
+    trace.addFact("resolved", `alias '${vc.entry.alias}' (${where})`);
+    return this.computeColumnNullabilityTraced(vc.entry, colName, resolveScope, depth, trace);
   }
 
   private resolveAliasedColumnTraced(
@@ -1878,31 +2106,6 @@ class NullabilityEngine {
       s = s.outer;
     }
     return null;
-  }
-
-  private entryHasColumn(
-    entry: RelationEntry,
-    colName: string,
-    scope: Scope,
-    depth: number,
-  ): boolean {
-    if (entry.kind === "subquery" || entry.kind === "cte") {
-      if (entry.ast) {
-        // For VALUES subqueries with alias column names, check by position.
-        if (entry.cteColumns && entry.cteColumns.length > 0) {
-          if (entry.cteColumns.includes(colName)) return true;
-        }
-        return this.innerRelationColumns(entry, scope, depth).some(r => r.name === colName);
-      }
-      return false;
-    }
-    if (entry.kind === "function") {
-      return this.resolveTableFunctionColumns(entry).some(c => c.name === colName);
-    }
-    if (entry.table) {
-      return entry.table.columns.includes(colName);
-    }
-    return false;
   }
 
   private computeColumnNullabilityTraced(
@@ -2956,7 +3159,7 @@ class NullabilityEngine {
         trace.conclude(false, "INSERT...SELECT can return zero rows -> nullable");
         return false;
       }
-      const dmlScope = this.buildDmlScope(ins.relation, fnScope);
+      const dmlScope = this.buildDmlScope(ins.relation, fnScope, depth);
       this.registerCtes(ins.withClause, dmlScope);
       const retResults = this.analyzeReturning(ins.returningClause, dmlScope, depth);
       const result = retResults[0]?.notNull ?? false;
@@ -2984,7 +3187,7 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     // Build a real scope from the SELECT's FROM clause, with fnScope as outer.
-    const scope = this.buildScope(sel, fnScope);
+    const scope = this.buildScope(sel, fnScope, depth);
     const results: OutputNullability[] = [];
     for (const target of sel.targetList ?? []) {
       const rt = this.unwrapResTarget(target);
@@ -3070,10 +3273,13 @@ class NullabilityEngine {
     if ("FuncCall" in node) {
       return this.funcName(node["FuncCall"] as FuncCall);
     }
-    if ("SubLink" in node) {
-      const sl = node["SubLink"] as SubLink;
-      return sl.subLinkType ?? "";
-    }
+    // No name inferred. PostgreSQL would label these "exists", "array",
+    // "coalesce", "?column?" and so on (see FigureColname in
+    // parse_target.c); we deliberately do not reimplement those rules —
+    // see the note on OutputNullability.name. Returning the empty string
+    // says "we did not infer one", which is honest. Returning the internal
+    // subLinkType enum, as this used to, leaked a parser detail that looked
+    // like a real column name to anything downstream.
     return "";
   }
 
@@ -3401,10 +3607,14 @@ interface RangeSubselect {
 }
 
 interface JoinExpr {
-  jointype: string;
+  jointype?: string;
   larg?: Node;
   rarg?: Node;
   quals?: Node;
+  /** `USING (a, b)` — the columns to merge. */
+  usingClause?: Node[];
+  /** `NATURAL` — merge every commonly-named column. */
+  isNatural?: boolean;
 }
 
 interface RangeTableFunc {

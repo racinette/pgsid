@@ -211,11 +211,19 @@ describe("node-type census", () => {
       const stmt = parsed.stmts?.[0]?.stmt;
       if (!stmt) continue;
       collectTags(stmt, observed);
-      inferNullabilityTraced(stmt, catalog, (site, nodeType) => {
+      const record = (site: string, nodeType: string) => {
         const sites = unhandled.get(nodeType) ?? new Set<string>();
         sites.add(site);
         unhandled.set(nodeType, sites);
-      });
+      };
+      try {
+        inferNullabilityTraced(stmt, catalog, record);
+      } catch {
+        // An unknown FROM item or statement now raises (see
+        // UnsupportedNodeError). The observer has already recorded it, and
+        // detecting exactly that is this suite's job — so swallow the throw
+        // and let the assertions below report it.
+      }
     }
   });
 

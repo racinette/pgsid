@@ -199,6 +199,19 @@ export interface NullabilityCatalog {
 /**
  * Per-output-column nullability result. `notNull` is true when the column is
  * provably non-null; false when it could be null (conservative).
+ *
+ * The result is a **positional** array: entry `i` describes output column `i`,
+ * matching the order of PostgreSQL's RowDescription. Column names are not keys
+ * — PostgreSQL permits duplicates (`SELECT a.id, b.id` yields two columns named
+ * "id") and rejects any *reference* to an ambiguous name, so a name-keyed map
+ * would silently lose columns.
+ *
+ * `name` is therefore best-effort **diagnostic** metadata, not authoritative.
+ * It is empty for expressions whose name we do not infer; PostgreSQL's own
+ * labelling rules (`FigureColname`) are not reimplemented here. A consumer that
+ * needs names should take them from PREPARE's RowDescription, which it must
+ * consult anyway for types — and should verify the two lists agree in length
+ * before zipping them.
  */
 export interface OutputNullability {
   name: string;
