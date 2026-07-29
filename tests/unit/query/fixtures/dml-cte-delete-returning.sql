@@ -5,7 +5,7 @@ WITH deleted AS (
   DELETE FROM products WHERE deleted_at IS NOT NULL RETURNING id, name, sku
 )
 SELECT
-  d.id    AS id,      -- 
-  d.name  AS name,    -- 
-  d.sku   AS sku       -- 
+  d.id    AS id,      -- @notNull
+  d.name  AS name,    -- @notNull
+  d.sku   AS sku       -- @notNull
 FROM deleted d

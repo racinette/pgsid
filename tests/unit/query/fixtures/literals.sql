@@ -1,7 +1,7 @@
 -- literals: various literal types
 SELECT
-  'foo'   AS c1,  -- 
-  42      AS c2,  -- 
-  true    AS c3,  -- 
-  NULL    AS c4,  -- 
-  NULL::text AS c5  -- 
+  'foo'   AS c1,  -- @notNull
+  42      AS c2,  -- @notNull
+  true    AS c3,  -- @notNull
+  NULL    AS c4,  -- @nullable
+  NULL::text AS c5  -- @nullable

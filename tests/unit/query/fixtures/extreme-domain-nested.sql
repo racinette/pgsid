@@ -20,8 +20,8 @@ WITH domain_cte AS (
   FROM products p
 )
 SELECT
-  dc.id             AS product_id,   -- 
-  dc.status         AS status,      -- 
-  dc.safe_price     AS safe_price,  -- 
-  dc.subquery_val   AS subquery_val  -- 
+  dc.id             AS product_id,   -- @notNull
+  dc.status         AS status,      -- @nullable
+  dc.safe_price     AS safe_price,  -- @notNull
+  dc.subquery_val   AS subquery_val  -- @nullable
 FROM domain_cte dc

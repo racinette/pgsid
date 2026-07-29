@@ -14,14 +14,12 @@ joined AS (
 aggregated AS (
   SELECT j.id, j.name, j.deleted_at, count(r.rating) AS review_count
   FROM joined j
-  -- Self-reference to 'joined' would be recursive; instead reference
-  -- the original table to avoid that. But we can reference the CTE.
   JOIN reviews r ON r.product_id = j.id
   GROUP BY j.id, j.name, j.deleted_at
 )
 SELECT
-  a.id           AS id,            -- 
-  a.name         AS name,          -- 
-  a.deleted_at   AS deleted_at,    -- 
-  a.review_count AS review_count   -- 
+  a.id           AS id,            -- @notNull
+  a.name         AS name,          -- @notNull
+  a.deleted_at   AS deleted_at,    -- @nullable
+  a.review_count AS review_count   -- @notNull
 FROM aggregated a

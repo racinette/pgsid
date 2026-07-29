@@ -4,7 +4,7 @@
 -- is non-null.
 UPDATE products SET price = price * 2 WHERE id = 1
 RETURNING
-  id                        AS id,          -- 
-  name                      AS name,        -- 
-  COALESCE(deleted_at, '1970-01-01'::timestamptz) AS deleted,  -- 
-  price * 2                 AS new_price    -- 
+  id                        AS id,          -- @notNull
+  name                      AS name,        -- @notNull
+  COALESCE(deleted_at, '1970-01-01'::timestamptz) AS deleted,  -- @notNull
+  price * 2                 AS new_price    -- @nullable

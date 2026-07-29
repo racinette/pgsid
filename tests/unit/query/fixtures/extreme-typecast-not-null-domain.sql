@@ -4,10 +4,10 @@
 -- This mirrors the Priority 1 function-return rule. Compare with a cast to
 -- a regular type (text), which preserves the arg's nullability.
 SELECT
-  NULL::nn_text                    AS null_cast_domain,  -- 
-  p.name::nn_text                  AS col_cast_domain,   -- 
-  p.deleted_at::nn_text            AS nullable_cast_domain,  -- 
-  p.name::text                     AS cast_text,         -- 
-  p.deleted_at::text               AS nullable_cast_text,  -- 
-  COALESCE(p.deleted_at, 'x')::nn_text AS coalesce_domain  -- 
+  NULL::nn_text                    AS null_cast_domain,  -- @notNull
+  p.name::nn_text                  AS col_cast_domain,   -- @notNull
+  p.deleted_at::nn_text            AS nullable_cast_domain,  -- @notNull
+  p.name::text                     AS cast_text,         -- @notNull
+  p.deleted_at::text               AS nullable_cast_text,  -- @nullable
+  COALESCE(p.deleted_at, 'x')::nn_text AS coalesce_domain  -- @notNull
 FROM products p

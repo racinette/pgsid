@@ -4,13 +4,13 @@
 -- leaves two optional (oi/p, s). The per-alias promotion means
 -- c.id is notNull (promoted via c.email IS NOT NULL), not just c.email.
 SELECT
-  o.id           AS order_id,       -- 
-  oi.id          AS item_id,        -- 
-  c.id           AS customer_id,    -- 
-  c.name         AS customer_name,  -- 
-  p.name         AS product_name,   -- 
-  s.carrier      AS carrier,        -- 
-  COALESCE(s.tracking_no, 'N/A') AS tracking  -- 
+  o.id           AS order_id,       -- @notNull
+  oi.id          AS item_id,        -- @nullable
+  c.id           AS customer_id,    -- @notNull
+  c.name         AS customer_name,  -- @nullable
+  p.name         AS product_name,   -- @nullable
+  s.carrier      AS carrier,        -- @nullable
+  COALESCE(s.tracking_no, 'N/A') AS tracking  -- @notNull
 FROM orders o
 INNER JOIN order_items oi ON oi.order_id = o.id
 LEFT JOIN products p ON p.id = oi.product_id

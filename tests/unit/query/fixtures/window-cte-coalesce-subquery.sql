@@ -7,13 +7,13 @@ WITH product_reviews AS (
   LEFT JOIN reviews r ON r.product_id = p.id
 )
 SELECT
-  pr.id       AS product_id,   -- 
-  pr.name     AS name,         -- 
-  rank() OVER (PARTITION BY pr.id ORDER BY pr.rating DESC) AS rank,  -- 
-  count(*) OVER (PARTITION BY pr.id) AS review_count,  -- 
+  pr.id       AS product_id,   -- @notNull
+  pr.name     AS name,         -- @notNull
+  rank() OVER (PARTITION BY pr.id ORDER BY pr.rating DESC) AS rank,  -- @nullable
+  count(*) OVER (PARTITION BY pr.id) AS review_count,  -- @notNull
   COALESCE(
     lower_strict(pr.name),
     (SELECT c.name FROM categories c WHERE c.id = 1)
-  ) AS safe_name  -- 
+  ) AS safe_name  -- @notNull
 FROM product_reviews pr
 WHERE pr.deleted_at IS NULL

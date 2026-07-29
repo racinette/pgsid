@@ -1,6 +1,6 @@
 -- Set operations: UNION → AND of operands
 SELECT
-  val   AS result   -- 
+  val   AS result   -- @nullable
 FROM t
 UNION
 SELECT

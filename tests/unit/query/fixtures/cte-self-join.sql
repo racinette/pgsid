@@ -9,9 +9,9 @@ WITH order_totals AS (
   GROUP BY oi.order_id
 )
 SELECT
-  a.order_id          AS order_id,   -- 
-  a.total             AS total_a,    -- 
-  b.total             AS total_b,    -- 
-  a.total + b.total   AS combined    -- 
+  a.order_id          AS order_id,   -- @notNull
+  a.total             AS total_a,    -- @nullable
+  b.total             AS total_b,    -- @nullable
+  a.total + b.total   AS combined    -- @nullable
 FROM order_totals a
 JOIN order_totals b ON a.order_id < b.order_id

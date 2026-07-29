@@ -6,9 +6,9 @@ WITH outer_cte AS (
   SELECT id, name FROM products WHERE deleted_at IS NULL
 )
 SELECT
-  o.id    AS id,        -- 
-  o.name  AS name,     -- 
-  sub.extra AS extra    --  (WHERE ic.extra IS NOT NULL promotes it)
+  o.id    AS id,        -- @notNull
+  o.name  AS name,     -- @notNull
+  sub.extra AS extra    -- @notNull
 FROM outer_cte o
 JOIN (
   WITH inner_cte AS (

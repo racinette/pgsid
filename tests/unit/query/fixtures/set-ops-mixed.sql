@@ -2,8 +2,8 @@
 -- UNION and EXCEPT are left-associative; each output column is the AND of
 -- the corresponding columns across all operands.
 SELECT
-  id    AS id,      -- 
-  name  AS name     -- 
+  id    AS id,      -- @notNull
+  name  AS name     -- @nullable
 FROM customers
 UNION
 SELECT id, name FROM categories

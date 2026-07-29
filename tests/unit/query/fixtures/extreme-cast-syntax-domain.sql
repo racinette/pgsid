@@ -3,10 +3,10 @@
 -- uses SQL-standard CAST syntax to confirm parity, including NOT NULL
 -- domain targets.
 SELECT
-  CAST(p.name AS nn_text)              AS cast_domain,   -- 
-  CAST(p.deleted_at AS nn_text)        AS cast_null_domain,  -- 
-  CAST(NULL AS nn_text)                AS cast_null_lit,  -- 
-  CAST(p.name AS text)                 AS cast_text,     -- 
-  CAST(p.deleted_at AS text)           AS cast_nullable,  -- 
-  CAST(COALESCE(p.deleted_at, 'x') AS nn_text) AS cast_coalesce  -- 
+  CAST(p.name AS nn_text)              AS cast_domain,   -- @notNull
+  CAST(p.deleted_at AS nn_text)        AS cast_null_domain,  -- @notNull
+  CAST(NULL AS nn_text)                AS cast_null_lit,  -- @notNull
+  CAST(p.name AS text)                 AS cast_text,     -- @notNull
+  CAST(p.deleted_at AS text)           AS cast_nullable,  -- @nullable
+  CAST(COALESCE(p.deleted_at, 'x') AS nn_text) AS cast_coalesce  -- @notNull
 FROM products p

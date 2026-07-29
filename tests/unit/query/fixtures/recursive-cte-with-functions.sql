@@ -13,11 +13,11 @@ WITH RECURSIVE cat_tree AS (
   JOIN cat_tree ct ON c.parent_id = ct.id
 )
 SELECT
-  ct.id                     AS id,            -- 
-  lower_strict(ct.name)     AS lower_name,    -- 
-  COALESCE(ct.parent_id, 0) AS parent_or_zero, -- 
-  ct.depth                  AS depth,         --  (WHERE ct.depth < 3 promotes it)
+  ct.id                     AS id,            -- @notNull
+  lower_strict(ct.name)     AS lower_name,    -- @notNull
+  COALESCE(ct.parent_id, 0) AS parent_or_zero, -- @notNull
+  ct.depth                  AS depth,         -- @notNull
   (SELECT count(*) FROM products p
-   WHERE p.category_id = ct.id AND p.deleted_at IS NULL) AS product_count  -- 
+   WHERE p.category_id = ct.id AND p.deleted_at IS NULL) AS product_count  -- @notNull
 FROM cat_tree ct
 WHERE ct.depth < 3

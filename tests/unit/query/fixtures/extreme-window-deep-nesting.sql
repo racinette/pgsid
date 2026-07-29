@@ -14,12 +14,12 @@ WITH product_window AS (
   LEFT JOIN reviews r ON r.product_id = p.id
 )
 SELECT
-  pw.id                               AS product_id,    -- 
-  pw.name                             AS product_name,  -- 
-  pw.category_id                      AS category_id,   -- 
-  COALESCE(pw.rnk, 0)                 AS safe_rank,     -- 
-  lower_strict(pw.name)               AS lower_name,    -- 
-  COALESCE(lower_strict(pw.name), 'x') AS safe_name,   -- 
-  pw.review_count                     AS review_count   -- 
+  pw.id                               AS product_id,    -- @notNull
+  pw.name                             AS product_name,  -- @notNull
+  pw.category_id                      AS category_id,   -- @nullable
+  COALESCE(pw.rnk, 0)                 AS safe_rank,     -- @notNull
+  lower_strict(pw.name)               AS lower_name,    -- @notNull
+  COALESCE(lower_strict(pw.name), 'x') AS safe_name,   -- @notNull
+  pw.review_count                     AS review_count   -- @notNull
 FROM product_window pw
 WHERE pw.rnk = 1

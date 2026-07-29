@@ -5,8 +5,8 @@
 -- Level 2: inside that, a correlated subquery referencing the outer order.
 -- The innermost expression is COALESCE over a non-null count(*) → non-null.
 SELECT
-  o.id     AS order_id,   -- 
-  o.status AS status,     -- 
+  o.id     AS order_id,   -- @notNull
+  o.status AS status,     -- @notNull
   COALESCE(
     (SELECT count(*) FROM order_items oi
      WHERE oi.order_id = o.id
@@ -17,5 +17,5 @@ SELECT
                          WHERE p2.category_id = p.category_id)
        )),
     0
-  ) AS premium_item_count   -- 
+  ) AS premium_item_count   -- @notNull
 FROM orders o

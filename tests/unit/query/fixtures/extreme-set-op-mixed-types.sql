@@ -11,9 +11,9 @@ WITH review_stats AS (
   GROUP BY product_id
 )
 SELECT
-  p.id                          AS id,          -- 
-  COALESCE(p.name, 'unknown')   AS name,        -- 
-  (SELECT count(*) FROM order_items oi WHERE oi.product_id = p.id) AS order_count  -- 
+  p.id                          AS id,          -- @notNull
+  COALESCE(p.name, 'unknown')   AS name,        -- @notNull
+  (SELECT count(*) FROM order_items oi WHERE oi.product_id = p.id) AS order_count  -- @notNull
 FROM products p
 UNION
 SELECT

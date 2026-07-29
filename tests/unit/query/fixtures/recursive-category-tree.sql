@@ -12,8 +12,8 @@ WITH RECURSIVE cat_tree AS (
   JOIN cat_tree ct ON c.parent_id = ct.id
 )
 SELECT
-  id                    AS id,          -- 
-  COALESCE(name, slug)  AS display,     -- 
-  depth                 AS depth,       -- 
-  parent_id             AS parent_id    -- 
+  id                    AS id,          -- @notNull
+  COALESCE(name, slug)  AS display,     -- @notNull
+  depth                 AS depth,       -- @nullable
+  parent_id             AS parent_id    -- @nullable
 FROM cat_tree

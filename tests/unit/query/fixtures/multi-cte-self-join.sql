@@ -13,11 +13,11 @@ with_orders AS (
   JOIN order_items oi ON oi.product_id = wr.id
 )
 SELECT
-  wo.id      AS product_id,   -- 
-  wo.name    AS name,         -- 
-  wo.rating  AS rating,       --  (from LEFT JOIN in with_reviews)
-  wo.order_id AS order_id,    --  (from INNER JOIN in with_orders)
-  c.email    AS customer_email  --  (WHERE c.email IS NOT NULL promotes it)
+  wo.id      AS product_id,   -- @notNull
+  wo.name    AS name,         -- @notNull
+  wo.rating  AS rating,       -- @nullable
+  wo.order_id AS order_id,    -- @notNull
+  c.email    AS customer_email  -- @notNull
 FROM with_orders wo
 LEFT JOIN orders o ON o.id = wo.order_id
 LEFT JOIN customers c ON c.id = o.customer_id

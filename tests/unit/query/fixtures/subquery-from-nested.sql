@@ -1,9 +1,9 @@
 -- Subquery in FROM with internal GROUP BY and join structure.
 -- The outer query inherits the subquery's per-column nullability.
 SELECT
-  sub.order_id    AS order_id,    -- 
-  sub.item_count  AS item_count,  -- 
-  sub.total       AS total        -- 
+  sub.order_id    AS order_id,    -- @notNull
+  sub.item_count  AS item_count,  -- @notNull
+  sub.total       AS total        -- @nullable
 FROM (
   SELECT
     oi.order_id                       AS order_id,

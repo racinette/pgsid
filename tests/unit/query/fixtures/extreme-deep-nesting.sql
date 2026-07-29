@@ -18,6 +18,6 @@ WITH outer_cte AS (
   FROM orders o
 )
 SELECT
-  oc.oid        AS order_id,    -- 
-  oc.deep_count AS deep_count   -- 
+  oc.oid        AS order_id,    -- @notNull
+  oc.deep_count AS deep_count   -- @notNull
 FROM outer_cte oc

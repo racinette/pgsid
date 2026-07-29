@@ -13,9 +13,9 @@ priced AS (
 INSERT INTO shipments (order_id, carrier, tracking_no)
 SELECT p.order_id, 'UPS', NULL::text FROM priced p
 RETURNING
-  id                            AS id,             -- 
-  order_id                      AS order_id,       -- 
-  carrier                       AS carrier,        -- 
-  tracking_no                   AS tracking_no,    -- 
-  COALESCE(tracking_no, 'N/A')  AS safe_tracking,  -- 
-  shipped_at                    AS shipped_at      -- 
+  id                            AS id,             -- @notNull
+  order_id                      AS order_id,       -- @notNull
+  carrier                       AS carrier,        -- @notNull
+  tracking_no                   AS tracking_no,    -- @nullable
+  COALESCE(tracking_no, 'N/A')  AS safe_tracking,  -- @notNull
+  shipped_at                    AS shipped_at      -- @nullable

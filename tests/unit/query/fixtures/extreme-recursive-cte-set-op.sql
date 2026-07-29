@@ -13,9 +13,9 @@ WITH RECURSIVE cat_tree AS (
   JOIN cat_tree ct ON c.parent_id = ct.id
 )
 SELECT
-  id    AS id,      -- 
-  name  AS name,    -- 
-  depth AS depth   -- 
+  id    AS id,      -- @notNull
+  name  AS name,    -- @notNull
+  depth AS depth   -- @nullable
 FROM cat_tree
 UNION
 SELECT 0, 'root', 0

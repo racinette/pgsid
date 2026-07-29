@@ -8,8 +8,8 @@ WITH nonnull_source AS (
 null_source AS (
   SELECT id, deleted_at AS name FROM products
 )
-SELECT id   AS id,    -- 
-       name AS name   --  (null_source has nullable deleted_at AS name)
+SELECT id   AS id,    -- @notNull
+       name AS name   -- @nullable
 FROM nonnull_source
 UNION
 SELECT id, name FROM null_source

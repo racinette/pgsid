@@ -6,9 +6,9 @@
 -- Without the reordering fix, $2 would incorrectly map to the second
 -- call-order arg and return notNull.
 SELECT
-  concat_val(b => p.deleted_at::text, a => p.name) AS reordered_old,     -- 
-  concat_val(a => p.name, b => p.deleted_at::text) AS correct_order,     -- 
-  pass_two(b => p.deleted_at::text, a => p.name) AS reordered_atomic,    -- 
-  pass_two(a => p.name, b => p.sku) AS correct_atomic,                  -- 
-  concat_val(b => p.name, a => p.sku) AS both_nonnull_reordered          -- 
+  concat_val(b => p.deleted_at::text, a => p.name) AS reordered_old,     -- @nullable
+  concat_val(a => p.name, b => p.deleted_at::text) AS correct_order,     -- @nullable
+  pass_two(b => p.deleted_at::text, a => p.name) AS reordered_atomic,    -- @nullable
+  pass_two(a => p.name, b => p.sku) AS correct_atomic,                  -- @notNull
+  concat_val(b => p.name, a => p.sku) AS both_nonnull_reordered          -- @notNull
 FROM products p

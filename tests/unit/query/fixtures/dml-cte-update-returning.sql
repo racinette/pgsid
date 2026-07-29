@@ -6,7 +6,7 @@ WITH archived AS (
 )
 UPDATE products SET price = 0 WHERE deleted_at IS NOT NULL
 RETURNING
-  id                              AS id,          -- 
-  name                            AS name,        -- 
-  COALESCE(deleted_at, now())     AS deleted,     --  (now() is unknown built-in → nullable)
-  (SELECT count(*) FROM archived) AS archived_cnt  -- 
+  id                              AS id,          -- @notNull
+  name                            AS name,        -- @notNull
+  COALESCE(deleted_at, now())     AS deleted,     -- @nullable
+  (SELECT count(*) FROM archived) AS archived_cnt  -- @notNull

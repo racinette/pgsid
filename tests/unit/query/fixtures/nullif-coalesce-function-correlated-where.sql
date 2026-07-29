@@ -3,11 +3,11 @@
 -- fallback makes it non-null. The WHERE clause has a correlated scalar
 -- subquery comparing against an aggregate.
 SELECT
-  p.id    AS product_id,   -- 
-  p.name  AS name,         -- 
-  COALESCE(NULLIF(p.sku, 'UNKNOWN'), 'MISSING') AS safe_sku,  -- 
-  lower_strict(p.name)    AS lower_name,  -- 
-  lower_strict(p.deleted_at) AS lower_deleted  -- 
+  p.id    AS product_id,   -- @notNull
+  p.name  AS name,         -- @notNull
+  COALESCE(NULLIF(p.sku, 'UNKNOWN'), 'MISSING') AS safe_sku,  -- @notNull
+  lower_strict(p.name)    AS lower_name,  -- @notNull
+  lower_strict(p.deleted_at) AS lower_deleted  -- @nullable
 FROM products p
 WHERE p.price >= (
   SELECT avg(p2.price)

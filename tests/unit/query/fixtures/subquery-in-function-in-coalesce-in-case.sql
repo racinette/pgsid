@@ -4,8 +4,8 @@
 -- so lower_strict(count) is non-null (strict + non-null arg), so COALESCE
 -- is non-null, but CASE wraps it → conservative nullable.
 SELECT
-  p.id    AS product_id,   -- 
-  p.name  AS name,         -- 
+  p.id    AS product_id,   -- @notNull
+  p.name  AS name,         -- @notNull
   CASE
     WHEN p.deleted_at IS NOT NULL THEN 'archived'
     ELSE COALESCE(
@@ -15,5 +15,5 @@ SELECT
       ),
       'active'
     )
-  END AS status   -- 
+  END AS status   -- @nullable
 FROM products p

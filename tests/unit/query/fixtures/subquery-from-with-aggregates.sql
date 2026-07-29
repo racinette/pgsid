@@ -2,9 +2,9 @@
 -- Tests CTE resolution inside a subquery scope (the CTE is local to the
 -- subquery, not visible to the outer query).
 SELECT
-  sub.product_name AS product_name,   -- 
-  sub.review_count AS review_count,   -- 
-  sub.avg_rating   AS avg_rating      -- 
+  sub.product_name AS product_name,   -- @notNull
+  sub.review_count AS review_count,   -- @notNull
+  sub.avg_rating   AS avg_rating      -- @nullable
 FROM (
   SELECT
     p.name                       AS product_name,

@@ -4,5 +4,5 @@ WITH x AS (
   FROM t LEFT JOIN u ON u.t_id = t.id
 )
 SELECT
-  v   AS c1   -- 
+  v   AS c1   -- @nullable
 FROM x

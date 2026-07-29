@@ -7,7 +7,7 @@ WITH source AS (
 INSERT INTO order_items (order_id, product_id, quantity, unit_price)
 SELECT 1, id, 1, price FROM source
 RETURNING
-  id                        AS id,          -- 
-  product_id                AS product_id,  -- 
-  quantity                  AS quantity,    -- 
-  COALESCE(unit_price, 0)   AS price        -- 
+  id                        AS id,          -- @notNull
+  product_id                AS product_id,  -- @notNull
+  quantity                  AS quantity,    -- @notNull
+  COALESCE(unit_price, 0)   AS price        -- @notNull

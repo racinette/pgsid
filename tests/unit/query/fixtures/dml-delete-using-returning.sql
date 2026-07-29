@@ -7,7 +7,7 @@ USING customers c
 WHERE orders.customer_id = c.id
   AND c.email IS NOT NULL
 RETURNING
-  id               AS id,          -- 
-  customer_id      AS customer_id, -- 
-  status            AS status,     -- 
-  COALESCE(deleted_at, now()) AS deleted  --  (now() is unknown built-in → nullable)
+  id               AS id,          -- @notNull
+  customer_id      AS customer_id, -- @notNull
+  status            AS status,     -- @notNull
+  COALESCE(deleted_at, now()) AS deleted  -- @nullable
