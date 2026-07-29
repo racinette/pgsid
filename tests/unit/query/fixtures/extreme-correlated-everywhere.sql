@@ -35,7 +35,7 @@ SELECT
     FROM products p2
     WHERE p2.category_id = p.category_id
     AND p2.deleted_at IS NULL
-  )                                         AS price_deviation, -- @nullable
+  )                                         AS price_deviation, -- @notNull
 
   -- Review count (correlated scalar subquery with count)
   (
@@ -107,7 +107,7 @@ SELECT
       AND p2.deleted_at IS NULL
     ) THEN 'cheap_outlier'
     ELSE 'normal'
-  END                                       AS price_status,    -- @nullable
+  END                                       AS price_status,    -- @notNull
 
   -- Does this product have fewer reviews than the category average?
   CASE
@@ -126,7 +126,7 @@ SELECT
       ) sub
     ) THEN 'underreviewed'
     ELSE 'adequately_reviewed'
-  END                                       AS review_status,   -- @nullable
+  END                                       AS review_status,   -- @notNull
 
   -- Strict function wrapping a correlated subquery
   lower_strict(
@@ -163,7 +163,7 @@ SELECT
   rank() OVER (
     PARTITION BY p.category_id
     ORDER BY p.price DESC
-  )                                         AS price_rank,      -- @nullable
+  )                                         AS price_rank,      -- @notNull
 
   count(*) OVER (
     PARTITION BY p.category_id

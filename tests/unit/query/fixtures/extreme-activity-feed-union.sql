@@ -134,7 +134,7 @@ SELECT
   re.guaranteed_desc                       AS guaranteed_desc,  -- @notNull
   re.carrier                               AS carrier,          -- @nullable
   COALESCE(re.carrier, 'N/A')              AS safe_carrier,     -- @notNull
-  re.type_seq                              AS type_seq,         -- @nullable
+  re.type_seq                              AS type_seq,         -- @notNull
   re.time_rank                             AS time_rank,        -- @notNull
   re.total_events                          AS total_events,     -- @notNull
   re.type_count                            AS type_count,       -- @notNull
@@ -143,12 +143,12 @@ SELECT
     WHEN re.event_type = 'review' THEN 'REVIEW'
     WHEN re.event_type = 'shipment' THEN 'SHIPMENT'
     ELSE 'UNKNOWN'
-  END                                      AS event_label,     -- @nullable
+  END                                      AS event_label,     -- @notNull
   CASE
     WHEN re.amount IS NOT NULL AND re.amount > 500 THEN 'high_value'
     WHEN re.amount IS NOT NULL AND re.amount > 0 THEN 'standard'
     ELSE 'no_amount'
-  END                                      AS value_category    -- @nullable
+  END                                      AS value_category    -- @notNull
 FROM ranked_events re
 WHERE re.time_rank <= 100
 ORDER BY re.event_time DESC NULLS LAST, re.entity_id

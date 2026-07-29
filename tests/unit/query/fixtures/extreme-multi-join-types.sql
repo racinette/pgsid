@@ -5,7 +5,7 @@
 -- c.id is notNull (promoted via c.email IS NOT NULL), not just c.email.
 SELECT
   o.id           AS order_id,       -- @notNull
-  oi.id          AS item_id,        -- @nullable
+  oi.id          AS item_id,        -- @notNull
   c.id           AS customer_id,    -- @notNull
   c.name         AS customer_name,  -- @nullable
   p.name         AS product_name,   -- @nullable

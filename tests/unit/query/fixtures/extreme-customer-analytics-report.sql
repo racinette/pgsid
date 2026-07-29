@@ -120,7 +120,7 @@ SELECT
     WHEN ci.total_spent > 1000 THEN 'premium'
     WHEN ci.total_spent > 100 THEN 'regular'
     ELSE 'occasional'
-  END                                      AS tier              -- @nullable
+  END                                      AS tier              -- @notNull
 FROM customer_info ci
 
 UNION ALL

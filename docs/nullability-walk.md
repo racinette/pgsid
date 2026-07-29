@@ -64,9 +64,15 @@ We stand at the SELECT. We look at the FROM clause and walk the join tree. For e
   - **OPTIONAL** — the relation is on the optional side of an outer join. `joinNullable = true`. A column from this alias is nullable regardless of the catalog's intrinsic `notNull` flag, because the join can produce NULL-extended rows. A WHERE predicate that guarantees the column is non-null can *promote* the alias back to REQUIRED (see ColumnRef leaf rules).
   - **NOT_FOUND** — the alias wasn't located in the address book at all. This is the defensive fallback for a ColumnRef that can't be resolved to any relation in the FROM clause (e.g. an unresolvable correlated reference). A NOT_FOUND ColumnRef is conservatively nullable. This should not happen for a valid query, but the walk returns nullable rather than crashing.
 
+Alongside the join state we record a **null group**: the set of relations that are NULL-extended *together*. An outer join NULL-extends its optional side as a unit — in `(a JOIN b) LEFT JOIN c`, either both `a` and `b` are present or the whole composite row is absent; they can never be half-NULL-extended. Relations joined by INNER JOIN inherit the enclosing group; each side that an outer join makes optional starts a fresh one.
+
+This matters for promotion: a WHERE predicate proving *one* member's row exists proves it for every member of its group. In `FROM o JOIN oi ON … RIGHT JOIN c ON …`, `WHERE o.id IS NOT NULL` promotes `oi` as well, because `o` and `oi` share a group.
+
+**Views** get a third treatment, distinct from both tables and subqueries. PostgreSQL does not propagate `attnotnull` to view columns — every column of a view reads as nullable in `pg_attribute`, no matter what sits behind it. Reading the catalog flag would therefore make every view column nullable. Instead the walk analyzes the view's stored definition (pre-parsed into `NullabilityCatalog.viewAsts`) like a subquery and maps its output columns positionally onto the view's column list. A view with no parsed definition falls back to the catalog flag.
+
 We do NOT analyze nullability yet. We're just building the address book: "in this scope, alias `a` means this table, alias `b` means that subquery, alias `c` means this table on the optional side of a LEFT JOIN."
 
-We also note the WHERE clause of this scope — we'll consult it during leaf resolution, not as a pre-pass.
+We also note the WHERE clause of this scope — we'll consult it during leaf resolution, not as a pre-pass — and whether this SELECT's `GROUP BY` guarantees non-empty groups (consulted by the aggregate dispatch).
 
 ### Step 2 — List the output columns.
 
@@ -111,23 +117,136 @@ We recurse into the children first (each child resolves to a boolean by the same
 | `A_Const` (literal) | non-null, except `NULL` literal (`isnull: true`) → nullable | Literals are never NULL |
 | `ColumnRef` | resolve against scope (see leaf rules above) | Conservative; intrinsic + join + WHERE + cross-scope |
 | `NullTest` (IS NULL / IS NOT NULL) | non-null | Always returns bool |
-| `SubLink` EXISTS/ANY/ALL | non-null | Returns bool |
+| `SubLink` EXISTS | non-null | Only asks whether a row came back; never inspects a value |
+| `SubLink` ANY/ALL (incl. `IN`, `NOT IN`) | non-null iff the left operand **and** every subquery output column are non-null | The per-row comparisons are OR-ed/AND-ed under three-valued logic, so `1 IN (SELECT NULL)` is NULL |
 | `SubLink` EXPR (scalar) | single-row test + recurse (see leaf rules above) | Row count matters |
 | `SubLink` ARRAY | non-null | ARRAY constructor never NULL |
 | `TypeCast` | recurse into `arg` | Cast preserves nullability |
 | `CoalesceExpr` | non-null if any arg is non-null | `args.some(recurse)` |
-| `CaseExpr` | nullable (conservative) | Path-sensitive analysis skipped |
-| `A_Expr` (comparison/math) | nullable | Three-valued logic: NULL comparison → UNKNOWN |
-| `BoolExpr` AND/OR | nullable | Three-valued logic can produce NULL |
+| `CaseExpr` | non-null if there is an `ELSE` **and** every branch result is non-null, each walked under its branch guard | Exactly one branch produces the value; without `ELSE`, an unmatched CASE is NULL. See "Branch guards" |
+| `A_Expr` (comparison/math) | non-null if the operator is *total* and all operands are non-null | See "Total operators" below |
+| `BoolExpr` AND/OR | non-null if all operands are non-null | Three-valued logic only produces NULL from a NULL operand |
 | `BoolExpr` NOT | recurse into arg | `NOT EXISTS` → non-null; `NOT (nullable)` → nullable |
 | `FuncCall` | see function rules below | Varies by function kind |
 | `RowExpr` | non-null | Row constructor never NULL (even with NULL elements) |
 | `A_ArrayExpr` | non-null | ARRAY constructor never NULL |
-| `MinMaxExpr` (GREATEST/LEAST) | nullable | Conservative — NULL propagates |
+| `MinMaxExpr` (GREATEST/LEAST) | non-null if **any** arg is non-null | GREATEST/LEAST skip NULL args; NULL only when every arg is NULL |
+| `BooleanTest` (`IS [NOT] TRUE/FALSE/UNKNOWN`) | non-null | Collapses three-valued logic to a plain boolean |
+| `SQLValueFunction` (`CURRENT_DATE`, `SESSION_USER`, …) | non-null, except `CURRENT_SCHEMA` | Always defined; `CURRENT_SCHEMA` is NULL when the search path resolves to nothing |
+| `GroupingFunc` (`GROUPING(...)`) | non-null | Returns a bitmask, even in super-aggregate rows |
 | `ScalarArrayOp` | nullable | Conservative |
 | `NamedArgExpr` | recurse into `arg` | Unwrap and recurse |
 | `CollateClause` | recurse into `arg` | Collation preserves nullability |
 | Unknown node | nullable | Conservative — add handler when encountered |
+
+### Total operators
+
+`A_Expr` propagation requires the operator to be **total**: never NULL for non-null
+operands. Strictness is not the criterion — a strict operator returns NULL for NULL
+input, which says nothing about non-null input. `jsonb -> 'missing'` and
+`jsonb ->> 'missing'` are both strict and both return NULL for two non-null operands.
+
+The allowlist (`TOTAL_OPERATORS`) therefore covers only arithmetic (`+ - * / % ^`),
+comparison (`= <> != < > <= >=`), concatenation (`||`), and pattern matching
+(`~~ !~~ ~~* !~~* ~ !~ ~* !~*`). An operator that raises on bad input still counts as
+total: division by zero is an error, not a NULL. Schema-qualified operators are never
+matched, since a user-defined operator can shadow a built-in symbol.
+
+By `A_Expr` kind:
+
+| Kind | Rule |
+|---|---|
+| `AEXPR_OP` | non-null if the operator is on the allowlist and all operands are non-null |
+| `AEXPR_DISTINCT` / `AEXPR_NOT_DISTINCT` | always non-null — `IS [NOT] DISTINCT FROM` is NULL-aware and yields a plain boolean |
+| `AEXPR_IN`, `AEXPR_LIKE`, `AEXPR_ILIKE`, `AEXPR_SIMILAR`, `AEXPR_BETWEEN` family | non-null if all operands are non-null |
+| `AEXPR_NULLIF` | nullable — `NULLIF(a, b)` is NULL exactly when `a = b` |
+| `AEXPR_OP_ANY` / `AEXPR_OP_ALL` | nullable — a NULL array element yields NULL with no match |
+
+### Branch guards (path-sensitive CASE)
+
+A `CASE` branch result is walked under the conditions that must hold for that
+branch to run, so a nullable column can read as non-null inside a branch that
+tested it. Branch *i* is walked with conditions `1..i-1` known **not TRUE** and
+condition *i* known **TRUE**; the `ELSE` with every condition known not TRUE.
+
+A guard is pinned to the scope its aliases were written against and applies only
+to a column that resolved in that same scope, so an inner query re-using an alias
+name cannot pick up an outer guard. Guards are also cleared at every statement
+boundary: statement results are memoized by AST-node identity, and a CTE analyzed
+once inside a branch is reused everywhere else.
+
+**Positive guards** (condition TRUE) reuse the WHERE analyzer unchanged — a branch
+runs only when its condition is TRUE, and a TRUE strict predicate implies its
+operands are non-null. This is the same inference WHERE promotion makes, including
+promoting an OPTIONAL alias to REQUIRED for the rest of the branch.
+
+**Negative guards** (condition not TRUE) are much weaker, and getting this wrong is
+the easiest way to make the walk unsound. A branch is skipped when its condition is
+FALSE *or NULL*, so falsity alone proves nothing:
+
+```sql
+CASE WHEN a > 5 THEN 'big' ELSE a END   -- a NULL `a` makes the condition NULL,
+                                        -- so the ELSE sees `a` still NULL
+```
+
+Only conditions that can never evaluate to NULL support an inference here:
+
+| Condition shape | Not-TRUE implies |
+|---|---|
+| `col IS NULL` | `col` is non-null — `IS NULL` is total, so not-TRUE means FALSE |
+| `A OR B` | every disjunct is not TRUE (a TRUE disjunct would make the OR TRUE), so any total disjunct yields its inference |
+| `A AND B` | nothing — some conjunct failed, but not which one |
+
+The simple form `CASE x WHEN v THEN ...` compares values rather than evaluating
+predicates, so its `WHEN` expressions are not conditions and contribute no guards.
+
+### Generated CTE columns (SEARCH / CYCLE)
+
+A recursive CTE's `SEARCH DEPTH FIRST BY id SET ord` appends one ordering column,
+and `CYCLE id SET is_cycle USING path` appends a cycle mark and a path array.
+None appear in either branch's target list — the recursion machinery generates
+and always populates them — so all are non-null and must be appended to the
+CTE's output. Missing them makes `SELECT *` over the CTE the wrong shape.
+
+### MERGE ... RETURNING
+
+`MergeStmt` is dispatched like the other DML forms. The target relation is
+REQUIRED (RETURNING reports the row actually written), but the **source is
+OPTIONAL**: `WHEN NOT MATCHED BY SOURCE` fires for target rows with no source
+match, and RETURNING then reports NULL for every source column — including a
+primary key or a NOT NULL column.
+
+### Set-returning functions in FROM
+
+A `RangeFunction` resolves its columns from the function's `pg_get_function_result`
+string: `SETOF <table>` expands to that relation's columns, `SETOF <composite>` to the
+composite type's fields (composites are resolved separately from relations, so
+that `FROM some_type` does not resolve as a table),
+`TABLE(a t1, b t2)` to the declared list, and anything else to a single column.
+
+The nullability rule is a **negative** one, and it is the opposite of what the
+table declaration suggests. A `SETOF <table>` result carries the table's *row
+type*, which describes column types and nothing else — **NOT NULL constraints do
+not travel with it.** A function declared `RETURNS SETOF order_items` can return
+a row of all NULLs without error, even though four of those columns are NOT NULL
+in the table. Reading `attnotnull` here would be unsound, so every column of a
+composite result is nullable.
+
+Two things do survive, because both are properties of the *type* rather than of
+the table:
+
+- **a domain's NOT NULL**, which is still enforced on function output — in a
+  `TABLE(...)` column, in a `SETOF <domain>` element, and in a domain-typed
+  column of a `SETOF <table>` result;
+- **`WITH ORDINALITY`**, a generated `bigint` counter that is always present.
+
+Resolving the columns matters even where they all come out nullable: without it
+`SELECT * FROM f()` expands to zero columns and the statement's output shape is
+wrong, which for a codegen consumer is worse than an imprecise flag.
+
+Naming follows PostgreSQL: a composite result keeps its own column names and the
+alias names only the relation, while a scalar result takes the alias as its
+column name. An explicit alias list (`f() AS t(a, b)`) renames positionally.
 
 ### Where the recursion crosses scopes:
 
@@ -155,9 +274,18 @@ If `agg_star` is true (`count(*)`), or the function name is `count` and `isAggre
 
 ### Priority 3: Aggregate (built-in or user-defined, other than count)
 
-If `isAggregate` is true (from the catalog) → **nullable**. Aggregates return NULL over zero rows. This includes built-in `max`/`sum`/`avg`/… and user-defined aggregates.
+The default is **nullable** — an aggregate over zero rows returns NULL. Two things override it:
 
-**Known imprecision for user aggregates:** the initial state value (`pg_aggregate.agginitval`) decides whether a user aggregate returns that initcond or NULL over empty input. We do NOT snapshot `pg_aggregate` today, so user aggregates are conservatively nullable even when their `initcond` is non-null. This is correct (never wrong) but imprecise. A future improvement: add `agginitval` to `snapshotCatalog` and treat non-null initcond aggregates as non-null over empty input.
+**Non-null `INITCOND`.** `FunctionInfo.aggInitVal` carries `pg_aggregate.agginitval`. With no rows to transition, the initial state *is* the result, so an aggregate declared with a non-null `INITCOND` is non-null even over empty input.
+
+**Grouping columns are a separate question.** ROLLUP / CUBE / GROUPING SETS also NULL out the *grouping* columns of every super-aggregate row, independently of the aggregates: `GROUP BY ROLLUP(id)` emits a grand-total row whose `id` is NULL even though the column is NOT NULL in the catalog. `Scope.groupingSetColumns` records the columns nested inside a grouping-set construct, and a ColumnRef matching one is nullable — overriding both the catalog flag and any WHERE guarantee, since the row exists and the column is merely blanked. Plain terms alongside a construct (`GROUP BY a, ROLLUP(b)`) appear in every generated grouping set and are unaffected.
+
+**A group that cannot be empty.** When all of the following hold, the aggregate is non-null:
+
+- the enclosing SELECT has a plain `GROUP BY` (`Scope.groupGuaranteesNonEmpty`). ROLLUP / CUBE / GROUPING SETS do *not* qualify: they emit super-aggregate rows over the empty grouping set, so an empty input still produces one row of NULLs;
+- there is no `FILTER (WHERE ...)` — the filter can exclude every row of the group, and `sum(x) FILTER (WHERE false)` is NULL;
+- the aggregate maps "at least one non-null input" to a non-null result (`NON_NULL_OVER_NONEMPTY_AGGREGATES`: `sum`, `avg`, `min`, `max`, `bit_and`, `bit_or`, `bool_and`, `bool_or`, `every`, `array_agg`, `string_agg`, `json_agg`, `jsonb_agg`). `stddev`, `var_samp`, `corr` and the `regr_*` family are excluded — they are undefined (NULL) for a single-row group, so a non-empty group is not enough;
+- every argument is non-null, so the aggregate sees no NULLs to skip.
 
 **Aggregate definition variants** (moving-aggregate mode, ordered-set, partial aggregation, polymorphic) — see https://www.postgresql.org/docs/current/xaggr.html. None of these variants change the nullability question; they're about how state is computed, not whether the result can be NULL. The only thing that decides null-over-empty is `agginitval` (present + non-null → that's the empty result; absent/NULL → NULL over empty) and `count` (special-cased, never NULL).
 
@@ -181,13 +309,31 @@ In both cases, the last statement's output expression is the function's return v
 
 Conservative **nullable**. We can't determine strictness from the AST alone for non-strict functions, and `LANGUAGE plpgsql` bodies are not statically analyzable for nullability. The NOT NULL domain return path (priority 1) is the escape hatch for these cases — a user who wants a non-null guarantee from a plpgsql function declares the return type as a NOT NULL domain.
 
-### Priority 7: Unknown function (not in catalog, e.g. a pg_catalog built-in we didn't snapshot)
+### Priority 6b: `pg_catalog` built-in
+
+The catalog snapshot covers user schemas only, so built-ins arrive with no `FunctionInfo`. Falling through to "unknown → nullable" is safe but badly imprecise for everyday expressions, so three curated tables are consulted — **only when the catalog has no entry for the name**, meaning a user-defined function that shadows a built-in always wins with its real metadata.
+
+| Table | Rule | Examples |
+|---|---|---|
+| `ALWAYS_NOT_NULL_BUILTINS` | non-null regardless of arguments | `now()`, `random()`, `gen_random_uuid()`, `concat`, `jsonb_build_object` |
+| `FIRST_ARG_BUILTINS` | non-null iff the *first* argument is | `concat_ws`, `format` |
+| `STRICT_TOTAL_BUILTINS` | non-null iff *every* argument is | `upper`, `length`, `round`, `substr`, `split_part`, `date_part` |
+
+Membership requires being **total**, not merely strict — the same distinction that governs `TOTAL_OPERATORS`. Excluded on that basis: `array_length` / `array_ndims` (NULL for an empty array or bad dimension) and `jsonb_extract_path(_text)` (NULL for a missing path), all of which are strict yet return NULL for non-null arguments.
+
+`concat` is the mirror image: it is *not* strict and ignores NULL arguments entirely, so all-NULL input yields `''` rather than NULL.
+
+### Priority 7: Unknown function
 
 Conservative **nullable**, with one hardcoded exception: `count` (handled in priority 2) since it's so common and never nullable.
 
 ### Window functions
 
-`FuncCall` with an `OVER` clause (window function): the OVER clause doesn't affect result nullability — only framing does. The same rule applies; we ignore the OVER subtree for nullability purposes (we may still recurse into it for dependency extraction, but that's `resolver.ts`'s job, not the walk's).
+A `FuncCall` with an `OVER` clause is dispatched before the aggregate rule, because the ranking functions share names with entries in `AGGREGATE_NAMES`.
+
+- **Ranking functions** (`NEVER_NULL_WINDOW_FNS`: `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`) → **non-null**. Every row in the partition is assigned a position; even a NULL ordering key still gets a rank.
+- **`ntile(n)`** → non-null iff its bucket-count argument is non-null (`ntile(NULL)` is NULL).
+- **Everything else over a window, aggregates included** → **nullable**. The frame can be empty (`ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING` on the first row makes `sum() OVER` return NULL), and the offset functions (`lag`, `lead`, `first_value`, `last_value`, `nth_value`) can address a row outside it.
 
 ### Summary table
 
@@ -195,8 +341,10 @@ Conservative **nullable**, with one hardcoded exception: `count` (handled in pri
 |---|---|---|---|
 | Returns NOT NULL domain | non-null | `DomainInfo.notNull` | precise |
 | `count(*)` / `count(col)` | non-null | rule | precise |
-| Built-in aggregate (max/sum/avg/…) | nullable | rule | correct |
-| User-defined aggregate | nullable | conservative (no `agginitval`) | imprecise |
+| Built-in aggregate (max/sum/avg/…) | non-null over a guaranteed non-empty group with non-null args; else nullable | `Scope.groupGuaranteesNonEmpty` + rule | precise |
+| Aggregate with non-null `INITCOND` | non-null | `FunctionInfo.aggInitVal` | precise |
+| Ranking window function | non-null | `NEVER_NULL_WINDOW_FNS` | precise |
+| Aggregate / offset function over a window | nullable | frame may be empty | correct |
 | Strict scalar | AND of args | `FunctionInfo.strict` + recurse | correct (nullable direction) |
 | `LANGUAGE sql` user function | recurse into body | parse `FunctionInfo.body` | precise |
 | Non-strict scalar / `LANGUAGE plpgsql` | nullable | conservative | imprecise |
@@ -223,6 +371,13 @@ Wait — that's backwards. The correlated subquery is *inside* the outer SELECT'
 
 ### Set operations (UNION / INTERSECT / EXCEPT)
 
+The combination rule depends on the operator (`combineSetOpColumn`):
+
+- **UNION** emits rows from both branches → a column is non-null only if **both** sides are.
+- **EXCEPT** draws every row from the LEFT branch; the right branch only removes rows → the **left** branch alone decides.
+- **INTERSECT** returns values present in both, so **either** side can prove non-nullness — a value drawn from a NOT NULL column cannot be NULL whatever the other side allows.
+
+
 `SELECT a FROM t1 UNION SELECT b FROM t2` — the output column's nullability is the **AND** of all operands' corresponding output columns. If either side is nullable, the result is nullable. INTERSECT and EXCEPT follow the same rule. The walk treats a set-operation SELECT as having N operand scopes, each contributing one output tree per column position; the result is the AND of all operands.
 
 ### VALUES as a scope
@@ -235,7 +390,9 @@ Wait — that's backwards. The correlated subquery is *inside* the outer SELECT'
 
 ### INSERT / UPDATE / DELETE RETURNING
 
-These statements have a RETURNING list that produces output columns. The target table is always required (it's the row being modified, not a join). RETURNING columns are ColumnRefs to the target table; their nullability is `catalog.notNull(col)` (no join nullability). The walk should handle RETURNING lists the same way as SELECT target lists, with the FROM scope being just the target table.
+These statements have a RETURNING list that produces output columns. The target table is always required (it's the row being modified, not a join). RETURNING columns are ColumnRefs to the target table; their nullability is `catalog.notNull(col)` (no join nullability). The walk handles RETURNING lists the same way as SELECT target lists, with the FROM scope being just the target table.
+
+`UPDATE ... FROM` and `DELETE ... USING` add further relations to that scope. They join to the target with **inner-join** semantics — a target row with no match is simply not modified — so those relations are REQUIRED, not OPTIONAL. Outer joins written *inside* the FROM/USING list are still honoured normally.
 
 ---
 
@@ -243,7 +400,7 @@ These statements have a RETURNING list that produces output columns. The target 
 
 - **Not type inference.** PREPARE gives us types (PG's own analysis). We only infer nullability.
 - **Not theorem proving.** The WHERE analysis is syntactic pattern matching, not logical implication. We detect specific patterns (IS NOT NULL, comparison on a column) in AND-conjuncts. Disjunctions and complex predicates are conservatively skipped.
-- **Not path-sensitive.** We don't track how conditions constrain branch values. `CASE WHEN col IS NULL THEN '' ELSE col END` is conservatively nullable, even though it's provably non-null. This matches sqlc's behavior.
+- **Not a solver.** Branch guards are syntactic pattern matching over the branch conditions, not logical implication. `CASE WHEN length(col) > 0 THEN col ELSE 'x' END` is nullable: the condition is a strict function call whose truth does imply `col` is non-null, but the guard analyzer only recognises the shapes listed under "Branch guards".
 - **Not set-theoretic.** We don't model `A | B` row-shape unions from disjunctive WHERE clauses. Conservative: everything nullable.
 
 ---
@@ -252,13 +409,15 @@ These statements have a RETURNING list that produces output columns. The target 
 
 These have been decided:
 
-1. **Scalar subquery (`EXPR_SUBLINK`):** nullable unless single-row-guaranteed (aggregate without GROUP BY, or no FROM) AND inner output column is non-null. `LIMIT 1` does NOT count as single-row-guaranteed.
+1. **Scalar subquery (`EXPR_SUBLINK`):** nullable unless single-row-guaranteed AND the inner output column is non-null. `guaranteesSingleRow` is the sole authority on the row count and must reject every construct that can drop it to zero: `HAVING`, `LIMIT`, `OFFSET`, set operations (`UNION`/`INTERSECT`/`EXCEPT`), and a `WHERE` on a FROM-less SELECT. The two qualifying shapes are an ungrouped aggregate and a bare `SELECT <expr>` with neither FROM nor WHERE.
+
+   A set-operation node carries no `fromClause` of its own, so it must be rejected *before* the FROM-less check or it will be mistaken for an always-one-row SELECT.
 
 2. **`LANGUAGE sql` function bodies:** recurse into the body. We have the body text in the catalog (`FunctionInfo.body`); we parse it and walk the last statement's output. This is in scope for this implementation.
 
-3. **User aggregates:** conservative nullable (we don't snapshot `pg_aggregate.agginitval`). The NOT NULL domain return path is the escape hatch. Adding `agginitval` is a future improvement.
+3. **User aggregates:** `pg_aggregate.agginitval` is snapshotted as `FunctionInfo.aggInitVal`. A non-null `INITCOND` makes the aggregate non-null even over zero rows.
 
-4. **`CASE` expressions:** conservative nullable. No path-sensitive branch analysis.
+4. **`CASE` expressions:** non-null iff there is an `ELSE` and every branch result is non-null. Branch results are path-sensitive — each is walked under the conditions required to reach it (see "Branch guards").
 
 5. **Disjunctive WHERE (`OR`):** conservative — no guarantees. All columns nullable.
 
@@ -378,7 +537,7 @@ Each category should have multiple fixtures covering the cases listed:
 4. **WHERE promotion:** LEFT JOIN + `WHERE t.col IS NOT NULL` → t promoted; comparison in WHERE; AND conjuncts; OR (no promotion); NOT (no promotion).
 5. **WHERE guarantees:** `WHERE col IS NOT NULL` → col guaranteed; `WHERE col = 5` → guaranteed; `WHERE col IN (...)` → guaranteed; `WHERE func(col) = x` → NOT guaranteed (strict fn deferred at WHERE level).
 6. **COALESCE:** with literal → non-null; with two columns → nullable; with three args.
-7. **CASE:** conservative nullable even with non-null branches.
+7. **CASE:** non-null with an `ELSE` and non-null branches; nullable without an `ELSE`. Branch results are walked under their branch guards.
 8. **TypeCast:** cast of nullable → nullable; cast of non-null → non-null.
 9. **CTEs:** CTE with internal LEFT JOIN → outer ref inherits nullability; CTE with non-null output → outer ref non-null; CTE referenced multiple times.
 10. **Subqueries (FROM):** subquery in FROM with internal join structure; output columns inherit.

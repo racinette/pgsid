@@ -1,13 +1,15 @@
--- JSONB operators and functions. JSONB access operators (->, ->>) are
--- A_Expr nodes → conservative nullable. jsonb_build_object never returns
--- NULL but is an unknown function → conservative nullable (precision gap,
--- acceptable). jsonb_agg is an aggregate → nullable. COALESCE recovers
--- non-null. jsonb_agg is now in AGGREGATE_NAMES for correct detection.
+-- JSONB operators and functions. The access operators (->, ->>) are strict
+-- yet still return NULL for a missing key, so they are NOT total operators
+-- and stay nullable even with two non-null operands — the exact reason
+-- operator strictness cannot license non-null propagation. jsonb_build_object never returns
+-- NULL — it builds a container even from NULL members — and is recognised as
+-- a built-in, so it reads non-null. jsonb_agg is an aggregate → nullable.
+-- COALESCE recovers non-null.
 SELECT
   e.data->'id'                        AS json_access,    -- @nullable
   e.data->>'id'                       AS text_access,    -- @nullable
   COALESCE(e.meta, '{}'::jsonb)       AS safe_meta,     -- @notNull
-  jsonb_build_object('k', e.data)     AS build_obj,     -- @nullable
+  jsonb_build_object('k', e.data)     AS build_obj,     -- @notNull
   (SELECT jsonb_agg(e2.data) FROM events e2) AS json_agg,  -- @nullable
   COALESCE(e.data->>'missing', 'N/A') AS safe_access    -- @notNull
 FROM events e

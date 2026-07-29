@@ -8,5 +8,5 @@ SELECT
   CAST(NULL AS nn_text)                AS cast_null_lit,  -- @notNull
   CAST(p.name AS text)                 AS cast_text,     -- @notNull
   CAST(p.deleted_at AS text)           AS cast_nullable,  -- @nullable
-  CAST(COALESCE(p.deleted_at, 'x') AS nn_text) AS cast_coalesce  -- @notNull
+  CAST(COALESCE(p.deleted_at::text, 'x') AS nn_text) AS cast_coalesce  -- @notNull
 FROM products p

@@ -115,7 +115,7 @@ RETURNING
       WHERE oi.order_id = shipments.order_id
     ) > 500 THEN 'PRIORITY'
     ELSE 'STANDARD'
-  END                                        AS service_level,    -- @nullable
+  END                                        AS service_level,    -- @notNull
   COALESCE(
     (SELECT c.name FROM customers c
      JOIN orders o ON o.id = shipments.order_id

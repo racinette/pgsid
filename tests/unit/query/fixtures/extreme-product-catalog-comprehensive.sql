@@ -111,7 +111,7 @@ SELECT
     WHEN pr.avg_rating >= 4 THEN 'toprated'
     WHEN pr.avg_rating >= 3 THEN 'average'
     ELSE 'poor'
-  END                                      AS status,          -- @nullable
+  END                                      AS status,          -- @notNull
   CASE
     WHEN EXISTS (
       SELECT 1 FROM order_items oi
@@ -119,8 +119,8 @@ SELECT
       AND oi.quantity > 10
     ) THEN 'bulk'
     ELSE 'standard'
-  END                                      AS order_type,      -- @nullable
-  rank() OVER (ORDER BY COALESCE(pos.total_revenue, 0) DESC) AS revenue_rank,  -- @nullable
+  END                                      AS order_type,      -- @notNull
+  rank() OVER (ORDER BY COALESCE(pos.total_revenue, 0) DESC) AS revenue_rank,  -- @notNull
   count(*) OVER ()                         AS total_products,  -- @notNull
   COALESCE(
     (SELECT max(c.discount_percent)

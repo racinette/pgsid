@@ -128,11 +128,11 @@ SELECT
   COALESCE(cp.discount_percent, 0)         AS safe_discount,    -- @notNull
 
   lp.top_product_name                      AS top_product_name, -- @notNull
-  lp.top_product_revenue                   AS top_product_revenue,  -- @nullable
+  lp.top_product_revenue                   AS top_product_revenue,  -- @notNull
   COALESCE(lp.top_product_name, 'N/A')     AS safe_top_product, -- @notNull
 
-  rank() OVER (ORDER BY o.placed_at DESC)  AS recent_rank,      -- @nullable
-  rank() OVER (ORDER BY ot.order_total DESC NULLS LAST) AS value_rank,  -- @nullable
+  rank() OVER (ORDER BY o.placed_at DESC)  AS recent_rank,      -- @notNull
+  rank() OVER (ORDER BY ot.order_total DESC NULLS LAST) AS value_rank,  -- @notNull
   count(*) OVER ()                         AS total_orders,     -- @notNull
   count(*) OVER (PARTITION BY o.status)    AS status_count,     -- @notNull
 
@@ -141,14 +141,14 @@ SELECT
     WHEN ot.order_total > 100 THEN 'medium'
     WHEN ot.order_total IS NOT NULL THEN 'small'
     ELSE 'empty'
-  END                                      AS order_size,       -- @nullable
+  END                                      AS order_size,       -- @notNull
 
   CASE
     WHEN s.delivered_at IS NOT NULL THEN 'delivered'
     WHEN s.shipped_at IS NOT NULL THEN 'in_transit'
     WHEN s.id IS NOT NULL THEN 'pending_shipment'
     ELSE 'not_shipped'
-  END                                      AS shipping_status,  -- @nullable
+  END                                      AS shipping_status,  -- @notNull
 
   ROW(
     o.id,

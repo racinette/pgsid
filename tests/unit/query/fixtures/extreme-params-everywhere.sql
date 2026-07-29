@@ -28,11 +28,11 @@ SELECT
     WHEN p.price > $3::numeric THEN 'expensive'
     WHEN p.price < $2::numeric THEN 'cheap'
     ELSE 'fair'
-  END                                       AS price_tier,      -- @nullable
+  END                                       AS price_tier,      -- @notNull
   CASE
     WHEN $1 IS NULL THEN 'no filter'
     ELSE 'filtered'
-  END                                       AS filter_status,   -- @nullable
+  END                                       AS filter_status,   -- @notNull
   (
     SELECT count(*)
     FROM reviews r
@@ -58,7 +58,7 @@ SELECT
   rank() OVER (
     PARTITION BY p.category_id
     ORDER BY p.price DESC
-  )                                         AS price_rank,      -- @nullable
+  )                                         AS price_rank,      -- @notNull
   count(*) OVER ()                          AS total_results,   -- @notNull
   COALESCE(
     lower_strict(p.name),

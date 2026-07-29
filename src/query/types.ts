@@ -112,6 +112,31 @@ export interface NullabilityCatalog {
   resolveColumnNotNull(schema: string, table: string, column: string): boolean;
 
   /**
+   * The declared type OID of `schema.table.column`, or null if unknown.
+   *
+   * Needed where a column's NOT NULL *constraint* does not travel but its
+   * *type* does — notably a `SETOF <table>` function result, which carries the
+   * table's row type without any of its constraints. A domain's NOT NULL is
+   * part of the type and is still enforced there, so the type OID is the only
+   * thing left to ask about.
+   */
+  resolveColumnTypeOid(schema: string, table: string, column: string): number | null;
+
+  /**
+   * Fields of a standalone composite type (`CREATE TYPE ... AS (...)`), or
+   * null if the name is not one.
+   *
+   * A composite is the element type of `RETURNS SETOF <composite>`, where it
+   * expands to its fields exactly as a table row type does. Composites are not
+   * relations, so they are deliberately absent from `resolveTable` — a
+   * separate lookup keeps `FROM some_type` from resolving as a table.
+   */
+  resolveCompositeType(
+    schema: string | undefined,
+    name: string,
+  ): { fields: { name: string; typeOid: number }[] } | null;
+
+  /**
    * Function metadata (for FuncCall dispatch).
    *
    * Resolves by (schema, name) only — arg types are NOT available to the walk
@@ -153,6 +178,22 @@ export interface NullabilityCatalog {
    * the last statement from the sql_body before storing it here.
    */
   fnBodyAsts: Map<string, Node>;
+
+  /**
+   * Pre-parsed ASTs of view and materialized-view definitions, keyed by
+   * `"schema.name"`.
+   *
+   * PostgreSQL does not propagate `attnotnull` to view columns — every column
+   * of a view reads as nullable in `pg_attribute`, regardless of the base
+   * columns behind it. Reading the catalog flag alone would therefore make
+   * every view column nullable. Instead the walk analyzes the stored
+   * definition like a subquery and maps its output columns positionally onto
+   * the view's column list.
+   *
+   * A view whose definition isn't in this map falls back to the catalog flag
+   * (conservative nullable).
+   */
+  viewAsts: Map<string, Node>;
 }
 
 /**

@@ -9,7 +9,7 @@ WITH product_reviews AS (
 SELECT
   pr.id       AS product_id,   -- @notNull
   pr.name     AS name,         -- @notNull
-  rank() OVER (PARTITION BY pr.id ORDER BY pr.rating DESC) AS rank,  -- @nullable
+  rank() OVER (PARTITION BY pr.id ORDER BY pr.rating DESC) AS rank,  -- @notNull
   count(*) OVER (PARTITION BY pr.id) AS review_count,  -- @notNull
   COALESCE(
     lower_strict(pr.name),

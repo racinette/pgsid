@@ -108,13 +108,13 @@ RETURNING
   p.name                                    AS product_name,     -- @notNull
   p.sku                                     AS sku,              -- @notNull
   p.price                                   AS new_price,        -- @notNull
-  pa.current_price                          AS old_price,        -- @nullable
-  pa.new_price                              AS computed_new_price,  -- @nullable
-  pa.cat_avg_price                          AS category_avg,     -- @nullable
-  pa.avg_rating                             AS avg_rating,       -- @nullable
-  pa.total_sold                             AS total_sold,       -- @nullable
-  pa.review_count                           AS review_count,     -- @nullable
-  pa.unique_buyers                          AS unique_buyers,    -- @nullable
+  pa.current_price                          AS old_price,        -- @notNull
+  pa.new_price                              AS computed_new_price,  -- @notNull
+  pa.cat_avg_price                          AS category_avg,     -- @notNull
+  pa.avg_rating                             AS avg_rating,       -- @notNull
+  pa.total_sold                             AS total_sold,       -- @notNull
+  pa.review_count                           AS review_count,     -- @notNull
+  pa.unique_buyers                          AS unique_buyers,    -- @notNull
   COALESCE(pa.current_price, p.price)       AS safe_old_price,   -- @notNull
   COALESCE(pa.avg_rating, 0)                AS safe_rating,     -- @notNull
   COALESCE(pa.total_sold, 0)                AS safe_sold,       -- @notNull
@@ -124,12 +124,12 @@ RETURNING
   COALESCE(lower_strict(p.name), 'x')       AS safe_lower_name,  -- @notNull
   always_text(p.name)                       AS guaranteed_name,  -- @notNull
   always_positive(p.price)                  AS guaranteed_price, -- @notNull
-  pa.adjustment_reason                      AS adjustment_reason,  -- @nullable
+  pa.adjustment_reason                      AS adjustment_reason,  -- @notNull
   CASE
     WHEN pa.new_price > pa.current_price THEN 'INCREASED'
     WHEN pa.new_price < pa.current_price THEN 'DECREASED'
     ELSE 'UNCHANGED'
-  END                                       AS price_direction,  -- @nullable
+  END                                       AS price_direction,  -- @notNull
   COALESCE(
     pa.new_price - pa.current_price,
     0
@@ -142,7 +142,7 @@ RETURNING
       2
     )
     ELSE 0
-  END                                       AS percent_change,   -- @nullable
+  END                                       AS percent_change,   -- @notNull
   (
     SELECT c.name
     FROM categories c

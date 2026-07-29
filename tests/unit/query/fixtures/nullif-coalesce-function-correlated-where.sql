@@ -7,7 +7,7 @@ SELECT
   p.name  AS name,         -- @notNull
   COALESCE(NULLIF(p.sku, 'UNKNOWN'), 'MISSING') AS safe_sku,  -- @notNull
   lower_strict(p.name)    AS lower_name,  -- @notNull
-  lower_strict(p.deleted_at) AS lower_deleted  -- @nullable
+  lower_strict(p.deleted_at::text) AS lower_deleted  -- @nullable
 FROM products p
 WHERE p.price >= (
   SELECT avg(p2.price)

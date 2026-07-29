@@ -7,5 +7,6 @@ SELECT
   multi_stmt_fn(p.name)            AS from_table,   -- @nullable
   double_val(p.id)                 AS no_from,      -- @notNull
   pass_through(p.name)             AS atomic_no_from, -- @notNull
-  count_it(p.id)                   AS user_agg      -- @nullable
+  count_it(p.id)                   AS user_agg      -- @notNull
 FROM products p
+GROUP BY p.id

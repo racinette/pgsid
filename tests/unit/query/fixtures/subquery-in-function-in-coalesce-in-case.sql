@@ -2,7 +2,8 @@
 -- Deepest expression nesting: CASE → COALESCE → function call → scalar subquery.
 -- The scalar subquery (count) is single-row-guaranteed and count is non-null,
 -- so lower_strict(count) is non-null (strict + non-null arg), so COALESCE
--- is non-null, but CASE wraps it → conservative nullable.
+-- is non-null. The CASE has an ELSE and both branches are non-null, so the
+-- whole expression is non-null.
 SELECT
   p.id    AS product_id,   -- @notNull
   p.name  AS name,         -- @notNull
@@ -15,5 +16,5 @@ SELECT
       ),
       'active'
     )
-  END AS status   -- @nullable
+  END AS status   -- @notNull
 FROM products p

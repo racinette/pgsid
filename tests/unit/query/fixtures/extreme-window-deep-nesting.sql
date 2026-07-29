@@ -1,6 +1,6 @@
 -- Window function in a CTE, referenced by an outer query with WHERE
--- promotion. The window column (rank) is conservatively nullable and is
--- used in COALESCE. count(*) OVER is always non-null. The CTE's LEFT JOIN
+-- promotion. rank() is never NULL, so the COALESCE around it is redundant
+-- but harmless. count(*) OVER is always non-null. The CTE's LEFT JOIN
 -- makes rating optional, but name stays non-null (required side).
 WITH product_window AS (
   SELECT

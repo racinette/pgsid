@@ -3,5 +3,5 @@
 -- a nullable column from a LEFT JOIN.
 SELECT
   always_text(p.name)         AS guaranteed,    -- @notNull
-  always_text(p.deleted_at)   AS from_nullable  -- @notNull
+  always_text(p.deleted_at::text)   AS from_nullable  -- @notNull
 FROM products p

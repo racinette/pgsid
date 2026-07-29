@@ -3,7 +3,7 @@
 SELECT
   sub.order_id    AS order_id,    -- @notNull
   sub.item_count  AS item_count,  -- @notNull
-  sub.total       AS total        -- @nullable
+  sub.total       AS total        -- @notNull
 FROM (
   SELECT
     oi.order_id                       AS order_id,

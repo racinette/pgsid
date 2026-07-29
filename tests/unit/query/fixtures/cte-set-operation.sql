@@ -6,7 +6,7 @@ WITH nonnull_source AS (
   SELECT id, name FROM products WHERE deleted_at IS NULL
 ),
 null_source AS (
-  SELECT id, deleted_at AS name FROM products
+  SELECT id, deleted_at::text AS name FROM products
 )
 SELECT id   AS id,    -- @notNull
        name AS name   -- @nullable

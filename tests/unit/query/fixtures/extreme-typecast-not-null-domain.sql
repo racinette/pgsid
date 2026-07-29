@@ -9,5 +9,5 @@ SELECT
   p.deleted_at::nn_text            AS nullable_cast_domain,  -- @notNull
   p.name::text                     AS cast_text,         -- @notNull
   p.deleted_at::text               AS nullable_cast_text,  -- @nullable
-  COALESCE(p.deleted_at, 'x')::nn_text AS coalesce_domain  -- @notNull
+  COALESCE(p.deleted_at::text, 'x')::nn_text AS coalesce_domain  -- @notNull
 FROM products p

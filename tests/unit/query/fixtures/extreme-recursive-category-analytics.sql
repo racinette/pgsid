@@ -93,13 +93,13 @@ SELECT
   cs.shipped_count                         AS shipped_count,     -- @notNull
   lower_strict(cs.name)                    AS lower_name,        -- @notNull
   COALESCE(lower_strict(cs.slug), 'none')  AS safe_slug,         -- @notNull
-  rank() OVER (ORDER BY cs.product_count DESC) AS popularity_rank,  -- @nullable
+  rank() OVER (ORDER BY cs.product_count DESC) AS popularity_rank,  -- @notNull
   count(*) OVER ()                         AS total_categories,  -- @notNull
   CASE
     WHEN cs.product_count > 10 THEN 'large'
     WHEN cs.product_count > 0 THEN 'small'
     ELSE 'empty'
-  END                                      AS size_category,    -- @nullable
+  END                                      AS size_category,    -- @notNull
   COALESCE(
     always_text(cs.name),
     'unnamed'

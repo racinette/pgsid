@@ -8,5 +8,5 @@ UPDATE products SET price = 0 WHERE deleted_at IS NOT NULL
 RETURNING
   id                              AS id,          -- @notNull
   name                            AS name,        -- @notNull
-  COALESCE(deleted_at, now())     AS deleted,     -- @nullable
+  COALESCE(deleted_at, now())     AS deleted,     -- @notNull
   (SELECT count(*) FROM archived) AS archived_cnt  -- @notNull

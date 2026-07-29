@@ -109,6 +109,9 @@ interface FunctionRow {
   proargmodes: string[] | null;
   pronargs: number;
   pronargdefaults: number;
+  /** `pg_aggregate.agginitval` for aggregates; null otherwise (and null when
+   *  the aggregate has no initial condition). */
+  agg_init_val: string | null;
 }
 
 interface EnumTypeRow {
@@ -515,6 +518,7 @@ export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     language: f.language,
     isProcedure: f.prokind === "p",
     isAggregate: f.prokind === "a",
+    aggInitVal: f.agg_init_val ?? null,
     isWindow: f.prokind === "w",
     securityDefiner: f.prosecdef,
     strict: f.proisstrict,
@@ -801,10 +805,12 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
             p.proargnames,
             p.proargmodes,
             p.pronargs,
-            p.pronargdefaults
+            p.pronargdefaults,
+            a.agginitval AS agg_init_val
      FROM pg_proc p
      JOIN pg_namespace n ON n.oid = p.pronamespace
      JOIN pg_language l ON l.oid = p.prolang
+     LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
      WHERE ${USER_NS}
      ORDER BY n.nspname, p.proname;`,
   );

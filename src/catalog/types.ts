@@ -144,6 +144,14 @@ export interface FunctionInfo {
   language: string;
   isProcedure: boolean;
   isAggregate: boolean;
+  /**
+   * `pg_aggregate.agginitval` — the aggregate's initial state value, or null
+   * for non-aggregates and for aggregates declared without an INITCOND.
+   *
+   * A non-null INITCOND is what makes an aggregate non-null over zero input
+   * rows: with no rows to transition, the initial state *is* the result.
+   */
+  aggInitVal: string | null;
   isWindow: boolean;
   securityDefiner: boolean;
   strict: boolean;

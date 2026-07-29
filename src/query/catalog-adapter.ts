@@ -26,7 +26,13 @@ export async function buildNullabilityCatalog(
   // Build table lookup map.
   const tableMap = new Map<
     string,
-    { schema: string; name: string; columns: string[]; notNullCols: Set<string> }
+    {
+      schema: string;
+      name: string;
+      columns: string[];
+      notNullCols: Set<string>;
+      colTypeOids: Map<string, number>;
+    }
   >();
   for (const t of snapshot.tables) {
     const columns = t.columns.map(c => c.name);
@@ -38,6 +44,7 @@ export async function buildNullabilityCatalog(
       name: t.name,
       columns,
       notNullCols,
+      colTypeOids: new Map(t.columns.map(c => [c.name, c.typeOid])),
     });
   }
   // Views have columns too — treat them like tables for resolution.
@@ -51,6 +58,7 @@ export async function buildNullabilityCatalog(
       name: v.name,
       columns,
       notNullCols,
+      colTypeOids: new Map(v.columns.map(c => [c.name, c.typeOid])),
     });
   }
 
@@ -90,6 +98,21 @@ export async function buildNullabilityCatalog(
     if (ast) fnBodyAsts.set(fnKey, ast);
   }
 
+  // Pre-parse view definitions. `pg_views.definition` is the rewritten SELECT
+  // without a trailing semicolon in some versions — parseSql handles both.
+  const viewAsts = new Map<string, Node>();
+  for (const v of [...snapshot.views, ...snapshot.materializedViews]) {
+    if (!v.definition) continue;
+    try {
+      const parsed = await parseSql(v.definition);
+      const stmt = parsed.stmts?.[0]?.stmt;
+      if (stmt) viewAsts.set(`${v.schema}.${v.name}`, stmt);
+    } catch {
+      // An unparseable definition just means the view falls back to the
+      // catalog's (conservative) nullability.
+    }
+  }
+
   const resolveTable = (
     schema: string | undefined,
     name: string,
@@ -125,6 +148,32 @@ export async function buildNullabilityCatalog(
     const t = tableMap.get(`${schema}.${table}`);
     if (!t) return false;
     return t.notNullCols.has(column);
+  };
+
+  const resolveColumnTypeOid = (
+    schema: string,
+    table: string,
+    column: string,
+  ): number | null => {
+    const t = tableMap.get(`${schema}.${table}`);
+    return t?.colTypeOids.get(column) ?? null;
+  };
+
+  const compositeTypes = new Map<string, { fields: { name: string; typeOid: number }[] }>();
+  for (const ct of snapshot.compositeTypes) {
+    compositeTypes.set(`${ct.schema}.${ct.name}`, {
+      fields: ct.attributes.map(a => ({ name: a.name, typeOid: a.typeOid })),
+    });
+  }
+
+  const resolveCompositeType = (
+    schema: string | undefined,
+    name: string,
+  ): { fields: { name: string; typeOid: number }[] } | null => {
+    const s = schema ?? "public";
+    return compositeTypes.get(`${s}.${name}`)
+      ?? (schema ? null : compositeTypes.get(`public.${name}`))
+      ?? null;
   };
 
   const resolveFunctionMetadata = (
@@ -164,10 +213,13 @@ export async function buildNullabilityCatalog(
     resolveTable,
     resolveFunction,
     resolveColumnNotNull,
+    resolveColumnTypeOid,
+    resolveCompositeType,
     resolveFunctionMetadata,
     isNotNullDomain,
     isNotNullDomainByName,
     fnBodyAsts,
+    viewAsts,
   };
 }
 

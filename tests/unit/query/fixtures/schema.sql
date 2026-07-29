@@ -143,13 +143,17 @@ CREATE TABLE reviews (
 
 -- Views ----------------------------------------------------------------
 
--- Simple updatable view (PG propagates attnotnull from base columns).
+-- Simple updatable view. PG does NOT propagate attnotnull to view columns —
+-- pg_attribute reports false for all five. The walk recovers the base
+-- columns' nullability by analyzing this definition.
 CREATE VIEW active_products AS
   SELECT id, category_id, sku, name, price
   FROM products
   WHERE deleted_at IS NULL;
 
--- Aggregate view (all columns nullable — aggregates over optional rows).
+-- Aggregate view. GROUP BY emits no empty groups and unit_price/quantity are
+-- NOT NULL, so count(*) and the sum are both non-null at the view level;
+-- an outer join onto the view is what makes them nullable at a use site.
 CREATE VIEW order_summary AS
   SELECT
     order_id,
@@ -344,7 +348,38 @@ CREATE FUNCTION insert_tag(p_name text) RETURNS integer
   AS $$ INSERT INTO tags (id, name) VALUES (200, $1) RETURNING id $$;
 
 -- LANGUAGE sql function wrapping UPDATE...RETURNING (can match zero rows).
--- The walk conservatively returns nullable (UPDATE WHERE may match nothing).
+-- The walk returns nullable (the UPDATE's WHERE may match nothing).
 CREATE FUNCTION update_tag_price(p_id integer, p_name text) RETURNS text
   LANGUAGE sql
   AS $$ UPDATE tags SET name = $2 WHERE id = $1 RETURNING name $$;
+
+-- LANGUAGE sql function wrapping INSERT ... ON CONFLICT DO NOTHING RETURNING.
+-- Contrast with insert_tag above: VALUES still supplies exactly one row, but
+-- ON CONFLICT DO NOTHING suppresses it on a key collision and RETURNING
+-- reports only rows actually written — so the function can return NULL.
+CREATE FUNCTION insert_tag_upsert(p_id integer, p_name text) RETURNS integer
+  LANGUAGE sql
+  AS $$ INSERT INTO tags (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING id $$;
+
+-- Set-returning function with an explicit column list. A domain's NOT NULL is
+-- part of the type and IS enforced on function output; a plain column
+-- constraint is not (see get_order_items and the fixture that covers it).
+CREATE FUNCTION order_lines(p_order_id integer)
+  RETURNS TABLE(line_id integer, label nn_text, qty integer)
+  LANGUAGE sql
+  AS $$ SELECT oi.id, oi.id::text, oi.quantity FROM order_items oi WHERE oi.order_id = $1 $$;
+
+-- Set-returning function over a NOT NULL domain: the element type carries the
+-- constraint, so the single output column is non-null.
+CREATE FUNCTION active_skus() RETURNS SETOF non_empty_text
+  LANGUAGE sql
+  AS $$ SELECT p.sku FROM products p WHERE p.deleted_at IS NULL $$;
+
+-- Standalone composite type (not a table), used as a SETOF element type.
+-- A composite's NOT NULL-free field list is the whole story: like a table row
+-- type, it carries types only.
+CREATE TYPE sku_pair AS (sku text, qty integer);
+
+CREATE FUNCTION sku_pairs() RETURNS SETOF sku_pair
+  LANGUAGE sql
+  AS $$ SELECT p.sku, 1 FROM products p $$;
