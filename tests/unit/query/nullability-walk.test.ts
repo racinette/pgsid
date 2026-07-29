@@ -6,7 +6,8 @@ import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullability } from "../../../src/query/nullability-walk.js";
+import { inferNullability, inferNullabilityTraced } from "../../../src/query/nullability-walk.js";
+import { formatColumnTrace } from "../../../src/query/trace-printer.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
@@ -15,10 +16,18 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 //      catalog, and builds a NullabilityCatalog from the snapshot.
 //   2. For each fixture .sql file: parses the SQL, runs inferNullability with
 //      the shared catalog, and asserts each output column matches its
-//      inline `-- notNull` / `-- nullable` annotation.
+//      inline `-- @notNull` / `-- @nullable` annotation.
 //
 // Fixtures are pure SQL + annotations — no mock catalog JSON needed.
+//
+// Tracing: set the TRACE_NULLABILITY environment variable to dump the full
+// decision tree for every output column. Filter by test name with vitest's
+// -t flag:
+//
+//   TRACE_NULLABILITY=1 pnpm vitest run tests/unit/query/nullability-walk.test.ts -t extreme-activity-feed
 // ---------------------------------------------------------------------------
+
+const TRACE = !!process.env.TRACE_NULLABILITY;
 
 const FIXTURES_DIR = join(__dirname, "fixtures");
 const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
@@ -81,17 +90,43 @@ describe("nullability-walk", () => {
       expect(parsed.stmts?.length ?? 0).toBeGreaterThan(0);
 
       const stmt = parsed.stmts![0]!.stmt!;
-      const results = inferNullability(stmt, catalog);
 
-      expect(results.length).toBe(expectations.length);
-
-      for (let i = 0; i < expectations.length; i++) {
-        const expected = expectations[i]!;
-        const actual = results[i]?.notNull ?? false;
-        expect(
-          actual,
-          `Column ${i} (${results[i]?.name ?? "?"}): expected ${expected ? "notNull" : "nullable"}, got ${actual ? "notNull" : "nullable"}`,
-        ).toBe(expected);
+      if (TRACE) {
+        const traced = inferNullabilityTraced(stmt, catalog);
+        expect(traced.length).toBe(expectations.length);
+        const traces: string[] = [];
+        for (let i = 0; i < expectations.length; i++) {
+          const expected = expectations[i]!;
+          const r = traced[i];
+          const actual = r?.notNull ?? false;
+          if (actual !== expected) {
+            // Print trace on mismatch before failing
+            console.log(formatColumnTrace(r?.name ?? "?", actual, r?.trace));
+          }
+          expect(
+            actual,
+            `Column ${i} (${r?.name ?? "?"}): expected ${expected ? "notNull" : "nullable"}, got ${actual ? "notNull" : "nullable"}\n${r?.trace ? formatColumnTrace(r.name ?? "?", actual, r.trace) : ""}`,
+          ).toBe(expected);
+        }
+        // When tracing is on, always print all traces
+        for (const r of traced) {
+          traces.push(formatColumnTrace(r.name ?? "?", r.notNull, r.trace));
+        }
+        console.log(`\n${"═".repeat(70)}`);
+        console.log(`Fixture: ${testName} (${traced.length} columns)`);
+        console.log(`${"═".repeat(70)}`);
+        for (const t of traces) console.log(t);
+      } else {
+        const results = inferNullability(stmt, catalog);
+        expect(results.length).toBe(expectations.length);
+        for (let i = 0; i < expectations.length; i++) {
+          const expected = expectations[i]!;
+          const actual = results[i]?.notNull ?? false;
+          expect(
+            actual,
+            `Column ${i} (${results[i]?.name ?? "?"}): expected ${expected ? "notNull" : "nullable"}, got ${actual ? "notNull" : "nullable"}`,
+          ).toBe(expected);
+        }
       }
     });
   }
