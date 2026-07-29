@@ -163,3 +163,46 @@ export interface OutputNullability {
   name: string;
   notNull: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Nullability trace tree — explains why a column is nullable or non-null.
+// ---------------------------------------------------------------------------
+
+/**
+ * A single fact that contributed to a nullability decision.
+ * Example: `{ name: "catalog.notNull", value: "true" }`
+ */
+export interface TraceFact {
+  name: string;
+  value: string;
+}
+
+/**
+ * A node in the nullability decision tree. Each node represents one
+ * expression or column resolution, recording the facts considered, the
+ * final decision, and the reason (which fact was decisive). Children
+ * represent sub-decisions (e.g. args of a COALESCE, inner scope of a CTE).
+ */
+export interface TraceNode {
+  /** Human-readable label (e.g. "ColumnRef: o.id", "CoalesceExpr", "FuncCall: lower_strict"). */
+  label: string;
+  /** The facts considered at this decision point. */
+  facts: TraceFact[];
+  /** The final nullability decision: true = non-null, false = nullable. */
+  decision: boolean;
+  /** Why this decision was reached (the decisive factor). */
+  reason: string;
+  /** Sub-decisions that fed into this one. */
+  children: TraceNode[];
+}
+
+/**
+ * Per-output-column result with an optional trace tree explaining the
+ * decision. The trace is present when `inferNullabilityTraced` is used;
+ * absent (or `trace` is undefined) for the plain `inferNullability` call.
+ */
+export interface OutputNullabilityTraced {
+  name: string;
+  notNull: boolean;
+  trace?: TraceNode;
+}
