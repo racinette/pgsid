@@ -8,6 +8,13 @@
 --
 -- $1 = customer email filter, $2 = min price, $3 = max price,
 -- $4 = category id, $5 = min rating, $6 = search term, $7 = limit
+--
+-- $2 and $3 bound the price range and $7 the row count, so all three carry
+-- values in every binding: NULL in any of them makes the WHERE false and the
+-- fixture asserts nothing. $4, $5 and $6 are each guarded by an `OR $n IS NULL`
+-- disjunct and so are exercised both ways.
+-- @args ["a@b.c", 0, 10000, null, null, null, 10]
+-- @args [null, 0, 10000, null, 1, "%", 10]
 
 SELECT
   p.id                                      AS product_id,       -- @notNull

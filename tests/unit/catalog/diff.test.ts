@@ -8,9 +8,6 @@ import type {
   TableInfo,
   ViewInfo,
   IndexInfo,
-  EnumInfo,
-  DomainInfo,
-  CompositeTypeInfo,
   SequenceInfo,
   ExtensionInfo,
   SchemaInfo,
@@ -229,6 +226,7 @@ describe("diffCatalogs: functions", () => {
       volatile: "volatile",
       cost: 100,
       rows: 0,
+      aggInitVal: null,
       body: "",
       definition: "",
       ...extra,
@@ -317,14 +315,14 @@ describe("diffCatalogs: enums", () => {
 
 describe("diffCatalogs: domains", () => {
   it("base type change → domain modified", () => {
-    const before = snapshot({ domains: [{ schema: "public", name: "posint", baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, check: "CHECK (value > 0)" }] });
-    const after = snapshot({ domains: [{ schema: "public", name: "posint", baseTypeOid: 20, baseTypeName: "bigint", notNull: false, default: null, check: "CHECK (value > 0)" }] });
+    const before = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, check: "CHECK (value > 0)" }] });
+    const after = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 20, baseTypeName: "bigint", notNull: false, default: null, check: "CHECK (value > 0)" }] });
     expect(diffCatalogs(before, after).modified.map(m => m.entityId)).toEqual(["public.posint"]);
   });
 
   it("NOT NULL change → domain modified", () => {
-    const before = snapshot({ domains: [{ schema: "public", name: "posint", baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, check: null }] });
-    const after = snapshot({ domains: [{ schema: "public", name: "posint", baseTypeOid: 23, baseTypeName: "integer", notNull: true, default: null, check: null }] });
+    const before = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, check: null }] });
+    const after = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: true, default: null, check: null }] });
     expect(diffCatalogs(before, after).modified.map(m => m.entityId)).toEqual(["public.posint"]);
   });
 });
@@ -443,7 +441,7 @@ describe("diffCatalogs: determinism + mixed", () => {
         returnType: "integer", returnTypeOid: 23, language: "plpgsql",
         isProcedure: false, isAggregate: false, isWindow: false,
         securityDefiner: false, strict: false, volatile: "volatile",
-        cost: 100, rows: 0, body: "", definition: "",
+        cost: 100, rows: 0, aggInitVal: null, body: "", definition: "",
       }],
     });
     const after = snapshot({

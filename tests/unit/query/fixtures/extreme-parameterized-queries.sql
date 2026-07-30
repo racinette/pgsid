@@ -1,6 +1,12 @@
 -- Parameterized queries ($1, $2, $3) in multiple contexts.
 -- ParamRef is conservative nullable (no PREPARE type info).
 -- Tests: params in SELECT, WHERE, function args, subqueries, COALESCE, CASE.
+--
+-- $1 is used both as text and as `$1::integer`, so it is bound to a numeric
+-- string. $2 selects the customer the query is about; NULL there makes the
+-- WHERE false and the fixture asserts nothing.
+-- @args ["10", 1, 1]
+-- @args [null, 1, 1]
 SELECT
   $1                                    AS direct_param,       -- @nullable
   COALESCE($1, 'fallback')              AS coalesced_param,     -- @notNull

@@ -986,9 +986,8 @@ describe("SchemaBuilder: trigger corner cases", () => {
       JOIN pg_class c ON c.oid = t.tgrelid
       WHERE c.relname = 'replace_trg_t' AND NOT t.tgisinternal;
     `);
-    const trgOid = trgOids.rows[0]!.oid;
+    expect(trgOids.rows[0]).toBeDefined();
 
-    const prov = builder.getProvenanceForTesting();
     // We can't directly inspect trigger provenance (it's private), but we
     // can verify via validate() that the relatedLocations point at mig1
     // (the REPLACE), not mig0 (the original CREATE).
@@ -1151,7 +1150,6 @@ describe("SchemaBuilder: implicit creation via side effects", () => {
     // not a CreateFunctionStmt). The range may be the whole SELECT
     // statement or a line within it — either way, it's in the right
     // migration file.
-    const sourceText = source.toString("utf8");
     // Verify the range is within the source buffer.
     expect(createdDiags[0]!.range!.start).toBeGreaterThanOrEqual(0);
     expect(createdDiags[0]!.range!.end).toBeLessThanOrEqual(source.length);
@@ -1215,16 +1213,8 @@ describe("SchemaBuilder: implicit creation via side effects", () => {
     let myDiags = diags.filter(d => d.message.includes("use_cascade_t"));
     expect(myDiags).toEqual([]);
 
-    // Migration 1: drop the function via dynamic SQL from a SELECT.
-    // This is not a DropFunctionStmt — it's a SELECT that indirectly drops.
-    const mig1 = Buffer.from(
-      "SELECT public.dropper_fn2();\n" +
-      // We need dropper_fn2 to exist — create it in mig0.
-      "",
-      "utf8",
-    );
-    // Actually, let's just use a direct DROP FUNCTION — the point is that
-    // the diff catches it regardless of statement kind.
+    // Migration 1: drop the function with a direct DROP FUNCTION — the point
+    // is that the diff catches it regardless of statement kind.
     const mig1Fixed = Buffer.from(
       "DROP FUNCTION public.use_cascade_t();\n",
       "utf8",

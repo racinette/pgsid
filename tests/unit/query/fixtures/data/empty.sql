@@ -1,0 +1,9 @@
+-- Data state: empty.
+--
+-- No rows anywhere. This is the most adversarial of the states, not the least:
+-- it drives every aggregate over zero input rows, leaves every outer join
+-- unmatched, and makes every scalar subquery return nothing. A `notNull` claim
+-- that survives here has survived the case most likely to break it.
+--
+-- Intentionally contentless — the file exists so that the set of data states is
+-- one directory rather than one directory plus a special case in the driver.

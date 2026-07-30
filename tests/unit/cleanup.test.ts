@@ -97,14 +97,14 @@ describe("cleanupPg", () => {
     await pg.exec("CREATE SCHEMA s1;");
 
     // Verify it's set.
-    const before = await pg.query("SHOW search_path;");
+    const before = await pg.query<Record<string, string>>("SHOW search_path;");
     expect(String(before.rows[0]!["search_path"])).toContain("s1");
 
     // Clean up.
     await cleanupPg(pg);
 
     // Verify it's reset.
-    const after = await pg.query("SHOW search_path;");
+    const after = await pg.query<Record<string, string>>("SHOW search_path;");
     expect(String(after.rows[0]!["search_path"])).not.toContain("s1");
   });
 
@@ -113,14 +113,14 @@ describe("cleanupPg", () => {
     await pg.exec("SET check_function_bodies TO on;");
 
     // Verify it's set.
-    const before = await pg.query("SHOW check_function_bodies;");
+    const before = await pg.query<Record<string, string>>("SHOW check_function_bodies;");
     expect(String(before.rows[0]!["check_function_bodies"])).toBe("on");
 
     // Clean up.
     await cleanupPg(pg);
 
     // Verify it's reset (default is on).
-    const after = await pg.query("SHOW check_function_bodies;");
+    const after = await pg.query<Record<string, string>>("SHOW check_function_bodies;");
     expect(String(after.rows[0]!["check_function_bodies"])).toBe("on");
   });
 

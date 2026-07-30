@@ -59,6 +59,8 @@ interface ConstraintRow {
   name: string;
   contype: string; // 'p' | 'u' | 'f' | 'c' | 'x'
   conrelid: number;
+  /** The referenced relation for a foreign key; 0 for every other type. */
+  confrelid: number;
   foreign_schema: string | null;
   foreign_table: string | null;
   conkey: number[] | string | null;
@@ -436,8 +438,12 @@ export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       columns: resolveAttnums(con.conrelid, toNumArray(con.conkey), attnumIdx),
       foreignSchema: con.foreign_schema,
       foreignTable: con.foreign_table,
+      // `confkey` numbers columns of the *referenced* relation, so it resolves
+      // against `confrelid`. Resolving it against `conrelid` yields the
+      // referencing table's column at the same position, which is a plausible
+      // name and the wrong one.
       foreignColumns: con.contype === "f"
-        ? resolveAttnums(con.conrelid, toNumArray(con.confkey), attnumIdx)
+        ? resolveAttnums(con.confrelid, toNumArray(con.confkey), attnumIdx)
         : null,
       definition: con.definition,
     };
@@ -717,7 +723,7 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
 
 async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
   const res = await pg.query<ConstraintRow>(
-    `SELECT con.conname AS name, con.contype, con.conrelid,
+    `SELECT con.conname AS name, con.contype, con.conrelid, con.confrelid,
             tn.nspname AS foreign_schema,
             tc.relname AS foreign_table,
             con.conkey, con.confkey,

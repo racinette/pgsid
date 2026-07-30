@@ -220,7 +220,6 @@ describe("SchemaBuilder: DOMAIN type consistency", () => {
     // Validate — re-CREATE with check_function_bodies=on should catch
     // the constraint violation at plan time.
     const diags = await builder.validate(pg);
-    const myDiags = diags.filter(d => d.message.includes("bad_dom_return") || d.message.includes("posnum"));
     // PG may or may not catch this at plan time (CHECK constraints on
     // domains are enforced at runtime, not necessarily at CREATE time).
     // Just verify it doesn't crash.

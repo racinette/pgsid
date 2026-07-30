@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseMigrationFile, diffStatementChains, statementHash } from "../../src/ast.js";
+import { parseMigrationFile, diffStatementChains } from "../../src/ast.js";
 
 // A long migration file with diverse statement types.
 const BASE_MIGRATION = `

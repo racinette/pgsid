@@ -5,7 +5,7 @@ import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
 import { inferNullabilityTraced } from "../../../src/query/nullability-walk.js";
-import type { NullabilityCatalog, TraceNode } from "../../../src/query/types.js";
+import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 describe("nullability-walk-traced", () => {
   let pg: PGlite;

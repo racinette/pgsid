@@ -1,0 +1,254 @@
+// ---------------------------------------------------------------------------
+// The generator registries for the fixture schema.
+//
+// Two tiers, resolved most-specific-first (see `generate.ts` for the full
+// resolution order). Neither tier ever returns NULL: whether a cell is NULL is
+// the framework's decision, taken from the catalog before the generator runs.
+//
+// A type entry has to satisfy every CHECK its type carries, which is why a
+// domain gets its own entry rather than inheriting its base type's generator —
+// `discount_percent` is `numeric` constrained to 0..100, and the plain numeric
+// generator would violate it about as often as not.
+//
+// A column entry exists when a value has to fall inside a *query's* vocabulary
+// rather than merely its type's: `orders.status` must sometimes be
+// `'fulfilled'` because fixtures filter on it, and a random string would leave
+// those fixtures returning nothing.
+// ---------------------------------------------------------------------------
+
+import {
+  nullRate,
+  type ColumnGenerator,
+  type GeneratorRegistry,
+  type NullPolicy,
+} from "./generate.js";
+
+// ---------------------------------------------------------------------------
+// Vocabularies
+// ---------------------------------------------------------------------------
+
+const WORDS = [
+  "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta",
+] as const;
+
+/**
+ * A deliberately tiny vocabulary for the free-text columns of `t` and `u`.
+ * `set-intersect.sql` intersects `t.val` with `u.val`; drawn from a large
+ * space the two would never meet and the fixture would assert nothing.
+ */
+const SHARED_VALS = ["x", "y", "z", "a"] as const;
+
+const TIMESTAMPS = [
+  "2024-01-15 09:30:00+00",
+  "2024-02-29 23:59:59+00",
+  "2024-06-01 12:00:00+00",
+  "2024-11-03 04:15:00+00",
+  "2025-03-21 18:45:00+00",
+] as const;
+
+// ---------------------------------------------------------------------------
+// Tier 2: by type
+// ---------------------------------------------------------------------------
+
+const typeSpecificGenerators: Record<string, Record<string, ColumnGenerator>> = {
+  public: {
+    integer: rand => rand.int(1, 500),
+    bigint: rand => rand.int(1, 500),
+    smallint: rand => rand.int(1, 100),
+    text: (rand, ctx) => `${rand.pick(WORDS)}-${ctx.row}`,
+    boolean: rand => rand.chance(0.5),
+    numeric: rand => rand.decimal(1, 1000, 2),
+    "double precision": rand => rand.decimal(0, 1000, 4),
+    "timestamp with time zone": rand => rand.pick(TIMESTAMPS),
+    "timestamp without time zone": rand => rand.pick(TIMESTAMPS).slice(0, 19),
+    date: rand => rand.pick(TIMESTAMPS).slice(0, 10),
+    jsonb: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
+    json: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
+
+    // Domains. Each has to satisfy its own CHECK.
+    nn_text: (rand, ctx) => `${rand.pick(WORDS)}-${ctx.row}`,
+    non_empty_text: rand => rand.pick(WORDS),
+    positive_amount: rand => rand.decimal(0.01, 500, 2),
+    discount_percent: rand => rand.decimal(0, 100, 2),
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Tier 1: by column
+// ---------------------------------------------------------------------------
+
+/** 1, 2, 3, … — for the key columns of tables that declare no primary key. */
+const sequential: ColumnGenerator = (_rand, ctx) => ctx.row + 1;
+
+/** Uniform over an already-generated column of another table. */
+function drawFrom(table: string, column: string): ColumnGenerator {
+  return (rand, ctx) => {
+    const candidates = ctx.values(table, column).filter(v => v !== null && v !== undefined);
+    if (candidates.length === 0) {
+      throw new Error(`${table}.${column} produced no non-NULL values to draw from`);
+    }
+    return rand.pick(candidates);
+  };
+}
+
+const columnSpecificGenerators: Record<
+  string,
+  Record<string, Record<string, ColumnGenerator>>
+> = {
+  public: {
+    // -- t / u / v ---------------------------------------------------------
+    // These three declare no keys and no foreign keys, but the fixtures join
+    // them as though they did (`ON u.t_id = t.id`). The join predicate is what
+    // makes the reference real, so the generator has to honour it: without
+    // this, every one of the ~35 fixtures over t/u/v returns zero rows.
+    t: {
+      id: sequential,
+      name: rand => rand.pick(SHARED_VALS),
+      val: rand => rand.pick(SHARED_VALS),
+    },
+    u: {
+      id: sequential,
+      // A quarter of the rows dangle. `u` declares no foreign key, and the
+      // RIGHT and FULL JOIN fixtures over it need a right-hand row with no
+      // left-hand match — with every reference resolving, an outer join is an
+      // inner join and its NULL-extended columns are never observed.
+      t_id: (rand, ctx) => {
+        const ids = ctx.values("t", "id").filter(v => typeof v === "number") as number[];
+        if (ids.length === 0) throw new Error("t generated no ids for u.t_id to reference");
+        if (rand.chance(0.25)) return Math.max(...ids) + 1 + rand.int(0, 5);
+        return rand.pick(ids);
+      },
+      email: (_rand, ctx) => `u${ctx.row + 1}@example.com`,
+      val: rand => rand.pick(SHARED_VALS),
+      status: rand => rand.pick(["active", "inactive", "pending"]),
+    },
+    v: {
+      id: sequential,
+      u_id: drawFrom("u", "id"),
+      amount: rand => rand.decimal(1, 500, 2),
+    },
+
+    // -- e-commerce --------------------------------------------------------
+    categories: {
+      slug: (_rand, ctx) => `cat-${ctx.row + 1}`,
+      name: (rand, ctx) => `${rand.pick(WORDS)} category ${ctx.row + 1}`,
+    },
+    customers: {
+      email: (_rand, ctx) => `c${ctx.row + 1}@example.com`,
+      // A quarter of the names are the literal several fixtures compare
+      // against (`c.name = 'x'`); the rest defer to the text generator rather
+      // than restating what a text column looks like.
+      name: (rand, ctx) => (rand.chance(0.25) ? "x" : ctx.ofType()),
+    },
+    products: {
+      sku: (_rand, ctx) => `SKU-${ctx.row + 1}`,
+      name: rand => rand.pick(WORDS),
+      // Spanning the thresholds fixtures compare against (5, 100, 500).
+      price: rand => rand.pick([5, 12.5, 99, 150, 480, 900]),
+    },
+    orders: {
+      status: rand => rand.pick(["pending", "fulfilled", "shipped", "cancelled"]),
+    },
+    order_items: {
+      // Above and below the "bulk order" thresholds fixtures test (10, 50).
+      quantity: rand => rand.pick([1, 2, 5, 12, 60, 80]),
+      unit_price: rand => rand.decimal(1, 900, 2),
+    },
+    reviews: {
+      rating: rand => rand.int(1, 5),
+      comment: rand => `${rand.pick(WORDS)} review`,
+    },
+    addresses: {
+      line1: (rand, ctx) => `${ctx.row + 1} ${rand.pick(WORDS)} street`,
+      line2: rand => `unit ${rand.int(1, 40)}`,
+      city: rand => rand.pick(WORDS),
+      state: rand => rand.pick(["CA", "NY", "TX", "WA"]),
+      postal_code: rand => String(rand.int(10000, 99999)),
+      country: rand => rand.pick(["US", "CA", "GB"]),
+    },
+    tags: {
+      name: (rand, ctx) => `${rand.pick(WORDS)}-tag-${ctx.row + 1}`,
+    },
+    coupons: {
+      code: (_rand, ctx) => `CODE-${ctx.row + 1}`,
+    },
+    shipments: {
+      carrier: rand => rand.pick(["UPS", "DHL", "FedEx"]),
+      tracking_no: (rand, ctx) => `TRK${rand.int(1000, 9999)}-${ctx.row}`,
+    },
+    payment_methods: {
+      name: rand => rand.pick(["card", "invoice", "transfer", "voucher"]),
+    },
+    events: {
+      // Fixtures read `data->>'id'` and `data->>'missing'`, so the document
+      // needs the first key and must not have the second.
+      data: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
+      meta: rand => ({ source: rand.pick(WORDS) }),
+    },
+    multi_stmt_log: {
+      id: sequential,
+      val: rand => rand.pick(SHARED_VALS),
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Row counts
+// ---------------------------------------------------------------------------
+
+const rowCounts: Record<string, Record<string, [number, number]>> = {
+  public: {
+    // A category needs more than two products for the "category norm"
+    // predicates in the correlated-subquery fixtures to admit any row.
+    categories: [2, 3],
+    products: [8, 12],
+    orders: [6, 10],
+    order_items: [8, 14],
+    reviews: [8, 14],
+    // Composite PK drawn from two FKs: over-generate, since duplicate pairs
+    // are dropped.
+    product_tags: [10, 16],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// NULL policies
+//
+// How often a nullable column is NULL is what produces witnesses, so it is a
+// per-column decision rather than one figure for the whole dataset. Each column
+// draws its NULL decisions from its own seeded stream: retuning one leaves
+// every other column's data byte-identical.
+// ---------------------------------------------------------------------------
+
+const nullPolicies: {
+  byType?: Record<string, Record<string, NullPolicy>>;
+  byColumn?: Record<string, Record<string, Record<string, NullPolicy>>>;
+} = {
+  byColumn: {
+    public: {
+      // Soft-delete columns: a mostly-live table with a few deleted rows is
+      // the shape fixtures filter on. NULL here means "not deleted", so a high
+      // rate is the realistic one — and both sides of `deleted_at IS NULL`
+      // need rows for the filter to prove anything.
+      categories: { deleted_at: nullRate(0.7) },
+      customers: { deleted_at: nullRate(0.7) },
+      products: { deleted_at: nullRate(0.7) },
+      orders: { deleted_at: nullRate(0.7) },
+
+      // A shipment that has shipped but not arrived is the state that makes
+      // `delivered_at` witness anything, so leave `shipped_at` mostly filled.
+      shipments: { shipped_at: nullRate(0.2), delivered_at: nullRate(0.6) },
+
+      // `u.status` is compared against a literal by the promotion fixtures.
+      // NULLs there only shrink the number of rows that reach the comparison.
+      u: { status: nullRate(0.1) },
+    },
+  },
+};
+
+export const fixtureGeneratorRegistry: GeneratorRegistry = {
+  byType: typeSpecificGenerators,
+  byColumn: columnSpecificGenerators,
+  rowCounts,
+  nullPolicies,
+};

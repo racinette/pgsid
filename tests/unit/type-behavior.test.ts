@@ -32,7 +32,7 @@ describe("SchemaBuilder: %TYPE and %ROWTYPE behavior", () => {
     await builder.applyMigration(pg, mig0, 0);
 
     // Verify signature at CREATE time: should be "text" (resolved from %TYPE).
-    const sig0 = await pg.query(`
+    const sig0 = await pg.query<{ args: string; result: string }>(`
       SELECT pg_get_function_identity_arguments(p.oid) AS args,
              pg_get_function_result(p.oid) AS result
       FROM pg_proc p
@@ -50,7 +50,7 @@ describe("SchemaBuilder: %TYPE and %ROWTYPE behavior", () => {
     await builder.applyMigration(pg, mig1, 1);
 
     // Signature should be UNCHANGED — still "text", not "varchar(50)".
-    const sig1 = await pg.query(`
+    const sig1 = await pg.query<{ args: string; result: string }>(`
       SELECT pg_get_function_identity_arguments(p.oid) AS args,
              pg_get_function_result(p.oid) AS result
       FROM pg_proc p
@@ -188,7 +188,7 @@ describe("SchemaBuilder: %TYPE and %ROWTYPE behavior", () => {
     await builder.applyMigration(pg, mig1, 1);
 
     // Signature is frozen: still expects float8.
-    const sig = await pg.query(`
+    const sig = await pg.query<{ args: string }>(`
       SELECT pg_get_function_identity_arguments(p.oid) AS args
       FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -197,7 +197,7 @@ describe("SchemaBuilder: %TYPE and %ROWTYPE behavior", () => {
     expect(sig.rows[0]!.args).toBe("a double precision");
 
     // But calling with numeric works — PG implicitly casts numeric→float8.
-    const callResult = await pg.query("SELECT public.process_amount(10.5::numeric);");
+    const callResult = await pg.query<{ process_amount: number }>("SELECT public.process_amount(10.5::numeric);");
     expect(Number(callResult.rows[0]!.process_amount)).toBe(21);
 
     // plpgsql_check reports no error — assignment-compatible types.

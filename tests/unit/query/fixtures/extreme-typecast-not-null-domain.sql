@@ -3,6 +3,9 @@
 -- is always non-null (it either succeeds with non-null or the query fails).
 -- This mirrors the Priority 1 function-return rule. Compare with a cast to
 -- a regular type (text), which preserves the arg's nullability.
+--
+-- @no-rows: NULL::nn_text raises for every row evaluated, which is exactly the
+-- claim above. The statement either fails or has no rows to fail on.
 SELECT
   NULL::nn_text                    AS null_cast_domain,  -- @notNull
   p.name::nn_text                  AS col_cast_domain,   -- @notNull

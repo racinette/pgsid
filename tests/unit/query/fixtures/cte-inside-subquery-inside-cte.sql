@@ -2,8 +2,13 @@
 -- Outer CTE 'outer_cte' has a subquery in FROM; that subquery has its own
 -- WITH clause with CTE 'inner_cte'. Tests CTE visibility: inner_cte is
 -- local to the subquery, outer_cte is visible in the outer query.
+--
+-- The outer CTE is unfiltered on purpose: the subquery keeps only products
+-- with a non-NULL deleted_at, so filtering the outer one to `deleted_at IS
+-- NULL` would make the join predicate unsatisfiable and the fixture would
+-- assert nothing.
 WITH outer_cte AS (
-  SELECT id, name FROM products WHERE deleted_at IS NULL
+  SELECT id, name FROM products
 )
 SELECT
   o.id    AS id,        -- @notNull

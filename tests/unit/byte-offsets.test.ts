@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { extractPlpgsqlCheckDiagnostic, type PlpgsqlCheckRow } from "../../src/errors.js";
 import { SchemaBuilder } from "../../src/schema-builder.js";
-import { cleanupPg } from "../helpers/cleanup.js";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 

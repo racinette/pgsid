@@ -18,9 +18,6 @@ function loadFixture(name: string): Buffer {
   return readFileSync(join(fixtureDir, name));
 }
 
-function loadFixtureText(name: string): string {
-  return loadFixture(name).toString("utf8");
-}
 
 /**
  * Run `preprocess` against a fixture and compare byte-for-byte to an
@@ -106,8 +103,9 @@ describe("preprocess: stripConcurrently", () => {
     const probe: StatementFilter = (ctx) => {
       if (ctx.kind === "ReindexStmt") {
         // Reuse the production filter to extract the removal, then capture.
+        // A filter returns `Removal[] | void`, so narrow before capturing.
         const r = stripConcurrently()(ctx);
-        captured = r;
+        if (Array.isArray(r)) captured = r;
         return r;
       }
     };

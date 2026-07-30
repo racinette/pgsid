@@ -38,7 +38,7 @@ async function compare(pg: PGlite, createSql: string): Promise<CompareResult> {
   const migRef = formatFunctionRef(migStmt);
 
   // Introspect from pg_proc.
-  const intro = await pg.query(
+  const intro = await pg.query<{ prosrc: string; def: string }>(
     "SELECT prosrc, pg_get_functiondef(p.oid) AS def " +
     "FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace " +
     "WHERE n.nspname = $1 AND p.proname = $2",
