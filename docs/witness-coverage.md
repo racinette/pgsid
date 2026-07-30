@@ -259,7 +259,7 @@ fixtures are for. `from-item-kinds`, `table-function-return-types`,
 
 **Conservative by design (12 claims).** The value is provably non-null and the
 engine reports nullable anyway. Each is a known imprecision registered in
-`docs/deferred-tasks.md` §5 — array subscripting, `ScalarArrayOp`, ordered-set
+`docs/deferred-tasks.md` §6 — array subscripting, `ScalarArrayOp`, ordered-set
 aggregates, population statistics, recursive-CTE columns derived from the
 recursive term, built-ins outside the curated tables — or `CURRENT_SCHEMA`,
 which is unwitnessable by construction. These are the candidates for engine

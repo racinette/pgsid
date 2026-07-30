@@ -38,7 +38,41 @@ first would make the feature worth more than it is today.
 
 ---
 
-## 2. Arity gate at the consumer boundary
+## 2. Snapshot names depend on `search_path`
+
+**What.** Every name in a `CatalogSnapshot` is rendered by PostgreSQL —
+`format_type` for a column's type, `pg_get_viewdef`, `pg_get_constraintdef`,
+`pg_get_expr` for a default, `pg_get_function_result`. Each omits the schema
+qualifier for whatever the session's `search_path` makes visible, so the same
+unchanged database describes itself differently from different sessions: a column
+is `app.pct` from one and `pct` from another, a view is `FROM app.t` or `FROM t`.
+
+**Why it matters.** The diff compares those strings, and a name that shifts with
+session state is not an identity. Measured on one unchanged database, snapshotted
+before and after `SET search_path TO app, public`: three entities reported as
+modified (`app.t.share`, `app.v`, `app.v.share`). It is the same class of defect
+as comparing OIDs, which `src/catalog/diff.ts` no longer does.
+
+**The fix, and why it is not in.** Snapshotting with an empty `search_path`
+removes the choice — `pg_catalog` is searched implicitly whatever the setting, so
+built-ins keep their standard names and everything else is fully qualified. Two
+lines in `snapshotCatalog`, and the three spurious entities go to zero.
+
+The cost is that it changes the rendering *every* consumer sees, not just the
+diff's. Measured: the nullability walk's composite-type and domain lookups
+resolve by unqualified name and stop matching (`setof-composite-type` and
+`table-function-return-types` lose columns), and the fixture data generator's
+type registry is keyed by unqualified type name. Both are fixable — qualified
+names are strictly more information — but it is a change to the engine's name
+resolution rather than to the diff.
+
+**Trigger.** Do it together with whatever first needs schema-qualified type
+identity in the walk. Doing it for the diff alone means changing the engine to
+serve a consumer that does not exist yet.
+
+---
+
+## 3. Arity gate at the consumer boundary
 
 **What.** Nullability is a positional array meant to be zipped against
 PostgreSQL's `RowDescription` — the contract is documented on
@@ -60,7 +94,7 @@ afterwards.
 
 ---
 
-## 3. Column naming (`FigureColname`)
+## 4. Column naming (`FigureColname`)
 
 **What.** PostgreSQL labels an un-aliased output column by a set of rules in
 `src/backend/parser/parse_target.c` — `count(*)` becomes `count`, `1+1` becomes
@@ -89,7 +123,7 @@ speculatively.
 
 ---
 
-## 4. Corpus gaps in the node census
+## 5. Corpus gaps in the node census
 
 **What.** `node-census.test.ts` classifies every AST node type the corpus
 reaches. 27 types are classified but never exercised by any fixture or by the
@@ -114,7 +148,7 @@ the point.
 
 ---
 
-## 5. Known imprecisions in the walk
+## 6. Known imprecisions in the walk
 
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
@@ -134,7 +168,7 @@ that a decision to close one is deliberate.
 
 ---
 
-## 6. Unbuilt verification strategies
+## 7. Unbuilt verification strategies
 
 Two of the five strategies proposed for finding engine defects are unbuilt.
 They find different classes, so neither subsumes the other.

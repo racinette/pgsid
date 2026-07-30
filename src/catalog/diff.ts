@@ -1,11 +1,14 @@
 import type {
   CatalogSnapshot,
   ColumnInfo,
+  CompositeTypeInfo,
   ConstraintInfo,
+  DomainInfo,
   EntityId,
   FunctionInfo,
   SchemaDiff,
   SchemaDiffEntry,
+  SequenceInfo,
   TableInfo,
   ViewInfo,
 } from "./types.js";
@@ -35,13 +38,26 @@ import type {
 // per the DESIGN.md diff spec — e.g. function bodies are NOT compared (a
 // body-only change doesn't affect query signatures), while column types,
 // NOT NULL, DEFAULT, and GENERATED are.
+//
+// No comparable state contains an OID. An OID is assigned when an object is
+// created, so replaying the same migrations into a fresh database — which is
+// what happens whenever a historical migration is edited — yields a schema
+// identical in every way a query can observe and different in every OID. A
+// diff that compared them would answer "modified" for entities nobody touched,
+// and since the real change is somewhere in that list too, a diff that flags
+// everything distinguishes nothing. Entities are identified and compared by
+// name throughout; `comparableStates` is exported so the absence of OIDs can be
+// asserted rather than assumed.
 // ---------------------------------------------------------------------------
 
 /** Build the comparable state object for a column. */
-function columnState(c: ColumnInfo): ColumnInfo {
+function columnState(c: ColumnInfo): Omit<ColumnInfo, "typeOid"> {
   return {
     name: c.name,
-    typeOid: c.typeOid,
+    // `typeName` comes from `format_type`, which renders the modifier into the
+    // name (`character varying(50)`) and qualifies any type the search path
+    // does not make visible. It says everything the OID did about which type
+    // this is, and keeps saying it after the type is recreated.
     typeName: c.typeName,
     typeMod: c.typeMod,
     notNull: c.notNull,
@@ -86,7 +102,6 @@ function functionState(f: FunctionInfo): {
   name: string;
   argTypes: string;
   returnType: string;
-  returnTypeOid: number;
   language: string;
   isProcedure: boolean;
   isAggregate: boolean;
@@ -98,9 +113,10 @@ function functionState(f: FunctionInfo): {
   return {
     schema: f.schema,
     name: f.name,
+    // Both rendered by PostgreSQL from the same catalog rows the OIDs point at
+    // — `pg_get_function_identity_arguments` and `pg_get_function_result`.
     argTypes: f.argTypes,
     returnType: f.returnType,
-    returnTypeOid: f.returnTypeOid,
     language: f.language,
     isProcedure: f.isProcedure,
     isAggregate: f.isAggregate,
@@ -108,6 +124,52 @@ function functionState(f: FunctionInfo): {
     securityDefiner: f.securityDefiner,
     strict: f.strict,
     volatile: f.volatile,
+  };
+}
+
+/**
+ * Build the comparable state object for a domain. `oid` and `baseTypeOid` are
+ * dropped; `baseTypeName` says which type it is built on, and the domain's own
+ * identity is the entity id.
+ */
+function domainState(d: DomainInfo): Omit<DomainInfo, "oid" | "baseTypeOid"> {
+  return {
+    schema: d.schema,
+    name: d.name,
+    baseTypeName: d.baseTypeName,
+    notNull: d.notNull,
+    default: d.default,
+    check: d.check,
+  };
+}
+
+/** Build the comparable state object for a composite type (attribute OIDs dropped). */
+function compositeTypeState(t: CompositeTypeInfo): {
+  schema: string;
+  name: string;
+  attributes: { name: string; typeName: string }[];
+} {
+  return {
+    schema: t.schema,
+    name: t.name,
+    attributes: t.attributes.map(a => ({ name: a.name, typeName: a.typeName })),
+  };
+}
+
+/** Build the comparable state object for a sequence (`typeOid` dropped). */
+function sequenceState(s: SequenceInfo): Omit<SequenceInfo, "typeOid"> {
+  return {
+    schema: s.schema,
+    name: s.name,
+    typeName: s.typeName,
+    start: s.start,
+    increment: s.increment,
+    min: s.min,
+    max: s.max,
+    cache: s.cache,
+    cycle: s.cycle,
+    ownedByTable: s.ownedByTable,
+    ownedByColumn: s.ownedByColumn,
   };
 }
 
@@ -164,8 +226,13 @@ function emitRelationEntities(
 /**
  * Enumerate every entity in a snapshot as `EntityId → comparable state`.
  * The returned map is the input to the set-difference comparison.
+ *
+ * Exported so a test can assert properties of what the diff actually compares
+ * — that no state carries an OID, in particular. Entities whose state is the
+ * whole snapshot object (indexes, enums, extensions, schemas) hold nothing but
+ * names, and a test pins that rather than leaving it to inspection.
  */
-function enumerate(snapshot: CatalogSnapshot): Map<EntityId, unknown> {
+export function comparableStates(snapshot: CatalogSnapshot): Map<EntityId, unknown> {
   const out = new Map<EntityId, unknown>();
 
   // Tables (+ columns).
@@ -203,17 +270,17 @@ function enumerate(snapshot: CatalogSnapshot): Map<EntityId, unknown> {
 
   // Domains.
   for (const d of snapshot.domains) {
-    out.set(`${d.schema}.${d.name}`, d);
+    out.set(`${d.schema}.${d.name}`, domainState(d));
   }
 
   // Composite types (attributes compared).
   for (const t of snapshot.compositeTypes) {
-    out.set(`${t.schema}.${t.name}`, t);
+    out.set(`${t.schema}.${t.name}`, compositeTypeState(t));
   }
 
   // Sequences.
   for (const s of snapshot.sequences) {
-    out.set(`${s.schema}.${s.name}`, s);
+    out.set(`${s.schema}.${s.name}`, sequenceState(s));
   }
 
   // Extensions (globally-unique name, no schema qualifier).
@@ -242,8 +309,8 @@ export function diffCatalogs(
   before: CatalogSnapshot,
   after: CatalogSnapshot,
 ): SchemaDiff {
-  const beforeMap = enumerate(before);
-  const afterMap = enumerate(after);
+  const beforeMap = comparableStates(before);
+  const afterMap = comparableStates(after);
 
   const added: EntityId[] = [];
   const removed: EntityId[] = [];
