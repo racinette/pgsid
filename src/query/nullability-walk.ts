@@ -1,6 +1,7 @@
 import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
+import { TOTAL_STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
   collectParamNullability,
@@ -3718,17 +3719,9 @@ function splitTopLevel(input: string): string[] {
 /** Shared empty set — most scopes have no grouping-set columns. */
 const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
 
-const TOTAL_OPERATORS = new Set([
-  // Arithmetic. Division and modulo raise on a zero divisor rather than
-  // returning NULL, so they are total in the sense that matters here.
-  "+", "-", "*", "/", "%", "^",
-  // Comparison — always a plain boolean for non-null operands.
-  "=", "<>", "!=", "<", ">", "<=", ">=",
-  // Concatenation (text, array, jsonb).
-  "||",
-  // Pattern matching: LIKE / ILIKE / regex, and their negations.
-  "~~", "!~~", "~~*", "!~~*", "~", "!~", "~*", "!~*",
-]);
+// Moved to operators.ts so mechanism-C attribution can share it without an
+// import cycle; see the comment there for the total/strict distinction.
+const TOTAL_OPERATORS = TOTAL_STRICT_OPERATORS;
 
 const AGGREGATE_NAMES = new Set([
   "array_agg", "avg", "bit_and", "bit_or", "bool_and", "bool_or",

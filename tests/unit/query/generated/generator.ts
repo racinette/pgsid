@@ -526,15 +526,32 @@ const PROJECTIONS: Projection[] = [
         // narrowing would surface as a nullability violation here.
         target(concatOp(paramRef(1), textConst("n")), "a_pn"),
         target(coalesce(paramRef(2), s.slots.textC, textConst("z")), "a_c2"),
+        // Mechanism C under the whole structural space: $2's VALUE flows
+        // through the strict concatenation into a runtime nn_text coercion,
+        // so $2 is claimed notNull (execution-time — witnessed wherever rows
+        // reach the evaluation, never narrowing).
+        target(castTo(concatOp(paramRef(2), textConst("f")), "nn_text"), "a_pf"),
         target(s.slots.intKey, "a_int"),
       ],
       params: [
         { number: 1, valid: "pd" },
         { number: 2, valid: "pc" },
       ],
-      colNames: ["a_pd", "a_pn", "a_c2", "a_int"],
-      literals: [textConst("d"), textConst("dn"), textConst("c"), intConst(1)],
-      matchLiterals: [textConst("pd"), textConst("pdn"), textConst("pc"), intConst(1)],
+      colNames: ["a_pd", "a_pn", "a_c2", "a_pf", "a_int"],
+      literals: [
+        textConst("d"),
+        textConst("dn"),
+        textConst("c"),
+        textConst("df"),
+        intConst(1),
+      ],
+      matchLiterals: [
+        textConst("pd"),
+        textConst("pdn"),
+        textConst("pc"),
+        textConst("pcf"),
+        intConst(1),
+      ],
     }),
     expectations: [expectParams(1, 2), expect("COALESCE", "CoalesceExpr")],
   },

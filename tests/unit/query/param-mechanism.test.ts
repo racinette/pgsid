@@ -158,6 +158,43 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(await paramTypes("SELECT * FROM d WHERE n = $1")).toBe("{text}");
   });
 
+  // --- Mechanism C: execution-time, via value flow. -------------------------
+
+  it("raises at evaluation: NULL flowing through a strict operator into a domain coercion", async () => {
+    expect(await errorOf("SELECT ($1 || 'x')::uname", [null])).toContain(DOMAIN_ERROR);
+  });
+
+  it("does NOT raise when the expression is never evaluated — unlike mechanism A", async () => {
+    // The property that separates C from A: the parameter stays base-typed,
+    // so nothing happens at Bind, and zero rows mean zero evaluations. This
+    // is why mechanism C never licenses output narrowing.
+    expect(await errorOf("SELECT ($1 || 'x')::uname FROM empty_t", [null])).toBeNull();
+  });
+
+  it("types the parameter as the BASE type at mechanism-C sites", async () => {
+    expect(await paramTypes("SELECT ($1 || 'x')::uname")).toBe("{text}");
+  });
+
+  it("a COALESCE guard absorbs the NULL before the coercion", async () => {
+    expect(await errorOf("SELECT (COALESCE($1, 'd') || 'x')::uname", [null])).toBeNull();
+  });
+
+  it("NULLIF propagates its left operand only", async () => {
+    expect(await errorOf("SELECT NULLIF($1, 'q')::uname", [null])).toContain(DOMAIN_ERROR);
+    // A NULL right side just fails the equality; the left value passes through.
+    expect(await errorOf("SELECT NULLIF('a', $1)::uname", [null])).toBeNull();
+  });
+
+  it("value flow into a domain-typed function argument raises at the call", async () => {
+    expect(await errorOf("SELECT takes_dom($1 || 'x')", [null])).toContain(DOMAIN_ERROR);
+  });
+
+  it("value flow into a plain NOT NULL column raises via the constraint", async () => {
+    expect(await errorOf("INSERT INTO plain VALUES ($1 || 'x')", [null])).toContain(
+      CONSTRAINT_ERROR,
+    );
+  });
+
   // --- Type deduction boundaries. ------------------------------------------
 
   it("rejects conflicting deductions rather than letting the domain win", async () => {

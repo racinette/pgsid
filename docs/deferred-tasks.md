@@ -25,10 +25,11 @@ zero. The measurements are in `docs/witness-coverage.md`.
 What is left is not more assertions about the queries somebody wrote. It is
 finding the defects nobody thought to look for, and then a consumer.
 
-1. **Argument nullability** — built, all four sequencing steps; the design,
-   its empirical grounding, and what remains deferred (output narrowing from
-   argument facts, value-flow rejection, `DELETE`/`ON CONFLICT`/`MERGE`
-   generation) are in `docs/argument-nullability.md`.
+1. **Argument nullability** — built, all four sequencing steps, plus
+   mechanism-A output narrowing and mechanism-C value-flow rejection; the
+   design, its empirical grounding, and what remains deferred
+   (WHERE-conjunct narrowing, `DELETE`/`ON CONFLICT`/`MERGE` generation) are
+   in `docs/argument-nullability.md`.
 2. **New generator axes.** The generated suite ran its full axis space and
    found no defect, which per its own criterion is the signal to widen the
    axes — parameters (above), then DML, deeper nesting, window functions.

@@ -14,6 +14,13 @@
 //   B (execution-time) — the parameter is assigned into a column with a
 //                        plain NOT NULL constraint; the check fires per row
 //                        actually written, so the claim is existential.
+//   C (execution-time) — value flow: the parameter's VALUE, forced NULL
+//                        through strict expressions, reaches a runtime
+//                        rejection — a cast of an expression to a NOT NULL
+//                        domain, a domain-typed function argument, or a
+//                        rejecting column target. Raises when the expression
+//                        is evaluated, so existential like B, and like B it
+//                        never licenses output narrowing.
 //
 // Both mean the same thing to a caller — do not pass NULL — so the result
 // does not distinguish them. Everything else is nullable: a comparison
@@ -44,6 +51,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Node } from "libpg-query";
+import { TOTAL_STRICT_OPERATORS } from "./operators.js";
 import type { NullabilityCatalog } from "./types.js";
 
 /**
@@ -121,23 +129,103 @@ function castTargetIsNotNullDomain(c: Collector, typeName: unknown): boolean {
   return c.catalog.isNotNullDomainByName(undefined, parts[0]!);
 }
 
-/** Record a rejecting site. Mechanism A also licenses output narrowing. */
-function reject(c: Collector, num: number, mechanism: "domain" | "constraint"): void {
+/**
+ * Record a rejecting site. Only mechanism A ("domain": the parameter itself
+ * is typed as a NOT NULL domain, rejected at Bind) licenses output
+ * narrowing. "constraint" (B) and "flow" (C) raise at execution time — per
+ * row written, or when the expression is evaluated — so a statement can
+ * return rows without them ever firing.
+ */
+function reject(c: Collector, num: number, mechanism: "domain" | "constraint" | "flow"): void {
   c.rejected.add(num);
   if (mechanism === "domain") c.bindRejected.add(num);
 }
 
+/**
+ * Mechanism-C attribution: which parameters, when bound NULL, force this
+ * expression to evaluate NULL? Only guaranteed propagation counts — strict
+ * operators and functions propagate any NULL operand; NULLIF propagates its
+ * LEFT operand only (a NULL right side just fails the equality); COALESCE is
+ * NULL only when every branch is (intersection); a cast passes its operand's
+ * set through (a NOT NULL domain cast in the middle raises even earlier,
+ * which serves the same claim). Everything unrecognised contributes nothing —
+ * an unattributed parameter stays nullable, and the falsification oracle is
+ * what keeps that honest.
+ */
+function forcedNullParams(c: Collector, node: Node | undefined): Set<number> {
+  const empty = new Set<number>();
+  if (!node || typeof node !== "object") return empty;
+  const n = node as Record<string, unknown>;
+
+  const direct = paramNumberOf(n);
+  if (direct !== null) return new Set([direct]);
+
+  if (n["TypeCast"]) {
+    return forcedNullParams(c, (n["TypeCast"] as { arg?: Node }).arg);
+  }
+
+  if (n["A_Expr"]) {
+    const ae = n["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
+    if (ae.kind === "AEXPR_NULLIF") return forcedNullParams(c, ae.lexpr);
+    const op = ae.name?.length === 1 ? stringVal(ae.name[0]) : "";
+    if (ae.kind === "AEXPR_OP" && TOTAL_STRICT_OPERATORS.has(op)) {
+      const out = new Set<number>();
+      for (const operand of [ae.lexpr, ae.rexpr]) {
+        for (const num of forcedNullParams(c, operand)) out.add(num);
+      }
+      return out;
+    }
+    return empty;
+  }
+
+  if (n["CoalesceExpr"]) {
+    const args = (n["CoalesceExpr"] as { args?: Node[] }).args ?? [];
+    if (args.length === 0) return empty;
+    return args
+      .map(a => forcedNullParams(c, a))
+      .reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
+  }
+
+  if (n["FuncCall"]) {
+    const fc = n["FuncCall"] as { funcname?: Node[]; args?: Node[] };
+    const parts = (fc.funcname ?? []).map(stringVal);
+    const name = parts[parts.length - 1];
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+    if (!name) return empty;
+    const info = c.catalog.resolveFunctionMetadata(schema, name);
+    if (!info?.strict || info.isAggregate) return empty;
+    const out = new Set<number>();
+    for (const arg of fc.args ?? []) {
+      if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return empty;
+      for (const num of forcedNullParams(c, arg)) out.add(num);
+    }
+    return out;
+  }
+
+  return empty;
+}
+
+/** Value-flow (mechanism C) into a rejecting site: everything but a direct
+ *  ParamRef, which its caller has already handled as A or B. */
+function rejectFlow(c: Collector, expr: Node | undefined): void {
+  if (!expr || paramNumberOf(expr) !== null) return;
+  for (const num of forcedNullParams(c, expr)) reject(c, num, "flow");
+}
+
 function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): void {
+  if (!castTargetIsNotNullDomain(c, tc.typeName)) return;
   const num = paramNumberOf(tc.arg);
-  if (num === null) return;
-  if (castTargetIsNotNullDomain(c, tc.typeName)) reject(c, num, "domain");
+  // A direct operand is TYPED as the domain (mechanism A); an expression
+  // operand stays base-typed and only its VALUE hits the coercion (C).
+  if (num !== null) reject(c, num, "domain");
+  else rejectFlow(c, tc.arg);
 }
 
 function checkFuncCall(
   c: Collector,
   fc: { funcname?: Node[]; args?: Node[] },
 ): void {
-  if (!fc.args?.some(a => paramNumberOf(a) !== null)) return;
+  if (!fc.args?.length) return;
 
   const parts = (fc.funcname ?? []).map(stringVal);
   const name = parts[parts.length - 1];
@@ -158,10 +246,11 @@ function checkFuncCall(
   if (info.args.some(a => a.mode === "variadic")) return;
 
   fc.args.forEach((arg, i) => {
-    const num = paramNumberOf(arg);
-    if (num === null) return;
     const declared = inputs[i];
-    if (declared && c.catalog.isNotNullDomain(declared.typeOid)) reject(c, num, "domain");
+    if (!declared || !c.catalog.isNotNullDomain(declared.typeOid)) return;
+    const num = paramNumberOf(arg);
+    if (num !== null) reject(c, num, "domain");
+    else rejectFlow(c, arg);
   });
 }
 
@@ -193,10 +282,11 @@ function checkSetClause(
   for (const item of targetList ?? []) {
     const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
     if (!rt?.name || !rt.val) continue;
-    const num = paramNumberOf(rt.val);
-    if (num === null) continue;
     const mechanism = columnRejection(c, schema, table, rt.name);
-    if (mechanism) reject(c, num, mechanism);
+    if (!mechanism) continue;
+    const num = paramNumberOf(rt.val);
+    if (num !== null) reject(c, num, mechanism);
+    else rejectFlow(c, rt.val);
   }
 }
 
@@ -212,11 +302,14 @@ function checkInsert(
   const target = insertTargetColumns(c, stmt.relation, stmt.cols);
   if (!target) return;
 
-  const rejectAt = (position: number, num: number): void => {
+  const rejectAt = (position: number, val: Node | undefined): void => {
     const column = target.columns[position];
-    if (!column) return;
+    if (!column || !val) return;
     const mechanism = columnRejection(c, target.schema, target.table, column);
-    if (mechanism) reject(c, num, mechanism);
+    if (!mechanism) return;
+    const num = paramNumberOf(val);
+    if (num !== null) reject(c, num, mechanism);
+    else rejectFlow(c, val);
   };
 
   const select = (stmt.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
@@ -225,21 +318,16 @@ function checkInsert(
     const valuesLists = select["valuesLists"] as Node[] | undefined;
     for (const row of valuesLists ?? []) {
       const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
-      items.forEach((item, i) => {
-        const num = paramNumberOf(item);
-        if (num !== null) rejectAt(i, num);
-      });
+      items.forEach((item, i) => rejectAt(i, item));
     }
     // INSERT ... SELECT: the select list maps positionally onto the target
     // columns. Only the plain shape — a set operation underneath keeps its
     // parameters nullable.
     if (!valuesLists && select["op"] === "SETOP_NONE") {
       const targetList = (select["targetList"] as Node[] | undefined) ?? [];
-      targetList.forEach((item, i) => {
-        const val = (item as { ResTarget?: { val?: Node } }).ResTarget?.val;
-        const num = paramNumberOf(val);
-        if (num !== null) rejectAt(i, num);
-      });
+      targetList.forEach((item, i) =>
+        rejectAt(i, (item as { ResTarget?: { val?: Node } }).ResTarget?.val),
+      );
     }
   }
 
@@ -275,11 +363,13 @@ function checkMerge(
         t => (t as { ResTarget?: { name?: string } }).ResTarget?.name ?? "",
       );
       mwc.values.forEach((val, i) => {
-        const num = paramNumberOf(val);
         const column = columns[i];
-        if (num === null || !column) return;
+        if (!column) return;
         const mechanism = columnRejection(c, table.schema, table.name, column);
-        if (mechanism) reject(c, num, mechanism);
+        if (!mechanism) return;
+        const num = paramNumberOf(val);
+        if (num !== null) reject(c, num, mechanism);
+        else rejectFlow(c, val);
       });
     } else {
       // The update arm: SET col = value pairs.

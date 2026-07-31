@@ -196,18 +196,35 @@ names when arguments include a `ParamRef`; anything short of provably
 matching PostgreSQL's choice must degrade to nullable. The parameterized
 generated corpus (step 3) is the systematic check on this.
 
+**Mechanism C — value-flow rejection (implemented).** The third mechanism,
+found by hand as the exact trigger the first version of this document
+predicted: in `INSERT … RETURNING ($2 || '!')::nn_text`, the parameter stays
+typed `text`, but its VALUE — forced NULL through the strict concatenation —
+hits the runtime domain coercion and raises. Execution-time like B (zero
+evaluations, zero raises: the same statement over an empty source succeeds
+with NULL bound), so C claims are existential and never license narrowing.
+Attribution asks "which `$n` being NULL forces this expression NULL?" and
+counts only guaranteed propagation: strict operators (`operators.ts`, shared
+with the output walk — every entry is both total and strict), `NULLIF`'s
+left operand only, `COALESCE` by intersection of its branches, casts
+transparently, strict single-overload catalog functions by union. Anything
+unrecognised attributes nothing, and the falsification oracle keeps that
+honest. Channels: expression casts to NOT NULL domains, domain-typed
+function arguments, and rejecting DML target columns (both the domain and
+plain-constraint flavours). Measured behaviours — including the
+COALESCE-absorption and NULLIF-asymmetry boundaries — are pinned in
+`param-mechanism.test.ts`; the trigger statement is `param-value-flow.sql`;
+the generated `param-reject` projection carries the shape across the whole
+structural space.
+
 **Deferred, recorded so the boundary is deliberate:**
 
-- *Value-flow rejection (a would-be mechanism C).* `SELECT ('x' || $1)::uname`
-  raises when the strict concatenation turns NULL and the runtime cast then
-  rejects it — but only when the expression is evaluated, so it is
-  data-dependent *and* expression-guarded. Detecting it means running the
-  existing expression-nullability analysis parameterised by "which `$n` being
-  NULL makes this NULL", which is real machinery for a marginal shape. Until
-  then such parameters are reported nullable, which the falsification oracle
-  will expose if the shape matters in practice — that finding, not
-  speculation, is the trigger for building C.
-- *Output narrowing from argument facts*, as above.
+- *WHERE-conjunct narrowing.* In `SELECT $1 AS x FROM t WHERE t.a = $1`, any
+  returned row proves the conjunct was TRUE, hence `$1` non-NULL, hence `x`
+  notNull for every row that exists. Needs must-be-TRUE position analysis
+  (WHERE and INNER `ON` conjuncts qualify; a LEFT join's `ON` does not). The
+  `@unwitnessable` annotations on `extreme-params-everywhere` mark the
+  claims it would flip.
 - *The deadness lint*, decided against for the contract; if it ever exists it
   is a separate diagnostics channel, not a nullability fact.
 
