@@ -38,6 +38,7 @@ const SCHEMA = `
   CREATE TABLE d (n uname);
   CREATE TABLE plain (e text NOT NULL);
   CREATE TABLE empty_t (x int);
+  CREATE TABLE m (id int, e text NOT NULL DEFAULT 'x', n uname DEFAULT 'g');
   CREATE FUNCTION takes_dom(v uname) RETURNS text LANGUAGE sql AS 'SELECT v';
 `;
 
@@ -193,6 +194,45 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(await errorOf("INSERT INTO plain VALUES ($1 || 'x')", [null])).toContain(
       CONSTRAINT_ERROR,
     );
+  });
+
+  // --- MERGE arms. ----------------------------------------------------------
+
+  const MERGE_E =
+    "MERGE INTO m USING (VALUES (1)) s(sid) ON m.id = s.sid " +
+    "WHEN MATCHED THEN UPDATE SET e = $1 " +
+    "WHEN NOT MATCHED THEN INSERT (id) VALUES (s.sid)";
+
+  it("a MERGE arm's constraint site raises only when the arm fires", async () => {
+    // Conditional mechanism B: with an empty target the NOT MATCHED arm
+    // inserts and the MATCHED arm's SET never evaluates.
+    expect(await errorOf(MERGE_E, [null])).toBeNull();
+    await pg.exec("INSERT INTO m (id) VALUES (1);");
+    expect(await errorOf(MERGE_E, [null])).toContain(CONSTRAINT_ERROR);
+    await pg.exec("DELETE FROM m;");
+  });
+
+  it("a MERGE arm's domain-typed SET rejects at Bind, arm or no arm", async () => {
+    // Mechanism A transcends the arm exactly as it transcends CASE guards
+    // and ON CONFLICT: the parameter is TYPED at parse analysis.
+    const sql = MERGE_E.replace("SET e =", "SET n =");
+    expect(await errorOf(sql, [null])).toContain(DOMAIN_ERROR); // target is EMPTY
+    expect(await paramTypes(sql)).toBe("{uname}");
+  });
+
+  it("a parameter flowing through the SOURCE into a rejecting column raises", async () => {
+    // The measured collector gap: $1 → s.sv → NOT NULL column is a
+    // cross-relation flow the collector cannot attribute yet, so its claim
+    // would be nullable while this raise is real. The shape is deliberately
+    // kept out of the parameterized corpus until the attribution exists —
+    // see "Source value-flow attribution" in docs/deferred-tasks.md.
+    expect(
+      await errorOf(
+        "MERGE INTO m USING (VALUES ($1::text)) s(sv) ON m.id = 999 " +
+          "WHEN NOT MATCHED THEN INSERT (id, e) VALUES (1, s.sv)",
+        [null],
+      ),
+    ).toContain(CONSTRAINT_ERROR);
   });
 
   // --- Type deduction boundaries. ------------------------------------------

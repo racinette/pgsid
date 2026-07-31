@@ -315,8 +315,15 @@ Agreed order of work, each stage giving the next something real to test:
    returns-no-row-on-conflict liveness shape. `delete-using` mirrors
    `update-from` without assignment channels; its projected parameter pins
    the deliberate absence of WHERE-conjunct narrowing in DML RETURNING (a
-   live trap for the recorded param-only extension). Not generated, with the
-   doc's original trigger still standing: `MERGE`.
+   live trap for the recorded param-only extension). `merge-*` closes the
+   surface: arm combinations (UPDATE/INSERT/DELETE/DO NOTHING/BY SOURCE,
+   `WHEN … AND` conditions) over grouped sources — grouping is load-bearing,
+   since MERGE refuses a source acting on a target row twice — with
+   conditional-B witnessed where arms fire, mechanism A arm-immune (pinned),
+   and `merge_action()` classified (a dedicated `MergeSupportFunc` node,
+   conservative). Parameters stay out of MERGE sources: the measured
+   collector gap there is quarantined as "Source value-flow attribution" in
+   `docs/deferred-tasks.md`.
 
 ## Where things are
 

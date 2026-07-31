@@ -109,6 +109,10 @@ INSERT INTO v (id, u_id, amount) VALUES (4, 4, NULL);
 -- u.5 carries that combination without disturbing u.3's purpose.
 INSERT INTO u (id, t_id, email, val, status) VALUES (5, 97, 'u5@b.c', NULL, NULL);
 INSERT INTO v (id, u_id, amount) VALUES (6, 5, 3.5);
+-- A ck row no MERGE source reaches (sources draw sids from t, whose ids stay
+-- small): the NOT MATCHED BY SOURCE arm fires for it, null-extending the
+-- source columns in RETURNING — the only way s.* is ever witnessed NULL.
+INSERT INTO ck (id) VALUES (55);
 `;
 
 /**
@@ -565,6 +569,26 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         (axes.wrapper === "update-from" || axes.wrapper === "delete-using") &&
         column === "r_ue" &&
         /^single\((left|full)\)$/.test(axes.structure),
+    },
+    {
+      label: "merge-action-conservative",
+      why:
+        "merge_action() labels every returned row and never yields NULL, but " +
+        "it is a dedicated MergeSupportFunc node the walk has no branch for, " +
+        "so it lands on the conservative fallback (see the node census).",
+      matches: (axes, column) => axes.wrapper.startsWith("merge-") && column === "act",
+    },
+    {
+      label: "merge-source-needs-by-source-arm",
+      why:
+        "the engine treats the MERGE source as optional unconditionally " +
+        "(sound: NOT MATCHED BY SOURCE null-extends it), but a statement " +
+        "without that arm returns every row with its source present — " +
+        "merge-bysource is the kind that witnesses the NULL.",
+      matches: (axes, column) =>
+        axes.wrapper.startsWith("merge-") &&
+        axes.wrapper !== "merge-bysource" &&
+        (column === "r_sid" || column === "r_snm"),
     },
     {
       label: "dml-returning-ignores-written-values",

@@ -126,6 +126,26 @@ const onConflictNothing = (keyCol: string): Ast => ({
   action: "ONCONFLICT_NOTHING",
   infer: { indexElems: [{ IndexElem: { name: keyCol } }] },
 });
+// MERGE pieces. A when-clause is a tagged MergeWhenClause; the INSERT arm
+// carries name-only ResTargets plus positional `values`, the UPDATE arm
+// SET-style ResTargets, DELETE and DO NOTHING neither.
+const mergeWhen = (matchKind: string, commandType: string, fields: Ast = {}): Ast => ({
+  MergeWhenClause: {
+    matchKind,
+    commandType,
+    ...(commandType === "CMD_INSERT" ? { override: "OVERRIDING_NOT_SET" } : {}),
+    ...fields,
+  },
+});
+const mergeSource = (select: Ast): Ast => ({
+  RangeSubselect: { subquery: { SelectStmt: select }, alias: { aliasname: "s" } },
+});
+const isNotNull = (arg: Ast): Ast => ({ NullTest: { arg, nulltesttype: "IS_NOT_NULL" } });
+// merge_action() is not a FuncCall: the parser emits a dedicated
+// MergeSupportFunc node (msftype is the result type oid — 25, text). A
+// constructed FuncCall deparses QUOTED and PostgreSQL then looks up an
+// ordinary function that does not exist.
+const mergeAction = (): Ast => ({ MergeSupportFunc: { msftype: 25 } });
 const join = (jointype: string, larg: Ast, rarg: Ast, quals?: Ast): Ast => ({
   JoinExpr: quals ? { jointype, larg, rarg, quals } : { jointype, larg, rarg },
 });
@@ -231,6 +251,19 @@ const expectReturning: Expectation = {
     return false;
   },
 };
+
+/** The exact multiset of (matchKind, commandType) arms in the re-parsed AST. */
+const expectMergeArms = (...arms: string[]): Expectation => ({
+  label: `arms ${arms.join(", ")}`,
+  present: root => {
+    const found: string[] = [];
+    for (const n of walk(root)) {
+      const c = n.MergeWhenClause as { matchKind?: string; commandType?: string } | undefined;
+      if (c) found.push(`${c.matchKind}/${c.commandType}`);
+    }
+    return found.length === arms.length && arms.every(a => found.includes(a));
+  },
+});
 
 const expectOnConflict = (action: string): Expectation => ({
   label: `ON CONFLICT ${action}`,
@@ -1035,6 +1068,113 @@ export function generateDmlQueries(): GeneratedQuery[] {
       expectParams(1, 2),
     ],
   );
+
+  // --- merge: the arm combinations over the conflict-key table. -------------
+  // Sources draw sids from t (never NULL: t.id is NOT NULL and only inner
+  // joins appear inside), so the INSERT arm's PK is safe; parameters live in
+  // ARMS only — a parameter in the SOURCE flows into rejecting columns in
+  // ways the collector cannot attribute yet (pinned in
+  // param-mechanism.test.ts; see "Source value-flow attribution" in
+  // docs/deferred-tasks.md). Under sparse, sid 1 exercises the MATCHED arms
+  // against the seeded ck.1; under unmatched, ck.55 exercises NOT MATCHED BY
+  // SOURCE, which is the only way s.* columns are ever witnessed NULL.
+  {
+    // Both sources GROUP BY the sid: MERGE refuses a source that acts on the
+    // same target row twice ("cannot affect row a second time"), and
+    // duplicates are real — t.1 has two u partners in the unmatched state,
+    // and fuzzed states can duplicate t.id itself (t has no unique
+    // constraint). Grouping is the data-independent guarantee, and puts an
+    // aggregate inside a MERGE source while it is at it.
+    const srcPlain = bareSelect({
+      targetList: [
+        target(colRef("t", "id"), "sid"),
+        target(funcCall("max", [colRef("t", "name")]), "snm"),
+      ],
+      fromClause: [rangeVar("t")],
+      groupClause: [colRef("t", "id")],
+    });
+    const srcJoin = bareSelect({
+      targetList: [
+        target(colRef("t", "id"), "sid"),
+        target(funcCall("max", [colRef("u", "val")]), "snm"),
+      ],
+      fromClause: [tJoinU("inner")],
+      groupClause: [colRef("t", "id")],
+    });
+    const RET = {
+      exprs: [
+        target(mergeAction(), "act"),
+        target(colRef("ck", "id"), "r_id"),
+        target(colRef("ck", "name"), "r_nm"),
+        target(colRef("ck", "val"), "r_val"),
+        target(colRef("s", "sid"), "r_sid"),
+        target(colRef("s", "snm"), "r_snm"),
+      ],
+    };
+    const UPD = mergeWhen("MERGE_WHEN_MATCHED", "CMD_UPDATE", {
+      targetList: [setItem("val", paramRef(1))],
+    });
+    const INS = (nameParam: number): Ast =>
+      mergeWhen("MERGE_WHEN_NOT_MATCHED_BY_TARGET", "CMD_INSERT", {
+        targetList: insertCols("id", "name"),
+        values: [colRef("s", "sid"), paramRef(nameParam)],
+      });
+    const BYSRC = mergeWhen("MERGE_WHEN_NOT_MATCHED_BY_SOURCE", "CMD_UPDATE", {
+      targetList: [setItem("name", textConst("orph"))],
+    });
+    const DELC = mergeWhen("MERGE_WHEN_MATCHED", "CMD_DELETE", {
+      condition: isNotNull(colRef("ck", "name")),
+    });
+    const NOTHING = mergeWhen("MERGE_WHEN_MATCHED", "CMD_NOTHING");
+    const armSig = (arms: Ast[]): string[] =>
+      arms.map(a => {
+        const c = (a as { MergeWhenClause: { matchKind: string; commandType: string } })
+          .MergeWhenClause;
+        return `${c.matchKind}/${c.commandType}`;
+      });
+
+    const kinds: [
+      kind: string,
+      source: Ast,
+      srcLabel: string,
+      arms: Ast[],
+      params: GeneratedQuery["params"],
+    ][] = [
+      ["merge-upd-ins", srcPlain, "src-plain", [UPD, INS(2)],
+        [{ number: 1, valid: "mv" }, { number: 2, valid: "mn" }]],
+      ["merge-bysource", srcPlain, "src-plain", [UPD, INS(2), BYSRC],
+        [{ number: 1, valid: "mv" }, { number: 2, valid: "mn" }]],
+      ["merge-delete", srcPlain, "src-plain", [DELC, UPD, INS(2)],
+        [{ number: 1, valid: "mv" }, { number: 2, valid: "mn" }]],
+      ["merge-nothing", srcPlain, "src-plain", [NOTHING, INS(1)],
+        [{ number: 1, valid: "mn" }]],
+      ["merge-join-src", srcJoin, "src-join(inner)", [UPD, INS(2)],
+        [{ number: 1, valid: "mv" }, { number: 2, valid: "mn" }]],
+    ];
+    for (const [kind, source, srcLabel, arms, params] of kinds) {
+      dml(
+        kind,
+        srcLabel,
+        "plain",
+        {
+          MergeStmt: {
+            relation: relation("ck"),
+            sourceRelation: mergeSource(source),
+            joinCondition: eq(colRef("ck", "id"), colRef("s", "sid")),
+            mergeWhenClauses: arms,
+            returningClause: RET,
+          },
+        },
+        params,
+        [
+          expect("MERGE", "MergeStmt"),
+          expectReturning,
+          expectMergeArms(...armSig(arms)),
+          expectParams(...params.map(p => p.number)),
+        ],
+      );
+    }
+  }
 
   // --- dml-cte: INSERT ... RETURNING joined back through every kind. --------
   // The control value 1 makes ins.id match sparse's u.t_id, so even the

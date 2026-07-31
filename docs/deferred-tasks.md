@@ -28,7 +28,7 @@ finding the defects nobody thought to look for, and then a consumer.
 1. **Argument nullability** — built, all four sequencing steps, plus
    mechanism-A output narrowing and mechanism-C value-flow rejection; the
    design, its empirical grounding, and what remains deferred
-   (`MERGE` generation) are
+   ("Source value-flow attribution") are
    in `docs/argument-nullability.md`.
 2. **New generator axes.** The generated suite ran its full axis space and
    found no defect, which per its own criterion is the signal to widen the
@@ -120,7 +120,37 @@ kept it dark".
 
 ---
 
-## 4. Unbuilt verification strategies
+## 4. Source value-flow attribution
+
+**What.** The collector cannot attribute a parameter's flow through a
+derived-table column into a rejecting site. Measured counterexample (pinned
+in `param-mechanism.test.ts`): in `MERGE INTO m USING (VALUES ($1::text))
+s(sv) … INSERT (id, e) VALUES (1, s.sv)` the NULL binding raises against
+`e`'s NOT NULL constraint, while the collector claims `$1: nullable` — a
+wrong claim in the unsafe direction (a caller told NULL is fine hits a
+runtime error). The hole is not MERGE-specific: `INSERT INTO plain SELECT
+s.x FROM (VALUES ($1)) s(x)` has it identically.
+
+**Why it is deferred rather than fixed.** Attribution requires resolving
+`s.sv` to its defining expression — alias and column-position resolution for
+subquery/VALUES sources — which is a miniature of the scope machinery the
+collector deliberately does not have (its channels are all locally
+recognisable). Building it is a contained but real piece of work:
+`forcedNullParams` composed through derived-table output columns.
+
+**State.** The PostgreSQL behaviour is pinned; the shape is deliberately
+KEPT OUT of the parameterized corpus (fixtures and generated queries put
+parameters in arms and targets, never in sources) precisely because the
+falsification oracle would — correctly — fail on it. This is the register's
+only known wrong-claim class, quarantined rather than silently tolerated.
+
+**Trigger.** The next engine work item; its trigger fixture (the pinned
+statement, with `@param 1 notNull`) ships together with the fix, exactly as
+mechanism C's did.
+
+---
+
+## 5. Unbuilt verification strategies
 
 One of the five strategies proposed for finding engine defects remains
 unbuilt, and after assessing the candidates it is **demoted, not queued**.

@@ -103,6 +103,10 @@ const CLASSIFICATION: Record<string, Classification> = {
   BooleanTest: { category: "handled", why: "IS [NOT] TRUE/FALSE/UNKNOWN is always boolean" },
   SQLValueFunction: { category: "handled", why: "CURRENT_DATE etc.; CURRENT_SCHEMA can be NULL" },
   GroupingFunc: { category: "handled", why: "GROUPING() returns a bitmask" },
+  MergeSupportFunc: {
+    category: "conservative",
+    why: "merge_action() in MERGE RETURNING; never NULL in practice, but a dedicated node the walk has no branch for",
+  },
   FuncCall: { category: "handled", why: "the seven-priority function dispatch" },
   SubLink: { category: "handled", why: "EXISTS/ANY/ALL/ARRAY/scalar subqueries" },
   RowExpr: { category: "handled", why: "row constructor is never NULL" },
