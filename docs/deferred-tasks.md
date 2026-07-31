@@ -35,9 +35,10 @@ finding the defects nobody thought to look for, and then a consumer.
    axes — parameters (above), then DML, deeper nesting, window functions.
    Whatever an axis finds becomes a permanent fixture with annotations, and an
    engine fix.
-3. **The differential oracle** ("Unbuilt verification strategies") — its
-   stated trigger, generation no longer producing findings, has arguably
-   fired already.
+3. **The differential oracle** — assessed and demoted; see "Unbuilt
+   verification strategies" for the findings. Neither candidate can verify
+   this engine: one has no comparable analysis, the other is unsound in both
+   directions outside a band our execution oracle already covers.
 4. **The arity gate** — small, and waits for the first consumer to exist rather
    than being retrofitted.
 
@@ -122,15 +123,41 @@ kept it dark".
 ## 4. Unbuilt verification strategies
 
 One of the five strategies proposed for finding engine defects remains
-unbuilt. (Generated queries, formerly listed alongside it, are built — see
+unbuilt, and after assessing the candidates it is **demoted, not queued**.
+(Generated queries, formerly listed alongside it, are built — see
 `docs/query-generator-handoff.md` and `tests/unit/query/generated/`.)
 
-**Differential oracle.** `postgres-language-server` (Rust) and `sqlc` are both
-checked out in this workspace and perform overlapping analysis. Running the
-same fixtures through another implementation costs no authoring effort, and any
-disagreement is a candidate bug in one of them. It cannot find defects the two
-implementations share, which is why it supplements rather than replaces the
-census and the executable suites.
+**Differential oracle — assessed 2026-08, both candidates read in full.**
+
+*postgres-language-server*: no comparable surface at all. It never derives a
+query's output column list, contains zero code inspecting join types, and its
+"type checking" hands the SQL to a live PostgreSQL via PREPARE — the same
+oracle this project already uses directly. Nothing to disagree with. The
+reading did produce salvage for pgsid's own language-server surface —
+`docs/postgres-language-server-notes.md` records it (dual-parser
+architecture for incomplete SQL, statement splitting, the productionized
+PREPARE harness, error-cursor mapping).
+
+*sqlc*: closer than expected — its PostgreSQL engine parses with libpg_query
+like ours, and `internal/compiler/output_columns.go` is genuinely join-aware
+(LEFT/RIGHT/FULL demotion with alias-correct matching, CTE plumbing), with
+`sqlc analyze` emitting per-column/per-param `not_null` JSON, no database
+needed. But it is unsound in BOTH directions — every resolvable function
+including `sum`/`max` is NOT NULL (`ReturnTypeNullable` never populated for
+PG), scalar subqueries inherit the inner column's NOT NULL, nested join trees
+drop the outer requiredness, UNION takes the left arm only — while having no
+WHERE promotion at all, so it cannot serve even as a one-sided bound. Its
+parameter `not_null` is also a different *definition* than ours (ergonomic
+"which column is it compared to", close to the deadness lint this project
+rejected), so param comparison is a category error. A differential run is
+informative only in a narrow band (left-deep joins over base tables, no
+aggregates, no set ops, no scalar subqueries) where our claims are already
+execution-verified with witnesses.
+
+**Trigger, narrowed:** none foreseeable for finding OUR defects. The inverse
+is real: our corpus provably exercises sqlc's enumerated holes, so running
+`sqlc analyze` over the fixtures would mostly find bugs in *sqlc* — a
+possible upstream contribution someday, not verification of this engine.
 
 ---
 
