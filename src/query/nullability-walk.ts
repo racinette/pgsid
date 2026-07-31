@@ -5,6 +5,7 @@ import { TOTAL_STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
   collectParamNullability,
+  forcedNullParams,
   type ParamNullability,
 } from "./param-nullability.js";
 import type {
@@ -278,8 +279,18 @@ interface Scope {
   visible: VisibleColumn[];
   /** CTE name → (AST node, column names, generated SEARCH/CYCLE columns). */
   ctes: Map<string, { ast: Node; columns: string[]; extraColumns: OutputNullability[] }>;
-  /** WHERE clause node (consulted at ColumnRef leaves). */
+  /** WHERE clause node (consulted at ColumnRef and ParamRef leaves). */
   whereClause?: Node;
+  /**
+   * Whether every row this scope emits derives from at least one input row
+   * that passed `whereClause`. TRUE for a plain SELECT and for a grouped
+   * query whose groups cannot be empty; FALSE for an ungrouped aggregate
+   * query or one with HAVING but no GROUP BY — those emit their row even
+   * over ZERO input rows (`SELECT $1, count(*) FROM t WHERE val = $1` with
+   * NULL bound returns `[NULL, 0]`), so a returned row proves nothing about
+   * the WHERE. Gates the WHERE-conjunct narrowing of ParamRef.
+   */
+  rowsImplyWhere: boolean;
   /**
    * Whether this SELECT's GROUP BY guarantees every emitted group holds at
    * least one input row. True for a plain `GROUP BY a`; false when there is no
@@ -710,6 +721,9 @@ class NullabilityEngine {
       ctes: new Map(),
       whereClause: stmt.whereClause,
       visible: [],
+      rowsImplyWhere: stmt.groupClause?.length
+        ? this.groupingGuaranteesNonEmptyGroups(stmt)
+        : !this.selectEmitsRowsWithoutInput(stmt),
       groupGuaranteesNonEmpty: this.groupingGuaranteesNonEmptyGroups(stmt),
       groupingSetColumns: this.collectGroupingSetColumns(stmt.groupClause),
       outer: outerScope,
@@ -1143,6 +1157,7 @@ class NullabilityEngine {
       aliases: new Map(),
       ctes: new Map(),
       visible: [],
+      rowsImplyWhere: false,
       groupGuaranteesNonEmpty: false,
       groupingSetColumns: EMPTY_STRING_SET,
       outer: outerScope,
@@ -1357,6 +1372,7 @@ class NullabilityEngine {
       aliases: new Map(),
       ctes: new Map(),
       visible: [],
+      rowsImplyWhere: false,
       groupGuaranteesNonEmpty: false,
       groupingSetColumns: EMPTY_STRING_SET,
       outer,
@@ -1677,6 +1693,25 @@ class NullabilityEngine {
         trace.conclude(
           true,
           `$${num} rejects NULL at Bind, so any returned row proves it non-null`,
+        );
+        return true;
+      }
+      // WHERE-conjunct narrowing: this scope's rows each passed a conjunct
+      // that cannot be TRUE with $num NULL. Gated on rowsImplyWhere — an
+      // ungrouped aggregate emits its row over zero input rows, proving
+      // nothing. Unlike mechanism A this narrows the output only; the
+      // parameter remains a perfectly legal NULL binding that simply
+      // returns no rows.
+      if (
+        scope.rowsImplyWhere &&
+        scope.whereClause &&
+        this.whereImpliesParamNotNull(scope.whereClause, num)
+      ) {
+        trace.addFact("param", `$${num}`);
+        trace.addFact("whereGuarantee", "a must-be-TRUE conjunct requires it non-null");
+        trace.conclude(
+          true,
+          `every returned row passed a WHERE conjunct that is only TRUE with $${num} non-null`,
         );
         return true;
       }
@@ -2658,6 +2693,110 @@ class NullabilityEngine {
    *
    * Disjunctions (OR) and complex predicates are conservatively skipped.
    */
+  /**
+   * An ungrouped aggregate query (or HAVING without GROUP BY) emits its row
+   * even over zero input rows, so its output rows do not imply the WHERE
+   * ever evaluated TRUE. Syntactic scan of the target list; SubLinks are NOT
+   * descended into — an aggregate inside a subquery belongs to the
+   * subquery's scope, not this one. Window invocations (`over` present) are
+   * per-row and do not make the query aggregate, but their arguments can
+   * still contain a plain aggregate, so recursion continues through them.
+   */
+  private selectEmitsRowsWithoutInput(stmt: SelectStmt): boolean {
+    if (stmt.havingClause) return true;
+    const containsAggregate = (node: unknown): boolean => {
+      if (Array.isArray(node)) return node.some(containsAggregate);
+      if (!node || typeof node !== "object") return false;
+      const obj = node as Record<string, unknown>;
+      if ("SubLink" in obj) return false;
+      if ("FuncCall" in obj) {
+        const fc = obj["FuncCall"] as FuncCall & { agg_star?: boolean; agg_within_group?: boolean };
+        if (!fc.over) {
+          if (fc.agg_star || fc.agg_within_group || fc.agg_filter) return true;
+          const parts = (fc.funcname ?? []).map(f => this.stringVal(f));
+          const name = parts[parts.length - 1] ?? "";
+          const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+          if (name && this.isAggregateByName(name, schema)) return true;
+        }
+        return containsAggregate(fc.args);
+      }
+      return Object.values(obj).some(containsAggregate);
+    };
+    return containsAggregate(stmt.targetList);
+  }
+
+  /**
+   * Whether this WHERE proves `$num` non-null for every row it lets through —
+   * the parameter analogue of checkWhereGuarantee. Conjuncts only (AND
+   * recursion; OR and NOT guarantee nothing — the optional-filter idiom
+   * `val = $1 OR $1 IS NULL` returns rows with $1 NULL). A conjunct counts
+   * when it cannot be TRUE while the parameter is NULL, established through
+   * forcedNullParams: the conjunct's operand would evaluate NULL, and NULL
+   * is not TRUE. Unlike the column path this accepts only the shared
+   * strict-operator set — an arbitrary or qualified operator may be
+   * non-strict and TRUE with a NULL operand.
+   *
+   * Consulted for the CURRENT scope only, never the outer chain: subquery,
+   * view, and CTE analyses are memoized by node identity, and a guarantee
+   * inherited from one referencing context must not leak into another — the
+   * same rule that stops branch guards at statement boundaries.
+   */
+  private whereImpliesParamNotNull(clause: Node, num: number): boolean {
+    const node = clause as Record<string, unknown>;
+
+    if ("BoolExpr" in node) {
+      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
+      if (be.boolop === "AND_EXPR") {
+        return (be.args ?? []).some(arg => this.whereImpliesParamNotNull(arg, num));
+      }
+      return false;
+    }
+
+    if ("NullTest" in node) {
+      const nt = node["NullTest"] as { arg: Node; nulltesttype?: string };
+      return (
+        nt.nulltesttype === "IS_NOT_NULL" && forcedNullParams(nt.arg, this.catalog).has(num)
+      );
+    }
+
+    if ("A_Expr" in node) {
+      const ae = node["A_Expr"] as {
+        kind?: string;
+        name?: Node[];
+        lexpr?: Node;
+        rexpr?: Node;
+      };
+      const op = ae.name?.length === 1 ? this.stringVal(ae.name[0]!) : "";
+      const forced = (n: Node | undefined): boolean =>
+        n !== undefined && forcedNullParams(n, this.catalog).has(num);
+
+      switch (ae.kind) {
+        case "AEXPR_OP":
+        case "AEXPR_OP_ANY":
+        case "AEXPR_OP_ALL":
+          // `x = ANY(arr)` is NULL when either the tested value or the array
+          // as a whole is NULL, so both operands count. The comparison must
+          // be from the shared strict set.
+          return TOTAL_STRICT_OPERATORS.has(op) && (forced(ae.lexpr) || forced(ae.rexpr));
+        case "AEXPR_IN":
+          // Only the tested value: `x IN ($1, 5)` is TRUE via 5 with $1 NULL.
+          return forced(ae.lexpr);
+        case "AEXPR_BETWEEN":
+        case "AEXPR_BETWEEN_SYM": {
+          // Strict in the tested value and both bounds. NOT BETWEEN is
+          // excluded: it can be TRUE with a NULL bound.
+          if (forced(ae.lexpr)) return true;
+          const bounds = (ae.rexpr as { List?: { items?: Node[] } } | undefined)?.List?.items;
+          return (bounds ?? []).some(b => forced(b));
+        }
+        default:
+          return false;
+      }
+    }
+
+    return false;
+  }
+
   private whereImpliesNotNull(
     whereClause: Node,
     alias: string,

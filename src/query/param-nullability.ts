@@ -142,17 +142,25 @@ function reject(c: Collector, num: number, mechanism: "domain" | "constraint" | 
 }
 
 /**
- * Mechanism-C attribution: which parameters, when bound NULL, force this
- * expression to evaluate NULL? Only guaranteed propagation counts — strict
- * operators and functions propagate any NULL operand; NULLIF propagates its
- * LEFT operand only (a NULL right side just fails the equality); COALESCE is
- * NULL only when every branch is (intersection); a cast passes its operand's
- * set through (a NOT NULL domain cast in the middle raises even earlier,
- * which serves the same claim). Everything unrecognised contributes nothing —
- * an unattributed parameter stays nullable, and the falsification oracle is
- * what keeps that honest.
+ * Which parameters, when bound NULL, force this expression to evaluate NULL?
+ * Only guaranteed propagation counts — strict operators and functions
+ * propagate any NULL operand; NULLIF propagates its LEFT operand only (a
+ * NULL right side just fails the equality); COALESCE is NULL only when every
+ * branch is (intersection); a cast passes its operand's set through (a NOT
+ * NULL domain cast in the middle raises even earlier, which serves the same
+ * claim). Everything unrecognised contributes nothing — an unattributed
+ * parameter stays nullable, and the falsification oracle keeps that honest.
+ *
+ * Two consumers: mechanism-C attribution here (a forced-NULL value reaching
+ * a runtime rejection makes the parameter `notNull`), and the output walk's
+ * WHERE-conjunct narrowing (a must-be-TRUE conjunct whose operand a
+ * parameter forces NULL proves the parameter non-null on every returned
+ * row).
  */
-function forcedNullParams(c: Collector, node: Node | undefined): Set<number> {
+export function forcedNullParams(
+  node: Node | undefined,
+  catalog: NullabilityCatalog,
+): Set<number> {
   const empty = new Set<number>();
   if (!node || typeof node !== "object") return empty;
   const n = node as Record<string, unknown>;
@@ -161,17 +169,17 @@ function forcedNullParams(c: Collector, node: Node | undefined): Set<number> {
   if (direct !== null) return new Set([direct]);
 
   if (n["TypeCast"]) {
-    return forcedNullParams(c, (n["TypeCast"] as { arg?: Node }).arg);
+    return forcedNullParams((n["TypeCast"] as { arg?: Node }).arg, catalog);
   }
 
   if (n["A_Expr"]) {
     const ae = n["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
-    if (ae.kind === "AEXPR_NULLIF") return forcedNullParams(c, ae.lexpr);
+    if (ae.kind === "AEXPR_NULLIF") return forcedNullParams(ae.lexpr, catalog);
     const op = ae.name?.length === 1 ? stringVal(ae.name[0]) : "";
     if (ae.kind === "AEXPR_OP" && TOTAL_STRICT_OPERATORS.has(op)) {
       const out = new Set<number>();
       for (const operand of [ae.lexpr, ae.rexpr]) {
-        for (const num of forcedNullParams(c, operand)) out.add(num);
+        for (const num of forcedNullParams(operand, catalog)) out.add(num);
       }
       return out;
     }
@@ -182,7 +190,7 @@ function forcedNullParams(c: Collector, node: Node | undefined): Set<number> {
     const args = (n["CoalesceExpr"] as { args?: Node[] }).args ?? [];
     if (args.length === 0) return empty;
     return args
-      .map(a => forcedNullParams(c, a))
+      .map(a => forcedNullParams(a, catalog))
       .reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
   }
 
@@ -192,12 +200,12 @@ function forcedNullParams(c: Collector, node: Node | undefined): Set<number> {
     const name = parts[parts.length - 1];
     const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
     if (!name) return empty;
-    const info = c.catalog.resolveFunctionMetadata(schema, name);
+    const info = catalog.resolveFunctionMetadata(schema, name);
     if (!info?.strict || info.isAggregate) return empty;
     const out = new Set<number>();
     for (const arg of fc.args ?? []) {
       if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return empty;
-      for (const num of forcedNullParams(c, arg)) out.add(num);
+      for (const num of forcedNullParams(arg, catalog)) out.add(num);
     }
     return out;
   }
@@ -209,7 +217,7 @@ function forcedNullParams(c: Collector, node: Node | undefined): Set<number> {
  *  ParamRef, which its caller has already handled as A or B. */
 function rejectFlow(c: Collector, expr: Node | undefined): void {
   if (!expr || paramNumberOf(expr) !== null) return;
-  for (const num of forcedNullParams(c, expr)) reject(c, num, "flow");
+  for (const num of forcedNullParams(expr, c.catalog)) reject(c, num, "flow");
 }
 
 function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): void {

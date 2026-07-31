@@ -1,5 +1,3 @@
--- @unwitnessable 6: any returned row proves $2 passed the BETWEEN filter, so the projected parameter is non-null on every row: the output-narrowing fact deferred in docs/argument-nullability.md
--- @unwitnessable 8: same as $2: $3 must be non-null for any row to pass the BETWEEN
 -- Extreme fixture: parameterized query with params in every possible
 -- position — SELECT, WHERE, JOIN ON, subquery, function args, CASE,
 -- COALESCE, VALUES, ORDER BY, aggregate filter, and window partition.
@@ -34,9 +32,9 @@ SELECT
   p.price                                   AS price,            -- @notNull
   $1                                        AS param_email,      -- @nullable
   COALESCE($1, 'default@example.com')       AS safe_email,      -- @notNull
-  $2::numeric                               AS min_price_param,  -- @nullable
+  $2::numeric                               AS min_price_param,  -- @notNull (WHERE-narrowed: the BETWEEN conjunct needs it)
   COALESCE($2::numeric, 0)                  AS safe_min_price,  -- @notNull
-  $3::numeric                               AS max_price_param,  -- @nullable
+  $3::numeric                               AS max_price_param,  -- @notNull (WHERE-narrowed: the BETWEEN conjunct needs it)
   COALESCE($3::numeric, 999999)             AS safe_max_price,  -- @notNull
   lower_strict($6)                          AS lower_search,    -- @nullable
   COALESCE(lower_strict($6), 'no search')   AS safe_search,     -- @notNull

@@ -500,6 +500,10 @@ const PROJECTIONS: Projection[] = [
         target(s.slots.textA, "a_ta"),
         target(s.slots.intKey, "a_int"),
       ],
+      // The $2 disjunction doubles as WHERE-narrowing's built-in negative:
+      // OR must not narrow, and a_cp's witnesses depend on the all-NULL pass
+      // returning rows — which is also why the narrowing conjunct lives on
+      // param-reject, not here.
       where: orExpr(neq(s.slots.intKey, paramRef(2)), isNull(paramRef(2))),
       params: [
         { number: 1, valid: "px" },
@@ -531,18 +535,28 @@ const PROJECTIONS: Projection[] = [
         // so $2 is claimed notNull (execution-time — witnessed wherever rows
         // reach the evaluation, never narrowing).
         target(castTo(concatOp(paramRef(2), textConst("f")), "nn_text"), "a_pf"),
+        // WHERE-conjunct narrowing under the whole structural space: the
+        // `$3 = 'p3x'` conjunct is only TRUE with $3 non-null, so this bare
+        // projection is claimed notNull — while $3's ARGUMENT contract stays
+        // nullable (a NULL binding legally returns zero rows). The conjunct
+        // compares the parameter alone, so under valid bindings it filters
+        // nothing and no witness depends on it. (Bare $3 deduces text.)
+        target(paramRef(3), "a_p3"),
         target(s.slots.intKey, "a_int"),
       ],
+      where: eq(paramRef(3), textConst("p3x")),
       params: [
         { number: 1, valid: "pd" },
         { number: 2, valid: "pc" },
+        { number: 3, valid: "p3x" },
       ],
-      colNames: ["a_pd", "a_pn", "a_c2", "a_pf", "a_int"],
+      colNames: ["a_pd", "a_pn", "a_c2", "a_pf", "a_p3", "a_int"],
       literals: [
         textConst("d"),
         textConst("dn"),
         textConst("c"),
         textConst("df"),
+        textConst("e3"),
         intConst(1),
       ],
       matchLiterals: [
@@ -550,10 +564,11 @@ const PROJECTIONS: Projection[] = [
         textConst("pdn"),
         textConst("pc"),
         textConst("pcf"),
+        textConst("p3x"),
         intConst(1),
       ],
     }),
-    expectations: [expectParams(1, 2), expect("COALESCE", "CoalesceExpr")],
+    expectations: [expectParams(1, 2, 3), expect("COALESCE", "CoalesceExpr")],
   },
   {
     key: "group-coalesce",

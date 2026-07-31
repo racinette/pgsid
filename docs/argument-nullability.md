@@ -217,14 +217,34 @@ COALESCE-absorption and NULLIF-asymmetry boundaries — are pinned in
 the generated `param-reject` projection carries the shape across the whole
 structural space.
 
+**WHERE-conjunct narrowing (implemented).** In `SELECT $1 AS x FROM t WHERE
+t.a = $1`, any returned row passed the WHERE, a strict comparison is only
+TRUE with non-null operands, so `x` is notNull for every row that exists —
+while the ARGUMENT stays nullable: NULL is a legal binding that simply
+returns nothing. The parameter mirror of the column WHERE-promotion the walk
+already had, built on `forcedNullParams` and the shared strict-operator set,
+with three boundaries each carried by a fixture or generated negative:
+
+- *Conjuncts only.* OR and NOT guarantee nothing — the optional-filter idiom
+  returns rows with the parameter NULL (`param-optional-filter`). Qualifying
+  conjunct shapes: strict comparisons, `= ANY`/`ALL`, `BETWEEN [SYMMETRIC]`,
+  `IN` (tested value only — `x IN ($1, 5)` is TRUE via 5), `IS NOT NULL`.
+- *Rows must imply the WHERE.* An ungrouped aggregate query (or HAVING
+  without GROUP BY, or empty grouping sets) emits its row over ZERO input
+  rows — `SELECT $1, count(*) … WHERE val = $1` returns `[NULL, 0]` — so
+  narrowing is gated on `rowsImplyWhere` (`param-where-agg-norows` is the
+  live trap). Plain GROUP BY qualifies via the non-empty-groups guarantee.
+- *Current scope only, SELECT scopes only.* Subquery/CTE/view analyses are
+  memoized by node identity, so guarantees never travel the outer chain — a
+  context-dependent result would leak across references. DML RETURNING
+  scopes are excluded because enabling their `whereClause` would also enable
+  COLUMN promotion there, which is unsound (WHERE tested the OLD row;
+  RETURNING reports the NEW one). Recorded extensions, none taken: INNER
+  `ON` and HAVING conjuncts (the column promotion ignores them too), and a
+  param-only DML-RETURNING channel.
+
 **Deferred, recorded so the boundary is deliberate:**
 
-- *WHERE-conjunct narrowing.* In `SELECT $1 AS x FROM t WHERE t.a = $1`, any
-  returned row proves the conjunct was TRUE, hence `$1` non-NULL, hence `x`
-  notNull for every row that exists. Needs must-be-TRUE position analysis
-  (WHERE and INNER `ON` conjuncts qualify; a LEFT join's `ON` does not). The
-  `@unwitnessable` annotations on `extreme-params-everywhere` mark the
-  claims it would flip.
 - *The deadness lint*, decided against for the contract; if it ever exists it
   is a separate diagnostics channel, not a nullability fact.
 
