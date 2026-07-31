@@ -37,6 +37,7 @@ import type {
   ConstraintInfo,
   TableInfo,
 } from "../../../../src/catalog/types.js";
+import { splitQualifiedName } from "../../../../src/catalog/qualified-name.js";
 import { FUZZ_SEED, hashSeed, makeRand, type Rand } from "./random.js";
 
 // ---------------------------------------------------------------------------
@@ -98,11 +99,17 @@ export function nullRate(p: number): NullPolicy {
 }
 
 /**
- * Generators resolved most-specific-first. Every tier is keyed by the schema of
- * the *table* being filled, so one entry set serves one schema.
+ * Generators resolved most-specific-first.
+ *
+ * `byColumn`, `rowCounts` and `nullPolicies` are keyed by the schema of the
+ * *table* being filled. `byType` is keyed by the schema of the *type*, which is
+ * what a schema-qualified type name resolves against: two schemas may each
+ * declare a `pct` domain and they are not the same type. Built-in types arrive
+ * unqualified — pg_catalog is searched implicitly whatever the search path is —
+ * and are looked up under the table's schema.
  */
 export interface GeneratorRegistry {
-  /** schema → type name → generator. A domain is keyed by its own name. */
+  /** type schema → bare type name → generator. A domain is keyed by its own name. */
   byType: Record<string, Record<string, ColumnGenerator>>;
   /** schema → table → column → generator. */
   byColumn: Record<string, Record<string, Record<string, ColumnGenerator>>>;
@@ -327,22 +334,28 @@ class Generation {
     column: ColumnInfo,
     typeName: string = column.typeName,
   ): ColumnGenerator {
-    const byType = this.registry.byType[table.schema] ?? {};
-    const direct = byType[typeName];
+    // The snapshot is taken with an empty search_path, so a type outside
+    // pg_catalog arrives qualified (`public.discount_percent`). Registry keys
+    // are bare type names under their own schema, so split before looking up;
+    // an unqualified name is a built-in and is looked up under the table's
+    // schema, which is where base types are registered.
+    const { schema: typeSchema, name } = splitQualifiedName(typeName);
+    const schema = typeSchema ?? table.schema;
+    const byType = this.registry.byType[schema] ?? {};
+    const direct = byType[name];
     if (direct) return direct;
 
-    const domain = this.snapshot.domains.find(
-      d => d.schema === table.schema && d.name === typeName,
-    );
+    const domain = this.snapshot.domains.find(d => d.schema === schema && d.name === name);
     if (domain) {
-      const base = byType[domain.baseTypeName];
+      const baseType = splitQualifiedName(domain.baseTypeName);
+      const base = this.registry.byType[baseType.schema ?? schema]?.[baseType.name];
       if (base) return base;
     }
 
     throw new Error(
       `no generator for ${table.schema}.${table.name}.${column.name} of type ` +
         `"${typeName}"${domain ? ` (domain over "${domain.baseTypeName}")` : ""}. ` +
-        `Add an entry to typeSpecificGenerators["${table.schema}"] or to ` +
+        `Add an entry to typeSpecificGenerators["${schema}"]["${name}"] or to ` +
         `columnSpecificGenerators["${table.schema}"]["${table.name}"] in ` +
         `tests/unit/query/fixture-data/generators.ts.`,
     );

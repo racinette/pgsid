@@ -116,6 +116,50 @@ describe("catalog diff is stable across a rebuild", () => {
     expect(diffCatalogs(before, after).modified.map(m => m.entityId)).toEqual(["public.pct"]);
   });
 
+  it("reports nothing when only the session's search_path differs", async () => {
+    // Names in a snapshot are rendered by PostgreSQL, and every renderer omits
+    // the schema qualifier for whatever the search path makes visible. Without
+    // a pinned path the same unchanged database describes itself differently
+    // from two sessions, and the diff reads that as a schema change.
+    const pg = await PGlite.create();
+    try {
+      await pg.exec(`
+        CREATE SCHEMA app;
+        CREATE DOMAIN app.pct AS numeric;
+        CREATE TABLE app.t (id integer NOT NULL PRIMARY KEY, share app.pct);
+        CREATE VIEW app.v AS SELECT id, share FROM app.t;
+        CREATE FUNCTION app.f(a app.pct) RETURNS app.pct LANGUAGE sql AS $$ SELECT a $$;
+      `);
+      const fromDefault = await snapshotCatalog(pg);
+      await pg.exec("SET search_path TO app, public;");
+      const fromApp = await snapshotCatalog(pg);
+
+      expect(diffCatalogs(fromDefault, fromApp).modified.map(m => m.entityId)).toEqual([]);
+
+      // And the rendering is the qualified one either way, not whichever the
+      // session happened to make visible.
+      const share = fromApp.tables
+        .find(t => t.name === "t")!
+        .columns.find(c => c.name === "share")!;
+      expect(share.typeName).toBe("app.pct");
+      expect(fromApp.views.find(v => v.name === "v")!.definition).toContain("FROM app.t");
+    } finally {
+      await pg.close();
+    }
+  });
+
+  it("restores the session's search_path afterwards", async () => {
+    const pg = await PGlite.create();
+    try {
+      await pg.exec("CREATE SCHEMA app; SET search_path TO app, public;");
+      await snapshotCatalog(pg);
+      const after = await pg.query<{ search_path: string }>("SHOW search_path;");
+      expect(after.rows[0]!.search_path).toBe("app, public");
+    } finally {
+      await pg.close();
+    }
+  });
+
   it("compares no OID anywhere", async () => {
     const states = comparableStates(await snapshotOf(DDL));
     const offenders: string[] = [];

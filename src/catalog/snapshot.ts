@@ -366,6 +366,42 @@ function bySchemaName<T extends { schema: string; name: string }>(a: T, b: T): n
  * query typechecking, codegen, selective re-typecheck, and future linting.
  */
 export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
+  return withEmptySearchPath(pg, () => readCatalog(pg));
+}
+
+/**
+ * Run `read` with an empty `search_path`, restoring the session's own value
+ * afterwards.
+ *
+ * Every name in a snapshot is rendered by PostgreSQL — `format_type` for a
+ * column's type, `pg_get_viewdef`, `pg_get_constraintdef`, `pg_get_expr` for a
+ * default, `pg_get_function_result` — and each of them omits the schema
+ * qualifier for whatever the current `search_path` makes visible. The same
+ * unchanged database therefore describes itself differently depending on
+ * session state: a column is `app.pct` from one session and `pct` from another,
+ * and a view is `FROM app.t` or `FROM t`.
+ *
+ * Those strings are what the diff compares and what the nullability walk
+ * resolves, so a name that shifts with session state is not an identity.
+ * Emptying the path removes the choice rather than guessing which value was in
+ * effect: `pg_catalog` is searched implicitly whatever the setting, so
+ * built-ins keep their standard names (`integer`, not `pg_catalog.int4`) and
+ * everything else comes out fully qualified.
+ */
+async function withEmptySearchPath<T>(pg: PGlite, read: () => Promise<T>): Promise<T> {
+  const saved = (await pg.query<{ search_path: string }>("SHOW search_path;")).rows[0]
+    ?.search_path;
+  await pg.query("SELECT set_config('search_path', '', false);");
+  try {
+    return await read();
+  } finally {
+    // Passing the value as a parameter means a path containing quotes — the
+    // default is `"$user", public` — needs no escaping on the way back.
+    await pg.query("SELECT set_config('search_path', $1, false);", [saved ?? ""]);
+  }
+}
+
+async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   // Run all independent catalog queries in parallel.
   const [
     typeRows,

@@ -136,9 +136,44 @@ describe("fixture data generation", () => {
     const registry = baseRegistry();
     delete registry.byType.public!.numeric;
     delete registry.byType.public!.pct;
+    // The snapshot renders a user-defined type schema-qualified, and the error
+    // quotes it as PostgreSQL printed it.
     expect(() => generateFixtureData(snapshot, { registry })).toThrow(
-      /no generator for public\.child\.share of type "pct"/,
+      /no generator for public\.child\.share of type "public\.pct"/,
     );
+  });
+
+  it("resolves a qualified type name against the schema that owns the type", async () => {
+    // Same domain name in two schemas: the registry entry that applies is the
+    // one under the type's own schema, not the table's.
+    const other = await PGlite.create();
+    try {
+      await other.exec(`
+        CREATE SCHEMA lib;
+        CREATE DOMAIN lib.pct AS numeric;
+        CREATE DOMAIN pct AS numeric;
+        CREATE TABLE mixed (mine pct, theirs lib.pct);
+      `);
+      const s = await snapshotCatalog(other);
+      const sql = generateFixtureData(s, {
+        registry: {
+          byType: {
+            public: { numeric: () => 1, pct: () => 11 },
+            lib: { pct: () => 22 },
+          },
+          byColumn: {},
+          rowCounts: { public: { mixed: [2, 2] } },
+          nullPolicies: {
+            byColumn: { public: { mixed: { mine: () => false, theirs: () => false } } },
+          },
+        },
+      }).sql;
+      const { rows, columns } = parseInserts(sql).get("public.mixed")!;
+      expect(rows.map(r => r[columns.indexOf("mine")])).toEqual(["11", "11"]);
+      expect(rows.map(r => r[columns.indexOf("theirs")])).toEqual(["22", "22"]);
+    } finally {
+      await other.close();
+    }
   });
 
   it("falls back from a domain to its base type", () => {

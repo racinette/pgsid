@@ -1,5 +1,6 @@
 import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
+import { splitQualifiedName } from "../catalog/qualified-name.js";
 import type {
   NullabilityCatalog,
   OutputNullability,
@@ -1396,8 +1397,14 @@ class NullabilityEngine {
       });
     }
 
+    // The snapshot is taken with an empty search_path, so anything outside
+    // pg_catalog arrives schema-qualified: `SETOF public.order_items`, not
+    // `SETOF order_items`. Resolve against the schema PostgreSQL named rather
+    // than re-deriving it from a search path this code cannot see.
+    const { schema: typeSchema, name: typeBase } = splitQualifiedName(type);
+
     // RETURNS SETOF <table> / <composite>: the row type, constraints dropped.
-    const table = this.catalog.resolveTable(undefined, type);
+    const table = this.catalog.resolveTable(typeSchema, typeBase);
     if (table) {
       return table.columns.map(col => {
         const oid = this.catalog.resolveColumnTypeOid(table.schema, table.name, col);
@@ -1412,7 +1419,7 @@ class NullabilityEngine {
 
     // RETURNS SETOF <composite>: expands to the type's fields. Like a table
     // row type, a composite carries types only — no NOT NULL constraints.
-    const composite = this.catalog.resolveCompositeType(undefined, type);
+    const composite = this.catalog.resolveCompositeType(typeSchema, typeBase);
     if (composite) {
       return composite.fields.map(f => ({
         name: f.name,
@@ -1426,11 +1433,8 @@ class NullabilityEngine {
 
   /** Whether a type name as printed by PostgreSQL is a NOT NULL domain. */
   private isNotNullDomainType(typeName: string): boolean {
-    const bare = typeName.replace(/\[\]$/, "").trim();
-    const parts = bare.split(".");
-    return parts.length >= 2
-      ? this.catalog.isNotNullDomainByName(parts[parts.length - 2]!, parts[parts.length - 1]!)
-      : this.catalog.isNotNullDomainByName(undefined, bare);
+    const { schema, name } = splitQualifiedName(typeName.replace(/\[\]$/, "").trim());
+    return this.catalog.isNotNullDomainByName(schema, name);
   }
 
   /**

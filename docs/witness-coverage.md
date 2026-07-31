@@ -95,6 +95,12 @@ column-specific → foreign key → surrogate key → its own type name
   (which is the domain name for a domain column) → the domain's base type
 ```
 
+The snapshot is taken with an empty `search_path`, so a type outside
+`pg_catalog` arrives schema-qualified. The type tier is therefore keyed by the
+schema that *owns the type* rather than the one that owns the table: two schemas
+may each declare a `pct` domain, and they are not the same type. Built-ins come
+through unqualified and resolve under the table's schema.
+
 **No match is an error, not a default.** A column whose type has no generator
 fails loudly, so adding one forces a decision — the same discipline
 `node-census.test.ts` applies to AST node types. So does the reverse: a registry
@@ -259,7 +265,7 @@ fixtures are for. `from-item-kinds`, `table-function-return-types`,
 
 **Conservative by design (12 claims).** The value is provably non-null and the
 engine reports nullable anyway. Each is a known imprecision registered in
-`docs/deferred-tasks.md` §6 — array subscripting, `ScalarArrayOp`, ordered-set
+`docs/deferred-tasks.md` §5 — array subscripting, `ScalarArrayOp`, ordered-set
 aggregates, population statistics, recursive-CTE columns derived from the
 recursive term, built-ins outside the curated tables — or `CURRENT_SCHEMA`,
 which is unwitnessable by construction. These are the candidates for engine
