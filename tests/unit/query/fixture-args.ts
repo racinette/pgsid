@@ -47,18 +47,84 @@ export interface FixtureDirectives {
    * accepted as the expected one.
    */
   raisesPattern: string | null;
+  /**
+   * Expected argument nullability, from `-- @param N notNull|nullable` lines.
+   * One entry per annotated parameter, in annotation order. See
+   * docs/argument-nullability.md: `notNull` claims binding NULL can make the
+   * statement raise; `nullable` claims NULL is a universally safe binding —
+   * never that it is a useful one.
+   */
+  paramClaims: ParamClaim[];
+  /**
+   * Output columns whose `@nullable` claim is known to be unwitnessable, by
+   * 0-based column index, with the reason recorded: `-- @unwitnessable N:
+   * reason`. The witness invariant in nullability-soundness.test.ts requires
+   * every unwitnessed nullable claim to carry one of these, and requires the
+   * annotation to come OFF the moment data witnesses the claim — so a reason
+   * is a reviewed, current fact, not a historical excuse.
+   */
+  unwitnessable: Map<number, string>;
+}
+
+export interface ParamClaim {
+  /** 1-based parameter number. */
+  number: number;
+  notNull: boolean;
 }
 
 const ARGS_RE = /^\s*--\s*@args\b(.*)$/;
 const NO_ROWS_RE = /^\s*--\s*@no-rows\b:?(.*)$/;
 const RAISES_RE = /^\s*--\s*@raises\b:?(.*)$/;
+const PARAM_RE = /^\s*--\s*@param\b(.*)$/;
+const UNWITNESSABLE_RE = /^\s*--\s*@unwitnessable\b:?(.*)$/;
 
 export function parseFixtureDirectives(content: string): FixtureDirectives {
   const bindings: FixtureBinding[] = [];
+  const paramClaims: ParamClaim[] = [];
+  const unwitnessable = new Map<number, string>();
   let noRowsReason: string | null = null;
   let raisesPattern: string | null = null;
 
   for (const line of content.split("\n")) {
+    const unwitnessableMatch = UNWITNESSABLE_RE.exec(line);
+    if (unwitnessableMatch) {
+      const m = /^(\d+)\s*:\s*(.+)$/.exec(unwitnessableMatch[1]!.trim());
+      const index = m ? Number(m[1]) : NaN;
+      if (!m || !Number.isInteger(index)) {
+        throw new Error(
+          `@unwitnessable must be \`-- @unwitnessable <column index>: <reason>\`, ` +
+            `got: ${unwitnessableMatch[1]!.trim()}`,
+        );
+      }
+      if (unwitnessable.has(index)) {
+        throw new Error(`duplicate @unwitnessable annotation for column ${index}`);
+      }
+      unwitnessable.set(index, m[2]!.trim());
+      continue;
+    }
+
+    const paramMatch = PARAM_RE.exec(line);
+    if (paramMatch) {
+      const parts = paramMatch[1]!.trim().split(/\s+/);
+      const number = Number(parts[0]);
+      const claim = parts[1];
+      if (
+        parts.length !== 2 ||
+        !Number.isInteger(number) ||
+        number < 1 ||
+        (claim !== "notNull" && claim !== "nullable")
+      ) {
+        throw new Error(
+          `@param must be \`-- @param <n> notNull|nullable\`, got: ${paramMatch[1]!.trim()}`,
+        );
+      }
+      if (paramClaims.some(p => p.number === number)) {
+        throw new Error(`duplicate @param annotation for $${number}`);
+      }
+      paramClaims.push({ number, notNull: claim === "notNull" });
+      continue;
+    }
+
     const argsMatch = ARGS_RE.exec(line);
     if (argsMatch) {
       const raw = argsMatch[1]!.trim();
@@ -114,7 +180,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   if (bindings.length === 0) {
     bindings.push({ label: "unbound", args: null });
   }
-  return { bindings, noRowsReason, raisesPattern };
+  return { bindings, noRowsReason, raisesPattern, paramClaims, unwitnessable };
 }
 
 /**

@@ -1,3 +1,8 @@
+-- @unwitnessable 0: SETOF/TABLE result types carry no NOT NULL constraints; the body selects NOT NULL columns and cannot emit NULL
+-- @unwitnessable 1: same row-type erasure
+-- @unwitnessable 2: same row-type erasure
+-- @unwitnessable 4: same row-type erasure
+-- @unwitnessable 6: same row-type erasure
 -- Set-returning functions in FROM: resolving the return type into columns.
 --
 -- The central rule is a negative one. A `SETOF <table>` result carries the

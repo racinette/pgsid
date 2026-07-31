@@ -1,3 +1,5 @@
+-- @unwitnessable 5: the branch that makes this nullable is a scalar subquery keyed on the shipment's order id, a foreign key whose row exists in every state
+-- @unwitnessable 7: same shape as actor_id: the correlated lookup lands on a row every state contains
 -- Extreme fixture: set operations combining queries with different
 -- structures, CTEs, subqueries, and expression types.
 --

@@ -1,3 +1,4 @@
+-- @unwitnessable 3: the correlated subquery is keyed on the row's own primary key and returns a NOT NULL domain: never absent, never NULL
 -- Domain NOT NULL function returns in nested contexts: inside COALESCE,
 -- inside CASE, in a subquery, and in a CTE. The NOT NULL domain return
 -- (Priority 1) wins over everything, making the function result non-null

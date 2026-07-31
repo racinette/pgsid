@@ -1,3 +1,4 @@
+-- @unwitnessable 3: sum over non-empty groups of a NOT NULL price is always defined; aggregates under GROUPING SETS stay conservative
 -- ROLLUP / CUBE / GROUPING SETS NULL out the grouping columns they collapse.
 --
 -- A super-aggregate row reports NULL for the columns it aggregates over, so a

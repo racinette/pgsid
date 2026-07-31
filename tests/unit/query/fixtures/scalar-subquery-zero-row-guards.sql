@@ -1,3 +1,7 @@
+-- @unwitnessable 2: the zero-row shape this HAVING guard would need is ruled out by the fixture's own construction in every state
+-- @unwitnessable 5: the EXCEPT arm's construction forbids the empty case that would return NULL
+-- @unwitnessable 7: the UNION arm always supplies a row, so the NULL branch cannot survive
+-- @unwitnessable 8: the grouped subquery cannot produce an empty group
 -- Constructs that break a scalar subquery's single-row guarantee.
 --
 -- An ungrouped aggregate normally collapses any input, including zero rows,

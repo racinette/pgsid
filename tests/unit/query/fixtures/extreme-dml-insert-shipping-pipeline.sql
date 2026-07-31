@@ -1,3 +1,4 @@
+-- @unwitnessable 9: the RETURNING subquery is keyed on the new shipment's order id, a foreign key whose customer chain exists in every state
 -- Extreme fixture: INSERT...SELECT from a CTE chain with complex RETURNING.
 --
 -- Tests: DML with CTEs that reference each other, INSERT...SELECT from a

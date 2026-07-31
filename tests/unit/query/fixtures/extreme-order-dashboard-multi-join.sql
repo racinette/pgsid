@@ -1,3 +1,10 @@
+-- @unwitnessable 20: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
+-- @unwitnessable 21: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
+-- @unwitnessable 22: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
+-- @unwitnessable 23: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
+-- @unwitnessable 24: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
+-- @unwitnessable 25: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
+-- @unwitnessable 26: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
 -- Extreme fixture: multiple join types with nested subqueries, CTEs,
 -- LATERAL, window functions, and expression combinations.
 --

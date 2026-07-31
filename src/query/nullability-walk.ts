@@ -1,6 +1,7 @@
 import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
+import { collectParamNullability, type ParamNullability } from "./param-nullability.js";
 import type {
   NullabilityCatalog,
   OutputNullability,
@@ -8,6 +9,8 @@ import type {
   ResolvedTable,
   TraceNode,
 } from "./types.js";
+
+export type { ParamNullability } from "./param-nullability.js";
 
 // ---------------------------------------------------------------------------
 // inferNullability: pure function — AST + NullabilityCatalog → OutputNullability[]
@@ -32,6 +35,29 @@ export function inferNullability(
 ): OutputNullability[] {
   const engine = new NullabilityEngine(catalog);
   return engine.run(stmt);
+}
+
+/**
+ * Both halves of a statement's contract: what comes out (per output column)
+ * and what may go in (per parameter). See docs/argument-nullability.md.
+ */
+export interface QueryContract {
+  outputs: OutputNullability[];
+  params: ParamNullability[];
+}
+
+/**
+ * The full contract of one statement, from one call over one AST — the two
+ * arrays can never describe different statements. Throws
+ * `UnsupportedNodeError` exactly when `inferNullability` does; the parameter
+ * side alone is total, and available separately via
+ * `collectParamNullability` for callers that handle refused statements.
+ */
+export function inferQueryContract(stmt: Node, catalog: NullabilityCatalog): QueryContract {
+  return {
+    outputs: inferNullability(stmt, catalog),
+    params: collectParamNullability(stmt, catalog),
+  };
 }
 
 /**

@@ -36,7 +36,7 @@ bindings**, and five things are asserted:
 | Shape | the engine's output column list equals PostgreSQL's, in order |
 | Soundness | no `notNull` column is ever NULL, under *every* state and binding |
 | Liveness | the fixture returns at least one row somewhere, or declares the error it raises instead |
-| Coverage | one suite-wide test, ratcheting the witnessed count |
+| Coverage | one suite-wide test: every nullable claim witnessed, or its unwitnessability recorded with `@unwitnessable` |
 
 Soundness must hold for every binding: a claim contradicted by any argument set
 is a bug. Witnesses, by contrast, accumulate — any state or binding that
@@ -199,9 +199,9 @@ second database built from the same DDL.
 `FUZZ_SEED` is fixed by default and overridable by the environment variable of
 the same name. A varying seed by default would let coverage drift between runs,
 so the suite could weaken on an unlucky draw without failing. Under an
-overridden seed the coverage ratchet is reported but not enforced, since the
-baseline records the default seed's numbers; liveness is still enforced, because
-no seed may leave a fixture returning nothing.
+overridden seed the witness invariant is reported but not enforced, since
+witnessing is measured against the default seed's data; liveness is still
+enforced, because no seed may leave a fixture returning nothing.
 
 `DUMP_GENERATED_DATA=<path>` writes the generated SQL out for inspection.
 
@@ -246,13 +246,24 @@ with a reason:
 The marker is checked both ways: a fixture that carries it and does return rows
 fails too, so the exemption cannot go stale.
 
-**Coverage is a ratchet.** The witnessed count is reported on every run and the
-suite fails if it drops. Not a target of 100% — some claims are legitimately
-unwitnessable (`CURRENT_SCHEMA` is NULL only when the search path resolves to
-nothing), and demanding perfection would push authors toward contorted data
-rather than honest tests. The baseline lives in
-`tests/unit/query/witness-coverage.json`; `UPDATE_WITNESS_BASELINE=1` rewrites
-it, which is how a gain is held and how a deliberate loss is recorded.
+**Coverage is a per-claim invariant.** Every `nullable` claim must either be
+witnessed, or carry a `-- @unwitnessable <column index>: <reason>` annotation
+recording *why* no data can witness it — `CURRENT_SCHEMA` is NULL only when
+the search path resolves to nothing, a `SETOF` row type erases the NOT NULL
+constraints its columns actually have, and so on. The marker is checked both
+ways, like `@no-rows`: an unwitnessed claim with no annotation fails, and an
+annotation on a claim that *is* witnessed fails too, so a recorded reason is
+always a current fact rather than a historical excuse. Claims inside
+`@no-rows` fixtures are exempt wholesale — nothing a rowless statement claims
+can be witnessed.
+
+An aggregate ratchet (a baseline count that could only rise) held this before
+and was replaced deliberately: a ratchet compares sums, so a witnessing
+regression can hide behind an unrelated improvement, and its number conflated
+engine imprecision with data reach. The invariant is exact at any corpus
+size, and the annotations are the triage, kept where the claim lives. This is
+still not a demand for 100% witnessing — an unwitnessable claim is fine — but
+non-witnessing must be *explicit*, never incidental.
 
 ## Current measurement
 
@@ -260,21 +271,24 @@ Across 134 fixtures and 5 data states, at the default seed:
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 575 | |
-| — falsifiable | 565 (98%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 583 | |
+| — falsifiable | 573 (98%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 249 | |
-| — witnessed | 191 (77%) | some state or binding produces a real NULL there |
-| — unwitnessed | 58 | |
+| `nullable` claims | 254 | |
+| — witnessed | 193 (76%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 61 | every one carries an `@unwitnessable` annotation |
 
 Every fixture returns rows under some state and binding, except the two that
 declare `@no-rows`.
 
 ## What remains unwitnessed
 
-`WITNESS_REPORT=1` prints the per-column list. The 58 fall into four groups, and
-only the last is a hole in the suite.
+Every remaining claim's reason lives on its fixture as an `@unwitnessable`
+annotation — `WITNESS_REPORT=1` prints the per-column list with those reasons
+inline. They fall into four groups; annotations whose reason begins "data
+gap:" mark the ones a richer data state could witness, and the staleness
+check removes each annotation automatically the moment that happens.
 
 **A row type carries no constraints (9 claims).** `SETOF <table>` and
 `SETOF <composite>` results are nullable because NOT NULL constraints do not
@@ -317,7 +331,7 @@ returns a row can be witnessed.
 | Data generation | `tests/unit/query/fixture-data/` |
 | Generation framework's own rules | `tests/unit/query/fixture-data.test.ts` |
 | Fixture directives (`@args`, `@no-rows`) | `tests/unit/query/fixture-args.ts` |
-| Coverage baseline | `tests/unit/query/witness-coverage.json` |
+| Unwitnessability annotations | `-- @unwitnessable N: reason` in each fixture; parsed in `fixture-args.ts` |
 | Annotation-based suite | `tests/unit/query/nullability-walk.test.ts` |
 | Executable suite (validity, shape, soundness, liveness, coverage) | `tests/unit/query/nullability-soundness.test.ts` |
 | AST node coverage | `tests/unit/query/node-census.test.ts`, `grammar-sampler.ts` |
@@ -330,7 +344,6 @@ Environment variables it honours:
 
 | | |
 |---|---|
-| `FUZZ_SEED` | seed for generated data; the ratchet is reported but not enforced when set |
-| `WITNESS_REPORT=1` | list every unwitnessed claim, and every claim guarded by a refusal |
-| `UPDATE_WITNESS_BASELINE=1` | rewrite the coverage baseline from this run |
+| `FUZZ_SEED` | seed for generated data; the witness invariant is reported but not enforced when set |
+| `WITNESS_REPORT=1` | list every unwitnessed claim with its recorded reason, and every claim guarded by a refusal |
 | `DUMP_GENERATED_DATA=<path>` | write the generated SQL to a file |

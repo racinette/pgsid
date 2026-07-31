@@ -1,3 +1,4 @@
+-- @unwitnessable 0: multi-statement function bodies are analysed conservatively; the returned expression derives from a NOT NULL argument and never yields NULL
 -- Multi-statement LANGUAGE sql function: body has INSERT + SELECT from
 -- a table. The catalog-adapter correctly takes the last statement (SELECT).
 -- The row-count check detects that this SELECT has a FROM clause and is

@@ -1,3 +1,4 @@
+-- @unwitnessable 2: customers.email is NOT NULL at the base table and a cross join preserves rows; the shape hides the base fact from the walk
 -- CROSS JOIN: parses as JOIN_INNER with no quals. Both sides are REQUIRED.
 -- CROSS JOIN of two NOT NULL tables — all columns non-null.
 -- Combined with a LEFT JOIN to show mixed join types in one FROM.

@@ -1,3 +1,4 @@
+-- @unwitnessable 4: data gap: every state's rows match this join, so the NULL-extension the claim allows never occurs
 -- Multiple join types in a single FROM: INNER + LEFT + RIGHT + FULL.
 -- The outer FULL JOIN makes everything optional. ON clauses reference
 -- columns from earlier joins. WHERE promotes two aliases (o and c) but

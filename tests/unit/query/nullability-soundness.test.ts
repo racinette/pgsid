@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
@@ -67,7 +67,6 @@ import { hasStatements, loadDataStates, type DataState } from "./fixture-data/st
 
 const FIXTURES_DIR = join(__dirname, "fixtures");
 const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
-const BASELINE_PATH = join(__dirname, "witness-coverage.json");
 
 const fixtureFiles = readdirSync(FIXTURES_DIR)
   .filter(f => f.endsWith(".sql") && f !== "schema.sql")
@@ -79,6 +78,7 @@ interface Fixture {
   bindings: FixtureBinding[];
   noRowsReason: string | null;
   raisesPattern: string | null;
+  unwitnessable: Map<number, string>;
 }
 
 /** What execution observed about one output column, across every run. */
@@ -101,17 +101,12 @@ interface FixtureResult {
   sawRows: boolean;
 }
 
-interface CoverageBaseline {
-  witnessedNullableClaims: number;
-  falsifiableNotNullClaims: number;
-}
-
 const fixtures: Fixture[] = fixtureFiles.map(file => {
   const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
   const name = basename(file, ".sql");
   try {
-    const { bindings, noRowsReason, raisesPattern } = parseFixtureDirectives(sql);
-    return { name, sql, bindings, noRowsReason, raisesPattern };
+    const { bindings, noRowsReason, raisesPattern, unwitnessable } = parseFixtureDirectives(sql);
+    return { name, sql, bindings, noRowsReason, raisesPattern, unwitnessable };
   } catch (e) {
     throw new Error(`${file}: ${(e as Error).message}`);
   }
@@ -283,22 +278,34 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
   }
 
   // -------------------------------------------------------------------------
-  // Coverage.
+  // Coverage — the witness invariant.
   //
   // A `nullable` claim is *witnessed* when some state or binding yields a
-  // genuine NULL in that column. Unwitnessed means one of two things and they
-  // need separating: the column truly can never be NULL (real imprecision in
-  // the engine, worth chasing), or the data is too weak to show that it can (a
-  // hole in the suite). Neither is a failure on its own, which is why this is a
-  // ratchet rather than a target — some claims are legitimately unwitnessable
-  // (`CURRENT_SCHEMA` is NULL only when the search path resolves to nothing),
-  // and demanding perfection would push authors toward contorted data rather
-  // than honest tests.
+  // genuine NULL in that column. An unwitnessed claim means one of two things
+  // and they must be separated EXPLICITLY: the column truly can never be NULL
+  // here (engine imprecision or the fixture's own shape — record why with a
+  // `-- @unwitnessable N: reason` annotation), or the data is too weak to
+  // show that it can (a hole: fix the data). The invariant, in the node
+  // census's shape:
   //
-  // Set WITNESS_REPORT=1 to list what is still unwitnessed, which is the input
-  // to triaging each one as engine imprecision or a data gap.
+  //   unwitnessed  →  annotated with a reason   (else this test fails)
+  //   witnessed    →  NOT annotated             (a stale reason must come off)
+  //
+  // An aggregate ratchet held this before and was replaced deliberately: a
+  // ratchet compares sums, so a witnessing regression can hide behind an
+  // unrelated improvement; the per-claim invariant cannot be compensated.
+  // Claims inside `@no-rows` fixtures are exempt wholesale — a statement that
+  // never returns a row can witness nothing, and annotating that would
+  // restate the `@no-rows` marker.
+  //
+  // Both directions are enforced only at the default seed: witnessing is
+  // data-dependent, and another FUZZ_SEED may legitimately witness more or
+  // fewer. Annotation validity (the column exists and is claimed nullable)
+  // is data-independent and always enforced.
+  //
+  // Set WITNESS_REPORT=1 to list every unwitnessed claim with its reason.
   // -------------------------------------------------------------------------
-  it("witness coverage does not regress", () => {
+  it("every nullable claim is witnessed or its unwitnessability is recorded", () => {
     let notNullTotal = 0;
     let notNullFalsifiable = 0;
     let nullableTotal = 0;
@@ -306,9 +313,31 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     const unwitnessed: string[] = [];
     const guarded: string[] = [];
     const unverified: string[] = [];
+    const unclassified: string[] = [];
+    const stale: string[] = [];
+    const invalid: string[] = [];
 
     for (const fixture of fixtures) {
       const r = results.get(fixture.name)!;
+
+      // Annotation validity is data-independent and always enforced.
+      for (const [index, reason] of fixture.unwitnessable) {
+        const claim = r.claimed[index];
+        if (fixture.noRowsReason) {
+          invalid.push(
+            `${fixture.name}: column ${index} — @no-rows fixtures are exempt ` +
+              `wholesale; drop the @unwitnessable annotation`,
+          );
+        } else if (!claim) {
+          invalid.push(`${fixture.name}: column ${index} does not exist (${reason})`);
+        } else if (claim.notNull) {
+          invalid.push(
+            `${fixture.name}: column ${index} "${claim.name}" is claimed notNull — ` +
+              `@unwitnessable only applies to nullable claims`,
+          );
+        }
+      }
+
       r.claimed.forEach((claim, i) => {
         const seen = r.columns[i]!;
         const label = `${fixture.name}: column ${i} "${claim.name}"`;
@@ -324,8 +353,13 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
           else unverified.push(label);
         } else {
           nullableTotal++;
-          if (seen.sawNull) nullableWitnessed++;
-          else unwitnessed.push(label);
+          if (seen.sawNull) {
+            nullableWitnessed++;
+            if (fixture.unwitnessable.has(i)) stale.push(label);
+          } else if (!fixture.noRowsReason) {
+            unwitnessed.push(`${label} — ${fixture.unwitnessable.get(i) ?? "UNCLASSIFIED"}`);
+            if (!fixture.unwitnessable.has(i)) unclassified.push(label);
+          }
         }
       });
     }
@@ -337,10 +371,10 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         `refusal stands behind them.\n  ${unverified.join("\n  ")}`,
     ).toEqual([]);
 
-    const measured: CoverageBaseline = {
-      witnessedNullableClaims: nullableWitnessed,
-      falsifiableNotNullClaims: notNullFalsifiable,
-    };
+    expect(
+      invalid,
+      `@unwitnessable annotations that name the wrong thing:\n  ${invalid.join("\n  ")}`,
+    ).toEqual([]);
 
     const pct = (n: number, total: number) =>
       total === 0 ? "n/a" : `${Math.round((n / total) * 100)}%`;
@@ -351,7 +385,8 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         `(${pct(notNullFalsifiable, notNullTotal)}), ${guarded.length} guarded by a ` +
         `checked refusal, ${unverified.length} unverified\n` +
         `  nullable claims: ${nullableTotal} — ${nullableWitnessed} witnessed ` +
-        `(${pct(nullableWitnessed, nullableTotal)}), ${nullableTotal - nullableWitnessed} unwitnessed`,
+        `(${pct(nullableWitnessed, nullableTotal)}), ${nullableTotal - nullableWitnessed} ` +
+        `unwitnessed with the reason recorded`,
     );
 
     if (process.env.WITNESS_REPORT) {
@@ -362,52 +397,27 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       );
     }
 
-    if (process.env.UPDATE_WITNESS_BASELINE) {
-      writeFileSync(BASELINE_PATH, `${JSON.stringify(measured, null, 2)}\n`);
-    }
-
-    // The baseline was measured at the default seed, so an exploratory run
-    // with another one reports its number without being held to that bar.
-    // Liveness still is: no seed may leave a fixture returning nothing.
+    // Witnessing is data-dependent: another seed may reach more or fewer
+    // NULLs, so the two data-dependent directions of the invariant hold only
+    // at the default seed. Liveness and annotation validity still apply.
     if (process.env.FUZZ_SEED) {
-      console.log(
-        `FUZZ_SEED is overridden, so the coverage ratchet is not applied — ` +
-          `the baseline records the default seed's numbers.`,
-      );
+      console.log(`FUZZ_SEED is overridden, so the witness invariant is not enforced.`);
       return;
     }
 
-    const baseline = JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as CoverageBaseline;
-    const explain = (what: string, now: number, was: number) =>
-      `${what} fell from ${was} to ${now}. Either data or a binding stopped ` +
-      `reaching a claim that it used to reach, or the engine now reports a ` +
-      `different flag there. If the drop is deliberate — a fixture was removed, ` +
-      `say — rerun with UPDATE_WITNESS_BASELINE=1 to lower ` +
-      `tests/unit/query/witness-coverage.json, and say why in the commit.`;
+    expect(
+      unclassified,
+      `Nullable claims that no state or binding witnessed with a NULL, and no ` +
+        `\`-- @unwitnessable N: reason\` annotation covers. Each needs a ` +
+        `decision: data that reaches the NULL, an engine precision fix, or the ` +
+        `annotation with the reason recorded:\n  ${unclassified.join("\n  ")}\n`,
+    ).toEqual([]);
 
     expect(
-      measured.witnessedNullableClaims,
-      explain("witnessed nullable claims", nullableWitnessed, baseline.witnessedNullableClaims),
-    ).toBeGreaterThanOrEqual(baseline.witnessedNullableClaims);
-    expect(
-      measured.falsifiableNotNullClaims,
-      explain(
-        "falsifiable notNull claims",
-        notNullFalsifiable,
-        baseline.falsifiableNotNullClaims,
-      ),
-    ).toBeGreaterThanOrEqual(baseline.falsifiableNotNullClaims);
-
-    if (
-      measured.witnessedNullableClaims > baseline.witnessedNullableClaims ||
-      measured.falsifiableNotNullClaims > baseline.falsifiableNotNullClaims
-    ) {
-      console.log(
-        `coverage improved past the recorded baseline ` +
-          `(${baseline.witnessedNullableClaims} witnessed, ` +
-          `${baseline.falsifiableNotNullClaims} falsifiable). Raise it with ` +
-          `UPDATE_WITNESS_BASELINE=1 so the gain is held.`,
-      );
-    }
+      stale,
+      `@unwitnessable annotations on claims that ARE witnessed now — the data ` +
+        `or the engine moved past the recorded reason; remove the annotation ` +
+        `so the reason stays a current fact:\n  ${stale.join("\n  ")}\n`,
+    ).toEqual([]);
   });
 });

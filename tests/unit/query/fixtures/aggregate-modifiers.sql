@@ -1,3 +1,5 @@
+-- @unwitnessable 9: population statistics are outside the curated builtin tables (known imprecision); the group's quantities are non-null, so stddev_pop is always defined
+-- @unwitnessable 10: ordered-set aggregate: the WITHIN GROUP argument is invisible to the argument check (known imprecision), and the group is never empty
 -- Aggregate modifiers and how each interacts with the non-empty-group rule.
 --
 -- A plain GROUP BY emits no empty groups, so an aggregate over a non-null

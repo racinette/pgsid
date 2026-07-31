@@ -1,3 +1,6 @@
+-- @unwitnessable 2: SETOF row types carry no NOT NULL constraints, but the function's body selects NOT NULL columns and cannot emit NULL
+-- @unwitnessable 3: same row-type erasure as srf_id
+-- @unwitnessable 4: same: the LATERAL function's sku is NOT NULL at the base table
 -- FROM-item kinds other than a plain table: VALUES, set-returning functions,
 -- LATERAL, and DISTINCT ON.
 --

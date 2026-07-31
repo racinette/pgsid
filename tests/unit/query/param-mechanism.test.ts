@@ -1,0 +1,193 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+
+// ---------------------------------------------------------------------------
+// Pins the PostgreSQL behaviours the argument-nullability design rests on.
+// See docs/argument-nullability.md, "The two mechanisms, measured" — this
+// suite is that section as executable assertions, the way
+// deparser-roundtrip.test.ts pins the deparser table. The engine is not
+// involved anywhere here: this is a test of PostgreSQL, so that a PostgreSQL
+// (or PGlite) upgrade that moves a load-bearing behaviour fails loudly with
+// the design consequence named, rather than silently invalidating the
+// analysis built on it.
+//
+// The two mechanisms:
+//
+//   A — bind-time rejection. When parse analysis resolves a parameter's TYPE
+//       to a NOT NULL domain, binding NULL raises before anything executes.
+//       Guard-immune (a false CASE guard does not protect it), data-immune
+//       (an empty table does not protect it), and one domain-typed use
+//       decides the type for every use of that parameter.
+//
+//   B — execution-time rejection. A plain NOT NULL column constraint leaves
+//       the parameter base-typed; NULL binds fine and the check fires per
+//       row actually written. VALUES always constructs its row; a SELECT
+//       over an empty table writes nothing and succeeds.
+//
+// And the non-mechanism: comparison. Operators resolve on a domain's BASE
+// type, so the domain constraint is never consulted and the parameter is
+// typed as the base type. A comparison position never rejects NULL.
+//
+// All queries here pass parameters through the real protocol Bind step —
+// mechanism A lives there, and a substituted NULL literal would exercise
+// constant coercion instead (a related but different code path).
+// ---------------------------------------------------------------------------
+
+const SCHEMA = `
+  CREATE DOMAIN uname AS text NOT NULL;
+  CREATE TABLE d (n uname);
+  CREATE TABLE plain (e text NOT NULL);
+  CREATE TABLE empty_t (x int);
+  CREATE FUNCTION takes_dom(v uname) RETURNS text LANGUAGE sql AS 'SELECT v';
+`;
+
+const DOMAIN_ERROR = "does not allow null values";
+const CONSTRAINT_ERROR = "violates not-null constraint";
+
+let pg: PGlite;
+let prepareCounter = 0;
+
+/** Runs with real protocol parameters; returns the error message or null. */
+async function errorOf(sql: string, params: unknown[]): Promise<string | null> {
+  await pg.exec("BEGIN;");
+  try {
+    await pg.query(sql, params);
+    return null;
+  } catch (e) {
+    return (e as Error).message;
+  } finally {
+    await pg.exec("ROLLBACK;");
+  }
+}
+
+/** The types PostgreSQL's parse analysis assigns to a statement's parameters. */
+async function paramTypes(sql: string): Promise<string> {
+  const name = `mech_probe_${prepareCounter++}`;
+  await pg.exec(`PREPARE ${name} AS ${sql}`);
+  const r = await pg.query<{ parameter_types: string }>(
+    `SELECT parameter_types::text FROM pg_prepared_statements WHERE name = '${name}'`,
+  );
+  return r.rows[0]!.parameter_types;
+}
+
+describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
+  beforeAll(async () => {
+    pg = await PGlite.create();
+    await pg.exec(SCHEMA);
+  });
+
+  afterAll(async () => {
+    if (!pg.closed) await pg.close();
+  });
+
+  // --- Mechanism A: bind-time, via the parameter's resolved type. ----------
+
+  const bindTime: [label: string, sql: string, params: unknown[]][] = [
+    ["direct cast", "SELECT $1::uname", [null]],
+    // The guard does not protect it: rejection precedes evaluation.
+    [
+      "cast under a false CASE guard",
+      "SELECT CASE WHEN false THEN $1::uname ELSE 'x' END",
+      [null],
+    ],
+    [
+      "cast under a parameter-driven false guard",
+      "SELECT CASE WHEN $2 THEN $1::uname ELSE 'x' END",
+      [null, false],
+    ],
+    // Zero rows do not protect it, in any clause.
+    ["cast over an empty table", "SELECT $1::uname FROM empty_t", [null]],
+    ["cast in WHERE over an empty table", "SELECT x FROM empty_t WHERE $1::uname = 'a'", [null]],
+    ["function argument declared as the domain", "SELECT takes_dom($1)", [null]],
+    ["INSERT into a domain-typed column", "INSERT INTO d VALUES ($1)", [null]],
+    // Even when the SELECT would insert nothing: the parameter itself is
+    // typed as the domain, and the coercion happens at Bind.
+    [
+      "INSERT ... SELECT into a domain-typed column, empty source",
+      "INSERT INTO d SELECT $1 FROM empty_t",
+      [null],
+    ],
+    ["UPDATE SET on a domain-typed column", "UPDATE d SET n = $1", [null]],
+    // One domain-typed use decides the type for every use.
+    ["domain-typed use alongside a text use", "SELECT $1::uname, $1 || 'x'", [null]],
+  ];
+
+  for (const [label, sql, params] of bindTime) {
+    it(`raises at bind: ${label}`, async () => {
+      expect(await errorOf(sql, params), sql).toContain(DOMAIN_ERROR);
+    });
+  }
+
+  it("types the parameter as the domain at every mechanism-A site", async () => {
+    expect(await paramTypes("SELECT $1::uname")).toBe("{uname}");
+    expect(await paramTypes("SELECT CASE WHEN false THEN $1::uname ELSE 'x' END")).toBe("{uname}");
+    expect(await paramTypes("SELECT takes_dom($1)")).toBe("{uname}");
+    expect(await paramTypes("INSERT INTO d VALUES ($1)")).toBe("{uname}");
+    expect(await paramTypes("UPDATE d SET n = $1")).toBe("{uname}");
+    expect(await paramTypes("SELECT $1::uname, $1 || 'x'")).toBe("{uname}");
+  });
+
+  // --- Mechanism B: execution-time, via the column constraint. -------------
+
+  it("raises at execution: INSERT ... VALUES into a plain NOT NULL column", async () => {
+    expect(await errorOf("INSERT INTO plain VALUES ($1)", [null])).toContain(CONSTRAINT_ERROR);
+  });
+
+  it("does not raise when no row reaches the plain NOT NULL column", async () => {
+    // The design consequence: mechanism-B `notNull` claims are existential
+    // ("there is an execution in which NULL raises") and their verification
+    // must witness the raise in a state that routes a row into the target.
+    expect(await errorOf("INSERT INTO plain SELECT $1 FROM empty_t", [null])).toBeNull();
+  });
+
+  it("types the parameter as the BASE type at mechanism-B sites", async () => {
+    expect(await paramTypes("INSERT INTO plain VALUES ($1)")).toBe("{text}");
+  });
+
+  // --- The non-mechanism: comparison. --------------------------------------
+
+  it("a comparison against a NOT NULL domain column accepts NULL", async () => {
+    // Operators resolve on the base type; the domain constraint is never
+    // consulted. This is why a comparison position never makes a parameter
+    // `notNull`, whatever the column's constraints say — and why "the column
+    // is NOT NULL" is the wrong reason to restrict `$1` in `col = $1`.
+    expect(await errorOf("SELECT * FROM d WHERE n = $1", [null])).toBeNull();
+  });
+
+  it("types the comparison parameter as the BASE type", async () => {
+    expect(await paramTypes("SELECT * FROM d WHERE n = $1")).toBe("{text}");
+  });
+
+  // --- Type deduction boundaries. ------------------------------------------
+
+  it("rejects conflicting deductions rather than letting the domain win", async () => {
+    // A bare projection deduces text for $1; the cast deduces uname.
+    // PostgreSQL refuses the statement instead of unifying — so "one
+    // domain-typed use types every use" holds only for uses that deduce no
+    // type of their own (an operator operand qualifies; a bare projection
+    // does not). A statement rejected here has no contract at all.
+    expect(await errorOf("SELECT $1, $1::uname", [null])).toContain(
+      "inconsistent types deduced for parameter $1",
+    );
+  });
+
+  it("deduces parameter types from the FIRST use, order-dependently", async () => {
+    // The optional-filter idiom's gotcha: IS NULL deduces nothing, and a
+    // later comparison does not rescue the parameter. Reversing the
+    // disjuncts (or casting explicitly) is what makes the idiom preparable.
+    expect(await errorOf("SELECT 1 WHERE $1 IS NULL OR 'x' = $1", [null])).toContain(
+      "could not determine data type of parameter $1",
+    );
+    expect(await errorOf("SELECT 1 WHERE 'x' = $1 OR $1 IS NULL", [null])).toBeNull();
+  });
+
+  // --- Parameter numbering. -------------------------------------------------
+
+  it("rejects a statement whose parameter numbers have gaps", async () => {
+    // The contract can be a dense positional array $1..$n because PostgreSQL
+    // refuses anything else before it would ever execute.
+    expect(await errorOf("SELECT $2::int", [1, 2])).toContain(
+      "could not determine data type of parameter $1",
+    );
+  });
+});

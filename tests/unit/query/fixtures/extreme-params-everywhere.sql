@@ -1,3 +1,5 @@
+-- @unwitnessable 6: any returned row proves $2 passed the BETWEEN filter, so the projected parameter is non-null on every row: the output-narrowing fact deferred in docs/argument-nullability.md
+-- @unwitnessable 8: same as $2: $3 must be non-null for any row to pass the BETWEEN
 -- Extreme fixture: parameterized query with params in every possible
 -- position — SELECT, WHERE, JOIN ON, subquery, function args, CASE,
 -- COALESCE, VALUES, ORDER BY, aggregate filter, and window partition.
@@ -15,6 +17,15 @@
 -- disjunct and so are exercised both ways.
 -- @args ["a@b.c", 0, 10000, null, null, null, 10]
 -- @args [null, 0, 10000, null, 1, "%", 10]
+-- No parameter position here rejects NULL: comparisons and base-type casts
+-- throughout, and the only functions touched take plain text.
+-- @param 1 nullable
+-- @param 2 nullable
+-- @param 3 nullable
+-- @param 4 nullable
+-- @param 5 nullable
+-- @param 6 nullable
+-- @param 7 nullable
 
 SELECT
   p.id                                      AS product_id,       -- @notNull

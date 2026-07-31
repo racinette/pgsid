@@ -1,3 +1,4 @@
+-- @unwitnessable 4: the jsonb_agg subquery aggregates the same table the outer query scans: it is empty exactly when the fixture returns no rows
 -- JSONB operators and functions. The access operators (->, ->>) are strict
 -- yet still return NULL for a missing key, so they are NOT total operators
 -- and stay nullable even with two non-null operands — the exact reason

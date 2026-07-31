@@ -1,3 +1,5 @@
+-- @unwitnessable 23: CURRENT_SCHEMA is NULL only when the search path resolves to no schema, which no data state can arrange
+-- @unwitnessable 24: pg_sleep returns void and never NULL, but sits outside the curated builtin tables (known imprecision)
 -- pg_catalog built-ins.
 --
 -- The catalog snapshot covers user schemas only, so built-ins arrive with no

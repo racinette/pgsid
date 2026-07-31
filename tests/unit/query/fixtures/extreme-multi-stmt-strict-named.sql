@@ -1,3 +1,5 @@
+-- @unwitnessable 0: multi-statement body, conservative by design; the return derives from NOT NULL inputs
+-- @unwitnessable 1: same: the BEGIN ATOMIC body's return derives from NOT NULL inputs
 -- Multi-statement LANGUAGE sql functions: positional, named (BEGIN ATOMIC),
 -- and strict variants. Tests the interaction of multi-statement body
 -- parsing, named-param reordering, strict dispatch, and the row-count check.

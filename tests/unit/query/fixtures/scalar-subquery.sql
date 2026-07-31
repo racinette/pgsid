@@ -1,3 +1,6 @@
+-- @unwitnessable 0: the subquery scans the same table as the outer query: empty exactly when the fixture returns no rows, so the NULL coincides with rowlessness
+-- @unwitnessable 2: max(val) over the same table the outer scans; its zero-input NULL coincides with the fixture returning nothing
+-- @unwitnessable 3: same single-table linkage as c1
 -- Scalar subqueries (EXPR_SUBLINK)
 SELECT
   (SELECT id FROM t)           AS c1,  -- @nullable

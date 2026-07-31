@@ -1,3 +1,4 @@
+-- @unwitnessable 1: array_length of a two-element literal array is always 2; the builtin sits outside the curated tables (known imprecision)
 -- Expression node combinations: RowExpr in CoalesceExpr in CaseExpr,
 -- A_ArrayExpr as function arg, MinMaxExpr with subquery, CollateClause
 -- on cast of COALESCE, NamedArgExpr with nested function calls.

@@ -63,6 +63,25 @@ CREATE FUNCTION always_text(x text) RETURNS nn_text
   LANGUAGE sql
   AS $$ SELECT 'hello' $$;
 
+-- Function with a NOT NULL domain PARAMETER: coercing an argument to nn_text
+-- applies the domain constraint, so a NULL argument raises at the call
+-- (mechanism A in docs/argument-nullability.md).
+CREATE FUNCTION takes_nn(x nn_text) RETURNS text
+  LANGUAGE sql
+  AS $$ SELECT x $$;
+
+-- Deliberately overloaded: resolveFunctionMetadata must refuse to pick one,
+-- keeping both the output analysis (the text overload returns a NOT NULL
+-- domain) and the argument analysis conservative for calls to this name.
+-- plpgsql rather than sql so the overloads never collide in fnBodyAsts,
+-- which is keyed by name alone.
+CREATE FUNCTION over_fn(x text) RETURNS nn_text
+  LANGUAGE plpgsql
+  AS $$ BEGIN RETURN 'o'; END $$;
+CREATE FUNCTION over_fn(x integer) RETURNS text
+  LANGUAGE plpgsql
+  AS $$ BEGIN RETURN 'i'; END $$;
+
 -- LANGUAGE sql function with two params, old-style body using $1/$2:
 -- concat_val(text, text) → text — returns $2 if $1 is not null
 CREATE FUNCTION concat_val(a text, b text) RETURNS text

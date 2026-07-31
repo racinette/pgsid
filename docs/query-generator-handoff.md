@@ -67,6 +67,10 @@ is still a perfectly good test case.
 deparser for PostgreSQL 18 ASTs with no parser dependency of its own. It is
 compatible with the ASTs `libpg-query` produces here.
 
+It is a devDependency, and the round-trip comparison is committed as
+`tests/unit/query/deparser-roundtrip.test.ts`, which pins the outcome below
+per fixture — the regression guard for any future deparser bump.
+
 Measured over all 134 fixtures, `parse → deparse → parse`:
 
 | | |
@@ -77,9 +81,9 @@ Measured over all 134 fixtures, `parse → deparse → parse`:
 | parsed, but the AST differed | 2 (`recursive-cte-search-clause`, `recursive-cte-cycle-clause`) |
 
 Comparing ASTs requires stripping source byte offsets first: `location`, and
-also `list_start` / `rexpr_list_start` / `list_end`, which are offsets under
-names that do not say so. Without that, nothing matches and the deparser looks
-broken when it is not.
+also `list_start` / `list_end` / `rexpr_list_start` / `rexpr_list_end`, which
+are offsets under names that do not say so. Without that, nothing matches and
+the deparser looks broken when it is not.
 
 **The one failure mode that needs defending against is the silent one.** For
 the two recursive-CTE cases the deparser drops the `SEARCH` / `CYCLE` clause and
@@ -87,10 +91,16 @@ emits SQL that parses cleanly without it. A generator that asks for a `SEARCH`
 clause, does not get one, and reports success has produced false confidence
 rather than a test.
 
-The defence already exists: `node-census.test.ts` walks a corpus and reports
-which AST node types it actually contains. Run it over the generated corpus and
-it reports what was really produced. Anything requested but absent is a silent
-drop, and should be reported rather than assumed away.
+The defence is a technique that exists, not a tool that can be pointed at new
+input: `node-census.test.ts` hard-codes its corpus (the grammar sampler plus
+the fixtures directory) and keeps its ten-line `collectTags` walker
+module-local, so it cannot be run over a generated corpus as-is. Replicate the
+walker (or export it), and note that the census alone cannot detect a silent
+drop anyway — it reports what a corpus *contains*, and only the generator
+knows what each query was *supposed* to contain. So the generator must declare
+its expectations: for each axis tuple, the node types that tuple should
+produce, asserted against the re-parsed AST. Anything requested but absent is
+a silent drop, and should be reported rather than assumed away.
 
 ## Design
 
@@ -148,7 +158,12 @@ useful signal about where support is missing.
 
 ## Reusing what exists
 
-Do not rebuild execution. `tests/unit/query/nullability-soundness.test.ts`
+Do not rebuild execution — but be clear about what "reuse" means here. The
+soundness suite's loop lives inline in a `beforeAll` and exports nothing, and
+the generator's loop differs anyway (no argument bindings, no `@no-rows`
+markers, instance recycling every N queries). What is reusable is
+`loadDataStates`, the schema-and-catalog setup, and the patterns below — not
+imports from the test file. `tests/unit/query/nullability-soundness.test.ts`
 already does the expensive part and is worth reading in full before starting:
 
 - Data states live in `tests/unit/query/fixtures/data/` (`empty`, `sparse`,
@@ -164,11 +179,21 @@ already does the expensive part and is worth reading in full before starting:
 - A statement that raises is not a counterexample: it returned no rows, so
   "never NULL" still holds for every row it did return.
 
-`empty` deserves particular attention for this system. It is the most
-adversarial state, not the least: with no rows, every outer join is unmatched
-and every aggregate runs over zero input, which is where a wrong "never NULL"
-claim is most likely to surface. Run the full enumeration against `empty` and a
-reduced set against the others if the total execution count needs bounding.
+Which states get the full enumeration matters, and the answer is two of them,
+for different halves of the space. `empty` is where ungrouped aggregates and
+scalar subqueries are most adversarial: zero input is exactly where `count(*)`
+stays 0 but `max(col)` goes NULL. But `empty` is *vacuous* for join structure —
+an outer join over two empty tables returns no rows at all, and a query that
+returns no rows falsifies nothing (a `GROUP BY` over zero rows likewise yields
+zero groups). The unmatched-join shape — one side produces a row, the other is
+NULL-extended — needs one side populated and the other not. `sparse` was built
+for that shape, but only for the commerce tables: its single `t`/`u`/`v` rows
+all match each other, and those are the tables the generator joins. The
+generated suite therefore runs a third, suite-local state — `unmatched`, which
+is `sparse` plus one row on each side that nothing matches — so that a NOT
+NULL base column actually comes back NULL-extended somewhere. Run the full
+enumeration against `empty`, `sparse`, and `unmatched`, and a reduced set
+against the others if the total execution count needs bounding.
 
 ## Constraint: PGlite memory
 
@@ -199,6 +224,7 @@ environment variable, in the style of the existing `FUZZ_SEED` /
 | refused by the engine | `UnsupportedNodeError`, by node type |
 | column-list disagreements | each a defect |
 | nullability violations | each a defect |
+| nullable claims witnessed by an actual NULL | the reward half, enforced census-style: every unwitnessed claim must match a named `UNWITNESSABLE` rule with its reason, and rules that match nothing are stale. Soundness alone punishes a wrong `notNull` and rewards nothing; an aggregate ratchet was rejected because a regression can hide behind an unrelated improvement |
 | constructs requested but absent from the generated corpus | silent deparser drops |
 
 **Every failure reproducible from the report alone** — the SQL text, the data
@@ -215,6 +241,9 @@ generator finds it, the corpus keeps it.
 
 | | |
 |---|---|
+| The generator itself | `tests/unit/query/generated/generator.ts` |
+| The generated suite | `tests/unit/query/generated/generated-soundness.test.ts` (`GENERATED_ALL_STATES=1` for every data state) |
+| Deparser round-trip measurement | `tests/unit/query/deparser-roundtrip.test.ts` |
 | Engine | `src/query/nullability-walk.ts`, `src/query/catalog-adapter.ts` |
 | Engine design | `docs/nullability-walk.md` |
 | Engine's refusal contract | `UnsupportedNodeError` in `nullability-walk.ts`; `tests/unit/query/unsupported-nodes.test.ts` |

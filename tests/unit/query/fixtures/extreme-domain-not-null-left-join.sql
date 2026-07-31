@@ -1,3 +1,5 @@
+-- @unwitnessable 1: the LEFT JOIN's ON is an equality on a NOT NULL foreign key, so it always matches and never null-extends
+-- @unwitnessable 2: same join: the optional side is present in every state
 -- NOT NULL domain columns on the optional side of a LEFT JOIN become
 -- nullable. The domain's NOT NULL constraint guarantees the value is
 -- non-null when a row exists, but the outer join can produce NULL-extended

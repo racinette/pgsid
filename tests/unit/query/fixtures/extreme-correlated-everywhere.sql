@@ -1,3 +1,6 @@
+-- @unwitnessable 4: data gap: p.category_id is NULL only on products the WHERE's EXISTS guards filter out (they have no order items or reviews in any state)
+-- @unwitnessable 10: data gap: NULL needs a product with order items but no reviews, a combination no state contains
+-- @unwitnessable 17: the correlated subquery always finds its row and applies a strict function to a NOT NULL column
 -- Extreme fixture: deeply nested correlated subqueries in every clause
 -- position — SELECT, WHERE, HAVING, ORDER BY, CASE condition, function
 -- argument, aggregate argument, and JOIN ON.

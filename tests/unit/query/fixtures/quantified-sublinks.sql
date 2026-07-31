@@ -1,3 +1,4 @@
+-- @unwitnessable 13: p.id and both array elements are non-null so = ANY always yields a boolean; the array expression is opaque to the walk
 -- ANY / ALL / IN / NOT IN sublinks do NOT always return a boolean.
 --
 -- The comparison runs per row under three-valued logic and the results are

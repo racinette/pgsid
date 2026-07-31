@@ -1,3 +1,4 @@
+-- @unwitnessable 24: data gap: NULL needs an updated product without a category, and every state's updated products carry one
 -- Extreme fixture: UPDATE with CTEs, FROM clause, WHERE with correlated
 -- subquery, and complex RETURNING expressions.
 --

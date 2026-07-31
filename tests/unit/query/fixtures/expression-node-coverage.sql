@@ -1,3 +1,5 @@
+-- @unwitnessable 6: CURRENT_SCHEMA is NULL only when the search path resolves to no schema
+-- @unwitnessable 9: an in-range subscript of a two-element array literal is always defined; A_Indirection stays conservative because indexes are not statically checkable (known imprecision)
 -- Expression node types that are easy to get wrong, each with the reason it
 -- lands where it does.
 SELECT
