@@ -70,6 +70,15 @@ CREATE FUNCTION takes_nn(x nn_text) RETURNS text
   LANGUAGE sql
   AS $$ SELECT x $$;
 
+-- A non-strict operator: lenient_eq returns TRUE even for NULL operands, so
+-- `x === y` never filters a row. Exists to pin the engine's first measured
+-- unsoundness — WHERE promotion trusting arbitrary operators — as a
+-- permanent regression case (where-promotion-non-strict-op.sql).
+CREATE FUNCTION lenient_eq(a text, b text) RETURNS boolean
+  LANGUAGE sql
+  AS $$ SELECT true $$;
+CREATE OPERATOR === (LEFTARG = text, RIGHTARG = text, FUNCTION = lenient_eq);
+
 -- Deliberately overloaded: resolveFunctionMetadata must refuse to pick one,
 -- keeping both the output analysis (the text overload returns a NOT NULL
 -- domain) and the argument analysis conservative for calls to this name.

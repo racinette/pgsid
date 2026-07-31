@@ -2649,14 +2649,16 @@ class NullabilityEngine {
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as {
         kind?: string;
+        name?: Node[];
         lexpr?: Node;
         rexpr?: Node;
       };
       if (
-        ae.kind === "AEXPR_OP" ||
-        ae.kind === "AEXPR_IN" ||
-        ae.kind === "AEXPR_OP_ANY" ||
-        ae.kind === "AEXPR_OP_ALL"
+        (ae.kind === "AEXPR_OP" ||
+          ae.kind === "AEXPR_IN" ||
+          ae.kind === "AEXPR_OP_ANY" ||
+          ae.kind === "AEXPR_OP_ALL") &&
+        this.promotionOperatorIsStrict(ae.name)
       ) {
         if (ae.lexpr && this.columnRefMatchesAlias(ae.lexpr, alias)) return true;
         if (ae.rexpr && this.columnRefMatchesAlias(ae.rexpr, alias)) return true;
@@ -2826,20 +2828,21 @@ class NullabilityEngine {
       return false;
     }
 
-    // A_Expr comparison: `col OP expr` or `expr OP col`.
+    // A_Expr comparison: `col OP expr` or `expr OP col`. Only operators from
+    // the shared total+strict set count — see promotionOperatorIsStrict.
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as {
         kind?: string;
+        name?: Node[];
         lexpr?: Node;
         rexpr?: Node;
       };
-      // IS NOT NULL, comparisons, IN — any predicate that has this column as
-      // a direct operand implies the column is non-null.
       if (
-        ae.kind === "AEXPR_OP" ||
-        ae.kind === "AEXPR_IN" ||
-        ae.kind === "AEXPR_OP_ANY" ||
-        ae.kind === "AEXPR_OP_ALL"
+        (ae.kind === "AEXPR_OP" ||
+          ae.kind === "AEXPR_IN" ||
+          ae.kind === "AEXPR_OP_ANY" ||
+          ae.kind === "AEXPR_OP_ALL") &&
+        this.promotionOperatorIsStrict(ae.name)
       ) {
         if (ae.lexpr && this.columnMatches(ae.lexpr, alias, colName)) return true;
         if (ae.rexpr && this.columnMatches(ae.rexpr, alias, colName)) return true;
@@ -2848,6 +2851,24 @@ class NullabilityEngine {
     }
 
     return false;
+  }
+
+  /**
+   * Whether a WHERE predicate's operator guarantees non-null operands
+   * whenever the predicate is TRUE — the gate on both column promotion and
+   * parameter narrowing. Accepting ANY operator here was the engine's first
+   * measured unsoundness: a user operator can be backed by a non-strict
+   * function that returns TRUE with a NULL operand (`===` in the fixture
+   * schema, kept as the regression case in
+   * `where-promotion-non-strict-op.sql`), so the promoted column arrives
+   * NULL. The check is by unqualified NAME against the shared total+strict
+   * builtin set — the same trust level the expression-level total-operator
+   * rule runs on; a user operator that shadows a builtin name over custom
+   * types is out of reach there too, by the curated-list policy.
+   */
+  private promotionOperatorIsStrict(name: Node[] | undefined): boolean {
+    if (name?.length !== 1) return false;
+    return TOTAL_STRICT_OPERATORS.has(this.stringVal(name[0]!));
   }
 
   /**

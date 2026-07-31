@@ -79,13 +79,47 @@ that a decision to close one is deliberate.
 | `XmlSerialize`, and the JSON constructor/query family | nullable | several are constructors that never return NULL; see the `conservative` entries in `node-census.test.ts` for which |
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; the NOT NULL domain return is the escape hatch |
 | `pg_catalog` built-ins outside the curated tables | nullable | add to `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` as needed, but only where the function is *total*, not merely strict |
+| Custom operators | no promotion, no narrowing, nullable results | strictness is readable from `pg_proc.proisstrict` via `pg_operator`; see "Custom operator support" below |
 | Branch guards | pattern-matched, not solved | `CASE WHEN length(col) > 0 THEN col …` stays nullable: the condition's truth does imply non-nullness, but the guard analyser recognises only specific shapes |
 | Strict qual over a NULL-extended side | lower optionality kept | in `(t LEFT u) INNER v ON v.u_id = u.id` no NULL-extended `u` row can pass the strict qual, so `u`'s columns are never NULL in the output; the walk keeps them nullable. Same mechanism through `UPDATE … FROM` WHERE equalities. Found by the generated witness classification (`UNWITNESSABLE` in `generated-soundness.test.ts`) |
 | DML `RETURNING` vs written values | catalog nullability only | `INSERT … VALUES (…, 'c') RETURNING val` reports `val` nullable from the catalog even though the written value is a literal; tracking values into RETURNING was judged not worth it. Also found by the witness classification |
 
 ---
 
-## 3. Unbuilt verification strategies
+## 3. Custom operator support
+
+**What.** User-defined operators contribute nothing today: they never promote
+a column, never narrow a parameter, and their results are conservatively
+nullable. The non-strict `===` in the fixture schema (kept from the
+promotion-unsoundness fix) is the measured reason the engine must not simply
+trust them.
+
+**Why it is possible.** The load-bearing property is declared, not inferred:
+an operator wraps a function (`pg_operator.oprcode`) whose strictness is a
+catalog flag (`pg_proc.proisstrict`). Strict + TRUE ⇒ non-null operands,
+which is all the WHERE-side consumers (promotion, parameter narrowing,
+mechanism-C attribution) need. The output-side totality rule has no catalog
+flag, but `LANGUAGE sql` operator bodies could go through the existing
+body-inlining machinery; everything else stays conservatively nullable.
+Resolution follows the proven single-candidate policy from
+`resolveFunctionMetadata`: one non-builtin operator with that name, or
+refuse — no type inference. Builtin names keep the curated set and its
+documented shadowing blind spot.
+
+**State.** Not started. The snapshot does not capture `pg_operator`, which is
+most of the plumbing.
+
+**Why deferred.** Since the promotion fix, custom operators cost precision
+only, never soundness — and no consumer with an operator-heavy schema exists
+to justify the snapshot surface.
+
+**Trigger.** A consumer whose schemas lean on custom operators, or the
+witness classification accumulating rules whose reason is "custom operator
+kept it dark".
+
+---
+
+## 4. Unbuilt verification strategies
 
 One of the five strategies proposed for finding engine defects remains
 unbuilt. (Generated queries, formerly listed alongside it, are built — see
