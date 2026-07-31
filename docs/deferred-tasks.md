@@ -28,7 +28,7 @@ finding the defects nobody thought to look for, and then a consumer.
 1. **Argument nullability** — built, all four sequencing steps, plus
    mechanism-A output narrowing and mechanism-C value-flow rejection; the
    design, its empirical grounding, and what remains deferred
-   (`DELETE … USING` and `MERGE` generation) are
+   (`MERGE` generation) are
    in `docs/argument-nullability.md`.
 2. **New generator axes.** The generated suite ran its full axis space and
    found no defect, which per its own criterion is the signal to widen the

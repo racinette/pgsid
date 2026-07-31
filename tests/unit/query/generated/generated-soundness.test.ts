@@ -554,14 +554,15 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         (column === "a_tb" || column === "a_cp") && REFILTERED_STRUCTURES.has(axes.structure),
     },
     {
-      label: "update-from-where-refilters",
+      label: "dml-where-refilters",
       why:
-        "UPDATE v ... FROM t LEFT/FULL u WHERE v.u_id = u.id: the WHERE " +
-        "equality discards every NULL-extended u row, so RETURNING u.email is " +
-        "never NULL. The engine does not apply WHERE promotion to DML FROM " +
-        "relations — same mechanism as the join-qual rule, via the WHERE.",
+        "UPDATE ... FROM / DELETE ... USING t LEFT/FULL u WHERE v.u_id = " +
+        "u.id: the WHERE equality discards every NULL-extended u row, so " +
+        "RETURNING u.email is never NULL. The engine does not apply WHERE " +
+        "promotion to DML FROM/USING relations — same mechanism as the " +
+        "join-qual rule, via the WHERE.",
       matches: (axes, column) =>
-        axes.wrapper === "update-from" &&
+        (axes.wrapper === "update-from" || axes.wrapper === "delete-using") &&
         column === "r_ue" &&
         /^single\((left|full)\)$/.test(axes.structure),
     },

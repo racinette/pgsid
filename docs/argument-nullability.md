@@ -312,8 +312,11 @@ Agreed order of work, each stage giving the next something real to test:
    not others): the conditional mechanism-B site is witnessed only where the
    arm fires, the domain-typed SET rejects at Bind arm-or-no-arm with its
    narrowing intact through the arm, and DO NOTHING contributes the
-   returns-no-row-on-conflict liveness shape. Not generated, with the doc's
-   original triggers still standing: `DELETE … USING` and `MERGE`.
+   returns-no-row-on-conflict liveness shape. `delete-using` mirrors
+   `update-from` without assignment channels; its projected parameter pins
+   the deliberate absence of WHERE-conjunct narrowing in DML RETURNING (a
+   live trap for the recorded param-only extension). Not generated, with the
+   doc's original trigger still standing: `MERGE`.
 
 ## Where things are
 

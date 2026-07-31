@@ -105,6 +105,10 @@ const concatOp = (l: Ast, r: Ast): Ast => ({
 });
 const isNull = (arg: Ast): Ast => ({ NullTest: { arg, nulltesttype: "IS_NULL" } });
 const orExpr = (...args: Ast[]): Ast => ({ BoolExpr: { boolop: "OR_EXPR", args } });
+const andExpr = (...args: Ast[]): Ast => ({ BoolExpr: { boolop: "AND_EXPR", args } });
+const plus = (l: Ast, r: Ast): Ast => ({
+  A_Expr: { kind: "AEXPR_OP", name: [str("+")], lexpr: l, rexpr: r },
+});
 // DML pieces. A DML statement's relation is an INLINED RangeVar (no tag),
 // and RETURNING is a ReturningClause struct: `{ exprs: [ResTarget...] }`.
 const relation = (relname: string): Ast => ({ relname, inh: true, relpersistence: "p" });
@@ -811,6 +815,64 @@ export function generateDmlQueries(): GeneratedQuery[] {
           { number: 2, valid: 1 },
         ],
         [expect("UPDATE", "UpdateStmt"), expectReturning, expectJoins(k), expectParams(1, 2)],
+      );
+    }
+  }
+
+  // --- delete-using: update-from's mirror, minus assignment channels. ------
+  // DELETE has no SET, so its parameter rides a WHERE disjunct: the contract
+  // is nullable (comparison position, NULL legal via the IS NULL arm), and
+  // the projected `$1 + 1` pins the DELIBERATE absence of WHERE-conjunct
+  // narrowing in DML RETURNING — DML scopes carry no whereClause, because
+  // handing them one would also enable column promotion, which is unsound
+  // for SET columns (WHERE tests the OLD row). If the recorded param-only
+  // extension ever lands, this claim flips notNull and PostgreSQL will
+  // agree — deleted rows all passed the WHERE.
+  for (const k of JOIN_KINDS) {
+    const deleteReturning: [key: string, targets: Ast[]][] = [
+      [
+        "plain",
+        [
+          target(colRef("v", "id"), "r_vid"),
+          target(colRef("v", "amount"), "r_amt"),
+          target(colRef("t", "name"), "r_tn"),
+          target(colRef("u", "email"), "r_ue"),
+          target(plus(paramRef(1), intConst(1)), "r_p1"),
+        ],
+      ],
+      [
+        "coalesce",
+        [
+          target(colRef("v", "id"), "r_vid"),
+          target(coalesce(colRef("u", "email"), textConst("z")), "r_ce"),
+          target(coalesce(colRef("t", "name"), textConst("z")), "r_cn"),
+          target(plus(paramRef(1), intConst(1)), "r_p1"),
+        ],
+      ],
+    ];
+    for (const [key, targets] of deleteReturning) {
+      dml(
+        "delete-using",
+        `single(${kindLabel(k)})`,
+        key,
+        {
+          DeleteStmt: {
+            relation: relation("v"),
+            usingClause: [tJoinU(k)],
+            whereClause: andExpr(
+              eq(colRef("v", "u_id"), colRef("u", "id")),
+              orExpr(neq(colRef("v", "id"), paramRef(1)), isNull(paramRef(1))),
+            ),
+            returningClause: { exprs: targets },
+          },
+        },
+        [{ number: 1, valid: 999 }],
+        [
+          expect("DELETE", "DeleteStmt"),
+          expectReturning,
+          expectJoins(k),
+          expectParams(1),
+        ],
       );
     }
   }
