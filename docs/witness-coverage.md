@@ -11,8 +11,10 @@ the engine itself works; this document is only about the tests around it.
 `tests/unit/query/nullability-soundness.test.ts` executes every fixture against
 PGlite and checks that no column the engine calls `notNull` ever comes back
 NULL. That check is only meaningful when the query actually returns rows: a
-statement that returns nothing cannot contradict anything, so its `notNull`
-claims are *vacuous* and its soundness check asserts nothing at all.
+statement that returns nothing cannot contradict anything, so unless something
+else stands behind them its `notNull` claims are checked by nothing at all. (The
+one thing that can stand behind them is PostgreSQL refusing to run the statement
+— see "How a fixture is executed".)
 
 The mirror-image question applies to the other flag. A `nullable` claim is
 *witnessed* when some execution yields a genuine NULL in that column.
@@ -33,7 +35,7 @@ bindings**, and five things are asserted:
 | Validity | PostgreSQL accepts the statement (`PREPARE`) |
 | Shape | the engine's output column list equals PostgreSQL's, in order |
 | Soundness | no `notNull` column is ever NULL, under *every* state and binding |
-| Liveness | the fixture returns at least one row somewhere |
+| Liveness | the fixture returns at least one row somewhere, or declares the error it raises instead |
 | Coverage | one suite-wide test, ratcheting the witnessed count |
 
 Soundness must hold for every binding: a claim contradicted by any argument set
@@ -43,6 +45,24 @@ produces a NULL witnesses that column.
 A statement that raises is not a counterexample. It returned no rows, so "never
 NULL" still holds for every row it did return; errors are recorded for
 diagnostics and otherwise skipped.
+
+The exception is a fixture that can *only* raise. `SELECT CAST(NULL AS nn_text)
+FROM products` does not return NULL — PostgreSQL refuses, because the domain
+forbids it, and that refusal is exactly what the column's `notNull` claim says.
+Such a fixture declares both why it returns nothing and the error it must raise:
+
+```sql
+-- @no-rows: CAST(NULL AS nn_text) raises the domain's NOT NULL violation for
+-- every row evaluated, which is the behaviour the @notNull claims assert.
+-- @raises: domain nn_text does not allow null values
+```
+
+Both are required together, and both are checked: the fixture must return no
+rows, must actually raise somewhere, and every error it raises must match the
+declared text. Returning nothing is not evidence on its own — a false `WHERE`
+does that too — so without the refusal the marker would exempt a fixture that
+asserts nothing. Matching the text is what keeps an unrelated failure, a
+renamed column or a missing table, from being accepted as the expected one.
 
 Execution is arranged state-major: one PGlite instance per data state, loaded
 once, with each fixture's own writes rolled back around it. Applying a state per
@@ -236,23 +256,24 @@ it, which is how a gain is held and how a deliberate loss is recorded.
 
 ## Current measurement
 
-Across 133 fixtures and 5 data states, at the default seed:
+Across 134 fixtures and 5 data states, at the default seed:
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 571 | |
-| — falsifiable | 561 (98%) | the query returns rows, so a NULL could contradict it |
-| — vacuous | 10 | all in the two `@no-rows` fixtures |
-| `nullable` claims | 250 | |
-| — witnessed | 189 (76%) | some state or binding produces a real NULL there |
-| — unwitnessed | 61 | |
+| `notNull` claims | 575 | |
+| — falsifiable | 565 (98%) | the query returns rows, so a NULL could contradict it |
+| — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
+| — unverified | 0 | held at zero |
+| `nullable` claims | 249 | |
+| — witnessed | 191 (77%) | some state or binding produces a real NULL there |
+| — unwitnessed | 58 | |
 
 Every fixture returns rows under some state and binding, except the two that
 declare `@no-rows`.
 
 ## What remains unwitnessed
 
-`WITNESS_REPORT=1` prints the per-column list. The 61 fall into four groups, and
+`WITNESS_REPORT=1` prints the per-column list. The 58 fall into four groups, and
 only the last is a hole in the suite.
 
 **A row type carries no constraints (9 claims).** `SETOF <table>` and
@@ -263,11 +284,11 @@ body actually produces NULL, which asserts something different from what the
 fixtures are for. `from-item-kinds`, `table-function-return-types`,
 `setof-composite-type`.
 
-**Conservative by design (12 claims).** The value is provably non-null and the
+**Conservative by design (9 claims).** The value is provably non-null and the
 engine reports nullable anyway. Each is a known imprecision registered in
-`docs/deferred-tasks.md` §5 — array subscripting, `ScalarArrayOp`, ordered-set
-aggregates, population statistics, recursive-CTE columns derived from the
-recursive term, built-ins outside the curated tables — or `CURRENT_SCHEMA`,
+the "Known imprecisions in the walk" entry in
+`docs/deferred-tasks.md` — array subscripting, ordered-set
+aggregates, population statistics, built-ins outside the curated tables — or `CURRENT_SCHEMA`,
 which is unwitnessable by construction. These are the candidates for engine
 work; closing one turns its claim into `notNull` rather than witnessing it.
 
@@ -301,6 +322,7 @@ returns a row can be witnessed.
 | Executable suite (validity, shape, soundness, liveness, coverage) | `tests/unit/query/nullability-soundness.test.ts` |
 | AST node coverage | `tests/unit/query/node-census.test.ts`, `grammar-sampler.ts` |
 | Column order vs PostgreSQL | `tests/unit/query/column-sequence.test.ts` |
+| Generating queries to extend this corpus | `docs/query-generator-handoff.md` |
 
 Run the suite with `npx vitest run` from `pgsid/`.
 
@@ -309,6 +331,6 @@ Environment variables it honours:
 | | |
 |---|---|
 | `FUZZ_SEED` | seed for generated data; the ratchet is reported but not enforced when set |
-| `WITNESS_REPORT=1` | list every unwitnessed and vacuous claim |
+| `WITNESS_REPORT=1` | list every unwitnessed claim, and every claim guarded by a refusal |
 | `UPDATE_WITNESS_BASELINE=1` | rewrite the coverage baseline from this run |
 | `DUMP_GENERATED_DATA=<path>` | write the generated SQL to a file |

@@ -14,6 +14,32 @@ is made to verify what it claims to verify is in `docs/witness-coverage.md`.
 
 ---
 
+## What to do next
+
+The engine's output analysis is verified as far as hand-written fixtures can
+take it. Every fixture returns rows or declares the error it raises instead, and
+every `notNull` claim is either falsifiable against returned rows or guarded by
+a refusal the suite checks — nothing is verified by nothing, and that is held at
+zero. The measurements are in `docs/witness-coverage.md`.
+
+What is left is not more assertions about the queries somebody wrote. It is
+finding the defects nobody thought to look for, and then a consumer.
+
+1. **Generated queries** ("Unbuilt verification strategies"), specified in
+   `docs/query-generator-handoff.md`. The only remaining way to learn something
+   new about the output analysis.
+2. **Whatever it finds.** Each counterexample becomes a permanent fixture with
+   annotations, and an engine fix. This is the point of the generator, not an
+   afterthought to it.
+3. **The differential oracle** (the other half of that same entry), if
+   generation stops producing findings.
+4. **Argument typing** — deliberately parked. It is input-side work, and the
+   output side comes first.
+5. **The arity gate** — small, and waits for the first consumer to exist rather
+   than being retrofitted.
+
+---
+
 ## 1. Argument typing
 
 **What.** Query parameters (`$1`, `$2`) are reported unconditionally nullable.
@@ -27,14 +53,17 @@ question is narrower than it first appears: what, if anything, can be inferred
 about a parameter's *nullability* from its use — and is that inference worth
 making, given a caller can generally pass NULL wherever the type allows it.
 
-**State.** Not started. Three fixtures contain a query-level `ParamRef`
+**State.** Parked deliberately, not merely unstarted. The prerequisite is met —
+the `-- @args [...]` bindings described in `docs/witness-coverage.md` make the
+parameterized fixtures executable under real argument values — but only three
+fixtures contain a query-level `ParamRef` at all
 (`extreme-parameterized-queries`, `extreme-params-everywhere`,
-`extreme-params-in-values`), so this would be built against little coverage.
+`extreme-params-in-values`), so the feature would be built against very little
+coverage.
 
-**Trigger.** The `-- @args [...]` bindings described in
-`docs/witness-coverage.md` make those three executable under real argument
-values, which is the prerequisite. Widening the corpus of parameterized fixtures
-first would make the feature worth more than it is today.
+**Trigger.** Finish the output side first; see "What to do next". After that,
+widening the corpus of parameterized fixtures is what would make this worth more
+than it is today.
 
 ---
 
@@ -60,61 +89,7 @@ afterwards.
 
 ---
 
-## 3. Column naming (`FigureColname`)
-
-**What.** PostgreSQL labels an un-aliased output column by a set of rules in
-`src/backend/parser/parse_target.c` — `count(*)` becomes `count`, `1+1` becomes
-`?column?`, `p.price::text` becomes `price`. The engine implements almost none
-of this and reports an empty name for such expressions.
-
-**Why it is not done.** Measured across the fixture suite: **zero** name
-mismatches against PostgreSQL, because fixtures alias their expressions and
-`SELECT *` names come from relation resolution rather than expression naming.
-A consumer should take names from `PREPARE`'s `RowDescription`, which is
-authoritative and which it already consults for types. Porting the rules would
-mean maintaining a version-drifting reimplementation of PostgreSQL internals
-with no current consumer.
-
-The rules also carry a subtlety worth knowing before attempting them: names
-have *precedence*. `FigureColnameInternal` returns a strength (0/1/2) so a
-nested strong name overrides a weak default — `CASE WHEN … ELSE p.name END` is
-labelled `name`, not `case`, and `p.price::text` is `price` while `1::text` is
-`text`.
-
-**Trigger.** The shape assertion in `nullability-soundness.test.ts` compares
-full ordered name lists against PostgreSQL, so it fails the moment a fixture
-needs a rule, and its failure message names the exact rule required. Implement
-rules one at a time as that test demands them, rather than porting the set
-speculatively.
-
----
-
-## 4. Corpus gaps in the node census
-
-**What.** `node-census.test.ts` classifies every AST node type the corpus
-reaches. 27 types are classified but never exercised by any fixture or by the
-grammar sampler:
-
-```
-Alias, BitString, Boolean, CTECycleClause, CTESearchClause, CurrentOfExpr,
-DefElem, Float, InferClause, JsonAggConstructor, JsonArgument, JsonArrayAgg,
-JsonArrayQueryConstructor, JsonFormat, JsonObjectAgg, JsonOutput,
-JsonParseExpr, JsonReturning, JsonSerializeExpr, JsonTablePathSpec,
-OnConflictClause, ReturningClause, ReturningOption, ScalarArrayOp,
-SetToDefault, TypeName, WithClause
-```
-
-**Why it matters.** These are not known bugs — they are *unmeasured*. Their
-classification is an assertion nobody has tested. The census only checks
-classifications for types the corpus actually produces.
-
-**How to close it.** Extend `grammar-sampler.ts` with queries that produce each
-one. The census will then either confirm the classification or fail, which is
-the point.
-
----
-
-## 5. Known imprecisions in the walk
+## 3. Known imprecisions in the walk
 
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
@@ -122,11 +97,9 @@ that a decision to close one is deliberate.
 
 | Construct | Current | Note |
 |---|---|---|
-| Recursive CTE columns derived from the recursive term | nullable | the self-reference is unresolvable during analysis |
 | `OR` in `WHERE` | no promotion at all | disjunctions are skipped entirely by the promotion analysis |
 | Ordered-set aggregates (`percentile_cont`, `mode`) | nullable | the `WITHIN GROUP` argument is not visible to the argument check |
 | `A_Indirection` (array subscript, field access) | nullable | an out-of-range subscript really is NULL and the index is not checkable statically |
-| `ScalarArrayOp` | nullable | — |
 | `XmlSerialize`, and the JSON constructor/query family | nullable | several are constructors that never return NULL; see the `conservative` entries in `node-census.test.ts` for which |
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; the NOT NULL domain return is the escape hatch |
 | `pg_catalog` built-ins outside the curated tables | nullable | add to `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` as needed, but only where the function is *total*, not merely strict |
@@ -134,7 +107,7 @@ that a decision to close one is deliberate.
 
 ---
 
-## 6. Unbuilt verification strategies
+## 4. Unbuilt verification strategies
 
 Two of the five strategies proposed for finding engine defects are unbuilt.
 They find different classes, so neither subsumes the other.
@@ -146,15 +119,44 @@ disagreement is a candidate bug in one of them. It cannot find defects the two
 implementations share, which is why it supplements rather than replaces the
 census and the executable suites.
 
-**Grammar-driven fuzzing.** Generate queries by composing clause kinds over the
-fixture schema and check them against PostgreSQL. Best at combinations nobody
-would write by hand — nested outer joins under grouping sets under set
-operations. Highest cost of the five, so worth building only once the cheaper
-strategies stop producing findings.
+**Generated queries.** Construct queries mechanically over the fixture schema
+and check them against PostgreSQL. Best at combinations nobody would write by
+hand — nested outer joins under grouping sets under set operations. Specified in
+`docs/query-generator-handoff.md`, which covers the pipeline, the two oracles
+and their differing strength, and what a finished system reports.
 
 ---
 
 ## Decided against — do not re-open without new information
+
+**Reproducing PostgreSQL's column-naming rules (`FigureColname`).** PostgreSQL
+labels an un-aliased output column by a set of rules in
+`src/backend/parser/parse_target.c` — `count(*)` becomes `count`, `1+1` becomes
+`?column?`, `p.price::text` becomes `price`, and the rules carry precedence, so
+a nested strong name overrides a weak default. The engine implements almost none
+of this and reports an empty name for such expressions.
+
+It should stay that way. Names are not the contract and cannot be: they are not
+unique — `SELECT a.id, b.id` yields two columns called `id` — so a consumer must
+join nullability to columns by position. That consumer also runs `PREPARE` for
+types, and `RowDescription` hands it the authoritative names for free. Porting
+the rules would mean maintaining a version-drifting reimplementation of
+PostgreSQL internals to produce something the consumer already has.
+
+What the engine's best-effort names *are* good for is catching a wrong column
+list in the tests. The soundness suite compares the full ordered name list
+against PostgreSQL's for every fixture, which catches a misordering that a
+column *count* would not — PostgreSQL emits a `USING` join's merged column
+first, not in its left-hand position. If an un-aliased expression ever makes
+that comparison fail, the cheap fix is usually to alias it in the fixture; the
+failure message names the exact rule that would be needed if not.
+
+**Mutating existing queries as a way to generate new ones.** Considered as an
+alternative to constructing queries and rejected. Transformations beyond blind
+wrapping need the same scope and type knowledge that construction needs, so
+mutation buys no validity for free — and it is bounded by the shapes the corpus
+already contains, which is the opposite of what a generator is for. See
+`docs/query-generator-handoff.md`.
 
 **A diagnostics channel for ambiguous references.** An unqualified name
 matching several visible columns resolves to nullable, with the candidates
@@ -168,4 +170,5 @@ alternative to positional joining and rejected. Column names are not unique —
 `SELECT a.id, b.id` yields two columns named `id` — so a name join cannot
 distinguish them and must either pick one (wrong) or degrade both to nullable
 (lossy, on ordinary queries). Position disambiguates exactly what names cannot.
-See item 2 for the guard that makes positional joining safe.
+See "Arity gate at the consumer boundary" for the guard that makes positional
+joining safe.

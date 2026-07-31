@@ -144,6 +144,8 @@ describe("nullability-walk-traced", () => {
     expect(results.length).toBe(3);
     expect(results[0]!.notNull).toBe(true);
     expect(results[1]!.notNull).toBe(true);
-    expect(results[2]!.notNull).toBe(false);
+    // depth: 0 in the base term, depth + 1 in the recursive one — non-null at
+    // every level once the self-reference is resolved by induction.
+    expect(results[2]!.notNull).toBe(true);
   });
 });

@@ -35,14 +35,28 @@ export interface FixtureDirectives {
    * behaviour the fixture asserts.
    */
   noRowsReason: string | null;
+  /**
+   * A substring every error such a fixture raises must contain.
+   *
+   * Returning no rows is not on its own evidence of anything: a false `WHERE`
+   * does it too, and a fixture that merely matches nothing asserts nothing.
+   * What makes a `@no-rows` fixture meaningful is that PostgreSQL *refuses* —
+   * and refusing to produce a value is exactly the claim its `notNull` columns
+   * make. Naming the error is what turns that from an excuse into a check, and
+   * keeps an unrelated failure (a renamed column, a missing table) from being
+   * accepted as the expected one.
+   */
+  raisesPattern: string | null;
 }
 
 const ARGS_RE = /^\s*--\s*@args\b(.*)$/;
 const NO_ROWS_RE = /^\s*--\s*@no-rows\b:?(.*)$/;
+const RAISES_RE = /^\s*--\s*@raises\b:?(.*)$/;
 
 export function parseFixtureDirectives(content: string): FixtureDirectives {
   const bindings: FixtureBinding[] = [];
   let noRowsReason: string | null = null;
+  let raisesPattern: string | null = null;
 
   for (const line of content.split("\n")) {
     const argsMatch = ARGS_RE.exec(line);
@@ -68,13 +82,39 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
         throw new Error("@no-rows requires a reason on the same line");
       }
       noRowsReason = reason;
+      continue;
     }
+
+    const raisesMatch = RAISES_RE.exec(line);
+    if (raisesMatch) {
+      const pattern = raisesMatch[1]!.trim();
+      if (!pattern) {
+        throw new Error("@raises requires the expected error text on the same line");
+      }
+      raisesPattern = pattern;
+    }
+  }
+
+  // The two directives only mean anything together. `@no-rows` without
+  // `@raises` is an unexamined exemption from the "must return rows" bar, and
+  // `@raises` without `@no-rows` claims something the suite does not check —
+  // a fixture that raises under one data state and returns rows under another
+  // is ordinary, and says nothing in particular.
+  if (noRowsReason && !raisesPattern) {
+    throw new Error(
+      "@no-rows must be accompanied by `-- @raises: <expected error text>`. " +
+        "Returning nothing is only evidence when PostgreSQL refuses to run the " +
+        "statement, and the error is what says so.",
+    );
+  }
+  if (raisesPattern && !noRowsReason) {
+    throw new Error("@raises is only meaningful on a fixture marked @no-rows");
   }
 
   if (bindings.length === 0) {
     bindings.push({ label: "unbound", args: null });
   }
-  return { bindings, noRowsReason };
+  return { bindings, noRowsReason, raisesPattern };
 }
 
 /**

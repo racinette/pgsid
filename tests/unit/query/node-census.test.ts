@@ -52,7 +52,25 @@ type Category =
   /** Exists only in the post-analysis Query tree; unreachable from parseSql. */
   | "analyzed-only";
 
-const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
+interface Classification {
+  category: Category;
+  why: string;
+  /**
+   * PostgreSQL declares this node as a concrete struct field rather than a
+   * `Node *` — `Alias *alias`, `WithClause *withClause`, `TypeName *typeName` —
+   * and libpg-query only tags a field it serialises through the generic Node
+   * path. An inlined field is emitted as a bare object (`"alias": {"aliasname":
+   * "p"}`), so the node type never appears as a key however the SQL is written.
+   * The value leaves are the same story from the other direction: `Boolean`,
+   * `Float` and `BitString` live inside `A_Const` as `boolval`/`fval`/`bsval`.
+   *
+   * Marking them is what separates "the corpus does not reach this yet" from
+   * "no corpus can reach this", and both halves are asserted below.
+   */
+  inlined?: true;
+}
+
+const CLASSIFICATION: Record<string, Classification> = {
   // --- statements producing output columns -------------------------------
   SelectStmt: { category: "handled", why: "target list is the output" },
   InsertStmt: { category: "handled", why: "RETURNING is the output" },
@@ -70,7 +88,7 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   JsonTable: { category: "handled", why: "JSON_TABLE contributes COLUMNS" },
   RangeTableFuncCol: { category: "structural", why: "one XMLTABLE column, read via RangeTableFunc" },
   JsonTableColumn: { category: "structural", why: "one JSON_TABLE column, read via JsonTable" },
-  JsonTablePathSpec: { category: "structural", why: "path attached to a JSON_TABLE column" },
+  JsonTablePathSpec: { category: "structural", why: "path attached to a JSON_TABLE column", inlined: true },
 
   // --- expression nodes with a branch ------------------------------------
   A_Const: { category: "handled", why: "literal; NULL literal is nullable" },
@@ -95,7 +113,6 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   A_Indirection: { category: "handled", why: "subscript/field access is conservatively nullable" },
   XmlExpr: { category: "handled", why: "conservatively nullable" },
   SetToDefault: { category: "handled", why: "conservatively nullable" },
-  ScalarArrayOp: { category: "handled", why: "conservatively nullable" },
 
   // --- expression nodes deliberately left to the fallback ----------------
   XmlSerialize: { category: "conservative", why: "XMLSERIALIZE — nullable; no precision case yet" },
@@ -116,30 +133,30 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   List: { category: "structural", why: "generic list wrapper" },
   String: { category: "structural", why: "identifier/string leaf inside other nodes" },
   Integer: { category: "structural", why: "integer leaf" },
-  Float: { category: "structural", why: "float leaf" },
-  Boolean: { category: "structural", why: "boolean leaf" },
-  BitString: { category: "structural", why: "bit-string leaf" },
+  Float: { category: "structural", why: "float leaf, inlined into A_Const as fval", inlined: true },
+  Boolean: { category: "structural", why: "boolean leaf, inlined into A_Const as boolval", inlined: true },
+  BitString: { category: "structural", why: "bit-string leaf, inlined into A_Const as bsval", inlined: true },
   ResTarget: { category: "structural", why: "target-list entry; unwrapped for name + expression" },
-  Alias: { category: "structural", why: "relation/column aliases" },
+  Alias: { category: "structural", why: "relation/column aliases", inlined: true },
   A_Star: { category: "structural", why: "`*`; handled by star expansion" },
   A_Indices: { category: "structural", why: "subscript bounds inside A_Indirection" },
   CaseWhen: { category: "structural", why: "one CASE branch, read via CaseExpr" },
-  TypeName: { category: "structural", why: "cast/column type, read via TypeCast" },
+  TypeName: { category: "structural", why: "cast/column type, read via TypeCast", inlined: true },
   CommonTableExpr: { category: "structural", why: "CTE definition, registered into the scope" },
-  WithClause: { category: "structural", why: "CTE list" },
-  CTESearchClause: { category: "structural", why: "generates an ordering column" },
-  CTECycleClause: { category: "structural", why: "generates cycle-mark and path columns" },
+  WithClause: { category: "structural", why: "CTE list", inlined: true },
+  CTESearchClause: { category: "structural", why: "generates an ordering column", inlined: true },
+  CTECycleClause: { category: "structural", why: "generates cycle-mark and path columns", inlined: true },
   MergeWhenClause: { category: "structural", why: "MERGE action; does not change the output list" },
   JsonKeyValue: { category: "structural", why: "JSON_OBJECT member" },
   JsonValueExpr: { category: "structural", why: "wraps a value inside a JSON constructor" },
-  JsonOutput: { category: "structural", why: "RETURNING clause of a JSON function" },
+  JsonOutput: { category: "structural", why: "RETURNING clause of a JSON function", inlined: true },
   JsonArgument: { category: "structural", why: "PASSING argument of a JSON function" },
-  JsonFormat: { category: "structural", why: "FORMAT JSON annotation" },
-  JsonReturning: { category: "structural", why: "JSON return-type annotation" },
-  JsonAggConstructor: { category: "structural", why: "shared aggregate scaffolding" },
-  InferClause: { category: "structural", why: "ON CONFLICT inference target" },
-  OnConflictClause: { category: "structural", why: "ON CONFLICT action; consulted for row-count" },
-  ReturningClause: { category: "structural", why: "RETURNING list wrapper" },
+  JsonFormat: { category: "structural", why: "FORMAT JSON annotation", inlined: true },
+  JsonReturning: { category: "structural", why: "JSON return-type annotation", inlined: true },
+  JsonAggConstructor: { category: "structural", why: "shared aggregate scaffolding", inlined: true },
+  InferClause: { category: "structural", why: "ON CONFLICT inference target", inlined: true },
+  OnConflictClause: { category: "structural", why: "ON CONFLICT action; consulted for row-count", inlined: true },
+  ReturningClause: { category: "structural", why: "RETURNING list wrapper", inlined: true },
   ReturningOption: { category: "structural", why: "RETURNING OLD/NEW alias" },
 
   // --- present but unable to change the output column list ---------------
@@ -148,7 +165,7 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   GroupingSet: { category: "ignored", why: "read directly for grouping-set columns" },
   LockingClause: { category: "ignored", why: "FOR UPDATE/SHARE" },
   IndexElem: { category: "ignored", why: "ON CONFLICT / index target" },
-  DefElem: { category: "ignored", why: "generic option, utility statements" },
+  DefElem: { category: "ignored", why: "generic option, utility statements", inlined: true },
   CollateExpr: { category: "analyzed-only", why: "raw trees carry CollateClause" },
 
   // --- analyzed-tree vocabulary; unreachable from parseSql ---------------
@@ -256,19 +273,44 @@ describe("node-type census", () => {
     ).toEqual([]);
   });
 
-  it("classification refers only to node types that exist", () => {
-    // Guards against typos and against entries left behind when a node type is
-    // renamed upstream. `analyzed-only` entries are documentation and are
-    // expected never to be observed.
-    const documented = Object.entries(CLASSIFICATION)
-      .filter(([, v]) => v.category !== "analyzed-only")
+  it("every node type the corpus can reach is reached", () => {
+    // The complement of the first assertion. That one catches a node type
+    // nobody classified; this one catches a classification nobody tested —
+    // an entry asserting a category for a construct the corpus never produces
+    // is an untested claim, and `handled` in particular claims a walk branch
+    // that may not exist.
+    //
+    // A name that is not a node type at all fails here too, since nothing can
+    // ever observe it.
+    const reachable = Object.entries(CLASSIFICATION)
+      .filter(([, v]) => v.category !== "analyzed-only" && !v.inlined)
       .map(([k]) => k);
-    const neverSeen = documented.filter(t => !observed.has(t)).sort();
-    // Not a failure: the corpus simply may not reach every construct. Report
-    // it so the gap is visible.
-    if (neverSeen.length > 0) {
-      console.log(`node-census: classified but not exercised by the corpus: ${neverSeen.join(", ")}`);
-    }
-    expect(Object.keys(CLASSIFICATION).length).toBeGreaterThan(0);
+    const unreached = reachable.filter(t => !observed.has(t)).sort();
+    expect(
+      unreached,
+      `Classified but never produced by the corpus. Either add SQL to ` +
+        `grammar-sampler.ts that produces the node, or — if PostgreSQL declares ` +
+        `it as a concrete struct field rather than a \`Node *\`, so libpg-query ` +
+        `inlines it untagged — mark the entry \`inlined: true\`. A name that is ` +
+        `not a node type at all belongs in neither category and should be ` +
+        `deleted:\n  ${unreached.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("nothing marked `inlined` ever appears as a tagged node", () => {
+    // The other side of that marker. `inlined` is a claim about how
+    // libpg-query serialises the tree, and a libpg-query upgrade could change
+    // it — at which point the node becomes observable and its classification
+    // becomes testable, so the marker has to come off.
+    const tagged = Object.entries(CLASSIFICATION)
+      .filter(([k, v]) => v.inlined && observed.has(k))
+      .map(([k]) => k)
+      .sort();
+    expect(
+      tagged,
+      `Marked \`inlined\` but observed as a tagged node. libpg-query now ` +
+        `serialises these through the generic Node path; drop the marker so ` +
+        `the corpus has to keep reaching them:\n  ${tagged.join(", ")}`,
+    ).toEqual([]);
   });
 });

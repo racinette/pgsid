@@ -83,7 +83,7 @@ SELECT
   cs.parent_id                             AS parent_id,         -- @nullable
   cs.slug                                  AS slug,              -- @notNull
   cs.name                                  AS name,              -- @notNull
-  cs.depth                                 AS depth,             -- @nullable
+  cs.depth                                 AS depth,             -- @notNull
   cs.product_count                         AS product_count,     -- @notNull
   cs.total_value                           AS total_value,       -- @notNull
   cs.avg_price                             AS avg_price,         -- @notNull

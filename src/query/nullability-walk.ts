@@ -334,6 +334,18 @@ class NullabilityEngine {
   private scopeCache = new WeakMap<object, OutputNullability[]>();
   /** Nodes currently being analyzed (prevents infinite recursion in recursive CTEs). */
   private analyzing = new WeakSet<object>();
+  /**
+   * What a recursive CTE's self-reference is currently assumed to produce.
+   * Read by `analyzeSelect` when it re-enters a node already under analysis —
+   * which happens exactly at the self-reference. See `analyzeSetOperation`.
+   */
+  private recursiveAssumption = new WeakMap<object, OutputNullability[]>();
+  /**
+   * Nodes memoized while a recursive fixpoint is iterating, so their results
+   * can be dropped when the assumption they were computed under is disproved.
+   * Null when no fixpoint is in progress.
+   */
+  private fixpointJournal: object[] | null = null;
   /** Monotonic source of null-group ids (see RelationEntry.nullGroup). */
   private nullGroupCounter = 0;
   /** Branch guards currently in effect (see the Guard type). */
@@ -576,7 +588,10 @@ class NullabilityEngine {
     // already being analyzed (somewhere up the call stack), return empty
     // results. Columns from the recursive reference resolve as nullable
     // (conservative), which is correct.
-    if (this.analyzing.has(stmt)) return [];
+    // Re-entry means a recursive CTE's self-reference. During a fixpoint that
+    // resolves to the current assumption; outside one there is nothing to say
+    // and every column resolves nullable.
+    if (this.analyzing.has(stmt)) return this.recursiveAssumption.get(stmt) ?? [];
     this.analyzing.add(stmt);
     try {
 
@@ -585,17 +600,15 @@ class NullabilityEngine {
       // Register CTEs from the WITH clause so they're visible in larg/rarg.
       const cteScope = this.emptyScope(outerScope);
       this.registerCtes(stmt.withClause, cteScope);
-      const leftResults = this.analyzeSelect(stmt.larg, cteScope, depth + 1);
-      const rightResults = this.analyzeSelect(stmt.rarg, cteScope, depth + 1);
-      const results = this.combineSetOperation(leftResults, rightResults, stmt.op);
-      this.scopeCache.set(stmt, results);
+      const results = this.analyzeSetOperation(stmt, cteScope, depth);
+      this.memoize(stmt, results);
       return results;
     }
 
     // VALUES — no FROM clause, valuesLists populated.
     if (stmt.valuesLists && stmt.valuesLists.length > 0) {
       const results = this.analyzeValuesSelect(stmt.valuesLists, outerScope, depth);
-      this.scopeCache.set(stmt, results);
+      this.memoize(stmt, results);
       return results;
     }
 
@@ -628,7 +641,7 @@ class NullabilityEngine {
       results.push({ name: name ?? this.inferName(val), notNull });
     }
 
-    this.scopeCache.set(stmt, results);
+    this.memoize(stmt, results);
     scope.results = results;
     return results;
     } finally {
@@ -1128,6 +1141,80 @@ class NullabilityEngine {
    * Register CTEs from a WITH clause into the scope. Each CTE's name, AST
    * node, and column names (from explicit aliascolnames) are stored.
    */
+  /**
+   * Memoize a statement's results, recording the node when a fixpoint is
+   * iterating so the entry can be dropped if its assumption is disproved.
+   */
+  private memoize(stmt: object, results: OutputNullability[]): void {
+    this.scopeCache.set(stmt, results);
+    this.fixpointJournal?.push(stmt);
+  }
+
+  /**
+   * A set operation — and, when the operands reference the statement itself,
+   * the fixpoint that resolves a recursive CTE.
+   *
+   * `WITH RECURSIVE t AS (SELECT 0 AS depth ... UNION ALL SELECT t.depth + 1
+   * FROM t ...)` cannot be read in one pass: the recursive term's `t` is the
+   * very relation being defined. The resolution is an induction. Assume the
+   * self-reference produces what the non-recursive term produces, analyze the
+   * recursive term under that assumption, and combine. If the combination
+   * agrees with the assumption, the assumption is a fixed point and the
+   * induction holds: the base rows are non-null, and a step from non-null rows
+   * produces non-null rows, so every row at every depth is non-null.
+   *
+   * Iterating matters, and one pass is not enough. In
+   *
+   *   SELECT 1 AS a, 1 AS b UNION ALL SELECT t.b, NULL FROM t
+   *
+   * the first pass assumes `b` non-null, so `a = t.b` reads non-null, while the
+   * same pass concludes `b` is nullable — and at depth three `a` really is
+   * NULL. Accepting the first pass would report `a` non-null and be unsound.
+   * Each round therefore re-analyzes under the weakened assumption until
+   * nothing changes; flags only ever move from non-null to nullable, so the
+   * loop descends and terminates.
+   *
+   * Results memoized during a round were computed under an assumption that
+   * round may disprove, so they are dropped before the next one.
+   */
+  private analyzeSetOperation(
+    stmt: SelectStmt,
+    cteScope: Scope,
+    depth: number,
+  ): OutputNullability[] {
+    const left = this.analyzeSelect(stmt.larg!, cteScope, depth + 1);
+
+    let assumption = left;
+    // Each round that changes anything turns at least one column nullable, so
+    // the column count bounds the rounds. The extra round is the one that
+    // confirms a fixed point without changing anything.
+    for (let round = 0; round <= left.length + 1; round++) {
+      this.recursiveAssumption.set(stmt, assumption);
+      const outerJournal = this.fixpointJournal;
+      const journal: object[] = [];
+      this.fixpointJournal = journal;
+      let combined: OutputNullability[];
+      try {
+        const right = this.analyzeSelect(stmt.rarg!, cteScope, depth + 1);
+        combined = this.combineSetOperation(left, right, stmt.op!);
+      } finally {
+        this.fixpointJournal = outerJournal;
+      }
+      if (sameNullability(combined, assumption)) {
+        this.recursiveAssumption.delete(stmt);
+        return combined;
+      }
+      for (const node of journal) this.scopeCache.delete(node);
+      assumption = combined;
+    }
+
+    // Unreachable while the lattice is two-valued and the loop descends. If it
+    // ever is reached, the assumption never settled, and the only answer that
+    // cannot be wrong is that nothing is guaranteed.
+    this.recursiveAssumption.delete(stmt);
+    return left.map(c => ({ name: c.name, notNull: false }));
+  }
+
   private registerCtes(withClause: WithClause | undefined, scope: Scope): void {
     if (!withClause) return;
     for (const cte of withClause.ctes) {
@@ -1771,11 +1858,6 @@ class NullabilityEngine {
         i++;
       }
       trace.conclude(false, "all args nullable → GREATEST/LEAST nullable");
-      return false;
-    }
-
-    if ("ScalarArrayOp" in node) {
-      trace.conclude(false, "ScalarArrayOp → conservative nullable");
       return false;
     }
 
@@ -3545,6 +3627,16 @@ function combineSetOpColumn(left: boolean, right: boolean, op: string | undefine
     default:
       return left && right;
   }
+}
+
+/**
+ * Whether two column lists carry the same flags. Names are not compared: the
+ * two sides of a set operation take their names from the first branch, and a
+ * fixpoint is looking for a change in what is guaranteed, not in what it is
+ * called.
+ */
+function sameNullability(a: OutputNullability[], b: OutputNullability[]): boolean {
+  return a.length === b.length && a.every((c, i) => c.notNull === b[i]!.notNull);
 }
 
 /**

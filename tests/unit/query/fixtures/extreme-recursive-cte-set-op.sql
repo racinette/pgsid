@@ -1,8 +1,7 @@
 -- Recursive CTE result fed into a UNION with a non-recursive query.
--- The recursive self-reference produces conservative nullable columns
--- for expressions derived from the recursive part (e.g. depth+1 → A_Expr).
--- UNION combines with a literal query; the AND of both sides determines
--- the final nullability.
+-- The self-reference resolves by induction, so depth+1 over a non-null depth
+-- is itself non-null. UNION then combines with a literal query; the AND of
+-- both sides determines the final nullability.
 WITH RECURSIVE cat_tree AS (
   SELECT id, name, 0 AS depth
   FROM categories
@@ -15,7 +14,7 @@ WITH RECURSIVE cat_tree AS (
 SELECT
   id    AS id,      -- @notNull
   name  AS name,    -- @notNull
-  depth AS depth   -- @nullable
+  depth AS depth   -- @notNull
 FROM cat_tree
 UNION
 SELECT 0, 'root', 0

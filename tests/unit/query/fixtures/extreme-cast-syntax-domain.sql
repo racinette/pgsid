@@ -6,6 +6,7 @@
 -- @no-rows: CAST(NULL AS nn_text) raises the domain's NOT NULL violation for
 -- every row evaluated, which is the behaviour the @notNull claims assert. The
 -- statement therefore either fails or has no rows to fail on.
+-- @raises: domain nn_text does not allow null values
 SELECT
   CAST(p.name AS nn_text)              AS cast_domain,   -- @notNull
   CAST(p.deleted_at AS nn_text)        AS cast_null_domain,  -- @notNull

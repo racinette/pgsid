@@ -65,4 +65,15 @@ export const GRAMMAR_SAMPLER: string[] = [
   `MERGE INTO tags t USING products p ON t.id=p.id
      WHEN MATCHED THEN UPDATE SET name=p.sku
      WHEN NOT MATCHED BY SOURCE THEN DELETE RETURNING t.id, p.sku`,
+  `INSERT INTO tags (id,name) VALUES (DEFAULT,'a') RETURNING id`,
+  `UPDATE tags SET name='x' RETURNING WITH (OLD AS o) o.name, tags.name`,
+  `DELETE FROM tags WHERE CURRENT OF my_cursor RETURNING id`,
+
+  // --- the SQL/JSON constructors and aggregates ---
+  // Each of these is a distinct node type, not a FuncCall, so none of them is
+  // reached by the JSON_OBJECT/JSON_ARRAY forms above.
+  `SELECT JSON('{\"a\":1}'), JSON_SERIALIZE(JSON('{\"a\":1}'))`,
+  `SELECT JSON_OBJECTAGG(p.sku: p.id), JSON_ARRAYAGG(p.id) FROM products p`,
+  `SELECT JSON_ARRAY(SELECT id FROM products)`,
+  `SELECT JSON_VALUE(e.data, '$.a' PASSING 1 AS x) FROM events e`,
 ];

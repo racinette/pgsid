@@ -6,6 +6,7 @@
 --
 -- @no-rows: NULL::nn_text raises for every row evaluated, which is exactly the
 -- claim above. The statement either fails or has no rows to fail on.
+-- @raises: domain nn_text does not allow null values
 SELECT
   NULL::nn_text                    AS null_cast_domain,  -- @notNull
   p.name::nn_text                  AS col_cast_domain,   -- @notNull

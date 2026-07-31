@@ -1,7 +1,7 @@
 -- Recursive CTE walking a self-referencing category hierarchy.
--- The recursive self-reference (cat_tree in the recursive term) cannot be
--- resolved by the walk, so columns depending on it are conservatively nullable.
--- COALESCE over a non-null base-case column stays non-null.
+-- The self-reference resolves by induction: the base term makes depth 0, and a
+-- step from a non-null depth produces a non-null depth, so every row at every
+-- level has one. COALESCE over a non-null base-case column stays non-null.
 WITH RECURSIVE cat_tree AS (
   SELECT id, parent_id, slug, name, 0 AS depth
   FROM categories
@@ -14,6 +14,6 @@ WITH RECURSIVE cat_tree AS (
 SELECT
   id                    AS id,          -- @notNull
   COALESCE(name, slug)  AS display,     -- @notNull
-  depth                 AS depth,       -- @nullable
+  depth                 AS depth,       -- @notNull
   parent_id             AS parent_id    -- @nullable
 FROM cat_tree

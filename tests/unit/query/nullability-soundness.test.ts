@@ -78,6 +78,7 @@ interface Fixture {
   sql: string;
   bindings: FixtureBinding[];
   noRowsReason: string | null;
+  raisesPattern: string | null;
 }
 
 /** What execution observed about one output column, across every run. */
@@ -109,8 +110,8 @@ const fixtures: Fixture[] = fixtureFiles.map(file => {
   const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
   const name = basename(file, ".sql");
   try {
-    const { bindings, noRowsReason } = parseFixtureDirectives(sql);
-    return { name, sql, bindings, noRowsReason };
+    const { bindings, noRowsReason, raisesPattern } = parseFixtureDirectives(sql);
+    return { name, sql, bindings, noRowsReason, raisesPattern };
   } catch (e) {
     throw new Error(`${file}: ${(e as Error).message}`);
   }
@@ -245,6 +246,26 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
           `fixture is marked @no-rows but did return rows — remove the marker:\n` +
             `  ${fixture.noRowsReason}`,
         ).toBe(false);
+
+        // Returning nothing is not itself evidence. The claim these fixtures
+        // make is that PostgreSQL *refuses* to produce the value, so the
+        // refusal is what has to be observed — otherwise a fixture that
+        // matches no rows for some dull reason would pass as if it had proved
+        // something.
+        expect(
+          r.errors.length,
+          `fixture is marked @no-rows but never raised. Returning no rows is ` +
+            `not evidence on its own — if nothing here refuses, the marker is ` +
+            `hiding a fixture that asserts nothing:\n  ${fixture.noRowsReason}`,
+        ).toBeGreaterThan(0);
+
+        const unexpected = r.errors.filter(e => !e.includes(fixture.raisesPattern!));
+        expect(
+          unexpected,
+          `fixture raised something other than its declared @raises text ` +
+            `(${fixture.raisesPattern}). An unrelated failure must not be ` +
+            `accepted as the expected refusal:\n  ${unexpected.join("\n  ")}`,
+        ).toEqual([]);
       } else {
         expect(
           r.sawRows,
@@ -283,7 +304,8 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     let nullableTotal = 0;
     let nullableWitnessed = 0;
     const unwitnessed: string[] = [];
-    const vacuous: string[] = [];
+    const guarded: string[] = [];
+    const unverified: string[] = [];
 
     for (const fixture of fixtures) {
       const r = results.get(fixture.name)!;
@@ -292,8 +314,14 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         const label = `${fixture.name}: column ${i} "${claim.name}"`;
         if (claim.notNull) {
           notNullTotal++;
+          // Two ways a `notNull` claim can be checked. Either the query
+          // returns rows, so a NULL would contradict it — or the statement
+          // raises, and the refusal to produce a value at all is the claim.
+          // The per-fixture test above asserts that refusal and its message,
+          // so these are verified, not merely unfalsified.
           if (seen.sawRow) notNullFalsifiable++;
-          else vacuous.push(label);
+          else if (fixture.noRowsReason) guarded.push(label);
+          else unverified.push(label);
         } else {
           nullableTotal++;
           if (seen.sawNull) nullableWitnessed++;
@@ -301,6 +329,13 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         }
       });
     }
+
+    expect(
+      unverified,
+      `notNull claims that nothing checks: the query returned no rows, and the ` +
+        `fixture is not marked @no-rows, so no NULL could contradict them and no ` +
+        `refusal stands behind them.\n  ${unverified.join("\n  ")}`,
+    ).toEqual([]);
 
     const measured: CoverageBaseline = {
       witnessedNullableClaims: nullableWitnessed,
@@ -313,7 +348,8 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       `\nwitness coverage over ${fixtures.length} fixtures and ` +
         `${dataStates.length} data states (${dataStates.map(s => s.name).join(", ")}):\n` +
         `  notNull claims:  ${notNullTotal} — ${notNullFalsifiable} falsifiable ` +
-        `(${pct(notNullFalsifiable, notNullTotal)}), ${notNullTotal - notNullFalsifiable} vacuous\n` +
+        `(${pct(notNullFalsifiable, notNullTotal)}), ${guarded.length} guarded by a ` +
+        `checked refusal, ${unverified.length} unverified\n` +
         `  nullable claims: ${nullableTotal} — ${nullableWitnessed} witnessed ` +
         `(${pct(nullableWitnessed, nullableTotal)}), ${nullableTotal - nullableWitnessed} unwitnessed`,
     );
@@ -321,7 +357,8 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     if (process.env.WITNESS_REPORT) {
       console.log(
         `\nunwitnessed nullable claims (${unwitnessed.length}):\n  ${unwitnessed.join("\n  ")}` +
-          `\n\nvacuous notNull claims (${vacuous.length}):\n  ${vacuous.join("\n  ")}`,
+          `\n\nnotNull claims guarded by a checked refusal (${guarded.length}):\n  ` +
+          guarded.join("\n  "),
       );
     }
 
