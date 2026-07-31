@@ -137,8 +137,11 @@ const mergeWhen = (matchKind: string, commandType: string, fields: Ast = {}): As
     ...fields,
   },
 });
-const mergeSource = (select: Ast): Ast => ({
-  RangeSubselect: { subquery: { SelectStmt: select }, alias: { aliasname: "s" } },
+const mergeSource = (select: Ast, colnames?: string[]): Ast => ({
+  RangeSubselect: {
+    subquery: { SelectStmt: select },
+    alias: { aliasname: "s", ...(colnames ? { colnames: colnames.map(str) } : {}) },
+  },
 });
 const isNotNull = (arg: Ast): Ast => ({ NullTest: { arg, nulltesttype: "IS_NOT_NULL" } });
 // merge_action() is not a FuncCall: the parser emits a dedicated
@@ -1071,13 +1074,14 @@ export function generateDmlQueries(): GeneratedQuery[] {
 
   // --- merge: the arm combinations over the conflict-key table. -------------
   // Sources draw sids from t (never NULL: t.id is NOT NULL and only inner
-  // joins appear inside), so the INSERT arm's PK is safe; parameters live in
-  // ARMS only — a parameter in the SOURCE flows into rejecting columns in
-  // ways the collector cannot attribute yet (pinned in
-  // param-mechanism.test.ts; see "Source value-flow attribution" in
-  // docs/deferred-tasks.md). Under sparse, sid 1 exercises the MATCHED arms
-  // against the seeded ck.1; under unmatched, ck.55 exercises NOT MATCHED BY
-  // SOURCE, which is the only way s.* columns are ever witnessed NULL.
+  // joins appear inside), so the INSERT arm's PK is safe. Parameters in
+  // SOURCES are attributed through the derived-table column map
+  // (merge-src-param below); the residual — a parameter forcing only SOME
+  // rows of a multi-row VALUES NULL — stays out of the corpus, per the
+  // residual note in docs/deferred-tasks.md. Under sparse, sid 1 exercises
+  // the MATCHED arms against the seeded ck.1; under unmatched, ck.55
+  // exercises NOT MATCHED BY SOURCE, which is the only way s.* columns are
+  // ever witnessed NULL.
   {
     // Both sources GROUP BY the sid: MERGE refuses a source that acts on the
     // same target row twice ("cannot affect row a second time"), and
@@ -1174,6 +1178,40 @@ export function generateDmlQueries(): GeneratedQuery[] {
         ],
       );
     }
+
+    // Source value-flow attribution under the oracle: $1 rides the source
+    // VALUES row and lands, via s.snm, in ck.val's NOT NULL constraint — the
+    // engine claims notNull through the derived-column map, and every
+    // default state witnesses the raise (sid 905 conflicts with nothing, so
+    // the INSERT arm always receives the row).
+    const srcParam = bareSelect({
+      valuesLists: [valuesRow(intConst(905), paramRef(1))],
+    });
+    const INSP = mergeWhen("MERGE_WHEN_NOT_MATCHED_BY_TARGET", "CMD_INSERT", {
+      targetList: insertCols("id", "val"),
+      values: [colRef("s", "sid"), colRef("s", "snm")],
+    });
+    dml(
+      "merge-src-param",
+      "src-values-param",
+      "plain",
+      {
+        MergeStmt: {
+          relation: relation("ck"),
+          sourceRelation: mergeSource(srcParam, ["sid", "snm"]),
+          joinCondition: eq(colRef("ck", "id"), colRef("s", "sid")),
+          mergeWhenClauses: [INSP],
+          returningClause: RET,
+        },
+      },
+      [{ number: 1, valid: "sv" }],
+      [
+        expect("MERGE", "MergeStmt"),
+        expectReturning,
+        expectMergeArms("MERGE_WHEN_NOT_MATCHED_BY_TARGET/CMD_INSERT"),
+        expectParams(1),
+      ],
+    );
   }
 
   // --- dml-cte: INSERT ... RETURNING joined back through every kind. --------

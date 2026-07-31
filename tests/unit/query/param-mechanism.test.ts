@@ -221,11 +221,11 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
   });
 
   it("a parameter flowing through the SOURCE into a rejecting column raises", async () => {
-    // The measured collector gap: $1 → s.sv → NOT NULL column is a
-    // cross-relation flow the collector cannot attribute yet, so its claim
-    // would be nullable while this raise is real. The shape is deliberately
-    // kept out of the parameterized corpus until the attribution exists —
-    // see "Source value-flow attribution" in docs/deferred-tasks.md.
+    // The behaviour behind source value-flow attribution: $1 → s.sv → NOT
+    // NULL column. The collector attributes this through the derived-table
+    // column map; param-merge-source.sql is the trigger fixture. The
+    // residual (a parameter forcing only SOME rows of a multi-row VALUES)
+    // remains recorded in docs/deferred-tasks.md.
     expect(
       await errorOf(
         "MERGE INTO m USING (VALUES ($1::text)) s(sv) ON m.id = 999 " +

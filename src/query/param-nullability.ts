@@ -160,6 +160,7 @@ function reject(c: Collector, num: number, mechanism: "domain" | "constraint" | 
 export function forcedNullParams(
   node: Node | undefined,
   catalog: NullabilityCatalog,
+  ctx?: AliasContext,
 ): Set<number> {
   const empty = new Set<number>();
   if (!node || typeof node !== "object") return empty;
@@ -168,18 +169,45 @@ export function forcedNullParams(
   const direct = paramNumberOf(n);
   if (direct !== null) return new Set([direct]);
 
+  // A derived-table column: attribute through its defining expressions.
+  // INTERSECTION over rows, and it must be — the other consumer of this
+  // function (WHERE-conjunct narrowing) quantifies universally, and even for
+  // the contract a parameter forcing only SOME rows NULL cannot be claimed
+  // from here (that residual is recorded in docs/deferred-tasks.md). The
+  // recursion drops the context: a defining expression cannot reference its
+  // own alias, and deeper nesting stays conservative.
+  if (n["ColumnRef"] && ctx) {
+    const fields = ((n["ColumnRef"] as { fields?: Node[] }).fields ?? []).map(stringVal);
+    let cols: Map<string, Node[]> | undefined;
+    let colName: string | undefined;
+    if (fields.length === 2) {
+      cols = ctx.get(fields[0]!);
+      colName = fields[1];
+    } else if (fields.length === 1 && ctx.size === 1) {
+      cols = [...ctx.values()][0];
+      colName = fields[0];
+    }
+    const defs = colName ? cols?.get(colName) : undefined;
+    if (defs?.length) {
+      return defs
+        .map(d => forcedNullParams(d, catalog))
+        .reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
+    }
+    return empty;
+  }
+
   if (n["TypeCast"]) {
-    return forcedNullParams((n["TypeCast"] as { arg?: Node }).arg, catalog);
+    return forcedNullParams((n["TypeCast"] as { arg?: Node }).arg, catalog, ctx);
   }
 
   if (n["A_Expr"]) {
     const ae = n["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
-    if (ae.kind === "AEXPR_NULLIF") return forcedNullParams(ae.lexpr, catalog);
+    if (ae.kind === "AEXPR_NULLIF") return forcedNullParams(ae.lexpr, catalog, ctx);
     const op = ae.name?.length === 1 ? stringVal(ae.name[0]) : "";
     if (ae.kind === "AEXPR_OP" && TOTAL_STRICT_OPERATORS.has(op)) {
       const out = new Set<number>();
       for (const operand of [ae.lexpr, ae.rexpr]) {
-        for (const num of forcedNullParams(operand, catalog)) out.add(num);
+        for (const num of forcedNullParams(operand, catalog, ctx)) out.add(num);
       }
       return out;
     }
@@ -190,7 +218,7 @@ export function forcedNullParams(
     const args = (n["CoalesceExpr"] as { args?: Node[] }).args ?? [];
     if (args.length === 0) return empty;
     return args
-      .map(a => forcedNullParams(a, catalog))
+      .map(a => forcedNullParams(a, catalog, ctx))
       .reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
   }
 
@@ -205,7 +233,7 @@ export function forcedNullParams(
     const out = new Set<number>();
     for (const arg of fc.args ?? []) {
       if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return empty;
-      for (const num of forcedNullParams(arg, catalog)) out.add(num);
+      for (const num of forcedNullParams(arg, catalog, ctx)) out.add(num);
     }
     return out;
   }
@@ -213,11 +241,95 @@ export function forcedNullParams(
   return empty;
 }
 
+/**
+ * Derived-table columns visible at a rejecting site: alias → column name →
+ * DEFINING EXPRESSIONS, one per source row (a subquery column has exactly
+ * one; a VALUES column has one per row). Lets `forcedNullParams` attribute a
+ * parameter THROUGH a source column — `$1 → s.sv → NOT NULL target` — which
+ * is a real raise the local analysis cannot otherwise see (pinned in
+ * param-mechanism.test.ts).
+ */
+type AliasContext = Map<string, Map<string, Node[]>>;
+
+/**
+ * Column map of one derived table (RangeSubselect over VALUES or a plain
+ * SELECT). Unattributable shapes return null — star expansion shifts
+ * positions, a set operation has two defining lists — and their parameters
+ * stay conservatively nullable. Alias column names (`s(sid, snm)`) rename
+ * positionally and win over target-list names, and everything compares
+ * case-folded because the parser lower-cases unquoted identifiers before we
+ * ever see them.
+ */
+function derivedTableCols(node: unknown): { alias: string; cols: Map<string, Node[]> } | null {
+  const rs = (node as { RangeSubselect?: Record<string, unknown> } | null)?.RangeSubselect;
+  if (!rs) return null;
+  const alias = (rs["alias"] as { aliasname?: string; colnames?: Node[] } | undefined) ?? {};
+  if (!alias.aliasname) return null;
+  const select = (rs["subquery"] as { SelectStmt?: Record<string, unknown> } | undefined)
+    ?.SelectStmt;
+  if (!select) return null;
+
+  const aliasNames = alias.colnames?.map(stringVal);
+  const cols = new Map<string, Node[]>();
+  const put = (name: string | undefined, index: number, expr: Node | undefined): void => {
+    const finalName = aliasNames?.[index] ?? name;
+    if (!finalName || !expr) return;
+    const defs = cols.get(finalName) ?? [];
+    defs.push(expr);
+    cols.set(finalName, defs);
+  };
+
+  const valuesLists = select["valuesLists"] as Node[] | undefined;
+  if (valuesLists?.length) {
+    if (!aliasNames) return null; // VALUES columns have no names of their own
+    for (const row of valuesLists) {
+      const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
+      items.forEach((item, i) => put(undefined, i, item));
+    }
+    return { alias: alias.aliasname, cols };
+  }
+
+  if (select["op"] !== "SETOP_NONE") return null;
+  const targetList = (select["targetList"] as Node[] | undefined) ?? [];
+  for (const [i, item] of targetList.entries()) {
+    const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+    if (rt?.val && (rt.val as { ColumnRef?: { fields?: Node[] } }).ColumnRef?.fields?.some(
+      f => !!(f as { A_Star?: unknown }).A_Star,
+    )) {
+      return null; // star expansion shifts every later position
+    }
+    put(rt?.name, i, rt?.val);
+  }
+  return { alias: alias.aliasname, cols };
+}
+
+/** Every derived table among a list of from-items (including inside joins). */
+function aliasContextOf(items: Node[] | undefined): AliasContext | undefined {
+  if (!items?.length) return undefined;
+  const ctx: AliasContext = new Map();
+  const scan = (node: unknown): void => {
+    if (Array.isArray(node)) return node.forEach(scan);
+    if (!node || typeof node !== "object") return;
+    const derived = derivedTableCols(node);
+    if (derived) {
+      ctx.set(derived.alias, derived.cols);
+      return; // one level: no nesting into the derived table itself
+    }
+    const je = (node as { JoinExpr?: { larg?: Node; rarg?: Node } }).JoinExpr;
+    if (je) {
+      scan(je.larg);
+      scan(je.rarg);
+    }
+  };
+  scan(items);
+  return ctx.size ? ctx : undefined;
+}
+
 /** Value-flow (mechanism C) into a rejecting site: everything but a direct
  *  ParamRef, which its caller has already handled as A or B. */
-function rejectFlow(c: Collector, expr: Node | undefined): void {
+function rejectFlow(c: Collector, expr: Node | undefined, ctx?: AliasContext): void {
   if (!expr || paramNumberOf(expr) !== null) return;
-  for (const num of forcedNullParams(expr, c.catalog)) reject(c, num, "flow");
+  for (const num of forcedNullParams(expr, c.catalog, ctx)) reject(c, num, "flow");
 }
 
 function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): void {
@@ -286,6 +398,7 @@ function checkSetClause(
   targetList: Node[] | undefined,
   schema: string,
   table: string,
+  ctx?: AliasContext,
 ): void {
   for (const item of targetList ?? []) {
     const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
@@ -294,8 +407,45 @@ function checkSetClause(
     if (!mechanism) continue;
     const num = paramNumberOf(rt.val);
     if (num !== null) reject(c, num, mechanism);
-    else rejectFlow(c, rt.val);
+    else rejectFlow(c, rt.val, ctx);
   }
+}
+
+/**
+ * The `excluded` pseudo-alias of ON CONFLICT DO UPDATE is itself a derived
+ * row: `excluded.col` IS the value the INSERT proposed for `col`, so a
+ * parameter there flows exactly like a source column — `SET val =
+ * excluded.name` with `name` bound to `$2` rejects `$2` when `val` refuses
+ * NULL. Column names arrive case-folded from the parser like every other
+ * identifier, so unquoted EXCLUDED/Excluded/excluded all land here. A column
+ * absent from the INSERT list takes its default and defines nothing.
+ */
+function excludedContext(
+  target: { columns: string[] },
+  select: Record<string, unknown> | undefined,
+): AliasContext | undefined {
+  if (!select) return undefined;
+  const cols = new Map<string, Node[]>();
+  const put = (index: number, expr: Node | undefined): void => {
+    const column = target.columns[index];
+    if (!column || !expr) return;
+    const defs = cols.get(column) ?? [];
+    defs.push(expr);
+    cols.set(column, defs);
+  };
+  const valuesLists = select["valuesLists"] as Node[] | undefined;
+  if (valuesLists?.length) {
+    for (const row of valuesLists) {
+      const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
+      items.forEach((item, i) => put(i, item));
+    }
+  } else if (select["op"] === "SETOP_NONE") {
+    const targetList = (select["targetList"] as Node[] | undefined) ?? [];
+    targetList.forEach((item, i) =>
+      put(i, (item as { ResTarget?: { val?: Node } }).ResTarget?.val),
+    );
+  }
+  return cols.size ? new Map([["excluded", cols]]) : undefined;
 }
 
 function checkInsert(
@@ -310,6 +460,12 @@ function checkInsert(
   const target = insertTargetColumns(c, stmt.relation, stmt.cols);
   if (!target) return;
 
+  const select = (stmt.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
+    ?.SelectStmt;
+  // INSERT ... SELECT: source columns from derived tables in the select's
+  // FROM attribute through to the target positions.
+  const sourceCtx = aliasContextOf(select?.["fromClause"] as Node[] | undefined);
+
   const rejectAt = (position: number, val: Node | undefined): void => {
     const column = target.columns[position];
     if (!column || !val) return;
@@ -317,11 +473,9 @@ function checkInsert(
     if (!mechanism) return;
     const num = paramNumberOf(val);
     if (num !== null) reject(c, num, mechanism);
-    else rejectFlow(c, val);
+    else rejectFlow(c, val, sourceCtx);
   };
 
-  const select = (stmt.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
-    ?.SelectStmt;
   if (select) {
     const valuesLists = select["valuesLists"] as Node[] | undefined;
     for (const row of valuesLists ?? []) {
@@ -340,27 +494,42 @@ function checkInsert(
   }
 
   if (stmt.onConflictClause?.targetList) {
-    checkSetClause(c, stmt.onConflictClause.targetList, target.schema, target.table);
+    checkSetClause(
+      c,
+      stmt.onConflictClause.targetList,
+      target.schema,
+      target.table,
+      excludedContext(target, select),
+    );
   }
 }
 
 function checkUpdate(
   c: Collector,
-  stmt: { relation?: { schemaname?: string; relname?: string }; targetList?: Node[] },
+  stmt: {
+    relation?: { schemaname?: string; relname?: string };
+    targetList?: Node[];
+    fromClause?: Node[];
+  },
 ): void {
   if (!stmt.relation?.relname) return;
   const table = c.catalog.resolveTable(stmt.relation.schemaname, stmt.relation.relname);
   if (!table) return;
-  checkSetClause(c, stmt.targetList, table.schema, table.name);
+  checkSetClause(c, stmt.targetList, table.schema, table.name, aliasContextOf(stmt.fromClause));
 }
 
 function checkMerge(
   c: Collector,
-  stmt: { relation?: { schemaname?: string; relname?: string }; mergeWhenClauses?: Node[] },
+  stmt: {
+    relation?: { schemaname?: string; relname?: string };
+    sourceRelation?: Node;
+    mergeWhenClauses?: Node[];
+  },
 ): void {
   if (!stmt.relation?.relname) return;
   const table = c.catalog.resolveTable(stmt.relation.schemaname, stmt.relation.relname);
   if (!table) return;
+  const ctx = aliasContextOf(stmt.sourceRelation ? [stmt.sourceRelation] : undefined);
   for (const clause of stmt.mergeWhenClauses ?? []) {
     const mwc = (clause as { MergeWhenClause?: { targetList?: Node[]; values?: Node[] } })
       .MergeWhenClause;
@@ -377,11 +546,11 @@ function checkMerge(
         if (!mechanism) return;
         const num = paramNumberOf(val);
         if (num !== null) reject(c, num, mechanism);
-        else rejectFlow(c, val);
+        else rejectFlow(c, val, ctx);
       });
     } else {
       // The update arm: SET col = value pairs.
-      checkSetClause(c, mwc.targetList, table.schema, table.name);
+      checkSetClause(c, mwc.targetList, table.schema, table.name, ctx);
     }
   }
 }

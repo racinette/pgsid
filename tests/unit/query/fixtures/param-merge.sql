@@ -4,10 +4,9 @@
 -- both rows insert. $1's notNull is the conditional mechanism-B claim:
 -- binding NULL raises where MATCHED fires and is silent where it does not.
 --
--- No parameter appears in the SOURCE: a parameter flowing through a source
--- column into a rejecting target raises (pinned in param-mechanism.test.ts)
--- and the collector cannot attribute that flow yet — see "Source value-flow
--- attribution" in docs/deferred-tasks.md.
+-- The SOURCE here is parameter-free by choice of shape, not necessity:
+-- source value-flow attribution covers parameters in sources now — see
+-- param-merge-source.sql for the trigger case.
 -- @args ["mv", "mn"]
 -- @args ["mw", null]
 -- @param 1 notNull

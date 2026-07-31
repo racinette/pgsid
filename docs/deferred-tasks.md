@@ -28,7 +28,7 @@ finding the defects nobody thought to look for, and then a consumer.
 1. **Argument nullability** — built, all four sequencing steps, plus
    mechanism-A output narrowing and mechanism-C value-flow rejection; the
    design, its empirical grounding, and what remains deferred
-   ("Source value-flow attribution") are
+   (the multi-row residual of "Source value-flow attribution") are
    in `docs/argument-nullability.md`.
 2. **New generator axes.** The generated suite ran its full axis space and
    found no defect, which per its own criterion is the signal to widen the
@@ -120,33 +120,29 @@ kept it dark".
 
 ---
 
-## 4. Source value-flow attribution
+## 4. Source value-flow attribution — residual
 
-**What.** The collector cannot attribute a parameter's flow through a
-derived-table column into a rejecting site. Measured counterexample (pinned
-in `param-mechanism.test.ts`): in `MERGE INTO m USING (VALUES ($1::text))
-s(sv) … INSERT (id, e) VALUES (1, s.sv)` the NULL binding raises against
-`e`'s NOT NULL constraint, while the collector claims `$1: nullable` — a
-wrong claim in the unsafe direction (a caller told NULL is fine hits a
-runtime error). The hole is not MERGE-specific: `INSERT INTO plain SELECT
-s.x FROM (VALUES ($1)) s(x)` has it identically.
+**Built.** The collector attributes a parameter through a derived-table
+column into a rejecting site: alias → column → defining expressions, with
+`forcedNullParams` recursing through the definitions. Channels: MERGE
+`USING` sources, `INSERT … SELECT` derived tables, `UPDATE … FROM`, and the
+`excluded` pseudo-alias of ON CONFLICT (whose columns ARE the proposed
+row's expressions). Trigger fixtures: `param-merge-source.sql`,
+`param-insert-source.sql`, `param-onconflict-excluded.sql` (the last also
+pins case-folding and attribution through composition).
 
-**Why it is deferred rather than fixed.** Attribution requires resolving
-`s.sv` to its defining expression — alias and column-position resolution for
-subquery/VALUES sources — which is a miniature of the scope machinery the
-collector deliberately does not have (its channels are all locally
-recognisable). Building it is a contained but real piece of work:
-`forcedNullParams` composed through derived-table output columns.
+**The residual, which is the reason this entry survives.** Attribution
+takes the INTERSECTION over a column's defining rows — required, because
+the same function serves WHERE-narrowing, whose quantifier is universal.
+Consequence: a parameter forcing only SOME rows of a multi-row `VALUES`
+NULL is still claimed nullable, while `MERGE … USING (VALUES ($1), (901))
+… INSERT (id) VALUES (s.sid)` really can raise. A wrong claim in the
+unsafe direction, much narrower than before, and kept out of the corpus
+for the same reason its parent was: the oracle would rightly fail on it.
 
-**State.** The PostgreSQL behaviour is pinned; the shape is deliberately
-KEPT OUT of the parameterized corpus (fixtures and generated queries put
-parameters in arms and targets, never in sources) precisely because the
-falsification oracle would — correctly — fail on it. This is the register's
-only known wrong-claim class, quarantined rather than silently tolerated.
-
-**Trigger.** The next engine work item; its trigger fixture (the pinned
-statement, with `@param 1 notNull`) ships together with the fix, exactly as
-mechanism C's did.
+**Trigger.** Splitting the two consumers' quantifiers (existential
+attribution for the contract, universal for narrowing), or a bug report
+containing the shape.
 
 ---
 

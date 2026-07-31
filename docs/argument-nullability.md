@@ -184,6 +184,19 @@ NULL bound and returns rows. Fixtures: `param-multi-use` (`$1 || 'x'` is
 notNull), `param-fn-domain-arg` (the inlined body echoes a proven-non-null
 argument).
 
+**Source value-flow attribution (implemented).** `forcedNullParams` resolves
+a derived-table column to its DEFINING EXPRESSIONS and recurses: alias →
+column → definitions, for MERGE `USING` sources, `INSERT … SELECT` derived
+tables, `UPDATE … FROM`, and ON CONFLICT's `excluded` pseudo-alias — whose
+columns are simply the proposed row's expressions, so `SET val =
+EXCLUDED.name` with `name` bound to `$2` rejects `$2` (case-folded like
+every identifier; attribution composes through strict operators). The
+quantifier over a multi-row source is the INTERSECTION of rows — it must
+be, because WHERE-narrowing consumes the same function universally — which
+leaves the ∃-row residual recorded in `docs/deferred-tasks.md`. Trigger
+fixtures: `param-merge-source.sql`, `param-insert-source.sql`,
+`param-onconflict-excluded.sql`.
+
 **A hazard step 1 must check, because it exists today: overload resolution
 under untyped parameters.** Which overload of `f($1)` PostgreSQL executes
 depends on the argument types *it* resolves, and an unconstrained parameter
@@ -321,9 +334,9 @@ Agreed order of work, each stage giving the next something real to test:
    since MERGE refuses a source acting on a target row twice — with
    conditional-B witnessed where arms fire, mechanism A arm-immune (pinned),
    and `merge_action()` classified (a dedicated `MergeSupportFunc` node,
-   conservative). Parameters stay out of MERGE sources: the measured
-   collector gap there is quarantined as "Source value-flow attribution" in
-   `docs/deferred-tasks.md`.
+   conservative). Parameters in sources are attributed (`merge-src-param`
+   and the trigger fixtures); only the multi-row ∃-residual stays out, per
+   the residual note in `docs/deferred-tasks.md`.
 
 ## Where things are
 
