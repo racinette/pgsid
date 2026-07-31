@@ -81,11 +81,7 @@ CREATE TABLE ck (
   id   integer PRIMARY KEY,
   name text,
   val  text    NOT NULL DEFAULT 'v',
-  -- NOT NULL is semantically redundant with the domain, but the data
-  -- generator reads attnotnull to decide where NULLs go; without it the
-  -- generated state writes tag = NULL and the domain refuses the load.
-  -- Mechanism classification is unaffected: the domain check comes first.
-  tag  nn_text NOT NULL DEFAULT 'g'
+  tag  nn_text DEFAULT 'g'
 );
 
 -- A non-strict operator: lenient_eq returns TRUE even for NULL operands, so

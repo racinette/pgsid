@@ -23,9 +23,11 @@ const SCHEMA = `
   CREATE DOMAIN pct AS numeric NOT NULL CHECK (VALUE >= 0 AND VALUE <= 100);
 
   CREATE TABLE parent (
-    id    integer NOT NULL PRIMARY KEY,
-    label text    NOT NULL,
-    note  text
+    id     integer NOT NULL PRIMARY KEY,
+    label  text    NOT NULL,
+    note   text,
+    -- No column constraint: the refusal of NULL lives in the TYPE alone.
+    weight pct
   );
 
   CREATE TABLE child (
@@ -120,6 +122,21 @@ describe("fixture data generation", () => {
     expect(columns).toContain("country");
   });
 
+  it("never writes NULL into a NOT NULL domain column, constraint or no constraint", () => {
+    // parent.weight has no attnotnull — its refusal of NULL lives in the pct
+    // domain, which the column flag does not reflect. A generated NULL there
+    // is not a nullable witness; it makes the whole state fail to load when
+    // the domain rejects the coercion.
+    const { columns, rows } = parseInserts(
+      generateFixtureData(snapshot, { registry: baseRegistry() }).sql,
+    ).get("public.parent")!;
+    const weight = columns.indexOf("weight");
+    expect(weight).toBeGreaterThanOrEqual(0);
+    for (const row of rows) {
+      expect(row[weight], "NULL generated into a NOT NULL domain column").not.toBe("NULL");
+    }
+  });
+
   it("is accepted by PostgreSQL", async () => {
     const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() });
     await pg.exec("BEGIN;");
@@ -137,9 +154,10 @@ describe("fixture data generation", () => {
     delete registry.byType.public!.numeric;
     delete registry.byType.public!.pct;
     // The snapshot renders a user-defined type schema-qualified, and the error
-    // quotes it as PostgreSQL printed it.
+    // quotes it as PostgreSQL printed it. parent.weight is the first pct
+    // column generation reaches (parent precedes child in FK order).
     expect(() => generateFixtureData(snapshot, { registry })).toThrow(
-      /no generator for public\.child\.share of type "public\.pct"/,
+      /no generator for public\.parent\.weight of type "public\.pct"/,
     );
   });
 

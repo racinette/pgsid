@@ -252,7 +252,9 @@ class Generation {
       // which of its cells are NULL, and touches no other column at all.
       const nullRand = makeRand(hashSeed(`${columnKey}#null`, this.seed));
       const generator = this.resolve(table, column);
-      const nullPolicy = column.notNull ? null : this.resolveNullPolicy(table, column);
+      const nullPolicy = this.columnRefusesNull(table, column)
+        ? null
+        : this.resolveNullPolicy(table, column);
 
       for (let row = 0; row < rowCount; row++) {
         const ctx = this.context(table, column, rows, row, rowCount, valueRand);
@@ -362,6 +364,22 @@ class Generation {
   }
 
   /** Column-specific → by type → the run's default. */
+  /**
+   * A column refuses NULL through its own constraint (`attnotnull`) or
+   * through its TYPE: a NOT NULL domain rejects the value at coercion, and
+   * `attnotnull` does not reflect that. Generating a NULL into such a column
+   * does not produce a nullable witness — it makes the whole state fail to
+   * load. Same schema-defaulting as `typeGenerator`: an unqualified type
+   * name is a built-in, which is never a domain.
+   */
+  private columnRefusesNull(table: TableInfo, column: ColumnInfo): boolean {
+    if (column.notNull) return true;
+    const { schema: typeSchema, name } = splitQualifiedName(column.typeName);
+    const schema = typeSchema ?? table.schema;
+    const domain = this.snapshot.domains.find(d => d.schema === schema && d.name === name);
+    return domain?.notNull ?? false;
+  }
+
   private resolveNullPolicy(table: TableInfo, column: ColumnInfo): NullPolicy {
     const policies = this.registry.nullPolicies;
     return (
