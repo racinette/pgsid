@@ -100,6 +100,9 @@ const castTo = (arg: Ast, typeName: string): Ast => ({
 const neq = (l: Ast, r: Ast): Ast => ({
   A_Expr: { kind: "AEXPR_OP", name: [str("<>")], lexpr: l, rexpr: r },
 });
+const concatOp = (l: Ast, r: Ast): Ast => ({
+  A_Expr: { kind: "AEXPR_OP", name: [str("||")], lexpr: l, rexpr: r },
+});
 const isNull = (arg: Ast): Ast => ({ NullTest: { arg, nulltesttype: "IS_NULL" } });
 const orExpr = (...args: Ast[]): Ast => ({ BoolExpr: { boolop: "OR_EXPR", args } });
 // DML pieces. A DML statement's relation is an INLINED RangeVar (no tag),
@@ -517,6 +520,11 @@ const PROJECTIONS: Projection[] = [
     build: s => ({
       targets: [
         target(castTo(paramRef(1), "nn_text"), "a_pd"),
+        // Mechanism-A narrowing under the whole structural space: the cast
+        // types $1 as nn_text, so this bare use in a strict concatenation is
+        // claimed notNull — any returned row proves $1 was non-NULL. A wrong
+        // narrowing would surface as a nullability violation here.
+        target(concatOp(paramRef(1), textConst("n")), "a_pn"),
         target(coalesce(paramRef(2), s.slots.textC, textConst("z")), "a_c2"),
         target(s.slots.intKey, "a_int"),
       ],
@@ -524,9 +532,9 @@ const PROJECTIONS: Projection[] = [
         { number: 1, valid: "pd" },
         { number: 2, valid: "pc" },
       ],
-      colNames: ["a_pd", "a_c2", "a_int"],
-      literals: [textConst("d"), textConst("c"), intConst(1)],
-      matchLiterals: [textConst("pd"), textConst("pc"), intConst(1)],
+      colNames: ["a_pd", "a_pn", "a_c2", "a_int"],
+      literals: [textConst("d"), textConst("dn"), textConst("c"), intConst(1)],
+      matchLiterals: [textConst("pd"), textConst("pdn"), textConst("pc"), intConst(1)],
     }),
     expectations: [expectParams(1, 2), expect("COALESCE", "CoalesceExpr")],
   },

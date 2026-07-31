@@ -75,18 +75,39 @@ interface Collector {
   catalog: NullabilityCatalog;
   seen: Set<number>;
   rejected: Set<number>;
+  /**
+   * The mechanism-A subset of `rejected`: parameters whose TYPE parse
+   * analysis resolves to a NOT NULL domain, so a NULL binding raises at the
+   * protocol's Bind step, before any execution. This is strictly stronger
+   * than `rejected`: a mechanism-B site (plain NOT NULL column constraint)
+   * raises per row written, and a statement can return rows without the
+   * writing path ever seeing one — `WITH w AS (INSERT INTO plain SELECT $1
+   * FROM empty_src RETURNING e) SELECT $1 FROM t` succeeds with NULL and
+   * returns rows. Only bind-time rejection licenses the output walk's
+   * narrowing (any returned row proves the parameter was non-NULL), which is
+   * why the two are tracked separately.
+   */
+  bindRejected: Set<number>;
 }
 
-/** Whether writing NULL into `schema.table.column` can raise. */
-function columnRejectsNull(
+/**
+ * How writing NULL into `schema.table.column` raises, if it does:
+ * `"domain"` — the column's type is a NOT NULL domain, so a parameter
+ * assigned to it is TYPED as that domain and rejected at Bind (mechanism A);
+ * `"constraint"` — a plain NOT NULL constraint, checked per row written
+ * (mechanism B). A domain-typed column reports `"domain"` even when a
+ * redundant column constraint also exists — bind-time wins.
+ */
+function columnRejection(
   c: Collector,
   schema: string,
   table: string,
   column: string,
-): boolean {
-  if (c.catalog.resolveColumnNotNull(schema, table, column)) return true;
+): "domain" | "constraint" | null {
   const typeOid = c.catalog.resolveColumnTypeOid(schema, table, column);
-  return typeOid !== null && c.catalog.isNotNullDomain(typeOid);
+  if (typeOid !== null && c.catalog.isNotNullDomain(typeOid)) return "domain";
+  if (c.catalog.resolveColumnNotNull(schema, table, column)) return "constraint";
+  return null;
 }
 
 /** TypeCast target → is it a NOT NULL domain? Mirrors the output walk. */
@@ -100,10 +121,16 @@ function castTargetIsNotNullDomain(c: Collector, typeName: unknown): boolean {
   return c.catalog.isNotNullDomainByName(undefined, parts[0]!);
 }
 
+/** Record a rejecting site. Mechanism A also licenses output narrowing. */
+function reject(c: Collector, num: number, mechanism: "domain" | "constraint"): void {
+  c.rejected.add(num);
+  if (mechanism === "domain") c.bindRejected.add(num);
+}
+
 function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): void {
   const num = paramNumberOf(tc.arg);
   if (num === null) return;
-  if (castTargetIsNotNullDomain(c, tc.typeName)) c.rejected.add(num);
+  if (castTargetIsNotNullDomain(c, tc.typeName)) reject(c, num, "domain");
 }
 
 function checkFuncCall(
@@ -134,7 +161,7 @@ function checkFuncCall(
     const num = paramNumberOf(arg);
     if (num === null) return;
     const declared = inputs[i];
-    if (declared && c.catalog.isNotNullDomain(declared.typeOid)) c.rejected.add(num);
+    if (declared && c.catalog.isNotNullDomain(declared.typeOid)) reject(c, num, "domain");
   });
 }
 
@@ -168,7 +195,8 @@ function checkSetClause(
     if (!rt?.name || !rt.val) continue;
     const num = paramNumberOf(rt.val);
     if (num === null) continue;
-    if (columnRejectsNull(c, schema, table, rt.name)) c.rejected.add(num);
+    const mechanism = columnRejection(c, schema, table, rt.name);
+    if (mechanism) reject(c, num, mechanism);
   }
 }
 
@@ -186,9 +214,9 @@ function checkInsert(
 
   const rejectAt = (position: number, num: number): void => {
     const column = target.columns[position];
-    if (column && columnRejectsNull(c, target.schema, target.table, column)) {
-      c.rejected.add(num);
-    }
+    if (!column) return;
+    const mechanism = columnRejection(c, target.schema, target.table, column);
+    if (mechanism) reject(c, num, mechanism);
   };
 
   const select = (stmt.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
@@ -249,9 +277,9 @@ function checkMerge(
       mwc.values.forEach((val, i) => {
         const num = paramNumberOf(val);
         const column = columns[i];
-        if (num !== null && column && columnRejectsNull(c, table.schema, table.name, column)) {
-          c.rejected.add(num);
-        }
+        if (num === null || !column) return;
+        const mechanism = columnRejection(c, table.schema, table.name, column);
+        if (mechanism) reject(c, num, mechanism);
       });
     } else {
       // The update arm: SET col = value pairs.
@@ -280,21 +308,44 @@ function visit(c: Collector, node: unknown): void {
   for (const v of Object.values(obj)) visit(c, v);
 }
 
+export interface ParamFacts {
+  /** The consumer-facing contract, positional $1..$n. */
+  params: ParamNullability[];
+  /**
+   * Parameters rejected at Bind (mechanism A): their resolved type is a NOT
+   * NULL domain, so a NULL binding raises before any execution — meaning any
+   * row a statement returns proves these were non-NULL. Consumed by the
+   * output walk to narrow a projected `ParamRef` to notNull. Deliberately
+   * NOT the whole of `rejected`: see the field comment on `Collector`.
+   */
+  bindRejected: Set<number>;
+}
+
 /**
- * Collect the parameter contract of one statement. Pure over
- * `(AST, catalog)` like the output walk, and total: statements the output
- * walk refuses still have a well-defined parameter contract.
+ * Collect the parameter facts of one statement. Pure over `(AST, catalog)`
+ * like the output walk, and total: statements the output walk refuses still
+ * have a well-defined parameter contract.
  */
+export function collectParamFacts(stmt: Node, catalog: NullabilityCatalog): ParamFacts {
+  const c: Collector = {
+    catalog,
+    seen: new Set(),
+    rejected: new Set(),
+    bindRejected: new Set(),
+  };
+  visit(c, stmt);
+  const max = Math.max(0, ...c.seen, ...c.rejected);
+  const params: ParamNullability[] = [];
+  for (let number = 1; number <= max; number++) {
+    params.push({ number, notNull: c.rejected.has(number) });
+  }
+  return { params, bindRejected: c.bindRejected };
+}
+
+/** The consumer-facing contract alone. */
 export function collectParamNullability(
   stmt: Node,
   catalog: NullabilityCatalog,
 ): ParamNullability[] {
-  const c: Collector = { catalog, seen: new Set(), rejected: new Set() };
-  visit(c, stmt);
-  const max = Math.max(0, ...c.seen, ...c.rejected);
-  const out: ParamNullability[] = [];
-  for (let number = 1; number <= max; number++) {
-    out.push({ number, notNull: c.rejected.has(number) });
-  }
-  return out;
+  return collectParamFacts(stmt, catalog).params;
 }

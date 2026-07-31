@@ -1,7 +1,11 @@
 import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
-import { collectParamNullability, type ParamNullability } from "./param-nullability.js";
+import {
+  collectParamFacts,
+  collectParamNullability,
+  type ParamNullability,
+} from "./param-nullability.js";
 import type {
   NullabilityCatalog,
   OutputNullability,
@@ -380,6 +384,20 @@ class NullabilityEngine {
   private fnCtx: FnBodyContext | null = null;
   /** Current function parameter names (for resolving named ColumnRefs in body). */
   private fnParamNames: string[] | null = null;
+
+  /**
+   * Statement-level parameters rejected at Bind (mechanism A, see
+   * docs/argument-nullability.md): their resolved type is a NOT NULL domain,
+   * so a NULL binding raises before any execution. Any row the statement
+   * returns therefore proves these parameters were non-NULL, which makes a
+   * projected `ParamRef` for them notNull — the same rows-exist reasoning
+   * that lets a `@no-rows` refusal guard a claim. Computed once per `run`
+   * from the root statement; `$n` inside subqueries and CTEs refers to the
+   * same statement-level parameter, so one set serves the whole walk.
+   * (Function-body `$n` is that function's own parameter and is handled by
+   * `fnCtx` before this set is consulted.)
+   */
+  private bindRejectedParams: Set<number> = new Set();
   /** Whether tracing is enabled. */
   private readonly tracing: boolean;
   /** The catalog. */
@@ -403,10 +421,12 @@ class NullabilityEngine {
   }
 
   run(stmt: Node): OutputNullability[] {
+    this.bindRejectedParams = collectParamFacts(stmt, this.catalog).bindRejected;
     return this.analyzeStatement(stmt, null, 0);
   }
 
   runTraced(stmt: Node): OutputNullabilityTraced[] {
+    this.bindRejectedParams = collectParamFacts(stmt, this.catalog).bindRejected;
     return this.analyzeStatementTraced(stmt, null, 0);
   }
 
@@ -1649,6 +1669,15 @@ class NullabilityEngine {
         trace.addFact("argResult", String(argResult));
         trace.conclude(argResult, `function arg $${num} → ${argResult ? "notNull" : "nullable"}`);
         return argResult;
+      }
+      if (this.bindRejectedParams.has(num)) {
+        trace.addFact("param", `$${num}`);
+        trace.addFact("bindRejected", "mechanism A: typed as a NOT NULL domain");
+        trace.conclude(
+          true,
+          `$${num} rejects NULL at Bind, so any returned row proves it non-null`,
+        );
+        return true;
       }
       trace.addFact("param", `$${num}`);
       trace.addFact("context", "query-level (no PREPARE type info)");

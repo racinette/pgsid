@@ -168,12 +168,21 @@ a union of per-site verdicts.
 
 **Order of analyses: arguments first.** The dependency between the two halves
 runs one way. No argument fact depends on output nullability; but output
-claims can consume argument facts — in `SELECT $1 AS x FROM t WHERE t.a = $1`,
-any returned row proves the conjunct was TRUE, hence `$1` non-NULL, hence `x`
-`notNull` *for every row that exists*. That consumption is deliberately **not**
-in scope for v1 — the output side keeps `ParamRef → nullable` — but the walk
-should collect argument facts before output facts so the narrowing can be
-added without restructuring.
+claims can consume argument facts, and the walk computes them first for
+exactly that reason.
+
+**Mechanism-A narrowing (implemented).** A parameter whose resolved type is a
+NOT NULL domain rejects NULL at Bind, before any execution — so any row the
+statement returns proves that parameter was non-NULL, and a projected
+`ParamRef` for it is `notNull`. The same rows-exist reasoning that lets a
+`@no-rows` refusal guard a claim. The collector exposes the mechanism-A
+subset separately (`ParamFacts.bindRejected`) because mechanism B does NOT
+license this: a B-site raises per row written, and a statement can return
+rows without the writing path ever seeing one — `WITH w AS (INSERT INTO
+plain SELECT $1 FROM empty_src RETURNING e) SELECT $1 FROM t` succeeds with
+NULL bound and returns rows. Fixtures: `param-multi-use` (`$1 || 'x'` is
+notNull), `param-fn-domain-arg` (the inlined body echoes a proven-non-null
+argument).
 
 **A hazard step 1 must check, because it exists today: overload resolution
 under untyped parameters.** Which overload of `f($1)` PostgreSQL executes
@@ -188,16 +197,6 @@ matching PostgreSQL's choice must degrade to nullable. The parameterized
 generated corpus (step 3) is the systematic check on this.
 
 **Deferred, recorded so the boundary is deliberate:**
-
-- *Projection of a mechanism-A parameter.* The measured type-unification fact
-  cuts the other way too: in `SELECT $1 AS x, $1::uname AS y`, the one
-  domain-typed use types the parameter `uname` for every use, NULL raises at
-  bind — so in any execution that returns rows, the *bare* `$1 AS x` is
-  soundly `notNull`, not just the cast column. This is the easiest of the
-  output-narrowing family (no reasoning about which rows exist; the raise
-  precedes execution) and is the first candidate to pull into scope: once the
-  fold has run, it is a lookup of the parameter's mechanism-A verdict at each
-  output `ParamRef`.
 
 - *Value-flow rejection (a would-be mechanism C).* `SELECT ('x' || $1)::uname`
   raises when the strict concatenation turns NULL and the runtime cast then
