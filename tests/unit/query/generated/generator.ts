@@ -111,6 +111,17 @@ const relation = (relname: string): Ast => ({ relname, inh: true, relpersistence
 const insertCols = (...names: string[]): Ast[] => names.map(n => ({ ResTarget: { name: n } }));
 const setItem = (name: string, val: Ast): Ast => ({ ResTarget: { name, val } });
 const valuesRow = (...items: Ast[]): Ast => ({ List: { items } });
+// ON CONFLICT — the clause is an INLINED OnConflictClause struct; the
+// conflict target (`infer`) names index columns via IndexElem.
+const onConflictUpdate = (keyCol: string, ...setItems: Ast[]): Ast => ({
+  action: "ONCONFLICT_UPDATE",
+  infer: { indexElems: [{ IndexElem: { name: keyCol } }] },
+  targetList: setItems,
+});
+const onConflictNothing = (keyCol: string): Ast => ({
+  action: "ONCONFLICT_NOTHING",
+  infer: { indexElems: [{ IndexElem: { name: keyCol } }] },
+});
 const join = (jointype: string, larg: Ast, rarg: Ast, quals?: Ast): Ast => ({
   JoinExpr: quals ? { jointype, larg, rarg, quals } : { jointype, larg, rarg },
 });
@@ -216,6 +227,17 @@ const expectReturning: Expectation = {
     return false;
   },
 };
+
+const expectOnConflict = (action: string): Expectation => ({
+  label: `ON CONFLICT ${action}`,
+  present: root => {
+    for (const n of walk(root)) {
+      const oc = n.onConflictClause as { action?: string } | undefined;
+      if (oc?.action === action) return true;
+    }
+    return false;
+  },
+});
 
 /** The exact set of `$n` numbers present in the re-parsed AST. */
 const expectParams = (...numbers: number[]): Expectation => ({
@@ -833,6 +855,124 @@ export function generateDmlQueries(): GeneratedQuery[] {
       ],
     );
   }
+
+  // --- ON CONFLICT: the conditional rejection sites, executed both ways. ---
+  // Control key 1 conflicts under sparse/unmatched (ck.1 is seeded there) and
+  // inserts cleanly under empty, so the DO UPDATE arm runs in some states and
+  // not others — which is the whole point: its rejection sites only fire
+  // with the arm.
+  //
+  // oc-update: $3 → ck.val is CONDITIONAL mechanism B — witnessed only where
+  // the arm fires, silent on the insert path. oc-update-domain: $2 → ck.tag
+  // is mechanism A THROUGH the arm — the parameter is TYPED nn_text at parse
+  // time, so NULL raises at Bind in every state, insert path or not, and the
+  // narrowing applies to its projection. oc-nothing: a conflict returns NO
+  // row, a liveness shape nothing else produces.
+  dml(
+    "oc-update",
+    "conflict",
+    "plain",
+    {
+      InsertStmt: {
+        relation: relation("ck"),
+        cols: insertCols("id", "name"),
+        selectStmt: {
+          SelectStmt: bareSelect({
+            valuesLists: [valuesRow(paramRef(1), paramRef(2))],
+          }),
+        },
+        onConflictClause: onConflictUpdate(
+          "id",
+          setItem("val", paramRef(3)),
+          setItem("name", colRef("excluded", "name")),
+        ),
+        returningClause: {
+          exprs: [
+            target(colRef("id"), "r_id"),
+            target(colRef("name"), "r_nm"),
+            target(colRef("val"), "r_val"),
+          ],
+        },
+        override: "OVERRIDING_NOT_SET",
+      },
+    },
+    [
+      { number: 1, valid: 1 },
+      { number: 2, valid: "nm" },
+      { number: 3, valid: "cv" },
+    ],
+    [
+      expect("INSERT", "InsertStmt"),
+      expectOnConflict("ONCONFLICT_UPDATE"),
+      expectReturning,
+      expectParams(1, 2, 3),
+    ],
+  );
+  dml(
+    "oc-update-domain",
+    "conflict",
+    "domain",
+    {
+      InsertStmt: {
+        relation: relation("ck"),
+        cols: insertCols("id", "name"),
+        selectStmt: {
+          SelectStmt: bareSelect({
+            valuesLists: [valuesRow(paramRef(1), textConst("n"))],
+          }),
+        },
+        onConflictClause: onConflictUpdate("id", setItem("tag", paramRef(2))),
+        returningClause: {
+          exprs: [
+            target(colRef("id"), "r_id"),
+            target(concatOp(paramRef(2), textConst("!")), "r_echo"),
+          ],
+        },
+        override: "OVERRIDING_NOT_SET",
+      },
+    },
+    [
+      { number: 1, valid: 1 },
+      { number: 2, valid: "tg" },
+    ],
+    [
+      expect("INSERT", "InsertStmt"),
+      expectOnConflict("ONCONFLICT_UPDATE"),
+      expectReturning,
+      expectParams(1, 2),
+    ],
+  );
+  dml(
+    "oc-nothing",
+    "conflict",
+    "nothing",
+    {
+      InsertStmt: {
+        relation: relation("ck"),
+        cols: insertCols("id", "name"),
+        selectStmt: {
+          SelectStmt: bareSelect({
+            valuesLists: [valuesRow(paramRef(1), paramRef(2))],
+          }),
+        },
+        onConflictClause: onConflictNothing("id"),
+        returningClause: {
+          exprs: [target(colRef("id"), "r_id"), target(colRef("name"), "r_nm")],
+        },
+        override: "OVERRIDING_NOT_SET",
+      },
+    },
+    [
+      { number: 1, valid: 1 },
+      { number: 2, valid: "nm" },
+    ],
+    [
+      expect("INSERT", "InsertStmt"),
+      expectOnConflict("ONCONFLICT_NOTHING"),
+      expectReturning,
+      expectParams(1, 2),
+    ],
+  );
 
   // --- dml-cte: INSERT ... RETURNING joined back through every kind. --------
   // The control value 1 makes ins.id match sparse's u.t_id, so even the

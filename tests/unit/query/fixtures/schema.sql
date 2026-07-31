@@ -70,6 +70,24 @@ CREATE FUNCTION takes_nn(x nn_text) RETURNS text
   LANGUAGE sql
   AS $$ SELECT x $$;
 
+-- Conflict-key table for ON CONFLICT coverage: t/u/v deliberately carry no
+-- unique constraints, so the conflict target lives here. `val` is the
+-- conditional mechanism-B site (NOT NULL constraint, checked only when the
+-- DO UPDATE arm fires); `tag` is the conditional mechanism-A site (domain
+-- type — a parameter assigned to it is TYPED nn_text and rejected at Bind,
+-- arm or no arm). The `sparse` data state seeds id 1 so the conflict arm
+-- fires there and not under `empty` — both paths stay executed.
+CREATE TABLE ck (
+  id   integer PRIMARY KEY,
+  name text,
+  val  text    NOT NULL DEFAULT 'v',
+  -- NOT NULL is semantically redundant with the domain, but the data
+  -- generator reads attnotnull to decide where NULLs go; without it the
+  -- generated state writes tag = NULL and the domain refuses the load.
+  -- Mechanism classification is unaffected: the domain check comes first.
+  tag  nn_text NOT NULL DEFAULT 'g'
+);
+
 -- A non-strict operator: lenient_eq returns TRUE even for NULL operands, so
 -- `x === y` never filters a row. Exists to pin the engine's first measured
 -- unsoundness — WHERE promotion trusting arbitrary operators — as a

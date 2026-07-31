@@ -307,8 +307,13 @@ Agreed order of work, each stage giving the next something real to test:
    are the written values, so constraint collisions are a binding choice
    rather than a literal-crafting problem. First run: zero rejections, zero
    refusals, zero violations — the engine's DML support survived the space.
-   Not generated, with the doc's original triggers still standing: `DELETE
-   … USING`, `ON CONFLICT DO UPDATE`, and `MERGE`.
+   `ON CONFLICT` joined later (the `oc-*` kinds over the `ck` conflict
+   table, seeded in `sparse` so the DO UPDATE arm fires in some states and
+   not others): the conditional mechanism-B site is witnessed only where the
+   arm fires, the domain-typed SET rejects at Bind arm-or-no-arm with its
+   narrowing intact through the arm, and DO NOTHING contributes the
+   returns-no-row-on-conflict liveness shape. Not generated, with the doc's
+   original triggers still standing: `DELETE … USING` and `MERGE`.
 
 ## Where things are
 

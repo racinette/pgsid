@@ -20,6 +20,11 @@ INSERT INTO t (id, name, val, active) VALUES (1, NULL, 'x', true);
 -- their liveness does not depend on a random draw producing that value.
 INSERT INTO u (id, t_id, email, val, status) VALUES (1, 1, 'u1@b.c', NULL, 'active');
 INSERT INTO v (id, u_id, amount) VALUES (1, 1, NULL);
+-- The conflict seed: an ON CONFLICT (id) statement inserting id 1 takes its
+-- DO UPDATE arm here and its plain-insert arm under `empty` — the two paths
+-- a conditional rejection site needs both of. NULL name keeps the nullable
+-- column witnessable through the conflict path too.
+INSERT INTO ck (id, name, val) VALUES (1, NULL, 'sv');
 
 INSERT INTO categories (id, parent_id, slug, name) VALUES (1, NULL, 'root', 'Root');
 INSERT INTO customers (id, email, name) VALUES (1, 'a@b.c', NULL);
