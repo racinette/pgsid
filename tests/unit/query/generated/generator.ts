@@ -152,6 +152,34 @@ const mergeAction = (): Ast => ({ MergeSupportFunc: { msftype: 25 } });
 const join = (jointype: string, larg: Ast, rarg: Ast, quals?: Ast): Ast => ({
   JoinExpr: quals ? { jointype, larg, rarg, quals } : { jointype, larg, rarg },
 });
+// Window vocabulary. `over` is an INLINED WindowDef; frameOptions 1058 is the
+// parser's default frame (RANGE UNBOUNDED PRECEDING TO CURRENT ROW), measured
+// by parsing the SQL these helpers are meant to regenerate.
+const overClause = (fields: Ast = {}): Ast => ({ frameOptions: 1058, ...fields });
+const overPartition = (col: Ast): Ast => overClause({ partitionClause: [col] });
+const overOrder = (col: Ast): Ast =>
+  overClause({
+    orderClause: [
+      {
+        SortBy: {
+          node: col,
+          sortby_dir: "SORTBY_DEFAULT",
+          sortby_nulls: "SORTBY_NULLS_DEFAULT",
+        },
+      },
+    ],
+  });
+const winCall = (name: string, args: Ast[], over: Ast): Ast => ({
+  FuncCall: {
+    funcname: [str(name)],
+    ...(args.length ? { args } : {}),
+    over,
+    funcformat: "COERCE_EXPLICIT_CALL",
+  },
+});
+const winCountStar = (over: Ast): Ast => ({
+  FuncCall: { funcname: [str("count")], agg_star: true, over, funcformat: "COERCE_EXPLICIT_CALL" },
+});
 const bareSelect = (fields: Ast): Ast => ({
   limitOption: "LIMIT_OPTION_DEFAULT",
   op: "SETOP_NONE",
@@ -274,6 +302,25 @@ const expectOnConflict = (action: string): Expectation => ({
     for (const n of walk(root)) {
       const oc = n.onConflictClause as { action?: string } | undefined;
       if (oc?.action === action) return true;
+    }
+    return false;
+  },
+});
+
+/** A call of `fn` carrying an OVER clause in the re-parsed AST. */
+const expectWindow = (fn: string): Expectation => ({
+  label: `${fn}() OVER`,
+  present: root => {
+    for (const n of walk(root)) {
+      const fc = n.FuncCall as { funcname?: unknown[]; over?: unknown } | undefined;
+      if (
+        fc?.over &&
+        (fc.funcname ?? []).some(
+          f => (f as { String?: { sval?: string } }).String?.sval === fn,
+        )
+      ) {
+        return true;
+      }
     }
     return false;
   },
@@ -662,6 +709,47 @@ const PROJECTIONS: Projection[] = [
       ],
     }),
     expectations: [expectParams(1, 2, 3), expect("COALESCE", "CoalesceExpr")],
+  },
+  {
+    // Window functions across the structural space: the walk's window
+    // dispatch (never-null ranking set, count's empty-frame zero, the
+    // conservative fallback) has never faced the execution oracle. a_rn and
+    // a_wc are notNull claims falsified by any NULL PostgreSQL returns;
+    // a_wm is nullable, witnessed wherever the partition's t.name is NULL
+    // (sparse's matched row) or t is null-extended.
+    key: "window",
+    build: s => ({
+      targets: [
+        target(winCall("row_number", [], overClause()), "a_rn"),
+        target(winCountStar(overPartition(s.slots.intKey)), "a_wc"),
+        target(winCall("max", [s.slots.textA], overPartition(s.slots.intKey)), "a_wm"),
+        target(s.slots.intKey, "a_int"),
+      ],
+      colNames: ["a_rn", "a_wc", "a_wm", "a_int"],
+      literals: [intConst(9), intConst(9), textConst("wm"), intConst(9)],
+      matchLiterals: [intConst(1), intConst(1), nullConst(), intConst(1)],
+    }),
+    expectations: [expectWindow("row_number"), expectWindow("count"), expectWindow("max")],
+  },
+  {
+    // The offset and bucketing window functions: lag of a NOT NULL column is
+    // still NULL on each partition's first row (nullable, witnessed at
+    // one-row volume — sparse's single row IS a first row), while ntile
+    // with a non-null bucket count assigns every row a bucket (notNull,
+    // falsifiable wherever rows return).
+    key: "window-lag",
+    build: s => ({
+      targets: [
+        target(winCall("lag", [s.slots.textB], overOrder(s.slots.intKey)), "a_lg"),
+        target(winCall("ntile", [intConst(2)], overOrder(s.slots.intKey)), "a_nt"),
+        target(s.slots.textB, "a_tb"),
+        target(s.slots.intKey, "a_int"),
+      ],
+      colNames: ["a_lg", "a_nt", "a_tb", "a_int"],
+      literals: [textConst("lg"), intConst(9), textConst("b"), intConst(9)],
+      matchLiterals: [nullConst(), intConst(1), textConst("u1@b.c"), intConst(1)],
+    }),
+    expectations: [expectWindow("lag"), expectWindow("ntile")],
   },
   {
     key: "group-coalesce",
@@ -1311,6 +1399,114 @@ export function generateDmlQueries(): GeneratedQuery[] {
     );
   }
 
+  return out;
+}
+
+// --- Deep join trees -------------------------------------------------------
+//
+// Three joins over the four-relation chain t—u—v—ck, with strict edge quals
+//   e1: u.t_id = t.id    e2: v.u_id = u.id    e3: ck.id = v.u_id
+// enumerated over all five join-tree shapes and all 4³ kind combinations —
+// 320 structures. The 2-join axis found the strict-qual-refiltering
+// imprecision class; depth 3 is where optionality has to PROPAGATE through
+// an intermediate join (including `balanced`, which joins two composite
+// sides — a shape the 2-join axis cannot produce at all). Projection is
+// fixed to one column per relation: join reasoning does not interact with
+// expression shape, and the projection axis is exercised against the 2-join
+// structures already. Set operations and wrappers are likewise not crossed
+// here — a deliberate, logged bound (the run reports it), since both compose
+// over the output column list, not over the join tree that produces it.
+//
+// Under `sparse` the fully-matched chain row (t.1—u.1—v.1—ck.1) satisfies
+// every edge, so every kind combination returns at least that row; the
+// `unmatched` top-up carries an orphan for every presence pattern the chain
+// data can express (see its comments).
+
+export function generateDeepJoinQueries(): GeneratedQuery[] {
+  const out: GeneratedQuery[] = [];
+  const e1 = (): Ast => eq(colRef("u", "t_id"), colRef("t", "id"));
+  const e2 = (): Ast => eq(colRef("v", "u_id"), colRef("u", "id"));
+  const e3 = (): Ast => eq(colRef("ck", "id"), colRef("v", "u_id"));
+  const SHAPES: { key: string; build: (k1: string, k2: string, k3: string) => Ast }[] = [
+    {
+      key: "left-deep", // ((t k1 u) k2 v) k3 ck
+      build: (k1, k2, k3) =>
+        join(
+          k3,
+          join(k2, join(k1, rangeVar("t"), rangeVar("u"), e1()), rangeVar("v"), e2()),
+          rangeVar("ck"),
+          e3(),
+        ),
+    },
+    {
+      key: "right-deep", // t k1 (u k2 (v k3 ck))
+      build: (k1, k2, k3) =>
+        join(
+          k1,
+          rangeVar("t"),
+          join(k2, rangeVar("u"), join(k3, rangeVar("v"), rangeVar("ck"), e3()), e2()),
+          e1(),
+        ),
+    },
+    {
+      key: "balanced", // (t k1 u) k2 (v k3 ck)
+      build: (k1, k2, k3) =>
+        join(
+          k2,
+          join(k1, rangeVar("t"), rangeVar("u"), e1()),
+          join(k3, rangeVar("v"), rangeVar("ck"), e3()),
+          e2(),
+        ),
+    },
+    {
+      key: "mid-left", // (t k1 (u k2 v)) k3 ck
+      build: (k1, k2, k3) =>
+        join(
+          k3,
+          join(k1, rangeVar("t"), join(k2, rangeVar("u"), rangeVar("v"), e2()), e1()),
+          rangeVar("ck"),
+          e3(),
+        ),
+    },
+    {
+      key: "mid-right", // t k1 ((u k2 v) k3 ck)
+      build: (k1, k2, k3) =>
+        join(
+          k1,
+          rangeVar("t"),
+          join(k3, join(k2, rangeVar("u"), rangeVar("v"), e2()), rangeVar("ck"), e3()),
+          e1(),
+        ),
+    },
+  ];
+  for (const shape of SHAPES) {
+    for (const k1 of JOIN_KINDS) {
+      for (const k2 of JOIN_KINDS) {
+        for (const k3 of JOIN_KINDS) {
+          const structure =
+            `deep-${shape.key}(${kindLabel(k1)},${kindLabel(k2)},${kindLabel(k3)})`;
+          out.push({
+            id: `s=${structure}|p=deep-plain|o=none|w=none`,
+            axes: { structure, projection: "deep-plain", setop: "none", wrapper: "none" },
+            ast: {
+              SelectStmt: bareSelect({
+                targetList: [
+                  target(colRef("t", "id"), "a_int"),
+                  target(colRef("t", "name"), "a_ta"),
+                  target(colRef("u", "email"), "a_ue"),
+                  target(colRef("v", "amount"), "a_va"),
+                  target(colRef("ck", "val"), "a_ck"),
+                ],
+                fromClause: [shape.build(k1, k2, k3)],
+              }),
+            },
+            params: [],
+            expectations: [expectJoins(k1, k2, k3)],
+          });
+        }
+      }
+    }
+  }
   return out;
 }
 

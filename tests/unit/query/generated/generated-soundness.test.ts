@@ -18,6 +18,7 @@ import {
 import type { NullabilityCatalog, OutputNullability } from "../../../../src/query/types.js";
 import { hasStatements, loadDataStates, type DataState } from "../fixture-data/states.js";
 import {
+  generateDeepJoinQueries,
   generateDmlQueries,
   generateParamPlacementQueries,
   generateQueries,
@@ -118,6 +119,23 @@ INSERT INTO v (id, u_id, amount) VALUES (6, 5, 3.5);
 -- small): the NOT MATCHED BY SOURCE arm fires for it, null-extending the
 -- source columns in RETURNING — the only way s.* is ever witnessed NULL.
 INSERT INTO ck (id) VALUES (55);
+-- Deep-chain presence patterns (the t—u—v—ck chain of the deep join axis,
+-- edges u.t_id=t.id / v.u_id=u.id / ck.id=v.u_id). Existing rows already
+-- give: t alone (t.2, t.3), the full chain (t.1—u.1—v.1—ck.1, seeded by
+-- sparse), t+u+v without ck (t.1—u.4—v.4: no ck.4), and the right-side
+-- orphans u.3, v.3, ck.55. The two rows below complete what the chain data
+-- can express: u.6 is a u attached to t.1 with no v (t+u present, v and ck
+-- null-extended together), and ck.5 closes the orphan chain u.5—v.6—ck.5
+-- (t null-extended while u, v, AND ck are all present — without it, any
+-- strict edge above the t-side null-extension discards the row).
+INSERT INTO u (id, t_id, email, val, status) VALUES (6, 1, 'u6@b.c', NULL, NULL);
+INSERT INTO ck (id) VALUES (5);
+-- A v orphan whose u_id points at an EXISTING ck (ck.55) but no u: the only
+-- row shape that lets a u-null-extended row SURVIVE a strict ck.id = v.u_id
+-- INNER above it. Without it, every v row that completes the chain
+-- to ck also has a u partner, and a_ue can never be witnessed NULL in
+-- structures whose only u-null source is the v side.
+INSERT INTO v (id, u_id, amount) VALUES (7, 55, 4.5);
 `;
 
 /**
@@ -198,6 +216,7 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       ...generateQueries(),
       ...generateDmlQueries(),
       ...generateParamPlacementQueries(),
+      ...generateDeepJoinQueries(),
     ]) {
       const record: QueryRecord = {
         query,
@@ -541,7 +560,84 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     "nest-left(full,inner)",
   ]);
 
+  // The deep-join structures whose a_ue (u.email) can never be witnessed
+  // NULL: every u-null-extended row is discarded by a strict edge qual
+  // before the output. Two faces of one mechanism, verified by a
+  // join-semantics walk over the chain data that reproduces this set
+  // exactly (44/44) and was spot-checked empirically:
+  //   - e1-blocked: the u-containing subtree joins t under INNER, whose
+  //     strict u.t_id = t.id discards every u-null row the subtree produced
+  //     (right-deep/mid-right/mid-left with the t-join inner);
+  //   - e2/e3-blocked: the t-side orphan rows (u and the rest of the chain
+  //     jointly null-extended) die at a downstream inner/left strict edge,
+  //     and no v-side u-null path survives either (v.7—ck.55 needs a
+  //     right/full join to enter, ck-only rows need k3 right/full).
+  // Same imprecision class as strict-qual-refilters-null-extension below —
+  // the known-imprecisions register entry — at depth 3.
+  const DEEP_UE_DARK_STRUCTURES = new Set([
+    "deep-left-deep(left,inner,inner)",
+    "deep-left-deep(left,inner,left)",
+    "deep-left-deep(left,left,inner)",
+    "deep-left-deep(full,inner,inner)",
+    "deep-left-deep(full,inner,left)",
+    "deep-left-deep(full,left,inner)",
+    "deep-right-deep(inner,right,inner)",
+    "deep-right-deep(inner,right,left)",
+    "deep-right-deep(inner,right,right)",
+    "deep-right-deep(inner,right,full)",
+    "deep-right-deep(inner,full,inner)",
+    "deep-right-deep(inner,full,left)",
+    "deep-right-deep(inner,full,right)",
+    "deep-right-deep(inner,full,full)",
+    "deep-balanced(left,inner,inner)",
+    "deep-balanced(left,inner,left)",
+    "deep-balanced(left,inner,right)",
+    "deep-balanced(left,inner,full)",
+    "deep-balanced(full,inner,inner)",
+    "deep-balanced(full,inner,left)",
+    "deep-balanced(full,inner,right)",
+    "deep-balanced(full,inner,full)",
+    "deep-mid-left(inner,right,inner)",
+    "deep-mid-left(inner,right,left)",
+    "deep-mid-left(inner,full,inner)",
+    "deep-mid-left(inner,full,left)",
+    "deep-mid-left(left,inner,inner)",
+    "deep-mid-left(left,left,inner)",
+    "deep-mid-left(left,right,inner)",
+    "deep-mid-left(left,full,inner)",
+    "deep-mid-left(full,inner,inner)",
+    "deep-mid-left(full,left,inner)",
+    "deep-mid-right(inner,inner,right)",
+    "deep-mid-right(inner,inner,full)",
+    "deep-mid-right(inner,left,right)",
+    "deep-mid-right(inner,left,full)",
+    "deep-mid-right(inner,right,inner)",
+    "deep-mid-right(inner,right,left)",
+    "deep-mid-right(inner,right,right)",
+    "deep-mid-right(inner,right,full)",
+    "deep-mid-right(inner,full,inner)",
+    "deep-mid-right(inner,full,left)",
+    "deep-mid-right(inner,full,right)",
+    "deep-mid-right(inner,full,full)",
+  ]);
+
   const UNWITNESSABLE: UnwitnessableRule[] = [
+    {
+      label: "deep-strict-edge-refilters-u",
+      why:
+        "the engine keeps u's optionality from the join that null-extends " +
+        "it, but in these deep trees every u-null-extended row is discarded " +
+        "by a strict edge qual (u.t_id = t.id at an INNER t-join, or " +
+        "v.u_id = u.id / ck.id = v.u_id at an inner/left join above the " +
+        "t-side orphans) before the output, so u.email is never NULL. Sound " +
+        "imprecision — the strict-qual-over-a-NULL-extended-side entry in " +
+        "docs/deferred-tasks.md — measured at depth 3; see " +
+        "DEEP_UE_DARK_STRUCTURES for the mechanism split.",
+      matches: (axes, column) =>
+        axes.projection === "deep-plain" &&
+        column === "a_ue" &&
+        DEEP_UE_DARK_STRUCTURES.has(axes.structure),
+    },
     {
       label: "case-needs-t-without-u",
       why:
@@ -698,7 +794,9 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         `  silent deparser drops:      ${count(r => r.drops.length > 0)}\n` +
         `  returned rows somewhere:    ${count(r => r.sawRows)}\n` +
         `  notNull claims:             ${notNullClaims} — ${falsifiable} falsifiable ` +
-        `(${notNullClaims ? Math.round((falsifiable / notNullClaims) * 100) : 0}%)`,
+        `(${notNullClaims ? Math.round((falsifiable / notNullClaims) * 100) : 0}%)\n` +
+        `  deep-join axis bound:       5 shapes × 4³ kinds, plain projection only ` +
+        `(setops/wrappers not crossed)`,
     );
     const nw = nullableWitnessCounts();
     console.log(

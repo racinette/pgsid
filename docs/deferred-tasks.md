@@ -43,8 +43,29 @@ finding the defects nobody thought to look for, and then a consumer.
    join and degrades under LEFT JOIN LATERAL, and EXCEPT keeps the left arm's
    claims. Its residue is two refilter live-traps (`inner-on-refilters`,
    `having-refilters`) that flip with PostgreSQL's agreement if the recorded
-   ON/HAVING narrowing extensions ever land. Next: deeper nesting, then
-   window functions. Whatever an axis finds becomes a permanent fixture with
+   ON/HAVING narrowing extensions ever land.
+
+   Deep join trees and window functions followed, and both came back clean.
+   The deep axis (`generateDeepJoinQueries`): three joins over the t—u—v—ck
+   chain, all five tree shapes × all 4³ kind combinations — 320 structures,
+   plain projection only, setops/wrappers deliberately not crossed (the run
+   reports the bound). It found no defect; its residue is 44 structures
+   whose `a_ue` is unwitnessable because every u-null-extended row dies at a
+   strict edge qual — more instances of the strict-qual imprecision row in
+   the table below, verified 44/44 against a hand-checked join-semantics
+   model (`deep-strict-edge-refilters-u`). The window axis: two projection
+   entries crossing the full structural space (+540 queries), putting the
+   walk's window dispatch — never-null ranking set, count's empty-frame
+   zero, ntile's argument condition, the conservative offset/frame fallback
+   — under the execution oracle for the first time. Zero falsifications, and
+   `lag` of a NOT NULL column is witnessed NULL on first rows, as claimed.
+
+   The enumerated axis list is now exhausted with no engine defect found
+   since the MERGE-source collector gap. Per the handoff doc's own
+   criterion, the next widening is either a randomised generator over the
+   grammar (now justified by evidence about which constructs are stable) or
+   shifting effort to the first consumer, which items 1 and 3 below wait on
+   anyway. Whatever a future axis finds becomes a permanent fixture with
    annotations, and an engine fix.
 3. **The differential oracle** — assessed and demoted; see "Unbuilt
    verification strategies" for the findings. Neither candidate can verify
@@ -93,7 +114,7 @@ that a decision to close one is deliberate.
 | `pg_catalog` built-ins outside the curated tables | nullable | add to `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` as needed, but only where the function is *total*, not merely strict |
 | Custom operators | no promotion, no narrowing, nullable results | strictness is readable from `pg_proc.proisstrict` via `pg_operator`; see "Custom operator support" below |
 | Branch guards | pattern-matched, not solved | `CASE WHEN length(col) > 0 THEN col …` stays nullable: the condition's truth does imply non-nullness, but the guard analyser recognises only specific shapes |
-| Strict qual over a NULL-extended side | lower optionality kept | in `(t LEFT u) INNER v ON v.u_id = u.id` no NULL-extended `u` row can pass the strict qual, so `u`'s columns are never NULL in the output; the walk keeps them nullable. Same mechanism through `UPDATE … FROM` WHERE equalities. Found by the generated witness classification (`UNWITNESSABLE` in `generated-soundness.test.ts`) |
+| Strict qual over a NULL-extended side | lower optionality kept | in `(t LEFT u) INNER v ON v.u_id = u.id` no NULL-extended `u` row can pass the strict qual, so `u`'s columns are never NULL in the output; the walk keeps them nullable. Same mechanism through `UPDATE … FROM` WHERE equalities. Found by the generated witness classification (`UNWITNESSABLE` in `generated-soundness.test.ts`); measured again at depth 3 by the deep join axis (44 structures, `deep-strict-edge-refilters-u`) |
 | DML `RETURNING` vs written values | catalog nullability only | `INSERT … VALUES (…, 'c') RETURNING val` reports `val` nullable from the catalog even though the written value is a literal; tracking values into RETURNING was judged not worth it. Also found by the witness classification |
 
 ---
