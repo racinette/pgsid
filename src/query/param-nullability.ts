@@ -235,8 +235,16 @@ function forcedNullBy(
   if (n["A_Expr"]) {
     const ae = n["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
     if (ae.kind === "AEXPR_NULLIF") return forcedNullBy(ae.lexpr, catalog, ctx, anyRow);
-    const op = ae.name?.length === 1 ? stringVal(ae.name[0]) : "";
-    if (ae.kind === "AEXPR_OP" && TOTAL_STRICT_OPERATORS.has(op)) {
+    const parts = (ae.name ?? []).map(stringVal);
+    const op = parts[parts.length - 1] ?? "";
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+    // Bare builtin names via the curated set; user operators via their
+    // backing function's declared strictness (single candidate or refuse) —
+    // strictness is the only property NULL-propagation needs.
+    const strict =
+      (parts.length === 1 && TOTAL_STRICT_OPERATORS.has(op)) ||
+      (catalog.resolveOperatorMetadata(schema, op)?.strict ?? false);
+    if (ae.kind === "AEXPR_OP" && strict) {
       const out = new Set<number>();
       for (const operand of [ae.lexpr, ae.rexpr]) {
         for (const num of forcedNullBy(operand, catalog, ctx, anyRow)) out.add(num);

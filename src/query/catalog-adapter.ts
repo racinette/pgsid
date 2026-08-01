@@ -209,6 +209,31 @@ export async function buildNullabilityCatalog(
     return false;
   };
 
+  // Operators grouped by name (and by schema.name for qualified refs). An
+  // oprname can overload across operand types, and arg types are not
+  // available to the walk — same single-candidate policy as functions.
+  const opByName = new Map<string, typeof snapshot.operators>();
+  const opBySchemaName = new Map<string, typeof snapshot.operators>();
+  for (const o of snapshot.operators ?? []) {
+    const byName = opByName.get(o.name);
+    if (byName) byName.push(o);
+    else opByName.set(o.name, [o]);
+    const key = `${o.schema}.${o.name}`;
+    const bySchema = opBySchemaName.get(key);
+    if (bySchema) bySchema.push(o);
+    else opBySchemaName.set(key, [o]);
+  }
+
+  const resolveOperatorMetadata = (
+    schema: string | undefined,
+    name: string,
+  ): { strict: boolean; functionSchema: string; functionName: string } | null => {
+    const candidates = schema ? opBySchemaName.get(`${schema}.${name}`) : opByName.get(name);
+    if (!candidates || candidates.length !== 1) return null;
+    const o = candidates[0]!;
+    return { strict: o.strict, functionSchema: o.functionSchema, functionName: o.functionName };
+  };
+
   return {
     resolveTable,
     resolveFunction,
@@ -216,6 +241,7 @@ export async function buildNullabilityCatalog(
     resolveColumnTypeOid,
     resolveCompositeType,
     resolveFunctionMetadata,
+    resolveOperatorMetadata,
     isNotNullDomain,
     isNotNullDomainByName,
     fnBodyAsts,

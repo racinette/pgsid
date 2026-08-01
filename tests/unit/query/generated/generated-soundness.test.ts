@@ -589,17 +589,15 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         (column === "r_sid" || column === "r_snm"),
     },
     {
-      label: "dml-returning-ignores-written-values",
+      label: "dml-returning-case-value-dependence",
       why:
-        "RETURNING nullability comes from the target table's catalog, not " +
-        "from the values actually written: ins.val is always the literal 'c' " +
-        "and r_ce's CASE always takes its non-null branch (active is inserted " +
-        "as true). Deliberate engine conservatism about DML RETURNING.",
-      matches: (axes, column) =>
-        (axes.wrapper === "dml-cte" &&
-          column === "a_cv" &&
-          /^cte-join\((inner|left)\)$/.test(axes.structure)) ||
-        (axes.wrapper === "insert-values" && column === "r_ce"),
+        "r_ce is CASE WHEN active THEN 'a' ELSE name END over a row whose " +
+        "active was WRITTEN as the literal true, so the ELSE branch never " +
+        "runs — but that is the boolean's VALUE, not its nullability, and " +
+        "the written-value tracking (Wave 3) deliberately carries only " +
+        "non-nullness. The former companion arm of this rule (dml-cte's " +
+        "a_cv, a written literal) flipped notNull when the tracking landed.",
+      matches: (axes, column) => axes.wrapper === "insert-values" && column === "r_ce",
     },
   ];
 

@@ -188,6 +188,18 @@ operands. Strictness is not the criterion — a strict operator returns NULL for
 input, which says nothing about non-null input. `jsonb -> 'missing'` and
 `jsonb ->> 'missing'` are both strict and both return NULL for two non-null operands.
 
+**Custom operators** (Wave 3): a name outside the allowlist — or any
+schema-qualified name — resolves through the snapshot's `pg_operator` capture
+by the single-candidate policy, and the RESULT dispatches the operator's
+backing function through the full FuncCall machinery (domain returns,
+`LANGUAGE sql` body inlining, the strict rules), with the operands as
+arguments. The fixture's non-strict `===` analyses to notNull via its
+`SELECT true` body while still promoting nothing; the strict `====` gates
+promotion and narrowing exactly like a builtin comparison
+(`custom-operator.sql`). Totality is never inferred from strictness — the
+WHERE-side gate needs only strictness, the output side only what the
+function's own dispatch can prove.
+
 The allowlist (`TOTAL_OPERATORS`) therefore covers only arithmetic (`+ - * / % ^`),
 comparison (`= <> != < > <= >=`), concatenation (`||`), and pattern matching
 (`~~ !~~ ~~* !~~* ~ !~ ~* !~*`). An operator that raises on bad input still counts as
@@ -434,7 +446,7 @@ The combination rule depends on the operator (`combineSetOpColumn`):
 
 ### INSERT / UPDATE / DELETE RETURNING
 
-These statements have a RETURNING list that produces output columns. The target table is always required (it's the row being modified, not a join). RETURNING columns are ColumnRefs to the target table; their nullability is `catalog.notNull(col)` (no join nullability). The walk handles RETURNING lists the same way as SELECT target lists, with the FROM scope being just the target table.
+These statements have a RETURNING list that produces output columns. The target table is always required (it's the row being modified, not a join). RETURNING columns are ColumnRefs to the target table; their nullability is `catalog.notNull(col)`, upgraded by the **written-value map** (Wave 3): a column whose written value is provably non-null on every path that can produce a returned row is notNull regardless of the catalog. INSERT VALUES cells reduce by intersection over rows; INSERT…SELECT reads the source's own analysis positionally (plain shape only); UPDATE SET expressions are exactly the returned values (RETURNING reports the NEW row — the complement of the SET-column predicate mask); ON CONFLICT DO UPDATE intersects the insert and update paths, where a non-SET column on the update path is the EXISTING row and contributes nothing (`returning-conflict-existing.sql` is the witnessed negative). MERGE, multi-assignment SET, and DEFAULT-taking columns keep the catalog. The walk handles RETURNING lists the same way as SELECT target lists, with the FROM scope being just the target table.
 
 `UPDATE ... FROM` and `DELETE ... USING` add further relations to that scope. They join to the target with **inner-join** semantics — a target row with no match is simply not modified — so those relations are REQUIRED, not OPTIONAL. Outer joins written *inside* the FROM/USING list are still honoured normally.
 

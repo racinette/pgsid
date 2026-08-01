@@ -373,6 +373,16 @@ interface Scope {
    * guarantee machinery.
    */
   dmlSetColumns?: { alias: string; columns: ReadonlySet<string> };
+  /**
+   * DML RETURNING: target columns whose written value is provably non-null
+   * on EVERY path that can produce a returned row — INSERT VALUES cells by
+   * intersection over rows, INSERT…SELECT via the source's own analysis,
+   * UPDATE SET expressions (RETURNING reports the NEW row, so they are
+   * exactly the returned values), and ON CONFLICT DO UPDATE as the
+   * intersection of the insert and update paths. Only `true` entries mean
+   * anything; consulted as an upgrade alongside the catalog flag.
+   */
+  dmlWrittenColumns?: { alias: string; columns: ReadonlyMap<string, boolean> };
   /** Outer scope for correlated references. */
   outer: Scope | null;
   /** Memoized per-output-column results for this scope's AST node. */
@@ -1234,7 +1244,76 @@ class NullabilityEngine {
     if (!stmt.returningClause) return [];
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
+    this.attachInsertWrittenColumns(stmt, scope, outerScope, depth);
     return this.analyzeReturning(stmt.returningClause, scope, depth);
+  }
+
+  /**
+   * The written-value map for INSERT … RETURNING: per target column, whether
+   * the value actually written is provably non-null on every path that can
+   * produce a returned row. VALUES rows reduce by intersection; INSERT …
+   * SELECT reads the source's own analysis positionally (plain shape only —
+   * a set operation underneath contributes nothing); columns absent from
+   * the column list take their DEFAULT and keep the catalog. ON CONFLICT DO
+   * UPDATE adds a second producing path, so each column intersects with it:
+   * a SET column contributes its expression (`excluded` references resolve
+   * to nothing and stay conservative), a non-SET column is the EXISTING
+   * row's value and contributes nothing. DO NOTHING returns only inserted
+   * rows and changes nothing.
+   */
+  private attachInsertWrittenColumns(
+    stmt: InsertStmt,
+    scope: Scope,
+    outerScope: Scope | null,
+    depth: number,
+  ): void {
+    const entry = [...scope.aliases.values()][0];
+    if (!entry?.table) return;
+    const columns = stmt.cols
+      ? stmt.cols.map(c => (c as { ResTarget?: { name?: string } }).ResTarget?.name ?? "")
+      : entry.table.columns;
+
+    const select = (stmt.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
+      ?.SelectStmt;
+    if (!select) return;
+    const written = new Map<string, boolean>();
+
+    const valuesLists = select["valuesLists"] as Node[] | undefined;
+    if (valuesLists?.length) {
+      columns.forEach((col, i) => {
+        if (!col) return;
+        const cellsNotNull = valuesLists.every(row => {
+          const cell = ((row as { List?: { items?: Node[] } }).List?.items ?? [])[i];
+          return !!cell && this.walkExpr(cell, this.emptyScope(outerScope), depth + 1);
+        });
+        written.set(col, cellsNotNull);
+      });
+    } else if (select["op"] === "SETOP_NONE" && select["targetList"]) {
+      const innerResults = this.analyzeStatement(stmt.selectStmt!, outerScope, depth + 1);
+      columns.forEach((col, i) => {
+        if (col) written.set(col, innerResults[i]?.notNull === true);
+      });
+    } else {
+      return;
+    }
+
+    const conflict = stmt.onConflictClause as
+      | { action?: string; targetList?: Node[] }
+      | undefined;
+    if (conflict?.action === "ONCONFLICT_UPDATE") {
+      const setNotNull = new Map<string, boolean>();
+      for (const item of conflict.targetList ?? []) {
+        const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+        if (!rt?.name || !rt.val) continue;
+        if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
+        setNotNull.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+      }
+      for (const [col, insertPath] of written) {
+        written.set(col, insertPath && (setNotNull.get(col) ?? false));
+      }
+    }
+
+    scope.dmlWrittenColumns = { alias: entry.alias, columns: written };
   }
 
   private analyzeUpdate(
@@ -1273,6 +1352,22 @@ class NullabilityEngine {
       scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
     }
     this.resolveJoinImplications(scope);
+
+    // RETURNING reports the NEW row, so a SET column's returned value IS its
+    // SET expression — walked with the predicate mask already in place (the
+    // expression reads the OLD row, where the guarantees would in fact hold;
+    // conservative, never wrong). Attached after the walk so the expressions
+    // themselves cannot consult the map they are defining.
+    if (targetAlias !== undefined) {
+      const written = new Map<string, boolean>();
+      for (const item of stmt.targetList ?? []) {
+        const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+        if (!rt?.name || !rt.val) continue;
+        if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
+        written.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+      }
+      scope.dmlWrittenColumns = { alias: targetAlias, columns: written };
+    }
 
     return this.analyzeReturning(stmt.returningClause, scope, depth);
   }
@@ -2358,6 +2453,34 @@ class NullabilityEngine {
         // A schema-qualified operator may be user-defined and shadow a
         // built-in symbol, so only bare names are matched.
         if (qualified || !TOTAL_OPERATORS.has(op)) {
+          // A user operator has no totality flag, but it wraps a function
+          // that has ALL the function machinery: dispatch the backing
+          // function (single-candidate policy) through the FuncCall rules —
+          // NOT NULL domain return, LANGUAGE sql body inlining, the strict
+          // policy — with the operands as arguments. `x === y` resolves to
+          // lenient_eq, whose body is analysed like any sql function's.
+          const opSchema = qualified ? opNames[opNames.length - 2] : undefined;
+          const custom = this.catalog.resolveOperatorMetadata(opSchema, op);
+          if (custom) {
+            trace.addFact(
+              "customOperator",
+              `${op} → ${custom.functionSchema}.${custom.functionName}`,
+            );
+            const synthetic = {
+              funcname: [
+                { String: { sval: custom.functionSchema } },
+                { String: { sval: custom.functionName } },
+              ],
+              args: [ae.lexpr, ae.rexpr].filter((n): n is Node => n !== undefined),
+            } as unknown as FuncCall;
+            const childTrace = trace.addChild(`operator '${op}' backing function`);
+            const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace);
+            trace.conclude(
+              result,
+              `custom operator dispatched through its backing function → ${result ? "notNull" : "nullable"}`,
+            );
+            return result;
+          }
           trace.addFact("totalOperator", "false");
           trace.conclude(false, `operator '${op}' may return NULL for non-null inputs → nullable`);
           return false;
@@ -2691,6 +2814,20 @@ class NullabilityEngine {
       );
       trace.addFact("catalog.notNull", String(catalogNotNull));
       trace.addFact("table", `${entry.table.schema}.${entry.table.name}`);
+      // DML RETURNING: a column whose WRITTEN value is provably non-null on
+      // every path that can produce a returned row (see the analyzers'
+      // dmlWrittenColumns construction). Written evidence only ever
+      // upgrades — a nullable expression written into a NOT NULL column
+      // raises rather than returning, so the catalog side stands on its own.
+      if (
+        scope.dmlWrittenColumns &&
+        scope.dmlWrittenColumns.alias === entry.alias &&
+        scope.dmlWrittenColumns.columns.get(colName) === true
+      ) {
+        trace.addFact("writtenValue", "provably non-null on every returning path");
+        trace.conclude(true, "the written value is non-null → notNull in RETURNING");
+        return true;
+      }
       const result = catalogNotNull && joinState !== OPTIONAL;
       trace.conclude(result, `catalog.notNull=${catalogNotNull} && join ${joinStateName(joinState)}${joinState === OPTIONAL ? " (OPTIONAL → nullable)" : ""}`);
       return result;
@@ -3142,8 +3279,20 @@ class NullabilityEngine {
    * types is out of reach there too, by the curated-list policy.
    */
   private promotionOperatorIsStrict(name: Node[] | undefined): boolean {
-    if (name?.length !== 1) return false;
-    return TOTAL_STRICT_OPERATORS.has(this.stringVal(name[0]!));
+    if (!name?.length) return false;
+    const parts = name.map(n => this.stringVal(n));
+    const op = parts[parts.length - 1] ?? "";
+    // Builtin names keep the curated set, and only BARE names match it —
+    // the documented shadowing blind spot.
+    if (parts.length === 1 && TOTAL_STRICT_OPERATORS.has(op)) return true;
+    // A user operator's backing function carries a declared strictness flag,
+    // which is exactly the property this gate needs: a strict comparison
+    // cannot be TRUE with a NULL operand. Totality is NOT required here —
+    // the conclusion is about the operands, never the result. Single
+    // candidate or refuse (the fixture `===` resolves and is non-strict,
+    // which is precisely why blanket operator trust was removed).
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+    return this.catalog.resolveOperatorMetadata(schema, op)?.strict ?? false;
   }
 
   /**

@@ -244,12 +244,36 @@ export interface SchemaInfo {
  * truth for query typechecking, codegen, selective re-typecheck, and future
  * linting. JSON-serializable for cache persistence.
  */
+/**
+ * A user-defined operator, captured for the nullability analyses. The
+ * load-bearing property is declared, not inferred: an operator wraps a
+ * function (`pg_operator.oprcode`) whose strictness is a catalog flag —
+ * strict + a TRUE comparison ⇒ non-null operands, which is what the
+ * WHERE-side consumers (promotion, parameter narrowing, mechanism-C
+ * attribution) need. Output-side totality has no catalog flag, so result
+ * nullability goes through the backing function's own dispatch instead.
+ */
+export interface OperatorInfo {
+  schema: string;
+  /** The operator's name, e.g. `===`. */
+  name: string;
+  /** Operand type names (rendered), for the diff identity; null for unary. */
+  leftType: string | null;
+  rightType: string | null;
+  /** The backing function (pg_operator.oprcode). */
+  functionSchema: string;
+  functionName: string;
+  /** pg_proc.proisstrict of the backing function. */
+  strict: boolean;
+}
+
 export interface CatalogSnapshot {
   tables: TableInfo[];
   views: ViewInfo[];
   materializedViews: ViewInfo[];
   indexes: IndexInfo[];
   functions: FunctionInfo[];
+  operators: OperatorInfo[];
   enums: EnumInfo[];
   domains: DomainInfo[];
   compositeTypes: CompositeTypeInfo[];

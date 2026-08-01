@@ -91,6 +91,17 @@ export interface AliasNullability {
  * Built from a `CatalogSnapshot` (or mocked in tests). The walk is a pure
  * function over `(AST, catalog)` — no PGlite needed.
  */
+/**
+ * What the walk needs to know about one resolved custom operator: whether
+ * its backing function is strict (the WHERE-side property), and the backing
+ * function's identity (for output-side dispatch through the function rules).
+ */
+export interface OperatorMetadata {
+  strict: boolean;
+  functionSchema: string;
+  functionName: string;
+}
+
 export interface NullabilityCatalog {
   /**
    * Resolve a table/view by (schema, name) via search_path.
@@ -148,6 +159,16 @@ export interface NullabilityCatalog {
    * arg types, and guessing is never correct.
    */
   resolveFunctionMetadata(schema: string | undefined, name: string): FunctionInfo | null;
+
+  /**
+   * Custom operator metadata (for A_Expr dispatch), by the proven
+   * single-candidate policy: exactly one user operator with this name (and
+   * schema, when the reference is qualified) or null — operand types are
+   * not available to the walk, so with overloads guessing is never correct.
+   * Builtin operator names are NOT here; they keep the curated
+   * TOTAL_STRICT_OPERATORS set and its documented shadowing blind spot.
+   */
+  resolveOperatorMetadata(schema: string | undefined, name: string): OperatorMetadata | null;
 
   /**
    * Domain metadata: whether the type identified by `typeOid` is a domain with

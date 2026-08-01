@@ -117,6 +117,18 @@ DML-WHERE narrowing. Each closure is pinned by a fixture
 `dml-where-channel`, `update-set-mask`), and every generated-suite trap rule
 those imprecisions carried went stale and was deleted, as designed.
 
+Closed by Wave 3 (2026-08): custom operators — the snapshot captures
+`pg_operator`, strict-backed operators gate promotion/narrowing/attribution,
+and results dispatch through the backing function's own rules (section 3
+below; `custom-operator.sql`) — and DML RETURNING written values: INSERT
+VALUES cells by intersection over rows, INSERT…SELECT via the source's own
+analysis, UPDATE SET expressions (the NEW row is what RETURNING reports),
+and ON CONFLICT DO UPDATE as the intersection of both producing paths
+(`returning-insert.sql`, `returning-update.sql`, `returning-insert-select`,
+`returning-conflict-both`, `returning-conflict-existing`). Written evidence
+only ever upgrades — a nullable expression written into a rejecting column
+raises rather than returning.
+
 Closed by Wave 2 (2026-08, all behaviours measured first and pinned by
 fixtures): ordered-set aggregates (`WITHIN GROUP` sort expressions now
 visible, plain-aggregate gates; the hypothetical-set `rank` family measured
@@ -134,43 +146,37 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | JSON query functions, `JSON_ARRAY(subquery)`, and `XmlExpr` beyond `XMLELEMENT` | nullable | correctly so in general: a missing path is NULL, `JSON_ARRAY(SELECT …)` over an empty subquery is NULL (measured), `xmlconcat`/`xmlforest` of NULLs are NULL. Genuine imprecision remaining here is per-shape and small |
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; the NOT NULL domain return is the escape hatch |
 | `pg_catalog` built-ins outside the curated tables | nullable | add to `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` (totality required) or `STRICT_BUILTIN_FUNCTIONS` in `operators.ts` (strictness required, for the guarantee closure) as needed — the properties are different and each entry must be measured for the set it joins |
-| Custom operators | no promotion, no narrowing, nullable results | strictness is readable from `pg_proc.proisstrict` via `pg_operator`; see "Custom operator support" below |
+| Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | `USING` / `NATURAL` join quals | not consulted by the presence fixpoint | the merged-column equality is strict and could imply presence like an ON qual; the merged-column machinery is separate and the fixpoint reads `quals` only |
 | MERGE join condition and arm conditions | no narrowing, no promotion | NOT MATCHED arms fire precisely for rows that did NOT pass the join condition, so it is not row-implied; per-arm reasoning was judged not worth it |
-| DML `RETURNING` vs written values | catalog nullability only | `INSERT … VALUES (…, 'c') RETURNING val` reports `val` nullable from the catalog even though the written value is a literal; tracking values into RETURNING was judged not worth it. Also found by the witness classification |
+| MERGE `RETURNING` vs written values | catalog nullability only | the INSERT/UPDATE tracking (Wave 3) does not extend to MERGE — per-arm intersections over UPDATE/INSERT/DELETE/BY-SOURCE arms were judged not worth it; the register's old example (`INSERT … VALUES` literals) IS closed. Held by a live trap: `merge-returning-written.sql` writes a literal in every arm, and its `@unwitnessable` annotation turns invalid the day the tracking lands |
+| Written-value tracking carries non-nullness only | value dependence stays dark | `CASE WHEN active THEN 'a' ELSE name END` over a row whose `active` was written `true` never takes the ELSE, but that is the boolean's VALUE — the generated `dml-returning-case-value-dependence` rule records the shape. Multi-assignment SET and DEFAULT-taking columns keep the catalog |
 
 ---
 
-## 3. Custom operator support
+## 3. Custom operator support — built (Wave 3)
 
-**What.** User-defined operators contribute nothing today: they never promote
-a column, never narrow a parameter, and their results are conservatively
-nullable. The non-strict `===` in the fixture schema (kept from the
-promotion-unsoundness fix) is the measured reason the engine must not simply
-trust them.
+**What landed.** The snapshot captures `pg_operator` (name, operand types,
+backing function, and the function's `proisstrict`), and the adapter resolves
+operators by the proven single-candidate policy: one user operator with that
+name (schema-qualified references narrow the search), or refuse. Builtin
+names keep the curated `TOTAL_STRICT_OPERATORS` set, matched on BARE names
+only — the documented shadowing blind spot, unchanged.
 
-**Why it is possible.** The load-bearing property is declared, not inferred:
-an operator wraps a function (`pg_operator.oprcode`) whose strictness is a
-catalog flag (`pg_proc.proisstrict`). Strict + TRUE ⇒ non-null operands,
-which is all the WHERE-side consumers (promotion, parameter narrowing,
-mechanism-C attribution) need. The output-side totality rule has no catalog
-flag, but `LANGUAGE sql` operator bodies could go through the existing
-body-inlining machinery; everything else stays conservatively nullable.
-Resolution follows the proven single-candidate policy from
-`resolveFunctionMetadata`: one non-builtin operator with that name, or
-refuse — no type inference. Builtin names keep the curated set and its
-documented shadowing blind spot.
+Consumers: the WHERE-side gate (`promotionOperatorIsStrict`) and both strict
+closures accept a resolved operator whose backing function is declared
+strict — strictness is exactly the property those conclusions need, and
+totality is deliberately NOT inferred from it. Output-side, a custom
+operator's result dispatches its backing function through the full FuncCall
+machinery (NOT NULL domain returns, `LANGUAGE sql` body inlining), which is
+how the fixture's non-strict `===` — kept from the promotion-unsoundness
+fix — now analyses to notNull via its `SELECT true` body while still
+promoting nothing. `custom-operator.sql` pins both directions with the
+strict `====` / non-strict `===` pair.
 
-**State.** Not started. The snapshot does not capture `pg_operator`, which is
-most of the plumbing.
-
-**Why deferred.** Since the promotion fix, custom operators cost precision
-only, never soundness — and no consumer with an operator-heavy schema exists
-to justify the snapshot surface.
-
-**Trigger.** A consumer whose schemas lean on custom operators, or the
-witness classification accumulating rules whose reason is "custom operator
-kept it dark".
+**Residue.** Operators backed by unanalysable functions (plpgsql, multiple
+candidates) stay conservatively nullable on the output side; the shadowing
+blind spot stands.
 
 ---
 

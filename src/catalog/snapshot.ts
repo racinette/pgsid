@@ -412,6 +412,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     matviewRows,
     indexRows,
     functionRows,
+    operatorRows,
     enumTypeRows,
     enumValueRows,
     domainRows,
@@ -429,6 +430,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryMatViews(pg),
     queryIndexes(pg),
     queryFunctions(pg),
+    queryOperators(pg),
     queryEnumTypes(pg),
     queryEnumValues(pg),
     queryDomains(pg),
@@ -647,12 +649,23 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     owner: s.owner,
   })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
 
+  const operators = operatorRows.map(o => ({
+    schema: o.schema,
+    name: o.name,
+    leftType: o.left_type,
+    rightType: o.right_type,
+    functionSchema: o.function_schema,
+    functionName: o.function_name,
+    strict: o.strict,
+  }));
+
   return {
     tables,
     views,
     materializedViews,
     indexes,
     functions,
+    operators,
     enums,
     domains,
     compositeTypes,
@@ -855,6 +868,41 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
      LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
      WHERE ${USER_NS}
      ORDER BY n.nspname, p.proname;`,
+  );
+  return res.rows;
+}
+
+interface OperatorRow {
+  schema: string;
+  name: string;
+  left_type: string | null;
+  right_type: string | null;
+  function_schema: string;
+  function_name: string;
+  strict: boolean;
+}
+
+/**
+ * User-defined operators, with the strictness of their backing function.
+ * Only user namespaces — builtin operator semantics live in the curated
+ * TOTAL_STRICT_OPERATORS set, and a user operator shadowing a builtin NAME
+ * over custom types is the documented blind spot of that policy.
+ */
+async function queryOperators(pg: PGlite): Promise<OperatorRow[]> {
+  const res = await pg.query<OperatorRow>(
+    `SELECT n.nspname AS schema, o.oprname AS name,
+            CASE WHEN o.oprleft = 0 THEN NULL
+                 ELSE format_type(o.oprleft, NULL) END AS left_type,
+            CASE WHEN o.oprright = 0 THEN NULL
+                 ELSE format_type(o.oprright, NULL) END AS right_type,
+            fn.nspname AS function_schema, p.proname AS function_name,
+            p.proisstrict AS strict
+     FROM pg_operator o
+     JOIN pg_namespace n ON n.oid = o.oprnamespace
+     JOIN pg_proc p ON p.oid = o.oprcode
+     JOIN pg_namespace fn ON fn.oid = p.pronamespace
+     WHERE ${USER_NS}
+     ORDER BY n.nspname, o.oprname, left_type, right_type;`,
   );
   return res.rows;
 }

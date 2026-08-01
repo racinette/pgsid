@@ -263,6 +263,12 @@ export function comparableStates(snapshot: CatalogSnapshot): Map<EntityId, unkno
     );
   }
 
+  // Operators (whole entity; operand types are the identity — one oprname
+  // can overload across operand types).
+  for (const o of snapshot.operators) {
+    out.set(`${o.schema}.${o.name}(${o.leftType ?? ""},${o.rightType ?? ""})`, o);
+  }
+
   // Enums (values compared).
   for (const e of snapshot.enums) {
     out.set(`${e.schema}.${e.name}`, e);
@@ -356,6 +362,7 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     materializedViews: [],
     indexes: [],
     functions: [],
+    operators: [],
     enums: [],
     domains: [],
     compositeTypes: [],

@@ -93,6 +93,16 @@ CREATE FUNCTION lenient_eq(a text, b text) RETURNS boolean
   AS $$ SELECT true $$;
 CREATE OPERATOR === (LEFTARG = text, RIGHTARG = text, FUNCTION = lenient_eq);
 
+-- The strict counterpart: ==== is backed by a STRICT function, so its
+-- declared strictness (pg_operator.oprcode → pg_proc.proisstrict, captured
+-- by the snapshot) licenses WHERE-side promotion and narrowing exactly like
+-- a builtin comparison — the pair pins both directions of the operator
+-- trust boundary (custom-operator.sql).
+CREATE FUNCTION strict_same(a text, b text) RETURNS boolean
+  LANGUAGE sql STRICT
+  AS $$ SELECT a = b $$;
+CREATE OPERATOR ==== (LEFTARG = text, RIGHTARG = text, FUNCTION = strict_same);
+
 -- Deliberately overloaded: resolveFunctionMetadata must refuse to pick one,
 -- keeping both the output analysis (the text overload returns a NOT NULL
 -- domain) and the argument analysis conservative for calls to this name.
