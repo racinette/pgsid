@@ -17,7 +17,12 @@ import {
 } from "../../../../src/query/param-nullability.js";
 import type { NullabilityCatalog, OutputNullability } from "../../../../src/query/types.js";
 import { hasStatements, loadDataStates, type DataState } from "../fixture-data/states.js";
-import { generateDmlQueries, generateQueries, type GeneratedQuery } from "./generator.js";
+import {
+  generateDmlQueries,
+  generateParamPlacementQueries,
+  generateQueries,
+  type GeneratedQuery,
+} from "./generator.js";
 
 // ---------------------------------------------------------------------------
 // Generated-query soundness: the engine vs PostgreSQL over the enumerated
@@ -189,7 +194,11 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     stateNames = states.map(s => s.name);
 
     // --- Deparse, re-parse, expected-node checks, engine claims. -----------
-    for (const query of [...generateQueries(), ...generateDmlQueries()]) {
+    for (const query of [
+      ...generateQueries(),
+      ...generateDmlQueries(),
+      ...generateParamPlacementQueries(),
+    ]) {
       const record: QueryRecord = {
         query,
         sql: "",
@@ -569,6 +578,30 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         (axes.wrapper === "update-from" || axes.wrapper === "delete-using") &&
         column === "r_ue" &&
         /^single\((left|full)\)$/.test(axes.structure),
+    },
+    {
+      label: "inner-on-refilters",
+      why:
+        "a_p1 is NULL only under a NULL binding, and the strict `u.email = " +
+        "$1` conjunct in the INNER join's ON qual is then never TRUE, so no " +
+        "row survives to carry it. INNER ON-conjunct narrowing is the " +
+        "recorded not-taken extension in docs/argument-nullability.md; if it " +
+        "ever lands, this claim flips notNull and PostgreSQL will agree. The " +
+        "outer join kinds null-extend past the qual and witness a_p1 instead.",
+      matches: (axes, column) =>
+        axes.projection === "on-param" &&
+        column === "a_p1" &&
+        axes.structure === "single(inner)",
+    },
+    {
+      label: "having-refilters",
+      why:
+        "a_ph is NULL only under a NULL binding, and `max(u.email) <> $1` is " +
+        "then NULL for every group, so HAVING filters them all and zero rows " +
+        "return. HAVING-conjunct narrowing is the recorded not-taken " +
+        "extension (same entry as INNER ON); the claim flips notNull with " +
+        "PostgreSQL's agreement if it lands.",
+      matches: (axes, column) => axes.projection === "having-param" && column === "a_ph",
     },
     {
       label: "merge-action-conservative",

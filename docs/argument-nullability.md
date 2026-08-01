@@ -338,8 +338,25 @@ Agreed order of work, each stage giving the next something real to test:
    conditional-B witnessed where arms fire, mechanism A arm-immune (pinned),
    and `merge_action()` classified (a dedicated `MergeSupportFunc` node,
    conservative). Parameters in sources are attributed (`merge-src-param`
-   and the trigger fixtures); only the multi-row ∃-residual stays out, per
-   the residual note in `docs/deferred-tasks.md`.
+   and the trigger fixtures); the multi-row ∃-residual was closed by the
+   quantifier split ("Source value-flow attribution" above).
+5. **Parameter placement** — built: `generateParamPlacementQueries()`.
+   Positions the corpus otherwise never used, each measured against PGlite
+   before generation and crossed with the wrapper axis: a strict ON conjunct
+   with the parameter projected bare (ON-conjunct narrowing is the recorded
+   not-taken extension, so the projection is a live-trap unwitnessable —
+   refiltered under INNER, witnessed through the outer join kinds); the
+   mechanism-A cast inside the ON qual (bind rejection is position-blind,
+   and its output narrowing holds under every join kind and wrapper); the
+   HAVING twin of the ON trap; parameters inside a LATERAL body (the inner
+   scope's WHERE-conjunct narrowing propagates notNull through the derived
+   table under a cross join and degrades under LEFT JOIN LATERAL — verified
+   by the run: absent from both the violation and the unwitnessed lists); a
+   set operation's second branch (branch parameters deduce from the first
+   arm; EXCEPT keeps the left arm's claims); and LIMIT/OFFSET (NULL is
+   legal in both). Zero rejections, refusals, or violations; the two
+   refilter classifications are recorded as live traps that flip with
+   PostgreSQL's agreement if the ON/HAVING extensions land.
 
 ## Where things are
 

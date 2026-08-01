@@ -279,6 +279,37 @@ const expectOnConflict = (action: string): Expectation => ({
   },
 });
 
+const expectHaving: Expectation = {
+  label: "HAVING",
+  present: root => {
+    for (const n of walk(root)) if (n.havingClause) return true;
+    return false;
+  },
+};
+
+/** A cast whose target type is the fixture's NOT NULL domain. */
+const expectDomainCast: Expectation = {
+  label: "cast to nn_text",
+  present: root => {
+    for (const n of walk(root)) {
+      const names = (n.TypeCast as { typeName?: { names?: unknown[] } } | undefined)?.typeName
+        ?.names;
+      if (names?.some(x => (x as { String?: { sval?: string } }).String?.sval === "nn_text")) {
+        return true;
+      }
+    }
+    return false;
+  },
+};
+
+const expectLimit: Expectation = {
+  label: "LIMIT",
+  present: root => {
+    for (const n of walk(root)) if (n.limitCount) return true;
+    return false;
+  },
+};
+
 /** The exact set of `$n` numbers present in the re-parsed AST. */
 const expectParams = (...numbers: number[]): Expectation => ({
   label: `params $${numbers.join(", $")}`,
@@ -1279,6 +1310,301 @@ export function generateDmlQueries(): GeneratedQuery[] {
       ],
     );
   }
+
+  return out;
+}
+
+// --- Parameter placements --------------------------------------------------
+//
+// Widening the parameter axis by POSITION rather than mechanism. The
+// projections above put parameters in target lists, in WHERE, and in DML
+// write positions; every placement here is one the corpus otherwise never
+// generates, and each sits on a boundary docs/argument-nullability.md
+// records deliberately:
+//
+//   on-param     — a strict `u.email = $1` conjunct in the JOIN ON qual,
+//                  with $1 also projected bare. ON-conjunct narrowing is a
+//                  recorded NOT-TAKEN extension, so the projection stays
+//                  nullable — under INNER the NULL binding refilters every
+//                  row, making it a live-trap unwitnessable that flips
+//                  (with PostgreSQL's agreement) if the extension lands.
+//   on-reject    — the mechanism-A domain cast INSIDE the ON qual: bind-time
+//                  rejection is position-blind, so the argument claim and
+//                  its output narrowing ($1 || 'x' is notNull) must hold
+//                  regardless of join kind or wrapper.
+//   having-param — the HAVING twin of on-param: strict conjunct, contract
+//                  nullable, projection a live-trap unwitnessable.
+//   lateral-param— parameters INSIDE a LATERAL body: the inner scope's
+//                  WHERE-conjunct narrowing licenses lx notNull for rows the
+//                  subquery produces, which must survive a cross join and
+//                  degrade under LEFT JOIN LATERAL's null-extension.
+//   branch-param — parameters in a set operation's second branch, including
+//                  a mechanism-A cast: set-op column merging meets both
+//                  claim directions, and the branch parameters deduce their
+//                  types from the first arm (measured).
+//   limit-param  — LIMIT $1 OFFSET $2: nullable in a non-expression clause
+//                  (LIMIT NULL means no limit; OFFSET NULL means 0).
+//
+// Everything is crossed with the wrapper axis, so every claim above must
+// also propagate through a CTE and a FROM-subquery boundary. All shapes
+// were measured against PGlite before generation (deduction rules included:
+// FROM/ON is analysed before the target list, HAVING after it, and set-op
+// branch parameters unify with the first arm's column types).
+
+export function generateParamPlacementQueries(): GeneratedQuery[] {
+  const out: GeneratedQuery[] = [];
+  const add = (
+    structure: string,
+    projection: string,
+    setop: string,
+    core: Ast,
+    colNames: string[],
+    params: GeneratedQuery["params"],
+    expectations: Expectation[],
+  ): void => {
+    for (const wrapper of WRAPPERS) {
+      out.push({
+        id: `s=${structure}|p=${projection}|o=${setop}|w=${wrapper}`,
+        axes: { structure, projection, setop, wrapper },
+        ast: wrap(wrapper, core, colNames),
+        params,
+        expectations: [...expectations, ...WRAPPER_EXPECTATIONS[wrapper]],
+      });
+    }
+  };
+
+  // --- on-param: strict ON conjunct, parameter projected bare. -------------
+  // The control value matches sparse's single u row, so INNER returns rows;
+  // under a NULL binding the conjunct is never TRUE, so only the outer join
+  // kinds still emit (null-extended) rows — which is exactly where a_p1's
+  // NULL is witnessed.
+  for (const k of JOIN_KINDS) {
+    add(
+      `single(${kindLabel(k)})`,
+      "on-param",
+      "none",
+      bareSelect({
+        targetList: [
+          target(paramRef(1), "a_p1"),
+          target(colRef("t", "name"), "a_ta"),
+          target(colRef("u", "email"), "a_tb"),
+          target(colRef("t", "id"), "a_int"),
+        ],
+        fromClause: [
+          join(
+            k,
+            rangeVar("t"),
+            rangeVar("u"),
+            andExpr(
+              eq(colRef("u", "t_id"), colRef("t", "id")),
+              eq(colRef("u", "email"), paramRef(1)),
+            ),
+          ),
+        ],
+      }),
+      ["a_p1", "a_ta", "a_tb", "a_int"],
+      [{ number: 1, valid: "u1@b.c" }],
+      [expectJoins(k), expectParams(1)],
+    );
+  }
+
+  // --- on-reject: the mechanism-A cast inside the ON qual. -----------------
+  // $1 is TYPED nn_text by the cast, so NULL raises at Bind in every state
+  // (the argument claim's witness), and any returned row proves $1 non-NULL
+  // — the projected concatenation is claimed notNull under every join kind
+  // and wrapper. The control value matches no email, so the inequality
+  // holds wherever a join partner exists.
+  for (const k of JOIN_KINDS) {
+    add(
+      `single(${kindLabel(k)})`,
+      "on-reject",
+      "none",
+      bareSelect({
+        targetList: [
+          target(concatOp(paramRef(1), textConst("x")), "a_pn"),
+          target(colRef("t", "name"), "a_ta"),
+          target(colRef("u", "email"), "a_tb"),
+          target(colRef("t", "id"), "a_int"),
+        ],
+        fromClause: [
+          join(
+            k,
+            rangeVar("t"),
+            rangeVar("u"),
+            andExpr(
+              eq(colRef("u", "t_id"), colRef("t", "id")),
+              neq(colRef("u", "email"), castTo(paramRef(1), "nn_text")),
+            ),
+          ),
+        ],
+      }),
+      ["a_pn", "a_ta", "a_tb", "a_int"],
+      [{ number: 1, valid: "zzz" }],
+      [expectJoins(k), expectDomainCast, expectParams(1)],
+    );
+  }
+
+  // --- having-param: strict HAVING conjunct, parameter projected bare. -----
+  // Deduction: the bare projection is analysed before HAVING and both
+  // deduce text. NULL filters every group (HAVING NULL), returning zero
+  // rows cleanly — contract nullable, projection unwitnessable by refilter.
+  for (const k of ["JOIN_INNER", "JOIN_LEFT"]) {
+    add(
+      `single(${kindLabel(k)})`,
+      "having-param",
+      "none",
+      bareSelect({
+        targetList: [
+          target(colRef("t", "id"), "a_key"),
+          target(countStar(), "a_cnt"),
+          target(funcCall("max", [colRef("u", "val")]), "a_mxc"),
+          target(paramRef(1), "a_ph"),
+        ],
+        fromClause: [tJoinU(k)],
+        groupClause: [colRef("t", "id")],
+        havingClause: neq(funcCall("max", [colRef("u", "email")]), paramRef(1)),
+      }),
+      ["a_key", "a_cnt", "a_mxc", "a_ph"],
+      [{ number: 1, valid: "zzz" }],
+      [expectJoins(k), expectGroupBy, expectHaving, expectCountStar, expectParams(1)],
+    );
+  }
+
+  // --- lateral-param: parameters inside the LATERAL body. ------------------
+  // The body's own WHERE has a strict `u.email = $1` conjunct, so within
+  // that scope lx ($1 projected) is narrowed notNull; the cross join keeps
+  // the guarantee, LEFT JOIN LATERAL null-extends past it. lc is COALESCE
+  // over $2 and a nullable column, witnessed by the single-NULL variant
+  // ($2 NULL, $1 valid) on the row where u.val is NULL.
+  const lateralParamBody = (): Ast => ({
+    RangeSubselect: {
+      lateral: true,
+      subquery: {
+        SelectStmt: bareSelect({
+          targetList: [
+            target(paramRef(1), "lx"),
+            target(coalesce(paramRef(2), colRef("u", "val")), "lc"),
+          ],
+          fromClause: [rangeVar("u")],
+          whereClause: andExpr(
+            eq(colRef("u", "t_id"), colRef("t", "id")),
+            eq(colRef("u", "email"), paramRef(1)),
+          ),
+        }),
+      },
+      alias: { aliasname: "lsub" },
+    },
+  });
+  const lateralTargets = (): Ast[] => [
+    target(colRef("t", "id"), "a_int"),
+    target(colRef("lsub", "lx"), "a_lx"),
+    target(colRef("lsub", "lc"), "a_lc"),
+  ];
+  const lateralParams = [
+    { number: 1, valid: "u1@b.c" },
+    { number: 2, valid: "pz" },
+  ];
+  add(
+    "lateral-cross",
+    "lateral-param",
+    "none",
+    bareSelect({
+      targetList: lateralTargets(),
+      fromClause: [rangeVar("t"), lateralParamBody()],
+    }),
+    ["a_int", "a_lx", "a_lc"],
+    lateralParams,
+    [expectLateral, expectJoins(), expect("COALESCE", "CoalesceExpr"), expectParams(1, 2)],
+  );
+  add(
+    "lateral-left",
+    "lateral-param",
+    "none",
+    bareSelect({
+      targetList: lateralTargets(),
+      fromClause: [join("JOIN_LEFT", rangeVar("t"), lateralParamBody(), boolConst(true))],
+    }),
+    ["a_int", "a_lx", "a_lc"],
+    lateralParams,
+    [
+      expectLateral,
+      expectJoins("JOIN_LEFT"),
+      expect("COALESCE", "CoalesceExpr"),
+      expectParams(1, 2),
+    ],
+  );
+
+  // --- branch-param: parameters in the set operation's second branch. ------
+  // $1 and $3 deduce text/integer from the first arm (measured); $2 is the
+  // mechanism-A cast firing from inside a branch. The control row matches
+  // no first-arm row, so UNION adds it and EXCEPT subtracts nothing.
+  const branchLeftArm = (): Ast =>
+    bareSelect({
+      targetList: [
+        target(colRef("t", "name"), "a_ta"),
+        target(colRef("u", "email"), "a_tb"),
+        target(colRef("t", "id"), "a_int"),
+      ],
+      fromClause: [tJoinU("JOIN_LEFT")],
+    });
+  for (const setop of SET_OPS.filter(s => ["union", "union-all", "except"].includes(s.key))) {
+    add(
+      "single(left)",
+      "branch-param",
+      setop.key,
+      {
+        op: setop.op!,
+        all: setop.all || undefined,
+        larg: branchLeftArm(),
+        rarg: bareSelect({
+          targetList: [
+            target(paramRef(1)),
+            target(castTo(paramRef(2), "nn_text")),
+            target(paramRef(3)),
+          ],
+        }),
+        limitOption: "LIMIT_OPTION_DEFAULT",
+      },
+      ["a_ta", "a_tb", "a_int"],
+      [
+        { number: 1, valid: "q" },
+        { number: 2, valid: "e2" },
+        { number: 3, valid: 7 },
+      ],
+      [
+        expectJoins("JOIN_LEFT"),
+        expectSetOp(setop.op!, setop.all),
+        expectDomainCast,
+        expectParams(1, 2, 3),
+      ],
+    );
+  }
+
+  // --- limit-param: LIMIT $1 OFFSET $2. ------------------------------------
+  // Measured: NULL is legal in both (no limit / zero offset), so both
+  // contracts are nullable and the NULL variants still scan rows.
+  add(
+    "single(left)",
+    "limit-param",
+    "none",
+    bareSelect({
+      targetList: [
+        target(colRef("t", "id"), "a_int"),
+        target(colRef("t", "name"), "a_ta"),
+        target(colRef("u", "email"), "a_tb"),
+      ],
+      fromClause: [tJoinU("JOIN_LEFT")],
+      limitCount: paramRef(1),
+      limitOffset: paramRef(2),
+      limitOption: "LIMIT_OPTION_COUNT",
+    }),
+    ["a_int", "a_ta", "a_tb"],
+    [
+      { number: 1, valid: 100 },
+      { number: 2, valid: 0 },
+    ],
+    [expectJoins("JOIN_LEFT"), expectLimit, expectParams(1, 2)],
+  );
 
   return out;
 }

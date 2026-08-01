@@ -33,9 +33,19 @@ finding the defects nobody thought to look for, and then a consumer.
    class remains.
 2. **New generator axes.** The generated suite ran its full axis space and
    found no defect, which per its own criterion is the signal to widen the
-   axes — parameters (above), then DML, deeper nesting, window functions.
-   Whatever an axis finds becomes a permanent fixture with annotations, and an
-   engine fix.
+   axes. Widened so far: parameters and DML (item 1 above), then parameter
+   *placement* — strict ON conjuncts, the mechanism-A cast inside an ON qual,
+   HAVING, parameters inside a LATERAL body, a set operation's second branch,
+   and LIMIT/OFFSET, all crossed with the wrappers
+   (`generateParamPlacementQueries`). That round found no defect either, and
+   confirmed three behaviours worth having on record: bind-time rejection is
+   position-blind, inner-scope narrowing in a LATERAL body survives the cross
+   join and degrades under LEFT JOIN LATERAL, and EXCEPT keeps the left arm's
+   claims. Its residue is two refilter live-traps (`inner-on-refilters`,
+   `having-refilters`) that flip with PostgreSQL's agreement if the recorded
+   ON/HAVING narrowing extensions ever land. Next: deeper nesting, then
+   window functions. Whatever an axis finds becomes a permanent fixture with
+   annotations, and an engine fix.
 3. **The differential oracle** — assessed and demoted; see "Unbuilt
    verification strategies" for the findings. Neither candidate can verify
    this engine: one has no comparable analysis, the other is unsound in both
