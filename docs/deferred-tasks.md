@@ -61,7 +61,7 @@ finding the defects nobody thought to look for, and then a consumer.
    `lag` of a NOT NULL column is witnessed NULL on first rows, as claimed.
 
    The enumerated axis list is now exhausted with no engine defect found
-   since the MERGE-source collector gap. Per the handoff doc's own
+   since the MERGE-source collector gap. Per the generator doc's own
    criterion, the next widening is either a randomised generator over the
    grammar (now justified by evidence about which constructs are stable) or
    shifting effort to the first consumer, which items 1 and 3 below wait on
@@ -216,7 +216,7 @@ blind spot stands.
 One of the five strategies proposed for finding engine defects remains
 unbuilt, and after assessing the candidates it is **demoted, not queued**.
 (Generated queries, formerly listed alongside it, are built — see
-`docs/query-generator-handoff.md` and `tests/unit/query/generated/`.)
+`docs/query-generator.md` and `tests/unit/query/generated/`.)
 
 **Differential oracle — assessed 2026-08, both candidates read in full.**
 
@@ -294,7 +294,7 @@ alternative to constructing queries and rejected. Transformations beyond blind
 wrapping need the same scope and type knowledge that construction needs, so
 mutation buys no validity for free — and it is bounded by the shapes the corpus
 already contains, which is the opposite of what a generator is for. See
-`docs/query-generator-handoff.md`.
+`docs/query-generator.md`.
 
 **A diagnostics channel for ambiguous references.** An unqualified name
 matching several visible columns resolves to nullable, with the candidates

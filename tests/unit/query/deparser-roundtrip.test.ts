@@ -7,7 +7,7 @@ import { parseSql } from "../../../src/ast.js";
 // ---------------------------------------------------------------------------
 // Deparser round-trip: parse → deparse → parse over every fixture.
 //
-// The query generator (see docs/query-generator-handoff.md) constructs ASTs,
+// The query generator (see docs/query-generator.md) constructs ASTs,
 // deparses them with `pgsql-deparser`, and re-parses the text so the engine
 // and PostgreSQL analyse one identical string. That pipeline is only as
 // trustworthy as the deparser, and the failure mode that matters is the

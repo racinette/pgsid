@@ -336,7 +336,7 @@ returns a row can be witnessed.
 | Executable suite (validity, shape, soundness, liveness, coverage) | `tests/unit/query/nullability-soundness.test.ts` |
 | AST node coverage | `tests/unit/query/node-census.test.ts`, `grammar-sampler.ts` |
 | Column order vs PostgreSQL | `tests/unit/query/column-sequence.test.ts` |
-| Generating queries to extend this corpus | `docs/query-generator-handoff.md` |
+| Generating queries to extend this corpus | `docs/query-generator.md` |
 
 Run the suite with `npx vitest run` from `pgsid/`.
 

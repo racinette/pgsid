@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Mechanical query generation for the nullability engine.
 //
-// See docs/query-generator-handoff.md for the design. In one paragraph: the
+// See docs/query-generator.md for the design. In one paragraph: the
 // structural space — join kinds and their nesting, grouping, set operations,
 // CTEs, subqueries, LATERAL — is enumerated exhaustively as a nested loop
 // over axes, while expressions are drawn from a small fixed vocabulary so

@@ -859,6 +859,9 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
             p.procost,
             p.prorows,
             p.prosrc,
+            -- pg_get_functiondef raises "is an aggregate function" (42809,
+            -- ruleutils.c) for prokind 'a' — it supports only functions and
+            -- procedures — so aggregates snapshot with a NULL definition.
             CASE WHEN p.prokind != 'a'
                  THEN pg_get_functiondef(p.oid)
                  ELSE NULL

@@ -27,7 +27,7 @@ import {
 
 // ---------------------------------------------------------------------------
 // Generated-query soundness: the engine vs PostgreSQL over the enumerated
-// structural space. See docs/query-generator-handoff.md.
+// structural space. See docs/query-generator.md.
 //
 // Pipeline per query:  construct AST → deparse → parse the text → engine
 //                                             ↘ same text       → PostgreSQL
@@ -40,7 +40,7 @@ import {
 // expected-node predicates, and a construct that vanished in deparsing is
 // reported as a silent drop rather than assumed present.
 //
-// Two oracles, not equally strong (see the handoff doc):
+// Two oracles, not equally strong (see the generator doc):
 //   - column list: complete — any disagreement with PostgreSQL is a defect;
 //   - nullability: one-sided — execution can only falsify `notNull` claims.
 //     This suite finds unsoundness, not imprecision.
@@ -412,7 +412,7 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     expect(
       rejected,
       `A generated query PostgreSQL rejects is a generator defect, not a ` +
-        `finding (docs/query-generator-handoff.md):\n${rejected.join("\n")}\n`,
+        `finding (docs/query-generator.md):\n${rejected.join("\n")}\n`,
     ).toEqual([]);
   });
 

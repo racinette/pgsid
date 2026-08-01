@@ -2,7 +2,7 @@
 
 ## What this document is
 
-This is both the **design specification** and the **implementation handoff** for nullability inference. It contains all the context a fresh agent needs to implement the walk from scratch.
+The **design specification** for nullability inference, maintained alongside the implementation (`src/query/nullability-walk.ts`). It explains how the walk works and why each rule is shaped the way it is; the open items and deliberate bounds live in `docs/deferred-tasks.md`, and the verification methodology in `docs/witness-coverage.md`.
 
 ---
 
