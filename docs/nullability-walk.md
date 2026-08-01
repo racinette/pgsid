@@ -112,7 +112,9 @@ This matters for promotion: a WHERE predicate proving *one* member's row exists 
 
 We do NOT analyze nullability yet. We're just building the address book: "in this scope, alias `a` means this table, alias `b` means that subquery, alias `c` means this table on the optional side of a LEFT JOIN."
 
-We also note the WHERE clause of this scope — we'll consult it during leaf resolution, not as a pre-pass — and whether this SELECT's `GROUP BY` guarantees non-empty groups (consulted by the aggregate dispatch).
+We also note the WHERE and HAVING clauses of this scope — consulted during leaf resolution, not as a pre-pass — and whether this SELECT's `GROUP BY` guarantees non-empty groups (consulted by the aggregate dispatch).
+
+**The presence fixpoint (`resolveJoinImplications`).** After the FROM walk, one eager pass turns join quals into row-implied predicates. Two facts reinforce each other to a fixed point: *present(R)* — relation R is never NULL-extended in any emitted row (initially: every REQUIRED relation) — and *implied(J)* — join J's ON qual held for every emitted row. An INNER join's qual is implied when its slice genuinely appears in every row: entered REQUIRED (no ancestor can null-extend it), or any subtree relation proven present. An outer join's qual held exactly for its matched rows, so it is implied once its null-extendable side is proven present (LEFT: a right-side relation; RIGHT: mirrored; FULL: one of each). An implied qual — or a WHERE/HAVING conjunct — that strictly references a relation's column proves that relation present, which can activate further joins: in `((t LEFT u) LEFT v) INNER ck ON ck.id = v.u_id`, the inner qual proves `v` present, which implies the middle LEFT's qual, which proves `u` present. Presence is written back to the join state, and implied quals join WHERE and HAVING as guarantee evidence at the leaves. This is what closes the strict-qual-over-a-NULL-extended-side imprecision: in `(t LEFT u) INNER v ON v.u_id = u.id`, no NULL-extended `u` row can pass the strict qual, and the fixpoint now knows it.
 
 ### Step 2 — List the output columns.
 
@@ -131,7 +133,7 @@ This is the heart. We take one output column, walk its expression **bottom-up (l
 **Literal (`A_Const`):** resolves itself. `'foo'` → non-null. `42` → non-null. `true` → non-null. The `NULL` literal (tagged `isnull: true` in the AST) → nullable. No recursion needed.
 
 **ColumnRef:** resolves itself against the current scope's address book. We look up which alias this column belongs to, and which column of that alias. Then we combine facts:
-- Is this column guaranteed non-null by a WHERE predicate? We check by walking this scope's WHERE subtree looking for a predicate that implies this specific column is non-null — `IS NOT NULL` on this column, or a comparison (`=`, `>`, `IN`, `LIKE`, …) with this column as a direct operand, inside an AND-conjunct. If the column's alias is on the optional side of an outer join and such a predicate exists, the alias is **promoted** to required (the LEFT JOIN effectively becomes INNER — the WHERE eliminates all NULL-extended rows). This check happens *here*, during leaf resolution, not as a pre-pass.
+- Is this column guaranteed non-null by a row-implied predicate? The evidence set is the scope's WHERE, its HAVING (every emitted row passed it — including the zero-input aggregate row, which is why HAVING is exempt from the `rowsImplyWhere` gate on parameter narrowing), and every ON qual the presence fixpoint proved implied. Within a predicate: `IS NOT NULL`, strict comparisons (the shared total+strict operator set), `IN` (tested value only), and `BETWEEN`, inside AND-conjuncts — and inside an OR only by **intersection**: every disjunct must prove the column, since any arm could have been the TRUE one (`col = 'a' OR col = 'b'` promotes; the optional-filter idiom's `IS NULL` arm proves nothing and correctly blocks it). The column need not be a *direct* operand: the strict-expression closure attributes through strict operators, strict functions (catalog metadata, or the measured `STRICT_BUILTIN_FUNCTIONS` set), `NULLIF`'s left side, casts, and `COALESCE` by intersection — `length(col) > 0` proves `col`. If the column's alias is on the optional side of an outer join and such a predicate exists, the alias is **promoted** to required. This check happens *here*, during leaf resolution, not as a pre-pass. In UPDATE RETURNING scopes, SET columns are masked from this evidence: the WHERE tested the OLD row and RETURNING reports the NEW one (`update-set-mask.sql` is the live counterexample).
 - If the alias is a real table/view: read the catalog's `notNull` flag for that column. Combine with the join nullability: `notNull = catalog.notNull(col) && !joinNullable(alias)` (after promotion). If the WHERE guarantees it, override to non-null.
 - If the alias is a subquery or CTE: **recurse** — run this whole procedure (steps 1–3) on the inner scope, memoize the per-output-column results, and read the Nth one. This is how nullability threads across scope boundaries.
 - If the alias is a VALUES list: each column's nullability is the nullability of the corresponding expression in that row of the VALUES list.
@@ -476,9 +478,8 @@ sound, just imprecise.
 ## 6. What this is NOT
 
 - **Not type inference.** PREPARE gives us types (PG's own analysis). We only infer nullability.
-- **Not theorem proving.** The WHERE analysis is syntactic pattern matching, not logical implication. We detect specific patterns (IS NOT NULL, comparison on a column) in AND-conjuncts. Disjunctions and complex predicates are conservatively skipped.
-- **Not a solver.** Branch guards are syntactic pattern matching over the branch conditions, not logical implication. `CASE WHEN length(col) > 0 THEN col ELSE 'x' END` is nullable: the condition is a strict function call whose truth does imply `col` is non-null, but the guard analyzer only recognises the shapes listed under "Branch guards".
-- **Not set-theoretic.** We don't model `A | B` row-shape unions from disjunctive WHERE clauses. Conservative: everything nullable.
+- **Not theorem proving.** The predicate analysis is syntactic pattern matching plus a strict-expression closure, not logical implication. AND recursion, OR by per-arm intersection, the listed comparison shapes, and strict-dependence attribution (`length(col) > 0` proves `col`) — anything else is conservatively skipped. Branch guards run the same analyzer over CASE conditions, so they share exactly these limits.
+- **Not set-theoretic.** We don't model `A | B` row-shape unions from disjunctive WHERE clauses; an OR contributes only what every arm proves.
 
 ---
 
@@ -496,7 +497,7 @@ These have been decided:
 
 4. **`CASE` expressions:** non-null iff there is an `ELSE` and every branch result is non-null. Branch results are path-sensitive — each is walked under the conditions required to reach it (see "Branch guards").
 
-5. **Disjunctive WHERE (`OR`):** conservative — no guarantees. All columns nullable.
+5. **Disjunctive WHERE (`OR`):** guarantees by intersection — an OR proves a target non-null only when EVERY disjunct does (whichever arm was TRUE, it could not have been TRUE with the target NULL). An arm that proves nothing (`$1 IS NULL`) blocks the whole disjunction, which is what keeps the optional-filter idiom legal.
 
 6. **`NOT EXISTS`:** non-null (returns bool). The `BoolExpr(NOT_EXPR)` rule recurses into its arg; if the arg is an EXISTS subquery (non-null), NOT of it is non-null.
 

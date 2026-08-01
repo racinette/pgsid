@@ -976,13 +976,15 @@ export function generateDmlQueries(): GeneratedQuery[] {
 
   // --- delete-using: update-from's mirror, minus assignment channels. ------
   // DELETE has no SET, so its parameter rides a WHERE disjunct: the contract
-  // is nullable (comparison position, NULL legal via the IS NULL arm), and
-  // the projected `$1 + 1` pins the DELIBERATE absence of WHERE-conjunct
-  // narrowing in DML RETURNING — DML scopes carry no whereClause, because
-  // handing them one would also enable column promotion, which is unsound
-  // for SET columns (WHERE tests the OLD row). If the recorded param-only
-  // extension ever lands, this claim flips notNull and PostgreSQL will
-  // agree — deleted rows all passed the WHERE.
+  // is nullable (comparison position, NULL legal via the IS NULL arm). The
+  // projected `$1 + 1` is a live GUARD on the DML WHERE channel's OR
+  // handling, not a beacon: the disjunction proves nothing (intersection —
+  // the IS NULL arm proves nothing), so the claim stays nullable and is
+  // witnessed by the NULL binding's deleted rows. An implementation that
+  // wrongly narrowed through OR would claim notNull here and be falsified
+  // immediately by that same run. (An earlier version of this comment
+  // predicted the claim would FLIP when the channel landed — wrong, for
+  // exactly the intersection reason above; the channel landed and it holds.)
   for (const k of JOIN_KINDS) {
     const deleteReturning: [key: string, targets: Ast[]][] = [
       [

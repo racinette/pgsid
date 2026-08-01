@@ -241,23 +241,37 @@ returns nothing. The parameter mirror of the column WHERE-promotion the walk
 already had, built on `forcedNullParams` and the shared strict-operator set,
 with three boundaries each carried by a fixture or generated negative:
 
-- *Conjuncts only.* OR and NOT guarantee nothing — the optional-filter idiom
-  returns rows with the parameter NULL (`param-optional-filter`). Qualifying
-  conjunct shapes: strict comparisons, `= ANY`/`ALL`, `BETWEEN [SYMMETRIC]`,
-  `IN` (tested value only — `x IN ($1, 5)` is TRUE via 5), `IS NOT NULL`.
-- *Rows must imply the WHERE.* An ungrouped aggregate query (or HAVING
-  without GROUP BY, or empty grouping sets) emits its row over ZERO input
-  rows — `SELECT $1, count(*) … WHERE val = $1` returns `[NULL, 0]` — so
-  narrowing is gated on `rowsImplyWhere` (`param-where-agg-norows` is the
-  live trap). Plain GROUP BY qualifies via the non-empty-groups guarantee.
-- *Current scope only, SELECT scopes only.* Subquery/CTE/view analyses are
-  memoized by node identity, so guarantees never travel the outer chain — a
-  context-dependent result would leak across references. DML RETURNING
-  scopes are excluded because enabling their `whereClause` would also enable
-  COLUMN promotion there, which is unsound (WHERE tested the OLD row;
-  RETURNING reports the NEW one). Recorded extensions, none taken: INNER
-  `ON` and HAVING conjuncts (the column promotion ignores them too), and a
-  param-only DML-RETURNING channel.
+- *Conjuncts, and disjunctions by intersection.* NOT guarantees nothing; an
+  OR narrows only when EVERY arm proves the parameter — whichever arm was
+  TRUE could not have been TRUE with it NULL. The optional-filter idiom
+  stays legal by exactly that rule: its `$1 IS NULL` arm proves nothing, so
+  the intersection is empty (`param-optional-filter`). Qualifying shapes:
+  strict comparisons, `= ANY`/`ALL`, `BETWEEN [SYMMETRIC]`, `IN` (tested
+  value only — `x IN ($1, 5)` is TRUE via 5), `IS NOT NULL` — with operands
+  attributed through the shared strict closure (`forcedNullParams`, now
+  including the measured `STRICT_BUILTIN_FUNCTIONS` set).
+- *Rows must imply the predicate.* An ungrouped aggregate query (or empty
+  grouping sets) emits its row over ZERO input rows — `SELECT $1, count(*) …
+  WHERE val = $1` returns `[NULL, 0]` — so WHERE and ON-qual narrowing are
+  gated on `rowsImplyWhere` (`param-where-agg-norows` is the live trap).
+  Plain GROUP BY qualifies via the non-empty-groups guarantee. HAVING is
+  exempt from the gate: even the zero-input row must pass HAVING to be
+  emitted (`having-narrowing.sql`).
+- *Current scope only.* Subquery/CTE/view analyses are memoized by node
+  identity, so guarantees never travel the outer chain — a context-dependent
+  result would leak across references.
+- *The formerly recorded extensions, all taken (Wave 1):* INNER `ON` and
+  outer-join quals proven held by the presence fixpoint
+  (`resolveJoinImplications` in the walk; `join-on-promotion.sql`), HAVING
+  conjuncts (`having-narrowing.sql`), and the DML WHERE channel — UPDATE and
+  DELETE RETURNING scopes now carry their whereClause with
+  `rowsImplyWhere = true` (every RETURNING row is an affected row, and
+  RETURNING cannot contain aggregates). Parameters narrow unconditionally
+  there; COLUMN promotion applies to FROM/USING relations and non-SET target
+  columns (old row = new row for those), while SET columns are masked —
+  `update-set-mask.sql` is the live counterexample that forces the mask.
+  MERGE stays out entirely: NOT MATCHED arms never passed the join
+  condition.
 
 **Deferred, recorded so the boundary is deliberate:**
 

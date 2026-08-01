@@ -1,7 +1,7 @@
 import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
-import { TOTAL_STRICT_OPERATORS } from "./operators.js";
+import { STRICT_BUILTIN_FUNCTIONS, TOTAL_STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
   collectParamNullability,
@@ -255,6 +255,27 @@ interface MergedColumn {
   jointype: string;
 }
 
+/**
+ * One JoinExpr of a scope's FROM tree, flattened for the presence fixpoint:
+ * the qual plus the alias names registered while walking each side (the
+ * whole subtree, not just immediate children — null-extension applies to a
+ * side as a unit).
+ */
+interface JoinPredicate {
+  jointype: string;
+  quals: Node;
+  leftAliases: string[];
+  rightAliases: string[];
+  /**
+   * The joinState this JoinExpr was entered with. REQUIRED means no ancestor
+   * join can null-extend this join's slice — for an INNER join that alone
+   * proves its qual held for every emitted row, even when every relation
+   * inside it is optional ((t FULL u) INNER (v FULL ck): nothing is present,
+   * yet every row passed the inner qual).
+   */
+  incomingRequired: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Scope: the address book for one SELECT level.
 // ---------------------------------------------------------------------------
@@ -281,6 +302,29 @@ interface Scope {
   ctes: Map<string, { ast: Node; columns: string[]; extraColumns: OutputNullability[] }>;
   /** WHERE clause node (consulted at ColumnRef and ParamRef leaves). */
   whereClause?: Node;
+  /**
+   * HAVING clause node — the same evidence as WHERE with one difference in
+   * strength: every emitted row passed HAVING, INCLUDING the zero-input
+   * ungrouped-aggregate row and super-aggregate rows, so HAVING guarantees
+   * are consulted without the `rowsImplyWhere` gate. Aggregate calls are
+   * opaque to the strict closure, so `max(col) = 'x'` proves nothing about
+   * per-row `col` — only conjuncts over group keys or parameters land.
+   */
+  havingClause?: Node;
+  /**
+   * The scope's join tree, flattened: one record per JoinExpr with an ON
+   * qual, carrying the aliases registered under each side. Input to the
+   * presence fixpoint (`resolveJoinImplications`).
+   */
+  joins: JoinPredicate[];
+  /**
+   * ON quals proven to have HELD for every row this scope emits — an INNER
+   * join whose slice appears genuinely in every row, or an outer join whose
+   * null-extendable side is proven present (only matched rows exist).
+   * Consulted exactly like WHERE conjuncts for column guarantees and (gated
+   * on `rowsImplyWhere`, same hazard) parameter narrowing.
+   */
+  impliedQuals: Node[];
   /**
    * Whether every row this scope emits derives from at least one input row
    * that passed `whereClause`. TRUE for a plain SELECT and for a grouped
@@ -314,6 +358,16 @@ interface Scope {
    * unqualified references both match.
    */
   groupingSetColumns: ReadonlySet<string>;
+  /**
+   * UPDATE only: the target alias and its SET columns. A DML WHERE tested
+   * the OLD row while RETURNING reports the NEW one, so column guarantees
+   * from WHERE/ON-qual evidence are suppressed for exactly these columns —
+   * they are the only ones whose old and new values can differ. Non-SET
+   * target columns and FROM/USING relation columns are unchanged by the
+   * statement, and parameters are statement constants; both keep the full
+   * guarantee machinery.
+   */
+  dmlSetColumns?: { alias: string; columns: ReadonlySet<string> };
   /** Outer scope for correlated references. */
   outer: Scope | null;
   /** Memoized per-output-column results for this scope's AST node. */
@@ -720,6 +774,9 @@ class NullabilityEngine {
       aliases: new Map(),
       ctes: new Map(),
       whereClause: stmt.whereClause,
+      havingClause: stmt.havingClause,
+      joins: [],
+      impliedQuals: [],
       visible: [],
       rowsImplyWhere: stmt.groupClause?.length
         ? this.groupingGuaranteesNonEmptyGroups(stmt)
@@ -743,7 +800,93 @@ class NullabilityEngine {
       }
     }
 
+    this.resolveJoinImplications(scope);
     return scope;
+  }
+
+  /**
+   * The presence fixpoint. Two mutually-reinforcing facts iterate to a
+   * fixed point over the scope's join tree:
+   *
+   *   present(R) — relation R's row is genuinely present (never
+   *     NULL-extended) in every row the scope emits. Initially: every
+   *     relation whose joinState is REQUIRED.
+   *
+   *   implied(J) — join J's ON qual HELD for every emitted row. An INNER
+   *     join's qual held for every row its slice genuinely appears in, so it
+   *     is implied once ANY relation of its subtree is present (a side
+   *     null-extends as a unit, so one present member pins the whole slice).
+   *     An outer join's qual held exactly for its MATCHED rows, so it is
+   *     implied once its null-extendable side is proven present — LEFT needs
+   *     a right-side relation, RIGHT a left-side one, FULL one of each.
+   *
+   * An implied qual (or a WHERE conjunct — same evidence, eagerly here
+   * rather than lazily) that strictly references a relation's column proves
+   * that relation present, which can activate further joins — the chain
+   * `((t LEFT u) LEFT v) INNER ck ON ck.id = v.u_id` proves v present, which
+   * implies the middle LEFT's qual `v.u_id = u.id`, which proves u present.
+   * Null-group co-membership propagates presence the same way it does for
+   * lazy promotion: group members are NULL-extended atomically.
+   *
+   * Promotions are written back to entry.joinState (OPTIONAL → REQUIRED),
+   * and the implied quals are stored for the column and parameter guarantee
+   * checks — which is what makes a strict qual over a NULL-extended side
+   * finally cancel the extension instead of being ignored.
+   */
+  private resolveJoinImplications(scope: Scope): void {
+    if (scope.joins.length === 0 && scope.impliedQuals.length === 0) return;
+    const present = new Set<string>();
+    for (const [alias, entry] of scope.aliases) {
+      if (entry.joinState === REQUIRED) present.add(alias);
+    }
+    const wherePreds: Node[] = [
+      ...(scope.whereClause ? [scope.whereClause] : []),
+      ...(scope.havingClause ? [scope.havingClause] : []),
+    ];
+    const pending = [...scope.joins];
+
+    let changed = true;
+    while (changed) {
+      changed = false;
+
+      for (let i = pending.length - 1; i >= 0; i--) {
+        const j = pending[i]!;
+        const leftPresent = j.leftAliases.some(a => present.has(a));
+        const rightPresent = j.rightAliases.some(a => present.has(a));
+        const active =
+          j.jointype === "JOIN_INNER"
+            ? j.incomingRequired || leftPresent || rightPresent
+            : j.jointype === "JOIN_LEFT"
+              ? rightPresent
+              : j.jointype === "JOIN_RIGHT"
+                ? leftPresent
+                : j.jointype === "JOIN_FULL"
+                  ? leftPresent && rightPresent
+                  : false;
+        if (active) {
+          scope.impliedQuals.push(j.quals);
+          pending.splice(i, 1);
+          changed = true;
+        }
+      }
+
+      for (const [alias, entry] of scope.aliases) {
+        if (present.has(alias)) continue;
+        const proven =
+          [...wherePreds, ...scope.impliedQuals].some(p =>
+            this.whereImpliesAliasNotNull(p, alias),
+          ) ||
+          [...scope.aliases.values()].some(
+            other => other.alias !== alias && other.nullGroup === entry.nullGroup &&
+              present.has(other.alias),
+          );
+        if (proven) {
+          present.add(alias);
+          if (entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
+          changed = true;
+        }
+      }
+    }
   }
 
   private nextNullGroup(): number {
@@ -900,8 +1043,23 @@ class NullabilityEngine {
           rightGroup = this.nextNullGroup();
           break;
       }
+      const aliasesBefore = scope.aliases.size;
       const left = join.larg ? this.walkFromItem(join.larg, leftState, scope, leftGroup, depth) : [];
+      const aliasesAfterLeft = scope.aliases.size;
       const right = join.rarg ? this.walkFromItem(join.rarg, rightState, scope, rightGroup, depth) : [];
+      // Record the qual with its per-side alias sets (whole subtrees — the
+      // Map appends in registration order, so slicing the key list recovers
+      // exactly what each side's walk added) for the presence fixpoint.
+      if (join.quals) {
+        const keys = [...scope.aliases.keys()];
+        scope.joins.push({
+          jointype: join.jointype ?? "JOIN_INNER",
+          quals: join.quals,
+          leftAliases: keys.slice(aliasesBefore, aliasesAfterLeft),
+          rightAliases: keys.slice(aliasesAfterLeft),
+          incomingRequired: joinState === REQUIRED,
+        });
+      }
       return this.mergeJoinColumns(join, left, right);
     } else if ("RangeFunction" in node) {
       const rf = node["RangeFunction"] as RangeFunction;
@@ -1094,6 +1252,23 @@ class NullabilityEngine {
       }
     }
 
+    // Every RETURNING row is an affected row, which passed the WHERE — and
+    // RETURNING cannot contain aggregates, so the zero-input hazard behind
+    // rowsImplyWhere does not exist here. The SET columns are the one
+    // exception (old row vs new row) and are masked via dmlSetColumns.
+    scope.whereClause = stmt.whereClause;
+    scope.rowsImplyWhere = true;
+    const targetAlias = [...scope.aliases.keys()][0];
+    if (targetAlias !== undefined) {
+      const setColumns = new Set<string>();
+      for (const item of stmt.targetList ?? []) {
+        const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
+        if (name) setColumns.add(name);
+      }
+      scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
+    }
+    this.resolveJoinImplications(scope);
+
     return this.analyzeReturning(stmt.returningClause, scope, depth);
   }
 
@@ -1114,6 +1289,11 @@ class NullabilityEngine {
         scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
       }
     }
+    // Same reasoning as UPDATE: deleted rows all passed the WHERE, RETURNING
+    // has no aggregates — and DELETE has no SET, so no column is masked.
+    scope.whereClause = stmt.whereClause;
+    scope.rowsImplyWhere = true;
+    this.resolveJoinImplications(scope);
 
     return this.analyzeReturning(stmt.returningClause, scope, depth);
   }
@@ -1145,6 +1325,11 @@ class NullabilityEngine {
         ...this.walkFromItem(stmt.sourceRelation, OPTIONAL, scope, this.nextNullGroup(), depth),
       );
     }
+    // A join written directly as the MERGE source is walked OPTIONAL (NOT
+    // MATCHED BY SOURCE null-extends the whole source), so the fixpoint's
+    // incoming-presence condition keeps its quals un-implied — running it is
+    // deliberate, not an oversight.
+    this.resolveJoinImplications(scope);
     return scope;
   }
 
@@ -1156,6 +1341,8 @@ class NullabilityEngine {
     const scope: Scope = {
       aliases: new Map(),
       ctes: new Map(),
+      joins: [],
+      impliedQuals: [],
       visible: [],
       rowsImplyWhere: false,
       groupGuaranteesNonEmpty: false,
@@ -1371,6 +1558,8 @@ class NullabilityEngine {
     return {
       aliases: new Map(),
       ctes: new Map(),
+      joins: [],
+      impliedQuals: [],
       visible: [],
       rowsImplyWhere: false,
       groupGuaranteesNonEmpty: false,
@@ -1697,16 +1886,21 @@ class NullabilityEngine {
         return true;
       }
       // WHERE-conjunct narrowing: this scope's rows each passed a conjunct
-      // that cannot be TRUE with $num NULL. Gated on rowsImplyWhere — an
+      // that cannot be TRUE with $num NULL. Implied ON quals are the same
+      // evidence (resolveJoinImplications). Gated on rowsImplyWhere — an
       // ungrouped aggregate emits its row over zero input rows, proving
-      // nothing. Unlike mechanism A this narrows the output only; the
-      // parameter remains a perfectly legal NULL binding that simply
-      // returns no rows.
-      if (
-        scope.rowsImplyWhere &&
-        scope.whereClause &&
-        this.whereImpliesParamNotNull(scope.whereClause, num)
-      ) {
+      // nothing about the WHERE or about any join qual. Unlike mechanism A
+      // this narrows the output only; the parameter remains a perfectly
+      // legal NULL binding that simply returns no rows.
+      const narrowingPreds = [
+        // WHERE and ON quals prove nothing when a row can be emitted over
+        // zero input (the ungrouped-aggregate hazard); HAVING is exempt —
+        // even that row had to pass it to be emitted.
+        ...(scope.rowsImplyWhere && scope.whereClause ? [scope.whereClause] : []),
+        ...(scope.rowsImplyWhere ? scope.impliedQuals : []),
+        ...(scope.havingClause ? [scope.havingClause] : []),
+      ];
+      if (narrowingPreds.some(p => this.whereImpliesParamNotNull(p, num))) {
         trace.addFact("param", `$${num}`);
         trace.addFact("whereGuarantee", "a must-be-TRUE conjunct requires it non-null");
         trace.conclude(
@@ -2462,8 +2656,26 @@ class NullabilityEngine {
     colName: string,
     scope: Scope,
   ): boolean {
-    if (!scope.whereClause) return false;
-    return this.whereImpliesNotNull(scope.whereClause, alias, colName);
+    // A SET column's WHERE-time value is the OLD row's; RETURNING reports
+    // the NEW one, so predicate evidence proves nothing for it.
+    if (
+      scope.dmlSetColumns &&
+      scope.dmlSetColumns.alias === alias &&
+      scope.dmlSetColumns.columns.has(colName)
+    ) {
+      return false;
+    }
+    // Implied ON quals and HAVING are the same evidence as WHERE conjuncts:
+    // every row this scope emits satisfied them (see resolveJoinImplications
+    // and the havingClause field note).
+    for (const pred of [
+      ...(scope.whereClause ? [scope.whereClause] : []),
+      ...(scope.havingClause ? [scope.havingClause] : []),
+      ...scope.impliedQuals,
+    ]) {
+      if (this.whereImpliesNotNull(pred, alias, colName)) return true;
+    }
+    return false;
   }
 
   // -------------------------------------------------------------------------
@@ -2545,7 +2757,11 @@ class NullabilityEngine {
     if ("NullTest" in node) {
       const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
       if (nt.nulltesttype === "IS_NULL" && nt.arg) {
-        return this.columnMatches(nt.arg, alias, colName);
+        // `expr IS NULL` being FALSE means expr is non-null; if expr is NULL
+        // whenever the column is, the contrapositive gives the column.
+        return this.exprStrictlyForces(nt.arg, leaf =>
+          this.columnMatches(leaf, alias, colName),
+        );
       }
       return false;
     }
@@ -2626,47 +2842,9 @@ class NullabilityEngine {
    * attributed to an alias without knowing all columns.
    */
   private whereImpliesAliasNotNull(whereClause: Node, alias: string): boolean {
-    const node = whereClause as Record<string, unknown>;
-
-    if ("BoolExpr" in node) {
-      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
-      if (be.boolop === "AND_EXPR") {
-        for (const arg of be.args ?? []) {
-          if (this.whereImpliesAliasNotNull(arg, alias)) return true;
-        }
-      }
-      return false;
-    }
-
-    if ("NullTest" in node) {
-      const nt = node["NullTest"] as { arg: Node; nulltesttype: string };
-      if (nt.nulltesttype === "IS_NOT_NULL") {
-        return this.columnRefMatchesAlias(nt.arg, alias);
-      }
-      return false;
-    }
-
-    if ("A_Expr" in node) {
-      const ae = node["A_Expr"] as {
-        kind?: string;
-        name?: Node[];
-        lexpr?: Node;
-        rexpr?: Node;
-      };
-      if (
-        (ae.kind === "AEXPR_OP" ||
-          ae.kind === "AEXPR_IN" ||
-          ae.kind === "AEXPR_OP_ANY" ||
-          ae.kind === "AEXPR_OP_ALL") &&
-        this.promotionOperatorIsStrict(ae.name)
-      ) {
-        if (ae.lexpr && this.columnRefMatchesAlias(ae.lexpr, alias)) return true;
-        if (ae.rexpr && this.columnRefMatchesAlias(ae.rexpr, alias)) return true;
-      }
-      return false;
-    }
-
-    return false;
+    return this.predicateProvesNonNull(whereClause, n =>
+      this.exprStrictlyForces(n, leaf => this.columnRefMatchesAlias(leaf, alias)),
+    );
   }
 
   /**
@@ -2744,21 +2922,62 @@ class NullabilityEngine {
    * same rule that stops branch guards at statement boundaries.
    */
   private whereImpliesParamNotNull(clause: Node, num: number): boolean {
-    const node = clause as Record<string, unknown>;
+    return this.predicateProvesNonNull(clause, n =>
+      forcedNullParams(n, this.catalog).has(num),
+    );
+  }
+
+  private whereImpliesNotNull(
+    whereClause: Node,
+    alias: string,
+    colName: string,
+  ): boolean {
+    return this.predicateProvesNonNull(whereClause, n =>
+      this.exprStrictlyForces(n, leaf => this.columnMatches(leaf, alias, colName)),
+    );
+  }
+
+  /**
+   * Whether `pred` being TRUE proves the target non-null, where `forces`
+   * answers the strict-dependence question for one operand: "is this
+   * expression NULL whenever the target is NULL?" — the contrapositive of
+   * what the caller concludes. Shared by the column and parameter analyses;
+   * only the leaf differs (a ColumnRef match run through the strict closure,
+   * or `forcedNullParams`).
+   *
+   * Shapes:
+   *   - AND: any conjunct proves.
+   *   - OR: EVERY disjunct proves — whichever arm made the predicate TRUE,
+   *     it could not have been TRUE with the target NULL. The optional-filter
+   *     idiom `col = $1 OR $1 IS NULL` proves nothing, because the IS NULL
+   *     arm proves nothing — the intersection is what keeps it legal.
+   *   - IS NOT NULL over a forcing expression.
+   *   - Strict comparisons (the shared total+strict operator set — accepting
+   *     ANY operator was the engine's first measured unsoundness): both
+   *     operands for OP/ANY/ALL (`x = ANY(arr)` is NULL when either the
+   *     tested value or the array is), the tested value only for IN
+   *     (`x IN ($1, 5)` is TRUE via 5), tested value and bounds for BETWEEN
+   *     (NOT BETWEEN is a different kind and deliberately absent — it can be
+   *     TRUE with a NULL bound).
+   */
+  private predicateProvesNonNull(pred: Node, forces: (expr: Node) => boolean): boolean {
+    const node = pred as Record<string, unknown>;
 
     if ("BoolExpr" in node) {
       const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
+      const args = be.args ?? [];
       if (be.boolop === "AND_EXPR") {
-        return (be.args ?? []).some(arg => this.whereImpliesParamNotNull(arg, num));
+        return args.some(arg => this.predicateProvesNonNull(arg, forces));
+      }
+      if (be.boolop === "OR_EXPR") {
+        return args.length > 0 && args.every(arg => this.predicateProvesNonNull(arg, forces));
       }
       return false;
     }
 
     if ("NullTest" in node) {
-      const nt = node["NullTest"] as { arg: Node; nulltesttype?: string };
-      return (
-        nt.nulltesttype === "IS_NOT_NULL" && forcedNullParams(nt.arg, this.catalog).has(num)
-      );
+      const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
+      return nt.nulltesttype === "IS_NOT_NULL" && !!nt.arg && forces(nt.arg);
     }
 
     if ("A_Expr" in node) {
@@ -2768,25 +2987,17 @@ class NullabilityEngine {
         lexpr?: Node;
         rexpr?: Node;
       };
-      const op = ae.name?.length === 1 ? this.stringVal(ae.name[0]!) : "";
-      const forced = (n: Node | undefined): boolean =>
-        n !== undefined && forcedNullParams(n, this.catalog).has(num);
+      const forced = (n: Node | undefined): boolean => n !== undefined && forces(n);
 
       switch (ae.kind) {
         case "AEXPR_OP":
         case "AEXPR_OP_ANY":
         case "AEXPR_OP_ALL":
-          // `x = ANY(arr)` is NULL when either the tested value or the array
-          // as a whole is NULL, so both operands count. The comparison must
-          // be from the shared strict set.
-          return TOTAL_STRICT_OPERATORS.has(op) && (forced(ae.lexpr) || forced(ae.rexpr));
+          return this.promotionOperatorIsStrict(ae.name) && (forced(ae.lexpr) || forced(ae.rexpr));
         case "AEXPR_IN":
-          // Only the tested value: `x IN ($1, 5)` is TRUE via 5 with $1 NULL.
           return forced(ae.lexpr);
         case "AEXPR_BETWEEN":
         case "AEXPR_BETWEEN_SYM": {
-          // Strict in the tested value and both bounds. NOT BETWEEN is
-          // excluded: it can be TRUE with a NULL bound.
           if (forced(ae.lexpr)) return true;
           const bounds = (ae.rexpr as { List?: { items?: Node[] } } | undefined)?.List?.items;
           return (bounds ?? []).some(b => forced(b));
@@ -2799,55 +3010,66 @@ class NullabilityEngine {
     return false;
   }
 
-  private whereImpliesNotNull(
-    whereClause: Node,
-    alias: string,
-    colName: string,
-  ): boolean {
-    const node = whereClause as Record<string, unknown>;
+  /**
+   * Whether `expr` is NULL whenever the leaf the caller cares about is NULL —
+   * the column-side strict closure, mirroring `forcedNullParams`: a NULL
+   * propagates through strict operators, NULLIF's left operand, COALESCE only
+   * when every branch forces (intersection), casts transparently, and strict
+   * functions (catalog metadata for user functions, the measured
+   * STRICT_BUILTIN_FUNCTIONS set for pg_catalog names the catalog does not
+   * carry — a user function of the same name always wins and gates on its own
+   * declared strictness). Aggregates and window invocations are opaque: an
+   * aggregate's value does not depend on any single row's column, and a
+   * window function reads OTHER rows. Anything unrecognised forces nothing,
+   * keeping the conclusion conservative.
+   */
+  private exprStrictlyForces(expr: Node, leaf: (columnRef: Node) => boolean): boolean {
+    const node = expr as Record<string, unknown>;
 
-    // AND: check each conjunct.
-    if ("BoolExpr" in node) {
-      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
-      if (be.boolop === "AND_EXPR") {
-        for (const arg of be.args ?? []) {
-          if (this.whereImpliesNotNull(arg, alias, colName)) return true;
-        }
+    if ("ColumnRef" in node) return leaf(expr);
+
+    if ("TypeCast" in node) {
+      const arg = (node["TypeCast"] as { arg?: Node }).arg;
+      return !!arg && this.exprStrictlyForces(arg, leaf);
+    }
+
+    if ("A_Expr" in node) {
+      const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
+      if (ae.kind === "AEXPR_NULLIF") {
+        return !!ae.lexpr && this.exprStrictlyForces(ae.lexpr, leaf);
+      }
+      if (ae.kind === "AEXPR_OP" && this.promotionOperatorIsStrict(ae.name)) {
+        return [ae.lexpr, ae.rexpr].some(o => !!o && this.exprStrictlyForces(o, leaf));
+      }
+      return false;
+    }
+
+    if ("CoalesceExpr" in node) {
+      const args = (node["CoalesceExpr"] as { args?: Node[] }).args ?? [];
+      return args.length > 0 && args.every(a => this.exprStrictlyForces(a, leaf));
+    }
+
+    if ("FuncCall" in node) {
+      const fc = node["FuncCall"] as FuncCall & {
+        agg_star?: boolean;
+        agg_within_group?: boolean;
+        agg_distinct?: boolean;
+      };
+      if (fc.over || fc.agg_star || fc.agg_within_group || fc.agg_distinct || fc.agg_filter) {
         return false;
       }
-      // OR, NOT — no guarantees.
-      return false;
-    }
-
-    // IS NOT NULL on this column.
-    if ("NullTest" in node) {
-      const nt = node["NullTest"] as { arg: Node; nulltesttype: string };
-      if (nt.nulltesttype === "IS_NOT_NULL") {
-        return this.columnMatches(nt.arg, alias, colName);
-      }
-      return false;
-    }
-
-    // A_Expr comparison: `col OP expr` or `expr OP col`. Only operators from
-    // the shared total+strict set count — see promotionOperatorIsStrict.
-    if ("A_Expr" in node) {
-      const ae = node["A_Expr"] as {
-        kind?: string;
-        name?: Node[];
-        lexpr?: Node;
-        rexpr?: Node;
-      };
-      if (
-        (ae.kind === "AEXPR_OP" ||
-          ae.kind === "AEXPR_IN" ||
-          ae.kind === "AEXPR_OP_ANY" ||
-          ae.kind === "AEXPR_OP_ALL") &&
-        this.promotionOperatorIsStrict(ae.name)
-      ) {
-        if (ae.lexpr && this.columnMatches(ae.lexpr, alias, colName)) return true;
-        if (ae.rexpr && this.columnMatches(ae.rexpr, alias, colName)) return true;
-      }
-      return false;
+      const args = fc.args ?? [];
+      if (args.some(a => "NamedArgExpr" in (a as Record<string, unknown>))) return false;
+      const parts = (fc.funcname ?? []).map(f => this.stringVal(f));
+      const name = parts[parts.length - 1] ?? "";
+      const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+      if (!name || this.isAggregateByName(name, schema)) return false;
+      const meta = this.catalog.resolveFunctionMetadata(schema, name);
+      const strict = meta
+        ? meta.strict && !meta.isAggregate
+        : (schema === undefined || schema === "pg_catalog") &&
+          STRICT_BUILTIN_FUNCTIONS.has(name);
+      return strict && args.some(a => this.exprStrictlyForces(a, leaf));
     }
 
     return false;

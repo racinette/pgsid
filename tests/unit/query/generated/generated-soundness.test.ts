@@ -553,91 +553,8 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     "nest-left(full,inner)",
     "nest-left(full,right)",
   ]);
-  const REFILTERED_STRUCTURES = new Set([
-    "nest-right(inner,right)",
-    "nest-right(inner,full)",
-    "nest-left(left,inner)",
-    "nest-left(full,inner)",
-  ]);
-
-  // The deep-join structures whose a_ue (u.email) can never be witnessed
-  // NULL: every u-null-extended row is discarded by a strict edge qual
-  // before the output. Two faces of one mechanism, verified by a
-  // join-semantics walk over the chain data that reproduces this set
-  // exactly (44/44) and was spot-checked empirically:
-  //   - e1-blocked: the u-containing subtree joins t under INNER, whose
-  //     strict u.t_id = t.id discards every u-null row the subtree produced
-  //     (right-deep/mid-right/mid-left with the t-join inner);
-  //   - e2/e3-blocked: the t-side orphan rows (u and the rest of the chain
-  //     jointly null-extended) die at a downstream inner/left strict edge,
-  //     and no v-side u-null path survives either (v.7—ck.55 needs a
-  //     right/full join to enter, ck-only rows need k3 right/full).
-  // Same imprecision class as strict-qual-refilters-null-extension below —
-  // the known-imprecisions register entry — at depth 3.
-  const DEEP_UE_DARK_STRUCTURES = new Set([
-    "deep-left-deep(left,inner,inner)",
-    "deep-left-deep(left,inner,left)",
-    "deep-left-deep(left,left,inner)",
-    "deep-left-deep(full,inner,inner)",
-    "deep-left-deep(full,inner,left)",
-    "deep-left-deep(full,left,inner)",
-    "deep-right-deep(inner,right,inner)",
-    "deep-right-deep(inner,right,left)",
-    "deep-right-deep(inner,right,right)",
-    "deep-right-deep(inner,right,full)",
-    "deep-right-deep(inner,full,inner)",
-    "deep-right-deep(inner,full,left)",
-    "deep-right-deep(inner,full,right)",
-    "deep-right-deep(inner,full,full)",
-    "deep-balanced(left,inner,inner)",
-    "deep-balanced(left,inner,left)",
-    "deep-balanced(left,inner,right)",
-    "deep-balanced(left,inner,full)",
-    "deep-balanced(full,inner,inner)",
-    "deep-balanced(full,inner,left)",
-    "deep-balanced(full,inner,right)",
-    "deep-balanced(full,inner,full)",
-    "deep-mid-left(inner,right,inner)",
-    "deep-mid-left(inner,right,left)",
-    "deep-mid-left(inner,full,inner)",
-    "deep-mid-left(inner,full,left)",
-    "deep-mid-left(left,inner,inner)",
-    "deep-mid-left(left,left,inner)",
-    "deep-mid-left(left,right,inner)",
-    "deep-mid-left(left,full,inner)",
-    "deep-mid-left(full,inner,inner)",
-    "deep-mid-left(full,left,inner)",
-    "deep-mid-right(inner,inner,right)",
-    "deep-mid-right(inner,inner,full)",
-    "deep-mid-right(inner,left,right)",
-    "deep-mid-right(inner,left,full)",
-    "deep-mid-right(inner,right,inner)",
-    "deep-mid-right(inner,right,left)",
-    "deep-mid-right(inner,right,right)",
-    "deep-mid-right(inner,right,full)",
-    "deep-mid-right(inner,full,inner)",
-    "deep-mid-right(inner,full,left)",
-    "deep-mid-right(inner,full,right)",
-    "deep-mid-right(inner,full,full)",
-  ]);
 
   const UNWITNESSABLE: UnwitnessableRule[] = [
-    {
-      label: "deep-strict-edge-refilters-u",
-      why:
-        "the engine keeps u's optionality from the join that null-extends " +
-        "it, but in these deep trees every u-null-extended row is discarded " +
-        "by a strict edge qual (u.t_id = t.id at an INNER t-join, or " +
-        "v.u_id = u.id / ck.id = v.u_id at an inner/left join above the " +
-        "t-side orphans) before the output, so u.email is never NULL. Sound " +
-        "imprecision — the strict-qual-over-a-NULL-extended-side entry in " +
-        "docs/deferred-tasks.md — measured at depth 3; see " +
-        "DEEP_UE_DARK_STRUCTURES for the mechanism split.",
-      matches: (axes, column) =>
-        axes.projection === "deep-plain" &&
-        column === "a_ue" &&
-        DEEP_UE_DARK_STRUCTURES.has(axes.structure),
-    },
     {
       label: "case-needs-t-without-u",
       why:
@@ -650,54 +567,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         axes.projection === "case-nullif" &&
         column === "a_case" &&
         CASE_DARK_STRUCTURES.has(axes.structure),
-    },
-    {
-      label: "strict-qual-refilters-null-extension",
-      why:
-        "the engine keeps the lower join's optionality for textB, but every " +
-        "NULL-extended u row carries NULL join keys and cannot pass the " +
-        "strict inner qual (v.u_id = u.id / u.t_id = t.id), so textB is never " +
-        "NULL in the output. Sound imprecision; recorded in the known-" +
-        "imprecisions table in docs/deferred-tasks.md.",
-      matches: (axes, column) =>
-        (column === "a_tb" || column === "a_cp") && REFILTERED_STRUCTURES.has(axes.structure),
-    },
-    {
-      label: "dml-where-refilters",
-      why:
-        "UPDATE ... FROM / DELETE ... USING t LEFT/FULL u WHERE v.u_id = " +
-        "u.id: the WHERE equality discards every NULL-extended u row, so " +
-        "RETURNING u.email is never NULL. The engine does not apply WHERE " +
-        "promotion to DML FROM/USING relations — same mechanism as the " +
-        "join-qual rule, via the WHERE.",
-      matches: (axes, column) =>
-        (axes.wrapper === "update-from" || axes.wrapper === "delete-using") &&
-        column === "r_ue" &&
-        /^single\((left|full)\)$/.test(axes.structure),
-    },
-    {
-      label: "inner-on-refilters",
-      why:
-        "a_p1 is NULL only under a NULL binding, and the strict `u.email = " +
-        "$1` conjunct in the INNER join's ON qual is then never TRUE, so no " +
-        "row survives to carry it. INNER ON-conjunct narrowing is the " +
-        "recorded not-taken extension in docs/argument-nullability.md; if it " +
-        "ever lands, this claim flips notNull and PostgreSQL will agree. The " +
-        "outer join kinds null-extend past the qual and witness a_p1 instead.",
-      matches: (axes, column) =>
-        axes.projection === "on-param" &&
-        column === "a_p1" &&
-        axes.structure === "single(inner)",
-    },
-    {
-      label: "having-refilters",
-      why:
-        "a_ph is NULL only under a NULL binding, and `max(u.email) <> $1` is " +
-        "then NULL for every group, so HAVING filters them all and zero rows " +
-        "return. HAVING-conjunct narrowing is the recorded not-taken " +
-        "extension (same entry as INNER ON); the claim flips notNull with " +
-        "PostgreSQL's agreement if it lands.",
-      matches: (axes, column) => axes.projection === "having-param" && column === "a_ph",
     },
     {
       label: "merge-action-conservative",

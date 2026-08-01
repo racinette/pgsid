@@ -51,7 +51,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Node } from "libpg-query";
-import { TOTAL_STRICT_OPERATORS } from "./operators.js";
+import { STRICT_BUILTIN_FUNCTIONS, TOTAL_STRICT_OPERATORS } from "./operators.js";
 import type { NullabilityCatalog } from "./types.js";
 
 /**
@@ -255,13 +255,25 @@ function forcedNullBy(
   }
 
   if (n["FuncCall"]) {
-    const fc = n["FuncCall"] as { funcname?: Node[]; args?: Node[] };
+    const fc = n["FuncCall"] as {
+      funcname?: Node[];
+      args?: Node[];
+      over?: unknown;
+      agg_star?: boolean;
+    };
+    if (fc.over || fc.agg_star) return empty;
     const parts = (fc.funcname ?? []).map(stringVal);
     const name = parts[parts.length - 1];
     const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
     if (!name) return empty;
+    // A catalog entry gates on its own declared strictness (a user function
+    // always wins over a builtin name); only a name the catalog does not
+    // carry falls through to the measured strict-builtin set.
     const info = catalog.resolveFunctionMetadata(schema, name);
-    if (!info?.strict || info.isAggregate) return empty;
+    const strict = info
+      ? info.strict && !info.isAggregate
+      : (schema === undefined || schema === "pg_catalog") && STRICT_BUILTIN_FUNCTIONS.has(name);
+    if (!strict) return empty;
     const out = new Set<number>();
     for (const arg of fc.args ?? []) {
       if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return empty;

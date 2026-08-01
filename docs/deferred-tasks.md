@@ -104,17 +104,30 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the Wave-1 analyzer generalization (2026-08: strict-expression
+closure, OR by intersection, the presence fixpoint over join quals, HAVING
+as ungated evidence, and the DML WHERE channel with its SET-column mask —
+see `docs/nullability-walk.md` "The presence fixpoint" and the boundary list
+in `docs/argument-nullability.md`): `OR` in WHERE, branch guards beyond the
+pattern list, strict quals over a NULL-extended side (including all 44 deep
+structures and the `UPDATE … FROM` variant), and INNER `ON` / HAVING /
+DML-WHERE narrowing. Each closure is pinned by a fixture
+(`where-promotion-or`, `case-guard-strict-closure`, `join-refilter-promotion`,
+`join-chain-fixpoint`, `join-on-promotion`, `having-narrowing`,
+`dml-where-channel`, `update-set-mask`), and every generated-suite trap rule
+those imprecisions carried went stale and was deleted, as designed.
+
 | Construct | Current | Note |
 |---|---|---|
-| `OR` in `WHERE` | no promotion at all | disjunctions are skipped entirely by the promotion analysis |
 | Ordered-set aggregates (`percentile_cont`, `mode`) | nullable | the `WITHIN GROUP` argument is not visible to the argument check |
 | `A_Indirection` (array subscript, field access) | nullable | an out-of-range subscript really is NULL and the index is not checkable statically |
 | `XmlSerialize`, and the JSON constructor/query family | nullable | several are constructors that never return NULL; see the `conservative` entries in `node-census.test.ts` for which |
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; the NOT NULL domain return is the escape hatch |
-| `pg_catalog` built-ins outside the curated tables | nullable | add to `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` as needed, but only where the function is *total*, not merely strict |
+| `pg_catalog` built-ins outside the curated tables | nullable | add to `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` (totality required) or `STRICT_BUILTIN_FUNCTIONS` in `operators.ts` (strictness required, for the guarantee closure) as needed — the properties are different and each entry must be measured for the set it joins |
 | Custom operators | no promotion, no narrowing, nullable results | strictness is readable from `pg_proc.proisstrict` via `pg_operator`; see "Custom operator support" below |
-| Branch guards | pattern-matched, not solved | `CASE WHEN length(col) > 0 THEN col …` stays nullable: the condition's truth does imply non-nullness, but the guard analyser recognises only specific shapes |
-| Strict qual over a NULL-extended side | lower optionality kept | in `(t LEFT u) INNER v ON v.u_id = u.id` no NULL-extended `u` row can pass the strict qual, so `u`'s columns are never NULL in the output; the walk keeps them nullable. Same mechanism through `UPDATE … FROM` WHERE equalities. Found by the generated witness classification (`UNWITNESSABLE` in `generated-soundness.test.ts`); measured again at depth 3 by the deep join axis (44 structures, `deep-strict-edge-refilters-u`) |
+| `USING` / `NATURAL` join quals | not consulted by the presence fixpoint | the merged-column equality is strict and could imply presence like an ON qual; the merged-column machinery is separate and the fixpoint reads `quals` only |
+| MERGE join condition and arm conditions | no narrowing, no promotion | NOT MATCHED arms fire precisely for rows that did NOT pass the join condition, so it is not row-implied; per-arm reasoning was judged not worth it |
+| Window aggregates over the default frame | nullable | the default frame always contains the current row, so `max(col) OVER ()` with non-null `col` never returns NULL; the window dispatch's empty-frame fallback does not distinguish frames. Noticed during the window axis round, not yet closed |
 | DML `RETURNING` vs written values | catalog nullability only | `INSERT … VALUES (…, 'c') RETURNING val` reports `val` nullable from the catalog even though the written value is a literal; tracking values into RETURNING was judged not worth it. Also found by the witness classification |
 
 ---
