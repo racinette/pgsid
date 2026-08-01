@@ -92,14 +92,17 @@ export interface AliasNullability {
  * function over `(AST, catalog)` — no PGlite needed.
  */
 /**
- * What the walk needs to know about one resolved custom operator: whether
- * its backing function is strict (the WHERE-side property), and the backing
- * function's identity (for output-side dispatch through the function rules).
+ * What the walk needs to know about a resolved custom operator name. With
+ * several candidates, `strict` is their CONSENSUS — true only when every
+ * candidate's backing function is declared strict, which holds whichever
+ * overload PostgreSQL picks. The backing-function identity is present only
+ * when the name resolves to exactly ONE candidate: output-side dispatch
+ * analyses a specific body, and bodies differ across overloads.
  */
 export interface OperatorMetadata {
   strict: boolean;
-  functionSchema: string;
-  functionName: string;
+  functionSchema?: string;
+  functionName?: string;
 }
 
 export interface NullabilityCatalog {
@@ -159,6 +162,20 @@ export interface NullabilityCatalog {
    * arg types, and guessing is never correct.
    */
   resolveFunctionMetadata(schema: string | undefined, name: string): FunctionInfo | null;
+
+  /**
+   * Overloaded names, the sound half: the candidates a call with `argCount`
+   * arguments could resolve to (arity-filtered — PostgreSQL only picks one
+   * that accepts that many). Consumers take CONSENSUS: a property every
+   * candidate shares holds whichever one runs. Null for unknown names,
+   * variadic candidates, or anything else that defeats positional
+   * reasoning; empty for a known name no candidate matches at this arity.
+   */
+  resolveFunctionCandidates(
+    schema: string | undefined,
+    name: string,
+    argCount: number,
+  ): FunctionInfo[] | null;
 
   /**
    * Custom operator metadata (for A_Expr dispatch), by the proven

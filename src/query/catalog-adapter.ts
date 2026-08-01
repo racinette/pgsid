@@ -1,6 +1,7 @@
 import type { Node } from "libpg-query";
 import type { CatalogSnapshot } from "../catalog/types.js";
 import type {
+  FunctionInfo,
   NullabilityCatalog,
   OutputNullability,
   ResolvedTable,
@@ -191,6 +192,31 @@ export async function buildNullabilityCatalog(
     return null;
   };
 
+  // Overloaded names, the sound half: the candidates a call with `argCount`
+  // arguments could possibly resolve to — PostgreSQL only ever picks one
+  // that accepts that many (trailing defaults included), so filtering by
+  // arity is partial resolution with no type simulation. Consumers then
+  // take CONSENSUS: a property every remaining candidate shares holds for
+  // whichever one runs. Variadic candidates absorb arbitrary counts and a
+  // named-notation call reorders positions, so both refuse (null), as does
+  // an unknown name — an EMPTY array, by contrast, means "known name, no
+  // candidate takes this arity" and is the caller's cue to stay
+  // conservative.
+  const resolveFunctionCandidates = (
+    schema: string | undefined,
+    name: string,
+    argCount: number,
+  ): FunctionInfo[] | null => {
+    const fns = fnMap.get(`${schema ?? "public"}.${name}`);
+    if (!fns || fns.length === 0) return null;
+    if (fns.some(f => f.args.some(a => a.mode === "variadic"))) return null;
+    return fns.filter(f => {
+      const inputs = f.args.filter(a => a.mode === "in" || a.mode === "inout");
+      const required = inputs.filter(a => !a.hasDefault).length;
+      return argCount >= required && argCount <= inputs.length;
+    });
+  };
+
   const isNotNullDomain = (typeOid: number): boolean => {
     return domainOids.get(typeOid) ?? false;
   };
@@ -227,11 +253,17 @@ export async function buildNullabilityCatalog(
   const resolveOperatorMetadata = (
     schema: string | undefined,
     name: string,
-  ): { strict: boolean; functionSchema: string; functionName: string } | null => {
+  ): { strict: boolean; functionSchema?: string; functionName?: string } | null => {
     const candidates = schema ? opBySchemaName.get(`${schema}.${name}`) : opByName.get(name);
-    if (!candidates || candidates.length !== 1) return null;
-    const o = candidates[0]!;
-    return { strict: o.strict, functionSchema: o.functionSchema, functionName: o.functionName };
+    if (!candidates || candidates.length === 0) return null;
+    // Strictness by consensus (holds whichever overload PostgreSQL picks);
+    // the backing function only when the pick is determined.
+    const strict = candidates.every(o => o.strict);
+    if (candidates.length === 1) {
+      const o = candidates[0]!;
+      return { strict, functionSchema: o.functionSchema, functionName: o.functionName };
+    }
+    return { strict };
   };
 
   const builtinStrict = new Set(snapshot.builtinStrictFunctions ?? []);
@@ -244,6 +276,7 @@ export async function buildNullabilityCatalog(
     resolveColumnTypeOid,
     resolveCompositeType,
     resolveFunctionMetadata,
+    resolveFunctionCandidates,
     resolveOperatorMetadata,
     isStrictBuiltin,
     isNotNullDomain,

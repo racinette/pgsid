@@ -2663,7 +2663,7 @@ class NullabilityEngine {
           // lenient_eq, whose body is analysed like any sql function's.
           const opSchema = qualified ? opNames[opNames.length - 2] : undefined;
           const custom = this.catalog.resolveOperatorMetadata(opSchema, op);
-          if (custom) {
+          if (custom?.functionSchema && custom.functionName) {
             trace.addFact(
               "customOperator",
               `${op} → ${custom.functionSchema}.${custom.functionName}`,
@@ -3457,10 +3457,20 @@ class NullabilityEngine {
       const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
       if (!name || this.isAggregateByName(name, schema)) return false;
       const meta = this.catalog.resolveFunctionMetadata(schema, name);
-      const strict = meta
-        ? meta.strict && !meta.isAggregate
-        : (schema === undefined || schema === "pg_catalog") &&
-          this.catalog.isStrictBuiltin(name);
+      let strict: boolean;
+      if (meta) {
+        strict = meta.strict && !meta.isAggregate;
+      } else {
+        // Overload consensus first (every arity-compatible candidate
+        // strict), then the pg_catalog strictness capture for names the
+        // user catalog does not carry.
+        const candidates = this.catalog.resolveFunctionCandidates(schema, name, args.length);
+        strict =
+          candidates && candidates.length > 0
+            ? candidates.every(c => c.strict && !c.isAggregate)
+            : (schema === undefined || schema === "pg_catalog") &&
+              this.catalog.isStrictBuiltin(name);
+      }
       return strict && args.some(a => this.exprStrictlyForces(a, leaf));
     }
 
@@ -3794,6 +3804,24 @@ class NullabilityEngine {
       return true;
     }
 
+    // Overload consensus: with no single resolution, a property EVERY
+    // arity-compatible candidate shares holds for whichever overload
+    // PostgreSQL picks — the same quantification the builtin strictness
+    // capture rests on. Named notation reorders positions and defeats it;
+    // body inlining needs the actual body and stays single-candidate.
+    const consensus =
+      !meta && !(fc.args ?? []).some(a => "NamedArgExpr" in (a as Record<string, unknown>))
+        ? this.catalog.resolveFunctionCandidates(schema, name, (fc.args ?? []).length)
+        : null;
+    if (consensus && consensus.length > 0) {
+      trace.addFact("overloadConsensus", `${consensus.length} arity-compatible candidates`);
+      if (consensus.every(c => this.funcReturnsNotNullDomain(c))) {
+        trace.addFact("priority", "1 (NOT NULL domain return, by consensus)");
+        trace.conclude(true, "every candidate returns a NOT NULL domain → notNull whichever runs");
+        return true;
+      }
+    }
+
     // Priority 2b: window functions. Checked before the aggregate rule because
     // the ranking functions share names with entries in AGGREGATE_NAMES.
     if (fc.over) {
@@ -3906,6 +3934,17 @@ class NullabilityEngine {
       trace.addFact("argsNotNull", `[${orderedArgs.map(r => r ? "T" : "F").join(", ")}]`);
       const result = orderedArgs.every(r => r);
       trace.conclude(result, result ? "strict: all args non-null" : "strict: at least one arg nullable");
+      return result;
+    }
+    if (consensus && consensus.length > 0 && consensus.every(c => c.strict && !c.isAggregate)) {
+      trace.addFact("priority", "4 (strict, by consensus)");
+      const result = argResults.length > 0 && argResults.every(r => r);
+      trace.conclude(
+        result,
+        result
+          ? "every candidate is strict and all args non-null"
+          : "strict by consensus, but an arg is nullable",
+      );
       return result;
     }
 

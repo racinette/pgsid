@@ -267,4 +267,43 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
       "could not determine data type of parameter $1",
     );
   });
+
+  // --- Generated columns. ---------------------------------------------------
+  //
+  // Every write that would reach a GENERATED ALWAYS column — stored or
+  // identity — is rejected at parse analysis, BEFORE the nullability
+  // contract could matter: a rejected statement has no contract. This is
+  // also what makes the written-value map's positional prefix-zip sound:
+  // the implicit column list does NOT skip generated columns, so any VALUES
+  // row long enough to reach one positionally is refused outright, and
+  // positions before the first generated column always align. The DEFAULT
+  // keyword is the one legal spelling, and the map already treats it as
+  // proving nothing.
+
+  it("rejects writes to GENERATED ALWAYS columns before execution", async () => {
+    await pg.exec(`
+      CREATE TABLE gen_t (a int, gen int GENERATED ALWAYS AS (a * 2) STORED, b text);
+      CREATE TABLE gid_t (id int GENERATED ALWAYS AS IDENTITY, v text);
+    `);
+    expect(await errorOf("INSERT INTO gen_t (a, gen, b) VALUES ($1, $2, $3)", [1, 2, "x"]))
+      .toContain('cannot insert a non-DEFAULT value into column "gen"');
+    expect(await errorOf("UPDATE gen_t SET gen = $1", [5])).toContain(
+      'column "gen" can only be updated to DEFAULT',
+    );
+    // The implicit column list includes the generated column: reaching it
+    // positionally is refused, never silently skipped.
+    expect(await errorOf("INSERT INTO gen_t VALUES ($1, $2, $3)", [1, 2, "x"])).toContain(
+      'cannot insert a non-DEFAULT value into column "gen"',
+    );
+    expect(await errorOf("INSERT INTO gid_t (id, v) VALUES ($1, $2)", [5, "x"])).toContain(
+      'cannot insert a non-DEFAULT value into column "id"',
+    );
+    expect(await errorOf("UPDATE gid_t SET id = $1", [5])).toContain(
+      'column "id" can only be updated to DEFAULT',
+    );
+    // DEFAULT is the legal spelling and executes.
+    expect(
+      await errorOf("INSERT INTO gen_t (a, gen, b) VALUES ($1, DEFAULT, $2)", [3, "y"]),
+    ).toBeNull();
+  });
 });

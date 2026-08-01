@@ -278,9 +278,16 @@ function forcedNullBy(
     // always wins over a builtin name); only a name the catalog does not
     // carry falls through to the measured strict-builtin set.
     const info = catalog.resolveFunctionMetadata(schema, name);
-    const strict = info
-      ? info.strict && !info.isAggregate
-      : (schema === undefined || schema === "pg_catalog") && catalog.isStrictBuiltin(name);
+    let strict: boolean;
+    if (info) {
+      strict = info.strict && !info.isAggregate;
+    } else {
+      const candidates = catalog.resolveFunctionCandidates(schema, name, (fc.args ?? []).length);
+      strict =
+        candidates && candidates.length > 0
+          ? candidates.every(c => c.strict && !c.isAggregate)
+          : (schema === undefined || schema === "pg_catalog") && catalog.isStrictBuiltin(name);
+    }
     if (!strict) return empty;
     const out = new Set<number>();
     for (const arg of fc.args ?? []) {
@@ -403,23 +410,33 @@ function checkFuncCall(
   const name = parts[parts.length - 1];
   const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
   if (!name) return;
-  // Single-overload-only, like the output walk: with one candidate,
-  // PostgreSQL either executes it or rejects the call, so the declared types
-  // consulted here are the ones that apply. Ambiguous names return null and
-  // every argument stays nullable.
-  const info = c.catalog.resolveFunctionMetadata(schema, name);
-  if (!info) return;
 
-  // Positional mapping onto declared input arguments. Named notation shifts
-  // positions, and a variadic parameter absorbs arbitrarily many call
-  // arguments — both degrade to nullable.
+  // Named notation shifts positions and degrades to nullable.
   if (fc.args.some(a => !!(a as { NamedArgExpr?: unknown }).NamedArgExpr)) return;
-  const inputs = info.args.filter(a => a.mode === "in" || a.mode === "inout");
-  if (info.args.some(a => a.mode === "variadic")) return;
+
+  // One candidate: its declared types are the ones that apply. Several:
+  // arity-filtered CONSENSUS — a position every remaining candidate
+  // declares as a NOT NULL domain rejects NULL whichever overload
+  // PostgreSQL resolves (the filter guarantees each candidate has at least
+  // argCount inputs). Variadic candidates defeat positional reasoning and
+  // resolveFunctionCandidates refuses them wholesale.
+  const info = c.catalog.resolveFunctionMetadata(schema, name);
+  const candidates = info
+    ? info.args.some(a => a.mode === "variadic")
+      ? []
+      : [info]
+    : (c.catalog.resolveFunctionCandidates(schema, name, fc.args.length) ?? []);
+  if (candidates.length === 0) return;
+
+  const inputsOf = (f: (typeof candidates)[number]) =>
+    f.args.filter(a => a.mode === "in" || a.mode === "inout");
 
   fc.args.forEach((arg, i) => {
-    const declared = inputs[i];
-    if (!declared || !c.catalog.isNotNullDomain(declared.typeOid)) return;
+    const allDomain = candidates.every(f => {
+      const declared = inputsOf(f)[i];
+      return !!declared && c.catalog.isNotNullDomain(declared.typeOid);
+    });
+    if (!allDomain) return;
     const num = paramNumberOf(arg);
     if (num !== null) reject(c, num, "domain");
     else rejectFlow(c, arg);

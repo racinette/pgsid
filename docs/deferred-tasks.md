@@ -117,6 +117,19 @@ DML-WHERE narrowing. Each closure is pinned by a fixture
 `dml-where-channel`, `update-set-mask`), and every generated-suite trap rule
 those imprecisions carried went stale and was deleted, as designed.
 
+Closed by Wave 5 (2026-08): overloaded names, the sound half — arity
+filtering (PostgreSQL never picks a candidate that cannot accept the call's
+argument count) plus consensus over what remains (all-strict for the
+closures and dispatch, all-NOT-NULL-domain returns, per-position domain
+agreement for mechanism A; operators mirror it with strictness by consensus
+and body dispatch only when single). Disagreeing candidates stay refused —
+`over_fn` still pins that. `overload-consensus.sql`,
+`param-overload-arity.sql`. Also pinned: every write reaching a GENERATED
+ALWAYS column (stored or identity) fails at PREPARE — a rejected statement
+has no contract, and the implicit column list does not skip generated
+columns, which is what keeps the written-value map's positional prefix-zip
+sound (`param-mechanism.test.ts`).
+
 Closed by Wave 4 (2026-08, measured first throughout): USING/NATURAL join
 quals (synthesized as the equality conjuncts they are and fed to the
 presence fixpoint; `join-using-promotion.sql`); arm-aware MERGE — the
@@ -159,6 +172,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `A_Indirection` element / field / jsonb subscripts | nullable — correctly | measured: out-of-range elements and missing jsonb keys ARE NULL, and composite fields carry no constraints. SLICES are closed (Wave 4): they clamp rather than NULL, so a slice of a non-null array with non-null bounds is notNull (`array-slices.sql`) |
 | `JSON_VALUE` / `JSON_QUERY`, `JSON_ARRAY(subquery)`, `XmlExpr` beyond `XMLELEMENT` | nullable — correctly, permanently | measured: a FOUND JSON null maps to SQL NULL through every ON EMPTY/ON ERROR handler combination, so no clause analysis can ever prove these; `JSON_ARRAY(SELECT …)` over an empty subquery is NULL; `xmlconcat`/`xmlforest` of NULLs are NULL. `JSON_EXISTS` is the one provable member and IS closed (Wave 4, `json-exists.sql`) |
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; the NOT NULL domain return is the escape hatch |
+| Generated column reads | catalog flag only | `a * 2 STORED` over a NOT NULL `a` is provably non-null via the existing closure, and the snapshot already carries the generation expression as text — closable if a consumer cares. Writes need nothing: PREPARE rejects them (pinned in `param-mechanism.test.ts`) |
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |

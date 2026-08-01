@@ -200,17 +200,21 @@ forced row reaching the site is enough to raise
 `param-merge-source.sql`, `param-insert-source.sql`,
 `param-onconflict-excluded.sql`, and the two quantifier pins above.
 
-**A hazard step 1 must check, because it exists today: overload resolution
-under untyped parameters.** Which overload of `f($1)` PostgreSQL executes
-depends on the argument types *it* resolves, and an unconstrained parameter
-leaves that choice to PostgreSQL's resolution rules. If the engine consults a
-different overload than PostgreSQL picked, it can read the wrong declared
-return type — and since NOT NULL domain returns already license output
-`notNull` claims, that is a path to unsoundness independent of any argument
-work. Establish what the resolver currently does with ambiguous function
-names when arguments include a `ParamRef`; anything short of provably
-matching PostgreSQL's choice must degrade to nullable. The parameterized
-generated corpus (step 3) is the systematic check on this.
+**The overload hazard, and its Wave-5 resolution.** Which overload of
+`f($1)` PostgreSQL executes depends on the argument types *it* resolves, so
+consulting a different overload than PostgreSQL picked could read the wrong
+declared types — a path to unsoundness. The original rule (refuse any
+ambiguous name) is now refined without ever guessing: **arity filtering**
+keeps only the candidates a call with that many arguments could resolve to
+(PostgreSQL never picks one that cannot accept them; variadic and named
+notation still refuse), and **consensus** concludes only what EVERY
+remaining candidate agrees on — all strict for the closures, a position all
+declare as a NOT NULL domain for mechanism A (`param-overload-arity.sql`:
+two `ship` overloads, a one-argument call, $1 rejected at Bind).
+Disagreeing candidates stay conservative, pinned by `over_fn`. Full
+type-based resolution remains rejected — it is a reimplementation of
+PostgreSQL's coercion rules, the simulation category ruled out three times
+now.
 
 **Mechanism C — value-flow rejection (implemented).** The third mechanism,
 found by hand as the exact trigger the first version of this document

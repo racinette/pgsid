@@ -103,6 +103,46 @@ CREATE FUNCTION strict_same(a text, b text) RETURNS boolean
   AS $$ SELECT a = b $$;
 CREATE OPERATOR ==== (LEFTARG = text, RIGHTARG = text, FUNCTION = strict_same);
 
+-- Overload-consensus subjects (Wave 5): names whose arity-compatible
+-- candidates AGREE on the asked property, so the conclusion holds whichever
+-- overload PostgreSQL resolves — the counterpart of over_fn below, whose
+-- candidates disagree and keep refusing. plpgsql throughout: fnBodyAsts is
+-- keyed by name alone, and sql-bodied overloads would collide there.
+CREATE FUNCTION clean2(x text) RETURNS text
+  LANGUAGE plpgsql STRICT
+  AS $$ BEGIN RETURN x; END $$;
+CREATE FUNCTION clean2(x integer) RETURNS text
+  LANGUAGE plpgsql STRICT
+  AS $$ BEGIN RETURN x::text; END $$;
+
+CREATE FUNCTION tag_of(x integer) RETURNS nn_text
+  LANGUAGE plpgsql
+  AS $$ BEGIN RETURN 'i'; END $$;
+CREATE FUNCTION tag_of(x text) RETURNS nn_text
+  LANGUAGE plpgsql
+  AS $$ BEGIN RETURN 't'; END $$;
+
+-- Arity filtering's subject: a one-argument call can only be the first
+-- overload, so its nn_text parameter types the argument (mechanism A).
+CREATE FUNCTION ship(label nn_text) RETURNS text
+  LANGUAGE plpgsql
+  AS $$ BEGIN RETURN label; END $$;
+CREATE FUNCTION ship(label nn_text, note text) RETURNS text
+  LANGUAGE plpgsql
+  AS $$ BEGIN RETURN label || note; END $$;
+
+-- An OVERLOADED operator whose candidates agree on strictness: the
+-- predicate gate works by consensus, while output-side body dispatch
+-- stays single-candidate (the bodies differ).
+CREATE FUNCTION same_ii(a integer, b integer) RETURNS boolean
+  LANGUAGE plpgsql STRICT
+  AS $$ BEGIN RETURN a = b; END $$;
+CREATE FUNCTION same_tt(a text, b text) RETURNS boolean
+  LANGUAGE plpgsql STRICT
+  AS $$ BEGIN RETURN a = b; END $$;
+CREATE OPERATOR #=# (LEFTARG = integer, RIGHTARG = integer, FUNCTION = same_ii);
+CREATE OPERATOR #=# (LEFTARG = text, RIGHTARG = text, FUNCTION = same_tt);
+
 -- Deliberately overloaded: resolveFunctionMetadata must refuse to pick one,
 -- keeping both the output analysis (the text overload returns a NOT NULL
 -- domain) and the argument analysis conservative for calls to this name.
