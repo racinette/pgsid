@@ -723,13 +723,27 @@ const PROJECTIONS: Projection[] = [
         target(winCall("row_number", [], overClause()), "a_rn"),
         target(winCountStar(overPartition(s.slots.intKey)), "a_wc"),
         target(winCall("max", [s.slots.textA], overPartition(s.slots.intKey)), "a_wm"),
+        // The default-frame rule under the whole structural space: min over
+        // the never-empty default frame inherits textB's nullability, which
+        // the join axis varies — notNull where the fixpoint proves textB's
+        // side present, nullable where it null-extends. Partitioned BY the
+        // aggregated column so the claim is witness-aligned by construction:
+        // the NULL partition's min is NULL exactly when a textB NULL exists
+        // (an unpartitioned min would swallow it behind any non-null email
+        // elsewhere in the result).
+        target(winCall("min", [s.slots.textB], overPartition(s.slots.textB)), "a_wmin"),
         target(s.slots.intKey, "a_int"),
       ],
-      colNames: ["a_rn", "a_wc", "a_wm", "a_int"],
-      literals: [intConst(9), intConst(9), textConst("wm"), intConst(9)],
-      matchLiterals: [intConst(1), intConst(1), nullConst(), intConst(1)],
+      colNames: ["a_rn", "a_wc", "a_wm", "a_wmin", "a_int"],
+      literals: [intConst(9), intConst(9), textConst("wm"), textConst("wn"), intConst(9)],
+      matchLiterals: [intConst(1), intConst(1), nullConst(), textConst("u1@b.c"), intConst(1)],
     }),
-    expectations: [expectWindow("row_number"), expectWindow("count"), expectWindow("max")],
+    expectations: [
+      expectWindow("row_number"),
+      expectWindow("count"),
+      expectWindow("max"),
+      expectWindow("min"),
+    ],
   },
   {
     // The offset and bucketing window functions: lag of a NOT NULL column is

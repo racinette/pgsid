@@ -117,17 +117,26 @@ DML-WHERE narrowing. Each closure is pinned by a fixture
 `dml-where-channel`, `update-set-mask`), and every generated-suite trap rule
 those imprecisions carried went stale and was deleted, as designed.
 
+Closed by Wave 2 (2026-08, all behaviours measured first and pinned by
+fixtures): ordered-set aggregates (`WITHIN GROUP` sort expressions now
+visible, plain-aggregate gates; the hypothetical-set `rank` family measured
+TOTAL — a position even over zero rows — hence notNull unconditionally;
+`ordered-set-aggregates.sql`), the SQL/JSON value-list constructors and
+`XMLELEMENT` (always produce a container; `JSON()`/`JSON_SCALAR`/
+`JSON_SERIALIZE`/`XMLSERIALIZE` strict; `json-constructors.sql`), and window
+aggregates over the default frame (never empty — the window analogue of the
+non-empty-group gate; `window-default-frame.sql`, plus the generated
+`a_wmin` column across the structural space).
+
 | Construct | Current | Note |
 |---|---|---|
-| Ordered-set aggregates (`percentile_cont`, `mode`) | nullable | the `WITHIN GROUP` argument is not visible to the argument check |
 | `A_Indirection` (array subscript, field access) | nullable | an out-of-range subscript really is NULL and the index is not checkable statically |
-| `XmlSerialize`, and the JSON constructor/query family | nullable | several are constructors that never return NULL; see the `conservative` entries in `node-census.test.ts` for which |
+| JSON query functions, `JSON_ARRAY(subquery)`, and `XmlExpr` beyond `XMLELEMENT` | nullable | correctly so in general: a missing path is NULL, `JSON_ARRAY(SELECT …)` over an empty subquery is NULL (measured), `xmlconcat`/`xmlforest` of NULLs are NULL. Genuine imprecision remaining here is per-shape and small |
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; the NOT NULL domain return is the escape hatch |
 | `pg_catalog` built-ins outside the curated tables | nullable | add to `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` (totality required) or `STRICT_BUILTIN_FUNCTIONS` in `operators.ts` (strictness required, for the guarantee closure) as needed — the properties are different and each entry must be measured for the set it joins |
 | Custom operators | no promotion, no narrowing, nullable results | strictness is readable from `pg_proc.proisstrict` via `pg_operator`; see "Custom operator support" below |
 | `USING` / `NATURAL` join quals | not consulted by the presence fixpoint | the merged-column equality is strict and could imply presence like an ON qual; the merged-column machinery is separate and the fixpoint reads `quals` only |
 | MERGE join condition and arm conditions | no narrowing, no promotion | NOT MATCHED arms fire precisely for rows that did NOT pass the join condition, so it is not row-implied; per-arm reasoning was judged not worth it |
-| Window aggregates over the default frame | nullable | the default frame always contains the current row, so `max(col) OVER ()` with non-null `col` never returns NULL; the window dispatch's empty-frame fallback does not distinguish frames. Noticed during the window axis round, not yet closed |
 | DML `RETURNING` vs written values | catalog nullability only | `INSERT … VALUES (…, 'c') RETURNING val` reports `val` nullable from the catalog even though the written value is a literal; tracking values into RETURNING was judged not worth it. Also found by the witness classification |
 
 ---

@@ -1,5 +1,4 @@
 -- @unwitnessable 9: population statistics are outside the curated builtin tables (known imprecision); the group's quantities are non-null, so stddev_pop is always defined
--- @unwitnessable 10: ordered-set aggregate: the WITHIN GROUP argument is invisible to the argument check (known imprecision), and the group is never empty
 -- Aggregate modifiers and how each interacts with the non-empty-group rule.
 --
 -- A plain GROUP BY emits no empty groups, so an aggregate over a non-null
@@ -33,10 +32,11 @@ SELECT
   -- non-null-preserving list, so they stay conservative.
   stddev_pop(oi.quantity)                            AS sd_pop,        -- @nullable
 
-  -- Ordered-set aggregates are not modelled: their WITHIN GROUP argument is
-  -- not visible to the arg-nullability check.
+  -- Ordered-set aggregates follow the plain-aggregate gates with the WITHIN
+  -- GROUP sort expression visible: non-empty group (plain GROUP BY),
+  -- non-null sort input (quantity is NOT NULL), non-null fraction.
   percentile_cont(0.5) WITHIN GROUP (ORDER BY oi.quantity)
-                                                     AS median,        -- @nullable
+                                                     AS median,        -- @notNull
 
   -- An aggregate over a nullable expression can see only NULLs.
   max(p.deleted_at)                                  AS last_deleted   -- @nullable

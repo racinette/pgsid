@@ -255,6 +255,11 @@ interface MergedColumn {
   jointype: string;
 }
 
+/** The shared shape of the unary SQL/JSON and XML conversion nodes. */
+interface JsonUnaryShape {
+  expr?: unknown;
+}
+
 /**
  * One JoinExpr of a scope's FROM tree, flattened for the presence fixpoint:
  * the qual plus the alias names registered while walking each side (the
@@ -2168,8 +2173,56 @@ class NullabilityEngine {
     }
 
     if ("XmlExpr" in node) {
+      // XMLELEMENT always constructs (measured: a NULL child yields `<e/>`,
+      // not NULL). The other ops do return NULL — xmlconcat of NULLs and
+      // xmlforest of a NULL field were both measured NULL — so only the
+      // element constructor is upgraded.
+      const xe = node["XmlExpr"] as { op?: string };
+      if (xe.op === "IS_XMLELEMENT") {
+        trace.conclude(true, "XMLELEMENT always constructs an element → notNull");
+        return true;
+      }
       trace.conclude(false, "XmlExpr → conservative nullable");
       return false;
+    }
+
+    // The SQL/JSON constructor and conversion family (PG16+ dedicated
+    // nodes; json_build_object and friends stay FuncCalls). Measured
+    // 2026-08-01: the value-list constructors always produce a container —
+    // a NULL member is absorbed or serialized, never propagated — while
+    // JSON() / JSON_SCALAR() / JSON_SERIALIZE() / XMLSERIALIZE are strict
+    // (NULL in → NULL out; malformed input raises rather than returning
+    // NULL), and `IS JSON` is NULL for NULL input — a predicate, but not a
+    // total one, unlike NullTest. JSON_ARRAY(SELECT …) is NOT here: over an
+    // empty subquery it returns NULL (measured), so JsonArrayQueryConstructor
+    // stays on the conservative fallback, as do the path-query functions
+    // (JsonFuncExpr — a missing path is NULL).
+    if ("JsonObjectConstructor" in node || "JsonArrayConstructor" in node) {
+      trace.conclude(true, "SQL/JSON value-list constructor always produces a container → notNull");
+      return true;
+    }
+    {
+      const strictJson =
+        ("JsonParseExpr" in node && (node["JsonParseExpr"] as JsonUnaryShape)) ||
+        ("JsonScalarExpr" in node && (node["JsonScalarExpr"] as JsonUnaryShape)) ||
+        ("JsonSerializeExpr" in node && (node["JsonSerializeExpr"] as JsonUnaryShape)) ||
+        ("JsonIsPredicate" in node && (node["JsonIsPredicate"] as JsonUnaryShape)) ||
+        ("XmlSerialize" in node && (node["XmlSerialize"] as JsonUnaryShape));
+      if (strictJson) {
+        // The operand is either the raw node (JSON_SCALAR, IS JSON,
+        // XMLSERIALIZE) or wrapped in an inlined JsonValueExpr (raw_expr).
+        const operand =
+          (strictJson.expr as { raw_expr?: Node } | undefined)?.raw_expr ??
+          (strictJson.expr as Node | undefined);
+        if (operand) {
+          const childTrace = trace.addChild("strict JSON/XML conversion: arg");
+          const result = this.walkExprTraced(operand, scope, depth + 1, childTrace);
+          trace.conclude(result, "strict conversion: NULL in → NULL out, else a value");
+          return result;
+        }
+        trace.conclude(false, "strict JSON/XML conversion with no operand → conservative");
+        return false;
+      }
     }
 
     if ("SetToDefault" in node) {
@@ -3406,11 +3459,85 @@ class NullabilityEngine {
         trace.conclude(result, result ? "ntile with a non-null bucket count → never NULL" : "ntile with a nullable bucket count → nullable");
         return result;
       }
+      // Aggregates over the DEFAULT frame: RANGE UNBOUNDED PRECEDING TO
+      // CURRENT ROW always contains the current row (measured), so the frame
+      // is never empty and an aggregate that is non-null over non-empty
+      // non-null input is non-null here — the window analogue of the
+      // GROUP-BY-non-empty gate. first_value/last_value pick a row of that
+      // same frame. FILTER can empty the frame, an explicit or named frame
+      // is not analysed, and offset functions (lag/lead/nth_value) can
+      // address outside the partition — all fall through.
+      const over = fc.over as { name?: string; refname?: string; frameOptions?: number };
+      const defaultFrame =
+        !over.name && !over.refname && over.frameOptions === FRAMEOPTION_DEFAULTS;
+      const frameNonNull =
+        NON_NULL_OVER_NONEMPTY_AGGREGATES.has(name) ||
+        name === "first_value" ||
+        name === "last_value";
+      if (
+        defaultFrame &&
+        frameNonNull &&
+        !fc.agg_filter &&
+        !fc.agg_distinct &&
+        argResults.length > 0 &&
+        argResults.every(r => r)
+      ) {
+        trace.addFact("priority", "2b (aggregate over the default frame)");
+        trace.conclude(true, `${name}() over the never-empty default frame with non-null input → notNull`);
+        return true;
+      }
       // Everything else over a window — aggregates included — can see an empty
       // frame (e.g. ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING on the first row)
       // and offset functions can address a row outside the partition.
       trace.addFact("priority", "2b (other window function)");
       trace.conclude(false, "window frame may be empty or the offset may fall outside the partition → nullable");
+      return false;
+    }
+
+    // Priority 2c: WITHIN GROUP — ordered-set and hypothetical-set
+    // aggregates (measured 2026-08-01). The hypothetical-set family
+    // (rank/dense_rank/percent_rank/cume_dist) is TOTAL: it returns the
+    // hypothetical row's position even over zero input rows and for NULL
+    // arguments, so it is notNull unconditionally. The ordered-set proper
+    // (percentile_disc/percentile_cont/mode) returns NULL over an empty
+    // group, an all-NULL sort column, or a NULL direct argument — so it
+    // follows the plain-aggregate gates, with the WITHIN GROUP sort
+    // expressions finally visible as arguments.
+    if ((fc as { agg_within_group?: boolean }).agg_within_group) {
+      trace.addFact("withinGroup", "true");
+      if (HYPOTHETICAL_SET_AGGREGATES.has(name)) {
+        trace.addFact("priority", "2c (hypothetical-set aggregate)");
+        trace.conclude(true, `${name}() WITHIN GROUP assigns the hypothetical row a position → never NULL`);
+        return true;
+      }
+      if (ORDERED_SET_AGGREGATES.has(name)) {
+        trace.addFact("priority", "2c (ordered-set aggregate)");
+        const sortResults: boolean[] = [];
+        const aggOrder = (fc as { agg_order?: Node[] }).agg_order ?? [];
+        for (const [i, sb] of aggOrder.entries()) {
+          const sortNode = (sb as { SortBy?: { node?: Node } }).SortBy?.node;
+          if (!sortNode) {
+            sortResults.push(false);
+            continue;
+          }
+          const sortTrace = trace.addChild(`sort[${i}]`);
+          sortResults.push(this.walkExprTraced(sortNode, scope, depth + 1, sortTrace));
+        }
+        const directNotNull = argResults.every(r => r); // mode() has none
+        const sortNotNull = sortResults.length > 0 && sortResults.every(r => r);
+        trace.addFact("sortArgsNotNull", `[${sortResults.map(r => (r ? "T" : "F")).join(", ")}]`);
+        const result =
+          scope.groupGuaranteesNonEmpty && !fc.agg_filter && directNotNull && sortNotNull;
+        trace.conclude(
+          result,
+          result
+            ? "non-empty group, non-null sort input and direct args → notNull"
+            : "empty group, NULL sort input or NULL direct arg can yield NULL → nullable",
+        );
+        return result;
+      }
+      trace.addFact("priority", "2c (unknown WITHIN GROUP aggregate)");
+      trace.conclude(false, "unknown ordered-set aggregate → conservative nullable");
       return false;
     }
 
@@ -3968,6 +4095,33 @@ const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
 const NEVER_NULL_WINDOW_FNS = new Set([
   "row_number", "rank", "dense_rank", "percent_rank", "cume_dist",
 ]);
+
+/**
+ * The parser's frameOptions for a window with no explicit frame clause:
+ * RANGE UNBOUNDED PRECEDING TO CURRENT ROW, which always contains the
+ * current row. Measured by parsing `OVER ()` / `OVER (ORDER BY x)`; an
+ * explicit frame — even one spelling out the same bounds — sets the
+ * NONDEFAULT bit and lands elsewhere, which is the conservative side.
+ */
+const FRAMEOPTION_DEFAULTS = 1058;
+
+/**
+ * Hypothetical-set aggregates: `rank(v) WITHIN GROUP (ORDER BY x)` returns
+ * the position v WOULD take — defined even over zero rows (1) and for a
+ * NULL argument (NULLs order like values). Measured; total, hence notNull
+ * unconditionally.
+ */
+const HYPOTHETICAL_SET_AGGREGATES = new Set([
+  "rank", "dense_rank", "percent_rank", "cume_dist",
+]);
+
+/**
+ * Ordered-set aggregates proper: NULL over an empty group, an all-NULL sort
+ * column (NULL inputs are discarded before the computation), or a NULL
+ * direct argument (percentile fraction) — all measured. Non-null exactly
+ * when none of those can happen.
+ */
+const ORDERED_SET_AGGREGATES = new Set(["percentile_disc", "percentile_cont", "mode"]);
 
 // ---------------------------------------------------------------------------
 // pg_catalog built-ins.

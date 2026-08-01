@@ -52,6 +52,13 @@ const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   // are the silent drops the generator's expected-node checks exist for.
   "recursive-cte-search-clause": "ast-differed",
   "recursive-cte-cycle-clause": "ast-differed",
+  // The SQL/JSON dedicated constructor nodes (PG16+) are unhandled.
+  "json-constructors": "deparse-threw",
+  // The explicit window frame `ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING`
+  // is re-emitted with its bounds mangled, which PostgreSQL rejects
+  // ("frame starting from following row cannot have preceding rows") — a
+  // loud failure, not a silent drop, so no expected-node check is owed.
+  "window-default-frame": "reparse-failed",
 };
 
 /** Byte offsets that vary with formatting and mean nothing structurally. */
