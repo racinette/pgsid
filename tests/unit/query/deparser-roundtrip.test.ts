@@ -48,12 +48,16 @@ const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   "xmltable-jsontable": "deparse-threw",
   // Emits a stray `[` the parser rejects.
   "expression-node-coverage": "reparse-failed",
+  // Same subscripting emission defect, on the slice fixture.
+  "array-slices": "reparse-failed",
   // The deparser drops SEARCH / CYCLE clauses; the SQL still parses. These
   // are the silent drops the generator's expected-node checks exist for.
   "recursive-cte-search-clause": "ast-differed",
   "recursive-cte-cycle-clause": "ast-differed",
   // The SQL/JSON dedicated constructor nodes (PG16+) are unhandled.
   "json-constructors": "deparse-threw",
+  // Same family: the path-query JsonFuncExpr node is unhandled too.
+  "json-exists": "deparse-threw",
   // The explicit window frame `ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING`
   // is re-emitted with its bounds mangled, which PostgreSQL rejects
   // ("frame starting from following row cannot have preceding rows") — a

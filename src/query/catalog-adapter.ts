@@ -234,6 +234,9 @@ export async function buildNullabilityCatalog(
     return { strict: o.strict, functionSchema: o.functionSchema, functionName: o.functionName };
   };
 
+  const builtinStrict = new Set(snapshot.builtinStrictFunctions ?? []);
+  const isStrictBuiltin = (name: string): boolean => builtinStrict.has(name);
+
   return {
     resolveTable,
     resolveFunction,
@@ -242,6 +245,7 @@ export async function buildNullabilityCatalog(
     resolveCompositeType,
     resolveFunctionMetadata,
     resolveOperatorMetadata,
+    isStrictBuiltin,
     isNotNullDomain,
     isNotNullDomainByName,
     fnBodyAsts,

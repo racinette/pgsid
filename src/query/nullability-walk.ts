@@ -1,7 +1,7 @@
 import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
-import { STRICT_BUILTIN_FUNCTIONS, TOTAL_STRICT_OPERATORS } from "./operators.js";
+import { TOTAL_STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
   collectParamNullability,
@@ -929,6 +929,26 @@ class NullabilityEngine {
    * remaining columns, then the right's — and the constituents' own copies
    * stop being visible, though `a.id` still resolves through the alias map.
    */
+  /** A synthesized `l.a = r.b` A_Expr for the USING/NATURAL conjuncts. */
+  private syntheticEquality(
+    leftAlias: string,
+    leftCol: string,
+    rightAlias: string,
+    rightCol: string,
+  ): Node {
+    const col = (alias: string, name: string): unknown => ({
+      ColumnRef: { fields: [{ String: { sval: alias } }, { String: { sval: name } }] },
+    });
+    return {
+      A_Expr: {
+        kind: "AEXPR_OP",
+        name: [{ String: { sval: "=" } }],
+        lexpr: col(leftAlias, leftCol),
+        rexpr: col(rightAlias, rightCol),
+      },
+    } as unknown as Node;
+  }
+
   private mergeJoinColumns(
     join: JoinExpr,
     left: VisibleColumn[],
@@ -1065,15 +1085,47 @@ class NullabilityEngine {
       // Record the qual with its per-side alias sets (whole subtrees — the
       // Map appends in registration order, so slicing the key list recovers
       // exactly what each side's walk added) for the presence fixpoint.
-      if (join.quals) {
-        const keys = [...scope.aliases.keys()];
+      // USING / NATURAL joins carry no quals node, but the merge IS an
+      // equality on each named column and both owning aliases are known, so
+      // the equivalent conjuncts are synthesized — the fixpoint then treats
+      // them exactly like ON quals (promotion, narrowing via the guarantee
+      // checks, outer-qual implication). A merged name whose side has no
+      // concrete owning entry (an already-merged column of a nested USING)
+      // is skipped conservatively.
+      const keys = [...scope.aliases.keys()];
+      const record = (quals: Node): void => {
         scope.joins.push({
           jointype: join.jointype ?? "JOIN_INNER",
-          quals: join.quals,
+          quals,
           leftAliases: keys.slice(aliasesBefore, aliasesAfterLeft),
           rightAliases: keys.slice(aliasesAfterLeft),
           incomingRequired: joinState === REQUIRED,
         });
+      };
+      if (join.quals) record(join.quals);
+      const usingNames =
+        join.usingClause && join.usingClause.length > 0
+          ? join.usingClause.map(n => this.stringVal(n))
+          : join.isNatural
+            ? left
+                .filter(c => right.some(r => r.name === c.name))
+                .map(c => c.name)
+            : [];
+      if (usingNames.length > 0) {
+        const eqs: Node[] = [];
+        for (const name of usingNames) {
+          const l = left.find(c => c.name === name);
+          const r = right.find(c => c.name === name);
+          if (!l?.entry || !r?.entry) continue;
+          eqs.push(this.syntheticEquality(l.entry.alias, name, r.entry.alias, name));
+        }
+        if (eqs.length > 0) {
+          record(
+            eqs.length === 1
+              ? eqs[0]!
+              : ({ BoolExpr: { boolop: "AND_EXPR", args: eqs } } as unknown as Node),
+          );
+        }
       }
       return this.mergeJoinColumns(join, left, right);
     } else if ("RangeFunction" in node) {
@@ -1420,15 +1472,99 @@ class NullabilityEngine {
   private buildMergeScope(stmt: MergeStmt, outerScope: Scope | null, depth: number): Scope {
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
+
+    interface MergeArm {
+      matchKind?: string;
+      commandType?: string;
+      targetList?: Node[];
+      values?: Node[];
+    }
+    const arms = (stmt.mergeWhenClauses ?? [])
+      .map(c => (c as { MergeWhenClause?: MergeArm }).MergeWhenClause)
+      .filter((a): a is MergeArm => !!a);
+
+    // Only a NOT MATCHED BY SOURCE arm can null-extend the source: every
+    // other row-producing arm either matched it (MATCHED) or was driven by
+    // it (NOT MATCHED BY TARGET's INSERT). Without such an arm the source is
+    // REQUIRED and its columns keep base nullability.
+    const hasBySource = arms.some(a => a.matchKind === "MERGE_WHEN_NOT_MATCHED_BY_SOURCE");
     if (stmt.sourceRelation) {
       scope.visible.push(
-        ...this.walkFromItem(stmt.sourceRelation, OPTIONAL, scope, this.nextNullGroup(), depth),
+        ...this.walkFromItem(
+          stmt.sourceRelation,
+          hasBySource ? OPTIONAL : REQUIRED,
+          scope,
+          this.nextNullGroup(),
+          depth,
+        ),
       );
     }
-    // A join written directly as the MERGE source is walked OPTIONAL (NOT
-    // MATCHED BY SOURCE null-extends the whole source), so the fixpoint's
-    // incoming-presence condition keeps its quals un-implied — running it is
-    // deliberate, not an oversight.
+
+    // When EVERY arm is MATCHED-kind, every returned row satisfied the join
+    // condition — the NOT MATCHED arms that fire precisely on its failure do
+    // not exist — so it is row-implied evidence like a DML WHERE: parameters
+    // narrow (RETURNING has no aggregates), columns promote, with the SET
+    // columns of the UPDATE arms masked (the condition tested the OLD row).
+    const allMatched = arms.length > 0 && arms.every(a => a.matchKind === "MERGE_WHEN_MATCHED");
+    if (allMatched && stmt.joinCondition) {
+      scope.whereClause = stmt.joinCondition;
+      scope.rowsImplyWhere = true;
+      const targetAlias = [...scope.aliases.keys()][0];
+      if (targetAlias !== undefined) {
+        const setColumns = new Set<string>();
+        for (const a of arms) {
+          for (const item of a.targetList ?? []) {
+            const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
+            if (name) setColumns.add(name);
+          }
+        }
+        scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
+      }
+    }
+    // Written values, per-arm intersection: a returned row can come from
+    // any row-producing arm, so a target column's written value is provably
+    // non-null only when EVERY such arm writes it non-null. UPDATE arms
+    // contribute their SET expressions (walked with the source visible),
+    // INSERT arms their positional values against their own column list; a
+    // column an arm does not write is the existing/default value and
+    // contributes nothing; a DELETE arm returns the OLD row, which voids
+    // the whole map; DO NOTHING produces no row and is excluded.
+    const producing = arms.filter(a => a.commandType !== "CMD_NOTHING");
+    const targetAliasW = [...scope.aliases.keys()][0];
+    if (
+      targetAliasW !== undefined &&
+      producing.length > 0 &&
+      producing.every(a => a.commandType === "CMD_UPDATE" || a.commandType === "CMD_INSERT")
+    ) {
+      const perArm: Map<string, boolean>[] = producing.map(a => {
+        const armMap = new Map<string, boolean>();
+        if (a.commandType === "CMD_UPDATE") {
+          for (const item of a.targetList ?? []) {
+            const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+            if (!rt?.name || !rt.val) continue;
+            if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
+            armMap.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+          }
+        } else {
+          const columns = (a.targetList ?? []).map(
+            t => (t as { ResTarget?: { name?: string } }).ResTarget?.name ?? "",
+          );
+          (a.values ?? []).forEach((val, i) => {
+            const col = columns[i];
+            if (col) armMap.set(col, this.walkExpr(val, scope, depth + 1));
+          });
+        }
+        return armMap;
+      });
+      const written = new Map<string, boolean>();
+      for (const [col] of perArm[0] ?? []) {
+        written.set(col, perArm.every(m => m.get(col) === true));
+      }
+      scope.dmlWrittenColumns = { alias: targetAliasW, columns: written };
+    }
+    // A join written directly as the MERGE source with a BY SOURCE arm is
+    // walked OPTIONAL, so the fixpoint's incoming-presence condition keeps
+    // its quals un-implied — deliberate, not an oversight.
     this.resolveJoinImplications(scope);
     return scope;
   }
@@ -2263,7 +2399,39 @@ class NullabilityEngine {
     }
 
     if ("A_Indirection" in node) {
-      trace.conclude(false, "A_Indirection → conservative nullable");
+      // Measured 2026-08-01: a SLICE never fails by range — it clamps, to an
+      // empty array if need be — so it is NULL only when the array or a
+      // bound is (strict + total). An ELEMENT subscript really is NULL out
+      // of range, a composite FIELD inherits its unconstrained type, and a
+      // jsonb subscript is NULL for a missing key: all correctly nullable.
+      const ai = node["A_Indirection"] as { arg?: Node; indirection?: Node[] };
+      const parts = ai.indirection ?? [];
+      const allSlices =
+        parts.length > 0 &&
+        parts.every(p => {
+          const idx = (p as { A_Indices?: { is_slice?: boolean } }).A_Indices;
+          return idx?.is_slice === true;
+        });
+      if (allSlices && ai.arg) {
+        const bounds = parts.flatMap(p => {
+          const idx = (p as { A_Indices?: { lidx?: Node; uidx?: Node } }).A_Indices!;
+          return [idx.lidx, idx.uidx].filter((b): b is Node => b !== undefined);
+        });
+        const argTrace = trace.addChild("slice: array");
+        const argNotNull = this.walkExprTraced(ai.arg, scope, depth + 1, argTrace);
+        const boundsNotNull = bounds.every((b, i) =>
+          this.walkExprTraced(b, scope, depth + 1, trace.addChild(`slice: bound[${i}]`)),
+        );
+        const result = argNotNull && boundsNotNull;
+        trace.conclude(
+          result,
+          result
+            ? "slice of a non-null array with non-null bounds clamps, never NULLs → notNull"
+            : "a NULL array or bound makes the slice NULL → nullable",
+        );
+        return result;
+      }
+      trace.conclude(false, "element/field/jsonb subscript → correctly nullable (out-of-range and missing-key are NULL)");
       return false;
     }
 
@@ -2292,6 +2460,40 @@ class NullabilityEngine {
     // empty subquery it returns NULL (measured), so JsonArrayQueryConstructor
     // stays on the conservative fallback, as do the path-query functions
     // (JsonFuncExpr — a missing path is NULL).
+    // The SQL/JSON path-query family (measured 2026-08-01). JSON_EXISTS is
+    // the ONE member that can be non-null: with a non-null context item it
+    // returns true/false, and its default ON ERROR is FALSE — only UNKNOWN
+    // ON ERROR reintroduces NULL. JSON_VALUE and JSON_QUERY are permanently
+    // nullable: a FOUND JSON null maps to SQL NULL through every handler
+    // combination (neither ON EMPTY nor ON ERROR fires on a successful
+    // match), so no clause analysis can ever prove them — correctly
+    // conservative, not imprecise.
+    if ("JsonFuncExpr" in node) {
+      const jf = node["JsonFuncExpr"] as {
+        op?: string;
+        context_item?: { raw_expr?: Node };
+        on_error?: { btype?: string };
+      };
+      if (
+        jf.op === "JSON_EXISTS_OP" &&
+        (!jf.on_error || jf.on_error.btype !== "JSON_BEHAVIOR_UNKNOWN") &&
+        jf.context_item?.raw_expr
+      ) {
+        const childTrace = trace.addChild("JSON_EXISTS: context item");
+        const result = this.walkExprTraced(jf.context_item.raw_expr, scope, depth + 1, childTrace);
+        trace.conclude(
+          result,
+          "JSON_EXISTS over a non-null context is a plain boolean (ON ERROR defaults FALSE)",
+        );
+        return result;
+      }
+      trace.conclude(
+        false,
+        "JSON_VALUE/JSON_QUERY map a found JSON null to SQL NULL through every handler; UNKNOWN ON ERROR does the same for JSON_EXISTS → nullable",
+      );
+      return false;
+    }
+
     if ("JsonObjectConstructor" in node || "JsonArrayConstructor" in node) {
       trace.conclude(true, "SQL/JSON value-list constructor always produces a container → notNull");
       return true;
@@ -3206,7 +3408,7 @@ class NullabilityEngine {
    * propagates through strict operators, NULLIF's left operand, COALESCE only
    * when every branch forces (intersection), casts transparently, and strict
    * functions (catalog metadata for user functions, the measured
-   * STRICT_BUILTIN_FUNCTIONS set for pg_catalog names the catalog does not
+   * snapshot's pg_catalog strictness capture for names the user catalog does not
    * carry — a user function of the same name always wins and gates on its own
    * declared strictness). Aggregates and window invocations are opaque: an
    * aggregate's value does not depend on any single row's column, and a
@@ -3258,7 +3460,7 @@ class NullabilityEngine {
       const strict = meta
         ? meta.strict && !meta.isAggregate
         : (schema === undefined || schema === "pg_catalog") &&
-          STRICT_BUILTIN_FUNCTIONS.has(name);
+          this.catalog.isStrictBuiltin(name);
       return strict && args.some(a => this.exprStrictlyForces(a, leaf));
     }
 
@@ -4345,6 +4547,14 @@ const STRICT_TOTAL_BUILTINS = new Set([
   "json_array_length", "row_to_json", "jsonb_strip_nulls", "jsonb_pretty",
   // Misc
   "num_nulls", "num_nonnulls", "pg_typeof",
+  // Wave-4 batch, each measured 2026-08-01 with adversarial non-null inputs
+  // (no-match regexps, empty arrays, missing jsonb paths — jsonb_set on a
+  // scalar target RAISES, which counts: an error is not a NULL).
+  "pow", "factorial", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
+  "scale", "min_scale", "trim_scale", "bit_count", "normalize",
+  "regexp_like", "regexp_count", "regexp_replace", "regexp_split_to_array",
+  "array_fill", "array_positions", "trim_array",
+  "jsonb_set", "jsonb_insert", "extract",
 ]);
 
 /**

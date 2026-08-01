@@ -51,7 +51,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Node } from "libpg-query";
-import { STRICT_BUILTIN_FUNCTIONS, TOTAL_STRICT_OPERATORS } from "./operators.js";
+import { TOTAL_STRICT_OPERATORS } from "./operators.js";
 import type { NullabilityCatalog } from "./types.js";
 
 /**
@@ -280,7 +280,7 @@ function forcedNullBy(
     const info = catalog.resolveFunctionMetadata(schema, name);
     const strict = info
       ? info.strict && !info.isAggregate
-      : (schema === undefined || schema === "pg_catalog") && STRICT_BUILTIN_FUNCTIONS.has(name);
+      : (schema === undefined || schema === "pg_catalog") && catalog.isStrictBuiltin(name);
     if (!strict) return empty;
     const out = new Set<number>();
     for (const arg of fc.args ?? []) {

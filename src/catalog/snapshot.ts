@@ -421,6 +421,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     sequenceRows,
     extensionRows,
     schemaRows,
+    builtinStrictFunctions,
   ] = await Promise.all([
     queryTypeNames(pg),
     queryTables(pg),
@@ -439,6 +440,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     querySequences(pg),
     queryExtensions(pg),
     querySchemas(pg),
+    queryBuiltinStrictFunctions(pg),
   ]);
 
   // Global type-name map (oid → format_type name) for resolving arg OIDs.
@@ -672,6 +674,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     sequences,
     extensions,
     schemas,
+    builtinStrictFunctions,
   };
 }
 
@@ -870,6 +873,27 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
      ORDER BY n.nspname, p.proname;`,
   );
   return res.rows;
+}
+
+/**
+ * pg_catalog function names whose EVERY plain-function overload is declared
+ * STRICT — the source of truth the strict-expression closures consult,
+ * replacing hand-curated measurement. Name-level bool_and is what makes the
+ * unknown-overload policy sound: whichever overload PostgreSQL resolves, it
+ * is strict. prokind = 'f' excludes aggregates and window functions, whose
+ * NULL semantics are not per-row strictness.
+ */
+async function queryBuiltinStrictFunctions(pg: PGlite): Promise<string[]> {
+  const res = await pg.query<{ name: string }>(
+    `SELECT p.proname AS name
+     FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
+     GROUP BY p.proname
+     HAVING bool_and(p.proisstrict)
+     ORDER BY p.proname;`,
+  );
+  return res.rows.map(r => r.name);
 }
 
 interface OperatorRow {

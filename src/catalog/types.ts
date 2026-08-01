@@ -280,6 +280,14 @@ export interface CatalogSnapshot {
   sequences: SequenceInfo[];
   extensions: ExtensionInfo[];
   schemas: SchemaInfo[];
+  /**
+   * pg_catalog function names whose every plain-function overload is STRICT
+   * (bool_and over pg_proc.proisstrict, prokind 'f' only). ENVIRONMENT, not
+   * schema: it describes the PostgreSQL version, never changes with
+   * migrations, and is deliberately absent from the diff's comparable
+   * states. Consumed by the strict-expression closures.
+   */
+  builtinStrictFunctions: string[];
 }
 
 // ---------------------------------------------------------------------------

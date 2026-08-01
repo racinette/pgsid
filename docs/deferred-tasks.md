@@ -117,6 +117,20 @@ DML-WHERE narrowing. Each closure is pinned by a fixture
 `dml-where-channel`, `update-set-mask`), and every generated-suite trap rule
 those imprecisions carried went stale and was deleted, as designed.
 
+Closed by Wave 4 (2026-08, measured first throughout): USING/NATURAL join
+quals (synthesized as the equality conjuncts they are and fed to the
+presence fixpoint; `join-using-promotion.sql`); arm-aware MERGE — the
+source is OPTIONAL only when a NOT MATCHED BY SOURCE arm exists (flipped
+`param-merge`'s own unwitnessability note), the join condition is
+row-implied when every arm is MATCHED-kind, and written values intersect
+per-arm exactly like ON CONFLICT's paths (the `merge-returning-written`
+trap fired and was acknowledged); `JSON_EXISTS` over a non-null context
+(the ONE provable member of the path-query family — a found JSON null
+defeats every handler for VALUE/QUERY, measured); builtin STRICTNESS
+captured from pg_catalog itself (name-level bool_and over `proisstrict`,
+replacing the curated set with the source of truth) plus a 23-entry
+measured totality batch; and array SLICES (clamp, never NULL by range).
+
 Closed by Wave 3 (2026-08): custom operators — the snapshot captures
 `pg_operator`, strict-backed operators gate promotion/narrowing/attribution,
 and results dispatch through the backing function's own rules (section 3
@@ -142,15 +156,12 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 
 | Construct | Current | Note |
 |---|---|---|
-| `A_Indirection` (array subscript, field access) | nullable | an out-of-range subscript really is NULL and the index is not checkable statically |
-| JSON query functions, `JSON_ARRAY(subquery)`, and `XmlExpr` beyond `XMLELEMENT` | nullable | correctly so in general: a missing path is NULL, `JSON_ARRAY(SELECT …)` over an empty subquery is NULL (measured), `xmlconcat`/`xmlforest` of NULLs are NULL. Genuine imprecision remaining here is per-shape and small |
+| `A_Indirection` element / field / jsonb subscripts | nullable — correctly | measured: out-of-range elements and missing jsonb keys ARE NULL, and composite fields carry no constraints. SLICES are closed (Wave 4): they clamp rather than NULL, so a slice of a non-null array with non-null bounds is notNull (`array-slices.sql`) |
+| `JSON_VALUE` / `JSON_QUERY`, `JSON_ARRAY(subquery)`, `XmlExpr` beyond `XMLELEMENT` | nullable — correctly, permanently | measured: a FOUND JSON null maps to SQL NULL through every ON EMPTY/ON ERROR handler combination, so no clause analysis can ever prove these; `JSON_ARRAY(SELECT …)` over an empty subquery is NULL; `xmlconcat`/`xmlforest` of NULLs are NULL. `JSON_EXISTS` is the one provable member and IS closed (Wave 4, `json-exists.sql`) |
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; the NOT NULL domain return is the escape hatch |
-| `pg_catalog` built-ins outside the curated tables | nullable | add to `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` (totality required) or `STRICT_BUILTIN_FUNCTIONS` in `operators.ts` (strictness required, for the guarantee closure) as needed — the properties are different and each entry must be measured for the set it joins |
+| `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
-| `USING` / `NATURAL` join quals | not consulted by the presence fixpoint | the merged-column equality is strict and could imply presence like an ON qual; the merged-column machinery is separate and the fixpoint reads `quals` only |
-| MERGE join condition and arm conditions | no narrowing, no promotion | NOT MATCHED arms fire precisely for rows that did NOT pass the join condition, so it is not row-implied; per-arm reasoning was judged not worth it |
-| MERGE `RETURNING` vs written values | catalog nullability only | the INSERT/UPDATE tracking (Wave 3) does not extend to MERGE — per-arm intersections over UPDATE/INSERT/DELETE/BY-SOURCE arms were judged not worth it; the register's old example (`INSERT … VALUES` literals) IS closed. Held by a live trap: `merge-returning-written.sql` writes a literal in every arm, and its `@unwitnessable` annotation turns invalid the day the tracking lands |
-| Written-value tracking carries non-nullness only | value dependence stays dark | `CASE WHEN active THEN 'a' ELSE name END` over a row whose `active` was written `true` never takes the ELSE, but that is the boolean's VALUE — the generated `dml-returning-case-value-dependence` rule records the shape. Multi-assignment SET and DEFAULT-taking columns keep the catalog |
+| MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
 
 ---
 
@@ -222,6 +233,19 @@ possible upstream contribution someday, not verification of this engine.
 ---
 
 ## Decided against — do not re-open without new information
+
+**Value tracking for nullability (the “CASE value-dependence” rung
+ladder).** Knowing that `CASE WHEN active THEN 'a' ELSE name END` never
+takes its ELSE because `active` was written `true` requires tracking the
+VALUE, not the nullability — and the rungs above it (NOT of a tracked
+boolean, equality over tracked text, comparisons over tracked numbers,
+values computed from bindings) each look equally reasonable until the
+engine contains a constant evaluator for PostgreSQL expressions that must
+match PostgreSQL exactly or produce unsound claims: the FigureColname trap,
+larger, and unsound rather than cosmetic when it drifts. Ruled out
+entirely, no rung implemented (2026-08). The generated
+`dml-returning-case-value-dependence` rule records the shape that motivated
+it.
 
 **Reproducing PostgreSQL's column-naming rules (`FigureColname`).** PostgreSQL
 labels an un-aliased output column by a set of rules in

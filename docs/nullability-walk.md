@@ -264,11 +264,18 @@ CTE's output. Missing them makes `SELECT *` over the CTE the wrong shape.
 
 ### MERGE ... RETURNING
 
-`MergeStmt` is dispatched like the other DML forms. The target relation is
-REQUIRED (RETURNING reports the row actually written), but the **source is
-OPTIONAL**: `WHEN NOT MATCHED BY SOURCE` fires for target rows with no source
-match, and RETURNING then reports NULL for every source column — including a
-primary key or a NOT NULL column.
+`MergeStmt` is dispatched like the other DML forms, arm-aware since Wave 4.
+The target relation is REQUIRED (RETURNING reports the row actually
+written). The **source is OPTIONAL only when a `NOT MATCHED BY SOURCE` arm
+exists** — that is the sole arm that can null-extend it; every other
+row-producing arm either matched the source or was driven by it, so without
+one the source is REQUIRED and its columns keep base nullability. When
+EVERY arm is MATCHED-kind, the join condition is row-implied evidence like
+a DML WHERE (parameters narrow, columns promote, SET columns masked).
+Written values intersect per row-producing arm exactly like ON CONFLICT's
+two paths: UPDATE arms contribute SET expressions, INSERT arms their
+positional values, a DELETE arm voids the map (it returns the OLD row),
+and DO NOTHING arms are excluded (they produce no row).
 
 ### Set-returning functions in FROM
 

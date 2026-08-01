@@ -171,6 +171,14 @@ export interface NullabilityCatalog {
   resolveOperatorMetadata(schema: string | undefined, name: string): OperatorMetadata | null;
 
   /**
+   * Whether every pg_catalog plain-function overload of `name` is declared
+   * STRICT — from the snapshot's environment capture, the source of truth
+   * the strict-expression closures consult for builtin names the user
+   * catalog does not carry.
+   */
+  isStrictBuiltin(name: string): boolean;
+
+  /**
    * Domain metadata: whether the type identified by `typeOid` is a domain with
    * a NOT NULL constraint. Used for the priority-1 function dispatch rule
    * (a function returning a NOT NULL domain is guaranteed non-null).

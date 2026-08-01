@@ -369,5 +369,6 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     sequences: [],
     extensions: [],
     schemas: [],
+    builtinStrictFunctions: [],
   };
 }

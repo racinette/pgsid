@@ -270,8 +270,10 @@ with three boundaries each carried by a fixture or generated negative:
   there; COLUMN promotion applies to FROM/USING relations and non-SET target
   columns (old row = new row for those), while SET columns are masked —
   `update-set-mask.sql` is the live counterexample that forces the mask.
-  MERGE stays out entirely: NOT MATCHED arms never passed the join
-  condition.
+  MERGE joined in Wave 4, arm-aware: the join condition is row-implied
+  (narrowing included) exactly when EVERY arm is MATCHED-kind — a NOT
+  MATCHED arm fires precisely on the condition's failure, so mixed
+  statements keep it dark.
 
 **Deferred, recorded so the boundary is deliberate:**
 
