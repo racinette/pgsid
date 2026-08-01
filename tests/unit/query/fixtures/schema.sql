@@ -103,6 +103,22 @@ CREATE FUNCTION strict_same(a text, b text) RETURNS boolean
   AS $$ SELECT a = b $$;
 CREATE OPERATOR ==== (LEFTARG = text, RIGHTARG = text, FUNCTION = strict_same);
 
+-- Generated columns (Wave 5c): the generation expression is walked at the
+-- reading site with its refs bound to the read entry, so `doubled` is
+-- notNull (a is NOT NULL, * is strict+total), `label` is nullable (b is
+-- nullable, || is strict), and `safe_label` is notNull per-row — which is
+-- exactly what makes it the LEFT-JOIN counterexample: a NULL-extended row
+-- nulls it anyway, so the joinState gate must win (pinned in
+-- generated-left-join-gate.sql). Writes to these columns cannot exist:
+-- PREPARE rejects them (pinned in param-mechanism.test.ts).
+CREATE TABLE gm (
+  a          integer NOT NULL,
+  b          text,
+  doubled    integer GENERATED ALWAYS AS (a * 2) STORED,
+  label      text    GENERATED ALWAYS AS (b || '!') STORED,
+  safe_label text    GENERATED ALWAYS AS (coalesce(b, 'anon')) STORED
+);
+
 -- Overload-consensus subjects (Wave 5): names whose arity-compatible
 -- candidates AGREE on the asked property, so the conclusion holds whichever
 -- overload PostgreSQL resolves — the counterpart of over_fn below, whose

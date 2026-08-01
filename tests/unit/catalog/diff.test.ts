@@ -172,7 +172,7 @@ describe("diffCatalogs: columns", () => {
       tables: [table("public", "t", [col({ name: "gen", generated: "none" })])],
     });
     const after = snapshot({
-      tables: [table("public", "t", [col({ name: "gen", generated: "always" })])],
+      tables: [table("public", "t", [col({ name: "gen", generated: "stored" })])],
     });
     const diff = diffCatalogs(before, after);
     expect(diff.modified.map(m => m.entityId)).toEqual(["public.t.gen"]);

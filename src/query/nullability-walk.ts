@@ -479,6 +479,8 @@ class NullabilityEngine {
    * `fnCtx` before this set is consulted.)
    */
   private bindRejectedParams: Set<number> = new Set();
+  /** Generation expressions currently being walked (cycle insurance). */
+  private generationInFlight: Set<string> = new Set();
   /** Whether tracing is enabled. */
   private readonly tracing: boolean;
   /** The catalog. */
@@ -929,6 +931,33 @@ class NullabilityEngine {
    * remaining columns, then the right's — and the constituents' own copies
    * stop being visible, though `a.id` still resolves through the alias map.
    */
+  /**
+   * A clone of `expr` with every unqualified ColumnRef prefixed by `alias`.
+   * Generation expressions render with bare column names of their own table;
+   * walking them inside a multi-relation reading scope needs the refs pinned
+   * to the entry being read, or an unrelated relation's same-named column
+   * could capture them.
+   */
+  private qualifyColumnRefs(expr: Node, alias: string): Node {
+    const clone = structuredClone(expr);
+    const rewrite = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        node.forEach(rewrite);
+        return;
+      }
+      if (!node || typeof node !== "object") return;
+      const obj = node as Record<string, unknown>;
+      const cr = obj["ColumnRef"] as { fields?: Node[] } | undefined;
+      if (cr?.fields?.length === 1) {
+        cr.fields = [{ String: { sval: alias } } as unknown as Node, cr.fields[0]!];
+        return;
+      }
+      Object.values(obj).forEach(rewrite);
+    };
+    rewrite(clone);
+    return clone;
+  }
+
   /** A synthesized `l.a = r.b` A_Expr for the USING/NATURAL conjuncts. */
   private syntheticEquality(
     leftAlias: string,
@@ -3029,6 +3058,43 @@ class NullabilityEngine {
         trace.addFact("writtenValue", "provably non-null on every returning path");
         trace.conclude(true, "the written value is non-null → notNull in RETURNING");
         return true;
+      }
+      // A GENERATED column is its expression over THIS row's other columns,
+      // so walking the expression with its refs bound to this entry gives
+      // the column's true nullability — and composes with everything the
+      // reading site knows (WHERE promotion, guards, the written-value
+      // map), because the stored row IS the read row. The joinState gate is
+      // load-bearing: a NULL-extended row nulls a generated column exactly
+      // like any other, however non-null its expression is per-row
+      // (COALESCE(b,'anon') under LEFT JOIN is the pinned counterexample).
+      // Cycle-free by PostgreSQL's rules; the in-flight set is insurance
+      // against hand-built catalogs, not a reachable state.
+      if (!catalogNotNull && joinState !== OPTIONAL) {
+        const genKey = `${entry.table.schema}.${entry.table.name}.${colName}`;
+        const genExpr =
+          this.generationInFlight.has(genKey)
+            ? null
+            : this.catalog.resolveGenerationExpr(entry.table.schema, entry.table.name, colName);
+        if (genExpr) {
+          this.generationInFlight.add(genKey);
+          try {
+            const genTrace = trace.addChild("generation expression");
+            const result = this.walkExprTraced(
+              this.qualifyColumnRefs(genExpr, entry.alias),
+              scope,
+              depth + 1,
+              genTrace,
+            );
+            if (result) {
+              trace.addFact("generatedColumn", "expression provably non-null");
+              trace.conclude(true, "generation expression over this row's columns → notNull");
+              return true;
+            }
+            trace.addFact("generatedColumn", "expression not provably non-null");
+          } finally {
+            this.generationInFlight.delete(genKey);
+          }
+        }
       }
       const result = catalogNotNull && joinState !== OPTIONAL;
       trace.conclude(result, `catalog.notNull=${catalogNotNull} && join ${joinStateName(joinState)}${joinState === OPTIONAL ? " (OPTIONAL → nullable)" : ""}`);

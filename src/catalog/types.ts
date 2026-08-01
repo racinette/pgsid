@@ -45,8 +45,8 @@ export interface ColumnInfo {
   hasDefault: boolean;
   /** Human-readable default expression from `pg_get_expr(adbin, adrelid)`. */
   defaultExpr: string | null;
-  /** Generated-column mode: `attgenerated` 'a'→always, 's'→byDefault, ''→none. */
-  generated: "always" | "byDefault" | "none";
+  /** Generated-column mode: `attgenerated` 's'→stored, 'v'→virtual (PG18), ''→none. */
+  generated: "stored" | "virtual" | "none";
   /** Identity column: `attidentity` 'a'→always, 'd'→byDefault, ''→null. */
   identity: "always" | "byDefault" | null;
 }

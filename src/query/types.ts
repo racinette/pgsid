@@ -196,6 +196,14 @@ export interface NullabilityCatalog {
   isStrictBuiltin(name: string): boolean;
 
   /**
+   * The pre-parsed generation expression of `schema.table.column` (GENERATED
+   * ALWAYS AS ... STORED/VIRTUAL), or null. An expression over the table's
+   * own columns — cycle-free and immutable by PostgreSQL's rules — walked at
+   * the reading site to upgrade the catalog's (always-false) notNull flag.
+   */
+  resolveGenerationExpr(schema: string, table: string, column: string): Node | null;
+
+  /**
    * Domain metadata: whether the type identified by `typeOid` is a domain with
    * a NOT NULL constraint. Used for the priority-1 function dispatch rule
    * (a function returning a NOT NULL domain is guaranteed non-null).

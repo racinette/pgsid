@@ -26,6 +26,13 @@ INSERT INTO v (id, u_id, amount) VALUES (1, 1, NULL);
 -- column witnessable through the conflict path too.
 INSERT INTO ck (id, name, val) VALUES (1, NULL, 'sv');
 
+-- Generated-column rows: one with b NULL (witnesses `label`'s NULL — the
+-- strict || propagates it) and one with b present (liveness for fixtures
+-- filtering on b). `gm` is deliberately absent from `dense`, so a LEFT
+-- JOIN onto it null-extends there — the joinState-gate witness.
+INSERT INTO gm (a, b) VALUES (1, NULL);
+INSERT INTO gm (a, b) VALUES (2, 'bee');
+
 INSERT INTO categories (id, parent_id, slug, name) VALUES (1, NULL, 'root', 'Root');
 INSERT INTO customers (id, email, name) VALUES (1, 'a@b.c', NULL);
 INSERT INTO products (id, category_id, sku, name, price) VALUES (1, NULL, 'S1', 'P1', 10);

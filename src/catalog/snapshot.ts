@@ -208,10 +208,15 @@ function toNumArray(v: number[] | string | null | undefined): number[] {
   return [];
 }
 
-/** Map `attgenerated` char to the ColumnInfo `generated` enum. */
+/**
+ * Map `attgenerated` char to the ColumnInfo `generated` enum. The chars are
+ * 's' (STORED) and, from PG18, 'v' (VIRTUAL) — the always/byDefault pair
+ * belongs to `attidentity`, and an earlier version of this mapping wrongly
+ * borrowed it.
+ */
 function mapGenerated(c: string): ColumnInfo["generated"] {
-  if (c === "a") return "always";
-  if (c === "s") return "byDefault";
+  if (c === "s") return "stored";
+  if (c === "v") return "virtual";
   return "none";
 }
 

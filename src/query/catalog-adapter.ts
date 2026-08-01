@@ -99,6 +99,31 @@ export async function buildNullabilityCatalog(
     if (ast) fnBodyAsts.set(fnKey, ast);
   }
 
+  // Pre-parse GENERATED column expressions (pg_get_expr renders them into
+  // ColumnInfo.defaultExpr for generated columns). The expression is over
+  // the table's OWN columns — PostgreSQL forbids referencing another
+  // generated column, so no cycles — and must be immutable, so no volatile
+  // surprises. Wrapped in a SELECT to parse, then unwrapped to the bare
+  // expression node. Keyed `schema.table.column`.
+  const generationExprAsts = new Map<string, Node>();
+  for (const t of snapshot.tables) {
+    for (const col of t.columns) {
+      if (col.generated === "none" || !col.defaultExpr) continue;
+      try {
+        const parsed = await parseSql(`SELECT ${col.defaultExpr}`);
+        const stmt = parsed.stmts?.[0]?.stmt as
+          | { SelectStmt?: { targetList?: { ResTarget?: { val?: Node } }[] } }
+          | undefined;
+        const expr = stmt?.SelectStmt?.targetList?.[0]?.ResTarget?.val;
+        if (expr) generationExprAsts.set(`${t.schema}.${t.name}.${col.name}`, expr);
+      } catch {
+        // Unparseable → the column falls back to the catalog flag.
+      }
+    }
+  }
+  const resolveGenerationExpr = (schema: string, table: string, column: string): Node | null =>
+    generationExprAsts.get(`${schema}.${table}.${column}`) ?? null;
+
   // Pre-parse view definitions. `pg_views.definition` is the rewritten SELECT
   // without a trailing semicolon in some versions — parseSql handles both.
   const viewAsts = new Map<string, Node>();
@@ -278,6 +303,7 @@ export async function buildNullabilityCatalog(
     resolveFunctionMetadata,
     resolveFunctionCandidates,
     resolveOperatorMetadata,
+    resolveGenerationExpr,
     isStrictBuiltin,
     isNotNullDomain,
     isNotNullDomainByName,
