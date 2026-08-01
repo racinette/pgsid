@@ -25,11 +25,12 @@ zero. The measurements are in `docs/witness-coverage.md`.
 What is left is not more assertions about the queries somebody wrote. It is
 finding the defects nobody thought to look for, and then a consumer.
 
-1. **Argument nullability** — built, all four sequencing steps, plus
-   mechanism-A output narrowing and mechanism-C value-flow rejection; the
-   design, its empirical grounding, and what remains deferred
-   (the multi-row residual of "Source value-flow attribution") are
-   in `docs/argument-nullability.md`.
+1. **Argument nullability** — built in full: the four sequencing steps,
+   mechanism-A output narrowing, mechanism-C value-flow rejection, and
+   source value-flow attribution with its quantifiers split (universal for
+   narrowing, existential for the contract). The design and its empirical
+   grounding are in `docs/argument-nullability.md`; no known wrong-claim
+   class remains.
 2. **New generator axes.** The generated suite ran its full axis space and
    found no defect, which per its own criterion is the signal to widen the
    axes — parameters (above), then DML, deeper nesting, window functions.
@@ -120,33 +121,7 @@ kept it dark".
 
 ---
 
-## 4. Source value-flow attribution — residual
-
-**Built.** The collector attributes a parameter through a derived-table
-column into a rejecting site: alias → column → defining expressions, with
-`forcedNullParams` recursing through the definitions. Channels: MERGE
-`USING` sources, `INSERT … SELECT` derived tables, `UPDATE … FROM`, and the
-`excluded` pseudo-alias of ON CONFLICT (whose columns ARE the proposed
-row's expressions). Trigger fixtures: `param-merge-source.sql`,
-`param-insert-source.sql`, `param-onconflict-excluded.sql` (the last also
-pins case-folding and attribution through composition).
-
-**The residual, which is the reason this entry survives.** Attribution
-takes the INTERSECTION over a column's defining rows — required, because
-the same function serves WHERE-narrowing, whose quantifier is universal.
-Consequence: a parameter forcing only SOME rows of a multi-row `VALUES`
-NULL is still claimed nullable, while `MERGE … USING (VALUES ($1), (901))
-… INSERT (id) VALUES (s.sid)` really can raise. A wrong claim in the
-unsafe direction, much narrower than before, and kept out of the corpus
-for the same reason its parent was: the oracle would rightly fail on it.
-
-**Trigger.** Splitting the two consumers' quantifiers (existential
-attribution for the contract, universal for narrowing), or a bug report
-containing the shape.
-
----
-
-## 5. Unbuilt verification strategies
+## 4. Unbuilt verification strategies
 
 One of the five strategies proposed for finding engine defects remains
 unbuilt, and after assessing the candidates it is **demoted, not queued**.

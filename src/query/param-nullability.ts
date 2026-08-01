@@ -151,16 +151,49 @@ function reject(c: Collector, num: number, mechanism: "domain" | "constraint" | 
  * claim). Everything unrecognised contributes nothing — an unattributed
  * parameter stays nullable, and the falsification oracle keeps that honest.
  *
- * Two consumers: mechanism-C attribution here (a forced-NULL value reaching
- * a runtime rejection makes the parameter `notNull`), and the output walk's
- * WHERE-conjunct narrowing (a must-be-TRUE conjunct whose operand a
- * parameter forces NULL proves the parameter non-null on every returned
- * row).
+ * Two consumers with OPPOSITE row-quantifiers, hence the two exported faces
+ * below. The propagation rules above are value semantics within a single
+ * evaluation and are shared; only the reduction over a derived column's
+ * defining rows differs.
+ */
+/**
+ * The UNIVERSAL face: parameters whose NULL forces the expression NULL in
+ * EVERY row context — a derived column reduces by intersection over its
+ * defining rows. This is what WHERE-conjunct narrowing must consume: a row
+ * whose definition the parameter does not force can survive the conjunct
+ * with the parameter NULL and carry it into the output
+ * (param-narrow-multirow.sql is the measured case).
  */
 export function forcedNullParams(
   node: Node | undefined,
   catalog: NullabilityCatalog,
   ctx?: AliasContext,
+): Set<number> {
+  return forcedNullBy(node, catalog, ctx, false);
+}
+
+/**
+ * The EXISTENTIAL face: parameters whose NULL forces the expression NULL in
+ * AT LEAST ONE row context — union over defining rows. This is what the
+ * contract's rejecting sites consume: one forced row reaching the site is
+ * enough to raise (param-merge-source-multirow.sql is the trigger case).
+ * The two faces differ ONLY at that reduction; COALESCE's intersection and
+ * the strict operators' union are value semantics within a single
+ * evaluation and belong to both.
+ */
+export function forcedNullParamsAnyRow(
+  node: Node | undefined,
+  catalog: NullabilityCatalog,
+  ctx?: AliasContext,
+): Set<number> {
+  return forcedNullBy(node, catalog, ctx, true);
+}
+
+function forcedNullBy(
+  node: Node | undefined,
+  catalog: NullabilityCatalog,
+  ctx: AliasContext | undefined,
+  anyRow: boolean,
 ): Set<number> {
   const empty = new Set<number>();
   if (!node || typeof node !== "object") return empty;
@@ -169,11 +202,9 @@ export function forcedNullParams(
   const direct = paramNumberOf(n);
   if (direct !== null) return new Set([direct]);
 
-  // A derived-table column: attribute through its defining expressions.
-  // INTERSECTION over rows, and it must be — the other consumer of this
-  // function (WHERE-conjunct narrowing) quantifies universally, and even for
-  // the contract a parameter forcing only SOME rows NULL cannot be claimed
-  // from here (that residual is recorded in docs/deferred-tasks.md). The
+  // A derived-table column: attribute through its defining expressions,
+  // reduced per the caller's quantifier — intersection for the universal
+  // face (narrowing), union for the existential one (contract sites). The
   // recursion drops the context: a defining expression cannot reference its
   // own alias, and deeper nesting stays conservative.
   if (n["ColumnRef"] && ctx) {
@@ -189,25 +220,26 @@ export function forcedNullParams(
     }
     const defs = colName ? cols?.get(colName) : undefined;
     if (defs?.length) {
-      return defs
-        .map(d => forcedNullParams(d, catalog))
-        .reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
+      const perRow = defs.map(d => forcedNullBy(d, catalog, undefined, anyRow));
+      return anyRow
+        ? perRow.reduce((acc, s) => new Set([...acc, ...s]))
+        : perRow.reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
     }
     return empty;
   }
 
   if (n["TypeCast"]) {
-    return forcedNullParams((n["TypeCast"] as { arg?: Node }).arg, catalog, ctx);
+    return forcedNullBy((n["TypeCast"] as { arg?: Node }).arg, catalog, ctx, anyRow);
   }
 
   if (n["A_Expr"]) {
     const ae = n["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
-    if (ae.kind === "AEXPR_NULLIF") return forcedNullParams(ae.lexpr, catalog, ctx);
+    if (ae.kind === "AEXPR_NULLIF") return forcedNullBy(ae.lexpr, catalog, ctx, anyRow);
     const op = ae.name?.length === 1 ? stringVal(ae.name[0]) : "";
     if (ae.kind === "AEXPR_OP" && TOTAL_STRICT_OPERATORS.has(op)) {
       const out = new Set<number>();
       for (const operand of [ae.lexpr, ae.rexpr]) {
-        for (const num of forcedNullParams(operand, catalog, ctx)) out.add(num);
+        for (const num of forcedNullBy(operand, catalog, ctx, anyRow)) out.add(num);
       }
       return out;
     }
@@ -218,7 +250,7 @@ export function forcedNullParams(
     const args = (n["CoalesceExpr"] as { args?: Node[] }).args ?? [];
     if (args.length === 0) return empty;
     return args
-      .map(a => forcedNullParams(a, catalog, ctx))
+      .map(a => forcedNullBy(a, catalog, ctx, anyRow))
       .reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
   }
 
@@ -233,7 +265,7 @@ export function forcedNullParams(
     const out = new Set<number>();
     for (const arg of fc.args ?? []) {
       if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return empty;
-      for (const num of forcedNullParams(arg, catalog, ctx)) out.add(num);
+      for (const num of forcedNullBy(arg, catalog, ctx, anyRow)) out.add(num);
     }
     return out;
   }
@@ -329,7 +361,7 @@ function aliasContextOf(items: Node[] | undefined): AliasContext | undefined {
  *  ParamRef, which its caller has already handled as A or B. */
 function rejectFlow(c: Collector, expr: Node | undefined, ctx?: AliasContext): void {
   if (!expr || paramNumberOf(expr) !== null) return;
-  for (const num of forcedNullParams(expr, c.catalog, ctx)) reject(c, num, "flow");
+  for (const num of forcedNullParamsAnyRow(expr, c.catalog, ctx)) reject(c, num, "flow");
 }
 
 function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): void {

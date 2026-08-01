@@ -191,11 +191,14 @@ tables, `UPDATE … FROM`, and ON CONFLICT's `excluded` pseudo-alias — whose
 columns are simply the proposed row's expressions, so `SET val =
 EXCLUDED.name` with `name` bound to `$2` rejects `$2` (case-folded like
 every identifier; attribution composes through strict operators). The
-quantifier over a multi-row source is the INTERSECTION of rows — it must
-be, because WHERE-narrowing consumes the same function universally — which
-leaves the ∃-row residual recorded in `docs/deferred-tasks.md`. Trigger
-fixtures: `param-merge-source.sql`, `param-insert-source.sql`,
-`param-onconflict-excluded.sql`.
+reduction over a multi-row source carries the caller's quantifier — the
+UNIVERSAL face (intersection) for WHERE-narrowing, where one unforced row
+can smuggle a NULL past the conjunct (`param-narrow-multirow.sql`), and the
+EXISTENTIAL face (union) for the contract's rejecting sites, where one
+forced row reaching the site is enough to raise
+(`param-merge-source-multirow.sql`). Trigger fixtures:
+`param-merge-source.sql`, `param-insert-source.sql`,
+`param-onconflict-excluded.sql`, and the two quantifier pins above.
 
 **A hazard step 1 must check, because it exists today: overload resolution
 under untyped parameters.** Which overload of `f($1)` PostgreSQL executes

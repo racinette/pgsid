@@ -1076,9 +1076,7 @@ export function generateDmlQueries(): GeneratedQuery[] {
   // Sources draw sids from t (never NULL: t.id is NOT NULL and only inner
   // joins appear inside), so the INSERT arm's PK is safe. Parameters in
   // SOURCES are attributed through the derived-table column map
-  // (merge-src-param below); the residual — a parameter forcing only SOME
-  // rows of a multi-row VALUES NULL — stays out of the corpus, per the
-  // residual note in docs/deferred-tasks.md. Under sparse, sid 1 exercises
+  // (merge-src-param below). Under sparse, sid 1 exercises
   // the MATCHED arms against the seeded ck.1; under unmatched, ck.55
   // exercises NOT MATCHED BY SOURCE, which is the only way s.* columns are
   // ever witnessed NULL.
