@@ -403,6 +403,58 @@ possible upstream contribution someday, not verification of this engine.
 
 ---
 
+## 5. Semantic re-founding — standing TODO, parallel-track
+
+**What.** Re-found the engine on a semantic core instead of the grown rule
+system: lower the parsed AST once into a small relational IR (~10
+operators — Scan/Filter/Project/Join/Union/Aggregate/Values/DML — with
+predicates in one normalized 3VL language), model a relation as a set of
+rows carrying a REFINEMENT (its invariant), and let operators transform
+refinements compositionally. Scan emits the catalog's notNull facts,
+validated CHECKs as notFALSE, and generated columns as equalities — one
+uniform refinement where today those are separate code paths; Filter ADDS
+TRUE facts (WHERE promotion, implied quals, HAVING, and branch guards all
+become the same operation at different sites); Join contributes presence
+(joinState derived from the operator instead of hand-threaded); column
+nullability becomes the single question "does the row refinement entail
+col IS NOT NULL?" — the entailment kernel promoted from leaf-level
+consultation to THE engine. Origin tracking becomes provenance proper
+(the semiring formulation — rowPath is hand-rolled why-provenance), under
+which the origin extensions that are architecturally heavy today compose
+naturally.
+
+**Why believe it.** The diagnosis: most of the current rule surface is
+AST-shape normalization (accidental — collapses into the lowering, once),
+a smaller part is measured PostgreSQL facts (irreducible — they become
+the model's axioms, and the pins already are that), and the actual
+inference is ALREADY the abstract thing (the kernel is a small sound
+proof system; the waves added fact sources, not special cases). The tell:
+features hard here but natural in the cleaner model — origins through
+UNION, promotion-at-distance — mean the architecture is fighting its
+representation.
+
+**Method — why this is low-risk for THIS project.** Not a rewrite. The
+current engine stays as is; the prototype is a PARALLEL implementation
+differential-tested against it AND the execution oracle over the same
+corpus — the fixtures, witness discipline, and generated axes are
+representation-independent, so parity is a number that goes up and the
+prototype cannot drift silently. Cut over only at full parity; the
+cut-over test of whether the abstraction earned its keep is that the
+residue fixtures below flip from recorded imprecision to claims — if they
+don't fall out, the model was wrong and we lost a prototype, not the
+engine. The `QueryContract` boundary means the consumer never notices.
+
+**What it must not change.** The measured-pin culture (PostgreSQL is not
+its spec; axioms come from PGlite), the contract surface, and the
+witness invariant.
+
+**Executable target list.** The known-imprecision residue fixtures
+(`residue-*.sql`, each `@nullable` + `@unwitnessable` with the residue
+named) pin today's conservative answers; any engine that starts narrowing
+one fails the annotation suite in the "you improved — update the claims"
+direction, which is what keeps this TODO honest across a re-founding
+nobody's conversation memory survives.
+
 ## Decided against — do not re-open without new information
 
 **Value tracking for nullability (the “CASE value-dependence” rung
