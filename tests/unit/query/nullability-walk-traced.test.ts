@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, basename } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullabilityTraced } from "../../../src/query/nullability-walk.js";
+import { inferNullability, inferNullabilityTraced } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 describe("nullability-walk-traced", () => {
@@ -24,6 +26,41 @@ describe("nullability-walk-traced", () => {
 
   afterAll(async () => {
     if (!pg.closed) await pg.close();
+  });
+
+  // -------------------------------------------------------------------------
+  // Parity: the traced walk must produce the SAME verdicts as the engine,
+  // for every fixture. The tracer exists to explain decisions, and it once
+  // rebuilt DML scopes by hand — silently dropping the WHERE channel, the
+  // SET mask, and the written-value map, so it explained decisions the
+  // engine did not make (an UPDATE ... WHERE status = 'housed' RETURNING
+  // read notNull in the engine and nullable in its own trace). The scope
+  // builders are shared now; this holds the property against future drift.
+  // -------------------------------------------------------------------------
+  it("agrees with the untraced engine on every fixture", async () => {
+    const fixturesDir = join(__dirname, "fixtures");
+    const files = readdirSync(fixturesDir)
+      .filter(f => f.endsWith(".sql") && f !== "schema.sql")
+      .sort();
+    const disagreements: string[] = [];
+    for (const file of files) {
+      const sql = readFileSync(join(fixturesDir, file), "utf8");
+      const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
+      const plain = inferNullability(stmt, catalog);
+      const traced = inferNullabilityTraced(stmt, catalog);
+      const flat = (r: { name: string; notNull: boolean }[]): string =>
+        r.map(c => `${c.name}:${c.notNull ? "notNull" : "nullable"}`).join(", ");
+      if (flat(plain) !== flat(traced)) {
+        disagreements.push(
+          `${basename(file)}\n    engine: ${flat(plain)}\n    traced: ${flat(traced)}`,
+        );
+      }
+    }
+    expect(
+      disagreements,
+      `the traced walk disagrees with the engine — its explanation describes ` +
+        `a different decision:\n  ${disagreements.join("\n  ")}`,
+    ).toEqual([]);
   });
 
   it("produces a trace tree explaining a simple column", async () => {

@@ -34,6 +34,17 @@ import type { Node } from "libpg-query";
 // TOTAL_STRICT_OPERATORS by bare name (the same shadowing blind spot the
 // promotion gate documents).
 //
+// Beyond single atoms, three fact forms round out the evidence (Wave 7):
+// disjunctive conjuncts (OR, multi-element IN, = ANY over an array literal)
+// become OR-facts consumed by the subset rule — TRUE(a ∨ b) makes any
+// superset OR TRUE; NOT-wrapped conjuncts become FALSE facts (with De Morgan
+// over a negated OR), and the negator pairing runs in both directions — a
+// TRUE fact falsifies its negation AND a FALSE fact certifies it, since a
+// strict comparison that evaluated FALSE had non-null operands. The walk
+// feeds the kernel per-channel evidence lists (OLD row / NEW row / the read
+// row of a SET expression) with the SET mask applied per source; see the
+// call site in nullability-walk.ts for the row-consistency argument.
+//
 // Literal casts: pg_get_constraintdef annotates literals with the type the
 // comparison resolved at (`'housed'::text`) while a user's WHERE usually
 // carries the bare literal. The two match only when the explicit cast names
@@ -51,6 +62,20 @@ export interface CheckEntailmentTrace {
   addFact(name: string, value: string): void;
 }
 
+/**
+ * One row-implied predicate. The soundness rule the flag encodes: every fact
+ * must hold on the row the derivation applies the CHECK to. A DML statement
+ * has two stored rows (OLD and NEW, both CHECK-satisfying); a fact source
+ * that described the OTHER row transfers only through columns the statement
+ * does not write — so the walk marks each source with whether the SET mask
+ * applies for the channel it is running, and the kernel drops masked atoms
+ * during collection.
+ */
+export interface EvidencePred {
+  pred: Node;
+  applySetMask: boolean;
+}
+
 export interface CheckEntailmentInput {
   /** The column being resolved, as the walk's alias-qualified pair. */
   goal: { alias: string; column: string };
@@ -60,17 +85,15 @@ export interface CheckEntailmentInput {
    */
   checkExprs: Node[];
   /**
-   * Row-implied predicates — the exact list `checkWhereGuarantee` iterates:
-   * whereClause, havingClause, implied ON quals. Each is TRUE per emitted
-   * row; the kernel splits them into conjuncts itself.
+   * Row-implied predicates, TRUE per emitted row: the `checkWhereGuarantee`
+   * list (whereClause, havingClause, implied ON quals) plus the taken branch
+   * guards of the scope. The kernel splits them into conjuncts itself.
    */
-  evidence: Node[];
+  evidence: EvidencePred[];
   /**
-   * The DML SET mask: true for a column whose WHERE-time (OLD row) value can
-   * differ from the stored NEW row the CHECK constrains. Any atom touching a
-   * masked column is dropped from the evidence — the Wave-1 rule, applied
-   * per-conjunct because entailment consumes evidence about *other* columns
-   * than the one being resolved.
+   * The DML SET mask, consulted only for sources flagged `applySetMask`:
+   * true for a column the statement writes, whose value on the channel's
+   * derivation row is not the one the source tested.
    */
   isMasked(alias: string, column: string): boolean;
   /**
@@ -167,16 +190,37 @@ class EntailmentKernel {
   private readonly input: CheckEntailmentInput;
   private trueFacts: Atom[] = [];
   private falseFacts: Atom[] = [];
+  /**
+   * TRUE OR-facts: one entry per TRUE disjunctive conjunct, holding the atom
+   * of each disjunct. TRUE(a ∨ b) names no single arm, but it does make any
+   * superset OR TRUE — the subset rule `isTrue` applies against CHECK-side
+   * ORs and ANY-arrays. Only ORs whose every disjunct is exactly one atom
+   * are stored; anything less regular contributes nothing, conservatively.
+   */
+  private orFacts: Atom[][] = [];
+  /**
+   * Whether the SET mask applies to atoms being built RIGHT NOW. On only
+   * while collecting a masked evidence source — never for CHECK-side
+   * atomization: a CHECK sub-predicate over a written column is not
+   * evidence, and its truth is judged against facts that were themselves
+   * masked at collection.
+   */
+  private maskingActive = false;
 
   constructor(input: CheckEntailmentInput) {
     this.input = input;
   }
 
   run(): boolean {
-    for (const pred of this.input.evidence) this.collectConjuncts(pred);
+    for (const src of this.input.evidence) {
+      this.maskingActive = src.applySetMask;
+      this.collectConjuncts(src.pred);
+    }
+    this.maskingActive = false;
     this.input.trace?.addFact(
       "evidence",
-      `${this.trueFacts.length} TRUE atom(s), ${this.falseFacts.length} FALSE atom(s)`,
+      `${this.trueFacts.length} TRUE atom(s), ${this.falseFacts.length} FALSE atom(s), ` +
+        `${this.orFacts.length} OR-fact(s)`,
     );
     // Zero evidence atoms is not an early exit: an unconditional
     // CHECK (col IS NOT NULL), or an AND containing one, derives the goal
@@ -201,12 +245,78 @@ class EntailmentKernel {
       for (const arg of be.args ?? []) this.collectConjuncts(arg);
       return;
     }
-    // TRUE(NOT p) ⇔ FALSE(p) — a NOT conjunct contributes a FALSE fact.
+    // TRUE(NOT p) ⇔ FALSE(p) — a NOT conjunct contributes FALSE facts, and
+    // by De Morgan a negated OR falsifies every disjunct (an OR is FALSE
+    // exactly when all its arms are).
     if (be?.boolop === "NOT_EXPR" && be.args?.length === 1) {
+      const inner = be.args[0]! as Record<string, unknown>;
+      const innerOr = inner["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
+      if (innerOr?.boolop === "OR_EXPR") {
+        for (const arg of innerOr.args ?? []) {
+          for (const atom of this.atomsOf(arg)) this.falseFacts.push(atom);
+        }
+        return;
+      }
       for (const atom of this.atomsOf(be.args[0]!)) this.falseFacts.push(atom);
       return;
     }
-    for (const atom of this.atomsOf(pred)) this.trueFacts.push(atom);
+    const atoms = this.atomsOf(pred);
+    if (atoms.length > 0) {
+      this.trueFacts.push(...atoms);
+      return;
+    }
+    // Disjunctive conjuncts (OR, multi-element IN, = ANY over an array
+    // literal): a single-arm set collapses to a plain TRUE fact, the rest
+    // become OR-facts for the subset rule.
+    const disjuncts = this.disjunctAtoms(pred);
+    if (disjuncts) {
+      if (disjuncts.length === 1) this.trueFacts.push(disjuncts[0]!);
+      else this.orFacts.push(disjuncts);
+    }
+  }
+
+  /**
+   * The per-arm atoms of a disjunctive predicate, or null when any arm is
+   * not exactly one atom (an arm that is itself a conjunction cannot be
+   * matched by a single fact, and an unatomizable arm cannot be matched at
+   * all — either way the whole fact is refused, conservatively).
+   */
+  private disjunctAtoms(pred: Node): Atom[] | null {
+    const node = pred as Record<string, unknown>;
+
+    const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
+    if (be?.boolop === "OR_EXPR") {
+      const out: Atom[] = [];
+      for (const arg of be.args ?? []) {
+        const atoms = this.atomsOf(arg);
+        if (atoms.length !== 1) return null;
+        out.push(atoms[0]!);
+      }
+      return out.length > 0 ? out : null;
+    }
+
+    if ("A_Expr" in node) {
+      const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
+      const op = this.bareOpName(ae.name);
+      if (!op || !ae.lexpr) return null;
+      const items =
+        ae.kind === "AEXPR_IN" && op === "="
+          ? (ae.rexpr as { List?: { items?: Node[] } } | undefined)?.List?.items
+          : ae.kind === "AEXPR_OP_ANY"
+            ? (ae.rexpr as { A_ArrayExpr?: { elements?: Node[] } } | undefined)?.A_ArrayExpr
+                ?.elements
+            : undefined;
+      if (!items?.length) return null;
+      const out: Atom[] = [];
+      for (const item of items) {
+        const atom = this.comparisonAtom(op, ae.lexpr, item);
+        if (!atom) return null;
+        out.push(atom);
+      }
+      return out;
+    }
+
+    return null;
   }
 
   /**
@@ -356,13 +466,16 @@ class EntailmentKernel {
       const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
       const args = be.args ?? [];
       if (be.boolop === "AND_EXPR") return args.length > 0 && args.every(a => this.isTrue(a));
-      if (be.boolop === "OR_EXPR") return args.some(a => this.isTrue(a));
+      if (be.boolop === "OR_EXPR") {
+        return args.some(a => this.isTrue(a)) || this.orFactImplies(expr);
+      }
       if (be.boolop === "NOT_EXPR") return args.length === 1 && this.isFalse(args[0]!);
       return false;
     }
 
     // `col = ANY (ARRAY[...])` — the deparser's rendering of IN. One
-    // element comparison TRUE suffices, exactly the OR rule.
+    // element comparison TRUE suffices (the OR rule), or a TRUE OR-fact
+    // whose disjunct set this ANY covers.
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
       if (ae.kind === "AEXPR_OP_ANY" && ae.lexpr) {
@@ -370,10 +483,12 @@ class EntailmentKernel {
         const elements = (ae.rexpr as { A_ArrayExpr?: { elements?: Node[] } } | undefined)
           ?.A_ArrayExpr?.elements;
         if (!op || !elements) return false;
-        return elements.some(el => {
-          const atom = this.comparisonAtom(op, ae.lexpr!, el);
-          return !!atom && this.atomIsTrue(atom);
-        });
+        return (
+          elements.some(el => {
+            const atom = this.comparisonAtom(op, ae.lexpr!, el);
+            return !!atom && this.atomIsTrue(atom);
+          }) || this.orFactImplies(expr)
+        );
       }
     }
 
@@ -435,8 +550,40 @@ class EntailmentKernel {
   // Atom-level matching.
   // -------------------------------------------------------------------------
 
+  /**
+   * The subset rule: a TRUE OR-fact makes any superset OR TRUE — whichever
+   * arm held, an identical arm exists in the wider disjunction. `expr` is
+   * the CHECK-side OR/ANY; every fact arm must match one of its matchable
+   * arms (arms of the CHECK OR that do not atomize only widen it further
+   * and cannot invalidate the rule).
+   */
+  private orFactImplies(expr: Node): boolean {
+    if (this.orFacts.length === 0) return false;
+    const node = expr as Record<string, unknown>;
+    const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
+    const arms: Atom[] = [];
+    if (be?.boolop === "OR_EXPR") {
+      for (const arg of be.args ?? []) {
+        const atoms = this.atomsOf(arg);
+        if (atoms.length === 1) arms.push(atoms[0]!);
+      }
+    } else {
+      const disjuncts = this.disjunctAtoms(expr);
+      if (disjuncts) arms.push(...disjuncts);
+    }
+    if (arms.length === 0) return false;
+    return this.orFacts.some(fact =>
+      fact.every(f => arms.some(a => this.atomsMatch(a, f))),
+    );
+  }
+
   private atomIsTrue(atom: Atom): boolean {
-    return this.trueFacts.some(f => this.atomsMatch(atom, f));
+    if (this.trueFacts.some(f => this.atomsMatch(atom, f))) return true;
+    // The negator dual: FALSE(col <> lit) certifies TRUE(col = lit) — a
+    // strict comparison that evaluated FALSE (not NULL) had non-null
+    // operands, and the builtin negator relation does the rest.
+    const negated = this.negateAtom(atom);
+    return !!negated && this.falseFacts.some(f => this.atomsMatch(negated, f));
   }
 
   private atomIsFalse(atom: Atom): boolean {
@@ -506,20 +653,43 @@ class EntailmentKernel {
     return effA.name === effB.name && effA.schema === effB.schema;
   }
 
-  /** True TRUE strict comparison (or IS NOT NULL fact) involving `col`. */
+  /**
+   * Whether the facts pin `col` non-null. Three sources: a TRUE strict
+   * comparison (or IS NOT NULL, or bare-boolean truth) involving it; a
+   * FALSE strict comparison involving it — FALSE means the comparison
+   * evaluated, so its operands were non-null, and FALSE(col IS NULL) is the
+   * direct statement; and a TRUE OR-fact every arm of which involves it —
+   * whichever arm held, it pins the column (the OR-shaped mirror of the
+   * promotion analyzer's intersection rule).
+   */
   private colKnownNonNull(col: string): boolean {
-    return this.trueFacts.some(f => {
+    const strictlyInvolves = (f: Atom): boolean => {
       switch (f.t) {
         case "cmpLit":
           return f.col === col;
         case "cmpCol":
           return f.a === col || f.b === col;
         case "nullTest":
-          return f.col === col && f.isNotNull;
+          return false; // direction-dependent; handled per fact list below
         case "boolCol":
           return f.col === col;
       }
-    });
+    };
+    if (
+      this.trueFacts.some(
+        f => strictlyInvolves(f) || (f.t === "nullTest" && f.col === col && f.isNotNull),
+      )
+    ) {
+      return true;
+    }
+    if (
+      this.falseFacts.some(
+        f => strictlyInvolves(f) || (f.t === "nullTest" && f.col === col && !f.isNotNull),
+      )
+    ) {
+      return true;
+    }
+    return this.orFacts.some(fact => fact.every(f => strictlyInvolves(f)));
   }
 
   // -------------------------------------------------------------------------
@@ -547,6 +717,11 @@ class EntailmentKernel {
   }
 
   private maskedKey(key: string): boolean {
+    // The mask is an evidence-collection concern only. CHECK-side atoms are
+    // never masked: they are judged against facts that were already masked
+    // when collected, and dropping them here would (unsoundly conservatively)
+    // hide a guard fact about a written column from the NEW-row channel.
+    if (!this.maskingActive) return false;
     const dot = key.indexOf(".");
     return this.input.isMasked(key.slice(0, dot), key.slice(dot + 1));
   }

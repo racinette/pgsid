@@ -482,6 +482,15 @@ class NullabilityEngine {
   private bindRejectedParams: Set<number> = new Set();
   /** Generation expressions currently being walked (cycle insurance). */
   private generationInFlight: Set<string> = new Set();
+  /**
+   * Whether the expression being walked is a DML SET expression, which reads
+   * the OLD row (RETURNING reads the NEW one). CHECK entailment picks its
+   * derivation row by this flag: for an OLD-row read every fact source —
+   * WHERE, implied quals, and the guards of this very expression — tested
+   * the OLD row, so a single unmasked run against the OLD row's CHECKs is
+   * both sound and complete, and the NEW-row channel would be the wrong row.
+   */
+  private dmlOldRowRead = false;
   /** Whether tracing is enabled. */
   private readonly tracing: boolean;
   /** The catalog. */
@@ -611,25 +620,22 @@ class NullabilityEngine {
       }
     }
 
-    // For INSERT/UPDATE/DELETE RETURNING — trace each returning expression.
+    // For INSERT/UPDATE/DELETE/MERGE RETURNING — the SAME scope builders as
+    // the untraced analyzers, then trace each returning expression. Parity
+    // is by construction: this branch once rebuilt the scopes by hand and
+    // drifted (no WHERE channel, no SET mask, no written-value map), so the
+    // tracer explained decisions the engine did not make. The parity suite
+    // in nullability-walk-traced.test.ts holds the property.
     if ("InsertStmt" in node) {
       const ins = node["InsertStmt"] as InsertStmt;
       if (!ins.returningClause) return [];
-      const scope = this.buildDmlScope(ins.relation, outerScope, depth);
-      this.registerCtes(ins.withClause, scope);
+      const scope = this.buildInsertScope(ins, outerScope, depth);
       return this.analyzeReturningTraced(ins.returningClause, scope, depth);
     }
     if ("UpdateStmt" in node) {
       const upd = node["UpdateStmt"] as UpdateStmt;
       if (!upd.returningClause) return [];
-      const scope = this.buildDmlScope(upd.relation, outerScope, depth);
-      this.registerCtes(upd.withClause, scope);
-      if (upd.fromClause) {
-        // Inner-join semantics — see analyzeUpdate.
-        for (const item of upd.fromClause) {
-          scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
-        }
-      }
+      const scope = this.buildUpdateScope(upd, outerScope, depth);
       return this.analyzeReturningTraced(upd.returningClause, scope, depth);
     }
     if ("MergeStmt" in node) {
@@ -641,14 +647,7 @@ class NullabilityEngine {
     if ("DeleteStmt" in node) {
       const del = node["DeleteStmt"] as DeleteStmt;
       if (!del.returningClause) return [];
-      const scope = this.buildDmlScope(del.relation, outerScope, depth);
-      this.registerCtes(del.withClause, scope);
-      if (del.usingClause) {
-        // Inner-join semantics — see analyzeDelete.
-        for (const item of del.usingClause) {
-          scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
-        }
-      }
+      const scope = this.buildDeleteScope(del, outerScope, depth);
       return this.analyzeReturningTraced(del.returningClause, scope, depth);
     }
 
@@ -1324,10 +1323,22 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
+    const scope = this.buildInsertScope(stmt, outerScope, depth);
+    return this.analyzeReturning(stmt.returningClause, scope, depth);
+  }
+
+  /**
+   * The complete RETURNING scope for an INSERT. One builder per DML
+   * statement type, shared verbatim by the traced and untraced walks — the
+   * traced path once rebuilt these scopes by hand and silently lost the
+   * WHERE channel and both DML column maps, so sharing is the parity
+   * mechanism, not a convenience.
+   */
+  private buildInsertScope(stmt: InsertStmt, outerScope: Scope | null, depth: number): Scope {
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
     this.attachInsertWrittenColumns(stmt, scope, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth);
+    return scope;
   }
 
   /**
@@ -1384,11 +1395,16 @@ class NullabilityEngine {
       | undefined;
     if (conflict?.action === "ONCONFLICT_UPDATE") {
       const setNotNull = new Map<string, boolean>();
-      for (const item of conflict.targetList ?? []) {
-        const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-        if (!rt?.name || !rt.val) continue;
-        if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
-        setNotNull.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+      this.dmlOldRowRead = true;
+      try {
+        for (const item of conflict.targetList ?? []) {
+          const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+          if (!rt?.name || !rt.val) continue;
+          if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
+          setNotNull.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+        }
+      } finally {
+        this.dmlOldRowRead = false;
       }
       for (const [col, insertPath] of written) {
         written.set(col, insertPath && (setNotNull.get(col) ?? false));
@@ -1404,6 +1420,12 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
+    const scope = this.buildUpdateScope(stmt, outerScope, depth);
+    return this.analyzeReturning(stmt.returningClause, scope, depth);
+  }
+
+  /** The complete RETURNING scope for an UPDATE — see buildInsertScope. */
+  private buildUpdateScope(stmt: UpdateStmt, outerScope: Scope | null, depth: number): Scope {
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
 
@@ -1442,16 +1464,21 @@ class NullabilityEngine {
     // themselves cannot consult the map they are defining.
     if (targetAlias !== undefined) {
       const written = new Map<string, boolean>();
-      for (const item of stmt.targetList ?? []) {
-        const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-        if (!rt?.name || !rt.val) continue;
-        if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
-        written.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+      this.dmlOldRowRead = true;
+      try {
+        for (const item of stmt.targetList ?? []) {
+          const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+          if (!rt?.name || !rt.val) continue;
+          if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
+          written.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+        }
+      } finally {
+        this.dmlOldRowRead = false;
       }
       scope.dmlWrittenColumns = { alias: targetAlias, columns: written };
     }
 
-    return this.analyzeReturning(stmt.returningClause, scope, depth);
+    return scope;
   }
 
   private analyzeDelete(
@@ -1460,6 +1487,12 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
+    const scope = this.buildDeleteScope(stmt, outerScope, depth);
+    return this.analyzeReturning(stmt.returningClause, scope, depth);
+  }
+
+  /** The complete RETURNING scope for a DELETE — see buildInsertScope. */
+  private buildDeleteScope(stmt: DeleteStmt, outerScope: Scope | null, depth: number): Scope {
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
 
@@ -1476,8 +1509,7 @@ class NullabilityEngine {
     scope.whereClause = stmt.whereClause;
     scope.rowsImplyWhere = true;
     this.resolveJoinImplications(scope);
-
-    return this.analyzeReturning(stmt.returningClause, scope, depth);
+    return scope;
   }
 
   /**
@@ -1569,11 +1601,16 @@ class NullabilityEngine {
       const perArm: Map<string, boolean>[] = producing.map(a => {
         const armMap = new Map<string, boolean>();
         if (a.commandType === "CMD_UPDATE") {
-          for (const item of a.targetList ?? []) {
-            const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-            if (!rt?.name || !rt.val) continue;
-            if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
-            armMap.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+          this.dmlOldRowRead = true;
+          try {
+            for (const item of a.targetList ?? []) {
+              const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+              if (!rt?.name || !rt.val) continue;
+              if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
+              armMap.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+            }
+          } finally {
+            this.dmlOldRowRead = false;
           }
         } else {
           const columns = (a.targetList ?? []).map(
@@ -3098,13 +3135,23 @@ class NullabilityEngine {
         }
         // CHECK-constraint entailment: every row of the table satisfies its
         // validated CHECKs in the not-FALSE sense, and the row-implied
-        // predicates (the exact evidence list checkWhereGuarantee iterates)
-        // are TRUE — the kernel derives `col IS NOT NULL` from the two by
-        // syntactic entailment. The gates are shared with the generation
-        // branch and equally load-bearing: a NULL-extended row satisfies no
-        // CHECK, so OPTIONAL entries get nothing, and the DML SET mask drops
-        // evidence about columns whose WHERE-time value is not the stored
-        // one. See src/query/check-entailment.ts.
+        // predicates — the checkWhereGuarantee evidence list plus this
+        // scope's taken branch guards — are TRUE. The kernel derives
+        // `col IS NOT NULL` from the two by syntactic entailment. The
+        // joinState gate is shared with the generation branch and equally
+        // load-bearing: a NULL-extended row satisfies no CHECK.
+        //
+        // A DML statement has TWO stored rows per returned row (OLD and
+        // NEW, both CHECK-satisfying), and soundness is row-consistency:
+        // every fact must hold on the row the derivation runs against, and
+        // the goal must equal its value there. WHERE-side facts tested the
+        // OLD row and transfer to NEW only through non-SET columns; guard
+        // facts describe the row the guarded expression reads — NEW in
+        // RETURNING, OLD in a SET expression (dmlOldRowRead). Hence up to
+        // two runs: the NEW row (core masked, guards free, any goal) and
+        // the OLD row (core free, guards masked, goal restricted to
+        // non-SET columns, whose OLD value IS the returned one).
+        // See src/query/check-entailment.ts.
         const checkExprs = this.catalog.resolveCheckConstraints(
           entry.table.schema,
           entry.table.name,
@@ -3112,44 +3159,78 @@ class NullabilityEngine {
         if (checkExprs.length > 0) {
           const setCols =
             scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null;
-          const ckTrace = trace.addChild(
-            `CHECK entailment: ${entry.table.schema}.${entry.table.name}`,
-          );
-          const proved = checkConstraintsProveNotNull({
-            goal: { alias: entry.alias, column: colName },
-            checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
-            evidence: [
-              ...(scope.whereClause ? [scope.whereClause] : []),
-              ...(scope.havingClause ? [scope.havingClause] : []),
-              ...scope.impliedQuals,
-            ],
-            isMasked: (alias, col) => !!setCols && alias === entry.alias && setCols.has(col),
-            resolveUnqualified: col => {
-              let owner: string | null = null;
-              for (const v of scope.visible) {
-                if (v.name !== col) continue;
-                if (!v.entry || owner) return null; // merged or ambiguous
-                owner = v.entry.alias;
-              }
-              return owner;
-            },
-            columnTypeName: (alias, col) => {
-              const e = scope.aliases.get(alias);
-              return e?.table
-                ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
-                : null;
-            },
-            trace: ckTrace,
-          });
-          ckTrace.conclude(
-            proved,
-            proved
-              ? "a validated CHECK plus row-implied evidence entails `col IS NOT NULL`"
-              : "no derivation reaches `col IS NOT NULL`",
-          );
-          if (proved) {
-            trace.conclude(true, "CHECK-constraint entailment → notNull");
-            return true;
+          const core: Node[] = [
+            ...(scope.whereClause ? [scope.whereClause] : []),
+            ...(scope.havingClause ? [scope.havingClause] : []),
+            ...scope.impliedQuals,
+          ];
+          const guardPreds = this.guards
+            .filter(g => g.scope === scope && g.taken)
+            .map(g => g.predicate);
+          const channels: { label: string; evidence: { pred: Node; applySetMask: boolean }[] }[] =
+            [];
+          if (!setCols || this.dmlOldRowRead) {
+            // One row in play: no SET mask exists, or this is a SET
+            // expression reading the OLD row, where core and guards alike
+            // tested that same row.
+            channels.push({
+              label: this.dmlOldRowRead ? "OLD row (SET expression read)" : "row",
+              evidence: [...core, ...guardPreds].map(pred => ({ pred, applySetMask: false })),
+            });
+          } else {
+            channels.push({
+              label: "NEW row",
+              evidence: [
+                ...core.map(pred => ({ pred, applySetMask: true })),
+                ...guardPreds.map(pred => ({ pred, applySetMask: false })),
+              ],
+            });
+            if (!setCols.has(colName)) {
+              channels.push({
+                label: "OLD row",
+                evidence: [
+                  ...core.map(pred => ({ pred, applySetMask: false })),
+                  ...guardPreds.map(pred => ({ pred, applySetMask: true })),
+                ],
+              });
+            }
+          }
+          for (const channel of channels) {
+            const ckTrace = trace.addChild(
+              `CHECK entailment (${channel.label}): ${entry.table.schema}.${entry.table.name}`,
+            );
+            const proved = checkConstraintsProveNotNull({
+              goal: { alias: entry.alias, column: colName },
+              checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
+              evidence: channel.evidence,
+              isMasked: (alias, col) => !!setCols && alias === entry.alias && setCols.has(col),
+              resolveUnqualified: col => {
+                let owner: string | null = null;
+                for (const v of scope.visible) {
+                  if (v.name !== col) continue;
+                  if (!v.entry || owner) return null; // merged or ambiguous
+                  owner = v.entry.alias;
+                }
+                return owner;
+              },
+              columnTypeName: (alias, col) => {
+                const e = scope.aliases.get(alias);
+                return e?.table
+                  ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
+                  : null;
+              },
+              trace: ckTrace,
+            });
+            ckTrace.conclude(
+              proved,
+              proved
+                ? "a validated CHECK plus row-implied evidence entails `col IS NOT NULL`"
+                : "no derivation reaches `col IS NOT NULL`",
+            );
+            if (proved) {
+              trace.conclude(true, `CHECK-constraint entailment (${channel.label}) → notNull`);
+              return true;
+            }
           }
         }
       }

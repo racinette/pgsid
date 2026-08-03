@@ -111,6 +111,38 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by Wave 7 (2026-08): the entailment kernel's own residue row, all
+four sound-to-add items from Wave 6's closure. OR-facts with the subset
+rule — TRUE(a ∨ b) names no arm but makes any superset disjunction TRUE, so
+disjunctive evidence (OR, multi-element IN, `= ANY` array literals) now
+discharges CHECK-side ORs/ANYs whose arm set covers it
+(`check-or-subset.sql`, `check-or-verbatim.sql`, negative
+`check-or-not-subset.sql`), and an OR-fact every arm of which strictly
+involves a column pins that column non-null, mirroring the promotion
+analyzer's intersection rule. The negator pairing runs both directions
+(FALSE certifies the negation TRUE — a strict comparison that evaluated
+FALSE had non-null operands; `check-negator-dual.sql`), with De Morgan over
+NOT-wrapped ORs. Taken branch guards join the kernel's evidence
+(`check-guard-entailment.sql`). And the SET mask became the row-consistency
+channel model: every fact must hold on the row the derivation runs against
+— WHERE facts are OLD-row, guard facts belong to the row the guarded
+expression reads (NEW in RETURNING, OLD in SET expressions, distinguished
+by the new dmlOldRowRead flag) — giving a NEW-row run (core masked, guards
+free) and an OLD-row run (core free, guards masked, non-SET goals only,
+old = returned). `check-update-set-mask.sql` now pins both channels in one
+statement, its `room` @unwitnessable annotation retired as designed, and
+`check-set-expr-old-read.sql` pins the SET-expression read context. Sound
+wherever dmlSetColumns exists, because both its producers (UPDATE,
+all-MATCHED MERGE) guarantee an OLD row per returned row; INSERT never
+sets it. Found and fixed in passing: the TRACED walk had rebuilt DML
+scopes by hand and drifted (no WHERE channel, no SET mask, no
+written-value map), so `inferNullabilityTraced` could report a different
+verdict than the engine and "explain" it — the scope builders are now
+shared by construction (buildInsertScope/buildUpdateScope/buildDeleteScope,
+buildMergeScope already was), and a parity test in
+`nullability-walk-traced.test.ts` runs every fixture through both entry
+points.
+
 Closed by Wave 6 (2026-08, measured first): CHECK-constraint-aware
 nullability — conditional nullability, the register's last precision item.
 A validated table CHECK is a **notFALSE** fact per stored row (PostgreSQL
@@ -220,7 +252,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
-| CHECK entailment, conservative edges | nullable | the kernel consumes the `checkWhereGuarantee` evidence list only: branch guards are not fed to it; multi-element `IN` / OR-shaped evidence contributes no facts (an OR is TRUE without saying which arm); simple CASE (`CASE expr WHEN …`) is opaque; parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm); and the SET mask is uniform — OLD-row entailment for a non-SET goal column is sound but unattempted, `check-update-set-mask.sql`'s `room` records the cost. Negator pairing runs one-way: a TRUE fact falsifies its negation, but a NOT-wrapped conjunct's FALSE fact does not certify its negation TRUE (`WHERE NOT (status <> 'housed')` discharges FALSE-needing derivations, not TRUE-needing ones) — sound to add, cosmetic in practice |
+| CHECK entailment, conservative edges (post-Wave 7) | nullable | simple CASE (`CASE expr WHEN …`) is opaque (an implicit equality the fragment does not model); parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm); negative (not-taken) branch guards are unused — not-TRUE is FALSE-or-NULL, an inference only total predicates support; an OR-fact requires every disjunct to be exactly one atom (a disjunct that is itself a conjunction refuses the whole fact); and evidence is scope-local — a filter OUTSIDE a CTE/view never reaches the base table's CHECKs, which is the origin-tracking item (Wave 8), not a kernel gap |
 
 ---
 

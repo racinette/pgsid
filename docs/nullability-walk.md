@@ -267,8 +267,17 @@ The kernel (`src/query/check-entailment.ts`) works over three judgments in
 three-valued logic, seeded by two fact sources of deliberately different
 strength:
 
-- **TRUE facts** — the row-implied evidence, the exact list
-  `checkWhereGuarantee` iterates: WHERE conjuncts, HAVING, implied ON quals.
+- **TRUE facts** — the row-implied evidence: the `checkWhereGuarantee` list
+  (WHERE conjuncts, HAVING, implied ON quals) plus the scope's taken branch
+  guards (`check-guard-entailment.sql`) — a branch runs only when its
+  condition is TRUE, the same strength as a WHERE conjunct. Disjunctive
+  conjuncts (OR, multi-element IN, `= ANY` over an array literal) become
+  **OR-facts**: TRUE(a ∨ b) names no arm, but it makes any superset
+  disjunction TRUE, so an OR-fact whose every arm matches an arm of a
+  CHECK-side OR/ANY discharges it (`check-or-subset.sql`,
+  `check-or-verbatim.sql`; the non-subset negative
+  `check-or-not-subset.sql`). NOT-wrapped conjuncts contribute FALSE facts,
+  De Morgan included (a negated OR falsifies every disjunct).
 - **notFALSE facts** — each validated CHECK expression. Not TRUE: PostgreSQL
   admits a row whose CHECK evaluates NULL, measured and pinned in
   `check-constraint-pins.test.ts`.
@@ -282,11 +291,14 @@ Literal casts join the identity check: the deparser renders `'housed'::text`
 where the user's WHERE has the bare literal, and the two equate only when the
 cast names the column's own type — an explicit cast to a different type
 selects a different operator (a citext column's `=` can be TRUE where a
-bytewise comparison of the same tokens is FALSE), so it refuses. FALSE facts
-come from **builtin negator pairing** — TRUE(`status = 'housed'`) falsifies
-`status <> 'housed'` with no literal values compared — which is what makes
-implication-as-OR (`CHECK (status <> 'housed' OR room IS NOT NULL)`) work
-without the banned literal distinctness. On top sit plain 3VL algebra
+bytewise comparison of the same tokens is FALSE), so it refuses. The
+**builtin negator pairing** runs in both directions: TRUE(`status =
+'housed'`) falsifies `status <> 'housed'` with no literal values compared —
+which is what makes implication-as-OR
+(`CHECK (status <> 'housed' OR room IS NOT NULL)`) work without the banned
+literal distinctness — and a FALSE strict comparison certifies its negation
+TRUE, since evaluating to FALSE (not NULL) proves the operands were non-null
+(`check-negator-dual.sql`). On top sit plain 3VL algebra
 (notFALSE distributes over AND, an OR whose other disjuncts are FALSE passes
 notFALSE to the survivor, NOT flips), searched-CASE arm selection (arm *i*
 inherits notFALSE when conditions before it are FALSE and its own is TRUE —
@@ -295,17 +307,27 @@ derivation, which is exactly the distinctness asymmetry keeping the negative
 arms dark), `= ANY (ARRAY[...])` decomposed as the OR the deparser rendered
 it from, and totality: notFALSE(`col IS NOT NULL`) ⇒ TRUE ⇒ the goal.
 
-The gates are the generated-column pair, equally load-bearing:
+The gates:
 
-- **joinState**: a NULL-extended row satisfies no CHECK, so the entry must
-  not be OPTIONAL after promotion (`check-left-join-gate.sql` is the pinned
-  counterexample; `check-left-join-promoted.sql` its complement).
-- **The DML SET mask, per evidence conjunct**: entailment consumes evidence
-  about *other* columns than the one it resolves, so any conjunct touching a
-  SET column is dropped — the WHERE tested the OLD row, the CHECK constrains
-  the NEW one, and combining them across an UPDATE that moves the
-  discriminator would be falsified by the statement's own rows
-  (`check-update-set-mask.sql`).
+- **joinState** (shared with generated columns): a NULL-extended row
+  satisfies no CHECK, so the entry must not be OPTIONAL after promotion
+  (`check-left-join-gate.sql` is the pinned counterexample;
+  `check-left-join-promoted.sql` its complement).
+- **Row consistency across DML** — a returned DML row has TWO stored,
+  CHECK-satisfying versions (OLD and NEW), and every fact must hold on the
+  row a derivation runs against, with the goal equal to its value there.
+  WHERE-side facts tested the OLD row and transfer to NEW only through
+  non-SET columns; guard facts describe the row the guarded expression reads
+  (NEW in RETURNING, OLD in a SET expression — the `dmlOldRowRead` flag).
+  The walk therefore runs up to two channels: the **NEW row** (WHERE-side
+  facts SET-masked, guards free, any goal) and the **OLD row** (WHERE-side
+  facts free, guards masked, goal restricted to non-SET columns, whose OLD
+  value IS the returned one). `check-update-set-mask.sql` pins both in one
+  statement — the discriminator-moving UPDATE whose `arrived_at` must stay
+  nullable (the NEW mask) while `room` proves notNull (the OLD channel);
+  `check-set-expr-old-read.sql` pins the SET-expression read context, where
+  a single unmasked OLD run is sound because every fact source tested that
+  same row.
 
 Exclusions: `convalidated=false` covers NOT VALID and PG18 NOT ENFORCED both
 (`check-not-valid.sql`, `check-not-enforced.sql`); PG18's `contype='n'`
