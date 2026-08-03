@@ -115,6 +115,42 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by Wave 11c (2026-08): comparison totality for NOT-taken guards,
+under the PROPOSITIONAL CHARTER the user articulated and this entry
+names: atoms are opaque tokens, the engine is complete over the Boolean
+structure, and atom-level knowledge enters only through the measured
+gates (token identity, same-token negator pairing, collation-gated
+distinctness). A builtin total+strict comparison whose operands are a
+catalog-NOT NULL column and a non-NULL literal cannot evaluate NULL, so a
+CASE's ELSE certifies its FALSITY — and that FALSE fact meets a CHECK
+written around the IDENTICAL token (`CASE WHEN qty > 0 …` over
+`CHECK (qty > 0 OR discontinued_at IS NOT NULL)`;
+`check-negative-guard-comparison.sql`). Nothing about the operator is
+interpreted: branching on `qty > -20` proves nothing about the CHECK's
+`qty > 0`, because crossing literals is order reasoning over VALUES — see
+the Decided-against boundary below. The comparison-HARVEST counterpart
+(promoting a CHECK's own notFALSE comparison once the fixpoint pins its
+operands — same-token consumers only) is charter-compliant but not built,
+pinned by `residue-comparison-harvest.sql` awaiting the decision.
+
+Closed by Wave 11b (2026-08): inter-CHECK chaining — and with it the
+kernel's derivation restructured into the shape the semantic re-founding
+(section 5) prescribes, in miniature. Per-goal CHECK derivation is gone;
+in its place a FACT-HARVEST FIXPOINT: each round, every CHECK's notFALSE
+spine is descended (AND splits, an OR whose other disjuncts are FALSE
+passes to the survivor, a CASE to the arm the facts select) and every
+total leaf reached — a NullTest of either polarity — becomes a TRUE fact,
+available to every OTHER constraint's next round; generated-equality arm
+exclusion re-runs in the same loop; all fact insertion is deduplicated so
+convergence is a count and the round cap is insurance. The goal question
+is asked once at the end: does the fact set pin the column? Pinned at
+depth three by `check-chain-fixpoint.sql` (each chain3 constraint consumes
+its predecessor's conclusion), the off-switch by `check-chain-idle.sql`,
+and `check-simple-case.sql`'s opened_at @unwitnessable came off exactly as
+the residue mechanism forces. Comparisons stay unharvested (notFALSE of a
+strict comparison is TRUE-or-NULL; promoting one needs its operands
+pinned first) — recorded, not built.
+
 Closed by Wave 11 (2026-08): the five cheap kernel closures, re-graded
 from "obscure" after the user correctly separated SQL-shape frequency from
 scenario frequency — the schemas this feature targets are exactly where
@@ -365,7 +401,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
-| CHECK entailment, conservative edges (post-Wave 11) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); inter-CHECK chaining does not happen — one constraint's conclusion is not a fact for another's derivation (`check-simple-case.sql`'s opened_at; closing = derived-fact fixpoint); NOT-taken guards contribute only for syntactically TOTAL predicates (NullTests under AND/OR — a comparison over a catalog-notNull column is total in fact but not in the gate); and the four origin extensions are Wave 12, pinned by the `residue-*.sql` fixtures |
+| CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); comparison harvesting is not built — a CHECK's own notFALSE comparison, its operands pinned by the fixpoint, could be promoted TRUE for same-token consumers (`residue-comparison-harvest.sql` pins it, awaiting the decision; Wave 11c closed the guard-side counterpart); and the four origin extensions are Wave 12, pinned by the `residue-*.sql` fixtures |
 
 ---
 
@@ -502,6 +538,19 @@ larger, and unsound rather than cosmetic when it drifts. Ruled out
 entirely, no rung implemented (2026-08). The generated
 `dml-returning-case-value-dependence` rule records the shape that motivated
 it.
+
+Boundary clarified by Wave 11c (2026-08): cross-literal ORDER reasoning
+is a rung of this ladder and stays out. Concluding FALSE(`qty > 0`) from
+FALSE(`qty > -20`) requires knowing -20 < 0 as a VALUE — a linear-order
+theory over numeric literals, with every coercion and float/numeric edge
+the evaluator ban exists to avoid. The kernel stays propositional: the
+Boolean algebra is implemented completely, atoms meet only by token
+identity, same-token negators, and the collation-gated distinctness. In
+the semantic re-founding this line is a MODULE boundary — an
+atom-entailment oracle interface whose current implementation is exactly
+those three gates; an order-theory oracle could plug in behind it without
+touching the Boolean layer, if this entry is ever reopened with the new
+information it demands.
 
 Boundary clarified by Wave 9 (2026-08): collation-gated literal
 DISTINCTNESS is not a rung of this ladder and its admission does not

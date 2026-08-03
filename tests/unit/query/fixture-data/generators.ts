@@ -216,6 +216,17 @@ const columnSpecificGenerators: Record<
     locker: {
       code: rand => rand.pick(["assigned", "free"]),
     },
+    chain3: {
+      stage: rand => rand.pick(["go", "idle"]),
+    },
+    stock: {
+      qty: rand => rand.pick([0, 3, 12]),
+    },
+    subscription: {
+      plan: rand => rand.pick(["team", "solo"]),
+      seats: (rand, ctx) =>
+        ctx.current("plan") === "team" ? rand.pick([2, 5]) : rand.pick([0, 1]),
+    },
   },
 };
 
@@ -308,6 +319,30 @@ const nullPolicies: {
         combo: (_rand, ctx) => ctx.current("code") !== "assigned",
         opened_at: (rand, ctx) =>
           ctx.current("combo") === null ? rand.chance(0.5) : false,
+      },
+
+      // chain3's links: each column is forced by the previous one's
+      // presence, so the policies mirror the constraints link by link.
+      chain3: {
+        a: (rand, ctx) => (ctx.current("stage") === "go" ? false : rand.chance(0.6)),
+        b: (rand, ctx) => ctx.current("a") === null && rand.chance(0.6),
+        c: (rand, ctx) => ctx.current("b") === null && rand.chance(0.6),
+      },
+
+      // stock: a zero-qty item must carry its discontinuation timestamp.
+      stock: {
+        discontinued_at: (rand, ctx) =>
+          (ctx.current("qty") as number) > 0 ? rand.chance(0.5) : false,
+      },
+
+      // subscription: seats over one force the overflow contact (CHECK₂),
+      // whatever the plan; the seats policy itself follows CHECK₁'s arm.
+      subscription: {
+        seats: (rand, ctx) => ctx.current("plan") !== "team" && rand.chance(0.4),
+        overflow_contact: (rand, ctx) => {
+          const seats = ctx.current("seats");
+          return typeof seats === "number" && seats > 1 ? false : rand.chance(0.5);
+        },
       },
     },
   },

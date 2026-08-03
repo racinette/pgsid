@@ -619,3 +619,36 @@ CREATE TABLE locker (
   CHECK (CASE code WHEN 'assigned' THEN combo IS NOT NULL ELSE true END),
   CHECK (combo IS NULL OR opened_at IS NOT NULL)
 );
+
+-- Wave 11b: the derivation fixpoint's depth subject — three constraints,
+-- each consuming the previous one's harvested conclusion.
+CREATE TABLE chain3 (
+  stage text NOT NULL,
+  a text,
+  b text,
+  c timestamptz,
+  CHECK (stage <> 'go' OR a IS NOT NULL),
+  CHECK (a IS NULL OR b IS NOT NULL),
+  CHECK (b IS NULL OR c IS NOT NULL)
+);
+
+-- Wave 11c: comparison totality for negative guards. qty is NOT NULL, so
+-- `qty > 0` can never evaluate NULL — the CASE's ELSE certifies its
+-- falsity, and the CHECK written around the SAME literal consumes it.
+CREATE TABLE stock (
+  qty integer NOT NULL,
+  discontinued_at timestamptz,
+  CHECK (qty > 0 OR discontinued_at IS NOT NULL)
+);
+
+-- The comparison-harvest residue's subject (register: harvested facts are
+-- NullTests only): CHECK₁'s arm concludes seats > 1, which CHECK₂'s
+-- same-token `seats <= 1` disjunct would consume — once comparisons whose
+-- operands the fixpoint has pinned are harvested.
+CREATE TABLE subscription (
+  plan text NOT NULL,
+  seats integer,
+  overflow_contact text,
+  CHECK (CASE WHEN plan = 'team' THEN seats IS NOT NULL AND seats > 1 ELSE true END),
+  CHECK (seats <= 1 OR overflow_contact IS NOT NULL)
+);

@@ -3584,21 +3584,60 @@ class NullabilityEngine {
       if (g.scope !== scope) continue;
       if (g.taken) {
         preds.push(g.predicate);
-      } else if (this.predicateIsTotal(g.predicate)) {
+      } else if (this.predicateIsTotal(g.predicate, scope)) {
         preds.push({ BoolExpr: { boolop: "NOT_EXPR", args: [g.predicate] } } as unknown as Node);
       }
     }
     return preds;
   }
 
-  /** Whether a predicate can never evaluate NULL: NullTests under AND/OR. */
-  private predicateIsTotal(pred: Node): boolean {
+  /**
+   * Whether a predicate can never evaluate NULL: NullTests, and — Wave 11c
+   * — builtin total+strict comparisons whose every operand is provably
+   * non-null (a bare column the CATALOG declares NOT NULL, or a non-NULL
+   * literal), under any AND/OR shape. The resulting FALSE fact stays purely
+   * propositional: it can only meet a CHECK atom by token identity or the
+   * same-token negator pairing — `CASE WHEN qty > 0 …`'s ELSE discharges a
+   * CHECK written around the literal `qty > 0`, and nothing is ever
+   * concluded across DIFFERENT literals (qty > -20 implies qty's relation
+   * to 0 only under order reasoning over literal VALUES — a theory solver,
+   * refused; see the register's Decided-against entry).
+   */
+  private predicateIsTotal(pred: Node, scope: Scope): boolean {
     const node = pred as Record<string, unknown>;
     if ("NullTest" in node) return true;
     const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
     if (be && (be.boolop === "AND_EXPR" || be.boolop === "OR_EXPR")) {
       const args = be.args ?? [];
-      return args.length > 0 && args.every(a => this.predicateIsTotal(a));
+      return args.length > 0 && args.every(a => this.predicateIsTotal(a, scope));
+    }
+    if ("A_Expr" in node) {
+      const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
+      if (ae.kind !== "AEXPR_OP" || !ae.lexpr || !ae.rexpr) return false;
+      const parts = (ae.name ?? []).map(f => this.stringVal(f));
+      if (parts.length !== 1 || !TOTAL_STRICT_OPERATORS.has(parts[0]!)) return false;
+      return (
+        this.operandNeverNull(ae.lexpr, scope) && this.operandNeverNull(ae.rexpr, scope)
+      );
+    }
+    return false;
+  }
+
+  /** A bare catalog-NOT NULL column ref, or a non-NULL literal (cast or bare). */
+  private operandNeverNull(expr: Node, scope: Scope): boolean {
+    let node = expr as Record<string, unknown>;
+    const tc = node["TypeCast"] as { arg?: Node } | undefined;
+    if (tc?.arg) node = tc.arg as Record<string, unknown>;
+    const ac = node["A_Const"] as { isnull?: boolean } | undefined;
+    if (ac) return ac.isnull !== true;
+    if ("ColumnRef" in node) {
+      const bare = this.resolveBareColumnTarget({ ColumnRef: node["ColumnRef"] } as Node, scope);
+      return !!bare?.entry.table &&
+        this.catalog.resolveColumnNotNull(
+          bare.entry.table.schema,
+          bare.entry.table.name,
+          bare.column,
+        );
     }
     return false;
   }

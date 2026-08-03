@@ -71,3 +71,16 @@ INSERT INTO nd (tag, x) VALUES ('a', NULL), ('A', 'ax');
 INSERT INTO locker (code, combo, opened_at) VALUES
   ('assigned', '13-9', now()),
   ('free',     NULL,   NULL);
+
+-- Wave 11b rows: the full go-chain and an idle row whose NULLs witness
+-- every link's nullable claim outside the chain.
+INSERT INTO chain3 (stage, a, b, c) VALUES
+  ('go',   'ax', 'bx', now()),
+  ('idle', NULL, NULL, NULL);
+
+-- Wave 11c rows: a stocked and a discontinued item; a team and a solo
+-- subscription (the solo one's NULLs witness the unchained claims).
+INSERT INTO stock (qty, discontinued_at) VALUES (5, NULL), (0, now());
+INSERT INTO subscription (plan, seats, overflow_contact) VALUES
+  ('team', 3, 'ops@x.y'),
+  ('solo', 1, NULL);

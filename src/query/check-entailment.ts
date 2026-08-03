@@ -238,30 +238,120 @@ class EntailmentKernel {
       this.collectConjuncts(src.pred);
     }
     this.maskingActive = false;
-    this.applyGeneratedEqualities();
-    this.input.trace?.addFact(
-      "evidence",
-      `${this.trueFacts.length} TRUE atom(s), ${this.falseFacts.length} FALSE atom(s), ` +
-        `${this.orFacts.length} OR-fact(s)`,
-    );
-    // A fact set that pins the goal directly finishes without any CHECK —
-    // the path a generated-CASE arm exclusion takes (its derived condition
-    // is a strict comparison over the goal column, and the relation may
-    // carry no CHECK constraint at all).
-    if (this.colKnownNonNull(`${this.input.goal.alias}.${this.input.goal.column}`)) {
-      this.input.trace?.addFact("provedBy", "row-implied facts pin the goal column directly");
-      return true;
-    }
-    // Zero evidence atoms is not an early exit: an unconditional
-    // CHECK (col IS NOT NULL), or an AND containing one, derives the goal
-    // with no evidence at all.
-    for (let i = 0; i < this.input.checkExprs.length; i++) {
-      if (this.deriveGoal(this.input.checkExprs[i]!)) {
-        this.input.trace?.addFact("provedBy", `CHECK constraint #${i + 1} (notFALSE + evidence)`);
-        return true;
+    // The derivation fixpoint (Wave 11b): each round lets the generated
+    // equalities and every CHECK contribute FACTS — a notFALSE chain
+    // reaching a total NullTest is TRUE, whichever constraint it came from
+    // — and a fact one constraint derives can select arms or falsify
+    // disjuncts in ANOTHER (CHECK₁: assigned ⇒ combo; CHECK₂: combo ⇒
+    // opened_at). Fact insertion is deduplicated, the fact universe is the
+    // finite set of the CHECKs' sub-atoms, and the round cap is insurance,
+    // not a reachable bound.
+    for (let round = 0; round < 6; round++) {
+      const before =
+        this.trueFacts.length + this.falseFacts.length + this.orFacts.length;
+      this.applyGeneratedEqualities();
+      for (const expr of this.input.checkExprs) this.harvestCheckFacts(expr);
+      if (
+        this.trueFacts.length + this.falseFacts.length + this.orFacts.length ===
+        before
+      ) {
+        break;
       }
     }
+    this.input.trace?.addFact(
+      "facts",
+      `${this.trueFacts.length} TRUE atom(s), ${this.falseFacts.length} FALSE atom(s), ` +
+        `${this.orFacts.length} OR-fact(s) after the derivation fixpoint`,
+    );
+    // One question at the end: do the facts pin the goal column? A CHECK's
+    // own `goal IS NOT NULL` arrives here as a harvested fact (totality),
+    // exactly like a generated-CASE arm's strict condition or a chained
+    // conclusion from a neighbouring constraint.
+    if (this.colKnownNonNull(`${this.input.goal.alias}.${this.input.goal.column}`)) {
+      this.input.trace?.addFact("provedBy", "the derived fact set pins the goal column");
+      return true;
+    }
     return false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Fact harvesting — notFALSE propagation from each CHECK root.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Descend a CHECK expression along its notFALSE spine — AND splits, an OR
+   * whose other disjuncts are FALSE passes to the survivor, a CASE passes to
+   * the arm the facts select — and turn every total leaf reached into a
+   * TRUE fact: a NullTest of EITHER polarity never evaluates NULL, so
+   * notFALSE means TRUE outright. (Comparisons stay unharvested: notFALSE
+   * of a strict comparison is TRUE-or-NULL, and promoting it would need its
+   * operands pinned first — recorded, not built.)
+   */
+  private harvestCheckFacts(expr: Node): void {
+    const node = expr as Record<string, unknown>;
+
+    if ("NullTest" in node) {
+      const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
+      const col = nt.arg ? this.columnKey(nt.arg) : null;
+      if (col) {
+        this.addTrueFact({ t: "nullTest", col, isNotNull: nt.nulltesttype === "IS_NOT_NULL" });
+      }
+      return;
+    }
+
+    if ("BoolExpr" in node) {
+      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
+      const args = be.args ?? [];
+      if (be.boolop === "AND_EXPR") {
+        for (const a of args) this.harvestCheckFacts(a);
+        return;
+      }
+      if (be.boolop === "OR_EXPR") {
+        const live = args.filter(a => !this.isFalse(a));
+        if (live.length === 1) this.harvestCheckFacts(live[0]!);
+        return;
+      }
+      return;
+    }
+
+    if ("CaseExpr" in node) {
+      const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node };
+      for (const w of ce.args ?? []) {
+        const when = (w as Record<string, unknown>)["CaseWhen"] as
+          | { expr?: Node; result?: Node }
+          | undefined;
+        const cond = this.armCondition(ce, when);
+        if (!cond) return;
+        if (this.isFalse(cond)) continue;
+        if (this.isTrue(cond) && when?.result) this.harvestCheckFacts(when.result);
+        return;
+      }
+      if (ce.defresult) this.harvestCheckFacts(ce.defresult);
+      return;
+    }
+  }
+
+  /** Insert a TRUE fact unless an identical one is already present. */
+  private addTrueFact(atom: Atom): void {
+    if (!this.trueFacts.some(f => this.atomsMatch(atom, f))) this.trueFacts.push(atom);
+  }
+
+  private addFalseFact(atom: Atom): void {
+    if (!this.falseFacts.some(f => this.atomsMatch(atom, f))) this.falseFacts.push(atom);
+  }
+
+  /** Insert an OR-fact unless a structurally identical one exists. All fact
+   *  insertion is deduplicated so every producer — evidence collection, the
+   *  generated equalities, the harvest — can safely re-run each fixpoint
+   *  round and convergence is detectable by count. */
+  private addOrFact(arms: Atom[][]): void {
+    const same = (a: Atom[][], b: Atom[][]): boolean =>
+      a.length === b.length &&
+      a.every(
+        (arm, i) =>
+          arm.length === b[i]!.length && arm.every((x, j) => this.atomsMatch(x, b[i]![j]!)),
+      );
+    if (!this.orFacts.some(f => same(f, arms))) this.orFacts.push(arms);
   }
 
   // -------------------------------------------------------------------------
@@ -325,8 +415,8 @@ class EntailmentKernel {
           "generatedEquality",
           `${eq.column} ∈ <literal set> selects one CASE arm per value; their conditions join as an OR-fact`,
         );
-        if (derived.length === 1) this.trueFacts.push(...derived[0]!);
-        else this.orFacts.push(derived);
+        if (derived.length === 1) for (const a of derived[0]!) this.addTrueFact(a);
+        else this.addOrFact(derived);
       }
     }
   }
@@ -438,16 +528,16 @@ class EntailmentKernel {
       const innerOr = inner["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
       if (innerOr?.boolop === "OR_EXPR") {
         for (const arg of innerOr.args ?? []) {
-          for (const atom of this.atomsOf(arg)) this.falseFacts.push(atom);
+          for (const atom of this.atomsOf(arg)) this.addFalseFact(atom);
         }
         return;
       }
-      for (const atom of this.atomsOf(be.args[0]!)) this.falseFacts.push(atom);
+      for (const atom of this.atomsOf(be.args[0]!)) this.addFalseFact(atom);
       return;
     }
     const atoms = this.atomsOf(pred);
     if (atoms.length > 0) {
-      this.trueFacts.push(...atoms);
+      for (const a of atoms) this.addTrueFact(a);
       return;
     }
     // Disjunctive conjuncts (OR, multi-element IN, = ANY over an array
@@ -455,8 +545,8 @@ class EntailmentKernel {
     // conjuncts are plain TRUE facts; the rest become OR-facts.
     const arms = this.disjunctArms(pred);
     if (arms) {
-      if (arms.length === 1) this.trueFacts.push(...arms[0]!);
-      else this.orFacts.push(arms);
+      if (arms.length === 1) for (const a of arms[0]!) this.addTrueFact(a);
+      else this.addOrFact(arms);
     }
   }
 
@@ -594,66 +684,6 @@ class EntailmentKernel {
   // -------------------------------------------------------------------------
   // Judgments over the CHECK expression tree.
   // -------------------------------------------------------------------------
-
-  /**
-   * Derive the goal from one CHECK expression known notFALSE. Every step is
-   * one of the closed rules; each recursion re-establishes notFALSE for the
-   * node it descends into.
-   */
-  private deriveGoal(expr: Node): boolean {
-    const node = expr as Record<string, unknown>;
-
-    // Totality: notFALSE(goal IS NOT NULL) ⇒ TRUE (IS NOT NULL never
-    // returns NULL) ⇒ the goal column is non-null.
-    if ("NullTest" in node) {
-      const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
-      return (
-        nt.nulltesttype === "IS_NOT_NULL" &&
-        !!nt.arg &&
-        this.columnKey(nt.arg) === `${this.input.goal.alias}.${this.input.goal.column}`
-      );
-    }
-
-    if ("BoolExpr" in node) {
-      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
-      const args = be.args ?? [];
-      // notFALSE(a ∧ b) ⇒ notFALSE(a) and notFALSE(b): an AND splits into
-      // independent facts, one derivation per conjunct.
-      if (be.boolop === "AND_EXPR") {
-        return args.some(a => this.deriveGoal(a));
-      }
-      // FALSE(every other disjunct) ∧ notFALSE(or) ⇒ notFALSE(survivor).
-      if (be.boolop === "OR_EXPR") {
-        const live = args.filter(a => !this.isFalse(a));
-        return live.length === 1 && this.deriveGoal(live[0]!);
-      }
-      return false;
-    }
-
-    // notFALSE(CASE): the arm the row selected inherits notFALSE. Arm i is
-    // selected when conditions 1..i-1 are FALSE and condition i is TRUE;
-    // when every condition is FALSE, the ELSE is. A condition neither
-    // provably TRUE nor FALSE ends the derivation — arm selection past it
-    // needs literal distinctness. Simple CASE (`CASE expr WHEN v …`)
-    // desugars each arm to the implicit `expr = v` equality it is, judged
-    // by the same fragment (col-vs-literal or refuse).
-    if ("CaseExpr" in node) {
-      const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node };
-      for (const w of ce.args ?? []) {
-        const when = (w as Record<string, unknown>)["CaseWhen"] as
-          | { expr?: Node; result?: Node }
-          | undefined;
-        const cond = this.armCondition(ce, when);
-        if (!cond) return false;
-        if (this.isFalse(cond)) continue;
-        if (this.isTrue(cond)) return !!when?.result && this.deriveGoal(when.result);
-        return false;
-      }
-      return !!ce.defresult && this.deriveGoal(ce.defresult);
-    }
-
-    return false;
-  }
 
   /** TRUE(expr) — for this emitted row. */
   private isTrue(expr: Node): boolean {
