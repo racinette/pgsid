@@ -216,6 +216,14 @@ interface RelationEntry {
   /** Join nullability state. */
   joinState: JoinState;
   /**
+   * Engine-unique id of this relation reference, the building block of
+   * origin rowPaths (see ColumnOrigin in types.ts). Two references to the
+   * same memoized CTE share its inner analysis — and its inner instance
+   * ids — so row identity lives in the chain of REFERENCE instances, each
+   * re-export prepending its own.
+   */
+  instance: number;
+  /**
    * Identifier of the set of relations that are NULL-extended *together*.
    *
    * An outer join NULL-extends its optional side as a unit: in
@@ -460,6 +468,8 @@ class NullabilityEngine {
   private fixpointJournal: object[] | null = null;
   /** Monotonic source of null-group ids (see RelationEntry.nullGroup). */
   private nullGroupCounter = 0;
+  /** Monotonic source of relation-instance ids (see RelationEntry.instance). */
+  private instanceCounter = 0;
   /** Branch guards currently in effect (see the Guard type). */
   private guards: Guard[] = [];
   /** Current function body context (null when analyzing query-level ASTs). */
@@ -744,6 +754,13 @@ class NullabilityEngine {
     // Build the scope (address book).
     const scope = this.buildScope(stmt, outerScope, depth);
 
+    // Origins survive only shapes where an output row IS some input row's
+    // values: grouping collapses many rows into one (a group key would be
+    // sound but is deferred — recorded in the register), so it kills them;
+    // DISTINCT keeps whole rows and does not. Set operations, VALUES and
+    // DML RETURNING never reach this path and produce none.
+    const originsAllowed = !stmt.groupClause?.length && !stmt.havingClause;
+
     // Process the target list.
     const results: OutputNullability[] = [];
     const targetList = stmt.targetList ?? [];
@@ -759,7 +776,7 @@ class NullabilityEngine {
 
       // Handle SELECT * (A_Star in ColumnRef).
       if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth);
+        const expanded = this.expandStar(val, scope, depth, originsAllowed);
         for (const e of expanded) {
           results.push(e);
         }
@@ -767,7 +784,13 @@ class NullabilityEngine {
       }
 
       const notNull = this.walkExpr(val, scope, depth + 1);
-      results.push({ name: name ?? this.inferName(val), notNull });
+      const bare = originsAllowed ? this.resolveBareColumnTarget(val, scope) : null;
+      const origin = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
+      results.push(
+        origin
+          ? { name: name ?? this.inferName(val), notNull, origin }
+          : { name: name ?? this.inferName(val), notNull },
+      );
     }
 
     this.memoize(stmt, results);
@@ -908,6 +931,10 @@ class NullabilityEngine {
 
   private nextNullGroup(): number {
     return ++this.nullGroupCounter;
+  }
+
+  private nextInstance(): number {
+    return ++this.instanceCounter;
   }
 
   /** The columns a single relation contributes, in declaration order. */
@@ -1078,6 +1105,7 @@ class NullabilityEngine {
         cteColumns: colNames,
         joinState,
         nullGroup,
+        instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, subEntry);
       return this.visibleColumnsOf(subEntry, scope, depth);
@@ -1169,6 +1197,7 @@ class NullabilityEngine {
           : [],
         joinState,
         nullGroup,
+        instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, fnEntry);
       return this.visibleColumnsOf(fnEntry, scope, depth);
@@ -1226,6 +1255,7 @@ class NullabilityEngine {
       functionColumns: columns.map((c, i) => ({ name: names[i] ?? c.name, notNull: c.notNull })),
       joinState,
       nullGroup,
+      instance: this.nextInstance(),
     };
     scope.aliases.set(aliasName, entry);
     return entry.functionColumns!.map(c => ({ name: c.name, entry, merged: null }));
@@ -1278,6 +1308,7 @@ class NullabilityEngine {
         extraColumns: cte.extraColumns,
         joinState,
         nullGroup,
+        instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, cteEntry);
       return cteEntry;
@@ -1296,6 +1327,7 @@ class NullabilityEngine {
         ast: viewAst,
         joinState,
         nullGroup,
+        instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, entry);
       return entry;
@@ -1308,6 +1340,7 @@ class NullabilityEngine {
       table: { schema: "", name: rv.relname, columns: [] },
       joinState,
       nullGroup,
+      instance: this.nextInstance(),
     };
     scope.aliases.set(aliasName, fallback);
     return fallback;
@@ -1907,33 +1940,133 @@ class NullabilityEngine {
     return false;
   }
 
-  private expandStar(val: Node, scope: Scope, depth: number): OutputNullability[] {
+  private expandStar(
+    val: Node,
+    scope: Scope,
+    depth: number,
+    withOrigins = false,
+  ): OutputNullability[] {
     const node = val as Record<string, unknown>;
     const cr = node["ColumnRef"] as ColumnRef;
     const fields = cr.fields ?? [];
+
+    const withOrigin = (
+      entry: RelationEntry,
+      colName: string,
+      notNull: boolean,
+    ): OutputNullability => {
+      const origin = withOrigins ? this.originOf(entry, colName, scope, depth) : undefined;
+      return origin ? { name: colName, notNull, origin } : { name: colName, notNull };
+    };
 
     // `alias.*` — just that relation's columns.
     if (fields.length === 2 && "String" in (fields[0] as Record<string, unknown>)) {
       const aliasName = this.stringVal(fields[0]!);
       const entry = this.resolveAlias(aliasName, scope);
       if (!entry) return [];
-      return this.relationColumnsIntrinsic(entry, scope, depth).map(col => ({
-        name: col.name,
-        notNull: this.computeColumnNullability(entry, col.name, scope, depth),
-      }));
+      return this.relationColumnsIntrinsic(entry, scope, depth).map(col =>
+        withOrigin(entry, col.name, this.computeColumnNullability(entry, col.name, scope, depth)),
+      );
     }
 
     // Unqualified `*` — the scope's visible columns, in order. Each is
     // resolved exactly as a named reference would be, so views, WHERE
-    // promotion, null groups and branch guards all apply here too.
-    return scope.visible.map(vc => ({
-      name: vc.name,
-      notNull: vc.merged
-        ? this.mergedColumnNotNull(vc.name, vc.merged, scope, depth)
+    // promotion, null groups and branch guards all apply here too. A merged
+    // USING/NATURAL column is drawn from either side and carries no origin.
+    return scope.visible.map(vc =>
+      vc.merged
+        ? { name: vc.name, notNull: this.mergedColumnNotNull(vc.name, vc.merged, scope, depth) }
         : vc.entry
-          ? this.computeColumnNullability(vc.entry, vc.name, scope, depth)
-          : false,
-    }));
+          ? withOrigin(vc.entry, vc.name, this.computeColumnNullability(vc.entry, vc.name, scope, depth))
+          : { name: vc.name, notNull: false },
+    );
+  }
+
+  /**
+   * Resolve a target-list expression that is a plain ColumnRef to its
+   * owning relation IN THIS SCOPE — the producer side of origin tracking.
+   * Anything else (stars, indirection, outer-scope refs, ambiguous or
+   * merged names) yields no origin: a correlated reference's row identity
+   * belongs to the outer scope's rows, not to this output.
+   */
+  private resolveBareColumnTarget(
+    val: Node,
+    scope: Scope,
+  ): { entry: RelationEntry; column: string } | null {
+    const node = val as Record<string, unknown>;
+    if (!("ColumnRef" in node)) return null;
+    const fields = (node["ColumnRef"] as ColumnRef).fields ?? [];
+    const parts: string[] = [];
+    for (const f of fields) {
+      if (!("String" in (f as Record<string, unknown>))) return null;
+      parts.push(this.stringVal(f));
+    }
+    if (parts.length === 1) {
+      let found: { entry: RelationEntry; column: string } | null = null;
+      for (const vc of scope.visible) {
+        if (vc.name !== parts[0]) continue;
+        if (!vc.entry || found) return null;
+        found = { entry: vc.entry, column: parts[0]! };
+      }
+      return found;
+    }
+    const alias = parts.length === 2 ? parts[0] : parts.length === 3 ? parts[1] : undefined;
+    if (alias === undefined) return null;
+    const entry = scope.aliases.get(alias);
+    return entry ? { entry, column: parts[parts.length - 1]! } : null;
+  }
+
+  /**
+   * The origin of `entry`'s column `colName`, or undefined when it has none.
+   * Produced only for REQUIRED instances — an OPTIONAL slice's NULL-extended
+   * rows satisfy no CHECK, and promotion-at-distance through the boundary is
+   * deferred. A table contributes a fresh single-step rowPath; a
+   * CTE/subquery/view PREPENDS its own reference instance to the inner
+   * column's path, which is what keeps two references to one memoized
+   * analysis from claiming the same row.
+   */
+  private originOf(
+    entry: RelationEntry,
+    colName: string,
+    scope: Scope,
+    depth: number,
+  ): OutputNullability["origin"] {
+    if (entry.joinState !== REQUIRED) return undefined;
+
+    if (entry.kind === "table" && entry.table) {
+      if (!entry.table.schema || !entry.table.columns.includes(colName)) return undefined;
+      return {
+        rowPath: [entry.instance],
+        schema: entry.table.schema,
+        table: entry.table.name,
+        column: colName,
+      };
+    }
+
+    if (entry.kind === "view" && entry.ast && entry.table) {
+      const idx = entry.table.columns.indexOf(colName);
+      if (idx < 0) return undefined;
+      const inner = this.analyzeStatement(entry.ast, scope, depth + 1)[idx]?.origin;
+      return inner ? { ...inner, rowPath: [entry.instance, ...inner.rowPath] } : undefined;
+    }
+
+    if ((entry.kind === "cte" || entry.kind === "subquery") && entry.ast) {
+      const innerResults = this.innerRelationColumns(entry, scope, depth);
+      let inner: OutputNullability | undefined;
+      if (entry.cteColumns && entry.cteColumns.length > 0) {
+        const idx = entry.cteColumns.indexOf(colName);
+        inner =
+          idx >= 0 && idx < innerResults.length
+            ? innerResults[idx]
+            : innerResults.find(r => r.name === colName);
+      } else {
+        inner = innerResults.find(r => r.name === colName);
+      }
+      const o = inner?.origin;
+      return o ? { ...o, rowPath: [entry.instance, ...o.rowPath] } : undefined;
+    }
+
+    return undefined;
   }
 
   /** Untraced form of computeColumnNullabilityTraced. */
@@ -3011,6 +3144,15 @@ class NullabilityEngine {
         const result = inner.notNull && joinState !== OPTIONAL;
         trace.addFact("viewDefinition", `${entry.table.schema}.${entry.table.name}`);
         trace.addFact("innerResult", `${inner.notNull ? "notNull" : "nullable"} (col[${colIndex}])`);
+        if (
+          !result &&
+          joinState !== OPTIONAL &&
+          inner.origin &&
+          this.originCheckEntailment(entry, inner.origin, innerResults, entry.table.columns, scope, trace)
+        ) {
+          trace.conclude(true, "origin CHECK entailment through the view → notNull");
+          return true;
+        }
         trace.conclude(result, `view column[${colIndex}] ${inner.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
         return result;
       }
@@ -3036,16 +3178,31 @@ class NullabilityEngine {
     if (entry.kind === "subquery" || entry.kind === "cte") {
       if (entry.ast) {
         const innerResults = this.innerRelationColumns(entry, scope, depth);
+        const outerNames = innerResults.map((r, i) => entry.cteColumns?.[i] ?? r.name);
+
+        // The nullable-but-origin-carrying escape: the inner column is a
+        // bare pass-through of a base table column, so the base table's
+        // validated CHECKs can meet THIS scope's evidence — the one thing
+        // the boolean interface alone cannot express.
+        const tryOrigin = (inner: OutputNullability): boolean =>
+          !inner.notNull &&
+          joinState !== OPTIONAL &&
+          !!inner.origin &&
+          this.originCheckEntailment(entry, inner.origin, innerResults, outerNames, scope, trace);
 
         // For VALUES subqueries, the inner results have auto-generated names
         // (column1, column2, ...). Map the alias column names to positions.
         if (entry.cteColumns && entry.cteColumns.length > 0) {
           const colIndex = entry.cteColumns.indexOf(colName);
           if (colIndex >= 0 && colIndex < innerResults.length) {
-            const innerNotNull = innerResults[colIndex]!.notNull;
-            const result = innerNotNull && joinState !== OPTIONAL;
-            trace.addFact("innerResult", `${innerNotNull ? "notNull" : "nullable"} (col[${colIndex}])`);
-            trace.conclude(result, `CTE/subquery column[${colIndex}] ${innerNotNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
+            const inner = innerResults[colIndex]!;
+            const result = inner.notNull && joinState !== OPTIONAL;
+            trace.addFact("innerResult", `${inner.notNull ? "notNull" : "nullable"} (col[${colIndex}])`);
+            if (!result && tryOrigin(inner)) {
+              trace.conclude(true, "origin CHECK entailment through the CTE/subquery → notNull");
+              return true;
+            }
+            trace.conclude(result, `CTE/subquery column[${colIndex}] ${inner.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
             return result;
           }
           // Also try matching by name (for non-VALUES subqueries with alias colnames).
@@ -3053,6 +3210,10 @@ class NullabilityEngine {
           if (col) {
             const result = col.notNull && joinState !== OPTIONAL;
             trace.addFact("innerResult", `${col.notNull ? "notNull" : "nullable"} (by name '${colName}')`);
+            if (!result && tryOrigin(col)) {
+              trace.conclude(true, "origin CHECK entailment through the CTE/subquery → notNull");
+              return true;
+            }
             trace.conclude(result, `CTE/subquery col '${colName}' ${col.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
             return result;
           }
@@ -3064,6 +3225,10 @@ class NullabilityEngine {
         if (col) {
           const result = col.notNull && joinState !== OPTIONAL;
           trace.addFact("innerResult", `${col.notNull ? "notNull" : "nullable"} (by name '${colName}')`);
+          if (!result && tryOrigin(col)) {
+            trace.conclude(true, "origin CHECK entailment through the CTE/subquery → notNull");
+            return true;
+          }
           trace.conclude(result, `CTE/subquery col '${colName}' ${col.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
           return result;
         }
@@ -3241,6 +3406,171 @@ class NullabilityEngine {
 
     trace.conclude(false, "unresolved relation → nullable");
     return false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Origin tracking — CHECK entailment at a referencing scope
+  // -------------------------------------------------------------------------
+
+  /**
+   * Run CHECK entailment for a column that crossed a scope boundary as a
+   * bare pass-through (see ColumnOrigin). The CHECKs come from the ORIGIN
+   * table; the evidence is THIS scope's, with every reference to `entry`
+   * rewritten from its outer column names to the origin's base column names
+   * — but only for sibling columns riding the SAME rowPath, which is what
+   * keeps a self-join over one CTE from co-deriving across two different
+   * base rows. References of `entry` with no same-row mapping are rewritten
+   * to an unmatchable name rather than left in place: an outer name that
+   * happens to collide with a base column name must not leak into the base
+   * key space. A single unmasked run — a CTE/subquery/view is never a DML
+   * target, so there is no OLD/NEW split at this boundary.
+   */
+  private originCheckEntailment(
+    entry: RelationEntry,
+    goalOrigin: NonNullable<OutputNullability["origin"]>,
+    innerResults: OutputNullability[],
+    outerNames: readonly string[],
+    scope: Scope,
+    trace: ITrace,
+  ): boolean {
+    const checkExprs = this.catalog.resolveCheckConstraints(goalOrigin.schema, goalOrigin.table);
+    if (checkExprs.length === 0) return false;
+
+    // outer column name → base column, for same-row siblings. A duplicated
+    // outer name is dropped entirely — PostgreSQL rejects references to it,
+    // but the walk must not guess.
+    const rename = new Map<string, string>();
+    const dropped = new Set<string>();
+    for (let i = 0; i < innerResults.length; i++) {
+      const name = outerNames[i] ?? innerResults[i]!.name;
+      const o = innerResults[i]!.origin;
+      if (!o || !this.sameRowPath(o.rowPath, goalOrigin.rowPath)) continue;
+      if (dropped.has(name)) continue;
+      if (rename.has(name)) {
+        rename.delete(name);
+        dropped.add(name);
+        continue;
+      }
+      rename.set(name, o.column);
+    }
+
+    const guardPreds = this.guards
+      .filter(g => g.scope === scope && g.taken)
+      .map(g => g.predicate);
+    const evidence = [
+      ...(scope.whereClause ? [scope.whereClause] : []),
+      ...(scope.havingClause ? [scope.havingClause] : []),
+      ...scope.impliedQuals,
+      ...guardPreds,
+    ].map(pred => ({
+      pred: this.rewriteRefsToOrigin(pred, entry.alias, rename, scope),
+      applySetMask: false,
+    }));
+
+    const ckTrace = trace.addChild(
+      `CHECK entailment (origin): ${goalOrigin.schema}.${goalOrigin.table} via '${entry.alias}'`,
+    );
+    ckTrace.addFact("rowPath", goalOrigin.rowPath.join("→"));
+    ckTrace.addFact("sameRowColumns", [...rename.keys()].join(", ") || "(none)");
+    const proved = checkConstraintsProveNotNull({
+      goal: { alias: entry.alias, column: goalOrigin.column },
+      checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
+      evidence,
+      isMasked: () => false,
+      resolveUnqualified: col => {
+        let owner: string | null = null;
+        for (const v of scope.visible) {
+          if (v.name !== col) continue;
+          if (!v.entry || owner) return null;
+          owner = v.entry.alias;
+        }
+        return owner;
+      },
+      columnTypeName: (alias, col) => {
+        if (alias === entry.alias) {
+          return this.catalog.resolveColumnTypeName(goalOrigin.schema, goalOrigin.table, col);
+        }
+        const e = scope.aliases.get(alias);
+        return e?.table
+          ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
+          : null;
+      },
+      trace: ckTrace,
+    });
+    ckTrace.conclude(
+      proved,
+      proved
+        ? "the origin table's validated CHECK plus this scope's evidence entails non-null"
+        : "no derivation reaches the origin column",
+    );
+    return proved;
+  }
+
+  private sameRowPath(a: readonly number[], b: readonly number[]): boolean {
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+
+  /**
+   * A clone of `pred` with every ColumnRef owned by `alias` renamed to its
+   * origin base column (or to an unmatchable name when it has no same-row
+   * mapping). Refs of other relations are untouched.
+   */
+  private rewriteRefsToOrigin(
+    pred: Node,
+    alias: string,
+    rename: ReadonlyMap<string, string>,
+    scope: Scope,
+  ): Node {
+    const clone = structuredClone(pred);
+    const rewrite = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        node.forEach(rewrite);
+        return;
+      }
+      if (!node || typeof node !== "object") return;
+      const obj = node as Record<string, unknown>;
+      const cr = obj["ColumnRef"] as { fields?: Node[] } | undefined;
+      if (cr?.fields) {
+        const parts: string[] = [];
+        let plain = true;
+        for (const f of cr.fields) {
+          if (!("String" in (f as Record<string, unknown>))) {
+            plain = false;
+            break;
+          }
+          parts.push(this.stringVal(f));
+        }
+        if (plain && parts.length >= 1 && parts.length <= 3) {
+          let owner: string | null = null;
+          let col: string | null = null;
+          if (parts.length === 1) {
+            col = parts[0]!;
+            for (const v of scope.visible) {
+              if (v.name !== col) continue;
+              if (!v.entry || owner) {
+                owner = null;
+                break;
+              }
+              owner = v.entry.alias;
+            }
+          } else {
+            owner = parts.length === 2 ? parts[0]! : parts[1]!;
+            col = parts[parts.length - 1]!;
+          }
+          if (owner === alias && col !== null) {
+            const mapped = rename.get(col) ?? "\u0000unmapped";
+            cr.fields = [
+              { String: { sval: alias } } as unknown as Node,
+              { String: { sval: mapped } } as unknown as Node,
+            ];
+          }
+        }
+        return;
+      }
+      Object.values(obj).forEach(rewrite);
+    };
+    rewrite(clone);
+    return clone;
   }
 
   // -------------------------------------------------------------------------

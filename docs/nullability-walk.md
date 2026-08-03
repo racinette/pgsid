@@ -329,6 +329,29 @@ The gates:
   a single unmasked OLD run is sound because every fact source tested that
   same row.
 
+**Origin tracking (Wave 8)** carries entailment across scope boundaries. An
+output column that is a bare, untransformed pass-through of a base table
+column records its provenance (`ColumnOrigin`): the base table plus a
+`rowPath` — the chain of relation-instance ids it passed through, each
+CTE/subquery/view re-export prepending its own reference instance. Row
+identity is the PATH, not the table: two references to one memoized CTE
+share its inner analysis and its inner ids, so only the per-reference
+prefix tells `g1`'s rows from `g2`'s (`check-origin-self-join.sql`). At a
+referencing scope, a nullable inner column with an origin gets one more
+chance: the origin table's validated CHECKs against THIS scope's evidence,
+with references to the entry renamed from outer names to base columns —
+only for siblings on the SAME rowPath, and an unmapped reference becomes an
+unmatchable name rather than leaking into the base column space (the
+rename-swap fixture `check-origin-rename.sql` is the adversarial case).
+Origins are produced only for REQUIRED instances and die at transforming
+expressions, USING/NATURAL merges, set operations, grouping (group keys
+would be sound — deferred, recorded), VALUES, and DML RETURNING; DISTINCT
+keeps whole rows and preserves them. The referencing site's joinState gate
+still applies (`check-origin-left-join-gate.sql`). The headline closures:
+`WITH g AS (SELECT * FROM guest) SELECT arrived_at FROM g WHERE status =
+'housed'` and the same filter outside a projection view
+(`check-origin-cte.sql`, `check-origin-view.sql`).
+
 Exclusions: `convalidated=false` covers NOT VALID and PG18 NOT ENFORCED both
 (`check-not-valid.sql`, `check-not-enforced.sql`); PG18's `contype='n'`
 NOT NULL constraint rows — which the snapshot's type mapping folds into

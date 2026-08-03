@@ -294,9 +294,35 @@ export interface NullabilityCatalog {
  * consult anyway for types — and should verify the two lists agree in length
  * before zipping them.
  */
+/**
+ * Provenance of an output column that is a bare, untransformed pass-through
+ * of a base table column — what lets CHECK entailment run at a *referencing*
+ * scope (`WITH g AS (SELECT * FROM guest) SELECT … FROM g WHERE status =
+ * 'housed'`): the outer filter and the base table's constraints meet again
+ * after the scope boundary would otherwise have erased the connection.
+ *
+ * `rowPath` is the row-identity: the chain of relation-instance ids the
+ * value passed through, outermost reference first. Two sibling columns are
+ * facts about the SAME base row exactly when their rowPaths are equal —
+ * a flat table id is not enough (`FROM g g1, g g2` pairs different rows of
+ * the same memoized analysis; each re-export prepends its own instance, so
+ * the paths diverge). Origin is produced only for REQUIRED instances and
+ * dies at any transforming expression, USING/NATURAL merge, set operation,
+ * grouping, VALUES, and DML RETURNING — the walk doc's origin section is
+ * the rule list.
+ */
+export interface ColumnOrigin {
+  rowPath: number[];
+  schema: string;
+  table: string;
+  column: string;
+}
+
 export interface OutputNullability {
   name: string;
   notNull: boolean;
+  /** Present only for bare pass-through columns; see ColumnOrigin. */
+  origin?: ColumnOrigin;
 }
 
 // ---------------------------------------------------------------------------

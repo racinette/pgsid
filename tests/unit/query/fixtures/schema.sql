@@ -548,3 +548,9 @@ ALTER TABLE guest ADD CONSTRAINT guest_vip_reason
   CHECK (vip_reason IS NOT NULL) NOT ENFORCED;
 ALTER TABLE guest ADD CONSTRAINT guest_badge_claimed
   CHECK (badge IS NOT NULL) NOT VALID;
+
+-- A plain projection view over guest: the origin-tracking fixtures filter it
+-- from OUTSIDE, which only narrows because each view column carries its
+-- provenance (rowPath) out of the definition.
+CREATE VIEW guest_directory AS
+  SELECT id, status, arrived_at, room, note FROM guest;

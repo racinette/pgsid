@@ -111,6 +111,28 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by Wave 8 (2026-08): scope locality — origin tracking. A bare
+pass-through output column now records its provenance (`ColumnOrigin` in
+`src/query/types.ts`): base table plus a rowPath, the chain of
+relation-instance ids with each CTE/subquery/view re-export prepending its
+own reference instance. Row identity is the PATH — two references to one
+memoized analysis share its inner ids, and only the per-reference prefix
+keeps a self-join from co-deriving across different base rows
+(`check-origin-self-join.sql`). The referencing scope's evidence is renamed
+from outer names to base columns for same-rowPath siblings (the swap
+fixture `check-origin-rename.sql` pins that names mean nothing, origins
+everything) and runs the same kernel against the origin table's CHECKs,
+under the referencing site's joinState gate
+(`check-origin-left-join-gate.sql`). Origins are produced for REQUIRED
+instances only and die at transforming expressions
+(`check-origin-expression-death.sql`), USING/NATURAL merges, set
+operations, grouping, VALUES, and DML RETURNING; DISTINCT preserves them.
+Headline closures: filter-outside-CTE and filter-outside-view
+(`check-origin-cte.sql`, `check-origin-view.sql`). Deferred with reasons
+recorded: promotion-at-distance (outer evidence proving an OPTIONAL inner
+instance present), group-key origins (sound, unbuilt), origins through set
+operations and DML RETURNING.
+
 Closed by Wave 7 (2026-08): the entailment kernel's own residue row, all
 four sound-to-add items from Wave 6's closure. OR-facts with the subset
 rule — TRUE(a ∨ b) names no arm but makes any superset disjunction TRUE, so
@@ -252,7 +274,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
-| CHECK entailment, conservative edges (post-Wave 7) | nullable | simple CASE (`CASE expr WHEN …`) is opaque (an implicit equality the fragment does not model); parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm); negative (not-taken) branch guards are unused — not-TRUE is FALSE-or-NULL, an inference only total predicates support; an OR-fact requires every disjunct to be exactly one atom (a disjunct that is itself a conjunction refuses the whole fact); and evidence is scope-local — a filter OUTSIDE a CTE/view never reaches the base table's CHECKs, which is the origin-tracking item (Wave 8), not a kernel gap |
+| CHECK entailment, conservative edges (post-Wave 7) | nullable | simple CASE (`CASE expr WHEN …`) is opaque (an implicit equality the fragment does not model); parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm); negative (not-taken) branch guards are unused — not-TRUE is FALSE-or-NULL, an inference only total predicates support; an OR-fact requires every disjunct to be exactly one atom (a disjunct that is itself a conjunction refuses the whole fact); and origin tracking (Wave 8) closes scope locality for bare pass-throughs only — promotion-at-distance, group-key origins, and origins through set operations / DML RETURNING remain deferred, recorded in the Wave 8 closure |
 
 ---
 
