@@ -65,6 +65,9 @@ function columnState(c: ColumnInfo): Omit<ColumnInfo, "typeOid"> {
     defaultExpr: c.defaultExpr,
     generated: c.generated,
     identity: c.identity,
+    // A collation determinism flip changes what the nullability engine may
+    // conclude (literal distinctness), so it is a comparable property.
+    collationDeterministic: c.collationDeterministic,
   };
 }
 

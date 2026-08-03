@@ -196,6 +196,23 @@ const columnSpecificGenerators: Record<
       // status already assigned to the row (see below).
       status: rand => rand.pick(["in-flight", "arrived", "housed", "checked-out"]),
     },
+    txn: {
+      id: sequential,
+      // Spanning the generated verdict's arms; the NULL policy below adds
+      // the fourth (IS NULL → manual-check). verdict itself is GENERATED
+      // and never filled.
+      fraud_score: rand => rand.pick([80, 90, 50, 40, 10, 5]),
+    },
+    audit_log: {
+      id: sequential,
+      kind: rand => rand.pick(["manual", "auto"]),
+      n: rand => rand.pick([1, 2]),
+    },
+    nd: {
+      // Under PGlite's bytewise stub only 'a' takes the CHECK's first arm
+      // (x IS NULL); 'A' and 'z' route through the second (x IS NOT NULL).
+      tag: rand => rand.pick(["a", "A", "z"]),
+    },
   },
 };
 
@@ -264,6 +281,23 @@ const nullPolicies: {
         note: (rand, ctx) => (ctx.current("status") === "checked-out" ? false : rand.chance(0.5)),
         badge: () => false,
       },
+
+      // A NULL fraud_score is the generated verdict's fourth arm
+      // (manual-check), which the ambiguous-verdict fixture witnesses with.
+      txn: { fraud_score: nullRate(0.25) },
+
+      // Each CHECK CASE ties a column's NULLness to the discriminator
+      // assigned earlier in the row, same pattern as guest.
+      audit_log: {
+        actor: (rand, ctx) => (ctx.current("kind") === "manual" ? false : rand.chance(0.5)),
+        bot_id: (rand, ctx) => (ctx.current("kind") === "auto" ? false : rand.chance(0.5)),
+        n: nullRate(0.2),
+        a: (rand, ctx) => (ctx.current("n") === 1 ? false : rand.chance(0.5)),
+        b: (rand, ctx) => (ctx.current("n") === 2 ? false : rand.chance(0.5)),
+      },
+
+      // nd's CHECK forces x NULL exactly on (bytewise) 'a' rows.
+      nd: { x: (_rand, ctx) => ctx.current("tag") === "a" },
     },
   },
 };

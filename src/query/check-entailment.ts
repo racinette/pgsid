@@ -107,6 +107,25 @@ export interface CheckEntailmentInput {
    * unknown. Consulted only for literal-cast compatibility.
    */
   columnTypeName(alias: string, column: string): string | null;
+  /**
+   * Whether unequal literal tokens provably denote unequal values for this
+   * column — the collation-gated distinctness relaxation (text-family OID
+   * whitelist + proven-deterministic collation, resolved by the catalog).
+   * Everything distinctness enables (multi-WHEN arm falsification, the
+   * generated-CASE arm exclusion) stays dark when this refuses.
+   */
+  literalDistinctnessSound(alias: string, column: string): boolean;
+  /**
+   * Generated columns of the goal's relation, as alias-qualified equality
+   * facts: per stored row, `column = expr` holds EXACTLY (both the OLD and
+   * NEW rows of a DML statement — the generation expression is recomputed
+   * on write). A TRUE evidence fact `col = 'lit'` triggers arm exclusion
+   * over a CASE-shaped expr: arms whose literal result is provably distinct
+   * from 'lit' (and the NULL result, which a TRUE equality rules out) did
+   * not produce the value, and if exactly one arm survives, its condition
+   * held and joins the fact set.
+   */
+  generatedEqualities?: { column: string; expr: Node }[];
   trace?: CheckEntailmentTrace;
 }
 
@@ -217,11 +236,20 @@ class EntailmentKernel {
       this.collectConjuncts(src.pred);
     }
     this.maskingActive = false;
+    this.applyGeneratedEqualities();
     this.input.trace?.addFact(
       "evidence",
       `${this.trueFacts.length} TRUE atom(s), ${this.falseFacts.length} FALSE atom(s), ` +
         `${this.orFacts.length} OR-fact(s)`,
     );
+    // A fact set that pins the goal directly finishes without any CHECK —
+    // the path a generated-CASE arm exclusion takes (its derived condition
+    // is a strict comparison over the goal column, and the relation may
+    // carry no CHECK constraint at all).
+    if (this.colKnownNonNull(`${this.input.goal.alias}.${this.input.goal.column}`)) {
+      this.input.trace?.addFact("provedBy", "row-implied facts pin the goal column directly");
+      return true;
+    }
     // Zero evidence atoms is not an early exit: an unconditional
     // CHECK (col IS NOT NULL), or an AND containing one, derives the goal
     // with no evidence at all.
@@ -232,6 +260,108 @@ class EntailmentKernel {
       }
     }
     return false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Generated-column equalities: reverse entailment by arm exclusion.
+  // -------------------------------------------------------------------------
+
+  /**
+   * For each TRUE fact `gencol = 'lit'` over a generated column, decide
+   * which CASE arm produced the value. An arm is EXCLUDED when its result
+   * is a literal provably distinct from 'lit', a NULL (the equality being
+   * TRUE rules it out), or its condition is already FALSE; the implicit or
+   * explicit NULL/literal ELSE is treated the same way. If exactly one arm
+   * survives and it is a real WHEN arm, its condition evaluated TRUE for
+   * this row and its conjuncts join the facts. (An ELSE survivor derives
+   * nothing: ELSE runs when the conditions were FALSE *or NULL*, and 3VL
+   * grants no facts from "not TRUE".) Single pass: derived facts describe
+   * plain columns, and PostgreSQL forbids a generation expression from
+   * referencing another generated column, so no new triggers can appear.
+   */
+  private applyGeneratedEqualities(): void {
+    for (const eq of this.input.generatedEqualities ?? []) {
+      const triggers = this.trueFacts.filter(
+        (f): f is Extract<Atom, { t: "cmpLit" }> =>
+          f.t === "cmpLit" && f.col === eq.column && f.op === "=",
+      );
+      for (const trigger of triggers) {
+        const cond = this.selectedArmCondition(eq, trigger.lit);
+        if (cond) {
+          this.input.trace?.addFact(
+            "generatedEquality",
+            `${eq.column} = <literal> selects a single CASE arm; its condition joins the facts`,
+          );
+          this.collectConjuncts(cond);
+        }
+      }
+    }
+  }
+
+  /** The single surviving arm's condition, or null. See applyGeneratedEqualities. */
+  private selectedArmCondition(
+    eq: { column: string; expr: Node },
+    lit: Lit,
+  ): Node | null {
+    const node = eq.expr as Record<string, unknown>;
+    const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node } | undefined;
+    if (!ce || ce.arg) return null;
+
+    /** true = provably NOT the producing arm; false = might be. */
+    const resultExcluded = (result: Node | undefined): boolean => {
+      if (!result) return true; // no result → NULL → excluded by the TRUE equality
+      const r = this.litOf(result);
+      if (r === null) {
+        // Either a NULL literal (excluded) or a non-literal (inconclusive).
+        return this.isNullLiteral(result);
+      }
+      return this.litsDistinct(eq.column, lit, r);
+    };
+
+    let survivor: { cond: Node } | null = null;
+    for (const w of ce.args ?? []) {
+      const when = (w as Record<string, unknown>)["CaseWhen"] as
+        | { expr?: Node; result?: Node }
+        | undefined;
+      if (!when?.expr) return null;
+      if (this.isFalse(when.expr) || resultExcluded(when.result)) continue;
+      if (survivor) return null; // two candidates — no single arm
+      survivor = { cond: when.expr };
+    }
+    // The ELSE (implicit NULL when absent) competes like an arm but can
+    // never be the derivation source.
+    const elseExcluded = ce.defresult ? resultExcluded(ce.defresult) : true;
+    if (!elseExcluded) return null;
+    return survivor?.cond ?? null;
+  }
+
+  /** Whether `expr` is the literal NULL, possibly under a plain cast. */
+  private isNullLiteral(expr: Node): boolean {
+    let node = expr as Record<string, unknown>;
+    const tc = node["TypeCast"] as { arg?: Node } | undefined;
+    if (tc?.arg) node = tc.arg as Record<string, unknown>;
+    const ac = node["A_Const"] as { isnull?: boolean } | undefined;
+    return ac?.isnull === true;
+  }
+
+  /**
+   * Whether two literal tokens provably denote DISTINCT values in
+   * comparisons against `colKey` — the collation-gated judgment: only under
+   * the catalog's eligibility (text family + deterministic collation), only
+   * for string tokens, and only at the same effective type, where unequal
+   * bytes are unequal values by the definition of a deterministic collation.
+   */
+  private litsDistinct(colKey: string, a: Lit, b: Lit): boolean {
+    if (a.kind !== "sval" || b.kind !== "sval" || a.value === b.value) return false;
+    const dot = colKey.indexOf(".");
+    if (!this.input.literalDistinctnessSound(colKey.slice(0, dot), colKey.slice(dot + 1))) {
+      return false;
+    }
+    const colType = this.colTypeRef(colKey);
+    const effA = a.cast ?? colType;
+    const effB = b.cast ?? colType;
+    if (!effA || !effB) return false;
+    return effA.name === effB.name && effA.schema === effB.schema;
   }
 
   // -------------------------------------------------------------------------
@@ -583,13 +713,40 @@ class EntailmentKernel {
     // strict comparison that evaluated FALSE (not NULL) had non-null
     // operands, and the builtin negator relation does the rest.
     const negated = this.negateAtom(atom);
-    return !!negated && this.falseFacts.some(f => this.atomsMatch(negated, f));
+    if (negated && this.falseFacts.some(f => this.atomsMatch(negated, f))) return true;
+    // Distinctness: TRUE(col = 'a') makes `col <> 'b'` TRUE when 'a' and
+    // 'b' are provably distinct values for this column.
+    return (
+      atom.t === "cmpLit" &&
+      atom.op === "<>" &&
+      this.trueFacts.some(
+        f =>
+          f.t === "cmpLit" &&
+          f.col === atom.col &&
+          f.op === "=" &&
+          this.litsDistinct(atom.col, atom.lit, f.lit),
+      )
+    );
   }
 
   private atomIsFalse(atom: Atom): boolean {
     if (this.falseFacts.some(f => this.atomsMatch(atom, f))) return true;
     const negated = this.negateAtom(atom);
-    return !!negated && this.trueFacts.some(f => this.atomsMatch(negated, f));
+    if (negated && this.trueFacts.some(f => this.atomsMatch(negated, f))) return true;
+    // Distinctness: TRUE(col = 'a') falsifies `col = 'b'` for provably
+    // distinct values — what lets a multi-WHEN CHECK CASE step past the
+    // arms an earlier discriminator value rules out.
+    return (
+      atom.t === "cmpLit" &&
+      atom.op === "=" &&
+      this.trueFacts.some(
+        f =>
+          f.t === "cmpLit" &&
+          f.col === atom.col &&
+          f.op === "=" &&
+          this.litsDistinct(atom.col, atom.lit, f.lit),
+      )
+    );
   }
 
   /** The atom whose TRUTH makes `atom` FALSE, or null when there is none. */

@@ -3321,7 +3321,25 @@ class NullabilityEngine {
           entry.table.schema,
           entry.table.name,
         );
-        if (checkExprs.length > 0) {
+        // Generated columns contribute EQUALITY facts (col = expr per stored
+        // row, OLD and NEW alike) — the kernel's arm exclusion turns a
+        // discriminator filter over a generated CASE back into its selected
+        // arm's condition, which can pin the goal with no CHECK at all.
+        const generatedEqualities: { column: string; expr: Node }[] = [];
+        for (const col of entry.table.columns) {
+          const colGenExpr = this.catalog.resolveGenerationExpr(
+            entry.table.schema,
+            entry.table.name,
+            col,
+          );
+          if (colGenExpr) {
+            generatedEqualities.push({
+              column: `${entry.alias}.${col}`,
+              expr: this.qualifyColumnRefs(colGenExpr, entry.alias),
+            });
+          }
+        }
+        if (checkExprs.length > 0 || generatedEqualities.length > 0) {
           const setCols =
             scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null;
           const core: Node[] = [
@@ -3368,6 +3386,7 @@ class NullabilityEngine {
               goal: { alias: entry.alias, column: colName },
               checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
               evidence: channel.evidence,
+              generatedEqualities,
               isMasked: (alias, col) => !!setCols && alias === entry.alias && setCols.has(col),
               resolveUnqualified: col => {
                 let owner: string | null = null;
@@ -3383,6 +3402,12 @@ class NullabilityEngine {
                 return e?.table
                   ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
                   : null;
+              },
+              literalDistinctnessSound: (alias, col) => {
+                const e = scope.aliases.get(alias);
+                return e?.table
+                  ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, col)
+                  : false;
               },
               trace: ckTrace,
             });
@@ -3434,7 +3459,18 @@ class NullabilityEngine {
     trace: ITrace,
   ): boolean {
     const checkExprs = this.catalog.resolveCheckConstraints(goalOrigin.schema, goalOrigin.table);
-    if (checkExprs.length === 0) return false;
+    const originTable = this.catalog.resolveTable(goalOrigin.schema, goalOrigin.table);
+    const generatedEqualities: { column: string; expr: Node }[] = [];
+    for (const col of originTable?.columns ?? []) {
+      const genExpr = this.catalog.resolveGenerationExpr(goalOrigin.schema, goalOrigin.table, col);
+      if (genExpr) {
+        generatedEqualities.push({
+          column: `${entry.alias}.${col}`,
+          expr: this.qualifyColumnRefs(genExpr, entry.alias),
+        });
+      }
+    }
+    if (checkExprs.length === 0 && generatedEqualities.length === 0) return false;
 
     // outer column name → base column, for same-row siblings. A duplicated
     // outer name is dropped entirely — PostgreSQL rejects references to it,
@@ -3476,6 +3512,7 @@ class NullabilityEngine {
       goal: { alias: entry.alias, column: goalOrigin.column },
       checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
       evidence,
+      generatedEqualities,
       isMasked: () => false,
       resolveUnqualified: col => {
         let owner: string | null = null;
@@ -3494,6 +3531,19 @@ class NullabilityEngine {
         return e?.table
           ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
           : null;
+      },
+      literalDistinctnessSound: (alias, col) => {
+        if (alias === entry.alias) {
+          return this.catalog.resolveLiteralDistinctnessSound(
+            goalOrigin.schema,
+            goalOrigin.table,
+            col,
+          );
+        }
+        const e = scope.aliases.get(alias);
+        return e?.table
+          ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, col)
+          : false;
       },
       trace: ckTrace,
     });

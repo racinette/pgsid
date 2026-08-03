@@ -111,6 +111,34 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by Wave 9 (2026-08, measured first): collation-gated literal
+distinctness, and the generated-column reverse entailment it unlocks. The
+snapshot captures `collisdeterministic` per column (LEFT JOIN pg_collation
+on attcollation; diff-included — a determinism flip changes what may be
+concluded), and the kernel's new judgment holds two string tokens provably
+DISTINCT only for builtin text-family columns (OID whitelist — citext's
+case-folding lives in its operator and never qualifies; numerics never
+qualify, 75 vs 75.0) under a proven-deterministic collation. Two consumers:
+multi-WHEN CHECK CASEs, whose later arms need earlier conditions FALSE
+(`check-multiwhen-second-arm.sql`; the numeric refusal
+`check-multiwhen-numeric-negative.sql`); and GENERATED columns as EQUALITY
+facts — `verdict = CASE …` holds exactly per stored row, so
+TRUE(verdict = 'fraud') excludes every arm with a provably-distinct literal
+result and the NULL ELSE, and a lone surviving arm's condition joins the
+facts, letting `WHERE verdict = 'fraud'` pin `fraud_score` with no CHECK
+constraint at all (`check-generated-arm-fraud.sql`; the two-arm ambiguity
+`check-generated-arm-nullable.sql` stays nullable, witnessed). The kernel
+gained a direct output path — facts pinning the goal column finish without
+CHECK derivation — and both fact sources flow through origin tracking, so
+the verdict filter narrows outside a CTE too. The collation gate's
+counterexample is `check-distinctness-collation-gate.sql`: under real ICU,
+WHERE tag = 'A' returns a stored 'a' row whose first arm was the TRUE one;
+measured PGlite limitation — its ICU is catalog-only ('a' = 'A' is false),
+so the fixture pins the refusal by annotation and the witness row is
+recorded as unreachable. An ELSE-selected CASE still derives nothing (arms
+fail on FALSE *or NULL* — 3VL), and or-fact triggers for arm exclusion are
+deferred.
+
 Closed by Wave 8 (2026-08): scope locality — origin tracking. A bare
 pass-through output column now records its provenance (`ColumnOrigin` in
 `src/query/types.ts`): base table plus a rowPath, the chain of
@@ -359,6 +387,16 @@ larger, and unsound rather than cosmetic when it drifts. Ruled out
 entirely, no rung implemented (2026-08). The generated
 `dml-returning-case-value-dependence` rule records the shape that motivated
 it.
+
+Boundary clarified by Wave 9 (2026-08): collation-gated literal
+DISTINCTNESS is not a rung of this ladder and its admission does not
+re-open it. The ruling bans an EVALUATOR — computing what expressions
+produce. Distinctness compares two literal TOKENS already present in the
+SQL, concludes only "unequal values", and only where the catalog proves the
+conclusion sound (builtin text-family column, `collisdeterministic` — the
+new information the ban's collation hazard asked for; captured per column
+in the snapshot). Numerics stay banned precisely because token inequality
+there WOULD require evaluation to decide.
 
 **Reproducing PostgreSQL's column-naming rules (`FigureColname`).** PostgreSQL
 labels an un-aliased output column by a set of rules in

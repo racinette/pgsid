@@ -34,8 +34,22 @@ export async function buildNullabilityCatalog(
       notNullCols: Set<string>;
       colTypeOids: Map<string, number>;
       colTypeNames: Map<string, string>;
+      colDistinctnessSound: Set<string>;
     }
   >();
+
+  // Literal distinctness is sound for a column exactly when unequal tokens
+  // imply unequal values: the builtin text family (text/varchar/bpchar by
+  // OID — a whitelist, because e.g. citext's case-folding lives in its
+  // OPERATOR, not its collation) under a collation PROVEN deterministic.
+  // Numerics never qualify: 75 and 75.0 are distinct tokens, equal values.
+  const TEXT_FAMILY_OIDS = new Set([25, 1043, 1042]);
+  const distinctnessSound = (cols: { name: string; typeOid: number; collationDeterministic: boolean | null }[]): Set<string> =>
+    new Set(
+      cols
+        .filter(c => TEXT_FAMILY_OIDS.has(c.typeOid) && c.collationDeterministic === true)
+        .map(c => c.name),
+    );
   for (const t of snapshot.tables) {
     const columns = t.columns.map(c => c.name);
     const notNullCols = new Set(
@@ -48,6 +62,7 @@ export async function buildNullabilityCatalog(
       notNullCols,
       colTypeOids: new Map(t.columns.map(c => [c.name, c.typeOid])),
       colTypeNames: new Map(t.columns.map(c => [c.name, c.typeName])),
+      colDistinctnessSound: distinctnessSound(t.columns),
     });
   }
   // Views have columns too — treat them like tables for resolution.
@@ -63,6 +78,7 @@ export async function buildNullabilityCatalog(
       notNullCols,
       colTypeOids: new Map(v.columns.map(c => [c.name, c.typeOid])),
       colTypeNames: new Map(v.columns.map(c => [c.name, c.typeName])),
+      colDistinctnessSound: distinctnessSound(v.columns),
     });
   }
 
@@ -235,6 +251,15 @@ export async function buildNullabilityCatalog(
     return t?.colTypeNames.get(column) ?? null;
   };
 
+  const resolveLiteralDistinctnessSound = (
+    schema: string,
+    table: string,
+    column: string,
+  ): boolean => {
+    const t = tableMap.get(`${schema}.${table}`);
+    return t?.colDistinctnessSound.has(column) ?? false;
+  };
+
   const compositeTypes = new Map<string, { fields: { name: string; typeOid: number }[] }>();
   for (const ct of snapshot.compositeTypes) {
     compositeTypes.set(`${ct.schema}.${ct.name}`, {
@@ -350,6 +375,7 @@ export async function buildNullabilityCatalog(
     resolveColumnNotNull,
     resolveColumnTypeOid,
     resolveColumnTypeName,
+    resolveLiteralDistinctnessSound,
     resolveCompositeType,
     resolveFunctionMetadata,
     resolveFunctionCandidates,

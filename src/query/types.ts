@@ -151,6 +151,16 @@ export interface NullabilityCatalog {
   resolveColumnTypeName(schema: string, table: string, column: string): string | null;
 
   /**
+   * Whether unequal literal TOKENS provably denote unequal VALUES for
+   * comparisons against `schema.table.column` — the collation-gated
+   * relaxation of the distinctness ban. True only for builtin text-family
+   * columns (by OID whitelist; citext's case-folding lives in its operator
+   * and never qualifies) whose collation the snapshot proved deterministic.
+   * Numerics never qualify: 75 and 75.0 are distinct tokens, equal values.
+   */
+  resolveLiteralDistinctnessSound(schema: string, table: string, column: string): boolean;
+
+  /**
    * Fields of a standalone composite type (`CREATE TYPE ... AS (...)`), or
    * null if the name is not one.
    *

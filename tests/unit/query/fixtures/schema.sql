@@ -554,3 +554,55 @@ ALTER TABLE guest ADD CONSTRAINT guest_badge_claimed
 -- provenance (rowPath) out of the definition.
 CREATE VIEW guest_directory AS
   SELECT id, status, arrived_at, room, note FROM guest;
+
+-- ---------------------------------------------------------------------------
+-- Collation-gated distinctness (Wave 9).
+-- ---------------------------------------------------------------------------
+
+-- The user's motivating shape verbatim: a generated discriminator whose CASE
+-- ties each verdict to a fraud_score condition. Filtering on the verdict
+-- selects an arm; the arm's condition is what the kernel derives.
+CREATE TABLE txn (
+  id integer PRIMARY KEY,
+  fraud_score numeric,
+  verdict text GENERATED ALWAYS AS (
+    CASE WHEN fraud_score >= 75 THEN 'fraud'
+         WHEN fraud_score >= 30 THEN 'manual-check'
+         WHEN fraud_score < 30 THEN 'no-fraud'
+         WHEN fraud_score IS NULL THEN 'manual-check'
+         ELSE NULL END) STORED
+);
+
+-- Multi-WHEN CHECK CASEs: reaching the second arm requires falsifying the
+-- first, which distinctness grants for kind (text, deterministic collation)
+-- and must refuse for n (numeric: 1 and 1.0 are distinct tokens, equal
+-- values).
+CREATE TABLE audit_log (
+  id integer PRIMARY KEY,
+  kind text NOT NULL,
+  actor text,
+  bot_id text,
+  n integer,
+  a text,
+  b text,
+  CHECK (CASE WHEN kind = 'manual' THEN actor IS NOT NULL
+              WHEN kind = 'auto' THEN bot_id IS NOT NULL END),
+  CHECK (CASE WHEN n = 1 THEN a IS NOT NULL WHEN n = 2 THEN b IS NOT NULL END)
+);
+
+-- The collation gate's counterexample. Under a real case-insensitive ICU
+-- collation, WHERE tag = 'A' returns the stored tag='a' row; ungated
+-- byte-distinctness would falsify that row's TRUE first arm, step to the
+-- second, and claim x non-null — which the row's NULL x falsifies. The
+-- gate refuses nondeterministic collations, so the claim stays nullable.
+-- MEASURED PGlite limitation: the catalog records collisdeterministic=false
+-- (which is all the engine consumes), but comparisons behave bytewise —
+-- 'a' = 'A' is false here — so the witness row is unreachable and the
+-- fixture pins the refusal by annotation instead.
+CREATE COLLATION ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false);
+CREATE TABLE nd (
+  tag text COLLATE ci NOT NULL,
+  x text,
+  CHECK (CASE WHEN tag = 'a' THEN x IS NULL
+              WHEN tag IS NOT NULL THEN x IS NOT NULL END)
+);

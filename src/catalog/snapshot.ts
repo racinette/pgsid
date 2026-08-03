@@ -53,6 +53,7 @@ interface ColumnRow {
   default_expr: string | null;
   generated: string; // 'a' | 's' | ''
   identity: string;  // 'a' | 'd' | ''
+  collation_deterministic: boolean | null;
 }
 
 interface ConstraintRow {
@@ -469,6 +470,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       defaultExpr: c.default_expr,
       generated: mapGenerated(c.generated),
       identity: mapIdentity(c.identity),
+      collationDeterministic: c.collation_deterministic,
     };
     const arr = columnsByRel.get(c.attrelid);
     if (arr) arr.push(ci);
@@ -767,11 +769,13 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
             (ad.adbin IS NOT NULL) AS has_default,
             pg_get_expr(ad.adbin, ad.adrelid) AS default_expr,
             a.attgenerated AS generated,
-            a.attidentity AS identity
+            a.attidentity AS identity,
+            co.collisdeterministic AS collation_deterministic
      FROM pg_attribute a
      JOIN pg_class c ON c.oid = a.attrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace
      LEFT JOIN pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
+     LEFT JOIN pg_collation co ON co.oid = a.attcollation
      WHERE c.relkind IN ('r', 'v', 'm')
        AND ${USER_NS}
        AND a.attnum > 0 AND NOT a.attisdropped

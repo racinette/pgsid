@@ -47,6 +47,14 @@ export interface ColumnInfo {
   defaultExpr: string | null;
   /** Generated-column mode: `attgenerated` 's'→stored, 'v'→virtual (PG18), ''→none. */
   generated: "stored" | "virtual" | "none";
+  /**
+   * `pg_collation.collisdeterministic` of the column's collation; null for
+   * non-collatable types. Gates literal DISTINCTNESS in the entailment
+   * kernel: under a deterministic collation, differently-spelled text
+   * values are provably unequal — under a nondeterministic one they are
+   * not, which is why distinctness was banned before this was captured.
+   */
+  collationDeterministic: boolean | null;
   /** Identity column: `attidentity` 'a'→always, 'd'→byDefault, ''→null. */
   identity: "always" | "byDefault" | null;
 }

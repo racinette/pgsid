@@ -49,3 +49,18 @@ INSERT INTO guest (id, status, arrived_at, room, note, vip_reason, badge) VALUES
   (2, 'housed',      now(), 'r-201', NULL,           NULL, 'b-2'),
   (3, 'arrived',     now(), NULL,    'early arrival', 'repeat visitor', 'b-3'),
   (4, 'checked-out', NULL,  NULL,    'left on time', NULL, 'b-4');
+
+-- Wave 9 rows: one txn per verdict arm (id 4's NULL fraud_score witnesses
+-- the manual-check ambiguity) and one audit_log row per CHECK arm pair.
+-- nd gets the ('a', NULL) row a REAL case-insensitive collation would
+-- return for WHERE tag = 'A' (the gate's counterexample) plus an ('A', …)
+-- row for liveness — under PGlite's bytewise stub only the latter matches,
+-- and its CHECK routes it through the second arm, so x must be non-null
+-- and the gate fixture records unwitnessability instead. (Under real ICU
+-- this second insert would take the FIRST arm and be rejected — data
+-- states only ever run in PGlite.)
+INSERT INTO txn (id, fraud_score) VALUES (1, 80), (2, 50), (3, 10), (4, NULL);
+INSERT INTO audit_log (id, kind, actor, bot_id, n, a, b) VALUES
+  (1, 'manual', 'alice', NULL,    1, 'a-one', NULL),
+  (2, 'auto',   NULL,    'bot-7', 2, NULL,    'b-two');
+INSERT INTO nd (tag, x) VALUES ('a', NULL), ('A', 'ax');

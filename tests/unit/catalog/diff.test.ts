@@ -28,6 +28,7 @@ function col(partial: Partial<ColumnInfo> & { name: string }): ColumnInfo {
     defaultExpr: null,
     generated: "none",
     identity: null,
+    collationDeterministic: null,
     ...partial,
   };
 }

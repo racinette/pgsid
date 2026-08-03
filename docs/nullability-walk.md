@@ -329,6 +329,29 @@ The gates:
   a single unmasked OLD run is sound because every fact source tested that
   same row.
 
+**Collation-gated distinctness (Wave 9)** adds the one judgment the kernel
+refused until the catalog could prove it: two string literal TOKENS denote
+DISTINCT values — admitted only for builtin text-family columns (OID
+whitelist; citext's case-folding lives in its operator and never qualifies)
+whose collation the snapshot proved deterministic (`collisdeterministic`,
+captured per column), and never for numerics (75 vs 75.0: distinct tokens,
+equal values). TRUE(`col = 'a'`) then falsifies `col = 'b'` and certifies
+`col <> 'b'`, which is what lets a multi-WHEN CHECK CASE reach its later
+arms (`check-multiwhen-second-arm.sql`; numeric refusal pinned by
+`check-multiwhen-numeric-negative.sql`; the nondeterministic-collation
+counterexample by `check-distinctness-collation-gate.sql`). On top of it
+sit **generated-column equalities**: `verdict = <generation expr>` holds
+EXACTLY per stored row — OLD and NEW alike — so a TRUE `verdict = 'fraud'`
+fact runs arm exclusion over a CASE-shaped expression (arms with
+provably-distinct literal results are out, the NULL result is out because a
+TRUE equality has no NULL side, an already-FALSE condition is out), and a
+single surviving WHEN arm contributes its condition as row-implied facts.
+The kernel finishes directly when the facts pin the goal column — no CHECK
+constraint needed (`check-generated-arm-fraud.sql`; the two-arm
+'manual-check' ambiguity stays nullable, witnessed). An ELSE survivor
+derives nothing: ELSE runs on FALSE *or NULL* conditions, and 3VL grants no
+facts from "not TRUE".
+
 **Origin tracking (Wave 8)** carries entailment across scope boundaries. An
 output column that is a bare, untransformed pass-through of a base table
 column records its provenance (`ColumnOrigin`): the base table plus a
