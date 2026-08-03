@@ -56,6 +56,14 @@ export interface FixtureDirectives {
    */
   paramClaims: ParamClaim[];
   /**
+   * Expected JOINT rejection sets, from `-- @param-reject N,M[,…]` lines:
+   * binding NULL to every listed parameter together must make the statement
+   * raise, while each member individually carries a nullable `@param`
+   * claim (the trichotomy's conditional state — the agreement suite
+   * enforces that pairing). Members sorted ascending, sets in file order.
+   */
+  rejectClaims: number[][];
+  /**
    * Output columns whose `@nullable` claim is known to be unwitnessable, by
    * 0-based column index, with the reason recorded: `-- @unwitnessable N:
    * reason`. The witness invariant in nullability-soundness.test.ts requires
@@ -75,17 +83,43 @@ export interface ParamClaim {
 const ARGS_RE = /^\s*--\s*@args\b(.*)$/;
 const NO_ROWS_RE = /^\s*--\s*@no-rows\b:?(.*)$/;
 const RAISES_RE = /^\s*--\s*@raises\b:?(.*)$/;
-const PARAM_RE = /^\s*--\s*@param\b(.*)$/;
+const PARAM_REJECT_RE = /^\s*--\s*@param-reject\b(.*)$/;
+const PARAM_RE = /^\s*--\s*@param\b(?!-)(.*)$/;
 const UNWITNESSABLE_RE = /^\s*--\s*@unwitnessable\b:?(.*)$/;
 
 export function parseFixtureDirectives(content: string): FixtureDirectives {
   const bindings: FixtureBinding[] = [];
   const paramClaims: ParamClaim[] = [];
+  const rejectClaims: number[][] = [];
   const unwitnessable = new Map<number, string>();
   let noRowsReason: string | null = null;
   let raisesPattern: string | null = null;
 
   for (const line of content.split("\n")) {
+    const rejectMatch = PARAM_REJECT_RE.exec(line);
+    if (rejectMatch) {
+      const members = rejectMatch[1]!
+        .trim()
+        .split(",")
+        .map(p => Number(p.trim()));
+      if (members.length < 2 || members.some(m => !Number.isInteger(m) || m < 1)) {
+        throw new Error(
+          `@param-reject must be \`-- @param-reject <n>,<m>[,…]\` with two or more ` +
+            `parameter numbers, got: ${rejectMatch[1]!.trim()}`,
+        );
+      }
+      const sorted = [...new Set(members)].sort((a, b) => a - b);
+      if (sorted.length !== members.length) {
+        throw new Error(`@param-reject lists a parameter twice: ${rejectMatch[1]!.trim()}`);
+      }
+      const key = sorted.join(",");
+      if (rejectClaims.some(s => s.join(",") === key)) {
+        throw new Error(`duplicate @param-reject annotation for {${key}}`);
+      }
+      rejectClaims.push(sorted);
+      continue;
+    }
+
     const unwitnessableMatch = UNWITNESSABLE_RE.exec(line);
     if (unwitnessableMatch) {
       const m = /^(\d+)\s*:\s*(.+)$/.exec(unwitnessableMatch[1]!.trim());
@@ -177,10 +211,25 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
     throw new Error("@raises is only meaningful on a fixture marked @no-rows");
   }
 
+  // A reject set's members are by definition the CONDITIONALLY required
+  // parameters, which is a claim about their individual nullability too —
+  // require the pairing so the two annotation layers cannot drift.
+  for (const set of rejectClaims) {
+    for (const member of set) {
+      const claim = paramClaims.find(p => p.number === member);
+      if (!claim || claim.notNull) {
+        throw new Error(
+          `@param-reject member $${member} must also carry \`-- @param ${member} nullable\`: ` +
+            `a set member is conditionally required, never unconditionally so`,
+        );
+      }
+    }
+  }
+
   if (bindings.length === 0) {
     bindings.push({ label: "unbound", args: null });
   }
-  return { bindings, noRowsReason, raisesPattern, paramClaims, unwitnessable };
+  return { bindings, noRowsReason, raisesPattern, paramClaims, rejectClaims, unwitnessable };
 }
 
 /**

@@ -5,7 +5,6 @@ import { checkConstraintsProveNotNull } from "./check-entailment.js";
 import { TOTAL_STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
-  collectParamNullability,
   forcedNullParams,
   type ParamNullability,
 } from "./param-nullability.js";
@@ -51,6 +50,19 @@ export function inferNullability(
 export interface QueryContract {
   outputs: OutputNullability[];
   params: ParamNullability[];
+  /**
+   * Minimal joint rejection sets, each of size ≥ 2: binding NULL to EVERY
+   * member raises — `COALESCE($1, $2)` into a NOT NULL column claims
+   * `[[1, 2]]`. Singleton rejections are `params[i].notNull`, and by
+   * minimality a notNull parameter never appears in a set, so each
+   * parameter is in exactly one of three states: unconditionally required,
+   * conditionally required (the condition spelled by its sets — at least
+   * one other member of each must be bound non-NULL), or unconstrained. A
+   * type emitter renders each set as one local union over its members,
+   * intersected with the flat per-parameter types; consumers that ignore
+   * this field get exactly the old (sound, incomplete) flat contract.
+   */
+  paramRejectionSets: number[][];
 }
 
 /**
@@ -61,9 +73,11 @@ export interface QueryContract {
  * `collectParamNullability` for callers that handle refused statements.
  */
 export function inferQueryContract(stmt: Node, catalog: NullabilityCatalog): QueryContract {
+  const facts = collectParamFacts(stmt, catalog);
   return {
     outputs: inferNullability(stmt, catalog),
-    params: collectParamNullability(stmt, catalog),
+    params: facts.params,
+    paramRejectionSets: facts.rejectionSets,
   };
 }
 

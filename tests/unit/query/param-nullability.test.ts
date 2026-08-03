@@ -6,7 +6,7 @@ import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { collectParamNullability } from "../../../src/query/param-nullability.js";
+import { collectParamFacts, collectParamNullability } from "../../../src/query/param-nullability.js";
 import { inferQueryContract, inferNullability } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 import { parseFixtureDirectives, type ParamClaim } from "./fixture-args.js";
@@ -37,7 +37,9 @@ const fixtureFiles = readdirSync(FIXTURES_DIR)
 interface FixtureParams {
   name: string;
   claims: ParamClaim[];
+  rejectClaims: number[][];
   inferred: { number: number; notNull: boolean }[];
+  inferredSets: number[][];
 }
 
 const results: FixtureParams[] = [];
@@ -53,13 +55,16 @@ describe("argument nullability (engine vs @param annotations)", () => {
 
     for (const file of fixtureFiles) {
       const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const { paramClaims } = parseFixtureDirectives(sql);
+      const { paramClaims, rejectClaims } = parseFixtureDirectives(sql);
       const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
       if (!stmt) continue;
+      const facts = collectParamFacts(stmt, catalog);
       results.push({
         name: basename(file, ".sql"),
         claims: paramClaims,
-        inferred: collectParamNullability(stmt, catalog),
+        rejectClaims,
+        inferred: facts.params,
+        inferredSets: facts.rejectionSets,
       });
     }
   }, 120_000);
@@ -89,6 +94,37 @@ describe("argument nullability (engine vs @param annotations)", () => {
       stale,
       `@param annotations for parameters the statement does not contain:\n  ` +
         stale.join("\n  "),
+    ).toEqual([]);
+  });
+
+  // Joint rejection sets carry the same compulsory-coverage bar as the flat
+  // claims, in both directions: an engine-claimed set without its
+  // `@param-reject` line means the corpus grew a claim nobody reviewed, and
+  // an annotated set the engine no longer claims is stale bookkeeping.
+  it("every joint rejection set is annotated, and no @param-reject is stale", () => {
+    const key = (s: number[]): string => s.join(",");
+    const missing: string[] = [];
+    const stale: string[] = [];
+    for (const r of results) {
+      for (const s of r.inferredSets) {
+        if (!r.rejectClaims.some(c => key(c) === key(s))) {
+          missing.push(`${r.name}: {${key(s)}}`);
+        }
+      }
+      for (const c of r.rejectClaims) {
+        if (!r.inferredSets.some(s => key(s) === key(c))) {
+          stale.push(`${r.name}: {${key(c)}}`);
+        }
+      }
+    }
+    expect(
+      missing,
+      `Engine-claimed joint rejection sets with no \`-- @param-reject\` line:\n  ` +
+        missing.join("\n  "),
+    ).toEqual([]);
+    expect(
+      stale,
+      `@param-reject annotations the engine does not claim:\n  ` + stale.join("\n  "),
     ).toEqual([]);
   });
 

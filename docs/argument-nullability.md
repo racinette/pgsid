@@ -303,6 +303,56 @@ halves. Naming and whether the old entry point becomes a thin wrapper are
 implementation decisions, with one constraint: the two arrays must come from
 one traversal, so they can never disagree about which statement they describe.
 
+### Joint rejection sets (Wave 10)
+
+The flat array has a vocabulary limit: `SET username = COALESCE($1, $2)`
+into a NOT NULL column rejects neither parameter alone, yet binding BOTH
+NULL raises — a fact `notNull: boolean` per parameter cannot say, and a
+consumer emitting `{ $1: string | null; $2: string | null }` admits exactly
+the binding class this analysis exists to forbid. The contract therefore
+carries a third field:
+
+```ts
+interface QueryContract {
+  outputs: OutputNullability[];
+  params: ParamNullability[];       // singleton facts, semantics unchanged
+  paramRejectionSets: number[][];   // minimal sets of size ≥ 2
+}
+```
+
+The underlying theory is uniform: everything is a minimal **rejection set**
+— "binding NULL to every member raises" — and `params[i].notNull` is the
+|S| = 1 slice, kept positional for the PREPARE zip. Minimality gives the
+trichotomy: a notNull parameter never appears in a set (supersets are
+absorbed), so each parameter is unconditionally required, conditionally
+required (the condition spelled entirely by its sets), or unconstrained.
+The claim direction is unchanged and one-directional — claims mean raises;
+absence of a claim promises nothing.
+
+Mechanism-C's value-flow computes this natively: "which params force this
+expression NULL" is a monotone function over "$i is NULL" atoms, and the
+analysis tracks its minimal implicants — strict operators union the
+operands' implicant lists, COALESCE cross-unions its branches (the
+singleton projection of which IS the old intersection, so the flat contract
+is bit-identical to before). Bounds, recorded here per the no-silent-caps
+rule: implicants wider than 4 parameters and joint implicants beyond 8 per
+expression are dropped — a dropped implicant is a missing claim, exactly
+the pre-lift state — and singletons are NEVER dropped, so the flat contract
+cannot regress however wide an expression fans out. CASE expressions
+contribute no implicants (unchanged from the singleton analysis); a
+CASE-shaped joint fact would need the arm machinery the entailment kernel
+has and this traversal does not — deferred, recorded.
+
+Verification mirrors the flat claims: `-- @param-reject 1,2` annotations
+with compulsory bidirectional coverage (engine-claimed sets must be
+annotated, stale annotations must come off), each member required to carry
+its own `nullable` claim (the conditional state), and the soundness suite
+binds all members NULL together expecting the observed raise — existential,
+like notNull — while the members' individual nullable claims keep the set
+irreducible. A type emitter renders each set as one local union over its
+members intersected with the flat per-parameter types; ignoring the field
+yields the old contract, sound and incomplete.
+
 ## Sequencing
 
 Agreed order of work, each stage giving the next something real to test:

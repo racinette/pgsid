@@ -71,6 +71,13 @@ interface FixtureRun {
   controlOk: string[];
   controlErrors: { state: string; message: string }[];
   evidence: ClaimEvidence[];
+  /**
+   * Joint-set evidence, existential like notNull: binding NULL to EVERY
+   * member together (others valid) must be observed to raise in at least
+   * one state. Each member's individual nullable claim is verified by the
+   * ordinary per-claim loop, which is what makes the set irreducible.
+   */
+  jointEvidence: { members: number[]; witnessed: string[] }[];
 }
 
 const runs: FixtureRun[] = [];
@@ -109,7 +116,7 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
       .filter(f => f.endsWith(".sql") && f !== "schema.sql")
       .sort()) {
       const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const { bindings, paramClaims } = parseFixtureDirectives(sql);
+      const { bindings, paramClaims, rejectClaims } = parseFixtureDirectives(sql);
       if (paramClaims.length === 0) continue;
       runs.push({
         name: basename(file, ".sql"),
@@ -120,6 +127,7 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
         controlOk: [],
         controlErrors: [],
         evidence: paramClaims.map(claim => ({ claim, witnessed: [], raises: [] })),
+        jointEvidence: rejectClaims.map(members => ({ members, witnessed: [] })),
       });
     }
 
@@ -169,6 +177,13 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
           if (NULL_REJECTION.test(error)) ev.witnessed.push(state.name);
           if (control.error === null) ev.raises.push({ state: state.name, message: error });
         }
+
+        for (const jev of run.jointEvidence) {
+          const args = [...run.validArgs];
+          for (const member of jev.members) args[member - 1] = null;
+          const { error } = await exec(run, args);
+          if (error !== null && NULL_REJECTION.test(error)) jev.witnessed.push(state.name);
+        }
       }
       await pg.close();
     }
@@ -209,6 +224,16 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
           ).toEqual([]);
         }
       }
+
+      for (const jev of run.jointEvidence) {
+        expect(
+          jev.witnessed.length,
+          `{$${jev.members.join(", $")}} is claimed a joint rejection set but ` +
+            `binding them all NULL raised no null-rejection under any state ` +
+            `(${stateNames.join(", ")}). Either the claim is wrong, or no data ` +
+            `state routes a row into the rejecting site.`,
+        ).toBeGreaterThan(0);
+      }
     });
   }
 
@@ -218,11 +243,13 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
     const notNull = claims.filter(e => e.claim.notNull);
     const witnessed = notNull.filter(e => e.witnessed.length > 0);
     const falsified = claims.filter(e => !e.claim.notNull && e.raises.length > 0);
+    const joints = runs.flatMap(r => r.jointEvidence);
     console.log(
       `\nargument soundness over ${runs.length} parameterized fixtures and ` +
         `${stateNames.length} data states (${stateNames.join(", ")}):\n` +
         `  notNull claims:  ${notNull.length} — ${witnessed.length} witnessed by an observed null-rejection\n` +
         `  nullable claims: ${claims.length - notNull.length} — ${falsified.length} falsified by a raise under a passing control\n` +
+        `  joint sets:      ${joints.length} — ${joints.filter(j => j.witnessed.length > 0).length} witnessed by the all-members-NULL raise\n` +
         `  literal-substitution fallback (protocol could not type the statement): ` +
         `${literal.length ? literal.join(", ") : "none"}`,
     );

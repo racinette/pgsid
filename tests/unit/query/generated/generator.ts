@@ -1415,6 +1415,85 @@ export function generateDmlQueries(): GeneratedQuery[] {
     );
   }
 
+  // --- joint rejection sets: writes into tags.name (NOT NULL) through -----
+  // COALESCE fan-ins. The only generated shapes whose contract carries
+  // paramRejectionSets, plus the no-set control whose all-NULL binding the
+  // contract deems admissible — the harness asserts claimed sets witness
+  // their all-members-NULL raise AND that admissible bindings never
+  // null-raise, the two directions of the joint oracle.
+  const jointInsert = (projection: string, nameExpr: Ast, params: GeneratedQuery["params"]): void =>
+    dml(
+      "insert-joint",
+      "values",
+      projection,
+      {
+        InsertStmt: {
+          relation: relation("tags"),
+          cols: insertCols("name"),
+          selectStmt: { SelectStmt: bareSelect({ valuesLists: [valuesRow(nameExpr)] }) },
+          returningClause: {
+            exprs: [target(colRef("id"), "r_id"), target(colRef("name"), "r_nm")],
+          },
+          override: "OVERRIDING_NOT_SET",
+        },
+      },
+      params,
+      [
+        expect("INSERT", "InsertStmt"),
+        expect("COALESCE", "CoalesceExpr"),
+        expectReturning,
+        expectParams(...params.map(p => p.number)),
+      ],
+    );
+  jointInsert("joint-pair", coalesce(paramRef(1), paramRef(2)), [
+    { number: 1, valid: "jt-a" },
+    { number: 2, valid: "jt-b" },
+  ]);
+  jointInsert("joint-fanout", coalesce(paramRef(1), concatOp(paramRef(2), paramRef(3))), [
+    { number: 1, valid: "jt-c" },
+    { number: 2, valid: "jt-d" },
+    { number: 3, valid: "jt-e" },
+  ]);
+  jointInsert("joint-none", coalesce(paramRef(1), textConst("jt-fallback")), [
+    { number: 1, valid: "jt-f" },
+  ]);
+  dml(
+    "update-joint",
+    "target-only",
+    "joint-pair",
+    {
+      UpdateStmt: {
+        // u: populated in sparse (a DEFAULT state), email plain NOT NULL,
+        // no CHECK constraints to satisfy. The first draft targeted tags,
+        // which no default state populates, and the witness bar caught the
+        // unwitnessable claim on this axis's very first run — kept as u so
+        // the joint raise is observed without GENERATED_ALL_STATES.
+        relation: relation("u"),
+        targetList: [setItem("email", coalesce(paramRef(1), paramRef(2)))],
+        whereClause: {
+          A_Expr: {
+            kind: "AEXPR_OP",
+            name: [{ String: { sval: ">=" } }],
+            lexpr: colRef("u", "id"),
+            rexpr: paramRef(3),
+          },
+        },
+        returningClause: { exprs: [target(colRef("id"), "r_id")] },
+      },
+    },
+    [
+      { number: 1, valid: "jt-u@x.y" },
+      { number: 2, valid: "jt-v@x.y" },
+      { number: 3, valid: 0 },
+    ],
+    [
+      expect("UPDATE", "UpdateStmt"),
+      expect("COALESCE", "CoalesceExpr"),
+      expectReturning,
+      expectParams(1, 2, 3),
+    ],
+  );
+
   return out;
 }
 

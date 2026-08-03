@@ -12,7 +12,7 @@ import {
   UnsupportedNodeError,
 } from "../../../../src/query/nullability-walk.js";
 import {
-  collectParamNullability,
+  collectParamFacts,
   type ParamNullability,
 } from "../../../../src/query/param-nullability.js";
 import type { NullabilityCatalog, OutputNullability } from "../../../../src/query/types.js";
@@ -165,9 +165,19 @@ interface QueryRecord {
   claimed: OutputNullability[] | null;
   /** Engine's argument contract; PostgreSQL is the oracle for it below. */
   paramClaims: ParamNullability[];
+  /** Engine-claimed joint rejection sets — verified two-sided below. */
+  rejectionSets: number[][];
   /** The all-valid control binding, positional $1..$n. */
   validArgs: unknown[];
   paramEvidence: ParamEvidence[];
+  /** Per claimed set: states where the all-members-NULL binding raised. */
+  jointEvidence: { members: number[]; witnessed: string[] }[];
+  /**
+   * Null-rejections under a binding the CONTRACT deems admissible (no
+   * notNull parameter NULL, no rejection set fully NULL) — each one is a
+   * claim the emitted types would mis-promise, and always a failure.
+   */
+  admissibleRaises: string[];
   /** UnsupportedNodeError, as `site:nodeType`. Counted and skipped, by design. */
   refusal: string | null;
   /** Any other engine throw. Always a defect. */
@@ -223,8 +233,11 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         sql: "",
         claimed: null,
         paramClaims: [],
+        rejectionSets: [],
         validArgs: [],
         paramEvidence: [],
+        jointEvidence: [],
+        admissibleRaises: [],
         refusal: null,
         crash: null,
         drops: [],
@@ -267,7 +280,13 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       // The argument contract needs no annotations: the engine claims, the
       // execution below asks PostgreSQL. Valid control values come from the
       // generator, which knows what it put where.
-      record.paramClaims = collectParamNullability(stmt, catalog);
+      const paramFacts = collectParamFacts(stmt, catalog);
+      record.paramClaims = paramFacts.params;
+      record.rejectionSets = paramFacts.rejectionSets;
+      record.jointEvidence = paramFacts.rejectionSets.map(members => ({
+        members,
+        witnessed: [],
+      }));
       const valids = new Map(query.params.map(p => [p.number, p.valid]));
       const maxParam = Math.max(
         0,
@@ -369,20 +388,40 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
           }
         }
 
-        // One all-params-NULL execution, for row witnessing only. The
-        // argument oracle above binds one NULL at a time so a raise is
-        // attributable — but witnessing an output NULL needs no attribution,
-        // and some outputs (COALESCE($1, textB)) only go NULL when several
-        // parameters are NULL together. Errors are expected for queries with
-        // a notNull parameter and say nothing new; ignore them.
+        // Joint rejection sets, the claim side: bind every member NULL
+        // together (others valid — the raise stays attributable, the control
+        // succeeded) and record the observed null-rejection.
+        for (const jev of record.jointEvidence) {
+          const args = [...record.validArgs];
+          for (const member of jev.members) args[member - 1] = null;
+          try {
+            const jres = await runQuery(args);
+            scanRows(jres.rows as unknown[][], ` {${jev.members.map(m => `$${m}`)}}=NULL`);
+          } catch (e) {
+            if (NULL_REJECTION.test((e as Error).message)) jev.witnessed.push(state.name);
+          }
+        }
+
+        // One all-params-NULL execution: row witnessing, and the joint
+        // oracle's FALSIFICATION side. When the contract deems the all-NULL
+        // binding admissible — no notNull parameter, and no rejection set
+        // (all-NULL fully covers any set there is) — a null-rejection here
+        // is a binding the emitted types would permit and PostgreSQL
+        // refuses: the exact lie Wave 10 exists to make impossible.
         if (record.paramEvidence.length >= 2) {
+          const admissible =
+            record.paramEvidence.every(ev => !ev.notNull) && record.rejectionSets.length === 0;
           try {
             const allNull = record.validArgs.map(() => null);
             const nres = await runQuery(allNull);
             scanRows(nres.rows as unknown[][], " all-NULL");
-          } catch {
-            // A rejecting parameter raised; the per-parameter loop already
-            // recorded everything worth knowing about that.
+          } catch (e) {
+            const message = (e as Error).message;
+            if (admissible && NULL_REJECTION.test(message)) {
+              record.admissibleRaises.push(`[${state.name} all-NULL] ${message}`);
+            }
+            // Otherwise a rejecting parameter or a claimed set raised; the
+            // loops above already recorded everything worth knowing.
           }
         }
       }
@@ -487,6 +526,43 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       `Falsified nullable argument claims — the engine said NULL is a safe ` +
         `binding and PostgreSQL raised:\n${falsified.join("\n")}\n`,
     ).toEqual([]);
+  });
+
+  it("every claimed joint rejection set is witnessed by its all-members-NULL raise", () => {
+    const unwitnessed = records
+      .filter(r => !r.rejection)
+      .flatMap(r =>
+        r.jointEvidence
+          .filter(jev => jev.witnessed.length === 0)
+          .map(jev =>
+            describeFailure(
+              r,
+              `{${jev.members.map(m => `$${m}`).join(", ")}} claimed a joint ` +
+                `rejection set, but binding all members NULL raised no ` +
+                `null-rejection under any state`,
+            ),
+          ),
+      );
+    expect(
+      unwitnessed,
+      `Joint rejection sets nothing checks — same bar as notNull claims:\n` +
+        `${unwitnessed.join("\n")}\n`,
+    ).toEqual([]);
+  });
+
+  it("no contract-admissible binding raises a null-rejection", () => {
+    const raises = records
+      .filter(r => !r.rejection)
+      .flatMap(r =>
+        r.admissibleRaises.map(m =>
+          describeFailure(
+            r,
+            `the contract admits this binding (no notNull, no rejection set) ` +
+              `and PostgreSQL null-rejected it — the emitted types would lie: ${m}`,
+          ),
+        ),
+      );
+    expect(raises, `\n${raises.join("\n")}\n`).toEqual([]);
   });
 
   it("execution is not vacuous", () => {
@@ -662,6 +738,9 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         `  returned rows somewhere:    ${count(r => r.sawRows)}\n` +
         `  notNull claims:             ${notNullClaims} — ${falsifiable} falsifiable ` +
         `(${notNullClaims ? Math.round((falsifiable / notNullClaims) * 100) : 0}%)\n` +
+        `  joint rejection sets:       ${records.reduce((n, r) => n + r.jointEvidence.length, 0)} — ` +
+        `${records.reduce((n, r) => n + r.jointEvidence.filter(j => j.witnessed.length > 0).length, 0)} ` +
+        `witnessed by the all-members-NULL raise\n` +
         `  deep-join axis bound:       5 shapes × 4³ kinds, plain projection only ` +
         `(setops/wrappers not crossed)`,
     );

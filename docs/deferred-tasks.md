@@ -111,6 +111,36 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by Wave 10 (2026-08): joint rejection sets — the parameter
+contract's last vocabulary gap. `COALESCE($1, $2)` into a NOT NULL column
+rejects neither parameter alone but both together, a fact the flat
+`ParamNullability[]` cannot say and a per-param type emission would
+mis-promise. Mechanism-C's value-flow now computes minimal IMPLICANTS
+(monotone sets over "$i is NULL": strict ops union, COALESCE cross-unions —
+whose singleton projection is the old intersection, keeping the flat
+contract bit-identical), rejectFlow files size-≥2 implicants as
+`QueryContract.paramRejectionSets`, minimized with singleton absorption so
+the trichotomy holds: unconditionally required / conditionally required
+(the condition spelled by the sets) / unconstrained. CNF at the API
+deliberately — the analysis's native form, per-fact verifiable, and the
+factored type emission (flat types ∩ one local union per set) derives from
+it directly, where a DNF cross-product would need re-factoring. Bounds
+(≤ 4 params per implicant, ≤ 8 joint implicants, singletons exempt) are
+recorded in `docs/argument-nullability.md`. Verified at the flat claims'
+own bar: `@param-reject` annotations with compulsory bidirectional
+coverage, members required to carry their nullable claims, and the
+soundness suite observing the all-members-NULL raise
+(`param-joint-coalesce.sql`; `param-joint-strict-fanout.sql` pins two sets
+from one expression). The generated axis carries the same oracle two-sided:
+insert-joint/update-joint shapes over NOT NULL targets produce sets the
+harness must witness by their all-members-NULL raise, and every
+all-NULL-admissible binding is asserted to never null-reject — the
+falsification the flat contract could not even express (the previous
+all-NULL run swallowed those errors). The witness bar proved itself on
+this axis's FIRST run: the update-joint draft targeted a table no default
+state populates, and the unwitnessable claim failed the suite until the
+target moved to `u`. CASE-shaped joint facts are deferred, recorded.
+
 Closed by Wave 9 (2026-08, measured first): collation-gated literal
 distinctness, and the generated-column reverse entailment it unlocks. The
 snapshot captures `collisdeterministic` per column (LEFT JOIN pg_collation

@@ -84,6 +84,16 @@ interface Collector {
   seen: Set<number>;
   rejected: Set<number>;
   /**
+   * Joint rejection sets from mechanism-C sites: parameter sets of size ≥ 2
+   * whose members, ALL bound NULL together, force a NULL into a rejecting
+   * site — no single member does alone, or it would be in `rejected`.
+   * `COALESCE($1, $2)` into a NOT NULL column is the shape. Finalized in
+   * collectParamFacts: minimized, and sets containing an individually
+   * rejected parameter are absorbed (the singleton claim already forbids
+   * the binding).
+   */
+  jointRejected: number[][];
+  /**
    * The mechanism-A subset of `rejected`: parameters whose TYPE parse
    * analysis resolves to a NOT NULL domain, so a NULL binding raises at the
    * protocol's Bind step, before any execution. This is strictly stronger
@@ -157,36 +167,107 @@ function reject(c: Collector, num: number, mechanism: "domain" | "constraint" | 
  * defining rows differs.
  */
 /**
+ * The full analysis computes minimal IMPLICANTS: sets of parameters whose
+ * JOINT NULL binding forces the expression NULL (monotone — more NULLs never
+ * un-force). The rules are the same value semantics as ever, lifted one
+ * level: a strict operator's NULL needs ANY operand NULL (union of the
+ * operands' implicant lists), COALESCE's needs EVERY branch NULL (pairwise
+ * cross-unions — whose singleton projection IS the old intersection). Each
+ * implicant is sorted ascending; lists are kept minimal (no supersets).
+ *
+ * Bounds: implicants larger than MAX_IMPLICANT_SIZE and joint implicants
+ * beyond MAX_JOINT_IMPLICANTS are dropped — conservative (a dropped
+ * implicant is a missing claim, exactly the pre-lift state) and recorded in
+ * docs/argument-nullability.md. SINGLETONS are never dropped: the flat
+ * contract's claims must not regress however wide an expression fans out.
+ */
+type Implicants = number[][];
+
+const MAX_IMPLICANT_SIZE = 4;
+const MAX_JOINT_IMPLICANTS = 8;
+
+function minimizeImplicants(sets: number[][]): Implicants {
+  const kept: number[][] = [];
+  const candidates = sets
+    .filter(s => s.length > 0 && s.length <= MAX_IMPLICANT_SIZE)
+    .map(s => [...new Set(s)].sort((a, b) => a - b))
+    .sort((a, b) => a.length - b.length || a.join(",").localeCompare(b.join(",")));
+  let joints = 0;
+  for (const s of candidates) {
+    if (kept.some(k => k.every(x => s.includes(x)))) continue; // superset (or dup)
+    if (s.length === 1) {
+      kept.push(s);
+      continue;
+    }
+    if (joints >= MAX_JOINT_IMPLICANTS) continue;
+    kept.push(s);
+    joints++;
+  }
+  return kept;
+}
+
+/** Implicants of "every input NULL": pairwise unions across the lists. */
+function crossUnion(lists: Implicants[]): Implicants {
+  if (lists.length === 0) return [];
+  return lists.reduce((acc, next) => {
+    if (acc.length === 0 || next.length === 0) return [];
+    const out: number[][] = [];
+    for (const a of acc) for (const b of next) out.push([...a, ...b]);
+    return minimizeImplicants(out);
+  });
+}
+
+/** Implicants of "any input NULL": concatenation, minimized. */
+function unionLists(lists: Implicants[]): Implicants {
+  return minimizeImplicants(lists.flat());
+}
+
+function singletonsOf(implicants: Implicants): Set<number> {
+  return new Set(implicants.filter(s => s.length === 1).map(s => s[0]!));
+}
+
+/**
  * The UNIVERSAL face: parameters whose NULL forces the expression NULL in
  * EVERY row context — a derived column reduces by intersection over its
  * defining rows. This is what WHERE-conjunct narrowing must consume: a row
  * whose definition the parameter does not force can survive the conjunct
  * with the parameter NULL and carry it into the output
- * (param-narrow-multirow.sql is the measured case).
+ * (param-narrow-multirow.sql is the measured case). The singleton
+ * projection of the implicant analysis — narrowing never consumes joint
+ * facts (a jointly-forced conjunct proves no single parameter non-null).
  */
 export function forcedNullParams(
   node: Node | undefined,
   catalog: NullabilityCatalog,
   ctx?: AliasContext,
 ): Set<number> {
-  return forcedNullBy(node, catalog, ctx, false);
+  return singletonsOf(forcedNullBy(node, catalog, ctx, false));
 }
 
 /**
- * The EXISTENTIAL face: parameters whose NULL forces the expression NULL in
- * AT LEAST ONE row context — union over defining rows. This is what the
- * contract's rejecting sites consume: one forced row reaching the site is
- * enough to raise (param-merge-source-multirow.sql is the trigger case).
- * The two faces differ ONLY at that reduction; COALESCE's intersection and
- * the strict operators' union are value semantics within a single
- * evaluation and belong to both.
+ * The EXISTENTIAL face, full implicants: sets whose joint NULL forces the
+ * expression NULL in AT LEAST ONE row context — union over defining rows.
+ * This is what the contract's rejecting sites consume: one forced row
+ * reaching the site is enough to raise (param-merge-source-multirow.sql is
+ * the trigger case). The two faces differ ONLY at that reduction;
+ * COALESCE's cross-union and the strict operators' plain union are value
+ * semantics within a single evaluation and belong to both.
  */
+export function forcedNullImplicantsAnyRow(
+  node: Node | undefined,
+  catalog: NullabilityCatalog,
+  ctx?: AliasContext,
+): Implicants {
+  return forcedNullBy(node, catalog, ctx, true);
+}
+
+/** The existential face's singleton projection (kept for the walk). */
 export function forcedNullParamsAnyRow(
   node: Node | undefined,
   catalog: NullabilityCatalog,
   ctx?: AliasContext,
 ): Set<number> {
-  return forcedNullBy(node, catalog, ctx, true);
+  return singletonsOf(forcedNullBy(node, catalog, ctx, true));
 }
 
 function forcedNullBy(
@@ -194,19 +275,20 @@ function forcedNullBy(
   catalog: NullabilityCatalog,
   ctx: AliasContext | undefined,
   anyRow: boolean,
-): Set<number> {
-  const empty = new Set<number>();
-  if (!node || typeof node !== "object") return empty;
+): Implicants {
+  const none: Implicants = [];
+  if (!node || typeof node !== "object") return none;
   const n = node as Record<string, unknown>;
 
   const direct = paramNumberOf(n);
-  if (direct !== null) return new Set([direct]);
+  if (direct !== null) return [[direct]];
 
   // A derived-table column: attribute through its defining expressions,
-  // reduced per the caller's quantifier — intersection for the universal
-  // face (narrowing), union for the existential one (contract sites). The
-  // recursion drops the context: a defining expression cannot reference its
-  // own alias, and deeper nesting stays conservative.
+  // reduced per the caller's quantifier — "every row forces" is a
+  // cross-union (one implicant chosen per row, joined; its singleton
+  // projection is the old intersection), "some row forces" a plain union.
+  // The recursion drops the context: a defining expression cannot reference
+  // its own alias, and deeper nesting stays conservative.
   if (n["ColumnRef"] && ctx) {
     const fields = ((n["ColumnRef"] as { fields?: Node[] }).fields ?? []).map(stringVal);
     let cols: Map<string, Node[]> | undefined;
@@ -221,11 +303,9 @@ function forcedNullBy(
     const defs = colName ? cols?.get(colName) : undefined;
     if (defs?.length) {
       const perRow = defs.map(d => forcedNullBy(d, catalog, undefined, anyRow));
-      return anyRow
-        ? perRow.reduce((acc, s) => new Set([...acc, ...s]))
-        : perRow.reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
+      return anyRow ? unionLists(perRow) : crossUnion(perRow);
     }
-    return empty;
+    return none;
   }
 
   if (n["TypeCast"]) {
@@ -245,21 +325,18 @@ function forcedNullBy(
       (parts.length === 1 && TOTAL_STRICT_OPERATORS.has(op)) ||
       (catalog.resolveOperatorMetadata(schema, op)?.strict ?? false);
     if (ae.kind === "AEXPR_OP" && strict) {
-      const out = new Set<number>();
-      for (const operand of [ae.lexpr, ae.rexpr]) {
-        for (const num of forcedNullBy(operand, catalog, ctx, anyRow)) out.add(num);
-      }
-      return out;
+      return unionLists([ae.lexpr, ae.rexpr].map(o => forcedNullBy(o, catalog, ctx, anyRow)));
     }
-    return empty;
+    return none;
   }
 
+  // NULL only when EVERY branch is — the joint-fact source: neither $1 nor
+  // $2 alone forces COALESCE($1, $2), but together they do, and the
+  // cross-union is where that set is born.
   if (n["CoalesceExpr"]) {
     const args = (n["CoalesceExpr"] as { args?: Node[] }).args ?? [];
-    if (args.length === 0) return empty;
-    return args
-      .map(a => forcedNullBy(a, catalog, ctx, anyRow))
-      .reduce((acc, s) => new Set([...acc].filter(x => s.has(x))));
+    if (args.length === 0) return none;
+    return crossUnion(args.map(a => forcedNullBy(a, catalog, ctx, anyRow)));
   }
 
   if (n["FuncCall"]) {
@@ -269,11 +346,11 @@ function forcedNullBy(
       over?: unknown;
       agg_star?: boolean;
     };
-    if (fc.over || fc.agg_star) return empty;
+    if (fc.over || fc.agg_star) return none;
     const parts = (fc.funcname ?? []).map(stringVal);
     const name = parts[parts.length - 1];
     const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
-    if (!name) return empty;
+    if (!name) return none;
     // A catalog entry gates on its own declared strictness (a user function
     // always wins over a builtin name); only a name the catalog does not
     // carry falls through to the measured strict-builtin set.
@@ -288,16 +365,16 @@ function forcedNullBy(
           ? candidates.every(c => c.strict && !c.isAggregate)
           : (schema === undefined || schema === "pg_catalog") && catalog.isStrictBuiltin(name);
     }
-    if (!strict) return empty;
-    const out = new Set<number>();
+    if (!strict) return none;
+    const perArg: Implicants[] = [];
     for (const arg of fc.args ?? []) {
-      if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return empty;
-      for (const num of forcedNullBy(arg, catalog, ctx, anyRow)) out.add(num);
+      if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return none;
+      perArg.push(forcedNullBy(arg, catalog, ctx, anyRow));
     }
-    return out;
+    return unionLists(perArg);
   }
 
-  return empty;
+  return none;
 }
 
 /**
@@ -388,7 +465,10 @@ function aliasContextOf(items: Node[] | undefined): AliasContext | undefined {
  *  ParamRef, which its caller has already handled as A or B. */
 function rejectFlow(c: Collector, expr: Node | undefined, ctx?: AliasContext): void {
   if (!expr || paramNumberOf(expr) !== null) return;
-  for (const num of forcedNullParamsAnyRow(expr, c.catalog, ctx)) reject(c, num, "flow");
+  for (const implicant of forcedNullImplicantsAnyRow(expr, c.catalog, ctx)) {
+    if (implicant.length === 1) reject(c, implicant[0]!, "flow");
+    else c.jointRejected.push(implicant);
+  }
 }
 
 function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): void {
@@ -648,6 +728,18 @@ export interface ParamFacts {
   /** The consumer-facing contract, positional $1..$n. */
   params: ParamNullability[];
   /**
+   * Minimal JOINT rejection sets, each of size ≥ 2, sorted: binding NULL to
+   * EVERY member provably raises, while `params` records only the singleton
+   * facts. The trichotomy per parameter: `notNull: true` — unconditionally
+   * required (and by minimality NEVER a member of any set here);
+   * `notNull: false` + member of a set — conditionally required, the
+   * condition spelled entirely by the sets; `notNull: false` + no set —
+   * unconstrained. A binding is claimed-rejected iff it violates a notNull
+   * flag or fully-NULLs a set; the engine's promise stays one-directional
+   * (claims mean raises; absence of a claim promises nothing).
+   */
+  rejectionSets: number[][];
+  /**
    * Parameters rejected at Bind (mechanism A): their resolved type is a NOT
    * NULL domain, so a NULL binding raises before any execution — meaning any
    * row a statement returns proves these were non-NULL. Consumed by the
@@ -667,6 +759,7 @@ export function collectParamFacts(stmt: Node, catalog: NullabilityCatalog): Para
     catalog,
     seen: new Set(),
     rejected: new Set(),
+    jointRejected: [],
     bindRejected: new Set(),
   };
   visit(c, stmt);
@@ -675,7 +768,14 @@ export function collectParamFacts(stmt: Node, catalog: NullabilityCatalog): Para
   for (let number = 1; number <= max; number++) {
     params.push({ number, notNull: c.rejected.has(number) });
   }
-  return { params, bindRejected: c.bindRejected };
+  // A set containing an individually rejected parameter is absorbed: the
+  // singleton claim already forbids every binding the set would. What
+  // remains is minimized across sites (several sites can contribute the
+  // same or overlapping sets).
+  const rejectionSets = minimizeImplicants(
+    c.jointRejected.filter(s => !s.some(p => c.rejected.has(p))),
+  ).filter(s => s.length >= 2);
+  return { params, rejectionSets, bindRejected: c.bindRejected };
 }
 
 /** The consumer-facing contract alone. */
