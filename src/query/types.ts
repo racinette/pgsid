@@ -326,13 +326,30 @@ export interface ColumnOrigin {
   schema: string;
   table: string;
   column: string;
+  /**
+   * The instance chain crosses an OPTIONAL (outer-joined) slice, so the
+   * base row may be absent: entailment at a referencing scope must first
+   * prove presence from EVIDENCE alone — some same-rowPath column pinned
+   * non-null (a NULL-extended slice has every pass-through NULL, so any
+   * pinned sibling certifies the row) — before any CHECK may speak.
+   */
+  optional?: boolean;
 }
 
 export interface OutputNullability {
   name: string;
   notNull: boolean;
-  /** Present only for bare pass-through columns; see ColumnOrigin. */
-  origin?: ColumnOrigin;
+  /**
+   * Provenance ALTERNATIVES, present only for pass-through columns. A
+   * single-branch scope yields a singleton; a UNION concatenates each
+   * branch's lists positionally, so an output row's true origin is
+   * `origins[k]` for the one branch k it came from — and that k is the
+   * SAME across sibling columns, which is why co-derivation matches
+   * siblings index by index and entailment must prove EVERY k. A column
+   * any branch cannot attribute carries no list at all. INTERSECT and
+   * EXCEPT rows are left-branch rows and keep the left list.
+   */
+  origins?: ColumnOrigin[];
 }
 
 // ---------------------------------------------------------------------------

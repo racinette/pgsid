@@ -9,6 +9,7 @@ import {
   type ParamNullability,
 } from "./param-nullability.js";
 import type {
+  ColumnOrigin,
   NullabilityCatalog,
   OutputNullability,
   OutputNullabilityTraced,
@@ -768,12 +769,17 @@ class NullabilityEngine {
     // Build the scope (address book).
     const scope = this.buildScope(stmt, outerScope, depth);
 
-    // Origins survive only shapes where an output row IS some input row's
-    // values: grouping collapses many rows into one (a group key would be
-    // sound but is deferred — recorded in the register), so it kills them;
-    // DISTINCT keeps whole rows and does not. Set operations, VALUES and
-    // DML RETURNING never reach this path and produce none.
-    const originsAllowed = !stmt.groupClause?.length && !stmt.havingClause;
+    // Origins survive shapes where an output value IS some real row's
+    // value. Ungrouped, un-aggregated targets: all bare pass-throughs.
+    // Grouped: plain grouping KEYS only (Wave 12 — every row of a group
+    // shares the key values, so sibling keys are same-row; ROLLUP/CUBE-
+    // nulled columns and non-keys refuse). HAVING without GROUP BY is an
+    // aggregate query — no row identity at all. DISTINCT keeps whole rows.
+    const originMode: "all" | "keys" | "none" = stmt.groupClause?.length
+      ? "keys"
+      : stmt.havingClause
+        ? "none"
+        : "all";
 
     // Process the target list.
     const results: OutputNullability[] = [];
@@ -790,7 +796,7 @@ class NullabilityEngine {
 
       // Handle SELECT * (A_Star in ColumnRef).
       if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth, originsAllowed);
+        const expanded = this.expandStar(val, scope, depth, originMode === "all");
         for (const e of expanded) {
           results.push(e);
         }
@@ -798,11 +804,11 @@ class NullabilityEngine {
       }
 
       const notNull = this.walkExpr(val, scope, depth + 1);
-      const bare = originsAllowed ? this.resolveBareColumnTarget(val, scope) : null;
-      const origin = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
+      const bare = this.originTarget(val, stmt, scope, originMode);
+      const origins = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
       results.push(
-        origin
-          ? { name: name ?? this.inferName(val), notNull, origin }
+        origins
+          ? { name: name ?? this.inferName(val), notNull, origins }
           : { name: name ?? this.inferName(val), notNull },
       );
     }
@@ -1726,12 +1732,23 @@ class NullabilityEngine {
         continue;
       }
       if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth);
+        const expanded = this.expandStar(val, scope, depth, true);
         for (const e of expanded) results.push(e);
         continue;
       }
+      // RETURNING rows ARE stored rows (Wave 12): the NEW row an
+      // INSERT/UPDATE wrote, the OLD row a DELETE removed — every one
+      // CHECK-satisfying at the moment it was stored — so bare column
+      // pass-throughs carry origins like any SELECT's. (PG18 OLD./NEW.
+      // qualifications resolve to no scope entry and stay origin-free.)
       const notNull = this.walkExpr(val, scope, depth + 1);
-      results.push({ name: name ?? this.inferName(val), notNull });
+      const bare = this.resolveBareColumnTarget(val, scope);
+      const origins = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
+      results.push(
+        origins
+          ? { name: name ?? this.inferName(val), notNull, origins }
+          : { name: name ?? this.inferName(val), notNull },
+      );
     }
     return results;
   }
@@ -1933,9 +1950,22 @@ class NullabilityEngine {
     for (let i = 0; i < len; i++) {
       const l = left[i];
       const r = right[i];
+      // Origins across a set operation (Wave 12): every INTERSECT/EXCEPT
+      // output row IS a left-branch row (dedup keeps whole rows), so the
+      // left alternatives pass through. A UNION row comes from either
+      // branch — concatenate the alternative lists positionally, but only
+      // when BOTH sides attribute the column: a branch that cannot say
+      // where its rows come from voids the whole column.
+      const origins =
+        op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT"
+          ? l?.origins
+          : l?.origins && r?.origins
+            ? [...l.origins, ...r.origins]
+            : undefined;
       results.push({
         name: l?.name ?? r?.name ?? "",
         notNull: combineSetOpColumn(l?.notNull ?? false, r?.notNull ?? false, op),
+        ...(origins ? { origins } : {}),
       });
     }
     return results;
@@ -1969,8 +1999,8 @@ class NullabilityEngine {
       colName: string,
       notNull: boolean,
     ): OutputNullability => {
-      const origin = withOrigins ? this.originOf(entry, colName, scope, depth) : undefined;
-      return origin ? { name: colName, notNull, origin } : { name: colName, notNull };
+      const origins = withOrigins ? this.originOf(entry, colName, scope, depth) : undefined;
+      return origins ? { name: colName, notNull, origins } : { name: colName, notNull };
     };
 
     // `alias.*` — just that relation's columns.
@@ -2031,37 +2061,76 @@ class NullabilityEngine {
   }
 
   /**
-   * The origin of `entry`'s column `colName`, or undefined when it has none.
-   * Produced only for REQUIRED instances — an OPTIONAL slice's NULL-extended
-   * rows satisfy no CHECK, and promotion-at-distance through the boundary is
-   * deferred. A table contributes a fresh single-step rowPath; a
-   * CTE/subquery/view PREPENDS its own reference instance to the inner
-   * column's path, which is what keeps two references to one memoized
-   * analysis from claiming the same row.
+   * The origin-eligible (entry, column) of a target expression under the
+   * scope's grouping mode. In "keys" mode the target must itself be a PLAIN
+   * grouping-key column outside every ROLLUP/CUBE/GROUPING SETS construct —
+   * a GroupingSet node never resolves as a bare column, so set-wrapped keys
+   * refuse automatically.
+   */
+  private originTarget(
+    val: Node,
+    stmt: SelectStmt,
+    scope: Scope,
+    mode: "all" | "keys" | "none",
+  ): { entry: RelationEntry; column: string } | null {
+    if (mode === "none") return null;
+    const bare = this.resolveBareColumnTarget(val, scope);
+    if (!bare) return null;
+    if (mode === "all") return bare;
+    if (
+      scope.groupingSetColumns.has(bare.column) ||
+      scope.groupingSetColumns.has(`${bare.entry.alias}.${bare.column}`)
+    ) {
+      return null;
+    }
+    for (const g of stmt.groupClause ?? []) {
+      const key = this.resolveBareColumnTarget(g, scope);
+      if (key && key.entry === bare.entry && key.column === bare.column) return bare;
+    }
+    return null;
+  }
+
+  /**
+   * The origin alternatives of `entry`'s column `colName`, or undefined.
+   * A table contributes a fresh single-step rowPath; a CTE/subquery/view
+   * PREPENDS its own reference instance to each inner alternative's path,
+   * which is what keeps two references to one memoized analysis from
+   * claiming the same row. An OPTIONAL instance produces origins MARKED
+   * optional (Wave 12): consumption then demands an evidence-only presence
+   * proof, and a NOT_FOUND entry produces nothing.
    */
   private originOf(
     entry: RelationEntry,
     colName: string,
     scope: Scope,
     depth: number,
-  ): OutputNullability["origin"] {
-    if (entry.joinState !== REQUIRED) return undefined;
+  ): OutputNullability["origins"] {
+    if (entry.joinState === NOT_FOUND) return undefined;
+    const optionalHere = entry.joinState === OPTIONAL;
+    const lift = (inner: ColumnOrigin[] | undefined): ColumnOrigin[] | undefined =>
+      inner?.map(o => ({
+        ...o,
+        rowPath: [entry.instance, ...o.rowPath],
+        ...(o.optional || optionalHere ? { optional: true } : {}),
+      }));
 
     if (entry.kind === "table" && entry.table) {
       if (!entry.table.schema || !entry.table.columns.includes(colName)) return undefined;
-      return {
-        rowPath: [entry.instance],
-        schema: entry.table.schema,
-        table: entry.table.name,
-        column: colName,
-      };
+      return [
+        {
+          rowPath: [entry.instance],
+          schema: entry.table.schema,
+          table: entry.table.name,
+          column: colName,
+          ...(optionalHere ? { optional: true } : {}),
+        },
+      ];
     }
 
     if (entry.kind === "view" && entry.ast && entry.table) {
       const idx = entry.table.columns.indexOf(colName);
       if (idx < 0) return undefined;
-      const inner = this.analyzeStatement(entry.ast, scope, depth + 1)[idx]?.origin;
-      return inner ? { ...inner, rowPath: [entry.instance, ...inner.rowPath] } : undefined;
+      return lift(this.analyzeStatement(entry.ast, scope, depth + 1)[idx]?.origins);
     }
 
     if ((entry.kind === "cte" || entry.kind === "subquery") && entry.ast) {
@@ -2076,8 +2145,7 @@ class NullabilityEngine {
       } else {
         inner = innerResults.find(r => r.name === colName);
       }
-      const o = inner?.origin;
-      return o ? { ...o, rowPath: [entry.instance, ...o.rowPath] } : undefined;
+      return lift(inner?.origins);
     }
 
     return undefined;
@@ -3161,8 +3229,8 @@ class NullabilityEngine {
         if (
           !result &&
           joinState !== OPTIONAL &&
-          inner.origin &&
-          this.originCheckEntailment(entry, inner.origin, innerResults, entry.table.columns, scope, trace)
+          inner.origins &&
+          this.originCheckEntailment(entry, inner.origins, innerResults, entry.table.columns, scope, trace)
         ) {
           trace.conclude(true, "origin CHECK entailment through the view → notNull");
           return true;
@@ -3201,8 +3269,8 @@ class NullabilityEngine {
         const tryOrigin = (inner: OutputNullability): boolean =>
           !inner.notNull &&
           joinState !== OPTIONAL &&
-          !!inner.origin &&
-          this.originCheckEntailment(entry, inner.origin, innerResults, outerNames, scope, trace);
+          !!inner.origins &&
+          this.originCheckEntailment(entry, inner.origins, innerResults, outerNames, scope, trace);
 
         // For VALUES subqueries, the inner results have auto-generated names
         // (column1, column2, ...). Map the alias column names to positions.
@@ -3464,7 +3532,28 @@ class NullabilityEngine {
    */
   private originCheckEntailment(
     entry: RelationEntry,
-    goalOrigin: NonNullable<OutputNullability["origin"]>,
+    goalOrigins: ColumnOrigin[],
+    innerResults: OutputNullability[],
+    outerNames: readonly string[],
+    scope: Scope,
+    trace: ITrace,
+  ): boolean {
+    // A UNION column's row came from exactly ONE alternative — and the same
+    // one as every sibling's, which is why the per-alternative run matches
+    // siblings index by index. Proof must cover every alternative.
+    return (
+      goalOrigins.length > 0 &&
+      goalOrigins.every((o, k) =>
+        this.originAlternativeEntailment(entry, o, k, innerResults, outerNames, scope, trace),
+      )
+    );
+  }
+
+  /** One origin alternative's entailment run — see originCheckEntailment. */
+  private originAlternativeEntailment(
+    entry: RelationEntry,
+    goalOrigin: ColumnOrigin,
+    alternative: number,
     innerResults: OutputNullability[],
     outerNames: readonly string[],
     scope: Scope,
@@ -3491,7 +3580,7 @@ class NullabilityEngine {
     const dropped = new Set<string>();
     for (let i = 0; i < innerResults.length; i++) {
       const name = outerNames[i] ?? innerResults[i]!.name;
-      const o = innerResults[i]!.origin;
+      const o = innerResults[i]!.origins?.[alternative];
       if (!o || !this.sameRowPath(o.rowPath, goalOrigin.rowPath)) continue;
       if (dropped.has(name)) continue;
       if (rename.has(name)) {
@@ -3517,11 +3606,20 @@ class NullabilityEngine {
     );
     ckTrace.addFact("rowPath", goalOrigin.rowPath.join("→"));
     ckTrace.addFact("sameRowColumns", [...rename.keys()].join(", ") || "(none)");
+    if (goalOrigin.optional) {
+      ckTrace.addFact("presence", "required — the chain crosses an OPTIONAL slice");
+    }
     const proved = checkConstraintsProveNotNull({
       goal: { alias: entry.alias, column: goalOrigin.column },
       checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
       evidence,
       generatedEqualities,
+      // Promotion-at-distance: an optional chain's base row exists only for
+      // rows some EVIDENCE fact pins a same-row column of — checked in the
+      // kernel before the harvest fixpoint, whose facts presuppose presence.
+      presenceColumns: goalOrigin.optional
+        ? [...rename.values()].map(c => `${entry.alias}.${c}`)
+        : undefined,
       isMasked: () => false,
       resolveUnqualified: col => {
         let owner: string | null = null;

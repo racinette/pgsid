@@ -25,16 +25,17 @@ zero. The measurements are in `docs/witness-coverage.md`.
 What is left is not more assertions about the queries somebody wrote. It is
 finding the defects nobody thought to look for, and then a consumer.
 
-**Next up: Wave 12 — the origin extensions** (user's call, 2026-08):
-promotion-at-distance, group-key origins, origins through set operations,
-origins from DML RETURNING — each pinned today by a `residue-*.sql`
-fixture whose annotations must flip when it closes. Then the consumer —
-the one-shot codegen pipeline (query files → PREPARE harness → arity gate
-→ positional zip → emitted types), batch-first with reactivity and the
-language server as thin drivers over a pure core —
-`docs/postgres-language-server-notes.md` is the salvage kit; a design doc
-should precede the build. The semantic re-founding (section 5) is a
-standing parallel track.
+**Next up: the consumer** — the one-shot codegen pipeline (query files →
+PREPARE harness → arity gate → positional zip → emitted types),
+batch-first with reactivity and the language server as thin drivers over
+a pure core — `docs/postgres-language-server-notes.md` is the salvage
+kit; a design doc should precede the build, and the emitted-type design
+inherits two settled decisions: rejection sets emit as factored local
+unions (flat types ∩ one union per set), and names come from
+RowDescription. The semantic re-founding (section 5) is a standing
+parallel track; its executable target list emptied when Wave 12 closed
+the origin extensions, so its next candidates come from whatever the
+consumer's corpora surface.
 
 1. **Argument nullability** — built in full: the four sequencing steps,
    mechanism-A output narrowing, mechanism-C value-flow rejection, and
@@ -114,6 +115,30 @@ afterwards.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by Wave 12 (2026-08): the four origin extensions, and with them
+every `residue-origin-*.sql` fixture flipped in one run — the ritual's
+largest firing. The representation grew from one origin to
+`origins: ColumnOrigin[]`, index-correlated ALTERNATIVES: a UNION output
+row comes from exactly one branch and the same branch as its siblings',
+so co-derivation matches index by index and entailment proves EVERY
+alternative (`check-origin-setop.sql`); INTERSECT/EXCEPT rows are
+left-branch rows and pass the left list through. Promotion-at-distance:
+OPTIONAL instances now produce origins MARKED optional, and consumption
+demands an evidence-only presence proof — some same-rowPath column pinned
+BEFORE the harvest fixpoint, whose facts presuppose the very presence
+being established (`check-origin-promotion-at-distance.sql`; the unproven
+side `check-origin-presence-unproven.sql`, witnessed by dense's guestless
+extension). Group keys keep their origins — every row of a group shares
+the key values, so sibling keys are same-row facts — while non-keys and
+ROLLUP/CUBE-nulled columns refuse (`check-origin-group-keys.sql`). And
+DML RETURNING produces origins outright: returned rows ARE stored rows,
+NEW for INSERT/UPDATE and the deleted OLD for DELETE, all
+CHECK-satisfying (`check-origin-dml-returning.sql`). Section 5's
+executable target list is now EMPTY — the re-founding's "residues close
+for free" criterion was instead met by the rule engine itself, wave by
+wave, which is its own datum about how far the current architecture
+carries.
 
 Closed by Wave 11c (2026-08): comparison totality for NOT-taken guards,
 under the PROPOSITIONAL CHARTER the user articulated and this entry
@@ -404,7 +429,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
-| CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); and the four origin extensions are Wave 12, pinned by the `residue-*.sql` fixtures |
+| CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); and consumption of origins is gated as designed: an unfilterable OPTIONAL chain (`check-origin-presence-unproven.sql`), a branch that cannot attribute its rows, or a non-key grouped column each keep their columns dark |
 
 ---
 
@@ -520,12 +545,15 @@ engine. The `QueryContract` boundary means the consumer never notices.
 its spec; axioms come from PGlite), the contract surface, and the
 witness invariant.
 
-**Executable target list.** The known-imprecision residue fixtures
-(`residue-*.sql`, each `@nullable` + `@unwitnessable` with the residue
-named) pin today's conservative answers; any engine that starts narrowing
-one fails the annotation suite in the "you improved — update the claims"
-direction, which is what keeps this TODO honest across a re-founding
-nobody's conversation memory survives.
+**Executable target list.** The mechanism: known-imprecision residue
+fixtures (`residue-*.sql`, `@nullable` + `@unwitnessable` with the
+residue named) pin conservative answers, and any engine that starts
+narrowing one fails the annotation suite in the "you improved — update
+the claims" direction. The list EMPTIED on 2026-08: Waves 11b–12 closed
+every entry inside the rule engine (the ritual fired six times — see the
+Wave 11b/11c/12 closures), so the re-founding's payoff argument now
+rests on uniformity and maintainability rather than pending precision;
+new entries come from consumer corpora.
 
 ## Decided against — do not re-open without new information
 

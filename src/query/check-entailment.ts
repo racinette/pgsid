@@ -126,6 +126,16 @@ export interface CheckEntailmentInput {
    * held and joins the fact set.
    */
   generatedEqualities?: { column: string; expr: Node }[];
+  /**
+   * Promotion-at-distance (Wave 12): when the goal's origin chain crosses
+   * an OPTIONAL slice, its base row exists only for rows the EVIDENCE pins
+   * — a NULL-extended slice has every listed column NULL, so at least one
+   * of them provably non-null from evidence alone certifies the row. The
+   * gate runs BEFORE the harvest fixpoint: harvested facts presuppose the
+   * very presence being established. Refusing when the list is empty is
+   * what keeps an unfilterable optional chain dark.
+   */
+  presenceColumns?: string[];
   trace?: CheckEntailmentTrace;
 }
 
@@ -238,6 +248,18 @@ class EntailmentKernel {
       this.collectConjuncts(src.pred);
     }
     this.maskingActive = false;
+    // Presence gate — evidence-only, before any derived fact exists.
+    if (this.input.presenceColumns) {
+      const present = this.input.presenceColumns.some(col => this.colKnownNonNull(col));
+      if (!present) {
+        this.input.trace?.addFact(
+          "presence",
+          "UNPROVEN — no evidence fact pins a same-row column of the optional chain",
+        );
+        return false;
+      }
+      this.input.trace?.addFact("presence", "proven from evidence");
+    }
     // The derivation fixpoint (Wave 11b): each round lets the generated
     // equalities and every CHECK contribute FACTS — a notFALSE chain
     // reaching a total NullTest is TRUE, whichever constraint it came from
