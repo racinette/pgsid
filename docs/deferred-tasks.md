@@ -129,9 +129,12 @@ written around the IDENTICAL token (`CASE WHEN qty > 0 …` over
 interpreted: branching on `qty > -20` proves nothing about the CHECK's
 `qty > 0`, because crossing literals is order reasoning over VALUES — see
 the Decided-against boundary below. The comparison-HARVEST counterpart
-(promoting a CHECK's own notFALSE comparison once the fixpoint pins its
-operands — same-token consumers only) is charter-compliant but not built,
-pinned by `residue-comparison-harvest.sql` awaiting the decision.
+was pinned as a residue and the decision arrived the same day: a
+comparison (or bare boolean column) whose every column the facts pin
+cannot evaluate NULL, so the harvest promotes its notFALSE to TRUE — the
+fixpoint supplying the ordering — and CHECK₁'s `seats > 1` now falsifies
+CHECK₂'s same-token `seats <= 1` (`check-comparison-harvest.sql`, née
+residue-comparison-harvest.sql: the residue ritual's second firing).
 
 Closed by Wave 11b (2026-08): inter-CHECK chaining — and with it the
 kernel's derivation restructured into the shape the semantic re-founding
@@ -401,7 +404,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
-| CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); comparison harvesting is not built — a CHECK's own notFALSE comparison, its operands pinned by the fixpoint, could be promoted TRUE for same-token consumers (`residue-comparison-harvest.sql` pins it, awaiting the decision; Wave 11c closed the guard-side counterpart); and the four origin extensions are Wave 12, pinned by the `residue-*.sql` fixtures |
+| CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); and the four origin extensions are Wave 12, pinned by the `residue-*.sql` fixtures |
 
 ---
 

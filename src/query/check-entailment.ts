@@ -329,6 +329,31 @@ class EntailmentKernel {
       if (ce.defresult) this.harvestCheckFacts(ce.defresult);
       return;
     }
+
+    // Comparison promotion (Wave 11c's harvest counterpart): a builtin
+    // total+strict comparison whose every column the facts already pin
+    // cannot evaluate NULL — its notFALSE is TRUE outright, and joins the
+    // facts for same-token consumers in OTHER constraints. The fixpoint
+    // supplies the ordering: `seats IS NOT NULL AND seats > 1` pins seats
+    // and promotes the comparison in whichever round both hold. A bare
+    // boolean column rides the same rule (pinned ⇒ not NULL ⇒ TRUE).
+    for (const atom of this.atomsOf(expr)) {
+      if (this.atomOperandsPinned(atom)) this.addTrueFact(atom);
+    }
+  }
+
+  /** Whether every column an atom reads is already pinned non-null. */
+  private atomOperandsPinned(atom: Atom): boolean {
+    switch (atom.t) {
+      case "cmpLit":
+        return this.colKnownNonNull(atom.col); // the literal is non-NULL by construction
+      case "cmpCol":
+        return this.colKnownNonNull(atom.a) && this.colKnownNonNull(atom.b);
+      case "boolCol":
+        return this.colKnownNonNull(atom.col);
+      case "nullTest":
+        return true; // total regardless — handled by the NullTest branch above
+    }
   }
 
   /** Insert a TRUE fact unless an identical one is already present. */
