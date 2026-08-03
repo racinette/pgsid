@@ -134,7 +134,7 @@ This is the heart. We take one output column, walk its expression **bottom-up (l
 
 **ColumnRef:** resolves itself against the current scope's address book. We look up which alias this column belongs to, and which column of that alias. Then we combine facts:
 - Is this column guaranteed non-null by a row-implied predicate? The evidence set is the scope's WHERE, its HAVING (every emitted row passed it — including the zero-input aggregate row, which is why HAVING is exempt from the `rowsImplyWhere` gate on parameter narrowing), and every ON qual the presence fixpoint proved implied. Within a predicate: `IS NOT NULL`, strict comparisons (the shared total+strict operator set), `IN` (tested value only), and `BETWEEN`, inside AND-conjuncts — and inside an OR only by **intersection**: every disjunct must prove the column, since any arm could have been the TRUE one (`col = 'a' OR col = 'b'` promotes; the optional-filter idiom's `IS NULL` arm proves nothing and correctly blocks it). The column need not be a *direct* operand: the strict-expression closure attributes through strict operators, strict functions (catalog metadata, or the measured `STRICT_BUILTIN_FUNCTIONS` set), `NULLIF`'s left side, casts, and `COALESCE` by intersection — `length(col) > 0` proves `col`. If the column's alias is on the optional side of an outer join and such a predicate exists, the alias is **promoted** to required. This check happens *here*, during leaf resolution, not as a pre-pass. In UPDATE RETURNING scopes, SET columns are masked from this evidence: the WHERE tested the OLD row and RETURNING reports the NEW one (`update-set-mask.sql` is the live counterexample).
-- If the alias is a real table/view: read the catalog's `notNull` flag for that column. Combine with the join nullability: `notNull = catalog.notNull(col) && !joinNullable(alias)` (after promotion). If the WHERE guarantees it, override to non-null. A **GENERATED column** whose flag is false gets one more chance: its generation expression (pre-parsed from the snapshot) is walked with refs bound to this entry — sound because the stored row IS the read row, which also lets WHERE promotion, guards, and the written-value map compose into it — but only under the same `!joinNullable` gate, because a NULL-extended row nulls a generated column however non-null its expression is per-row (`generated-left-join-gate.sql`).
+- If the alias is a real table/view: read the catalog's `notNull` flag for that column. Combine with the join nullability: `notNull = catalog.notNull(col) && !joinNullable(alias)` (after promotion). If the WHERE guarantees it, override to non-null. A **GENERATED column** whose flag is false gets one more chance: its generation expression (pre-parsed from the snapshot) is walked with refs bound to this entry — sound because the stored row IS the read row, which also lets WHERE promotion, guards, and the written-value map compose into it — but only under the same `!joinNullable` gate, because a NULL-extended row nulls a generated column however non-null its expression is per-row (`generated-left-join-gate.sql`). A plain nullable column gets the same last chance through the table's validated CHECK constraints — the entailment kernel, described in its own section below.
 - If the alias is a subquery or CTE: **recurse** — run this whole procedure (steps 1–3) on the inner scope, memoize the per-output-column results, and read the Nth one. This is how nullability threads across scope boundaries.
 - If the alias is a VALUES list: each column's nullability is the nullability of the corresponding expression in that row of the VALUES list.
 - If none of the above give non-null, the leaf is nullable.
@@ -253,6 +253,67 @@ Only conditions that can never evaluate to NULL support an inference here:
 
 The simple form `CASE x WHEN v THEN ...` compares values rather than evaluating
 predicates, so its `WHEN` expressions are not conditions and contribute no guards.
+
+### CHECK-constraint entailment (conditional nullability)
+
+A plain nullable table column whose catalog flag says nothing gets one more
+chance, after the generation-expression rule: the table's **validated** CHECK
+constraints. `WHERE status = 'housed'` over a status-discriminated table whose
+CHECK spells out which arms force `arrived_at` non-null is a bread-and-butter
+query shape, and the derivation is pure syntax — no expression is ever
+evaluated (the register's rung-ladder ruling stands).
+
+The kernel (`src/query/check-entailment.ts`) works over three judgments in
+three-valued logic, seeded by two fact sources of deliberately different
+strength:
+
+- **TRUE facts** — the row-implied evidence, the exact list
+  `checkWhereGuarantee` iterates: WHERE conjuncts, HAVING, implied ON quals.
+- **notFALSE facts** — each validated CHECK expression. Not TRUE: PostgreSQL
+  admits a row whose CHECK evaluates NULL, measured and pinned in
+  `check-constraint-pins.test.ts`.
+
+Leaves match by **identity over a closed deterministic fragment** (builtin
+comparisons by bare name, `IS [NOT] NULL`, `BETWEEN` desugared, bare boolean
+columns; refs alias-normalized, offsets ignored, function calls never match —
+a CHECK ran at WRITE time, the WHERE holds at READ time, and only expressions
+deterministic over the stored row may carry a truth value between the two).
+Literal casts join the identity check: the deparser renders `'housed'::text`
+where the user's WHERE has the bare literal, and the two equate only when the
+cast names the column's own type — an explicit cast to a different type
+selects a different operator (a citext column's `=` can be TRUE where a
+bytewise comparison of the same tokens is FALSE), so it refuses. FALSE facts
+come from **builtin negator pairing** — TRUE(`status = 'housed'`) falsifies
+`status <> 'housed'` with no literal values compared — which is what makes
+implication-as-OR (`CHECK (status <> 'housed' OR room IS NOT NULL)`) work
+without the banned literal distinctness. On top sit plain 3VL algebra
+(notFALSE distributes over AND, an OR whose other disjuncts are FALSE passes
+notFALSE to the survivor, NOT flips), searched-CASE arm selection (arm *i*
+inherits notFALSE when conditions before it are FALSE and its own is TRUE —
+the ELSE when all are FALSE; a condition neither provable ends the
+derivation, which is exactly the distinctness asymmetry keeping the negative
+arms dark), `= ANY (ARRAY[...])` decomposed as the OR the deparser rendered
+it from, and totality: notFALSE(`col IS NOT NULL`) ⇒ TRUE ⇒ the goal.
+
+The gates are the generated-column pair, equally load-bearing:
+
+- **joinState**: a NULL-extended row satisfies no CHECK, so the entry must
+  not be OPTIONAL after promotion (`check-left-join-gate.sql` is the pinned
+  counterexample; `check-left-join-promoted.sql` its complement).
+- **The DML SET mask, per evidence conjunct**: entailment consumes evidence
+  about *other* columns than the one it resolves, so any conjunct touching a
+  SET column is dropped — the WHERE tested the OLD row, the CHECK constrains
+  the NEW one, and combining them across an UPDATE that moves the
+  discriminator would be falsified by the statement's own rows
+  (`check-update-set-mask.sql`).
+
+Exclusions: `convalidated=false` covers NOT VALID and PG18 NOT ENFORCED both
+(`check-not-valid.sql`, `check-not-enforced.sql`); PG18's `contype='n'`
+NOT NULL constraint rows — which the snapshot's type mapping folds into
+"check" — are dropped by the PARSED node type in the adapter; domain CHECKs
+are a different mechanism (NOT NULL domains, already consumed); inheritance
+and partitions need nothing special, because children carry their own
+`pg_constraint` rows.
 
 ### Generated CTE columns (SEARCH / CYCLE)
 

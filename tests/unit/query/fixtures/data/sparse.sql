@@ -37,3 +37,15 @@ INSERT INTO categories (id, parent_id, slug, name) VALUES (1, NULL, 'root', 'Roo
 INSERT INTO customers (id, email, name) VALUES (1, 'a@b.c', NULL);
 INSERT INTO products (id, category_id, sku, name, price) VALUES (1, NULL, 'S1', 'P1', 10);
 INSERT INTO orders (id, customer_id, status, placed_at) VALUES (1, 1, 'fulfilled', now());
+
+-- CHECK-conditional rows: one guest per discriminator arm the fixtures filter
+-- on. guest 1 shares t's single id (1) with a status OUTSIDE the CHECK's
+-- WHEN set, so the LEFT-JOIN-gate fixture's ON equality matches while its
+-- status conjunct fails — the null-extension witness. The housed guest's NULL
+-- vip_reason witnesses the NOT ENFORCED negative; badge is non-null on every
+-- row because NOT VALID still gates new writes.
+INSERT INTO guest (id, status, arrived_at, room, note, vip_reason, badge) VALUES
+  (1, 'in-flight',   NULL,  NULL,    NULL,           NULL, 'b-1'),
+  (2, 'housed',      now(), 'r-201', NULL,           NULL, 'b-2'),
+  (3, 'arrived',     now(), NULL,    'early arrival', 'repeat visitor', 'b-3'),
+  (4, 'checked-out', NULL,  NULL,    'left on time', NULL, 'b-4');

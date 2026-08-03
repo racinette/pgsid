@@ -25,6 +25,13 @@ zero. The measurements are in `docs/witness-coverage.md`.
 What is left is not more assertions about the queries somebody wrote. It is
 finding the defects nobody thought to look for, and then a consumer.
 
+**Next up:** the consumer — the one-shot codegen pipeline (query files →
+PREPARE harness → arity gate → positional zip → emitted types), batch-first
+with reactivity and the language server as thin drivers over a pure core —
+`docs/postgres-language-server-notes.md` is the salvage kit; a design doc
+should precede the build. (CHECK-constraint-aware nullability, previously
+item (a) here, closed as Wave 6 — see section 2.)
+
 1. **Argument nullability** — built in full: the four sequencing steps,
    mechanism-A output narrowing, mechanism-C value-flow rejection, and
    source value-flow attribution with its quantifiers split (universal for
@@ -104,6 +111,37 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by Wave 6 (2026-08, measured first): CHECK-constraint-aware
+nullability — conditional nullability, the register's last precision item.
+A validated table CHECK is a **notFALSE** fact per stored row (PostgreSQL
+admits a row whose CHECK evaluates NULL — pinned in
+`check-constraint-pins.test.ts` with the design consequence named), the
+row-implied evidence list is TRUE per emitted row, and the kernel
+(`src/query/check-entailment.ts`) derives `col IS NOT NULL` from the two by
+syntactic 3VL entailment: identity over a closed deterministic fragment
+(builtin comparisons by bare name, `IS [NOT] NULL`, desugared BETWEEN, bare
+boolean columns; literal casts equate only at the column's own type — the
+deparser writes `'housed'::text` where the WHERE has the bare token, and
+matching across types is the citext hazard), builtin **negator pairing** in
+place of the banned literal distinctness, AND/OR/NOT algebra, searched-CASE
+arm selection, `= ANY (ARRAY[...])` as the OR it renders from, and totality
+of IS NOT NULL. The generated-column gates are shared and pinned: joinState
+(`check-left-join-gate.sql` / `check-left-join-promoted.sql`) and the SET
+mask applied per evidence conjunct — entailment consumes evidence about
+OTHER columns, and `check-update-set-mask.sql` would falsify the engine
+without it. `convalidated=false` excludes NOT VALID and PG18 NOT ENFORCED
+both (`check-not-valid.sql`, `check-not-enforced.sql` — the snapshot now
+captures `validated`, diff-included deliberately: VALIDATE CONSTRAINT
+changes inference); PG18 `contype='n'` NOT NULL rows, which
+`mapConstraintType` folds into "check", are dropped by parsed node type.
+The motivating pair is fixture-verbatim (`check-case-discriminator-*`),
+plus implication-as-OR and the AND-concatenated split
+(`check-implication-or.sql`, `check-and-concatenated.sql`). Decided without
+building: the generated-axis check-conditional projection — the `guest`
+generators exist (status-correlated NULL policies via `ctx.current`), a
+projection would add oracle breadth over shapes the fixtures already pin;
+recorded here, no silent cap.
+
 Closed by the Wave-1 analyzer generalization (2026-08: strict-expression
 closure, OR by intersection, the presence fixpoint over join quals, HAVING
 as ungated evidence, and the DML WHERE channel with its SET-column mask —
@@ -182,6 +220,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
+| CHECK entailment, conservative edges | nullable | the kernel consumes the `checkWhereGuarantee` evidence list only: branch guards are not fed to it; multi-element `IN` / OR-shaped evidence contributes no facts (an OR is TRUE without saying which arm); simple CASE (`CASE expr WHEN …`) is opaque; parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm); and the SET mask is uniform — OLD-row entailment for a non-SET goal column is sound but unattempted, `check-update-set-mask.sql`'s `room` records the cost. Negator pairing runs one-way: a TRUE fact falsifies its negation, but a NOT-wrapped conjunct's FALSE fact does not certify its negation TRUE (`WHERE NOT (status <> 'housed')` discharges FALSE-needing derivations, not TRUE-needing ones) — sound to add, cosmetic in practice |
 
 ---
 

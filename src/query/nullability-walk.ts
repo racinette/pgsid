@@ -1,6 +1,7 @@
 import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
+import { checkConstraintsProveNotNull } from "./check-entailment.js";
 import { TOTAL_STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
@@ -3093,6 +3094,62 @@ class NullabilityEngine {
             trace.addFact("generatedColumn", "expression not provably non-null");
           } finally {
             this.generationInFlight.delete(genKey);
+          }
+        }
+        // CHECK-constraint entailment: every row of the table satisfies its
+        // validated CHECKs in the not-FALSE sense, and the row-implied
+        // predicates (the exact evidence list checkWhereGuarantee iterates)
+        // are TRUE — the kernel derives `col IS NOT NULL` from the two by
+        // syntactic entailment. The gates are shared with the generation
+        // branch and equally load-bearing: a NULL-extended row satisfies no
+        // CHECK, so OPTIONAL entries get nothing, and the DML SET mask drops
+        // evidence about columns whose WHERE-time value is not the stored
+        // one. See src/query/check-entailment.ts.
+        const checkExprs = this.catalog.resolveCheckConstraints(
+          entry.table.schema,
+          entry.table.name,
+        );
+        if (checkExprs.length > 0) {
+          const setCols =
+            scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null;
+          const ckTrace = trace.addChild(
+            `CHECK entailment: ${entry.table.schema}.${entry.table.name}`,
+          );
+          const proved = checkConstraintsProveNotNull({
+            goal: { alias: entry.alias, column: colName },
+            checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
+            evidence: [
+              ...(scope.whereClause ? [scope.whereClause] : []),
+              ...(scope.havingClause ? [scope.havingClause] : []),
+              ...scope.impliedQuals,
+            ],
+            isMasked: (alias, col) => !!setCols && alias === entry.alias && setCols.has(col),
+            resolveUnqualified: col => {
+              let owner: string | null = null;
+              for (const v of scope.visible) {
+                if (v.name !== col) continue;
+                if (!v.entry || owner) return null; // merged or ambiguous
+                owner = v.entry.alias;
+              }
+              return owner;
+            },
+            columnTypeName: (alias, col) => {
+              const e = scope.aliases.get(alias);
+              return e?.table
+                ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
+                : null;
+            },
+            trace: ckTrace,
+          });
+          ckTrace.conclude(
+            proved,
+            proved
+              ? "a validated CHECK plus row-implied evidence entails `col IS NOT NULL`"
+              : "no derivation reaches `col IS NOT NULL`",
+          );
+          if (proved) {
+            trace.conclude(true, "CHECK-constraint entailment → notNull");
+            return true;
           }
         }
       }

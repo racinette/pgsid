@@ -66,6 +66,7 @@ interface ConstraintRow {
   conkey: number[] | string | null;
   confkey: number[] | string | null;
   definition: string;
+  validated: boolean;
 }
 
 interface ViewRow {
@@ -491,6 +492,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
         ? resolveAttnums(con.confrelid, toNumArray(con.confkey), attnumIdx)
         : null,
       definition: con.definition,
+      validated: con.validated,
     };
     const arr = constraintsByRel.get(con.conrelid);
     if (arr) arr.push(ci);
@@ -784,7 +786,8 @@ async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
             tn.nspname AS foreign_schema,
             tc.relname AS foreign_table,
             con.conkey, con.confkey,
-            pg_get_constraintdef(con.oid) AS definition
+            pg_get_constraintdef(con.oid) AS definition,
+            con.convalidated AS validated
      FROM pg_constraint con
      JOIN pg_class c ON c.oid = con.conrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace

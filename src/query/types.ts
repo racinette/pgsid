@@ -137,6 +137,20 @@ export interface NullabilityCatalog {
   resolveColumnTypeOid(schema: string, table: string, column: string): number | null;
 
   /**
+   * The declared type of `schema.table.column` as `format_type` renders it
+   * (e.g. "text", "character varying(20)", "timestamp with time zone").
+   *
+   * Consumed by the CHECK-constraint entailment kernel's literal matching:
+   * `pg_get_constraintdef` annotates literals with an explicit cast to the
+   * type the comparison resolved at (`'housed'::text`) while the user's WHERE
+   * carries the bare literal, and equating the two is only sound when the
+   * cast target IS the column's own type — an explicit cast to a different
+   * type selects a different comparison operator (the citext/name collation
+   * hazard), so it must refuse to match.
+   */
+  resolveColumnTypeName(schema: string, table: string, column: string): string | null;
+
+  /**
    * Fields of a standalone composite type (`CREATE TYPE ... AS (...)`), or
    * null if the name is not one.
    *
@@ -202,6 +216,19 @@ export interface NullabilityCatalog {
    * the reading site to upgrade the catalog's (always-false) notNull flag.
    */
   resolveGenerationExpr(schema: string, table: string, column: string): Node | null;
+
+  /**
+   * Pre-parsed expressions of the VALIDATED table CHECK constraints on
+   * `schema.table` (empty array when there are none). Every stored row of the
+   * table satisfies each expression in the not-FALSE sense: PostgreSQL
+   * accepts a row whose CHECK evaluates NULL — measured, and pinned in
+   * `check-null-passes` — so these are notFALSE facts, never TRUE facts.
+   * NOT VALID and NOT ENFORCED constraints (convalidated=false covers both)
+   * are excluded at build time; inherited/partition copies carry their own
+   * pg_constraint rows per relation, so the actual relation's list is
+   * complete. Domain CHECKs are a different mechanism and are not here.
+   */
+  resolveCheckConstraints(schema: string, table: string): Node[];
 
   /**
    * Domain metadata: whether the type identified by `typeOid` is a domain with

@@ -189,6 +189,13 @@ const columnSpecificGenerators: Record<
       id: sequential,
       val: rand => rand.pick(SHARED_VALS),
     },
+    guest: {
+      id: sequential,
+      // The CHECK-entailment fixtures filter on every one of these; which
+      // dependent columns are NULL is the null policies' job, keyed off the
+      // status already assigned to the row (see below).
+      status: rand => rand.pick(["in-flight", "arrived", "housed", "checked-out"]),
+    },
   },
 };
 
@@ -242,6 +249,21 @@ const nullPolicies: {
       // `u.status` is compared against a literal by the promotion fixtures.
       // NULLs there only shrink the number of rows that reach the comparison.
       u: { status: nullRate(0.1) },
+
+      // guest's CHECK constraints tie each column's NULLness to the status
+      // assigned earlier in the row (columns fill in catalog order, so
+      // `current` can read it). arrived_at is forced BOTH ways by the CASE —
+      // NULL exactly when the status is outside the WHEN set. room and note
+      // are only forced non-NULL by their arm; elsewhere they stay random so
+      // both fixtures' witnesses survive. badge never goes NULL: NOT VALID
+      // still gates new writes.
+      guest: {
+        arrived_at: (_rand, ctx) =>
+          ctx.current("status") !== "arrived" && ctx.current("status") !== "housed",
+        room: (rand, ctx) => (ctx.current("status") === "housed" ? false : rand.chance(0.5)),
+        note: (rand, ctx) => (ctx.current("status") === "checked-out" ? false : rand.chance(0.5)),
+        badge: () => false,
+      },
     },
   },
 };

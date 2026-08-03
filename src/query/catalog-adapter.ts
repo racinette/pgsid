@@ -33,6 +33,7 @@ export async function buildNullabilityCatalog(
       columns: string[];
       notNullCols: Set<string>;
       colTypeOids: Map<string, number>;
+      colTypeNames: Map<string, string>;
     }
   >();
   for (const t of snapshot.tables) {
@@ -46,6 +47,7 @@ export async function buildNullabilityCatalog(
       columns,
       notNullCols,
       colTypeOids: new Map(t.columns.map(c => [c.name, c.typeOid])),
+      colTypeNames: new Map(t.columns.map(c => [c.name, c.typeName])),
     });
   }
   // Views have columns too — treat them like tables for resolution.
@@ -60,6 +62,7 @@ export async function buildNullabilityCatalog(
       columns,
       notNullCols,
       colTypeOids: new Map(v.columns.map(c => [c.name, c.typeOid])),
+      colTypeNames: new Map(v.columns.map(c => [c.name, c.typeName])),
     });
   }
 
@@ -124,6 +127,44 @@ export async function buildNullabilityCatalog(
   const resolveGenerationExpr = (schema: string, table: string, column: string): Node | null =>
     generationExprAsts.get(`${schema}.${table}.${column}`) ?? null;
 
+  // Pre-parse validated table CHECK constraint expressions, keyed
+  // `schema.table`. The rendered definition (`CHECK (expr)`, possibly with a
+  // suffix) is parsed by wrapping it in ALTER TABLE ... ADD CONSTRAINT and
+  // unwrapping the Constraint node's raw_expr — measured to be robust against
+  // the multi-line CASE rendering, unlike stripping the `CHECK (...)` text.
+  // Two exclusions happen here:
+  //   - convalidated=false (NOT VALID / PG18 NOT ENFORCED): stored rows may
+  //     violate the expression, so it is no fact at all.
+  //   - PG18 `contype='n'` NOT NULL constraint rows, which the snapshot's
+  //     mapConstraintType folds into "check" (definition "NOT NULL col"):
+  //     filtered by the PARSED node type, which is CONSTR_NOTNULL for them.
+  const checkExprAsts = new Map<string, Node[]>();
+  for (const t of snapshot.tables) {
+    const exprs: Node[] = [];
+    for (const con of t.constraints) {
+      if (con.type !== "check" || con.validated !== true) continue;
+      try {
+        const parsed = await parseSql(
+          `ALTER TABLE _pgsid_check_host ADD CONSTRAINT _pgsid_check ${con.definition}`,
+        );
+        const alter = (parsed.stmts?.[0]?.stmt as Record<string, unknown> | undefined)?.[
+          "AlterTableStmt"
+        ] as { cmds?: { AlterTableCmd?: { def?: Node } }[] } | undefined;
+        const constraint = (alter?.cmds?.[0]?.AlterTableCmd?.def as
+          | { Constraint?: { contype?: string; raw_expr?: Node } }
+          | undefined)?.Constraint;
+        if (constraint?.contype === "CONSTR_CHECK" && constraint.raw_expr) {
+          exprs.push(constraint.raw_expr);
+        }
+      } catch {
+        // Unparseable definition → the constraint contributes no facts.
+      }
+    }
+    if (exprs.length > 0) checkExprAsts.set(`${t.schema}.${t.name}`, exprs);
+  }
+  const resolveCheckConstraints = (schema: string, table: string): Node[] =>
+    checkExprAsts.get(`${schema}.${table}`) ?? [];
+
   // Pre-parse view definitions. `pg_views.definition` is the rewritten SELECT
   // without a trailing semicolon in some versions — parseSql handles both.
   const viewAsts = new Map<string, Node>();
@@ -183,6 +224,15 @@ export async function buildNullabilityCatalog(
   ): number | null => {
     const t = tableMap.get(`${schema}.${table}`);
     return t?.colTypeOids.get(column) ?? null;
+  };
+
+  const resolveColumnTypeName = (
+    schema: string,
+    table: string,
+    column: string,
+  ): string | null => {
+    const t = tableMap.get(`${schema}.${table}`);
+    return t?.colTypeNames.get(column) ?? null;
   };
 
   const compositeTypes = new Map<string, { fields: { name: string; typeOid: number }[] }>();
@@ -299,11 +349,13 @@ export async function buildNullabilityCatalog(
     resolveFunction,
     resolveColumnNotNull,
     resolveColumnTypeOid,
+    resolveColumnTypeName,
     resolveCompositeType,
     resolveFunctionMetadata,
     resolveFunctionCandidates,
     resolveOperatorMetadata,
     resolveGenerationExpr,
+    resolveCheckConstraints,
     isStrictBuiltin,
     isNotNullDomain,
     isNotNullDomainByName,

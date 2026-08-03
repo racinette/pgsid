@@ -508,3 +508,43 @@ CREATE TYPE sku_pair AS (sku text, qty integer);
 CREATE FUNCTION sku_pairs() RETURNS SETOF sku_pair
   LANGUAGE sql
   AS $$ SELECT p.sku, 1 FROM products p $$;
+
+-- ---------------------------------------------------------------------------
+-- CHECK-conditional nullability (the entailment kernel).
+-- A status-discriminated nullable column is the motivating shape: which
+-- columns are NULL is a function of a discriminator the CHECK constraints
+-- spell out and queries filter on. Column order matters to the data
+-- generator: `status` precedes the columns whose NULL policies read it.
+-- ---------------------------------------------------------------------------
+CREATE TABLE guest (
+  id          integer PRIMARY KEY,
+  status      text NOT NULL,
+  arrived_at  timestamptz,
+  room        text,
+  note        text,
+  vip_reason  text,
+  badge       text,
+  -- The motivating conditional: single-WHEN CASE over an OR of equalities.
+  CONSTRAINT guest_arrival_state CHECK (
+    CASE WHEN status = 'arrived' OR status = 'housed'
+         THEN arrived_at IS NOT NULL
+         ELSE arrived_at IS NULL END),
+  -- Implication spelled as OR: falsifying the first disjunct by the
+  -- builtin negator pairing leaves the IS NOT NULL remainder notFALSE.
+  CONSTRAINT guest_housed_room CHECK (status <> 'housed' OR room IS NOT NULL),
+  -- AND-concatenated: one constraint, two independent notFALSE facts.
+  CONSTRAINT guest_status_note CHECK (
+    status IN ('in-flight', 'arrived', 'housed', 'checked-out')
+    AND (status <> 'checked-out' OR note IS NOT NULL))
+);
+
+-- The convalidated=false negatives, one per rendering. Both are goal-deriving
+-- shapes the engine MUST ignore (convalidated=false covers both — measured):
+-- NOT ENFORCED constraints never gate writes, so vip_reason CAN be NULL in
+-- fixture data (the witnessable negative); NOT VALID still gates NEW writes,
+-- so no fixture row can violate guest_badge_claimed and the engine ignoring
+-- it is held by the fixture annotation instead.
+ALTER TABLE guest ADD CONSTRAINT guest_vip_reason
+  CHECK (vip_reason IS NOT NULL) NOT ENFORCED;
+ALTER TABLE guest ADD CONSTRAINT guest_badge_claimed
+  CHECK (badge IS NOT NULL) NOT VALID;

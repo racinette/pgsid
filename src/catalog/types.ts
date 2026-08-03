@@ -69,6 +69,14 @@ export interface ConstraintInfo {
   foreignColumns: string[] | null;
   /** Full definition from `pg_get_constraintdef`. */
   definition: string;
+  /**
+   * `pg_constraint.convalidated`. False for NOT VALID constraints (existing
+   * rows may violate them) and for PG18 NOT ENFORCED constraints (which are
+   * never validated) — both measured. The nullability engine consumes only
+   * validated CHECK constraints; a VALIDATE CONSTRAINT flips this and is a
+   * real schema change, so it participates in the diff.
+   */
+  validated: boolean;
 }
 
 export interface TableInfo {
