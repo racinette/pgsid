@@ -188,8 +188,10 @@ const MAX_JOINT_IMPLICANTS = 8;
 
 function minimizeImplicants(sets: number[][]): Implicants {
   const kept: number[][] = [];
+  // The EMPTY implicant (a literal NULL somewhere in every branch) means
+  // "unconditionally NULL" — it sorts first and absorbs everything else.
   const candidates = sets
-    .filter(s => s.length > 0 && s.length <= MAX_IMPLICANT_SIZE)
+    .filter(s => s.length <= MAX_IMPLICANT_SIZE)
     .map(s => [...new Set(s)].sort((a, b) => a - b))
     .sort((a, b) => a.length - b.length || a.join(",").localeCompare(b.join(",")));
   let joints = 0;
@@ -283,6 +285,15 @@ function forcedNullBy(
   const direct = paramNumberOf(n);
   if (direct !== null) return [[direct]];
 
+  // The NULL literal is unconditionally NULL: the empty implicant, which
+  // survives cross-unions untouched (it adds no members) and is skipped by
+  // every consumer that attributes to parameters. A non-null constant has
+  // NO implicants, which zeroes out any cross-union it joins — the branch
+  // that can never be forced NULL protects the whole COALESCE/CASE.
+  if (n["A_Const"]) {
+    return (n["A_Const"] as { isnull?: boolean }).isnull ? [[]] : none;
+  }
+
   // A derived-table column: attribute through its defining expressions,
   // reduced per the caller's quantifier — "every row forces" is a
   // cross-union (one implicant chosen per row, joined; its singleton
@@ -337,6 +348,26 @@ function forcedNullBy(
     const args = (n["CoalesceExpr"] as { args?: Node[] }).args ?? [];
     if (args.length === 0) return none;
     return crossUnion(args.map(a => forcedNullBy(a, catalog, ctx, anyRow)));
+  }
+
+  // CASE is NULL only when the SELECTED arm's result is — and covering
+  // EVERY result (all THEN expressions plus the ELSE; an absent ELSE is
+  // the NULL literal) makes the claim hold whichever arm runs, without
+  // reasoning about the conditions at all. `CASE WHEN $1 IS NOT NULL THEN
+  // $1 ELSE $2 END` is COALESCE($1, $2) in different clothes and yields
+  // the same {1, 2}. Simple CASE (with arg) works identically.
+  if (n["CaseExpr"]) {
+    const ce = n["CaseExpr"] as { args?: Node[]; defresult?: Node };
+    const results = (ce.args ?? []).map(w =>
+      forcedNullBy(
+        ((w as Record<string, unknown>)["CaseWhen"] as { result?: Node } | undefined)?.result,
+        catalog,
+        ctx,
+        anyRow,
+      ),
+    );
+    results.push(ce.defresult ? forcedNullBy(ce.defresult, catalog, ctx, anyRow) : [[]]);
+    return crossUnion(results);
   }
 
   if (n["FuncCall"]) {
@@ -466,6 +497,10 @@ function aliasContextOf(items: Node[] | undefined): AliasContext | undefined {
 function rejectFlow(c: Collector, expr: Node | undefined, ctx?: AliasContext): void {
   if (!expr || paramNumberOf(expr) !== null) return;
   for (const implicant of forcedNullImplicantsAnyRow(expr, c.catalog, ctx)) {
+    // The empty implicant (a literal NULL reaching a rejecting site) is a
+    // static always-raise, not a parameter fact: no binding avoids it, so
+    // there is nothing to claim about any parameter.
+    if (implicant.length === 0) continue;
     if (implicant.length === 1) reject(c, implicant[0]!, "flow");
     else c.jointRejected.push(implicant);
   }

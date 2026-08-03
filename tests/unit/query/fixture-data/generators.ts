@@ -213,6 +213,9 @@ const columnSpecificGenerators: Record<
       // (x IS NULL); 'A' and 'z' route through the second (x IS NOT NULL).
       tag: rand => rand.pick(["a", "A", "z"]),
     },
+    locker: {
+      code: rand => rand.pick(["assigned", "free"]),
+    },
   },
 };
 
@@ -298,6 +301,14 @@ const nullPolicies: {
 
       // nd's CHECK forces x NULL exactly on (bytewise) 'a' rows.
       nd: { x: (_rand, ctx) => ctx.current("tag") === "a" },
+
+      // locker's simple-CASE CHECK forces combo on assigned rows; the
+      // implication CHECK forces opened_at wherever combo is present.
+      locker: {
+        combo: (_rand, ctx) => ctx.current("code") !== "assigned",
+        opened_at: (rand, ctx) =>
+          ctx.current("combo") === null ? rand.chance(0.5) : false,
+      },
     },
   },
 };

@@ -25,12 +25,16 @@ zero. The measurements are in `docs/witness-coverage.md`.
 What is left is not more assertions about the queries somebody wrote. It is
 finding the defects nobody thought to look for, and then a consumer.
 
-**Next up:** the consumer — the one-shot codegen pipeline (query files →
-PREPARE harness → arity gate → positional zip → emitted types), batch-first
-with reactivity and the language server as thin drivers over a pure core —
+**Next up: Wave 12 — the origin extensions** (user's call, 2026-08):
+promotion-at-distance, group-key origins, origins through set operations,
+origins from DML RETURNING — each pinned today by a `residue-*.sql`
+fixture whose annotations must flip when it closes. Then the consumer —
+the one-shot codegen pipeline (query files → PREPARE harness → arity gate
+→ positional zip → emitted types), batch-first with reactivity and the
+language server as thin drivers over a pure core —
 `docs/postgres-language-server-notes.md` is the salvage kit; a design doc
-should precede the build. (CHECK-constraint-aware nullability, previously
-item (a) here, closed as Wave 6 — see section 2.)
+should precede the build. The semantic re-founding (section 5) is a
+standing parallel track.
 
 1. **Argument nullability** — built in full: the four sequencing steps,
    mechanism-A output narrowing, mechanism-C value-flow rejection, and
@@ -110,6 +114,35 @@ afterwards.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by Wave 11 (2026-08): the five cheap kernel closures, re-graded
+from "obscure" after the user correctly separated SQL-shape frequency from
+scenario frequency — the schemas this feature targets are exactly where
+the scenarios occur. (1) OR-facts store per-arm conjunct ATOM LISTS and
+the subset rule matches by arm-implication (A∧B ⇒ A), so
+`(status = 'arrived' AND id > 0) OR status = 'housed'` discharges the
+CHECK's WHEN disjunction (`check-compound-disjunct.sql`). (2) CASE
+implicants: covering every arm RESULT (implicit NULL ELSE included) forces
+the expression whichever arm runs, so `CASE WHEN $1 IS NOT NULL THEN $1
+ELSE $2 END` claims {1,2} like the COALESCE it is
+(`param-joint-case.sql`) — and `…THEN $1 END` with no ELSE now claims a
+flat notNull the CASE-opaque analysis missed. The empty implicant (a
+literal NULL in every branch) is representable and skipped by rejectFlow
+as the static always-raise it is. (3) Simple CASE desugars to its
+implicit `arg = value` equality everywhere the kernel meets a CASE —
+CHECKs and generated expressions alike (`check-simple-case.sql`, its ELSE
+`check-simple-case-else.sql`). (4) NOT-taken TOTAL guards (NullTests
+under AND/OR — falsityImpliesNotNull's rule, as a syntactic gate) enter
+the kernel NOT-wrapped and become FALSE facts (`check-negative-guard.sql`).
+(5) OR-facts trigger generated-CASE arm exclusion per arm-literal, joining
+the arms' conditions as a derived OR-fact — `verdict IN
+('fraud','no-fraud')` pins fraud_score by the intersection rule
+(`check-or-arm-trigger.sql`). Found and pinned along the way:
+inter-CHECK chaining does NOT happen — one constraint's conclusion is not
+a fact for another's derivation (`check-simple-case.sql`'s opened_at
+records it; closing would mean iterating derived facts to a fixpoint).
+Measured en route: PostgreSQL's parameter-type deduction fails on a bare
+`$1 IS NOT NULL` condition even when a later occurrence would type it.
 
 Closed by Wave 10 (2026-08): joint rejection sets — the parameter
 contract's last vocabulary gap. `COALESCE($1, $2)` into a NOT NULL column
@@ -332,7 +365,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
-| CHECK entailment, conservative edges (post-Wave 7) | nullable | simple CASE (`CASE expr WHEN …`) is opaque (an implicit equality the fragment does not model); parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm); negative (not-taken) branch guards are unused — not-TRUE is FALSE-or-NULL, an inference only total predicates support; an OR-fact requires every disjunct to be exactly one atom (a disjunct that is itself a conjunction refuses the whole fact); and origin tracking (Wave 8) closes scope locality for bare pass-throughs only — promotion-at-distance, group-key origins, and origins through set operations / DML RETURNING remain deferred, recorded in the Wave 8 closure |
+| CHECK entailment, conservative edges (post-Wave 11) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); inter-CHECK chaining does not happen — one constraint's conclusion is not a fact for another's derivation (`check-simple-case.sql`'s opened_at; closing = derived-fact fixpoint); NOT-taken guards contribute only for syntactically TOTAL predicates (NullTests under AND/OR — a comparison over a catalog-notNull column is total in fact but not in the gate); and the four origin extensions are Wave 12, pinned by the `residue-*.sql` fixtures |
 
 ---
 

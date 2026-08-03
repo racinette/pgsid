@@ -606,3 +606,16 @@ CREATE TABLE nd (
   CHECK (CASE WHEN tag = 'a' THEN x IS NULL
               WHEN tag IS NOT NULL THEN x IS NOT NULL END)
 );
+
+-- Wave 11: simple-CASE CHECK desugaring and negative-guard entailment.
+-- The first CHECK is `CASE code WHEN …` — the implicit equality the kernel
+-- synthesizes; the second is the implication the ELSE branch of a
+-- `CASE WHEN combo IS NULL …` projection discharges via a NOT-taken total
+-- guard (FALSE(combo IS NULL) → the OR's live disjunct).
+CREATE TABLE locker (
+  code      text NOT NULL,
+  combo     text,
+  opened_at timestamptz,
+  CHECK (CASE code WHEN 'assigned' THEN combo IS NOT NULL ELSE true END),
+  CHECK (combo IS NULL OR opened_at IS NOT NULL)
+);

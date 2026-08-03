@@ -64,3 +64,10 @@ INSERT INTO audit_log (id, kind, actor, bot_id, n, a, b) VALUES
   (1, 'manual', 'alice', NULL,    1, 'a-one', NULL),
   (2, 'auto',   NULL,    'bot-7', 2, NULL,    'b-two');
 INSERT INTO nd (tag, x) VALUES ('a', NULL), ('A', 'ax');
+
+-- Wave 11 rows: one locker per simple-CASE arm — the assigned one carries
+-- the combo (and therefore an opened_at, per the implication CHECK), the
+-- free one witnesses combo's nullable claim.
+INSERT INTO locker (code, combo, opened_at) VALUES
+  ('assigned', '13-9', now()),
+  ('free',     NULL,   NULL);

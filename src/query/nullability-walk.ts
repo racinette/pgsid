@@ -3361,9 +3361,7 @@ class NullabilityEngine {
             ...(scope.havingClause ? [scope.havingClause] : []),
             ...scope.impliedQuals,
           ];
-          const guardPreds = this.guards
-            .filter(g => g.scope === scope && g.taken)
-            .map(g => g.predicate);
+          const guardPreds = this.kernelGuardPreds(scope);
           const channels: { label: string; evidence: { pred: Node; applySetMask: boolean }[] }[] =
             [];
           if (!setCols || this.dmlOldRowRead) {
@@ -3504,14 +3502,11 @@ class NullabilityEngine {
       rename.set(name, o.column);
     }
 
-    const guardPreds = this.guards
-      .filter(g => g.scope === scope && g.taken)
-      .map(g => g.predicate);
     const evidence = [
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
-      ...guardPreds,
+      ...this.kernelGuardPreds(scope),
     ].map(pred => ({
       pred: this.rewriteRefsToOrigin(pred, entry.alias, rename, scope),
       applySetMask: false,
@@ -3572,6 +3567,40 @@ class NullabilityEngine {
 
   private sameRowPath(a: readonly number[], b: readonly number[]): boolean {
     return a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+
+  /**
+   * The scope's branch guards as kernel evidence. A TAKEN guard's predicate
+   * was TRUE — WHERE-conjunct strength. A NOT-taken guard's predicate was
+   * FALSE *or NULL* (3VL), which certifies FALSE only for predicates that
+   * cannot evaluate NULL — the same totality rule `falsityImpliesNotNull`
+   * lives by, here as a syntactic gate (IS [NOT] NULL atoms under any
+   * AND/OR shape). Those enter NOT-wrapped; the kernel's NOT branch and
+   * De Morgan turn them into FALSE facts.
+   */
+  private kernelGuardPreds(scope: Scope): Node[] {
+    const preds: Node[] = [];
+    for (const g of this.guards) {
+      if (g.scope !== scope) continue;
+      if (g.taken) {
+        preds.push(g.predicate);
+      } else if (this.predicateIsTotal(g.predicate)) {
+        preds.push({ BoolExpr: { boolop: "NOT_EXPR", args: [g.predicate] } } as unknown as Node);
+      }
+    }
+    return preds;
+  }
+
+  /** Whether a predicate can never evaluate NULL: NullTests under AND/OR. */
+  private predicateIsTotal(pred: Node): boolean {
+    const node = pred as Record<string, unknown>;
+    if ("NullTest" in node) return true;
+    const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
+    if (be && (be.boolop === "AND_EXPR" || be.boolop === "OR_EXPR")) {
+      const args = be.args ?? [];
+      return args.length > 0 && args.every(a => this.predicateIsTotal(a));
+    }
+    return false;
   }
 
   /**

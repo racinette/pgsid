@@ -210,13 +210,15 @@ class EntailmentKernel {
   private trueFacts: Atom[] = [];
   private falseFacts: Atom[] = [];
   /**
-   * TRUE OR-facts: one entry per TRUE disjunctive conjunct, holding the atom
-   * of each disjunct. TRUE(a ∨ b) names no single arm, but it does make any
-   * superset OR TRUE — the subset rule `isTrue` applies against CHECK-side
-   * ORs and ANY-arrays. Only ORs whose every disjunct is exactly one atom
-   * are stored; anything less regular contributes nothing, conservatively.
+   * TRUE OR-facts: one entry per TRUE disjunctive conjunct, holding each
+   * arm's conjunct ATOMS (an arm may itself be a conjunction —
+   * `(a AND b) OR c` stores [[a,b],[c]]). TRUE(a ∨ b) names no single arm,
+   * but whichever arm held, ALL of its conjuncts held — so the subset rule
+   * matches by arm-implication: every arm must have SOME atom matching an
+   * arm of the CHECK-side OR (A∧B ⇒ A). An arm with no atoms refuses the
+   * whole fact, conservatively.
    */
-  private orFacts: Atom[][] = [];
+  private orFacts: Atom[][][] = [];
   /**
    * Whether the SET mask applies to atoms being built RIGHT NOW. On only
    * while collecting a masked evidence source — never for CHECK-side
@@ -295,7 +297,59 @@ class EntailmentKernel {
           this.collectConjuncts(cond);
         }
       }
+
+      // OR-fact triggers: TRUE(gencol IN ('a','b')) names no arm, but if
+      // each value selects a single CASE arm, the DISJUNCTION of those
+      // arms' conditions held — a derived OR-fact (`verdict IN ('fraud',
+      // 'no-fraud')` yields [fs >= 75] ∨ [fs < 30], which pins fs by the
+      // intersection rule). An arm of the trigger fact may carry extra
+      // conjuncts; the gencol equality among them is what runs exclusion.
+      for (const fact of [...this.orFacts]) {
+        const derived: Atom[][] = [];
+        let complete = true;
+        for (const arm of fact) {
+          const vAtom = arm.find(
+            (a): a is Extract<Atom, { t: "cmpLit" }> =>
+              a.t === "cmpLit" && a.col === eq.column && a.op === "=",
+          );
+          const cond = vAtom ? this.selectedArmCondition(eq, vAtom.lit) : null;
+          const condAtoms = cond ? this.armAtoms(cond) : [];
+          if (condAtoms.length === 0) {
+            complete = false;
+            break;
+          }
+          derived.push(condAtoms);
+        }
+        if (!complete || derived.length === 0) continue;
+        this.input.trace?.addFact(
+          "generatedEquality",
+          `${eq.column} ∈ <literal set> selects one CASE arm per value; their conditions join as an OR-fact`,
+        );
+        if (derived.length === 1) this.trueFacts.push(...derived[0]!);
+        else this.orFacts.push(derived);
+      }
     }
+  }
+
+  /**
+   * A CASE arm's effective condition: the WHEN expression for a searched
+   * CASE, the implicit `arg = value` equality for a simple one — synthetic,
+   * so the ordinary fragment rules (and their refusals) apply unchanged.
+   */
+  private armCondition(
+    ce: { arg?: Node },
+    when: { expr?: Node } | undefined,
+  ): Node | undefined {
+    if (!when?.expr) return undefined;
+    if (!ce.arg) return when.expr;
+    return {
+      A_Expr: {
+        kind: "AEXPR_OP",
+        name: [{ String: { sval: "=" } }],
+        lexpr: ce.arg,
+        rexpr: when.expr,
+      },
+    } as unknown as Node;
   }
 
   /** The single surviving arm's condition, or null. See applyGeneratedEqualities. */
@@ -305,7 +359,7 @@ class EntailmentKernel {
   ): Node | null {
     const node = eq.expr as Record<string, unknown>;
     const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node } | undefined;
-    if (!ce || ce.arg) return null;
+    if (!ce) return null;
 
     /** true = provably NOT the producing arm; false = might be. */
     const resultExcluded = (result: Node | undefined): boolean => {
@@ -323,10 +377,11 @@ class EntailmentKernel {
       const when = (w as Record<string, unknown>)["CaseWhen"] as
         | { expr?: Node; result?: Node }
         | undefined;
-      if (!when?.expr) return null;
-      if (this.isFalse(when.expr) || resultExcluded(when.result)) continue;
+      const cond = this.armCondition(ce, when);
+      if (!cond) return null;
+      if (this.isFalse(cond) || resultExcluded(when?.result)) continue;
       if (survivor) return null; // two candidates — no single arm
-      survivor = { cond: when.expr };
+      survivor = { cond };
     }
     // The ELSE (implicit NULL when absent) competes like an arm but can
     // never be the derivation source.
@@ -396,31 +451,31 @@ class EntailmentKernel {
       return;
     }
     // Disjunctive conjuncts (OR, multi-element IN, = ANY over an array
-    // literal): a single-arm set collapses to a plain TRUE fact, the rest
-    // become OR-facts for the subset rule.
-    const disjuncts = this.disjunctAtoms(pred);
-    if (disjuncts) {
-      if (disjuncts.length === 1) this.trueFacts.push(disjuncts[0]!);
-      else this.orFacts.push(disjuncts);
+    // literal): a single-arm fact means that arm held outright, so its
+    // conjuncts are plain TRUE facts; the rest become OR-facts.
+    const arms = this.disjunctArms(pred);
+    if (arms) {
+      if (arms.length === 1) this.trueFacts.push(...arms[0]!);
+      else this.orFacts.push(arms);
     }
   }
 
   /**
-   * The per-arm atoms of a disjunctive predicate, or null when any arm is
-   * not exactly one atom (an arm that is itself a conjunction cannot be
-   * matched by a single fact, and an unatomizable arm cannot be matched at
-   * all — either way the whole fact is refused, conservatively).
+   * The per-arm conjunct atoms of a disjunctive predicate, or null when any
+   * arm contributes no atoms at all (an arm nothing can match refuses the
+   * whole fact — TRUE(a ∨ opaque) proves nothing, since the opaque arm may
+   * have been the true one).
    */
-  private disjunctAtoms(pred: Node): Atom[] | null {
+  private disjunctArms(pred: Node): Atom[][] | null {
     const node = pred as Record<string, unknown>;
 
     const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
     if (be?.boolop === "OR_EXPR") {
-      const out: Atom[] = [];
+      const out: Atom[][] = [];
       for (const arg of be.args ?? []) {
-        const atoms = this.atomsOf(arg);
-        if (atoms.length !== 1) return null;
-        out.push(atoms[0]!);
+        const atoms = this.armAtoms(arg);
+        if (atoms.length === 0) return null;
+        out.push(atoms);
       }
       return out.length > 0 ? out : null;
     }
@@ -437,16 +492,27 @@ class EntailmentKernel {
                 ?.elements
             : undefined;
       if (!items?.length) return null;
-      const out: Atom[] = [];
+      const out: Atom[][] = [];
       for (const item of items) {
         const atom = this.comparisonAtom(op, ae.lexpr, item);
         if (!atom) return null;
-        out.push(atom);
+        out.push([atom]);
       }
       return out;
     }
 
     return null;
+  }
+
+  /** An OR arm's conjunct atoms: AND splits, everything else via atomsOf. */
+  private armAtoms(arm: Node): Atom[] {
+    const be = (arm as Record<string, unknown>)["BoolExpr"] as
+      | { boolop?: string; args?: Node[] }
+      | undefined;
+    if (be?.boolop === "AND_EXPR") {
+      return (be.args ?? []).flatMap(a => this.armAtoms(a));
+    }
+    return this.atomsOf(arm);
   }
 
   /**
@@ -568,18 +634,19 @@ class EntailmentKernel {
     // selected when conditions 1..i-1 are FALSE and condition i is TRUE;
     // when every condition is FALSE, the ELSE is. A condition neither
     // provably TRUE nor FALSE ends the derivation — arm selection past it
-    // would need literal distinctness. Simple CASE (`CASE expr WHEN ...`)
-    // compares by an implicit equality the fragment does not model: skipped.
+    // needs literal distinctness. Simple CASE (`CASE expr WHEN v …`)
+    // desugars each arm to the implicit `expr = v` equality it is, judged
+    // by the same fragment (col-vs-literal or refuse).
     if ("CaseExpr" in node) {
       const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node };
-      if (ce.arg) return false;
       for (const w of ce.args ?? []) {
         const when = (w as Record<string, unknown>)["CaseWhen"] as
           | { expr?: Node; result?: Node }
           | undefined;
-        if (!when?.expr) return false;
-        if (this.isFalse(when.expr)) continue;
-        if (this.isTrue(when.expr)) return !!when.result && this.deriveGoal(when.result);
+        const cond = this.armCondition(ce, when);
+        if (!cond) return false;
+        if (this.isFalse(cond)) continue;
+        if (this.isTrue(cond)) return !!when?.result && this.deriveGoal(when.result);
         return false;
       }
       return !!ce.defresult && this.deriveGoal(ce.defresult);
@@ -681,29 +748,32 @@ class EntailmentKernel {
   // -------------------------------------------------------------------------
 
   /**
-   * The subset rule: a TRUE OR-fact makes any superset OR TRUE — whichever
-   * arm held, an identical arm exists in the wider disjunction. `expr` is
-   * the CHECK-side OR/ANY; every fact arm must match one of its matchable
-   * arms (arms of the CHECK OR that do not atomize only widen it further
-   * and cannot invalidate the rule).
+   * The subset rule, by arm-implication: a TRUE OR-fact makes a CHECK-side
+   * OR TRUE when EVERY fact arm implies some CHECK arm — whichever arm
+   * held, all its conjuncts held, so one of them matching a CHECK arm
+   * (A∧B ⇒ A) makes the wider disjunction TRUE. CHECK arms that do not
+   * atomize to a single atom only widen the disjunction and cannot
+   * invalidate the rule.
    */
   private orFactImplies(expr: Node): boolean {
     if (this.orFacts.length === 0) return false;
     const node = expr as Record<string, unknown>;
     const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
-    const arms: Atom[] = [];
+    const checkArms: Atom[] = [];
     if (be?.boolop === "OR_EXPR") {
       for (const arg of be.args ?? []) {
         const atoms = this.atomsOf(arg);
-        if (atoms.length === 1) arms.push(atoms[0]!);
+        if (atoms.length === 1) checkArms.push(atoms[0]!);
       }
     } else {
-      const disjuncts = this.disjunctAtoms(expr);
-      if (disjuncts) arms.push(...disjuncts);
+      const arms = this.disjunctArms(expr);
+      for (const arm of arms ?? []) {
+        if (arm.length === 1) checkArms.push(arm[0]!);
+      }
     }
-    if (arms.length === 0) return false;
+    if (checkArms.length === 0) return false;
     return this.orFacts.some(fact =>
-      fact.every(f => arms.some(a => this.atomsMatch(a, f))),
+      fact.every(arm => arm.some(a => checkArms.some(c => this.atomsMatch(c, a)))),
     );
   }
 
@@ -846,7 +916,15 @@ class EntailmentKernel {
     ) {
       return true;
     }
-    return this.orFacts.some(fact => fact.every(f => strictlyInvolves(f)));
+    // An OR-fact pins the column when EVERY arm does — whichever arm held,
+    // some conjunct of it involves the column (the intersection rule).
+    return this.orFacts.some(fact =>
+      fact.every(arm =>
+        arm.some(
+          a => strictlyInvolves(a) || (a.t === "nullTest" && a.col === col && a.isNotNull),
+        ),
+      ),
+    );
   }
 
   // -------------------------------------------------------------------------
