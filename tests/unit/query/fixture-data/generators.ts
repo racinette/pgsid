@@ -233,6 +233,12 @@ const columnSpecificGenerators: Record<
     bp: { k: rand => rand.pick(["a", "b", "zz"]) },
     bp2: { k: rand => rand.pick(["a", "b", "zz"]) },
     vc: { k: rand => rand.pick(["a", "b", "zz"]) },
+
+    // The partitioned pair: both the parent (whose inserts route) and the
+    // partition (seeded directly) must stay inside part_1's range — an id
+    // outside 0..100 has no partition and the INSERT raises.
+    part_p: { id: rand => rand.int(0, 99) },
+    part_1: { id: rand => rand.int(0, 99) },
   },
 };
 

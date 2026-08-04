@@ -147,6 +147,26 @@ describe("unsupported nodes are refused, not guessed", () => {
     ]);
   });
 
+  // --- unresolvable relations ----------------------------------------------
+
+  // The snapshot's capture set (relkind 'r'/'p'/'f' in user namespaces, plus
+  // views) is the resolution set. Anything else once fell back to a
+  // zero-column entry, and star expansion silently dropped its columns —
+  // measured silent in seven placements by the adversarial sweep. A FROM
+  // item that contributes the wrong columns is worse than one that refuses.
+  for (const sql of [
+    "SELECT * FROM pg_catalog.pg_namespace",
+    "SELECT * FROM information_schema.schemata",
+    "SELECT * FROM no_such_table",
+  ]) {
+    it(`refuses an unresolvable relation: ${sql}`, async () => {
+      await expect(infer(sql)).rejects.toMatchObject({
+        name: "UnsupportedNodeError",
+        site: "from-item",
+      });
+    });
+  }
+
   // --- (expr).* over an unresolvable composite -----------------------------
 
   // A target-list expansion whose field count is unknowable: emitting one

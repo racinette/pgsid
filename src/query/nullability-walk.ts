@@ -1790,18 +1790,19 @@ class NullabilityEngine {
       return entry;
     }
 
-    // Could be a VALUES alias or unresolved — register as table with empty columns.
-    const fallback: RelationEntry = {
-      alias: aliasName,
-      kind: "table",
-      table: { schema: "", name: rv.relname, columns: [] },
-      joinState,
-      nullGroup,
-      unitChain,
-      instance: this.nextInstance(),
-    };
-    scope.aliases.set(aliasName, fallback);
-    return fallback;
+    // A relation the snapshot does not capture: a temporary table,
+    // pg_catalog, information_schema, or something that does not exist at
+    // all. A zero-column entry here once let star expansion silently drop
+    // its columns — measured silent in seven placements — which is exactly
+    // what the dispatch-site rule forbids at a FROM item: contributing the
+    // wrong columns is worse than refusing. The caller's documented escape
+    // (it runs PREPARE anyway) is to treat every column as nullable.
+    // Partitioned and foreign tables are captured (relkind 'p'/'f') and
+    // resolve above rather than landing here.
+    throw new UnsupportedNodeError(
+      "from-item",
+      `unresolvable relation ${rv.schemaname ? `${rv.schemaname}.` : ""}${rv.relname}`,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -1891,7 +1892,7 @@ class NullabilityEngine {
     if (commands.some(cmd => wr.beforeRow.has(cmd) || wr.insteadOf.has(cmd))) {
       return scope;
     }
-    this.attachInsertWrittenColumns(stmt, scope, outerScope, depth);
+    this.attachInsertWrittenColumns(stmt, scope, depth);
     return scope;
   }
 
@@ -1911,7 +1912,6 @@ class NullabilityEngine {
   private attachInsertWrittenColumns(
     stmt: InsertStmt,
     scope: Scope,
-    outerScope: Scope | null,
     depth: number,
   ): void {
     const entry = [...scope.aliases.values()][0];
@@ -1925,18 +1925,25 @@ class NullabilityEngine {
     if (!select) return;
     const written = new Map<string, boolean>();
 
+    // The source is walked with the DML scope as its outer, NOT the
+    // statement's own outer: the WITH clause's CTEs are registered on the
+    // DML scope, and `WITH w AS (…) INSERT … SELECT … FROM w` must resolve
+    // `w` there. (The zero-column fallback used to absorb the miss
+    // silently; the refusal made it visible.) A source that referenced the
+    // target's alias would be invalid SQL, so the extra visibility is
+    // unreachable.
     const valuesLists = select["valuesLists"] as Node[] | undefined;
     if (valuesLists?.length) {
       columns.forEach((col, i) => {
         if (!col) return;
         const cellsNotNull = valuesLists.every(row => {
           const cell = ((row as { List?: { items?: Node[] } }).List?.items ?? [])[i];
-          return !!cell && this.walkExpr(cell, this.emptyScope(outerScope), depth + 1);
+          return !!cell && this.walkExpr(cell, this.emptyScope(scope), depth + 1);
         });
         written.set(col, cellsNotNull);
       });
     } else if (select["op"] === "SETOP_NONE" && select["targetList"]) {
-      const innerResults = this.analyzeStatement(stmt.selectStmt!, outerScope, depth + 1);
+      const innerResults = this.analyzeStatement(stmt.selectStmt!, scope, depth + 1);
       columns.forEach((col, i) => {
         if (col) written.set(col, innerResults[i]?.notNull === true);
       });
