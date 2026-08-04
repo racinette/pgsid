@@ -1,0 +1,19 @@
+-- ADVERSARIAL FINDING 14 — rank 2, shape defect.
+--
+-- Falsifying data: none needed — the shape is settled by PREPARE.
+-- Observed: PostgreSQL's RowDescription is
+-- [id, order_id, product_id, quantity, unit_price]; the engine reports ONE
+-- column.
+--
+-- Suspected mechanism: `(expr).*` is an `A_Indirection` whose last field is
+-- an `A_Star`, and the composite it expands is the expression's own return
+-- type. The walk treats A_Indirection at the EXPRESSION dispatch site, where
+-- one target-list entry means one output column — true for `(x).field`, false
+-- for `(x).*`, which is a target-list expansion in disguise. `expandStar`
+-- only handles the `ColumnRef` spellings (`*` and `alias.*`).
+--
+-- `(alias.*)` over a table entry IS handled correctly (measured, five columns
+-- for `SELECT (g.*) FROM gm g`), so the gap is the function-call and
+-- composite-expression spelling.
+SELECT (get_order_items(1)).* FROM t
+-- engine claims: one column, @nullable — PostgreSQL emits five.

@@ -1,0 +1,28 @@
+-- ADVERSARIAL FINDING 11 — rank 2, shape defect.
+--
+-- Falsifying data: `INSERT INTO part_p VALUES (1, 'k');`
+-- Observed: PostgreSQL's RowDescription is [id, name, val, active, id, k];
+-- the engine reports FOUR columns — `part_p` contributes none.
+--
+-- Suspected mechanism: two layers.
+--   (1) `snapshotCatalog` (catalog/snapshot.ts) takes relkind 'r', 'v' and
+--       'm' in user namespaces. A PARTITIONED table is relkind 'p', so it is
+--       absent from the snapshot entirely; so are temporary tables (pg_temp_N
+--       is not a user namespace), pg_catalog and information_schema, and
+--       foreign tables (relkind 'f').
+--   (2) `addRangeVar` (nullability-walk.ts) ends with a FALLBACK entry —
+--       `table: { schema: "", name: rv.relname, columns: [] }` — for anything
+--       the catalog cannot resolve. Star expansion over an entry with no
+--       columns silently contributes nothing, which is exactly what the walk
+--       doc's dispatch-site table forbids at a FROM item: "contributes
+--       columns; an unknown one silently removes them → throw
+--       UnsupportedNodeError".
+--
+-- The reach was measured: bare `SELECT * FROM part_p`, inside a CTE, through
+-- `RETURNING *` of an INSERT into the partitioned table, on the optional side
+-- of a LEFT JOIN, over a temp table, over `pg_catalog.pg_namespace`, and over
+-- `information_schema.schemata` — all silent. A VIEW over the partitioned
+-- table is NOT affected (the view's own catalog columns carry the shape).
+-- Named columns are also unaffected: each target-list entry is one output
+-- column whatever it resolves to, so only star expansion loses the shape.
+SELECT * FROM t, part_p

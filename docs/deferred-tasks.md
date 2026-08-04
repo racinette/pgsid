@@ -80,6 +80,27 @@ It is the "finding the defects nobody thought to look for" line above,
 made executable; its findings doc folds back into this register during
 the fix phase that follows it.
 
+**The sweep RAN (2026-08-04) and `docs/adversarial-findings.md` is its
+report — read it before the consumer build.** 246 probes, fifteen
+findings: nine rank-1 `notNull` unsoundnesses, five rank-2 shape defects
+(two of which also falsify a flag), one rank-3 param-contract defect;
+zero parity breaks and zero crashes.
+Eight root causes, each with a fix sketch, its blast radius, and a
+recommended order; the negative results (which mechanisms held, under
+what shapes) are section 4 and are the larger half of the document. The
+quarantine fixtures carrying the currently-wrong claims are
+`tests/unit/query/fixtures-adversarial/`, with the DDL they need beside
+them — deliberately outside the suites' glob, so the suite is green
+throughout. **Nothing was fixed.** The fix phase is next, and it folds
+those findings into section 2's table as it closes them. One item to
+pull forward regardless: the arity gate (section 1) guards exactly the
+five shape findings, but only if it compares ORDER as well as length —
+finding 10 is six columns against six, permuted — and it belongs at the
+first slice holding a contract and a PREPARE result together, which is
+BEFORE the emitter. The findings doc's "gate at the consumer boundary"
+subsection has the argument and the two constraints the name comparison
+inherits from the Decided-against entries.
+
 The semantic re-founding (section 5) is a standing parallel track; its
 executable target list emptied when Wave 12 closed the origin
 extensions, so its next candidates come from whatever the consumer's
