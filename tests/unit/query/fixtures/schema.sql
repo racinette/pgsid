@@ -719,3 +719,30 @@ CREATE FUNCTION rec_pairs() RETURNS SETOF record LANGUAGE sql
 -- unresolvable relation REFUSES instead of falling back.
 CREATE TABLE part_p (id integer NOT NULL, k text) PARTITION BY RANGE (id);
 CREATE TABLE part_1 PARTITION OF part_p FOR VALUES FROM (0) TO (100);
+
+-- STRICT is not TOTAL (adversarial finding 5): a declared-strict function
+-- returns NULL for NULL input and says nothing about non-null input.
+-- strict_nullish/strict_nullish_pl return NULL outright; lookup_name is the
+-- realistic shape — a strict lookup whose row need not exist; <-> reaches
+-- the same hole through an operator's backing function.
+CREATE FUNCTION strict_nullish(x text) RETURNS text
+  LANGUAGE sql STRICT AS $$ SELECT NULL::text $$;
+CREATE FUNCTION strict_nullish_pl(x text) RETURNS text
+  LANGUAGE plpgsql STRICT AS $$ BEGIN RETURN NULL; END $$;
+CREATE FUNCTION lookup_name(p integer) RETURNS text
+  LANGUAGE sql STRICT AS $$ SELECT c.name FROM customers c WHERE c.id = p $$;
+CREATE FUNCTION strict_none(a text, b text) RETURNS text
+  LANGUAGE sql STRICT AS $$ SELECT NULL::text $$;
+CREATE OPERATOR <-> (LEFTARG = text, RIGHTARG = text, FUNCTION = strict_none);
+
+-- A non-null INITCOND fixes the EMPTY-input result only (adversarial
+-- finding 6): agg_nullify's transition returns NULL for every row,
+-- agg_finalnull's FINALFUNC does — both measured returning NULL over
+-- non-empty input while the INITCOND rule claimed otherwise.
+CREATE FUNCTION nullify_sfunc(state bigint, val integer) RETURNS bigint
+  LANGUAGE sql AS $$ SELECT NULL::bigint $$;
+CREATE AGGREGATE agg_nullify(integer) (SFUNC = nullify_sfunc, STYPE = bigint, INITCOND = '0');
+CREATE FUNCTION final_null(state bigint) RETURNS bigint
+  LANGUAGE sql AS $$ SELECT NULL::bigint $$;
+CREATE AGGREGATE agg_finalnull(integer)
+  (SFUNC = count_it_sfunc, STYPE = bigint, INITCOND = '0', FINALFUNC = final_null);
