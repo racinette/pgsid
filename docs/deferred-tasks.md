@@ -185,6 +185,26 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-05), findings 8 and 9 / RC-6 —
+unsoundness removals: the grouping-set NULLing override had two escapes.
+Consumer side (finding 8), `mergedColumnNotNull` answered a USING/NATURAL
+merged column from its constituents' intrinsic flags and never consulted
+`groupingSetColumns` — a third resolution route bypassing the override the
+two ordinary ColumnRef sites apply; it now checks the set first
+(`grouping-set-merged-column.sql`, witnessed by the super-aggregate row).
+Producer side (finding 9), `collectGroupingSetColumns` recorded only
+ColumnRefs, while PostgreSQL accepts two more spellings for a term: an
+output-column ORDINAL (`ROLLUP(1)` — an A_Const, nothing recorded) and an
+output-column ALIAS (`ROLLUP(k)` — recorded "k" while the consumers ask
+about "id"/"t.id"). Both now resolve against the target list and record
+the selected entry's underlying refs; the alias spelling keeps its own
+name key too, since PostgreSQL prefers an input column over an output
+alias and the set only ever turns claims nullable — over-recording is the
+conservative reading. `grouping-set-ordinal-alias.sql` and
+`grouping-set-alias-spelling.sql` pin the spellings, each witnessed by the
+grand-total row under every data state. Both fixes can only move claims
+notNull→nullable, and no existing fixture flipped.
+
 Closed by the adversarial fix phase (2026-08-04), finding 1 / RC-5 — an
 unsoundness removal: unqualified predicate references resolved by NAME
 alone. `columnMatches`'s single-part branch trusted its caller ("the caller

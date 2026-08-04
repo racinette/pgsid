@@ -1216,7 +1216,7 @@ class NullabilityEngine {
         ? this.groupingGuaranteesNonEmptyGroups(stmt)
         : !this.selectEmitsRowsWithoutInput(stmt),
       groupGuaranteesNonEmpty: this.groupingGuaranteesNonEmptyGroups(stmt),
-      groupingSetColumns: this.collectGroupingSetColumns(stmt.groupClause),
+      groupingSetColumns: this.collectGroupingSetColumns(stmt.groupClause, stmt.targetList),
       outer: outerScope,
       results: null,
     };
@@ -1455,6 +1455,11 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): boolean {
+    // A grouping-set construct blanks its grouping columns in super-aggregate
+    // rows whatever the source rows guarantee — the same override the two
+    // ordinary ColumnRef sites apply. The merged column is a third resolution
+    // route and must not bypass it.
+    if (scope.groupingSetColumns.has(name)) return false;
     const side = (entry: RelationEntry): boolean =>
       this.relationColumnsIntrinsic(entry, scope, depth)
         .find(c => c.name === name)?.notNull ?? false;
@@ -5870,20 +5875,78 @@ class NullabilityEngine {
   /**
    * Collect the columns a grouping-set construct can NULL out.
    *
-   * Only ColumnRefs nested inside a `GroupingSet` node (ROLLUP / CUBE /
-   * GROUPING SETS) are collected. A plain grouping term at the top level of
-   * the GROUP BY appears in every generated grouping set and is never
-   * collapsed, so it is left alone.
+   * Only terms nested inside a `GroupingSet` node (ROLLUP / CUBE / GROUPING
+   * SETS) are collected. A plain grouping term at the top level of the
+   * GROUP BY appears in every generated grouping set and is never collapsed,
+   * so it is left alone.
+   *
+   * PostgreSQL accepts THREE spellings for a term, and all three must land:
+   * a ColumnRef (recorded directly), an output-column ORDINAL (`ROLLUP(1)` —
+   * an A_Const selecting the n-th target entry), and an output-column ALIAS
+   * (`ROLLUP(k)` — a bare name matching a `ResTarget.name`). The latter two
+   * resolve against the target list and record the selected entry's
+   * underlying refs, which is what the ColumnRef consumers ask about. The
+   * alias spelling also keeps its own name key (PostgreSQL prefers an input
+   * column over an output alias when both exist, and this set only ever
+   * turns claims nullable, so recording both is the conservative reading).
    */
-  private collectGroupingSetColumns(groupClause?: Node[]): ReadonlySet<string> {
+  private collectGroupingSetColumns(
+    groupClause?: Node[],
+    targetList?: Node[],
+  ): ReadonlySet<string> {
     if (!groupClause || groupClause.length === 0) return EMPTY_STRING_SET;
     const out = new Set<string>();
     for (const term of groupClause) {
       if ("GroupingSet" in (term as Record<string, unknown>)) {
-        this.collectColumnRefKeys(term, out);
+        this.collectGroupingSetTermKeys(term, out, targetList ?? []);
       }
     }
     return out.size > 0 ? out : EMPTY_STRING_SET;
+  }
+
+  /**
+   * Record the keys of one grouping-set term, resolving output-ordinal and
+   * output-alias spellings through `targetList` (see
+   * collectGroupingSetColumns).
+   */
+  private collectGroupingSetTermKeys(node: Node, out: Set<string>, targetList: Node[]): void {
+    const resTarget = (t: Node | undefined) =>
+      (t as Record<string, unknown> | undefined)?.["ResTarget"] as
+        | { name?: string; val?: Node }
+        | undefined;
+    const rec = node as Record<string, unknown>;
+    if ("ColumnRef" in rec) {
+      const parts = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
+      const col = parts[parts.length - 1];
+      if (col) {
+        out.add(col);
+        if (parts.length >= 2) out.add(`${parts[parts.length - 2]}.${col}`);
+        if (parts.length === 1) {
+          for (const t of targetList) {
+            const rt = resTarget(t);
+            if (rt?.name === col && rt.val) this.collectColumnRefKeys(rt.val, out);
+          }
+        }
+      }
+      return;
+    }
+    if ("A_Const" in rec) {
+      const ival = (rec["A_Const"] as { ival?: { ival?: number } }).ival?.ival;
+      if (typeof ival === "number" && ival >= 1) {
+        const rt = resTarget(targetList[ival - 1]);
+        if (rt?.val) this.collectColumnRefKeys(rt.val, out);
+      }
+      return;
+    }
+    for (const value of Object.values(rec)) {
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          if (v && typeof v === "object") this.collectGroupingSetTermKeys(v as Node, out, targetList);
+        }
+      } else if (value && typeof value === "object") {
+        this.collectGroupingSetTermKeys(value as Node, out, targetList);
+      }
+    }
   }
 
   /** Recursively record every ColumnRef in `node` as `alias.col` and `col`. */
