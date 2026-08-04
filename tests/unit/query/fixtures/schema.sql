@@ -652,3 +652,16 @@ CREATE TABLE subscription (
   CHECK (CASE WHEN plan = 'team' THEN seats IS NOT NULL AND seats > 1 ELSE true END),
   CHECK (seats <= 1 OR overflow_contact IS NOT NULL)
 );
+
+-- The bpchar padding gate (adversarial finding 4). character(n) comparison
+-- strips trailing blanks BEFORE the collation is consulted — 'a'::char(4) =
+-- 'a ' is TRUE (measured) — so distinct tokens can name equal values and
+-- literal distinctness is never sound for bpchar, however deterministic the
+-- collation. bp reaches the hazard through an OR-CHECK, bp2 through a
+-- multi-WHEN CASE; vc is the varchar control, where trailing blanks stay
+-- significant, the tokens really are distinct, and the same derivation is
+-- sound — ('a', NULL) is refused there (measured).
+CREATE TABLE bp (k char(4) NOT NULL, x text, CHECK (k = 'a ' OR x IS NOT NULL));
+CREATE TABLE bp2 (k char(4) NOT NULL, x text,
+  CHECK (CASE WHEN k = 'a' THEN x IS NULL WHEN k = 'a ' THEN x IS NOT NULL END));
+CREATE TABLE vc (k varchar(4) NOT NULL, x text, CHECK (k = 'a ' OR x IS NOT NULL));

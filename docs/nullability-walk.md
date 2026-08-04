@@ -331,11 +331,14 @@ The gates:
 
 **Collation-gated distinctness (Wave 9)** adds the one judgment the kernel
 refused until the catalog could prove it: two string literal TOKENS denote
-DISTINCT values — admitted only for builtin text-family columns (OID
-whitelist; citext's case-folding lives in its operator and never qualifies)
-whose collation the snapshot proved deterministic (`collisdeterministic`,
-captured per column), and never for numerics (75 vs 75.0: distinct tokens,
-equal values). TRUE(`col = 'a'`) then falsifies `col = 'b'` and certifies
+DISTINCT values — admitted only where byte equality IS value equality for
+the column's type (OID whitelist: `text` and `varchar`; citext's
+case-folding lives in its operator and never qualifies, and `bpchar` is out
+for the same reason one level down — `character(n)` comparison strips
+trailing blanks before the collation is consulted, so `'a'::char(4) = 'a '`
+is TRUE for distinct tokens, measured) whose collation the snapshot proved
+deterministic (`collisdeterministic`, captured per column), and never for
+numerics (75 vs 75.0: distinct tokens, equal values). TRUE(`col = 'a'`) then falsifies `col = 'b'` and certifies
 `col <> 'b'`, which is what lets a multi-WHEN CHECK CASE reach its later
 arms (`check-multiwhen-second-arm.sql`; numeric refusal pinned by
 `check-multiwhen-numeric-negative.sql`; the nondeterministic-collation
