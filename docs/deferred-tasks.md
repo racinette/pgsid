@@ -185,6 +185,30 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-05), finding 3 / RC-3 — an
+unsoundness removal: `attnotnull` was read from the NAMED relation while
+the query scans the relation SET. `ALTER TABLE ONLY parent … SET NOT NULL`
+is legal (measured): parent attnotnull=true, child false, and a
+child-stored NULL comes back through `FROM parent`. The snapshot now
+computes `ColumnInfo.notNullTree` — the conjunction over the inheritance
+subtree via pg_inherits, a descendant outside the captured namespaces
+counting as unconstrained — and it is diff-included, since a child gaining
+or losing the constraint changes what a tree scan of the parent may
+conclude. The walk honours `RangeVar.inh` per entry (the parser emits
+inh:true for a plain reference and omits it for ONLY — measured): tree
+scans and UPDATE/DELETE/MERGE targets take the conjunction, `FROM ONLY`
+and INSERT targets the relation's own flag (an INSERT stores its rows in
+the named relation itself — measured; tuple routing is partitioned-only,
+where the flags provably agree). Origin entailment's given-present gate
+takes the conjunction unconditionally — origins carry no ONLY bit, and the
+cost is precision on a `FROM ONLY parent` origin whose children diverge, a
+shape nothing exercises. The CHECK path needed nothing: children carry
+their own pg_constraint rows and cannot drop or invalidate them (measured,
+recorded in the walk doc). `inherit-attnotnull-divergence.sql` pins the
+tree scan witnessed by generated child rows;
+`inherit-attnotnull-only-control.sql` pins that ONLY keeps the parent's
+own flag.
+
 Closed by the adversarial fix phase (2026-08-05), finding 10 / RC-7's MERGE
 half — a shape defect that was simultaneously a notNull falsification:
 MERGE's `RETURNING *` expands the SOURCE first, then the target (measured —

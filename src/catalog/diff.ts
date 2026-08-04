@@ -61,6 +61,10 @@ function columnState(c: ColumnInfo): Omit<ColumnInfo, "typeOid"> {
     typeName: c.typeName,
     typeMod: c.typeMod,
     notNull: c.notNull,
+    // A child gaining or losing the constraint changes what a tree scan of
+    // the parent can return, hence what may be inferred — so the conjunction
+    // is a comparable property of the PARENT's column.
+    notNullTree: c.notNullTree,
     hasDefault: c.hasDefault,
     defaultExpr: c.defaultExpr,
     generated: c.generated,
