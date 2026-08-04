@@ -287,18 +287,20 @@ group.
 
 ## Current measurement
 
-Across 266 fixtures and 5 data states, at the default seed:
+Across 288 fixtures and 5 data states, at the default seed (post the
+adversarial fix phase, whose graduated pins and re-annotated flips account
+for the growth over the sweep-time 266):
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 773 | |
-| — falsifiable | 763 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 790 | |
+| — falsifiable | 780 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 392 | |
-| — witnessed | 329 (84%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 63 | every one carries an `@unwitnessable` annotation |
-| `@null-group` claims | 41 (35 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
+| `nullable` claims | 443 | |
+| — witnessed | 365 (82%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 78 | every one carries an `@unwitnessable` annotation |
+| `@null-group` claims | 42 (36 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
 The generated corpus carries the same group oracle annotation-free: 1490
 engine-claimed groups over ~9k queries (post-widening — refilter wrappers,

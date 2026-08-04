@@ -24,7 +24,19 @@ deliberately NOT folded into `fixtures/schema.sql`, because the fixtures beside
 it record wrong claims and the suite must stay green until the fix phase. The
 full suite is green as of this writing.
 
-Nothing was fixed. Section 3 proposes fixes with blast radius and an order.
+Nothing was fixed at the time of the sweep. Section 3 proposes fixes with
+blast radius and an order.
+
+**Status: the fix phase ran (2026-08-04/05) and closed all fifteen
+findings**, one commit per root cause in section 3's recommended order.
+The quarantine directory is retired: every fixture graduated into
+`tests/unit/query/fixtures/` with corrected claims, the DDL folded into
+the fixture schema, and the DO INSTEAD rule and unresolvable-relation
+refusals pinned in `unsupported-nodes.test.ts`. The closure entries — with
+what each fix measured and what it deliberately costs — are in
+`docs/deferred-tasks.md` section 2; section 5's three imprecisions are
+registered there too. This document remains the sweep's report, unmodified
+below this line.
 
 ---
 
