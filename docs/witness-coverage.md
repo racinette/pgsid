@@ -287,24 +287,27 @@ group.
 
 ## Current measurement
 
-Across 262 fixtures and 5 data states, at the default seed:
+Across 264 fixtures and 5 data states, at the default seed:
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 761 | |
-| — falsifiable | 751 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 765 | |
+| — falsifiable | 755 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 390 | |
-| — witnessed | 327 (84%) | some state or binding produces a real NULL there |
+| `nullable` claims | 392 | |
+| — witnessed | 329 (84%) | some state or binding produces a real NULL there |
 | — unwitnessed, reason recorded | 63 | every one carries an `@unwitnessable` annotation |
 | `@null-group` claims | 41 (35 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
-The generated corpus carries the same group oracle annotation-free: 684
-engine-claimed groups over 6142 queries, all arms observed, zero per-row
-falsifications, the GROUP_UNWITNESSABLE rule list empty — the two-arm bar
-found and eliminated 67 INTERSECT groups with uninhabitable absent arms
-(the setop dead rule) before any consumer saw one.
+The generated corpus carries the same group oracle annotation-free: 1490
+engine-claimed groups over ~9k queries (post-widening — refilter wrappers,
+union-full-var, dup-names, gm structures), all arms observed, zero per-row
+falsifications, the GROUP_UNWITNESSABLE rule list empty. The two-arm bar
+has now paid three times: 67 INTERSECT groups with uninhabitable absent
+arms (the setop dead rule), the cross-unit presence-implication
+imprecision (closed via unit chains the same session), and the
+required-alternative gap in origin entailment (closed likewise).
 
 Every fixture returns rows under some state and binding, except the two that
 declare `@no-rows`.

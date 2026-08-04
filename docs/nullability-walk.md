@@ -655,16 +655,28 @@ them outward:
   the base row present on every emitted row, and a present row's stored
   value of a NOT NULL column cannot be NULL — so a re-exported column
   upgrades with no CHECK involved, including from tables with no CHECKs
-  at all (`presence-group-reexport-refilter.sql`'s carrier). UNION
+  at all (`presence-group-reexport-refilter.sql`'s carrier). Certifiers
+  reach ACROSS tables too: origins carry their unit-crossing chains
+  (`ColumnOrigin.units`, from `RelationEntry.unitChain`), extension is
+  atomic per unit, and a child unit's presence implies every enclosing
+  one's — so a pinned u.val proves a sibling t.id present when they share
+  a unit or u's nests inside t's, the certifier riding the rename map
+  under a NUL sentinel only the presence gate can see
+  (`presence-cross-unit-same.sql`, `presence-cross-unit-nested.sql`). A
+  required origin alternative with a catalog-NOT NULL goal succeeds
+  outright — a set operation's flat notNull collapses over branches, and
+  the inner branch's certainty is recovered per-alternative. UNION
   matching intersects member sets pairwise (subset restriction is sound
   per branch), and recursive CTEs iterate a group assumption to fixpoint
   beside the flat one — no group-specific conservatism remains recorded.
 
 The generated corpus runs the same per-row oracle over every query it
 produces, with a two-arm witness bar and a GROUP_UNWITNESSABLE rule
-mechanism mirroring its nullable-claim discipline — 684 groups, all arms
-observed, zero falsified, the rule list empty
-(`tests/unit/query/generated/generated-soundness.test.ts`).
+mechanism mirroring its nullable-claim discipline — 1490 groups over the
+widened ~9k-query corpus, all arms observed, zero falsified, the group
+rule list empty; the flat-claim rules carry the widening's two reasoned
+entries (`tests/unit/query/generated/generated-soundness.test.ts`; the
+axes are `docs/query-generator.md`'s "presence-group widening").
 
 Verification mirrors Wave 10's: `-- @null-group N[*],M[*]` annotations with
 compulsory bidirectional coverage in the agreement suite, per-row

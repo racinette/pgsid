@@ -285,6 +285,18 @@ interface RelationEntry {
    * side of an outer join starts a fresh one.
    */
   nullGroup: number;
+  /**
+   * The CHAIN of null-extension units enclosing this entry, outermost
+   * first — every optional slice whose absence NULL-extends this entry's
+   * columns. Empty for an entry no outer join can extend. `nullGroup` is
+   * the innermost element when the entry is OPTIONAL. Origins carry this
+   * chain out through re-exports (ColumnOrigin.units), which is what lets
+   * a pinned column certify presence for a DIFFERENT table: extension is
+   * atomic per unit, so any pinned member of a unit proves every member's
+   * slice present, and a pinned child-unit column proves every enclosing
+   * unit present.
+   */
+  unitChain: number[];
 }
 
 /**
@@ -1212,7 +1224,7 @@ class NullabilityEngine {
     if (stmt.fromClause) {
       for (const item of stmt.fromClause) {
         scope.visible.push(
-          ...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth),
+          ...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), [], depth),
         );
       }
     }
@@ -1462,12 +1474,13 @@ class NullabilityEngine {
     joinState: JoinState,
     scope: Scope,
     nullGroup: number,
+    unitChain: number[],
     depth: number,
   ): VisibleColumn[] {
     const node = item as Record<string, unknown>;
     if ("RangeVar" in node) {
       const rv = node["RangeVar"] as RangeVar;
-      const entry = this.addRangeVar(rv, joinState, scope, nullGroup);
+      const entry = this.addRangeVar(rv, joinState, scope, nullGroup, unitChain);
       return entry ? this.visibleColumnsOf(entry, scope, depth) : [];
     } else if ("RangeSubselect" in node) {
       const sub = node["RangeSubselect"] as RangeSubselect;
@@ -1482,6 +1495,7 @@ class NullabilityEngine {
         cteColumns: colNames,
         joinState,
         nullGroup,
+        unitChain,
         instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, subEntry);
@@ -1491,31 +1505,43 @@ class NullabilityEngine {
       let leftState = joinState;
       let rightState = joinState;
       // The required side keeps the enclosing group; each side that this join
-      // makes optional is NULL-extended as its own unit, so it starts a new one.
+      // makes optional is NULL-extended as its own unit, so it starts a new
+      // one — and appends it to the side's unit CHAIN, the ancestry origins
+      // carry out for cross-table presence certification.
       let leftGroup = nullGroup;
       let rightGroup = nullGroup;
+      let leftChain = unitChain;
+      let rightChain = unitChain;
       switch (join.jointype) {
         case "JOIN_INNER":
           break; // both inherit current state and group
         case "JOIN_LEFT":
           rightState = OPTIONAL;
           rightGroup = this.nextNullGroup();
+          rightChain = [...unitChain, rightGroup];
           break;
         case "JOIN_RIGHT":
           leftState = OPTIONAL;
           leftGroup = this.nextNullGroup();
+          leftChain = [...unitChain, leftGroup];
           break;
         case "JOIN_FULL":
           leftState = OPTIONAL;
           leftGroup = this.nextNullGroup();
+          leftChain = [...unitChain, leftGroup];
           rightState = OPTIONAL;
           rightGroup = this.nextNullGroup();
+          rightChain = [...unitChain, rightGroup];
           break;
       }
       const aliasesBefore = scope.aliases.size;
-      const left = join.larg ? this.walkFromItem(join.larg, leftState, scope, leftGroup, depth) : [];
+      const left = join.larg
+        ? this.walkFromItem(join.larg, leftState, scope, leftGroup, leftChain, depth)
+        : [];
       const aliasesAfterLeft = scope.aliases.size;
-      const right = join.rarg ? this.walkFromItem(join.rarg, rightState, scope, rightGroup, depth) : [];
+      const right = join.rarg
+        ? this.walkFromItem(join.rarg, rightState, scope, rightGroup, rightChain, depth)
+        : [];
       // Record the qual with its per-side alias sets (whole subtrees — the
       // Map appends in registration order, so slicing the key list recovers
       // exactly what each side's walk added) for the presence fixpoint.
@@ -1574,6 +1600,7 @@ class NullabilityEngine {
           : [],
         joinState,
         nullGroup,
+        unitChain,
         instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, fnEntry);
@@ -1591,16 +1618,16 @@ class NullabilityEngine {
         // enforced — PostgreSQL raises rather than emitting NULL.
         cols.push({ name: col.colname, notNull: !!col.for_ordinality || !!col.is_not_null });
       }
-      return this.addColumnListRelation(rtf.alias?.aliasname ?? "", cols, rtf.alias?.colnames, joinState, scope, nullGroup);
+      return this.addColumnListRelation(rtf.alias?.aliasname ?? "", cols, rtf.alias?.colnames, joinState, scope, nullGroup, unitChain);
     } else if ("JsonTable" in node) {
       // JSON_TABLE(... COLUMNS (n FOR ORDINALITY, a int PATH '...', NESTED ...))
       const jt = node["JsonTable"] as JsonTable;
       const cols: { name: string; notNull: boolean }[] = [];
       this.collectJsonTableColumns(jt.columns, cols);
-      return this.addColumnListRelation(jt.alias?.aliasname ?? "", cols, jt.alias?.colnames, joinState, scope, nullGroup);
+      return this.addColumnListRelation(jt.alias?.aliasname ?? "", cols, jt.alias?.colnames, joinState, scope, nullGroup, unitChain);
     } else if ("RangeTableSample" in node) {
       const rts = node["RangeTableSample"] as { relation?: Node };
-      if (rts.relation) return this.walkFromItem(rts.relation, joinState, scope, nullGroup, depth);
+      if (rts.relation) return this.walkFromItem(rts.relation, joinState, scope, nullGroup, unitChain, depth);
     } else {
       // An unrecognised FROM item contributes no columns and no alias, so
       // `SELECT *` over it silently loses them. A shape defect, not a flag.
@@ -1624,6 +1651,7 @@ class NullabilityEngine {
     joinState: JoinState,
     scope: Scope,
     nullGroup: number,
+    unitChain: number[],
   ): VisibleColumn[] {
     const names = aliasColnames?.map(n => this.stringVal(n)) ?? [];
     const entry: RelationEntry = {
@@ -1632,6 +1660,7 @@ class NullabilityEngine {
       functionColumns: columns.map((c, i) => ({ name: names[i] ?? c.name, notNull: c.notNull })),
       joinState,
       nullGroup,
+      unitChain,
       instance: this.nextInstance(),
     };
     scope.aliases.set(aliasName, entry);
@@ -1669,6 +1698,7 @@ class NullabilityEngine {
     joinState: JoinState,
     scope: Scope,
     nullGroup: number,
+    unitChain: number[] = [],
   ): RelationEntry | null {
     const aliasName = rv.alias?.aliasname ?? rv.relname;
 
@@ -1685,6 +1715,7 @@ class NullabilityEngine {
         extraColumns: cte.extraColumns,
         joinState,
         nullGroup,
+        unitChain,
         instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, cteEntry);
@@ -1704,6 +1735,7 @@ class NullabilityEngine {
         ast: viewAst,
         joinState,
         nullGroup,
+        unitChain,
         instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, entry);
@@ -1717,6 +1749,7 @@ class NullabilityEngine {
       table: { schema: "", name: rv.relname, columns: [] },
       joinState,
       nullGroup,
+      unitChain,
       instance: this.nextInstance(),
     };
     scope.aliases.set(aliasName, fallback);
@@ -1846,7 +1879,7 @@ class NullabilityEngine {
     // joins *within* the FROM list are still handled by walkFromItem.)
     if (stmt.fromClause) {
       for (const item of stmt.fromClause) {
-        scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
+        scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), [], depth));
       }
     }
 
@@ -1911,7 +1944,7 @@ class NullabilityEngine {
     // are never NULL-extended in RETURNING.
     if (stmt.usingClause) {
       for (const item of stmt.usingClause) {
-        scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), depth));
+        scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), [], depth));
       }
     }
     // Same reasoning as UPDATE: deleted rows all passed the WHERE, RETURNING
@@ -1961,12 +1994,14 @@ class NullabilityEngine {
     // REQUIRED and its columns keep base nullability.
     const hasBySource = arms.some(a => a.matchKind === "MERGE_WHEN_NOT_MATCHED_BY_SOURCE");
     if (stmt.sourceRelation) {
+      const sourceGroup = this.nextNullGroup();
       scope.visible.push(
         ...this.walkFromItem(
           stmt.sourceRelation,
           hasBySource ? OPTIONAL : REQUIRED,
           scope,
-          this.nextNullGroup(),
+          sourceGroup,
+          hasBySource ? [sourceGroup] : [],
           depth,
         ),
       );
@@ -2567,12 +2602,23 @@ class NullabilityEngine {
   ): OutputNullability["origins"] {
     if (entry.joinState === NOT_FOUND) return undefined;
     const optionalHere = entry.joinState === OPTIONAL;
+    // This reference's own null-extension crossings, all at depth 0 (the
+    // rowPath step this entry contributes); a lift shifts the inner
+    // origins' crossings one step deeper, exactly like rowPath itself.
+    const hereUnits = entry.unitChain.map(unit => ({ depth: 0, unit }));
     const lift = (inner: ColumnOrigin[] | undefined): ColumnOrigin[] | undefined =>
-      inner?.map(o => ({
-        ...o,
-        rowPath: [entry.instance, ...o.rowPath],
-        ...(o.optional || optionalHere ? { optional: true } : {}),
-      }));
+      inner?.map(o => {
+        const units = [
+          ...hereUnits,
+          ...(o.units ?? []).map(c => ({ depth: c.depth + 1, unit: c.unit })),
+        ];
+        return {
+          ...o,
+          rowPath: [entry.instance, ...o.rowPath],
+          ...(o.optional || optionalHere ? { optional: true } : {}),
+          ...(units.length > 0 ? { units } : {}),
+        };
+      });
 
     if (entry.kind === "table" && entry.table) {
       if (!entry.table.schema || !entry.table.columns.includes(colName)) return undefined;
@@ -2583,6 +2629,7 @@ class NullabilityEngine {
           table: entry.table.name,
           column: colName,
           ...(optionalHere ? { optional: true } : {}),
+          ...(hereUnits.length > 0 ? { units: hereUnits } : {}),
         },
       ];
     }
@@ -4079,12 +4126,27 @@ class NullabilityEngine {
         });
       }
     }
+    const catalogNotNull = this.catalog.resolveColumnNotNull(
+      goalOrigin.schema,
+      goalOrigin.table,
+      goalOrigin.column,
+    );
+    // A REQUIRED alternative with a catalog-NOT NULL goal is done outright:
+    // its row is present by construction and the value is that row's stored
+    // value. The flat boolean upstream cannot say this per-branch — a set
+    // operation's combined notNull collapses over branches, so an INNER
+    // branch's certainty must be recovered here, alternative by alternative
+    // (found by the widened generated axis: a refilter over a union could
+    // prove the optional branch and still fail on the required one).
+    if (!goalOrigin.optional && catalogNotNull) {
+      trace.addChild(`origin ${goalOrigin.schema}.${goalOrigin.table}.${goalOrigin.column}`)
+        .conclude(true, "required alternative + catalog NOT NULL → stored value non-null");
+      return true;
+    }
     // An OPTIONAL chain with a catalog-NOT NULL goal has a derivation even
     // with no CHECKs at all: evidence-proven presence settles it (the
     // presence-consumption closure — the kernel's short-circuit).
-    const goalCatalogNotNull =
-      goalOrigin.optional &&
-      this.catalog.resolveColumnNotNull(goalOrigin.schema, goalOrigin.table, goalOrigin.column);
+    const goalCatalogNotNull = goalOrigin.optional && catalogNotNull;
     if (checkExprs.length === 0 && generatedEqualities.length === 0 && !goalCatalogNotNull) {
       return false;
     }
@@ -4105,6 +4167,40 @@ class NullabilityEngine {
         continue;
       }
       rename.set(name, o.column);
+    }
+    // Cross-table presence certifiers (the unit-chain closure, found by the
+    // widened generated axis): a column whose origin COVERS the goal's
+    // crossings — same unit at the same depth under an equal rowPath
+    // prefix — certifies the goal's presence when pinned: extension is
+    // atomic per unit, and a child unit's presence implies every
+    // enclosing one's. Such columns join the rename map under
+    // collision-proof sentinel names, so the kernel's presence gate sees
+    // their pinned atoms while CHECK derivation never can (no CHECK
+    // mentions a sentinel) — cross-row facts must not masquerade as
+    // same-row evidence.
+    const goalUnits = goalOrigin.units ?? [];
+    if (goalOrigin.optional && goalUnits.length > 0) {
+      for (let i = 0; i < innerResults.length; i++) {
+        const name = outerNames[i] ?? innerResults[i]!.name;
+        const o = innerResults[i]!.origins?.[alternative];
+        if (!o || this.sameRowPath(o.rowPath, goalOrigin.rowPath)) continue;
+        if (dropped.has(name) || rename.has(name)) continue;
+        const covers = goalUnits.every(gc =>
+          (o.units ?? []).some(
+            oc =>
+              oc.unit === gc.unit &&
+              oc.depth === gc.depth &&
+              this.sameRowPath(
+                o.rowPath.slice(0, gc.depth),
+                goalOrigin.rowPath.slice(0, gc.depth),
+              ),
+          ),
+        );
+        if (!covers) continue;
+        // NUL cannot occur in a PostgreSQL identifier, so the sentinel
+        // can never collide with a real column name in any CHECK.
+        rename.set(name, `\u0000p${i}`);
+      }
     }
 
     const evidence = [

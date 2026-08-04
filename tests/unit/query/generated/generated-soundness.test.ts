@@ -96,6 +96,31 @@ function nullableWitnessCounts(): { witnessed: number; total: number } {
  * an unmatched row on its outer side somewhere.
  */
 const UNMATCHED_TOPUP = `
+-- A matched t–u pair whose u.val is NON-NULL: the refilter wrappers pin
+-- a_tc (u.val), and without this row every surviving row under them has t
+-- null-extended — the t-side unit's present arm would never execute.
+INSERT INTO u (id, t_id, email, val, status) VALUES (6, 1, 'u6@b.c', 'vv', 'active');
+-- An orphan gm row with a NON-NULL b: gives the gm structures' t-side unit
+-- its absent arm (a=77 matches no t), and survives the refilter (label =
+-- 'zz!' is non-null) so the arm is observable there too.
+INSERT INTO gm (a, b) VALUES (77, 'zz');
+-- The dual-purpose matched pair: t.4 has a NULL name, so a_ta's NULL
+-- survives the refilter through gm.4's non-null label — and gm.4's b is
+-- the NULLIF literal 'z', so safe_label = 'z' makes a_nif witnessable on
+-- gm structures at all (the gm analogue of u.4's email).
+INSERT INTO t (id, name, val, active) VALUES (4, NULL, 'q', true);
+INSERT INTO gm (a, b) VALUES (4, 'z');
+-- A v partner for the orphan u.3: under nested kinds like t RIGHT (u ⋈ v)
+-- or (t RIGHT u) ⋈ v, the t-absent arm can only survive a refilter through
+-- an orphan u whose val is non-null AND whose v partner exists — u.3
+-- ('w', t_id 99) had no v row until this one.
+INSERT INTO v (id, u_id, amount) VALUES (7, 3, 2.5);
+-- The fully-matched refilter survivor: t.1 ⟵ u.6 ('vv') ⟵ this v with a
+-- NULL amount. Inner-joined chains under the refilter admit no other row
+-- that could witness a_amt's NULL — every other u either fails the pin or
+-- lacks a v partner. (u.6/v.7/v.8 ids are chosen clear of the pre-existing
+-- u.5/v.6 pair below.)
+INSERT INTO v (id, u_id, amount) VALUES (8, 6, NULL);
 INSERT INTO t (id, name, val, active) VALUES (2, 'Bea', 'y', false);
 INSERT INTO u (id, t_id, email, val, status) VALUES (3, 99, 'u3@b.c', 'w', NULL);
 INSERT INTO v (id, u_id, amount) VALUES (3, 98, 1.5);
@@ -567,6 +592,10 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       arm: "absent" | "present";
       matches(axes: GeneratedQuery["axes"], group: GroupEvidence): boolean;
     }
+    // Empty since the unit-chain closure: the cross-unit-implication rule
+    // that lived here went stale the day origins learned to carry their
+    // crossing chains, and the staleness assertion forced its removal —
+    // the discipline working as designed.
     const GROUP_UNWITNESSABLE: GroupUnwitnessableRule[] = [];
     const matchedRules = new Set<string>();
     const unproven: string[] = [];
@@ -747,6 +776,35 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
 
   const UNWITNESSABLE: UnwitnessableRule[] = [
     {
+      label: "refilter-union-literal-branch",
+      why:
+        "the refilter pins a_tc, excluding every branch-1 row where u is " +
+        "NULL-extended (the only rows whose a_tb is NULL), and the literal " +
+        "second branch supplies a non-NULL constant while carrying no " +
+        "origins — a set operation's origins need BOTH branches to " +
+        "attribute, so presence consumption cannot upgrade the column and " +
+        "the sound nullable claim keeps an unreachable NULL.",
+      matches: (axes, column) =>
+        axes.wrapper.endsWith("-refilter") &&
+        (axes.setop === "union" || axes.setop === "union-all") &&
+        (column === "a_tb" || column === "a_int"),
+    },
+    {
+      label: "gm-generated-kernel-boundary",
+      why:
+        "the refilter leaves only gm-present rows, where safe_label and " +
+        "doubled are non-null BY THEIR GENERATION EXPRESSIONS — a fact the " +
+        "walk's generation dispatch proves in-scope but the origin " +
+        "entailment kernel cannot re-derive at a re-export or set-operation " +
+        "boundary: its atoms have no COALESCE and no arithmetic. Sound " +
+        "nullable claims whose NULL the refilter excludes; a recorded " +
+        "closure candidate (docs/deferred-tasks.md).",
+      matches: (axes, column) =>
+        axes.structure.startsWith("gm(") &&
+        axes.wrapper.endsWith("-refilter") &&
+        (column === "a_tb" || column === "a_dbl"),
+    },
+    {
       label: "case-needs-t-without-u",
       why:
         "a_case is NULL only on a row where t is present (active TRUE) and u " +
@@ -861,7 +919,11 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         `both arms observed, ` +
         `${count(r => r.groupViolations.length > 0)} falsified\n` +
         `  deep-join axis bound:       5 shapes × 4³ kinds, plain projection only ` +
-        `(setops/wrappers not crossed)`,
+        `(setops/wrappers not crossed)\n` +
+        `  widened-axis gates:         refilter wrappers skip tuples without a_tc and all ` +
+        `INTERSECT tuples (the pin/match row is NULL by design); union-full-var skips ` +
+        `laterals (no FULL form); gm structures skip INTERSECT (matchLiterals encode the ` +
+        `t–u row)`,
     );
     const nw = nullableWitnessCounts();
     console.log(

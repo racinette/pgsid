@@ -334,6 +334,19 @@ export interface ColumnOrigin {
    * pinned sibling certifies the row) — before any CHECK may speak.
    */
   optional?: boolean;
+  /**
+   * The null-extension units the chain crosses, one entry per optional
+   * slice: `depth` locates the scope (index into `rowPath`, 0 = the
+   * outermost reference; shared crossings sit at equal depths), `unit`
+   * is that scope's null-group id. Present exactly when `optional` is.
+   * Extension is ATOMIC per unit, so a column pinned non-null certifies
+   * presence for every origin whose crossings it COVERS — same unit at
+   * the same depth under an equal rowPath prefix — which is how a pinned
+   * u.val proves a sibling t.id present across tables (same unit) and
+   * across nesting (a child unit's presence implies every enclosing
+   * unit's).
+   */
+  units?: { depth: number; unit: number }[];
 }
 
 export interface OutputNullability {

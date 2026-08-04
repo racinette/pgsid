@@ -143,6 +143,40 @@ defects, that is the point at which a general randomised generator becomes worth
 its cost — and by then there will be evidence about which constructs deserve the
 effort.
 
+### The presence-group widening (2026-08-04)
+
+Wave 13 defined four axes the grammar could not previously produce, added
+after the wave's closures to put them under generation (~6.1k → ~9k
+queries):
+
+- **Refilter wrappers** (`cte-refilter`, `subquery-refilter`): the wrapper
+  adds `WHERE <alias>.a_tc IS NOT NULL` — one predicate exercising pinned
+  promotion, the lifted dead rule, and presence consumption together.
+  Gated to tuples projecting `a_tc`, and off INTERSECT tuples (the match
+  row's `a_tc` is NULL by design, so the cross could never return a row);
+  the suite report prints every gate.
+- **`union-full-var`**: the second branch is the same projection over the
+  structure's all-FULL variant — real groups on BOTH sides, so UNION
+  group agreement and subset intersection run under generation. Laterals
+  have no FULL form and skip it.
+- **`dup-names` projection**: every target aliased to one name, required
+  and optional interleaved; wrappers star-expand (the only legal
+  re-export of an ambiguous column), sweeping positional resolution.
+- **`gm` structures**: t joined to the generated-columns table, putting
+  presumePresent-through-generation under the oracle across join kinds.
+  INTERSECT is gated off (the projections' matchLiterals encode the t–u
+  row).
+
+The widening earned its keep on arrival: its two-arm witness bar exposed
+the cross-unit presence-implication imprecision (closed the same session
+— origins now carry unit-crossing chains) and the per-branch
+required-alternative gap in origin entailment (closed likewise), and left
+two honest rules where closure is refused or deferred:
+`refilter-union-literal-branch` (a literal branch carries no origins, so
+set-operation origins refuse by design) and
+`gm-generated-kernel-boundary` (the entailment kernel's atoms cannot
+re-derive a generation expression — a recorded closure candidate).
+
 ### Validity is the generator's responsibility
 
 A generated query PostgreSQL rejects is a generator defect, not a finding.

@@ -286,8 +286,9 @@ pre-existing fixtures on its first run), per-row falsification across the
 five data states, and a two-arm witness whose absent-arm exemption is
 derived from the discriminants' own `@unwitnessable` annotations — 29
 groups across 24 fixtures. The generated corpus runs the same per-row
-oracle annotation-free over its 6142 queries: 684 groups, all arms
-observed, zero falsifications.
+oracle annotation-free over its ~9k queries (the presence-group widening:
+refilter wrappers, varied-branch unions, duplicate names, generated
+columns): 1490 groups, all arms observed, zero falsifications.
 
 **Emission** — factored, mirroring the parameter decision: flat row type ∩
 one local union per group. Measured 2026-08-04, tsc 5.9.3 `--strict`, all

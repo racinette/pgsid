@@ -509,6 +509,41 @@ function joinStructures(): JoinStructure[] {
     expectations: [expectLateral, expectJoins("JOIN_LEFT")],
   });
 
+  // The generated-columns structure: gm's text slots are GENERATED columns
+  // (safe_label = COALESCE(b,'anon'), label = b||'!'), so every projection
+  // and wrapper puts presumePresent-through-generation under the oracle —
+  // safe_label and doubled discriminate their unit only because the
+  // presumption reaches the generation expressions' sibling refs. sparse
+  // matches t.1↔gm(a=1); the unmatched top-up's t.3 misses gm entirely,
+  // witnessing the absent arm under outer kinds. INTERSECT is not crossed
+  // (the projections' matchLiterals encode the t–u row); the report's
+  // axis notes record the cap.
+  const gmSlots: Slots = {
+    intKey: colRef("t", "id"),
+    boolCol: colRef("t", "active"),
+    textA: colRef("t", "name"),
+    textB: colRef("gm", "safe_label"),
+    textC: colRef("gm", "label"),
+  };
+  for (const k of JOIN_KINDS) {
+    out.push({
+      key: `gm(${kindLabel(k)})`,
+      fromClause: [
+        join(k, rangeVar("t"), rangeVar("gm"), eq(colRef("gm", "a"), colRef("t", "id"))),
+      ],
+      slots: gmSlots,
+      extras: [
+        {
+          expr: colRef("gm", "doubled"),
+          alias: "a_dbl",
+          literal: intConst(7),
+          matchLiteral: intConst(2),
+        },
+      ],
+      expectations: [expectJoins(k)],
+    });
+  }
+
   return out;
 }
 
@@ -549,6 +584,31 @@ interface Projection {
 }
 
 const PROJECTIONS: Projection[] = [
+  {
+    // Every target under ONE name, required and optional interleaved — the
+    // duplicate-name class the misattribution audit exposed, now generated:
+    // wrappers must star-expand (the only legal re-export) and every
+    // consumer must resolve positionally. Nullabilities alternate by
+    // construction (t.id N, u.email optional-disc, t.name n, u.val member),
+    // so a first-name-match regression flips a visible claim somewhere in
+    // the cross-product.
+    key: "dup-names",
+    build: s => ({
+      targets: [
+        target(s.slots.intKey, "c"),
+        target(s.slots.textB, "c"),
+        target(s.slots.textA, "c"),
+        target(s.slots.textC, "c"),
+        ...s.extras.map(e => target(e.expr, "c")),
+      ],
+      colNames: ["c", "c", "c", "c", ...s.extras.map(() => "c")],
+      literals: [intConst(1), textConst("a"), textConst("b"), textConst("c"),
+        ...s.extras.map(e => e.literal)],
+      matchLiterals: [intConst(1), textConst("u1@b.c"), nullConst(), nullConst(),
+        ...s.extras.map(e => e.matchLiteral)],
+    }),
+    expectations: [],
+  },
   {
     key: "plain",
     build: s => ({
@@ -797,18 +857,45 @@ const SET_OPS: SetOp[] = [
   { key: "none", op: null, all: false },
   { key: "union", op: "SETOP_UNION", all: false },
   { key: "union-all", op: "SETOP_UNION", all: true },
+  // The second branch is the same projection over the structure's all-FULL
+  // variant — real groups on BOTH sides, so UNION group agreement and the
+  // pairwise member intersection run under generation instead of only in
+  // fixtures. UNION ALL keeps every branch's rows for arm witnessing.
+  { key: "union-full-var", op: "SETOP_UNION", all: true },
   { key: "intersect", op: "SETOP_INTERSECT", all: false },
   { key: "except", op: "SETOP_EXCEPT", all: false },
 ];
 
 // --- Axis 5: wrapper -------------------------------------------------------
 
-type WrapperKey = "none" | "cte" | "subquery";
-const WRAPPERS: WrapperKey[] = ["none", "cte", "subquery"];
+type WrapperKey = "none" | "cte" | "subquery" | "cte-refilter" | "subquery-refilter";
+const WRAPPERS: WrapperKey[] = ["none", "cte", "subquery", "cte-refilter", "subquery-refilter"];
 
+/**
+ * The refilter wrappers pin `a_tc` — the projection of the optional side's
+ * NULLABLE column (u.val / lsub.lval) — with an outer IS NOT NULL. One
+ * predicate exercises three closures at once: promotion of the pinned
+ * column, the lifted dead rule (the optional unit's group must not survive
+ * the refilter), and presence consumption (the pinned column proves the
+ * base row present, upgrading its catalog-NOT NULL sibling `a_tb` with no
+ * CHECK involved). Crossed only with tuples whose colNames carry `a_tc` —
+ * the enumeration gates the rest; the report's axis notes record the cap.
+ *
+ * Duplicate-named columns can only be re-exported by star — an explicit
+ * reference to one is ambiguous and PostgreSQL rejects it — so wrappers
+ * star-expand whenever colNames collide, which is also the shape the
+ * positional-resolution fix exists for.
+ */
 function wrap(wrapper: WrapperKey, core: Ast, colNames: string[]): Ast {
   if (wrapper === "none") return { SelectStmt: core };
-  if (wrapper === "cte") {
+  const refilter = wrapper === "cte-refilter" || wrapper === "subquery-refilter";
+  const outerAlias = wrapper.startsWith("cte") ? "q" : "s";
+  const dupNames = new Set(colNames).size !== colNames.length;
+  const outerTargets = dupNames
+    ? [target({ ColumnRef: { fields: [{ String: { sval: outerAlias } }, { A_Star: {} }] } })]
+    : colNames.map(n => target(colRef(outerAlias, n)));
+  const outerWhere = refilter ? { whereClause: isNotNull(colRef(outerAlias, "a_tc")) } : {};
+  if (outerAlias === "q") {
     return {
       SelectStmt: bareSelect({
         withClause: {
@@ -823,36 +910,40 @@ function wrap(wrapper: WrapperKey, core: Ast, colNames: string[]): Ast {
           ],
           recursive: false,
         },
-        targetList: colNames.map(n => target(colRef("q", n))),
+        targetList: outerTargets,
         fromClause: [rangeVar("q")],
+        ...outerWhere,
       }),
     };
   }
   return {
     SelectStmt: bareSelect({
-      targetList: colNames.map(n => target(colRef("s", n))),
+      targetList: outerTargets,
       fromClause: [
         { RangeSubselect: { subquery: { SelectStmt: core }, alias: { aliasname: "s" } } },
       ],
+      ...outerWhere,
     }),
   };
 }
 
+const expectPlainSubquery: Expectation = {
+  label: "subquery in FROM",
+  present: root => {
+    for (const n of walk(root)) {
+      const sub = (n as { RangeSubselect?: { lateral?: boolean } }).RangeSubselect;
+      if (sub && sub.lateral !== true) return true;
+    }
+    return false;
+  },
+};
+
 const WRAPPER_EXPECTATIONS: Record<WrapperKey, Expectation[]> = {
   none: [],
   cte: [expect("CTE", "CommonTableExpr")],
-  subquery: [
-    {
-      label: "subquery in FROM",
-      present: root => {
-        for (const n of walk(root)) {
-          const sub = (n as { RangeSubselect?: { lateral?: boolean } }).RangeSubselect;
-          if (sub && sub.lateral !== true) return true;
-        }
-        return false;
-      },
-    },
-  ],
+  "cte-refilter": [expect("CTE", "CommonTableExpr"), expect("refilter IS NOT NULL", "NullTest")],
+  "subquery-refilter": [expectPlainSubquery, expect("refilter IS NOT NULL", "NullTest")],
+  subquery: [expectPlainSubquery],
 };
 
 // --- The enumeration -------------------------------------------------------
@@ -1654,6 +1745,14 @@ export function generateParamPlacementQueries(): GeneratedQuery[] {
     expectations: Expectation[],
   ): void => {
     for (const wrapper of WRAPPERS) {
+      // The refilter wrappers pin `a_tc`; these placements do not project
+      // it, so the cross is skipped exactly as in generateQueries.
+      if (
+        (wrapper === "cte-refilter" || wrapper === "subquery-refilter") &&
+        !colNames.includes("a_tc")
+      ) {
+        continue;
+      }
       out.push({
         id: `s=${structure}|p=${projection}|o=${setop}|w=${wrapper}`,
         axes: { structure, projection, setop, wrapper },
@@ -1902,7 +2001,22 @@ export function generateParamPlacementQueries(): GeneratedQuery[] {
 
 export function generateQueries(): GeneratedQuery[] {
   const out: GeneratedQuery[] = [];
-  for (const structure of joinStructures()) {
+  const structures = joinStructures();
+  // The union-full-var branch: the SAME structure key with every join kind
+  // flipped to FULL — richest group set on the right, so the pairwise
+  // member-intersection of UNION group agreement runs with genuinely
+  // DIFFERING branch groups across the whole axis. Laterals have no FULL
+  // form and skip the setop (recorded in the axis notes, not silent).
+  const fullVariants = new Map<string, JoinStructure>();
+  for (const s of structures) {
+    const fullKey = s.key
+      .replace(/\((inner|left|right|full)/, "(full")
+      .replace(/,(inner|left|right|full)\)/, ",full)");
+    const variant = structures.find(v => v.key === fullKey);
+    if (variant && variant !== s) fullVariants.set(s.key, variant);
+    else if (variant === s && s.key.includes("full")) fullVariants.set(s.key, s);
+  }
+  for (const structure of structures) {
     for (const projection of PROJECTIONS) {
       const built = projection.build(structure);
       const core: Ast = bareSelect({
@@ -1913,31 +2027,78 @@ export function generateQueries(): GeneratedQuery[] {
       });
 
       for (const setop of SET_OPS) {
-        const branch = setop.key === "intersect" ? built.matchLiterals : built.literals;
+        // The projections' matchLiterals encode sparse's t–u row; gm
+        // structures would intersect to empty everywhere and assert
+        // nothing. Gated, recorded in the axis notes.
+        if (setop.key === "intersect" && structure.key.startsWith("gm(")) continue;
+        // union-full-var needs a real second branch; skip tuples with no
+        // FULL variant (laterals) — the report's axis notes carry the cap.
+        let rarg: Ast | null = null;
+        if (setop.key === "union-full-var") {
+          const variant = fullVariants.get(structure.key);
+          if (!variant) continue;
+          const vBuilt = projection.build(variant);
+          rarg = bareSelect({
+            targetList: vBuilt.targets,
+            fromClause: variant.fromClause,
+            ...(vBuilt.where ? { whereClause: vBuilt.where } : {}),
+            ...(vBuilt.groupBy ? { groupClause: vBuilt.groupBy } : {}),
+          });
+        } else if (setop.op) {
+          const branch = setop.key === "intersect" ? built.matchLiterals : built.literals;
+          rarg = bareSelect({ targetList: branch.map(l => target(l)) });
+        }
         const combined: Ast = setop.op
           ? {
               op: setop.op,
               all: setop.all || undefined,
               larg: core,
-              rarg: bareSelect({ targetList: branch.map(l => target(l)) }),
+              rarg: rarg!,
               limitOption: "LIMIT_OPTION_DEFAULT",
             }
           : core;
 
         for (const wrapper of WRAPPERS) {
+          // The refilter wrappers pin `a_tc`; a tuple that does not project
+          // it has nothing to pin — and an INTERSECT tuple's only possible
+          // row is the matchLiterals row, whose a_tc is NULL by design, so
+          // refilter × intersect can never return a row and would assert
+          // nothing. Both gated, noted in the report's axis notes.
+          if (
+            (wrapper === "cte-refilter" || wrapper === "subquery-refilter") &&
+            (!built.colNames.includes("a_tc") || setop.key === "intersect")
+          ) {
+            continue;
+          }
           const axes: AxisTuple = {
             structure: structure.key,
             projection: projection.key,
             setop: setop.key,
             wrapper,
           };
+          // expectJoins matches the WHOLE tree's join-kind multiset, so a
+          // union-full-var tuple expects both branches' kinds together.
+          const kindsOf = (key: string): string[] => {
+            const m = /\((\w+)(?:,(\w+))?\)/.exec(key);
+            if (!m) return [];
+            return [m[1]!, ...(m[2] ? [m[2]] : [])].map(k => `JOIN_${k.toUpperCase()}`);
+          };
+          const structureExpectations =
+            setop.key === "union-full-var"
+              ? [
+                  expectJoins(
+                    ...kindsOf(structure.key),
+                    ...kindsOf(fullVariants.get(structure.key)!.key),
+                  ),
+                ]
+              : structure.expectations;
           out.push({
             id: `s=${axes.structure}|p=${axes.projection}|o=${axes.setop}|w=${axes.wrapper}`,
             axes,
             ast: wrap(wrapper, combined, built.colNames),
             params: built.params ?? [],
             expectations: [
-              ...structure.expectations,
+              ...structureExpectations,
               ...projection.expectations,
               ...(setop.op ? [expectSetOp(setop.op, setop.all)] : []),
               ...WRAPPER_EXPECTATIONS[wrapper],
