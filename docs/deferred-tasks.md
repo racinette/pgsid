@@ -80,26 +80,29 @@ It is the "finding the defects nobody thought to look for" line above,
 made executable; its findings doc folds back into this register during
 the fix phase that follows it.
 
-**The sweep RAN (2026-08-04) and `docs/adversarial-findings.md` is its
-report — read it before the consumer build.** 246 probes, fifteen
-findings: nine rank-1 `notNull` unsoundnesses, five rank-2 shape defects
-(two of which also falsify a flag), one rank-3 param-contract defect;
-zero parity breaks and zero crashes.
-Eight root causes, each with a fix sketch, its blast radius, and a
-recommended order; the negative results (which mechanisms held, under
-what shapes) are section 4 and are the larger half of the document. The
-quarantine fixtures carrying the currently-wrong claims are
-`tests/unit/query/fixtures-adversarial/`, with the DDL they need beside
-them — deliberately outside the suites' glob, so the suite is green
-throughout. **Nothing was fixed.** The fix phase is next, and it folds
-those findings into section 2's table as it closes them. One item to
-pull forward regardless: the arity gate (section 1) guards exactly the
-five shape findings, but only if it compares ORDER as well as length —
-finding 10 is six columns against six, permuted — and it belongs at the
-first slice holding a contract and a PREPARE result together, which is
-BEFORE the emitter. The findings doc's "gate at the consumer boundary"
-subsection has the argument and the two constraints the name comparison
-inherits from the Decided-against entries.
+**The sweep RAN (2026-08-04) and its FIX PHASE is COMPLETE
+(2026-08-04/05).** 246 probes, fifteen findings: nine rank-1 `notNull`
+unsoundnesses, five rank-2 shape defects (two of which also falsify a
+flag), one rank-3 param-contract defect; zero parity breaks and zero
+crashes. Eight root causes, each fixed in its own commit in the report's
+recommended order — soundness first, cheapest first, the widest-radius
+strictness/INITCOND/builtin-totality fix last, dry-run against the
+generated corpus before landing. Every quarantine fixture graduated into
+`tests/unit/query/fixtures/` with corrected claims and witnesses, the
+adversarial DDL folded into the fixture schema, the two new refusal
+classes (DO INSTEAD rules, unresolvable relations, `(expr).*` over an
+unresolvable composite) pinned in `unsupported-nodes.test.ts`, and the
+quarantine directory retired empty. The per-fix closure entries — with
+what each measured and what it deliberately costs — are at the top of
+section 2; the findings doc stands as the sweep's report with a status
+header. What remains from the sweep is one scheduled item: the
+arity-and-order gate (section 1, amended — ORDER as well as length,
+before the emitter slice), which now blocks nothing and belongs to the
+consumer build's first contract-holding slice.
+
+With the fix phase closed, the engine work is done as far as hand-written
+and generated verification can carry it, and **the consumer build is
+next** — the slice plan is `docs/consumer-design.md`, as above.
 
 The semantic re-founding (section 5) is a standing parallel track; its
 executable target list emptied when Wave 12 closed the origin
@@ -157,14 +160,21 @@ corpora surface.
 
 ---
 
-## 1. Arity gate at the consumer boundary
+## 1. Arity-and-order gate at the consumer boundary
 
 **What.** Nullability is a positional array meant to be zipped against
 PostgreSQL's `RowDescription` — the contract is documented on
 `OutputNullability` in `src/query/types.ts`. Nothing enforces that the two
-lists agree in length before they are zipped.
+lists agree before they are zipped — and the comparison must be the ordered
+NAME list, not length alone: the sweep's finding 10 was six columns against
+six, permuted (MERGE `RETURNING *`), which arity cannot see. The
+constraints on the name comparison are in the findings doc's "gate at the
+consumer boundary" subsection: it VERIFIES a positional join (never joins
+by name — names are not unique), and it degrades to arity-only at
+positions where the engine reports an empty name (`FigureColname` stays
+unimplemented by decision).
 
-**Why it matters.** A length mismatch misassigns every flag past the point of
+**Why it matters.** A mismatch misassigns every flag past the point of
 divergence, and does so while looking authoritative. The check is a single
 comparison, and the consumer necessarily holds both lists: it runs `PREPARE`
 for types anyway. On mismatch the safe response is to treat every column as
@@ -174,8 +184,12 @@ nullable and report loudly.
 calls `inferNullability` yet. The engine cannot self-verify — it has no
 PostgreSQL.
 
-**Trigger.** Write it together with the first consumer, not retrofitted
-afterwards. Scheduled: the emitter slice (`docs/consumer-design.md`).
+**Trigger.** Write it with the FIRST slice that holds a contract and a
+PREPARE result at the same time — BEFORE the emitter slice, not with it
+(`docs/consumer-design.md`): every slice between would otherwise build on a
+failure mode that is silent by construction. Permanent, not transitional —
+the sweep found five shape defects in one sitting and the engine will keep
+growing.
 
 ---
 
@@ -868,6 +882,9 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
 | CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); and consumption of origins is gated as designed: an unfilterable OPTIONAL chain (`check-origin-presence-unproven.sql`) and a non-key grouped column each keep their columns dark. (An unattributable set-operation BRANCH no longer voids its column — it contributes a NULL slot whose alternative is settled by the branch's own flat verdict, the 2026-08-04 slot closure) |
 | Presence groups | none recorded | every launch residue and post-launch conservatism closed 2026-08-04 (re-export propagation, setop groups, generation-expression discriminants, presence consumption of catalog notNull incl. cross-unit implication via unit chains, UNION subset matching, recursive-CTE groups — the Wave 13 closure entry is the history); future entries come from consumer corpora |
+| Base-table alias column list | ignored — sound | adversarial section 5: `FROM t AS z(p, o, r, s)` renames positionally for subqueries, VALUES and table functions, not for a RangeVar. References through the new names fail to resolve (nullable), and `SELECT *` emits the CATALOG names where PostgreSQL emits the alias names — positionally correct flags, so diagnostic only, but the soundness suite's name comparison would flag a fixture using it, and the same code path already renames three other ways |
+| NOT NULL domain column at a REQUIRED entry | nullable — sound | adversarial section 5: `attnotnull` stays false for a domain-constrained column, yet the domain rejects every write, so a required entry's value cannot be NULL. `isNotNullDomain` + `resolveColumnTypeOid` are both already in the catalog interface; closing would also admit such columns as natural presence-group discriminants |
+| Boolean literals in CHECK expressions | not atoms — sound | adversarial section 5: `CHECK (false OR x IS NOT NULL)` is stored verbatim (measured — no constant folding), and the kernel does not read the `false` disjunct as FALSE, so the survivor never gets notFALSE. Squarely inside the propositional charter's atom gates; cheap to close if ever worth it |
 | Generation expressions at origin-entailment boundaries | CLOSED 2026-08-04 | the closure candidate was built as prescribed: `storedRowNotNull` dispatches the generation expression through the walk in a synthetic single-table scope and feeds the kernel's given-present short-circuit; the rule that pinned the witness consequence went stale and was deleted (`check-origin-generated-boundary.sql` is the pin) |
 
 ---
