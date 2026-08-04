@@ -71,6 +71,15 @@ The six pre-implementation questions were answered 2026-08-04;
 artifact, config, migrations, diagnostics, slices). They are not repeated
 here.
 
+Before the build starts, one final engine step: the ADVERSARIAL SWEEP —
+`docs/adversarial-sweep.md` is a self-contained handoff for a graybox
+attacker that probes every claim kind for unsoundness (find-don't-fix,
+diversify by mechanism, synthesize at the end into
+`docs/adversarial-findings.md` with root causes and proposed fixes).
+It is the "finding the defects nobody thought to look for" line above,
+made executable; its findings doc folds back into this register during
+the fix phase that follows it.
+
 The semantic re-founding (section 5) is a standing parallel track; its
 executable target list emptied when Wave 12 closed the origin
 extensions, so its next candidates come from whatever the consumer's
