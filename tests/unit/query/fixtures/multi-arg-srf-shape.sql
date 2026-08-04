@@ -1,0 +1,12 @@
+-- Multi-argument unnest is a special form: `unnest(a, b)` in FROM expands
+-- to one column PER ARRAY ARGUMENT, zip-style with NULL padding (measured —
+-- the same per-item rule holds inside ROWS FROM). The engine once pushed
+-- one column total for the unknown name, and the off-by-one handed WITH
+-- ORDINALITY's always-present counter to the previous position — a shape
+-- defect that was simultaneously a wrong flag. Both value columns witness:
+-- s by its element NULL, n by the zip's padding on the third row; the
+-- ordinality counter never nulls.
+SELECT * FROM unnest(ARRAY[1,2], ARRAY['a', NULL, 'c']) WITH ORDINALITY AS z(n, s, o)
+-- @nullable   (n: padded past its array's end)
+-- @nullable   (s: carries an element NULL)
+-- @notNull    (o: the ordinality counter)

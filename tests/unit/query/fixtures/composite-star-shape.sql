@@ -1,0 +1,19 @@
+-- `(expr).*` in the target list is an expansion in disguise: PostgreSQL
+-- emits one column per field of the expression's composite type, and the
+-- engine once treated the A_Indirection at the expression site — one
+-- entry, one column, four columns short. The FuncCall arm resolves the
+-- declared return type's field list, with EVERY field forced nullable: a
+-- NULL composite expands to a NULL in every field, domain types included
+-- (measured), so nothing survives this position.
+-- @unwitnessable 0: a row type carries no constraints, but the fields are
+-- real order_items rows and PostgreSQL never emits NULL in them.
+-- @unwitnessable 1: same — real rows of a NOT NULL column.
+-- @unwitnessable 2: same.
+-- @unwitnessable 3: same.
+-- @unwitnessable 4: same.
+SELECT (get_order_items(1)).* FROM t
+-- @nullable   (id)
+-- @nullable   (order_id)
+-- @nullable   (product_id)
+-- @nullable   (quantity)
+-- @nullable   (unit_price)

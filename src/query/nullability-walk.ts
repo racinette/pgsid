@@ -167,7 +167,7 @@ export type UnhandledNodeObserver = (
  */
 export class UnsupportedNodeError extends Error {
   constructor(
-    readonly site: "from-item" | "statement",
+    readonly site: "from-item" | "statement" | "composite-star",
     readonly nodeType: string,
   ) {
     super(
@@ -985,6 +985,14 @@ class NullabilityEngine {
             for (const e of expanded) results.push({ ...e });
             continue;
           }
+          const compositeStar = this.expandCompositeStar(val, scope, depth);
+          if (compositeStar) {
+            for (const e of compositeStar) {
+              results.push({ ...e });
+              producers.push(null);
+            }
+            continue;
+          }
           const trace = this.newTrace("Root");
           const notNull = this.walkExprTraced(val, scope, depth + 1, trace);
           producers.push(this.originTarget(val, sel, scope, originMode));
@@ -1071,6 +1079,14 @@ class NullabilityEngine {
       if (this.isStarColumn(val)) {
         const expanded = this.expandStar(val, scope, depth, false, producers);
         for (const e of expanded) results.push({ ...e });
+        continue;
+      }
+      const compositeStar = this.expandCompositeStar(val, scope, depth);
+      if (compositeStar) {
+        for (const e of compositeStar) {
+          results.push({ ...e });
+          producers.push(null);
+        }
         continue;
       }
       const trace = this.newTrace("Root (RETURNING)");
@@ -1170,6 +1186,18 @@ class NullabilityEngine {
         if (originMode !== "all") for (const _ of expanded) producers.push(null);
         for (const e of expanded) {
           results.push(e);
+        }
+        continue;
+      }
+
+      // `(expr).*` — a composite expansion in target-list position, one
+      // column per field. A transforming expression, so no origins and no
+      // producers.
+      const compositeStar = this.expandCompositeStar(val, scope, depth);
+      if (compositeStar) {
+        for (const e of compositeStar) {
+          results.push(e);
+          producers.push(null);
         }
         continue;
       }
@@ -2281,6 +2309,14 @@ class NullabilityEngine {
         for (const e of expanded) results.push(e);
         continue;
       }
+      const compositeStar = this.expandCompositeStar(val, scope, depth);
+      if (compositeStar) {
+        for (const e of compositeStar) {
+          results.push(e);
+          producers.push(null);
+        }
+        continue;
+      }
       // RETURNING rows ARE stored rows (Wave 12): the NEW row an
       // INSERT/UPDATE wrote, the OLD row a DELETE removed — every one
       // CHECK-satisfying at the moment it was stored — so bare column
@@ -2571,6 +2607,64 @@ class NullabilityEngine {
       return (cr.fields ?? []).some(f => "A_Star" in (f as Record<string, unknown>));
     }
     return false;
+  }
+
+  /**
+   * `(expr).*` — an A_Indirection whose LAST field is A_Star — is a
+   * target-list EXPANSION in disguise: PostgreSQL emits one column per
+   * field of the expression's composite type, so treating it at the
+   * expression site (one entry, one column) corrupts the list. Returns null
+   * when `val` is not this shape. Two arg shapes resolve:
+   *
+   *   - `(t).*`, a bare reference to a relation in scope — the whole-row
+   *     spelling of `t.*`, routed through expandStar (measured identical);
+   *   - a FuncCall with single-candidate metadata — the declared return
+   *     type's field list via columnsForReturnType, with EVERY field forced
+   *     nullable: a NULL composite expands to a NULL in every field, domain
+   *     types included (measured — `(NULL::ct).*` yields NULL in an nn_text
+   *     field), so not even a domain's NOT NULL survives this position.
+   *
+   * Anything else refuses: the field count is unknowable, and a wrong
+   * column list is worse than no answer — the dispatch-site rule.
+   */
+  private expandCompositeStar(
+    val: Node,
+    scope: Scope,
+    depth: number,
+  ): OutputNullability[] | null {
+    const ai = (val as Record<string, unknown>)["A_Indirection"] as
+      | { arg?: Node; indirection?: Node[] }
+      | undefined;
+    if (!ai) return null;
+    const parts = ai.indirection ?? [];
+    const last = parts[parts.length - 1];
+    if (!last || !("A_Star" in (last as Record<string, unknown>))) return null;
+
+    const argNode = ai.arg as Record<string, unknown> | undefined;
+    if (argNode && parts.length === 1) {
+      const cr = argNode["ColumnRef"] as ColumnRef | undefined;
+      if (cr) {
+        const crParts = (cr.fields ?? []).map(f => this.stringVal(f));
+        if (crParts.length === 1 && this.resolveAlias(crParts[0]!, scope)) {
+          const synth = {
+            ColumnRef: { fields: [{ String: { sval: crParts[0]! } }, { A_Star: {} }] },
+          } as unknown as Node;
+          return this.expandStar(synth, scope, depth);
+        }
+      }
+      const fc = argNode["FuncCall"] as FuncCall | undefined;
+      if (fc) {
+        const name = this.funcName(fc);
+        const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
+        if (meta) {
+          return this.columnsForReturnType(meta.returnType, name).map(c => ({
+            name: c.name,
+            notNull: false,
+          }));
+        }
+      }
+    }
+    throw new UnsupportedNodeError("composite-star", this.nodeTag(argNode ?? {}));
   }
 
   private expandStar(
@@ -2892,11 +2986,29 @@ class NullabilityEngine {
     const single = (rf?.functions?.length ?? 0) === 1 && !rf?.is_rowsfrom;
 
     for (const fnItem of rf?.functions ?? []) {
-      // Each entry is a List whose first item is the FuncCall.
+      // Each entry is a List whose first item is the FuncCall and whose
+      // second, when present, is the item's column definition list (the
+      // ROWS FROM spelling; the lone-function spelling parks it on the
+      // RangeFunction itself — both measured).
       const list = (fnItem as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
       const callNode = list?.items?.[0] as Record<string, unknown> | undefined;
       const fc = callNode?.["FuncCall"] as FuncCall | undefined;
       if (!fc) continue;
+
+      // A column definition list (`AS z(a integer, b text)`) is what makes a
+      // record-returning call legal at all, and it fully determines the
+      // item's shape: the ColumnDefs' names, one column each, every one
+      // nullable — a record's fields carry no constraints.
+      const coldeflist =
+        (list?.items?.[1] as { List?: { items?: Node[] } } | undefined)?.List?.items ??
+        (single ? rf?.coldeflist : undefined);
+      if (coldeflist?.length) {
+        for (const cd of coldeflist) {
+          const colname = (cd as { ColumnDef?: { colname?: string } }).ColumnDef?.colname;
+          if (colname) cols.push({ name: colname, notNull: false });
+        }
+        continue;
+      }
 
       const name = this.funcName(fc);
       // A function returning a scalar contributes one column, and PostgreSQL
@@ -2905,6 +3017,17 @@ class NullabilityEngine {
       const scalarName = single && entry.alias ? entry.alias : name;
       const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
       if (!meta) {
+        // Multi-argument `unnest` is a special form: it expands to one
+        // column PER ARRAY ARGUMENT, zip-style with NULL padding, keeping
+        // the function's name rather than taking a scalar alias — measured,
+        // and measured the same as a ROWS FROM item. Every column is
+        // nullable: the zip pads the short arrays, and elements carry no
+        // constraints. A user-defined unnest arrives with metadata and
+        // takes the declared-return-type path below instead.
+        if (name === "unnest" && (fc.args?.length ?? 0) > 1) {
+          for (const _ of fc.args!) cols.push({ name: "unnest", notNull: false });
+          continue;
+        }
         // Unknown function (e.g. a pg_catalog SRF like generate_series): a
         // single column, conservatively nullable.
         cols.push({ name: scalarName, notNull: false });
@@ -5881,6 +6004,11 @@ class NullabilityEngine {
         for (const e of expanded) results.push(e);
         continue;
       }
+      const compositeStar = this.expandCompositeStar(val, scope, depth);
+      if (compositeStar) {
+        for (const e of compositeStar) results.push(e);
+        continue;
+      }
       const notNull = this.walkExpr(val, scope, depth + 1);
       results.push({ name: name ?? this.inferName(val), notNull });
     }
@@ -6410,6 +6538,8 @@ interface RangeFunction {
   ordinality?: boolean;
   /** `ROWS FROM (f(), g())` — several functions side by side. */
   is_rowsfrom?: boolean;
+  /** Lone-function column definition list (`AS z(a integer, b text)`). */
+  coldeflist?: Node[];
 }
 
 interface SelectStmt {

@@ -147,6 +147,19 @@ describe("unsupported nodes are refused, not guessed", () => {
     ]);
   });
 
+  // --- (expr).* over an unresolvable composite -----------------------------
+
+  // A target-list expansion whose field count is unknowable: emitting one
+  // column (or a guess) would corrupt the list, so it refuses like a FROM
+  // item. The resolvable arms — a relation reference, a function with
+  // single-candidate metadata — expand instead (fixture-covered).
+  it("refuses (expr).* when the composite cannot be resolved", async () => {
+    await expect(infer("SELECT (ROW(1, 2)).* FROM t")).rejects.toMatchObject({
+      name: "UnsupportedNodeError",
+      site: "composite-star",
+    });
+  });
+
   // --- FROM items ---------------------------------------------------------
 
   it("refuses an unknown FROM item", async () => {
