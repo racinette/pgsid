@@ -4533,7 +4533,7 @@ class NullabilityEngine {
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
     ]) {
-      if (this.whereImpliesNotNull(pred, alias, colName)) return true;
+      if (this.whereImpliesNotNull(pred, alias, colName, scope)) return true;
     }
     return false;
   }
@@ -4574,8 +4574,8 @@ class NullabilityEngine {
     for (const g of this.guards) {
       if (g.scope !== scope) continue;
       const implies = g.taken
-        ? this.whereImpliesNotNull(g.predicate, alias, colName)
-        : this.falsityImpliesNotNull(g.predicate, alias, colName);
+        ? this.whereImpliesNotNull(g.predicate, alias, colName, scope)
+        : this.falsityImpliesNotNull(g.predicate, alias, colName, scope);
       if (implies) return true;
     }
     return false;
@@ -4611,7 +4611,12 @@ class NullabilityEngine {
    * `A AND B` is deliberately absent: an AND that is not TRUE tells us only
    * that *some* conjunct failed, not which.
    */
-  private falsityImpliesNotNull(predicate: Node, alias: string, colName: string): boolean {
+  private falsityImpliesNotNull(
+    predicate: Node,
+    alias: string,
+    colName: string,
+    scope: Scope,
+  ): boolean {
     const node = predicate as Record<string, unknown>;
 
     if ("NullTest" in node) {
@@ -4620,7 +4625,7 @@ class NullabilityEngine {
         // `expr IS NULL` being FALSE means expr is non-null; if expr is NULL
         // whenever the column is, the contrapositive gives the column.
         return this.exprStrictlyForces(nt.arg, leaf =>
-          this.columnMatches(leaf, alias, colName),
+          this.columnMatches(leaf, alias, colName, scope),
         );
       }
       return false;
@@ -4630,7 +4635,7 @@ class NullabilityEngine {
       const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
       if (be.boolop === "OR_EXPR") {
         for (const arg of be.args ?? []) {
-          if (this.falsityImpliesNotNull(arg, alias, colName)) return true;
+          if (this.falsityImpliesNotNull(arg, alias, colName, scope)) return true;
         }
       }
       return false;
@@ -4791,9 +4796,10 @@ class NullabilityEngine {
     whereClause: Node,
     alias: string,
     colName: string,
+    scope: Scope,
   ): boolean {
     return this.predicateProvesNonNull(whereClause, n =>
-      this.exprStrictlyForces(n, leaf => this.columnMatches(leaf, alias, colName)),
+      this.exprStrictlyForces(n, leaf => this.columnMatches(leaf, alias, colName, scope)),
     );
   }
 
@@ -4977,10 +4983,17 @@ class NullabilityEngine {
 
   /**
    * Check whether an expression node is a ColumnRef matching `alias.colName`.
-   * For unqualified column refs, match against the alias if it's the only
-   * relation owning that column.
+   * An unqualified ref is resolved through the scope's visible list — the
+   * resolution PostgreSQL applies — and matches only when the owning entry IS
+   * `alias`. The caller knows `alias` owns a column of this NAME; only
+   * resolution can say the reference DENOTES it. USING/NATURAL is the shape
+   * that separates the two: the merged column is the only visible occurrence
+   * of the name (which is what keeps the query legal) while both constituents
+   * stay addressable through `aliases` — and a LEFT JOIN's merged value is
+   * the left side's, saying nothing about the right. A merged column owns no
+   * entry and matches nothing.
    */
-  private columnMatches(expr: Node, alias: string, colName: string): boolean {
+  private columnMatches(expr: Node, alias: string, colName: string, scope: Scope): boolean {
     const node = expr as Record<string, unknown>;
     if (!("ColumnRef" in node)) return false;
     const cr = node["ColumnRef"] as ColumnRef;
@@ -4993,9 +5006,16 @@ class NullabilityEngine {
       return parts[1] === alias && parts[2] === colName;
     }
     if (parts.length === 1) {
-      // Unqualified — match by column name only. The caller already knows
-      // this alias owns this column.
-      return parts[0] === colName;
+      if (parts[0] !== colName) return false;
+      let owner: RelationEntry | null = null;
+      let seen = false;
+      for (const v of scope.visible) {
+        if (v.name !== colName) continue;
+        if (seen) return false; // ambiguous — PostgreSQL rejects the query
+        seen = true;
+        owner = v.entry;
+      }
+      return owner !== null && owner.alias === alias;
     }
     return false;
   }

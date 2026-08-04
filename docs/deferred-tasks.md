@@ -185,6 +185,24 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-04), finding 1 / RC-5 — an
+unsoundness removal: unqualified predicate references resolved by NAME
+alone. `columnMatches`'s single-part branch trusted its caller ("the caller
+already knows this alias owns this column"), but `checkWhereGuarantee`
+knows only that the alias owns a column of that NAME, not that the
+reference RESOLVES there — and USING/NATURAL is the shape that separates
+the two: the merged column is the only visible occurrence (which is what
+keeps the query legal) while both constituents stay addressable, and a
+LEFT JOIN's merged value is the LEFT side's, so `WHERE id IS NOT NULL`
+said nothing about `u.id` yet overrode its OPTIONAL joinState. The branch
+now resolves through `scope.visible` (as `rewriteRefsToOrigin` already
+did) and requires the owning entry to BE the alias; a merged column owns
+no entry and matches nothing, an ambiguous name matches nothing. Blast
+radius as predicted: zero fixture flips — in every non-merged shape the
+resolution agrees with the name. `using-merged-unqualified-guarantee.sql`
+pins it, with u's unit NULL-extended together (`@null-group 1*,2*,3*`)
+and both arms witnessed.
+
 Closed by the adversarial fix phase (2026-08-04), finding 4 / RC-4 — the one
 closure in this list that removed an UNSOUNDNESS rather than an imprecision:
 bpchar literal distinctness. `character(n)` comparison strips trailing
