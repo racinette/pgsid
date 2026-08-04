@@ -558,9 +558,10 @@ class EntailmentKernel {
   /**
    * Whether two literal tokens provably denote DISTINCT values in
    * comparisons against `colKey` — the collation-gated judgment: only under
-   * the catalog's eligibility (text family + deterministic collation), only
-   * for string tokens, and only at the same effective type, where unequal
-   * bytes are unequal values by the definition of a deterministic collation.
+   * the catalog's eligibility (byte equality is value equality for the
+   * type under a deterministic collation — text/varchar; bpchar's
+   * blank-stripping comparison disqualifies it), only for string tokens,
+   * and only at the same effective type.
    */
   private litsDistinct(colKey: string, a: Lit, b: Lit): boolean {
     if (a.kind !== "sval" || b.kind !== "sval" || a.value === b.value) return false;

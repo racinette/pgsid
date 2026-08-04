@@ -227,6 +227,12 @@ const columnSpecificGenerators: Record<
       seats: (rand, ctx) =>
         ctx.current("plan") === "team" ? rand.pick([2, 5]) : rand.pick([0, 1]),
     },
+
+    // The bpchar padding tables and their varchar control. 'a' is the token
+    // the fixtures compare against; bpchar pads it to 'a   ' on write.
+    bp: { k: rand => rand.pick(["a", "b", "zz"]) },
+    bp2: { k: rand => rand.pick(["a", "b", "zz"]) },
+    vc: { k: rand => rand.pick(["a", "b", "zz"]) },
   },
 };
 
@@ -344,6 +350,16 @@ const nullPolicies: {
           return typeof seats === "number" && seats > 1 ? false : rand.chance(0.5);
         },
       },
+
+      // bp: the CHECK admits a NULL x exactly where k's padded value equals
+      // 'a ' — writing it there is the padding witness the fixtures return.
+      bp: { x: (_rand, ctx) => ctx.current("k") === "a" },
+      // bp2: the CASE's first arm FORCES x NULL on 'a' rows; other rows
+      // match no arm, so the NULL CASE result admits them either way.
+      bp2: { x: (rand, ctx) => ctx.current("k") === "a" || rand.chance(0.4) },
+      // vc: x non-null everywhere — the control never writes the literal
+      // 'a ' rows that would admit a NULL.
+      vc: { x: () => false },
     },
   },
 };

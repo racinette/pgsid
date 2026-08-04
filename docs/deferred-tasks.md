@@ -185,6 +185,26 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-04), finding 4 / RC-4 — the one
+closure in this list that removed an UNSOUNDNESS rather than an imprecision:
+bpchar literal distinctness. `character(n)` comparison strips trailing
+blanks BEFORE the collation is consulted ('a'::char(4) = 'a ' is TRUE —
+measured), so distinct tokens can name equal values, and the whitelist's
+warrant — restated as "byte equality IS value equality for this type under
+this collation" — never held for OID 1042; it is out of `TEXT_FAMILY_OIDS`.
+The padding hazard sits in the OPERATOR, one level below the collation,
+exactly where the citext exclusion already looked; bpchar's constraint
+deparse at its own type (`k = 'a '::bpchar` — measured) is what carried it
+past the literal-cast gate that stops varchar (whose CHECKs deparse through
+`::text` casts and refuse cross-type — measured, and now pinned). Three
+fixtures: the OR-CHECK shape and the multi-WHEN arm step, each witnessed by
+the padding-admitted ('a', NULL) row the old derivation falsified
+(`bpchar-literal-distinctness.sql`, `bpchar-distinctness-case-arm.sql`), and
+the varchar control, where the tokens really are distinct, the row is
+refused, and the cast gate keeps the claim conservative
+(`bpchar-distinctness-varchar-control.sql`). The cost is precision on a type
+where the judgment was never sound.
+
 Closed by Wave 13 (2026-08-04): presence groups — the null-group model
 exported as contract vocabulary, the output-side analogue of Wave 10's
 joint rejection sets and the first wave DRIVEN by the consumer design

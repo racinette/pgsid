@@ -38,12 +38,16 @@ export async function buildNullabilityCatalog(
     }
   >();
 
-  // Literal distinctness is sound for a column exactly when unequal tokens
-  // imply unequal values: the builtin text family (text/varchar/bpchar by
-  // OID — a whitelist, because e.g. citext's case-folding lives in its
-  // OPERATOR, not its collation) under a collation PROVEN deterministic.
-  // Numerics never qualify: 75 and 75.0 are distinct tokens, equal values.
-  const TEXT_FAMILY_OIDS = new Set([25, 1043, 1042]);
+  // Literal distinctness is sound for a column exactly when byte equality
+  // IS value equality for its type under its collation: text/varchar by
+  // OID — a whitelist, because a normalising COMPARISON breaks the
+  // inference one level below the collation. citext case-folds in its
+  // operator; bpchar strips trailing blanks BEFORE the collation is
+  // consulted ('a'::char(4) = 'a ' is TRUE — measured), so its distinct
+  // tokens can name equal values and OID 1042 is out. The collation must
+  // additionally be PROVEN deterministic. Numerics never qualify: 75 and
+  // 75.0 are distinct tokens, equal values.
+  const TEXT_FAMILY_OIDS = new Set([25, 1043]);
   const distinctnessSound = (cols: { name: string; typeOid: number; collationDeterministic: boolean | null }[]): Set<string> =>
     new Set(
       cols
