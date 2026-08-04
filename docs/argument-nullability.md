@@ -237,6 +237,19 @@ COALESCE-absorption and NULLIF-asymmetry boundaries — are pinned in
 the generated `param-reject` projection carries the shape across the whole
 structural space.
 
+**The window frame offset — mechanism B's fourth sibling (adversarial
+finding 15).** A parameter as a `WindowDef` frame bound (`ROWS BETWEEN $1
+PRECEDING …`) raises `frame starting/ending offset must not be null` for a
+NULL binding — for ROWS, RANGE and GROUPS, in both directions, and even
+over empty input (all measured). The sibling placement, LIMIT/OFFSET, takes
+NULL legally, which is exactly why the site had to be enumerated rather
+than assumed. Still execution-time (a subquery that never runs never
+evaluates its frame), so it rejects without licensing narrowing; the value
+flows through `rejectFlow` like any mechanism-C channel, and the offset
+reaches the collector both as `FuncCall.over` (a concrete struct field,
+emitted UNWRAPPED by libpg-query) and as a wrapped `WindowDef` in the
+windowClause. `param-window-frame-offset.sql` pins it, the raise witnessed.
+
 **WHERE-conjunct narrowing (implemented).** In `SELECT $1 AS x FROM t WHERE
 t.a = $1`, any returned row passed the WHERE, a strict comparison is only
 TRUE with non-null operands, so `x` is notNull for every row that exists —
