@@ -840,21 +840,29 @@ async function queryTypeNames(pg: PGlite): Promise<TypeNameRow[]> {
   return res.rows;
 }
 
+/**
+ * Plain tables ('r'), partitioned tables ('p' — the parents; their
+ * partitions arrive as 'r'), and foreign tables ('f'). A relation absent
+ * here is one the nullability walk REFUSES rather than resolves — star
+ * expansion over an unknown relation would silently drop its columns — so
+ * the capture set is the resolution set.
+ */
 async function queryTables(pg: PGlite): Promise<TableRow[]> {
   const res = await pg.query<TableRow>(
     `SELECT c.oid, n.nspname AS schema, c.relname AS name, c.reloptions
      FROM pg_class c
      JOIN pg_namespace n ON n.oid = c.relnamespace
-     WHERE c.relkind = 'r' AND ${USER_NS}
+     WHERE c.relkind IN ('r', 'p', 'f') AND ${USER_NS}
      ORDER BY n.nspname, c.relname;`,
   );
   return res.rows;
 }
 
 /**
- * Columns for tables (relkind 'r'), views ('v'), and materialized views ('m').
- * One row per (relid, attnum). Sorted by relid then attnum so grouping
- * preserves column order.
+ * Columns for tables (relkind 'r'/'p'/'f' — the same set queryTables
+ * captures), views ('v'), and materialized views ('m'). One row per
+ * (relid, attnum). Sorted by relid then attnum so grouping preserves
+ * column order.
  */
 async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
   const res = await pg.query<ColumnRow>(
@@ -873,7 +881,7 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
      JOIN pg_namespace n ON n.oid = c.relnamespace
      LEFT JOIN pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
      LEFT JOIN pg_collation co ON co.oid = a.attcollation
-     WHERE c.relkind IN ('r', 'v', 'm')
+     WHERE c.relkind IN ('r', 'p', 'f', 'v', 'm')
        AND ${USER_NS}
        AND a.attnum > 0 AND NOT a.attisdropped
      ORDER BY a.attrelid, a.attnum;`,

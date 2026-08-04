@@ -712,3 +712,10 @@ CREATE TRIGGER iot_t INSTEAD OF INSERT ON iot_v
 -- would otherwise resolve "SETOF record" to a single scalar column.
 CREATE FUNCTION rec_pairs() RETURNS SETOF record LANGUAGE sql
   AS $$ SELECT 1, 'a'::text $$;
+
+-- A partitioned table (adversarial finding 11): relkind 'p', once absent
+-- from the snapshot entirely, so star expansion silently contributed zero
+-- columns. The parent is now captured alongside its partitions, and an
+-- unresolvable relation REFUSES instead of falling back.
+CREATE TABLE part_p (id integer NOT NULL, k text) PARTITION BY RANGE (id);
+CREATE TABLE part_1 PARTITION OF part_p FOR VALUES FROM (0) TO (100);

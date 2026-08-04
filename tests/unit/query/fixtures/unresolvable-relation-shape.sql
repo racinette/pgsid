@@ -1,0 +1,16 @@
+-- A partitioned table is a real relation with real columns, and the
+-- snapshot once skipped relkind 'p' entirely — star expansion then
+-- silently contributed ZERO columns for part_p, measured silent in seven
+-- placements. The parent is captured now, its id notNull through the tree
+-- conjunction (partitions provably carry the parent's constraint — the
+-- ONLY … SET NOT NULL that opens the inheritance hole is refused for
+-- partitioned tables, measured). Relations the snapshot still cannot see
+-- (temp tables, pg_catalog, information_schema) REFUSE instead of
+-- falling back — pinned in unsupported-nodes.test.ts.
+SELECT * FROM t, part_p
+-- @notNull    (t.id)
+-- @nullable   (t.name)
+-- @nullable   (t.val)
+-- @notNull    (t.active)
+-- @notNull    (part_p.id)
+-- @nullable   (part_p.k)

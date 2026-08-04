@@ -185,6 +185,30 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-05), finding 11 / RC-7's
+unresolvable-relation half — the two halves landed together, as the report
+prescribes, because the refusal alone would have turned every
+partitioned-table query into an error. (a) The snapshot's capture set grew
+to relkind 'p' and 'f' beside 'r' (partitions already arrive as 'r'), so
+partitioned schemas are tracked at all — new tables appear in
+`diffCatalogs`, and part_p's id reads notNull through the RC-3 tree
+conjunction, since the `ONLY … SET NOT NULL` that opens the inheritance
+hole is refused for partitioned tables (measured). Foreign tables ride
+along by inspection — no FDW exists in this PGlite build to measure one.
+(b) `addRangeVar`'s zero-column fallback became a REFUSAL
+(`UnsupportedNodeError`, from-item): star expansion over the fallback was
+measured silent in seven placements, and the walk doc's dispatch-site rule
+has always said a FROM item must throw. Temp tables, `pg_catalog` and
+`information_schema` now refuse rather than mislead — the caller's escape
+is PREPARE plus all-nullable, as documented. The refusal immediately
+exposed a latent miss it had been absorbing: INSERT…SELECT written-value
+analysis walked its source with the STATEMENT's outer scope instead of the
+DML scope carrying the WITH clause's CTEs, so `WITH w AS (…) INSERT …
+FROM w` written maps silently resolved nothing; the source now chains
+through the DML scope. `unresolvable-relation-shape.sql` pins the
+partitioned shape (the generator seeds part_p/part_1 inside the partition
+bound); the refusal trio is pinned in `unsupported-nodes.test.ts`.
+
 Closed by the adversarial fix phase (2026-08-05), findings 12, 13, 14 /
 RC-7's SRF-and-star third — three shape defects, all in the additive
 direction (no existing claim moved). Multi-argument `unnest` (12) is a
