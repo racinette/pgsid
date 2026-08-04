@@ -6,6 +6,11 @@
 -- source match, and RETURNING then reports NULL for every source column —
 -- including a primary key and a NOT NULL column. Treating the source as
 -- required would be unsound.
+--
+-- And those source columns go NULL *together*: the source is one extension
+-- unit, so its bare RETURNING columns form a presence group (dense's
+-- orphan tag 99 witnesses the absent arm).
+-- @null-group 2*,3*
 MERGE INTO tags t
 USING (SELECT p.id AS id, p.sku AS sku FROM products p) s
 ON t.id = s.id

@@ -6,8 +6,12 @@ import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullability } from "../../../src/query/nullability-walk.js";
-import type { NullabilityCatalog, OutputNullability } from "../../../src/query/types.js";
+import { inferNullability, inferPresenceGroups } from "../../../src/query/nullability-walk.js";
+import type {
+  NullabilityCatalog,
+  OutputNullability,
+  OutputPresenceGroup,
+} from "../../../src/query/types.js";
 import { bindParams, parseFixtureDirectives, type FixtureBinding } from "./fixture-args.js";
 import { hasStatements, loadDataStates, type DataState } from "./fixture-data/states.js";
 
@@ -81,6 +85,15 @@ interface Fixture {
   unwitnessable: Map<number, string>;
 }
 
+/** What execution observed about one presence group, across every run. */
+interface GroupObservation {
+  claimed: OutputPresenceGroup;
+  /** Some row had every discriminant NULL — the unit's absent arm. */
+  sawAbsent: boolean;
+  /** Some row had the discriminants non-NULL — the present arm. */
+  sawPresent: boolean;
+}
+
 /** What execution observed about one output column, across every run. */
 interface ColumnObservation {
   /** The column was present in a result set that had at least one row. */
@@ -95,6 +108,7 @@ interface FixtureResult {
   shapeError: string | null;
   pgColumns: string[];
   columns: ColumnObservation[];
+  groups: GroupObservation[];
   violations: string[];
   /** Diagnostic only: statements that raised, by state and binding. */
   errors: string[];
@@ -129,6 +143,7 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     for (const fixture of fixtures) {
       const parsed = await parseSql(fixture.sql);
       const claimed = inferNullability(parsed.stmts![0]!.stmt!, catalog);
+      const claimedGroups = inferPresenceGroups(parsed.stmts![0]!.stmt!, catalog);
 
       // Validity. PREPARE keeps `$n` as parameters — that is what they are —
       // and PostgreSQL resolves an otherwise unconstrained one to text.
@@ -166,6 +181,7 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         shapeError,
         pgColumns,
         columns: claimed.map(() => ({ sawRow: false, sawNull: false })),
+        groups: claimedGroups.map(g => ({ claimed: g, sawAbsent: false, sawPresent: false })),
         violations: [],
         errors: [],
         sawRows: false,
@@ -208,6 +224,37 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
                 );
               }
             });
+            // Presence groups are ROW-side claims — a per-column sweep cannot
+            // see them. Per returned row: the discriminants agree (all NULL =
+            // the unit's absent arm, all non-NULL = present); on the absent
+            // arm EVERY member is NULL. One row disagreeing falsifies the
+            // group.
+            for (const g of result.groups) {
+              for (const row of rows) {
+                const nullDiscs = g.claimed.discriminants.filter(d => row[d] === null);
+                if (nullDiscs.length === 0) {
+                  g.sawPresent = true;
+                  continue;
+                }
+                if (nullDiscs.length < g.claimed.discriminants.length) {
+                  result.violations.push(
+                    `[${where}] presence group {${g.claimed.columns.join(",")}}: ` +
+                      `discriminants disagree in one row (NULL: ${nullDiscs.join(",")}) — ` +
+                      `they are supposed to be NULL only together, as the unit's absence`,
+                  );
+                  continue;
+                }
+                g.sawAbsent = true;
+                const survivors = g.claimed.columns.filter(c => row[c] !== null);
+                if (survivors.length > 0) {
+                  result.violations.push(
+                    `[${where}] presence group {${g.claimed.columns.join(",")}}: ` +
+                      `absent arm (discriminants NULL) but member column(s) ` +
+                      `${survivors.join(",")} are non-NULL — the unit did not extend as one`,
+                  );
+                }
+              }
+            }
           } catch (e) {
             // Raised instead of returning rows — no observation to make.
             result.errors.push(`[${where}] ${(e as Error).message}`);
@@ -418,6 +465,34 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       `@unwitnessable annotations on claims that ARE witnessed now — the data ` +
         `or the engine moved past the recorded reason; remove the annotation ` +
         `so the reason stays a current fact:\n  ${stale.join("\n  ")}\n`,
+    ).toEqual([]);
+
+    // Presence groups carry a two-arm claim, and each arm must execute: a
+    // group whose absent arm no data reaches never exercised "all NULL
+    // together", and one whose present arm never ran never exercised the
+    // discriminants' given-present non-nullness. There is no group-level
+    // annotation escape. The absent arm's exemption is DERIVED: it fires
+    // exactly when a discriminant is NULL, so it is unwitnessable precisely
+    // when every discriminant's own nullable claim is — each carrying its
+    // `@unwitnessable N: reason`. The per-column staleness check removes
+    // those the moment data witnesses a NULL, which re-arms this assertion
+    // automatically; the two layers cannot drift.
+    const groupUnwitnessed: string[] = [];
+    for (const fixture of fixtures) {
+      const r = results.get(fixture.name)!;
+      for (const g of r.groups) {
+        const label = `${fixture.name}: group {${g.claimed.columns.join(",")}}`;
+        const absentExempt = g.claimed.discriminants.every(d => fixture.unwitnessable.has(d));
+        if (!g.sawAbsent && !absentExempt) {
+          groupUnwitnessed.push(`${label} — absent arm never observed`);
+        }
+        if (!g.sawPresent) groupUnwitnessed.push(`${label} — present arm never observed`);
+      }
+    }
+    expect(
+      groupUnwitnessed,
+      `presence-group arms that no state or binding reached — give the fixture ` +
+        `data that exercises both sides of the union:\n  ${groupUnwitnessed.join("\n  ")}\n`,
     ).toEqual([]);
   });
 });

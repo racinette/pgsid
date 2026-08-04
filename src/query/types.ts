@@ -352,6 +352,31 @@ export interface OutputNullability {
   origins?: ColumnOrigin[];
 }
 
+/**
+ * A set of output columns NULL-extended *together* — the contract-surface
+ * export of the walk's null-group model (`RelationEntry.nullGroup`): an
+ * outer join extends its optional side as a unit, so on every emitted row
+ * either the unit's row was present or every member column is NULL.
+ *
+ * `discriminants` are the members additionally proven non-null ON THE
+ * PRESENT ARM (by the same machinery that would prove them notNull were
+ * the join inner — catalog constraint, generated expression, CHECK
+ * entailment), so for them NULL holds if and only if the unit was absent.
+ * Members outside `discriminants` are nullable even when present and
+ * assert only the one direction: absent ⇒ NULL.
+ *
+ * Both lists are ascending output-column indices, positional against
+ * RowDescription like `OutputNullability` itself. A group is emitted only
+ * when it says something a flat per-column list cannot: ≥ 2 members and
+ * ≥ 1 discriminant. A unit whose extension is refiltered away (promotion,
+ * strict quals — the presence fixpoint) emits no group: its absent arm
+ * does not survive to the output.
+ */
+export interface OutputPresenceGroup {
+  columns: number[];
+  discriminants: number[];
+}
+
 // ---------------------------------------------------------------------------
 // Nullability trace tree — explains why a column is nullable or non-null.
 // ---------------------------------------------------------------------------

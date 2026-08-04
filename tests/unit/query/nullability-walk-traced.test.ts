@@ -6,7 +6,11 @@ import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullability, inferNullabilityTraced } from "../../../src/query/nullability-walk.js";
+import {
+  inferNullability,
+  inferNullabilityTraced,
+  inferPresenceGroups,
+} from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 describe("nullability-walk-traced", () => {
@@ -53,6 +57,15 @@ describe("nullability-walk-traced", () => {
       if (flat(plain) !== flat(traced)) {
         disagreements.push(
           `${basename(file)}\n    engine: ${flat(plain)}\n    traced: ${flat(traced)}`,
+        );
+      }
+      // Presence groups ride the same shared assemblies; hold them to the
+      // same bar.
+      const plainGroups = JSON.stringify(inferPresenceGroups(stmt, catalog));
+      const tracedGroups = JSON.stringify(inferPresenceGroups(stmt, catalog, true));
+      if (plainGroups !== tracedGroups) {
+        disagreements.push(
+          `${basename(file)} (presence groups)\n    engine: ${plainGroups}\n    traced: ${tracedGroups}`,
         );
       }
     }

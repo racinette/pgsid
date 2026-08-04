@@ -25,8 +25,18 @@ zero. The measurements are in `docs/witness-coverage.md`.
 What is left is not more assertions about the queries somebody wrote. It is
 finding the defects nobody thought to look for, and then a consumer.
 
-**Next up: the consumer.** A design doc precedes the build (start it in a
-fresh session), opening with the questions below. Architectural ground
+**Next up: the consumer — designed; build it.** The design doc exists:
+`docs/consumer-design.md` (2026-08-04) opens with the six product
+questions and their answers — native dialect (`-- name:` + `@name`, no
+macro namespace; sqlc via the one-shot `migrate-from-sqlc` codemod),
+types-then-functions artifact, ordered single-dir schema entries,
+refusals-warn/rest-error diagnostics — and sets the slice plan. The build
+proceeds slice by slice from that document. The engine item that fell out
+of the design — exporting **presence groups** as contract vocabulary
+(`outputPresenceGroups`) so optional-join outputs emit as factored
+discriminated unions — is BUILT: Wave 13 (2026-08-04, the closure entry in
+section 2 below records it and its residues); the design doc keeps the
+TS 5.9 narrowing measurements. Architectural ground
 already settled (2026-08, discussed over the `src/engine.ts` sketch — do
 not re-litigate without new information):
 
@@ -56,36 +66,10 @@ not re-litigate without new information):
   question stays deliberately deferred
   (`docs/postgres-language-server-notes.md`).
 
-**Questions to answer before implementation** (the design doc's opening
-section; each is a product decision, not an engineering one):
-
-1. **Query discovery and naming.** How are queries found, and what names
-   the generated API: sqlc-style `-- name: GetUser :one` annotations, one
-   query per file with the filename as the name, or exported constants in
-   host-language files? This decides the generated surface more than any
-   other choice. Related: are multi-statement query files allowed, and is
-   there a cardinality annotation (:one/:many) or is that inferred/absent?
-2. **Artifact shape.** Types-only (`.d.ts` the user wires to their own
-   client) vs generated typed functions over a thin runtime client vs
-   both behind a flag. Where do the factored parameter unions land —
-   argument object types, function overloads? What does a nullable
-   column render as (`T | null` vs optional) and is that configurable?
-3. **Config surface.** File name/format; migration and query globs;
-   output location(s); database-less (PGlite from migrations — the
-   default posture) vs pointing at a live server (the pgls harness notes
-   apply); search_path; multiple schemas/projects per config?
-4. **Migration ordering and identity.** Filename sort, numeric prefix
-   convention, or a manifest? What is a "migration" for watch purposes —
-   and are down-migrations/out-of-order edits an error, a full rebuild,
-   or silently tolerated?
-5. **Diagnostics contract.** What does the CLI exit non-zero on:
-   engine refusals (`UnsupportedNodeError`), PREPARE failures, arity-gate
-   mismatches — and which are warnings? Are positions mapped to source
-   ranges from day one (the pgls cursor-mapping salvage) or file-level
-   first?
-6. **Slice order confirmation.** Proposed: config + discovery → batch
-   pipeline (pure core) → emitter + goldens → parity suite → watch shell
-   → LSP. Confirm or reorder.
+The six pre-implementation questions were answered 2026-08-04;
+`docs/consumer-design.md` opens with them and their answers (dialect,
+artifact, config, migrations, diagnostics, slices). They are not repeated
+here.
 
 The semantic re-founding (section 5) is a standing parallel track; its
 executable target list emptied when Wave 12 closed the origin
@@ -161,7 +145,7 @@ calls `inferNullability` yet. The engine cannot self-verify — it has no
 PostgreSQL.
 
 **Trigger.** Write it together with the first consumer, not retrofitted
-afterwards.
+afterwards. Scheduled: the emitter slice (`docs/consumer-design.md`).
 
 ---
 
@@ -170,6 +154,115 @@ afterwards.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by Wave 13 (2026-08-04): presence groups — the null-group model
+exported as contract vocabulary, the output-side analogue of Wave 10's
+joint rejection sets and the first wave DRIVEN by the consumer design
+(`docs/consumer-design.md` chose factored unions over `sqlc.embed`).
+`QueryContract.outputPresenceGroups` carries, per surviving optional unit,
+the output columns NULL-extended together with the discriminants (NULL ⟺
+absent) marked; the walk-doc section "Presence groups" is the rule list.
+The machinery was already latent: membership keys on `RelationEntry.
+nullGroup` by bare-reference producer recording in the four assembly loops
+(SELECT + DML RETURNING, traced and untraced — parity by shared recording,
+held by the parity suite); discriminants re-run the column computation
+under a `presumePresent` flag that lifts only the entry's own gate, giving
+them catalog, generated-expression, and CHECK-entailment precision — a
+`count(*)` inside an optional aggregate subquery discriminates, and
+`view-cte-correlated-multi-join`'s sum does so through CTE → view →
+aggregate analysis. Refilters resolve with no new mechanism (the fixpoint
+writes promotions back; lazy promotion surfaces as a notNull bare member
+and kills the unit — extension is atomic); floors (≥2 members, ≥1
+discriminant) keep the contract minimal; MERGE's optional source groups
+fell out free (`merge-returning`). Verified at Wave 10's bar:
+`@null-group N[*],M` annotations with compulsory bidirectional coverage —
+which fired on its FIRST run, flagging six existing fixtures the engine
+already claimed groups for — per-row falsification (discriminants agree;
+absent ⇒ all members NULL) across the five data states, and a two-arm
+witness whose absent-arm exemption is DERIVED from the discriminants' own
+@unwitnessable annotations (`docs/witness-coverage.md`, "the two-arm
+witness").
+
+The wave's three launch residues all closed the SAME DAY (2026-08-04),
+plus a batch of pins: RIGHT JOIN, LATERAL, grouped keys, HAVING-refilter,
+DELETE USING, duplicate refs, and parameter-driven refilters each got a
+fixture before any behavior changed. R3 (presumption) closed via a
+presumed-entries set carried into the fresh walks a discriminant
+computation spawns — `generated-left-join-gate` flipped to `1*,2*` as its
+own annotation predicted. R1 (re-export) closed by storing groups
+per-analysis and LIFTING them through bare projections at
+subquery/CTE/view references, with the lifted dead rule (an outer-proven
+member means the inner-absent arm is refiltered) — the missing-annotation
+direction immediately surfaced the dashboard fixture's addresses-CTE unit
+and `presence-group-nested-optional`'s predicted second group. R2
+(setops) closed by branch agreement: UNION matches exact member sets and
+intersects discriminants, INTERSECT/EXCEPT pass the left branch's groups
+(the origins discipline) — and the generated corpus immediately earned
+its keep: its two-arm bar exposed 67 INTERSECT groups whose absent arm
+could never execute (INTERSECT strengthens flat claims from the right
+branch — `left || right` — so an inner-joined right branch leaves no
+all-NULL row to pair), now dropped by the setop-level dead rule
+(`presence-group-intersect-refilter` pins it). The generated corpus runs
+the per-row group oracle over every query with the two-arm witness bar
+and a rule mechanism mirroring UNWITNESSABLE: **684 groups, 684 both
+arms observed, 0 falsified, the rule list empty**. 29 `@null-group`
+claims across 24 fixtures.
+
+Found and fixed by the wave's closing audit: star expansion over
+DUPLICATE inner column names (`SELECT s.* FROM (SELECT o.id, g.a AS id
+…) s` — the one legal way to reach an ambiguous column; PostgreSQL
+rejects every explicit reference) resolved inner columns by
+FIRST-NAME-MATCH in three consumers, and all three misattributed: flat
+nullability (pre-existing since subquery star support — g.a claimed
+notNull from o.id's slot, execution-falsifiable), origins production
+(pre-existing since Wave 8), and group lifting (new — a foreign column
+pulled into a lifted group as a discriminant, falsified by the first
+probe row). Fixed positionally: star expansion is the sole caller that
+can reach the shape, so it now hands every consumer the column's ordinal
+within its entry, recovered exactly in the unqualified branch by
+occurrence counting (a USING merge cannot consume a duplicate-named
+column, so the k-th visible occurrence IS the k-th inner one). Pinned six
+ways — one per consumer × expansion branch: flat claims
+(`dup-name-star-nullability.sql`), the lifted group over the alias-star
+branch (`presence-group-dup-name-star.sql`), the occurrence-counting
+unqualified-star branch (`dup-name-star-unqualified.sql`), the CTE entry
+kind (`dup-name-star-cte.sql`), the ORIGINS face — a positionally-renamed
+outer CTE makes the formerly-ambiguous column referenceable, and
+first-name-match would have carried the WRONG rowPath into CHECK
+entailment, falsified by sparse's in-flight/housed guest pair
+(`check-origin-dup-name-star.sql`) — and occurrence exactness across a
+USING merge with a nullability-distinguishable duplicate pair
+(`dup-name-star-using.sql`). The strength-four stress rides on top: four
+`id`s from four entries interleaved with unique names plus a second
+independent duplicate, nullabilities alternating so any off-by-one flips
+a visible claim, on both expansion branches (`dup-name-star-quad.sql`
+unqualified/occurrence-counting, `dup-name-star-quad-cte.sql`
+CTE/list-index) — the group there assembles from three positions, two of
+them duplicate-named.
+
+The three conservatisms that outlived the residue closures were then
+closed the same day as well, alongside four more pins
+(`presence-group-full-using` — the merged column's exclusion and both
+sides' units under FULL USING; `presence-group-dml-cte` — the lift out
+of a data-modifying CTE; `presence-group-distinct-on`;
+`presence-group-rollup-keys` — plain optional keys grouping beside a
+ROLLUP; the full-using draft's unwitnessable annotation was corrected by
+the staleness check within one run — the generated state draws order ids
+outside the customer set). PRESENCE CONSUMPTION: the kernel's presence
+gate now short-circuits a catalog-NOT NULL goal — presence proven means
+the emitted value is a stored value, and no stored value of the column
+is NULL — so evidence pinning any same-rowPath sibling upgrades a
+re-exported column with no CHECK involved, and a table with no CHECKs at
+all benefits (`presence-group-reexport-refilter`'s carrier flipped as
+its annotation prescribed). UNION SUBSET: branch groups now combine by
+pairwise member INTERSECTION (a group's restriction to any subset is
+sound within its branch), discriminants intersected, floors re-applied
+(`presence-group-union-subset`). RECURSIVE GROUPS: a group assumption
+iterates to fixpoint beside the flat one — seeded from the base branch,
+consumed by the self-reference's lift, shrunk by branch agreement
+(`presence-group-recursive`, whose recursion re-emits an inherited
+absent arm). No group-specific conservatism remains recorded; new
+entries come from whatever the consumer's corpora surface.
 
 Closed by Wave 12 (2026-08): the four origin extensions, and with them
 every `residue-origin-*.sql` fixture flipped in one run — the ritual's
@@ -485,6 +578,7 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
 | CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); and consumption of origins is gated as designed: an unfilterable OPTIONAL chain (`check-origin-presence-unproven.sql`), a branch that cannot attribute its rows, or a non-key grouped column each keep their columns dark |
+| Presence groups | none recorded | every launch residue and post-launch conservatism closed 2026-08-04 (re-export propagation, setop groups, generation-expression discriminants, presence consumption of catalog notNull, UNION subset matching, recursive-CTE groups — the Wave 13 closure entry is the history); future entries come from consumer corpora |
 
 ---
 

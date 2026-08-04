@@ -5,6 +5,17 @@
 -- @unwitnessable 24: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
 -- @unwitnessable 25: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
 -- @unwitnessable 26: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
+-- @null-group 12*,13,14*,15*,16,17*
+-- @null-group 20*,21*,22*,23*,24*,25*,26*
+-- @null-group 34*,35*,36,37,38
+-- @null-group 41*,42*
+-- (Four units: the addresses group is LIFTED (R1) — customer_addresses'
+-- inner LEFT JOIN rides out through the inner-joined ca reference, with
+-- the NOT NULL address columns discriminating and line2/postal_code as
+-- nullable members; ot — its absent arm shares the discriminants'
+-- recorded unwitnessability above, the derived exemption; s — shipments,
+-- id/carrier discriminate, the timestamps are nullable even when present;
+-- cp — the active-coupon lookup.)
 -- Extreme fixture: multiple join types with nested subqueries, CTEs,
 -- LATERAL, window functions, and expression combinations.
 --

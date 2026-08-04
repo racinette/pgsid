@@ -2,6 +2,13 @@
 -- The order_summary view has nullable columns (sum can be NULL over zero rows).
 -- A CTE wraps it; a correlated subquery in the SELECT list references the
 -- outer query. Multiple joins combine required and optional sides.
+--
+-- ot's columns are a presence group, and BOTH are discriminants: given the
+-- unit present, the given-present computation recurses CTE → view → the
+-- aggregate analysis, where GROUP BY emits no empty groups and the summed
+-- operands are NOT NULL — so count(*) AND sum() are non-null exactly when
+-- a joined row exists.
+-- @null-group 2*,3*
 WITH order_totals AS (
   SELECT * FROM order_summary
 )

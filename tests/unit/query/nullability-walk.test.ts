@@ -6,9 +6,14 @@ import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullability, inferNullabilityTraced } from "../../../src/query/nullability-walk.js";
+import {
+  inferNullability,
+  inferNullabilityTraced,
+  inferPresenceGroups,
+} from "../../../src/query/nullability-walk.js";
 import { formatColumnTrace } from "../../../src/query/trace-printer.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
+import { parseFixtureDirectives } from "./fixture-args.js";
 
 // ---------------------------------------------------------------------------
 // Test driver:
@@ -126,6 +131,39 @@ describe("nullability-walk", () => {
             actual,
             `Column ${i} (${results[i]?.name ?? "?"}): expected ${expected ? "notNull" : "nullable"}, got ${actual ? "notNull" : "nullable"}`,
           ).toBe(expected);
+        }
+      }
+
+      // Presence groups: compulsory bidirectional coverage, mirroring
+      // @param-reject's. An engine-claimed group with no @null-group line is
+      // an undocumented claim ("you improved — annotate it"); an annotated
+      // group the engine no longer claims is stale and must come off.
+      // Discriminant sets must match exactly — they are half the claim.
+      const { nullGroupClaims } = parseFixtureDirectives(content);
+      const groups = inferPresenceGroups(stmt, catalog);
+      const render = (g: { columns: number[]; discriminants: number[] }) =>
+        g.columns.map(c => (g.discriminants.includes(c) ? `${c}*` : `${c}`)).join(",");
+      const claimed = new Set(nullGroupClaims.map(render));
+      const derived = new Set(groups.map(render));
+      for (const g of groups) {
+        expect(
+          claimed.has(render(g)),
+          `engine claims presence group {${render(g)}} with no @null-group annotation — ` +
+            `add \`-- @null-group ${render(g)}\` (and witness it) or explain its absence`,
+        ).toBe(true);
+      }
+      for (const g of nullGroupClaims) {
+        expect(
+          derived.has(render(g)),
+          `stale @null-group {${render(g)}}: the engine no longer claims it`,
+        ).toBe(true);
+        // A group member has an absent arm, so its flat claim is nullable —
+        // the two annotation layers must not drift.
+        for (const member of g.columns) {
+          expect(
+            expectations[member],
+            `@null-group member ${member} must carry a per-column @nullable marker`,
+          ).toBe(false);
         }
       }
     });

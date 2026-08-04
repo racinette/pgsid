@@ -13,11 +13,13 @@ import type {
   NullabilityCatalog,
   OutputNullability,
   OutputNullabilityTraced,
+  OutputPresenceGroup,
   ResolvedTable,
   TraceNode,
 } from "./types.js";
 
 export type { ParamNullability } from "./param-nullability.js";
+export type { OutputPresenceGroup } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // inferNullability: pure function — AST + NullabilityCatalog → OutputNullability[]
@@ -64,6 +66,20 @@ export interface QueryContract {
    * this field get exactly the old (sound, incomplete) flat contract.
    */
   paramRejectionSets: number[][];
+  /**
+   * The output-side joint vocabulary, mirroring `paramRejectionSets`: sets
+   * of output columns NULL-extended together by an outer join, with the
+   * members whose NULL is equivalent to the unit's absence marked as
+   * discriminants (see `OutputPresenceGroup`). Groups propagate: a
+   * subquery/CTE/view reference lifts its inner analysis's groups through
+   * the bare projection, and set operations combine their branches'
+   * (INTERSECT/EXCEPT keep the left arm's, UNION keeps branch agreement)
+   * — the walk doc's "Presence groups" section is the rule list. A type
+   * emitter renders each group as one local union (present arm / all-NULL
+   * arm) intersected with the flat row type; consumers that ignore this
+   * field get exactly the flat per-column contract.
+   */
+  outputPresenceGroups: OutputPresenceGroup[];
 }
 
 /**
@@ -75,11 +91,30 @@ export interface QueryContract {
  */
 export function inferQueryContract(stmt: Node, catalog: NullabilityCatalog): QueryContract {
   const facts = collectParamFacts(stmt, catalog);
+  const engine = new NullabilityEngine(catalog);
   return {
-    outputs: inferNullability(stmt, catalog),
+    outputs: engine.run(stmt),
     params: facts.params,
     paramRejectionSets: facts.rejectionSets,
+    outputPresenceGroups: engine.presenceGroups(),
   };
+}
+
+/**
+ * The presence groups alone, from either entry point. The traced and
+ * untraced walks share the scope builders and the assembly recording, so
+ * the two must agree — the parity test in nullability-walk-traced.test.ts
+ * holds it, which is why the traced form exists at all.
+ */
+export function inferPresenceGroups(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+  traced = false,
+): OutputPresenceGroup[] {
+  const engine = new NullabilityEngine(catalog, traced);
+  if (traced) engine.runTraced(stmt);
+  else engine.run(stmt);
+  return engine.presenceGroups();
 }
 
 /**
@@ -467,6 +502,16 @@ interface FnBodyContext {
 class NullabilityEngine {
   /** Per-scope memoization: AST node → results (keyed by object identity). */
   private scopeCache = new WeakMap<object, OutputNullability[]>();
+  /**
+   * Per-analysis presence groups, keyed like `scopeCache` (the inner
+   * statement object) and invalidated with it. Storing groups for EVERY
+   * analyzed statement — not just the root — is what R1's re-export
+   * lifting reads: a subquery/CTE/view entry's groups are looked up here
+   * and translated through the outer bare projection, and because a
+   * stored list already contains ITS lifted groups, nesting composes to
+   * any depth with no extra machinery.
+   */
+  private groupCache = new WeakMap<object, OutputPresenceGroup[]>();
   /** Nodes currently being analyzed (prevents infinite recursion in recursive CTEs). */
   private analyzing = new WeakSet<object>();
   /**
@@ -475,6 +520,14 @@ class NullabilityEngine {
    * which happens exactly at the self-reference. See `analyzeSetOperation`.
    */
   private recursiveAssumption = new WeakMap<object, OutputNullability[]>();
+  /**
+   * The group counterpart of `recursiveAssumption`: what a recursive
+   * CTE's self-reference is assumed to carry as presence groups while the
+   * fixpoint iterates. Seeded from the left (base) branch — the most the
+   * union could keep — and shrunk each round; `groupsOfStatement` falls
+   * back to it when the in-flight statement has no cached groups yet.
+   */
+  private recursiveGroupAssumption = new WeakMap<object, OutputPresenceGroup[]>();
   /**
    * Nodes memoized while a recursive fixpoint is iterating, so their results
    * can be dropped when the assumption they were computed under is disproved.
@@ -505,6 +558,29 @@ class NullabilityEngine {
    * `fnCtx` before this set is consulted.)
    */
   private bindRejectedParams: Set<number> = new Set();
+  /**
+   * Presence groups of the ROOT statement, set by whichever assembly ran
+   * at depth 0 (SELECT target list, DML RETURNING, or a set operation —
+   * traced and untraced alike, which is what keeps the two entry points
+   * parity-by-construction) and read back through `presenceGroups()`.
+   * Every nested analysis stores its own groups in `groupCache`; this
+   * field is just the root's copy.
+   */
+  private rootPresenceGroups: OutputPresenceGroup[] = [];
+  /**
+   * Entries whose row is PRESUMED present for the duration of a
+   * presence-group discriminant computation. `presumePresent` lifts the
+   * gate at the call it is passed to; this set carries the same
+   * presumption into the fresh walks that call spawns — a generation
+   * expression's refs re-enter `computeColumnNullabilityTraced` for the
+   * SAME entry, and "given this row present, is a*2 non-null?" must
+   * resolve `a` under the presumption or the answer is not the
+   * given-present one. Only ever populated inside
+   * `computePresenceGroups`; statement analyses never read it (they are
+   * memoized presumption-free — the cached-inner-results paths are what
+   * keep a presumed walk from ever poisoning a memo).
+   */
+  private presumedPresent: Set<RelationEntry> = new Set();
   /** Generation expressions currently being walked (cycle insurance). */
   private generationInFlight: Set<string> = new Set();
   /**
@@ -546,6 +622,243 @@ class NullabilityEngine {
   runTraced(stmt: Node): OutputNullabilityTraced[] {
     this.bindRejectedParams = collectParamFacts(stmt, this.catalog).bindRejected;
     return this.analyzeStatementTraced(stmt, null, 0);
+  }
+
+  /** The root statement's presence groups, valid after run()/runTraced(). */
+  presenceGroups(): OutputPresenceGroup[] {
+    return this.rootPresenceGroups;
+  }
+
+  /**
+   * Origin production mode of a SELECT — one derivation shared by the
+   * traced and untraced assemblies so the two cannot disagree about which
+   * targets are bare.
+   */
+  private originModeOf(stmt: SelectStmt): "all" | "keys" | "none" {
+    return stmt.groupClause?.length ? "keys" : stmt.havingClause ? "none" : "all";
+  }
+
+  /**
+   * Fold the root assembly's per-output producers into presence groups.
+   *
+   * A producer is the (entry, column) a bare target resolves to — bareness
+   * is what makes "the unit's row was absent" mean "this output is NULL":
+   * a transforming expression at THIS level (COALESCE, casts, operators)
+   * could manufacture non-NULL from an extended row and never joins a
+   * group. Expressions computed INSIDE an optional subquery need no such
+   * care — the extension nulls the subquery's whole output row, computed
+   * columns included, which is why membership keys on the producing
+   * entry's nullGroup and not on base-table origins.
+   *
+   * `entry.joinState` is read after the presence fixpoint has written its
+   * promotions back, so a statically-OPTIONAL entry here means the absent
+   * arm survived every strict qual. The lazy promotions (WHERE guarantees,
+   * alias predicates, null-group co-membership) surface per column as
+   * `results[i].notNull === true` — and since a unit is extended
+   * atomically, one promoted member means the whole unit's absent arm is
+   * refiltered: the unit is dropped, not just the column.
+   *
+   * Discriminants re-run the column computation presuming presence, which
+   * hands them the full given-present machinery (catalog NOT NULL,
+   * generated expressions, CHECK entailment) with the extension lifted.
+   *
+   * A group earns its place only over the flat contract: ≥ 2 members and
+   * ≥ 1 discriminant.
+   */
+  private computePresenceGroups(
+    producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[],
+    results: { notNull: boolean }[],
+    scope: Scope,
+    depth: number,
+  ): OutputPresenceGroup[] {
+    const units = new Map<number, { columns: number[]; discriminants: number[]; dead: boolean }>();
+    for (let i = 0; i < producers.length; i++) {
+      const p = producers[i];
+      if (!p || p.entry.joinState !== OPTIONAL) continue;
+      let unit = units.get(p.entry.nullGroup);
+      if (!unit) {
+        unit = { columns: [], discriminants: [], dead: false };
+        units.set(p.entry.nullGroup, unit);
+      }
+      if (results[i]!.notNull) {
+        // A bare optional-entry column can only be notNull via promotion,
+        // and promotion refilters the whole unit's absent arm.
+        unit.dead = true;
+        continue;
+      }
+      unit.columns.push(i);
+      // The presumption must reach the fresh walks this call spawns (a
+      // generation expression's same-entry refs), not just the top call.
+      this.presumedPresent.add(p.entry);
+      try {
+        if (this.computeColumnNullability(p.entry, p.column, scope, depth, true, p.ordinal)) {
+          unit.discriminants.push(i);
+        }
+      } finally {
+        this.presumedPresent.delete(p.entry);
+      }
+    }
+    const groups: OutputPresenceGroup[] = [];
+    for (const unit of units.values()) {
+      if (unit.dead || unit.columns.length < 2 || unit.discriminants.length === 0) continue;
+      groups.push({ columns: unit.columns, discriminants: unit.discriminants });
+    }
+
+    // LIFTED groups (R1): a bare re-export preserves the inner analysis's
+    // row facts, so each subquery/CTE/view entry's own groups translate
+    // through the projection — inner output index → the outer indices that
+    // re-export it bare. Partial projections keep the surviving subset (the
+    // claim restricted to fewer columns still holds); floors re-apply after
+    // translation. A translated member the OUTER analysis proved notNull
+    // means the outer scope refilters the inner-absent arm (any such proof
+    // — WHERE guarantee, promotion, origin entailment — holds on every
+    // returned row, and the absent arm's rows have that member NULL), so
+    // the lifted group is dropped, mirroring the dead-unit rule. Under an
+    // OPTIONAL entry the lift stays valid with "absent" meaning the whole
+    // chain: outer extension nulls every member together, and a
+    // discriminant is NULL exactly when outer or inner absence broke the
+    // chain — the emitted union arms compose with the entry's own unit
+    // group by intersection. Two references to one memoized analysis lift
+    // separately (per entry), which is the instance-distinctness rowPaths
+    // provide for origins.
+    const byEntry = new Map<RelationEntry, Map<number, number[]>>();
+    for (let i = 0; i < producers.length; i++) {
+      const p = producers[i];
+      if (!p) continue;
+      const e = p.entry;
+      if ((e.kind !== "subquery" && e.kind !== "cte" && e.kind !== "view") || !e.ast) continue;
+      const innerResults =
+        e.kind === "view"
+          ? this.analyzeStatement(e.ast, scope, depth + 1)
+          : this.innerRelationColumns(e, scope, depth);
+      // Star-expanded producers carry their position; a name lookup would
+      // first-match the wrong column when the entry exports duplicates.
+      const j = p.ordinal ?? this.innerIndexOf(e, p.column, innerResults);
+      if (j < 0) continue;
+      let m = byEntry.get(e);
+      if (!m) {
+        m = new Map();
+        byEntry.set(e, m);
+      }
+      const outs = m.get(j) ?? [];
+      outs.push(i);
+      m.set(j, outs);
+    }
+    const seenKeys = new Set(groups.map(g => `${g.columns.join(",")}|${g.discriminants.join(",")}`));
+    for (const [e, map] of byEntry) {
+      for (const g of this.groupsOfStatement(e.ast!)) {
+        const cols: number[] = [];
+        const discs: number[] = [];
+        for (const j of g.columns) for (const i of map.get(j) ?? []) cols.push(i);
+        for (const j of g.discriminants) for (const i of map.get(j) ?? []) discs.push(i);
+        cols.sort((a, b) => a - b);
+        discs.sort((a, b) => a - b);
+        if (cols.length < 2 || discs.length === 0) continue;
+        if (cols.some(i => results[i]!.notNull)) continue;
+        const key = `${cols.join(",")}|${discs.join(",")}`;
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        groups.push({ columns: cols, discriminants: discs });
+      }
+    }
+
+    return groups.sort(
+      (a, b) =>
+        a.columns[0]! - b.columns[0]! ||
+        a.columns.length - b.columns.length ||
+        (a.columns.join(",") < b.columns.join(",") ? -1 : 1),
+    );
+  }
+
+  /**
+   * Presence groups of a set operation, from its branches' stored groups
+   * (R2). INTERSECT and EXCEPT rows ARE left-branch rows, so the left
+   * groups pass through verbatim — the origins discipline. For UNION
+   * [ALL], every output row comes from exactly one branch at the same
+   * indices, and a group's restriction to any member subset is sound
+   * WITHIN a branch — so each left×right group pair contributes its
+   * member INTERSECTION, discriminants intersected likewise (a
+   * discriminant must discriminate whichever branch a row came from),
+   * floors re-applied, duplicates dropped. Exact-set agreement falls out
+   * as the special case where the pair coincides. A recursive branch's
+   * self-reference lifts from the group ASSUMPTION the fixpoint in
+   * analyzeSetOperation iterates (seeded with the left branch's groups,
+   * shrinking to convergence), which is what lets a recursive CTE keep
+   * the groups its recursion preserves.
+   */
+  private computeSetOpGroups(
+    sel: SelectStmt,
+    results: { notNull: boolean }[],
+  ): OutputPresenceGroup[] {
+    if (!sel.larg || !sel.rarg) return [];
+    const left = this.groupCache.get(sel.larg) ?? [];
+    let combined: OutputPresenceGroup[];
+    if (sel.op === "SETOP_INTERSECT" || sel.op === "SETOP_EXCEPT") {
+      combined = left;
+    } else {
+      const right = this.groupCache.get(sel.rarg) ?? [];
+      combined = [];
+      const seen = new Set<string>();
+      for (const lg of left) {
+        for (const rg of right) {
+          const columns = lg.columns.filter(c => rg.columns.includes(c));
+          const discs = lg.discriminants.filter(
+            d => rg.discriminants.includes(d) && columns.includes(d),
+          );
+          if (columns.length < 2 || discs.length === 0) continue;
+          const key = `${columns.join(",")}|${discs.join(",")}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          combined.push({ columns, discriminants: discs });
+        }
+      }
+    }
+    // The dead rule at the SETOP level: INTERSECT strengthens a column's
+    // flat claim from the right branch (`left || right`), and a group
+    // member the combined analysis proves notNull means the absent arm
+    // cannot survive the operation — an INTERSECT against an inner-joined
+    // branch has no all-NULL row to pair with. Emitting the group anyway
+    // would be sound (the arm is uninhabitable, and a type intersection
+    // collapses it) but noisy, and its arm could never be witnessed —
+    // found by the generated corpus's two-arm bar, 67 groups strong,
+    // before any consumer saw one.
+    return combined.filter(g => g.columns.every(i => !results[i]?.notNull));
+  }
+
+  /**
+   * The stored groups of a statement NODE (wrapper unwrapped to the same
+   * inner object `scopeCache`/`groupCache` key by). Empty for anything not
+   * yet analyzed — a recursive CTE's in-flight self-reference stays
+   * conservatively group-less.
+   */
+  private groupsOfStatement(ast: Node): OutputPresenceGroup[] {
+    const node = ast as Record<string, unknown>;
+    for (const tag of ["SelectStmt", "InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
+      if (tag in node) {
+        const inner = node[tag] as object;
+        return this.groupCache.get(inner) ?? this.recursiveGroupAssumption.get(inner) ?? [];
+      }
+    }
+    return [];
+  }
+
+  /**
+   * The inner output index a re-exported column name resolves to —
+   * the same resolution `computeColumnNullabilityTraced` and `originOf`
+   * use: view columns positionally via the catalog list, alias column
+   * lists positionally with a name fallback, plain name match otherwise.
+   */
+  private innerIndexOf(
+    entry: RelationEntry,
+    colName: string,
+    innerResults: { name: string }[],
+  ): number {
+    if (entry.kind === "view" && entry.table) return entry.table.columns.indexOf(colName);
+    if (entry.cteColumns && entry.cteColumns.length > 0) {
+      const idx = entry.cteColumns.indexOf(colName);
+      if (idx >= 0 && idx < innerResults.length) return idx;
+    }
+    return innerResults.findIndex(r => r.name === colName);
   }
 
   private newTrace(label: string): ITrace {
@@ -618,11 +931,19 @@ class NullabilityEngine {
         this.registerCtes(sel.withClause, cteScope);
         const left = this.analyzeStatementTraced({ SelectStmt: sel.larg } as Node, cteScope, depth + 1);
         const right = this.analyzeStatementTraced({ SelectStmt: sel.rarg } as Node, cteScope, depth + 1);
-        return this.combineSetOperationTraced(left, right, sel.op);
+        const combined = this.combineSetOperationTraced(left, right, sel.op);
+        const groups = this.computeSetOpGroups(sel, combined);
+        this.groupCache.set(sel, groups);
+        if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
+        return combined;
       }
-      // For normal SELECT, build scope and trace each target.
+      // For normal SELECT, build scope and trace each target. Producer
+      // recording mirrors the untraced assembly line by line — the parity
+      // suite compares the two engines' presence groups.
       if (!sel.valuesLists || sel.valuesLists.length === 0) {
         const scope = this.buildScope(sel, outerScope, depth);
+        const originMode = this.originModeOf(sel);
+        const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
         const results: OutputNullabilityTraced[] = [];
         for (const target of sel.targetList ?? []) {
           const rt = this.unwrapResTarget(target);
@@ -630,17 +951,29 @@ class NullabilityEngine {
           const name = rt.name;
           if (!val) {
             results.push({ name: name ?? "", notNull: false });
+            producers.push(null);
             continue;
           }
           if (this.isStarColumn(val)) {
-            const expanded = this.expandStar(val, scope, depth);
+            const expanded = this.expandStar(
+              val,
+              scope,
+              depth,
+              false,
+              originMode === "all" ? producers : undefined,
+            );
+            if (originMode !== "all") for (const _ of expanded) producers.push(null);
             for (const e of expanded) results.push({ ...e });
             continue;
           }
           const trace = this.newTrace("Root");
           const notNull = this.walkExprTraced(val, scope, depth + 1, trace);
+          producers.push(this.originTarget(val, sel, scope, originMode));
           results.push({ name: name ?? this.inferName(val), notNull, trace: trace.node });
         }
+        const groups = this.computePresenceGroups(producers, results, scope, depth);
+        this.groupCache.set(sel, groups);
+        if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
         return results;
       }
     }
@@ -655,25 +988,25 @@ class NullabilityEngine {
       const ins = node["InsertStmt"] as InsertStmt;
       if (!ins.returningClause) return [];
       const scope = this.buildInsertScope(ins, outerScope, depth);
-      return this.analyzeReturningTraced(ins.returningClause, scope, depth);
+      return this.analyzeReturningTraced(ins.returningClause, scope, depth, ins);
     }
     if ("UpdateStmt" in node) {
       const upd = node["UpdateStmt"] as UpdateStmt;
       if (!upd.returningClause) return [];
       const scope = this.buildUpdateScope(upd, outerScope, depth);
-      return this.analyzeReturningTraced(upd.returningClause, scope, depth);
+      return this.analyzeReturningTraced(upd.returningClause, scope, depth, upd);
     }
     if ("MergeStmt" in node) {
       const mrg = node["MergeStmt"] as MergeStmt;
       if (!mrg.returningClause) return [];
       const scope = this.buildMergeScope(mrg, outerScope, depth);
-      return this.analyzeReturningTraced(mrg.returningClause, scope, depth);
+      return this.analyzeReturningTraced(mrg.returningClause, scope, depth, mrg);
     }
     if ("DeleteStmt" in node) {
       const del = node["DeleteStmt"] as DeleteStmt;
       if (!del.returningClause) return [];
       const scope = this.buildDeleteScope(del, outerScope, depth);
-      return this.analyzeReturningTraced(del.returningClause, scope, depth);
+      return this.analyzeReturningTraced(del.returningClause, scope, depth, del);
     }
 
     // Fallback: untraced.
@@ -702,8 +1035,10 @@ class NullabilityEngine {
     returningClause: Node,
     scope: Scope,
     depth: number,
+    stmtKey?: object,
   ): OutputNullabilityTraced[] {
     const ret = returningClause as { exprs?: Node[] };
+    const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
     const results: OutputNullabilityTraced[] = [];
     for (const target of ret.exprs ?? []) {
       const rt = this.unwrapResTarget(target);
@@ -711,16 +1046,23 @@ class NullabilityEngine {
       const name = rt.name;
       if (!val) {
         results.push({ name: name ?? "", notNull: false });
+        producers.push(null);
         continue;
       }
       if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth);
+        const expanded = this.expandStar(val, scope, depth, false, producers);
         for (const e of expanded) results.push({ ...e });
         continue;
       }
       const trace = this.newTrace("Root (RETURNING)");
       const notNull = this.walkExprTraced(val, scope, depth + 1, trace);
+      producers.push(this.resolveBareColumnTarget(val, scope));
       results.push({ name: name ?? this.inferName(val), notNull, trace: trace.node });
+    }
+    if (stmtKey) {
+      const groups = this.computePresenceGroups(producers, results, scope, depth);
+      this.groupCache.set(stmtKey, groups);
+      if (depth === 0) this.rootPresenceGroups = groups;
     }
     return results;
   }
@@ -755,6 +1097,9 @@ class NullabilityEngine {
       const cteScope = this.emptyScope(outerScope);
       this.registerCtes(stmt.withClause, cteScope);
       const results = this.analyzeSetOperation(stmt, cteScope, depth);
+      const groups = this.computeSetOpGroups(stmt, results);
+      this.groupCache.set(stmt, groups);
+      if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
       this.memoize(stmt, results);
       return results;
     }
@@ -775,13 +1120,12 @@ class NullabilityEngine {
     // shares the key values, so sibling keys are same-row; ROLLUP/CUBE-
     // nulled columns and non-keys refuse). HAVING without GROUP BY is an
     // aggregate query — no row identity at all. DISTINCT keeps whole rows.
-    const originMode: "all" | "keys" | "none" = stmt.groupClause?.length
-      ? "keys"
-      : stmt.havingClause
-        ? "none"
-        : "all";
+    const originMode = this.originModeOf(stmt);
 
-    // Process the target list.
+    // Process the target list. Each output's bare producer is recorded
+    // alongside — the input to presence-group folding, at every depth: a
+    // nested analysis's groups are what re-export lifting reads.
+    const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
     const results: OutputNullability[] = [];
     const targetList = stmt.targetList ?? [];
     for (const target of targetList) {
@@ -791,12 +1135,20 @@ class NullabilityEngine {
 
       if (!val) {
         results.push({ name: name ?? "", notNull: false });
+        producers.push(null);
         continue;
       }
 
       // Handle SELECT * (A_Star in ColumnRef).
       if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth, originMode === "all");
+        const expanded = this.expandStar(
+          val,
+          scope,
+          depth,
+          originMode === "all",
+          originMode === "all" ? producers : undefined,
+        );
+        if (originMode !== "all") for (const _ of expanded) producers.push(null);
         for (const e of expanded) {
           results.push(e);
         }
@@ -805,6 +1157,7 @@ class NullabilityEngine {
 
       const notNull = this.walkExpr(val, scope, depth + 1);
       const bare = this.originTarget(val, stmt, scope, originMode);
+      producers.push(bare);
       const origins = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
       results.push(
         origins
@@ -812,6 +1165,10 @@ class NullabilityEngine {
           : { name: name ?? this.inferName(val), notNull },
       );
     }
+
+    const groups = this.computePresenceGroups(producers, results, scope, depth);
+    this.groupCache.set(stmt, groups);
+    if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
 
     this.memoize(stmt, results);
     scope.results = results;
@@ -1377,7 +1734,7 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
     const scope = this.buildInsertScope(stmt, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth);
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt);
   }
 
   /**
@@ -1474,7 +1831,7 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
     const scope = this.buildUpdateScope(stmt, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth);
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt);
   }
 
   /** The complete RETURNING scope for an UPDATE — see buildInsertScope. */
@@ -1541,7 +1898,7 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
     const scope = this.buildDeleteScope(stmt, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth);
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt);
   }
 
   /** The complete RETURNING scope for a DELETE — see buildInsertScope. */
@@ -1581,7 +1938,7 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!stmt.returningClause) return [];
     const scope = this.buildMergeScope(stmt, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth);
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt);
   }
 
   private buildMergeScope(stmt: MergeStmt, outerScope: Scope | null, depth: number): Scope {
@@ -1720,8 +2077,17 @@ class NullabilityEngine {
     returningClause: Node,
     scope: Scope,
     depth: number,
+    stmtKey?: object,
   ): OutputNullability[] {
     const ret = returningClause as { exprs?: Node[] };
+    // A DML statement's FROM/USING/source can outer-join (UPDATE … FROM a
+    // LEFT JOIN b; MERGE's optional source), so RETURNING records producers
+    // for presence groups exactly like a SELECT's target list. `stmtKey` is
+    // the enclosing statement object — supplied by the four statement
+    // analyzers so a data-modifying CTE's groups are liftable, and absent
+    // for function-body DML analysis, which computes a value, not a
+    // contract.
+    const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
     const results: OutputNullability[] = [];
     for (const target of ret.exprs ?? []) {
       const rt = this.unwrapResTarget(target);
@@ -1729,10 +2095,11 @@ class NullabilityEngine {
       const name = rt.name;
       if (!val) {
         results.push({ name: name ?? "", notNull: false });
+        producers.push(null);
         continue;
       }
       if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth, true);
+        const expanded = this.expandStar(val, scope, depth, true, producers);
         for (const e of expanded) results.push(e);
         continue;
       }
@@ -1743,12 +2110,18 @@ class NullabilityEngine {
       // qualifications resolve to no scope entry and stay origin-free.)
       const notNull = this.walkExpr(val, scope, depth + 1);
       const bare = this.resolveBareColumnTarget(val, scope);
+      producers.push(bare);
       const origins = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
       results.push(
         origins
           ? { name: name ?? this.inferName(val), notNull, origins }
           : { name: name ?? this.inferName(val), notNull },
       );
+    }
+    if (stmtKey) {
+      const groups = this.computePresenceGroups(producers, results, scope, depth);
+      this.groupCache.set(stmtKey, groups);
+      if (depth === 0) this.rootPresenceGroups = groups;
     }
     return results;
   }
@@ -1801,33 +2174,51 @@ class NullabilityEngine {
     const left = this.analyzeSelect(stmt.larg!, cteScope, depth + 1);
 
     let assumption = left;
-    // Each round that changes anything turns at least one column nullable, so
-    // the column count bounds the rounds. The extra round is the one that
-    // confirms a fixed point without changing anything.
-    for (let round = 0; round <= left.length + 1; round++) {
+    // The group assumption iterates beside the flat one: seeded with the
+    // base branch's groups (the most the union could keep), consumed by
+    // the self-reference's lift, shrunk by each round's branch agreement.
+    let groupAssumption = this.groupCache.get(stmt.larg!) ?? [];
+    // Each round that changes anything turns at least one column nullable
+    // or removes a group member from the assumption, so the column count
+    // plus the seeded membership bounds the rounds. The extra round is the
+    // one that confirms a fixed point without changing anything.
+    const groupBudget = groupAssumption.reduce((n, g) => n + g.columns.length, 0);
+    for (let round = 0; round <= left.length + groupBudget + 1; round++) {
       this.recursiveAssumption.set(stmt, assumption);
+      this.recursiveGroupAssumption.set(stmt, groupAssumption);
       const outerJournal = this.fixpointJournal;
       const journal: object[] = [];
       this.fixpointJournal = journal;
       let combined: OutputNullability[];
+      let combinedGroups: OutputPresenceGroup[];
       try {
         const right = this.analyzeSelect(stmt.rarg!, cteScope, depth + 1);
         combined = this.combineSetOperation(left, right, stmt.op!);
+        combinedGroups = this.computeSetOpGroups(stmt, combined);
       } finally {
         this.fixpointJournal = outerJournal;
       }
-      if (sameNullability(combined, assumption)) {
+      if (
+        sameNullability(combined, assumption) &&
+        JSON.stringify(combinedGroups) === JSON.stringify(groupAssumption)
+      ) {
         this.recursiveAssumption.delete(stmt);
+        this.recursiveGroupAssumption.delete(stmt);
         return combined;
       }
-      for (const node of journal) this.scopeCache.delete(node);
+      for (const node of journal) {
+        this.scopeCache.delete(node);
+        this.groupCache.delete(node);
+      }
       assumption = combined;
+      groupAssumption = combinedGroups;
     }
 
     // Unreachable while the lattice is two-valued and the loop descends. If it
     // ever is reached, the assumption never settled, and the only answer that
     // cannot be wrong is that nothing is guaranteed.
     this.recursiveAssumption.delete(stmt);
+    this.recursiveGroupAssumption.delete(stmt);
     return left.map(c => ({ name: c.name, notNull: false }));
   }
 
@@ -1989,41 +2380,108 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
     withOrigins = false,
+    producers?: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[],
   ): OutputNullability[] {
     const node = val as Record<string, unknown>;
     const cr = node["ColumnRef"] as ColumnRef;
     const fields = cr.fields ?? [];
 
+    // Star expansion is the ONE path that can re-export a subquery/CTE/view
+    // column whose NAME is ambiguous inside its entry (`SELECT sh.id, g.a
+    // AS id` — PostgreSQL rejects any explicit reference to it, but `s.*`
+    // is legal). Name-based inner resolution first-matches there and
+    // misattributes: the wrong flat claim, the wrong origin, the wrong
+    // lifted-group member — all three measured before this fix. Expansion
+    // therefore resolves POSITIONALLY: each expanded column carries its
+    // ordinal within the entry's own output list, and every consumer
+    // prefers it. In the unqualified branch the ordinal is recovered by
+    // occurrence counting, which is exact: a USING merge cannot consume a
+    // duplicate-named column (the merge itself would be ambiguous), so an
+    // entry's k-th visible occurrence of a name IS its k-th inner one.
     const withOrigin = (
       entry: RelationEntry,
       colName: string,
       notNull: boolean,
+      ordinal: number | undefined,
     ): OutputNullability => {
-      const origins = withOrigins ? this.originOf(entry, colName, scope, depth) : undefined;
+      const origins = withOrigins
+        ? this.originOf(entry, colName, scope, depth, ordinal)
+        : undefined;
       return origins ? { name: colName, notNull, origins } : { name: colName, notNull };
     };
 
-    // `alias.*` — just that relation's columns.
+    // `alias.*` — just that relation's columns, so the list index is the
+    // ordinal directly.
     if (fields.length === 2 && "String" in (fields[0] as Record<string, unknown>)) {
       const aliasName = this.stringVal(fields[0]!);
       const entry = this.resolveAlias(aliasName, scope);
       if (!entry) return [];
-      return this.relationColumnsIntrinsic(entry, scope, depth).map(col =>
-        withOrigin(entry, col.name, this.computeColumnNullability(entry, col.name, scope, depth)),
-      );
+      return this.relationColumnsIntrinsic(entry, scope, depth).map((col, ordinal) => {
+        producers?.push({ entry, column: col.name, ordinal });
+        return withOrigin(
+          entry,
+          col.name,
+          this.computeColumnNullability(entry, col.name, scope, depth, false, ordinal),
+          ordinal,
+        );
+      });
     }
 
     // Unqualified `*` — the scope's visible columns, in order. Each is
     // resolved exactly as a named reference would be, so views, WHERE
     // promotion, null groups and branch guards all apply here too. A merged
-    // USING/NATURAL column is drawn from either side and carries no origin.
-    return scope.visible.map(vc =>
-      vc.merged
-        ? { name: vc.name, notNull: this.mergedColumnNotNull(vc.name, vc.merged, scope, depth) }
-        : vc.entry
-          ? withOrigin(vc.entry, vc.name, this.computeColumnNullability(vc.entry, vc.name, scope, depth))
-          : { name: vc.name, notNull: false },
-    );
+    // USING/NATURAL column is drawn from either side and carries no origin —
+    // and no producer: it is present whenever EITHER side is, so it does not
+    // extend with one unit.
+    const nameLists = new Map<RelationEntry, string[]>();
+    const seen = new Map<RelationEntry, Map<string, number>>();
+    const ordinalOf = (entry: RelationEntry, colName: string): number | undefined => {
+      if (entry.kind !== "view" && entry.kind !== "cte" && entry.kind !== "subquery") {
+        return undefined;
+      }
+      let list = nameLists.get(entry);
+      if (!list) {
+        list = this.innerColumnNames(entry, scope, depth);
+        nameLists.set(entry, list);
+      }
+      let counts = seen.get(entry);
+      if (!counts) {
+        counts = new Map();
+        seen.set(entry, counts);
+      }
+      const n = counts.get(colName) ?? 0;
+      counts.set(colName, n + 1);
+      let hits = 0;
+      for (let k = 0; k < list.length; k++) {
+        if (list[k] === colName && hits++ === n) return k;
+      }
+      return undefined;
+    };
+    return scope.visible.map(vc => {
+      if (vc.merged) {
+        producers?.push(null);
+        return { name: vc.name, notNull: this.mergedColumnNotNull(vc.name, vc.merged, scope, depth) };
+      }
+      if (vc.entry) {
+        const ordinal = ordinalOf(vc.entry, vc.name);
+        producers?.push({ entry: vc.entry, column: vc.name, ordinal });
+        return withOrigin(
+          vc.entry,
+          vc.name,
+          this.computeColumnNullability(vc.entry, vc.name, scope, depth, false, ordinal),
+          ordinal,
+        );
+      }
+      producers?.push(null);
+      return { name: vc.name, notNull: false };
+    });
+  }
+
+  /** The ordered output column names of a view/CTE/subquery entry. */
+  private innerColumnNames(entry: RelationEntry, scope: Scope, depth: number): string[] {
+    if (entry.kind === "view" && entry.table) return entry.table.columns;
+    if (entry.cteColumns && entry.cteColumns.length > 0) return entry.cteColumns;
+    return this.innerRelationColumns(entry, scope, depth).map(r => r.name);
   }
 
   /**
@@ -2104,6 +2562,8 @@ class NullabilityEngine {
     colName: string,
     scope: Scope,
     depth: number,
+    /** Positional resolution from star expansion — see computeColumnNullabilityTraced. */
+    ordinal?: number,
   ): OutputNullability["origins"] {
     if (entry.joinState === NOT_FOUND) return undefined;
     const optionalHere = entry.joinState === OPTIONAL;
@@ -2128,7 +2588,7 @@ class NullabilityEngine {
     }
 
     if (entry.kind === "view" && entry.ast && entry.table) {
-      const idx = entry.table.columns.indexOf(colName);
+      const idx = ordinal ?? entry.table.columns.indexOf(colName);
       if (idx < 0) return undefined;
       return lift(this.analyzeStatement(entry.ast, scope, depth + 1)[idx]?.origins);
     }
@@ -2136,7 +2596,9 @@ class NullabilityEngine {
     if ((entry.kind === "cte" || entry.kind === "subquery") && entry.ast) {
       const innerResults = this.innerRelationColumns(entry, scope, depth);
       let inner: OutputNullability | undefined;
-      if (entry.cteColumns && entry.cteColumns.length > 0) {
+      if (ordinal !== undefined) {
+        inner = innerResults[ordinal];
+      } else if (entry.cteColumns && entry.cteColumns.length > 0) {
         const idx = entry.cteColumns.indexOf(colName);
         inner =
           idx >= 0 && idx < innerResults.length
@@ -2157,8 +2619,18 @@ class NullabilityEngine {
     colName: string,
     scope: Scope,
     depth: number,
+    presumePresent = false,
+    ordinal?: number,
   ): boolean {
-    return this.computeColumnNullabilityTraced(entry, colName, scope, depth, NOOP);
+    return this.computeColumnNullabilityTraced(
+      entry,
+      colName,
+      scope,
+      depth,
+      NOOP,
+      presumePresent,
+      ordinal,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -3145,8 +3617,25 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
     trace: ITrace,
+    /**
+     * Answer the question "were this entry's row present, would the column
+     * be non-null?" — the extension lifted, everything else (catalog,
+     * generated expressions, CHECK entailment, the inner analysis) intact.
+     * The presence-group discriminant condition; never used by the walk's
+     * own claims.
+     */
+    presumePresent = false,
+    /**
+     * The column's POSITION in the entry's own output list, supplied by
+     * star expansion — the one caller that can reach a duplicate-named
+     * inner column. When present it replaces every name-based inner
+     * lookup below; explicit references never need it (PostgreSQL rejects
+     * them as ambiguous before any contract ships).
+     */
+    ordinal?: number,
   ): boolean {
-    let joinState = entry.joinState;
+    let joinState =
+      presumePresent || this.presumedPresent.has(entry) ? REQUIRED : entry.joinState;
 
     trace.addFact("relation", `${entry.kind} '${entry.alias}'`);
     trace.addFact("colName", colName);
@@ -3220,7 +3709,7 @@ class NullabilityEngine {
     // here — PostgreSQL reports false for every view column.
     if (entry.kind === "view" && entry.ast && entry.table) {
       const innerResults = this.analyzeStatement(entry.ast, scope, depth + 1);
-      const colIndex = entry.table.columns.indexOf(colName);
+      const colIndex = ordinal ?? entry.table.columns.indexOf(colName);
       const inner = colIndex >= 0 ? innerResults[colIndex] : undefined;
       if (inner) {
         const result = inner.notNull && joinState !== OPTIONAL;
@@ -3271,6 +3760,25 @@ class NullabilityEngine {
           joinState !== OPTIONAL &&
           !!inner.origins &&
           this.originCheckEntailment(entry, inner.origins, innerResults, outerNames, scope, trace);
+
+        // Star expansion resolves positionally — the only caller that can
+        // reach a duplicate-named inner column, where a name lookup would
+        // first-match the wrong one.
+        if (ordinal !== undefined) {
+          const inner = innerResults[ordinal];
+          if (inner) {
+            const result = inner.notNull && joinState !== OPTIONAL;
+            trace.addFact("innerResult", `${inner.notNull ? "notNull" : "nullable"} (ordinal ${ordinal})`);
+            if (!result && tryOrigin(inner)) {
+              trace.conclude(true, "origin CHECK entailment through the CTE/subquery → notNull");
+              return true;
+            }
+            trace.conclude(result, `CTE/subquery column[${ordinal}] ${inner.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
+            return result;
+          }
+          trace.conclude(false, `ordinal ${ordinal} out of range for CTE/subquery output`);
+          return false;
+        }
 
         // For VALUES subqueries, the inner results have auto-generated names
         // (column1, column2, ...). Map the alias column names to positions.
@@ -3571,7 +4079,15 @@ class NullabilityEngine {
         });
       }
     }
-    if (checkExprs.length === 0 && generatedEqualities.length === 0) return false;
+    // An OPTIONAL chain with a catalog-NOT NULL goal has a derivation even
+    // with no CHECKs at all: evidence-proven presence settles it (the
+    // presence-consumption closure — the kernel's short-circuit).
+    const goalCatalogNotNull =
+      goalOrigin.optional &&
+      this.catalog.resolveColumnNotNull(goalOrigin.schema, goalOrigin.table, goalOrigin.column);
+    if (checkExprs.length === 0 && generatedEqualities.length === 0 && !goalCatalogNotNull) {
+      return false;
+    }
 
     // outer column name → base column, for same-row siblings. A duplicated
     // outer name is dropped entirely — PostgreSQL rejects references to it,
@@ -3620,6 +4136,7 @@ class NullabilityEngine {
       presenceColumns: goalOrigin.optional
         ? [...rename.values()].map(c => `${entry.alias}.${c}`)
         : undefined,
+      goalCatalogNotNull,
       isMasked: () => false,
       resolveUnqualified: col => {
         let owner: string | null = null;

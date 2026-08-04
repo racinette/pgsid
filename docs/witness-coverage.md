@@ -265,19 +265,46 @@ size, and the annotations are the triage, kept where the claim lives. This is
 still not a demand for 100% witnessing — an unwitnessable claim is fine — but
 non-witnessing must be *explicit*, never incidental.
 
+## Presence groups: the two-arm witness
+
+A `@null-group` annotation (Wave 13) is a JOINT claim and gets a joint
+oracle. Statically, the agreement suite holds compulsory bidirectional
+coverage against `outputPresenceGroups`, discriminant sets compared exactly,
+every member required to carry its per-column `@nullable`. Executably, the
+soundness suite checks each engine-claimed group **per returned row**: the
+discriminants must agree (all NULL or all non-NULL — a split row falsifies
+the unit), and on the absent arm every member must be NULL. Both arms must
+then have actually run: some row absent, some row present.
+
+The absent arm's exemption is **derived, not declared**: that arm fires
+exactly when a discriminant is NULL, so it is unwitnessable precisely when
+every discriminant's own `@nullable` claim is — each already carrying its
+`@unwitnessable N: reason`. The per-column staleness check removes those
+the moment data witnesses a NULL, which re-arms the group assertion
+automatically; the two annotation layers cannot drift. The present arm has
+no exemption at all — a fixture that cannot reach it should not claim a
+group.
+
 ## Current measurement
 
-Across 134 fixtures and 5 data states, at the default seed:
+Across 262 fixtures and 5 data states, at the default seed:
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 583 | |
-| — falsifiable | 573 (98%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 761 | |
+| — falsifiable | 751 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 254 | |
-| — witnessed | 193 (76%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 61 | every one carries an `@unwitnessable` annotation |
+| `nullable` claims | 390 | |
+| — witnessed | 327 (84%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 63 | every one carries an `@unwitnessable` annotation |
+| `@null-group` claims | 41 (35 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
+
+The generated corpus carries the same group oracle annotation-free: 684
+engine-claimed groups over 6142 queries, all arms observed, zero per-row
+falsifications, the GROUP_UNWITNESSABLE rule list empty — the two-arm bar
+found and eliminated 67 INTERSECT groups with uninhabitable absent arms
+(the setop dead rule) before any consumer saw one.
 
 Every fixture returns rows under some state and binding, except the two that
 declare `@no-rows`.
@@ -290,7 +317,7 @@ inline. They fall into four groups; annotations whose reason begins "data
 gap:" mark the ones a richer data state could witness, and the staleness
 check removes each annotation automatically the moment that happens.
 
-**A row type carries no constraints (9 claims).** `SETOF <table>` and
+**A row type carries no constraints (10 claims).** `SETOF <table>` and
 `SETOF <composite>` results are nullable because NOT NULL constraints do not
 travel with a row type. The functions behind them select NOT NULL columns, so
 PostgreSQL never emits NULL there. Witnessing these would need a function whose
@@ -298,22 +325,29 @@ body actually produces NULL, which asserts something different from what the
 fixtures are for. `from-item-kinds`, `table-function-return-types`,
 `setof-composite-type`.
 
-**Conservative by design (9 claims).** The value is provably non-null and the
+**Conservative by design (18 claims).** The value is provably non-null and the
 engine reports nullable anyway. Each is a known imprecision registered in
 the "Known imprecisions in the walk" entry in
 `docs/deferred-tasks.md` — array subscripting, ordered-set
-aggregates, population statistics, built-ins outside the curated tables — or `CURRENT_SCHEMA`,
+aggregates, population statistics, built-ins outside the curated tables,
+multi-statement function bodies, JSON_TABLE columns, multi-candidate
+operators — or `CURRENT_SCHEMA`,
 which is unwitnessable by construction. These are the candidates for engine
-work; closing one turns its claim into `notNull` rather than witnessing it.
+work; closing one turns its claim into `notNull` rather than witnessing it
+(the presence-consumption entry retired exactly that way — its fixture's
+carrier now reads notNull and the annotation came off).
 
-**The query's own shape rules out the NULL case (38 claims).** The largest
+**The query's own shape rules out the NULL case (33 claims).** The largest
 group, and the least interesting: the fixture selects away the rows that would
 show the NULL. A `LEFT JOIN` whose `ON` is an equality on a NOT NULL foreign key
 always matches. A `CROSS JOIN LATERAL` drops exactly the orders that would leave
 the aggregate side of an earlier `LEFT JOIN` unmatched. A correlated subquery
 keyed on a primary key always finds its row. `RETURNING` a column a literal was
 just written into reports that literal. Two of `scalar-subquery-zero-row-guards`'
-cases need a review count that its own set-operation cases forbid. Changing any
+cases need a review count that its own set-operation cases forbid.
+`presence-group-full`'s orders side never extends because `shipments.order_id`
+is a NOT NULL foreign key — the annotations that also exempt its group's
+absent arm by derivation. Changing any
 of these means changing what the fixture asserts, which is a worse trade than
 leaving the claim unwitnessed.
 
@@ -332,6 +366,8 @@ returns a row can be witnessed.
 | Generation framework's own rules | `tests/unit/query/fixture-data.test.ts` |
 | Fixture directives (`@args`, `@no-rows`) | `tests/unit/query/fixture-args.ts` |
 | Unwitnessability annotations | `-- @unwitnessable N: reason` in each fixture; parsed in `fixture-args.ts` |
+| Presence-group annotations | `-- @null-group N[*],M[*]` in each fixture; parsed in `fixture-args.ts`, agreement in `nullability-walk.test.ts`, per-row + two-arm oracle in `nullability-soundness.test.ts` |
+| Presence-group pure-function edges | `tests/unit/query/presence-groups.test.ts` (star expansion, `UPDATE … FROM`, the floors) |
 | Annotation-based suite | `tests/unit/query/nullability-walk.test.ts` |
 | Executable suite (validity, shape, soundness, liveness, coverage) | `tests/unit/query/nullability-soundness.test.ts` |
 | AST node coverage | `tests/unit/query/node-census.test.ts`, `grammar-sampler.ts` |

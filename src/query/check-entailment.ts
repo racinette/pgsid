@@ -136,6 +136,16 @@ export interface CheckEntailmentInput {
    * what keeps an unfilterable optional chain dark.
    */
   presenceColumns?: string[];
+  /**
+   * Whether the goal's ORIGIN column carries the catalog's NOT NULL flag.
+   * Set only alongside `presenceColumns` (an optional origin chain): once
+   * the presence gate proves the base row exists on every emitted row,
+   * the catalog constraint alone finishes the goal — the value IS the
+   * stored value, and stored values of a NOT NULL column are non-null. No
+   * CHECK derivation needed, which is what lets a table with no CHECKs at
+   * all benefit from evidence-pinned presence.
+   */
+  goalCatalogNotNull?: boolean;
   trace?: CheckEntailmentTrace;
 }
 
@@ -259,6 +269,14 @@ class EntailmentKernel {
         return false;
       }
       this.input.trace?.addFact("presence", "proven from evidence");
+      // With presence proven, a catalog NOT NULL goal is already done: the
+      // emitted value is the stored value, and no stored value of the
+      // column is NULL. CHECK derivation is for the goals the catalog
+      // cannot settle.
+      if (this.input.goalCatalogNotNull) {
+        this.input.trace?.addFact("goal", "catalog NOT NULL — settled by presence alone");
+        return true;
+      }
     }
     // The derivation fixpoint (Wave 11b): each round lets the generated
     // equalities and every CHECK contribute FACTS — a notFALSE chain

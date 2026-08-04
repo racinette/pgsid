@@ -1,5 +1,9 @@
 -- @unwitnessable 1: the LEFT JOIN's ON is an equality on a NOT NULL foreign key, so it always matches and never null-extends
 -- @unwitnessable 2: same join: the optional side is present in every state
+-- @null-group 1*,2*
+-- (c's unit; its absent arm is unwitnessable by the discriminants' own
+-- recorded reasons above — the derived exemption. c2's unit forms no group:
+-- the WHERE promotes it, so its absent arm is refiltered.)
 -- NOT NULL domain columns on the optional side of a LEFT JOIN become
 -- nullable. The domain's NOT NULL constraint guarantees the value is
 -- non-null when a row exists, but the outer join can produce NULL-extended

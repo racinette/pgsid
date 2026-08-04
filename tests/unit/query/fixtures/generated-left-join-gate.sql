@@ -4,6 +4,11 @@
 -- the rest — so the expression may only speak when the entry is present.
 -- dense has customers and no gm rows, so every row there is null-extended
 -- and witnesses s; sparse's customer 1 matches gm.a = 1 for liveness.
+-- @null-group 1*,2*
+-- (Both discriminate: given the row present, safe_label's COALESCE and
+-- doubled's a*2 over NOT NULL a are non-null — the latter required the
+-- presumption to reach the generation expression's ref resolution, the
+-- R3 residue closed 2026-08-04. This annotation was 1*,2 while it stood.)
 SELECT
   c.id AS cid,          -- @notNull
   g.safe_label AS s,    -- @nullable

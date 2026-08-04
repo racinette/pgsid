@@ -11,6 +11,13 @@
 -- distribution), top tags, applicable coupon discount, category path,
 -- and a computed status. The result combines window functions, CTEs,
 -- and deeply nested expressions.
+--
+-- pr (product_reviews) is the one presence group: the FILTER counts
+-- discriminate (count is non-null over any present group row), while
+-- top_reviewers stays nullable even when present (its string_agg subquery
+-- can find no 4+ reviews). pt/pos/cp contribute only ONE bare column each
+-- — below the two-member floor, no group.
+-- @null-group 11*,12*,14
 WITH product_reviews AS (
   SELECT
     r.product_id,

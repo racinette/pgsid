@@ -72,6 +72,17 @@ export interface FixtureDirectives {
    * is a reviewed, current fact, not a historical excuse.
    */
   unwitnessable: Map<number, string>;
+  /**
+   * Expected presence groups, from `-- @null-group N[*],M[*][,…]` lines:
+   * 0-based output column indices NULL-extended together by an outer join,
+   * `*` marking the discriminants (non-null on the present arm, so NULL ⟺
+   * the unit's row was absent). Two or more members, at least one starred —
+   * the same floor the engine applies before a group earns contract space.
+   * Every member must also carry a per-column `@nullable` marker (a group
+   * member has an absent arm, so it is never flat notNull); the agreement
+   * suite enforces that pairing, mirroring @param-reject's.
+   */
+  nullGroupClaims: { columns: number[]; discriminants: number[] }[];
 }
 
 export interface ParamClaim {
@@ -86,16 +97,57 @@ const RAISES_RE = /^\s*--\s*@raises\b:?(.*)$/;
 const PARAM_REJECT_RE = /^\s*--\s*@param-reject\b(.*)$/;
 const PARAM_RE = /^\s*--\s*@param\b(?!-)(.*)$/;
 const UNWITNESSABLE_RE = /^\s*--\s*@unwitnessable\b:?(.*)$/;
+// NOTE: the per-column markers in nullability-walk.test.ts match the bare
+// substrings `@notNull` / `@nullable` anywhere in a line; `@null-group`
+// contains neither, which is a load-bearing property of the spelling.
+const NULL_GROUP_RE = /^\s*--\s*@null-group\b(.*)$/;
 
 export function parseFixtureDirectives(content: string): FixtureDirectives {
   const bindings: FixtureBinding[] = [];
   const paramClaims: ParamClaim[] = [];
   const rejectClaims: number[][] = [];
+  const nullGroupClaims: { columns: number[]; discriminants: number[] }[] = [];
   const unwitnessable = new Map<number, string>();
   let noRowsReason: string | null = null;
   let raisesPattern: string | null = null;
 
   for (const line of content.split("\n")) {
+    const nullGroupMatch = NULL_GROUP_RE.exec(line);
+    if (nullGroupMatch) {
+      const raw = nullGroupMatch[1]!.trim();
+      const columns: number[] = [];
+      const discriminants: number[] = [];
+      for (const part of raw.split(",")) {
+        const m = /^(\d+)(\*?)$/.exec(part.trim());
+        if (!m) {
+          throw new Error(
+            `@null-group must be \`-- @null-group <col>[*],<col>[*][,…]\` with 0-based ` +
+              `output column indices (\`*\` marks a discriminant), got: ${raw}`,
+          );
+        }
+        const index = Number(m[1]);
+        if (columns.includes(index)) {
+          throw new Error(`@null-group lists column ${index} twice: ${raw}`);
+        }
+        columns.push(index);
+        if (m[2]) discriminants.push(index);
+      }
+      if (columns.length < 2 || discriminants.length === 0) {
+        throw new Error(
+          `@null-group needs two or more members and at least one \`*\` discriminant ` +
+            `(a smaller group says nothing the flat contract does not), got: ${raw}`,
+        );
+      }
+      columns.sort((a, b) => a - b);
+      discriminants.sort((a, b) => a - b);
+      const key = columns.join(",");
+      if (nullGroupClaims.some(g => g.columns.join(",") === key)) {
+        throw new Error(`duplicate @null-group annotation for {${key}}`);
+      }
+      nullGroupClaims.push({ columns, discriminants });
+      continue;
+    }
+
     const rejectMatch = PARAM_REJECT_RE.exec(line);
     if (rejectMatch) {
       const members = rejectMatch[1]!
@@ -229,7 +281,15 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   if (bindings.length === 0) {
     bindings.push({ label: "unbound", args: null });
   }
-  return { bindings, noRowsReason, raisesPattern, paramClaims, rejectClaims, unwitnessable };
+  return {
+    bindings,
+    noRowsReason,
+    raisesPattern,
+    paramClaims,
+    rejectClaims,
+    nullGroupClaims,
+    unwitnessable,
+  };
 }
 
 /**

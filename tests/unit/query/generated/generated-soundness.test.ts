@@ -9,6 +9,7 @@ import { snapshotCatalog } from "../../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../../src/query/catalog-adapter.js";
 import {
   inferNullability,
+  inferPresenceGroups,
   UnsupportedNodeError,
 } from "../../../../src/query/nullability-walk.js";
 import {
@@ -159,10 +160,27 @@ interface ParamEvidence {
   falsified: { state: string; message: string }[];
 }
 
+/**
+ * Per engine-claimed presence group: the per-row oracle's observations.
+ * `sawAbsent`/`sawPresent` are the two arms of the union the group emits;
+ * a group neither state reaches on some arm is unproven and fails below
+ * unless a GROUP_UNWITNESSABLE rule records why.
+ */
+interface GroupEvidence {
+  columns: number[];
+  discriminants: number[];
+  sawAbsent: boolean;
+  sawPresent: boolean;
+}
+
 interface QueryRecord {
   query: GeneratedQuery;
   sql: string;
   claimed: OutputNullability[] | null;
+  /** Engine-claimed presence groups; per-row-verified below. */
+  groupEvidence: GroupEvidence[];
+  /** Presence-group falsifications — the joint oracle's own channel. */
+  groupViolations: string[];
   /** Engine's argument contract; PostgreSQL is the oracle for it below. */
   paramClaims: ParamNullability[];
   /** Engine-claimed joint rejection sets — verified two-sided below. */
@@ -232,6 +250,8 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         query,
         sql: "",
         claimed: null,
+        groupEvidence: [],
+        groupViolations: [],
         paramClaims: [],
         rejectionSets: [],
         validArgs: [],
@@ -272,6 +292,12 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
 
       try {
         record.claimed = inferNullability(stmt, catalog);
+        record.groupEvidence = inferPresenceGroups(stmt, catalog).map(g => ({
+          columns: g.columns,
+          discriminants: g.discriminants,
+          sawAbsent: false,
+          sawPresent: false,
+        }));
       } catch (e) {
         if (e instanceof UnsupportedNodeError) record.refusal = `${e.site}:${e.nodeType}`;
         else record.crash = (e as Error).message;
@@ -335,6 +361,35 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
                 `notNull, PostgreSQL returned NULL`,
             );
           });
+          // Presence groups are ROW-side claims: per returned row the
+          // discriminants must agree (all NULL = the unit's absent arm),
+          // and on the absent arm every member must be NULL. One row
+          // disagreeing falsifies the group — the same oracle the fixture
+          // suite runs, here over every generated structure and binding.
+          for (const gev of record.groupEvidence) {
+            for (const row of rows) {
+              const nullDiscs = gev.discriminants.filter(d => row[d] === null);
+              if (nullDiscs.length === 0) {
+                gev.sawPresent = true;
+                continue;
+              }
+              if (nullDiscs.length < gev.discriminants.length) {
+                record.groupViolations.push(
+                  `[${state.name}${binding}] group {${gev.columns.join(",")}}: ` +
+                    `discriminants disagree in one row (NULL: ${nullDiscs.join(",")})`,
+                );
+                continue;
+              }
+              gev.sawAbsent = true;
+              const survivors = gev.columns.filter(c => row[c] !== null);
+              if (survivors.length > 0) {
+                record.groupViolations.push(
+                  `[${state.name}${binding}] group {${gev.columns.join(",")}}: ` +
+                    `absent arm but column(s) ${survivors.join(",")} non-NULL`,
+                );
+              }
+            }
+          }
         };
 
         // Generated DML rolls back its own writes; SELECTs skip the two
@@ -487,6 +542,66 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       `Unsoundness: the engine said "never NULL" and PostgreSQL returned ` +
         `NULL. Each of these should become a permanent fixture in ` +
         `tests/unit/query/fixtures/ once diagnosed:\n${violated.join("\n")}\n`,
+    ).toEqual([]);
+  });
+
+  it("no presence group is falsified by execution", () => {
+    const violated = records
+      .filter(r => r.groupViolations.length > 0)
+      .map(r => describeFailure(r, r.groupViolations.join("\n  ")));
+    expect(
+      violated,
+      `Presence-group unsoundness: a returned row where the discriminants ` +
+        `disagree, or an absent arm with a surviving member. Each of these ` +
+        `should become a permanent fixture once diagnosed:\n${violated.join("\n")}\n`,
+    ).toEqual([]);
+  });
+
+  it("every presence group's two arms are observed, or the reason is recorded", () => {
+    // The group analogue of the nullable-claim witness bar: "0 group
+    // violations" over arms that never executed would assert nothing. A
+    // rule records a structural reason an arm cannot occur, and goes stale
+    // the moment the corpus reaches it — same discipline as UNWITNESSABLE.
+    interface GroupUnwitnessableRule {
+      label: string;
+      arm: "absent" | "present";
+      matches(axes: GeneratedQuery["axes"], group: GroupEvidence): boolean;
+    }
+    const GROUP_UNWITNESSABLE: GroupUnwitnessableRule[] = [];
+    const matchedRules = new Set<string>();
+    const unproven: string[] = [];
+    for (const r of records) {
+      if (r.rejection) continue;
+      for (const gev of r.groupEvidence) {
+        for (const [arm, saw] of [
+          ["absent", gev.sawAbsent],
+          ["present", gev.sawPresent],
+        ] as const) {
+          if (saw) continue;
+          const rules = GROUP_UNWITNESSABLE.filter(
+            rule => rule.arm === arm && rule.matches(r.query.axes, gev),
+          );
+          if (rules.length > 0) {
+            for (const rule of rules) matchedRules.add(rule.label);
+            continue;
+          }
+          unproven.push(
+            describeFailure(r, `group {${gev.columns.join(",")}}: ${arm} arm never observed`),
+          );
+        }
+      }
+    }
+    expect(
+      unproven,
+      `Presence-group arms no state or binding reached, with no ` +
+        `GROUP_UNWITNESSABLE rule recording why — an unexecuted arm proves ` +
+        `nothing:\n${unproven.join("\n")}\n`,
+    ).toEqual([]);
+    const stale = GROUP_UNWITNESSABLE.map(r => r.label).filter(l => !matchedRules.has(l));
+    expect(
+      stale,
+      `GROUP_UNWITNESSABLE rules that matched nothing — the corpus or the ` +
+        `data moved past them; remove each so the reasons stay current:\n  ${stale.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -741,6 +856,10 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         `  joint rejection sets:       ${records.reduce((n, r) => n + r.jointEvidence.length, 0)} — ` +
         `${records.reduce((n, r) => n + r.jointEvidence.filter(j => j.witnessed.length > 0).length, 0)} ` +
         `witnessed by the all-members-NULL raise\n` +
+        `  presence groups:            ${records.reduce((n, r) => n + r.groupEvidence.length, 0)} — ` +
+        `${records.reduce((n, r) => n + r.groupEvidence.filter(g => g.sawAbsent && g.sawPresent).length, 0)} ` +
+        `both arms observed, ` +
+        `${count(r => r.groupViolations.length > 0)} falsified\n` +
         `  deep-join axis bound:       5 shapes × 4³ kinds, plain projection only ` +
         `(setops/wrappers not crossed)`,
     );

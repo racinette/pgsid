@@ -586,6 +586,95 @@ These statements have a RETURNING list that produces output columns. The target 
 
 `UPDATE ... FROM` and `DELETE ... USING` add further relations to that scope. They join to the target with **inner-join** semantics — a target row with no match is simply not modified — so those relations are REQUIRED, not OPTIONAL. Outer joins written *inside* the FROM/USING list are still honoured normally.
 
+### Presence groups (the null-group export — Wave 13)
+
+The walk has always modelled null-extension per UNIT (`RelationEntry.nullGroup`:
+an outer join extends its optional side as one piece, so proving one member's
+row present proves every member's). `QueryContract.outputPresenceGroups`
+exports that internal fact as contract vocabulary — the output-side analogue of
+`paramRejectionSets`: per surviving optional unit, the set of output columns
+that are NULL together exactly when the unit's row is absent, with the
+**discriminants** (non-null on the present arm, so NULL ⟺ absent) marked. A
+type emitter renders each group as one local union (present arm / all-NULL arm)
+intersected with the flat row type — measured to narrow correctly in
+TypeScript, including the factored form (`docs/consumer-design.md` records the
+measurements).
+
+Membership is **bare references to an optional entry**, grouped by
+`nullGroup`. Bareness matters at the group's own scope — a transforming
+expression there (`COALESCE(s.x, …)`) could manufacture non-NULL from an
+extended row and never joins. Expressions computed INSIDE the optional side
+need no such care: extension nulls the subquery's whole output row, computed
+columns included, which is why a `count(*)` from an optional aggregate
+subquery can be a discriminant. Discriminants re-run the column computation
+under `presumePresent` (the entry's own gate lifted, nothing else), which
+hands them the full given-present machinery — catalog constraints, generated
+expressions, CHECK entailment, the inner analysis through CTEs and views.
+
+The refilter interplay resolves without special cases: the presence fixpoint
+writes promotions back to `entry.joinState`, so a refiltered unit is not
+OPTIONAL by assembly time; the lazy promotions surface as a bare member
+reading notNull, and one such member marks the whole unit dead (extension is
+atomic — one refiltered member means no absent arm survives anywhere).
+Groups below the floor (≥ 2 members, ≥ 1 discriminant) say nothing the flat
+contract does not and are not emitted. USING-merged columns are drawn from
+whichever side is present and never join a group.
+
+Groups are computed for EVERY analysis (producer recording in the four
+assembly loops — SELECT and DML RETURNING, traced and untraced, the traced
+twin recording line for line under the parity suite) and stored per
+statement alongside the memoized results. Three composition rules carry
+them outward:
+
+- **Re-export lifting.** A subquery/CTE/view reference translates the
+  inner analysis's groups through its bare projection (inner output index
+  → the outer indices re-exporting it), floors re-applied. A translated
+  member the outer analysis proves notNull drops the lifted group — any
+  such proof refilters exactly the inner-absent rows. Under an OPTIONAL
+  entry the lift composes with the entry's own unit group: a lifted
+  discriminant reads "NULL ⟺ the chain broke somewhere", and the two
+  factored unions intersect to the realizable row states
+  (`presence-group-nested-optional.sql`). Two references to one memoized
+  analysis lift separately. The presumption reaches the fresh walks a
+  discriminant computation spawns (a generation expression's same-entry
+  refs — `generated-left-join-gate.sql`'s `1*,2*`) via a presumed-entries
+  set that statement analyses never read, which is what keeps memos
+  presumption-free.
+- **Set operations.** INTERSECT and EXCEPT rows are left-branch rows and
+  keep the left groups; UNION keeps a group both branches claim over the
+  same member set, discriminants intersected. Then the setop-level dead
+  rule: INTERSECT strengthens flat claims from its right branch
+  (`left || right`), and a group member the combined analysis proves
+  notNull means the absent arm cannot survive the operation — the group
+  is dropped rather than emitted with an uninhabitable arm
+  (`presence-group-intersect-refilter.sql`; found as 67 unwitnessable
+  arms by the generated corpus's two-arm bar). Recursive CTE analyses
+  stay group-less (the fixpoint assumption carries no groups).
+- **Presence consumption.** The kernel's presence gate short-circuits a
+  catalog-NOT NULL goal: evidence pinning any same-rowPath sibling proves
+  the base row present on every emitted row, and a present row's stored
+  value of a NOT NULL column cannot be NULL — so a re-exported column
+  upgrades with no CHECK involved, including from tables with no CHECKs
+  at all (`presence-group-reexport-refilter.sql`'s carrier). UNION
+  matching intersects member sets pairwise (subset restriction is sound
+  per branch), and recursive CTEs iterate a group assumption to fixpoint
+  beside the flat one — no group-specific conservatism remains recorded.
+
+The generated corpus runs the same per-row oracle over every query it
+produces, with a two-arm witness bar and a GROUP_UNWITNESSABLE rule
+mechanism mirroring its nullable-claim discipline — 684 groups, all arms
+observed, zero falsified, the rule list empty
+(`tests/unit/query/generated/generated-soundness.test.ts`).
+
+Verification mirrors Wave 10's: `-- @null-group N[*],M[*]` annotations with
+compulsory bidirectional coverage in the agreement suite, per-row
+falsification in the soundness suite (discriminants must agree; on the absent
+arm every member must be NULL), and a two-arm witness requirement — the
+absent arm's exemption is DERIVED from the discriminants' own
+`@unwitnessable` annotations rather than separately declared, so the
+per-column staleness check re-arms the group assertion the moment data
+witnesses a NULL (`docs/witness-coverage.md`).
+
 ---
 
 ## 5b. Refusing rather than guessing
