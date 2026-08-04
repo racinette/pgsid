@@ -288,6 +288,37 @@ export async function buildNullabilityCatalog(
     return t?.colDistinctnessSound.has(column) ?? false;
   };
 
+  // Write-path rewriting hooks, keyed like tableMap and resolved with the
+  // same default-schema fallback.
+  const writeRewriteMap = new Map<
+    string,
+    { beforeRow: Set<string>; insteadOf: Set<string>; insteadRules: Set<string> }
+  >();
+  for (const rel of [...snapshot.tables, ...snapshot.views, ...snapshot.materializedViews]) {
+    const wr = rel.writeRewrites;
+    if (!wr || (!wr.beforeRow.length && !wr.insteadOf.length && !wr.insteadRules.length)) continue;
+    writeRewriteMap.set(`${rel.schema}.${rel.name}`, {
+      beforeRow: new Set(wr.beforeRow),
+      insteadOf: new Set(wr.insteadOf),
+      insteadRules: new Set(wr.insteadRules),
+    });
+  }
+  const NO_REWRITES = {
+    beforeRow: new Set<string>(),
+    insteadOf: new Set<string>(),
+    insteadRules: new Set<string>(),
+  };
+  const resolveWriteRewrites = (
+    schema: string | undefined,
+    table: string,
+  ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> } => {
+    return (
+      writeRewriteMap.get(`${schema ?? "public"}.${table}`) ??
+      (schema === undefined ? writeRewriteMap.get(`public.${table}`) : undefined) ??
+      NO_REWRITES
+    );
+  };
+
   const compositeTypes = new Map<string, { fields: { name: string; typeOid: number }[] }>();
   for (const ct of snapshot.compositeTypes) {
     compositeTypes.set(`${ct.schema}.${ct.name}`, {
@@ -402,6 +433,7 @@ export async function buildNullabilityCatalog(
     resolveFunction,
     resolveColumnNotNull,
     resolveColumnNotNullTree,
+    resolveWriteRewrites,
     resolveColumnTypeOid,
     resolveColumnTypeName,
     resolveLiteralDistinctnessSound,

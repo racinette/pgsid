@@ -185,6 +185,36 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-05), finding 2 / RC-2 — an
+unsoundness removal: the write path was modelled as the statement text,
+and PostgreSQL's rewrite stage sits between the two. The snapshot now
+captures the hooks per relation and command (`WriteRewriteInfo`: BEFORE
+ROW triggers, INSTEAD OF triggers, DO INSTEAD rules — tgtype bits and
+ev_type encodings measured; diff-included, since CREATE TRIGGER changes
+inference). The walk's response by hook, all measured: a BEFORE ROW
+trigger may replace NEW wholesale, so the written-value map is void and
+UPDATE's SET mask widens to every target column (the OLD-row evidence
+transfer holds for no column); an INSTEAD OF trigger's NEW is reported
+verbatim with the view definition never evaluated — even the literal view
+column came back NULL — so the view analysis is void too and everything
+drops to the view's all-false catalog flags; a DO INSTEAD rule replaces
+the statement outright and RETURNING is REFUSED (`UnsupportedNodeError`,
+in the scope builders so the traced walk shares it by construction; DO
+ALSO keeps the original RETURNING and is not refused). DELETE proved
+immune on the trigger side — a modified OLD is ignored for both forms and
+the row is reported as read — so only the rule refusal applies there.
+MERGE voids through its insert/update arms the same way. The parameter
+contract's mechanism B gates on the same hooks (a trigger measured
+rescuing a NULL binding, a rule measured redirecting one — both falsify
+"a NULL binding raises"); mechanism A stands, typed at parse analysis and
+rejected at Bind before any rewrite. Pins:
+`trigger-rewrites-written-row.sql` (catalog flags survive, the written
+map does not), `instead-of-trigger-view.sql` (all nullable, the trigger's
+kept id recorded @unwitnessable), and the rule refusal quartet in
+`unsupported-nodes.test.ts` (refused with RETURNING, empty without,
+command-scoped, DO ALSO untouched). The cost falls only on relations that
+actually carry such objects — the correct shape for it.
+
 Closed by the adversarial fix phase (2026-08-05), finding 3 / RC-3 — an
 unsoundness removal: `attnotnull` was read from the NAMED relation while
 the query scans the relation SET. `ALTER TABLE ONLY parent … SET NOT NULL`

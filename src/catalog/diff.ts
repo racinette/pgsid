@@ -82,19 +82,34 @@ function tableState(t: TableInfo): {
   name: string;
   storageParams: Record<string, string>;
   constraints: ConstraintInfo[];
+  writeRewrites: TableInfo["writeRewrites"];
 } {
   return {
     schema: t.schema,
     name: t.name,
     storageParams: t.storageParams,
     constraints: t.constraints,
+    // Creating or dropping a BEFORE ROW / INSTEAD OF trigger or a DO
+    // INSTEAD rule changes what RETURNING reports, hence what may be
+    // inferred — a comparable property like `validated`.
+    writeRewrites: t.writeRewrites,
   };
 }
 
 /** Build the comparable state object for a view/matview (definition + columns
  *  are diffed as separate entities, so only the definition is compared here). */
-function viewState(v: ViewInfo): { schema: string; name: string; definition: string } {
-  return { schema: v.schema, name: v.name, definition: v.definition };
+function viewState(v: ViewInfo): {
+  schema: string;
+  name: string;
+  definition: string;
+  writeRewrites: ViewInfo["writeRewrites"];
+} {
+  return {
+    schema: v.schema,
+    name: v.name,
+    definition: v.definition,
+    writeRewrites: v.writeRewrites,
+  };
 }
 
 /**

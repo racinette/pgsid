@@ -96,6 +96,28 @@ export interface ConstraintInfo {
   validated: boolean;
 }
 
+/**
+ * The write-path rewriting hooks on a relation, per command
+ * ('insert' | 'update' | 'delete'). RETURNING reports the row AFTER
+ * PostgreSQL's rewrite stage: a BEFORE ROW trigger may replace NEW
+ * wholesale, an INSTEAD OF trigger's NEW is reported verbatim (the view's
+ * own definition expressions are never evaluated — measured, even a
+ * literal view column comes back NULL), and a DO INSTEAD rule replaces the
+ * statement outright. The nullability walk cannot analyse their bodies, so
+ * knowing they EXIST is the fact that keeps its claims honest. DELETE is
+ * captured but immune on the trigger side: a returned OLD row is reported
+ * as stored, and modifications to it are ignored for both BEFORE and
+ * INSTEAD OF triggers (measured).
+ */
+export interface WriteRewriteInfo {
+  /** Commands with a BEFORE ROW trigger, sorted. */
+  beforeRow: string[];
+  /** Commands with an INSTEAD OF ROW trigger (views), sorted. */
+  insteadOf: string[];
+  /** Commands with a DO INSTEAD rewrite rule (non-SELECT, is_instead), sorted. */
+  insteadRules: string[];
+}
+
 export interface TableInfo {
   schema: string;
   name: string;
@@ -103,6 +125,7 @@ export interface TableInfo {
   constraints: ConstraintInfo[];
   /** Storage parameters from `reloptions`, parsed into a map (e.g. fillfactor). */
   storageParams: Record<string, string>;
+  writeRewrites: WriteRewriteInfo;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +139,7 @@ export interface ViewInfo {
   columns: ColumnInfo[];
   /** Definition text from `pg_views.definition` / `pg_matviews.definition`. */
   definition: string;
+  writeRewrites: WriteRewriteInfo;
 }
 
 // ---------------------------------------------------------------------------

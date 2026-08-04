@@ -1780,6 +1780,37 @@ class NullabilityEngine {
   // INSERT / UPDATE / DELETE RETURNING
   // -------------------------------------------------------------------------
 
+  /**
+   * The write-path rewriting hooks on a DML statement's target relation.
+   */
+  private targetWriteRewrites(relation: Node | undefined): {
+    beforeRow: ReadonlySet<string>;
+    insteadOf: ReadonlySet<string>;
+    insteadRules: ReadonlySet<string>;
+  } {
+    const rv = relation as unknown as RangeVar | undefined;
+    return this.catalog.resolveWriteRewrites(rv?.schemaname ?? undefined, rv?.relname ?? "");
+  }
+
+  /**
+   * A DO INSTEAD rule replaces the statement outright, and RETURNING then
+   * reports the RULE's query — possibly against a different table, with
+   * values the engine never saw (measured: the redirected INSERT returns the
+   * other table's NULL). That is a statement the analysis was not given, so
+   * the dispatch-site rule applies: refuse rather than answer for the wrong
+   * statement. Without RETURNING there is nothing to misreport and the
+   * caller gets its usual empty list.
+   */
+  private refuseInsteadRule(relation: Node | undefined, command: string): void {
+    if (this.targetWriteRewrites(relation).insteadRules.has(command)) {
+      const rv = relation as unknown as RangeVar | undefined;
+      throw new UnsupportedNodeError(
+        "statement",
+        `DO INSTEAD rule (ON ${command.toUpperCase()}) on ${rv?.relname ?? "?"}`,
+      );
+    }
+  }
+
   private analyzeInsert(
     stmt: InsertStmt,
     outerScope: Scope | null,
@@ -1798,6 +1829,10 @@ class NullabilityEngine {
    * mechanism, not a convenience.
    */
   private buildInsertScope(stmt: InsertStmt, outerScope: Scope | null, depth: number): Scope {
+    // In the builder rather than the analyzer so the traced walk shares the
+    // refusal by construction — it calls the builders directly, and both
+    // entry points reach here only when a RETURNING clause exists.
+    this.refuseInsteadRule(stmt.relation, "insert");
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     // The parser marks an INSERT target `inh: true`, but an INSERT stores
     // its rows in the named relation itself — inheritance never routes a
@@ -1808,6 +1843,26 @@ class NullabilityEngine {
     // parent's constraints and the two flags agree.
     for (const entry of scope.aliases.values()) entry.scanInh = false;
     this.registerCtes(stmt.withClause, scope);
+    // A BEFORE ROW trigger may replace NEW wholesale after the statement's
+    // values were chosen (measured: NEW.a := NULL comes back through
+    // RETURNING), so the written-value map describes a row that may never be
+    // stored — void it and drop to catalog flags, which the stored row still
+    // satisfies. The conflict arm goes through the UPDATE path, so its
+    // trigger counts exactly when that arm exists. An INSTEAD OF trigger
+    // (view target) reports whatever NEW it builds, with the view's own
+    // definition expressions never evaluated (measured: a literal view
+    // column comes back NULL) — so the view analysis is void too, and the
+    // catalog flags the entry falls back to are the view's own, all false.
+    const wr = this.targetWriteRewrites(stmt.relation);
+    const conflictUpdates = !!(stmt.onConflictClause as { targetList?: Node[] } | undefined)
+      ?.targetList;
+    const commands = ["insert", ...(conflictUpdates ? ["update"] : [])];
+    if (commands.some(cmd => wr.insteadOf.has(cmd))) {
+      for (const entry of scope.aliases.values()) entry.ast = undefined;
+    }
+    if (commands.some(cmd => wr.beforeRow.has(cmd) || wr.insteadOf.has(cmd))) {
+      return scope;
+    }
     this.attachInsertWrittenColumns(stmt, scope, outerScope, depth);
     return scope;
   }
@@ -1897,6 +1952,7 @@ class NullabilityEngine {
 
   /** The complete RETURNING scope for an UPDATE — see buildInsertScope. */
   private buildUpdateScope(stmt: UpdateStmt, outerScope: Scope | null, depth: number): Scope {
+    this.refuseInsteadRule(stmt.relation, "update");
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
 
@@ -1917,12 +1973,31 @@ class NullabilityEngine {
     // exception (old row vs new row) and are masked via dmlSetColumns.
     scope.whereClause = stmt.whereClause;
     scope.rowsImplyWhere = true;
+    // A BEFORE ROW / INSTEAD OF UPDATE trigger may replace ANY column of
+    // NEW, not just the SET ones (measured), so the OLD-row evidence
+    // transfer the SET mask licenses — "non-SET columns keep their WHERE-
+    // tested values" — holds for no column at all: the mask becomes every
+    // target column, the written-value map is void, and an INSTEAD OF view
+    // target additionally loses its definition analysis (RETURNING reports
+    // the trigger's NEW verbatim — measured, a literal view column comes
+    // back NULL). Catalog flags survive for tables: the stored row still
+    // passes its constraints.
+    const wr = this.targetWriteRewrites(stmt.relation);
+    const rewriting = wr.beforeRow.has("update") || wr.insteadOf.has("update");
+    if (wr.insteadOf.has("update")) {
+      for (const entry of scope.aliases.values()) entry.ast = undefined;
+    }
     const targetAlias = [...scope.aliases.keys()][0];
+    const targetEntry = targetAlias !== undefined ? scope.aliases.get(targetAlias) : undefined;
     if (targetAlias !== undefined) {
       const setColumns = new Set<string>();
-      for (const item of stmt.targetList ?? []) {
-        const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
-        if (name) setColumns.add(name);
+      if (rewriting) {
+        for (const col of targetEntry?.table?.columns ?? []) setColumns.add(col);
+      } else {
+        for (const item of stmt.targetList ?? []) {
+          const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
+          if (name) setColumns.add(name);
+        }
       }
       scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
     }
@@ -1933,7 +2008,7 @@ class NullabilityEngine {
     // expression reads the OLD row, where the guarantees would in fact hold;
     // conservative, never wrong). Attached after the walk so the expressions
     // themselves cannot consult the map they are defining.
-    if (targetAlias !== undefined) {
+    if (targetAlias !== undefined && !rewriting) {
       const written = new Map<string, boolean>();
       this.dmlOldRowRead = true;
       try {
@@ -1964,6 +2039,11 @@ class NullabilityEngine {
 
   /** The complete RETURNING scope for a DELETE — see buildInsertScope. */
   private buildDeleteScope(stmt: DeleteStmt, outerScope: Scope | null, depth: number): Scope {
+    // Triggers cannot rewrite a DELETE's RETURNING row: a modified OLD is
+    // ignored for both BEFORE and INSTEAD OF triggers, and the reported row
+    // is the row as read (measured — including the view-definition values
+    // through an INSTEAD OF DELETE). Only the rule refusal applies.
+    this.refuseInsteadRule(stmt.relation, "delete");
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
     this.registerCtes(stmt.withClause, scope);
 
@@ -2016,6 +2096,26 @@ class NullabilityEngine {
       .map(c => (c as { MergeWhenClause?: MergeArm }).MergeWhenClause)
       .filter((a): a is MergeArm => !!a);
 
+    // The target's BEFORE ROW / INSTEAD OF triggers rewrite MERGE's insert
+    // and update arms exactly as they do the standalone statements; a
+    // DELETE arm returns the row as stored and is immune (measured). Rules
+    // on a MERGE target are refused by PostgreSQL itself. At this point the
+    // scope holds only the target entry, so the ast strip cannot touch the
+    // source added below.
+    const wrTarget = this.targetWriteRewrites(stmt.relation);
+    const armCommands = new Set<string>(
+      arms.map(a =>
+        a.commandType === "CMD_INSERT" ? "insert" : a.commandType === "CMD_UPDATE" ? "update" : "",
+      ),
+    );
+    const rewriteCmds = ["insert", "update"].filter(cmd => armCommands.has(cmd));
+    const targetRewriting = rewriteCmds.some(
+      cmd => wrTarget.beforeRow.has(cmd) || wrTarget.insteadOf.has(cmd),
+    );
+    if (rewriteCmds.some(cmd => wrTarget.insteadOf.has(cmd))) {
+      for (const entry of scope.aliases.values()) entry.ast = undefined;
+    }
+
     // Only a NOT MATCHED BY SOURCE arm can null-extend the source: every
     // other row-producing arm either matched it (MATCHED) or was driven by
     // it (NOT MATCHED BY TARGET's INSERT). Without such an arm the source is
@@ -2053,10 +2153,18 @@ class NullabilityEngine {
       const targetAlias = [...scope.aliases.keys()][0];
       if (targetAlias !== undefined) {
         const setColumns = new Set<string>();
-        for (const a of arms) {
-          for (const item of a.targetList ?? []) {
-            const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
-            if (name) setColumns.add(name);
+        if (targetRewriting) {
+          // The trigger may replace ANY column of NEW, so the join-condition
+          // evidence transfers through none of them — same as UPDATE.
+          for (const col of scope.aliases.get(targetAlias)?.table?.columns ?? []) {
+            setColumns.add(col);
+          }
+        } else {
+          for (const a of arms) {
+            for (const item of a.targetList ?? []) {
+              const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
+              if (name) setColumns.add(name);
+            }
           }
         }
         scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
@@ -2074,6 +2182,7 @@ class NullabilityEngine {
     const targetAliasW = [...scope.aliases.keys()][0];
     if (
       targetAliasW !== undefined &&
+      !targetRewriting &&
       producing.length > 0 &&
       producing.every(a => a.commandType === "CMD_UPDATE" || a.commandType === "CMD_INSERT")
     ) {
