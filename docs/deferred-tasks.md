@@ -185,6 +185,20 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-05), finding 10 / RC-7's MERGE
+half — a shape defect that was simultaneously a notNull falsification:
+MERGE's `RETURNING *` expands the SOURCE first, then the target (measured —
+`UPDATE … FROM` and `DELETE … USING` are target-first and were already
+right), while `buildMergeScope` pushed target-first. Same arity, permuted
+order: the engine's `ck.name` written-value notNull landed on PostgreSQL's
+`s.snote`, which is NULL — the walk doc's standing warning that arity is a
+weak guard, made real, and the concrete argument for the consumer gate
+comparing ORDER. The source's visible columns now go in ahead of the
+target's; qualified stars resolve through `aliases` and were never
+affected. `merge-returning-star-order.sql` pins the order under the
+soundness suite's ordered name comparison, snote witnessed NULL on the
+matched row.
+
 Closed by the adversarial fix phase (2026-08-05), findings 8 and 9 / RC-6 —
 unsoundness removals: the grouping-set NULLing override had two escapes.
 Consumer side (finding 8), `mergedColumnNotNull` answered a USING/NATURAL

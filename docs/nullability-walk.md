@@ -409,6 +409,13 @@ two paths: UPDATE arms contribute SET expressions, INSERT arms their
 positional values, a DELETE arm voids the map (it returns the OLD row),
 and DO NOTHING arms are excluded (they produce no row).
 
+`RETURNING *` expands the **source first**, then the target (measured) —
+the opposite of `UPDATE … FROM` and `DELETE … USING`, which are
+target-first. Same arity either way, so the order is exactly the kind of
+silent permutation section 5b warns about; the soundness suite's ordered
+name comparison is what holds it. A qualified star (`RETURNING ck.*`)
+resolves through the alias and is unaffected.
+
 ### Set-returning functions in FROM
 
 A `RangeFunction` resolves its columns from the function's `pg_get_function_result`
