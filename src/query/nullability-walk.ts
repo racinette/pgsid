@@ -2005,7 +2005,13 @@ class NullabilityEngine {
     const hasBySource = arms.some(a => a.matchKind === "MERGE_WHEN_NOT_MATCHED_BY_SOURCE");
     if (stmt.sourceRelation) {
       const sourceGroup = this.nextNullGroup();
-      scope.visible.push(
+      // PostgreSQL expands MERGE's `RETURNING *` SOURCE FIRST, then the
+      // target (measured) — the opposite of UPDATE … FROM and DELETE …
+      // USING, which are target-first. The target's columns are already in
+      // place from buildDmlScope, so the source's go in ahead of them.
+      // Qualified stars (`RETURNING ck.*`) resolve through `aliases` and are
+      // unaffected either way.
+      scope.visible.unshift(
         ...this.walkFromItem(
           stmt.sourceRelation,
           hasBySource ? OPTIONAL : REQUIRED,
