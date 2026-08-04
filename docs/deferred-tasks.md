@@ -262,10 +262,24 @@ working end to end). Second: the REQUIRED-ALTERNATIVE gap — a set
 operation's flat notNull collapses over branches, so an INNER branch's
 certainty must be recovered per-alternative; a required origin alternative
 with catalog NOT NULL now succeeds outright in origin entailment. Two
-honest rules remain where closure is refused or deferred:
-`refilter-union-literal-branch` (a literal branch carries no origins —
-the setop origins discipline refusing by design) and
-`gm-generated-kernel-boundary` (see the imprecisions table).
+rules briefly stood where closure looked refused or deferred — and BOTH
+closed the next session, the first after the user correctly challenged
+its "refused by design" framing: the all-or-nothing origins encoding (one
+unattributable branch voids the column) was protecting the sibling
+alignment invariant, not a semantic boundary. Origins now carry one SLOT
+per set-operation branch — an unattributable branch contributes an
+explicit NULL slot, alignment stays representable by construction, and
+`originNotNull` records each branch's flat verdict so a literal branch
+SETTLES its alternative without inventing provenance
+(`presence-union-literal-branch.sql`). And the kernel-boundary gap closed
+by asking the WALK the given-present question the kernel's atoms cannot:
+`storedRowNotNull` evaluates a generated column's expression in a
+synthetic single-table scope (catalog flags, nested generation, the
+table's own CHECKs — every fact per-stored-row, so presence-sound) and
+feeds the same kernel short-circuit the catalog flag uses; required
+alternatives consume it too (`check-origin-generated-boundary.sql`). Both
+rules were deleted with their closures — the corpus's rule list carries
+nothing from the widening.
 
 The three conservatisms that outlived the residue closures were then
 closed the same day as well, alongside four more pins
@@ -604,9 +618,9 @@ non-empty-group gate; `window-default-frame.sql`, plus the generated
 | `pg_catalog` built-ins outside the TOTALITY tables | nullable | STRICTNESS is no longer curated — the snapshot captures pg_catalog's `proisstrict` name-level (Wave 4). Totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so `STRICT_TOTAL_BUILTINS` / `ALWAYS_NOT_NULL_BUILTINS` stay docs-curated, each entry measured on admission |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built (section 3); what remains conservative is the output side when the backing function is plpgsql or has multiple candidates — the same boundary those functions have when called directly |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition narrows and promotes only when EVERY arm is MATCHED-kind (Wave 4) — a NOT MATCHED arm fires precisely on the condition's failure, so mixed statements keep it dark. Per-arm condition reasoning was judged not worth it |
-| CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); and consumption of origins is gated as designed: an unfilterable OPTIONAL chain (`check-origin-presence-unproven.sql`), a branch that cannot attribute its rows, or a non-key grouped column each keep their columns dark |
+| CHECK entailment, conservative edges (post-Wave 11b) | nullable | parameters never match (identity needs the literal token — `WHERE status = $1` proves `status` non-null but selects no CHECK arm; permanent for a per-statement contract); and consumption of origins is gated as designed: an unfilterable OPTIONAL chain (`check-origin-presence-unproven.sql`) and a non-key grouped column each keep their columns dark. (An unattributable set-operation BRANCH no longer voids its column — it contributes a NULL slot whose alternative is settled by the branch's own flat verdict, the 2026-08-04 slot closure) |
 | Presence groups | none recorded | every launch residue and post-launch conservatism closed 2026-08-04 (re-export propagation, setop groups, generation-expression discriminants, presence consumption of catalog notNull incl. cross-unit implication via unit chains, UNION subset matching, recursive-CTE groups — the Wave 13 closure entry is the history); future entries come from consumer corpora |
-| Generation expressions at origin-entailment boundaries | nullable | the walk's generation dispatch proves `safe_label`/`doubled` non-null given presence IN SCOPE, but the entailment kernel's atoms have no COALESCE and no arithmetic, so the same fact is not re-derivable per-alternative at a re-export or set-operation boundary (`gm-generated-kernel-boundary` rule in the generated suite pins the witness consequence). Closure candidate: dispatch the generation expression through the walk at the origin site, as `computeColumnNullability` already does |
+| Generation expressions at origin-entailment boundaries | CLOSED 2026-08-04 | the closure candidate was built as prescribed: `storedRowNotNull` dispatches the generation expression through the walk in a synthetic single-table scope and feeds the kernel's given-present short-circuit; the rule that pinned the witness consequence went stale and was deleted (`check-origin-generated-boundary.sql` is the pin) |
 
 ---
 

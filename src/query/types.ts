@@ -355,14 +355,27 @@ export interface OutputNullability {
   /**
    * Provenance ALTERNATIVES, present only for pass-through columns. A
    * single-branch scope yields a singleton; a UNION concatenates each
-   * branch's lists positionally, so an output row's true origin is
-   * `origins[k]` for the one branch k it came from — and that k is the
-   * SAME across sibling columns, which is why co-derivation matches
-   * siblings index by index and entailment must prove EVERY k. A column
-   * any branch cannot attribute carries no list at all. INTERSECT and
-   * EXCEPT rows are left-branch rows and keep the left list.
+   * branch's SLOTS positionally — one slot per branch, always, so an
+   * output row's true origin is `origins[k]` for the one branch k it came
+   * from, and that k is the SAME across sibling columns: co-derivation
+   * matches siblings index by index and entailment must prove EVERY k. A
+   * branch that cannot attribute the column (a literal, an expression)
+   * contributes an explicit NULL slot rather than voiding the list — the
+   * gap keeps sibling alignment representable while `originNotNull`
+   * records whether that branch's own flat analysis already settles the
+   * column. INTERSECT and EXCEPT rows are left-branch rows and keep the
+   * left slots.
    */
-  origins?: ColumnOrigin[];
+  origins?: (ColumnOrigin | null)[];
+  /**
+   * Per-alternative branch settledness, aligned with `origins`:
+   * `originNotNull[k]` is branch k's own FLAT notNull verdict for this
+   * column. Consulted by goal-level entailment exactly where a slot is
+   * NULL — a literal branch has no origin story, but its value being
+   * provably non-null settles that alternative without one. Produced at
+   * set-operation combines and carried through bare re-export.
+   */
+  originNotNull?: boolean[];
 }
 
 /**

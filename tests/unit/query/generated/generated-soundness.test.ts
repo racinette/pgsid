@@ -776,35 +776,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
 
   const UNWITNESSABLE: UnwitnessableRule[] = [
     {
-      label: "refilter-union-literal-branch",
-      why:
-        "the refilter pins a_tc, excluding every branch-1 row where u is " +
-        "NULL-extended (the only rows whose a_tb is NULL), and the literal " +
-        "second branch supplies a non-NULL constant while carrying no " +
-        "origins — a set operation's origins need BOTH branches to " +
-        "attribute, so presence consumption cannot upgrade the column and " +
-        "the sound nullable claim keeps an unreachable NULL.",
-      matches: (axes, column) =>
-        axes.wrapper.endsWith("-refilter") &&
-        (axes.setop === "union" || axes.setop === "union-all") &&
-        (column === "a_tb" || column === "a_int"),
-    },
-    {
-      label: "gm-generated-kernel-boundary",
-      why:
-        "the refilter leaves only gm-present rows, where safe_label and " +
-        "doubled are non-null BY THEIR GENERATION EXPRESSIONS — a fact the " +
-        "walk's generation dispatch proves in-scope but the origin " +
-        "entailment kernel cannot re-derive at a re-export or set-operation " +
-        "boundary: its atoms have no COALESCE and no arithmetic. Sound " +
-        "nullable claims whose NULL the refilter excludes; a recorded " +
-        "closure candidate (docs/deferred-tasks.md).",
-      matches: (axes, column) =>
-        axes.structure.startsWith("gm(") &&
-        axes.wrapper.endsWith("-refilter") &&
-        (column === "a_tb" || column === "a_dbl"),
-    },
-    {
       label: "case-needs-t-without-u",
       why:
         "a_case is NULL only on a row where t is present (active TRUE) and u " +

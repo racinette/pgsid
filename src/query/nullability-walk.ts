@@ -1170,10 +1170,15 @@ class NullabilityEngine {
       const notNull = this.walkExpr(val, scope, depth + 1);
       const bare = this.originTarget(val, stmt, scope, originMode);
       producers.push(bare);
-      const origins = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
+      const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
       results.push(
-        origins
-          ? { name: name ?? this.inferName(val), notNull, origins }
+        og
+          ? {
+              name: name ?? this.inferName(val),
+              notNull,
+              origins: og.origins,
+              ...(og.settled ? { originNotNull: og.settled } : {}),
+            }
           : { name: name ?? this.inferName(val), notNull },
       );
     }
@@ -2146,10 +2151,15 @@ class NullabilityEngine {
       const notNull = this.walkExpr(val, scope, depth + 1);
       const bare = this.resolveBareColumnTarget(val, scope);
       producers.push(bare);
-      const origins = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
+      const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
       results.push(
-        origins
-          ? { name: name ?? this.inferName(val), notNull, origins }
+        og
+          ? {
+              name: name ?? this.inferName(val),
+              notNull,
+              origins: og.origins,
+              ...(og.settled ? { originNotNull: og.settled } : {}),
+            }
           : { name: name ?? this.inferName(val), notNull },
       );
     }
@@ -2376,22 +2386,37 @@ class NullabilityEngine {
     for (let i = 0; i < len; i++) {
       const l = left[i];
       const r = right[i];
-      // Origins across a set operation (Wave 12): every INTERSECT/EXCEPT
-      // output row IS a left-branch row (dedup keeps whole rows), so the
-      // left alternatives pass through. A UNION row comes from either
-      // branch — concatenate the alternative lists positionally, but only
-      // when BOTH sides attribute the column: a branch that cannot say
-      // where its rows come from voids the whole column.
-      const origins =
-        op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT"
-          ? l?.origins
-          : l?.origins && r?.origins
-            ? [...l.origins, ...r.origins]
-            : undefined;
+      // Origins across a set operation (Wave 12, slot form since the rule
+      // closure): every INTERSECT/EXCEPT output row IS a left-branch row
+      // (dedup keeps whole rows), so the left slots pass through. A UNION
+      // row comes from either branch — concatenate SLOT arrays, one slot
+      // per branch always: a branch that cannot attribute the column
+      // contributes an explicit NULL slot (alignment stays representable)
+      // with its flat verdict recorded in originNotNull, which is what
+      // lets a literal branch settle its alternative without provenance.
+      // An all-null slot array says nothing and is dropped.
+      let origins: (ColumnOrigin | null)[] | undefined;
+      let originNotNull: boolean[] | undefined;
+      if (op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT") {
+        origins = l?.origins;
+        originNotNull = l?.originNotNull;
+      } else {
+        const lSlots = l?.origins ?? [null];
+        const rSlots = r?.origins ?? [null];
+        const slots = [...lSlots, ...rSlots];
+        if (slots.some(s => s !== null)) {
+          origins = slots;
+          originNotNull = [
+            ...(l?.originNotNull ?? lSlots.map(() => l?.notNull ?? false)),
+            ...(r?.originNotNull ?? rSlots.map(() => r?.notNull ?? false)),
+          ];
+        }
+      }
       results.push({
         name: l?.name ?? r?.name ?? "",
         notNull: combineSetOpColumn(l?.notNull ?? false, r?.notNull ?? false, op),
         ...(origins ? { origins } : {}),
+        ...(originNotNull ? { originNotNull } : {}),
       });
     }
     return results;
@@ -2439,10 +2464,15 @@ class NullabilityEngine {
       notNull: boolean,
       ordinal: number | undefined,
     ): OutputNullability => {
-      const origins = withOrigins
-        ? this.originOf(entry, colName, scope, depth, ordinal)
-        : undefined;
-      return origins ? { name: colName, notNull, origins } : { name: colName, notNull };
+      const og = withOrigins ? this.originOf(entry, colName, scope, depth, ordinal) : undefined;
+      return og
+        ? {
+            name: colName,
+            notNull,
+            origins: og.origins,
+            ...(og.settled ? { originNotNull: og.settled } : {}),
+          }
+        : { name: colName, notNull };
     };
 
     // `alias.*` — just that relation's columns, so the list index is the
@@ -2599,15 +2629,22 @@ class NullabilityEngine {
     depth: number,
     /** Positional resolution from star expansion — see computeColumnNullabilityTraced. */
     ordinal?: number,
-  ): OutputNullability["origins"] {
+  ): { origins: (ColumnOrigin | null)[]; settled?: boolean[] } | undefined {
     if (entry.joinState === NOT_FOUND) return undefined;
     const optionalHere = entry.joinState === OPTIONAL;
     // This reference's own null-extension crossings, all at depth 0 (the
     // rowPath step this entry contributes); a lift shifts the inner
     // origins' crossings one step deeper, exactly like rowPath itself.
+    // NULL slots (a set-operation branch that could not attribute) pass
+    // through as NULL, and the inner per-branch settledness rides along —
+    // a bare re-export changes neither.
     const hereUnits = entry.unitChain.map(unit => ({ depth: 0, unit }));
-    const lift = (inner: ColumnOrigin[] | undefined): ColumnOrigin[] | undefined =>
-      inner?.map(o => {
+    const lift = (
+      inner: OutputNullability | undefined,
+    ): { origins: (ColumnOrigin | null)[]; settled?: boolean[] } | undefined => {
+      if (!inner?.origins) return undefined;
+      const origins = inner.origins.map(o => {
+        if (!o) return null;
         const units = [
           ...hereUnits,
           ...(o.units ?? []).map(c => ({ depth: c.depth + 1, unit: c.unit })),
@@ -2619,25 +2656,29 @@ class NullabilityEngine {
           ...(units.length > 0 ? { units } : {}),
         };
       });
+      return { origins, ...(inner.originNotNull ? { settled: inner.originNotNull } : {}) };
+    };
 
     if (entry.kind === "table" && entry.table) {
       if (!entry.table.schema || !entry.table.columns.includes(colName)) return undefined;
-      return [
-        {
-          rowPath: [entry.instance],
-          schema: entry.table.schema,
-          table: entry.table.name,
-          column: colName,
-          ...(optionalHere ? { optional: true } : {}),
-          ...(hereUnits.length > 0 ? { units: hereUnits } : {}),
-        },
-      ];
+      return {
+        origins: [
+          {
+            rowPath: [entry.instance],
+            schema: entry.table.schema,
+            table: entry.table.name,
+            column: colName,
+            ...(optionalHere ? { optional: true } : {}),
+            ...(hereUnits.length > 0 ? { units: hereUnits } : {}),
+          },
+        ],
+      };
     }
 
     if (entry.kind === "view" && entry.ast && entry.table) {
       const idx = ordinal ?? entry.table.columns.indexOf(colName);
       if (idx < 0) return undefined;
-      return lift(this.analyzeStatement(entry.ast, scope, depth + 1)[idx]?.origins);
+      return lift(this.analyzeStatement(entry.ast, scope, depth + 1)[idx]);
     }
 
     if ((entry.kind === "cte" || entry.kind === "subquery") && entry.ast) {
@@ -2654,7 +2695,7 @@ class NullabilityEngine {
       } else {
         inner = innerResults.find(r => r.name === colName);
       }
-      return lift(inner?.origins);
+      return lift(inner);
     }
 
     return undefined;
@@ -3766,7 +3807,7 @@ class NullabilityEngine {
           !result &&
           joinState !== OPTIONAL &&
           inner.origins &&
-          this.originCheckEntailment(entry, inner.origins, innerResults, entry.table.columns, scope, trace)
+          this.originCheckEntailment(entry, inner.origins, inner.originNotNull, innerResults, entry.table.columns, scope, trace)
         ) {
           trace.conclude(true, "origin CHECK entailment through the view → notNull");
           return true;
@@ -3806,7 +3847,7 @@ class NullabilityEngine {
           !inner.notNull &&
           joinState !== OPTIONAL &&
           !!inner.origins &&
-          this.originCheckEntailment(entry, inner.origins, innerResults, outerNames, scope, trace);
+          this.originCheckEntailment(entry, inner.origins, inner.originNotNull, innerResults, outerNames, scope, trace);
 
         // Star expansion resolves positionally — the only caller that can
         // reach a duplicate-named inner column, where a name lookup would
@@ -4085,9 +4126,46 @@ class NullabilityEngine {
    * key space. A single unmasked run — a CTE/subquery/view is never a DML
    * target, so there is no OLD/NEW split at this boundary.
    */
+  /**
+   * Whether EVERY stored row of `schema.table` has `column` non-null — the
+   * given-present question asked STRUCTURALLY, with no outer evidence: the
+   * generation expression walked in a synthetic single-table scope, where
+   * refs resolve to catalog flags, nested generation expressions, and the
+   * table's validated CHECKs. Sound for any present row because every
+   * fact consulted holds per stored row. Attempted only for generated
+   * columns — the catalog flag answers everything else more cheaply — and
+   * memoized per column (evidence-free, so the answer never varies).
+   */
+  private storedRowNotNullMemo = new Map<string, boolean>();
+
+  private storedRowNotNull(schema: string, table: string, column: string): boolean {
+    if (!this.catalog.resolveGenerationExpr(schema, table, column)) return false;
+    const key = `${schema}.${table}.${column}`;
+    const memoized = this.storedRowNotNullMemo.get(key);
+    if (memoized !== undefined) return memoized;
+    const resolved = this.catalog.resolveTable(schema, table);
+    if (!resolved) return false;
+    const synth = this.emptyScope(null);
+    const entry: RelationEntry = {
+      alias: table,
+      kind: "table",
+      table: resolved,
+      joinState: REQUIRED,
+      nullGroup: this.nextNullGroup(),
+      unitChain: [],
+      instance: this.nextInstance(),
+    };
+    synth.aliases.set(table, entry);
+    synth.visible.push(...resolved.columns.map(c => ({ name: c, entry, merged: null })));
+    const result = this.computeColumnNullability(entry, column, synth, 0);
+    this.storedRowNotNullMemo.set(key, result);
+    return result;
+  }
+
   private originCheckEntailment(
     entry: RelationEntry,
-    goalOrigins: ColumnOrigin[],
+    goalOrigins: (ColumnOrigin | null)[],
+    goalSettled: boolean[] | undefined,
     innerResults: OutputNullability[],
     outerNames: readonly string[],
     scope: Scope,
@@ -4095,11 +4173,17 @@ class NullabilityEngine {
   ): boolean {
     // A UNION column's row came from exactly ONE alternative — and the same
     // one as every sibling's, which is why the per-alternative run matches
-    // siblings index by index. Proof must cover every alternative.
+    // siblings index by index. Proof must cover every alternative: a slot
+    // with an origin runs entailment; a NULL slot (a branch that could not
+    // attribute — a literal, an expression) is proven exactly when that
+    // branch's own flat analysis settled the column non-null, which is
+    // what closes the literal-branch shape without inventing provenance.
     return (
       goalOrigins.length > 0 &&
       goalOrigins.every((o, k) =>
-        this.originAlternativeEntailment(entry, o, k, innerResults, outerNames, scope, trace),
+        o
+          ? this.originAlternativeEntailment(entry, o, k, innerResults, outerNames, scope, trace)
+          : goalSettled?.[k] === true,
       )
     );
   }
@@ -4131,23 +4215,30 @@ class NullabilityEngine {
       goalOrigin.table,
       goalOrigin.column,
     );
-    // A REQUIRED alternative with a catalog-NOT NULL goal is done outright:
-    // its row is present by construction and the value is that row's stored
-    // value. The flat boolean upstream cannot say this per-branch — a set
+    // Non-null on EVERY stored row: the catalog flag, or — for generated
+    // columns, which are never catalog-NOT NULL — the generation
+    // expression proven by the walk in a synthetic single-table scope
+    // (the kernel-boundary closure: the entailment atoms cannot say
+    // COALESCE or arithmetic, but the walk already can).
+    const givenPresent =
+      catalogNotNull ||
+      this.storedRowNotNull(goalOrigin.schema, goalOrigin.table, goalOrigin.column);
+    // A REQUIRED alternative with such a goal is done outright: its row is
+    // present by construction and the value is that row's stored value.
+    // The flat boolean upstream cannot say this per-branch — a set
     // operation's combined notNull collapses over branches, so an INNER
-    // branch's certainty must be recovered here, alternative by alternative
-    // (found by the widened generated axis: a refilter over a union could
-    // prove the optional branch and still fail on the required one).
-    if (!goalOrigin.optional && catalogNotNull) {
+    // branch's certainty must be recovered here, alternative by
+    // alternative (found by the widened generated axis).
+    if (!goalOrigin.optional && givenPresent) {
       trace.addChild(`origin ${goalOrigin.schema}.${goalOrigin.table}.${goalOrigin.column}`)
-        .conclude(true, "required alternative + catalog NOT NULL → stored value non-null");
+        .conclude(true, "required alternative + non-null per stored row");
       return true;
     }
-    // An OPTIONAL chain with a catalog-NOT NULL goal has a derivation even
-    // with no CHECKs at all: evidence-proven presence settles it (the
+    // An OPTIONAL chain with such a goal has a derivation even with no
+    // CHECKs at all: evidence-proven presence settles it (the
     // presence-consumption closure — the kernel's short-circuit).
-    const goalCatalogNotNull = goalOrigin.optional && catalogNotNull;
-    if (checkExprs.length === 0 && generatedEqualities.length === 0 && !goalCatalogNotNull) {
+    const goalNotNullGivenPresent = goalOrigin.optional && givenPresent;
+    if (checkExprs.length === 0 && generatedEqualities.length === 0 && !goalNotNullGivenPresent) {
       return false;
     }
 
@@ -4232,7 +4323,7 @@ class NullabilityEngine {
       presenceColumns: goalOrigin.optional
         ? [...rename.values()].map(c => `${entry.alias}.${c}`)
         : undefined,
-      goalCatalogNotNull,
+      goalNotNullGivenPresent,
       isMasked: () => false,
       resolveUnqualified: col => {
         let owner: string | null = null;

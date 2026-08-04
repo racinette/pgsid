@@ -137,15 +137,16 @@ export interface CheckEntailmentInput {
    */
   presenceColumns?: string[];
   /**
-   * Whether the goal's ORIGIN column carries the catalog's NOT NULL flag.
-   * Set only alongside `presenceColumns` (an optional origin chain): once
-   * the presence gate proves the base row exists on every emitted row,
-   * the catalog constraint alone finishes the goal — the value IS the
-   * stored value, and stored values of a NOT NULL column are non-null. No
-   * CHECK derivation needed, which is what lets a table with no CHECKs at
-   * all benefit from evidence-pinned presence.
+   * Whether EVERY stored row of the goal's origin table has the column
+   * non-null — the catalog's NOT NULL flag, or (for generated columns) the
+   * generation expression proven non-null by the walk in a synthetic
+   * single-table scope. Set only alongside `presenceColumns` (an optional
+   * origin chain): once the presence gate proves the base row exists on
+   * every emitted row, this settles the goal — the value IS the stored
+   * value. No CHECK derivation needed, which is what lets a table with no
+   * CHECKs at all benefit from evidence-pinned presence.
    */
-  goalCatalogNotNull?: boolean;
+  goalNotNullGivenPresent?: boolean;
   trace?: CheckEntailmentTrace;
 }
 
@@ -269,12 +270,12 @@ class EntailmentKernel {
         return false;
       }
       this.input.trace?.addFact("presence", "proven from evidence");
-      // With presence proven, a catalog NOT NULL goal is already done: the
-      // emitted value is the stored value, and no stored value of the
-      // column is NULL. CHECK derivation is for the goals the catalog
-      // cannot settle.
-      if (this.input.goalCatalogNotNull) {
-        this.input.trace?.addFact("goal", "catalog NOT NULL — settled by presence alone");
+      // With presence proven, a goal that is non-null on every stored row
+      // (catalog NOT NULL, or a generation expression the walk proved) is
+      // already done: the emitted value is the stored value. CHECK
+      // derivation is for the goals neither can settle.
+      if (this.input.goalNotNullGivenPresent) {
+        this.input.trace?.addFact("goal", "non-null per stored row — settled by presence alone");
         return true;
       }
     }

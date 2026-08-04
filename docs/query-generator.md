@@ -170,12 +170,14 @@ queries):
 The widening earned its keep on arrival: its two-arm witness bar exposed
 the cross-unit presence-implication imprecision (closed the same session
 — origins now carry unit-crossing chains) and the per-branch
-required-alternative gap in origin entailment (closed likewise), and left
-two honest rules where closure is refused or deferred:
-`refilter-union-literal-branch` (a literal branch carries no origins, so
-set-operation origins refuse by design) and
-`gm-generated-kernel-boundary` (the entailment kernel's atoms cannot
-re-derive a generation expression — a recorded closure candidate).
+required-alternative gap in origin entailment (closed likewise). The two
+rules it briefly left both closed the next session and were deleted with
+their closures: set-operation origins became slot-per-branch (an
+unattributable branch contributes an explicit NULL slot, its flat verdict
+recorded, so a literal branch settles its alternative without invented
+provenance) and `storedRowNotNull` dispatches a generated column's
+expression through the walk where the entailment kernel's atoms cannot
+follow. The corpus's rule lists carry nothing from the widening.
 
 ### Validity is the generator's responsibility
 

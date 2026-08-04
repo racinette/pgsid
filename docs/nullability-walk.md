@@ -674,9 +674,12 @@ The generated corpus runs the same per-row oracle over every query it
 produces, with a two-arm witness bar and a GROUP_UNWITNESSABLE rule
 mechanism mirroring its nullable-claim discipline — 1490 groups over the
 widened ~9k-query corpus, all arms observed, zero falsified, the group
-rule list empty; the flat-claim rules carry the widening's two reasoned
-entries (`tests/unit/query/generated/generated-soundness.test.ts`; the
-axes are `docs/query-generator.md`'s "presence-group widening").
+rule list empty and the flat-claim rules carrying NOTHING from the
+widening: both of its reasoned entries closed (slot-per-branch setop
+origins with per-branch settledness; `storedRowNotNull` generation
+dispatch at origin sites) and were deleted with their closures
+(`tests/unit/query/generated/generated-soundness.test.ts`; the axes are
+`docs/query-generator.md`'s "presence-group widening").
 
 Verification mirrors Wave 10's: `-- @null-group N[*],M[*]` annotations with
 compulsory bidirectional coverage in the agreement suite, per-row

@@ -287,12 +287,12 @@ group.
 
 ## Current measurement
 
-Across 264 fixtures and 5 data states, at the default seed:
+Across 266 fixtures and 5 data states, at the default seed:
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 765 | |
-| — falsifiable | 755 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 773 | |
+| — falsifiable | 763 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
 | `nullable` claims | 392 | |
