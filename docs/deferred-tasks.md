@@ -185,6 +185,23 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-05), finding 15 / RC-8 — a
+param-contract unsoundness: a window frame OFFSET is a rejection site the
+analysis did not enumerate. PostgreSQL raises `frame starting/ending
+offset must not be null` for a NULL bound — ROWS, RANGE and GROUPS, both
+directions, and even over empty input (all measured) — while the register
+pins the sibling placement, LIMIT/OFFSET, as taking NULL legally; the
+engine had claimed the frame bound on that analogy. `collectParamFacts`
+now treats a `WindowDef` startOffset/endOffset as rejecting: a direct
+parameter via mechanism B (execution-time, existential — a subquery that
+never runs never evaluates its frame, so no narrowing), an expression via
+`rejectFlow`. Two AST spellings land: `FuncCall.over` is a concrete
+struct field emitted UNWRAPPED, and named windows arrive wrapped in the
+windowClause — the unwrapped one is why the first cut silently missed.
+`param-window-frame-offset.sql` graduates with the raise witnessed, and
+the param-soundness suite's null-rejection pattern learned the third
+message. `docs/argument-nullability.md` records the site.
+
 Closed by the adversarial fix phase (2026-08-05), finding 11 / RC-7's
 unresolvable-relation half — the two halves landed together, as the report
 prescribes, because the refusal alone would have turned every

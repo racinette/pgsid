@@ -46,8 +46,11 @@ import { hasStatements, loadDataStates, type DataState } from "./fixture-data/st
 const FIXTURES_DIR = join(__dirname, "fixtures");
 const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
 
-/** The two rejection messages, pinned in param-mechanism.test.ts. */
-const NULL_REJECTION = /does not allow null values|violates not-null constraint/;
+/** The rejection messages: the two pinned in param-mechanism.test.ts, plus
+ *  the window frame bound's own (mechanism B's fourth sibling — measured for
+ *  ROWS/RANGE/GROUPS, both directions). */
+const NULL_REJECTION =
+  /does not allow null values|violates not-null constraint|frame (starting|ending) offset must not be null/;
 /** Parse-analysis failures that mean "protocol binding cannot type this". */
 const DEDUCTION_FAILURE =
   /could not determine data type|inconsistent types deduced|indeterminate datatype/;

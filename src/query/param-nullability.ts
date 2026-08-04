@@ -755,6 +755,30 @@ function checkMerge(
   }
 }
 
+/**
+ * A window frame OFFSET is a rejection site of its own (mechanism B's
+ * fourth sibling): PostgreSQL raises `frame starting/ending offset must
+ * not be null` for a NULL bound — for ROWS, RANGE and GROUPS, in both
+ * directions, and even over empty input (all measured). Still
+ * execution-time like mechanism B — a subquery that never runs never
+ * evaluates its frame — so it rejects without licensing output narrowing.
+ * The sibling placement, LIMIT/OFFSET, takes NULL legally and is pinned in
+ * the register; a frame bound reads like the same shape and behaves
+ * oppositely. WindowDef appears both as FuncCall.over and in the
+ * windowClause (named windows), and the generic recursion reaches both.
+ */
+function checkWindowDef(
+  c: Collector,
+  wd: { startOffset?: Node; endOffset?: Node },
+): void {
+  for (const offset of [wd.startOffset, wd.endOffset]) {
+    if (!offset) continue;
+    const num = paramNumberOf(offset);
+    if (num !== null) reject(c, num, "constraint");
+    else rejectFlow(c, offset);
+  }
+}
+
 function visit(c: Collector, node: unknown): void {
   if (Array.isArray(node)) {
     for (const n of node) visit(c, n);
@@ -767,10 +791,18 @@ function visit(c: Collector, node: unknown): void {
   if (num !== null) c.seen.add(num);
 
   if (obj["TypeCast"]) checkTypeCast(c, obj["TypeCast"] as Parameters<typeof checkTypeCast>[1]);
-  if (obj["FuncCall"]) checkFuncCall(c, obj["FuncCall"] as Parameters<typeof checkFuncCall>[1]);
+  if (obj["FuncCall"]) {
+    checkFuncCall(c, obj["FuncCall"] as Parameters<typeof checkFuncCall>[1]);
+    // `over` is a concrete struct field (`WindowDef *over`), so libpg-query
+    // emits it UNWRAPPED — the discriminator branch below never sees it.
+    // Named windows in the windowClause DO arrive wrapped.
+    const over = (obj["FuncCall"] as { over?: Parameters<typeof checkWindowDef>[1] }).over;
+    if (over) checkWindowDef(c, over);
+  }
   if (obj["InsertStmt"]) checkInsert(c, obj["InsertStmt"] as Parameters<typeof checkInsert>[1]);
   if (obj["UpdateStmt"]) checkUpdate(c, obj["UpdateStmt"] as Parameters<typeof checkUpdate>[1]);
   if (obj["MergeStmt"]) checkMerge(c, obj["MergeStmt"] as Parameters<typeof checkMerge>[1]);
+  if (obj["WindowDef"]) checkWindowDef(c, obj["WindowDef"] as Parameters<typeof checkWindowDef>[1]);
 
   for (const v of Object.values(obj)) visit(c, v);
 }
