@@ -25,17 +25,72 @@ zero. The measurements are in `docs/witness-coverage.md`.
 What is left is not more assertions about the queries somebody wrote. It is
 finding the defects nobody thought to look for, and then a consumer.
 
-**Next up: the consumer** — the one-shot codegen pipeline (query files →
-PREPARE harness → arity gate → positional zip → emitted types),
-batch-first with reactivity and the language server as thin drivers over
-a pure core — `docs/postgres-language-server-notes.md` is the salvage
-kit; a design doc should precede the build, and the emitted-type design
-inherits two settled decisions: rejection sets emit as factored local
-unions (flat types ∩ one union per set), and names come from
-RowDescription. The semantic re-founding (section 5) is a standing
-parallel track; its executable target list emptied when Wave 12 closed
-the origin extensions, so its next candidates come from whatever the
-consumer's corpora surface.
+**Next up: the consumer.** A design doc precedes the build (start it in a
+fresh session), opening with the questions below. Architectural ground
+already settled (2026-08, discussed over the `src/engine.ts` sketch — do
+not re-litigate without new information):
+
+- ONE run path for CLI and language server, held by a PARITY SUITE from
+  the first vertical slice (batch output over a project ≡ watch-shell
+  steady state after replaying the same edits) — the traced/untraced
+  drift lesson at product scale.
+- The shared path is a PURE, MEMOIZED derived-value graph (migrations →
+  applied schema → snapshot → catalog → per-query contract → artifact);
+  events exist only in the shells and terminate at "invalidate key K".
+  The CLI is a shell that feeds inputs once and exits — no engine mode,
+  no stop-after-ready flag; the single-PoV lock falls out of the driver.
+- Invalidation is the EXISTING triangle: any migration change → rebuild
+  snapshot → `diffCatalogs` → changed `EntityId`s → recheck queries whose
+  `extractDeps` touch them. Per-migration incrementality is NOT a lever
+  (schema is a fold over the ordered list); the diff is.
+- `src/engine.ts` salvage verdict: keep the event taxonomy, the ready
+  barrier, and the coalescing/debounce/retry patterns as the WATCH
+  SHELL's vocabulary; retire trackers-that-compute (a tracker acquires
+  input, the graph computes); the subscription map becomes the
+  EntityId-keyed invalidation index (`DatabaseIdentifier` reinvented
+  EntityId — drop it). Wall-clock event ordering → monotonic per-source
+  sequence numbers if kept at all.
+- Emitted types inherit: rejection sets as factored local unions (flat
+  types ∩ one union per set), names from RowDescription, contracts from
+  `inferQueryContract` verbatim. LSP comes LAST; the dual-parser
+  question stays deliberately deferred
+  (`docs/postgres-language-server-notes.md`).
+
+**Questions to answer before implementation** (the design doc's opening
+section; each is a product decision, not an engineering one):
+
+1. **Query discovery and naming.** How are queries found, and what names
+   the generated API: sqlc-style `-- name: GetUser :one` annotations, one
+   query per file with the filename as the name, or exported constants in
+   host-language files? This decides the generated surface more than any
+   other choice. Related: are multi-statement query files allowed, and is
+   there a cardinality annotation (:one/:many) or is that inferred/absent?
+2. **Artifact shape.** Types-only (`.d.ts` the user wires to their own
+   client) vs generated typed functions over a thin runtime client vs
+   both behind a flag. Where do the factored parameter unions land —
+   argument object types, function overloads? What does a nullable
+   column render as (`T | null` vs optional) and is that configurable?
+3. **Config surface.** File name/format; migration and query globs;
+   output location(s); database-less (PGlite from migrations — the
+   default posture) vs pointing at a live server (the pgls harness notes
+   apply); search_path; multiple schemas/projects per config?
+4. **Migration ordering and identity.** Filename sort, numeric prefix
+   convention, or a manifest? What is a "migration" for watch purposes —
+   and are down-migrations/out-of-order edits an error, a full rebuild,
+   or silently tolerated?
+5. **Diagnostics contract.** What does the CLI exit non-zero on:
+   engine refusals (`UnsupportedNodeError`), PREPARE failures, arity-gate
+   mismatches — and which are warnings? Are positions mapped to source
+   ranges from day one (the pgls cursor-mapping salvage) or file-level
+   first?
+6. **Slice order confirmation.** Proposed: config + discovery → batch
+   pipeline (pure core) → emitter + goldens → parity suite → watch shell
+   → LSP. Confirm or reorder.
+
+The semantic re-founding (section 5) is a standing parallel track; its
+executable target list emptied when Wave 12 closed the origin
+extensions, so its next candidates come from whatever the consumer's
+corpora surface.
 
 1. **Argument nullability** — built in full: the four sequencing steps,
    mechanism-A output narrowing, mechanism-C value-flow rejection, and
