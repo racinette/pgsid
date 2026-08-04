@@ -48,6 +48,7 @@ function table(
     columns,
     constraints: extra.constraints ?? [],
     storageParams: extra.storageParams ?? {},
+    writeRewrites: { beforeRow: [], insteadOf: [], insteadRules: [] },
   };
 }
 
@@ -334,7 +335,13 @@ describe("diffCatalogs: domains", () => {
 
 describe("diffCatalogs: views + materialized views", () => {
   function view(schema: string, name: string, columns: ColumnInfo[], definition: string): ViewInfo {
-    return { schema, name, columns, definition };
+    return {
+      schema,
+      name,
+      columns,
+      definition,
+      writeRewrites: { beforeRow: [], insteadOf: [], insteadRules: [] },
+    };
   }
 
   it("added view emits view + columns as added", () => {

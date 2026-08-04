@@ -137,6 +137,20 @@ export interface NullabilityCatalog {
   resolveColumnNotNullTree(schema: string, table: string, column: string): boolean;
 
   /**
+   * The write-path rewriting hooks on `schema.table`, as command sets
+   * ('insert' | 'update' | 'delete'). RETURNING reports the row AFTER the
+   * rewrite stage — a BEFORE ROW trigger may replace NEW wholesale, an
+   * INSTEAD OF trigger's NEW is reported verbatim with the view definition
+   * never evaluated, and a DO INSTEAD rule replaces the statement outright
+   * (all measured) — so the walk voids the corresponding reasoning where one
+   * of these exists. Empty sets for an unknown relation.
+   */
+  resolveWriteRewrites(
+    schema: string | undefined,
+    table: string,
+  ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> };
+
+  /**
    * The declared type OID of `schema.table.column`, or null if unknown.
    *
    * Needed where a column's NOT NULL *constraint* does not travel but its

@@ -596,6 +596,15 @@ These statements have a RETURNING list that produces output columns. The target 
 
 `UPDATE ... FROM` and `DELETE ... USING` add further relations to that scope. They join to the target with **inner-join** semantics — a target row with no match is simply not modified — so those relations are REQUIRED, not OPTIONAL. Outer joins written *inside* the FROM/USING list are still honoured normally.
 
+**The rewrite stage sits between the statement and the reported row**, and the snapshot captures its hooks per relation and command (`WriteRewriteInfo`: BEFORE ROW triggers, INSTEAD OF triggers, DO INSTEAD rules — diff-included, since creating one changes inference). All measured:
+
+- A **BEFORE ROW trigger** (INSERT/UPDATE, and MERGE's insert/update arms) may replace NEW wholesale after the statement's values were chosen, so the written-value map is void and — for UPDATE — the SET mask widens to every target column, since the OLD-row evidence transfer ("non-SET columns keep their WHERE-tested values") holds for no column. Catalog flags survive: the stored row still passes its constraints.
+- An **INSTEAD OF trigger** (view targets, INSERT/UPDATE) reports whatever NEW it builds, with the view's definition expressions never evaluated — even a literal view column comes back NULL — so the view-definition analysis is void too and every column drops to the view's catalog flags, all `attnotnull = false`.
+- A **DO INSTEAD rule** replaces the statement outright; RETURNING reports the rule's query against a table the engine never saw, so the statement is REFUSED (`UnsupportedNodeError`) when it has a RETURNING clause. DO ALSO leaves the original statement and its RETURNING in place.
+- **DELETE is immune on the trigger side**: a modified OLD is ignored for both trigger forms and the reported row is the row as read, view-definition values included. Only the rule refusal applies.
+
+The same hooks gate the parameter contract's mechanism B: a trigger may replace the NULL and a rule may redirect the write, so an execution-time NOT NULL rejection is no longer implied by the statement text on such targets. Mechanism A is untouched — the parameter's type comes from parse analysis of the statement as written, and Bind rejects before any rewrite runs.
+
 ### Presence groups (the null-group export — Wave 13)
 
 The walk has always modelled null-extension per UNIT (`RelationEntry.nullGroup`:

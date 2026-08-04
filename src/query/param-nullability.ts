@@ -115,16 +115,32 @@ interface Collector {
  * `"constraint"` — a plain NOT NULL constraint, checked per row written
  * (mechanism B). A domain-typed column reports `"domain"` even when a
  * redundant column constraint also exists — bind-time wins.
+ *
+ * `command` is the write the value travels through. A BEFORE ROW or
+ * INSTEAD OF trigger, or a DO INSTEAD rule, on that command can rewrite the
+ * row between the statement's value and the constraint check — a trigger
+ * may replace the NULL, a rule may redirect the write to a table that
+ * accepts it (both measured) — so mechanism B is no longer implied by the
+ * statement text and reports nothing there. Mechanism A is untouched: the
+ * parameter's type comes from parse analysis of the statement as written,
+ * and Bind rejects the NULL before any rewrite runs.
  */
 function columnRejection(
   c: Collector,
   schema: string,
   table: string,
   column: string,
+  command: "insert" | "update",
 ): "domain" | "constraint" | null {
   const typeOid = c.catalog.resolveColumnTypeOid(schema, table, column);
   if (typeOid !== null && c.catalog.isNotNullDomain(typeOid)) return "domain";
-  if (c.catalog.resolveColumnNotNull(schema, table, column)) return "constraint";
+  if (c.catalog.resolveColumnNotNull(schema, table, column)) {
+    const wr = c.catalog.resolveWriteRewrites(schema, table);
+    if (wr.beforeRow.has(command) || wr.insteadOf.has(command) || wr.insteadRules.has(command)) {
+      return null;
+    }
+    return "constraint";
+  }
   return null;
 }
 
@@ -587,7 +603,7 @@ function checkSetClause(
   for (const item of targetList ?? []) {
     const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
     if (!rt?.name || !rt.val) continue;
-    const mechanism = columnRejection(c, schema, table, rt.name);
+    const mechanism = columnRejection(c, schema, table, rt.name, "update");
     if (!mechanism) continue;
     const num = paramNumberOf(rt.val);
     if (num !== null) reject(c, num, mechanism);
@@ -653,7 +669,7 @@ function checkInsert(
   const rejectAt = (position: number, val: Node | undefined): void => {
     const column = target.columns[position];
     if (!column || !val) return;
-    const mechanism = columnRejection(c, target.schema, target.table, column);
+    const mechanism = columnRejection(c, target.schema, target.table, column, "insert");
     if (!mechanism) return;
     const num = paramNumberOf(val);
     if (num !== null) reject(c, num, mechanism);
@@ -726,7 +742,7 @@ function checkMerge(
       mwc.values.forEach((val, i) => {
         const column = columns[i];
         if (!column) return;
-        const mechanism = columnRejection(c, table.schema, table.name, column);
+        const mechanism = columnRejection(c, table.schema, table.name, column, "insert");
         if (!mechanism) return;
         const num = paramNumberOf(val);
         if (num !== null) reject(c, num, mechanism);

@@ -54,6 +54,19 @@ describe("unsupported nodes are refused, not guessed", () => {
       -- DDL first, SELECT last: the body's final statement decides the return.
       CREATE FUNCTION f_mixed() RETURNS int LANGUAGE sql
         AS $$ CREATE TEMP TABLE tmp_y (i int); SELECT 1 $$;
+      -- A DO INSTEAD rule replaces the statement outright: RETURNING reports
+      -- the rule's query against a different table (measured — the redirect
+      -- returns rule_dst's NULL where the statement wrote a literal into a
+      -- NOT NULL column). A DO ALSO rule leaves the original statement and
+      -- its RETURNING in place.
+      CREATE TABLE rule_src (id int NOT NULL, a text NOT NULL);
+      CREATE TABLE rule_dst (id int, a text);
+      CREATE RULE r_ins AS ON INSERT TO rule_src DO INSTEAD
+        INSERT INTO rule_dst VALUES (NEW.id, NULL) RETURNING id, a;
+      CREATE TABLE rule_also (id int NOT NULL, a text NOT NULL);
+      CREATE TABLE rule_log (id int);
+      CREATE RULE r_also AS ON INSERT TO rule_also DO ALSO
+        INSERT INTO rule_log VALUES (NEW.id);
     `);
     catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
   });
@@ -98,6 +111,40 @@ describe("unsupported nodes are refused, not guessed", () => {
       site: "statement",
       nodeType: "CreateStmt",
     });
+  });
+
+  // --- DO INSTEAD rules ----------------------------------------------------
+
+  // The returned rows come from a statement the engine never saw, so this is
+  // the dispatch-site rule for statements: refuse rather than answer for the
+  // wrong one (adversarial finding 2).
+  it("refuses RETURNING through a DO INSTEAD rule", async () => {
+    await expect(
+      infer("INSERT INTO rule_src VALUES (1, 'x') RETURNING id, a"),
+    ).rejects.toMatchObject({
+      name: "UnsupportedNodeError",
+      site: "statement",
+    });
+  });
+
+  it("does not refuse the same statement without RETURNING — nothing to misreport", async () => {
+    const r = await infer("INSERT INTO rule_src VALUES (1, 'x')");
+    expect(r).toEqual([]);
+  });
+
+  it("does not refuse a command the rule is not on", async () => {
+    // The rule rewrites INSERT only; an UPDATE's RETURNING is the real row.
+    const r = await infer("UPDATE rule_src SET a = 'y' RETURNING a");
+    expect(r.map(c => ({ name: c.name, notNull: c.notNull }))).toEqual([
+      { name: "a", notNull: true },
+    ]);
+  });
+
+  it("does not refuse a DO ALSO rule — the original RETURNING stands", async () => {
+    const r = await infer("INSERT INTO rule_also VALUES (1, 'x') RETURNING a");
+    expect(r.map(c => ({ name: c.name, notNull: c.notNull }))).toEqual([
+      { name: "a", notNull: true },
+    ]);
   });
 
   // --- FROM items ---------------------------------------------------------

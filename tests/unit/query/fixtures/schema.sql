@@ -675,3 +675,33 @@ CREATE TABLE vc (k varchar(4) NOT NULL, x text, CHECK (k = 'a ' OR x IS NOT NULL
 CREATE TABLE inh_p (id integer, a text);
 CREATE TABLE inh_c () INHERITS (inh_p);
 ALTER TABLE ONLY inh_p ALTER COLUMN a SET NOT NULL;
+
+-- Write-path rewriting (adversarial finding 2): RETURNING reports the row
+-- AFTER PostgreSQL's rewrite stage. trig_t's BEFORE trigger nulls a written
+-- value; iot_v's INSTEAD OF trigger reports whatever NEW it builds, the
+-- view's own definition expressions never evaluated (measured — the literal
+-- lit comes back NULL); rule_src's DO INSTEAD rule replaces the statement
+-- outright, which the engine refuses (pinned in unsupported-nodes.test.ts).
+-- DELETE needs none of this: a modified OLD is ignored for both trigger
+-- forms and the reported row is the row as read (measured).
+CREATE TABLE trig_t (id integer PRIMARY KEY, a text, b text NOT NULL);
+CREATE FUNCTION trig_fn() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN NEW.a := NULL; RETURN NEW; END $$;
+CREATE TRIGGER trig_before BEFORE INSERT OR UPDATE ON trig_t
+  FOR EACH ROW EXECUTE FUNCTION trig_fn();
+
+CREATE TABLE rule_src (id integer NOT NULL, a text NOT NULL);
+CREATE TABLE rule_dst (id integer, a text);
+CREATE RULE r_ins AS ON INSERT TO rule_src DO INSTEAD
+  INSERT INTO rule_dst VALUES (NEW.id, NULL) RETURNING id, a;
+
+CREATE TABLE iot_base (id integer PRIMARY KEY, k text NOT NULL);
+CREATE VIEW iot_v AS SELECT id, k, 'x'::text AS lit FROM iot_base;
+CREATE FUNCTION iot_fn() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO iot_base VALUES (NEW.id, NEW.k);
+  NEW.k := NULL;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER iot_t INSTEAD OF INSERT ON iot_v
+  FOR EACH ROW EXECUTE FUNCTION iot_fn();

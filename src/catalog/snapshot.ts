@@ -18,6 +18,7 @@ import type {
   TableInfo,
   ViewInfo,
   Volatility,
+  WriteRewriteInfo,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -144,6 +145,17 @@ interface DomainRow {
 interface InheritsRow {
   inhrelid: number;
   inhparent: number;
+}
+
+interface TriggerRow {
+  tgrelid: number;
+  tgtype: number;
+}
+
+interface RewriteRuleRow {
+  ev_class: number;
+  ev_type: string;
+  is_instead: boolean;
 }
 
 interface CompositeTypeRow {
@@ -435,6 +447,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     schemaRows,
     builtinStrictFunctions,
     inheritsRows,
+    triggerRows,
+    rewriteRuleRows,
   ] = await Promise.all([
     queryTypeNames(pg),
     queryTables(pg),
@@ -455,6 +469,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     querySchemas(pg),
     queryBuiltinStrictFunctions(pg),
     queryInherits(pg),
+    queryTriggers(pg),
+    queryRewriteRules(pg),
   ]);
 
   // Global type-name map (oid → format_type name) for resolving arg OIDs.
@@ -542,6 +558,47 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     arr.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
   }
 
+  // --- Write-path rewriting hooks per relation (finding 2). ---
+  // tgtype bits and ev_type encodings are documented on the two queries.
+  const writeRewritesByRel = new Map<number, WriteRewriteInfo>();
+  const rewritesOf = (relid: number): WriteRewriteInfo => {
+    let wr = writeRewritesByRel.get(relid);
+    if (!wr) {
+      wr = { beforeRow: [], insteadOf: [], insteadRules: [] };
+      writeRewritesByRel.set(relid, wr);
+    }
+    return wr;
+  };
+  const addSorted = (arr: string[], cmd: string): void => {
+    if (!arr.includes(cmd)) {
+      arr.push(cmd);
+      arr.sort();
+    }
+  };
+  for (const t of triggerRows) {
+    if (!(t.tgtype & 1)) continue; // statement-level: no row to rewrite
+    const commands = [
+      ...(t.tgtype & 4 ? ["insert"] : []),
+      ...(t.tgtype & 8 ? ["delete"] : []),
+      ...(t.tgtype & 16 ? ["update"] : []),
+    ];
+    const wr = rewritesOf(t.tgrelid);
+    for (const cmd of commands) {
+      if (t.tgtype & 64) addSorted(wr.insteadOf, cmd);
+      else if (t.tgtype & 2) addSorted(wr.beforeRow, cmd);
+    }
+  }
+  const RULE_COMMANDS: Record<string, string> = { "2": "update", "3": "insert", "4": "delete" };
+  for (const r of rewriteRuleRows) {
+    const cmd = RULE_COMMANDS[r.ev_type];
+    // DO ALSO leaves the original statement (and its RETURNING) in place.
+    if (!cmd || !r.is_instead) continue;
+    addSorted(rewritesOf(r.ev_class).insteadRules, cmd);
+  }
+  const NO_REWRITES: WriteRewriteInfo = { beforeRow: [], insteadOf: [], insteadRules: [] };
+  const writeRewritesFor = (relid: number | undefined): WriteRewriteInfo =>
+    (relid !== undefined ? writeRewritesByRel.get(relid) : undefined) ?? NO_REWRITES;
+
   // --- Tables. ---
   const tables: TableInfo[] = tableRows.map(t => ({
     schema: t.schema,
@@ -549,6 +606,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     columns: columnsByRel.get(t.oid) ?? [],
     constraints: constraintsByRel.get(t.oid) ?? [],
     storageParams: parseStorageParams(t.reloptions),
+    writeRewrites: writeRewritesFor(t.oid),
   })).sort(bySchemaName);
 
   // For views/matviews we need their column lists. The view-definition
@@ -564,6 +622,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       name: v.viewname,
       columns: relid !== undefined ? (columnsByRel.get(relid) ?? []) : [],
       definition: v.definition,
+      writeRewrites: writeRewritesFor(relid),
     };
   }).sort(bySchemaName);
 
@@ -574,6 +633,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       name: v.viewname,
       columns: relid !== undefined ? (columnsByRel.get(relid) ?? []) : [],
       definition: v.definition,
+      writeRewrites: writeRewritesFor(relid),
     };
   }).sort(bySchemaName);
 
@@ -830,6 +890,38 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
 async function queryInherits(pg: PGlite): Promise<InheritsRow[]> {
   const res = await pg.query<InheritsRow>(
     `SELECT inhrelid, inhparent FROM pg_inherits;`,
+  );
+  return res.rows;
+}
+
+/**
+ * User triggers (tgisinternal excludes the FK/constraint machinery), with the
+ * packed tgtype: bit 0 ROW, bit 1 BEFORE, bits 2/3/4 INSERT/DELETE/UPDATE,
+ * bit 6 INSTEAD (encodings measured against real triggers).
+ */
+async function queryTriggers(pg: PGlite): Promise<TriggerRow[]> {
+  const res = await pg.query<TriggerRow>(
+    `SELECT t.tgrelid, t.tgtype
+     FROM pg_trigger t
+     JOIN pg_class c ON c.oid = t.tgrelid
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE NOT t.tgisinternal AND ${USER_NS};`,
+  );
+  return res.rows;
+}
+
+/**
+ * Rewrite rules other than a view's own `_RETURN` SELECT rule. ev_type is a
+ * CmdType character: '1' SELECT, '2' UPDATE, '3' INSERT, '4' DELETE
+ * (measured — pg_settings' update rules carry '2').
+ */
+async function queryRewriteRules(pg: PGlite): Promise<RewriteRuleRow[]> {
+  const res = await pg.query<RewriteRuleRow>(
+    `SELECT r.ev_class, r.ev_type, r.is_instead
+     FROM pg_rewrite r
+     JOIN pg_class c ON c.oid = r.ev_class
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE r.rulename <> '_RETURN' AND ${USER_NS};`,
   );
   return res.rows;
 }
