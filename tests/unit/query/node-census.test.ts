@@ -88,6 +88,7 @@ const CLASSIFICATION: Record<string, Classification> = {
   JsonTable: { category: "handled", why: "JSON_TABLE contributes COLUMNS" },
   RangeTableFuncCol: { category: "structural", why: "one XMLTABLE column, read via RangeTableFunc" },
   JsonTableColumn: { category: "structural", why: "one JSON_TABLE column, read via JsonTable" },
+  ColumnDef: { category: "structural", why: "one coldeflist column, read via RangeFunction" },
   JsonTablePathSpec: { category: "structural", why: "path attached to a JSON_TABLE column", inlined: true },
 
   // --- expression nodes with a branch ------------------------------------

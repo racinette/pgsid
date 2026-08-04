@@ -448,6 +448,34 @@ Naming follows PostgreSQL: a composite result keeps its own column names and the
 alias names only the relation, while a scalar result takes the alias as its
 column name. An explicit alias list (`f() AS t(a, b)`) renames positionally.
 
+Two forms override the per-item resolution above:
+
+- **A column definition list** (`AS z(a integer, b text)`) — what makes a
+  record-returning call legal at all — fully determines the item's shape:
+  one column per ColumnDef, by its name, every one nullable (a record's
+  fields carry no constraints). It wins even when catalog metadata exists,
+  whose `SETOF record` return type would otherwise resolve to a single
+  scalar column. The lone-function spelling parks the list on the
+  RangeFunction, the ROWS FROM spelling on each item (both measured).
+- **Multi-argument `unnest`** is a special form: `unnest(a, b)` expands to
+  one column PER ARRAY ARGUMENT, zip-style with NULL padding, each keeping
+  the function's name rather than taking a scalar alias — measured, and
+  measured the same as a ROWS FROM item. Every column is nullable: the zip
+  pads the short arrays, and elements carry no constraints. A user-defined
+  `unnest` arrives with catalog metadata and takes the declared-return-type
+  path instead.
+
+**`(expr).*` in the target list** is the same problem from the other side: a
+target-list entry that expands to one column per field of the expression's
+composite type. Two arg shapes resolve — `(t).*`, the whole-row spelling of
+`t.*`, routes through ordinary star expansion (measured identical); a
+FuncCall with single-candidate metadata expands its declared return type's
+field list with EVERY field forced nullable, because a NULL composite
+expands to a NULL in every field, domain types included (measured —
+`(NULL::ct).*` yields NULL in an `nn_text` field). Anything else refuses
+(`UnsupportedNodeError`, site `composite-star`): the field count is
+unknowable, and a wrong column list is worse than no answer.
+
 ### Where the recursion crosses scopes:
 
 When a ColumnRef leaf points at a subquery-in-FROM or a CTE, we recurse into that inner scope (steps 1–3 again) and **memoize**. The inner scope's own output columns get resolved by the same procedure; their results are cached and reused by every outer reference. A CTE referenced N times in the outer FROM is analyzed once; all N ColumnRefs read from the cache.

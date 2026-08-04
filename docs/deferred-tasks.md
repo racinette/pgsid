@@ -185,6 +185,27 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-05), findings 12, 13, 14 /
+RC-7's SRF-and-star third — three shape defects, all in the additive
+direction (no existing claim moved). Multi-argument `unnest` (12) is a
+special form expanding to one column PER ARRAY ARGUMENT, zip-style with
+NULL padding, the same per-item rule inside ROWS FROM (measured); the
+engine pushed one column total and handed WITH ORDINALITY's counter to the
+previous position — `multi-arg-srf-shape.sql` pins it with both padding
+and element-NULL witnesses. A column definition list (13) fully determines
+a record-returning item's shape and now wins BEFORE catalog metadata,
+whose `SETOF record` would resolve to one scalar column
+(`coldeflist-shape.sql` for the builtin family, witnessed;
+`coldeflist-user-record.sql` for the user function and the ordering).
+`(expr).*` (14) is a target-list expansion in disguise: the FuncCall arm
+expands the declared return type's fields with EVERY field forced
+nullable — a NULL composite expands to a NULL in every field, domain
+types included (measured) — while `(t).*` routes through ordinary star
+expansion and keeps per-column precision (`composite-star-shape.sql`,
+`composite-star-whole-row.sql`); an unresolvable composite REFUSES with
+the new `composite-star` site rather than emitting a wrong list (pinned
+in `unsupported-nodes.test.ts`).
+
 Closed by the adversarial fix phase (2026-08-05), finding 2 / RC-2 — an
 unsoundness removal: the write path was modelled as the statement text,
 and PostgreSQL's rewrite stage sits between the two. The snapshot now

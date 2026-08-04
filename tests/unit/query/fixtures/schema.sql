@@ -705,3 +705,10 @@ BEGIN
 END $$;
 CREATE TRIGGER iot_t INSTEAD OF INSERT ON iot_v
   FOR EACH ROW EXECUTE FUNCTION iot_fn();
+
+-- A user record-returning function (adversarial finding 13): the column
+-- definition list at the call site is what makes it legal at all, and it
+-- fully determines the shape — including when catalog metadata EXISTS and
+-- would otherwise resolve "SETOF record" to a single scalar column.
+CREATE FUNCTION rec_pairs() RETURNS SETOF record LANGUAGE sql
+  AS $$ SELECT 1, 'a'::text $$;
