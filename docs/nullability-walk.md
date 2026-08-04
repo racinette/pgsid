@@ -502,9 +502,9 @@ If `agg_star` is true (`count(*)`), or the function name is `count` and `isAggre
 
 ### Priority 3: Aggregate (built-in or user-defined, other than count)
 
-The default is **nullable** — an aggregate over zero rows returns NULL. Two things override it:
+The default is **nullable** — an aggregate over zero rows returns NULL, and over non-empty input the result is whatever the transition and final functions produced, neither of which is analysable.
 
-**Non-null `INITCOND`.** `FunctionInfo.aggInitVal` carries `pg_aggregate.agginitval`. With no rows to transition, the initial state *is* the result, so an aggregate declared with a non-null `INITCOND` is non-null even over empty input.
+**A non-null `INITCOND` proves nothing.** `agginitval` is the state before any transition, so it fixes the EMPTY-input result only; either the transition or the final function can return NULL from non-null state (measured — `agg_nullify`, `agg_finalnull`), and the overall claim would need both cases. The engine once concluded non-null from the INITCOND alone, which was the adversarial sweep's finding 6; the honest cost of the fix is that `count_it` — INITCOND `'0'` with a value-preserving transition — reads nullable.
 
 **Grouping columns are a separate question.** ROLLUP / CUBE / GROUPING SETS also NULL out the *grouping* columns of every super-aggregate row, independently of the aggregates: `GROUP BY ROLLUP(id)` emits a grand-total row whose `id` is NULL even though the column is NOT NULL in the catalog. `Scope.groupingSetColumns` records the columns nested inside a grouping-set construct — in all three spellings PostgreSQL accepts for a term: a ColumnRef directly, an output-column ordinal (`ROLLUP(1)`), and an output-column alias (`ROLLUP(k)`), the latter two resolved against the target list so the selected entry's underlying refs are what gets recorded. A ColumnRef matching one is nullable — overriding both the catalog flag and any WHERE guarantee, since the row exists and the column is merely blanked — and the USING/NATURAL merged-column route applies the same override before answering from its constituents. Plain terms alongside a construct (`GROUP BY a, ROLLUP(b)`) appear in every generated grouping set and are unaffected.
 
@@ -515,11 +515,11 @@ The default is **nullable** — an aggregate over zero rows returns NULL. Two th
 - the aggregate maps "at least one non-null input" to a non-null result (`NON_NULL_OVER_NONEMPTY_AGGREGATES`: `sum`, `avg`, `min`, `max`, `bit_and`, `bit_or`, `bool_and`, `bool_or`, `every`, `array_agg`, `string_agg`, `json_agg`, `jsonb_agg`). `stddev`, `var_samp`, `corr` and the `regr_*` family are excluded — they are undefined (NULL) for a single-row group, so a non-empty group is not enough;
 - every argument is non-null, so the aggregate sees no NULLs to skip.
 
-**Aggregate definition variants** (moving-aggregate mode, ordered-set, partial aggregation, polymorphic) — see https://www.postgresql.org/docs/current/xaggr.html. None of these variants change the nullability question; they're about how state is computed, not whether the result can be NULL. The only thing that decides null-over-empty is `agginitval` (present + non-null → that's the empty result; absent/NULL → NULL over empty) and `count` (special-cased, never NULL).
+**Aggregate definition variants** (moving-aggregate mode, ordered-set, partial aggregation, polymorphic) — see https://www.postgresql.org/docs/current/xaggr.html. None of these variants change the nullability question; they're about how state is computed, not whether the result can be NULL — and how state is computed is exactly what the engine cannot analyse, which is why a user aggregate's only escapes are the measured `NON_NULL_OVER_NONEMPTY_AGGREGATES` list and `count` (special-cased, never NULL).
 
-### Priority 4: Strict scalar function
+### Priority 4: Strict scalar function — the nullable direction only
 
-If `isAggregate` is false and `strict` is true (from `FunctionInfo.strict` in the catalog) → the result is non-null only if **all arguments resolved non-null**. We have the children's resolved booleans from the recursion; we AND them. `lower(c.name)` where `c` is on the optional side of a LEFT JOIN → `c.name` nullable → `lower(c.name)` nullable. `lower('lit')` → non-null arg → non-null. This is correct in the nullable direction: a strict function with a NULL input always returns NULL.
+If `isAggregate` is false and `strict` is true (from `FunctionInfo.strict` in the catalog) and **any argument resolved nullable** → **nullable**, concluded before the body walk, whose analysis a strict function with a NULL argument never even runs. That is the whole of what strictness licenses: NULL in ⇒ NULL out. It says nothing about non-null input — `lookup_name(t.id)` over a missing row returns NULL from a non-null argument (measured, the sweep's finding 5) — so with all arguments non-null the dispatch falls THROUGH: to priority 5's body walk for `LANGUAGE sql` (whose zero-row gate is what makes `lookup_name` honest), and to conservative nullable otherwise. The notNull direction needs TOTALITY, which no catalog flag carries — the same distinction `TOTAL_OPERATORS` and `STRICT_TOTAL_BUILTINS` draw. The consensus twin over overloaded names follows the same rule.
 
 ### Priority 5: `LANGUAGE sql` user function
 
@@ -547,7 +547,7 @@ The catalog snapshot covers user schemas only, so built-ins arrive with no `Func
 | `FIRST_ARG_BUILTINS` | non-null iff the *first* argument is | `concat_ws`, `format` |
 | `STRICT_TOTAL_BUILTINS` | non-null iff *every* argument is | `upper`, `length`, `round`, `substr`, `split_part`, `date_part` |
 
-Membership requires being **total**, not merely strict — the same distinction that governs `TOTAL_OPERATORS`. Excluded on that basis: `array_length` / `array_ndims` (NULL for an empty array or bad dimension) and `jsonb_extract_path(_text)` (NULL for a missing path), all of which are strict yet return NULL for non-null arguments.
+Membership requires being **total**, not merely strict — the same distinction that governs `TOTAL_OPERATORS`. Excluded on that basis: `array_length` / `array_ndims` (NULL for an empty array or bad dimension) and `jsonb_extract_path(_text)` (NULL for a missing path), all of which are strict yet return NULL for non-null arguments. The adversarial sweep's finding 7 removed six members that had failed the same criterion (each measured): `array_position` (NULL when the element is absent), `substring` (the FROM-regex form is NULL on no match, and the total positional form is indistinguishable at name level — positional-only `substr` stays), `scale` and `min_scale` (NULL of NaN), `to_number` (`('','')` is NULL), and `to_char` (NULL for a datetime with an empty format; the numeric/int forms are total, but name-level dispatch cannot tell them apart).
 
 `concat` is the mirror image: it is *not* strict and ignores NULL arguments entirely, so all-NULL input yields `''` rather than NULL.
 
@@ -572,11 +572,12 @@ A `FuncCall` with an `OVER` clause is dispatched before the aggregate rule, beca
 | Returns NOT NULL domain | non-null | `DomainInfo.notNull` | precise |
 | `count(*)` / `count(col)` | non-null | rule | precise |
 | Built-in aggregate (max/sum/avg/…) | non-null over a guaranteed non-empty group with non-null args; else nullable | `Scope.groupGuaranteesNonEmpty` + rule | precise |
-| Aggregate with non-null `INITCOND` | non-null | `FunctionInfo.aggInitVal` | precise |
+| User aggregate (INITCOND included) | nullable | the transition/final functions are not analysable | correct |
 | Ranking window function | non-null | `NEVER_NULL_WINDOW_FNS` | precise |
 | Aggregate / offset function over a window | nullable | frame may be empty | correct |
-| Strict scalar | AND of args | `FunctionInfo.strict` + recurse | correct (nullable direction) |
-| `LANGUAGE sql` user function | recurse into body | parse `FunctionInfo.body` | precise |
+| Strict scalar, any arg nullable | nullable | `FunctionInfo.strict` | precise |
+| Strict scalar, args non-null | falls through — body walk or nullable | strictness is not totality | correct |
+| `LANGUAGE sql` user function | recurse into body (zero-row gate) | parse `FunctionInfo.body` | precise |
 | Non-strict scalar / `LANGUAGE plpgsql` | nullable | conservative | imprecise |
 | Unknown function | nullable | conservative | imprecise |
 | Any function returning NOT NULL domain | non-null | PG enforces at call boundary | precise |
@@ -794,7 +795,7 @@ These have been decided:
 
 2. **`LANGUAGE sql` function bodies:** recurse into the body. We have the body text in the catalog (`FunctionInfo.body`); we parse it and walk the last statement's output. This is in scope for this implementation.
 
-3. **User aggregates:** `pg_aggregate.agginitval` is snapshotted as `FunctionInfo.aggInitVal`. A non-null `INITCOND` makes the aggregate non-null even over zero rows.
+3. **User aggregates:** `pg_aggregate.agginitval` is snapshotted as `FunctionInfo.aggInitVal`, and it licenses NOTHING: it fixes the empty-input result only, while a non-empty group's result belongs to the unanalysable transition/final functions (the sweep's finding 6 — the rule that read it as totality was removed).
 
 4. **`CASE` expressions:** non-null iff there is an `ELSE` and every branch result is non-null. Branch results are path-sensitive — each is walked under the conditions required to reach it (see "Branch guards").
 

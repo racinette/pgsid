@@ -5693,27 +5693,35 @@ class NullabilityEngine {
       !!meta?.isAggregate || (!meta && AGGREGATE_NAMES.has(name) && name !== "count");
     if (isAggregate) {
       trace.addFact("priority", meta ? "3 (aggregate)" : "3 (aggregate by name, not in catalog)");
-      return this.resolveAggregateTraced(fc, name, meta, argResults, scope, trace);
+      return this.resolveAggregateTraced(fc, name, argResults, scope, trace);
     }
 
-    // Priority 4: Strict scalar function.
-    if (meta && meta.strict && !meta.isAggregate) {
+    // Priority 4: Strict scalar function — the NULLABLE direction only.
+    // Strictness says NULL in ⇒ NULL out and NOTHING about non-null input
+    // (`lookup_name(id)` over a missing row returns NULL from a non-null
+    // argument — measured), so a nullable argument concludes nullable
+    // OUTRIGHT — before the body walk, whose analysis a strict function
+    // with a NULL argument never even runs. The notNull direction needs
+    // TOTALITY, which no catalog flag carries: with all arguments non-null
+    // this falls THROUGH — to the body walk for LANGUAGE sql (whose
+    // zero-row gate is what makes lookup_name honest), and to conservative
+    // nullable otherwise. The same distinction TOTAL_OPERATORS and
+    // STRICT_TOTAL_BUILTINS draw, now drawn here too.
+    if (meta && meta.strict && !meta.isAggregate && !orderedArgs.every(r => r)) {
       trace.addFact("priority", "4 (strict)");
       trace.addFact("argsNotNull", `[${orderedArgs.map(r => r ? "T" : "F").join(", ")}]`);
-      const result = orderedArgs.every(r => r);
-      trace.conclude(result, result ? "strict: all args non-null" : "strict: at least one arg nullable");
-      return result;
+      trace.conclude(false, "strict: at least one arg nullable");
+      return false;
     }
-    if (consensus && consensus.length > 0 && consensus.every(c => c.strict && !c.isAggregate)) {
+    if (
+      consensus &&
+      consensus.length > 0 &&
+      consensus.every(c => c.strict && !c.isAggregate) &&
+      !(argResults.length > 0 && argResults.every(r => r))
+    ) {
       trace.addFact("priority", "4 (strict, by consensus)");
-      const result = argResults.length > 0 && argResults.every(r => r);
-      trace.conclude(
-        result,
-        result
-          ? "every candidate is strict and all args non-null"
-          : "strict by consensus, but an arg is nullable",
-      );
-      return result;
+      trace.conclude(false, "strict by consensus, and an arg is nullable");
+      return false;
     }
 
     // Priority 5: LANGUAGE sql user function — recurse into body.
@@ -5772,24 +5780,22 @@ class NullabilityEngine {
    *     undefined (NULL) for a single row;
    *   - every argument non-null, so the aggregate sees no NULLs to skip.
    *
-   * A user-defined aggregate with a non-null `INITCOND` is also non-null, even
-   * over zero rows, since the initial state is the result.
+   * A non-null `INITCOND` proves NOTHING here: `agginitval` is the state
+   * before any transition, so it fixes the EMPTY-input result only. Over a
+   * non-empty group the result is whatever the transition and final
+   * functions produced — either can return NULL from non-null state
+   * (measured: agg_nullify, agg_finalnull) and neither is analysable. The
+   * overall claim would need BOTH cases, so INITCOND alone concludes
+   * nullable — which costs count_it its notNull, the honest price of not
+   * analysing a transition function.
    */
   private resolveAggregateTraced(
     fc: FuncCall,
     name: string,
-    meta: FunctionInfo | null,
     argResults: boolean[],
     scope: Scope,
     trace: ITrace,
   ): boolean {
-    // A non-null initial condition survives an empty input entirely.
-    if (meta?.aggInitVal != null) {
-      trace.addFact("agginitval", meta.aggInitVal);
-      trace.conclude(true, "aggregate has a non-null INITCOND → non-null even over zero rows");
-      return true;
-    }
-
     const hasFilter = !!fc.agg_filter;
     const preserves = NON_NULL_OVER_NONEMPTY_AGGREGATES.has(name);
     const argsNotNull = argResults.length > 0 && argResults.every(r => r);
@@ -6396,18 +6402,25 @@ const STRICT_TOTAL_BUILTINS = new Set([
   "exp", "ln", "log", "log10", "power", "mod", "div", "gcd", "lcm",
   "degrees", "radians", "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
   "width_bucket",
-  // String
+  // String. Six former members failed the table's own admission criterion
+  // and are out (adversarial finding 7, all measured 2026-08-04):
+  // `substring` — the FROM-regex form is NULL on no match, and the total
+  // positional form is indistinguishable at name level (`substr`, which is
+  // positional-only, stays); `to_number('','')` and `to_char(<datetime>,'')`
+  // are NULL (the numeric/int to_char forms return '' and are total, but
+  // name-level dispatch cannot tell); `scale` and `min_scale` of NaN are
+  // NULL; `array_position` is NULL when the element is absent.
   "lower", "upper", "initcap", "length", "char_length", "character_length",
   "octet_length", "bit_length", "md5", "ascii", "chr", "repeat", "reverse",
-  "substr", "substring", "replace", "translate", "overlay",
+  "substr", "replace", "translate", "overlay",
   "ltrim", "rtrim", "btrim", "trim", "lpad", "rpad",
   "split_part", "strpos", "position", "left", "right", "starts_with",
   "quote_ident", "quote_literal", "quote_nullable",
-  "to_char", "to_number", "to_date", "to_timestamp", "to_hex",
+  "to_date", "to_timestamp", "to_hex",
   "encode", "decode", "sha256",
   // Arrays / rows
   "array_to_string", "string_to_array", "cardinality", "array_append",
-  "array_prepend", "array_cat", "array_remove", "array_position",
+  "array_prepend", "array_cat", "array_remove",
   // Date / time
   "date_part", "date_trunc", "age", "justify_days", "justify_hours",
   "justify_interval", "make_date", "make_time", "make_timestamp",
@@ -6421,7 +6434,7 @@ const STRICT_TOTAL_BUILTINS = new Set([
   // (no-match regexps, empty arrays, missing jsonb paths — jsonb_set on a
   // scalar target RAISES, which counts: an error is not a NULL).
   "pow", "factorial", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh",
-  "scale", "min_scale", "trim_scale", "bit_count", "normalize",
+  "trim_scale", "bit_count", "normalize",
   "regexp_like", "regexp_count", "regexp_replace", "regexp_split_to_array",
   "array_fill", "array_positions", "trim_array",
   "jsonb_set", "jsonb_insert", "extract",

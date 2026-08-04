@@ -185,6 +185,36 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the adversarial fix phase (2026-08-05), findings 5, 6 and 7 /
+RC-1 — the widest-radius fix, deliberately landed LAST so its flips fell
+on a codebase whose other claims were already correct: three sites
+inferred TOTALITY from properties that constrain one input case. (5)
+Priority 4 concluded non-null from strictness plus non-null arguments;
+strictness says NULL in ⇒ NULL out and nothing else (`lookup_name` over a
+missing row returned NULL from a non-null argument — measured). The
+dispatch now concludes only the nullable direction — before the body walk,
+which a strict function with a NULL argument never runs — and falls
+through otherwise: LANGUAGE sql bodies keep their precision (the zero-row
+gate is what makes lookup_name honest; lower_strict's literal calls stay
+notNull through `SELECT $1`), everything else drops to conservative. The
+consensus twin follows; operators inherit through their backing functions
+(`strict-not-total-function.sql`, all four shapes witnessed). (6) The
+aggregate dispatch read a non-null INITCOND as totality; `agginitval` is
+the state BEFORE any transition and fixes the empty-input result only,
+while `agg_nullify`'s transition and `agg_finalnull`'s FINALFUNC returned
+NULL over non-empty input (measured). The rule is gone; `count_it` reads
+nullable — the honest price of an unanalysable transition, paid across
+four re-annotated fixtures with the @unwitnessable reason recorded
+(`aggregate-initcond-not-total.sql` is the witness pair). (7) Six
+`STRICT_TOTAL_BUILTINS` members failed the table's own admission
+criterion, each measured: `array_position`, `substring` (by name — the
+total positional form is indistinguishable; `substr` stays), `scale`,
+`min_scale`, `to_number`, `to_char` (`builtin-totality-table.sql`, all
+six witnessed per row). Dry-run against the generated corpus before
+committing, per the report's caution: zero violations, zero
+disagreements — the corpus's aggregate and function axes do not carry the
+flipping shapes, so the churn stayed in the four hand fixtures.
+
 Closed by the adversarial fix phase (2026-08-05), finding 15 / RC-8 — a
 param-contract unsoundness: a window frame OFFSET is a rejection site the
 analysis did not enumerate. PostgreSQL raises `frame starting/ending
