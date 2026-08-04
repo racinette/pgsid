@@ -249,6 +249,13 @@ interface RelationEntry {
   ast?: Node;
   /** For tables/views: the resolved table (schema + name + columns). */
   table?: ResolvedTable;
+  /**
+   * Whether this table reference scans the inheritance tree (`FROM p`) or
+   * the named relation alone (`FROM ONLY p`, an INSERT target). Decides
+   * which catalog flag a column read may rely on — see entryColumnNotNull.
+   * Absent means tree, the conservative side.
+   */
+  scanInh?: boolean;
   /** For CTEs: the column names (from aliascolnames or inferred). */
   cteColumns?: string[];
   /**
@@ -1743,6 +1750,9 @@ class NullabilityEngine {
         kind: table.schema === "" ? "cte" : viewAst ? "view" : "table",
         table,
         ast: viewAst,
+        // libpg-query emits `inh: true` for a plain reference and omits the
+        // field for ONLY (measured).
+        scanInh: rv.inh === true,
         joinState,
         nullGroup,
         unitChain,
@@ -1789,6 +1799,14 @@ class NullabilityEngine {
    */
   private buildInsertScope(stmt: InsertStmt, outerScope: Scope | null, depth: number): Scope {
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
+    // The parser marks an INSERT target `inh: true`, but an INSERT stores
+    // its rows in the named relation itself — inheritance never routes a
+    // write (measured: INSERT INTO inh_p lands in ONLY inh_p, and the
+    // parent's own NOT NULL rejects a NULL). So RETURNING reads the named
+    // relation's flags, not the tree conjunction. Tuple routing is a
+    // partitioned-table mechanism, where partitions provably carry the
+    // parent's constraints and the two flags agree.
+    for (const entry of scope.aliases.values()) entry.scanInh = false;
     this.registerCtes(stmt.withClause, scope);
     this.attachInsertWrittenColumns(stmt, scope, outerScope, depth);
     return scope;
@@ -2915,10 +2933,26 @@ class NullabilityEngine {
     if (entry.table) {
       return entry.table.columns.map(col => ({
         name: col,
-        notNull: this.catalog.resolveColumnNotNull(entry.table!.schema, entry.table!.name, col),
+        notNull: this.entryColumnNotNull(entry, col),
       }));
     }
     return [];
+  }
+
+  /**
+   * The catalog flag a read through `entry` may rely on. A tree scan
+   * (`FROM p`) returns rows of every descendant, and a child may lack the
+   * parent's constraint (`ALTER TABLE ONLY p … SET NOT NULL` is legal —
+   * measured), so it gets the subtree conjunction; only a scan that stays
+   * in the named relation (`FROM ONLY p`, an INSERT target) may read the
+   * relation's own flag. Entries with no explicit scan bit — synthetic
+   * scopes, function results — take the conjunction, the conservative side.
+   */
+  private entryColumnNotNull(entry: RelationEntry, col: string): boolean {
+    const t = entry.table!;
+    return entry.scanInh === false
+      ? this.catalog.resolveColumnNotNull(t.schema, t.name, col)
+      : this.catalog.resolveColumnNotNullTree(t.schema, t.name, col);
   }
 
   // -------------------------------------------------------------------------
@@ -3930,11 +3964,7 @@ class NullabilityEngine {
 
     // For tables/views: read catalog notNull + join nullability.
     if (entry.table) {
-      const catalogNotNull = this.catalog.resolveColumnNotNull(
-        entry.table.schema,
-        entry.table.name,
-        colName,
-      );
+      const catalogNotNull = this.entryColumnNotNull(entry, colName);
       trace.addFact("catalog.notNull", String(catalogNotNull));
       trace.addFact("table", `${entry.table.schema}.${entry.table.name}`);
       // DML RETURNING: a column whose WRITTEN value is provably non-null on
@@ -4221,7 +4251,12 @@ class NullabilityEngine {
         });
       }
     }
-    const catalogNotNull = this.catalog.resolveColumnNotNull(
+    // Origins do not carry the producing scan's ONLY bit, so the tree
+    // conjunction is the sound reading here — an origin produced by
+    // `FROM p` can carry a child-stored row. The cost is precision on a
+    // `FROM ONLY parent` origin whose children diverge, a shape nothing
+    // exercises.
+    const catalogNotNull = this.catalog.resolveColumnNotNullTree(
       goalOrigin.schema,
       goalOrigin.table,
       goalOrigin.column,
@@ -4445,12 +4480,7 @@ class NullabilityEngine {
     if (ac) return ac.isnull !== true;
     if ("ColumnRef" in node) {
       const bare = this.resolveBareColumnTarget({ ColumnRef: node["ColumnRef"] } as Node, scope);
-      return !!bare?.entry.table &&
-        this.catalog.resolveColumnNotNull(
-          bare.entry.table.schema,
-          bare.entry.table.name,
-          bare.column,
-        );
+      return !!bare?.entry.table && this.entryColumnNotNull(bare.entry, bare.column);
     }
     return false;
   }
@@ -6233,6 +6263,8 @@ const AGGREGATE_NAMES = new Set([
 interface RangeVar {
   relname: string;
   schemaname?: string;
+  /** true for a plain reference; libpg-query omits the field for ONLY. */
+  inh?: boolean;
   alias?: { aliasname: string; colnames?: Node[] };
 }
 

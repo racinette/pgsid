@@ -24,6 +24,9 @@ function col(partial: Partial<ColumnInfo> & { name: string }): ColumnInfo {
     typeName: "integer",
     typeMod: null,
     notNull: false,
+    // The tree conjunction equals the plain flag for a childless relation,
+    // which is what a hand-built column means unless it says otherwise.
+    notNullTree: partial.notNull ?? false,
     hasDefault: false,
     defaultExpr: null,
     generated: "none",

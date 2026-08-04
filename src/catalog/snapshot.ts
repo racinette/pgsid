@@ -141,6 +141,11 @@ interface DomainRow {
   check_expr: string | null;
 }
 
+interface InheritsRow {
+  inhrelid: number;
+  inhparent: number;
+}
+
 interface CompositeTypeRow {
   oid: number;
   typrelid: number;
@@ -429,6 +434,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     extensionRows,
     schemaRows,
     builtinStrictFunctions,
+    inheritsRows,
   ] = await Promise.all([
     queryTypeNames(pg),
     queryTables(pg),
@@ -448,6 +454,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryExtensions(pg),
     querySchemas(pg),
     queryBuiltinStrictFunctions(pg),
+    queryInherits(pg),
   ]);
 
   // Global type-name map (oid → format_type name) for resolving arg OIDs.
@@ -466,6 +473,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       typeName: c.type_name,
       typeMod: c.type_mod,
       notNull: c.not_null,
+      notNullTree: c.not_null,
       hasDefault: c.has_default,
       defaultExpr: c.default_expr,
       generated: mapGenerated(c.generated),
@@ -475,6 +483,35 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     const arr = columnsByRel.get(c.attrelid);
     if (arr) arr.push(ci);
     else columnsByRel.set(c.attrelid, [ci]);
+  }
+
+  // --- The inheritance-tree conjunction for attnotnull. ---
+  // `FROM p` scans the whole tree, and `ALTER TABLE ONLY p … SET NOT NULL`
+  // is legal (measured): parent attnotnull=true, child false, and the
+  // child's NULL comes back through the parent. So notNullTree weakens a
+  // parent column to the conjunction over its descendants, matched by
+  // column name (inherited columns share it). A descendant the column
+  // capture did not see — a temp child, say — makes the conjunction false:
+  // its rows are in the scan and nothing is known about them.
+  {
+    const childrenOf = new Map<number, number[]>();
+    for (const ih of inheritsRows) {
+      const arr = childrenOf.get(ih.inhparent);
+      if (arr) arr.push(ih.inhrelid);
+      else childrenOf.set(ih.inhparent, [ih.inhrelid]);
+    }
+    const descendantNotNull = (relid: number, column: string): boolean => {
+      const kids = childrenOf.get(relid) ?? [];
+      return kids.every(kid => {
+        const col = columnsByRel.get(kid)?.find(c => c.name === column);
+        return (col?.notNull ?? false) && descendantNotNull(kid, column);
+      });
+    };
+    for (const parent of childrenOf.keys()) {
+      for (const col of columnsByRel.get(parent) ?? []) {
+        col.notNullTree = col.notNull && descendantNotNull(parent, col.name);
+      }
+    }
   }
 
   // --- Constraints grouped by conrelid. ---
@@ -780,6 +817,19 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
        AND ${USER_NS}
        AND a.attnum > 0 AND NOT a.attisdropped
      ORDER BY a.attrelid, a.attnum;`,
+  );
+  return res.rows;
+}
+
+/**
+ * Every inheritance edge, unfiltered by namespace: a child outside the
+ * captured namespaces (a temp child, say) still contributes rows to a tree
+ * scan of its parent, and the conjunction must know it exists even when its
+ * columns were not captured.
+ */
+async function queryInherits(pg: PGlite): Promise<InheritsRow[]> {
+  const res = await pg.query<InheritsRow>(
+    `SELECT inhrelid, inhparent FROM pg_inherits;`,
   );
   return res.rows;
 }

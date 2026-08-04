@@ -32,6 +32,7 @@ export async function buildNullabilityCatalog(
       name: string;
       columns: string[];
       notNullCols: Set<string>;
+      notNullTreeCols: Set<string>;
       colTypeOids: Map<string, number>;
       colTypeNames: Map<string, string>;
       colDistinctnessSound: Set<string>;
@@ -64,12 +65,16 @@ export async function buildNullabilityCatalog(
       name: t.name,
       columns,
       notNullCols,
+      notNullTreeCols: new Set(
+        t.columns.filter(c => c.notNullTree).map(c => c.name),
+      ),
       colTypeOids: new Map(t.columns.map(c => [c.name, c.typeOid])),
       colTypeNames: new Map(t.columns.map(c => [c.name, c.typeName])),
       colDistinctnessSound: distinctnessSound(t.columns),
     });
   }
-  // Views have columns too — treat them like tables for resolution.
+  // Views have columns too — treat them like tables for resolution. A view
+  // has no inheritance children, so its tree flags are its plain flags.
   for (const v of [...snapshot.views, ...snapshot.materializedViews]) {
     const columns = v.columns.map(c => c.name);
     const notNullCols = new Set(
@@ -80,6 +85,7 @@ export async function buildNullabilityCatalog(
       name: v.name,
       columns,
       notNullCols,
+      notNullTreeCols: notNullCols,
       colTypeOids: new Map(v.columns.map(c => [c.name, c.typeOid])),
       colTypeNames: new Map(v.columns.map(c => [c.name, c.typeName])),
       colDistinctnessSound: distinctnessSound(v.columns),
@@ -237,6 +243,24 @@ export async function buildNullabilityCatalog(
     return t.notNullCols.has(column);
   };
 
+  // The relation-SET answer: attnotnull held across the whole inheritance
+  // subtree. `FROM p` scans the tree and a child may lack the parent's
+  // constraint (`ALTER TABLE ONLY … SET NOT NULL` — measured), so this is
+  // what a tree scan may rely on; `resolveColumnNotNull` remains the
+  // named-relation flag, which is the right question for `FROM ONLY p` and
+  // for INSERT targets (an INSERT stores its rows in the named relation
+  // itself — tuple routing is a partitioned-table mechanism, where the
+  // ONLY hole is refused and the two flags agree).
+  const resolveColumnNotNullTree = (
+    schema: string,
+    table: string,
+    column: string,
+  ): boolean => {
+    const t = tableMap.get(`${schema}.${table}`);
+    if (!t) return false;
+    return t.notNullTreeCols.has(column);
+  };
+
   const resolveColumnTypeOid = (
     schema: string,
     table: string,
@@ -377,6 +401,7 @@ export async function buildNullabilityCatalog(
     resolveTable,
     resolveFunction,
     resolveColumnNotNull,
+    resolveColumnNotNullTree,
     resolveColumnTypeOid,
     resolveColumnTypeName,
     resolveLiteralDistinctnessSound,

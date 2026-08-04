@@ -121,9 +121,20 @@ export interface NullabilityCatalog {
   /**
    * Intrinsic column nullability: whether `schema.table.column` has a NOT NULL
    * constraint in the catalog (pg_attribute.attnotnull). This is the column's
-   * nullability *before* join structure and WHERE guarantees are considered.
+   * nullability *before* join structure and WHERE guarantees are considered —
+   * and it is the NAMED relation's flag, which is the right question only for
+   * a scan that stays there (`FROM ONLY p`, an INSERT target).
    */
   resolveColumnNotNull(schema: string, table: string, column: string): boolean;
+
+  /**
+   * The relation-SET answer: attnotnull held across the relation's entire
+   * inheritance subtree. `FROM p` scans the whole tree, and a child may lack
+   * the parent's constraint (`ALTER TABLE ONLY p … SET NOT NULL` is legal —
+   * measured), so a tree scan may rely only on this conjunction. Equal to
+   * `resolveColumnNotNull` for a childless relation.
+   */
+  resolveColumnNotNullTree(schema: string, table: string, column: string): boolean;
 
   /**
    * The declared type OID of `schema.table.column`, or null if unknown.

@@ -665,3 +665,13 @@ CREATE TABLE bp (k char(4) NOT NULL, x text, CHECK (k = 'a ' OR x IS NOT NULL));
 CREATE TABLE bp2 (k char(4) NOT NULL, x text,
   CHECK (CASE WHEN k = 'a' THEN x IS NULL WHEN k = 'a ' THEN x IS NOT NULL END));
 CREATE TABLE vc (k varchar(4) NOT NULL, x text, CHECK (k = 'a ' OR x IS NOT NULL));
+
+-- The inheritance attnotnull divergence (adversarial finding 3).
+-- `ALTER TABLE ONLY parent … SET NOT NULL` is legal (measured): parent
+-- attnotnull=true, child false, and a child-stored NULL comes back through
+-- a tree scan of the parent. CHECK constraints cannot reach this shape —
+-- they are copied to every child's own pg_constraint and cannot be dropped
+-- or invalidated there (measured).
+CREATE TABLE inh_p (id integer, a text);
+CREATE TABLE inh_c () INHERITS (inh_p);
+ALTER TABLE ONLY inh_p ALTER COLUMN a SET NOT NULL;

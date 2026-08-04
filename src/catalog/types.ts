@@ -42,6 +42,15 @@ export interface ColumnInfo {
   /** Type modifier (`atttypmod`), e.g. length for varchar; -1/null when none. */
   typeMod: number | null;
   notNull: boolean;
+  /**
+   * `attnotnull` held across the relation's entire inheritance subtree —
+   * equal to `notNull` for a childless relation. `FROM p` scans the whole
+   * tree, and `ALTER TABLE ONLY p … ADD/SET NOT NULL` is legal (measured),
+   * so a child may store the NULL the parent's own flag forbids. A
+   * descendant the snapshot cannot see (e.g. a temp child) counts as not
+   * carrying the constraint.
+   */
+  notNullTree: boolean;
   hasDefault: boolean;
   /** Human-readable default expression from `pg_get_expr(adbin, adrelid)`. */
   defaultExpr: string | null;
