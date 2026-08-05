@@ -17,7 +17,7 @@ One thing makes this surface weaker than either predecessor's at the moment
 you receive it. Sweep 2's fix phase verified itself almost entirely through
 fixtures its own author wrote in the same session. PGlite refereed the
 OUTPUTS through `nullability-soundness.test.ts` — that part is real, and the
-suite is green at 2111 tests over 37 files — but no independent probe has
+suite is green at 2126 tests over 37 files — but no independent probe has
 tried an input class the author did not think of. That is precisely the
 failure mode `nullability-walk.test.ts`'s own header names: the engine and
 the fixture author agree, which is not the same as either being right.
@@ -71,6 +71,32 @@ The new mechanisms, by file:
 - `src/catalog/diff.ts`: four new comparable properties (`relkind`,
   `hasDescendants`, `generationDivergesInTree`, and `noInherit` riding the
   constraint list).
+
+**And, added the SAME DAY this charter was written** — by the section-A
+probe below and the two follow-ups it triggered, so it is younger than
+everything above and by this charter's own premise the likeliest place for
+a defect:
+
+- `src/query/catalog-adapter.ts`: `candidatesInPath` / `functionCandidates`
+  (candidate merging across the path, deduped by `argTypes`),
+  `resolveFunctions` (PLURAL — the `DepCatalog` face),
+  `resolveFunctionReturnTypes`, `resolveBuiltinFunctionShape`.
+- `src/query/nullability-walk.ts`: the FROM-item shape consensus in
+  `resolveTableFunctionColumns` — full candidate set first, arity narrowing
+  only on disagreement, refusal when neither proves agreement, and the
+  builtin-shape consultation ahead of the one-column fall-through.
+- `src/catalog/snapshot.ts`: `queryBuiltinTableFunctions` →
+  `CatalogSnapshot.builtinTableFunctions`, shapes reassembled from
+  proargnames/proallargtypes because `pg_get_function_result` renders
+  `SETOF record` for OUT-parameter builtins. ENVIRONMENT, so it is
+  deliberately absent from the diff — check that decision.
+- `src/query/resolver.ts`: `extractDeps` records every candidate schema for
+  an unqualified function call.
+
+These carry pins (`search-path.test.ts`, `unsupported-nodes.test.ts`,
+`resolver.test.ts`, `builtin-table-function-shape.sql`) and the same
+weakness as everything else here: the pins were written by the author of
+the fix, in the same sitting.
 
 ## Attack surface catalog
 
@@ -322,8 +348,8 @@ the observed outcome, and the suspected mechanism; their DDL goes in
 `fixtures-adversarial/schema-adversarial.sql`, deliberately NOT folded into
 `fixtures/schema.sql`. The findings log is `docs/adversarial-findings-3.md`,
 with failed attacks recorded per section — the negative results earned their
-keep in both prior reports. Keep the suite GREEN throughout: 2111 tests, 37
-files, 311 fixtures as you receive it. Run from `pgsid/`, pnpm only.
+keep in both prior reports. Keep the suite GREEN throughout: 2126 tests, 37
+files, 312 fixtures as you receive it. Run from `pgsid/`, pnpm only.
 
 Note one new suite: `tests/unit/query/search-path.test.ts` builds a SECOND
 catalog under a non-default path, because the fixture harness builds exactly
