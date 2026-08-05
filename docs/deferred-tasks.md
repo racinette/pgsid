@@ -280,14 +280,46 @@ an unknown literal PostgreSQL resolves to app_s.f); a disagreeing
 overload in FROM refuses where the caller could have run PREPARE.
 Pinned in `search-path.test.ts` (four function-resolution cases, both
 hiding directions) and `unsupported-nodes.test.ts` (the refusal and its
-agreeing control). Two residues recorded rather than fixed: `resolveFunction`,
-the `DepCatalog` face, still reports ONE schema for a name that could
-resolve to either, which is a missed EntityId — stale invalidation, not
-a wrong flag — and a VARIADIC candidate makes the consensus resolver
-refuse to compute a list at all, so a variadic composite-returning
-function in FROM keeps the one-column answer. Both belong to sweep 3's
-section A, which now reads "verify the fix" rather than "probe the
-question".
+agreeing control).
+
+Nothing here changed the RESOLUTION POLICY, which stands as designed: the
+engine performs no type simulation, filters candidates by ARITY only, and
+takes consensus — a property every surviving candidate shares holds for
+whichever one PostgreSQL picks. What was wrong was the candidate SET. A
+single-candidate shortcut (one visible function of that name means
+PostgreSQL either picks it or rejects the statement, so its metadata may
+be read directly) is sound exactly when the set is complete, and the
+search-path merge had made it incomplete — so a genuinely overloaded name
+took the shortcut and never reached the consensus rule at all. The fix
+restores the design rather than amending it; the only extension is of the
+consensus QUANTIFIER to a second axis, shape, at a site that had never
+consulted candidates.
+
+Both residues the probe recorded were then closed the same day, since the
+context was in hand and a sweep should uncover new defects rather than
+re-confirm known ones. (a) `DepCatalog.resolveFunction` became
+`resolveFunctions`, PLURAL: an unqualified call whose candidates live in
+two schemas depends on BOTH, because the consensus rule reads both, and
+recording one left the query unregistered against the other — a missed
+EntityId, stale invalidation rather than a wrong flag. (b) The FROM
+shape question now runs over the FULL candidate set BEFORE any arity
+narrowing: agreement needs no resolution at all, so a variadic candidate
+— which makes the arity filter unsound and once sent the whole item to
+one wrongly-named column (measured: `vp(VARIADIC text[])` beside
+`vp(integer)`, both `SETOF sku_pair`, gave `[vp]` against PostgreSQL's
+`[sku, qty]`) — costs nothing when the shapes already agree; narrowing is
+attempted only on disagreement, and a variadic candidate then leaves
+nothing to prove agreement with, so the refusal stands. Pinned four ways
+in `unsupported-nodes.test.ts` and twice in `resolver.test.ts`.
+
+One hole is left open and is NOT closable by recording entities: a
+dependency on a function that does not exist YET. A better-matching
+overload created later in an earlier schema changes the answer with no
+recorded EntityId to hang the invalidation on — and the identical hole
+exists for unqualified RELATION references (`FROM t` resolving to
+public.t until someone creates app_s.t). It is a property of tracking
+unqualified names under a search path, so it belongs with search-path
+half (b) in the consumer design, not to the engine.
 
 Closed by the second adversarial fix phase (2026-08-05), finding 5 /
 RC-5, half (a) — a contract made true rather than a defect fixed:
