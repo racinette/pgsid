@@ -822,3 +822,8 @@ CREATE FUNCTION body_ins_rule() RETURNS text LANGUAGE sql AS $$
 -- the parent's formula against the child's rows.
 CREATE TABLE gen_p (a integer NOT NULL, d integer GENERATED ALWAYS AS (a * 2) STORED);
 CREATE TABLE gen_c (d integer GENERATED ALWAYS AS (nullif(a, a)) STORED) INHERITS (gen_p);
+
+-- A plain grouping subject (adversarial-2 findings 9/10): every column NOT
+-- NULL and no CHECKs, so a grouping-set NULL is attributable to the
+-- super-aggregate row alone, and a rejection-site claim to the site alone.
+CREATE TABLE gs (a integer NOT NULL, b text NOT NULL, c text NOT NULL);
