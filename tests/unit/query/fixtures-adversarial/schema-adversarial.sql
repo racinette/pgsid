@@ -66,9 +66,6 @@ ALTER TABLE ONLY pnn_p ALTER COLUMN a SET NOT NULL;
 CREATE TABLE gs (a integer NOT NULL, b text NOT NULL, c text NOT NULL);
 CREATE TABLE gs2 (d integer NOT NULL, e text NOT NULL);
 
--- Finding 11 — infinite temporal values in NOT NULL columns.
-CREATE TABLE inf_t (id integer NOT NULL, ts timestamp NOT NULL, iv interval NOT NULL);
-
 -- Finding 13 — an alias whose name is also a composite COLUMN of the same
 -- relation. `(p).*` is the parenthesized (value) spelling, which PostgreSQL
 -- resolves to the COLUMN.

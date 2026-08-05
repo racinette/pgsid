@@ -245,6 +245,21 @@ const columnSpecificGenerators: Record<
     // included.
     trig_part: { id: rand => rand.int(0, 99) },
     trig_part_1: { id: rand => rand.int(0, 99) },
+
+    // Infinite temporal values are the point of this table — extract's
+    // non-monotonic fields are NULL exactly there (finding 11), so seeding
+    // only finite values would leave that fixture's nullable claims
+    // unwitnessed. `interval` has no type-tier generator; both columns own
+    // their draws.
+    inf_t: {
+      id: sequential,
+      ts: rand =>
+        rand.chance(0.5)
+          ? rand.pick(["infinity", "-infinity"])
+          : rand.pick(TIMESTAMPS).slice(0, 19),
+      iv: rand =>
+        rand.chance(0.5) ? rand.pick(["infinity", "-infinity"]) : rand.pick(["3 days", "2 hours", "1 mon"]),
+    },
   },
 };
 

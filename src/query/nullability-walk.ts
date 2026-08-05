@@ -5745,6 +5745,20 @@ class NullabilityEngine {
     // Priority 6b: pg_catalog built-in. Only reachable when the catalog has no
     // entry for this name, so a user function of the same name always wins.
     if (!meta && (schema === undefined || schema === "pg_catalog")) {
+      // The three tables reason about the ELEMENTS of an argument list —
+      // "concat ignores NULL arguments", "concat_ws hinges on its first" —
+      // and `VARIADIC <array>` changes what "the arguments" means: the
+      // variadic parameter arrives as ONE array, and a NULL array yields
+      // NULL (adversarial-2 finding 12, measured for concat, concat_ws with
+      // a non-null first argument, the json/jsonb constructors, num_nulls
+      // and num_nonnulls; `concat(VARIADIC ARRAY[NULL,NULL]::text[])` is ''
+      // — the distinction is array-nullability, not element-nullability).
+      // Every variadic-array call falls through to conservative nullable.
+      if (fc.func_variadic) {
+        trace.addFact("priority", "6b (built-in, VARIADIC array call)");
+        trace.conclude(false, "VARIADIC passes the parameter as one array, and a NULL array yields NULL → nullable");
+        return false;
+      }
       if (ALWAYS_NOT_NULL_BUILTINS.has(name)) {
         trace.addFact("priority", "6b (built-in, always non-null)");
         trace.conclude(true, `${name}() never returns NULL`);
@@ -6433,8 +6447,14 @@ const STRICT_TOTAL_BUILTINS = new Set([
   // Arrays / rows
   "array_to_string", "string_to_array", "cardinality", "array_append",
   "array_prepend", "array_cat", "array_remove",
-  // Date / time
-  "date_part", "date_trunc", "age", "justify_days", "justify_hours",
+  // Date / time. `extract`/`date_part` (one function, two names) are OUT
+  // (adversarial-2 finding 11, measured): for an infinite timestamp,
+  // timestamptz, date or interval they return ±Infinity only for the
+  // monotonically-increasing fields and NULL for every other one —
+  // month/day/hour of 'infinity' are NULL, so the pair fails the table's
+  // admission criterion on an input CLASS the first sweep's finite probes
+  // never tried.
+  "date_trunc", "age", "justify_days", "justify_hours",
   "justify_interval", "make_date", "make_time", "make_timestamp",
   "make_timestamptz", "make_interval", "isfinite",
   // JSON
@@ -6449,7 +6469,7 @@ const STRICT_TOTAL_BUILTINS = new Set([
   "trim_scale", "bit_count", "normalize",
   "regexp_like", "regexp_count", "regexp_replace", "regexp_split_to_array",
   "array_fill", "array_positions", "trim_array",
-  "jsonb_set", "jsonb_insert", "extract",
+  "jsonb_set", "jsonb_insert",
 ]);
 
 /**
@@ -6655,6 +6675,8 @@ interface FuncCall {
   /** `FILTER (WHERE ...)` — can exclude every row of a group. */
   agg_filter?: Node;
   over?: Node;
+  /** `f(VARIADIC arr)` — the variadic parameter passed as ONE array. */
+  func_variadic?: boolean;
 }
 
 interface SubLink {

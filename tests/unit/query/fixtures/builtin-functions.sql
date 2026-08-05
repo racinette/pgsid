@@ -1,3 +1,4 @@
+-- @unwitnessable 10: date_part of a FINITE timestamp is never NULL; the exclusion exists for the infinite inputs (adversarial-2 finding 11), and orders.placed_at seeds none — builtin-extract-infinity.sql witnesses that class
 -- @unwitnessable 23: CURRENT_SCHEMA is NULL only when the search path resolves to no schema, which no data state can arrange
 -- @unwitnessable 24: pg_sleep returns void and never NULL, but sits outside the curated builtin tables (known imprecision)
 -- pg_catalog built-ins.
@@ -24,7 +25,10 @@ SELECT
   abs(p.id)                               AS abs_id,          -- @notNull
   substr(p.name, 1, 3)                    AS prefix,          -- @notNull
   split_part(p.sku, '-', 9)               AS missing_part,    -- @notNull
-  date_part('year', o.placed_at)          AS yr,              -- @notNull
+  -- date_part/extract are OUT of the total table: month/day/hour of an
+  -- infinite timestamp are NULL (adversarial-2 finding 11), and name-level
+  -- dispatch cannot see the input. Conservative even over a NOT NULL column.
+  date_part('year', o.placed_at)          AS yr,              -- @nullable
   md5(p.sku)                              AS digest,          -- @notNull
 
   -- ...and nullable as soon as an argument is.

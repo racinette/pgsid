@@ -767,3 +767,11 @@ CREATE TRIGGER trig_part_before BEFORE INSERT ON trig_part_1
   FOR EACH ROW EXECUTE FUNCTION trig_part_fn();
 CREATE TRIGGER inh_c_before BEFORE UPDATE ON inh_c
   FOR EACH ROW EXECUTE FUNCTION trig_fn();
+
+-- Infinite temporal values (adversarial-2 finding 11): extract/date_part
+-- return NULL for every non-monotonic field of an infinite timestamp, date
+-- or interval — month/day/hour of 'infinity' are NULL while epoch/year are
+-- ±Infinity — which is why the pair is out of STRICT_TOTAL_BUILTINS. The
+-- columns are NOT NULL so the NULLs the fixture witnesses are the
+-- function's own, not the input's.
+CREATE TABLE inf_t (id integer NOT NULL, ts timestamp NOT NULL, iv interval NOT NULL);
