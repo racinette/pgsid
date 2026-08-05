@@ -142,7 +142,20 @@ function columnRejection(
     // triggers cannot fire — the cost is a dropped claim there, never a
     // wrong one.
     const wr = c.catalog.resolveWriteRewritesTree(schema, table);
-    if (wr.beforeRow.has(command) || wr.insteadOf.has(command) || wr.insteadRules.has(command)) {
+    // The same command crossing as the output side (updateBeforeRowHazard):
+    // an UPDATE through a partitioned parent can move the row, and the
+    // DESTINATION partition's BEFORE INSERT trigger was measured RESCUING a
+    // NULL binding the stationary control raises on — so a partitioned
+    // target's update gate asks about the insert triggers too.
+    const commands =
+      command === "update" && c.catalog.resolveIsPartitioned(schema, table)
+        ? ["update", "insert"]
+        : [command];
+    if (
+      commands.some(cmd => wr.beforeRow.has(cmd)) ||
+      wr.insteadOf.has(command) ||
+      wr.insteadRules.has(command)
+    ) {
       return null;
     }
     return "constraint";

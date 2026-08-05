@@ -1834,6 +1834,30 @@ class NullabilityEngine {
   }
 
   /**
+   * Whether an UPDATE (or MERGE update arm) on this target can have its row
+   * rewritten by a BEFORE ROW trigger. Per-command for ordinary targets —
+   * but an UPDATE through a PARTITIONED parent can MOVE a row across
+   * partitions, which PostgreSQL performs as DELETE + INSERT and which
+   * fires the DESTINATION partition's BEFORE **INSERT** triggers on the new
+   * row (measured: the routed row came back with its written value nulled
+   * by a trigger declared BEFORE INSERT). The tree union collapses which
+   * member contributed which command, but the question stays per-command —
+   * so for a partitioned target it is `beforeRow ∩ {update, insert}`.
+   * Plain inheritance never routes and keeps the single-command test.
+   */
+  private updateBeforeRowHazard(
+    relation: Node | undefined,
+    wr: { beforeRow: ReadonlySet<string> },
+  ): boolean {
+    if (wr.beforeRow.has("update")) return true;
+    const rv = relation as unknown as RangeVar | undefined;
+    return (
+      wr.beforeRow.has("insert") &&
+      this.catalog.resolveIsPartitioned(rv?.schemaname ?? undefined, rv?.relname ?? "")
+    );
+  }
+
+  /**
    * A DO INSTEAD rule replaces the statement outright, and RETURNING then
    * reports the RULE's query — possibly against a different table, with
    * values the engine never saw (measured: the redirected INSERT returns the
@@ -2030,7 +2054,7 @@ class NullabilityEngine {
     // back NULL). Catalog flags survive for tables: the stored row still
     // passes its constraints.
     const wr = this.targetWriteRewrites(stmt.relation);
-    const rewriting = wr.beforeRow.has("update") || wr.insteadOf.has("update");
+    const rewriting = this.updateBeforeRowHazard(stmt.relation, wr) || wr.insteadOf.has("update");
     if (wr.insteadOf.has("update")) {
       for (const entry of scope.aliases.values()) entry.ast = undefined;
     }
@@ -2156,9 +2180,12 @@ class NullabilityEngine {
       ),
     );
     const rewriteCmds = ["insert", "update"].filter(cmd => armCommands.has(cmd));
-    const targetRewriting = rewriteCmds.some(
-      cmd => wrTarget.beforeRow.has(cmd) || wrTarget.insteadOf.has(cmd),
-    );
+    // An update arm on a partitioned target carries the row-movement
+    // INSERT hazard too — see updateBeforeRowHazard. (With an insert arm
+    // present the insert triggers are already in the test.)
+    const targetRewriting =
+      rewriteCmds.some(cmd => wrTarget.beforeRow.has(cmd) || wrTarget.insteadOf.has(cmd)) ||
+      (armCommands.has("update") && this.updateBeforeRowHazard(stmt.relation, wrTarget));
     if (rewriteCmds.some(cmd => wrTarget.insteadOf.has(cmd))) {
       for (const entry of scope.aliases.values()) entry.ast = undefined;
     }

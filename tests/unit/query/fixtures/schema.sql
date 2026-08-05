@@ -788,3 +788,17 @@ CREATE TABLE ni_c () INHERITS (ni_p);
 CREATE TABLE ni2_p (id integer NOT NULL, status text NOT NULL, note text,
   CONSTRAINT ni2_note CHECK (status <> 'open' OR note IS NOT NULL) NO INHERIT);
 CREATE TABLE ni2_c () INHERITS (ni2_p);
+
+-- Partition row movement (adversarial-2 finding 1): an UPDATE through the
+-- parent that moves a row to another partition is performed as DELETE +
+-- INSERT, so the DESTINATION partition's BEFORE **INSERT** trigger fires
+-- and may replace NEW wholesale (measured). mv_2's trigger nulls `a` and
+-- rescues a NULL `b` — the same shape as trig_part's, reached through a
+-- command the statement never spelled.
+CREATE TABLE mv_p (id integer NOT NULL, a text, b text NOT NULL) PARTITION BY RANGE (id);
+CREATE TABLE mv_1 PARTITION OF mv_p FOR VALUES FROM (0) TO (100);
+CREATE TABLE mv_2 PARTITION OF mv_p FOR VALUES FROM (100) TO (200);
+CREATE FUNCTION mv_fn() RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN NEW.a := NULL; NEW.b := coalesce(NEW.b, 'rescued'); RETURN NEW; END $$;
+CREATE TRIGGER mv_before BEFORE INSERT ON mv_2
+  FOR EACH ROW EXECUTE FUNCTION mv_fn();

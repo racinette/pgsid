@@ -85,10 +85,14 @@ function tableState(t: TableInfo): {
   writeRewrites: TableInfo["writeRewrites"];
   writeRewritesTree: TableInfo["writeRewritesTree"];
   hasDescendants: boolean;
+  relkind: TableInfo["relkind"];
 } {
   return {
     schema: t.schema,
     name: t.name,
+    // The kind cannot change in place — a flip means drop-and-recreate,
+    // which the diff should surface as a modification of this entity.
+    relkind: t.relkind,
     storageParams: t.storageParams,
     // Wholesale, `noInherit` included: dropping NO INHERIT (or VALIDATE, or
     // the constraint itself) changes what the nullability engine may

@@ -6,18 +6,6 @@
 -- them. Everything here was created and measured against PGlite (PG18)
 -- during the sweep; the per-fixture headers name what each entity is for.
 
--- Finding 1 — partition row movement. An UPDATE through the parent that
--- moves a row to another partition is DELETE+INSERT, so the DESTINATION
--- partition's BEFORE **INSERT** trigger fires and rewrites NEW (measured).
--- mv_2's trigger nulls `a` and rescues a NULL `b`.
-CREATE TABLE mv_p (id integer NOT NULL, a text, b text NOT NULL) PARTITION BY RANGE (id);
-CREATE TABLE mv_1 PARTITION OF mv_p FOR VALUES FROM (0) TO (100);
-CREATE TABLE mv_2 PARTITION OF mv_p FOR VALUES FROM (100) TO (200);
-CREATE FUNCTION mv_fn() RETURNS trigger LANGUAGE plpgsql AS $$
-  BEGIN NEW.a := NULL; NEW.b := coalesce(NEW.b, 'rescued'); RETURN NEW; END $$;
-CREATE TRIGGER mv_before BEFORE INSERT ON mv_2
-  FOR EACH ROW EXECUTE FUNCTION mv_fn();
-
 -- Finding 3 — a child may define its OWN generation expression for an
 -- inherited column (accepted by PostgreSQL; every other divergence route
 -- was measured REJECTED — see the findings doc's negative results).

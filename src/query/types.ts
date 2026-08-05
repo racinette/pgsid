@@ -294,6 +294,16 @@ export interface NullabilityCatalog {
   resolveCheckConstraintsTree(schema: string, table: string): Node[];
 
   /**
+   * Whether `schema.table` is a partitioned table (relkind 'p'). What makes
+   * an UPDATE's hook question two-command: row movement across partitions
+   * is DELETE + INSERT and fires the DESTINATION partition's BEFORE INSERT
+   * triggers (measured), so an UPDATE on a partitioned target must ask
+   * `beforeRow ∩ {update, insert}`. Plain inheritance never routes and
+   * keeps the per-command question. False for views and unknown relations.
+   */
+  resolveIsPartitioned(schema: string | undefined, table: string): boolean;
+
+  /**
    * Domain metadata: whether the type identified by `typeOid` is a domain with
    * a NOT NULL constraint. Used for the priority-1 function dispatch rule
    * (a function returning a NOT NULL domain is guaranteed non-null).

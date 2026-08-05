@@ -39,6 +39,7 @@ interface TableRow {
   oid: number;
   schema: string;
   name: string;
+  relkind: string;
   reloptions: string[] | null;
 }
 
@@ -633,6 +634,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   const tables: TableInfo[] = tableRows.map(t => ({
     schema: t.schema,
     name: t.name,
+    relkind: t.relkind as TableInfo["relkind"],
     columns: columnsByRel.get(t.oid) ?? [],
     constraints: constraintsByRel.get(t.oid) ?? [],
     storageParams: parseStorageParams(t.reloptions),
@@ -881,7 +883,7 @@ async function queryTypeNames(pg: PGlite): Promise<TypeNameRow[]> {
  */
 async function queryTables(pg: PGlite): Promise<TableRow[]> {
   const res = await pg.query<TableRow>(
-    `SELECT c.oid, n.nspname AS schema, c.relname AS name, c.reloptions
+    `SELECT c.oid, n.nspname AS schema, c.relname AS name, c.relkind, c.reloptions
      FROM pg_class c
      JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relkind IN ('r', 'p', 'f') AND ${USER_NS}
