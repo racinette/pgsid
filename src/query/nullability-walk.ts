@@ -3233,6 +3233,20 @@ class NullabilityEngine {
       : this.catalog.resolveColumnNotNullTree(t.schema, t.name, col);
   }
 
+  /**
+   * The generation expression a read through `entry` may evaluate — the
+   * same scanInh split as the flags: a tree scan can return a child's rows,
+   * and a child may compute an inherited column with its OWN expression
+   * (measured), so the tree resolver refuses (null) on divergence and the
+   * dispatch falls back to the (all-false) catalog flag.
+   */
+  private entryGenerationExpr(entry: RelationEntry, col: string): Node | null {
+    const t = entry.table!;
+    return entry.scanInh === false
+      ? this.catalog.resolveGenerationExpr(t.schema, t.name, col)
+      : this.catalog.resolveGenerationExprTree(t.schema, t.name, col);
+  }
+
   // -------------------------------------------------------------------------
   // The core expression walker (leaf-first recursive)
   // -------------------------------------------------------------------------
@@ -4274,7 +4288,7 @@ class NullabilityEngine {
         const genExpr =
           this.generationInFlight.has(genKey)
             ? null
-            : this.catalog.resolveGenerationExpr(entry.table.schema, entry.table.name, colName);
+            : this.entryGenerationExpr(entry, colName);
         if (genExpr) {
           this.generationInFlight.add(genKey);
           try {
@@ -4329,11 +4343,9 @@ class NullabilityEngine {
         // arm's condition, which can pin the goal with no CHECK at all.
         const generatedEqualities: { column: string; expr: Node }[] = [];
         for (const col of entry.table.columns) {
-          const colGenExpr = this.catalog.resolveGenerationExpr(
-            entry.table.schema,
-            entry.table.name,
-            col,
-          );
+          // Same scanInh split: the equality fact `col = expr` is FALSE for
+          // a child row computed with a different expression.
+          const colGenExpr = this.entryGenerationExpr(entry, col);
           if (colGenExpr) {
             generatedEqualities.push({
               column: `${entry.alias}.${col}`,
@@ -4463,7 +4475,11 @@ class NullabilityEngine {
   private storedRowNotNullMemo = new Map<string, boolean>();
 
   private storedRowNotNull(schema: string, table: string, column: string): boolean {
-    if (!this.catalog.resolveGenerationExpr(schema, table, column)) return false;
+    // The tree reading: this is an origin-side fact ("non-null on every
+    // stored row"), and the origin row may be a child's — computed with a
+    // DIFFERENT expression when the generation diverges, in which case no
+    // formula stands for the whole tree.
+    if (!this.catalog.resolveGenerationExprTree(schema, table, column)) return false;
     const key = `${schema}.${table}.${column}`;
     const memoized = this.storedRowNotNullMemo.get(key);
     if (memoized !== undefined) return memoized;
@@ -4533,7 +4549,13 @@ class NullabilityEngine {
     const originTable = this.catalog.resolveTable(goalOrigin.schema, goalOrigin.table);
     const generatedEqualities: { column: string; expr: Node }[] = [];
     for (const col of originTable?.columns ?? []) {
-      const genExpr = this.catalog.resolveGenerationExpr(goalOrigin.schema, goalOrigin.table, col);
+      // Tree reading, like the CHECK list above: the equality fact is false
+      // for a child row computed with a diverging expression.
+      const genExpr = this.catalog.resolveGenerationExprTree(
+        goalOrigin.schema,
+        goalOrigin.table,
+        col,
+      );
       if (genExpr) {
         generatedEqualities.push({
           column: `${entry.alias}.${col}`,

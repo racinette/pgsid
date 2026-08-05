@@ -268,6 +268,16 @@ export interface NullabilityCatalog {
   resolveGenerationExpr(schema: string, table: string, column: string): Node | null;
 
   /**
+   * The relation-SET reading of the generation expression: null whenever
+   * any descendant computes the column with a DIFFERENT expression (a child
+   * may redefine an inherited column's generation — measured, the only
+   * accepted divergence besides CHECK … NO INHERIT), since a tree scan
+   * would otherwise evaluate a formula the row it reads was never computed
+   * with. Equal to `resolveGenerationExpr` for childless relations.
+   */
+  resolveGenerationExprTree(schema: string, table: string, column: string): Node | null;
+
+  /**
    * Pre-parsed expressions of the VALIDATED table CHECK constraints on
    * `schema.table` (empty array when there are none). Every stored row of the
    * table satisfies each expression in the not-FALSE sense: PostgreSQL

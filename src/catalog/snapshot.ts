@@ -495,6 +495,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       hasDefault: c.has_default,
       defaultExpr: c.default_expr,
       generated: mapGenerated(c.generated),
+      generationDivergesInTree: false,
       identity: mapIdentity(c.identity),
       collationDeterministic: c.collation_deterministic,
     };
@@ -531,6 +532,39 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     for (const parent of childrenOf.keys()) {
       for (const col of columnsByRel.get(parent) ?? []) {
         col.notNullTree = col.notNull && descendantNotNull(parent, col.name);
+      }
+    }
+  }
+
+  // --- The inheritance-tree agreement for generation expressions. ---
+  // A child may define its OWN generation expression for an inherited
+  // column (measured — the only accepted divergence besides CHECK … NO
+  // INHERIT), and a tree scan evaluating the parent's formula would then
+  // describe rows never computed with it. The comparison is the rendered
+  // (generated, defaultExpr) pair per descendant, an uncaptured descendant
+  // diverging — the notNullTree conventions. Only generated parent columns
+  // get the bit: DEFAULT divergence is legal, common, and never read
+  // through a scan.
+  {
+    const descendantGenerationAgrees = (
+      relid: number,
+      parentCol: ColumnInfo,
+    ): boolean => {
+      const kids = childrenOf.get(relid) ?? [];
+      return kids.every(kid => {
+        const col = columnsByRel.get(kid)?.find(c => c.name === parentCol.name);
+        return (
+          !!col &&
+          col.generated === parentCol.generated &&
+          col.defaultExpr === parentCol.defaultExpr &&
+          descendantGenerationAgrees(kid, parentCol)
+        );
+      });
+    };
+    for (const parent of childrenOf.keys()) {
+      for (const col of columnsByRel.get(parent) ?? []) {
+        if (col.generated === "none") continue;
+        col.generationDivergesInTree = !descendantGenerationAgrees(parent, col);
       }
     }
   }

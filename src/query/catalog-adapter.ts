@@ -135,6 +135,11 @@ export async function buildNullabilityCatalog(
   // surprises. Wrapped in a SELECT to parse, then unwrapped to the bare
   // expression node. Keyed `schema.table.column`.
   const generationExprAsts = new Map<string, Node>();
+  // The tree reading drops columns whose generation DIVERGES somewhere in
+  // the subtree (a child may redefine an inherited column's expression —
+  // measured), so a tree scan never evaluates a formula the row it reads
+  // was not computed with.
+  const generationExprTreeAsts = new Map<string, Node>();
   for (const t of snapshot.tables) {
     for (const col of t.columns) {
       if (col.generated === "none" || !col.defaultExpr) continue;
@@ -144,7 +149,12 @@ export async function buildNullabilityCatalog(
           | { SelectStmt?: { targetList?: { ResTarget?: { val?: Node } }[] } }
           | undefined;
         const expr = stmt?.SelectStmt?.targetList?.[0]?.ResTarget?.val;
-        if (expr) generationExprAsts.set(`${t.schema}.${t.name}.${col.name}`, expr);
+        if (expr) {
+          generationExprAsts.set(`${t.schema}.${t.name}.${col.name}`, expr);
+          if (!col.generationDivergesInTree) {
+            generationExprTreeAsts.set(`${t.schema}.${t.name}.${col.name}`, expr);
+          }
+        }
       } catch {
         // Unparseable → the column falls back to the catalog flag.
       }
@@ -152,6 +162,8 @@ export async function buildNullabilityCatalog(
   }
   const resolveGenerationExpr = (schema: string, table: string, column: string): Node | null =>
     generationExprAsts.get(`${schema}.${table}.${column}`) ?? null;
+  const resolveGenerationExprTree = (schema: string, table: string, column: string): Node | null =>
+    generationExprTreeAsts.get(`${schema}.${table}.${column}`) ?? null;
 
   // Pre-parse validated table CHECK constraint expressions, keyed
   // `schema.table`. The rendered definition (`CHECK (expr)`, possibly with a
@@ -497,6 +509,7 @@ export async function buildNullabilityCatalog(
     resolveFunctionCandidates,
     resolveOperatorMetadata,
     resolveGenerationExpr,
+    resolveGenerationExprTree,
     resolveCheckConstraints,
     resolveCheckConstraintsTree,
     isStrictBuiltin,

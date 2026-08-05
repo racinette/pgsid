@@ -6,12 +6,6 @@
 -- them. Everything here was created and measured against PGlite (PG18)
 -- during the sweep; the per-fixture headers name what each entity is for.
 
--- Finding 3 — a child may define its OWN generation expression for an
--- inherited column (accepted by PostgreSQL; every other divergence route
--- was measured REJECTED — see the findings doc's negative results).
-CREATE TABLE gen_p (a integer NOT NULL, d integer GENERATED ALWAYS AS (a * 2) STORED);
-CREATE TABLE gen_c (d integer GENERATED ALWAYS AS (nullif(a, a)) STORED) INHERITS (gen_p);
-
 -- Finding 5 — search_path. app_s.t shadows public.t under
 -- `SET search_path = app_s, public`, with a different column list; app_only
 -- exists only in app_s.

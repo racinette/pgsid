@@ -30,6 +30,7 @@ function col(partial: Partial<ColumnInfo> & { name: string }): ColumnInfo {
     hasDefault: false,
     defaultExpr: null,
     generated: "none",
+    generationDivergesInTree: false,
     identity: null,
     collationDeterministic: null,
     ...partial,
