@@ -171,10 +171,22 @@ describe("unsupported nodes are refused, not guessed", () => {
 
   // A target-list expansion whose field count is unknowable: emitting one
   // column (or a guess) would corrupt the list, so it refuses like a FROM
-  // item. The resolvable arms — a relation reference, a function with
-  // single-candidate metadata — expand instead (fixture-covered).
+  // item. The resolvable arms — a relation reference, a composite column, a
+  // function with single-candidate metadata, a ROW constructor, a cast to a
+  // known composite — expand instead (fixture-covered; the last three
+  // closed with adversarial-2 finding 13). What remains unresolvable is a
+  // cast to a type the snapshot does not know, and a subquery's composite
+  // column, whose type never reaches the catalog.
   it("refuses (expr).* when the composite cannot be resolved", async () => {
-    await expect(infer("SELECT (ROW(1, 2)).* FROM t")).rejects.toMatchObject({
+    await expect(
+      infer("SELECT (ROW(1, 2)::no_such_type).* FROM t"),
+    ).rejects.toMatchObject({
+      name: "UnsupportedNodeError",
+      site: "composite-star",
+    });
+    await expect(
+      infer("SELECT (s.c).* FROM (SELECT ROW(1, 2) AS c) s"),
+    ).rejects.toMatchObject({
       name: "UnsupportedNodeError",
       site: "composite-star",
     });

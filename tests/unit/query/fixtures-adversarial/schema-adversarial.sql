@@ -22,7 +22,3 @@ ALTER TABLE ONLY pnn_p ALTER COLUMN a SET NOT NULL;
 -- Finding 9 — the unreferenced-CTE fixture reads fixtures/schema.sql's gs
 -- (graduated with finding 10). gs2 was a sweep-probe subject only.
 
--- Finding 13 — an alias whose name is also a composite COLUMN of the same
--- relation. `(p).*` is the parenthesized (value) spelling, which PostgreSQL
--- resolves to the COLUMN.
-CREATE TABLE cc (id integer NOT NULL, p sku_pair);
