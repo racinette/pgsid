@@ -239,6 +239,12 @@ const columnSpecificGenerators: Record<
     // outside 0..100 has no partition and the INSERT raises.
     part_p: { id: rand => rand.int(0, 99) },
     part_1: { id: rand => rand.int(0, 99) },
+
+    // The trigger-bearing partitioned pair, same range rule. The partition
+    // trigger nulls a and rescues a NULL b on every insert, seeding
+    // included.
+    trig_part: { id: rand => rand.int(0, 99) },
+    trig_part_1: { id: rand => rand.int(0, 99) },
   },
 };
 

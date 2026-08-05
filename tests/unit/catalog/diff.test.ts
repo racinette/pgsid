@@ -49,6 +49,7 @@ function table(
     constraints: extra.constraints ?? [],
     storageParams: extra.storageParams ?? {},
     writeRewrites: { beforeRow: [], insteadOf: [], insteadRules: [] },
+    writeRewritesTree: { beforeRow: [], insteadOf: [], insteadRules: [] },
   };
 }
 

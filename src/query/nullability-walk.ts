@@ -1810,7 +1810,17 @@ class NullabilityEngine {
   // -------------------------------------------------------------------------
 
   /**
-   * The write-path rewriting hooks on a DML statement's target relation.
+   * The write-path rewriting hooks on a DML statement's target relation —
+   * for the relation SET the write can land in. The trigger that rewrites
+   * a row is the trigger of the relation the row LIVES in: an INSERT
+   * through a partitioned parent fires the PARTITION's BEFORE ROW trigger,
+   * and an UPDATE through an inheritance parent fires the CHILD's for
+   * child rows (both measured), so a plain reference takes the subtree
+   * union. `ONLY` pins the write to the named relation, whose own hooks
+   * are then the right question. (An INSERT target carries `inh: true`,
+   * which is exactly right here: routing is real for partitioned parents,
+   * and for plain inheritance the childless-vs-tree distinction costs only
+   * precision on trigger-bearing children an INSERT can never reach.)
    */
   private targetWriteRewrites(relation: Node | undefined): {
     beforeRow: ReadonlySet<string>;
@@ -1818,7 +1828,9 @@ class NullabilityEngine {
     insteadRules: ReadonlySet<string>;
   } {
     const rv = relation as unknown as RangeVar | undefined;
-    return this.catalog.resolveWriteRewrites(rv?.schemaname ?? undefined, rv?.relname ?? "");
+    return rv?.inh === true
+      ? this.catalog.resolveWriteRewritesTree(rv?.schemaname ?? undefined, rv?.relname ?? "")
+      : this.catalog.resolveWriteRewrites(rv?.schemaname ?? undefined, rv?.relname ?? "");
   }
 
   /**

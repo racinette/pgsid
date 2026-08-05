@@ -289,35 +289,64 @@ export async function buildNullabilityCatalog(
   };
 
   // Write-path rewriting hooks, keyed like tableMap and resolved with the
-  // same default-schema fallback.
-  const writeRewriteMap = new Map<
-    string,
-    { beforeRow: Set<string>; insteadOf: Set<string>; insteadRules: Set<string> }
-  >();
-  for (const rel of [...snapshot.tables, ...snapshot.views, ...snapshot.materializedViews]) {
-    const wr = rel.writeRewrites;
-    if (!wr || (!wr.beforeRow.length && !wr.insteadOf.length && !wr.insteadRules.length)) continue;
-    writeRewriteMap.set(`${rel.schema}.${rel.name}`, {
-      beforeRow: new Set(wr.beforeRow),
-      insteadOf: new Set(wr.insteadOf),
-      insteadRules: new Set(wr.insteadRules),
-    });
+  // same default-schema fallback. Two maps: the relation's own hooks, and
+  // the tree union (`writeRewritesTree` — a subtree descendant's BEFORE ROW
+  // trigger rewrites rows written through the parent). Views have no
+  // descendants, so their tree is their own.
+  type RewriteSets = {
+    beforeRow: Set<string>;
+    insteadOf: Set<string>;
+    insteadRules: Set<string>;
+  };
+  const toSets = (wr: {
+    beforeRow: string[];
+    insteadOf: string[];
+    insteadRules: string[];
+  }): RewriteSets | null =>
+    wr.beforeRow.length || wr.insteadOf.length || wr.insteadRules.length
+      ? {
+          beforeRow: new Set(wr.beforeRow),
+          insteadOf: new Set(wr.insteadOf),
+          insteadRules: new Set(wr.insteadRules),
+        }
+      : null;
+  const writeRewriteMap = new Map<string, RewriteSets>();
+  const writeRewriteTreeMap = new Map<string, RewriteSets>();
+  for (const rel of snapshot.tables) {
+    const own = toSets(rel.writeRewrites);
+    if (own) writeRewriteMap.set(`${rel.schema}.${rel.name}`, own);
+    const tree = toSets(rel.writeRewritesTree);
+    if (tree) writeRewriteTreeMap.set(`${rel.schema}.${rel.name}`, tree);
   }
-  const NO_REWRITES = {
+  for (const rel of [...snapshot.views, ...snapshot.materializedViews]) {
+    const own = toSets(rel.writeRewrites);
+    if (!own) continue;
+    writeRewriteMap.set(`${rel.schema}.${rel.name}`, own);
+    writeRewriteTreeMap.set(`${rel.schema}.${rel.name}`, own);
+  }
+  const NO_REWRITES: RewriteSets = {
     beforeRow: new Set<string>(),
     insteadOf: new Set<string>(),
     insteadRules: new Set<string>(),
   };
+  const resolveIn = (
+    map: Map<string, RewriteSets>,
+    schema: string | undefined,
+    table: string,
+  ): RewriteSets =>
+    map.get(`${schema ?? "public"}.${table}`) ??
+    (schema === undefined ? map.get(`public.${table}`) : undefined) ??
+    NO_REWRITES;
   const resolveWriteRewrites = (
     schema: string | undefined,
     table: string,
-  ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> } => {
-    return (
-      writeRewriteMap.get(`${schema ?? "public"}.${table}`) ??
-      (schema === undefined ? writeRewriteMap.get(`public.${table}`) : undefined) ??
-      NO_REWRITES
-    );
-  };
+  ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> } =>
+    resolveIn(writeRewriteMap, schema, table);
+  const resolveWriteRewritesTree = (
+    schema: string | undefined,
+    table: string,
+  ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> } =>
+    resolveIn(writeRewriteTreeMap, schema, table);
 
   const compositeTypes = new Map<string, { fields: { name: string; typeOid: number }[] }>();
   for (const ct of snapshot.compositeTypes) {
@@ -434,6 +463,7 @@ export async function buildNullabilityCatalog(
     resolveColumnNotNull,
     resolveColumnNotNullTree,
     resolveWriteRewrites,
+    resolveWriteRewritesTree,
     resolveColumnTypeOid,
     resolveColumnTypeName,
     resolveLiteralDistinctnessSound,

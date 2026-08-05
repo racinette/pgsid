@@ -151,6 +151,21 @@ export interface NullabilityCatalog {
   ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> };
 
   /**
+   * The relation-SET hooks: `beforeRow` unioned over the inheritance
+   * subtree, because the trigger that rewrites a row is the trigger of the
+   * relation the row LIVES in — an INSERT through a partitioned parent
+   * fires the PARTITION's BEFORE ROW trigger, an UPDATE through an
+   * inheritance parent fires the CHILD's for child rows (both measured).
+   * Rules and INSTEAD OF triggers stay the relation's own (rules attach to
+   * the named RTE — measured; INSTEAD OF lives on views, which have no
+   * descendants). Equal to `resolveWriteRewrites` for a childless relation.
+   */
+  resolveWriteRewritesTree(
+    schema: string | undefined,
+    table: string,
+  ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> };
+
+  /**
    * The declared type OID of `schema.table.column`, or null if unknown.
    *
    * Needed where a column's NOT NULL *constraint* does not travel but its

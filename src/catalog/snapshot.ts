@@ -501,6 +501,15 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     else columnsByRel.set(c.attrelid, [ci]);
   }
 
+  // --- The inheritance closure, shared by the two relation-SET facts
+  // below (notNullTree, writeRewritesTree). ---
+  const childrenOf = new Map<number, number[]>();
+  for (const ih of inheritsRows) {
+    const arr = childrenOf.get(ih.inhparent);
+    if (arr) arr.push(ih.inhrelid);
+    else childrenOf.set(ih.inhparent, [ih.inhrelid]);
+  }
+
   // --- The inheritance-tree conjunction for attnotnull. ---
   // `FROM p` scans the whole tree, and `ALTER TABLE ONLY p … SET NOT NULL`
   // is legal (measured): parent attnotnull=true, child false, and the
@@ -510,12 +519,6 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   // capture did not see — a temp child, say — makes the conjunction false:
   // its rows are in the scan and nothing is known about them.
   {
-    const childrenOf = new Map<number, number[]>();
-    for (const ih of inheritsRows) {
-      const arr = childrenOf.get(ih.inhparent);
-      if (arr) arr.push(ih.inhrelid);
-      else childrenOf.set(ih.inhparent, [ih.inhrelid]);
-    }
     const descendantNotNull = (relid: number, column: string): boolean => {
       const kids = childrenOf.get(relid) ?? [];
       return kids.every(kid => {
@@ -599,6 +602,31 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   const writeRewritesFor = (relid: number | undefined): WriteRewriteInfo =>
     (relid !== undefined ? writeRewritesByRel.get(relid) : undefined) ?? NO_REWRITES;
 
+  // The relation-SET hooks: the trigger that rewrites a row is the trigger
+  // of the relation the row LIVES in, so `beforeRow` unions over the
+  // inheritance subtree — an INSERT through a partitioned parent fires the
+  // PARTITION's BEFORE ROW trigger, an UPDATE through an inheritance parent
+  // fires the CHILD's for child rows (both measured). Rules attach to the
+  // named RTE and do not fire through a parent (measured), and INSTEAD OF
+  // triggers live on views, which have no descendants — both stay the
+  // relation's own.
+  const writeRewritesTreeFor = (relid: number): WriteRewriteInfo => {
+    const own = writeRewritesFor(relid);
+    const beforeRow = new Set(own.beforeRow);
+    const visit = (id: number): void => {
+      for (const kid of childrenOf.get(id) ?? []) {
+        for (const cmd of writeRewritesByRel.get(kid)?.beforeRow ?? []) beforeRow.add(cmd);
+        visit(kid);
+      }
+    };
+    visit(relid);
+    return {
+      beforeRow: [...beforeRow].sort(),
+      insteadOf: own.insteadOf,
+      insteadRules: own.insteadRules,
+    };
+  };
+
   // --- Tables. ---
   const tables: TableInfo[] = tableRows.map(t => ({
     schema: t.schema,
@@ -607,6 +635,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     constraints: constraintsByRel.get(t.oid) ?? [],
     storageParams: parseStorageParams(t.reloptions),
     writeRewrites: writeRewritesFor(t.oid),
+    writeRewritesTree: writeRewritesTreeFor(t.oid),
   })).sort(bySchemaName);
 
   // For views/matviews we need their column lists. The view-definition
@@ -906,14 +935,18 @@ async function queryInherits(pg: PGlite): Promise<InheritsRow[]> {
  * User triggers (tgisinternal excludes the FK/constraint machinery), with the
  * packed tgtype: bit 0 ROW, bit 1 BEFORE, bits 2/3/4 INSERT/DELETE/UPDATE,
  * bit 6 INSTEAD (encodings measured against real triggers).
+ *
+ * Deliberately unfiltered by namespace: `writeRewritesTree` unions a parent's
+ * hooks over its inheritance subtree, and a descendant outside the captured
+ * namespaces (a temp child, say) still rewrites rows written through the
+ * parent. System relations contribute nothing — their machinery is
+ * tgisinternal.
  */
 async function queryTriggers(pg: PGlite): Promise<TriggerRow[]> {
   const res = await pg.query<TriggerRow>(
     `SELECT t.tgrelid, t.tgtype
      FROM pg_trigger t
-     JOIN pg_class c ON c.oid = t.tgrelid
-     JOIN pg_namespace n ON n.oid = c.relnamespace
-     WHERE NOT t.tgisinternal AND ${USER_NS};`,
+     WHERE NOT t.tgisinternal;`,
   );
   return res.rows;
 }
