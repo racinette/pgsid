@@ -106,6 +106,15 @@ interface Collector {
    * why the two are tracked separately.
    */
   bindRejected: Set<number>;
+  /**
+   * Set while walking a subtree PostgreSQL provably never EXECUTES — an
+   * unreferenced non-data-modifying CTE. Execution-time mechanisms (B, C,
+   * the frame-offset site) contribute nothing from there, and mechanism A
+   * contributes everything: it is decided by parse analysis and enforced at
+   * Bind, so the binding is rejected whether or not the subtree runs
+   * (measured, three shapes — see visitBindOnly).
+   */
+  bindOnly?: boolean;
 }
 
 /**
@@ -198,6 +207,8 @@ function castTargetIsNotNullDomain(c: Collector, typeName: unknown): boolean {
  * return rows without them ever firing.
  */
 function reject(c: Collector, num: number, mechanism: "domain" | "constraint" | "flow"): void {
+  // In a never-executed subtree only the bind-time mechanism survives.
+  if (c.bindOnly && mechanism !== "domain") return;
   c.rejected.add(num);
   if (mechanism === "domain") c.bindRejected.add(num);
 }
@@ -546,6 +557,8 @@ function aliasContextOf(items: Node[] | undefined): AliasContext | undefined {
 /** Value-flow (mechanism C) into a rejecting site: everything but a direct
  *  ParamRef, which its caller has already handled as A or B. */
 function rejectFlow(c: Collector, expr: Node | undefined, ctx?: AliasContext): void {
+  // Value flow is evaluated, so a never-executed subtree flows nothing.
+  if (c.bindOnly) return;
   if (!expr || paramNumberOf(expr) !== null) return;
   for (const implicant of forcedNullImplicantsAnyRow(expr, c.catalog, ctx)) {
     // The empty implicant (a literal NULL reaching a rejecting site) is a
@@ -841,11 +854,12 @@ function visit(c: Collector, node: unknown): void {
 
   // A non-data-modifying CTE nobody references is never executed — in any
   // data state (measured: the frame-offset site inside one accepts the NULL
-  // binding its referenced control raises on) — so its rejection sites
-  // contribute nothing. Its ParamRefs still count for numbering. This is
-  // the NARROW reading of reachability; the general question (any
-  // provably-dead subtree falsifies an execution-time claim) is recorded in
-  // docs/argument-nullability.md beside the claim semantics.
+  // binding its referenced control raises on) — so its EXECUTION-TIME
+  // rejection sites contribute nothing, while its bind-time ones contribute
+  // as they always did and its ParamRefs still count for numbering (see
+  // visitBindOnly). This is the NARROW reading of reachability; the general
+  // question (any provably-dead subtree falsifies an execution-time claim)
+  // is recorded in docs/argument-nullability.md beside the claim semantics.
   for (const key of ["SelectStmt", "InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
     const stmtNode = obj[key] as { withClause?: { ctes?: unknown[] } } | undefined;
     if (stmtNode?.withClause?.ctes?.length) {
@@ -860,7 +874,8 @@ function visit(c: Collector, node: unknown): void {
 /**
  * Custom recursion for a statement carrying a WITH clause: the statement
  * body and every REFERENCED or DATA-MODIFYING CTE walk normally, while an
- * unreferenced SELECT CTE contributes only its parameter NUMBERS.
+ * unreferenced SELECT CTE contributes only its parameter NUMBERS and its
+ * bind-time facts.
  * References are name-level RangeVar matches, closed transitively (a
  * referenced CTE's body can reference an earlier one) — over-approximation
  * (a same-named table, WITH-in-branch shadowing) merely keeps the old
@@ -907,7 +922,7 @@ function visitStatementWithCtes(
 
   for (const cte of list) {
     if (cte.dml || referenced.has(cte.name)) visit(c, cte.node);
-    else visitSeenOnly(c, cte.node);
+    else visitBindOnly(c, cte.node);
   }
   visit(c, rest);
 }
@@ -925,17 +940,31 @@ function collectRangeVarNames(node: unknown, out: Set<string>): void {
   for (const v of Object.values(obj)) collectRangeVarNames(v, out);
 }
 
-/** Parameter NUMBERS only — an unexecuted subtree still owns its `$n`s. */
-function visitSeenOnly(c: Collector, node: unknown): void {
-  if (Array.isArray(node)) {
-    for (const n of node) visitSeenOnly(c, n);
-    return;
+/**
+ * The walk for a subtree that is never executed: parameter NUMBERS — an
+ * unexecuted subtree still owns its `$n`s — and BIND-TIME facts, nothing
+ * else.
+ *
+ * The gate this serves rests on "a non-data-modifying CTE nobody references
+ * is never executed in ANY state", which is true (re-measured, including for
+ * MATERIALIZED). It licenses dropping the EXECUTION-TIME mechanisms, and the
+ * first version dropped all four by gating the WALK rather than the
+ * MECHANISMS (adversarial-3 finding 8). Mechanism A is not execution-time:
+ * parse analysis types the parameter from the cast or the argument position
+ * it sits in, and Bind rejects a NULL before anything runs — measured inside
+ * an unreferenced CTE for both A sites, plain and `NOT MATERIALIZED` and one
+ * referenced only from another unreferenced CTE, while the frame-offset site
+ * (B) and a value-flow cast (C) in the same position both accept the NULL.
+ * So the walk runs in full and `reject`/`rejectFlow` do the gating.
+ */
+function visitBindOnly(c: Collector, node: unknown): void {
+  const saved = c.bindOnly;
+  c.bindOnly = true;
+  try {
+    visit(c, node);
+  } finally {
+    c.bindOnly = saved;
   }
-  if (!node || typeof node !== "object") return;
-  const obj = node as Record<string, unknown>;
-  const num = paramNumberOf(obj);
-  if (num !== null) c.seen.add(num);
-  for (const v of Object.values(obj)) visitSeenOnly(c, v);
 }
 
 export interface ParamFacts {

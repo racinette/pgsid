@@ -80,6 +80,18 @@ const typeSpecificGenerators: Record<string, Record<string, ColumnGenerator>> = 
 /** 1, 2, 3, … — for the key columns of tables that declare no primary key. */
 const sequential: ColumnGenerator = (_rand, ctx) => ctx.row + 1;
 
+/**
+ * A three-element `sku_pair[]` in text form: one whole element, one with an
+ * empty qty, one with an empty sku. An unnest expansion's field columns are
+ * all nullable, and a NULL FIELD inside a present element is the only thing
+ * that witnesses them — a whole-composite NULL never reaches the expansion.
+ * Assigned to all three of pair_holder's columns: an array of the composite,
+ * a domain over that array, and an array of a domain over the element all
+ * accept the identical literal.
+ */
+const skuPairArray: ColumnGenerator = rand =>
+  `{"(${rand.pick(WORDS)},${rand.int(1, 9)})","(${rand.pick(WORDS)},)","(,${rand.int(1, 9)})"}`;
+
 /** Uniform over an already-generated column of another table. */
 function drawFrom(table: string, column: string): ColumnGenerator {
   return (rand, ctx) => {
@@ -269,7 +281,41 @@ const columnSpecificGenerators: Record<
     // provide on their own.
     cc: {
       id: sequential,
-      p: rand => (rand.chance(0.33) ? `(${rand.pick(WORDS)},)` : `(${rand.pick(WORDS)},${rand.int(1, 9)})`),
+      // The three composite shapes by row index: whole, empty qty, empty
+      // sku. A NULL FIELD inside a present composite is the only witness for
+      // a field claim that survives an equality JOIN on the whole composite
+      // — record equality treats NULL fields as EQUAL (measured), so those
+      // rows do match and reach `(p).*`. By row index rather than by chance:
+      // at this table's row count a rate left it to luck, and the
+      // merged-column fixture then had nothing to witness with.
+      p: (rand, ctx) =>
+        ctx.row % 3 === 0
+          ? `(${rand.pick(WORDS)},${rand.int(1, 9)})`
+          : ctx.row % 3 === 1
+            ? `(${rand.pick(WORDS)},)`
+            : `(,${rand.int(1, 9)})`,
+    },
+
+    // The composite-ARRAY table (adversarial-3 findings 3 and 4): the same
+    // two-element array in three spellings — the plain array, a domain over
+    // it, and an array of a domain over the element. Every array carries one
+    // element with an empty qty, which is what witnesses the `qty` nullable
+    // claim an unnest expansion makes: the field is NULL while the element
+    // itself is not, so a whole-composite NULL cannot stand in for it.
+    pair_holder: {
+      id: sequential,
+      pairs: skuPairArray,
+      dpairs: skuPairArray,
+      dompairs: skuPairArray,
+    },
+
+    // The same shape one type-kind over: an array of a TABLE's ROW TYPE.
+    // Every element carries a NULL `b`, which is what witnesses the field
+    // claims an unnest expansion makes — a row type carries column types
+    // and no constraints, so `a` is nullable here too and gets one as well.
+    trow_holder: {
+      id: sequential,
+      rows: rand => `{"(${rand.int(1, 9)},)","(,${rand.pick(WORDS)})"}`,
     },
 
     // The NO INHERIT pair. Parent rows must satisfy their own CHECKs (the
@@ -317,6 +363,12 @@ const rowCounts: Record<string, Record<string, [number, number]>> = {
     // Composite PK drawn from two FKs: over-generate, since duplicate pairs
     // are dropped.
     product_tags: [10, 16],
+    // Six rows so the rotating NULL policy below gives each of the three
+    // array columns two NULLs.
+    pair_holder: [6, 6],
+    // Six rows so the composite column has present values of both shapes
+    // (with and without a qty) as well as its NULLs.
+    cc: [6, 6],
   },
 };
 
@@ -351,6 +403,23 @@ const nullPolicies: {
       // `u.status` is compared against a literal by the promotion fixtures.
       // NULLs there only shrink the number of rows that reach the comparison.
       u: { status: nullRate(0.1) },
+
+      // Unnesting a NULL array produces NO rows, so the column a fixture
+      // unnests takes its NULLs out of the sample rather than witnessing
+      // anything — and the composite-element fixtures unnest a DIFFERENT one
+      // of these three each. Rotating the NULL by row index means whichever
+      // column a fixture unnests, the rows that survive still carry a NULL
+      // in each of the other two. A rate would leave it to luck at this
+      // table's row count.
+      // One NULL composite in three: enough to witness the whole-column
+      // claim, few enough that the equality self-join still has rows.
+      cc: { p: (_rand, ctx) => ctx.row % 4 === 3 },
+
+      pair_holder: {
+        pairs: (_rand, ctx) => ctx.row % 3 === 0,
+        dpairs: (_rand, ctx) => ctx.row % 3 === 1,
+        dompairs: (_rand, ctx) => ctx.row % 3 === 2,
+      },
 
       // guest's CHECK constraints tie each column's NULLness to the status
       // assigned earlier in the row (columns fill in catalog order, so

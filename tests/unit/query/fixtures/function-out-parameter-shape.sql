@@ -1,0 +1,16 @@
+-- A user function declared with OUT PARAMETERS. `pg_get_function_result`
+-- renders it `SETOF record` — the column names and types live in
+-- proargnames/proallargtypes, which the snapshot has captured all along —
+-- so the walk parsed the rendering, found no shape in it, and fell to its
+-- scalar answer: ONE column named after the function, against PostgreSQL's
+-- two. Exactly the defect `queryBuiltinTableFunctions` was built to fix for
+-- BUILTINS (a builtin with OUT parameters renders `SETOF record` too), left
+-- standing for user functions; found by auditing what the sweep-3 fixes had
+-- left behind rather than by the suite.
+-- The column list now comes from the declared output parameters, and `hi`'s
+-- nn_text keeps the domain's NOT NULL — the flag half of the same read.
+SELECT * FROM out_pair(3)
+-- @nullable   (lo)
+-- @notNull    (hi: nn_text, a NOT NULL domain)
+-- @unwitnessable 0: the body returns its own non-null argument; the nullable
+--   is an OUT parameter's ordinary lack of a constraint

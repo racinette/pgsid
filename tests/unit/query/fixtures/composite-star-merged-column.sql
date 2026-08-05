@@ -1,0 +1,11 @@
+-- `(p).*` over a column merged by USING. A merged column has no range-table
+-- entry of its own, so the value-reading arm found nothing to type it with
+-- and refused — where PostgreSQL expands it to the composite's fields, the
+-- same as for either constituent. The sweep recorded this as a rank-7 note
+-- and filed it with the composite-DOMAIN family; it is not that, and the
+-- domain fix did not touch it. The merge requires a common type, so either
+-- side answers. NATURAL JOIN is the same node and behaves identically
+-- (measured).
+SELECT (p).* FROM cc a JOIN cc b USING (p)
+-- @nullable   (sku)
+-- @nullable   (qty)

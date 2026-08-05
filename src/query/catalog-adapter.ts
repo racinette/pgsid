@@ -8,6 +8,7 @@ import type {
   ResolvedFunction,
 } from "./types.js";
 import { parseSql } from "../ast.js";
+import { splitQualifiedName } from "../catalog/qualified-name.js";
 
 // ---------------------------------------------------------------------------
 // buildNullabilityCatalog: CatalogSnapshot + pre-parsed function bodies → NullabilityCatalog
@@ -286,6 +287,42 @@ export async function buildNullabilityCatalog(
   const functionCandidates = (schema: string | undefined, name: string): FunctionInfo[] =>
     schema ? (fnMap.get(`${schema}.${name}`) ?? []) : candidatesInPath(name);
 
+  const builtinFunctionNames = new Set(snapshot.builtinFunctionNames ?? []);
+  const isBuiltinFunction = (name: string): boolean => builtinFunctionNames.has(name);
+
+  /**
+   * The candidates a consumer may REASON from — the merged set above, minus
+   * the case where it is provably incomplete.
+   *
+   * pg_catalog is part of every resolution and the snapshot captures none of
+   * its signatures, so for a name pg_catalog also carries, the user
+   * candidates are not the candidate set (adversarial-3 finding 6). The
+   * engine had it backwards: every builtin table is documented as "consulted
+   * only where the user catalog has no candidate, so a user function of the
+   * same name still wins", while PostgreSQL searches pg_catalog IMPLICITLY
+   * and FIRST unless the path names it — so an identical signature means the
+   * BUILTIN hides the user function. Measured both directions: under the
+   * default path `min_scale('NaN'::numeric)` runs pg_catalog's and returns
+   * NULL while the engine claimed the user function's NOT NULL domain
+   * return; under `search_path = public, pg_catalog` the user's runs.
+   *
+   * And it is not only identical signatures: PostgreSQL picks by argument
+   * types across the WHOLE path, pg_catalog included, so a user
+   * `lower(integer)` leaves `lower(NULL::text)` resolving to the builtin
+   * while the engine saw the user's overload as the SOLE candidate. That is
+   * why the whole set drops rather than the matching signature: with no
+   * builtin signatures to merge in, no consensus over the user's half is
+   * sound.
+   *
+   * Qualified references are unaffected — `public.min_scale(…)` names the
+   * user's and `pg_catalog.min_scale(…)` the builtin. The cost is precision
+   * for user functions named after builtins, which is the trade the register
+   * records; the full form needs pg_catalog signatures in the snapshot and
+   * waits for the consumer's search-path input, which it interacts with.
+   */
+  const resolvableCandidates = (schema: string | undefined, name: string): FunctionInfo[] =>
+    schema === undefined && isBuiltinFunction(name) ? [] : functionCandidates(schema, name);
+
   // Dependency extraction's face, and PLURAL for the same reason the
   // metadata lookup merges: a call whose candidates live in two schemas
   // depends on both, since dropping or retyping either changes what the
@@ -305,8 +342,16 @@ export async function buildNullabilityCatalog(
     return out;
   };
 
-  const resolveFunctionReturnTypes = (schema: string | undefined, name: string): string[] =>
-    functionCandidates(schema, name).map(f => f.returnType);
+  const resolveFunctionShapes = (schema: string | undefined, name: string): FunctionInfo[] =>
+    resolvableCandidates(schema, name);
+
+  const functionReturnsSet = (schema: string | undefined, name: string): boolean | null => {
+    const candidates = resolvableCandidates(schema, name);
+    return candidates.length === 0 ? null : candidates.some(f => f.returnsSet);
+  };
+
+  const builtinSetReturning = new Set(snapshot.builtinSetReturningFunctions ?? []);
+  const isSetReturningBuiltin = (name: string): boolean => builtinSetReturning.has(name);
 
   const resolveColumnNotNull = (
     schema: string,
@@ -445,6 +490,40 @@ export async function buildNullabilityCatalog(
     });
   }
 
+  // A DOMAIN over a composite IS a composite everywhere the walk asks
+  // (adversarial-3 finding 4). The snapshot's composite query reads
+  // `typtype = 'c'`, which is base composites only, and the three callers
+  // answered the same blindness differently: `expandCompositeStar` and the
+  // provably-composite arm of `unnestCompositeElementFields` REFUSED
+  // statements PostgreSQL expands to the base type's fields, while the
+  // non-ROW arm fell through to one column — the correct response to a
+  // wrong premise, twice, and a wrong shape once.
+  //
+  // Following the domain to its base needs nothing about the domain's own
+  // constraint: both sites force every field nullable anyway. Domains over
+  // domains resolve transitively; a domain over an ARRAY of a composite
+  // falls out on its own, since `format_type` renders the base as
+  // `public.sku_pair[]` and no composite is keyed under that name. The
+  // entry is registered under the domain's own name in the same map, so
+  // `inPath` keeps first-schema-wins across both kinds — which is
+  // PostgreSQL's rule, since domains and composites share one type
+  // namespace.
+  const domainBase = new Map<string, string>();
+  for (const d of snapshot.domains) {
+    const { schema, name } = splitQualifiedName(d.baseTypeName);
+    domainBase.set(`${d.schema}.${d.name}`, `${schema ?? d.schema}.${name}`);
+  }
+  for (const [key, firstBase] of domainBase) {
+    let base = firstBase;
+    const seen = new Set([key]);
+    while (!seen.has(base) && domainBase.has(base)) {
+      seen.add(base);
+      base = domainBase.get(base)!;
+    }
+    const composite = compositeTypes.get(base);
+    if (composite) compositeTypes.set(key, composite);
+  }
+
   const resolveCompositeType = (
     schema: string | undefined,
     name: string,
@@ -456,7 +535,7 @@ export async function buildNullabilityCatalog(
     schema: string | undefined,
     name: string,
   ) => {
-    const fns = functionCandidates(schema, name);
+    const fns = resolvableCandidates(schema, name);
     return fns.length === 1 ? fns[0]! : null;
   };
 
@@ -475,7 +554,7 @@ export async function buildNullabilityCatalog(
     name: string,
     argCount: number,
   ): FunctionInfo[] | null => {
-    const fns = functionCandidates(schema, name);
+    const fns = resolvableCandidates(schema, name);
     if (fns.length === 0) return null;
     if (fns.some(f => f.args.some(a => a.mode === "variadic"))) return null;
     return fns.filter(f => {
@@ -498,6 +577,20 @@ export async function buildNullabilityCatalog(
     // best answer.
     return (schema ? domainNames.get(`${schema}.${typeName}`) : inPath(domainNames, typeName)) ?? false;
   };
+
+  const domainBaseNames = new Map<string, string>();
+  for (const d of snapshot.domains) {
+    domainBaseNames.set(`${d.schema}.${d.name}`, d.baseTypeName);
+  }
+  const resolveDomainBaseTypeName = (
+    schema: string | undefined,
+    typeName: string,
+  ): string | null =>
+    (schema ? domainBaseNames.get(`${schema}.${typeName}`) : inPath(domainBaseNames, typeName))
+      ?? null;
+
+  const builtinPolymorphic = new Set(snapshot.builtinPolymorphicFunctions ?? []);
+  const isPolymorphicBuiltin = (name: string): boolean => builtinPolymorphic.has(name);
 
   // Operators grouped by name (and by schema.name for qualified refs). An
   // oprname can overload across operand types, and arg types are not
@@ -534,9 +627,10 @@ export async function buildNullabilityCatalog(
   const isStrictBuiltin = (name: string): boolean => builtinStrict.has(name);
 
   // The FROM-position shape of a pg_catalog function with named output
-  // columns. Consulted only where the user catalog has no candidate, so a
-  // user function of the same name still wins — the rule every builtin
-  // table follows.
+  // columns. Consulted where the user catalog has no candidate the walk may
+  // reason from — which now INCLUDES a name pg_catalog also carries, since
+  // that is the one PostgreSQL searches first (adversarial-3 finding 6; see
+  // resolvableCandidates). The rule every builtin table follows, corrected.
   const builtinTableFunctions = snapshot.builtinTableFunctions ?? {};
   const resolveBuiltinFunctionShape = (
     schema: string | undefined,
@@ -549,7 +643,9 @@ export async function buildNullabilityCatalog(
   return {
     resolveTable,
     resolveFunctions,
-    resolveFunctionReturnTypes,
+    resolveFunctionShapes,
+    functionReturnsSet,
+    isSetReturningBuiltin,
     resolveBuiltinFunctionShape,
     resolveColumnNotNull,
     resolveColumnNotNullTree,
@@ -568,8 +664,11 @@ export async function buildNullabilityCatalog(
     resolveCheckConstraints,
     resolveCheckConstraintsTree,
     isStrictBuiltin,
+    isBuiltinFunction,
+    isPolymorphicBuiltin,
     isNotNullDomain,
     isNotNullDomainByName,
+    resolveDomainBaseTypeName,
     fnBodyAsts,
     viewAsts,
   };

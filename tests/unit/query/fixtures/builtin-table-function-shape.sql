@@ -4,8 +4,9 @@
 -- @unwitnessable 2: jsonb_array_elements' element, same reasoning
 -- @unwitnessable 3: generate_series over literal bounds
 -- A pg_catalog function's FROM-position SHAPE. The walk's fallback for a
--- function the user catalog does not know is ONE column named after the
--- function — right for generate_series, and wrong for every builtin with
+-- function whose name the user catalog cannot answer for is ONE column
+-- named after the function — right for generate_series, and wrong for
+-- every builtin with
 -- NAMED OUTPUT COLUMNS: json_each has key and value, and
 -- jsonb_array_elements has one column named `value`, the fallback's own
 -- arity with a different name (the class only an ordered-name comparison
@@ -15,6 +16,10 @@
 -- CatalogSnapshot.builtinTableFunctions, environment rather than schema,
 -- like builtinStrictFunctions. The soundness suite's ordered name
 -- comparison against PostgreSQL's RowDescription is the real oracle here.
+-- `json_each` is ALSO shadowed by a user function in this schema
+-- (adversarial-3 finding 6), and PostgreSQL still runs pg_catalog's: this
+-- fixture is the unqualified half of that precedence, and
+-- pg-catalog-shadowed-from-shape.sql the qualified one.
 SELECT
   e.key,          -- @nullable
   e.value,        -- @nullable

@@ -227,6 +227,7 @@ describe("diffCatalogs: functions", () => {
       args: [],
       returnType: "integer",
       returnTypeOid: 23,
+      returnsSet: false,
       language: "plpgsql",
       isProcedure: false,
       isAggregate: false,
@@ -454,7 +455,7 @@ describe("diffCatalogs: determinism + mixed", () => {
       tables: [table("public", "old_t", [col({ name: "id" })])],
       functions: [{
         schema: "public", name: "f", argTypes: "integer", args: [],
-        returnType: "integer", returnTypeOid: 23, language: "plpgsql",
+        returnType: "integer", returnTypeOid: 23, returnsSet: false, language: "plpgsql",
         isProcedure: false, isAggregate: false, isWindow: false,
         securityDefiner: false, strict: false, volatile: "volatile",
         cost: 100, rows: 0, aggInitVal: null, body: "", definition: "",

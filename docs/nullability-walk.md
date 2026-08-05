@@ -424,15 +424,25 @@ the opposite of `UPDATE … FROM` and `DELETE … USING`, which are
 target-first. Same arity either way, so the order is exactly the kind of
 silent permutation section 5b warns about; the soundness suite's ordered
 name comparison is what holds it. A qualified star (`RETURNING ck.*`)
-resolves through the alias and is unaffected.
+resolves through the alias and is unaffected. "Qualified" means anything
+before the `A_Star`, not two parts: PostgreSQL accepts `schema.rel.*` and
+`db.schema.rel.*`, and an arity test for the two-part form sent those to
+the unqualified branch, which expands the whole scope (adversarial-3
+finding 5). A schema qualifier SELECTS rather than decorates — two
+same-named relations from different schemas can both be in scope — so it
+resolves to the relation, not through the alias map.
 
 ### Set-returning functions in FROM
 
 A `RangeFunction` resolves its columns from the function's `pg_get_function_result`
 string: `SETOF <table>` expands to that relation's columns, `SETOF <composite>` to the
 composite type's fields (composites are resolved separately from relations, so
-that `FROM some_type` does not resolve as a table),
+that `FROM some_type` does not resolve as a table; a DOMAIN over a composite
+IS one, followed to its base — adversarial-3 finding 4),
 `TABLE(a t1, b t2)` to the declared list, and anything else to a single column.
+The `TABLE(…)` list is split IDENTIFIER-aware, not at the first space:
+PostgreSQL renders those names with `quote_ident`, so a quoted name may
+contain a space, a comma or an escaped quote (finding 7).
 
 The nullability rule is a **negative** one, and it is the opposite of what the
 table declaration suggests. A `SETOF <table>` result carries the table's *row
@@ -474,6 +484,19 @@ Two forms override the per-item resolution above:
   pads the short arrays, and elements carry no constraints. A user-defined
   `unnest` arrives with catalog metadata and takes the declared-return-type
   path instead.
+- **`unnest` of a COMPOSITE-element array** expands the element's FIELDS
+  instead — one column per field, named by the field, all nullable. Which
+  it is depends on a TYPE, so the walk asks the catalog for the argument's
+  element type: a cast's array bounds, an ARRAY constructor of casts, a
+  column's rendered `T[]`, a domain followed to its base, a user function's
+  declared return type by consensus, a CTE/subquery column followed to the
+  base column it re-exports, an array SLICE, and `||`/`COALESCE` through
+  their operands. Where it cannot tell it REFUSES (adversarial-3 finding 3):
+  reading "I could not tell" as "scalar" was a wrong SHAPE in six measured
+  spellings, and a FROM item's wrong shape puts every later column's flag on
+  the wrong column. What still refuses needs type inference the walk does
+  not do — a polymorphic built-in, an aggregate, a sublink, a computed
+  derived-table column, an ARRAY constructor over an expression.
 
 **`(expr).*` in the target list** is the same problem from the other side: a
 target-list entry that expands to one column per field of the expression's
@@ -549,7 +572,7 @@ Conservative **nullable**. We can't determine strictness from the AST alone for 
 
 ### Priority 6b: `pg_catalog` built-in
 
-The catalog snapshot covers user schemas only, so built-ins arrive with no `FunctionInfo`. Falling through to "unknown → nullable" is safe but badly imprecise for everyday expressions, so three curated tables are consulted — **only when the catalog has no entry for the name**, meaning a user-defined function that shadows a built-in always wins with its real metadata.
+The catalog snapshot covers user schemas only, so built-ins arrive with no `FunctionInfo`. Falling through to "unknown → nullable" is safe but badly imprecise for everyday expressions, so three curated tables are consulted — **whenever the user catalog has no candidate the walk may reason from**. That INCLUDES a name `pg_catalog` also carries: PostgreSQL searches `pg_catalog` implicitly and FIRST unless the search path names it, so for an identical signature the built-in HIDES the user function rather than the other way round (adversarial-3 finding 6, measured both directions — `min_scale('NaN'::numeric)` returns NULL from `pg_catalog`'s under the default path, and `'user'` from the user's under `search_path = public, pg_catalog`). The candidate set drops WHOLESALE for such a name, not just the matching signature: the snapshot carries no `pg_catalog` signatures to merge in, so no consensus over the user's half would be sound — a user `lower(integer)` once made `lower(NULL::text)` read notNull. A QUALIFIED call (`public.min_scale(…)`) names the user's function and keeps its precision.
 
 | Table | Rule | Examples |
 |---|---|---|
@@ -1112,4 +1135,4 @@ These remain open and may need decisions once the implementation reveals edge ca
 
 - **`SELECT *` with `JOIN ... USING`:** the USING columns appear once in the output. Need to handle the deduplication.
 - **Composite types:** `SELECT t FROM t` where `t` is a table — the output is a row type. Is a row type ever NULL? Only if `t` is on the optional side of a join. The `RowExpr` rule says non-null, but a whole-row ColumnRef is different from a RowExpr constructor.
-- **Domain over composite:** a domain with `NOT NULL` over a composite type — does the column `notNull` flag already account for this? (Likely yes — PG propagates domain NOT NULL to `pg_attribute.attnotnull`.)
+- **Domain over composite:** a domain with `NOT NULL` over a composite type — does the column `notNull` flag already account for this? (Likely yes — PG propagates domain NOT NULL to `pg_attribute.attnotnull`.) The SHAPE half of this is answered and no longer open: a domain over a composite expands to the base type's fields wherever the walk asks "is this a composite" (adversarial-3 finding 4), and every field is forced nullable there regardless of the domain's own constraint.

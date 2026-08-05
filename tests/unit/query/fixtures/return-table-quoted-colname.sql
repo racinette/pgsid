@@ -1,0 +1,20 @@
+-- A `RETURNS TABLE` whose column names need QUOTING (adversarial-3 finding
+-- 7). `columnsForReturnType` reads the string `pg_get_function_result`
+-- renders — `TABLE("my col" integer, "Upper" nn_text, …)` — and split each
+-- part at `indexOf(" ")`, which is the first space of the TEXT, not the end
+-- of the identifier: `"my col"` became `"my`, and `"Upper"`, quoted for its
+-- case and containing no space at all, kept its quote characters. The arity
+-- is right in both readings, so nothing but an ordered NAME comparison can
+-- see it — the third such defect this project has met, and the argument for
+-- the consumer's arity-AND-ORDER gate.
+-- The split is identifier-aware now, and so is the top-level comma split:
+-- `"a,b"` and `"e""f"` are faithful renderings (measured), so a comma and an
+-- escaped quote inside a name are text rather than structure. `Upper`'s
+-- notNull is the control on the other half of the split — the type text has
+-- to come out intact for the domain lookup to find nn_text.
+SELECT * FROM q_cols()
+-- @nullable   (my col)
+-- @notNull    (Upper: nn_text, a NOT NULL domain)
+-- @nullable   (a,b)
+-- @nullable   (e"f)
+-- @nullable   (plain)

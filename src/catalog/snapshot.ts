@@ -102,6 +102,7 @@ interface FunctionRow {
   return_type_oid: number;
   language: string;
   prokind: string;
+  proretset: boolean;
   prosecdef: boolean;
   proisstrict: boolean;
   provolatile: string;
@@ -449,6 +450,9 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     schemaRows,
     builtinStrictFunctions,
     builtinTableFunctions,
+    builtinSetReturningFunctions,
+    builtinFunctionNames,
+    builtinPolymorphicFunctions,
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
@@ -472,6 +476,9 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     querySchemas(pg),
     queryBuiltinStrictFunctions(pg),
     queryBuiltinTableFunctions(pg),
+    queryBuiltinSetReturningFunctions(pg),
+    queryBuiltinFunctionNames(pg),
+    queryBuiltinPolymorphicFunctions(pg),
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
@@ -737,6 +744,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     args: resolveFunctionArgs(f, typeNames),
     returnType: f.return_type,
     returnTypeOid: f.return_type_oid,
+    returnsSet: f.proretset,
     language: f.language,
     isProcedure: f.prokind === "p",
     isAggregate: f.prokind === "a",
@@ -852,6 +860,9 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     schemas,
     builtinStrictFunctions,
     builtinTableFunctions,
+    builtinSetReturningFunctions,
+    builtinFunctionNames,
+    builtinPolymorphicFunctions,
   };
 }
 
@@ -1086,6 +1097,7 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
             p.prorettype AS return_type_oid,
             l.lanname AS language,
             p.prokind,
+            p.proretset,
             p.prosecdef,
             p.proisstrict,
             p.provolatile,
@@ -1176,6 +1188,59 @@ async function queryBuiltinTableFunctions(pg: PGlite): Promise<Record<string, st
   const out: Record<string, string> = {};
   for (const row of res.rows) out[row.name] = `TABLE(${row.shape})`;
   return out;
+}
+
+/**
+ * pg_catalog function names with at least one SET-RETURNING overload — the
+ * measured replacement for a hand-curated table of 21 names (adversarial-3
+ * finding 1). See CatalogSnapshot.builtinSetReturningFunctions for why the
+ * quantifier is bool_or and why this is ENVIRONMENT rather than schema.
+ */
+async function queryBuiltinSetReturningFunctions(pg: PGlite): Promise<string[]> {
+  const res = await pg.query<{ name: string }>(
+    `SELECT p.proname AS name
+     FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
+     GROUP BY p.proname
+     HAVING bool_or(p.proretset)
+     ORDER BY p.proname;`,
+  );
+  return res.rows.map(r => r.name);
+}
+
+/**
+ * Every pg_catalog function name — the set PostgreSQL searches implicitly
+ * and FIRST (adversarial-3 finding 6). See
+ * CatalogSnapshot.builtinFunctionNames.
+ */
+async function queryBuiltinFunctionNames(pg: PGlite): Promise<string[]> {
+  const res = await pg.query<{ name: string }>(
+    `SELECT DISTINCT p.proname AS name
+     FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
+     ORDER BY p.proname;`,
+  );
+  return res.rows.map(r => r.name);
+}
+
+/**
+ * pg_catalog function names with a POLYMORPHIC return type, where the type
+ * a call actually yields comes from its arguments. See
+ * CatalogSnapshot.builtinPolymorphicFunctions.
+ */
+async function queryBuiltinPolymorphicFunctions(pg: PGlite): Promise<string[]> {
+  const res = await pg.query<{ name: string }>(
+    `SELECT DISTINCT p.proname AS name
+     FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     JOIN pg_type rt ON rt.oid = p.prorettype
+     WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
+       AND rt.typtype = 'p'
+     ORDER BY p.proname;`,
+  );
+  return res.rows.map(r => r.name);
 }
 
 async function queryBuiltinStrictFunctions(pg: PGlite): Promise<string[]> {
