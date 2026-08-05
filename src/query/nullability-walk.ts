@@ -2781,11 +2781,63 @@ class NullabilityEngine {
     if (!last || !("A_Star" in (last as Record<string, unknown>))) return null;
 
     const argNode = ai.arg as Record<string, unknown> | undefined;
+    // A known composite type's fields, all forced nullable — the rule every
+    // value-reading arm shares: a NULL composite expands to a NULL in every
+    // field, domains included (measured).
+    const fieldsOf = (
+      typeParts: (string | undefined)[],
+    ): OutputNullability[] | null => {
+      const cleaned = typeParts.filter((p): p is string => !!p && p !== "pg_catalog");
+      if (!cleaned.length) return null;
+      const ct = this.catalog.resolveCompositeType(
+        cleaned.length >= 2 ? cleaned[cleaned.length - 2] : undefined,
+        cleaned[cleaned.length - 1]!,
+      );
+      return ct ? ct.fields.map(f => ({ name: f.name, notNull: false })) : null;
+    };
     if (argNode && parts.length === 1) {
       const cr = argNode["ColumnRef"] as ColumnRef | undefined;
       if (cr) {
         const crParts = (cr.fields ?? []).map(f => this.stringVal(f));
-        if (crParts.length === 1 && this.resolveAlias(crParts[0]!, scope)) {
+        // The parentheses force the VALUE reading (adversarial-2 finding
+        // 13, measured): a composite COLUMN named x beats a range-table
+        // alias named x, so column resolution comes FIRST — the old
+        // alias-first order expanded the RELATION's columns for the clash,
+        // same arity, entirely different meaning. Qualified `(t.c).*` is
+        // only ever the column.
+        let colOwner: RelationEntry | undefined;
+        let colName: string | undefined;
+        if (crParts.length === 1) {
+          for (const v of scope.visible) {
+            if (v.name === crParts[0]) {
+              // A merged (USING) column has no entry and cannot be typed —
+              // it still IS the value reading, so it lands in the refusal,
+              // not the alias fallback.
+              colOwner = v.entry ?? undefined;
+              colName = crParts[0];
+              break;
+            }
+          }
+        } else if (crParts.length === 2) {
+          const entry = this.resolveAlias(crParts[0]!, scope);
+          if (entry) {
+            colOwner = entry;
+            colName = crParts[1];
+          }
+        }
+        if (colOwner && colName) {
+          const rendered = colOwner.table
+            ? this.catalog.resolveColumnTypeName(colOwner.table.schema, colOwner.table.name, colName)
+            : null;
+          const expanded = rendered ? fieldsOf(rendered.split(".")) : null;
+          if (expanded) return expanded;
+          // The column exists and IS the value reading; a type the catalog
+          // cannot expand (an uncaptured composite, a subquery's column —
+          // or a scalar, which PostgreSQL itself rejects here) refuses
+          // rather than falling back to the alias PostgreSQL would not
+          // pick. The refusal is thrown below.
+        }
+        if (crParts.length === 1 && !colName && this.resolveAlias(crParts[0]!, scope)) {
           const synth = {
             ColumnRef: { fields: [{ String: { sval: crParts[0]! } }, { A_Star: {} }] },
           } as unknown as Node;
@@ -2802,6 +2854,24 @@ class NullabilityEngine {
             notNull: false,
           }));
         }
+      }
+      // `(ROW(a, b)).*` — the arity is countable at parse time and
+      // PostgreSQL names the fields f1..fN (measured). All nullable, the
+      // shared value-reading rule.
+      const re = argNode["RowExpr"] as { args?: Node[] } | undefined;
+      if (re) {
+        return (re.args ?? []).map((_, i) => ({ name: `f${i + 1}`, notNull: false }));
+      }
+      // `(expr::sku_pair).*` — the cast TARGET names the composite, and the
+      // expression may be NULL, so the fields come from the type, all
+      // nullable. An array cast is not a composite; an unknown target
+      // refuses below.
+      const tc = argNode["TypeCast"] as
+        | { typeName?: { names?: Node[]; arrayBounds?: unknown[] } }
+        | undefined;
+      if (tc && !tc.typeName?.arrayBounds?.length) {
+        const expanded = fieldsOf((tc.typeName?.names ?? []).map(n => this.stringVal(n)));
+        if (expanded) return expanded;
       }
     }
     throw new UnsupportedNodeError("composite-star", this.nodeTag(argNode ?? {}));

@@ -833,3 +833,10 @@ CREATE TABLE gs (a integer NOT NULL, b text NOT NULL, c text NOT NULL);
 -- rule is what keeps that claim from surviving beside a longer SRF.
 CREATE FUNCTION one_sku() RETURNS SETOF non_empty_text LANGUAGE sql AS $$
   SELECT 'only'::non_empty_text $$;
+
+-- A composite COLUMN whose name collides with its own relation's alias in
+-- the clash fixture (adversarial-2 finding 13): `(p).*` is the
+-- parenthesized VALUE spelling, which PostgreSQL resolves to the column —
+-- fields sku and qty — while the alias reading would expand id and p at
+-- the same arity. The ordered-name gate territory, pinned in fixtures.
+CREATE TABLE cc (id integer NOT NULL, p sku_pair);

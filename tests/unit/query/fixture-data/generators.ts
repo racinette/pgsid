@@ -254,6 +254,16 @@ const columnSpecificGenerators: Record<
     mv_1: { id: rand => rand.int(0, 99) },
     mv_2: { id: rand => rand.int(100, 199) },
 
+    // The composite-column table. `sku_pair` has no type-tier generator;
+    // the text format casts on insert. A third of the non-NULL values
+    // carry an empty qty — a NULL FIELD inside a non-NULL composite, which
+    // is the witness the whole-composite NULLs (framework-injected) cannot
+    // provide on their own.
+    cc: {
+      id: sequential,
+      p: rand => (rand.chance(0.33) ? `(${rand.pick(WORDS)},)` : `(${rand.pick(WORDS)},${rand.int(1, 9)})`),
+    },
+
     // The NO INHERIT pair. Parent rows must satisfy their own CHECKs (the
     // framework does not know CHECK constraints, and a violating INSERT
     // would abort the whole state); the children are exactly the rows those
