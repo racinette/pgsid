@@ -84,12 +84,20 @@ function tableState(t: TableInfo): {
   constraints: ConstraintInfo[];
   writeRewrites: TableInfo["writeRewrites"];
   writeRewritesTree: TableInfo["writeRewritesTree"];
+  hasDescendants: boolean;
 } {
   return {
     schema: t.schema,
     name: t.name,
     storageParams: t.storageParams,
+    // Wholesale, `noInherit` included: dropping NO INHERIT (or VALIDATE, or
+    // the constraint itself) changes what the nullability engine may
+    // conclude from the table.
     constraints: t.constraints,
+    // A parent gaining its FIRST child changes whether its NO INHERIT
+    // CHECKs may be read through a tree scan, even when every column flag
+    // survives the addition unchanged.
+    hasDescendants: t.hasDescendants,
     // Creating or dropping a BEFORE ROW / INSTEAD OF trigger or a DO
     // INSTEAD rule changes what RETURNING reports, hence what may be
     // inferred — a comparable property like `validated`. The tree union is

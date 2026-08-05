@@ -246,6 +246,18 @@ const columnSpecificGenerators: Record<
     trig_part: { id: rand => rand.int(0, 99) },
     trig_part_1: { id: rand => rand.int(0, 99) },
 
+    // The NO INHERIT pair. Parent rows must satisfy their own CHECKs (the
+    // framework does not know CHECK constraints, and a violating INSERT
+    // would abort the whole state); the children are exactly the rows those
+    // CHECKs never constrained, so they get the status the fixtures filter
+    // on and the NULLs that witness the dropped claims.
+    ni2_p: {
+      status: rand => rand.pick(["open", "closed", "ack"]),
+    },
+    ni2_c: {
+      status: rand => rand.pick(["open", "closed"]),
+    },
+
     // Infinite temporal values are the point of this table — extract's
     // non-monotonic fields are NULL exactly there (finding 11), so seeding
     // only finite values would leave that fixture's nullable claims
@@ -327,6 +339,20 @@ const nullPolicies: {
         room: (rand, ctx) => (ctx.current("status") === "housed" ? false : rand.chance(0.5)),
         note: (rand, ctx) => (ctx.current("status") === "checked-out" ? false : rand.chance(0.5)),
         badge: () => false,
+      },
+
+      // The NO INHERIT pair: the parents' own rows satisfy their CHECKs
+      // (ni_p's x never NULL; ni2_p's note non-NULL exactly when status is
+      // 'open'), while the CHILDREN — which the constraints were never
+      // copied to — put NULLs behind both fixtures' tree scans. ni2_c's
+      // rate leans NULL on the 'open' rows the fixtures filter down to.
+      ni_p: { x: () => false },
+      ni_c: { x: nullRate(0.5) },
+      ni2_p: {
+        note: (rand, ctx) => (ctx.current("status") === "open" ? false : rand.chance(0.5)),
+      },
+      ni2_c: {
+        note: (rand, ctx) => (ctx.current("status") === "open" ? rand.chance(0.7) : rand.chance(0.3)),
       },
 
       // A NULL fraud_score is the generated verdict's fourth arm

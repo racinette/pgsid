@@ -94,6 +94,16 @@ export interface ConstraintInfo {
    * real schema change, so it participates in the diff.
    */
   validated: boolean;
+  /**
+   * `pg_constraint.connoinherit`. A `CHECK … NO INHERIT` is never copied to
+   * a child's pg_constraint (measured — every other CHECK divergence route
+   * is refused by PostgreSQL), so it constrains the named relation's OWN
+   * rows only, and a tree scan of a relation with descendants must not
+   * read it. Partitioned parents cannot carry one (refused — measured), so
+   * partition trees are unaffected. Diff-included via the constraint list:
+   * dropping NO INHERIT changes what a tree scan may conclude.
+   */
+  noInherit: boolean;
 }
 
 /**
@@ -138,6 +148,15 @@ export interface TableInfo {
    * live on views, which have no descendants.
    */
   writeRewritesTree: WriteRewriteInfo;
+  /**
+   * Whether pg_inherits lists any child of this relation (inheritance or
+   * partition). What gates the NO INHERIT CHECK reading: with no
+   * descendants a tree scan returns the named relation's rows only and
+   * every validated CHECK holds; the FIRST child changes that, so the bit
+   * is diff-comparable on the parent — like `notNullTree`, which a first
+   * child can also flip.
+   */
+  hasDescendants: boolean;
 }
 
 // ---------------------------------------------------------------------------

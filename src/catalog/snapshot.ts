@@ -69,6 +69,7 @@ interface ConstraintRow {
   confkey: number[] | string | null;
   definition: string;
   validated: boolean;
+  noinherit: boolean;
 }
 
 interface ViewRow {
@@ -551,6 +552,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
         : null,
       definition: con.definition,
       validated: con.validated,
+      noInherit: con.noinherit,
     };
     const arr = constraintsByRel.get(con.conrelid);
     if (arr) arr.push(ci);
@@ -636,6 +638,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     storageParams: parseStorageParams(t.reloptions),
     writeRewrites: writeRewritesFor(t.oid),
     writeRewritesTree: writeRewritesTreeFor(t.oid),
+    hasDescendants: childrenOf.has(t.oid),
   })).sort(bySchemaName);
 
   // For views/matviews we need their column lists. The view-definition
@@ -974,7 +977,8 @@ async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
             tc.relname AS foreign_table,
             con.conkey, con.confkey,
             pg_get_constraintdef(con.oid) AS definition,
-            con.convalidated AS validated
+            con.convalidated AS validated,
+            con.connoinherit AS noinherit
      FROM pg_constraint con
      JOIN pg_class c ON c.oid = con.conrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace

@@ -50,6 +50,7 @@ function table(
     storageParams: extra.storageParams ?? {},
     writeRewrites: { beforeRow: [], insteadOf: [], insteadRules: [] },
     writeRewritesTree: { beforeRow: [], insteadOf: [], insteadRules: [] },
+    hasDescendants: false,
   };
 }
 
@@ -128,7 +129,7 @@ describe("diffCatalogs: tables", () => {
     const c1: ConstraintInfo = {
       name: "ck", type: "check", columns: [], foreignSchema: null,
       foreignTable: null, foreignColumns: null, definition: "CHECK (x > 0)",
-      validated: true,
+      validated: true, noInherit: false,
     };
     const c2: ConstraintInfo = { ...c1, definition: "CHECK (x > 5)" };
     const before = snapshot({ tables: [table("public", "t", [col({ name: "id" })], { constraints: [c1] })] });

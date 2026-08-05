@@ -775,3 +775,16 @@ CREATE TRIGGER inh_c_before BEFORE UPDATE ON inh_c
 -- columns are NOT NULL so the NULLs the fixture witnesses are the
 -- function's own, not the input's.
 CREATE TABLE inf_t (id integer NOT NULL, ts timestamp NOT NULL, iv interval NOT NULL);
+
+-- CHECK … NO INHERIT (adversarial-2 finding 2): never copied to a child's
+-- pg_constraint — the ONLY CHECK divergence route PostgreSQL permits (ONLY
+-- ADD, child DROP, per-child enforceability, ONLY VALIDATE were all
+-- measured refused) — so a tree scan of a parent with descendants must not
+-- read it, while `FROM ONLY` may. ni_p carries the bare form, ni2_p the
+-- discriminated form the entailment kernel exists for; both children are
+-- unconstrained and their generated rows are the witnesses.
+CREATE TABLE ni_p (id integer NOT NULL, x text, CHECK (x IS NOT NULL) NO INHERIT);
+CREATE TABLE ni_c () INHERITS (ni_p);
+CREATE TABLE ni2_p (id integer NOT NULL, status text NOT NULL, note text,
+  CONSTRAINT ni2_note CHECK (status <> 'open' OR note IS NOT NULL) NO INHERIT);
+CREATE TABLE ni2_c () INHERITS (ni2_p);
