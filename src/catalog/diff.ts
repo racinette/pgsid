@@ -68,6 +68,10 @@ function columnState(c: ColumnInfo): Omit<ColumnInfo, "typeOid"> {
     hasDefault: c.hasDefault,
     defaultExpr: c.defaultExpr,
     generated: c.generated,
+    // A child redefining an inherited column's generation expression
+    // changes what a tree scan of the parent may conclude — comparable on
+    // the parent's column for the same reason notNullTree is.
+    generationDivergesInTree: c.generationDivergesInTree,
     identity: c.identity,
     // A collation determinism flip changes what the nullability engine may
     // conclude (literal distinctness), so it is a comparable property.

@@ -812,3 +812,13 @@ CREATE FUNCTION body_ins_view(p text) RETURNS text LANGUAGE sql AS $$
   INSERT INTO iot_v (id, k) VALUES (99, p) RETURNING lit $$;
 CREATE FUNCTION body_ins_rule() RETURNS text LANGUAGE sql AS $$
   INSERT INTO rule_src (id, a) VALUES (7, 'a') RETURNING a $$;
+
+-- Generation divergence across the tree (adversarial-2 finding 3): a child
+-- MAY define its own generation expression for an inherited column —
+-- measured, and the only accepted inheritance divergence besides CHECK …
+-- NO INHERIT. gen_c computes d = nullif(a, a), which is NULL on every row,
+-- while the parent's formula (a * 2) proves non-null; the snapshot's
+-- generationDivergesInTree bit is what keeps a tree scan from evaluating
+-- the parent's formula against the child's rows.
+CREATE TABLE gen_p (a integer NOT NULL, d integer GENERATED ALWAYS AS (a * 2) STORED);
+CREATE TABLE gen_c (d integer GENERATED ALWAYS AS (nullif(a, a)) STORED) INHERITS (gen_p);

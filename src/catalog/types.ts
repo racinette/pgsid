@@ -57,6 +57,19 @@ export interface ColumnInfo {
   /** Generated-column mode: `attgenerated` 's'→stored, 'v'→virtual (PG18), ''→none. */
   generated: "stored" | "virtual" | "none";
   /**
+   * Whether any descendant computes this GENERATED column with a different
+   * expression. A child may define its OWN generation expression for an
+   * inherited column (measured — and it is the only accepted divergence
+   * besides CHECK … NO INHERIT), so a tree scan evaluating the parent's
+   * formula would describe rows never computed with it. Set when any
+   * descendant's (generated, defaultExpr) differs from the parent's, or
+   * when a descendant is uncaptured — the notNullTree conventions. Always
+   * false for non-generated columns (DEFAULT divergence is legal, common,
+   * and never read through a scan) and for childless relations.
+   * Diff-comparable on the parent for the same reason notNullTree is.
+   */
+  generationDivergesInTree: boolean;
+  /**
    * `pg_collation.collisdeterministic` of the column's collation; null for
    * non-collatable types. Gates literal DISTINCTNESS in the entailment
    * kernel: under a deterministic collation, differently-spelled text
