@@ -1,0 +1,20 @@
+-- @unwitnessable 0: the source's one sku is a non-null literal
+-- @unwitnessable 5: tag is nn_text — the NOT NULL domain rejects every
+--   NULL write, and the engine reads the column nullable anyway (the
+--   register's recorded attnotnull imprecision)
+-- Adversarial-2 finding 4 composed with MERGE's source-first RETURNING *
+-- order (sweep-1 finding 10): the composite-element source contributes TWO
+-- columns, so the engine's old one-column reading shifted the entire
+-- target list by one and the UPDATE arm's written-value notNull for val
+-- landed on PostgreSQL's name — NULL in sparse. With the element's fields
+-- expanded the lists align: sku, qty, then the target's four.
+MERGE INTO ck t USING unnest(ARRAY[ROW('k', 1)::sku_pair]) s ON t.id = s.qty
+WHEN MATCHED THEN UPDATE SET val = 9
+RETURNING *
+-- @nullable   (sku)
+-- @notNull    (qty: every arm is MATCHED, so the ON equality is row-implied
+--              and promotes it — a claim the old shape landed on `id`)
+-- @notNull    (id)
+-- @nullable   (name: witnessed by sparse's NULL-named ck row)
+-- @notNull    (val: written 9 by the sole arm)
+-- @nullable   (tag)

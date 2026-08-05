@@ -13,11 +13,6 @@ CREATE SCHEMA app_s;
 CREATE TABLE app_s.t (zzz integer NOT NULL, qqq text NOT NULL, www text);
 CREATE TABLE app_s.app_only (o1 integer NOT NULL, o2 text);
 
--- Finding 7 — a SETOF function whose element type is a NOT NULL domain.
--- Called in the TARGET LIST beside a longer SRF, PostgreSQL pads it.
-CREATE FUNCTION one_sku() RETURNS SETOF non_empty_text LANGUAGE sql AS $$
-  SELECT 'only'::non_empty_text $$;
-
 -- Finding 8 — the mechanism-B gate over an inheritance tree. The NOT NULL
 -- lives on the parent ONLY; rows live in the unconstrained child.
 CREATE TABLE pnn_p (id integer NOT NULL, a text);
