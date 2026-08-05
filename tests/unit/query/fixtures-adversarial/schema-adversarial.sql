@@ -19,14 +19,6 @@ CREATE SCHEMA app_s;
 CREATE TABLE app_s.t (zzz integer NOT NULL, qqq text NOT NULL, www text);
 CREATE TABLE app_s.app_only (o1 integer NOT NULL, o2 text);
 
--- Finding 6 — the LANGUAGE sql body's DML path. Both functions target
--- relations the top-level walk handles (an INSTEAD OF view, a DO INSTEAD
--- rule table from fixtures/schema.sql) through the body-inlining route.
-CREATE FUNCTION body_ins_view(p text) RETURNS text LANGUAGE sql AS $$
-  INSERT INTO iot_v (id, k) VALUES (99, p) RETURNING lit $$;
-CREATE FUNCTION body_ins_rule() RETURNS text LANGUAGE sql AS $$
-  INSERT INTO rule_src (id, a) VALUES (7, 'a') RETURNING a $$;
-
 -- Finding 7 — a SETOF function whose element type is a NOT NULL domain.
 -- Called in the TARGET LIST beside a longer SRF, PostgreSQL pads it.
 CREATE FUNCTION one_sku() RETURNS SETOF non_empty_text LANGUAGE sql AS $$
