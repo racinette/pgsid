@@ -802,3 +802,13 @@ CREATE FUNCTION mv_fn() RETURNS trigger LANGUAGE plpgsql AS $$
   BEGIN NEW.a := NULL; NEW.b := coalesce(NEW.b, 'rescued'); RETURN NEW; END $$;
 CREATE TRIGGER mv_before BEFORE INSERT ON mv_2
   FOR EACH ROW EXECUTE FUNCTION mv_fn();
+
+-- The LANGUAGE sql body's DML path (adversarial-2 finding 6): both bodies
+-- target relations the top-level walk already handles — iot_v's INSTEAD OF
+-- trigger and rule_src's DO INSTEAD rule — but reach them through the body
+-- inliner, which is the THIRD caller of the DML scope builders and once
+-- called buildDmlScope directly, bypassing every rewrite-hook response.
+CREATE FUNCTION body_ins_view(p text) RETURNS text LANGUAGE sql AS $$
+  INSERT INTO iot_v (id, k) VALUES (99, p) RETURNING lit $$;
+CREATE FUNCTION body_ins_rule() RETURNS text LANGUAGE sql AS $$
+  INSERT INTO rule_src (id, a) VALUES (7, 'a') RETURNING a $$;

@@ -6039,8 +6039,24 @@ class NullabilityEngine {
         trace.conclude(false, "INSERT...SELECT can return zero rows -> nullable");
         return false;
       }
-      const dmlScope = this.buildDmlScope(ins.relation, fnScope, depth);
-      this.registerCtes(ins.withClause, dmlScope);
+      // Through the SHARED scope builder — the body inliner is the third
+      // caller beside the top-level walk and the data-modifying-CTE path,
+      // and calling buildDmlScope directly bypassed every rewrite-hook
+      // response the builders carry (adversarial-2 finding 6): no INSTEAD
+      // OF void, no BEFORE ROW void, no DO INSTEAD rule refusal. The
+      // refusal is CAUGHT rather than propagated: an inlined body is an
+      // optimization, and losing it should cost precision (the caller's
+      // conservative nullable), not the statement.
+      let dmlScope: Scope;
+      try {
+        dmlScope = this.buildInsertScope(ins, fnScope, depth);
+      } catch (e) {
+        if (e instanceof UnsupportedNodeError) {
+          trace.conclude(false, "body's INSERT is refused (DO INSTEAD rule) -> nullable");
+          return false;
+        }
+        throw e;
+      }
       const retResults = this.analyzeReturning(ins.returningClause, dmlScope, depth);
       const result = retResults[0]?.notNull ?? false;
       trace.conclude(result, `INSERT RETURNING first column: ${result ? "notNull" : "nullable"}`);
