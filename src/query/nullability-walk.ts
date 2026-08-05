@@ -1251,7 +1251,7 @@ class NullabilityEngine {
         ? this.groupingGuaranteesNonEmptyGroups(stmt)
         : !this.selectEmitsRowsWithoutInput(stmt),
       groupGuaranteesNonEmpty: this.groupingGuaranteesNonEmptyGroups(stmt),
-      groupingSetColumns: this.collectGroupingSetColumns(stmt.groupClause, stmt.targetList),
+      groupingSetColumns: EMPTY_STRING_SET,
       outer: outerScope,
       results: null,
     };
@@ -1270,6 +1270,17 @@ class NullabilityEngine {
     }
 
     this.resolveJoinImplications(scope);
+    // After the FROM walk, deliberately: the recorder resolves output
+    // ORDINALS against the EXPANDED target list (a star entry is ONE
+    // ResTarget and N output columns — adversarial-2 finding 10), and
+    // expanding a star needs the aliases just registered. Nothing consults
+    // the field before the target list is analyzed.
+    scope.groupingSetColumns = this.collectGroupingSetColumns(
+      stmt.groupClause,
+      stmt.targetList,
+      scope,
+      depth,
+    );
     return scope;
   }
 
@@ -6280,25 +6291,91 @@ class NullabilityEngine {
    * turns claims nullable, so recording both is the conservative reading).
    */
   private collectGroupingSetColumns(
-    groupClause?: Node[],
-    targetList?: Node[],
+    groupClause: Node[] | undefined,
+    targetList: Node[] | undefined,
+    scope: Scope,
+    depth: number,
   ): ReadonlySet<string> {
     if (!groupClause || groupClause.length === 0) return EMPTY_STRING_SET;
+    if (!groupClause.some(term => "GroupingSet" in (term as Record<string, unknown>))) {
+      return EMPTY_STRING_SET;
+    }
+    const positions = this.groupingOrdinalPositions(targetList ?? [], scope, depth);
     const out = new Set<string>();
     for (const term of groupClause) {
       if ("GroupingSet" in (term as Record<string, unknown>)) {
-        this.collectGroupingSetTermKeys(term, out, targetList ?? []);
+        this.collectGroupingSetTermKeys(term, out, targetList ?? [], positions);
       }
     }
     return out.size > 0 ? out : EMPTY_STRING_SET;
   }
 
   /**
-   * Record the keys of one grouping-set term, resolving output-ordinal and
-   * output-alias spellings through `targetList` (see
-   * collectGroupingSetColumns).
+   * The EXPANDED target list as ordinal-resolution positions. PostgreSQL
+   * numbers a grouping-set output ordinal against the OUTPUT columns, and a
+   * star entry is one ResTarget contributing N of them (adversarial-2
+   * finding 10) — so `targetList[n-1]` is the wrong entry as soon as any
+   * star precedes the ordinal, and for the star entry itself the raw
+   * ColumnRef's fields are `[String, A_Star]`, which records nothing. A
+   * star-derived position carries its (column, alias.column) keys directly,
+   * mirroring expandStar's two branches; a composite-star position occupies
+   * its width with no keys (its fields are forced nullable by the expansion
+   * already, so there is no claim for the override to blank); a plain
+   * position carries its ResTarget expression for collectColumnRefKeys.
    */
-  private collectGroupingSetTermKeys(node: Node, out: Set<string>, targetList: Node[]): void {
+  private groupingOrdinalPositions(
+    targetList: Node[],
+    scope: Scope,
+    depth: number,
+  ): { keys: string[] | null; val: Node | null }[] {
+    const positions: { keys: string[] | null; val: Node | null }[] = [];
+    for (const t of targetList) {
+      const rt = (t as { ResTarget?: { val?: Node } }).ResTarget;
+      const val = rt?.val;
+      if (!val) {
+        positions.push({ keys: null, val: null });
+        continue;
+      }
+      if (this.isStarColumn(val)) {
+        const fields =
+          (((val as Record<string, unknown>)["ColumnRef"] as ColumnRef).fields ?? []);
+        if (fields.length === 2 && "String" in (fields[0] as Record<string, unknown>)) {
+          const aliasName = this.stringVal(fields[0]!);
+          const entry = this.resolveAlias(aliasName, scope);
+          for (const col of entry ? this.relationColumnsIntrinsic(entry, scope, depth) : []) {
+            positions.push({ keys: [col.name, `${aliasName}.${col.name}`], val: null });
+          }
+        } else {
+          for (const v of scope.visible) {
+            const keys = [v.name];
+            if (v.entry) keys.push(`${v.entry.alias}.${v.name}`);
+            positions.push({ keys, val: null });
+          }
+        }
+        continue;
+      }
+      const composite = this.expandCompositeStar(val, scope, depth);
+      if (composite) {
+        for (let i = 0; i < composite.length; i++) positions.push({ keys: [], val: null });
+        continue;
+      }
+      positions.push({ keys: null, val });
+    }
+    return positions;
+  }
+
+  /**
+   * Record the keys of one grouping-set term, resolving output-ordinal
+   * spellings through the EXPANDED `positions` and output-alias spellings
+   * through `targetList` (a star entry cannot be aliased, so the raw list
+   * is exact there — see collectGroupingSetColumns).
+   */
+  private collectGroupingSetTermKeys(
+    node: Node,
+    out: Set<string>,
+    targetList: Node[],
+    positions: { keys: string[] | null; val: Node | null }[],
+  ): void {
     const resTarget = (t: Node | undefined) =>
       (t as Record<string, unknown> | undefined)?.["ResTarget"] as
         | { name?: string; val?: Node }
@@ -6322,18 +6399,21 @@ class NullabilityEngine {
     if ("A_Const" in rec) {
       const ival = (rec["A_Const"] as { ival?: { ival?: number } }).ival?.ival;
       if (typeof ival === "number" && ival >= 1) {
-        const rt = resTarget(targetList[ival - 1]);
-        if (rt?.val) this.collectColumnRefKeys(rt.val, out);
+        const pos = positions[ival - 1];
+        if (pos?.keys) for (const k of pos.keys) out.add(k);
+        else if (pos?.val) this.collectColumnRefKeys(pos.val, out);
       }
       return;
     }
     for (const value of Object.values(rec)) {
       if (Array.isArray(value)) {
         for (const v of value) {
-          if (v && typeof v === "object") this.collectGroupingSetTermKeys(v as Node, out, targetList);
+          if (v && typeof v === "object") {
+            this.collectGroupingSetTermKeys(v as Node, out, targetList, positions);
+          }
         }
       } else if (value && typeof value === "object") {
-        this.collectGroupingSetTermKeys(value as Node, out, targetList);
+        this.collectGroupingSetTermKeys(value as Node, out, targetList, positions);
       }
     }
   }

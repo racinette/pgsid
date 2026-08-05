@@ -24,11 +24,8 @@ CREATE TABLE pnn_p (id integer NOT NULL, a text);
 CREATE TABLE pnn_c () INHERITS (pnn_p);
 ALTER TABLE ONLY pnn_p ALTER COLUMN a SET NOT NULL;
 
--- Findings 9, 10 — a plain subject for the frame-offset and grouping-set
--- shapes (fixtures/schema.sql's tables carry CHECKs that would confuse the
--- reading).
-CREATE TABLE gs (a integer NOT NULL, b text NOT NULL, c text NOT NULL);
-CREATE TABLE gs2 (d integer NOT NULL, e text NOT NULL);
+-- Finding 9 — the unreferenced-CTE fixture reads fixtures/schema.sql's gs
+-- (graduated with finding 10). gs2 was a sweep-probe subject only.
 
 -- Finding 13 — an alias whose name is also a composite COLUMN of the same
 -- relation. `(p).*` is the parenthesized (value) spelling, which PostgreSQL
