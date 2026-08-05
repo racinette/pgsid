@@ -131,6 +131,17 @@ export interface WriteRewriteInfo {
 export interface TableInfo {
   schema: string;
   name: string;
+  /**
+   * `pg_class.relkind` within the captured set: 'r' plain, 'p' partitioned,
+   * 'f' foreign. The nullability engine needs 'p' specifically: an UPDATE
+   * through a partitioned parent can MOVE a row across partitions, which
+   * PostgreSQL performs as DELETE + INSERT and which fires the DESTINATION
+   * partition's BEFORE INSERT triggers on the new row (measured) — a
+   * command crossing plain inheritance never makes, since it does not
+   * route. Diff-comparable: the kind cannot change in place, so a flip is
+   * a drop-and-recreate the diff should surface.
+   */
+  relkind: "r" | "p" | "f";
   columns: ColumnInfo[];
   constraints: ConstraintInfo[];
   /** Storage parameters from `reloptions`, parsed into a map (e.g. fillfactor). */

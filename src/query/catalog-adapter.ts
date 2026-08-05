@@ -361,6 +361,17 @@ export async function buildNullabilityCatalog(
   ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> } =>
     resolveIn(writeRewriteTreeMap, schema, table);
 
+  // Partitioned relations (relkind 'p'), resolved with the same
+  // default-schema fallback as the hook maps — the UPDATE row-movement
+  // question is asked about the same target the hooks are.
+  const partitionedRels = new Set<string>();
+  for (const t of snapshot.tables) {
+    if (t.relkind === "p") partitionedRels.add(`${t.schema}.${t.name}`);
+  }
+  const resolveIsPartitioned = (schema: string | undefined, table: string): boolean =>
+    partitionedRels.has(`${schema ?? "public"}.${table}`) ||
+    (schema === undefined && partitionedRels.has(`public.${table}`));
+
   const compositeTypes = new Map<string, { fields: { name: string; typeOid: number }[] }>();
   for (const ct of snapshot.compositeTypes) {
     compositeTypes.set(`${ct.schema}.${ct.name}`, {
@@ -477,6 +488,7 @@ export async function buildNullabilityCatalog(
     resolveColumnNotNullTree,
     resolveWriteRewrites,
     resolveWriteRewritesTree,
+    resolveIsPartitioned,
     resolveColumnTypeOid,
     resolveColumnTypeName,
     resolveLiteralDistinctnessSound,

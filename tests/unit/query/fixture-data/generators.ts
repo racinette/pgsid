@@ -246,6 +246,14 @@ const columnSpecificGenerators: Record<
     trig_part: { id: rand => rand.int(0, 99) },
     trig_part_1: { id: rand => rand.int(0, 99) },
 
+    // The row-movement partitions. Parent and first partition stay inside
+    // mv_1's range so the movement fixtures' `SET id = id + 100` always
+    // lands inside mv_2; mv_2's own seeds draw from its range (and its
+    // BEFORE INSERT trigger nulls a on the way in, seeding included).
+    mv_p: { id: rand => rand.int(0, 99) },
+    mv_1: { id: rand => rand.int(0, 99) },
+    mv_2: { id: rand => rand.int(100, 199) },
+
     // The NO INHERIT pair. Parent rows must satisfy their own CHECKs (the
     // framework does not know CHECK constraints, and a violating INSERT
     // would abort the whole state); the children are exactly the rows those

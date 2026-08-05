@@ -51,6 +51,7 @@ function table(
     writeRewrites: { beforeRow: [], insteadOf: [], insteadRules: [] },
     writeRewritesTree: { beforeRow: [], insteadOf: [], insteadRules: [] },
     hasDescendants: false,
+    relkind: "r",
   };
 }
 
