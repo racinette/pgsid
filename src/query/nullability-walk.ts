@@ -3263,34 +3263,58 @@ class NullabilityEngine {
         // engine emitting ONE column named `ov` against PostgreSQL's three
         // — and that shape needs no search path, it is two overloads in one
         // schema.
-        const candidates = this.catalog.resolveFunctionCandidates(
-          this.funcSchema(fc),
-          name,
-          (fc.args ?? []).length,
-        );
-        if (candidates && candidates.length > 0) {
-          const shapes = candidates.map(c => this.columnsForReturnType(c.returnType, scalarName));
+        // The shape question is answerable WITHOUT resolving the overload
+        // whenever every candidate agrees — whichever one PostgreSQL picks,
+        // the column list is the same — so ask the full candidate set
+        // first. Arity filtering can only narrow that set, so it is worth
+        // trying only when the full set disagrees; asking it first would
+        // let `resolveFunctionCandidates`' variadic refusal block a shape
+        // that needed no narrowing at all (measured: `vp(VARIADIC text[])`
+        // beside `vp(integer)`, both `SETOF sku_pair`, gave one column
+        // named `vp` against PostgreSQL's two).
+        const shapeOf = (returnType: string) =>
+          this.columnsForReturnType(returnType, scalarName);
+        const agree = (shapes: { name: string; notNull: boolean }[][]): boolean => {
           const first = shapes[0]!;
-          const agree = shapes.every(
+          return shapes.every(
             s =>
               s.length === first.length &&
               s.every((c, i) => c.name === first[i]!.name && c.notNull === first[i]!.notNull),
           );
-          if (!agree) {
-            throw new UnsupportedNodeError(
-              "from-item",
-              `overloaded function ${name} whose candidates return different shapes`,
-            );
+        };
+        const allReturns = this.catalog.resolveFunctionReturnTypes(this.funcSchema(fc), name);
+        if (allReturns.length > 0) {
+          const shapes = allReturns.map(shapeOf);
+          if (agree(shapes)) {
+            cols.push(...shapes[0]!);
+            continue;
           }
-          cols.push(...first);
-          continue;
+          // Disagreement: narrow to the candidates that accept this
+          // argument count, which is the one resolution step the engine
+          // performs (no type simulation). Null means the narrowing itself
+          // is unsound — a variadic candidate absorbs any count — so there
+          // is nothing left to prove agreement with.
+          const candidates = this.catalog.resolveFunctionCandidates(
+            this.funcSchema(fc),
+            name,
+            (fc.args ?? []).length,
+          );
+          if (candidates && candidates.length > 0) {
+            const narrowed = candidates.map(c => shapeOf(c.returnType));
+            if (agree(narrowed)) {
+              cols.push(...narrowed[0]!);
+              continue;
+            }
+          }
+          // A FROM item that contributes the WRONG columns is worse than
+          // one that refuses — the dispatch-site rule.
+          throw new UnsupportedNodeError(
+            "from-item",
+            `overloaded function ${name} whose candidates return different shapes`,
+          );
         }
         // Unknown to the catalog (a pg_catalog SRF like generate_series): a
-        // single column, conservatively nullable. A candidate list the
-        // consensus resolver REFUSES to compute (a variadic candidate, a
-        // named-notation call) lands here too and keeps that answer — a
-        // known shape risk for a variadic composite-returning function,
-        // pre-existing and unmeasured, recorded rather than guessed at.
+        // single column, conservatively nullable.
         cols.push({ name: scalarName, notNull: false });
         continue;
       }

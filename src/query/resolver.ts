@@ -691,8 +691,16 @@ class ExtractContext {
     // Skip built-in aggregates (count, sum, etc.) — they don't have catalog deps.
     // We only track user functions (in user schemas). The catalog.resolveFunction
     // will return null for pg_catalog functions.
-    const fn = this.catalog.resolveFunction(schema, name);
-    if (fn) {
+    // Every candidate, not the one that would be picked: an unqualified
+    // call with candidates in two schemas depends on both, because
+    // dropping or retyping either changes what the overload-consensus rule
+    // concludes. (What this still cannot express is a dependency on a
+    // function that does NOT exist yet — a better-matching overload
+    // appearing later in an earlier schema changes the answer with no
+    // recorded entity to hang the invalidation on. That hole is shared with
+    // unqualified RELATION references and belongs to the consumer's
+    // search-path design, not here.)
+    for (const fn of this.catalog.resolveFunctions(schema, name)) {
       this.deps.add(`${fn.schema}.${fn.name}`);
     }
 

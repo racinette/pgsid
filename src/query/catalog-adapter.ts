@@ -286,19 +286,27 @@ export async function buildNullabilityCatalog(
   const functionCandidates = (schema: string | undefined, name: string): FunctionInfo[] =>
     schema ? (fnMap.get(`${schema}.${name}`) ?? []) : candidatesInPath(name);
 
-  const resolveFunction = (
+  // Dependency extraction's face, and PLURAL for the same reason the
+  // metadata lookup merges: a call whose candidates live in two schemas
+  // depends on both, since dropping or retyping either changes what the
+  // consensus rule may conclude. One entity here would leave the query
+  // unregistered against the other and skip its recheck.
+  const resolveFunctions = (
     schema: string | undefined,
     name: string,
-  ): ResolvedFunction | null => {
-    // Dependency extraction's face, and the one place the merge is NOT
-    // enough: a call that could resolve to either schema's function depends
-    // on BOTH, and this interface returns one. Reporting the first
-    // candidate's schema keeps the pre-merge behaviour; the consequence is a
-    // missed EntityId (stale invalidation), not a wrong flag, so it is
-    // recorded rather than papered over — see the register.
-    const fns = functionCandidates(schema, name);
-    return fns.length ? { schema: fns[0]!.schema, name } : null;
+  ): ResolvedFunction[] => {
+    const seen = new Set<string>();
+    const out: ResolvedFunction[] = [];
+    for (const fn of functionCandidates(schema, name)) {
+      if (seen.has(fn.schema)) continue;
+      seen.add(fn.schema);
+      out.push({ schema: fn.schema, name });
+    }
+    return out;
   };
+
+  const resolveFunctionReturnTypes = (schema: string | undefined, name: string): string[] =>
+    functionCandidates(schema, name).map(f => f.returnType);
 
   const resolveColumnNotNull = (
     schema: string,
@@ -527,7 +535,8 @@ export async function buildNullabilityCatalog(
 
   return {
     resolveTable,
-    resolveFunction,
+    resolveFunctions,
+    resolveFunctionReturnTypes,
     resolveColumnNotNull,
     resolveColumnNotNullTree,
     resolveWriteRewrites,

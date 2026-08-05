@@ -59,11 +59,18 @@ export interface DepCatalog {
   resolveTable(schema: string | undefined, name: string): ResolvedTable | null;
 
   /**
-   * Resolve a function by (schema, name). Name-level only — no arg types.
-   * If `schema` is undefined, search `searchPath`.
-   * Returns null if not found by that name in any schema.
+   * EVERY function of this name the call could resolve to — name-level, no
+   * arg types. If `schema` is undefined, all schemas of the search path
+   * contribute (an identical signature in a later one is hidden). Empty
+   * when the name is unknown.
+   *
+   * Plural because a dependency is not a resolution: an unqualified call
+   * with candidates in two schemas depends on BOTH, since dropping,
+   * replacing or retyping either changes what may be inferred. Reporting
+   * one would leave the query unregistered against the other and silently
+   * skip its recheck.
    */
-  resolveFunction(schema: string | undefined, name: string): ResolvedFunction | null;
+  resolveFunctions(schema: string | undefined, name: string): ResolvedFunction[];
 }
 
 /**
@@ -114,9 +121,25 @@ export interface NullabilityCatalog {
   resolveTable(schema: string | undefined, name: string): ResolvedTable | null;
 
   /**
-   * Resolve a function by (schema, name). Name-level only — no arg types.
+   * Every function of this name the call could resolve to — see
+   * `DepCatalog.resolveFunctions`.
    */
-  resolveFunction(schema: string | undefined, name: string): ResolvedFunction | null;
+  resolveFunctions(schema: string | undefined, name: string): ResolvedFunction[];
+
+  /**
+   * The rendered return type (`pg_get_function_result`) of every candidate
+   * for this name, UNFILTERED by arity — empty when the name is unknown to
+   * the catalog.
+   *
+   * For a FROM item the question is the column LIST, and that question is
+   * answerable without resolving the overload whenever every candidate
+   * agrees: whichever one PostgreSQL picks, the shape is the same. Arity
+   * filtering can only narrow the set, so it is worth trying only when the
+   * full set disagrees — which is why this accessor exists beside
+   * `resolveFunctionCandidates`, whose variadic refusal would otherwise
+   * block a shape that needed no narrowing at all.
+   */
+  resolveFunctionReturnTypes(schema: string | undefined, name: string): string[];
 
   /**
    * Intrinsic column nullability: whether `schema.table.column` has a NOT NULL

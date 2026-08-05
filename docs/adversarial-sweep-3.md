@@ -97,16 +97,21 @@ directions), and the FROM site takes shape consensus or refuses. The
 closure entry is at the top of `docs/deferred-tasks.md` section 2; the pins
 are `search-path.test.ts` and `unsupported-nodes.test.ts`.
 
+The two residues that probe recorded were closed the same day and are
+boundaries now, not targets: `DepCatalog.resolveFunctions` is plural, so an
+ambiguous call registers against every candidate schema; and the FROM shape
+question runs over the full candidate set before any arity narrowing, so a
+variadic overload whose candidates agree resolves instead of collapsing to
+one column. Both are pinned. ONE thing was left deliberately open and is
+worth your evidence rather than your fix: a dependency on a function that
+does not exist YET — a better-matching overload created later in an earlier
+schema changes the answer with no recorded EntityId to invalidate against —
+which is the same hole unqualified RELATION references have, and belongs to
+the consumer's search-path design. A concrete two-migration sequence
+demonstrating it is useful material for that design.
+
 What is left for you here is the REST of the section, which nobody has
-touched. Two residues were recorded rather than fixed, and both are fair
-game: `resolveFunction` (the `DepCatalog` face) still reports ONE schema
-for a name that could resolve to either, a missed EntityId and therefore a
-stale-invalidation risk rather than a wrong flag — build the case where a
-migration to the shadowed function fails to invalidate a query; and a
-VARIADIC candidate makes `resolveFunctionCandidates` refuse to compute a
-list at all, so a variadic composite-returning function in FROM keeps the
-one-column answer — measure whether that is a live wrong shape. Beyond
-those: operators (`resolveOperatorMetadata` collects by name across ALL
+touched: operators (`resolveOperatorMetadata` collects by name across ALL
 schemas, path-agnostic — sound by superset, or is it?); composite types
 feeding `unnestCompositeElementFields` and `expandCompositeStar`;
 `isNotNullDomainByName`, where the code deliberately answers `false` for a

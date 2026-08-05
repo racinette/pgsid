@@ -83,6 +83,19 @@ describe("unsupported nodes are refused, not guessed", () => {
         LANGUAGE sql AS $$ SELECT ROW('a', 1)::sku_pair $$;
       CREATE FUNCTION ov_agree(x integer) RETURNS SETOF sku_pair
         LANGUAGE sql AS $$ SELECT ROW('b', 2)::sku_pair $$;
+      -- Overloaded WITH a variadic candidate: the arity filter is unsound
+      -- here (a variadic absorbs any count), but the candidates agree on
+      -- the shape, so no narrowing is needed to answer.
+      CREATE FUNCTION ov_variadic(VARIADIC xs text[]) RETURNS SETOF sku_pair
+        LANGUAGE sql AS $$ SELECT ROW(x, 1)::sku_pair FROM unnest(xs) AS x $$;
+      CREATE FUNCTION ov_variadic(n integer) RETURNS SETOF sku_pair
+        LANGUAGE sql AS $$ SELECT ROW('b', n)::sku_pair $$;
+      -- …and the same with the shapes DISAGREEING, where nothing can be
+      -- proved and the refusal stands.
+      CREATE FUNCTION ov_var_clash(VARIADIC xs text[]) RETURNS SETOF sku_pair
+        LANGUAGE sql AS $$ SELECT ROW(x, 1)::sku_pair FROM unnest(xs) AS x $$;
+      CREATE FUNCTION ov_var_clash(n integer) RETURNS TABLE(a int, b int, c int)
+        LANGUAGE sql AS $$ SELECT 1, 2, n $$;
     `);
     catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
   });
@@ -209,6 +222,24 @@ describe("unsupported nodes are refused, not guessed", () => {
     const results = await infer("SELECT * FROM ov_agree(42)");
     expect(results.map(r => r.name)).toEqual(["sku", "qty"]);
     expect(results.every(r => !r.notNull)).toBe(true);
+  });
+
+  // The shape question is asked over the FULL candidate set before any
+  // arity narrowing, so a variadic candidate — which makes narrowing
+  // unsound and once sent the whole item to a single wrong column — costs
+  // nothing when the candidates already agree.
+  it("resolves an overloaded VARIADIC table function when the shapes agree", async () => {
+    for (const sql of ["SELECT * FROM ov_variadic(3)", "SELECT * FROM ov_variadic('a', 'b')"]) {
+      const results = await infer(sql);
+      expect(results.map(r => r.name), sql).toEqual(["sku", "qty"]);
+    }
+  });
+
+  it("…and still refuses when a variadic overload's shapes disagree", async () => {
+    await expect(infer("SELECT * FROM ov_var_clash(3)")).rejects.toMatchObject({
+      name: "UnsupportedNodeError",
+      site: "from-item",
+    });
   });
 
   // --- (expr).* over an unresolvable composite -----------------------------

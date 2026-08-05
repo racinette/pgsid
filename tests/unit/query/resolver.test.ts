@@ -29,10 +29,9 @@ function mockCatalog(
       // search_path resolution: try "public" first (default).
       return tableMap.get(`public.${name}`) ?? null;
     },
-    resolveFunction(schema: string | undefined, name: string): ResolvedFunction | null {
+    resolveFunctions(schema: string | undefined, name: string): ResolvedFunction[] {
       const s = schema ?? "public";
-      if (fnSet.has(`${s}.${name}`)) return { schema: s, name };
-      return null;
+      return fnSet.has(`${s}.${name}`) ? [{ schema: s, name }] : [];
     },
   };
 }
@@ -279,6 +278,42 @@ describe("extractDeps: function calls", () => {
     const d = await deps("SELECT id FROM users WHERE calculate_total(id) > 100", catalog);
     expect(d).toContain("public.calculate_total");
     expect(d).toContain("public.users.id");
+  });
+
+  // An unqualified call whose candidates live in two schemas depends on
+  // BOTH: the nullability engine answers such a call by CONSENSUS over the
+  // candidates, so dropping or retyping either changes what may be
+  // inferred. Recording only the one that would be picked leaves the query
+  // unregistered against the other and silently skips its recheck.
+  it("records every candidate schema for an ambiguous unqualified call", async () => {
+    const multi: DepCatalog = {
+      resolveTable: () => null,
+      resolveFunctions: (schema, name) =>
+        schema
+          ? [{ schema, name }]
+          : [
+              { schema: "app_s", name },
+              { schema: "public", name },
+            ],
+    };
+    const d = await deps("SELECT label(42) AS v", multi);
+    expect(d).toContain("app_s.label");
+    expect(d).toContain("public.label");
+  });
+
+  it("a QUALIFIED call depends on that schema's function alone", async () => {
+    const multi: DepCatalog = {
+      resolveTable: () => null,
+      resolveFunctions: (schema, name) =>
+        schema
+          ? [{ schema, name }]
+          : [
+              { schema: "app_s", name },
+              { schema: "public", name },
+            ],
+    };
+    const d = await deps("SELECT public.label(42) AS v", multi);
+    expect(d).toEqual(["public.label"]);
   });
 });
 
