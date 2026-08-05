@@ -67,6 +67,22 @@ describe("unsupported nodes are refused, not guessed", () => {
       CREATE TABLE rule_log (id int);
       CREATE RULE r_also AS ON INSERT TO rule_also DO ALSO
         INSERT INTO rule_log VALUES (NEW.id);
+      -- An OVERLOADED table function whose candidates return different
+      -- SHAPES. PostgreSQL picks by argument type; the walk cannot type
+      -- 42 versus 'x', so neither candidate's column list can be assumed.
+      -- Measured: the engine emitted one column named ov_shape against
+      -- PostgreSQL's three.
+      CREATE TYPE sku_pair AS (sku text, qty integer);
+      CREATE FUNCTION ov_shape(x text) RETURNS SETOF sku_pair
+        LANGUAGE sql AS $$ SELECT ROW('a', 1)::sku_pair $$;
+      CREATE FUNCTION ov_shape(x integer) RETURNS TABLE(a int, b int, c int)
+        LANGUAGE sql AS $$ SELECT 1, 2, 3 $$;
+      -- The positive arm: overloaded, but every candidate yields the SAME
+      -- column list, which therefore holds whichever one runs.
+      CREATE FUNCTION ov_agree(x text) RETURNS SETOF sku_pair
+        LANGUAGE sql AS $$ SELECT ROW('a', 1)::sku_pair $$;
+      CREATE FUNCTION ov_agree(x integer) RETURNS SETOF sku_pair
+        LANGUAGE sql AS $$ SELECT ROW('b', 2)::sku_pair $$;
     `);
     catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
   });
@@ -166,6 +182,34 @@ describe("unsupported nodes are refused, not guessed", () => {
       });
     });
   }
+
+  // --- overloaded table functions in FROM ----------------------------------
+
+  // A FROM item's column list is load-bearing, and an overloaded name does
+  // not determine one: PostgreSQL resolves by argument types, which the walk
+  // has no type system to compute. The old fall-through contributed ONE
+  // column named after the function — measured wrong against PostgreSQL's
+  // three, and reachable with two overloads in a SINGLE schema, no
+  // search_path involved. Refusing is the dispatch-site rule; the caller's
+  // escape is PREPARE plus all-nullable.
+  it("refuses an overloaded table function whose candidates disagree on shape", async () => {
+    for (const sql of ["SELECT * FROM ov_shape(42)", "SELECT * FROM ov_shape('x')"]) {
+      await expect(infer(sql)).rejects.toMatchObject({
+        name: "UnsupportedNodeError",
+        site: "from-item",
+      });
+    }
+  });
+
+  // …and does NOT refuse when the candidates agree: that shared list holds
+  // for whichever overload runs, the same consensus quantifier the flag
+  // rules use. A blanket refusal on overloading would be the easy answer
+  // and a needless consumer cost.
+  it("accepts an overloaded table function whose candidates agree on shape", async () => {
+    const results = await infer("SELECT * FROM ov_agree(42)");
+    expect(results.map(r => r.name)).toEqual(["sku", "qty"]);
+    expect(results.every(r => !r.notNull)).toBe(true);
+  });
 
   // --- (expr).* over an unresolvable composite -----------------------------
 

@@ -3251,8 +3251,46 @@ class NullabilityEngine {
           }
           continue;
         }
-        // Unknown function (e.g. a pg_catalog SRF like generate_series): a
-        // single column, conservatively nullable.
+        // No single candidate means the name is OVERLOADED, and PostgreSQL
+        // picks by argument types the walk cannot compute. The candidates'
+        // SHAPES decide what is safe: when every arity-compatible candidate
+        // yields the same column list, that list holds whichever one runs —
+        // the consensus quantifier the flag rules already use. When they
+        // disagree the shape is unknowable here, and a FROM item that
+        // contributes the WRONG columns is worse than one that refuses
+        // (the dispatch-site rule). Measured: `ov(text) RETURNS SETOF
+        // sku_pair` beside `ov(integer) RETURNS TABLE(a,b,c)` had the
+        // engine emitting ONE column named `ov` against PostgreSQL's three
+        // — and that shape needs no search path, it is two overloads in one
+        // schema.
+        const candidates = this.catalog.resolveFunctionCandidates(
+          this.funcSchema(fc),
+          name,
+          (fc.args ?? []).length,
+        );
+        if (candidates && candidates.length > 0) {
+          const shapes = candidates.map(c => this.columnsForReturnType(c.returnType, scalarName));
+          const first = shapes[0]!;
+          const agree = shapes.every(
+            s =>
+              s.length === first.length &&
+              s.every((c, i) => c.name === first[i]!.name && c.notNull === first[i]!.notNull),
+          );
+          if (!agree) {
+            throw new UnsupportedNodeError(
+              "from-item",
+              `overloaded function ${name} whose candidates return different shapes`,
+            );
+          }
+          cols.push(...first);
+          continue;
+        }
+        // Unknown to the catalog (a pg_catalog SRF like generate_series): a
+        // single column, conservatively nullable. A candidate list the
+        // consensus resolver REFUSES to compute (a variadic candidate, a
+        // named-notation call) lands here too and keeps that answer — a
+        // known shape risk for a variadic composite-returning function,
+        // pre-existing and unmeasured, recorded rather than guessed at.
         cols.push({ name: scalarName, notNull: false });
         continue;
       }

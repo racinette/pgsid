@@ -74,31 +74,47 @@ The new mechanisms, by file:
 
 ## Attack surface catalog
 
-Ordered by expected yield. Starters only — go beyond them. Sections A and B
-are where the author's own suspicion is highest, which is exactly why they
-are worth the most skepticism in either direction.
+Ordered by expected yield. Starters only — go beyond them. Section A's
+headline was measured before this sweep was handed over and CONVICTED on
+four mechanisms plus a pre-existing one it was not looking for; both are
+fixed, and the section now reads "verify, then take the rest". Treat that
+as calibration: the yield estimate behind this charter was not optimistic.
 
-**A. Search-path resolution beyond relations.** `inPath` stops at the FIRST
-schema whose map holds the NAME, and it now backs six resolvers. That rule
-is right for relations; it is not obviously right for anything resolved by
-more than a name. **Prime suspect: functions.** PostgreSQL resolves a
-function by argument types across the WHOLE path — an `app_s` function with
-the wrong arity does not shadow a `public` one with the right arity, but
-`inPath` returns `app_s`'s candidate list and stops. `resolveFunctionMetadata`
-would then hand the walk the wrong body's metadata (strictness, language,
-return type, and the body the inliner recurses into) — a rank-1 shape if it
-lands. `resolveFunctionCandidates` filtering to empty is the benign case;
-find the malign one. Same question for operators (unchanged, but now beside
-path-resolved functions), for composite types feeding
-`unnestCompositeElementFields` and `expandCompositeStar`, and for
+**A. Search-path resolution beyond relations. — PROBED AND FIXED BEFORE THIS
+SWEEP; VERIFY, DO NOT RE-FIND.** The headline question was measured on
+2026-08-05 and convicted: `inPath`'s first-schema-wins rule is right for
+relations, types and domains but wrong for FUNCTIONS, which PostgreSQL
+resolves by name AND argument types across the whole path. Four
+falsifications through three code paths (a NOT NULL domain return read off
+the wrong overload, the wrong BODY inlined, the wrong return type expanded
+into a column list, and calls whose argument COUNT matched neither
+candidate), plus a pre-existing one the probe stumbled into: an overloaded
+table function in FROM whose candidates disagree on shape contributed ONE
+column against PostgreSQL's three, with no search path involved at all.
+Both are fixed — unqualified lookups merge candidates across the path
+(deduped by `argTypes`, hiding measured as first-in-path in both
+directions), and the FROM site takes shape consensus or refuses. The
+closure entry is at the top of `docs/deferred-tasks.md` section 2; the pins
+are `search-path.test.ts` and `unsupported-nodes.test.ts`.
+
+What is left for you here is the REST of the section, which nobody has
+touched. Two residues were recorded rather than fixed, and both are fair
+game: `resolveFunction` (the `DepCatalog` face) still reports ONE schema
+for a name that could resolve to either, a missed EntityId and therefore a
+stale-invalidation risk rather than a wrong flag — build the case where a
+migration to the shadowed function fails to invalidate a query; and a
+VARIADIC candidate makes `resolveFunctionCandidates` refuse to compute a
+list at all, so a variadic composite-returning function in FROM keeps the
+one-column answer — measure whether that is a live wrong shape. Beyond
+those: operators (`resolveOperatorMetadata` collects by name across ALL
+schemas, path-agnostic — sound by superset, or is it?); composite types
+feeding `unnestCompositeElementFields` and `expandCompositeStar`;
 `isNotNullDomainByName`, where the code deliberately answers `false` for a
-shadowing non-notNull domain — is first-schema-wins the rule PostgreSQL
-applies to a bare type name in a cast? Also probe the paths nobody passes:
-empty array, a schema that does not exist, `pg_catalog` named explicitly,
-duplicate entries, and the interaction with the unresolvable-relation
-refusal (a relation now resolvable under one path and refused under another
-is correct behaviour — confirm it, then look for a path under which the
-REFUSAL is wrong).
+shadowing non-notNull domain — confirm first-schema-wins IS the rule for a
+bare type name in a cast; and the paths nobody passes — empty array, a
+schema that does not exist, `pg_catalog` named explicitly, duplicate
+entries, and a path under which the unresolvable-relation REFUSAL becomes
+wrong.
 
 **B. `BUILTIN_SRF_NAMES` and the padding rule.** A brand-new hand-curated
 name table, and both prior sweeps found existing tables failing their own
