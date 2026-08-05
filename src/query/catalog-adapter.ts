@@ -257,12 +257,47 @@ export async function buildNullabilityCatalog(
     return t ? { schema: t.schema, name: t.name, columns: t.columns } : null;
   };
 
+  // A function is identified by name AND argument types, so `inPath`'s
+  // first-schema-wins rule — right for relations, types and domains, which
+  // names alone identify — is WRONG here: PostgreSQL gathers candidates
+  // from every schema in the path and picks by argument types. Measured:
+  // with `f(text)` in app_s and `f(integer)` in public under
+  // `search_path = app_s, public`, `f(42)` runs PUBLIC's, while the engine
+  // read app_s's metadata and claimed its NOT NULL domain return. Only an
+  // IDENTICAL signature hides, and there first-in-path does win (measured
+  // both directions) — `argTypes` is `pg_get_function_identity_arguments`,
+  // exactly the key that rule uses.
+  //
+  // So unqualified lookups MERGE across the path, dedupe by signature, and
+  // "a single candidate" means one across the merged set. Everything that
+  // consumes this then behaves as it already does for same-schema
+  // overloads: no single candidate means no metadata, and the consensus
+  // rule takes over — a property EVERY arity-compatible candidate shares
+  // holds for whichever one PostgreSQL picks.
+  const candidatesInPath = (name: string): FunctionInfo[] => {
+    const bySignature = new Map<string, FunctionInfo>();
+    for (const s of searchPath) {
+      for (const fn of fnMap.get(`${s}.${name}`) ?? []) {
+        if (!bySignature.has(fn.argTypes)) bySignature.set(fn.argTypes, fn);
+      }
+    }
+    return [...bySignature.values()];
+  };
+  const functionCandidates = (schema: string | undefined, name: string): FunctionInfo[] =>
+    schema ? (fnMap.get(`${schema}.${name}`) ?? []) : candidatesInPath(name);
+
   const resolveFunction = (
     schema: string | undefined,
     name: string,
   ): ResolvedFunction | null => {
-    const fns = schema ? fnMap.get(`${schema}.${name}`) : inPath(fnMap, name);
-    return fns?.length ? { schema: fns[0]!.schema, name } : null;
+    // Dependency extraction's face, and the one place the merge is NOT
+    // enough: a call that could resolve to either schema's function depends
+    // on BOTH, and this interface returns one. Reporting the first
+    // candidate's schema keeps the pre-merge behaviour; the consequence is a
+    // missed EntityId (stale invalidation), not a wrong flag, so it is
+    // recorded rather than papered over — see the register.
+    const fns = functionCandidates(schema, name);
+    return fns.length ? { schema: fns[0]!.schema, name } : null;
   };
 
   const resolveColumnNotNull = (
@@ -413,8 +448,8 @@ export async function buildNullabilityCatalog(
     schema: string | undefined,
     name: string,
   ) => {
-    const fns = schema ? fnMap.get(`${schema}.${name}`) : inPath(fnMap, name);
-    return fns && fns.length === 1 ? fns[0]! : null;
+    const fns = functionCandidates(schema, name);
+    return fns.length === 1 ? fns[0]! : null;
   };
 
   // Overloaded names, the sound half: the candidates a call with `argCount`
@@ -432,8 +467,8 @@ export async function buildNullabilityCatalog(
     name: string,
     argCount: number,
   ): FunctionInfo[] | null => {
-    const fns = schema ? fnMap.get(`${schema}.${name}`) : inPath(fnMap, name);
-    if (!fns || fns.length === 0) return null;
+    const fns = functionCandidates(schema, name);
+    if (fns.length === 0) return null;
     if (fns.some(f => f.args.some(a => a.mode === "variadic"))) return null;
     return fns.filter(f => {
       const inputs = f.args.filter(a => a.mode === "in" || a.mode === "inout");

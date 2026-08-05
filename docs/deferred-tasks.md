@@ -248,6 +248,47 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by a targeted probe of the search-path fix (2026-08-05), the
+sweep-3 charter's section A, measured before the sweep ran — and it
+convicted, on four mechanisms plus a second defect nobody was looking
+for. `inPath`'s first-schema-wins rule is right for relations, types and
+domains, which a NAME identifies; a function is identified by name AND
+ARGUMENT TYPES, and PostgreSQL gathers candidates from every schema in
+the path. Measured with `f(text)` in app_s and `f(integer)` in public
+under `search_path = app_s, public`: `f(42)` runs PUBLIC's and returns
+NULL, while the engine read app_s's metadata and claimed its NOT NULL
+domain return — and the same mis-pick reached priority 5 (inlining the
+wrong BODY, no domain involved), the FROM-clause return-type expansion
+(`[sku,qty]` against PostgreSQL's `[a,b,c]`), and calls whose ARGUMENT
+COUNT matched neither. Unqualified lookups now merge candidates across
+the path, deduped by `argTypes` — `pg_get_function_identity_arguments`,
+exactly the key the hiding rule uses, and hiding IS first-in-path
+(measured both directions, so the same-signature case keeps its
+precision) — and "a single candidate" means one across the merged set,
+so an ambiguous name falls to the overload-consensus rule that already
+existed for same-schema overloads. The probe's second conviction was
+PRE-EXISTING and needed no search path: an overloaded table function in
+FROM whose candidates return different SHAPES fell through to one
+column named after the function (measured — one against PostgreSQL's
+three, two overloads in ONE schema, missed by both sweeps). That site
+now takes shape CONSENSUS — candidates agreeing on a column list give
+it, disagreeing candidates REFUSE at the from-item site — with the
+positive arm pinned so the refusal is not blanket. Costs: an
+unqualified call to a cross-schema-overloaded name loses precision even
+when PostgreSQL's pick would have been the notNull one (`f('abc')` —
+an unknown literal PostgreSQL resolves to app_s.f); a disagreeing
+overload in FROM refuses where the caller could have run PREPARE.
+Pinned in `search-path.test.ts` (four function-resolution cases, both
+hiding directions) and `unsupported-nodes.test.ts` (the refusal and its
+agreeing control). Two residues recorded rather than fixed: `resolveFunction`,
+the `DepCatalog` face, still reports ONE schema for a name that could
+resolve to either, which is a missed EntityId — stale invalidation, not
+a wrong flag — and a VARIADIC candidate makes the consensus resolver
+refuse to compute a list at all, so a variadic composite-returning
+function in FROM keeps the one-column answer. Both belong to sweep 3's
+section A, which now reads "verify the fix" rather than "probe the
+question".
+
 Closed by the second adversarial fix phase (2026-08-05), finding 5 /
 RC-5, half (a) — a contract made true rather than a defect fixed:
 `NullabilityCatalog.resolveTable` has always documented search-path

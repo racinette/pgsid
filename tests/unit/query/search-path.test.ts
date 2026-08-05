@@ -30,6 +30,7 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 let pg: PGlite;
 let defaultCatalog: NullabilityCatalog;
 let pathCatalog: NullabilityCatalog;
+let reverseCatalog: NullabilityCatalog;
 
 async function infer(catalog: NullabilityCatalog, sql: string) {
   const parsed = await parseSql(sql);
@@ -43,10 +44,30 @@ beforeAll(async () => {
     CREATE SCHEMA app_s;
     CREATE TABLE app_s.t (zzz integer NOT NULL, qqq text NOT NULL, www text);
     CREATE TABLE app_s.app_only (o1 integer NOT NULL, o2 text);
+
+    -- Function resolution is by name AND argument types, so the two schemas
+    -- hold DIFFERENT signatures: PostgreSQL considers both and picks by type.
+    CREATE DOMAIN non_empty_text AS text NOT NULL CHECK (value <> '');
+    CREATE FUNCTION app_s.f(x text) RETURNS non_empty_text
+      LANGUAGE sql AS $$ SELECT 'always'::non_empty_text $$;
+    CREATE FUNCTION public.f(x integer) RETURNS text
+      LANGUAGE sql AS $$ SELECT NULL::text $$;
+    -- Same NAME, same SIGNATURE: here the hiding rule applies and the
+    -- earlier schema in the path really does win.
+    CREATE FUNCTION app_s.h(x text) RETURNS non_empty_text
+      LANGUAGE sql AS $$ SELECT 'from_app'::non_empty_text $$;
+    CREATE FUNCTION public.h(x text) RETURNS text
+      LANGUAGE sql AS $$ SELECT NULL::text $$;
+    -- Different ARITY across schemas, not just different types.
+    CREATE FUNCTION app_s.m(a text, b text) RETURNS non_empty_text
+      LANGUAGE sql AS $$ SELECT 'two'::non_empty_text $$;
+    CREATE FUNCTION public.m(a integer) RETURNS text
+      LANGUAGE sql AS $$ SELECT NULL::text $$;
   `);
   const snapshot = await snapshotCatalog(pg);
   defaultCatalog = await buildNullabilityCatalog(snapshot);
   pathCatalog = await buildNullabilityCatalog(snapshot, { searchPath: ["app_s", "public"] });
+  reverseCatalog = await buildNullabilityCatalog(snapshot, { searchPath: ["public", "app_s"] });
 }, 60_000);
 
 describe("search-path resolution", () => {
@@ -86,5 +107,66 @@ describe("search-path resolution", () => {
       const results = await infer(catalog, "SELECT * FROM app_s.t");
       expect(results.map(r => r.name)).toEqual(["zzz", "qqq", "www"]);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Functions resolve by name AND argument types, so the first-schema-wins rule
+// that is correct for relations is WRONG for them: PostgreSQL gathers
+// candidates from every schema in the path. Reading the first schema's
+// metadata claimed its NOT NULL domain return, inlined its body, and expanded
+// its return type into a column list — three mechanisms, all measured
+// falsified. Unqualified lookups now merge across the path (deduped by
+// `argTypes`, which is what the hiding rule keys on) and "one candidate"
+// means one across the merged set, so an ambiguous name falls to the existing
+// overload-consensus rule.
+// ---------------------------------------------------------------------------
+
+describe("search-path function resolution", () => {
+  it("an unqualified call considers candidates from EVERY schema in the path", async () => {
+    // PostgreSQL runs public.f(integer) — app_s.f takes text — and returns
+    // NULL. The engine once read app_s.f's NOT NULL domain return here.
+    await pg.exec(`SET search_path = app_s, public`);
+    const observed = (await pg.query(`SELECT f(42) AS v`, [], { rowMode: "array" }))
+      .rows as unknown[][];
+    await pg.exec(`SET search_path = public`);
+    expect(observed[0]![0]).toBeNull();
+
+    const results = await infer(pathCatalog, "SELECT f(42) AS v");
+    expect(results[0]!.notNull).toBe(false);
+  });
+
+  it("…including a candidate of a different ARITY, which the lookup once ignored", async () => {
+    await pg.exec(`SET search_path = app_s, public`);
+    const observed = (await pg.query(`SELECT m(7) AS v`, [], { rowMode: "array" }))
+      .rows as unknown[][];
+    await pg.exec(`SET search_path = public`);
+    expect(observed[0]![0]).toBeNull();
+
+    const results = await infer(pathCatalog, "SELECT m(7) AS v");
+    expect(results[0]!.notNull).toBe(false);
+  });
+
+  it("an IDENTICAL signature IS hidden by the earlier schema — both directions", async () => {
+    // The one place first-in-path is right, and the reason the merge dedupes
+    // by argTypes rather than dropping to consensus for every clash: this
+    // call keeps its precision.
+    await pg.exec(`SET search_path = app_s, public`);
+    const appRow = (await pg.query(`SELECT h('q') AS v`, [], { rowMode: "array" }))
+      .rows as unknown[][];
+    await pg.exec(`SET search_path = public, app_s`);
+    const pubRow = (await pg.query(`SELECT h('q') AS v`, [], { rowMode: "array" }))
+      .rows as unknown[][];
+    await pg.exec(`SET search_path = public`);
+    expect(appRow[0]![0]).toBe("from_app");
+    expect(pubRow[0]![0]).toBeNull();
+
+    expect((await infer(pathCatalog, "SELECT h('q') AS v"))[0]!.notNull).toBe(true);
+    expect((await infer(reverseCatalog, "SELECT h('q') AS v"))[0]!.notNull).toBe(false);
+  });
+
+  it("a qualified call is unaffected by the path", async () => {
+    const results = await infer(pathCatalog, "SELECT app_s.f('a') AS v");
+    expect(results[0]!.notNull).toBe(true);
   });
 });
