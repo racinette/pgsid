@@ -746,3 +746,24 @@ CREATE FUNCTION final_null(state bigint) RETURNS bigint
   LANGUAGE sql AS $$ SELECT NULL::bigint $$;
 CREATE AGGREGATE agg_finalnull(integer)
   (SFUNC = count_it_sfunc, STYPE = bigint, INITCOND = '0', FINALFUNC = final_null);
+
+-- The hooks are the relation SET's, not the named relation's (post-phase
+-- probe, 2026-08-05): tuple routing fires the PARTITION's BEFORE ROW
+-- trigger for an INSERT through the parent, and an UPDATE through an
+-- inheritance parent fires the CHILD's trigger for child rows (both
+-- measured). trig_part's partition trigger nulls a and rescues a NULL b;
+-- inh_c gains a BEFORE UPDATE trigger nulling a — the parent inh_p
+-- carries no trigger at all.
+CREATE TABLE trig_part (id integer NOT NULL, a text, b text NOT NULL)
+  PARTITION BY RANGE (id);
+CREATE TABLE trig_part_1 PARTITION OF trig_part FOR VALUES FROM (0) TO (100);
+CREATE FUNCTION trig_part_fn() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.a := NULL;
+  IF NEW.b IS NULL THEN NEW.b := 'rescued'; END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER trig_part_before BEFORE INSERT ON trig_part_1
+  FOR EACH ROW EXECUTE FUNCTION trig_part_fn();
+CREATE TRIGGER inh_c_before BEFORE UPDATE ON inh_c
+  FOR EACH ROW EXECUTE FUNCTION trig_fn();

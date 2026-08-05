@@ -126,6 +126,18 @@ export interface TableInfo {
   /** Storage parameters from `reloptions`, parsed into a map (e.g. fillfactor). */
   storageParams: Record<string, string>;
   writeRewrites: WriteRewriteInfo;
+  /**
+   * The relation-SET answer for the hooks, like `notNullTree` is for the
+   * flags: `beforeRow` is the union over the inheritance subtree, because
+   * the trigger that rewrites a row is the trigger of the relation the row
+   * LIVES in — an INSERT through a partitioned parent fires the PARTITION's
+   * BEFORE ROW trigger, and an UPDATE through an inheritance parent fires
+   * the CHILD's for child rows (both measured). `insteadOf` and
+   * `insteadRules` stay the relation's own: rules attach to the named RTE
+   * and do not fire through a parent (measured), and INSTEAD OF triggers
+   * live on views, which have no descendants.
+   */
+  writeRewritesTree: WriteRewriteInfo;
 }
 
 // ---------------------------------------------------------------------------

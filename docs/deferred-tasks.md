@@ -199,6 +199,36 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the post-phase probe (2026-08-05) — an unsoundness the fix
+phase itself left, found by composing finding 2's mechanism with finding
+3's and convicted by two probes before any code moved: the write-rewrite
+hooks were read from the NAMED relation while the trigger that rewrites a
+row is the trigger of the relation the row LIVES in. Tuple routing fires
+the PARTITION's BEFORE ROW trigger for an INSERT through the parent
+(measured — the routed row came back with its written value nulled), and
+an UPDATE through an inheritance parent fires the CHILD's trigger for
+child rows (measured likewise), so the written-value map and SET-mask
+voids never fired for either. The snapshot now computes
+`writeRewritesTree` — `beforeRow` unioned over the inheritance subtree,
+the hook analogue of `notNullTree`, diff-comparable on the parent for the
+same reason; the trigger capture drops its namespace filter so a temp
+child's trigger still reaches the union — while rules stay per named
+relation (they attach to the named RTE and do not fire through a parent —
+measured) and INSTEAD OF stays view-only. The walk honours the same
+`RangeVar.inh` bit the flags do: plain references take the tree, `ONLY`
+takes the relation's own hooks; the param contract's mechanism-B gate
+takes the tree unconditionally (a partition trigger measured rescuing a
+NULL binding routed through the parent — conservative for ONLY targets,
+where the cost is a dropped claim, never a wrong one). Pinned three ways:
+`trigger-partition-routed.sql` (the routed INSERT, written map void, the
+rescued NULL binding exercised), `trigger-inherit-child-row.sql` (the
+child-row UPDATE, witnessed by every child row), and
+`trigger-inherit-only-control.sql`, whose written-literal notNull on an
+everywhere-unconstrained column discriminates the hook resolution
+itself. Found the day the fix phase closed — the concrete argument for
+the second sweep the register now schedules
+(`docs/adversarial-sweep-2.md`).
+
 Closed by the adversarial fix phase (2026-08-05), findings 5, 6 and 7 /
 RC-1 — the widest-radius fix, deliberately landed LAST so its flips fell
 on a codebase whose other claims were already correct: three sites

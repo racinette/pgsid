@@ -83,6 +83,7 @@ function tableState(t: TableInfo): {
   storageParams: Record<string, string>;
   constraints: ConstraintInfo[];
   writeRewrites: TableInfo["writeRewrites"];
+  writeRewritesTree: TableInfo["writeRewritesTree"];
 } {
   return {
     schema: t.schema,
@@ -91,8 +92,12 @@ function tableState(t: TableInfo): {
     constraints: t.constraints,
     // Creating or dropping a BEFORE ROW / INSTEAD OF trigger or a DO
     // INSTEAD rule changes what RETURNING reports, hence what may be
-    // inferred — a comparable property like `validated`.
+    // inferred — a comparable property like `validated`. The tree union is
+    // comparable on the PARENT for the same reason notNullTree is: a
+    // trigger appearing on a child changes what a write through the parent
+    // may claim.
     writeRewrites: t.writeRewrites,
+    writeRewritesTree: t.writeRewritesTree,
   };
 }
 

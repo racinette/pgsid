@@ -135,7 +135,13 @@ function columnRejection(
   const typeOid = c.catalog.resolveColumnTypeOid(schema, table, column);
   if (typeOid !== null && c.catalog.isNotNullDomain(typeOid)) return "domain";
   if (c.catalog.resolveColumnNotNull(schema, table, column)) {
-    const wr = c.catalog.resolveWriteRewrites(schema, table);
+    // The TREE hooks: a partition's or child's BEFORE ROW trigger rewrites
+    // rows written through the parent (measured — a partition trigger
+    // rescued a NULL binding routed through the parent), so the gate must
+    // see the whole subtree. Conservative for an ONLY target, whose child
+    // triggers cannot fire — the cost is a dropped claim there, never a
+    // wrong one.
+    const wr = c.catalog.resolveWriteRewritesTree(schema, table);
     if (wr.beforeRow.has(command) || wr.insteadOf.has(command) || wr.insteadRules.has(command)) {
       return null;
     }
