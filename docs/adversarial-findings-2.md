@@ -37,6 +37,27 @@ full suite is green as of this writing.
 
 Nothing was fixed. Section 3 proposes fixes with blast radius and an order.
 
+**Status: the fix phase ran (2026-08-05) and closed all thirteen
+findings**, one commit per fix in section 3's recommended order — with one
+deviation from the sketches: fix 5 kept PRECISION (the recorder resolves
+ordinals against the expanded list via `groupingOrdinalPositions`) rather
+than taking the refuse-flag alternative, and fix 10's mechanism-B tree
+switch and unreferenced-CTE gate landed together as one commit. The
+quarantine directory is retired: every fixture graduated into
+`tests/unit/query/fixtures/` with corrected claims and witnesses (the
+MERGE-source fixture's qty gained the row-implied promotion the old shape
+had landed on `id`), the DDL folded into the fixture schema, the
+search-path halves pinned in `search-path.test.ts` (they need a second
+catalog the fixture harness cannot build), and the composite-star refusal
+re-pinned in `unsupported-nodes.test.ts` on the shapes that remain
+unresolvable (unknown cast targets, subquery composite columns — the ROW
+constructor now expands). Fix 9(b) — where the search path comes from — is
+recorded for the consumer design, and finding 9's wide reachability
+question sits beside the claim semantics in
+`docs/argument-nullability.md`, deliberately open. The closure entries are
+in `docs/deferred-tasks.md` section 2. This document remains the sweep's
+report, unmodified below this line.
+
 ---
 
 ## 1. Findings

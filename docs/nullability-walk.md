@@ -382,9 +382,19 @@ Exclusions: `convalidated=false` covers NOT VALID and PG18 NOT ENFORCED both
 (`check-not-valid.sql`, `check-not-enforced.sql`); PG18's `contype='n'`
 NOT NULL constraint rows — which the snapshot's type mapping folds into
 "check" — are dropped by the PARSED node type in the adapter; domain CHECKs
-are a different mechanism (NOT NULL domains, already consumed); inheritance
-and partitions need nothing special, because children carry their own
-`pg_constraint` rows.
+are a different mechanism (NOT NULL domains, already consumed). Inheritance
+needs exactly ONE special case: children carry their own `pg_constraint`
+rows for every inheritable CHECK and cannot drop or invalidate them (both
+measured), but a `CHECK … NO INHERIT` is never copied at all (adversarial-2
+finding 2 — the one CHECK divergence route PostgreSQL permits; partitioned
+parents refuse the construct). The adapter therefore exposes two lists:
+`resolveCheckConstraints` (the relation's own rows — a `FROM ONLY` scan may
+read NO INHERIT constraints) and `resolveCheckConstraintsTree` (NO INHERIT
+constraints dropped once descendants exist), consumed through the same
+`scanInh` split as the attnotnull flags; origin entailment takes the tree
+list unconditionally, as origins carry no ONLY bit
+(`check-no-inherit-tree.sql`, `check-no-inherit-conditional.sql`,
+`check-no-inherit-only-control.sql`, `check-no-inherit-origin.sql`).
 
 ### Generated CTE columns (SEARCH / CYCLE)
 
