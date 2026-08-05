@@ -142,6 +142,20 @@ export interface NullabilityCatalog {
   resolveFunctionReturnTypes(schema: string | undefined, name: string): string[];
 
   /**
+   * The FROM-position shape of a pg_catalog function with named output
+   * columns, as `TABLE(col type, …)`, or null. Consulted only where the
+   * user catalog has no candidate for the name — a user function of the
+   * same name wins, as with every builtin table.
+   *
+   * The walk's fallback for an unknown function in FROM is ONE column named
+   * after the function, which is correct for `generate_series` and wrong
+   * for every builtin with named output columns: `json_each` has `key` and
+   * `value`, and `jsonb_array_elements` has one column named `value` — the
+   * guess's own arity with a different name.
+   */
+  resolveBuiltinFunctionShape(schema: string | undefined, name: string): string | null;
+
+  /**
    * Intrinsic column nullability: whether `schema.table.column` has a NOT NULL
    * constraint in the catalog (pg_attribute.attnotnull). This is the column's
    * nullability *before* join structure and WHERE guarantees are considered —

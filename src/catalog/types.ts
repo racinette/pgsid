@@ -392,6 +392,25 @@ export interface CatalogSnapshot {
    * states. Consumed by the strict-expression closures.
    */
   builtinStrictFunctions: string[];
+  /**
+   * pg_catalog functions with NAMED OUTPUT COLUMNS, keyed by name and
+   * rendered as `TABLE(col type, …)` — the same shape a user function's
+   * `pg_get_function_result` yields, so the walk's existing return-type
+   * expansion consumes it unchanged.
+   *
+   * The snapshot captures no other pg_catalog function, and this one only
+   * because `pg_get_function_result` cannot answer for them: a builtin
+   * declared with OUT parameters renders as `SETOF record` (measured), so
+   * the shape has to be reassembled from proargnames/proallargtypes. What
+   * it buys is the FROM-clause column list — `json_each` has `key` and
+   * `value` where the walk's unknown-function guess contributed one column
+   * named `json_each`.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`: a
+   * property of the PostgreSQL version, never changed by a migration, and
+   * deliberately absent from the diff's comparable states.
+   */
+  builtinTableFunctions: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------

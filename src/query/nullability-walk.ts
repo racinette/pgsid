@@ -3313,8 +3313,18 @@ class NullabilityEngine {
             `overloaded function ${name} whose candidates return different shapes`,
           );
         }
-        // Unknown to the catalog (a pg_catalog SRF like generate_series): a
-        // single column, conservatively nullable.
+        // Unknown to the USER catalog — a pg_catalog function. Those with
+        // named output columns are captured by the snapshot (their
+        // `pg_get_function_result` says only `SETOF record`), so the shape
+        // is known after all: json_each contributes `key` and `value`, not
+        // one column called `json_each`. Everything else — generate_series
+        // and the other scalar SRFs — keeps the single conservatively
+        // nullable column, which is what PostgreSQL emits for them.
+        const builtinShape = this.catalog.resolveBuiltinFunctionShape(this.funcSchema(fc), name);
+        if (builtinShape) {
+          cols.push(...this.columnsForReturnType(builtinShape, scalarName));
+          continue;
+        }
         cols.push({ name: scalarName, notNull: false });
         continue;
       }

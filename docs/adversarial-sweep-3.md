@@ -114,12 +114,18 @@ the engine's rule for an unknown symbol is nullable wherever it feeds a
 FLAG (unknown scalar function, unknown column either spelling, unknown cast
 target — all measured) and REFUSAL wherever it feeds a SHAPE (unknown
 relation, unknown schema, composite star over an unresolvable expression),
-because a column list has no conservative value. The one site that breaks
-that rule is an unknown FUNCTION in FROM, which guesses a single column
-named after the function rather than refusing — the concession that keeps
-uncaptured `pg_catalog` SRFs working, and the fall-through finding B rode
-in on. Section B's territory; a shape that reaches it with a
-composite-returning function is a finding.
+because a column list has no conservative value. The one site that broke
+that rule — an unknown FUNCTION in FROM guessing a single column named
+after the function — was probed and CLOSED the same session: it was a live
+wrong shape for every builtin with named output columns (`json_each` →
+`key, value`; `jsonb_array_elements` → one column named `value`, the
+guess's own arity with the wrong name), and the snapshot now captures
+those shapes from proargnames as `builtinTableFunctions`. What remains
+there is the residual guess for builtins WITHOUT named output columns and
+for genuinely unknown names, which is what PostgreSQL emits for the scalar
+SRFs — find a shape where that residual is still wrong (a composite
+element type? an extension's SRF the capture misses? a builtin whose
+overloads disagree on shape and is therefore excluded by design?).
 
 What is left for you here is the REST of the section, which nobody has
 touched: operators (`resolveOperatorMetadata` collects by name across ALL
