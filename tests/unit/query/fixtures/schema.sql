@@ -840,3 +840,11 @@ CREATE FUNCTION one_sku() RETURNS SETOF non_empty_text LANGUAGE sql AS $$
 -- fields sku and qty — while the alias reading would expand id and p at
 -- the same arity. The ordered-name gate territory, pinned in fixtures.
 CREATE TABLE cc (id integer NOT NULL, p sku_pair);
+
+-- The mechanism-B inheritance hole, param face (adversarial-2 finding 8):
+-- the NOT NULL lives on the parent ONLY, so a child-stored row accepts the
+-- NULL binding the parent's own flag would reject. The generators keep the
+-- two id ranges disjoint so a fixture can pin the child-only reading.
+CREATE TABLE pnn_p (id integer NOT NULL, a text);
+CREATE TABLE pnn_c () INHERITS (pnn_p);
+ALTER TABLE ONLY pnn_p ALTER COLUMN a SET NOT NULL;

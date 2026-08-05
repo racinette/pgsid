@@ -131,6 +131,26 @@ its unwitnessability recorded explicitly.
 Both directions of the contract are therefore executable against PostgreSQL —
 a stronger oracle than the output side has ever had.
 
+**The existential claim has no reachability qualifier — an open question.**
+"There is an execution in which NULL raises" quietly assumes the rejecting
+site RUNS in some execution. A provably-dead subtree breaks that for every
+execution-time mechanism, not just one: PostgreSQL never executes a
+non-data-modifying CTE nobody references (adversarial-2 finding 9, measured
+— the frame-offset site inside one accepted the NULL binding its referenced
+control raises on), and a `WHERE false` conjunct or a never-taken CASE arm
+would kill a site the same way. The collector performs no reachability
+analysis; the NARROW fix it carries is exactly the measured shape — an
+unreferenced SELECT CTE contributes parameter numbers but no rejection
+sites (`visitStatementWithCtes`), name-level and transitively closed, with
+over-approximation erring toward the old behaviour. The general question —
+whether `notNull` should be read as "raises in some execution that
+evaluates the site", or the collector should learn dead-subtree pruning —
+stays open here deliberately: nothing short of a constant-folding pass
+answers it, and the falsification oracle bounds the damage to claims a dead
+site sponsors. Finding 8's tree asymmetry is the same family and is CLOSED:
+mechanism B reads `resolveColumnNotNullTree` for update-command targets, so
+its claims are witnessable in every data state, not only parent-row ones.
+
 ## The algorithm
 
 **Collection happens in the walk, not a post-pass.** By the time the walk has

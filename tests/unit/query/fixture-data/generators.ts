@@ -254,6 +254,14 @@ const columnSpecificGenerators: Record<
     mv_1: { id: rand => rand.int(0, 99) },
     mv_2: { id: rand => rand.int(100, 199) },
 
+    // The mechanism-B inheritance pair: DISJOINT id ranges, so the param
+    // fixture's WHERE can address child rows alone — the state in which
+    // the NULL binding is accepted and the dropped claim is honest. The
+    // parent's a is NOT NULL by its own flag, so the framework never
+    // NULL-injects it; the child's stays nullable.
+    pnn_p: { id: rand => rand.int(1, 100) },
+    pnn_c: { id: rand => rand.int(201, 300) },
+
     // The composite-column table. `sku_pair` has no type-tier generator;
     // the text format casts on insert. A third of the non-NULL values
     // carry an empty qty — a NULL FIELD inside a non-NULL composite, which
