@@ -1,0 +1,22 @@
+-- FINDING 4 (rank 2 → 1) — `unnest` of a COMPOSITE-element array in FROM.
+-- The multi-argument-unnest special form (sweep-1 finding 12) counts one
+-- column per array ARGUMENT. When an argument's element type is a
+-- composite, PostgreSQL expands that element's FIELDS instead: the item
+-- contributes one column per field. The engine emits one column, so every
+-- flag past the divergence is misassigned — here `ordinality`'s notNull
+-- lands on PostgreSQL's `qty`, which the second element makes NULL.
+--
+-- Falsifying data: the literal array below.
+-- Observed RowDescription: ["sku", "qty", "ordinality"]; rows
+--   ['s1', 1, 1] and ['s2', NULL, 2].
+-- Engine list: ["unnest", "ordinality"].
+-- Mechanism: nullability-walk.ts, the RangeFunction/unnest arm — the
+-- per-argument rule never asks what the ELEMENT type is.
+--
+-- The same divergence was measured through a CTE re-export, a qualified
+-- star (`z.*`), inside ROWS FROM, and as a MERGE source (the last one
+-- recorded separately — it composes with the source-first order).
+SELECT *
+-- engine: unnest     -- @nullable
+--         ordinality -- @notNull   <-- lands on PostgreSQL's `qty` (NULL)
+FROM unnest(ARRAY[ROW('s1', 1)::sku_pair, ROW('s2', NULL)::sku_pair]) WITH ORDINALITY
