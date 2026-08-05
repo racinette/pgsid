@@ -248,6 +248,35 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the same probe session (2026-08-05), one turn later and
+against my own deferral: the unknown-function-in-FROM fall-through is a
+LIVE wrong shape, not the design tension it had been recorded as. The
+walk answers an unknown symbol with `nullable` wherever it feeds a FLAG
+and with a REFUSAL wherever it feeds a SHAPE — a column list has no
+conservative value — and the ONE site breaking that rule guessed a
+single column named after the function. That guess exists so uncaptured
+`pg_catalog` SRFs keep working, and it is right for `generate_series`;
+measured against PGlite it is wrong for every builtin with NAMED OUTPUT
+COLUMNS: `json_each` and `jsonb_each(_text)` emit `key, value` against
+the guess's one column, `pg_get_keywords()` five, and
+`jsonb_array_elements` emits one named `value` — the guess's own arity
+with the wrong name, the class only an ordered-name comparison catches.
+Six of ten probed builtins disagreed, in default configuration, with no
+user function involved. `pg_get_function_result` cannot fix it (a
+builtin declared with OUT parameters renders `SETOF record` — measured),
+so `queryBuiltinTableFunctions` reassembles the shape from
+proargnames/proallargtypes into `CatalogSnapshot.builtinTableFunctions`,
+keyed by name as `TABLE(col type, …)` so the existing return-type
+expansion consumes it unchanged; a name whose overloads disagree is
+excluded and keeps the guess (none does in PG18 — measured). It is
+ENVIRONMENT like `builtinStrictFunctions`: a property of the PostgreSQL
+version, absent from the diff. Consulted only where the user catalog has
+no candidate, so a user function of the same name still wins. Verified
+nine ways against PostgreSQL including the alias-rename and coldeflist
+controls, and pinned by `builtin-table-function-shape.sql` under the
+soundness suite's ordered name comparison. The scalar SRFs keep the
+single-column answer, which is what PostgreSQL emits for them.
+
 Closed by a targeted probe of the search-path fix (2026-08-05), the
 sweep-3 charter's section A, measured before the sweep ran — and it
 convicted, on four mechanisms plus a second defect nobody was looking

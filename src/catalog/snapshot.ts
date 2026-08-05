@@ -448,6 +448,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     extensionRows,
     schemaRows,
     builtinStrictFunctions,
+    builtinTableFunctions,
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
@@ -470,6 +471,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryExtensions(pg),
     querySchemas(pg),
     queryBuiltinStrictFunctions(pg),
+    queryBuiltinTableFunctions(pg),
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
@@ -849,6 +851,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     extensions,
     schemas,
     builtinStrictFunctions,
+    builtinTableFunctions,
   };
 }
 
@@ -1121,6 +1124,60 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
  * is strict. prokind = 'f' excludes aggregates and window functions, whose
  * NULL semantics are not per-row strictness.
  */
+/**
+ * pg_catalog functions that emit MORE THAN A BARE SCALAR in FROM position,
+ * as `TABLE(col type, …)` — the rendering `columnsForReturnType` already
+ * consumes.
+ *
+ * `pg_get_function_result` is useless for these: a builtin declared with OUT
+ * parameters renders as `SETOF record` (measured — json_each, jsonb_each,
+ * pg_get_keywords all do), while the column names and types live in
+ * proargnames/proallargtypes. So the shape is reassembled here from the
+ * output-mode arguments ('o' OUT, 't' TABLE, 'b' INOUT).
+ *
+ * Without it the walk falls to its unknown-function guess — ONE column named
+ * after the function — which is right for `generate_series` and wrong for
+ * every builtin with named output columns: `SELECT * FROM json_each(...)`
+ * has two (`key`, `value`), and `jsonb_array_elements` has one named
+ * `value`, the same arity as the guess and a different name.
+ *
+ * A name whose overloads disagree on the rendered shape is EXCLUDED and
+ * keeps the guess — no such name exists in PG18 (measured), but the
+ * consensus rule is what makes name-level capture sound at all.
+ *
+ * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`: it
+ * describes the PostgreSQL version, never changes with a migration, and is
+ * absent from the diff's comparable states.
+ */
+async function queryBuiltinTableFunctions(pg: PGlite): Promise<Record<string, string>> {
+  const res = await pg.query<{ name: string; shape: string }>(
+    `WITH outs AS (
+       SELECT p.oid, p.proname AS name,
+              string_agg(
+                quote_ident(a.argname) || ' ' || format_type(a.argtype, NULL),
+                ', ' ORDER BY a.ord
+              ) AS cols
+       FROM pg_proc p
+       JOIN pg_namespace n ON n.oid = p.pronamespace
+       CROSS JOIN LATERAL unnest(p.proallargtypes, p.proargmodes, p.proargnames)
+            WITH ORDINALITY AS a(argtype, argmode, argname, ord)
+       WHERE n.nspname = 'pg_catalog'
+         AND p.prokind = 'f'
+         AND a.argmode IN ('o', 't', 'b')
+         AND a.argname IS NOT NULL
+       GROUP BY p.oid, p.proname
+     )
+     SELECT name, min(cols) AS shape
+     FROM outs
+     GROUP BY name
+     HAVING count(DISTINCT cols) = 1
+     ORDER BY name;`,
+  );
+  const out: Record<string, string> = {};
+  for (const row of res.rows) out[row.name] = `TABLE(${row.shape})`;
+  return out;
+}
+
 async function queryBuiltinStrictFunctions(pg: PGlite): Promise<string[]> {
   const res = await pg.query<{ name: string }>(
     `SELECT p.proname AS name

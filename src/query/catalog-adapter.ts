@@ -533,10 +533,24 @@ export async function buildNullabilityCatalog(
   const builtinStrict = new Set(snapshot.builtinStrictFunctions ?? []);
   const isStrictBuiltin = (name: string): boolean => builtinStrict.has(name);
 
+  // The FROM-position shape of a pg_catalog function with named output
+  // columns. Consulted only where the user catalog has no candidate, so a
+  // user function of the same name still wins — the rule every builtin
+  // table follows.
+  const builtinTableFunctions = snapshot.builtinTableFunctions ?? {};
+  const resolveBuiltinFunctionShape = (
+    schema: string | undefined,
+    name: string,
+  ): string | null =>
+    schema === undefined || schema === "pg_catalog"
+      ? (builtinTableFunctions[name] ?? null)
+      : null;
+
   return {
     resolveTable,
     resolveFunctions,
     resolveFunctionReturnTypes,
+    resolveBuiltinFunctionShape,
     resolveColumnNotNull,
     resolveColumnNotNullTree,
     resolveWriteRewrites,
