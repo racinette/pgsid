@@ -276,9 +276,22 @@ export interface NullabilityCatalog {
    * NOT VALID and NOT ENFORCED constraints (convalidated=false covers both)
    * are excluded at build time; inherited/partition copies carry their own
    * pg_constraint rows per relation, so the actual relation's list is
-   * complete. Domain CHECKs are a different mechanism and are not here.
+   * complete — for the relation's OWN rows. A `CHECK … NO INHERIT` is in
+   * this list (a `FROM ONLY` scan may read it) but NOT in the tree
+   * variant's. Domain CHECKs are a different mechanism and are not here.
    */
   resolveCheckConstraints(schema: string, table: string): Node[];
+
+  /**
+   * The relation-SET reading of the same list: the validated CHECKs every
+   * row a TREE scan can return is known to satisfy. Differs from
+   * `resolveCheckConstraints` exactly when the relation has descendants and
+   * carries a `CHECK … NO INHERIT`, which is never copied to a child
+   * (measured — and the only CHECK divergence route PostgreSQL permits), so
+   * no child row ever satisfied it. Partitioned parents cannot carry one
+   * (refused), so partition trees resolve identically through both.
+   */
+  resolveCheckConstraintsTree(schema: string, table: string): Node[];
 
   /**
    * Domain metadata: whether the type identified by `typeOid` is a domain with

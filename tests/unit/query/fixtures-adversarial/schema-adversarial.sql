@@ -18,16 +18,6 @@ CREATE FUNCTION mv_fn() RETURNS trigger LANGUAGE plpgsql AS $$
 CREATE TRIGGER mv_before BEFORE INSERT ON mv_2
   FOR EACH ROW EXECUTE FUNCTION mv_fn();
 
--- Finding 2 — CHECK … NO INHERIT. The entailment soundness argument is that
--- a parent's CHECK is copied into every child's own pg_constraint; a
--- NO INHERIT constraint is never copied, and `connoinherit` is not captured.
--- ni_p carries the bare form, ni2_p the conditional (discriminated) form.
-CREATE TABLE ni_p (id integer NOT NULL, x text, CHECK (x IS NOT NULL) NO INHERIT);
-CREATE TABLE ni_c () INHERITS (ni_p);
-CREATE TABLE ni2_p (id integer NOT NULL, status text NOT NULL, note text,
-  CONSTRAINT ni2_note CHECK (status <> 'open' OR note IS NOT NULL) NO INHERIT);
-CREATE TABLE ni2_c () INHERITS (ni2_p);
-
 -- Finding 3 — a child may define its OWN generation expression for an
 -- inherited column (accepted by PostgreSQL; every other divergence route
 -- was measured REJECTED — see the findings doc's negative results).

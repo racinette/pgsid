@@ -165,8 +165,10 @@ export async function buildNullabilityCatalog(
   //     mapConstraintType folds into "check" (definition "NOT NULL col"):
   //     filtered by the PARSED node type, which is CONSTR_NOTNULL for them.
   const checkExprAsts = new Map<string, Node[]>();
+  const checkExprTreeAsts = new Map<string, Node[]>();
   for (const t of snapshot.tables) {
     const exprs: Node[] = [];
+    const treeExprs: Node[] = [];
     for (const con of t.constraints) {
       if (con.type !== "check" || con.validated !== true) continue;
       try {
@@ -181,15 +183,26 @@ export async function buildNullabilityCatalog(
           | undefined)?.Constraint;
         if (constraint?.contype === "CONSTR_CHECK" && constraint.raw_expr) {
           exprs.push(constraint.raw_expr);
+          // The tree reading: a NO INHERIT constraint is never copied to a
+          // child (measured), so once the relation HAS descendants no tree
+          // scan may read it — no child row ever satisfied it. Childless
+          // relations keep the full list; so do partitioned parents, where
+          // PostgreSQL refuses the construct outright.
+          if (!(con.noInherit && t.hasDescendants)) {
+            treeExprs.push(constraint.raw_expr);
+          }
         }
       } catch {
         // Unparseable definition → the constraint contributes no facts.
       }
     }
     if (exprs.length > 0) checkExprAsts.set(`${t.schema}.${t.name}`, exprs);
+    if (treeExprs.length > 0) checkExprTreeAsts.set(`${t.schema}.${t.name}`, treeExprs);
   }
   const resolveCheckConstraints = (schema: string, table: string): Node[] =>
     checkExprAsts.get(`${schema}.${table}`) ?? [];
+  const resolveCheckConstraintsTree = (schema: string, table: string): Node[] =>
+    checkExprTreeAsts.get(`${schema}.${table}`) ?? [];
 
   // Pre-parse view definitions. `pg_views.definition` is the rewritten SELECT
   // without a trailing semicolon in some versions — parseSql handles both.
@@ -473,6 +486,7 @@ export async function buildNullabilityCatalog(
     resolveOperatorMetadata,
     resolveGenerationExpr,
     resolveCheckConstraints,
+    resolveCheckConstraintsTree,
     isStrictBuiltin,
     isNotNullDomain,
     isNotNullDomainByName,

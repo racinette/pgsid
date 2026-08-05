@@ -4287,10 +4287,15 @@ class NullabilityEngine {
         // the OLD row (core free, guards masked, goal restricted to
         // non-SET columns, whose OLD value IS the returned one).
         // See src/query/check-entailment.ts.
-        const checkExprs = this.catalog.resolveCheckConstraints(
-          entry.table.schema,
-          entry.table.name,
-        );
+        // Which CHECK list depends on what the scan can return, exactly
+        // like entryColumnNotNull's flag choice: a tree scan can return
+        // child rows, which never satisfied a NO INHERIT constraint, so it
+        // reads the tree list; only `FROM ONLY` (scanInh === false) stays
+        // in the named relation and may read the full one.
+        const checkExprs =
+          entry.scanInh === false
+            ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
+            : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name);
         // Generated columns contribute EQUALITY facts (col = expr per stored
         // row, OLD and NEW alike) — the kernel's arm exclusion turns a
         // discriminator filter over a generated CASE back into its selected
@@ -4490,7 +4495,14 @@ class NullabilityEngine {
     scope: Scope,
     trace: ITrace,
   ): boolean {
-    const checkExprs = this.catalog.resolveCheckConstraints(goalOrigin.schema, goalOrigin.table);
+    // Origins carry no ONLY bit (see the notNullTree comment below), so the
+    // tree list is the sound reading: a NO INHERIT constraint is dropped
+    // whenever the origin relation has descendants, since the origin row may
+    // be a child's.
+    const checkExprs = this.catalog.resolveCheckConstraintsTree(
+      goalOrigin.schema,
+      goalOrigin.table,
+    );
     const originTable = this.catalog.resolveTable(goalOrigin.schema, goalOrigin.table);
     const generatedEqualities: { column: string; expr: Node }[] = [];
     for (const col of originTable?.columns ?? []) {
