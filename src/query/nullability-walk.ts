@@ -658,6 +658,69 @@ class NullabilityEngine {
   }
 
   /**
+   * Which raw target entries are subject to SRF lockstep padding — shared
+   * by the traced and untraced assemblies, like originModeOf. TWO OR MORE
+   * set-returning calls in one target list expand to the LCM of their row
+   * counts and the SHORT one is NULL-padded AFTER it returned
+   * (adversarial-2 finding 7, measured: a SETOF <NOT NULL domain> came
+   * back NULL through the padding, while a scalar call in the same
+   * position repeats). The padding is manufactured by the projection, so
+   * no per-call reasoning survives it: every SRF-carrying entry drops to
+   * nullable. Null when fewer than two SRFs — a single SRF has nothing to
+   * pad against and keeps its precision.
+   */
+  private srfPaddedTargets(targetList: Node[]): boolean[] | null {
+    const counts = targetList.map(t => {
+      const val = this.unwrapResTarget(t).val;
+      return val ? this.countSetReturningCalls(val) : 0;
+    });
+    const total = counts.reduce((a, b) => a + b, 0);
+    return total >= 2 ? counts.map(c => c > 0) : null;
+  }
+
+  /**
+   * Set-returning FuncCalls under `node`, SubLink subtrees excluded — an
+   * SRF inside a subquery expands in that query's own projection and takes
+   * no part in this list's lockstep.
+   */
+  private countSetReturningCalls(node: Node): number {
+    const rec = node as Record<string, unknown>;
+    if ("SubLink" in rec) return 0;
+    let count = 0;
+    if ("FuncCall" in rec) {
+      const fc = rec["FuncCall"] as FuncCall;
+      if (!fc.over && this.isSetReturningCall(fc)) count++;
+    }
+    for (const value of Object.values(rec)) {
+      if (Array.isArray(value)) {
+        for (const v of value) {
+          if (v && typeof v === "object") count += this.countSetReturningCalls(v as Node);
+        }
+      } else if (value && typeof value === "object") {
+        count += this.countSetReturningCalls(value as Node);
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Whether a call returns a set: catalog metadata's rendered return type
+   * (`SETOF …` / `TABLE(…)`) when the name resolves, the curated builtin
+   * SRF table otherwise. Best-effort by construction — an unlisted builtin
+   * SRF is not seen, the same bounded coverage the other builtin tables
+   * accept.
+   */
+  private isSetReturningCall(fc: FuncCall): boolean {
+    const name = this.funcName(fc);
+    const schema = this.funcSchema(fc);
+    const meta = this.catalog.resolveFunctionMetadata(schema, name);
+    if (meta) {
+      return meta.returnType.startsWith("SETOF ") || meta.returnType.startsWith("TABLE(");
+    }
+    return (schema === undefined || schema === "pg_catalog") && BUILTIN_SRF_NAMES.has(name);
+  }
+
+  /**
    * Fold the root assembly's per-output producers into presence groups.
    *
    * A producer is the (entry, column) a bare target resolves to — bareness
@@ -964,12 +1027,23 @@ class NullabilityEngine {
         const originMode = this.originModeOf(sel);
         const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
         const results: OutputNullabilityTraced[] = [];
-        for (const target of sel.targetList ?? []) {
+        const tracedTargets = sel.targetList ?? [];
+        const srfPadded = this.srfPaddedTargets(tracedTargets);
+        for (const [targetIndex, target] of tracedTargets.entries()) {
           const rt = this.unwrapResTarget(target);
           const val = rt.val;
           const name = rt.name;
           if (!val) {
             results.push({ name: name ?? "", notNull: false });
+            producers.push(null);
+            continue;
+          }
+          // Mirrors the untraced assembly — see srfPaddedTargets.
+          if (srfPadded?.[targetIndex]) {
+            const trace = this.newTrace("Root");
+            trace.addFact("srfPadding", "two or more set-returning calls in this target list");
+            trace.conclude(false, "lockstep SRF expansion NULL-pads the shorter call after it returned → nullable");
+            results.push({ name: name ?? this.inferName(val), notNull: false, trace: trace.node });
             producers.push(null);
             continue;
           }
@@ -1163,13 +1237,22 @@ class NullabilityEngine {
     const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
     const results: OutputNullability[] = [];
     const targetList = stmt.targetList ?? [];
-    for (const target of targetList) {
+    const srfPadded = this.srfPaddedTargets(targetList);
+    for (const [targetIndex, target] of targetList.entries()) {
       const rt = this.unwrapResTarget(target);
       const val = rt.val;
       const name = rt.name;
 
       if (!val) {
         results.push({ name: name ?? "", notNull: false });
+        producers.push(null);
+        continue;
+      }
+
+      // Lockstep SRF padding voids per-call reasoning — see
+      // srfPaddedTargets. No origins either: a padding row is nobody's.
+      if (srfPadded?.[targetIndex]) {
+        results.push({ name: name ?? this.inferName(val), notNull: false });
         producers.push(null);
         continue;
       }
@@ -3032,7 +3115,10 @@ class NullabilityEngine {
    * `SELECT * FROM f()` expands to nothing and the statement's output shape is
    * simply wrong.
    */
-  private resolveTableFunctionColumns(entry: RelationEntry): { name: string; notNull: boolean }[] {
+  private resolveTableFunctionColumns(
+    entry: RelationEntry,
+    scope: Scope | null,
+  ): { name: string; notNull: boolean }[] {
     // Precomputed for FROM items that spell out their own COLUMNS list, and
     // memoized for everything else.
     if (entry.functionColumns) return entry.functionColumns;
@@ -3074,15 +3160,25 @@ class NullabilityEngine {
       const scalarName = single && entry.alias ? entry.alias : name;
       const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
       if (!meta) {
-        // Multi-argument `unnest` is a special form: it expands to one
-        // column PER ARRAY ARGUMENT, zip-style with NULL padding, keeping
-        // the function's name rather than taking a scalar alias — measured,
-        // and measured the same as a ROWS FROM item. Every column is
-        // nullable: the zip pads the short arrays, and elements carry no
-        // constraints. A user-defined unnest arrives with metadata and
-        // takes the declared-return-type path below instead.
-        if (name === "unnest" && (fc.args?.length ?? 0) > 1) {
-          for (const _ of fc.args!) cols.push({ name: "unnest", notNull: false });
+        // `unnest` is a special form twice over. Per ARGUMENT (sweep-1
+        // finding 12): one column each, zip-style with NULL padding, named
+        // "unnest" in the multi-argument spelling. Per ELEMENT
+        // (adversarial-2 finding 4): an argument whose element type is a
+        // COMPOSITE expands to the element's FIELDS instead — one column
+        // per field, named by the field, all nullable (measured through
+        // five spellings, ROWS FROM and MERGE-source included). A
+        // user-defined unnest arrives with metadata and takes the
+        // declared-return-type path below instead.
+        if (name === "unnest" && (fc.args?.length ?? 0) >= 1) {
+          const multi = fc.args!.length > 1;
+          for (const arg of fc.args!) {
+            const fields = this.unnestCompositeElementFields(arg, scope);
+            if (fields) {
+              for (const f of fields) cols.push({ name: f, notNull: false });
+            } else {
+              cols.push({ name: multi ? "unnest" : scalarName, notNull: false });
+            }
+          }
           continue;
         }
         // Unknown function (e.g. a pg_catalog SRF like generate_series): a
@@ -3103,6 +3199,102 @@ class NullabilityEngine {
 
     entry.functionColumns = named;
     return named;
+  }
+
+  /**
+   * The field names of an `unnest` argument's COMPOSITE element type, or
+   * null when the element is a scalar or undeterminable (one column — the
+   * per-argument rule). The element type is read from the shapes that carry
+   * it statically: a cast with array bounds (`expr::sku_pair[]`), an
+   * ARRAY[] constructor whose elements are casts
+   * (`ARRAY[ROW(…)::sku_pair, …]`), and a column reference whose catalog
+   * type renders as `T[]`. REFUSES when the element is provably composite —
+   * a ROW constructor's cast target can be nothing else — but the type is
+   * not in the snapshot: one column there is a wrong SHAPE, and the
+   * dispatch-site rule for FROM items is refusal. An unresolvable name on
+   * a non-ROW shape reads as a scalar's: user composites are captured, so
+   * the residual is the general capture boundary, not this site's.
+   */
+  private unnestCompositeElementFields(arg: Node, scope: Scope | null): string[] | null {
+    const rec = arg as Record<string, unknown>;
+    let typeParts: string[] | null = null;
+    let provablyComposite = false;
+
+    const partsOf = (tn: { names?: Node[] } | undefined): string[] | null => {
+      const parts = (tn?.names ?? [])
+        .map(n => this.stringVal(n))
+        .filter((p): p is string => !!p && p !== "pg_catalog");
+      return parts.length ? parts : null;
+    };
+    const isRow = (n: Node | undefined): boolean =>
+      !!n && "RowExpr" in (n as Record<string, unknown>);
+
+    if ("TypeCast" in rec) {
+      const tc = rec["TypeCast"] as {
+        arg?: Node;
+        typeName?: { names?: Node[]; arrayBounds?: unknown[] };
+      };
+      if (tc.typeName?.arrayBounds?.length) {
+        typeParts = partsOf(tc.typeName);
+        const inner = tc.arg as Record<string, unknown> | undefined;
+        if (inner && "A_ArrayExpr" in inner) {
+          provablyComposite = ((inner["A_ArrayExpr"] as { elements?: Node[] }).elements ?? [])
+            .some(e => isRow(e));
+        }
+      }
+    } else if ("A_ArrayExpr" in rec) {
+      for (const e of (rec["A_ArrayExpr"] as { elements?: Node[] }).elements ?? []) {
+        const er = e as Record<string, unknown>;
+        if (!("TypeCast" in er)) continue;
+        const tc = er["TypeCast"] as {
+          arg?: Node;
+          typeName?: { names?: Node[]; arrayBounds?: unknown[] };
+        };
+        if (tc.typeName?.arrayBounds?.length) continue; // an array element cast to an array — not this shape
+        const parts = partsOf(tc.typeName);
+        if (parts) {
+          typeParts = parts;
+          provablyComposite = isRow(tc.arg);
+          break;
+        }
+      }
+    } else if ("ColumnRef" in rec && scope) {
+      const parts = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
+      let owner: RelationEntry | undefined;
+      let colName: string | undefined;
+      if (parts.length >= 2) {
+        owner = this.resolveAlias(parts[parts.length - 2]!, scope) ?? undefined;
+        colName = parts[parts.length - 1];
+      } else if (parts.length === 1) {
+        colName = parts[0];
+        for (const v of scope.visible) {
+          if (v.name === colName && v.entry) {
+            owner = v.entry;
+            break;
+          }
+        }
+      }
+      const rendered =
+        owner?.table && colName
+          ? this.catalog.resolveColumnTypeName(owner.table.schema, owner.table.name, colName)
+          : null;
+      if (rendered?.endsWith("[]")) {
+        typeParts = rendered.replace(/(\[\])+$/, "").split(".");
+      }
+    }
+
+    if (!typeParts?.length) return null;
+    const typeName = typeParts[typeParts.length - 1]!;
+    const typeSchema = typeParts.length >= 2 ? typeParts[typeParts.length - 2] : undefined;
+    const ct = this.catalog.resolveCompositeType(typeSchema, typeName);
+    if (ct) return ct.fields.map(f => f.name);
+    if (provablyComposite) {
+      throw new UnsupportedNodeError(
+        "from-item",
+        `unnest of a composite-element array with unresolvable element type ${typeName}`,
+      );
+    }
+    return null;
   }
 
   /**
@@ -3205,7 +3397,7 @@ class NullabilityEngine {
     depth: number,
   ): { name: string; notNull: boolean }[] {
     if (entry.kind === "function") {
-      return this.resolveTableFunctionColumns(entry);
+      return this.resolveTableFunctionColumns(entry, scope);
     }
     if (entry.kind === "subquery" || entry.kind === "cte") {
       return this.innerRelationColumns(entry, scope, depth);
@@ -4169,7 +4361,7 @@ class NullabilityEngine {
 
     // Table functions: the resolved return-type columns.
     if (entry.kind === "function") {
-      const col = this.resolveTableFunctionColumns(entry).find(c => c.name === colName);
+      const col = this.resolveTableFunctionColumns(entry, scope).find(c => c.name === colName);
       if (!col) {
         trace.conclude(false, `column '${colName}' not found in the function's return type`);
         return false;
@@ -6564,6 +6756,23 @@ const ALWAYS_NOT_NULL_BUILTINS = new Set([
   // JSON constructors always produce a container, even from NULL members.
   "jsonb_build_object", "json_build_object",
   "jsonb_build_array", "json_build_array",
+]);
+
+/**
+ * Common pg_catalog set-returning functions, for the target-list padding
+ * rule (adversarial-2 finding 7) — the builtins arrive with no catalog
+ * metadata, so set-returningness is name-level like everything else about
+ * them. Coverage is bounded the same way the nullability tables' is.
+ */
+const BUILTIN_SRF_NAMES = new Set([
+  "generate_series", "generate_subscripts", "unnest",
+  "regexp_matches", "regexp_split_to_table", "string_to_table",
+  "json_array_elements", "json_array_elements_text",
+  "jsonb_array_elements", "jsonb_array_elements_text",
+  "json_each", "json_each_text", "jsonb_each", "jsonb_each_text",
+  "json_object_keys", "jsonb_object_keys", "jsonb_path_query",
+  "json_populate_recordset", "jsonb_populate_recordset",
+  "json_to_recordset", "jsonb_to_recordset",
 ]);
 
 /**

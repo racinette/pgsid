@@ -827,3 +827,9 @@ CREATE TABLE gen_c (d integer GENERATED ALWAYS AS (nullif(a, a)) STORED) INHERIT
 -- NULL and no CHECKs, so a grouping-set NULL is attributable to the
 -- super-aggregate row alone, and a rejection-site claim to the site alone.
 CREATE TABLE gs (a integer NOT NULL, b text NOT NULL, c text NOT NULL);
+
+-- A SETOF function over a NOT NULL domain (adversarial-2 finding 7): its
+-- per-call notNull claim is entirely correct, and the target-list padding
+-- rule is what keeps that claim from surviving beside a longer SRF.
+CREATE FUNCTION one_sku() RETURNS SETOF non_empty_text LANGUAGE sql AS $$
+  SELECT 'only'::non_empty_text $$;
