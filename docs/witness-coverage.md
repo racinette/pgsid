@@ -287,22 +287,34 @@ group.
 
 ## Current measurement
 
-Across 311 fixtures and 5 data states, at the default seed (post the
-SECOND adversarial fix phase, whose graduated pins — row movement, NO
-INHERIT, generation divergence, the SRF shapes, the composite-star value
-arms, the param-side conservatisms — account for the growth over the
-first phase's 288):
+Across 335 fixtures and 5 data states, at the default seed (post the
+THIRD adversarial fix phase, whose graduated pins — the qualified star in
+four placements, the composite-domain sites, the `unnest` spellings, the
+two SRF padding shapes, the quoted `TABLE(…)` names, the pg_catalog
+precedence, the bind-time claim inside an unreferenced CTE — account for
+the growth over the second phase's 311, itself grown from the first's 288):
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 813 | |
-| — falsifiable | 803 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 834 | |
+| — falsifiable | 824 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 477 | |
-| — witnessed | 391 (82%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 86 | every one carries an `@unwitnessable` annotation |
+| `nullable` claims | 541 | |
+| — witnessed | 438 (81%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 103 | every one carries an `@unwitnessable` annotation |
 | `@null-group` claims | 42 (36 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
+
+The new unwitnessed entries are one shape repeated: unnesting a NULL array
+produces NO rows, so the array column a fixture unnests can never be
+observed NULL through that join. `pair_holder`'s three array columns
+rotate their NULLs by row index for exactly this reason — whichever column
+a fixture unnests, the surviving rows still carry a NULL in the other two —
+and `trow_holder` is the same shape one type-kind over. `cc.p` takes its
+three composite shapes (whole, empty qty, empty sku) by row index for the
+same reason: a NULL FIELD inside a PRESENT composite is the only witness a
+field claim has, a whole-column NULL is not a substitute, and at these row
+counts a probability left it to luck.
 
 The generated corpus carries the same group oracle annotation-free: 1490
 engine-claimed groups over ~9k queries (post-widening — refilter wrappers,

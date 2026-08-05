@@ -1,0 +1,13 @@
+-- `RETURNS TABLE(r <composite>)` with ONE output column. A single output
+-- column IS the function's row type — PostgreSQL sets prorettype to the
+-- composite and emits its FIELDS — so the rendering `TABLE(r sku_pair)`
+-- reads as one column named `r` and is wrong by both name and arity. The
+-- single-output case therefore expands the type rather than standing on its
+-- own; two or more output columns are the list directly
+-- (function-out-parameter-shape.sql).
+SELECT * FROM one_row_composite()
+-- @nullable   (sku)
+-- @nullable   (qty)
+-- @unwitnessable 0: the body's sku is a non-null literal; the nullable is
+--   the row-type rule (a composite's fields carry no NOT NULL), witnessed
+--   with real NULLs in unnest-composite-shape.sql

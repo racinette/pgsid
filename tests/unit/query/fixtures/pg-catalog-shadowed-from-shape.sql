@@ -1,0 +1,14 @@
+-- The SHAPE half of adversarial-3 finding 6, from the side that proves the
+-- user function is real. `public.json_each(json)` returns SETOF sku_pair,
+-- and NAMED with its schema it is what runs — two columns, sku and qty.
+-- Unqualified, PostgreSQL runs pg_catalog's and emits key and value, which
+-- builtin-table-function-shape.sql pins; the pair is the precedence, and
+-- the arity is the same on both sides, so only the ordered NAME comparison
+-- against PostgreSQL's RowDescription can tell them apart.
+SELECT * FROM public.json_each('{"k":"v"}'::json)
+-- @nullable   (sku)
+-- @nullable   (qty)
+-- @unwitnessable 0: the function's body is a literal ROW('a', 1); the
+--   nullable is the SETOF-composite rule (a composite's fields carry no
+--   NOT NULL from the row type), pinned with NULLs in unnest-composite-shape.sql
+-- @unwitnessable 1: same literal body

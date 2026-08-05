@@ -1,0 +1,27 @@
+-- The amplified shape of adversarial-3 finding 3: a composite-element
+-- `unnest` whose spelling the enumerated list did not carry, with a
+-- relation AFTER it so the misalignment is visible in the claims and not
+-- only in the count. `dpairs` is `sku_pair_arr`, a DOMAIN over
+-- `sku_pair[]`, so the column type renders as its own name and the `T[]`
+-- test failed; the item then contributed ONE column named `unnest`, every
+-- position past it shifted by one, and the engine's notNull at what it
+-- called `u.id` landed on PostgreSQL's `qty` — which the seeded element
+-- makes NULL. A wrong shape is not a wrong flag with an asterisk: it is
+-- every later flag on the wrong column.
+-- The element type now comes from the catalog wherever the catalog can
+-- answer — a domain is followed to its base — and from a refusal where it
+-- cannot (unsupported-nodes.test.ts pins those).
+SELECT * FROM pair_holder h, unnest(h.dpairs), u
+-- @notNull    (h.id)
+-- @nullable   (pairs)
+-- @nullable   (dpairs)
+-- @nullable   (dompairs)
+-- @nullable   (sku)
+-- @nullable   (qty)
+-- @notNull    (u.id)
+-- @notNull    (t_id)
+-- @notNull    (email)
+-- @nullable   (u.val)
+-- @nullable   (status)
+-- @unwitnessable 2: unnesting a NULL array produces no rows, so the column
+--   being unnested is never observed NULL through this join.

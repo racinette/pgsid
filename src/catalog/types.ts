@@ -245,6 +245,14 @@ export interface FunctionInfo {
   /** Return type from `pg_get_function_result`. */
   returnType: string;
   returnTypeOid: number;
+  /**
+   * `pg_proc.proretset` — whether a call returns a SET of the return type
+   * rather than one value. The rendered `returnType` says the same thing by
+   * its `SETOF `/`TABLE(` prefix, which is why the diff's comparable state
+   * needs no entry for this; the flag exists so the walk can ask the catalog
+   * instead of parsing that rendering (adversarial-3 finding 2).
+   */
+  returnsSet: boolean;
   language: string;
   isProcedure: boolean;
   isAggregate: boolean;
@@ -411,6 +419,53 @@ export interface CatalogSnapshot {
    * deliberately absent from the diff's comparable states.
    */
   builtinTableFunctions: Record<string, string>;
+  /**
+   * pg_catalog function names with at least one SET-RETURNING overload
+   * (bool_or over pg_proc.proretset, prokind 'f' only).
+   *
+   * Replaces a hand-curated table of 21 names that missed 50 of PG18's 71
+   * non-pg_stat/pg_ls set-returning builtins (adversarial-3 finding 1). The
+   * damage a missing name does is not local: the target-list padding rule
+   * needs TWO set-returning calls to apply at all, so one unrecognised SRF
+   * turned the rule off for the whole list and left a KNOWN call carrying a
+   * notNull that PostgreSQL pads away.
+   *
+   * `bool_or` rather than `bool_and` because the answer only ever adds
+   * padding, and padding only ever turns a claim nullable: an overload set
+   * that disagrees is safer read as set-returning.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinSetReturningFunctions: string[];
+  /**
+   * Every pg_catalog function name (prokind 'f').
+   *
+   * The name SET, not their signatures: it answers "does PostgreSQL search
+   * a builtin of this name before the user's?", which is the question the
+   * engine got backwards (adversarial-3 finding 6 — pg_catalog is searched
+   * implicitly and FIRST unless the path names it, so for an identical
+   * signature the builtin HIDES a user function of the same name, while
+   * every builtin table in the engine is documented the other way round).
+   * It also tells the `unnest` element-type resolver that a call is a
+   * builtin rather than an unknown symbol.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinFunctionNames: string[];
+  /**
+   * pg_catalog function names whose return type is POLYMORPHIC — it
+   * renders with `any…` (`anyarray`, `anycompatiblearray`, `anyelement`,
+   * `anyrange`), so the actual type comes from the call's arguments.
+   *
+   * 68 of PG18's 2726 function names. A builtin whose return type is
+   * concrete can never yield an array of a USER composite type, which is
+   * what makes the difference between one `unnest` column and the element
+   * type's fields; a polymorphic one can (`array_cat` of two `sku_pair[]`
+   * does), and the walk simulates no types, so it refuses there.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinPolymorphicFunctions: string[];
 }
 
 // ---------------------------------------------------------------------------

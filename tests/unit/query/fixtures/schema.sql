@@ -848,3 +848,82 @@ CREATE TABLE cc (id integer NOT NULL, p sku_pair);
 CREATE TABLE pnn_p (id integer NOT NULL, a text);
 CREATE TABLE pnn_c () INHERITS (pnn_p);
 ALTER TABLE ONLY pnn_p ALTER COLUMN a SET NOT NULL;
+
+-- A RETURNS TABLE whose column names need quoting (adversarial-3 finding
+-- 7): `pg_get_function_result` renders them with quote_ident, and
+-- columnsForReturnType split each part at its first SPACE — which lands
+-- inside `"my col"` and never at all inside `"Upper"`. The names are the
+-- whole defect (the arity is right either way), so the fixture is
+-- ordered-name material; `"a,b"` and `"e""f"` pin the comma and the
+-- escaped quote, which the top-level splitter has to see through too, and
+-- the nn_text column pins that the TYPE half of the split still resolves.
+-- The body returns NULL in every column the domain does not forbid it in,
+-- so the fixture's nullable claims are witnessed rather than merely
+-- unfalsified.
+CREATE FUNCTION q_cols()
+  RETURNS TABLE("my col" integer, "Upper" nn_text, "a,b" text, "e""f" text, plain text)
+  LANGUAGE sql AS $$ SELECT NULL::integer, 'u'::nn_text, NULL::text, NULL::text, NULL::text $$;
+
+-- Domains over a composite, and over an ARRAY of one (adversarial-3
+-- findings 3 and 4). `resolveCompositeType` was backed by a snapshot query
+-- reading `typtype = 'c'` alone, so a domain over a composite was "not a
+-- composite" everywhere the engine asks — two sites refused legal SQL and a
+-- third answered one column. The three columns of pair_holder are the three
+-- spellings: the plain array, the domain OVER the array, and the array OF
+-- the domain.
+CREATE DOMAIN d_sku AS sku_pair;
+CREATE DOMAIN sku_pair_arr AS sku_pair[];
+CREATE TABLE pair_holder (
+  id       integer NOT NULL,
+  pairs    sku_pair[],
+  dpairs   sku_pair_arr,
+  dompairs d_sku[]
+);
+CREATE FUNCTION mk_pairs() RETURNS sku_pair[] LANGUAGE sql IMMUTABLE AS $$
+  SELECT ARRAY[ROW('a', 1)::sku_pair, ROW('b', NULL)::sku_pair] $$;
+
+-- An OVERLOADED SETOF function (adversarial-3 finding 2): set-returningness
+-- was asked through the single-candidate shortcut, which answers null for
+-- any overloaded name, so this call was invisible to the target-list
+-- padding rule while staying perfectly visible to the notNull rule — which
+-- reads the SAME two candidates' NOT NULL domain return by consensus. Both
+-- overloads return a set, so consensus answers it exactly.
+CREATE FUNCTION ov_sku(x integer) RETURNS SETOF non_empty_text LANGUAGE sql AS $$
+  SELECT 'ov1'::non_empty_text $$;
+CREATE FUNCTION ov_sku(x text) RETURNS SETOF non_empty_text LANGUAGE sql AS $$
+  SELECT 'ov2'::non_empty_text $$;
+
+-- User functions whose signatures are IDENTICAL to pg_catalog functions
+-- (adversarial-3 finding 6). PostgreSQL searches pg_catalog implicitly and
+-- FIRST unless the path names it, so under the default path these are
+-- HIDDEN and never run — while the engine read them as the single candidate
+-- and claimed their NOT NULL domain return, and expanded json_each's SETOF
+-- sku_pair over PostgreSQL's key/value. They exist to keep the fixture that
+-- pins the precedence honest: dropping them would make it assert nothing.
+CREATE FUNCTION public.min_scale(v numeric) RETURNS non_empty_text
+  LANGUAGE sql IMMUTABLE AS $$ SELECT 'user'::non_empty_text $$;
+CREATE FUNCTION public.to_number(a text, b text) RETURNS non_empty_text
+  LANGUAGE sql IMMUTABLE AS $$ SELECT 'user'::non_empty_text $$;
+CREATE FUNCTION public.json_each(j json) RETURNS SETOF sku_pair
+  LANGUAGE sql IMMUTABLE AS $$ SELECT ROW('a', 1)::sku_pair $$;
+
+-- A TABLE's ROW TYPE as an array element. A relation's row type is a
+-- composite too, and it lives in neither `compositeTypes` nor the domain
+-- map — types and relations share one namespace, so the element-type
+-- resolver has to take the same two-step `columnsForReturnType` takes for
+-- `SETOF <table>` versus `SETOF <composite>`. Found while auditing what the
+-- sweep-3 fixes left behind: it is finding 3's own class, one spelling past
+-- the six the report measured.
+CREATE TABLE trow (a integer NOT NULL, b text);
+CREATE TABLE trow_holder (id integer NOT NULL, rows trow[]);
+
+-- Functions whose output columns live in their ARGUMENT list rather than in
+-- their rendered return type. `pg_get_function_result` is lossy for these:
+-- out_pair renders `SETOF record` and one_row_composite renders
+-- `TABLE(r sku_pair)`, while PostgreSQL emits [lo, hi] and [sku, qty]. The
+-- same defect queryBuiltinTableFunctions was built to fix for BUILTINS,
+-- left standing for user functions until the post-sweep-3 audit.
+CREATE FUNCTION out_pair(x integer, OUT lo integer, OUT hi nn_text)
+  RETURNS SETOF record LANGUAGE sql AS $$ SELECT x, 'h'::nn_text $$;
+CREATE FUNCTION one_row_composite() RETURNS TABLE(r sku_pair)
+  LANGUAGE sql AS $$ SELECT ROW('s', NULL)::sku_pair $$;

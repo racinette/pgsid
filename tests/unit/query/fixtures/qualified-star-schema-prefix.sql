@@ -1,0 +1,21 @@
+-- A SCHEMA-QUALIFIED star (adversarial-3 finding 5). `public.t.*` is a
+-- spelling PostgreSQL accepts — so are the four-part `db.public.t.*` and
+-- the bare `t.*` — and the walk tested `fields.length === 2` for "is this
+-- qualified", which is true of exactly one of them. The three-part form
+-- fell through to the UNQUALIFIED branch and expanded every visible column
+-- in the scope: nine columns for four, u's `email` claimed notNull at the
+-- position PostgreSQL fills with t's `val`, which is NULL on the second
+-- seeded row. Invisible with one relation in scope, which is why every
+-- pinned `t.*` fixture passed over it.
+-- starQualifier now takes everything before the A_Star as the qualified
+-- name — last part the relation, the one before it the schema — and a
+-- schema-qualified name resolves to the RELATION, not to whatever the
+-- alias map happens to hold: two same-named relations from different
+-- schemas can both be in scope, where PostgreSQL rejects the bare name as
+-- ambiguous and accepts either qualified spelling (measured).
+SELECT public.t.*
+FROM u, t
+-- @notNull    (id)
+-- @nullable   (name)
+-- @nullable   (val)
+-- @notNull    (active)

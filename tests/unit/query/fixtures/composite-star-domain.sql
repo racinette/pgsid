@@ -1,0 +1,14 @@
+-- `(expr::<domain over a composite>).*` (adversarial-3 finding 4).
+-- `resolveCompositeType` was backed by a snapshot query reading
+-- `typtype = 'c' AND relkind = 'c'` — base composites only — so a domain
+-- over a composite was "not a composite" everywhere the engine asks, and
+-- expandCompositeStar refused a statement PostgreSQL expands to [sku, qty].
+-- The refusal was the correct RESPONSE to a wrong PREMISE, which is why the
+-- fix is in the catalog and not at the site: the adapter follows a domain
+-- to its base composite, and this arm answers with no other change.
+-- Nothing about the domain's own constraint is needed — every field is
+-- forced nullable here regardless, the rule a NULL composite makes
+-- unavoidable and this fixture's own value witnesses.
+SELECT (NULL::d_sku).*
+-- @nullable   (sku)
+-- @nullable   (qty)

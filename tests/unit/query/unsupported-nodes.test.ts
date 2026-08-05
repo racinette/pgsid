@@ -73,6 +73,8 @@ describe("unsupported nodes are refused, not guessed", () => {
       -- Measured: the engine emitted one column named ov_shape against
       -- PostgreSQL's three.
       CREATE TYPE sku_pair AS (sku text, qty integer);
+      -- A composite COLUMN, for the unnest element-type cases below.
+      CREATE TABLE cc (id int NOT NULL, p sku_pair);
       CREATE FUNCTION ov_shape(x text) RETURNS SETOF sku_pair
         LANGUAGE sql AS $$ SELECT ROW('a', 1)::sku_pair $$;
       CREATE FUNCTION ov_shape(x integer) RETURNS TABLE(a int, b int, c int)
@@ -265,6 +267,54 @@ describe("unsupported nodes are refused, not guessed", () => {
       name: "UnsupportedNodeError",
       site: "composite-star",
     });
+  });
+
+  // --- unnest's element type ----------------------------------------------
+
+  // `unnest` contributes one column per ARGUMENT unless the element type is
+  // a composite, in which case it contributes one per FIELD — so the shape
+  // depends on a type, and reading "I could not tell" as "scalar" was a
+  // wrong shape in six measured spellings (adversarial-3 finding 3). It
+  // refuses when it cannot tell. The list below is what remains after the
+  // catalog is asked everywhere it can answer, and every entry needs type
+  // inference the walk deliberately does not do.
+  it("refuses unnest of an argument whose element type is not derivable", async () => {
+    for (const sql of [
+      // An aggregate over a composite column: `array_agg` is polymorphic and
+      // PostgreSQL yields sku_pair[] here (measured).
+      "SELECT * FROM unnest((SELECT array_agg(p) FROM cc))",
+      // A polymorphic builtin — same reason, no sublink needed.
+      "SELECT * FROM unnest(array_remove((SELECT array_agg(p) FROM cc), NULL))",
+      // A derived-table column the inner query COMPUTES rather than
+      // re-exports, so there is no base column to read a type from.
+      "SELECT * FROM (SELECT ARRAY[p] AS ps FROM cc) s, unnest(s.ps)",
+    ]) {
+      await expect(infer(sql), sql).rejects.toMatchObject({
+        name: "UnsupportedNodeError",
+        site: "from-item",
+      });
+    }
+  });
+
+  // The other direction: the spellings the catalog CAN answer must not have
+  // been swept into the refusal. Scalar arrays keep their single column.
+  it("does not refuse unnest whose element type the catalog answers", async () => {
+    const cases: [string, string[]][] = [
+      ["SELECT * FROM unnest(ARRAY[1, 2])", ["unnest"]],
+      ["SELECT * FROM unnest(string_to_array('a,b', ','))", ["unnest"]],
+      ["SELECT * FROM unnest(ARRAY['x'] || ARRAY['y'])", ["unnest"]],
+      ["SELECT * FROM unnest(coalesce(ARRAY['x'], ARRAY['y']))", ["unnest"]],
+      ["SELECT * FROM unnest(ARRAY[ROW('a', 1)::sku_pair] || ARRAY[ROW('b', 2)::sku_pair])",
+        ["sku", "qty"]],
+      ["SELECT * FROM unnest((ARRAY[ROW('a', 1)::sku_pair])[1:1])", ["sku", "qty"]],
+      // An ARRAY constructor over an EXPRESSION rather than a cast: the
+      // element type IS the member's type, which the catalog answers for a
+      // column reference.
+      ["SELECT * FROM cc c, unnest(ARRAY[c.p])", ["id", "p", "sku", "qty"]],
+    ];
+    for (const [sql, names] of cases) {
+      expect((await infer(sql)).map(r => r.name), sql).toEqual(names);
+    }
   });
 
   // --- FROM items ---------------------------------------------------------

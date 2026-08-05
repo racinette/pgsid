@@ -1,0 +1,12 @@
+-- An ARRAY constructor over an EXPRESSION rather than a cast. The element
+-- type of `ARRAY[c.p]` is `c.p`'s type, which the catalog knows — the
+-- element-type resolver only looked for a cast, so this fell to the
+-- refusal the third fix phase introduced. A refusal is the right answer for
+-- an element type nobody can derive; it is the wrong answer for one the
+-- catalog holds. `unnest` flattens every dimension, so a member that is
+-- itself an array contributes its own element type.
+SELECT * FROM cc c, unnest(ARRAY[c.p])
+-- @notNull    (id)
+-- @nullable   (p)
+-- @nullable   (sku)
+-- @nullable   (qty)

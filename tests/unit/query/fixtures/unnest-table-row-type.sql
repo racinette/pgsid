@@ -1,0 +1,16 @@
+-- `unnest` over an array of a TABLE's ROW TYPE. The element-type resolver
+-- asked `resolveCompositeType`, which is backed by `CREATE TYPE … AS (…)`
+-- entries alone, so `trow[]` resolved to nothing and the item contributed
+-- ONE column named `unnest` — every position after it off by one, the same
+-- shape defect as adversarial-3 finding 3 in a spelling neither the sweep
+-- nor its fix covered. The lookup now falls through to the relation, the
+-- two-step `columnsForReturnType` has always taken for its SETOF branch.
+-- A row type carries column TYPES only: `a` is NOT NULL in trow and
+-- nullable here, which is the same rule a `SETOF <table>` return follows.
+SELECT * FROM trow_holder h, unnest(h.rows)
+-- @notNull    (id)
+-- @nullable   (rows)
+-- @nullable   (a: NOT NULL in trow, but constraints do not travel with a row type)
+-- @nullable   (b)
+-- @unwitnessable 1: unnesting a NULL array produces no rows, so the column
+--   being unnested is never observed NULL through this join.

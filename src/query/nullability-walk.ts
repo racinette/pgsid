@@ -660,11 +660,14 @@ class NullabilityEngine {
   /**
    * Which raw target entries are subject to SRF lockstep padding — shared
    * by the traced and untraced assemblies, like originModeOf. TWO OR MORE
-   * set-returning calls in one target list expand to the LCM of their row
-   * counts and the SHORT one is NULL-padded AFTER it returned
-   * (adversarial-2 finding 7, measured: a SETOF <NOT NULL domain> came
-   * back NULL through the padding, while a scalar call in the same
-   * position repeats). The padding is manufactured by the projection, so
+   * set-returning calls in one target list expand in lockstep to the
+   * LONGEST one's row count, and every shorter one is NULL-padded AFTER it
+   * returned (adversarial-2 finding 7, measured: a SETOF <NOT NULL domain>
+   * came back NULL through the padding, while a scalar call in the same
+   * position repeats; `generate_series(1,3)` beside `generate_series(1,6)`
+   * gives six rows with three NULLs, not the cycled LCM this comment used
+   * to claim — adversarial-3 finding 1's aside). The padding is
+   * manufactured by the projection, so
    * no per-call reasoning survives it: every SRF-carrying entry drops to
    * nullable. Null when fewer than two SRFs — a single SRF has nothing to
    * pad against and keeps its precision.
@@ -704,20 +707,30 @@ class NullabilityEngine {
   }
 
   /**
-   * Whether a call returns a set: catalog metadata's rendered return type
-   * (`SETOF …` / `TABLE(…)`) when the name resolves, the curated builtin
-   * SRF table otherwise. Best-effort by construction — an unlisted builtin
-   * SRF is not seen, the same bounded coverage the other builtin tables
-   * accept.
+   * Whether a call returns a set. Two catalog answers, both measured rather
+   * than curated (adversarial-3 findings 1 and 2): `pg_proc.proretset` by
+   * CONSENSUS over the name's candidates, and the snapshot's pg_catalog SRF
+   * name set for a name the user catalog does not carry.
+   *
+   * Both replace a question asked of a smaller universe than it ranges
+   * over. The single-candidate shortcut answered null for any OVERLOADED
+   * name, so two overloads of one SETOF function were invisible here while
+   * the notNull rule read both of their return types; and the hand-curated
+   * builtin table held 21 of PG18's 71 non-pg_stat/pg_ls SRFs. Neither
+   * under-report cost the unrecognised call anything it had — but
+   * `srfPaddedTargets` needs a count of two, so one of them turned the
+   * padding rule off for the ENTIRE target list and left the recognised
+   * call carrying a notNull PostgreSQL pads away.
    */
   private isSetReturningCall(fc: FuncCall): boolean {
     const name = this.funcName(fc);
     const schema = this.funcSchema(fc);
-    const meta = this.catalog.resolveFunctionMetadata(schema, name);
-    if (meta) {
-      return meta.returnType.startsWith("SETOF ") || meta.returnType.startsWith("TABLE(");
-    }
-    return (schema === undefined || schema === "pg_catalog") && BUILTIN_SRF_NAMES.has(name);
+    const known = this.catalog.functionReturnsSet(schema, name);
+    if (known !== null) return known;
+    return (
+      (schema === undefined || schema === "pg_catalog") &&
+      this.catalog.isSetReturningBuiltin(name)
+    );
   }
 
   /**
@@ -2750,6 +2763,68 @@ class NullabilityEngine {
   }
 
   /**
+   * The relation a star names, or null for the unqualified `*`.
+   *
+   * `alias.*` is two fields, but it is not the only qualified spelling:
+   * PostgreSQL accepts `schema.rel.*` and `db.schema.rel.*` too, so an
+   * `fields.length === 2` test sent both to the unqualified branch, which
+   * expands the WHOLE scope (adversarial-3 finding 5 — invisible with one
+   * relation in scope, a wrong shape with two). Everything before the
+   * A_Star is a qualified name: its LAST part is the relation, the one
+   * before it the schema.
+   *
+   * A schema qualifier does not merely decorate, it SELECTS — two
+   * same-named relations from different schemas can both be in scope and
+   * PostgreSQL rejects the bare name as ambiguous there while accepting
+   * either qualified spelling (measured). It also matches only a plain
+   * relation reference carrying no explicit alias: `public.t.*` under
+   * `FROM t AS t` is an error, not a match (measured, both spellings) —
+   * a statement PostgreSQL rejects, so the miss below needs no better
+   * answer than the unresolvable-alias one it shares.
+   */
+  private starQualifier(fields: Node[]): { name: string; schema?: string } | null {
+    const names = fields
+      .filter(f => "String" in (f as Record<string, unknown>))
+      .map(f => this.stringVal(f));
+    const name = names[names.length - 1];
+    if (!name) return null;
+    const schema = names.length >= 2 ? names[names.length - 2] : undefined;
+    return schema === undefined ? { name } : { name, schema };
+  }
+
+  /**
+   * The scope entry a `starQualifier` names. Unqualified goes through the
+   * alias map; a schema-qualified name must find the RELATION itself, since
+   * that is the whole point of writing the schema.
+   */
+  private resolveStarRelation(
+    q: { name: string; schema?: string },
+    scope: Scope,
+  ): RelationEntry | null {
+    if (q.schema === undefined) return this.resolveAlias(q.name, scope);
+    // `scope.visible` rather than `scope.aliases`: the alias map is keyed by
+    // NAME, so `FROM app_s.t, t` — legal, and the very case a schema
+    // qualifier exists to disambiguate — keeps only one of the two entries
+    // there while both are visible in FROM order. Scanning the visible list
+    // finds either; scanning the map answered for whichever registered last
+    // and an EMPTY column list for the other (measured).
+    let s: Scope | null = scope;
+    while (s) {
+      for (const entry of [
+        ...new Set(
+          [...s.visible.map(v => v.entry), ...s.aliases.values()].filter(
+            (e): e is RelationEntry => !!e,
+          ),
+        ),
+      ]) {
+        if (entry.table?.schema === q.schema && entry.table.name === q.name) return entry;
+      }
+      s = s.outer;
+    }
+    return null;
+  }
+
+  /**
    * `(expr).*` — an A_Indirection whose LAST field is A_Star — is a
    * target-list EXPANSION in disguise: PostgreSQL emits one column per
    * field of the expression's composite type, so treating it at the
@@ -2810,10 +2885,16 @@ class NullabilityEngine {
         if (crParts.length === 1) {
           for (const v of scope.visible) {
             if (v.name === crParts[0]) {
-              // A merged (USING) column has no entry and cannot be typed —
-              // it still IS the value reading, so it lands in the refusal,
-              // not the alias fallback.
-              colOwner = v.entry ?? undefined;
+              // A merged (USING/NATURAL) column has no entry of its own, and
+              // it still IS the value reading — so take the type from either
+              // constituent: the merge requires a common type, and PostgreSQL
+              // expands `(p).*` over one to the type's fields (measured, both
+              // spellings). Reading it as untypable refused a statement
+              // PostgreSQL answers.
+              colOwner =
+                v.entry ??
+                (v.merged?.left.table ? v.merged.left : v.merged?.right) ??
+                undefined;
               colName = crParts[0];
               break;
             }
@@ -2917,11 +2998,11 @@ class NullabilityEngine {
         : { name: colName, notNull };
     };
 
-    // `alias.*` — just that relation's columns, so the list index is the
-    // ordinal directly.
-    if (fields.length === 2 && "String" in (fields[0] as Record<string, unknown>)) {
-      const aliasName = this.stringVal(fields[0]!);
-      const entry = this.resolveAlias(aliasName, scope);
+    // `alias.*` / `schema.rel.*` — just that relation's columns, so the list
+    // index is the ordinal directly.
+    const qualifier = this.starQualifier(fields);
+    if (qualifier) {
+      const entry = this.resolveStarRelation(qualifier, scope);
       if (!entry) return [];
       return this.relationColumnsIntrinsic(entry, scope, depth).map((col, ordinal) => {
         producers?.push({ entry, column: col.name, ordinal });
@@ -3272,8 +3353,8 @@ class NullabilityEngine {
         // that needed no narrowing at all (measured: `vp(VARIADIC text[])`
         // beside `vp(integer)`, both `SETOF sku_pair`, gave one column
         // named `vp` against PostgreSQL's two).
-        const shapeOf = (returnType: string) =>
-          this.columnsForReturnType(returnType, scalarName);
+        const shapeOf = (candidate: FunctionInfo) =>
+          this.functionOutputColumns(candidate, scalarName);
         const agree = (shapes: { name: string; notNull: boolean }[][]): boolean => {
           const first = shapes[0]!;
           return shapes.every(
@@ -3282,9 +3363,9 @@ class NullabilityEngine {
               s.every((c, i) => c.name === first[i]!.name && c.notNull === first[i]!.notNull),
           );
         };
-        const allReturns = this.catalog.resolveFunctionReturnTypes(this.funcSchema(fc), name);
-        if (allReturns.length > 0) {
-          const shapes = allReturns.map(shapeOf);
+        const allCandidates = this.catalog.resolveFunctionShapes(this.funcSchema(fc), name);
+        if (allCandidates.length > 0) {
+          const shapes = allCandidates.map(shapeOf);
           if (agree(shapes)) {
             cols.push(...shapes[0]!);
             continue;
@@ -3300,7 +3381,7 @@ class NullabilityEngine {
             (fc.args ?? []).length,
           );
           if (candidates && candidates.length > 0) {
-            const narrowed = candidates.map(c => shapeOf(c.returnType));
+            const narrowed = candidates.map(shapeOf);
             if (agree(narrowed)) {
               cols.push(...narrowed[0]!);
               continue;
@@ -3328,7 +3409,7 @@ class NullabilityEngine {
         cols.push({ name: scalarName, notNull: false });
         continue;
       }
-      cols.push(...this.columnsForReturnType(meta.returnType, scalarName));
+      cols.push(...this.functionOutputColumns(meta, scalarName));
     }
 
     if (rf?.ordinality) {
@@ -3345,23 +3426,79 @@ class NullabilityEngine {
 
   /**
    * The field names of an `unnest` argument's COMPOSITE element type, or
-   * null when the element is a scalar or undeterminable (one column — the
-   * per-argument rule). The element type is read from the shapes that carry
-   * it statically: a cast with array bounds (`expr::sku_pair[]`), an
-   * ARRAY[] constructor whose elements are casts
-   * (`ARRAY[ROW(…)::sku_pair, …]`), and a column reference whose catalog
-   * type renders as `T[]`. REFUSES when the element is provably composite —
-   * a ROW constructor's cast target can be nothing else — but the type is
-   * not in the snapshot: one column there is a wrong SHAPE, and the
-   * dispatch-site rule for FROM items is refusal. An unresolvable name on
-   * a non-ROW shape reads as a scalar's: user composites are captured, so
-   * the residual is the general capture boundary, not this site's.
+   * null when the element is a SCALAR — the one-column, per-argument rule.
+   *
+   * REFUSES rather than guessing when the element type cannot be determined.
+   * The first version enumerated three spellings that carry the type
+   * statically and read every other one as a scalar's, which is a wrong
+   * SHAPE whenever it was not: six further spellings were measured
+   * contributing one column against PostgreSQL's two (adversarial-3
+   * finding 3), and a FROM item's wrong shape shifts every column after it
+   * — the engine's `notNull` at what it called `u.id` landed on
+   * PostgreSQL's `qty`. A column list has no conservative value, so the
+   * dispatch-site rule applies: refuse.
+   *
+   * What that costs is bounded by asking the catalog everywhere it can
+   * answer, which is `unnestElementType`'s whole job — including the two
+   * domain spellings and a function's declared return type. The residue is
+   * where PostgreSQL's own answer needs type inference the walk does not
+   * do: a polymorphic builtin (`array_cat` of two `sku_pair[]` yields
+   * `sku_pair[]`), an aggregate, a sublink, an operator expression, a
+   * derived-table column. Those refuse now; before, they were wrong
+   * whenever the element was composite and right otherwise.
    */
   private unnestCompositeElementFields(arg: Node, scope: Scope | null): string[] | null {
-    const rec = arg as Record<string, unknown>;
-    let typeParts: string[] | null = null;
-    let provablyComposite = false;
+    const element = this.unnestElementType(arg, scope);
+    if (element.kind === "scalar") return null;
+    if (element.kind === "unknown") {
+      throw new UnsupportedNodeError(
+        "from-item",
+        `unnest of an argument whose element type is not derivable (${this.nodeTag(arg)})`,
+      );
+    }
+    const parts = element.parts;
+    const typeName = parts[parts.length - 1]!;
+    const typeSchema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+    const ct = this.catalog.resolveCompositeType(typeSchema, typeName);
+    if (ct) return ct.fields.map(f => f.name);
+    // A TABLE's ROW TYPE is a composite too, and it is not in
+    // `compositeTypes` — the same two-step `columnsForReturnType` takes for
+    // `SETOF <table>` versus `SETOF <composite>`. Types and relations share
+    // one namespace, so a type name that resolves to a relation IS that
+    // relation's row type: `unnest(h.rows)` over a `trow[]` column expands
+    // to trow's columns (measured), where the composite lookup alone
+    // answered one column and shifted every position after it.
+    const table = this.catalog.resolveTable(typeSchema, typeName);
+    if (table) return [...table.columns];
+    if (element.provablyComposite) {
+      throw new UnsupportedNodeError(
+        "from-item",
+        `unnest of a composite-element array with unresolvable element type ${typeName}`,
+      );
+    }
+    // A named type the snapshot carries as neither is a scalar: user
+    // composites and relations are all captured, so the residual here is the
+    // general capture boundary rather than this site's.
+    return null;
+  }
 
+  /**
+   * The ELEMENT type of an `unnest` argument.
+   *
+   * `type` — the element type's name parts, with `provablyComposite` set
+   * when the shape can be nothing else (a ROW constructor under the cast);
+   * `scalar` — the element provably is not a user composite, so the call
+   * contributes one column; `unknown` — the walk cannot tell, and its
+   * caller refuses.
+   */
+  private unnestElementType(
+    arg: Node,
+    scope: Scope | null,
+  ):
+    | { kind: "type"; parts: string[]; provablyComposite: boolean }
+    | { kind: "scalar" }
+    | { kind: "unknown" } {
+    const rec = arg as Record<string, unknown>;
     const partsOf = (tn: { names?: Node[] } | undefined): string[] | null => {
       const parts = (tn?.names ?? [])
         .map(n => this.stringVal(n))
@@ -3370,73 +3507,305 @@ class NullabilityEngine {
     };
     const isRow = (n: Node | undefined): boolean =>
       !!n && "RowExpr" in (n as Record<string, unknown>);
+    const typed = (parts: string[], provablyComposite = false) =>
+      ({ kind: "type", parts, provablyComposite }) as const;
+
+    /**
+     * A rendered type name as an ELEMENT type. `T[]` strips its bounds; a
+     * DOMAIN is followed to its base, because a domain over `sku_pair[]`
+     * renders as its own name and hides the array-ness the `[]` test looks
+     * for — two of finding 3's six spellings, the cast and the column.
+     * Anything else is not an array, so the statement is one PostgreSQL
+     * rejects and any answer is unobservable.
+     */
+    const fromRendered = (rendered: string, seen = new Set<string>()): ReturnType<
+      typeof this.unnestElementType
+    > => {
+      const trimmed = rendered.replace(/^setof\s+/i, "").trim();
+      const nameParts = (printed: string): string[] => {
+        const { schema, name } = splitQualifiedName(printed);
+        return schema ? [schema, name] : [name];
+      };
+      if (trimmed.endsWith("[]")) {
+        return typed(nameParts(trimmed.replace(/(\[\])+$/, "")));
+      }
+      if (seen.has(trimmed)) return { kind: "unknown" };
+      seen.add(trimmed);
+      const { schema, name } = splitQualifiedName(trimmed);
+      const base = this.catalog.resolveDomainBaseTypeName(schema, name);
+      return base ? fromRendered(base, seen) : { kind: "scalar" };
+    };
 
     if ("TypeCast" in rec) {
       const tc = rec["TypeCast"] as {
         arg?: Node;
         typeName?: { names?: Node[]; arrayBounds?: unknown[] };
       };
+      const parts = partsOf(tc.typeName);
+      if (!parts) return { kind: "unknown" };
       if (tc.typeName?.arrayBounds?.length) {
-        typeParts = partsOf(tc.typeName);
         const inner = tc.arg as Record<string, unknown> | undefined;
-        if (inner && "A_ArrayExpr" in inner) {
-          provablyComposite = ((inner["A_ArrayExpr"] as { elements?: Node[] }).elements ?? [])
-            .some(e => isRow(e));
-        }
+        const provablyComposite =
+          !!inner &&
+          "A_ArrayExpr" in inner &&
+          ((inner["A_ArrayExpr"] as { elements?: Node[] }).elements ?? []).some(e => isRow(e));
+        return typed(parts, provablyComposite);
       }
-    } else if ("A_ArrayExpr" in rec) {
-      for (const e of (rec["A_ArrayExpr"] as { elements?: Node[] }).elements ?? []) {
+      // No array bounds: the target may still be a DOMAIN over an array.
+      return fromRendered(parts.join("."));
+    }
+
+    if ("A_ArrayExpr" in rec) {
+      const elements = (rec["A_ArrayExpr"] as { elements?: Node[] }).elements ?? [];
+      for (const e of elements) {
         const er = e as Record<string, unknown>;
         if (!("TypeCast" in er)) continue;
         const tc = er["TypeCast"] as {
           arg?: Node;
           typeName?: { names?: Node[]; arrayBounds?: unknown[] };
         };
-        if (tc.typeName?.arrayBounds?.length) continue; // an array element cast to an array — not this shape
+        // An array element cast to an array is not this shape.
+        if (tc.typeName?.arrayBounds?.length) continue;
         const parts = partsOf(tc.typeName);
         if (parts) {
-          typeParts = parts;
-          provablyComposite = isRow(tc.arg);
+          const element = fromRendered(parts.join("."));
+          return element.kind === "scalar" ? typed(parts, isRow(tc.arg)) : element;
+        }
+      }
+      // No cast to read the element type from. An ARRAY constructor's
+      // element type IS its members' type, so a member the catalog can type
+      // answers directly — `ARRAY[c.p]` over a composite COLUMN expands to
+      // that type's fields (measured). `unnest` flattens every dimension,
+      // so a member that is itself an array contributes its own element
+      // type.
+      const memberTypes = elements.map(e => this.renderedTypeOfExpr(e, scope));
+      const known = memberTypes.filter((t): t is string => t !== null);
+      if (known.length === elements.length && elements.length > 0) {
+        const first = known[0]!;
+        if (known.every(t => t === first)) {
+          const { schema, name } = splitQualifiedName(first.replace(/(\[\])+$/, ""));
+          return typed(schema ? [schema, name] : [name]);
+        }
+      }
+      // A literal cannot be a composite, so `ARRAY[1, 2]` is a scalar array
+      // by construction; anything else needs the type of an expression the
+      // walk does not compute.
+      return elements.length > 0 && elements.every(e => "A_Const" in (e as Record<string, unknown>))
+        ? { kind: "scalar" }
+        : { kind: "unknown" };
+    }
+
+    if ("ColumnRef" in rec) {
+      const rendered = this.renderedTypeOfExpr(arg, scope);
+      return rendered ? fromRendered(rendered) : { kind: "unknown" };
+    }
+
+    // `pairs[1:1]` — a SLICE of an array is an array of the same element
+    // type. A plain subscript is not: it yields the element itself, and
+    // unnesting one is a statement PostgreSQL rejects.
+    if ("A_Indirection" in rec) {
+      const ai = rec["A_Indirection"] as { arg?: Node; indirection?: Node[] };
+      const parts = ai.indirection ?? [];
+      const allSlices =
+        parts.length > 0 &&
+        parts.every(p => !!(p as { A_Indices?: { is_slice?: boolean } }).A_Indices?.is_slice);
+      return allSlices && ai.arg ? this.unnestElementType(ai.arg, scope) : { kind: "unknown" };
+    }
+
+    // `a || b` and `COALESCE(a, b)` — every operand shares the result's
+    // type, so any one of them that resolves to an array answers for all.
+    // `||` also concatenates an ELEMENT onto an array, and an operand read
+    // as a scalar cannot be told apart from that, so a scalar answer needs
+    // EVERY operand to give one.
+    const ae = rec["A_Expr"] as
+      | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+      | undefined;
+    const aeName = (ae?.name ?? [])[0];
+    const aeOp = ae?.kind === "AEXPR_OP" && aeName ? this.stringVal(aeName) : undefined;
+    const operands: (Node | undefined)[] | null =
+      aeOp === "||"
+        ? [ae!.lexpr, ae!.rexpr]
+        : "CoalesceExpr" in rec
+          ? ((rec["CoalesceExpr"] as { args?: Node[] }).args ?? [])
+          : null;
+    if (operands) {
+      const resolved = operands.map(o => (o ? this.unnestElementType(o, scope) : { kind: "unknown" as const }));
+      const array = resolved.find(r => r.kind === "type");
+      if (array) return array;
+      return resolved.length > 0 && resolved.every(r => r.kind === "scalar")
+        ? { kind: "scalar" }
+        : { kind: "unknown" };
+    }
+
+    if ("FuncCall" in rec) {
+      const fc = rec["FuncCall"] as FuncCall;
+      const name = this.funcName(fc);
+      const returnTypes = this.catalog
+        .resolveFunctionShapes(this.funcSchema(fc), name)
+        .map(f => f.returnType);
+      if (returnTypes.length > 0) {
+        // Consensus, like every other overloaded question: one rendered
+        // return type across the candidates answers whichever one runs.
+        const first = returnTypes[0]!;
+        return returnTypes.every(rt => rt === first) ? fromRendered(first) : { kind: "unknown" };
+      }
+      // A builtin with a CONCRETE return type cannot yield an array of a
+      // USER composite, which is the only thing that turns one column into
+      // several here. A polymorphic one takes its type from its arguments,
+      // and an unrecognised name is not a symbol the walk knows at all.
+      return this.catalog.isBuiltinFunction(name) && !this.catalog.isPolymorphicBuiltin(name)
+        ? { kind: "scalar" }
+        : { kind: "unknown" };
+    }
+
+    return { kind: "unknown" };
+  }
+
+  /**
+   * The rendered TYPE of an expression, wherever the walk can read it off
+   * the catalog rather than infer it: a column reference — through the base
+   * column a CTE or subquery re-exports, if that is what it is — and a
+   * cast's target. Null for everything else, which is the caller's signal
+   * to refuse; the walk simulates no types.
+   */
+  private renderedTypeOfExpr(expr: Node, scope: Scope | null): string | null {
+    const rec = expr as Record<string, unknown>;
+    const tc = rec["TypeCast"] as
+      | { typeName?: { names?: Node[]; arrayBounds?: unknown[] } }
+      | undefined;
+    if (tc) {
+      const parts = (tc.typeName?.names ?? [])
+        .map(n => this.stringVal(n))
+        .filter(p => !!p && p !== "pg_catalog");
+      if (!parts.length) return null;
+      return parts.join(".") + (tc.typeName?.arrayBounds?.length ? "[]" : "");
+    }
+    if (!("ColumnRef" in rec) || !scope) return null;
+    const parts = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
+    let owner: RelationEntry | undefined;
+    let colName: string | undefined;
+    if (parts.length >= 2) {
+      owner = this.resolveAlias(parts[parts.length - 2]!, scope) ?? undefined;
+      colName = parts[parts.length - 1];
+    } else if (parts.length === 1) {
+      colName = parts[0];
+      for (const v of scope.visible) {
+        if (v.name === colName && v.entry) {
+          owner = v.entry;
           break;
         }
       }
-    } else if ("ColumnRef" in rec && scope) {
-      const parts = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
-      let owner: RelationEntry | undefined;
-      let colName: string | undefined;
-      if (parts.length >= 2) {
-        owner = this.resolveAlias(parts[parts.length - 2]!, scope) ?? undefined;
-        colName = parts[parts.length - 1];
-      } else if (parts.length === 1) {
-        colName = parts[0];
-        for (const v of scope.visible) {
-          if (v.name === colName && v.entry) {
-            owner = v.entry;
-            break;
-          }
-        }
-      }
-      const rendered =
-        owner?.table && colName
-          ? this.catalog.resolveColumnTypeName(owner.table.schema, owner.table.name, colName)
-          : null;
-      if (rendered?.endsWith("[]")) {
-        typeParts = rendered.replace(/(\[\])+$/, "").split(".");
-      }
     }
+    if (!owner || !colName) return null;
+    // A CTE or subquery entry has no catalog columns of its own; follow its
+    // target list to the base column it re-exports. That is the shape any
+    // query staging a value through a WITH takes, and it was one of
+    // adversarial-3 finding 3's six spellings.
+    const source = owner.table
+      ? { table: owner.table, column: colName }
+      : this.reExportedBaseColumn(owner, colName, scope);
+    return source
+      ? this.catalog.resolveColumnTypeName(source.table.schema, source.table.name, source.column)
+      : null;
+  }
 
-    if (!typeParts?.length) return null;
-    const typeName = typeParts[typeParts.length - 1]!;
-    const typeSchema = typeParts.length >= 2 ? typeParts[typeParts.length - 2] : undefined;
-    const ct = this.catalog.resolveCompositeType(typeSchema, typeName);
-    if (ct) return ct.fields.map(f => f.name);
-    if (provablyComposite) {
-      throw new UnsupportedNodeError(
-        "from-item",
-        `unnest of a composite-element array with unresolvable element type ${typeName}`,
-      );
+  /**
+   * The base-table column a CTE/subquery entry re-exports under `colName`,
+   * or null. A deliberately shallow read of the entry's own target list: a
+   * bare `col` or `alias.col` resolved against the inner statement's
+   * relation references, joins descended into, and a re-export through
+   * ANOTHER CTE followed one level further. Anything the inner query
+   * computes rather than passes through has no base column, and the caller
+   * refuses there.
+   */
+  private reExportedBaseColumn(
+    entry: RelationEntry,
+    colName: string,
+    scope: Scope,
+    seen: ReadonlySet<string> = new Set(),
+  ): { table: ResolvedTable; column: string } | null {
+    if (entry.kind !== "cte" && entry.kind !== "subquery") return null;
+    const select = (entry.ast as Record<string, unknown> | undefined)?.["SelectStmt"] as
+      | { targetList?: Node[]; fromClause?: Node[]; op?: string }
+      | undefined;
+    if (!select?.targetList || (select.op && select.op !== "SETOP_NONE")) return null;
+
+    // Which target entry carries the name, by the entry's own column list so
+    // an alias column list renames correctly.
+    const names = entry.cteColumns?.length ? entry.cteColumns : null;
+    let index = -1;
+    for (let i = 0; i < select.targetList.length; i++) {
+      const rt = (select.targetList[i] as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+      if (!rt?.val) return null; // a star entry shifts every later position
+      if (this.isStarColumn(rt.val)) return null;
+      const exported = names ? names[i] : (rt.name ?? this.inferName(rt.val));
+      if (exported === colName) {
+        index = i;
+        break;
+      }
     }
-    return null;
+    if (index < 0) return null;
+    const val = (select.targetList[index] as { ResTarget?: { val?: Node } }).ResTarget!.val!;
+    const cr = (val as Record<string, unknown>)["ColumnRef"] as ColumnRef | undefined;
+    if (!cr) return null;
+    const refParts = (cr.fields ?? []).map(f => this.stringVal(f));
+    const innerName = refParts[refParts.length - 1];
+    const innerQualifier = refParts.length >= 2 ? refParts[refParts.length - 2] : undefined;
+    if (!innerName) return null;
+
+    // Relation references anywhere in the inner FROM, joins descended into:
+    // a CTE body that joins two tables and re-exports one's array column is
+    // the same pass-through as one that selects from a single table.
+    const relations: {
+      schemaname?: string;
+      relname?: string;
+      alias?: { aliasname?: string };
+    }[] = [];
+    const collectRelations = (item: unknown): void => {
+      const rec = item as Record<string, unknown> | null;
+      if (!rec || typeof rec !== "object") return;
+      const rv = rec["RangeVar"] as (typeof relations)[number] | undefined;
+      if (rv?.relname) {
+        relations.push(rv);
+        return;
+      }
+      const je = rec["JoinExpr"] as { larg?: Node; rarg?: Node } | undefined;
+      if (je) {
+        collectRelations(je.larg);
+        collectRelations(je.rarg);
+      }
+    };
+    for (const item of select.fromClause ?? []) collectRelations(item);
+
+    for (const rv of relations) {
+      const alias = rv.alias?.aliasname ?? rv.relname!;
+      if (innerQualifier !== undefined && innerQualifier !== alias) continue;
+      const table = this.catalog.resolveTable(rv.schemaname, rv.relname!);
+      if (table?.columns.includes(innerName)) return { table, column: innerName };
+      // The reference may name ANOTHER CTE rather than a relation — a chain
+      // of re-exports is still a re-export. `seen` stops a WITH RECURSIVE
+      // self-reference from looping.
+      const cte = rv.schemaname ? undefined : scope.ctes.get(rv.relname!);
+      if (cte && !seen.has(rv.relname!)) {
+        const inner = this.reExportedBaseColumn(
+          {
+            ...entry,
+            ast: cte.ast,
+            cteColumns: cte.columns,
+          },
+          innerName,
+          scope,
+          new Set([...seen, rv.relname!]),
+        );
+        if (inner) return inner;
+      }
+    }
+    // An outer-scope reference (a LATERAL body reading its left side) is the
+    // one remaining pass-through the inner FROM cannot explain.
+    const outer = this.resolveAlias(innerQualifier ?? "", scope);
+    return outer?.table?.columns.includes(innerName)
+      ? { table: outer.table, column: innerName }
+      : null;
   }
 
   /**
@@ -3456,48 +3825,107 @@ class NullabilityEngine {
     const tableMatch = /^table\s*\((.*)\)$/is.exec(type);
     if (tableMatch) {
       return splitTopLevel(tableMatch[1]!).flatMap(part => {
-        const trimmed = part.trim();
-        const gap = trimmed.indexOf(" ");
-        if (gap < 0) return [];
-        const colName = trimmed.slice(0, gap).trim();
-        const colType = trimmed.slice(gap + 1).trim();
+        const def = splitColumnDefinition(part);
+        if (!def) return [];
         // A domain's NOT NULL is part of the type, so it IS enforced here.
-        return [{ name: colName, notNull: this.isNotNullDomainType(colType) }];
+        return [{ name: def.name, notNull: this.isNotNullDomainType(def.type) }];
       });
     }
 
+    // RETURNS SETOF <table> / <composite>: the ROW type's columns.
+    const row = this.rowTypeColumns(type);
+    if (row) return row;
+
+    // A scalar return type: one column named after the function.
+    return [{ name: fnName, notNull: this.isNotNullDomainType(type) }];
+  }
+
+  /**
+   * The columns of a rendered ROW type — a relation's or a composite's — or
+   * null when the name is neither.
+   *
+   * Constraints do not travel with a row type: a `SETOF order_items` result
+   * carries the column TYPES and none of the table's NOT NULLs. Only a
+   * domain's NOT NULL survives, because that is part of the type.
+   *
+   * An ARRAY of either is not a row type — one column, not N.
+   */
+  private rowTypeColumns(rendered: string): { name: string; notNull: boolean }[] | null {
+    const type = rendered.trim();
+    if (type.endsWith("[]")) return null;
     // The snapshot is taken with an empty search_path, so anything outside
     // pg_catalog arrives schema-qualified: `SETOF public.order_items`, not
     // `SETOF order_items`. Resolve against the schema PostgreSQL named rather
     // than re-deriving it from a search path this code cannot see.
     const { schema: typeSchema, name: typeBase } = splitQualifiedName(type);
 
-    // RETURNS SETOF <table> / <composite>: the row type, constraints dropped.
     const table = this.catalog.resolveTable(typeSchema, typeBase);
     if (table) {
       return table.columns.map(col => {
         const oid = this.catalog.resolveColumnTypeOid(table.schema, table.name, col);
-        return {
-          name: col,
-          // NOT the column's attnotnull — that constraint does not travel with
-          // the row type. Only a domain's NOT NULL does.
-          notNull: oid != null && this.catalog.isNotNullDomain(oid),
-        };
+        return { name: col, notNull: oid != null && this.catalog.isNotNullDomain(oid) };
       });
     }
 
-    // RETURNS SETOF <composite>: expands to the type's fields. Like a table
-    // row type, a composite carries types only — no NOT NULL constraints.
     const composite = this.catalog.resolveCompositeType(typeSchema, typeBase);
-    if (composite) {
-      return composite.fields.map(f => ({
-        name: f.name,
-        notNull: this.catalog.isNotNullDomain(f.typeOid),
-      }));
-    }
+    return composite
+      ? composite.fields.map(f => ({
+          name: f.name,
+          notNull: this.catalog.isNotNullDomain(f.typeOid),
+        }))
+      : null;
+  }
 
-    // A scalar return type: one column named after the function.
-    return [{ name: fnName, notNull: this.isNotNullDomainType(type) }];
+  /**
+   * A function's FROM-position column list, read from its declared OUTPUT
+   * PARAMETERS where it has them and from the rendered return type where it
+   * does not.
+   *
+   * `pg_get_function_result` is a lossy rendering of what a function emits,
+   * and the losses are not exotic:
+   *
+   *   - a function declared with OUT parameters renders `SETOF record` (or
+   *     just the type, or nothing at all when there is no RETURNS clause),
+   *     so `f(OUT a int, OUT b text)` looked like one column named `f`
+   *     against PostgreSQL's `a, b` — measured, and the same defect
+   *     `queryBuiltinTableFunctions` was built to fix for BUILTINS, left
+   *     standing for user functions;
+   *   - `RETURNS TABLE(x <composite>)` with ONE column is a function whose
+   *     row type IS that composite, so PostgreSQL emits the composite's
+   *     FIELDS where the rendering says one column named `x`.
+   *
+   * `proargmodes`/`proargnames`/`proallargtypes` say all of it, and the
+   * snapshot has captured them all along. A single output column carries the
+   * function's whole row type, which is why it expands rather than standing
+   * on its own; two or more are the column list directly.
+   *
+   * A bare table alias does NOT rename a named output column (measured:
+   * `SELECT * FROM f() z` keeps `a`) — only an explicit column alias list
+   * does, which the caller applies positionally afterwards. `scalarName` is
+   * therefore consulted only where the function has no named outputs at all.
+   */
+  private functionOutputColumns(
+    meta: FunctionInfo,
+    scalarName: string,
+  ): { name: string; notNull: boolean }[] {
+    const outs = meta.args.filter(
+      a => a.mode === "out" || a.mode === "table" || a.mode === "inout",
+    );
+    if (outs.length === 0 || outs.some(a => !a.name)) {
+      return this.columnsForReturnType(meta.returnType, scalarName);
+    }
+    if (outs.length === 1) {
+      const only = outs[0]!;
+      return (
+        this.rowTypeColumns(only.typeName) ?? [
+          { name: only.name, notNull: this.catalog.isNotNullDomain(only.typeOid) },
+        ]
+      );
+    }
+    return outs.map(a => ({
+      name: a.name,
+      notNull: this.catalog.isNotNullDomain(a.typeOid),
+    }));
   }
 
   /** Whether a type name as printed by PostgreSQL is a NOT NULL domain. */
@@ -5580,9 +6008,10 @@ class NullabilityEngine {
    * propagates through strict operators, NULLIF's left operand, COALESCE only
    * when every branch forces (intersection), casts transparently, and strict
    * functions (catalog metadata for user functions, the measured
-   * snapshot's pg_catalog strictness capture for names the user catalog does not
-   * carry — a user function of the same name always wins and gates on its own
-   * declared strictness). Aggregates and window invocations are opaque: an
+   * snapshot's pg_catalog strictness capture for names the user catalog
+   * cannot answer for — which INCLUDES a name pg_catalog also carries, since
+   * PostgreSQL searches it first: adversarial-3 finding 6, and the reason
+   * this reads "cannot answer for" rather than the old "does not carry"). Aggregates and window invocations are opaque: an
    * aggregate's value does not depend on any single row's column, and a
    * window function reads OTHER rows. Anything unrecognised forces nothing,
    * keeping the conclusion conservative.
@@ -6148,8 +6577,10 @@ class NullabilityEngine {
       return this.resolveSqlFunctionBodyTraced(meta, orderedArgs, scope, depth, trace);
     }
 
-    // Priority 6b: pg_catalog built-in. Only reachable when the catalog has no
-    // entry for this name, so a user function of the same name always wins.
+    // Priority 6b: pg_catalog built-in. Reachable when the user catalog has
+    // no candidate the walk may reason from — including a name pg_catalog
+    // ALSO carries, which PostgreSQL searches first (adversarial-3 finding
+    // 6): a same-signature user function is hidden, not preferred.
     if (!meta && (schema === undefined || schema === "pg_catalog")) {
       // The three tables reason about the ELEMENTS of an argument list —
       // "concat ignores NULL arguments", "concat_ws hinges on its first" —
@@ -6673,11 +7104,11 @@ class NullabilityEngine {
       if (this.isStarColumn(val)) {
         const fields =
           (((val as Record<string, unknown>)["ColumnRef"] as ColumnRef).fields ?? []);
-        if (fields.length === 2 && "String" in (fields[0] as Record<string, unknown>)) {
-          const aliasName = this.stringVal(fields[0]!);
-          const entry = this.resolveAlias(aliasName, scope);
+        const qualifier = this.starQualifier(fields);
+        if (qualifier) {
+          const entry = this.resolveStarRelation(qualifier, scope);
           for (const col of entry ? this.relationColumnsIntrinsic(entry, scope, depth) : []) {
-            positions.push({ keys: [col.name, `${aliasName}.${col.name}`], val: null });
+            positions.push({ keys: [col.name, `${qualifier.name}.${col.name}`], val: null });
           }
         } else {
           for (const v of scope.visible) {
@@ -6901,23 +7332,6 @@ const ALWAYS_NOT_NULL_BUILTINS = new Set([
 ]);
 
 /**
- * Common pg_catalog set-returning functions, for the target-list padding
- * rule (adversarial-2 finding 7) — the builtins arrive with no catalog
- * metadata, so set-returningness is name-level like everything else about
- * them. Coverage is bounded the same way the nullability tables' is.
- */
-const BUILTIN_SRF_NAMES = new Set([
-  "generate_series", "generate_subscripts", "unnest",
-  "regexp_matches", "regexp_split_to_table", "string_to_table",
-  "json_array_elements", "json_array_elements_text",
-  "jsonb_array_elements", "jsonb_array_elements_text",
-  "json_each", "json_each_text", "jsonb_each", "jsonb_each_text",
-  "json_object_keys", "jsonb_object_keys", "jsonb_path_query",
-  "json_populate_recordset", "jsonb_populate_recordset",
-  "json_to_recordset", "jsonb_to_recordset",
-]);
-
-/**
  * Built-ins that are non-null exactly when their *first* argument is non-null;
  * later arguments may be NULL without making the result NULL.
  *
@@ -7015,15 +7429,26 @@ function sameNullability(a: OutputNullability[], b: OutputNullability[]): boolea
 
 /**
  * Split a comma-separated type list on top-level commas only, so that
- * `numeric(10,2)` inside `TABLE(a numeric(10,2), b text)` stays intact.
+ * `numeric(10,2)` inside `TABLE(a numeric(10,2), b text)` stays intact —
+ * and so that a QUOTED identifier does too. PostgreSQL renders these names
+ * with `quote_ident`, and a quoted one may contain anything: `TABLE("a,b"
+ * integer, "c)d" text, "e""f" text)` is a faithful rendering (measured), so
+ * commas and brackets inside quotes are text, not structure.
  */
 function splitTopLevel(input: string): string[] {
   const out: string[] = [];
   let depth = 0;
   let start = 0;
+  let quoted = false;
   for (let i = 0; i < input.length; i++) {
     const ch = input[i];
-    if (ch === "(" || ch === "[") depth++;
+    if (ch === '"') {
+      // `""` is an escaped quote inside a quoted identifier; skipping the
+      // pair leaves the state unchanged either way.
+      if (quoted && input[i + 1] === '"') i++;
+      else quoted = !quoted;
+    } else if (quoted) continue;
+    else if (ch === "(" || ch === "[") depth++;
     else if (ch === ")" || ch === "]") depth--;
     else if (ch === "," && depth === 0) {
       out.push(input.slice(start, i));
@@ -7032,6 +7457,42 @@ function splitTopLevel(input: string): string[] {
   }
   out.push(input.slice(start));
   return out;
+}
+
+/**
+ * Split one `TABLE(…)` part into its column NAME and its type text.
+ *
+ * The name is an identifier, not "everything up to the first space"
+ * (adversarial-3 finding 7): `pg_get_function_result` quotes any name that
+ * needs it, so `"my col" integer` split at the first space yielded `"my`,
+ * and `"Upper" text` — quoted for its case, with no space inside — kept its
+ * quote characters. Both are arity-preserving, which is why only an ordered
+ * NAME comparison could see them. Returns null for a part with no type
+ * text, which the caller drops as it always has.
+ */
+function splitColumnDefinition(part: string): { name: string; type: string } | null {
+  const s = part.trim();
+  if (!s.startsWith('"')) {
+    const gap = s.indexOf(" ");
+    return gap < 0 ? null : { name: s.slice(0, gap), type: s.slice(gap + 1).trim() };
+  }
+  let name = "";
+  let i = 1;
+  for (; i < s.length; i++) {
+    if (s[i] !== '"') {
+      name += s[i];
+      continue;
+    }
+    if (s[i + 1] === '"') {
+      name += '"';
+      i++;
+      continue;
+    }
+    i++;
+    break;
+  }
+  const type = s.slice(i).trim();
+  return type ? { name, type } : null;
 }
 
 /** Shared empty set — most scopes have no grouping-set columns. */

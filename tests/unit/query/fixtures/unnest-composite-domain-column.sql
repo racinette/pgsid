@@ -1,0 +1,18 @@
+-- The third site of adversarial-3 finding 4, and the one that was a wrong
+-- SHAPE rather than a refusal: `dompairs` is `d_sku[]` — an array of a
+-- DOMAIN over the composite — so the column type renders as `d_sku[]`, the
+-- `T[]` test passes, and the element type resolved to nothing. The non-ROW
+-- arm then fell through to ONE column named `unnest`, shifting every
+-- position after it, which is exactly what a FROM item must never do.
+-- The array columns themselves stay nullable — the generated state seeds
+-- three elements per array (one whole, one with an empty qty, one with an
+-- empty sku) and NULLs a quarter of the two it does not unnest here.
+-- @unwitnessable 3: unnesting a NULL array produces no rows, so the column
+-- being unnested is never observed NULL through this join.
+SELECT * FROM pair_holder h, unnest(h.dompairs)
+-- @notNull    (id)
+-- @nullable   (pairs)
+-- @nullable   (dpairs)
+-- @nullable   (dompairs)
+-- @nullable   (sku)
+-- @nullable   (qty)

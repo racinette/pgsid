@@ -131,27 +131,85 @@ half (b) — WHERE the path comes from is a consumer input and belongs to
 the consumer design — and the WIDE reachability question behind finding
 9 (`notNull`'s existential claim has no reachability qualifier),
 recorded beside the claim semantics in `docs/argument-nullability.md`.
-**A THIRD sweep is chartered (`docs/adversarial-sweep-3.md`) and has NOT
-run.** Same argument as sweep 2's, one generation later: the ten fixes
-above are now the youngest code in the repository, and they were verified
-almost entirely through fixtures their own author wrote in the same
-session — PGlite refereed the outputs, but no independent probe tried an
-input class the author did not think of. The yield curve says to go
-again: sweep 1 found 15 in 246 probes, sweep 2 found 13 in ~120 aimed at
-fresh fix-phase code. The charter is TARGETED and smaller still, with a
-ten-section catalog led by the two soft spots the fix phase itself
-flagged — `inPath`'s first-schema-wins rule applied to FUNCTIONS, where
-PostgreSQL resolves by argument types across the whole path (a possible
-rank-1: wrong body metadata), and `BUILTIN_SRF_NAMES`, a new
-hand-curated table that is unfalsifiable-by-construction in the way
-`ALWAYS_NOT_NULL` was. It carries its own stop condition: if the yield
-comes in materially below sweep 2's, the report says so, and that is the
-evidence that retires this cycle for good.
+**A THIRD sweep was chartered (`docs/adversarial-sweep-3.md`), RAN
+(2026-08-05), and its FIX PHASE is COMPLETE (2026-08-05).** Same argument as sweep 2's, one
+generation later: the ten fixes above were the youngest code in the
+repository, verified almost entirely through fixtures their own author
+wrote in the same session. ~215 probes (~155 of them engine-vs-PGlite
+comparisons), **eight findings**, in `docs/adversarial-findings-3.md`:
+five statements carrying a wrong `notNull`, four shape defects (three of
+which produce that wrong flag), two rank-7; zero parity breaks and zero
+crashes — three sweeps at zero. Both suspects the charter named by name
+landed: `BUILTIN_SRF_NAMES` failed as a hand-curated table exactly the
+way `ALWAYS_NOT_NULL` had (a missing name disables the padding rule for
+the WHOLE target list, so a KNOWN call keeps a claim PostgreSQL pads
+away), and section A's untouched rest produced the widest defect —
+**pg_catalog is searched implicitly and FIRST**, so the engine's rule
+that "a user function of the same name always wins" is backwards, and
+the search-path candidate set is still short by one schema.
+
+All eight are CLOSED, in the report's recommended order, with two
+deviations recorded in the findings doc's status header and in the closure
+entries at the top of section 2: fix 5 asks the catalog for the `unnest`
+element type everywhere the catalog can answer BEFORE refusing (the
+sketch's residue would have refused every scalar array whose type the walk
+could not see, which is the common case protecting the rare one), and fix 1
+took the preferable half of its (b) — `proretset` in `FunctionInfo`, the
+rendered-string test gone. The quarantine directory is retired: every
+fixture graduated into `tests/unit/query/fixtures/` with corrected claims
+and witnesses, the DDL folded into the fixture schema, the pg_catalog
+precedence pinned in `search-path.test.ts` (it needs a second catalog the
+fixture harness cannot build), and the new `unnest` refusal class pinned in
+`unsupported-nodes.test.ts` WITH its positive control, so it can never
+quietly become blanket. Three new environment facts joined
+`builtinStrictFunctions` — `builtinSetReturningFunctions`,
+`builtinFunctionNames`, `builtinPolymorphicFunctions` — each replacing a
+question the engine was answering from a smaller universe than it ranged
+over. Suite: 2216 tests, 327 fixtures; the generated corpus's 8980 queries
+moved by nothing.
+
+Its stop condition fired. The yield is 8 in ~155 against sweep 2's 13 in
+~120, three of the eight are in code that predates both sweeps, and the
+four sections the fix phase had rewritten most heavily (grouping sets,
+the partitioned hook, diff completeness, parity) came back clean across
+55 probes. The report's reading, recorded here because it decides what
+happens after the fix phase: **stop chartering sweeps against code age.**
+What produced findings was three older heuristics the register already
+trusts — sweep every hand-curated table against the catalog it
+approximates; compare ORDERED NAMES, never arity; ask whether a
+resolver's universe matches PostgreSQL's. The first is a scheduled item,
+not a sweep. The second is the arity-and-order gate in section 1, which
+now carries TWELVE defects across three sweeps that it would have
+caught, and belongs in the consumer build's first commit. The third is a
+checklist item for the next mechanism anyone adds.
+
+**Before or beside the consumer build: widen the generated suite's
+surface** — `docs/generated-surface.md` (2026-08-05), a self-contained
+handoff. The third fix phase produced the measurement that justifies it:
+across seven engine changes and eight closed findings the generated
+corpus's 8980 queries reported zero disagreements both before and after,
+because it could not EXPRESS a single falsifying input — five of the eight
+needed schema vocabulary `fixtures/schema.sql` does not have, three needed
+a query shape with no axis, and none was reachable from the existing
+corpus. The generator varies query STRUCTURE over a FIXED schema
+vocabulary, and the engine is a function of (AST, CATALOG) with only one
+argument explored. Four items in cost order: a CATALOG-feature census in
+`node-census.test.ts`'s exact shape (the pattern that catches
+unknown-unknowns, currently applied to parse-tree node kinds alone — every
+sweep-3 finding arrived through a node type already classified `handled`);
+diffing each curated name table against `pg_catalog` where the catalog
+records the property; probing the TOTALITY tables by execution where it
+does not (`proisstrict` is strictness, a different property — this is the
+third sweep running where a curated table yielded); and a schema axis for
+the generator, which would have caught five of eight on its own. The first
+three are an afternoon each.
 
 **Then the consumer build** — the slice plan is
 `docs/consumer-design.md`, as above, with the arity-and-order gate in
-its first contract-holding slice, now carrying eight defects across two
-sweeps that it would have caught.
+its first contract-holding slice, now carrying twelve defects across
+three sweeps that it would have caught — one of them (sweep-3 finding 7)
+arity-preserving and therefore invisible to any check but the ordered
+name comparison, which is the third such instance.
 
 The semantic re-founding (section 5) is a standing parallel track; its
 executable target list emptied when Wave 12 closed the origin
@@ -238,7 +296,12 @@ PREPARE result at the same time — BEFORE the emitter slice, not with it
 (`docs/consumer-design.md`): every slice between would otherwise build on a
 failure mode that is silent by construction. Permanent, not transitional —
 the sweep found five shape defects in one sitting and the engine will keep
-growing.
+growing. Across three sweeps this gate now carries TWELVE defects it would
+have caught, three of them arity-preserving and therefore invisible to any
+check but the ordered name comparison: sweep-1 finding 10 (the permuted
+MERGE `RETURNING *`), sweep-2 finding 13 (`(p).*` reading the alias where
+PostgreSQL reads the column — same arity, entirely different columns), and
+sweep-3 finding 7 (quoted `TABLE(…)` column names split at a space).
 
 ---
 
@@ -247,6 +310,232 @@ growing.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the THIRD adversarial fix phase (2026-08-05), finding 5 /
+RC-5 — a two-part AST test standing in for a shape test. `alias.*` is
+two fields, and it is not the only qualified star: PostgreSQL accepts
+`schema.rel.*` and the four-part `db.schema.rel.*` too, so
+`fields.length === 2` sent both to the UNQUALIFIED branch, which expands
+every visible column in the scope. Nine columns for four, with `u.email`'s
+notNull landing on `t.val` — NULL on the seeded row. Invisible with one
+relation in scope, which is why every pinned `t.*` fixture passed over it,
+and pre-existing code both prior sweeps walked past. `starQualifier` and
+`resolveStarRelation` are now shared by `expandStar` and
+`groupingOrdinalPositions` (the second copy was WRITTEN by the sweep-2
+fix, faithfully mirroring the first — how a latent defect acquires a
+second site), and a schema-qualified name resolves to the RELATION rather
+than through the alias map: two same-named relations from different
+schemas can both be in scope, where PostgreSQL rejects the bare name as
+ambiguous and accepts either qualified spelling. Also measured and NOT
+modelled, because it only ever concerns statements PostgreSQL rejects: a
+schema qualifier matches only a plain relation reference carrying no
+explicit alias (`public.t.*` under `FROM t AS t` is an error). Four pins,
+one per placement — plain, join, CTE body, grouping-set ordinal.
+
+Closed by the same phase, finding 8 / RC-7 — the unreferenced-CTE gate
+gated the WALK where it meant to gate the MECHANISMS. The licence is "a
+non-data-modifying CTE nobody references is never executed in ANY state",
+which is true (re-measured, `MATERIALIZED` included) and licenses dropping
+the EXECUTION-TIME mechanisms. Mechanism A is not one of them: parse
+analysis types the parameter from the cast or the argument position it
+sits in, and Bind rejects a NULL before anything runs — measured inside an
+unreferenced CTE for both mechanism-A sites and in three further shapes
+(`NOT MATERIALIZED`, a CTE referenced only from another unreferenced one,
+the cast nested inside a subquery), while the frame-offset site and a
+value-flow cast in the same position both accept the binding. `visitSeenOnly`
+becomes `visitBindOnly`: the walk runs in full and `reject`/`rejectFlow` do
+the gating, so the claim the engine held before the sweep-2 fix is back and
+the three it correctly dropped stay dropped
+(`param-unreferenced-cte-mechanism-a.sql` beside `param-unreferenced-cte.sql`).
+
+Closed by the same phase, finding 7 / RC-6 — a rendered string parsed by
+hand. `columnsForReturnType` split each `TABLE(…)` part at
+`indexOf(" ")`, and PostgreSQL renders those names with `quote_ident`: a
+quoted name containing a space split INSIDE the quotes, and one quoted
+only for its case kept its quote characters. Arity-preserving and
+NAME-only — the third defect this project has met that nothing but an
+ordered-name comparison can see, and the argument for section 1's gate.
+The split is identifier-aware now, and so is `splitTopLevel`: `TABLE("a,b"
+integer, "c)d" text, "e""f" text)` is a faithful rendering (measured), so
+a comma or bracket inside quotes is text rather than structure. The
+structural alternative — capturing proargnames/proallargtypes for USER
+functions the way `queryBuiltinTableFunctions` already does for builtins —
+is NOT done: it touches `FunctionInfo` and the diff's function state for
+no measured defect, and the string path is now correct on every rendering
+PG18 produces.
+
+Closed by the same phase, finding 4 / RC-3 — `resolveCompositeType` knew
+base composites only. One snapshot predicate, `typtype = 'c'`, decided
+what "is a composite" meant for `expandCompositeStar`,
+`unnestCompositeElementFields` and `columnsForReturnType`'s SETOF branch,
+so a DOMAIN over a composite was not one anywhere the engine asks — and
+the three callers failed differently: two REFUSED statements PostgreSQL
+expands, one guessed a single column. Both refusals were the correct
+RESPONSE to a wrong PREMISE, which is why the fix is in the adapter and
+not at the sites: a domain is followed to its base composite (transitively;
+a domain over an ARRAY of a composite falls out on its own, since
+`format_type` renders that base with its `[]`) and registered under its own
+name in the same map, so `inPath` keeps first-schema-wins across both kinds
+— which is PostgreSQL's rule, domains and composites sharing one type
+namespace. Nothing about the domain's own constraint is needed: both sites
+force every field nullable anyway.
+
+Closed by the same phase, findings 1 and 2 / RC-1 — set-returningness was
+asked of two incomplete oracles. `BUILTIN_SRF_NAMES` held 21 of PG18's 71
+non-pg_stat/pg_ls pg_catalog SRFs, and `isSetReturningCall` asked the
+SINGLE-CANDIDATE shortcut, which answers null for any overloaded name. The
+damage is not where a name table's usual bounded-coverage deal puts it: a
+missing name costs the unrecognised call nothing (it had no precision), but
+`srfPaddedTargets` needs a count of TWO, so one unseen SRF turned the
+padding rule off for the ENTIRE target list and left the recognised call
+carrying a notNull PostgreSQL pads away. Both halves now ask the catalog:
+`pg_proc.proretset` rides in `FunctionInfo` and answers by CONSENSUS over
+the name's candidates (`some`, not `every` — the rule only ever turns claims
+nullable, so over-reporting costs precision and under-reporting is the bug),
+and `CatalogSnapshot.builtinSetReturningFunctions` is the measured
+replacement for the table, ENVIRONMENT like `builtinStrictFunctions`. The
+rendered-string test is gone with it, which retires half of RC-6. Also
+corrected at both sites that carried it: the lockstep is
+max-with-NULL-padding, not LCM cycling — `generate_series(1,3)` beside
+`generate_series(1,6)` gives six rows with three NULLs (measured).
+
+Closed by the same phase, finding 3 / RC-4 — an enumerated spelling list
+where a type query belongs. `unnestCompositeElementFields` reconstructed
+"what is the element type of this expression" from three AST shapes and
+read every other spelling as a scalar's; six more were measured
+contributing ONE column against PostgreSQL's two, and a FROM item's wrong
+shape is every later column's flag on the wrong column (the engine's
+notNull at what it called `u.id` landed on PostgreSQL's `qty`). The
+element type is asked of the catalog everywhere the catalog can answer —
+a domain followed to its base, a user function's declared return type by
+consensus, a CTE/subquery column followed to the base column it
+re-exports, an array slice, and `||`/COALESCE through their operands —
+and REFUSES where it cannot. **That refusal is a new class**, landed the
+way sweep 1's unresolvable-relation refusal was: what it costs is bounded
+by the widening above, and `unsupported-nodes.test.ts` pins both
+directions, so it can never quietly become blanket. What remains refused
+needs type inference the walk deliberately does not do: a POLYMORPHIC
+builtin (`array_cat` of two `sku_pair[]` yields `sku_pair[]`), an
+aggregate, a sublink, a derived-table column the inner query COMPUTES, an
+ARRAY constructor over an expression. Two environment facts pay for the
+widening — `builtinFunctionNames` and `builtinPolymorphicFunctions` (68 of
+2726 names) — the first of which finding 6 needs anyway: a builtin whose
+return type is CONCRETE can never yield an array of a user composite,
+which is the whole difference between one column and the element's fields.
+
+### Residue after the third fix phase
+
+A post-fix audit re-measured the surface the eight touched, and closed five
+more defects of the same families before recording what is left.
+
+**Closed by the audit.** (a) An array of a TABLE's ROW TYPE (`trow[]`)
+resolved to nothing, because `resolveCompositeType` is backed by
+`CREATE TYPE … AS (…)` entries alone — `unnest` contributed one column
+against PostgreSQL's N. The element-type resolver falls through to the
+relation now, the two-step `columnsForReturnType` has always taken for
+`SETOF <table>` versus `SETOF <composite>`
+(`unnest-table-row-type.sql`). (b) A schema-qualified star could not pick
+its relation out of a scope holding TWO same-named ones from different
+schemas — `Scope.aliases` is keyed by name, so `app_s.t.*` under
+`FROM app_s.t, t` yielded an EMPTY column list for a statement PostgreSQL
+answers, and that scope is precisely what a qualifier exists to
+disambiguate. It resolves through `scope.visible`, which carries both
+entries in FROM order (pinned in `search-path.test.ts`, with PostgreSQL's
+own "ambiguous" rejection of the bare spelling beside it). (c) An ARRAY
+constructor over an EXPRESSION rather than a cast (`ARRAY[c.p]`) — the
+element type IS the member's type, which the catalog holds for a column
+reference (`unnest-array-of-column.sql`). (d) A composite array staged
+through TWO CTEs: the re-export read stopped at the first, where a chain is
+still a pass-through (`unnest-composite-cte-chain.sql`, with a seen-set so
+a `WITH RECURSIVE` self-reference cannot loop). (e) `(p).*` over a
+USING/NATURAL-MERGED composite column refused, where PostgreSQL expands it
+like any other; the merge requires a common type, so either constituent
+answers (`composite-star-merged-column.sql`). The sweep had recorded (e) as
+a rank-7 note and filed it with the composite-DOMAIN family — it is not
+that, and the domain fix did not touch it.
+
+Two of those needed the seed data to be made deterministic rather than
+probabilistic: `cc.p` now takes its three composite shapes (whole, empty
+qty, empty sku) by row index, and `pair_holder`'s three array columns
+rotate their NULLs the same way. At these tables' row counts a rate left
+the witness to luck. Recorded because it generalises: a field claim inside
+a present composite has no other witness, and a whole-column NULL is not a
+substitute.
+
+**What the audit did NOT close**, in descending order of what it costs:
+
+1. **The `unnest` refusal class.** Statements PostgreSQL accepts that the
+   walk refuses rather than answering with a wrong shape: a POLYMORPHIC
+   builtin (`array_cat`/`array_remove` of composite arrays), an aggregate
+   (`array_agg`), a sublink, and a derived-table column the inner query
+   COMPUTES rather than re-exports. Each needs the type of an expression the
+   walk does not compute, which is the boundary the engine has held
+   everywhere else. Pinned in `unsupported-nodes.test.ts` with a positive
+   control beside them so the refusal cannot quietly widen.
+2. **Fix 3's two costs**, both pinned in `search-path.test.ts`: a user
+   function merely NAMED after a builtin with a different signature loses
+   its claims, and so does the `search_path = public, pg_catalog`
+   configuration where the user's function genuinely wins. Closing either
+   needs pg_catalog SIGNATURES in the snapshot, which waits for the
+   consumer's search-path input.
+3. **Nothing for fix 7's structural half — it is CLOSED**, and it was never
+   the hypothesis this entry first recorded. Asked for an example of what
+   the rendered string loses, the answer turned out to be four live wrong
+   shapes, all in user functions: `f(OUT a int, OUT b text)` renders
+   `SETOF record` (or the bare type, or nothing at all without a RETURNS
+   clause) and contributed ONE column named after the function against
+   PostgreSQL's two, and `RETURNS TABLE(r <composite>)` with a SINGLE output
+   column is a function whose row type IS that composite, so PostgreSQL
+   emits its FIELDS where the rendering reads as one column named `r`. This
+   is precisely the defect `queryBuiltinTableFunctions` was built to fix for
+   BUILTINS, left standing for user functions. `functionOutputColumns` reads
+   the declared output parameters — `proargmodes`/`proargnames`/
+   `proallargtypes`, captured all along — and falls back to the rendering
+   only where there are none; a single output column expands its type, two
+   or more are the column list directly, and a bare table alias does not
+   rename a named output column (measured). `resolveFunctionReturnTypes`
+   became `resolveFunctionShapes` and hands back the whole `FunctionInfo`,
+   because the rendering is what was lossy. No snapshot or diff change was
+   needed.
+
+One side effect worth recording rather than rediscovering: fix 3 closes the
+negative-dependency hole for BUILTIN names. A query calling `min_scale`
+unqualified no longer depends on whether a user `public.min_scale` exists —
+the answer is the builtin's either way — so the "a dependency on a function
+that does not exist YET is not expressible" gap no longer applies to that
+class. It still applies to every non-builtin name.
+
+The audit's own lesson is a separate item: none of these was reachable by
+the standing suite, for the reason `docs/generated-surface.md` measures.
+
+Closed by the same phase, finding 6 / RC-2 — the search path is not the
+whole resolution order. Sweep 2 fixed `inPath` for functions by merging
+candidates ACROSS the path; the path is not the universe. PostgreSQL
+prepends `pg_catalog` unless the path names it, so for an identical
+signature the BUILTIN hides the user function — the exact opposite of the
+rule every builtin table in the engine documented ("consulted only where
+the user catalog has no candidate, so a user function of the same name
+still wins"). Measured both directions: under the default path
+`min_scale('NaN'::numeric)` returns NULL from pg_catalog's while the
+engine claimed the user function's NOT NULL domain return, and under
+`search_path = public, pg_catalog` the user's runs. Three mechanisms
+reached it — the flag, the FROM SHAPE (`SELECT * FROM json_each(…)` gave
+`[sku, qty]` against `[key, value]`), and a case where the signatures do
+not even match (a user `lower(integer)` made `lower(NULL::text)` read
+notNull, because the user's overload was the SOLE candidate and
+pg_catalog's was not in the set at all). The CHEAP form landed:
+`resolvableCandidates` drops the user candidate set wholesale for an
+unqualified name pg_catalog also carries, so every consumer — metadata,
+arity consensus, return types, set-returningness — falls to the builtin
+tables, which are now correctly the FIRST answer rather than the last.
+Dependency extraction is deliberately NOT gated: the user function is a
+real dependency whether or not it currently wins. Two costs recorded and
+pinned in `search-path.test.ts`: precision for user functions merely NAMED
+after builtins with a different signature, and the one configuration where
+the user's function does win (`pg_catalog` named late in the path) where
+the engine drops the claim anyway. The FULL form needs pg_catalog
+signatures in the snapshot and waits for the consumer's search-path input,
+which it interacts with.
 
 Closed by the same probe session (2026-08-05), one turn later and
 against my own deferral: the unknown-function-in-FROM fall-through is a
@@ -271,7 +560,10 @@ expansion consumes it unchanged; a name whose overloads disagree is
 excluded and keeps the guess (none does in PG18 — measured). It is
 ENVIRONMENT like `builtinStrictFunctions`: a property of the PostgreSQL
 version, absent from the diff. Consulted only where the user catalog has
-no candidate, so a user function of the same name still wins. Verified
+no candidate, so a user function of the same name still wins — that last
+clause is BACKWARDS and sweep-3 finding 6 corrected it: pg_catalog is
+searched implicitly and FIRST, so the builtin is consulted for a name it
+also carries. Verified
 nine ways against PostgreSQL including the alias-rename and coldeflist
 controls, and pinned by `builtin-table-function-shape.sql` under the
 soundness suite's ordered name comparison. The scalar SRFs keep the
@@ -407,8 +699,10 @@ row. In FROM: `unnest` of a COMPOSITE-element array expands the
 element's FIELDS, one column per field, all nullable (measured through
 five spellings); `unnestCompositeElementFields` reads the element type
 from the statically-typed shapes (array-bounds casts, ARRAY constructors
-of casts, column types rendering `T[]`) and REFUSES when a ROW
-constructor's provably-composite cast target is not in the snapshot —
+of casts, column types rendering `T[]` — sweep-3 finding 3 found six more
+spellings and replaced the enumeration with a catalog query plus a
+refusal) and REFUSES when a ROW constructor's provably-composite cast
+target is not in the snapshot —
 one column there is a wrong shape (`unnest-composite-shape.sql`;
 `unnest-composite-merge-source.sql` pins the composition with MERGE's
 source-first order, the lists now aligned). In the TARGET LIST: two or
@@ -419,7 +713,9 @@ nullable; a single SRF keeps its precision, a scalar beside an SRF
 repeats rather than pads (both measured;
 `srf-target-list-padding.sql`). Set-returningness is catalog
 `returnType` or the curated `BUILTIN_SRF_NAMES` — bounded coverage, the
-builtin tables' usual deal.
+builtin tables' usual deal, and sweep-3 findings 1 and 2 showed the deal
+does not hold here: both oracles now come from the catalog. The lockstep
+is also max-with-padding rather than the LCM this entry claimed.
 
 Closed by the second adversarial fix phase (2026-08-05), finding 10 /
 RC-7 — grouping-set ordinals number the EXPANDED output list, and the

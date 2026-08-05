@@ -1,0 +1,13 @@
+-- `unnest` over a FUNCTION's declared return type (adversarial-3 finding
+-- 3): not a TypeCast, an ARRAY constructor or a ColumnRef, so none of the
+-- three enumerated spellings matched and the item contributed one column.
+-- mk_pairs() declares `sku_pair[]`, which the catalog has had all along —
+-- the walk simply never asked. It asks by CONSENSUS over the candidates,
+-- like every other overloaded question. The second element's empty qty
+-- witnesses the field claim.
+SELECT * FROM unnest(mk_pairs())
+-- @nullable   (sku)
+-- @nullable   (qty)
+-- @unwitnessable 0: mk_pairs is an IMMUTABLE literal array and its skus are
+--   both non-NULL; the nullable is the expansion's uniform rule (a NULL
+--   element nulls every field), witnessed in unnest-composite-shape.sql.

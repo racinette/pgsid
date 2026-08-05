@@ -127,9 +127,9 @@ export interface NullabilityCatalog {
   resolveFunctions(schema: string | undefined, name: string): ResolvedFunction[];
 
   /**
-   * The rendered return type (`pg_get_function_result`) of every candidate
-   * for this name, UNFILTERED by arity — empty when the name is unknown to
-   * the catalog.
+   * Every candidate for this name, UNFILTERED by arity — empty when the
+   * name is unknown to the catalog (or hidden by a pg_catalog function of
+   * the same name; see `functionReturnsSet`).
    *
    * For a FROM item the question is the column LIST, and that question is
    * answerable without resolving the overload whenever every candidate
@@ -138,8 +138,34 @@ export interface NullabilityCatalog {
    * full set disagrees — which is why this accessor exists beside
    * `resolveFunctionCandidates`, whose variadic refusal would otherwise
    * block a shape that needed no narrowing at all.
+   *
+   * The whole `FunctionInfo` rather than its rendered return type, because
+   * the rendering is lossy: a function declared with OUT parameters renders
+   * `SETOF record` and its column list lives in the argument array.
    */
-  resolveFunctionReturnTypes(schema: string | undefined, name: string): string[];
+  resolveFunctionShapes(schema: string | undefined, name: string): FunctionInfo[];
+
+  /**
+   * Whether a call of this name returns a SET, by CONSENSUS over every
+   * candidate — null when the user catalog does not know the name.
+   *
+   * Asked of the whole candidate set, not of the single-candidate shortcut:
+   * an OVERLOADED user SETOF function was invisible to the target-list
+   * padding rule while staying perfectly visible to the notNull rule, which
+   * reads the same overloads' return types by consensus (adversarial-3
+   * finding 2). Set-returningness is a property every candidate normally
+   * shares, and where they disagree the answer is `some` rather than
+   * `every`: the padding rule only ever turns claims nullable, so
+   * over-reporting costs precision and under-reporting is the bug.
+   */
+  functionReturnsSet(schema: string | undefined, name: string): boolean | null;
+
+  /**
+   * Whether `name` has a set-returning overload in pg_catalog — the
+   * snapshot's measured replacement for a hand-curated name table that
+   * missed 50 of PG18's 71 non-pg_stat/pg_ls SRFs (adversarial-3 finding 1).
+   */
+  isSetReturningBuiltin(name: string): boolean;
 
   /**
    * The FROM-position shape of a pg_catalog function with named output
@@ -364,6 +390,31 @@ export interface NullabilityCatalog {
    * in the search path in order.
    */
   isNotNullDomainByName(schema: string | undefined, typeName: string): boolean;
+
+  /**
+   * The rendered BASE type of a domain (`format_type` of `typbasetype`), or
+   * null when the name is not a domain. A domain over `sku_pair[]` renders
+   * `public.sku_pair[]`, which is how the `unnest` element-type resolver
+   * sees through a domain that hides its array-ness behind its own name
+   * (adversarial-3 finding 3).
+   */
+  resolveDomainBaseTypeName(schema: string | undefined, typeName: string): string | null;
+
+  /**
+   * Whether `name` is a pg_catalog function name. PostgreSQL searches
+   * pg_catalog implicitly and FIRST unless the path names it, so a builtin
+   * of the same name HIDES a user function with the same signature
+   * (adversarial-3 finding 6, measured both directions).
+   */
+  isBuiltinFunction(name: string): boolean;
+
+  /**
+   * Whether a pg_catalog function of this name has a POLYMORPHIC return
+   * type, so what it actually yields depends on its arguments. The walk
+   * simulates no types, so this is where "a builtin's return type cannot be
+   * an array of a user composite" stops being true.
+   */
+  isPolymorphicBuiltin(name: string): boolean;
 
   /**
    * Pre-parsed ASTs of `LANGUAGE sql` function bodies, keyed by
