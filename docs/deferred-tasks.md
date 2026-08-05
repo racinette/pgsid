@@ -131,7 +131,24 @@ half (b) — WHERE the path comes from is a consumer input and belongs to
 the consumer design — and the WIDE reachability question behind finding
 9 (`notNull`'s existential claim has no reachability qualifier),
 recorded beside the claim semantics in `docs/argument-nullability.md`.
-**Next: the consumer build** — the slice plan is
+**A THIRD sweep is chartered (`docs/adversarial-sweep-3.md`) and has NOT
+run.** Same argument as sweep 2's, one generation later: the ten fixes
+above are now the youngest code in the repository, and they were verified
+almost entirely through fixtures their own author wrote in the same
+session — PGlite refereed the outputs, but no independent probe tried an
+input class the author did not think of. The yield curve says to go
+again: sweep 1 found 15 in 246 probes, sweep 2 found 13 in ~120 aimed at
+fresh fix-phase code. The charter is TARGETED and smaller still, with a
+ten-section catalog led by the two soft spots the fix phase itself
+flagged — `inPath`'s first-schema-wins rule applied to FUNCTIONS, where
+PostgreSQL resolves by argument types across the whole path (a possible
+rank-1: wrong body metadata), and `BUILTIN_SRF_NAMES`, a new
+hand-curated table that is unfalsifiable-by-construction in the way
+`ALWAYS_NOT_NULL` was. It carries its own stop condition: if the yield
+comes in materially below sweep 2's, the report says so, and that is the
+evidence that retires this cycle for good.
+
+**Then the consumer build** — the slice plan is
 `docs/consumer-design.md`, as above, with the arity-and-order gate in
 its first contract-holding slice, now carrying eight defects across two
 sweeps that it would have caught.
