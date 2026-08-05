@@ -352,6 +352,48 @@ A one-shot codemod over a query corpus, not a compat layer:
   holds the salvage: statement splitting, PREPARE harness productionization,
   error-cursor mapping).
 
+## search_path, and the negative dependency it forces
+
+The engine takes a search path (`buildNullabilityCatalog`'s `searchPath`,
+default `["public"]`) and resolves unqualified names through it correctly —
+relations, types and domains by name, functions by merged candidate set,
+both measured. What the engine cannot decide is WHERE the path comes from:
+it is a per-connection or per-project input (`SET search_path` is a real
+one — `docs/postgres-language-server-notes.md`), so this slice owns it. Two
+things fall out, and the second is the one that will be missed.
+
+**(a) The input.** Config-level default, overridable per query. Whatever the
+spelling, it is an INPUT to the derived-value graph, so changing it
+invalidates every query checked under it — the same triangle as a migration
+edit, keyed on the path itself.
+
+**(b) Dependencies must record the resolution ATTEMPT, not just its
+result — a NEGATIVE dependency.** Today `extractDeps` records the entity
+it found. Under a multi-schema path that is not enough, and the failure is
+silent:
+
+```sql
+-- checked with path [app_s, public]; app_s.t does not exist
+SELECT * FROM t;              -- resolves public.t, id notNull. Correct.
+-- a later migration
+CREATE TABLE app_s.t (zzz integer, qqq text);
+```
+
+Nothing was unknown at check time and nothing the query depends on was
+modified, so no recheck fires — while the query now resolves to a different
+relation with a different column list. The recorded dependency has to be
+"searched app_s (ABSENT), found public.t", so that CREATING `app_s.t`
+invalidates. The same holds for functions, where a new better-matching
+overload appearing earlier in the path changes what the consensus rule
+concludes (`docs/deferred-tasks.md`, section 2's function-resolution
+closure, records why the plural `resolveFunctions` cannot close this half).
+
+Note that "assume nullable when the symbol is missing" — the engine's rule
+for every unknown symbol that feeds a FLAG — does not help here: nothing
+was missing, the resolution succeeded, and it succeeded at the wrong
+relation only in hindsight. This is an invalidation-index property, not an
+inference one.
+
 ## The parity suite
 
 The executable definition of "one run path", written **before** the watch
