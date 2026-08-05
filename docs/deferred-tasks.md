@@ -106,31 +106,35 @@ while triggers fire on the relation the row lives in; the closure entry
 below has it). One probe, one conviction, on the first new mechanism
 tried: the fix phase's two days of fresh code deserve the same treatment
 the aged engine got. **A second, targeted sweep was chartered
-(`docs/adversarial-sweep-2.md`) and RAN (2026-08-05); its fix phase has
-NOT.** ~120 probes, thirteen findings: eight rank-1 `notNull`
-unsoundnesses, three rank-2 shape defects (all three of which also
-falsify a flag), two rank-3 param-contract defects; zero parity breaks
-and zero crashes across every probe, including all the new refusal and
-void paths — moving the refusals into the shared scope builders did what
-it was meant to. Nine root causes, five of them one idea: a fact was
-moved from "the named relation" to "the relation SET", or from "the
-statement" to "the row PostgreSQL reports", at the sites the fix phase
-was looking at rather than at every site that asks the question — an
-UPDATE that moves a row across partitions fires the DESTINATION's BEFORE
-*INSERT* trigger, `CHECK … NO INHERIT` is never copied to a child, a
-child may redefine an inherited generation expression, and the LANGUAGE
-sql body inliner is a third caller of the DML scope builders that was
-never patched. The report — findings, root causes, fix sketches with
-blast radii, a recommended order, and the negative results — is
-`docs/adversarial-findings-2.md`; the quarantine fixtures carrying the
-engine's current (wrong) claims are in
-`tests/unit/query/fixtures-adversarial/`, unmatched by the suites' glob,
-and the suite is green. **Next: that fix phase**, folding into section 2
-exactly as the first sweep's did; one of its ten items (search-path
-resolution, RC-5(b)) belongs to the consumer design instead. **Then the
-consumer build** — the slice plan is `docs/consumer-design.md`, as above,
-with the arity-and-order gate in its first contract-holding slice, now
-carrying eight defects across two sweeps that it would have caught.
+(`docs/adversarial-sweep-2.md`), RAN (2026-08-05), and its FIX PHASE is
+COMPLETE (2026-08-05).** ~120 probes, thirteen findings: eight rank-1
+`notNull` unsoundnesses, three rank-2 shape defects (all three of which
+also falsify a flag), two rank-3 param-contract defects; zero parity
+breaks and zero crashes across every probe — moving the refusals into
+the shared scope builders did what it was meant to. Nine root causes,
+five of them one idea: a fact was moved from "the named relation" to
+"the relation SET", or from "the statement" to "the row PostgreSQL
+reports", at the sites the fix phase was looking at rather than at every
+site that asks the question. All thirteen closed, one commit per fix in
+the report's recommended order — soundness first, cheapest first, the
+corpus dry-run before the one fix that could flip existing claims. Every
+quarantine fixture graduated into `tests/unit/query/fixtures/` with
+corrected claims and witnesses, the DDL folded into the fixture schema,
+the search-path halves pinned in `search-path.test.ts` (they need a
+second catalog the fixture harness cannot build), the composite-star
+refusal re-pinned on the shapes that remain unresolvable, and the
+quarantine directory retired empty. Witness coverage re-measured at 311
+fixtures (`docs/witness-coverage.md`); the findings doc stands as the
+sweep's report with a status header; the per-fix closure entries are at
+the top of section 2. Two items deliberately left open: search-path
+half (b) — WHERE the path comes from is a consumer input and belongs to
+the consumer design — and the WIDE reachability question behind finding
+9 (`notNull`'s existential claim has no reachability qualifier),
+recorded beside the claim semantics in `docs/argument-nullability.md`.
+**Next: the consumer build** — the slice plan is
+`docs/consumer-design.md`, as above, with the arity-and-order gate in
+its first contract-holding slice, now carrying eight defects across two
+sweeps that it would have caught.
 
 The semantic re-founding (section 5) is a standing parallel track; its
 executable target list emptied when Wave 12 closed the origin
@@ -226,6 +230,176 @@ growing.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the second adversarial fix phase (2026-08-05), finding 5 /
+RC-5, half (a) — a contract made true rather than a defect fixed:
+`NullabilityCatalog.resolveTable` has always documented search-path
+resolution and the adapter hardcoded `public`, which the
+unresolvable-relation refusal made half-loud (a non-public relation
+refuses) while the worse half stayed silent (a same-named public
+relation answers for the WRONG table). `buildNullabilityCatalog` takes a
+`searchPath` option, default `["public"]` — every existing caller
+byte-identical — and every unqualified resolver walks it in order, with
+the hook and partitioned lookups resolving the RELATION first so a
+hookless first-schema table cannot fall through to a later schema's
+same-named one. Pinned in `search-path.test.ts` with PGlite's
+RowDescription under the real `SET search_path` as referee. Half (b) —
+WHERE the path comes from — is a per-connection consumer input and stays
+with the consumer design.
+
+Closed by the second adversarial fix phase (2026-08-05), findings 8 and
+9 / the param-side conservatisms. (8) `columnRejection` read the named
+relation's `attnotnull` while UPDATE and MERGE's update arm write into
+the TREE — a child left unconstrained by `ALTER TABLE ONLY` accepts the
+NULL binding a parent-stored row raises on (measured, both states);
+update-command targets now take `resolveColumnNotNullTree`, closing the
+asymmetry with the output side. A dropped claim, never a wrong one, and
+witnessable in every data state (`param-mech-b-inheritance-tree.sql`,
+the child's disjoint id range exercising the accepted binding). (9) A
+non-data-modifying CTE nobody references is never executed in ANY state
+(measured — the frame-offset site inside one accepts what its referenced
+control raises on): `visitStatementWithCtes` walks unreferenced SELECT
+CTEs for parameter NUMBERS only, name-level references transitively
+closed, data-modifying CTEs always walked
+(`param-unreferenced-cte.sql`). The WIDE question — the existential
+claim has no reachability qualifier, so any provably-dead subtree
+falsifies an execution-time mechanism — is recorded beside the claim
+semantics in `docs/argument-nullability.md`, deliberately open.
+
+Closed by the second adversarial fix phase (2026-08-05), finding 13 and
+the rank-7 over-refusals / RC-9 — the composite-star arm read the alias
+before asking whether a column wins, and PostgreSQL's parenthesized
+`(x).*` is the VALUE spelling: a composite COLUMN named x beats a
+range-table alias named x (measured — same arity, entirely different
+columns, the second same-arity permutation this project has met).
+`expandCompositeStar` resolves the column FIRST — merged columns landing
+in the refusal rather than the alias fallback — and gained the value
+arms the first phase refused: a qualified composite column and a cast to
+a known composite expand the type's fields, a ROW constructor expands
+parse-time arity as f1..fN, all nullable (the FuncCall arm's shared
+rule). The refusal keeps unknown cast targets and subquery composite
+columns, re-pinned in `unsupported-nodes.test.ts`
+(`composite-star-alias-clash.sql`, `composite-column-star.sql`;
+`composite-star-whole-row.sql` holds the non-clashing spelling).
+
+Closed by the second adversarial fix phase (2026-08-05), findings 4 and
+7 / RC-4 — an SRF's contribution now asks what it actually returns per
+row. In FROM: `unnest` of a COMPOSITE-element array expands the
+element's FIELDS, one column per field, all nullable (measured through
+five spellings); `unnestCompositeElementFields` reads the element type
+from the statically-typed shapes (array-bounds casts, ARRAY constructors
+of casts, column types rendering `T[]`) and REFUSES when a ROW
+constructor's provably-composite cast target is not in the snapshot —
+one column there is a wrong shape (`unnest-composite-shape.sql`;
+`unnest-composite-merge-source.sql` pins the composition with MERGE's
+source-first order, the lists now aligned). In the TARGET LIST: two or
+more set-returning calls expand in lockstep and the SHORT one is
+NULL-padded AFTER it returned, so `srfPaddedTargets` — shared by both
+assemblies like originModeOf — drops every SRF-carrying entry to
+nullable; a single SRF keeps its precision, a scalar beside an SRF
+repeats rather than pads (both measured;
+`srf-target-list-padding.sql`). Set-returningness is catalog
+`returnType` or the curated `BUILTIN_SRF_NAMES` — bounded coverage, the
+builtin tables' usual deal.
+
+Closed by the second adversarial fix phase (2026-08-05), finding 10 /
+RC-7 — grouping-set ordinals number the EXPANDED output list, and the
+recorder indexed the RAW one: a star entry is ONE ResTarget and N output
+columns, so any preceding star shifted every ordinal and the star's own
+`[String, A_Star]` fields recorded nothing — `groupingSetColumns` came
+back empty and the NULLing override never applied. The recorder now runs
+AFTER the FROM walk (it needs the aliases) and resolves ordinals against
+`groupingOrdinalPositions`: star positions carry their (column,
+alias.column) keys directly, composite-star positions occupy width with
+no keys, plain positions keep `collectColumnRefKeys`. Precision kept
+over the report's refuse-flag alternative — the expansion was one
+helper. The alias spelling stays on the raw list (a star entry cannot be
+aliased); the plain-ref pins from sweep 1 hold
+(`grouping-set-ordinal-star.sql`, all three grouped keys witnessed on
+the rollup rows).
+
+Closed by the second adversarial fix phase (2026-08-05), finding 3 /
+RC-3 — the generation expression got its relation-SET analogue:
+`notNullTree` and `writeRewritesTree` existed, and the generation
+expression was the third per-column fact read from the named relation
+while the query scans the tree. A child MAY redefine an inherited
+column's expression (measured — the only accepted divergence besides NO
+INHERIT), so the snapshot computes `ColumnInfo.generationDivergesInTree`
+— the rendered (generated, defaultExpr) pair compared over the subtree,
+uncaptured descendants diverging, generated parent columns only,
+diff-comparable on the parent — and `resolveGenerationExprTree` refuses
+on the bit: one string comparison, not a per-child expression walk. The
+walk dispatches through the `entryGenerationExpr` scanInh split; the
+CHECK-entailment equality facts and both origin-side consumers take the
+tree unconditionally (`generated-child-override.sql`, witnessed by
+gen_c's every-row-NULL `nullif(a, a)`;
+`generated-override-only-control.sql` keeps the parent's formula).
+
+Closed by the second adversarial fix phase (2026-08-05), finding 6 /
+RC-6 — the LANGUAGE sql body inliner was a THIRD caller of the DML scope
+builders, calling `buildDmlScope` directly and bypassing every
+rewrite-hook response the first fix phase put INTO the builders
+precisely so both entry points would share them: no INSTEAD OF void, no
+BEFORE ROW void, no DO INSTEAD rule refusal (the top-level and
+data-modifying-CTE spellings of the identical INSERT were measured
+correct — a bypassed call site, not a missing rule, made load-bearing by
+RC-1's strict fall-through exactly as the charter hypothesized). The arm
+routes through `buildInsertScope` and CATCHES the rule refusal: an
+inlined body is an optimization, so a refused body costs the call its
+precision, not the statement its analysis
+(`body-insert-instead-of-view.sql`, `body-insert-do-instead-rule.sql`,
+both witnessed on every call).
+
+Closed by the second adversarial fix phase (2026-08-05), finding 1 /
+RC-1 — the hook question is per-command and row movement crosses
+commands: an UPDATE through a partitioned parent that moves a row is
+DELETE + INSERT, and the DESTINATION partition's BEFORE **INSERT**
+trigger rewrites NEW (measured — it also rescues the NULL binding the
+stationary control raises on). The tree union was right and complete;
+it collapses WHICH member contributed WHICH command, so a partitioned
+target's UPDATE now asks `beforeRow ∩ {update, insert}`
+(`updateBeforeRowHazard`, in both buildUpdateScope and buildMergeScope's
+update arm; the same two-command set in mechanism B's gate). The
+snapshot carries `relkind` (diff-comparable — a kind flip is
+drop-and-recreate) and the adapter answers `resolveIsPartitioned`.
+Plain inheritance never routes and keeps the single-command test; zero
+radius for partitioned targets without INSERT triggers
+(`partition-row-movement-trigger.sql` witnessed on every moved row,
+`partition-row-movement-param.sql` with the rescue exercised).
+
+Closed by the second adversarial fix phase (2026-08-05), finding 2 /
+RC-2 — RC-3's "the CHECK path needed nothing: children carry their own
+pg_constraint rows" was true for inheritable CHECKs and false for
+`CHECK … NO INHERIT`, which is never copied to a child at all — the ONE
+CHECK divergence route PostgreSQL permits (five others measured refused;
+partitioned parents refuse the construct itself). The snapshot captures
+`connoinherit` (`ConstraintInfo.noInherit`, diff-included) and
+`TableInfo.hasDescendants` (diff-comparable — a FIRST child changes the
+reading with every column flag unchanged); the adapter grows
+`resolveCheckConstraintsTree`, dropping NO INHERIT constraints exactly
+when descendants exist; the walk's entry consumer picks the list by the
+same scanInh split the flags use, the origin consumer takes the tree
+unconditionally. Four pins: tree and conditional (witnessed by the
+unconstrained children's generated NULLs), the ONLY control keeping the
+derivation, and the CTE re-export pinning the origin route.
+
+Closed by the second adversarial fix phase (2026-08-05), findings 11 and
+12 / RC-8 — the builtin tables were re-swept with new INPUT CLASSES and
+two entries failed their own admission criteria. `extract`/`date_part`
+(one function, two names) are out of `STRICT_TOTAL_BUILTINS`: month, day
+and hour of an infinite timestamp, timestamptz, date or interval are
+NULL (measured — the first sweep's finite probes could not see it). And
+priority 6b gained a VARIADIC gate ahead of all three tables:
+`VARIADIC <array>` passes the variadic parameter as ONE array and a NULL
+array yields NULL — measured for concat, concat_ws with a non-null first
+argument, and the json constructors, while a non-null array of NULL
+elements behaves element-wise — so every variadic-array call drops to
+conservative nullable; `ALWAYS_NOT_NULL` was unfalsifiable-by-
+construction until the calling convention changed what "the arguments"
+means. Costs `date_part('year', finite)` its notNull — the substring
+trade again; corpus dry-run clean (`builtin-extract-infinity.sql`
+witnessed by inf_t's generated infinity rows,
+`builtin-variadic-null.sql` witnessed on every row).
 
 Closed by the post-phase probe (2026-08-05) — an unsoundness the fix
 phase itself left, found by composing finding 2's mechanism with finding
