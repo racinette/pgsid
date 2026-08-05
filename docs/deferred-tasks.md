@@ -100,9 +100,19 @@ arity-and-order gate (section 1, amended — ORDER as well as length,
 before the emitter slice), which now blocks nothing and belongs to the
 consumer build's first contract-holding slice.
 
-With the fix phase closed, the engine work is done as far as hand-written
-and generated verification can carry it, and **the consumer build is
-next** — the slice plan is `docs/consumer-design.md`, as above.
+A same-day probe of the fix phase's own surface then found — and closed —
+one more rank-1 defect (the write-rewrite hooks read the named relation
+while triggers fire on the relation the row lives in; the closure entry
+below has it). One probe, one conviction, on the first new mechanism
+tried: the fix phase's two days of fresh code deserve the same treatment
+the aged engine got. **A second, targeted sweep is chartered:
+`docs/adversarial-sweep-2.md`** — smaller than the first, aimed at the
+new mechanisms (its catalog names the suspects, `CHECK … NO INHERIT`
+entailment and composite-element `unnest` first among them). Run it
+before the consumer build; its findings fold into section 2 exactly as
+the first sweep's did. **Then the consumer build** — the slice plan is
+`docs/consumer-design.md`, as above, with the arity-and-order gate in its
+first contract-holding slice.
 
 The semantic re-founding (section 5) is a standing parallel track; its
 executable target list emptied when Wave 12 closed the origin
