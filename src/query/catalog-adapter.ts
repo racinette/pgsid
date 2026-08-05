@@ -23,7 +23,25 @@ import { parseSql } from "../ast.js";
 
 export async function buildNullabilityCatalog(
   snapshot: CatalogSnapshot,
+  options?: { searchPath?: readonly string[] },
 ): Promise<NullabilityCatalog> {
+  // The search path an UNQUALIFIED name resolves under — the contract the
+  // interface has documented all along, now actually true (adversarial-2
+  // finding 5: the adapter hardcoded "public", so under a real search path
+  // a shadowing relation answered for the WRONG table and a non-public one
+  // refused). WHERE the path comes from is the consumer's decision — a
+  // per-query/per-project input the engine cannot discover
+  // (docs/postgres-language-server-notes.md flags `SET search_path` as a
+  // real connection input); the default keeps every existing caller
+  // byte-identical.
+  const searchPath = options?.searchPath ?? ["public"];
+  const inPath = <T>(map: { get(key: string): T | undefined }, name: string): T | undefined => {
+    for (const s of searchPath) {
+      const hit = map.get(`${s}.${name}`);
+      if (hit !== undefined) return hit;
+    }
+    return undefined;
+  };
   // Build table lookup map.
   const tableMap = new Map<
     string,
@@ -235,27 +253,16 @@ export async function buildNullabilityCatalog(
     schema: string | undefined,
     name: string,
   ): ResolvedTable | null => {
-    const s = schema ?? "public";
-    const key = `${s}.${name}`;
-    const t = tableMap.get(key);
-    if (t) return { schema: t.schema, name: t.name, columns: t.columns };
-    if (!schema) {
-      const pub = tableMap.get(`public.${name}`);
-      if (pub) return { schema: pub.schema, name: pub.name, columns: pub.columns };
-    }
-    return null;
+    const t = schema ? tableMap.get(`${schema}.${name}`) : inPath(tableMap, name);
+    return t ? { schema: t.schema, name: t.name, columns: t.columns } : null;
   };
 
   const resolveFunction = (
     schema: string | undefined,
     name: string,
   ): ResolvedFunction | null => {
-    const s = schema ?? "public";
-    const key = `${s}.${name}`;
-    if (fnMap.has(key)) return { schema: s, name };
-    if (!schema && fnMap.has(`public.${name}`))
-      return { schema: "public", name };
-    return null;
+    const fns = schema ? fnMap.get(`${schema}.${name}`) : inPath(fnMap, name);
+    return fns?.length ? { schema: fns[0]!.schema, name } : null;
   };
 
   const resolveColumnNotNull = (
@@ -354,14 +361,17 @@ export async function buildNullabilityCatalog(
     insteadOf: new Set<string>(),
     insteadRules: new Set<string>(),
   };
+  // Resolve the RELATION through the path first, then read its hooks by
+  // the resolved name: a hookless first-schema table must not fall through
+  // to a later schema's same-named, hook-bearing one.
   const resolveIn = (
     map: Map<string, RewriteSets>,
     schema: string | undefined,
     table: string,
-  ): RewriteSets =>
-    map.get(`${schema ?? "public"}.${table}`) ??
-    (schema === undefined ? map.get(`public.${table}`) : undefined) ??
-    NO_REWRITES;
+  ): RewriteSets => {
+    const t = schema ? tableMap.get(`${schema}.${table}`) : inPath(tableMap, table);
+    return (t ? map.get(`${t.schema}.${t.name}`) : undefined) ?? NO_REWRITES;
+  };
   const resolveWriteRewrites = (
     schema: string | undefined,
     table: string,
@@ -380,9 +390,10 @@ export async function buildNullabilityCatalog(
   for (const t of snapshot.tables) {
     if (t.relkind === "p") partitionedRels.add(`${t.schema}.${t.name}`);
   }
-  const resolveIsPartitioned = (schema: string | undefined, table: string): boolean =>
-    partitionedRels.has(`${schema ?? "public"}.${table}`) ||
-    (schema === undefined && partitionedRels.has(`public.${table}`));
+  const resolveIsPartitioned = (schema: string | undefined, table: string): boolean => {
+    const t = schema ? tableMap.get(`${schema}.${table}`) : inPath(tableMap, table);
+    return !!t && partitionedRels.has(`${t.schema}.${t.name}`);
+  };
 
   const compositeTypes = new Map<string, { fields: { name: string; typeOid: number }[] }>();
   for (const ct of snapshot.compositeTypes) {
@@ -395,25 +406,15 @@ export async function buildNullabilityCatalog(
     schema: string | undefined,
     name: string,
   ): { fields: { name: string; typeOid: number }[] } | null => {
-    const s = schema ?? "public";
-    return compositeTypes.get(`${s}.${name}`)
-      ?? (schema ? null : compositeTypes.get(`public.${name}`))
-      ?? null;
+    return (schema ? compositeTypes.get(`${schema}.${name}`) : inPath(compositeTypes, name)) ?? null;
   };
 
   const resolveFunctionMetadata = (
     schema: string | undefined,
     name: string,
   ) => {
-    const s = schema ?? "public";
-    const key = `${s}.${name}`;
-    const fns = fnMap.get(key);
-    if (fns && fns.length === 1) return fns[0]!;
-    if (!schema) {
-      const pubFns = fnMap.get(`public.${name}`);
-      if (pubFns && pubFns.length === 1) return pubFns[0]!;
-    }
-    return null;
+    const fns = schema ? fnMap.get(`${schema}.${name}`) : inPath(fnMap, name);
+    return fns && fns.length === 1 ? fns[0]! : null;
   };
 
   // Overloaded names, the sound half: the candidates a call with `argCount`
@@ -431,7 +432,7 @@ export async function buildNullabilityCatalog(
     name: string,
     argCount: number,
   ): FunctionInfo[] | null => {
-    const fns = fnMap.get(`${schema ?? "public"}.${name}`);
+    const fns = schema ? fnMap.get(`${schema}.${name}`) : inPath(fnMap, name);
     if (!fns || fns.length === 0) return null;
     if (fns.some(f => f.args.some(a => a.mode === "variadic"))) return null;
     return fns.filter(f => {
@@ -449,14 +450,10 @@ export async function buildNullabilityCatalog(
     schema: string | undefined,
     typeName: string,
   ): boolean => {
-    const s = schema ?? "public";
-    if (domainNames.has(`${s}.${typeName}`)) {
-      return domainNames.get(`${s}.${typeName}`)!;
-    }
-    if (!schema && domainNames.has(`public.${typeName}`)) {
-      return domainNames.get(`public.${typeName}`)!;
-    }
-    return false;
+    // `inPath` stops at the FIRST schema holding the name, so a notNull=false
+    // domain shadowing a notNull one answers false — resolution order, not
+    // best answer.
+    return (schema ? domainNames.get(`${schema}.${typeName}`) : inPath(domainNames, typeName)) ?? false;
   };
 
   // Operators grouped by name (and by schema.name for qualified refs). An

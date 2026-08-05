@@ -323,8 +323,8 @@ export interface NullabilityCatalog {
   /**
    * Domain metadata by name: whether `schema.typeName` is a domain with a
    * NOT NULL constraint. Used for TypeCast targets — the AST carries the
-   * type name, not the OID. If `schema` is undefined, searches the search
-   * path (currently just `public`).
+   * type name, not the OID. If `schema` is undefined, searches each schema
+   * in the search path in order.
    */
   isNotNullDomainByName(schema: string | undefined, typeName: string): boolean;
 
