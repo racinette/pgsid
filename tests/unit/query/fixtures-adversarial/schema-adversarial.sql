@@ -6,13 +6,6 @@
 -- them. Everything here was created and measured against PGlite (PG18)
 -- during the sweep; the per-fixture headers name what each entity is for.
 
--- Finding 5 — search_path. app_s.t shadows public.t under
--- `SET search_path = app_s, public`, with a different column list; app_only
--- exists only in app_s.
-CREATE SCHEMA app_s;
-CREATE TABLE app_s.t (zzz integer NOT NULL, qqq text NOT NULL, www text);
-CREATE TABLE app_s.app_only (o1 integer NOT NULL, o2 text);
-
 -- Finding 9 — the unreferenced-CTE fixture reads fixtures/schema.sql's gs
 -- (graduated with finding 10). gs2 was a sweep-probe subject only.
 
