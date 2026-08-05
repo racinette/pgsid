@@ -13,12 +13,6 @@ CREATE SCHEMA app_s;
 CREATE TABLE app_s.t (zzz integer NOT NULL, qqq text NOT NULL, www text);
 CREATE TABLE app_s.app_only (o1 integer NOT NULL, o2 text);
 
--- Finding 8 — the mechanism-B gate over an inheritance tree. The NOT NULL
--- lives on the parent ONLY; rows live in the unconstrained child.
-CREATE TABLE pnn_p (id integer NOT NULL, a text);
-CREATE TABLE pnn_c () INHERITS (pnn_p);
-ALTER TABLE ONLY pnn_p ALTER COLUMN a SET NOT NULL;
-
 -- Finding 9 — the unreferenced-CTE fixture reads fixtures/schema.sql's gs
 -- (graduated with finding 10). gs2 was a sweep-probe subject only.
 

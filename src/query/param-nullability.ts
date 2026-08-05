@@ -134,7 +134,23 @@ function columnRejection(
 ): "domain" | "constraint" | null {
   const typeOid = c.catalog.resolveColumnTypeOid(schema, table, column);
   if (typeOid !== null && c.catalog.isNotNullDomain(typeOid)) return "domain";
-  if (c.catalog.resolveColumnNotNull(schema, table, column)) {
+  // UPDATE (and MERGE's update arm) targets the relation TREE, and the row
+  // being written is checked against the flags of the relation it LIVES in
+  // — a child left unconstrained by `ALTER TABLE ONLY … SET NOT NULL`
+  // accepts the NULL the parent's own flag would reject (measured, both
+  // states). The tree conjunction is what makes the claim witnessable in
+  // EVERY data state rather than only parent-row ones; the cost is a
+  // dropped claim, never a wrong one, and it closes the asymmetry with the
+  // output side, which has read notNullTree since RC-3. INSERT stores its
+  // rows in the named relation itself and keeps the relation's own flag
+  // (routing is partitioned-only, where the flags provably agree). The
+  // domain check above is untouched: a child cannot change an inherited
+  // column's TYPE, so mechanism A is per-column everywhere in the tree.
+  const rejects =
+    command === "update"
+      ? c.catalog.resolveColumnNotNullTree(schema, table, column)
+      : c.catalog.resolveColumnNotNull(schema, table, column);
+  if (rejects) {
     // The TREE hooks: a partition's or child's BEFORE ROW trigger rewrites
     // rows written through the parent (measured — a partition trigger
     // rescued a NULL binding routed through the parent), so the gate must
@@ -823,7 +839,103 @@ function visit(c: Collector, node: unknown): void {
   if (obj["MergeStmt"]) checkMerge(c, obj["MergeStmt"] as Parameters<typeof checkMerge>[1]);
   if (obj["WindowDef"]) checkWindowDef(c, obj["WindowDef"] as Parameters<typeof checkWindowDef>[1]);
 
+  // A non-data-modifying CTE nobody references is never executed — in any
+  // data state (measured: the frame-offset site inside one accepts the NULL
+  // binding its referenced control raises on) — so its rejection sites
+  // contribute nothing. Its ParamRefs still count for numbering. This is
+  // the NARROW reading of reachability; the general question (any
+  // provably-dead subtree falsifies an execution-time claim) is recorded in
+  // docs/argument-nullability.md beside the claim semantics.
+  for (const key of ["SelectStmt", "InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
+    const stmtNode = obj[key] as { withClause?: { ctes?: unknown[] } } | undefined;
+    if (stmtNode?.withClause?.ctes?.length) {
+      visitStatementWithCtes(c, stmtNode);
+      return;
+    }
+  }
+
   for (const v of Object.values(obj)) visit(c, v);
+}
+
+/**
+ * Custom recursion for a statement carrying a WITH clause: the statement
+ * body and every REFERENCED or DATA-MODIFYING CTE walk normally, while an
+ * unreferenced SELECT CTE contributes only its parameter NUMBERS.
+ * References are name-level RangeVar matches, closed transitively (a
+ * referenced CTE's body can reference an earlier one) — over-approximation
+ * (a same-named table, WITH-in-branch shadowing) merely keeps the old
+ * behaviour for that CTE, which only ever ADDS a claim the oracle checks.
+ */
+function visitStatementWithCtes(
+  c: Collector,
+  stmt: { withClause?: { ctes?: unknown[] } },
+): void {
+  interface CteItem {
+    name: string;
+    node: unknown;
+    body: unknown;
+    dml: boolean;
+  }
+  const list: CteItem[] = (stmt.withClause?.ctes ?? []).map(n => {
+    const cte = (n as { CommonTableExpr?: { ctename?: string; ctequery?: unknown } })
+      .CommonTableExpr;
+    const body = cte?.ctequery as Record<string, unknown> | undefined;
+    return {
+      name: cte?.ctename ?? "",
+      node: n,
+      body,
+      dml:
+        !!body &&
+        ("InsertStmt" in body || "UpdateStmt" in body || "DeleteStmt" in body ||
+          "MergeStmt" in body),
+    };
+  });
+
+  const { withClause: _withClause, ...rest } = stmt as Record<string, unknown>;
+  const referenced = new Set<string>();
+  collectRangeVarNames(rest, referenced);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const cte of list) {
+      if (!cte.dml && !referenced.has(cte.name)) continue;
+      const before = referenced.size;
+      collectRangeVarNames(cte.body, referenced);
+      if (referenced.size > before) grew = true;
+    }
+  }
+
+  for (const cte of list) {
+    if (cte.dml || referenced.has(cte.name)) visit(c, cte.node);
+    else visitSeenOnly(c, cte.node);
+  }
+  visit(c, rest);
+}
+
+/** Every RangeVar relname under `node` — the reference set for the CTE gate. */
+function collectRangeVarNames(node: unknown, out: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const n of node) collectRangeVarNames(n, out);
+    return;
+  }
+  if (!node || typeof node !== "object") return;
+  const obj = node as Record<string, unknown>;
+  const rv = obj["RangeVar"] as { relname?: string } | undefined;
+  if (rv?.relname) out.add(rv.relname);
+  for (const v of Object.values(obj)) collectRangeVarNames(v, out);
+}
+
+/** Parameter NUMBERS only — an unexecuted subtree still owns its `$n`s. */
+function visitSeenOnly(c: Collector, node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const n of node) visitSeenOnly(c, n);
+    return;
+  }
+  if (!node || typeof node !== "object") return;
+  const obj = node as Record<string, unknown>;
+  const num = paramNumberOf(obj);
+  if (num !== null) c.seen.add(num);
+  for (const v of Object.values(obj)) visitSeenOnly(c, v);
 }
 
 export interface ParamFacts {
