@@ -103,12 +103,23 @@ ambiguous call registers against every candidate schema; and the FROM shape
 question runs over the full candidate set before any arity narrowing, so a
 variadic overload whose candidates agree resolves instead of collapsing to
 one column. Both are pinned. ONE thing was left deliberately open and is
-worth your evidence rather than your fix: a dependency on a function that
-does not exist YET — a better-matching overload created later in an earlier
-schema changes the answer with no recorded EntityId to invalidate against —
-which is the same hole unqualified RELATION references have, and belongs to
-the consumer's search-path design. A concrete two-migration sequence
-demonstrating it is useful material for that design.
+worth your evidence rather than your fix: a dependency on a symbol that does
+not exist YET — a better-matching overload, or a shadowing RELATION, created
+later in an earlier schema changes the answer with no recorded EntityId to
+invalidate against. The fix shape is a negative dependency (record the
+schemas SEARCHED, not just the entity found) and it is now written down in
+`docs/consumer-design.md`; a concrete two-migration sequence demonstrating
+the hole is useful material for that slice. Worth knowing while you probe:
+the engine's rule for an unknown symbol is nullable wherever it feeds a
+FLAG (unknown scalar function, unknown column either spelling, unknown cast
+target — all measured) and REFUSAL wherever it feeds a SHAPE (unknown
+relation, unknown schema, composite star over an unresolvable expression),
+because a column list has no conservative value. The one site that breaks
+that rule is an unknown FUNCTION in FROM, which guesses a single column
+named after the function rather than refusing — the concession that keeps
+uncaptured `pg_catalog` SRFs working, and the fall-through finding B rode
+in on. Section B's territory; a shape that reaches it with a
+composite-returning function is a finding.
 
 What is left for you here is the REST of the section, which nobody has
 touched: operators (`resolveOperatorMetadata` collects by name across ALL
