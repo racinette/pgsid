@@ -105,14 +105,32 @@ one more rank-1 defect (the write-rewrite hooks read the named relation
 while triggers fire on the relation the row lives in; the closure entry
 below has it). One probe, one conviction, on the first new mechanism
 tried: the fix phase's two days of fresh code deserve the same treatment
-the aged engine got. **A second, targeted sweep is chartered:
-`docs/adversarial-sweep-2.md`** — smaller than the first, aimed at the
-new mechanisms (its catalog names the suspects, `CHECK … NO INHERIT`
-entailment and composite-element `unnest` first among them). Run it
-before the consumer build; its findings fold into section 2 exactly as
-the first sweep's did. **Then the consumer build** — the slice plan is
-`docs/consumer-design.md`, as above, with the arity-and-order gate in its
-first contract-holding slice.
+the aged engine got. **A second, targeted sweep was chartered
+(`docs/adversarial-sweep-2.md`) and RAN (2026-08-05); its fix phase has
+NOT.** ~120 probes, thirteen findings: eight rank-1 `notNull`
+unsoundnesses, three rank-2 shape defects (all three of which also
+falsify a flag), two rank-3 param-contract defects; zero parity breaks
+and zero crashes across every probe, including all the new refusal and
+void paths — moving the refusals into the shared scope builders did what
+it was meant to. Nine root causes, five of them one idea: a fact was
+moved from "the named relation" to "the relation SET", or from "the
+statement" to "the row PostgreSQL reports", at the sites the fix phase
+was looking at rather than at every site that asks the question — an
+UPDATE that moves a row across partitions fires the DESTINATION's BEFORE
+*INSERT* trigger, `CHECK … NO INHERIT` is never copied to a child, a
+child may redefine an inherited generation expression, and the LANGUAGE
+sql body inliner is a third caller of the DML scope builders that was
+never patched. The report — findings, root causes, fix sketches with
+blast radii, a recommended order, and the negative results — is
+`docs/adversarial-findings-2.md`; the quarantine fixtures carrying the
+engine's current (wrong) claims are in
+`tests/unit/query/fixtures-adversarial/`, unmatched by the suites' glob,
+and the suite is green. **Next: that fix phase**, folding into section 2
+exactly as the first sweep's did; one of its ten items (search-path
+resolution, RC-5(b)) belongs to the consumer design instead. **Then the
+consumer build** — the slice plan is `docs/consumer-design.md`, as above,
+with the arity-and-order gate in its first contract-holding slice, now
+carrying eight defects across two sweeps that it would have caught.
 
 The semantic re-founding (section 5) is a standing parallel track; its
 executable target list emptied when Wave 12 closed the origin

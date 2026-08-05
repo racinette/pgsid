@@ -1,0 +1,22 @@
+-- FINDING 13 (rank 2 → 1) — `(x).*` where `x` names BOTH a range-table
+-- alias and a composite COLUMN of that relation. The parenthesized form is
+-- the VALUE spelling: PostgreSQL resolves `p` to the column and expands the
+-- composite's fields. `expandCompositeStar`'s first arm tries
+-- `resolveAlias` and wins, expanding the RELATION's columns instead.
+--
+-- Falsifying data: INSERT INTO cc VALUES (1, ROW(NULL, 2)::sku_pair).
+-- Observed RowDescription ["sku","qty"], row [NULL, 2].
+-- Engine list ["id","p"] with id @notNull — so the notNull lands on `sku`,
+-- which is NULL. Same arity, different meaning: the arity gate cannot see
+-- it, the ordered NAME gate can.
+-- Mechanism: nullability-walk.ts expandCompositeStar — the alias branch is
+-- tried before any column resolution, and the two are not mutually
+-- exclusive.
+--
+-- The non-clashing spelling `(c).*` over alias `c` is CORRECT (measured),
+-- and so is the non-star indirection `(p).sku` (two columns, empty names,
+-- both nullable — the FigureColname degradation, a known boundary).
+SELECT (p).*
+-- engine: id -- @notNull  <-- lands on PostgreSQL's `sku` (NULL)
+--         p  -- @nullable
+FROM cc p

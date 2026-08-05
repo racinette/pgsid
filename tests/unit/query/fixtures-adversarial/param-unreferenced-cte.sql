@@ -1,0 +1,24 @@
+-- FINDING 9 (rank 3) — an execution-time rejection site inside an
+-- UNREFERENCED CTE is never evaluated, in any data state. PostgreSQL does
+-- not execute a non-data-modifying CTE nobody references, so the window
+-- frame offset the fix phase added as a rejection site never runs and the
+-- NULL binding is accepted.
+--
+-- Measured, both directions:
+--   unreferenced (below)                        → ACCEPTED, returns [1]
+--   referenced (SELECT * FROM used)             → RAISES `frame starting
+--                                                 offset must not be null`
+-- and the fix phase's own measurement stands: the frame offset raises even
+-- over EMPTY input, so emptiness is not the escape — non-execution is.
+--
+-- The site is not special: mechanism B and mechanism C sites inside an
+-- unreferenced CTE are unreachable the same way. `notNull` is existential
+-- ("there is an execution in which NULL raises") and the collector performs
+-- no reachability analysis at all, so any provably-dead subtree falsifies
+-- it. The narrow, cheap reading of the fix is to skip unreferenced CTEs
+-- when collecting; the general one is that the claim needs a reachability
+-- qualifier the register does not yet have.
+-- @args [null]
+-- @param 1 notNull  <-- FALSIFIED (the binding is accepted)
+WITH unused AS (SELECT count(*) OVER (ORDER BY a ROWS $1 PRECEDING) FROM gs)
+SELECT 1 AS one  -- @notNull
