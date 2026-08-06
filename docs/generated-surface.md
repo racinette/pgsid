@@ -101,6 +101,15 @@ Where the walk has a table of names, the census entry is the table.
 
 ### 2. Diff each curated table against `pg_catalog`
 
+**A source-based version of this was built and DISCARDED (2026-08-05).** It
+scanned the PostgreSQL C source PGlite vendors for reachable
+`PG_RETURN_NULL` sites, and it did find a rank-1 unsoundness on its first
+run — `lower`/`upper` over an empty range — but its false-negative rate was
+2 in 8 on a hand-picked sample, in the unsound direction, and it needed a
+source tree the package will never ship. `docs/type-aware-overloads.md`
+records why in full, so that nobody rebuilds it. The replacement is the
+per-overload witness corpus in that charter, plus the catalog half below.
+
 Wherever PostgreSQL records the property, the table should not exist — and
 where it must, a test should hold it to the catalog. `AGGREGATE_NAMES`
 against `prokind = 'a'`, the window sets against `prokind = 'w'`. This is
