@@ -44,10 +44,10 @@ The walk reads a single-candidate `LANGUAGE sql` body back — here
 unbound and therefore nullable, so `a + b` reads nullable. PostgreSQL
 substitutes 7 and the result is total.
 
-**Why it is open.** Nobody had written a call with a defaulted argument until
-the function-call generator axis landed (2026-08-06); it is the first thing
-that could reach the case. Recorded as the `default-argument-not-substituted`
-rule in `generated-soundness.test.ts` rather than fixed.
+**Why it is open.** Reaching the case needs a call that OMITS a defaulted
+argument, and the function-call generator axis is what produces one. It is
+recorded as the `default-argument-not-substituted` rule in
+`generated-soundness.test.ts`.
 
 **What closing it takes, and the prerequisite nobody will expect.**
 `FunctionArgInfo.hasDefault` is a BOOLEAN — the default EXPRESSION is not
@@ -75,8 +75,8 @@ used. Rare in application SQL.
 ```sql
 SELECT c.id
 FROM customers c
-FULL JOIN orders o      ON o.customer_id = c.id
-FULL JOIN order_items oi ON oi.order_id  = c.id  -- (o.id in the fixture)
+FULL JOIN orders o       ON o.customer_id = c.id
+FULL JOIN order_items oi ON oi.order_id   = o.id
 ```
 
 `c.id` is never NULL: every `order_items` row has a matching order, the left
@@ -84,11 +84,9 @@ slice keeps every order, so the second FULL JOIN produces no order-items-only
 row and never extends its left side at all — which makes `customers` present
 throughout. The engine reads it nullable.
 
-**Why it is open.** The engine reached the right answer BEFORE the
-foreign-key fix of 2026-08-06, but by an unsound route: `o` was promoted
-wrongly and `c` rode along on null-group co-membership. Fixing the unsound
-promotion correctly cost this claim, which is the honest trade — a claim
-derived from a wrong step is not a claim.
+**Why it is open.** The evidence concludes about a JOIN and the presence
+fixpoint concludes about ALIASES, so there is nowhere to put the fact. The
+claim is recoverable only by giving the fixpoint that second vocabulary.
 
 **What closing it takes.** A JOIN-LEVEL fact the walk does not currently
 carry: "this join cannot extend its left side", distinct from the
@@ -113,9 +111,9 @@ mechanism:
 Each hop is individually a NOT NULL key the mechanism already reads. What is
 missing is proving the INNER join matches for the row the outer key found.
 
-**Why it is open.** It is a composition rather than a gap — the closure took
-the single-hop shapes and stopped. Two claims carry it as their reason, in
-`extreme-activity-feed-union` (#7) and
+**Why it is open.** It is a composition rather than a gap: the mechanism
+reads a single hop, and this shape needs two. Two claims carry it as their
+reason, in `extreme-activity-feed-union` (#7) and
 `extreme-dml-insert-shipping-pipeline` (#9).
 
 **What closing it takes.** Chaining the existing subquery-form entailment
@@ -165,10 +163,10 @@ anyway.
   safe side.
 - **The refusal in item 4 is deliberate**, and its positive controls exist so
   that a fix cannot silently widen it into a blanket refusal. Keep them.
-- **Item 2's claim was previously reached by an unsound route.** Do not
-  "restore" it by relaxing the foreign-key gate that
-  `fk-entail-optional-referenced.sql` pins; that gate is load-bearing and
-  mutation-tested.
+- **The foreign-key gate that `fk-entail-optional-referenced.sql` pins is
+  load-bearing and mutation-tested**: it is what stops a referenced side
+  extended by a DEEPER join from being promoted. Item 2's claim must be
+  recovered by adding the join-level fact, never by relaxing that gate.
 - **Item 1 is a snapshot change first.** Do not try to infer defaults from the
   rendered `pg_get_functiondef`; the structured route exists.
 
@@ -203,5 +201,6 @@ Specifically for this document:
 | The engine | `src/query/nullability-walk.ts`, `src/query/catalog-adapter.ts` |
 | The snapshot (item 1 lands here first) | `src/catalog/snapshot.ts`, `src/catalog/types.ts` |
 | Everything else that is open | `docs/deferred-tasks.md` |
+| Workspace rules (PGlite memory, build, layout) | `AGENTS.md` at the workspace root — not auto-loaded; read it before adding any long-lived PGlite instance |
 
 Run from `pgsid/` with `npx vitest run`; installs use `pnpm`.
