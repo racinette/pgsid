@@ -102,9 +102,10 @@ totality.
 
 Items 1–3 are each about an afternoon and, together, would have caught
 findings 1, 2, 3, 4 and 6. Item 4 is the real fix and would have caught five
-of eight on its own. **Items 1, 2 and 3 are built (2026-08-06).** Item 2
-closed a rank-1 unsoundness on its first run and item 3 found three more, so
-the three have already paid for themselves independently of item 4.
+of eight on its own. **All four are built (2026-08-06).** Item 2 closed a
+rank-1 unsoundness on its first run, item 3 found three more, and item 4 found
+one in a mechanism the corpus had never been able to reach — which is the
+measurement this document was written to act on.
 
 ### 1. A catalog-feature census — BUILT (2026-08-06)
 
@@ -352,11 +353,121 @@ so the warning had come true twice and the shared set was what made it
 possible. It is now `TOTAL_OPERATORS` and `STRICT_OPERATORS`; all four use
 sites already documented which property they wanted.
 
-### 4. A schema axis for the generator
+### 4. A schema axis for the generator — BUILT (2026-08-06)
 
-Generate DDL as well as queries: the corpus becomes a function of (schema,
-query shape) rather than (query shape) alone. This is the item that changes
-what the suite is capable of, and it is the one with real design questions.
+`tests/unit/query/generated/schema-axis.test.ts` and `schema-variants.ts`,
+**seven variants, eight assertions, one rank-1 unsoundness on the first run.**
+
+**The design question answered itself once the generator was read properly.**
+Its schema contract is a set of NAMES, not a set of tables: every structure it
+builds is over `t(id, name, active)`, `u(id, t_id, email, val)` and
+`v(id, u_id, amount)`. So a variant that keeps those names and changes only the
+CATALOG FEATURES behind them runs the entire existing structural corpus
+unchanged, with no generator change at all. The axis is therefore a list of DDL
+patches rather than a schema generator, which is why it cost an afternoon
+instead of the week the item budgeted.
+
+**Item 1 is the vocabulary, literally.** The census feature list moved to
+`tests/unit/query/catalog-features.ts` so both suites read one copy; each
+variant declares by NAME the features it brings under generation, and the suite
+asserts that the variant's own snapshot actually carries them. A variant
+claiming a feature nobody classified fails; a variant whose patch does not
+produce what it claims fails. That is the document's "the census failures are
+the primary signal" made executable.
+
+**The oracles are deliberately two**, not the base suite's nine: ordered column
+NAMES, and no falsified `notNull`. A wider schema finds more unsoundness and
+more wrong column lists and no imprecision at all, so the presence-group,
+parameter-contract and witness machinery would be answering questions this axis
+cannot ask. Parameterised queries are skipped for the same reason, and counted.
+
+Bounded by default: 420 queries per variant (a deterministic STRIDE sample of
+8854, so every axis region is reached) against `empty` and the variant's own
+generated state — about 14 seconds. `GENERATED_ALL_SCHEMAS=1` runs the whole
+corpus per variant. Both numbers print either way; a silent cap reads as
+"covered everything" when it did not.
+
+#### The finding
+
+`fk-chain` — the variant that gives the t—u—v chain real keys — convicted
+immediately. Reduced to:
+
+```sql
+SELECT u.email FROM t FULL JOIN u ON u.t_id = t.id FULL JOIN v ON v.u_id = u.id
+```
+
+`u.email` is NOT NULL and the engine claimed notNull; PostgreSQL returns NULL.
+Characterised exactly before anything was changed: it needs the `v.u_id → u.id`
+key (the one whose REFERENCED side is `u`) AND a FULL join to `v` while `u` is
+already extended by the earlier join. `FULL u, LEFT v` is fine; `LEFT u, FULL v`
+and `FULL u, FULL v` are not; the `u.t_id → t.id` key alone changes nothing.
+
+The cause is one word in the existing gate. Foreign-key entailment requires the
+referencing side to be either proven present or made optional by THIS join,
+and that second arm is gated on `incomingRequired` — which is a property of the
+incoming SLICE, not of the member being promoted. The slice really is required;
+it is `u` INSIDE it that was already optional from a deeper join, and the key,
+which says only that every stored `v` has a matching `u`, is silent about a row
+that has no `v` at all. The walk's own comment already names the case — "a side
+already extended by a DEEPER join is neither" — it was enforced for the
+referencing side and never for the referenced one. One line, mirroring the
+check next to it.
+
+Pinned by `fk-entail-optional-referenced.sql`, the mirror of the existing
+`fk-entail-optional-referencer.sql`, whose comment had flagged the FULL-JOIN
+arm as "the near miss to keep in view". Positive control: reverting the fix
+produces 36 violations under `fk-chain` and ZERO under the other six, which is
+also how the finding was confirmed FK-specific rather than a harness artefact.
+
+**What the fix costs, recorded on the fixture.** `c.id` in the pinned query
+really is never NULL and the engine no longer says so. It reached that answer
+before the fix by the wrong route — the unsound promotion cascaded through
+null-group co-membership — and recovering it soundly needs a distinction the
+walk does not draw: "this join never extends its left side" is not "every
+member of that side is present".
+
+#### What the axis reaches, and what it does not
+
+**What the 17 remaining gaps actually cost, classified 2026-08-06** — the
+number is misleading until it is broken up:
+
+| | count | what it needs |
+|---|---|---|
+| A | 5 | A cheap schema patch the corpus already exercises: `enum-type` (retype `u.val`), `generated-virtual-column` (recreate `gm` VIRTUAL), `not-enforced-foreign-key` (on the t–u join), `identity-always`, `domain-over-domain`. Each is one more entry in `schema-variants.ts`. |
+| B | 8 | **All blocked on ONE piece of work**: a function-call / FROM-item axis. `variadic-parameter`, `argument-with-default`, `inout-parameter`, `user-aggregate-without-initcond`, `user-window-function`, `security-definer-function`, `function-overloaded-across-schemas`, `table-row-type-column`. |
+| C | 1 | `sub-partition` — `t`/`u`/`v` are not partitioned, so it needs the corpus's own relations restructured. |
+| D | 3 | Permanently unreachable by a QUERY corpus: `procedure` (CALL is a statement; no call site exists in any query), `foreign-table` (needs an FDW PGlite does not ship), `exclusion-constraint` (nothing in the walk reads it). |
+
+**Group B is the highest-value remaining item in this document.** The generator
+calls exactly ONE function — `max` — while the fixture schema defines 66, so
+there is no axis calling a user function at all. Adding one closes all eight
+gaps AND closes the `LANGUAGE sql` body read-back, which is the second of the
+two mechanisms this document measured at zero generated coverage (item 4 closed
+the foreign-key half). It is one job, not eight.
+
+**Group D should stop being counted as a gap.** The census marks a feature
+`absent` when the FIXTURE SCHEMA lacks it, which conflates "nobody wrote the
+DDL" with "no query can reach this". The three above are the second kind and
+are permanent; they want a distinct marker so the remaining count means
+something.
+
+**5 of the census's 22 gaps are now under generation** (validated and
+DEFERRABLE foreign keys, NOT NULL domains, inheritance with an ONLY-parent
+constraint, a second schema with same-named relations, composite keys and
+unique constraints, a materialized view standing in for a relation). Seventeen
+remain, and the report names every one. Most are not a schema-patch problem at
+all: a `LANGUAGE sql` table function has nothing calling it until the generator
+grows a FROM-item axis, and a procedure has no call site in any query. That
+distinction — unreachable by a SCHEMA patch versus uncovered — is the residue
+this item hands on.
+
+**One thing the build itself found**, and it sharpens the register's
+measurement. Foreign-key entailment had zero generated coverage not merely
+because `t`, `u` and `v` declare no keys: `u.t_id` carries a seed generator
+that DELIBERATELY dangles a quarter of its rows, because the corpus's RIGHT and
+FULL JOIN structures need a row with no match. The data was built to violate
+the key the mechanism reasons from, so the variant has to replace the generator
+as well as add the constraint.
 Four, with the constraints that bound them:
 
 - **What varies.** The census list from item 1 is the axis vocabulary, which
@@ -427,6 +538,8 @@ Two additions specific to this work:
 | Catalog-feature census — item 1 | `tests/unit/query/catalog-census.test.ts` (`CATALOG_CENSUS_REPORT=1` for the gap list) |
 | Curated tables vs pg_catalog — item 2 | `tests/unit/query/curated-tables.test.ts` |
 | Totality probed by execution — item 3 | `tests/unit/query/totality-probe.test.ts` |
+| Schema axis — item 4 | `tests/unit/query/generated/schema-axis.test.ts`, `schema-variants.ts` (`GENERATED_ALL_SCHEMAS=1` for the full corpus per variant) |
+| The census list both items share | `tests/unit/query/catalog-features.ts` |
 | Curated tables | `src/query/nullability-walk.ts` (seven), `src/query/operators.ts` |
 | Fixture schema | `tests/unit/query/fixtures/schema.sql` |
 | Seed-data generators | `tests/unit/query/fixture-data/` |

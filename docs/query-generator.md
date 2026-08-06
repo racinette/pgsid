@@ -278,6 +278,7 @@ generator finds it, the corpus keeps it.
 | | |
 |---|---|
 | The generator itself | `tests/unit/query/generated/generator.ts` |
+| The schema axis over it | `tests/unit/query/generated/schema-axis.test.ts`, `schema-variants.ts` — the corpus as a function of (SCHEMA, query shape); see `docs/generated-surface.md` item 4 |
 | The generated suite | `tests/unit/query/generated/generated-soundness.test.ts` (`GENERATED_ALL_STATES=1` for every data state) |
 | Deparser round-trip measurement | `tests/unit/query/deparser-roundtrip.test.ts` |
 | Engine | `src/query/nullability-walk.ts`, `src/query/catalog-adapter.ts` |
