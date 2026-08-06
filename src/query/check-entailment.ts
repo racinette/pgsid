@@ -31,7 +31,7 @@ import type { Node } from "libpg-query";
 // transferring a truth value between the two is only sound for expressions
 // that are pure functions of the stored row. Function calls therefore never
 // match, and the closed operator list is the builtin comparison subset of
-// TOTAL_STRICT_OPERATORS by bare name (the same shadowing blind spot the
+// STRICT_OPERATORS by bare name (the same shadowing blind spot the
 // promotion gate documents).
 //
 // Beyond single atoms, three fact forms round out the evidence (Wave 7):

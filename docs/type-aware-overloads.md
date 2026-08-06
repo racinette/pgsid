@@ -50,8 +50,38 @@ in three consecutive sweeps:
 
 | mode | instances | what fixes it |
 |---|---|---|
-| **key mismatch** — the name spans overloads the claim never covered | `substring`, `lower`, `upper` | this document |
+| **key mismatch** — the name spans overloads the claim never covered | `substring`, `lower`, `upper`, `+`, `\|\|`, `random` | this document |
 | **under-verified entry** — the claim was checked against too narrow an input class | `array_position`, `extract`/`date_part`, `to_number`, `to_char`, `scale`/`min_scale` | the witness corpus below |
+
+### The three that made the case (2026-08-06)
+
+The execution probe of `docs/generated-surface.md` item 3 found three more
+key mismatches in one run, and two of them are now **kept as recorded holes
+rather than removed** — which is what makes them this document's motivating
+test cases rather than more of its evidence. They are the first entries whose
+removal was measured to cost more than the defect, so they will still be
+wrong when this refactor starts, and getting them right is how it should be
+judged.
+
+| name | the overload that breaks the claim | why removal was refused | recorded in |
+|---|---|---|---|
+| `+` | `path + path` is NULL whenever EITHER operand is a CLOSED path (`path + point` is total; open + open is a value) | the falsifying input needs a `path`-typed column, which essentially no application schema has, while removing the name makes `id + 1` on a NOT NULL integer read nullable — the general case | `PARTIAL_OVERLOADS` in `src/query/operators.ts` |
+| `\|\|` | array concatenation ABSORBS a NULL operand: `ARRAY[1,2] \|\| NULL` is `{1,2}`, while `'a' \|\| NULL::text` IS NULL | removal was tried and is worse in the direction that matters — the corpus immediately admitted three bindings PostgreSQL rejects, because mechanism C needs the strict TEXT meaning to predict a real rejection | `NON_STRICT_OVERLOADS` in `src/query/operators.ts` |
+| `random` | PG17's `random(min, max)` overloads are STRICT, so `random(NULL, NULL)` is NULL while `ALWAYS_NOT_NULL_BUILTINS` claims "never NULL whatever the arguments" | **not refused — removed.** Its falsifying input is ordinary integers, so unlike the two above the exotic-input argument does not apply, and the cost is only `random()` | removed from the table |
+
+The contrast between the first two rows and the third is the rule this
+document should encode: **the exotic-operand argument is what makes a hole
+tolerable, and narrowing is what makes it unnecessary.** `+` resolved by
+operand type keeps `id + 1` AND refuses `path + path`; `||` resolved by
+operand type predicts the text rejection AND stops over-reporting the array
+one. Both are two-candidate discriminations on concrete, non-polymorphic
+operand types — the easiest case the elimination rule has — so if the
+refactor cannot recover these two, it is not worth its cost.
+
+`totality-probe.test.ts` asserts both records from BOTH sides, so neither can
+outlive the defect it excuses: the probe must still reproduce the NULL, and
+any OTHER overload of the same name returning NULL fails immediately rather
+than hiding behind the note.
 
 ## The design: narrow, do not resolve
 

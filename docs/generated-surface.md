@@ -88,21 +88,23 @@ tables remained in `nullability-walk.ts` (`ALWAYS_NOT_NULL_BUILTINS`,
 `STRICT_TOTAL_BUILTINS`, `FIRST_ARG_BUILTINS`, `AGGREGATE_NAMES`,
 `NEVER_NULL_WINDOW_FNS`, `NON_NULL_OVER_NONEMPTY_AGGREGATES`,
 `HYPOTHETICAL_SET_AGGREGATES`, `ORDERED_SET_AGGREGATES`) plus
-`TOTAL_STRICT_OPERATORS` in `operators.ts`. No test asserted what should be
-*in* one, so a missing entry was invisible until a sweep wrote the query.
+`TOTAL_STRICT_OPERATORS` in `operators.ts` (now split in two). No test
+asserted what should be *in* one, so a missing entry was invisible until a
+sweep wrote the query.
 This yielded three sweeps running — `ALWAYS_NOT_NULL`, then
 `STRICT_TOTAL_BUILTINS`, then `BUILTIN_SRF_NAMES` — and a fourth time the
 moment item 2 finally asked: `AGGREGATE_NAMES` was wrong in three directions
-at once and is now a catalog capture. Seven tables remain, all under the item-2
-suite.
+at once and is now a catalog capture. Seven tables remain — plus the two
+operator sets — all under the item-2 suite for kind and the item-3 probe for
+totality.
 
 ## The work, in cost order
 
 Items 1–3 are each about an afternoon and, together, would have caught
 findings 1, 2, 3, 4 and 6. Item 4 is the real fix and would have caught five
-of eight on its own. **Items 1 and 2 are built (2026-08-06)**; item 2 closed
-a rank-1 unsoundness on its first run, so the pair has already paid for
-itself independently of item 4.
+of eight on its own. **Items 1, 2 and 3 are built (2026-08-06).** Item 2
+closed a rank-1 unsoundness on its first run and item 3 found three more, so
+the three have already paid for themselves independently of item 4.
 
 ### 1. A catalog-feature census — BUILT (2026-08-06)
 
@@ -282,6 +284,74 @@ Three sweeps have done this by hand, each time finding members that failed
 their own criterion (`substring`, `array_position`, `extract`/`date_part`,
 `to_number`, `to_char`, `scale`/`min_scale`). Automate it once.
 
+**BUILT (2026-08-06): `tests/unit/query/totality-probe.test.ts`**, seven
+assertions, each mutation-tested to fail alone. **789 signatures → 13,270
+expressions; 10,866 evaluated, 2,426 raised.** Three findings.
+
+The mechanism is a plpgsql `probe(expr text)` that `EXECUTE`s `SELECT (expr)
+IS NULL` and returns `'error'` from an exception handler, so one statement
+over `unnest($1::text[])` evaluates the whole surface with per-expression
+error isolation. 20,000 probes run in ~130ms, which is why the cap on
+combinations is about the report staying honest rather than about time.
+Arguments come from a per-type corpus keyed on the input CLASSES that have
+historically broken a claim — NaN, the infinities, the empty string, the empty
+array, the empty range, the empty format, the JSON null — with a boring
+baseline first, because a capped signature varies one argument at a time and
+needs the rest valid for anything to evaluate at all. Polymorphic parameters
+are instantiated as a FAMILY so a signature does not spend its combinations on
+calls PostgreSQL rejects for type mismatch. Calls are `pg_catalog.`-qualified:
+`position`, `overlay`, `current_user` and `session_user` are GRAMMAR, and six
+signatures raised on every combination until the qualifier went on.
+
+**Each table is asked its OWN claim**, because they are three different claims
+and one assertion would be wrong for two of them: `ALWAYS_NOT_NULL_BUILTINS`
+is probed with NULL arguments too (`concat(NULL)` is `''`, which is the
+point), `FIRST_ARG_BUILTINS` with a non-null first argument and NULL for the
+rest, `STRICT_TOTAL_BUILTINS` with non-null arguments throughout.
+
+**A raise is not a finding** — that is the tables' own admission criterion —
+which makes silent non-coverage the failure mode to guard, and three
+assertions do: every parameter type must have a value generator, every
+signature must have at least one combination that actually evaluated, and the
+exemptions from that are named with reasons and asserted from both sides. Two
+exist: `aclitem[] + aclitem` and `aclitem[] - aclitem`, still DECLARED by
+PostgreSQL with their implementations removed, so they raise for every input
+forever. **The harness carries its own positive control** — the ten
+expressions three sweeps removed must STILL come back NULL, asserted first,
+because every other assertion here is a negative and a negative is worth only
+what the harness can detect.
+
+### The three findings, and why two were kept
+
+| name | the overload that breaks the claim | outcome |
+|---|---|---|
+| `random` | PG17 added `random(min, max)` for integer/bigint/numeric, and they are STRICT — `random(NULL, NULL)` is NULL while the table claims "never NULL whatever the arguments" | **removed.** Its falsifying input is ordinary integers, so the exotic-input argument does not apply. Cost: `random()` reads nullable |
+| `+` | `path + path` is NULL whenever EITHER operand is a CLOSED path (`path + point` is total, open + open is a value) | **kept**, recorded in `PARTIAL_OVERLOADS` |
+| `\|\|` | array concatenation ABSORBS a NULL operand — `ARRAY[1,2] \|\| NULL` is `{1,2}` — so it is not STRICT, while `'a' \|\| NULL::text` IS NULL | **kept**, recorded in `NON_STRICT_OVERLOADS` |
+
+The two that were kept follow the register's FOREIGN-KEY-TRUST precedent
+rather than the `lower`/`upper` one: the falsifying input needs a `path`-typed
+column, and removing the name costs the general case — `id + 1` on a NOT NULL
+integer would read nullable. Removing `||` was not merely weighed but TRIED,
+and measured worse in the direction that matters: the generated corpus
+immediately admitted three bindings PostgreSQL rejects (`INSERT INTO tags
+(name) VALUES (COALESCE($1, $2 || $3))` with all three NULL), because
+mechanism C needs the strict TEXT meaning to predict a real rejection.
+Under-reporting strictness makes the emitted types lie about a binding that
+fails; over-reporting only makes a parameter read non-nullable where NULL
+would have been accepted. Both records are asserted from BOTH sides, so
+neither can outlive the defect it excuses, and
+`docs/type-aware-overloads.md` now carries all three as its worked test
+cases — a refactor that cannot recover these two is not worth its cost.
+
+**One curated table became two.** `TOTAL_STRICT_OPERATORS` required members to
+be total AND strict, with the file's own warning that "an operator with only
+one must not be added — it would be sound for one consumer and wrong for the
+other". Execution found one member failing each half, in opposite directions,
+so the warning had come true twice and the shared set was what made it
+possible. It is now `TOTAL_OPERATORS` and `STRICT_OPERATORS`; all four use
+sites already documented which property they wanted.
+
 ### 4. A schema axis for the generator
 
 Generate DDL as well as queries: the corpus becomes a function of (schema,
@@ -356,6 +426,7 @@ Two additions specific to this work:
 | AST node census — the pattern to copy | `tests/unit/query/node-census.test.ts` |
 | Catalog-feature census — item 1 | `tests/unit/query/catalog-census.test.ts` (`CATALOG_CENSUS_REPORT=1` for the gap list) |
 | Curated tables vs pg_catalog — item 2 | `tests/unit/query/curated-tables.test.ts` |
+| Totality probed by execution — item 3 | `tests/unit/query/totality-probe.test.ts` |
 | Curated tables | `src/query/nullability-walk.ts` (seven), `src/query/operators.ts` |
 | Fixture schema | `tests/unit/query/fixtures/schema.sql` |
 | Seed-data generators | `tests/unit/query/fixture-data/` |
