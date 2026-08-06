@@ -995,3 +995,53 @@ CREATE TABLE rng (id integer NOT NULL, span int4range NOT NULL);
 CREATE FUNCTION window_body() RETURNS bigint LANGUAGE sql AS $$
   SELECT count(*) OVER () FROM t
 $$;
+
+-- ====================================================================
+-- The function-call axis (docs/generated-surface.md item 4's residue).
+--
+-- The generator called exactly ONE function — `max` — while this schema
+-- defined 66, so nothing in the corpus reached a variadic parameter, a
+-- defaulted argument, an INOUT parameter, a user aggregate or window
+-- function, or a `LANGUAGE sql` body being read back. These six exist to
+-- give that axis a vocabulary; each is deliberately able to return NULL,
+-- because the generated suite requires every nullable claim to be
+-- witnessed by a real one.
+-- ====================================================================
+
+-- VARIADIC: resolveFunctionCandidates refuses to arity-filter against one,
+-- so the call is conservatively nullable. `nullif(..., '')` is what makes
+-- that claim witnessable — array_to_string ignores NULLs and would
+-- otherwise return '' forever.
+CREATE FUNCTION gfn_var(VARIADIC xs text[]) RETURNS text
+  LANGUAGE sql AS $$ SELECT nullif(array_to_string(xs, ','), '') $$;
+
+-- A DEFAULTED argument: the lower bound of the arity window
+-- (`argCount >= required`), which every other candidate in this schema
+-- leaves untested because required always equals inputs.
+CREATE FUNCTION gfn_def(a integer, b integer DEFAULT 7) RETURNS integer
+  LANGUAGE sql AS $$ SELECT a + b $$;
+
+-- An INOUT parameter: an input for the arity filter and an output column
+-- for functionOutputColumns, in one declaration.
+CREATE FUNCTION gfn_io(INOUT a text) LANGUAGE sql AS $$ SELECT upper(a) $$;
+
+-- SECURITY DEFINER: captured, unread, and asserted nowhere until now.
+CREATE FUNCTION gfn_sd(a text) RETURNS text
+  LANGUAGE sql SECURITY DEFINER AS $$ SELECT a $$;
+
+-- An aggregate with NO INITCOND — NULL over zero input rows, which is the
+-- branch `aggInitVal` gates and which the three existing user aggregates
+-- (all INITCOND '0') cannot reach.
+-- The `nullif` is load-bearing: GROUP BY guarantees no empty group, so the
+-- zero-row NULL is unreachable under a grouped projection. Folding all-NULL
+-- input to NULL gives the claim a witness from real data instead.
+CREATE FUNCTION gfn_sfunc(s text, v text) RETURNS text
+  LANGUAGE sql AS $$ SELECT nullif(coalesce(s, '') || coalesce(v, ''), '') $$;
+CREATE AGGREGATE gfn_noinit(text) (SFUNC = gfn_sfunc, STYPE = text);
+
+-- A USER window function. `CREATE FUNCTION … WINDOW` is documented as
+-- C-only and PostgreSQL nonetheless accepts and runs a LANGUAGE sql one
+-- (measured), which is what makes this reachable at all. It is not in
+-- NEVER_NULL_WINDOW_FNS, so the walk must fall through to conservative.
+CREATE FUNCTION gfn_win(x text) RETURNS text WINDOW
+  LANGUAGE sql AS $$ SELECT x $$;

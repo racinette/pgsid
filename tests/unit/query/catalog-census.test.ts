@@ -146,7 +146,7 @@ const ENUMERATED_COLUMNS: Record<string, EnumeratedColumn> = {
     values: {
       i: { meaning: "IN — ArgMode 'in'" },
       o: { meaning: "OUT — what functionOutputColumns reads" },
-      b: { meaning: "INOUT", absent: "see the `inout-parameter` feature" },
+      b: { meaning: "INOUT — an input for the arity filter and an output column for functionOutputColumns, in one declaration" },
       v: { meaning: "VARIADIC — the candidate set resolveFunctionCandidates refuses outright" },
       t: { meaning: "TABLE — RETURNS TABLE(…)'s output columns" },
     },

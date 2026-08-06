@@ -826,6 +826,82 @@ const PROJECTIONS: Projection[] = [
     expectations: [expectWindow("lag"), expectWindow("ntile")],
   },
   {
+    // The FUNCTION-CALL axis. The generator called exactly ONE function —
+    // `max` — while the fixture schema defined 66, so an entire family of
+    // catalog features had no call site: a VARIADIC parameter, a DEFAULTED
+    // argument, an INOUT parameter, a SECURITY DEFINER body, and — the one
+    // that matters most — a `LANGUAGE sql` body being READ BACK, which
+    // docs/generated-surface.md measured at zero generated coverage.
+    //
+    // Every claim here is witness-aligned by construction, because the suite
+    // requires it: gfn_var nullifs its empty join so an all-NULL argument
+    // list comes back NULL rather than ''; gfn_sd and double_val are
+    // pass-throughs, so they inherit the slot's nullability and the join axis
+    // witnesses both directions; gfn_io wraps `upper`, which left
+    // STRICT_TOTAL_BUILTINS over the empty-range finding and is therefore
+    // nullable whatever its argument.
+    //
+    // gfn_def is called with ONE argument against a two-parameter
+    // declaration — the lower bound of resolveFunctionCandidates' arity
+    // window (`argCount >= required`), which every other candidate in this
+    // schema leaves untested because required always equals inputs.
+    key: "fn-call",
+    build: s => ({
+      targets: [
+        target(funcCall("gfn_def", [s.slots.intKey]), "a_fd"),
+        // textB rather than textC: the schema axis's `enum-column` variant
+        // retypes textC, and an enum is not implicitly coercible to `text`,
+        // so a call taking it would not resolve there. The slot a
+        // function-call axis reads has to stay text-compatible across every
+        // variant — measured, when that variant rejected 128 queries.
+        target(funcCall("gfn_var", [s.slots.textA, s.slots.textB]), "a_fv"),
+        target(funcCall("gfn_io", [s.slots.textB]), "a_fi"),
+        target(funcCall("gfn_sd", [s.slots.textA]), "a_fs"),
+        target(funcCall("double_val", [s.slots.intKey]), "a_fb"),
+      ],
+      colNames: ["a_fd", "a_fv", "a_fi", "a_fs", "a_fb"],
+      literals: [intConst(31), textConst("fv"), textConst("fi"), textConst("fs"), intConst(32)],
+      // sparse's matched t–u row: t.id 1, t.name NULL, u.val NULL,
+      // u.email 'u1@b.c'. Measured against PGlite rather than reasoned.
+      matchLiterals: [intConst(8), textConst("u1@b.c"), textConst("U1@B.C"), nullConst(), intConst(1)],
+    }),
+    expectations: [expect("gfn_def", "FuncCall")],
+  },
+  {
+    // The aggregate and window halves of the same axis, grouped so the window
+    // call can read a grouped column.
+    //
+    // gfn_noinit has NO INITCOND, which is the branch `aggInitVal` gates and
+    // which the schema's other three user aggregates (all INITCOND '0')
+    // cannot reach: with no initial state there is nothing to return over
+    // zero rows, so it is NULL under `empty` and non-NULL wherever a group
+    // exists. gfn_win is a USER window function — `CREATE FUNCTION … WINDOW`
+    // is documented C-only and PostgreSQL runs a LANGUAGE sql one anyway
+    // (measured) — and it is deliberately absent from NEVER_NULL_WINDOW_FNS,
+    // so the walk must fall through to conservative and the fall-through is
+    // witnessed wherever t.name is NULL.
+    key: "fn-agg-window",
+    build: s => ({
+      targets: [
+        target(s.slots.intKey, "a_key"),
+        target(funcCall("gfn_noinit", [s.slots.textB]), "a_fa"),
+        // The window call reads an AGGREGATE rather than a grouped column, so
+        // the projection groups by the key alone. Grouping by textA as well
+        // would work, but it makes the aggregate's own argument constant
+        // within its group and the claim degenerate.
+        target(
+          winCall("gfn_win", [funcCall("max", [s.slots.textA])], overOrder(s.slots.intKey)),
+          "a_fw",
+        ),
+      ],
+      groupBy: [s.slots.intKey],
+      colNames: ["a_key", "a_fa", "a_fw"],
+      literals: [intConst(41), textConst("fa"), textConst("fw")],
+      matchLiterals: [intConst(1), textConst("u1@b.c"), nullConst()],
+    }),
+    expectations: [expectGroupBy, expectWindow("gfn_win")],
+  },
+  {
     key: "group-coalesce",
     build: s => ({
       targets: [

@@ -383,19 +383,16 @@ export const FEATURES: Record<string, Feature> = {
     category: "handled",
     why: "resolveFunctionCandidates counts 'in' and 'inout' as INPUTS when filtering by arity; an INOUT argument is also an output column",
     detect: s => s.functions.some(f => f.args.some(a => a.mode === "inout")),
-    absent: "proargmodes 'b' appears nowhere. The arity filter's inout half and functionOutputColumns' inout half are both untested.",
   },
   "variadic-parameter": {
     category: "gated",
     why: "resolveFunctionCandidates returns null outright for a variadic candidate — arity filtering is unsound against one, and it once sent a whole FROM item to a single wrongly-named column (measured: vp(VARIADIC text[]) beside vp(integer))",
     detect: s => s.functions.some(f => f.args.some(a => a.mode === "variadic")),
-    absent: "No USER variadic function. The gate is pinned in unsupported-nodes.test.ts and resolver.test.ts, which build their own catalogs; builtin-variadic-null.sql covers only the pg_catalog side.",
   },
   "argument-with-default": {
     category: "handled",
     why: "resolveFunctionCandidates' arity window is `argCount >= required && argCount <= inputs.length`, where `required` counts arguments WITHOUT a default — a call with fewer arguments than the declaration still resolves",
     detect: s => s.functions.some(f => f.args.some(a => a.hasDefault)),
-    absent: "No DEFAULT argument anywhere, so the lower bound of that window is never exercised: every candidate here has required === inputs.length.",
   },
   "set-returning-user-function": {
     category: "handled",
@@ -411,13 +408,11 @@ export const FEATURES: Record<string, Feature> = {
     category: "handled",
     why: "the control for the above: no INITCOND means the zero-row result is NULL and the claim must be dropped",
     detect: s => s.functions.some(f => f.isAggregate && f.aggInitVal === null),
-    absent: "All three user aggregates declare INITCOND '0'. Only the non-null branch is reached from the fixture schema.",
   },
   "user-window-function": {
     category: "conservative",
     why: "FunctionInfo.isWindow is captured; the walk's window dispatch is keyed on the curated builtin sets (NEVER_NULL_WINDOW_FNS and siblings), so a USER window function falls through to nullable",
     detect: s => s.functions.some(f => f.isWindow),
-    absent: "No CREATE FUNCTION … WINDOW. That the fallthrough is what happens is asserted nowhere.",
   },
   "procedure": {
     category: "conservative",
@@ -431,7 +426,6 @@ export const FEATURES: Record<string, Feature> = {
     category: "conservative",
     why: "captured and unread — a body's nullability does not depend on whose privileges run it",
     detect: s => s.functions.some(f => f.securityDefiner),
-    absent: "No SECURITY DEFINER function. Recorded because the claim that it is uneventful is a claim.",
   },
   "strict-function": {
     category: "handled",
