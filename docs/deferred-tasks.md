@@ -290,7 +290,35 @@ nesting; tier 2 is the original superset narrowing as fallback, with the
 consensus quantifier now PER-PROPERTY (`every` for totality, `some` for
 strictness, because the two fail in opposite directions); tier 3 — letting
 a receiver constrain the set — is sound for valid statements but optional,
-and PostgreSQL itself is measured NOT to resolve that way. Governing invariant: eliminate only on certainty,
+and PostgreSQL itself is measured NOT to resolve that way.
+
+**THREE QUESTIONS MUST BE ANSWERED BEFORE THIS REFACTOR STARTS**, listed in
+the charter's "Still uncovered" section and repeated here because this
+register is the resume point and they are easy to mistake for settled:
+
+1. **Operator shadowing under `search_path`.** `src/query/operators.ts`
+   carries a documented blind spot — the curated sets match BARE NAMES, so a
+   user-defined operator of the same name is invisible. Does tier 1's
+   candidate gathering close that, or inherit it?
+2. **Aggregates and window functions.** Exact match against `VARIADIC "any"`,
+   `WITHIN GROUP` and `FILTER` shapes was never worked through.
+   `rank('a') WITHIN GROUP (ORDER BY u.val)` is the shape to reason about
+   first.
+3. **Domain-following generality.** That a domain resolves as its base for
+   operator lookup is measured ONCE (`dint + dint` → integer) and assumed for
+   every domain over every base.
+
+A fourth item is decided rather than open, and is the first thing to build:
+tier 1 must CANONICALISE an argument type before lookup — through
+binary-coercible casts and domain bases — or it misses `character varying`,
+which has ZERO operators declared on it (measured; `varchar || varchar`
+resolves to `text` by binary coercion). Everyday SQL would never reach the
+fast path.
+
+And the prerequisite that gates the whole thing: pg_catalog SIGNATURES must
+reach the snapshot, which today holds user-schema signatures only. Scope is
+bounded — only names the engine makes a claim about, ~800 rows — but it is
+downstream of the search-path boundary in `docs/generated-surface.md`. Governing invariant: eliminate only on certainty,
 which makes an incomplete coercion model safe. Non-goals are explicit —
 no type inference, no tiebreak algorithm, no polymorphic return types, and
 types never leave the engine (`PREPARE` stays the type oracle). It carries
