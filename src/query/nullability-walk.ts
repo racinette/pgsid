@@ -7358,7 +7358,16 @@ const STRICT_TOTAL_BUILTINS = new Set([
   // are NULL (the numeric/int to_char forms return '' and are total, but
   // name-level dispatch cannot tell); `scale` and `min_scale` of NaN are
   // NULL; `array_position` is NULL when the element is absent.
-  "lower", "upper", "initcap", "length", "char_length", "character_length",
+  //
+  // `lower` and `upper` left for the SAME reason, found by the curated-table
+  // auditor rather than by hand: each has a total `(text)` form AND a
+  // `(anyrange)`/`(anymultirange)` form that returns NULL for an EMPTY range
+  // (measured — `lower('empty'::int4range)` is NULL, and the engine claimed
+  // notNull). Name-level dispatch cannot tell the two apart, so the text
+  // meaning loses its precision with the range one. Recovering it needs the
+  // ARGUMENT's type, which this rule deliberately does not read; the register
+  // records that as the recovery path.
+  "initcap", "length", "char_length", "character_length",
   "octet_length", "bit_length", "md5", "ascii", "chr", "repeat", "reverse",
   "substr", "replace", "translate", "overlay",
   "ltrim", "rtrim", "btrim", "trim", "lpad", "rpad",

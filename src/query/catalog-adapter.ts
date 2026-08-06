@@ -74,10 +74,35 @@ export async function buildNullabilityCatalog(
         .filter(c => TEXT_FAMILY_OIDS.has(c.typeOid) && c.collationDeterministic === true)
         .map(c => c.name),
     );
+  // A column whose TYPE is a NOT NULL domain is non-null in every stored
+  // row, and `attnotnull` does not say so — it stays FALSE for a
+  // domain-constrained column (measured), which left the engine reading such
+  // columns nullable. Every route to a stored NULL is closed by PostgreSQL
+  // itself: an INSERT omitting the column, an UPDATE to NULL, ADD COLUMN on
+  // a non-empty table, ALTER COLUMN TYPE over existing NULLs, and
+  // `ALTER DOMAIN … SET NOT NULL` while a column holds one are all rejected
+  // — and unlike a CHECK, `SET NOT NULL` on a domain has no NOT VALID form
+  // to bypass the validation with (syntax error — measured). That absence is
+  // what makes the fact usable rather than merely usual.
+  //
+  // TABLES only. A VIEW column can carry the domain as its type and still be
+  // NULL, because a LEFT JOIN inside the definition null-extends it after
+  // the domain has had its say (measured, matviews too) — the view path
+  // analyses the definition and gets that right on its own.
+  //
+  // Tree-wide by construction: a child cannot retype an inherited column
+  // (`cannot alter inherited column` — measured), so the domain fact needs
+  // no per-child conjunction the way `attnotnull` does.
+  const notNullDomainOids = new Set(
+    snapshot.domains.filter(d => d.notNull).map(d => d.oid),
+  );
+  const domainForcedNotNull = (c: { typeOid: number }): boolean =>
+    notNullDomainOids.has(c.typeOid);
+
   for (const t of snapshot.tables) {
     const columns = t.columns.map(c => c.name);
     const notNullCols = new Set(
-      t.columns.filter(c => c.notNull).map(c => c.name),
+      t.columns.filter(c => c.notNull || domainForcedNotNull(c)).map(c => c.name),
     );
     tableMap.set(`${t.schema}.${t.name}`, {
       schema: t.schema,
@@ -85,7 +110,7 @@ export async function buildNullabilityCatalog(
       columns,
       notNullCols,
       notNullTreeCols: new Set(
-        t.columns.filter(c => c.notNullTree).map(c => c.name),
+        t.columns.filter(c => c.notNullTree || domainForcedNotNull(c)).map(c => c.name),
       ),
       colTypeOids: new Map(t.columns.map(c => [c.name, c.typeOid])),
       colTypeNames: new Map(t.columns.map(c => [c.name, c.typeName])),

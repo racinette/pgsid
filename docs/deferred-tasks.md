@@ -183,6 +183,44 @@ now carries TWELVE defects across three sweeps that it would have
 caught, and belongs in the consumer build's first commit. The third is a
 checklist item for the next mechanism anyone adds.
 
+**Chartered, not started: closing the recorded imprecisions** —
+`docs/imprecision-closure.md` (2026-08-05). The suite records 100
+`@unwitnessable` reasons across 336 fixtures; the doc classifies them and
+says which are engine defects. Two are worth closing and are independent
+of everything else: ROW-TYPE ERASURE (~13–17 — `SETOF order_items` erases
+the table's NOT NULLs while the `LANGUAGE sql` body selects those very
+columns; the walk already inlines bodies for scalar returns and simply
+does not for row returns) and KEY ENTAILMENT (~8–9 — a join on a NOT NULL
+foreign key always matches, and the snapshot already carries the
+constraint; five hazards to measure first, `NOT VALID` and `DEFERRABLE`
+among them). A third class is seed data, not engine. The rest is either
+the overload charter's or correct conservatism. Step 0 is an audit of the
+REASONS themselves: two of roughly ten read closely were wrong, one of
+them moving two claims out of "fixable" entirely, so the classification
+needs that pass before any effort is committed to it.
+
+**A refactor chartered, not started: type-aware overload narrowing** —
+`docs/type-aware-overloads.md` (2026-08-05). The curated-table audit's
+`lower`/`upper` finding forced a sound removal that costs `lower(<text
+column>)` its notNull, and that is indefensible to a consumer: the
+simplest function in SQL reading nullable is a credibility problem before
+it is a precision one. The structural cause is that a curated entry keys
+on a NAME while PostgreSQL keys on a SIGNATURE — 137 curated names cover
+235 signatures, 55 of them backed by more than one C implementation, and
+`TOTAL_STRICT_OPERATORS`' 22 names cover 558. The charter's design is
+NARROW, DO NOT RESOLVE: implement step 2 of PostgreSQL's resolution
+algorithm (discard candidates the arguments cannot be implicitly coerced
+to) and stop, because every later tiebreak only removes more candidates,
+so the survivors are a superset of PostgreSQL's answer and consensus over
+a superset is sound. Governing invariant: eliminate only on certainty,
+which makes an incomplete coercion model safe. Non-goals are explicit —
+no type inference, no tiebreak algorithm, no polymorphic return types, and
+types never leave the engine (`PREPARE` stays the type oracle). It carries
+its own test suite: per-overload NULL witnesses for functions, aggregates
+and window functions, with the control line that keeps a witness honest.
+The real cost is re-keying the three tables from 137 name entries to 235
+signature entries, each needing its own verdict.
+
 **Before or beside the consumer build: widen the generated suite's
 surface** — `docs/generated-surface.md` (2026-08-05), a self-contained
 handoff. The third fix phase produced the measurement that justifies it:
@@ -422,6 +460,49 @@ widening — `builtinFunctionNames` and `builtinPolymorphicFunctions` (68 of
 2726 names) — the first of which finding 6 needs anyway: a builtin whose
 return type is CONCRETE can never yield an array of a user composite,
 which is the whole difference between one column and the element's fields.
+
+### The curated-table audit (2026-08-05) — what it found, and why the tool is gone
+
+The recurring lesson of three sweeps was "sweep every hand-curated table
+against the catalog it approximates", scheduled but never automated. It
+could not be automated the obvious way: the tables claim TOTALITY (non-NULL
+arguments give a non-NULL result) and PostgreSQL records only STRICTNESS
+(`proisstrict`, which 2549 of 2726 builtin names carry, so it is no proxy).
+Totality lives only in the C implementations.
+
+A scanner was built against the PostgreSQL source PGlite vendors, asking
+not "is this total?" but "does any reachable path return NULL?" — the only
+direction sound to ask, since over-approximating costs a claim and
+under-approximating produces a wrong notNull.
+
+**It found a rank-1 unsoundness on its first run, and that finding
+stands.** `lower` and `upper` each have a total `(text)` form AND an
+`(anyrange)`/`(anymultirange)` form returning NULL for an EMPTY range
+(measured: `lower('empty'::int4range)` is NULL, and the engine claimed
+notNull through a NOT NULL column). The walk dispatches builtins by NAME,
+so one table entry covered both meanings. Both names left
+`STRICT_TOTAL_BUILTINS` on the criterion that had already removed
+`substring`, and `builtin-range-lower-upper.sql` pins the falsifying shape
+with empty ranges seeded by row index.
+
+**The scanner itself was then deleted**, and should not be rebuilt. Three
+reasons, all measured: its false-negative rate was 2 in 8 on a hand-picked
+sample — the unsound direction — because thin entry points delegate to
+`_common` helpers; `PG_RETURN_NULL` is only one of four NULL routes in that
+tree (24 `isnull` assignments, 346 `DirectFunctionCall` sites whose
+callee's flag propagates, 85 SRF/tuplestore sites); and beyond detection
+the real barrier is reachability, which needs a PostgreSQL-aware
+interprocedural analyzer (`mod`'s NULL return is dead code after
+`ereport(ERROR)`; `concat`'s is live but only under the VARIADIC protocol).
+It also required a source tree the package will never ship. Everything the
+scan gave that was RELIABLE — names, signatures, argument and return types
+— is available at runtime from `pg_proc`.
+
+The replacement is `docs/type-aware-overloads.md`: per-overload NULL
+witnesses executed against PGlite, which refute exactly rather than
+heuristically, cover SQL-bodied builtins, and need no external source. The
+cost the finding leaves behind — `lower(<text column>)` now reads nullable
+— is what that charter's narrowing recovers.
 
 ### Residue after the third fix phase
 

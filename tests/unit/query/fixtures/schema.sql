@@ -927,3 +927,10 @@ CREATE FUNCTION out_pair(x integer, OUT lo integer, OUT hi nn_text)
   RETURNS SETOF record LANGUAGE sql AS $$ SELECT x, 'h'::nn_text $$;
 CREATE FUNCTION one_row_composite() RETURNS TABLE(r sku_pair)
   LANGUAGE sql AS $$ SELECT ROW('s', NULL)::sku_pair $$;
+
+-- An EMPTY range in a NOT NULL column. `lower()` and `upper()` each have a
+-- total `(text)` form and an `(anyrange)` form that returns NULL for an empty
+-- range, and the walk dispatches builtins by NAME — so the totality table
+-- claimed notNull for both meanings. Found by auditing the curated tables
+-- against PostgreSQL's own source rather than by hand.
+CREATE TABLE rng (id integer NOT NULL, span int4range NOT NULL);

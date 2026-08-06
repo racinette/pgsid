@@ -1,3 +1,6 @@
+-- @unwitnessable 4: products.name is NOT NULL and upper() of a text value is
+--   total; the nullable is the name-level cost of upper's (anyrange) overload,
+--   which builtin-range-lower-upper.sql shows returning NULL
 -- @unwitnessable 10: date_part of a FINITE timestamp is never NULL; the exclusion exists for the infinite inputs (adversarial-2 finding 11), and orders.placed_at seeds none — builtin-extract-infinity.sql witnesses that class
 -- @unwitnessable 23: CURRENT_SCHEMA is NULL only when the search path resolves to no schema, which no data state can arrange
 -- @unwitnessable 24: pg_sleep returns void and never NULL, but sits outside the curated builtin tables (known imprecision)
@@ -19,7 +22,12 @@ SELECT
   gen_random_uuid()                       AS uuid,            -- @notNull
 
   -- Total over non-null arguments.
-  upper(p.name)                           AS upper_name,      -- @notNull
+  -- `upper` is NOT among them any more: it has an `(anyrange)` overload that
+  -- returns NULL for an empty range, and name-level dispatch cannot tell it
+  -- from the total `(text)` form (the `substring` trade, found by the
+  -- curated-table auditor). builtin-range-lower-upper.sql pins the shape
+  -- that falsified it.
+  upper(p.name)                           AS upper_name,      -- @nullable
   length(p.sku)                           AS sku_len,         -- @notNull
   round(p.price, 1)                       AS rounded,         -- @notNull
   abs(p.id)                               AS abs_id,          -- @notNull

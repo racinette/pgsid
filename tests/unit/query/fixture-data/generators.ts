@@ -302,6 +302,14 @@ const columnSpecificGenerators: Record<
     // element with an empty qty, which is what witnesses the `qty` nullable
     // claim an unnest expansion makes: the field is NULL while the element
     // itself is not, so a whole-composite NULL cannot stand in for it.
+    // Half the ranges are EMPTY, which is the only input that makes
+    // lower()/upper() return NULL — the witness for
+    // builtin-range-lower-upper.sql.
+    rng: {
+      id: sequential,
+      span: (rand, ctx) => (ctx.row % 2 === 0 ? "empty" : `[${rand.int(1, 5)},${rand.int(6, 9)})`),
+    },
+
     pair_holder: {
       id: sequential,
       pairs: skuPairArray,

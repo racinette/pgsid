@@ -287,7 +287,7 @@ group.
 
 ## Current measurement
 
-Across 335 fixtures and 5 data states, at the default seed (post the
+Across 336 fixtures and 5 data states, at the default seed (post the
 THIRD adversarial fix phase, whose graduated pins — the qualified star in
 four placements, the composite-domain sites, the `unnest` spellings, the
 two SRF padding shapes, the quoted `TABLE(…)` names, the pg_catalog
@@ -296,13 +296,13 @@ the growth over the second phase's 311, itself grown from the first's 288):
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 834 | |
-| — falsifiable | 824 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 836 | |
+| — falsifiable | 826 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 541 | |
-| — witnessed | 438 (81%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 103 | every one carries an `@unwitnessable` annotation |
+| `nullable` claims | 542 | |
+| — witnessed | 440 (81%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 102 | every one carries an `@unwitnessable` annotation |
 | `@null-group` claims | 42 (36 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
 The new unwitnessed entries are one shape repeated: unnesting a NULL array

@@ -1,7 +1,4 @@
 -- @unwitnessable 0: the source's one sku is a non-null literal
--- @unwitnessable 5: tag is nn_text — the NOT NULL domain rejects every
---   NULL write, and the engine reads the column nullable anyway (the
---   register's recorded attnotnull imprecision)
 -- Adversarial-2 finding 4 composed with MERGE's source-first RETURNING *
 -- order (sweep-1 finding 10): the composite-element source contributes TWO
 -- columns, so the engine's old one-column reading shifted the entire
@@ -17,4 +14,5 @@ RETURNING *
 -- @notNull    (id)
 -- @nullable   (name: witnessed by sparse's NULL-named ck row)
 -- @notNull    (val: written 9 by the sole arm)
--- @nullable   (tag)
+-- @notNull    (tag: nn_text, a NOT NULL domain — attnotnull stays false
+--              for one, which is why this read nullable until it was closed)
