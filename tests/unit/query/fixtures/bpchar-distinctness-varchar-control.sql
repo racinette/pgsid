@@ -8,9 +8,9 @@
 -- bpchar deparsed at its own type (`k = 'a '::bpchar`), which is exactly
 -- how the padding unsoundness got through before the OID was dropped.
 -- @unwitnessable 0: the CHECK forces x non-null on every k = 'a' row (the
--- varchar comparison really is blank-sensitive), and the engine's cast gate
--- refuses the cross-type match by design, so the claim is conservative and
--- no data can contradict it.
+--   varchar comparison really is blank-sensitive), and the engine's cast gate
+--   refuses the cross-type match by design, so the claim is conservative and
+--   no data can contradict it.
 SELECT
   v.x,  -- @nullable
   v.k   -- @notNull

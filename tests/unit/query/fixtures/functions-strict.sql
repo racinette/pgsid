@@ -7,7 +7,7 @@
 -- this non-empty group the result is its transition function's, which the
 -- engine cannot analyse.
 -- @unwitnessable 2: count_it's transition ('SELECT state + 1') in fact
--- preserves non-null state, so no data can witness the conservative claim.
+--   preserves non-null state, so no data can witness the conservative claim.
 SELECT
   lower_strict(val)    AS c1,  -- @nullable
   lower_strict('lit')  AS c2,  -- @notNull

@@ -1,10 +1,10 @@
 -- @unwitnessable 1: the ON is `c.id = 1`, a CONSTANT — not a key of any
---   kind — and `dense` is the one state that seeds coupons row 1, so the
---   join matches wherever this fixture returns rows and the optional side
---   never null-extends. A state seeding coupons WITHOUT id 1 would witness
---   both claims: a seed-data gap, not engine imprecision. (The reason
---   recorded here before named a NOT NULL foreign key, which this join
---   does not have.)
+--   kind — and c2 joins on the SAME constant while the WHERE requires
+--   c2.code IS NOT NULL. So any state that returns a row is one where coupon
+--   1 exists, and then c matches too: the two joins cannot be separated by
+--   data. Measured — deleting coupon 1 from dense returns no rows at all,
+--   which is why the seed-data reading recorded here on 2026-08-05 was
+--   wrong, as was the foreign-key reading before it.
 -- @unwitnessable 2: same join, same reason
 -- @null-group 1*,2*
 -- (c's unit; its absent arm is unwitnessable by the discriminants' own

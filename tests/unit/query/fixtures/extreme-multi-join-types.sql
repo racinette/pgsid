@@ -1,4 +1,9 @@
--- @unwitnessable 4: data gap: every state's rows match this join, so the NULL-extension the claim allows never occurs
+-- @unwitnessable 4: not a data gap — order_items.product_id is a NOT NULL
+--   FOREIGN KEY onto products, so this LEFT JOIN matches in every state, and
+--   the RIGHT/FULL extensions that could null p are refiltered by
+--   `o.id IS NOT NULL`. The imprecision is the engine's: it does not read
+--   foreign keys. Measured with an orphan customer and a shipped itemless
+--   order, both of which the WHERE removes.
 -- Multiple join types in a single FROM: INNER + LEFT + RIGHT + FULL.
 -- The outer FULL JOIN makes everything optional. ON clauses reference
 -- columns from earlier joins. WHERE promotes two aliases (o and c) but

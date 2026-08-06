@@ -1,5 +1,11 @@
--- @unwitnessable 4: data gap: p.category_id is NULL only on products the WHERE's EXISTS guards filter out (they have no order items or reviews in any state)
--- @unwitnessable 10: data gap: NULL needs a product with order items but no reviews, a combination no state contains
+-- @unwitnessable 4: not a data gap — the WHERE's category-size guard counts
+--   `p2.category_id = p.category_id`, an EQUALITY, which is never true for a
+--   NULL, so a product with no category counts 0 and fails `> 2` in every
+--   state. Measured: four NULL-category products carrying order items and
+--   reviews still never reach the output.
+-- @unwitnessable 10: data gap: NULL needs a product with order items and no
+--   reviews, a combination no state contains. Measured — adding one to
+--   dense, in a category holding three live products, witnesses it.
 -- @unwitnessable 17: the correlated subquery always finds its row and applies a strict function to a NOT NULL column
 -- Extreme fixture: deeply nested correlated subqueries in every clause
 -- position — SELECT, WHERE, HAVING, ORDER BY, CASE condition, function

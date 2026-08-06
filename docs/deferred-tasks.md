@@ -183,21 +183,30 @@ now carries TWELVE defects across three sweeps that it would have
 caught, and belongs in the consumer build's first commit. The third is a
 checklist item for the next mechanism anyone adds.
 
-**Chartered, not started: closing the recorded imprecisions** —
-`docs/imprecision-closure.md` (2026-08-05). The suite records 100
-`@unwitnessable` reasons across 336 fixtures; the doc classifies them and
-says which are engine defects. Two are worth closing and are independent
-of everything else: ROW-TYPE ERASURE (~13–17 — `SETOF order_items` erases
-the table's NOT NULLs while the `LANGUAGE sql` body selects those very
-columns; the walk already inlines bodies for scalar returns and simply
-does not for row returns) and KEY ENTAILMENT (~8–9 — a join on a NOT NULL
-foreign key always matches, and the snapshot already carries the
-constraint; five hazards to measure first, `NOT VALID` and `DEFERRABLE`
-among them). A third class is seed data, not engine. The rest is either
-the overload charter's or correct conservatism. Step 0 is an audit of the
-REASONS themselves: two of roughly ten read closely were wrong, one of
-them moving two claims out of "fixable" entirely, so the classification
-needs that pass before any effort is committed to it.
+**Chartered, step 0 done: closing the recorded imprecisions** —
+`docs/imprecision-closure.md` (2026-08-05, audited 2026-08-06). The suite
+records 100 `@unwitnessable` reasons across 336 fixtures; the doc now
+classifies every one of them exactly. **The audit of the REASONS ran
+first, and earned its place**: ten were wrong or misleading, and they
+clustered where the classification depended on them — five of the six
+claims labelled a data gap were not gaps at all but filters in the
+fixture's own query, and two claims nobody had labelled are. One claim's
+reason had already been corrected once and was wrong the second time too.
+Each correction is measured against PGlite and recorded on the fixture;
+`parseFixtureDirectives` now records a reason's continuation lines, since
+eleven were half-recorded and the report printed the first clause as the
+whole justification.
+
+Two classes are worth closing and are independent of everything else:
+ROW-TYPE ERASURE (15 — `SETOF order_items` erases the table's NOT NULLs
+while the `LANGUAGE sql` body selects those very columns; the walk already
+inlines bodies for scalar returns and simply does not for row returns) and
+KEY ENTAILMENT (11 — a join on a NOT NULL foreign key always matches, and
+the snapshot already carries the constraint; five hazards to measure
+first, `NOT VALID` and `DEFERRABLE` among them). Three are seed data, not
+engine, and each has a measured witness. The remaining 71 are correct: 33
+conservative by design (only four of them the overload charter's) and 38
+structurally unwitnessable. Order is C, then A, then B.
 
 **A refactor chartered, not started: type-aware overload narrowing** —
 `docs/type-aware-overloads.md` (2026-08-05). The curated-table audit's

@@ -1,6 +1,11 @@
 -- @unwitnessable 2: SETOF row types carry no NOT NULL constraints, but the function's body selects NOT NULL columns and cannot emit NULL
 -- @unwitnessable 3: same row-type erasure as srf_id
--- @unwitnessable 4: same: the LATERAL function's sku is NOT NULL at the base table
+-- @unwitnessable 4: NOT row-type erasure — lat is the optional side of a LEFT
+--   JOIN LATERAL, and its subquery returns no row when no product carries
+--   v.a's id. A data gap: the fixture returns rows only where order 1 has
+--   items (dense, uniform), and both of those states also seed products 1 and
+--   2, so the lookup always lands. Measured — a state with order-1 items and
+--   no product 1 or 2 witnesses this NULL on every row.
 -- FROM-item kinds other than a plain table: VALUES, set-returning functions,
 -- LATERAL, and DISTINCT ON.
 --
