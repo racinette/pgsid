@@ -93,3 +93,9 @@ INSERT INTO shipments (id, order_id, carrier, tracking_no, shipped_at, delivered
 -- observable only on a document missing the key.
 INSERT INTO events (id, data, meta) VALUES
   (1, '{"id":1}'::jsonb, NULL), (2, '{"other":2}'::jsonb, '{"src":"x"}'::jsonb);
+
+-- fk_chi is an inheritance CHILD of fk_par, which carries a NOT NULL foreign
+-- key onto orders — and a parent's FK is not copied to a child (measured), so
+-- this row dangles legally. `FROM fk_par` scans the tree and reads it, which
+-- is what witnesses the tree gate on foreign-key entailment.
+INSERT INTO fk_chi (id, o_id) VALUES (901, 90001);

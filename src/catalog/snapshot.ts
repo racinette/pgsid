@@ -71,6 +71,7 @@ interface ConstraintRow {
   definition: string;
   validated: boolean;
   noinherit: boolean;
+  deferrable: boolean;
 }
 
 interface ViewRow {
@@ -597,6 +598,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       definition: con.definition,
       validated: con.validated,
       noInherit: con.noinherit,
+      deferrable: con.deferrable,
     };
     const arr = constraintsByRel.get(con.conrelid);
     if (arr) arr.push(ci);
@@ -1028,7 +1030,8 @@ async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
             con.conkey, con.confkey,
             pg_get_constraintdef(con.oid) AS definition,
             con.convalidated AS validated,
-            con.connoinherit AS noinherit
+            con.connoinherit AS noinherit,
+            con.condeferrable AS deferrable
      FROM pg_constraint con
      JOIN pg_class c ON c.oid = con.conrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace

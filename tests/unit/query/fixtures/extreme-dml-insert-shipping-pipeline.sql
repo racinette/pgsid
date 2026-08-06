@@ -1,4 +1,8 @@
--- @unwitnessable 9: the RETURNING subquery is keyed on the new shipment's order id, a foreign key whose customer chain exists in every state
+-- @unwitnessable 9: the RETURNING subquery keys on the new shipment's order
+--   id — a NOT NULL foreign key — but reaches the email through a JOIN inside
+--   the subquery, and key entailment reads a subquery whose FROM is a single
+--   relation. Both hops are NOT NULL keys and the row exists in every state;
+--   composing them is the mechanism's recorded boundary
 -- Extreme fixture: INSERT...SELECT from a CTE chain with complex RETURNING.
 --
 -- Tests: DML with CTEs that reference each other, INSERT...SELECT from a

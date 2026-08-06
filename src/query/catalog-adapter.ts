@@ -260,6 +260,68 @@ export async function buildNullabilityCatalog(
   const resolveCheckConstraintsTree = (schema: string, table: string): Node[] =>
     checkExprTreeAsts.get(`${schema}.${table}`) ?? [];
 
+  // ---------------------------------------------------------------------
+  // Foreign keys a join may reason FROM.
+  //
+  // "A join on a NOT NULL foreign key always matches" is only true of a key
+  // PostgreSQL is actually enforcing over every row the scan reads, and four
+  // catalog-visible things break that. Each was measured against PG18 before
+  // this map was built, and each is a gate here rather than at the walk,
+  // because a fact the adapter refuses can never be misused downstream — the
+  // shape `resolveCheckConstraintsTree` and `resolveGenerationExprTree`
+  // already take.
+  //
+  //   - NOT VALID: pre-existing rows are unchecked, and one survives the ADD
+  //     CONSTRAINT to be read back through the join.
+  //   - NOT ENFORCED (PG18): violations insert freely. It needs no gate of
+  //     its own — `convalidated` is false for a NOT ENFORCED constraint, and
+  //     `ALTER CONSTRAINT … NOT ENFORCED` CLEARS it on an already-validated
+  //     key (measured), so the validated bit covers every route.
+  //   - DEFERRABLE: violable mid-transaction and observable there, with
+  //     `INITIALLY IMMEDIATE` no protection (`SET CONSTRAINTS ALL DEFERRED`).
+  //   - INHERITANCE: a parent's FK is NOT copied to a child — pg_constraint
+  //     records it on the parent alone and a violating child row inserts
+  //     without complaint (measured), so a TREE scan of a relation with
+  //     descendants may not read it. Partitioning is the opposite and needs
+  //     no exclusion: the constraint is recorded on every partition and
+  //     ATTACH PARTITION validates the incoming rows (both measured).
+  //
+  // The remaining hazards are not catalog-visible and are not gated here:
+  // the referencing column must be NOT NULL and the join must equate exactly
+  // the key, which are the walk's questions. MATCH SIMPLE's partial-NULL hole
+  // closes with the NOT NULL one. A referenced column is always unique —
+  // PostgreSQL refuses the constraint otherwise (measured).
+  const fkByColumn = new Map<
+    string,
+    { schema: string; table: string; column: string }
+  >();
+  const fkTreeByColumn = new Map<
+    string,
+    { schema: string; table: string; column: string }
+  >();
+  for (const t of snapshot.tables) {
+    for (const con of t.constraints) {
+      if (con.type !== "foreign" || !con.validated || con.deferrable) continue;
+      // Single-column keys only. A composite key is sound under the same
+      // reasoning once every pair is equated in the ON clause, and matching a
+      // conjunction against a column list is work with no fixture behind it.
+      if (con.columns.length !== 1 || con.foreignColumns?.length !== 1) continue;
+      if (!con.foreignSchema || !con.foreignTable) continue;
+      const target = {
+        schema: con.foreignSchema,
+        table: con.foreignTable,
+        column: con.foreignColumns[0]!,
+      };
+      const key = `${t.schema}.${t.name}.${con.columns[0]}`;
+      fkByColumn.set(key, target);
+      if (!t.hasDescendants || t.relkind === "p") fkTreeByColumn.set(key, target);
+    }
+  }
+  const resolveForeignKey = (schema: string, table: string, column: string) =>
+    fkByColumn.get(`${schema}.${table}.${column}`) ?? null;
+  const resolveForeignKeyTree = (schema: string, table: string, column: string) =>
+    fkTreeByColumn.get(`${schema}.${table}.${column}`) ?? null;
+
   // Pre-parse view definitions. `pg_views.definition` is the rewritten SELECT
   // without a trailing semicolon in some versions — parseSql handles both.
   const viewAsts = new Map<string, Node>();
@@ -688,6 +750,8 @@ export async function buildNullabilityCatalog(
     resolveGenerationExprTree,
     resolveCheckConstraints,
     resolveCheckConstraintsTree,
+    resolveForeignKey,
+    resolveForeignKeyTree,
     isStrictBuiltin,
     isBuiltinFunction,
     isPolymorphicBuiltin,

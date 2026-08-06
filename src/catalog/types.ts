@@ -117,6 +117,17 @@ export interface ConstraintInfo {
    * dropping NO INHERIT changes what a tree scan may conclude.
    */
   noInherit: boolean;
+  /**
+   * `pg_constraint.condeferrable`. A DEFERRABLE constraint can be violated
+   * mid-transaction and the violation OBSERVED there: `SET CONSTRAINTS ALL
+   * DEFERRED` then an insert with no matching parent, and a LEFT JOIN in the
+   * same transaction returns the NULL-extended row (measured, with
+   * `INITIALLY IMMEDIATE` — so the gate is on condeferrable, not condeferred).
+   * Foreign-key entailment therefore reasons only from non-deferrable keys.
+   * Diff-included via the constraint list: `ALTER CONSTRAINT … DEFERRABLE`
+   * changes what a join may conclude.
+   */
+  deferrable: boolean;
 }
 
 /**

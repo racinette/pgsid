@@ -1,4 +1,3 @@
--- @unwitnessable 3: the correlated subquery is keyed on the row's own primary key and returns a NOT NULL domain: never absent, never NULL
 -- Domain NOT NULL function returns in nested contexts: inside COALESCE,
 -- inside CASE, in a subquery, and in a CTE. The NOT NULL domain return
 -- (Priority 1) wins over everything, making the function result non-null
@@ -25,5 +24,8 @@ SELECT
   dc.id             AS product_id,   -- @notNull
   dc.status         AS status,      -- @notNull
   dc.safe_price     AS safe_price,  -- @notNull
-  dc.subquery_val   AS subquery_val  -- @nullable
+  -- Self-lookup: the subquery scans products keyed on the outer products
+  -- row's own id, so it can never be empty, and always_text returns a NOT
+  -- NULL domain.
+  dc.subquery_val   AS subquery_val  -- @notNull
 FROM domain_cte dc

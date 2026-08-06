@@ -8,11 +8,11 @@ the engine's imprecision made visible: a claim nothing can falsify is either
 correct conservatism, a hole in the seed data, or a guarantee the engine
 failed to derive and a consumer therefore does not get.
 
-**100 such annotations across 336 fixtures**, now 84. This document
-classifies them, says which are engine defects worth closing, which are
-correct, and in what order to take them. Step 0 — the audit of the reasons
-themselves — is DONE, and so are classes C and A (all 2026-08-06). Class B
-is not implemented.
+**100 such annotations across 336 fixtures**, now 78 across 352. This
+document classifies them and says which are engine defects. **The charter is
+DISCHARGED** (2026-08-06): step 0 (the reason audit) and all three closable
+classes — C, A and B — are done, 25 of their 28 claims closed and the three
+residues recorded below with what each would take.
 
 Read `docs/witness-coverage.md` first — it defines the discipline (a reason
 is required, and a reason that stops being needed FAILS as stale) and
@@ -23,14 +23,20 @@ One class has its own charter and is out of scope here:
 ## Current measurement
 
 ```
-341 fixtures, 5 data states                    (before the audit → after classes C and A)
-  notNull claims:  836 → 853 — 843 falsifiable, 10 guarded by a checked refusal, 0 unverified
-  nullable claims: 542 → 540 — 440 → 454 witnessed (84%), 100 → 84 unwitnessed with a reason
+352 fixtures, 5 data states                        (before the audit → after C, A and B)
+  notNull claims:  836 → 874 — 864 falsifiable, 10 guarded by a checked refusal, 0 unverified
+  nullable claims: 542 → 543 — 440 → 463 witnessed (85%), 100 → 78 unwitnessed with a reason
                         (+2 inside `@no-rows` fixtures, exempt wholesale)
 ```
 
-The five new fixtures are class A's gates, which carry claims of their own —
-the counts move by more than the fourteen graduations.
+The sixteen new fixtures are the three classes' GATES, which carry claims of
+their own — so the counts move by less than the twenty-five graduations, and
+the corpus grew rather than shrank.
+
+One correction to the post-audit census: class B was **10** claims, not the 11
+first recorded, and class E **39**, not 38 — an arithmetic slip in the
+classification, found by recounting against `WITNESS_REPORT` after B landed.
+The classes still partition all 100.
 
 ## Step 0 — the reason audit (2026-08-06)
 
@@ -185,7 +191,7 @@ weak evidence here for the reason `docs/generated-surface.md` measures: the
 corpus has no schema axis and cannot express a table function with a body.
 The fixture suite and the four gates are what carry this one.
 
-### B. Key entailment — 11 claims. Independent, but a new mechanism.
+### B. Key entailment — 10 claims. **CLOSED 2026-08-06**, 8 of 10.
 
 ```sql
 -- shape 1: a join on a NOT NULL foreign key always matches
@@ -196,36 +202,85 @@ SELECT c.email FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
 SELECT (SELECT p2.name FROM products p2 WHERE p2.id = p.id) FROM products p
 ```
 
-No new catalog fact needed — the snapshot already carries foreign keys
-(`ConstraintInfo.foreignSchema` / `foreignTable` / `foreignColumns`, plus
-`validated`).
+One new catalog fact was needed after all: `condeferrable`. The rest was
+already there (`ConstraintInfo.foreignSchema` / `foreignTable` /
+`foreignColumns` / `validated`).
 
-**Five hazards, each to be MEASURED before designing**, the way the
-coercion model was:
+**The five chartered hazards were measured first, and the measurement moved
+three of them:**
 
-1. `NOT VALID` foreign keys — pre-existing rows unchecked. The engine
-   already models exactly this for CHECK constraints; reuse that reading.
-2. `DEFERRABLE` constraints — violable mid-transaction, and a query in
-   that same transaction can observe the violation.
-3. The referenced column must be UNIQUE for "a match exists" to mean "one
-   row".
-4. `MATCH SIMPLE` on multi-column keys permits partial NULLs.
-5. The referencing column must itself be NOT NULL — a nullable FK column
-   holding NULL matches nothing.
+1. `NOT VALID` — confirmed: a pre-existing violating row is read back through
+   the join. Gated on `convalidated`.
+2. `DEFERRABLE` — confirmed, and worse than assumed: `INITIALLY IMMEDIATE` is
+   no protection, since `SET CONSTRAINTS ALL DEFERRED` reaches it. The gate is
+   on `condeferrable`, which the snapshot did not carry.
+3. "The referenced column must be UNIQUE" — **not a hazard**: PostgreSQL
+   refuses a foreign key onto a non-unique column outright. And uniqueness is
+   not what the claim needs anyway — several matches make a scalar subquery
+   RAISE, not return NULL, so at-least-one is the right predicate.
+4. `MATCH SIMPLE` — **collapses into hazard 5**: with every referencing column
+   NOT NULL there is no partial-NULL pair to permit. (Composite keys are
+   nonetheless left out for now, recorded.)
+5. The referencing column NOT NULL — confirmed, and read tree-wide.
 
-| fixture | claims | shape |
-|---|---|---|
-| `presence-group-full` | #0, #1 | 1 |
-| `presence-group-reexport-view` | #0 | 1, through a view |
-| `extreme-cross-join` | #2 | 1 |
-| `extreme-multi-join-types` | #4 | 1 (found by the audit) |
-| `extreme-activity-feed-union` | #5, #7 | 2 |
-| `extreme-dml-insert-shipping-pipeline` | #9 | 2, in RETURNING |
-| `extreme-domain-nested` | #3 | 2 |
-| `extreme-correlated-everywhere` | #17 | 2 |
+**Three hazards the charter did not list, all measured:**
 
-Shape 2 needs hazard 3 and nothing else: the key is the scanned relation's
-own primary key, so the row provably exists. Shape 1 needs all five.
+6. **PG18 `NOT ENFORCED` keys** accept violations freely — and need no gate of
+   their own, because `convalidated` is false for one AND
+   `ALTER CONSTRAINT … NOT ENFORCED` clears it on an already-validated key.
+7. **INHERITANCE.** A parent's key is not copied to a child: pg_constraint
+   records it on the parent alone and a violating child row inserts without
+   complaint, so a TREE scan reads rows nothing checked. This is the
+   relation-SET lesson of sweep 2, third instance. Partitioning is the
+   opposite and needs no exclusion — the constraint is on every partition and
+   `ATTACH PARTITION` validates the incoming rows.
+8. **`ALTER TABLE … DISABLE TRIGGER ALL`.** Foreign keys are triggers, so this
+   lets violating rows in while `convalidated` and `conenforced` both stay
+   true — the catalog cannot tell you the data is dirty. Two more routes
+   measured afterwards: `SET session_replication_role = 'replica'`, a session
+   GUC needing no DDL, and disabling triggers on the REFERENCED side, where a
+   delete's `ON DELETE CASCADE` never fires and orphans rows that were valid a
+   moment earlier. It is the first fact the engine trusts that an
+   administrative command can silently falsify: neither route bypasses a CHECK
+   (measured), and NOT NULL is enforced in the executor. The DEFAULT stands —
+   a declared key is the schema author's invariant, and PostgreSQL's own
+   planner has trusted validated keys for join selectivity since 9.6 without
+   revalidating them. What is missing is the escape hatch for a consumer that
+   knows better, which needs config wiring that does not exist yet: section 1b
+   of `docs/deferred-tasks.md`, beside search-path half (b).
+
+| fixture | claims | shape | closed |
+|---|---|---|---|
+| `presence-group-full` | #0, #1 | 1 | both |
+| `presence-group-reexport-view` | #0 | 1, through a view | yes |
+| `extreme-cross-join` | #2 | 1 | yes |
+| `extreme-multi-join-types` | #4 | 1 (found by the audit) | yes |
+| `extreme-domain-nested` | #3 | 2, self-lookup | yes |
+| `extreme-correlated-everywhere` | #17 | 2, self-lookup | yes |
+| `extreme-activity-feed-union` | #5 | 2, key lookup | yes |
+| `extreme-activity-feed-union` | #7 | 2, **join inside** | **no** |
+| `extreme-dml-insert-shipping-pipeline` | #9 | 2, **join inside** | **no** |
+
+**The residue is one shape**, and it is a composition rather than a gap: a
+subquery whose FROM carries a JOIN — `(SELECT c.email FROM customers c JOIN
+orders o ON o.customer_id = c.id WHERE o.id = s.order_id)`. Each hop is
+individually a NOT NULL key the mechanism already reads; what is missing is
+proving the inner JOIN matches for the row the outer key found. Both claims
+carry that as their reason.
+
+**Eleven gate fixtures**, each pinning a hazard from the side that would
+produce a wrong `notNull`: `fk-entail-not-valid`, `-deferrable`,
+`-inheritance` (+ its `ONLY` control), `-extra-conjunct`,
+`-optional-referencer`, and for the subquery form `-subquery-extra-conjunct`,
+`-subquery-optional-outer`, `-subquery-only-scan` (+ control),
+`-subquery-nullable-key`. The inheritance ones are witnessed by a dangling row
+seeded into an inheritance CHILD, which is legal precisely because the
+parent's key does not reach it.
+
+**Verification.** Twenty-three graduated claims execute against PostgreSQL
+under five data states with nothing falsified. The generated corpus is again
+weak evidence and again unmoved: its structures are over `t`/`u`/`v`, which
+declare no foreign keys at all.
 
 ### C. Data gaps — 3 claims. **CLOSED 2026-08-06.** Not engine work.
 
@@ -316,15 +371,30 @@ Four kinds, and only the first is closable by work already planned:
   entailment across clauses, none is reachable by class B's foreign-key
   reading, and none is worth its own mechanism.
 
-## Order, and why
+## What is left
 
-**B is what is left.** Step 0, class C and class A are done.
+**Nothing in this charter is scheduled.** Step 0 and classes C, A and B are
+done; 25 of their 28 claims are closed and the three residues are recorded on
+their fixtures, each naming what it would take:
 
-B is a new mechanism whose five hazards deserve their own measurement pass
-first — and it is the one where being wrong produces a wrong `notNull` on a
-very common query shape. Class A's shape is the precedent to follow: measure
-what PostgreSQL actually guarantees, land the reading behind gates, and pin
-every gate from both sides so it cannot quietly widen.
+- `function-out-parameter-shape#0` — thread the CALL's argument nullability
+  into the body reading, and be right about the argument's join state at the
+  call site.
+- `extreme-activity-feed-union#7`, `extreme-dml-insert-shipping-pipeline#9` —
+  prove an INNER JOIN inside a correlated subquery matches, composing two key
+  hops the mechanism already reads individually.
+
+The 78 that remain are correct: 33 conservative by design (four of them the
+overload charter's), 39 structurally unwitnessable, 3 the new gates' own
+refusals, and the 3 residues above.
+
+The method that worked, for whoever takes the next class of this kind:
+measure what PostgreSQL actually guarantees BEFORE designing — the pass for B
+moved three of the five chartered hazards and found three more, one of which
+(`DISABLE TRIGGER`) has no catalog trace and had to become a recorded
+assumption rather than a gate. Then land the reading behind gates, and pin
+every gate from the side that would produce a wrong `notNull`, so it cannot
+quietly widen.
 
 Both A and B move claims from nullable to notNull, which is the UNSOUND
 direction. Neither should land without the generated-corpus dry-run, and
