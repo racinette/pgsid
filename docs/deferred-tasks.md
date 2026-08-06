@@ -600,6 +600,41 @@ corpora surface.
 4. **The arity gate** — small, and waits for the first consumer to exist rather
    than being retrofitted.
 
+**The precision residue is now its own handoff** — `docs/precision-residue.md`
+(2026-08-07). Four open items that neither chartered effort owns, collected
+because they were otherwise scattered across an `@unwitnessable` reason, an
+`UNWITNESSABLE` rule in a generated suite, a residue paragraph in a closed
+charter and an entry in this register — four places, none of which reads as a
+work list. All four are SOUND: a nullable where the value is provably
+non-null, or a refusal rather than a guess. None blocks a consumer, and
+shipping with all four open costs precision only.
+
+1. **A defaulted argument is not substituted into the body** — the walk binds
+   only the arguments the CALL supplies, so a `DEFAULT`ed parameter is unbound
+   and reads nullable where PostgreSQL substitutes and the result is total.
+   Found by the function-call generator axis, which was the first thing that
+   could reach it. A SNAPSHOT change before a walk change:
+   `FunctionArgInfo.hasDefault` is a boolean and the default EXPRESSION is
+   captured nowhere.
+2. **Join-level versus member-level presence** — "this join cannot extend its
+   left side" is not "every member of that side is present", and the fixpoint's
+   vocabulary is aliases. Costs `c.id` in
+   `fk-entail-optional-referenced.sql`, a claim the engine used to reach by an
+   unsound route.
+3. **Foreign-key entailment does not compose through a JOIN inside a
+   correlated subquery** — each hop is a key the mechanism already reads; only
+   the composition is missing. Two claims.
+4. **The `unnest` refusal class** — an aggregate, a sublink, a derived-table
+   COMPUTED column. Check the type-aware-overloads refactor first: its
+   polymorphic-builtin arm may fall out for free, and that should be
+   re-measured rather than assumed either way.
+
+What that document deliberately does NOT own is stated at its top:
+`docs/type-aware-overloads.md` has every one-name-many-signatures defect —
+including `path + path`, the only live unsoundness in normal operation — and
+`docs/consumer-design.md` has everything whose missing piece is project
+configuration or a call site.
+
 ---
 
 ## 1. Arity-and-order gate at the consumer boundary
