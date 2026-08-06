@@ -719,6 +719,23 @@ CREATE FUNCTION rec_pairs() RETURNS SETOF record LANGUAGE sql
 -- unresolvable relation REFUSES instead of falling back.
 CREATE TABLE part_p (id integer NOT NULL, k text) PARTITION BY RANGE (id);
 CREATE TABLE part_1 PARTITION OF part_p FOR VALUES FROM (0) TO (100);
+-- `part_2` is itself PARTITIONED — the schema's only two-level tree. Every
+-- other partition and inheritance tree here is one level deep, so the subtree
+-- walks behind notNullTree, writeRewritesTree, resolveGenerationExprTree and
+-- resolveForeignKeyTree never left their base case: a grandchild was never
+-- reached, and `hasDescendants` was never asked of a relation that is itself
+-- a descendant.
+CREATE TABLE part_2 PARTITION OF part_p FOR VALUES FROM (100) TO (200)
+  PARTITION BY RANGE (id);
+CREATE TABLE part_2a PARTITION OF part_2 FOR VALUES FROM (100) TO (150);
+-- The trigger sits on the GRANDCHILD. A write naming part_p routes two levels
+-- down and fires it (measured), so `writeRewritesTree` has to union over the
+-- whole subtree rather than over immediate children — the one fact a
+-- single-level tree cannot distinguish.
+CREATE FUNCTION part_gc_fn() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN NEW.k := NULL; RETURN NEW; END $$;
+CREATE TRIGGER part_gc_before BEFORE INSERT ON part_2a
+  FOR EACH ROW EXECUTE FUNCTION part_gc_fn();
 
 -- STRICT is not TOTAL (adversarial finding 5): a declared-strict function
 -- returns NULL for NULL input and says nothing about non-null input.

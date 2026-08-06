@@ -373,12 +373,16 @@ describe("generated-query soundness across schema variants", () => {
       `  actionable gaps remaining:                       ${stillUnreachable.length}`,
       `    ${stillUnreachable.join(", ")}`,
       ``,
-      `  Nearly all of the remainder wait on ONE piece of work — a generator`,
-      `  axis that CALLS a user function. The generator calls exactly one`,
-      `  function today (max) while the fixture schema defines 66, so nothing`,
-      `  reaches a variadic parameter, a defaulted argument, a user aggregate`,
-      `  or window function — nor the LANGUAGE sql body read-back, the second`,
-      `  mechanism this document measured at zero generated coverage.`,
+      `  "Actionable" counts census features the FIXTURE SCHEMA lacks. It is`,
+      `  not a claim that everything is generated: a feature can be carried by`,
+      `  the schema and pinned by a hand-written fixture without the corpus`,
+      `  reaching it. The sub-partition tree is the standing example — the`,
+      `  fact that distinguishes a two-level tree is a write hook on a`,
+      `  GRANDCHILD, which is a DML/RETURNING shape the corpus does not`,
+      `  generate over partitioned targets, and the facts it DOES generate`,
+      `  (notNullTree and friends) cannot diverge at depth because a partition`,
+      `  may not drop a parent's NOT NULL. trigger-subpartition-routed.sql`,
+      `  carries it instead, mutation-tested against a one-level union.`,
     ];
     console.log(lines.join("\n"));
     expect(results.length).toBe(SCHEMA_VARIANTS.length);

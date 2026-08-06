@@ -445,8 +445,20 @@ the unnest element-type resolver, at its second site. Sound — a refusal, not a
 wrong shape — but unnecessary, since the engine held the information. Fixed and
 pinned by `composite-star-table-row-type.sql` in both spellings, which reach
 `fieldsOf` by different routes. Corpus 10864 → 11632, notNull claims 18683 →
-19043. Actionable census gaps went 9 → 1: only `sub-partition` remains, and it
-needs t/u/v restructured. `table-row-type-column` is narrower than it
+19043. **`sub-partition` then closed the list**, and was cheaper than twice
+predicted: "needs t/u/v restructured" was true of the GENERATION half and
+false of the census half, which only wanted a two-level tree somewhere.
+`part_2` is now itself partitioned under `part_p`. Making it discriminating
+needed a fact that can DIVERGE at depth, and for partitions there is
+essentially one — a partition may not drop a parent's NOT NULL, so the flag
+facts are identical however deep the tree, while a BEFORE ROW trigger on a
+GRANDCHILD fires on a write naming the root (measured). Pinned by
+`trigger-subpartition-routed.sql`, mutation-tested: a one-level subtree union
+fails that fixture and ONLY it. Deliberately NOT under generation — the
+discriminating fact is a DML/RETURNING shape and the corpus's DML axis targets
+t/ck/tags, while the facts it does generate cannot differ at depth; the
+suite's report says so where the count is printed, so "0 actionable" is not
+misread as "everything is generated". **Actionable census gaps: 9 → 0.** `table-row-type-column` is narrower than it
 reads — the WALK BRANCH (resolveCompositeType falling through to the relation)
 is now exercised by `SETOF u`; only the column SPELLING is missing, and that
 needs a composite-star projection the target-list model cannot express, since
