@@ -18,7 +18,8 @@ After the third fix phase (2026-08-05) the suite stood at 2221 tests, 330
 fixtures, and a generated corpus of 8980 queries reporting **zero** column
 list disagreements and **zero** nullability violations — before the phase
 and after it. Seven engine changes, eight closed findings, and the corpus
-did not move once.
+did not move once. (The suite is 2342 tests and 352 fixtures as of
+2026-08-06; the corpus is still 8980 queries and still has not moved.)
 
 That is not a corpus doing badly at its job. It is a corpus that **could not
 express a single one of the eight falsifying inputs.** Classified by what
@@ -32,6 +33,25 @@ each finding needed to exist at all:
 
 Five of eight began with a `CREATE` statement. Three needed a query shape
 outside the enumerated axes. Zero were reachable from the existing corpus.
+
+**The imprecision closure (2026-08-06) repeated the measurement and sharpened
+it.** Two mechanisms landed that move claims in the UNSOUND direction —
+reading a `LANGUAGE sql` body back for a row-returning function, and
+foreign-key entailment — 23 claims graduated from nullable to notNull, and the
+corpus reported zero disagreements before and after, again. Same cause, one
+degree worse: this is no longer only "the corpus missed findings" but **a
+mechanism now in the engine that the corpus cannot exercise at all.**
+
+`t`, `u` and `v` declare no keys and no foreign keys (`docs/witness-coverage.md`
+says so explicitly — the fixtures join them *as though* they did), and the
+generator's structures are built over exactly those three. So every foreign-key
+claim the engine now makes has zero generated coverage, and the same holds for
+a table function with a body: the corpus has no such function to call. Both
+mechanisms rest entirely on hand-written fixtures and their gate pins.
+
+That is the argument for item 4 in its strongest form. A schema axis is not
+only how the next sweep's findings would have been caught — it is the only way
+the corpus can reach two mechanisms the engine already ships.
 
 ## The diagnosis
 
@@ -96,6 +116,15 @@ with `pg_catalog`; a polymorphic return; a relation name shared across two
 schemas; `SETOF` versus `TABLE(…)` versus scalar returns; a set-returning
 function; a VARIADIC parameter; an inheritance parent with and without
 children; a partitioned parent with a leaf and a sub-partition.
+
+Added by the imprecision closure, and each a live branch with a wrong-`notNull`
+failure mode: a FOREIGN KEY that is validated, `NOT VALID`, `NOT ENFORCED`,
+`DEFERRABLE`, composite, or inherited-by-a-child-that-lacks-it; a
+`LANGUAGE sql` function whose body is read back for a ROW return — positional,
+via a ROW constructor, multi-statement, overloaded (the `fnBodyAsts` key
+collides on name), and non-set-returning with a body that can yield zero rows.
+The `body-shape-*` and `fk-entail-*` fixtures are the hand-written coverage of
+those branches and are the list to census against.
 
 Where the walk has a table of names, the census entry is the table.
 

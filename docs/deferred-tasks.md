@@ -311,6 +311,17 @@ third sweep running where a curated table yielded); and a schema axis for
 the generator, which would have caught five of eight on its own. The first
 three are an afternoon each.
 
+**The imprecision closure raised this item's priority** (2026-08-06, recorded
+in the doc): the corpus reported zero disagreements across both new
+mechanisms too, and this time the cause is sharper than "it missed a
+finding". `t`, `u` and `v` — the three relations every generated structure is
+built over — declare NO foreign keys, and the corpus has no table function
+with a body to call. So foreign-key entailment and the body reading, both of
+which move claims in the UNSOUND direction, have ZERO generated coverage and
+rest entirely on hand-written fixtures and their gate pins. A schema axis is
+now the only way the corpus can reach two mechanisms the engine already
+ships.
+
 **Then the consumer build** — the slice plan is
 `docs/consumer-design.md`, as above, with the arity-and-order gate in
 its first contract-holding slice, now carrying twelve defects across
