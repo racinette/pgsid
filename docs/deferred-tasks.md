@@ -322,6 +322,37 @@ rest entirely on hand-written fixtures and their gate pins. A schema axis is
 now the only way the corpus can reach two mechanisms the engine already
 ships.
 
+**Item 1 is BUILT (2026-08-06): the catalog-feature census**,
+`tests/unit/query/catalog-census.test.ts`, in `node-census.test.ts`'s shape on
+the other axis. 86 features classified — 57 handled, 12 gated, 12
+conservative, 5 environment — of which **64 are carried by the fixture schema
+and 22 are not**, and those 22 are the axis vocabulary item 4 was waiting for.
+Each entry names the walk or adapter branch it feeds, so it is a claim about
+the engine rather than a note about the schema; `gated` is its own category
+because for a fact the ADAPTER drops before the walk can ask — a NOT VALID or
+DEFERRABLE key, a `CHECK … NO INHERIT` in the tree variant — what the schema
+must carry is the input the gate REJECTS, and a gate with nothing to reject is
+untested. The hand-written list can only fail on what somebody listed, so the
+census also declares the value domains of seven enumerated catalog columns
+(typtype, relkind, prokind, contype, proargmodes, attgenerated, attidentity)
+and compares them against the live catalog both ways: that half is what
+catches a feature nobody wrote down, and a PG version adding a relkind fails
+it the way a new node type fails the node census. Five assertions, each
+mutation-tested to fail alone; the gap list prints every run, with reasons
+behind `CATALOG_CENSUS_REPORT=1`. Four of the 22 gaps are held by suites that
+build their own catalog (the second schema, the cross-schema overload, the
+variadic gate — the fixture harness cannot hold two schemas); the other 18
+reach the walk from nowhere. Deliberately deferred rather than dropped:
+"where the walk has a table of names, the census entry is the table" — the
+eight tables are module-private and the only assertion worth making about
+them is item 2's, so exporting them is item 2's first move. It found one
+thing on the way, item 2's exact shape and left for it:
+`builtinPolymorphicFunctions` is captured as `typtype = 'p'`, which is
+PSEUDO-type and not polymorphic (trigger, void, cstring, record, internal
+ride along), so it holds 572 names where its own comment claims 68 — safe
+direction, since the sole consumer refuses on it and over-capture costs
+precision only.
+
 **Then the consumer build** — the slice plan is
 `docs/consumer-design.md`, as above, with the arity-and-order gate in
 its first contract-holding slice, now carrying twelve defects across

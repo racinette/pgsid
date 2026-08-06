@@ -18,8 +18,9 @@ After the third fix phase (2026-08-05) the suite stood at 2221 tests, 330
 fixtures, and a generated corpus of 8980 queries reporting **zero** column
 list disagreements and **zero** nullability violations — before the phase
 and after it. Seven engine changes, eight closed findings, and the corpus
-did not move once. (The suite is 2342 tests and 352 fixtures as of
-2026-08-06; the corpus is still 8980 queries and still has not moved.)
+did not move once. (The suite is 2347 tests and 352 fixtures as of
+2026-08-06, the census's five included; the corpus is still 8980 queries and
+still has not moved.)
 
 That is not a corpus doing badly at its job. It is a corpus that **could not
 express a single one of the eight falsifying inputs.** Classified by what
@@ -98,35 +99,82 @@ Items 1–3 are each about an afternoon and, together, would have caught
 findings 1, 2, 3, 4 and 6. Item 4 is the real fix and would have caught five
 of eight on its own.
 
-### 1. A catalog-feature census
+### 1. A catalog-feature census — BUILT (2026-08-06)
 
-`node-census.test.ts`'s exact shape, on the other axis: enumerate the
-CATALOG features the walk branches on, classify each, and fail when the
-fixture schema does not exercise one. The classification is the deliverable
-— the failure mode is a feature nobody wrote down, so an explicit list that
-reality can move outside of is the whole mechanism.
+`tests/unit/query/catalog-census.test.ts`, in `node-census.test.ts`'s shape on
+the other axis. **86 features classified — 57 `handled`, 12 `gated`, 12
+`conservative`, 5 `environment`. 64 are carried by the fixture schema and 22
+are not**, and those 22 are the axis vocabulary item 4 was waiting for. It
+runs in about a second and needs no corpus.
 
-Seed the list from what the walk actually consults, not from PostgreSQL's
-manual. At minimum, and each of these is a real branch today: a domain over
-a scalar, over a composite, over an array, over another domain; a composite
-type; a TABLE's row type used as a type; an array of each of those; an
-identifier needing quotes (space, case, comma, embedded quote); a function
-name overloaded within one schema and across two; a function name shared
-with `pg_catalog`; a polymorphic return; a relation name shared across two
-schemas; `SETOF` versus `TABLE(…)` versus scalar returns; a set-returning
-function; a VARIADIC parameter; an inheritance parent with and without
-children; a partitioned parent with a leaf and a sub-partition.
+The classification is the deliverable, as specified. Each entry names the walk
+or adapter branch it feeds, so the entry is a claim about the engine rather
+than a note about the schema, and `gated` earns its own category: for a fact
+the ADAPTER drops before the walk can ask — a `NOT VALID` or `DEFERRABLE`
+foreign key, a `CHECK … NO INHERIT` in the tree variant, a generation
+expression that diverges in the subtree — what the fixture schema must carry
+is the input the gate REJECTS, since a gate with nothing to reject is untested.
 
-Added by the imprecision closure, and each a live branch with a wrong-`notNull`
-failure mode: a FOREIGN KEY that is validated, `NOT VALID`, `NOT ENFORCED`,
-`DEFERRABLE`, composite, or inherited-by-a-child-that-lacks-it; a
-`LANGUAGE sql` function whose body is read back for a ROW return — positional,
-via a ROW constructor, multi-statement, overloaded (the `fnBodyAsts` key
-collides on name), and non-set-returning with a body that can yield zero rows.
-The `body-shape-*` and `fk-entail-*` fixtures are the hand-written coverage of
-those branches and are the list to census against.
+**Two halves, and only the second can catch a feature nobody wrote down.** The
+feature list is hand-written, which is the disease this document diagnoses in
+the curated name tables: it fails only on what somebody thought to list. So
+the census also declares the value domains of the enumerated catalog columns —
+`pg_type.typtype`, `pg_class.relkind`, `pg_proc.prokind`,
+`pg_constraint.contype`, `pg_proc.proargmodes`, `pg_attribute.attgenerated`,
+`pg_attribute.attidentity` — and compares them against the live catalog in both
+directions. These have finite, PostgreSQL-defined domains, so a version that
+introduces a new relkind or argument mode fails the way a new parse-tree node
+type fails the node census. The two halves ask different questions and the
+suite says so: the value map asks what the PostgreSQL VERSION produces, the
+feature list asks what the FIXTURE SCHEMA carries, and `contype = 'u'` is the
+case where they disagree (pg_catalog has 48 unique constraints; the fixture
+schema has none).
 
-Where the walk has a table of names, the census entry is the table.
+Five assertions, each mutation-tested to fail alone: every classified feature
+is present; every feature marked `absent` really is absent; every
+`environment` capture is non-empty; every observed catalog value is
+classified; every classified value is observed unless marked `absent`.
+
+**The gap list is the product**, printed every run with the reasons behind
+`CATALOG_CENSUS_REPORT=1`. Four of the 22 are exercised by suites that build
+their own catalog (`search-path.test.ts`, `resolver.test.ts`,
+`unsupported-nodes.test.ts` hold the second schema, the cross-schema overload
+and the variadic gate — the fixture harness cannot hold two schemas). The
+other 18 are not exercised against the walk anywhere, though several are
+captured in `snapshot.test.ts`, which tests the capture and not the branch.
+The ones that cost most, in the order they would be cheapest to close: a
+DEFAULT argument (the arity window's `argCount >= required` lower bound is
+never exercised — every candidate in the schema has `required === inputs.length`);
+an INOUT parameter (`proargmodes` 'b' appears nowhere, so both the arity
+filter's inout half and `functionOutputColumns`' are untested); a
+`GENERATED … VIRTUAL` column (PG18's second mode, read through the same code
+path as STORED and measured on neither); a materialized view (the adapter
+folds matviews in beside views at three sites and nothing checks that they
+behave alike); a sub-partition (every tree in the schema is one level deep, so
+the subtree recursion never leaves its base case); a composite and a NOT
+ENFORCED foreign key (two gates that have never had anything to reject); a
+user aggregate without INITCOND, a user window function, a procedure, an enum,
+a unique constraint, an exclusion constraint, a bare table-row-type column, and
+a domain over a domain.
+
+**One part of the spec is deliberately deferred to item 2**, rather than
+silently dropped: "where the walk has a table of names, the census entry is
+the table". The eight tables in `nullability-walk.ts` are module-private, and
+the only assertion worth making about them — that their names exist in
+`pg_catalog` — is item 2's, not this one's. Exporting them is item 2's first
+move and item 3 needs them too; an entry here whose detector is "the table is
+non-empty" would be the checkbox this document argues against.
+
+**It found one thing while being written**, and it is item 2's exact shape:
+`builtinPolymorphicFunctions` is captured as `rt.typtype = 'p'`
+(`src/catalog/snapshot.ts`), but `'p'` is PSEUDO-type, not polymorphic — it
+sweeps in `trigger`, `void`, `cstring`, `record` and `internal`. **572 names
+where the field's own comment claims 68**, against the 65 whose return renders
+`any%`. The direction is safe: the sole consumer is
+`isBuiltinFunction(name) && !isPolymorphicBuiltin(name) → scalar`, so
+over-capture refuses where PostgreSQL would have answered, costing precision
+and never soundness. Left for item 2 because a curated claim the catalog can
+falsify is precisely what that item is.
 
 ### 2. Diff each curated table against `pg_catalog`
 
@@ -230,6 +278,7 @@ Two additions specific to this work:
 | Generated suite + generator | `tests/unit/query/generated/` |
 | Generator specification | `docs/query-generator.md` |
 | AST node census — the pattern to copy | `tests/unit/query/node-census.test.ts` |
+| Catalog-feature census — item 1 | `tests/unit/query/catalog-census.test.ts` (`CATALOG_CENSUS_REPORT=1` for the gap list) |
 | Curated tables | `src/query/nullability-walk.ts` (eight), `src/query/operators.ts` |
 | Fixture schema | `tests/unit/query/fixtures/schema.sql` |
 | Seed-data generators | `tests/unit/query/fixture-data/` |
