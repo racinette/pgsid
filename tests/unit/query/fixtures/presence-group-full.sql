@@ -1,17 +1,20 @@
--- FULL JOIN: two extension units from one join, one group per side. The
--- shipments side's absent arm is witnessed (dense orders 2/4 are
--- unshipped). The orders side's absent arm is NOT witnessable:
--- shipments.order_id is a NOT NULL foreign key, so every shipment matches
--- an order — recorded on the discriminants, which is also what exempts
--- the group's absent arm (the derived exemption: a group's absent arm is
--- unwitnessable exactly when every discriminant's NULL is).
--- @unwitnessable 0: shipments.order_id is a NOT NULL FK onto orders, so the orders side always matches and never extends
--- @unwitnessable 1: same FK: an orders-side extension would need an orphan shipment
--- @null-group 0*,1*
+-- FULL JOIN, and the asymmetry a foreign key creates in one. The shipments
+-- side is a genuine extension unit — dense's unshipped orders 2 and 4 witness
+-- its absent arm — while the ORDERS side never extends at all:
+-- shipments.order_id is a NOT NULL foreign key onto orders, so an orders-side
+-- extension would need an orphan shipment and the key forbids one.
+--
+-- So one FULL JOIN yields ONE group, not two. The engine reads the key now
+-- (the imprecision-closure charter's class B); before that, both of the orders
+-- columns carried an @unwitnessable reason and the group they formed was
+-- exempt by derivation from them. This is the FULL-JOIN arm of the
+-- entailment: neither side is proven present, and what licenses the reading
+-- is that the SHIPMENTS side is made optional by exactly this join, so its own
+-- extension produces rows where the orders side is present rather than absent.
 -- @null-group 2*,3*
 SELECT
-  o.id      AS oid,      -- @nullable
-  o.status  AS status,   -- @nullable
+  o.id      AS oid,      -- @notNull
+  o.status  AS status,   -- @notNull
   s.id      AS sid,      -- @nullable
   s.carrier AS carrier   -- @nullable
 FROM orders o

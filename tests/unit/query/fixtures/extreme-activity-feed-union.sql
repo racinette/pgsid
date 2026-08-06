@@ -1,5 +1,9 @@
--- @unwitnessable 5: the branch that makes this nullable is a scalar subquery keyed on the shipment's order id, a foreign key whose row exists in every state
--- @unwitnessable 7: same shape as actor_id: the correlated lookup lands on a row every state contains
+-- @unwitnessable 7: unlike actor_id, one branch's lookup carries a JOIN inside
+--   the subquery (customers to orders), and key entailment reads a subquery
+--   whose FROM is a single relation. The two FK hops are each individually
+--   sound — shipments.order_id and orders.customer_id are both NOT NULL keys —
+--   and composing them is the recorded boundary of the mechanism, not a
+--   property of the data
 -- Extreme fixture: set operations combining queries with different
 -- structures, CTEs, subqueries, and expression types.
 --
@@ -123,7 +127,9 @@ SELECT
   re.description                           AS description,      -- @notNull
   COALESCE(re.description, 'N/A')          AS safe_description, -- @notNull
   re.event_time                            AS event_time,       -- @nullable
-  re.actor_id                              AS actor_id,         -- @nullable
+  -- Every branch keys into a NOT NULL foreign key: two are the column
+  -- itself, the third a correlated lookup on shipments.order_id.
+  re.actor_id                              AS actor_id,         -- @notNull
   COALESCE(re.actor_id, 0)                 AS safe_actor_id,    -- @notNull
   re.actor_email                           AS actor_email,      -- @nullable
   COALESCE(re.actor_email, 'unknown@none') AS safe_email,      -- @notNull

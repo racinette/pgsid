@@ -40,3 +40,9 @@ INSERT INTO orders (id, customer_id, status, placed_at) VALUES
 
 INSERT INTO order_items (id, order_id, product_id, quantity, unit_price) VALUES
   (1, 1, 1, 3, 10);
+
+-- fk_chi is an inheritance CHILD of fk_par, which carries a NOT NULL foreign
+-- key onto orders — and a parent's FK is not copied to a child (measured), so
+-- this row dangles legally. `FROM fk_par` scans the tree and reads it, which
+-- is what witnesses the tree gate on foreign-key entailment.
+INSERT INTO fk_chi (id, o_id) VALUES (901, 90001);

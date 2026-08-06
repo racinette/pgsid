@@ -230,13 +230,43 @@ disagree. What it deliberately does not do is thread the call's ARGUMENT
 nullability, which costs the fifteenth claim (`out_pair`'s `lo` returns
 its own argument) and is recorded on the fixture.
 
-KEY ENTAILMENT is what remains: 11 claims — a join on a NOT NULL foreign
-key always matches, and the snapshot already carries the constraint; five
-hazards to measure first, `NOT VALID` and `DEFERRABLE` among them. Class
-A's shape is the precedent: measure the guarantee, land the reading behind
-gates, pin every gate from both sides. The other 71 are correct: 35
-conservative by design (only four of them the overload charter's) and 38
-structurally unwitnessable.
+**Class B closed the same day, 8 of its 10 claims, and the charter with
+it.** A join whose ON is an equality on a NOT NULL foreign key always
+matches, so the referenced side never null-extends — a promotion inside the
+existing presence fixpoint, which makes it cascade and carry null-group
+co-members for free. The same key answers a correlated subquery, where the
+predicate is at-least-one rather than exactly-one: several rows RAISE
+instead of evaluating to NULL, and a raise contradicts nothing. Both
+self-lookups (the subquery scans what the outer scans, keyed on the same
+column — no constraint needed at all) and key lookups are read.
+
+**The measurement pass paid for itself before a line was written.** Of the
+five hazards the charter named, one was not a hazard (PostgreSQL refuses a
+foreign key onto a non-unique column) and one collapsed into another
+(MATCH SIMPLE's partial NULLs cannot arise once the referencing column is
+NOT NULL). It found three more: PG18's NOT ENFORCED keys, which need no
+gate of their own because `convalidated` is false for one and
+`ALTER CONSTRAINT … NOT ENFORCED` clears it on a validated one; INHERITANCE,
+where a parent's key is not copied to a child so a TREE scan reads rows
+nothing checked (the relation-SET lesson, third instance — partitioning is
+the opposite and safe); and `ALTER TABLE … DISABLE TRIGGER ALL`, which lets
+violations in while the catalog still reads validated and enforced. That
+last one has NO catalog trace and is recorded as an explicit assumption in
+`docs/nullability-walk.md`: it is the first fact the engine trusts that an
+administrative command can silently falsify, and the same command does not
+bypass a CHECK (measured). `condeferrable` is the one new snapshot fact.
+
+Eleven gate fixtures pin the rest — NOT VALID, DEFERRABLE, inheritance and
+its ONLY control, an extra ON conjunct, a referencing side extended one join
+earlier, and the subquery form's four — each from the side that would
+produce a wrong `notNull`. The residue is one shape, recorded on both its
+fixtures: a correlated subquery whose FROM carries a JOIN, where each hop is
+a key the engine already reads and only the composition is missing.
+
+**The imprecision-closure charter is discharged**: 25 of 28 claims across
+classes C, A and B, with three residues each naming what it would take. The
+78 that remain are correct — 39 conservative by design (four of them the
+overload charter's) and 39 structurally unwitnessable.
 
 **A refactor chartered, not started: type-aware overload narrowing** —
 `docs/type-aware-overloads.md` (2026-08-05). The curated-table audit's
@@ -379,6 +409,58 @@ check but the ordered name comparison: sweep-1 finding 10 (the permuted
 MERGE `RETURNING *`), sweep-2 finding 13 (`(p).*` reading the alias where
 PostgreSQL reads the column — same arity, entirely different columns), and
 sweep-3 finding 7 (quoted `TABLE(…)` column names split at a space).
+
+---
+
+## 1b. Operational trust declarations — the foreign-key assumption
+
+**What.** Foreign-key entailment (2026-08-06) reads a validated, enforced,
+non-deferrable key as a guarantee that the join matches. Three routes
+falsify that without leaving a catalog trace, all measured: `ALTER TABLE …
+DISABLE TRIGGER ALL` (FKs are system triggers — the orphan lands and
+`convalidated`/`conenforced` both stay TRUE), `SET session_replication_role
+= 'replica'` (a session GUC, no DDL at all), and disabling triggers on the
+REFERENCED side, where a delete's `ON DELETE CASCADE` never fires and
+orphans rows that were valid a moment earlier. Nothing revalidates
+afterwards: `VALIDATE CONSTRAINT` on an already-validated key is a no-op.
+
+The gap is the escape hatch, not the default. **The default is settled and
+is not to be re-litigated**: a declared key is the schema author's
+invariant, the dirty state is one where the database misrepresents itself,
+and PostgreSQL's own planner has trusted validated keys for join
+selectivity since 9.6 without revalidating them. What is missing is a way
+for a consumer that KNOWS its keys are unenforced to say so.
+
+**Why it matters — and why it is small.** Wrong in the unsound direction
+when it is wrong, but it needs a database dirtied by one of those routes
+and left that way. Against that: the shape is the most common join in SQL,
+and refusing it costs the eight claims plus the general case.
+
+**Why not done.** The engine half is genuinely five lines — a
+`trustForeignKeys` option beside `searchPath` in `buildNullabilityCatalog`,
+with the two FK maps coming back empty. The rest is not: the value has to
+reach the adapter from project configuration that does not exist yet, which
+is the same wiring search-path half (b) waits on, and the natural
+granularity (per project, arguably per TABLE — `DISABLE TRIGGER` is
+per-table) is a consumer-config design question. Deliberately NOT per
+query: whether keys are enforced is a property of how a database is
+OPERATED, the query author does not hold that knowledge, forty queries
+joining the same two tables would each need the annotation, and putting the
+unsafe reading on by default at every site inverts which reading is easy to
+forget.
+
+**Trigger.** With the consumer's config slice, beside search-path half (b)
+— the same input class, the same plumbing. Worth doing together with the
+SYMMETRIC declaration, which recovers precision rather than giving it up: a
+project that never defers constraints could reclaim the `DEFERRABLE` keys
+the adapter currently drops unconditionally. If a per-query hatch is ever
+wanted after all, it spells like `@args` and `@unwitnessable`, not a new
+`@pgsid:`-style macro namespace (`docs/consumer-design.md` settled the
+dialect).
+
+**Where.** The assumption itself is recorded on the mechanism in
+`docs/nullability-walk.md` ("Foreign-key entailment"), with the three
+routes named; `docs/imprecision-closure.md` carries the measurements.
 
 ---
 

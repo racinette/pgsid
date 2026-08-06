@@ -952,6 +952,31 @@ CREATE FUNCTION ov_pair(x integer) RETURNS SETOF sku_pair
 CREATE FUNCTION ov_pair(x text) RETURNS SETOF sku_pair
   LANGUAGE sql AS $$ SELECT 'p'::text, 1 $$;
 
+-- The foreign keys a join may NOT reason from (the imprecision closure's
+-- class B). Each is a validated-looking key that guarantees nothing, and each
+-- was measured against PG18 before the gate was written.
+--
+-- fk_nv: NOT VALID — pre-existing rows are unchecked, so a row with no parent
+-- can be read back through the join. `convalidated` is what the adapter reads,
+-- and it is also false for a PG18 NOT ENFORCED key and after
+-- `ALTER CONSTRAINT … NOT ENFORCED` on an already-validated one (measured),
+-- so one bit covers all three routes.
+CREATE TABLE fk_nv (id integer PRIMARY KEY, o_id integer NOT NULL);
+ALTER TABLE fk_nv ADD CONSTRAINT fk_nv_order
+  FOREIGN KEY (o_id) REFERENCES orders(id) NOT VALID;
+
+-- fk_df: DEFERRABLE — violable mid-transaction and observable there, with
+-- INITIALLY IMMEDIATE no protection (`SET CONSTRAINTS ALL DEFERRED` measured).
+CREATE TABLE fk_df (id integer PRIMARY KEY,
+  o_id integer NOT NULL REFERENCES orders(id) DEFERRABLE);
+
+-- fk_par/fk_chi: INHERITANCE — a parent's foreign key is NOT copied to a
+-- child (pg_constraint records it on the parent alone, and a violating child
+-- row inserts without complaint — measured), so a TREE scan of fk_par reads
+-- rows the key never saw. The data states seed exactly such a row.
+CREATE TABLE fk_par (id integer PRIMARY KEY, o_id integer NOT NULL REFERENCES orders(id));
+CREATE TABLE fk_chi () INHERITS (fk_par);
+
 -- An EMPTY range in a NOT NULL column. `lower()` and `upper()` each have a
 -- total `(text)` form and an `(anyrange)` form that returns NULL for an empty
 -- range, and the walk dispatches builtins by NAME — so the totality table

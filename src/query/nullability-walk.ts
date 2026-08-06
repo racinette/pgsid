@@ -357,6 +357,15 @@ interface JoinPredicate {
    * yet every row passed the inner qual).
    */
   incomingRequired: boolean;
+  /**
+   * The null-group THIS join assigned to each side it made optional, absent
+   * for a side it did not. Foreign-key entailment needs to tell "optional
+   * because of this join" from "optional because of a deeper one": the key
+   * constrains the referencing relation's STORED rows, so a side already
+   * NULL-extended when it arrives here carries rows the key never saw.
+   */
+  leftOptionalGroup?: number;
+  rightOptionalGroup?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -1446,6 +1455,16 @@ class NullabilityEngine {
         }
       }
 
+      for (const j of scope.joins) {
+        const referenced = this.foreignKeyEntailedAlias(j, scope, present);
+        if (referenced && !present.has(referenced)) {
+          present.add(referenced);
+          const entry = scope.aliases.get(referenced);
+          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
+          changed = true;
+        }
+      }
+
       for (const [alias, entry] of scope.aliases) {
         if (present.has(alias)) continue;
         const proven =
@@ -1463,6 +1482,171 @@ class NullabilityEngine {
         }
       }
     }
+  }
+
+  /**
+   * The alias an outer join's ON qual proves PRESENT through a foreign key, or
+   * null.
+   *
+   * `orders o LEFT JOIN customers c ON c.id = o.customer_id` cannot
+   * null-extend `c`: `orders.customer_id` is NOT NULL and REFERENCES
+   * customers(id), so every row of orders has its match and the optional side
+   * behaves as required. The same reading covers a FULL JOIN's referenced
+   * side — `orders FULL JOIN shipments ON s.order_id = o.id` extends the
+   * ORDERS side only for a shipment with no order, which the key forbids.
+   *
+   * What the key guarantees is a property of the referencing relation's STORED
+   * rows, and everything below is about keeping the reasoning to those rows.
+   * There are two ways to have them, and they need different gates:
+   *
+   *   - The referencing alias is PROVEN PRESENT — by its join state, by WHERE
+   *     promotion, or by an earlier round of this fixpoint. Then every row
+   *     this scope emits carries a stored referencing row, so it carries the
+   *     match too, and no further gate is needed: presence already means any
+   *     enclosing extension did not happen. This is what lets the products
+   *     side of a five-way join promote once the WHERE has proven the orders
+   *     side.
+   *   - Nothing is present yet, and the referencing side is made optional by
+   *     exactly THIS join — the FULL JOIN case, where its own extension
+   *     produces rows on which the REFERENCED side is present rather than
+   *     absent. That arm needs `incomingRequired`: under an ancestor outer
+   *     join the whole slice can be extended, and promoting a member would
+   *     erase that.
+   *
+   * A side already extended by a DEEPER join is neither, and carries NULL keys
+   * that match nothing.
+   *   - The qual must be EXACTLY the key equality. Any further conjunct can
+   *     only remove matches, and removing a match is what makes the extension
+   *     the claim denies.
+   *   - The referencing column must be NOT NULL — a NULL key matches nothing
+   *     (which is also what closes MATCH SIMPLE's partial-NULL hole) — read
+   *     TREE-wide or not by the same `scanInh` split every other per-column
+   *     fact takes.
+   *   - Both sides must be plain relation references. A subquery or CTE column
+   *     may be an expression, and the key is a fact about tables.
+   *
+   * The catalog-visible gates — NOT VALID, NOT ENFORCED, DEFERRABLE,
+   * inheritance — are the adapter's, in `resolveForeignKey[Tree]`.
+   */
+  private foreignKeyEntailedAlias(
+    j: JoinPredicate,
+    scope: Scope,
+    present: Set<string>,
+  ): string | null {
+    const eq = this.equalityColumnRefs(j.quals);
+    if (!eq) return null;
+
+    const sides: { optionalAliases: string[]; group: number; otherAliases: string[] }[] = [];
+    if (j.leftOptionalGroup !== undefined) {
+      sides.push({
+        optionalAliases: j.leftAliases,
+        group: j.leftOptionalGroup,
+        otherAliases: j.rightAliases,
+      });
+    }
+    if (j.rightOptionalGroup !== undefined) {
+      sides.push({
+        optionalAliases: j.rightAliases,
+        group: j.rightOptionalGroup,
+        otherAliases: j.leftAliases,
+      });
+    }
+
+    for (const side of sides) {
+      for (const [refCol, targetCol] of [
+        [eq[0], eq[1]],
+        [eq[1], eq[0]],
+      ] as const) {
+        // The referencing side is the one carrying the key: it must be on the
+        // OTHER side of this join, or be this join's own optional twin.
+        const referencing = scope.aliases.get(refCol.alias);
+        const referenced = scope.aliases.get(targetCol.alias);
+        if (!referencing || !referenced) continue;
+        if (!side.optionalAliases.includes(targetCol.alias)) continue;
+        // The referencing side must be the other side of this very join —
+        // the key relates these two relations, and a column from elsewhere in
+        // the tree says nothing about whether THIS join matched.
+        if (!side.otherAliases.includes(refCol.alias)) continue;
+
+        const provenPresent = present.has(refCol.alias);
+        const optionalByThisJoin =
+          j.incomingRequired &&
+          (j.leftAliases.includes(refCol.alias)
+            ? referencing.nullGroup === j.leftOptionalGroup
+            : referencing.nullGroup === j.rightOptionalGroup);
+        if (!provenPresent && !optionalByThisJoin) continue;
+
+        // Tables only. A view's rows are a query's output, not the stored
+        // rows the key constrains, and relations and views share one alias
+        // kind in the scope.
+        if (referencing.kind !== "table" || !referencing.table) continue;
+        if (referenced.kind !== "table" || !referenced.table) continue;
+
+        const fk = referencing.scanInh === false
+          ? this.catalog.resolveForeignKey(
+              referencing.table.schema,
+              referencing.table.name,
+              refCol.column,
+            )
+          : this.catalog.resolveForeignKeyTree(
+              referencing.table.schema,
+              referencing.table.name,
+              refCol.column,
+            );
+        if (!fk) continue;
+        if (
+          fk.schema !== referenced.table.schema ||
+          fk.table !== referenced.table.name ||
+          fk.column !== targetCol.column
+        ) {
+          continue;
+        }
+        const keyNotNull = referencing.scanInh === false
+          ? this.catalog.resolveColumnNotNull(
+              referencing.table.schema,
+              referencing.table.name,
+              refCol.column,
+            )
+          : this.catalog.resolveColumnNotNullTree(
+              referencing.table.schema,
+              referencing.table.name,
+              refCol.column,
+            );
+        if (!keyNotNull) continue;
+        return targetCol.alias;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * A qual that is EXACTLY `alias.col = alias.col`, as its two qualified
+   * column references. Null for anything else — including a conjunction that
+   * merely contains one, since the other conjuncts filter.
+   */
+  private equalityColumnRefs(
+    qual: Node,
+  ): [{ alias: string; column: string }, { alias: string; column: string }] | null {
+    const ae = (qual as Record<string, unknown>)["A_Expr"] as
+      | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+      | undefined;
+    if (!ae || (ae.kind ?? "AEXPR_OP") !== "AEXPR_OP") return null;
+    if ((ae.name ?? []).length !== 1 || this.stringVal(ae.name![0]!) !== "=") return null;
+    const left = ae.lexpr ? this.qualifiedColumnRef(ae.lexpr) : null;
+    const right = ae.rexpr ? this.qualifiedColumnRef(ae.rexpr) : null;
+    return left && right ? [left, right] : null;
+  }
+
+  /** A two-part `alias.column` reference, or null. */
+  private qualifiedColumnRef(node: Node): { alias: string; column: string } | null {
+    const ref = (node as Record<string, unknown>)["ColumnRef"] as
+      | { fields?: Node[] }
+      | undefined;
+    const fields = ref?.fields;
+    if (!fields || fields.length !== 2) return null;
+    const alias = this.stringVal(fields[0]!);
+    const column = this.stringVal(fields[1]!);
+    return alias && column ? { alias, column } : null;
   }
 
   private nextNullGroup(): number {
@@ -1712,6 +1896,16 @@ class NullabilityEngine {
           leftAliases: keys.slice(aliasesBefore, aliasesAfterLeft),
           rightAliases: keys.slice(aliasesAfterLeft),
           incomingRequired: joinState === REQUIRED,
+          // Which side THIS join makes optional is its type, not the state the
+          // side ends up with: under an ancestor outer join both sides arrive
+          // OPTIONAL already, and the FK reading still needs to know which of
+          // them this join can extend.
+          ...(join.jointype === "JOIN_RIGHT" || join.jointype === "JOIN_FULL"
+            ? { leftOptionalGroup: leftGroup }
+            : {}),
+          ...(join.jointype === "JOIN_LEFT" || join.jointype === "JOIN_FULL"
+            ? { rightOptionalGroup: rightGroup }
+            : {}),
         });
       };
       if (join.quals) record(join.quals);
@@ -6294,7 +6488,9 @@ class NullabilityEngine {
     trace.addFact("setOp", select.op && select.op !== "SETOP_NONE" ? select.op : "none");
     trace.addFact("singleRow", String(singleRow));
 
-    if (!singleRow) {
+    const keyed = singleRow ? false : this.subqueryKeyEntailedNonEmpty(select, scope);
+    trace.addFact("keyEntailedNonEmpty", String(keyed));
+    if (!singleRow && !keyed) {
       trace.conclude(false, "can return zero rows -> nullable");
       return false;
     }
@@ -6307,6 +6503,111 @@ class NullabilityEngine {
       return innerNotNull;
     }
     trace.conclude(false, "single-row subquery has no output columns -> nullable");
+    return false;
+  }
+
+  /**
+   * Whether a scalar subquery provably returns AT LEAST ONE ROW because its
+   * WHERE keys into a relation a key guarantees a match in.
+   *
+   *   (SELECT p2.name FROM products p2 WHERE p2.id = p.id) FROM products p
+   *   (SELECT o.customer_id FROM orders o WHERE o.id = s.order_id)
+   *
+   * At-least-one is the right predicate here, not exactly-one: a scalar
+   * subquery returning several rows RAISES rather than evaluating to NULL
+   * (measured, through an inheritance tree with duplicate keys), and a raise
+   * returns no rows to contradict anything. That is why this sits BESIDE
+   * `guaranteesSingleRow` rather than inside it — the two license the same
+   * propagation for different reasons.
+   *
+   * Two ways to have the match, and the first needs no constraint at all:
+   *
+   *   - SELF-LOOKUP. The subquery scans the relation the OUTER query is
+   *     scanning and keys on the same column, so the outer row itself is in
+   *     the scanned set and matches. The only catalog fact needed is that the
+   *     column is NOT NULL, since a NULL key matches nothing — not even
+   *     itself. What does need care is the scan MODE: an `ONLY` subquery under
+   *     a tree-scanning outer reads a SUBSET, and the outer row may be the
+   *     child row it excludes.
+   *   - FOREIGN KEY. The outer column is a NOT NULL key referencing exactly
+   *     the subquery's relation and column, with the adapter's gates.
+   *
+   * The outer relation must be PRESENT — a NULL-extended slice has a NULL key
+   * — and both relations must be plain tables. The WHERE must be exactly the
+   * equality: another conjunct can empty the result, which is the whole claim.
+   * GROUP BY, HAVING, LIMIT, OFFSET and set operations are rejected for the
+   * same reason `guaranteesSingleRow` rejects them.
+   */
+  private subqueryKeyEntailedNonEmpty(select: SelectStmt, scope: Scope): boolean {
+    if (select.op && select.op !== "SETOP_NONE") return false;
+    if (select.limitCount || select.limitOffset) return false;
+    if (select.havingClause || select.groupClause?.length) return false;
+    if ((select.fromClause?.length ?? 0) !== 1 || !select.whereClause) return false;
+
+    const rv = (select.fromClause![0] as Record<string, unknown>)["RangeVar"] as
+      | { schemaname?: string; relname?: string; inh?: boolean; alias?: { aliasname?: string } }
+      | undefined;
+    if (!rv?.relname) return false;
+    const inner = this.catalog.resolveTable(rv.schemaname, rv.relname);
+    if (!inner) return false;
+    const innerAlias = rv.alias?.aliasname ?? rv.relname;
+    const innerScansTree = rv.inh === true;
+
+    const eq = this.equalityColumnRefs(select.whereClause);
+    if (!eq) return false;
+
+    for (const [innerRef, outerRef] of [
+      [eq[0], eq[1]],
+      [eq[1], eq[0]],
+    ] as const) {
+      if (innerRef.alias !== innerAlias) continue;
+      const outer = scope.aliases.get(outerRef.alias);
+      if (!outer || outer.kind !== "table" || !outer.table) continue;
+      if (outer.joinState !== REQUIRED) continue;
+
+      const outerScansTree = outer.scanInh !== false;
+      const keyNotNull = outerScansTree
+        ? this.catalog.resolveColumnNotNullTree(
+            outer.table.schema,
+            outer.table.name,
+            outerRef.column,
+          )
+        : this.catalog.resolveColumnNotNull(
+            outer.table.schema,
+            outer.table.name,
+            outerRef.column,
+          );
+      if (!keyNotNull) continue;
+
+      const selfLookup =
+        outer.table.schema === inner.schema &&
+        outer.table.name === inner.name &&
+        outerRef.column === innerRef.column &&
+        // A tree-scanning outer may be reading a CHILD row that an `ONLY`
+        // subquery cannot see.
+        (innerScansTree || !outerScansTree);
+      if (selfLookup) return true;
+
+      const fk = outerScansTree
+        ? this.catalog.resolveForeignKeyTree(
+            outer.table.schema,
+            outer.table.name,
+            outerRef.column,
+          )
+        : this.catalog.resolveForeignKey(
+            outer.table.schema,
+            outer.table.name,
+            outerRef.column,
+          );
+      if (
+        fk &&
+        fk.schema === inner.schema &&
+        fk.table === inner.name &&
+        fk.column === innerRef.column
+      ) {
+        return true;
+      }
+    }
     return false;
   }
 

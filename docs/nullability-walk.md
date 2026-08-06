@@ -432,6 +432,93 @@ finding 5). A schema qualifier SELECTS rather than decorates — two
 same-named relations from different schemas can both be in scope — so it
 resolves to the relation, not through the alias map.
 
+### Foreign-key entailment
+
+A join whose `ON` is an equality on a NOT NULL foreign key ALWAYS matches, so
+the referenced side never null-extends:
+
+```sql
+SELECT c.email FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
+-- orders.customer_id is NOT NULL REFERENCES customers(id) — c.email is notNull
+```
+
+The same reading covers a FULL JOIN's referenced side: `orders FULL JOIN
+shipments ON s.order_id = o.id` extends the ORDERS side only for a shipment
+with no order, which the key forbids — one FULL JOIN, one extension unit, not
+two. And it covers a correlated scalar subquery, where the question is not
+"exactly one row" but "at least one": a subquery returning several RAISES
+rather than evaluating to NULL (measured), and a raise returns no rows to
+contradict anything.
+
+```sql
+(SELECT p2.name FROM products p2 WHERE p2.id = p.id) FROM products p
+-- a SELF-LOOKUP: the outer row is itself in the scanned set
+(SELECT o.customer_id FROM orders o WHERE o.id = s.order_id)
+-- a KEY LOOKUP: shipments.order_id is a NOT NULL key onto orders
+```
+
+The join form is a promotion inside the existing presence fixpoint
+(`resolveJoinImplications`), so a promoted alias activates further joins and
+carries its null-group co-members with it. The subquery form is a second
+licence beside `guaranteesSingleRow`.
+
+**What the key actually guarantees is a property of the referencing relation's
+STORED rows**, and every gate below keeps the reasoning to those rows. Four are
+catalog-visible and live in the adapter (`resolveForeignKey[Tree]`), where a
+refused fact can never be misused downstream; each was measured against PG18
+before the gate was written:
+
+| | |
+|---|---|
+| `NOT VALID` | pre-existing rows are unchecked, and one survives to be read back through the join |
+| `NOT ENFORCED` (PG18) | violations insert freely — and it needs no gate of its own: `convalidated` is false for one, and `ALTER CONSTRAINT … NOT ENFORCED` CLEARS it on an already-validated key |
+| `DEFERRABLE` | violable mid-transaction and observable there, with `INITIALLY IMMEDIATE` no protection |
+| INHERITANCE | a parent's key is NOT copied to a child — pg_constraint records it on the parent alone and a violating child row inserts without complaint — so a TREE scan may not read it. Partitioning is the opposite and needs no exclusion: the constraint is recorded on every partition and `ATTACH PARTITION` validates the incoming rows |
+
+The rest are the walk's, and they are about the query rather than the catalog:
+
+- **The referencing column must be NOT NULL**, read tree-wide or not by the
+  same `scanInh` split every other per-column fact takes. A NULL key matches
+  nothing, which is also what closes `MATCH SIMPLE`'s partial-NULL hole for
+  composite keys (single-column keys only for now, recorded).
+- **The `ON` must be EXACTLY the key equality.** A further conjunct can only
+  remove matches, and removing a match is the extension the claim denies.
+- **The referencing side must arrive carrying stored rows** — proven PRESENT,
+  or made optional by exactly THIS join (the FULL JOIN case, where its own
+  extension yields rows on which the referenced side is present rather than
+  absent; that arm additionally needs `incomingRequired`, since under an
+  ancestor outer join the whole slice can be extended). A side already
+  extended by a DEEPER join carries NULL keys.
+- For the subquery form, **the scan MODE matters**: an `ONLY` subquery under a
+  tree-scanning outer reads a SUBSET, and the outer row may be the child row it
+  excludes.
+- Both relations must be plain tables. A view's rows are a query's output, not
+  the stored rows the key constrains.
+
+**One assumption is explicit and not catalog-detectable.** Foreign keys are
+implemented as system triggers, so enforcement can be switched off underneath
+them with no trace in the catalog. Three routes, all measured:
+`ALTER TABLE … DISABLE TRIGGER ALL` (the orphan lands and `convalidated` /
+`conenforced` both stay TRUE), `SET session_replication_role = 'replica'` (a
+session GUC — no DDL at all), and disabling triggers on the REFERENCED side,
+where a delete's `ON DELETE CASCADE` never fires and orphans rows that were
+valid a moment earlier. `VALIDATE CONSTRAINT` on an already-validated key is a
+no-op, so nothing repairs the bit afterwards.
+
+Nothing else the engine trusts is exposed this way: neither route bypasses a
+CHECK constraint (measured) and NOT NULL is enforced in the executor. So
+reasoning from a declared key means trusting that nobody has done that and left
+it — the assumption every ORM and codegen tool makes, taken deliberately here
+and recorded rather than hidden. A consumer that KNOWS its keys are unenforced
+has no way to say so yet; that escape hatch is section 1b of
+`docs/deferred-tasks.md`, and it waits on the same config wiring as the search
+path.
+
+Two shapes are recorded as NOT covered: a composite (multi-column) key, and a
+subquery whose FROM carries a JOIN — `(SELECT c.email FROM customers c JOIN
+orders o ON o.customer_id = c.id WHERE o.id = s.order_id)`, where each hop is
+individually a NOT NULL key and composing them is the boundary.
+
 ### Set-returning functions in FROM
 
 A `RangeFunction` resolves its columns from the function's `pg_get_function_result`

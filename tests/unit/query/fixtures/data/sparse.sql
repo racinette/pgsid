@@ -84,3 +84,9 @@ INSERT INTO stock (qty, discontinued_at) VALUES (5, NULL), (0, now());
 INSERT INTO subscription (plan, seats, overflow_contact) VALUES
   ('team', 3, 'ops@x.y'),
   ('solo', 1, NULL);
+
+-- fk_chi is an inheritance CHILD of fk_par, which carries a NOT NULL foreign
+-- key onto orders — and a parent's FK is not copied to a child (measured), so
+-- this row dangles legally. `FROM fk_par` scans the tree and reads it, which
+-- is what witnesses the tree gate on foreign-key entailment.
+INSERT INTO fk_chi (id, o_id) VALUES (901, 90001);

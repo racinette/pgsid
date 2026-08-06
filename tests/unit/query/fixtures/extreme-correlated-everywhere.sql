@@ -3,7 +3,6 @@
 --   NULL, so a product with no category counts 0 and fails `> 2` in every
 --   state. Measured: four NULL-category products carrying order items and
 --   reviews still never reach the output.
--- @unwitnessable 17: the correlated subquery always finds its row and applies a strict function to a NOT NULL column
 -- Extreme fixture: deeply nested correlated subqueries in every clause
 -- position — SELECT, WHERE, HAVING, ORDER BY, CASE condition, function
 -- argument, aggregate argument, and JOIN ON.
@@ -134,10 +133,13 @@ SELECT
     ELSE 'adequately_reviewed'
   END                                       AS review_status,   -- @notNull
 
-  -- Strict function wrapping a correlated subquery
+  -- Strict function wrapping a correlated subquery. The subquery scans the
+  -- relation the outer query is scanning and keys on the same primary key, so
+  -- the outer row itself is the match: at least one row, and a strict function
+  -- over a NOT NULL column above it.
   lower_strict(
     (SELECT p2.name FROM products p2 WHERE p2.id = p.id)
-  )                                         AS lower_name_subq, -- @nullable
+  )                                         AS lower_name_subq, -- @notNull
 
   -- COALESCE with strict function wrapping correlated subquery
   COALESCE(

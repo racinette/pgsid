@@ -287,21 +287,21 @@ group.
 
 ## Current measurement
 
-Across 341 fixtures and 5 data states, at the default seed (post the
-imprecision closure's classes C and A, whose five `body-shape-*` gate
+Across 352 fixtures and 5 data states, at the default seed (post the
+imprecision closure, whose sixteen `body-shape-*` and `fk-entail-*` gate
 fixtures account for the growth over 336 — itself grown through the third
 adversarial fix phase from 311 and 288):
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 853 | |
-| — falsifiable | 843 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 874 | |
+| — falsifiable | 864 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 540 | |
-| — witnessed | 454 (84%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 86 | every one carries an `@unwitnessable` annotation |
-| `@null-group` claims | 43 (37 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
+| `nullable` claims | 543 | |
+| — witnessed | 463 (85%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 80 | every one carries an `@unwitnessable` annotation |
+| `@null-group` claims | 42 (36 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
 The new unwitnessed entries are one shape repeated: unnesting a NULL array
 produces NO rows, so the array column a fixture unnests can never be
@@ -349,22 +349,23 @@ the very columns those constraints sit on, and the walk reads them now
 witnessed `notNull`; the fifteenth returns the function's own PARAMETER,
 which the reading takes as nullable by design, and it is counted below.
 
-**Conservative by design (35 claims).** The value is provably non-null and the
+**Conservative by design (39 claims).** The value is provably non-null and the
 engine reports nullable anyway. Each is a known imprecision registered in
 the "Known imprecisions in the walk" entry in
 `docs/deferred-tasks.md` — array subscripting, population statistics,
 built-ins outside the curated tables, genuinely partial ones inside them
 (`date_part`, `array_length`), multi-statement function bodies, JSON_TABLE
 columns, the VARIADIC gate, the SRF padding rule, multi-candidate operators,
-and the CHECK machinery's deliberate gates — plus the two the body reading
-leaves: a parameter inside an inlined body, and the longer call in a
-`ROWS FROM` that padding never reaches. Only four are closable by work
-already planned (`docs/type-aware-overloads.md`); the rest are correct
-conservatism, and closing one would turn its claim into `notNull` rather than
+and the CHECK machinery's deliberate gates — plus the six the imprecision
+closure leaves: a parameter inside an inlined body, the longer call in a
+`ROWS FROM` that padding never reaches, a foreign key the engine refuses to
+read (NOT VALID, DEFERRABLE), and a correlated subquery whose FROM carries a
+JOIN. Only four are closable by work already planned
+(`docs/type-aware-overloads.md`); the rest are correct conservatism, and closing one would turn its claim into `notNull` rather than
 witnessing it (the presence-consumption entry retired exactly that way — its
 fixture's carrier now reads notNull and the annotation came off).
 
-**The query's own shape rules out the NULL case (49 claims).** The largest
+**The query's own shape rules out the NULL case (39 claims).** The other half
 group: the fixture selects away the rows that would show the NULL. A
 `LEFT JOIN` whose `ON` is an equality on a NOT NULL foreign key always
 matches. A `CROSS JOIN LATERAL` drops exactly the orders that would leave the
