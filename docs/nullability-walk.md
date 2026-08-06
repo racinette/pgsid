@@ -444,21 +444,68 @@ The `TABLE(…)` list is split IDENTIFIER-aware, not at the first space:
 PostgreSQL renders those names with `quote_ident`, so a quoted name may
 contain a space, a comma or an escaped quote (finding 7).
 
-The nullability rule is a **negative** one, and it is the opposite of what the
-table declaration suggests. A `SETOF <table>` result carries the table's *row
-type*, which describes column types and nothing else — **NOT NULL constraints do
-not travel with it.** A function declared `RETURNS SETOF order_items` can return
-a row of all NULLs without error, even though four of those columns are NOT NULL
-in the table. Reading `attnotnull` here would be unsound, so every column of a
-composite result is nullable.
+The nullability rule from the DECLARATION is a **negative** one, and it is the
+opposite of what the table declaration suggests. A `SETOF <table>` result carries
+the table's *row type*, which describes column types and nothing else — **NOT
+NULL constraints do not travel with it.** A function declared `RETURNS SETOF
+order_items` can return a row of all NULLs without error, even though four of
+those columns are NOT NULL in the table, and PostgreSQL re-imposes nothing: a
+body selecting NULL into such a column is accepted and comes back NULL
+(measured). Reading `attnotnull` here would be unsound.
 
-Two things do survive, because both are properties of the *type* rather than of
-the table:
+Two things survive the erasure, because both are properties of the *type* rather
+than of the table:
 
 - **a domain's NOT NULL**, which is still enforced on function output — in a
   `TABLE(...)` column, in a `SETOF <domain>` element, and in a domain-typed
   column of a `SETOF <table>` result;
 - **`WITH ORDINALITY`**, a generated `bigint` counter that is always present.
+
+#### Reading the body back
+
+The declaration erases, so the only sound source of a guarantee is the **body**,
+which for these functions selects the very columns the constraints sit on. For a
+single-candidate `LANGUAGE sql` function the walk analyses the body's target list
+per column and ORs the result into the declared list — the row-return counterpart
+of priority 5, which reads the same bodies for scalar returns and takes column 0.
+
+The body's columns map onto the function's output either **positionally** (the
+target list has one entry per output column) or through a **ROW constructor**
+(one entry of composite type, which PostgreSQL expands into fields — both
+spellings are accepted, measured). Only a constructor is read the second way: it
+is never itself NULL, while any other composite-typed expression may be, and a
+NULL value nulls every field.
+
+Four gates gives the reading, each measured and each pinned from both sides by a
+`body-shape-*` fixture:
+
+- **A single candidate.** `fnBodyAsts` is keyed by `schema.name` with no argument
+  types, so an overloaded name's bodies collide there and one would speak for the
+  other. The reading is reached only through `resolveFunctionMetadata`, which
+  answers null for any overloaded name; the consensus rule then supplies the
+  shape without resolving the overload, and the flags stay conservative.
+- **No padding partner.** Two or more functions in one `ROWS FROM` expand in
+  lockstep to the longest one's row count, and every shorter one's columns are
+  NULL-padded after it has returned — measured for a body whose columns are
+  otherwise provably non-null. The same shape as the target list's SRF padding
+  rule.
+- **A guaranteed row when the function is not set-returning.** `RETURNS
+  <composite>` is one row always, and a body that selects nothing makes that row
+  all NULLs (measured) — so `guaranteesSingleRow` gates it, exactly as it gates
+  the scalar path. A `SETOF` body needs no such gate: no rows means no output rows
+  to be NULL.
+- **A one-against-one reading only where the return is not a row type.** For a
+  single-field composite the body's one column is the field under one reading and
+  the whole row under the other, and those disagree.
+
+Two bounds are recorded rather than closed. A body's PARAMETERS read nullable —
+the caller's NULL does reach the output (measured), and proving otherwise means
+threading the call's argument nullability and being right about its join state at
+the call site. And a set-operation or DML body is not read at all, which is the
+scalar inliner's boundary too.
+
+The result is INTRINSIC to the function's rows: the join state applies on top, so
+the optional side of an outer join nulls a body-proven column like any other.
 
 Resolving the columns matters even where they all come out nullable: without it
 `SELECT * FROM f()` expands to zero columns and the statement's output shape is
@@ -471,12 +518,16 @@ column name. An explicit alias list (`f() AS t(a, b)`) renames positionally.
 Two forms override the per-item resolution above:
 
 - **A column definition list** (`AS z(a integer, b text)`) — what makes a
-  record-returning call legal at all — fully determines the item's shape:
-  one column per ColumnDef, by its name, every one nullable (a record's
-  fields carry no constraints). It wins even when catalog metadata exists,
-  whose `SETOF record` return type would otherwise resolve to a single
-  scalar column. The lone-function spelling parks the list on the
-  RangeFunction, the ROWS FROM spelling on each item (both measured).
+  record-returning call legal at all — fully determines the item's SHAPE:
+  one column per ColumnDef, by its name. It wins even when catalog metadata
+  exists, whose `SETOF record` return type would otherwise resolve to a
+  single scalar column. The lone-function spelling parks the list on the
+  RangeFunction, the ROWS FROM spelling on each item (both measured). The
+  list says nothing about nullability — a record's fields carry no
+  constraints — so the flags come from the body reading above, which
+  PostgreSQL maps onto the list positionally (a coldeflist type differing
+  from the body's coerces in place, measured, and coercing a non-null value
+  cannot produce NULL).
 - **Multi-argument `unnest`** is a special form: `unnest(a, b)` expands to
   one column PER ARRAY ARGUMENT, zip-style with NULL padding, each keeping
   the function's name rather than taking a scalar alias — measured, and

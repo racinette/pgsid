@@ -1,0 +1,14 @@
+-- Gate (a): a NON set-returning function whose body can return zero rows.
+--
+-- `RETURNS order_items` is one row, always — and when the body selects
+-- nothing, that row is all NULLs (measured), which is precisely the shape the
+-- body's own column flags would deny. first_item's LIMIT means it cannot
+-- guarantee its row, so the body is not read and the row type's erasure
+-- stands. Order 999 exists in no state, so every column is witnessed NULL on
+-- the single row this returns.
+SELECT * FROM first_item(999)
+-- @nullable   (id)
+-- @nullable   (order_id)
+-- @nullable   (product_id)
+-- @nullable   (quantity)
+-- @nullable   (unit_price)

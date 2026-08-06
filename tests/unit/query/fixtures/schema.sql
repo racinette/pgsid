@@ -928,6 +928,30 @@ CREATE FUNCTION out_pair(x integer, OUT lo integer, OUT hi nn_text)
 CREATE FUNCTION one_row_composite() RETURNS TABLE(r sku_pair)
   LANGUAGE sql AS $$ SELECT ROW('s', NULL)::sku_pair $$;
 
+-- The three gates on reading a body for a ROW return. Each is measured, and
+-- each has a fixture holding it from both sides.
+--
+-- (a) NOT set-returning: a body that can return ZERO rows makes the function
+-- return one row of all NULLs (measured), so it must guarantee its single row
+-- before its columns are believed. `first_item` cannot (LIMIT), `one_pair`
+-- can — the same zero-row gate the scalar body inliner applies.
+CREATE FUNCTION first_item(p_order_id integer) RETURNS order_items
+  LANGUAGE sql AS $$ SELECT * FROM order_items WHERE order_id = $1 LIMIT 1 $$;
+CREATE FUNCTION one_pair() RETURNS sku_pair
+  LANGUAGE sql AS $$ SELECT 'a'::text, 1 $$;
+
+-- (b) SINGLE CANDIDATE: fnBodyAsts is keyed by `schema.name` with no argument
+-- types, so an overloaded name's bodies COLLIDE there and whichever one the
+-- map holds would speak for the other. The shapes agree, so the consensus rule
+-- answers the column list without resolving the overload — and the flags must
+-- stay conservative. The bodies are ordered so that reading one would be
+-- WRONG: the call below takes the integer overload, which emits NULLs, while
+-- the text overload defined after it is what the shared key holds.
+CREATE FUNCTION ov_pair(x integer) RETURNS SETOF sku_pair
+  LANGUAGE sql AS $$ SELECT NULL::text, NULL::integer $$;
+CREATE FUNCTION ov_pair(x text) RETURNS SETOF sku_pair
+  LANGUAGE sql AS $$ SELECT 'p'::text, 1 $$;
+
 -- An EMPTY range in a NOT NULL column. `lower()` and `upper()` each have a
 -- total `(text)` form and an `(anyrange)` form that returns NULL for an empty
 -- range, and the walk dispatches builtins by NAME — so the totality table

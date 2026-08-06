@@ -1,0 +1,19 @@
+-- Gate (c) on reading a function body for a ROW return: NO PADDING PARTNER.
+--
+-- Two or more functions in one `ROWS FROM` expand in lockstep to the longest
+-- one's row count, and every shorter one's columns are NULL-padded after it
+-- has returned — measured, and measured for exactly this body, whose two
+-- columns are otherwise provably non-null (setof-composite-type.sql claims
+-- them notNull in the plain spelling). The same shape as the target list's
+-- SRF padding rule, one clause over.
+--
+-- Every state witnesses it: generate_series always supplies 200 rows and no
+-- state seeds anywhere near 200 products, so the padded rows are always there
+-- — including `empty`, where sku_pairs contributes nothing at all.
+-- @unwitnessable 2: generate_series is the LONGER call, so the padding never
+--   reaches it — the same uniform conservatism srf-target-list-padding.sql
+--   records one clause over
+SELECT * FROM ROWS FROM (sku_pairs(), generate_series(1, 200))
+-- @nullable   (sku: padded once products run out)
+-- @nullable   (qty: same)
+-- @nullable   (generate_series: a builtin SRF's conservative column)

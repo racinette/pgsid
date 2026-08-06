@@ -287,23 +287,21 @@ group.
 
 ## Current measurement
 
-Across 336 fixtures and 5 data states, at the default seed (post the
-THIRD adversarial fix phase, whose graduated pins — the qualified star in
-four placements, the composite-domain sites, the `unnest` spellings, the
-two SRF padding shapes, the quoted `TABLE(…)` names, the pg_catalog
-precedence, the bind-time claim inside an unreferenced CTE — account for
-the growth over the second phase's 311, itself grown from the first's 288):
+Across 341 fixtures and 5 data states, at the default seed (post the
+imprecision closure's classes C and A, whose five `body-shape-*` gate
+fixtures account for the growth over 336 — itself grown through the third
+adversarial fix phase from 311 and 288):
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 836 | |
-| — falsifiable | 826 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 853 | |
+| — falsifiable | 843 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 542 | |
-| — witnessed | 443 (82%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 99 | every one carries an `@unwitnessable` annotation |
-| `@null-group` claims | 42 (36 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
+| `nullable` claims | 540 | |
+| — witnessed | 454 (84%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 86 | every one carries an `@unwitnessable` annotation |
+| `@null-group` claims | 43 (37 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
 The new unwitnessed entries are one shape repeated: unnesting a NULL array
 produces NO rows, so the array column a fixture unnests can never be
@@ -343,23 +341,24 @@ were wrong, five of them calling a filter in the fixture's own query a gap in
 the data. The three that were genuinely data gaps are closed (2026-08-06),
 which is why no group below is one.
 
-**A row type carries no constraints (15 claims).** `SETOF <table>` and
-`SETOF <composite>` results are nullable because NOT NULL constraints do not
-travel with a row type. The functions behind them select NOT NULL columns, so
-PostgreSQL never emits NULL there. Closing these means analysing the body's
-target list per column, which `docs/imprecision-closure.md` charters as its
-class A. `table-function-return-types`, `from-item-kinds`,
-`setof-composite-type`, `coldeflist-user-record`,
-`pg-catalog-shadowed-from-shape`, and the two OUT-parameter shapes.
+**A row type carries no constraints — CLOSED (2026-08-06).** This was the
+largest group at 15. `SETOF <table>` and `SETOF <composite>` erase the NOT
+NULLs, and PostgreSQL re-imposes nothing — but the bodies behind them select
+the very columns those constraints sit on, and the walk reads them now
+(`docs/nullability-walk.md`, "Reading the body back"). Fourteen graduated to
+witnessed `notNull`; the fifteenth returns the function's own PARAMETER,
+which the reading takes as nullable by design, and it is counted below.
 
-**Conservative by design (33 claims).** The value is provably non-null and the
+**Conservative by design (35 claims).** The value is provably non-null and the
 engine reports nullable anyway. Each is a known imprecision registered in
 the "Known imprecisions in the walk" entry in
 `docs/deferred-tasks.md` — array subscripting, population statistics,
 built-ins outside the curated tables, genuinely partial ones inside them
 (`date_part`, `array_length`), multi-statement function bodies, JSON_TABLE
 columns, the VARIADIC gate, the SRF padding rule, multi-candidate operators,
-and the CHECK machinery's deliberate gates. Only four are closable by work
+and the CHECK machinery's deliberate gates — plus the two the body reading
+leaves: a parameter inside an inlined body, and the longer call in a
+`ROWS FROM` that padding never reaches. Only four are closable by work
 already planned (`docs/type-aware-overloads.md`); the rest are correct
 conservatism, and closing one would turn its claim into `notNull` rather than
 witnessing it (the presence-consumption entry retired exactly that way — its

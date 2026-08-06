@@ -12,5 +12,10 @@
 SELECT * FROM out_pair(3)
 -- @nullable   (lo)
 -- @notNull    (hi: nn_text, a NOT NULL domain)
--- @unwitnessable 0: the body returns its own non-null argument; the nullable
---   is an OUT parameter's ordinary lack of a constraint
+-- @unwitnessable 0: the body IS read — `SELECT x, 'h'::nn_text` — and column
+--   0 is the function's own PARAMETER, which the body reading takes as
+--   nullable by design: the caller's NULL does reach the output (measured),
+--   so proving otherwise means threading the call's argument nullability and
+--   being right about its join state at the call site. The only claim in this
+--   class the body cannot answer, and the boundary is recorded rather than
+--   crossed.

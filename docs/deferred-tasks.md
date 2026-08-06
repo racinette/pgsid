@@ -205,15 +205,38 @@ so a LEFT JOIN LATERAL exercises both arms, and an aggregate over the
 column `sparse` leaves NULL rather than the one it fills. Nothing else in
 the corpus moved.
 
-Two classes are left, and both are independent of everything else:
-ROW-TYPE ERASURE (15 — `SETOF order_items` erases the table's NOT NULLs
-while the `LANGUAGE sql` body selects those very columns; the walk already
-inlines bodies for scalar returns and simply does not for row returns) and
-KEY ENTAILMENT (11 — a join on a NOT NULL foreign key always matches, and
-the snapshot already carries the constraint; five hazards to measure
-first, `NOT VALID` and `DEFERRABLE` among them). The remaining 71 are
-correct: 33 conservative by design (only four of them the overload
-charter's) and 38 structurally unwitnessable. Order is A, then B.
+**Class A closed the same day too** — ROW-TYPE ERASURE, 14 of its 15
+claims. `SETOF order_items` erases the table's NOT NULLs and PostgreSQL
+re-imposes nothing (a body selecting NULL into such a column is accepted
+and comes back NULL, measured), so the declaration is right to erase and
+the BODY is the only sound source of a guarantee — which for these
+functions selects the very columns the constraints sit on. The walk reads
+a single-candidate `LANGUAGE sql` body's target list per column and ORs it
+into the declared list, either positionally or through a ROW constructor
+delivering the whole row as one column (both spellings accepted,
+measured). It is the row-return counterpart of priority 5, which reads the
+same bodies for scalar returns and takes column 0.
+
+Four gates carry the soundness argument, each measured and each pinned
+from BOTH sides by a new `body-shape-*` fixture: a multi-function `ROWS
+FROM` NULL-pads the shorter call (measured against this very body); a
+non-set-returning composite return whose body can yield zero rows comes
+back as one all-NULL row, so the scalar path's single-row gate applies;
+`fnBodyAsts` is keyed by name alone, so only a SINGLE candidate may be
+read — that fixture loads the trap, calling the overload that emits NULLs
+while the shared key holds the one that does not; and a one-against-one
+reading is refused for a row-typed return, where the two readings
+disagree. What it deliberately does not do is thread the call's ARGUMENT
+nullability, which costs the fifteenth claim (`out_pair`'s `lo` returns
+its own argument) and is recorded on the fixture.
+
+KEY ENTAILMENT is what remains: 11 claims — a join on a NOT NULL foreign
+key always matches, and the snapshot already carries the constraint; five
+hazards to measure first, `NOT VALID` and `DEFERRABLE` among them. Class
+A's shape is the precedent: measure the guarantee, land the reading behind
+gates, pin every gate from both sides. The other 71 are correct: 35
+conservative by design (only four of them the overload charter's) and 38
+structurally unwitnessable.
 
 **A refactor chartered, not started: type-aware overload narrowing** —
 `docs/type-aware-overloads.md` (2026-08-05). The curated-table audit's

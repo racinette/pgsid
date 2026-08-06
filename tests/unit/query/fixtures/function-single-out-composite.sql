@@ -5,9 +5,13 @@
 -- single-output case therefore expands the type rather than standing on its
 -- own; two or more output columns are the list directly
 -- (function-out-parameter-shape.sql).
+--
+-- It is also the body shape a row return needs a second reading for: the body
+-- is `SELECT ROW('s', NULL)::sku_pair`, ONE column where the function emits
+-- two, so the fields come from the ROW CONSTRUCTOR's elements rather than from
+-- the target list. Only a constructor is read that way — it is never itself
+-- NULL, while any other composite-typed expression may be, and a NULL value
+-- nulls every field.
 SELECT * FROM one_row_composite()
--- @nullable   (sku)
--- @nullable   (qty)
--- @unwitnessable 0: the body's sku is a non-null literal; the nullable is
---   the row-type rule (a composite's fields carry no NOT NULL), witnessed
---   with real NULLs in unnest-composite-shape.sql
+-- @notNull    (sku: the constructor's first element, a literal)
+-- @nullable   (qty: its second, a literal NULL — witnessed on every call)

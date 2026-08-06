@@ -8,11 +8,11 @@ the engine's imprecision made visible: a claim nothing can falsify is either
 correct conservatism, a hole in the seed data, or a guarantee the engine
 failed to derive and a consumer therefore does not get.
 
-**100 such annotations across 336 fixtures**, now 97. This document
+**100 such annotations across 336 fixtures**, now 84. This document
 classifies them, says which are engine defects worth closing, which are
 correct, and in what order to take them. Step 0 — the audit of the reasons
-themselves — is DONE, and so is class C (both 2026-08-06). Classes A and B
-are not implemented.
+themselves — is DONE, and so are classes C and A (all 2026-08-06). Class B
+is not implemented.
 
 Read `docs/witness-coverage.md` first — it defines the discipline (a reason
 is required, and a reason that stops being needed FAILS as stale) and
@@ -23,11 +23,14 @@ One class has its own charter and is out of scope here:
 ## Current measurement
 
 ```
-336 fixtures, 5 data states                       (before the audit → after class C)
-  notNull claims:  836 — 826 falsifiable, 10 guarded by a checked refusal, 0 unverified
-  nullable claims: 542 — 440 → 443 witnessed (82%), 100 → 97 unwitnessed with a reason
+341 fixtures, 5 data states                    (before the audit → after classes C and A)
+  notNull claims:  836 → 853 — 843 falsifiable, 10 guarded by a checked refusal, 0 unverified
+  nullable claims: 542 → 540 — 440 → 454 witnessed (84%), 100 → 84 unwitnessed with a reason
                         (+2 inside `@no-rows` fixtures, exempt wholesale)
 ```
+
+The five new fixtures are class A's gates, which carry claims of their own —
+the counts move by more than the fourteen graduations.
 
 ## Step 0 — the reason audit (2026-08-06)
 
@@ -112,7 +115,7 @@ inherited column. Two claims graduated to witnessed notNull.
 An exact census now, not the ranges the pre-audit pass produced. The five
 classes partition all 100.
 
-### A. Row-type erasure — 15 claims. **The biggest available win.**
+### A. Row-type erasure — 15 claims. **CLOSED 2026-08-06**, 14 of 15.
 
 ```sql
 SELECT * FROM get_order_items(1)          -- RETURNS SETOF order_items
@@ -128,28 +131,59 @@ The walk already inlines `LANGUAGE sql` bodies for SCALAR returns
 body's target list per-column for ROW returns instead of accepting the
 declared row type's erasure.
 
-Bounded by what already bounds the inliner: single-candidate only (bodies
-differ across overloads), `LANGUAGE sql` only, multi-statement bodies stay
-conservative. The direction is nullable→notNull, so it needs the generated
-corpus dry-run the fix phases used.
-
-| fixture | claims |
-|---|---|
-| `table-function-return-types` | #0, #1, #2, #4, #6 |
-| `from-item-kinds` | #2, #3 |
-| `setof-composite-type` | #0, #1 |
-| `coldeflist-user-record` | #0, #1 |
-| `pg-catalog-shadowed-from-shape` | #0, #1 |
-| `function-out-parameter-shape` | #0 |
-| `function-single-out-composite` | #0 |
-
-The last two are the OUT-parameter spellings, whose bodies are equally
-readable; `coldeflist-user-record` takes its shape from the column
-definition list and its flags from the same body analysis.
+| fixture | claims | closed |
+|---|---|---|
+| `table-function-return-types` | #0, #1, #2, #4, #6 | all |
+| `from-item-kinds` | #2, #3 | both |
+| `setof-composite-type` | #0, #1 | both |
+| `coldeflist-user-record` | #0, #1 | both |
+| `pg-catalog-shadowed-from-shape` | #0, #1 | both |
+| `function-single-out-composite` | #0 | yes |
+| `function-out-parameter-shape` | #0 | **no** — see below |
 
 `unnest-composite-function-return#0` is NOT in this class, though the
 pre-audit pass listed it: a composite ELEMENT may itself be NULL, which
 nulls every field, so that expansion's uniform rule is correct (class E).
+
+**What landed.** `sqlFunctionBodyShape` reads a single-candidate `LANGUAGE
+sql` body's target list per column and ORs it into the declared list.
+Two mappings, both spellings measured as accepted: positional (one target
+entry per output column) and a ROW CONSTRUCTOR delivering the whole row as
+one composite-typed entry, which PostgreSQL expands into fields. Only a
+constructor is read the second way — it is never itself NULL, while any
+other composite-typed expression may be, and a NULL value nulls every field.
+
+**Four gates, each measured and each pinned from both sides** by a new
+`body-shape-*` fixture. They are the whole soundness argument:
+
+1. `ROWS FROM` with two or more functions NULL-pads the shorter one after it
+   has returned — measured against this very body. No padding partner, no
+   reading.
+2. A non-set-returning composite return whose body can yield zero rows comes
+   back as one row of all NULLs (measured), so `guaranteesSingleRow` gates
+   it exactly as it gates the scalar path — with a positive control so the
+   gate is not blanket.
+3. Single candidate only: `fnBodyAsts` is keyed by `schema.name`, so an
+   overloaded name's bodies collide there. The fixture loads the trap — the
+   call takes the overload that emits NULLs while the shared key holds the
+   one that does not — so a widening of this gate falsifies immediately.
+4. One-against-one is refused for a row-typed return, where the two readings
+   are indistinguishable and disagree.
+
+**What it deliberately does not do**, and the one claim that pays for it:
+a body's PARAMETERS read nullable, so `out_pair`'s `lo` — which returns its
+own argument — keeps a reason. Closing it means threading the call's
+argument nullability and being right about its join state at the call site;
+the caller's NULL does reach the output (measured), so reading them nullable
+is the conservative half. Set-operation and DML bodies are not read either,
+which is the scalar inliner's boundary too.
+
+**Verification.** The direction is nullable→notNull, so all 14 graduated
+claims are executed against PostgreSQL under five data states with nothing
+falsified, and the generated corpus was re-run — unmoved, though that is
+weak evidence here for the reason `docs/generated-surface.md` measures: the
+corpus has no schema axis and cannot express a table function with a body.
+The fixture suite and the four gates are what carry this one.
 
 ### B. Key entailment — 11 claims. Independent, but a new mechanism.
 
@@ -284,12 +318,13 @@ Four kinds, and only the first is closable by work already planned:
 
 ## Order, and why
 
-**A, then B.** Step 0 and class C are done.
+**B is what is left.** Step 0, class C and class A are done.
 
-A is contained, reuses proven machinery, and carries the largest count. B is
-a new mechanism whose hazards deserve their own measurement pass first — and
-it is the one where being wrong produces a wrong `notNull` on a very common
-query shape.
+B is a new mechanism whose five hazards deserve their own measurement pass
+first — and it is the one where being wrong produces a wrong `notNull` on a
+very common query shape. Class A's shape is the precedent to follow: measure
+what PostgreSQL actually guarantees, land the reading behind gates, and pin
+every gate from both sides so it cannot quietly widen.
 
 Both A and B move claims from nullable to notNull, which is the UNSOUND
 direction. Neither should land without the generated-corpus dry-run, and

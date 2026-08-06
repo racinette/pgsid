@@ -1,21 +1,20 @@
--- @unwitnessable 2: SETOF row types carry no NOT NULL constraints, but the function's body selects NOT NULL columns and cannot emit NULL
--- @unwitnessable 3: same row-type erasure as srf_id
 -- FROM-item kinds other than a plain table: VALUES, set-returning functions,
 -- LATERAL, and DISTINCT ON.
 --
--- Set-returning function columns are resolved from the return type, but come
--- out nullable on purpose: a SETOF <table> result carries the table's row
--- type, and NOT NULL constraints do not travel with it. See
--- table-function-return-types.sql for the full rule.
+-- Set-returning function columns are resolved from the return type, which
+-- erases the table's NOT NULLs — and then from the BODY, which selects the
+-- very columns those constraints sit on. See table-function-return-types.sql
+-- for the full rule and its bounds.
 SELECT DISTINCT ON (v.a)
   -- VALUES: each column is the AND across all rows, so a single NULL in one
   -- row makes the column nullable.
   v.a                     AS values_notnull,   -- @notNull
   v.b                     AS values_nullable,  -- @nullable
 
-  -- Set-returning function in FROM — see above.
-  g.id                    AS srf_id,           -- @nullable
-  g.quantity              AS srf_qty,          -- @nullable
+  -- Set-returning function in FROM — see above. get_order_items' body is
+  -- `SELECT * FROM order_items`, so these carry the base table's NOT NULL.
+  g.id                    AS srf_id,           -- @notNull
+  g.quantity              AS srf_qty,          -- @notNull
 
   -- LATERAL on the optional side of a LEFT JOIN: nullable because the
   -- subquery may produce no row for a given outer row. `v.a` supplies both
