@@ -172,6 +172,26 @@ export async function buildNullabilityCatalog(
     if (ast) fnBodyAsts.set(fnKey, ast);
   }
 
+  // Pre-parse ARGUMENT DEFAULT expressions, one entry per argument position
+  // (null where a parameter has no default). A call that omits a defaulted
+  // parameter passes this expression, so the walk needs it as an AST to bind
+  // into the body scope.
+  //
+  // Keyed by the FULL signature — `schema.name(argTypes)` — rather than by
+  // `schema.name` the way the body map is: an overloaded name's entries would
+  // otherwise collide, and a default belongs to one signature. The rendering
+  // is an expression already (`7`, `NULL::integer`, `nullif(1, 1)`), so it
+  // parses through the same SELECT wrapper the generation expressions use.
+  const fnArgDefaultAsts = new Map<string, (Node | null)[]>();
+  for (const f of snapshot.functions) {
+    if (!f.args.some(a => a.defaultExpr !== null)) continue;
+    const parsed: (Node | null)[] = [];
+    for (const a of f.args) {
+      parsed.push(a.defaultExpr === null ? null : await parseExprAst(a.defaultExpr));
+    }
+    fnArgDefaultAsts.set(`${f.schema}.${f.name}(${f.argTypes})`, parsed);
+  }
+
   // Pre-parse GENERATED column expressions (pg_get_expr renders them into
   // ColumnInfo.defaultExpr for generated columns). The expression is over
   // the table's OWN columns — PostgreSQL forbids referencing another
@@ -187,20 +207,13 @@ export async function buildNullabilityCatalog(
   for (const t of snapshot.tables) {
     for (const col of t.columns) {
       if (col.generated === "none" || !col.defaultExpr) continue;
-      try {
-        const parsed = await parseSql(`SELECT ${col.defaultExpr}`);
-        const stmt = parsed.stmts?.[0]?.stmt as
-          | { SelectStmt?: { targetList?: { ResTarget?: { val?: Node } }[] } }
-          | undefined;
-        const expr = stmt?.SelectStmt?.targetList?.[0]?.ResTarget?.val;
-        if (expr) {
-          generationExprAsts.set(`${t.schema}.${t.name}.${col.name}`, expr);
-          if (!col.generationDivergesInTree) {
-            generationExprTreeAsts.set(`${t.schema}.${t.name}.${col.name}`, expr);
-          }
+      // Unparseable → the column falls back to the catalog flag.
+      const expr = await parseExprAst(col.defaultExpr);
+      if (expr) {
+        generationExprAsts.set(`${t.schema}.${t.name}.${col.name}`, expr);
+        if (!col.generationDivergesInTree) {
+          generationExprTreeAsts.set(`${t.schema}.${t.name}.${col.name}`, expr);
         }
-      } catch {
-        // Unparseable → the column falls back to the catalog flag.
       }
     }
   }
@@ -751,6 +764,7 @@ export async function buildNullabilityCatalog(
     resolveOperatorMetadata,
     resolveGenerationExpr,
     resolveGenerationExprTree,
+    fnArgDefaultAsts,
     resolveCheckConstraints,
     resolveCheckConstraintsTree,
     resolveForeignKey,
@@ -764,6 +778,24 @@ export async function buildNullabilityCatalog(
     fnBodyAsts,
     viewAsts,
   };
+}
+
+/**
+ * Parse a PostgreSQL-rendered EXPRESSION (a generation expression, an
+ * argument default) into its bare AST node, by wrapping it in a SELECT and
+ * unwrapping the target. Null when it does not parse, which leaves every
+ * caller on its conservative path.
+ */
+async function parseExprAst(expr: string): Promise<Node | null> {
+  try {
+    const parsed = await parseSql(`SELECT ${expr}`);
+    const stmt = parsed.stmts?.[0]?.stmt as
+      | { SelectStmt?: { targetList?: { ResTarget?: { val?: Node } }[] } }
+      | undefined;
+    return stmt?.SelectStmt?.targetList?.[0]?.ResTarget?.val ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

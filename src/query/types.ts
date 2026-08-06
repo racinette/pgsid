@@ -463,6 +463,24 @@ export interface NullabilityCatalog {
   fnBodyAsts: Map<string, Node>;
 
   /**
+   * Pre-parsed ASTs of ARGUMENT DEFAULT expressions, keyed by the full
+   * signature `"schema.name(argTypes)"` — one entry per argument position,
+   * null where that parameter has no default. A name with no defaulted
+   * parameter at all is absent.
+   *
+   * A call that omits a defaulted parameter passes this expression, and the
+   * walk binds it in that parameter's place before descending into the body.
+   * The expression is WALKED like any other: `DEFAULT 7` is non-null,
+   * `DEFAULT nullif(1, 1)` is not, and a default the walk cannot read leaves
+   * the parameter nullable.
+   *
+   * Keyed by signature rather than by `schema.name`: a default belongs to one
+   * overload, and the sites that consult it (the strict rule and the body
+   * inliner) hold a resolved `FunctionInfo` that names its own signature.
+   */
+  fnArgDefaultAsts: Map<string, (Node | null)[]>;
+
+  /**
    * Pre-parsed ASTs of view and materialized-view definitions, keyed by
    * `"schema.name"`.
    *

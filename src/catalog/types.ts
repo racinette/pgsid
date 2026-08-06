@@ -243,6 +243,17 @@ export interface FunctionArgInfo {
   typeName: string;
   mode: ArgMode;
   hasDefault: boolean;
+  /**
+   * The default EXPRESSION as PostgreSQL renders it
+   * (`pg_get_function_arg_default`), or null for a parameter without one.
+   *
+   * A call that omits the parameter is a call that passes this expression:
+   * `f(a integer, b integer DEFAULT 7)` invoked as `f(x)` computes its body
+   * with `b` = 7, and the walk binds it that way. The expression is arbitrary
+   * — `nullif(1, 1)` is a legal default and yields NULL — so it is analysed
+   * like any other expression rather than assumed non-null.
+   */
+  defaultExpr: string | null;
 }
 
 export type Volatility = "immutable" | "stable" | "volatile";

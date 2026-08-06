@@ -1087,3 +1087,70 @@ CREATE FUNCTION gfn_urows(k integer) RETURNS SETOF u
 -- present. Two text fields take the two nullable text slots and are witnessed
 -- by ordinary data.
 CREATE TYPE gfn_pair AS (p text, q text);
+
+-- ====================================================================
+-- What a CALL passes, and what strictness does with it.
+--
+-- Two mechanisms meet here. A defaulted parameter the call omits is
+-- SUBSTITUTED — PostgreSQL evaluates the declared expression and the body
+-- computes with it — so the value is the default's, not NULL. And a STRICT
+-- function handed a NULL argument does not run at all: it returns NULL
+-- (one row of all NULLs for a composite return, no rows for a set), past
+-- both its body and any NOT NULL domain in its declaration. A default that
+-- is itself NULL is where the two meet.
+-- ====================================================================
+
+-- The substitution, in the three flavours a default expression comes in: a
+-- literal, a call the walk can prove total, and a call that can yield NULL.
+-- def_lit and def_call are total over a non-null first argument; def_null's
+-- `nullif(1, 1)` is NULL, so its sum is, and real data witnesses it.
+CREATE FUNCTION def_lit(a integer, b integer DEFAULT 7) RETURNS integer
+  LANGUAGE sql AS $$ SELECT a + b $$;
+CREATE FUNCTION def_call(a integer, b integer DEFAULT length('abc')) RETURNS integer
+  LANGUAGE sql AS $$ SELECT a + b $$;
+CREATE FUNCTION def_null(a integer, b integer DEFAULT nullif(1, 1)) RETURNS integer
+  LANGUAGE sql AS $$ SELECT a + b $$;
+
+-- Two defaults, so a NAMED call can skip the middle one: `def_two(x, c => 5)`
+-- supplies the first and the last and leaves `b` to its declaration.
+CREATE FUNCTION def_two(a integer, b integer DEFAULT 2, c integer DEFAULT 3)
+  RETURNS integer LANGUAGE sql AS $$ SELECT a + b + c $$;
+
+-- STRICT with a NULL default: the call supplies one argument, PostgreSQL
+-- substitutes NULL for the other, and strictness then returns NULL without
+-- running the body — which is `SELECT a`, a non-null value that never
+-- reaches the caller.
+CREATE FUNCTION def_strict(a integer, b integer DEFAULT NULL) RETURNS integer
+  LANGUAGE sql STRICT AS $$ SELECT a $$;
+
+-- STRICT past a NOT NULL DOMAIN. The domain is enforced on a value the
+-- function RETURNS, and a short-circuited call returns none: dom_strict of a
+-- NULL is NULL, nn_text or not. dom_lenient is the control — it runs, so the
+-- domain holds.
+CREATE FUNCTION dom_strict(x text) RETURNS nn_text
+  LANGUAGE sql STRICT AS $$ SELECT 'd'::nn_text $$;
+CREATE FUNCTION dom_lenient(x text) RETURNS nn_text
+  LANGUAGE sql AS $$ SELECT 'd'::nn_text $$;
+
+-- STRICT with a ROW return, for the FROM position: one row of all NULLs, and
+-- the fields the body proves are exactly the ones that come back NULL.
+CREATE FUNCTION pair_strict(x integer, y integer DEFAULT NULL) RETURNS sku_pair
+  LANGUAGE sql STRICT AS $$ SELECT 'p'::text, 1 $$;
+
+-- An AGGREGATE over a NOT NULL domain. Over zero input rows there is no
+-- transition and no final value, so the result is NULL whatever the declared
+-- return type says — the domain is enforced on a value this call never
+-- produces.
+CREATE FUNCTION nn_sfunc(s nn_text, v text) RETURNS nn_text
+  LANGUAGE sql AS $$ SELECT coalesce(v, 'z')::nn_text $$;
+CREATE AGGREGATE nn_agg(text) (SFUNC = nn_sfunc, STYPE = nn_text);
+
+-- An OUT parameter BETWEEN the inputs, with the defaulted one after it.
+-- PostgreSQL accepts the declaration and stores the default against the third
+-- POSITION (measured), so the flags come from counting input arguments, not
+-- all of them — the count-everything reading marked `x` and left `b`
+-- required, which puts a legal one-argument call outside the arity window.
+-- A call's own positional arguments stop lining up with the parameter list
+-- here, which is why the walk binds nothing past `x`.
+CREATE FUNCTION mid_out(a integer, OUT x integer, b integer DEFAULT NULL)
+  LANGUAGE sql STRICT AS $$ SELECT a $$;

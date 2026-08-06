@@ -870,19 +870,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         axes.projection === "fn-agg-window" && column === "a_fa" && U_NEVER_ABSENT.has(axes.structure),
     },
     {
-      label: "default-argument-not-substituted",
-      why:
-        "gfn_def is declared `(a integer, b integer DEFAULT 7)` and called " +
-        "with ONE argument, so PostgreSQL substitutes 7 and `a + b` is never " +
-        "NULL. The walk reads the body back but binds only the arguments the " +
-        "CALL supplies, leaving `b` unbound and therefore nullable — sound " +
-        "conservatism, and a real imprecision this axis is the first thing to " +
-        "reach. Closing it means substituting declared defaults into the body " +
-        "scope before the walk descends. Witnessed nowhere: the claim is " +
-        "false only where t.id is present, and there the result is total.",
-      matches: (axes, column) => axes.projection === "fn-call" && column === "a_fd",
-    },
-    {
       label: "upper-lost-its-totality",
       why:
         "gfn_io's body is `SELECT upper(a)`, and `upper` left " +

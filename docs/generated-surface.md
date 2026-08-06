@@ -593,11 +593,13 @@ Four things the earlier build measured, worth keeping:
 
 - **A NEW imprecision, and this axis is the first thing that could reach it.**
   `gfn_def(a integer, b integer DEFAULT 7)` called with one argument: the walk
-  reads the body back but binds only the arguments the CALL supplies, so `b`
-  is unbound and `a + b` reads nullable, while PostgreSQL substitutes 7 and the
-  result is total. Sound conservatism. Closing it means substituting declared
-  defaults into the body scope before the walk descends; recorded as an
-  UNWITNESSABLE rule rather than fixed.
+  read the body back but bound only the arguments the CALL supplies, so `b` was
+  unbound and `a + b` read nullable, while PostgreSQL substitutes 7 and the
+  result is total. Recorded as an UNWITNESSABLE rule, then CLOSED (2026-08-07)
+  by substituting declared defaults into the argument vector — `a_fd` is
+  notNull across the corpus and the rule is gone. Pursuing it found the
+  strict short-circuit family; `docs/nullability-walk.md` section 4 has the
+  rule and `docs/deferred-tasks.md` the closure entry.
 - **`upper`'s lost totality, now observed rather than argued.** `gfn_io`'s body
   is `SELECT upper(a)`, and `upper` left `STRICT_TOTAL_BUILTINS` over the
   empty-range finding, so the body reads nullable however non-null its
