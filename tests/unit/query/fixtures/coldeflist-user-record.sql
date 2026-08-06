@@ -1,11 +1,13 @@
 -- The user-function rendering of the coldeflist shape — and the ordering
 -- pin: rec_pairs HAS catalog metadata, whose "SETOF record" return type
 -- would resolve to a single scalar column, so the coldeflist must win
--- BEFORE the metadata path runs. Its fields stay nullable like any
--- record's.
--- @unwitnessable 0: a record's fields carry no constraints, and this
---   function's body returns literals — PostgreSQL never emits NULL here.
--- @unwitnessable 1: same — the body's second literal is never NULL.
+-- BEFORE the metadata path runs.
+--
+-- The coldeflist is the SHAPE and says nothing about nullability — a record's
+-- fields carry no constraints. The flags come from the body, `SELECT 1,
+-- 'a'::text`, which PostgreSQL maps onto this list positionally: a coldeflist
+-- type that differs from the body's coerces in place (measured), and coercing
+-- a non-null value cannot produce NULL.
 SELECT * FROM rec_pairs() AS z(n integer, s text)
--- @nullable   (n)
--- @nullable   (s)
+-- @notNull   (n)
+-- @notNull   (s)

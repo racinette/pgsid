@@ -1,0 +1,16 @@
+-- Gate (b): an OVERLOADED sql-bodied function returning a row type.
+--
+-- fnBodyAsts is keyed by `schema.name` alone, so ov_pair's two bodies share
+-- one entry; reading it would let one overload's guarantee speak for the
+-- other's. The candidates agree on the SHAPE, so the consensus rule answers
+-- the column list without resolving the overload, and the flags stay
+-- conservative — which is what `resolveFunctionMetadata` returning null for
+-- any overloaded name enforces.
+--
+-- The trap is loaded: this call takes the integer overload, whose body emits
+-- NULLs, while the text overload defined after it is what the shared key
+-- holds. A body read here would claim notNull and PostgreSQL would falsify it
+-- on every row.
+SELECT * FROM ov_pair(1)
+-- @nullable   (sku)
+-- @nullable   (qty)

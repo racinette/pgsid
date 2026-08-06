@@ -1,40 +1,43 @@
--- @unwitnessable 0: SETOF/TABLE result types carry no NOT NULL constraints; the body selects NOT NULL columns and cannot emit NULL
--- @unwitnessable 1: same row-type erasure
--- @unwitnessable 2: same row-type erasure
--- @unwitnessable 4: same row-type erasure
--- @unwitnessable 6: same row-type erasure
--- Set-returning functions in FROM: resolving the return type into columns.
+-- Set-returning functions in FROM: resolving the return type into columns,
+-- and then reading the BODY that fills them.
 --
--- The central rule is a negative one. A `SETOF <table>` result carries the
--- table's *row type*, which describes column types and nothing else — the
--- NOT NULL constraints do NOT travel with it. A function declared
--- `RETURNS SETOF order_items` can return a row of all NULLs without error,
--- even though four of those columns are NOT NULL in the table. So every
--- column of a composite result is nullable.
+-- The declared rule is a negative one. A `SETOF <table>` result carries the
+-- table's *row type*, which describes column types and nothing else — the NOT
+-- NULL constraints do NOT travel with it, and PostgreSQL re-imposes nothing:
+-- a function declared `RETURNS SETOF order_items` whose body selects NULL into
+-- a NOT NULL column is accepted and comes back NULL (measured). So the erasure
+-- is correct in general, and the only sound source of a guarantee is the body.
 --
--- What does survive is anything that is part of the *type*:
+-- These bodies select the very columns the constraints sit on, so the columns
+-- are non-null after all. What holds without any body reading is whatever is
+-- part of the *type*:
 --   - a domain's NOT NULL, still enforced on function output;
 --   - WITH ORDINALITY, a generated bigint counter.
 --
--- Resolving the columns matters even where they all come out nullable:
--- without it `SELECT * FROM f()` expands to nothing and the statement's
--- output shape is wrong.
+-- Resolving the columns matters even where they come out nullable: without it
+-- `SELECT * FROM f()` expands to nothing and the statement's output shape is
+-- wrong.
 SELECT
-  -- SETOF order_items: id/order_id/product_id/quantity/unit_price are all
-  -- NOT NULL in the table, and all nullable here.
-  g.id                          AS setof_id,        -- @nullable
-  g.quantity                    AS setof_qty,       -- @nullable
+  -- SETOF order_items, body `SELECT * FROM order_items WHERE order_id = $1`:
+  -- the row type erases five NOT NULLs and the body puts them back.
+  g.id                          AS setof_id,        -- @notNull
+  g.quantity                    AS setof_qty,       -- @notNull
 
-  -- RETURNS TABLE(...): plain types are nullable, a NOT NULL domain is not.
-  ol.line_id                    AS table_line_id,   -- @nullable
+  -- RETURNS TABLE(...): the declared types give `label` its domain NOT NULL,
+  -- and the body — `SELECT oi.id, oi.id::text, oi.quantity` — gives the other
+  -- two theirs, positionally.
+  ol.line_id                    AS table_line_id,   -- @notNull
   ol.label                      AS table_label,     -- @notNull
-  ol.qty                        AS table_qty,       -- @nullable
+  ol.qty                        AS table_qty,       -- @notNull
 
-  -- SETOF <NOT NULL domain>: the element type carries the constraint.
+  -- SETOF <NOT NULL domain>: the element type carries the constraint, with no
+  -- body reading needed.
   s                             AS domain_row,      -- @notNull
 
-  -- WITH ORDINALITY: a generated counter, always present.
-  n.val                         AS ord_value,       -- @nullable
+  -- WITH ORDINALITY: a generated counter, always present. `val` is
+  -- order_items.id under an alias, so the body reading survives the rename —
+  -- the column list is refined before the alias applies positionally.
+  n.val                         AS ord_value,       -- @notNull
   n.pos                         AS ord_position,    -- @notNull
 
   -- COALESCE still recovers non-nullness in the usual way.

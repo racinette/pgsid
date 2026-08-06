@@ -3278,6 +3278,13 @@ class NullabilityEngine {
     const cols: { name: string; notNull: boolean }[] = [];
     // Only a lone function can take the alias as its column name.
     const single = (rf?.functions?.length ?? 0) === 1 && !rf?.is_rowsfrom;
+    // Two or more functions in one `ROWS FROM` expand in lockstep to the
+    // LONGEST one's row count, and every shorter one's columns are NULL-padded
+    // after it has returned — measured, and measured for a body whose columns
+    // are provably non-null, which is exactly the claim the body reading would
+    // otherwise make. The same shape as the target list's SRF padding rule.
+    // One function has no partner to be padded against.
+    const bodyReadable = (rf?.functions?.length ?? 0) === 1;
 
     for (const fnItem of rf?.functions ?? []) {
       // Each entry is a List whose first item is the FuncCall and whose
@@ -3297,10 +3304,20 @@ class NullabilityEngine {
         (list?.items?.[1] as { List?: { items?: Node[] } } | undefined)?.List?.items ??
         (single ? rf?.coldeflist : undefined);
       if (coldeflist?.length) {
+        const declared: { name: string; notNull: boolean }[] = [];
         for (const cd of coldeflist) {
           const colname = (cd as { ColumnDef?: { colname?: string } }).ColumnDef?.colname;
-          if (colname) cols.push({ name: colname, notNull: false });
+          if (colname) declared.push({ name: colname, notNull: false });
         }
+        // A record's FIELDS carry no constraints, and the column definition
+        // list is types and names only — but the body that produced the record
+        // is still readable, and PostgreSQL maps it to this list positionally
+        // (measured: a coldeflist type that differs from the body's coerces in
+        // place). A coercion of a non-null value cannot yield NULL.
+        const recMeta = bodyReadable
+          ? this.catalog.resolveFunctionMetadata(this.funcSchema(fc), this.funcName(fc))
+          : null;
+        cols.push(...(recMeta ? this.refineColumnsFromBody(declared, recMeta, 0) : declared));
         continue;
       }
 
@@ -3409,7 +3426,12 @@ class NullabilityEngine {
         cols.push({ name: scalarName, notNull: false });
         continue;
       }
-      cols.push(...this.functionOutputColumns(meta, scalarName));
+      // The declared shape is the column list; the body is what can put a
+      // constraint back on it. Only here, at the SINGLE-candidate site — the
+      // consensus loop above runs over candidates that share one `fnBodyAsts`
+      // key, so reading a body there would hand every overload the same one.
+      const declared = this.functionOutputColumns(meta, scalarName);
+      cols.push(...(bodyReadable ? this.refineColumnsFromBody(declared, meta, 0) : declared));
     }
 
     if (rf?.ordinality) {
@@ -6875,6 +6897,175 @@ class NullabilityEngine {
     return false;
   }
 
+  /**
+   * What a `LANGUAGE sql` function's BODY proves about each of its output
+   * columns, or null where the body cannot answer.
+   *
+   * A ROW type carries column TYPES and no constraints: `RETURNS SETOF
+   * order_items` genuinely permits NULL in every column, and PostgreSQL
+   * re-imposes nothing — a body selecting NULL into a NOT NULL column is
+   * accepted and comes back NULL (measured). So the declared shape is right to
+   * erase, and the only sound source of a guarantee is the body, which for
+   * these functions selects the very columns the constraint sits on.
+   *
+   * This is the row-return counterpart of `resolveSqlFunctionBodyTraced`
+   * (priority 5), which reads the same bodies for SCALAR returns and takes
+   * column 0. The bounds are that inliner's, plus the ones a row return adds:
+   *
+   *   - `LANGUAGE sql` only, single candidate only. `fnBodyAsts` is keyed by
+   *     `schema.name` with no argument types, so an overloaded name's entries
+   *     COLLIDE there; the caller reaches this only through
+   *     `resolveFunctionMetadata`, whose single-candidate shortcut is what
+   *     makes the key unambiguous.
+   *   - A SELECT or VALUES body only. A set operation contributes an empty
+   *     target list here and a DML body is not read at all, so both fall to
+   *     no upgrade.
+   *   - A body's PARAMETERS read nullable. Threading the call's argument
+   *     nullability in the way the scalar path does would close one more claim
+   *     (`out_pair`'s `lo` returns its own argument) and would have to be
+   *     right about the argument's join state at the call site; the caller's
+   *     NULL does reach the output (measured), so reading them nullable is the
+   *     conservative half.
+   *   - **Zero rows is a NULL ROW for a non-set-returning function.**
+   *     `RETURNS <composite>` whose body filters everything away yields one
+   *     row of all NULLs (measured), so a `!returnsSet` body must guarantee
+   *     its single row — the same gate the scalar path applies for the same
+   *     reason. A SETOF body needs no such gate: no rows means no output rows
+   *     to be NULL.
+   *
+   * `rowFields` is the second reading a row return needs. A body may deliver
+   * its row as ONE column of the composite type rather than as N field columns
+   * — both spellings are accepted (measured) — and PostgreSQL then expands
+   * that value's fields. Only a ROW constructor is read that way, because a
+   * constructor is never itself NULL while any other expression of composite
+   * type may be, and a NULL value nulls every field.
+   */
+  private sqlFunctionBodyShape(
+    meta: FunctionInfo,
+    depth: number,
+  ): { columns: boolean[]; rowFields: boolean[] | null } | null {
+    if (meta.language !== "sql" || meta.isAggregate) return null;
+    this.checkDepth(depth);
+
+    const fnKey = `${meta.schema}.${meta.name}`;
+    if (this.fnCtx?.analyzing.has(fnKey)) return null;
+    const bodyAst = this.catalog.fnBodyAsts.get(fnKey);
+    if (!bodyAst) return null;
+
+    const node = bodyAst as Record<string, unknown>;
+    if (!("SelectStmt" in node)) return null;
+    const sel = node["SelectStmt"] as SelectStmt;
+
+    const prevCtx = this.fnCtx;
+    const prevParamNames = this.fnParamNames;
+    // No argResults: every parameter reference reads nullable. The names are
+    // still needed — a BEGIN ATOMIC body spells its parameters by name.
+    this.fnCtx = {
+      argResults: [],
+      analyzing: new Set(prevCtx?.analyzing ?? []).add(fnKey),
+    };
+    this.fnParamNames = meta.args.map(a => a.name);
+    try {
+      const fnScope = this.emptyScope(null);
+      if (sel.valuesLists && sel.valuesLists.length > 0) {
+        const results = this.analyzeValuesSelect(sel.valuesLists, fnScope, depth + 1);
+        return { columns: results.map(r => r.notNull), rowFields: null };
+      }
+      if (!meta.returnsSet && !this.guaranteesSingleRow(sel)) return null;
+
+      const scope = this.buildScope(sel, fnScope, depth);
+      const results = this.analyzeSelectTargets(sel, scope, depth);
+      return {
+        columns: results.map(r => r.notNull),
+        rowFields: this.rowConstructorFields(sel, scope, depth),
+      };
+    } catch (e) {
+      // An inlined body is an optimization: a body the walk refuses costs the
+      // CALL its precision, not the statement its analysis — the rule the
+      // INSERT arm of the scalar inliner already follows.
+      if (e instanceof UnsupportedNodeError) return null;
+      throw e;
+    } finally {
+      this.fnCtx = prevCtx;
+      this.fnParamNames = prevParamNames;
+    }
+  }
+
+  /**
+   * The per-element nullability of a body whose whole target list is one ROW
+   * constructor — `SELECT ROW('s', NULL)::sku_pair`, the spelling that hands
+   * back a composite VALUE where the function's output is that composite's
+   * fields. Null for every other shape.
+   */
+  private rowConstructorFields(
+    sel: SelectStmt,
+    scope: Scope,
+    depth: number,
+  ): boolean[] | null {
+    if ((sel.targetList?.length ?? 0) !== 1) return null;
+    let val = this.unwrapResTarget(sel.targetList![0]!).val as Record<string, unknown> | undefined;
+    // `ROW(…)::composite` is the shape a body needs to satisfy the declared
+    // return type; the cast preserves the constructor's per-field values.
+    while (val && "TypeCast" in val) {
+      val = (val["TypeCast"] as { arg?: Node } | undefined)?.arg as
+        | Record<string, unknown>
+        | undefined;
+    }
+    const row = val?.["RowExpr"] as { args?: Node[] } | undefined;
+    if (!row?.args) return null;
+    return row.args.map(a => this.walkExpr(a, scope, depth + 1));
+  }
+
+  /**
+   * Whether a function's output columns come from EXPANDING a row type, as
+   * opposed to standing on their own. It decides whether a one-column body can
+   * be read positionally: for a row-typed return with a single field, "the
+   * body's one column" is the field under one reading and the whole row under
+   * the other, and a ROW constructor is non-null while its field need not be.
+   */
+  private functionReturnIsRowType(meta: FunctionInfo): boolean {
+    const outs = meta.args.filter(
+      a => a.mode === "out" || a.mode === "table" || a.mode === "inout",
+    );
+    if (outs.length === 0 || outs.some(a => !a.name)) {
+      const type = meta.returnType.replace(/^setof\s+/i, "").trim();
+      if (/^table\s*\(/is.test(type)) return false;
+      return this.rowTypeColumns(type) !== null;
+    }
+    if (outs.length === 1) return this.rowTypeColumns(outs[0]!.typeName) !== null;
+    return false;
+  }
+
+  /**
+   * A declared FROM-position column list, refined by what the function's body
+   * proves. Upgrades only — a domain's NOT NULL is enforced on output and
+   * keeps its claim whatever the body says.
+   *
+   * `declared` and the body agree column-for-column, or the body delivers the
+   * whole row as one ROW constructor; anything else leaves the list alone. The
+   * one-against-one case is refused for a row-typed return, where the two
+   * readings are indistinguishable and disagree.
+   */
+  private refineColumnsFromBody(
+    declared: { name: string; notNull: boolean }[],
+    meta: FunctionInfo,
+    depth: number,
+  ): { name: string; notNull: boolean }[] {
+    if (declared.length === 0) return declared;
+    const shape = this.sqlFunctionBodyShape(meta, depth);
+    if (!shape) return declared;
+
+    let flags: boolean[] | null = null;
+    if (shape.columns.length === declared.length) {
+      flags =
+        declared.length === 1 && this.functionReturnIsRowType(meta) ? null : shape.columns;
+    } else if (shape.columns.length === 1 && shape.rowFields?.length === declared.length) {
+      flags = shape.rowFields;
+    }
+    if (!flags) return declared;
+    return declared.map((c, i) => ({ name: c.name, notNull: c.notNull || flags![i]! }));
+  }
+
   private analyzeSelectWithFnScope(
     sel: SelectStmt,
     fnScope: Scope,
@@ -6882,6 +7073,19 @@ class NullabilityEngine {
   ): OutputNullability[] {
     // Build a real scope from the SELECT's FROM clause, with fnScope as outer.
     const scope = this.buildScope(sel, fnScope, depth);
+    return this.analyzeSelectTargets(sel, scope, depth);
+  }
+
+  /**
+   * A SELECT's output columns against a scope already built for it. Split out
+   * so a caller that needs the SCOPE as well — the body-shape reading, which
+   * walks a single ROW constructor's elements — does not build it twice.
+   */
+  private analyzeSelectTargets(
+    sel: SelectStmt,
+    scope: Scope,
+    depth: number,
+  ): OutputNullability[] {
     const results: OutputNullability[] = [];
     for (const target of sel.targetList ?? []) {
       const rt = this.unwrapResTarget(target);
