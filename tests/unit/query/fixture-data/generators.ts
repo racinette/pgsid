@@ -324,6 +324,12 @@ const columnSpecificGenerators: Record<
     trow_holder: {
       id: sequential,
       rows: rand => `{"(${rand.int(1, 9)},)","(,${rand.pick(WORDS)})"}`,
+      // The BARE row-type column, by row index rather than by chance — the
+      // composite-star fixture needs BOTH a present composite (so the field
+      // claims are read off a real row) and an absent one (so their nullable
+      // claims are witnessed), and at this table's row count a rate leaves
+      // that to luck. Every third row is NULL; the rest carry a whole trow.
+      row1: (rand, ctx) => (ctx.row % 3 === 2 ? null : `(${rand.int(1, 9)},${rand.pick(WORDS)})`),
     },
 
     // The NO INHERIT pair. Parent rows must satisfy their own CHECKs (the

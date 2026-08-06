@@ -915,7 +915,11 @@ CREATE FUNCTION public.json_each(j json) RETURNS SETOF sku_pair
 -- sweep-3 fixes left behind: it is finding 3's own class, one spelling past
 -- the six the report measured.
 CREATE TABLE trow (a integer NOT NULL, b text);
-CREATE TABLE trow_holder (id integer NOT NULL, rows trow[]);
+-- `row1` is a BARE table row type, beside `rows`' array of one. The array
+-- spelling reaches the element-type resolver; the bare one reaches
+-- expandCompositeStar, which refused it until the same two-step fallback
+-- landed there too.
+CREATE TABLE trow_holder (id integer NOT NULL, rows trow[], row1 trow);
 
 -- Functions whose output columns live in their ARGUMENT list rather than in
 -- their rendered return type. `pg_get_function_result` is lossy for these:
@@ -1058,3 +1062,11 @@ CREATE FUNCTION gfn_win(x text) RETURNS text WINDOW
 -- with and without the extra column.
 CREATE FUNCTION gfn_urows(k integer) RETURNS SETOF u
   LANGUAGE sql AS $$ SELECT * FROM u WHERE u.t_id = k $$;
+
+-- A composite whose fields are BOTH text, for the composite-star projection.
+-- sku_pair would have done except that its `qty integer` can only be fed from
+-- the generator's one integer slot, which is t.id — NOT NULL, so that field's
+-- (correctly conservative) nullable claim would go unwitnessed wherever t is
+-- present. Two text fields take the two nullable text slots and are witnessed
+-- by ordinary data.
+CREATE TYPE gfn_pair AS (p text, q text);

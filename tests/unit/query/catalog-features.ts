@@ -224,7 +224,6 @@ export const FEATURES: Record<string, Feature> = {
       const tables = qualified(s.tables);
       return anyColumn(s, c => tables.has(c.typeName));
     },
-    absent: "Only the array spelling (`trow_holder.rows trow[]`) exists. A bare `trow` column would reach resolveCompositeType's relation fallback without the array hop.",
   },
   "enum-type": {
     category: "conservative",

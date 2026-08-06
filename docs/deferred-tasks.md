@@ -434,7 +434,19 @@ the body read-back (class A — the declaration erases the table's NOT NULLs and
 the body is the only sound source of a guarantee). Corpus 10456 → 10864,
 notNull claims 17747 → 18683, all falsifiable. `function-overloaded-across-schemas`
 closed with it, via an `app_s.gfn_sd(integer)` beside public's `gfn_sd(text)`.
-Actionable census gaps went 9 → 2. `table-row-type-column` is narrower than it
+**The COMPOSITE-STAR projection closed it out**, and found a defect on the way:
+`expandCompositeStar` expanded a cast to a `CREATE TYPE` composite and REFUSED
+a cast to a TABLE's row type, which PostgreSQL expands — `(NULL::trow).*` and
+`(h.row1).*` both give [a, b], measured, and the walk answered
+UnsupportedNodeError. The two-step fallback (composite first, relation second)
+that `columnsForReturnType` has always taken was never wired into
+`fieldsOf`; it is the SAME latent defect the third fix phase's audit closed for
+the unnest element-type resolver, at its second site. Sound — a refusal, not a
+wrong shape — but unnecessary, since the engine held the information. Fixed and
+pinned by `composite-star-table-row-type.sql` in both spellings, which reach
+`fieldsOf` by different routes. Corpus 10864 → 11632, notNull claims 18683 →
+19043. Actionable census gaps went 9 → 1: only `sub-partition` remains, and it
+needs t/u/v restructured. `table-row-type-column` is narrower than it
 reads — the WALK BRANCH (resolveCompositeType falling through to the relation)
 is now exercised by `SETOF u`; only the column SPELLING is missing, and that
 needs a composite-star projection the target-list model cannot express, since
