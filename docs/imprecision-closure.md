@@ -33,15 +33,17 @@ the reason text; ~26 annotations resist it and several reasons are
 truncated in the files.
 
 Worse, and the reason step 0 exists: **two of roughly ten reasons read
-closely were WRONG.**
+closely were WRONG.** Both are now corrected — they are recorded here as
+the evidence for the rate, not as outstanding work.
 
 - `extreme-cross-join#2` blamed the CROSS JOIN, when the LEFT JOIN is what
   makes the column nullable and a NOT NULL foreign key is what makes the
   NULL unreachable. Corrected 2026-08-05.
 - `extreme-domain-not-null-left-join#1,#2` claimed foreign-key entailment.
-  Its `ON` is `c.id = 1` — a constant. If coupon 1 were absent the column
-  WOULD be NULL, so the claim is simply right and the two annotations are
-  seed-data artifacts, not engine imprecision. **Not yet corrected.**
+  Its `ON` is `c.id = 1` — a constant, not a key. Only the `dense` state
+  seeds coupons row 1; a state without it would witness both claims, so
+  these are seed-data artifacts, not engine imprecision. Corrected
+  2026-08-05, and the two claims counted under class C below.
 
 At that rate the classification is standing on some sand. Fix the reasons
 before spending effort on any class.
@@ -135,8 +137,8 @@ probability with a deterministic row-index rule, so a witness cannot be
 lost to luck at these tables' row counts. Cheapest item on the list.
 
 Fixtures: `extreme-correlated-everywhere#4,#10`,
-`extreme-dml-update-pricing#24`, `extreme-multi-join-types#4`, and — after
-step 0 — `extreme-domain-not-null-left-join#1,#2`.
+`extreme-dml-update-pricing#24`, `extreme-multi-join-types#4`,
+`extreme-domain-not-null-left-join#1,#2`.
 
 ### D. Curated tables — ~18–27 claims. Out of scope; see the other charter.
 
