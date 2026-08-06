@@ -8,10 +8,11 @@ the engine's imprecision made visible: a claim nothing can falsify is either
 correct conservatism, a hole in the seed data, or a guarantee the engine
 failed to derive and a consumer therefore does not get.
 
-**100 such annotations across 336 fixtures.** This document classifies
-them, says which are engine defects worth closing, which are correct, and in
-what order to take them. Step 0 — the audit of the reasons themselves — is
-DONE (2026-08-06) and its result is below; nothing else here is implemented.
+**100 such annotations across 336 fixtures**, now 97. This document
+classifies them, says which are engine defects worth closing, which are
+correct, and in what order to take them. Step 0 — the audit of the reasons
+themselves — is DONE, and so is class C (both 2026-08-06). Classes A and B
+are not implemented.
 
 Read `docs/witness-coverage.md` first — it defines the discipline (a reason
 is required, and a reason that stops being needed FAILS as stale) and
@@ -22,9 +23,9 @@ One class has its own charter and is out of scope here:
 ## Current measurement
 
 ```
-336 fixtures, 5 data states
+336 fixtures, 5 data states                       (before the audit → after class C)
   notNull claims:  836 — 826 falsifiable, 10 guarded by a checked refusal, 0 unverified
-  nullable claims: 542 — 440 witnessed (81%), 100 unwitnessed with a reason
+  nullable claims: 542 — 440 → 443 witnessed (82%), 100 → 97 unwitnessed with a reason
                         (+2 inside `@no-rows` fixtures, exempt wholesale)
 ```
 
@@ -192,20 +193,31 @@ coercion model was:
 Shape 2 needs hazard 3 and nothing else: the key is the scanned relation's
 own primary key, so the row provably exists. Shape 1 needs all five.
 
-### C. Data gaps — 3 claims. Not engine work.
+### C. Data gaps — 3 claims. **CLOSED 2026-08-06.** Not engine work.
 
-Down from the six the pre-audit pass counted, and two of the three are new.
-Each is measured — the witness exists, the corpus simply does not reach it.
+Down from the six the pre-audit pass counted, and two of the three were new.
+All three are now witnessed by real NULLs, and their annotations came off —
+the staleness check is what proves each one, since a reason on a witnessed
+claim fails as loudly as a missing one.
 
-- `extreme-correlated-everywhere#10` — needs a product with order items but
-  no reviews. Adding one to `dense` witnesses it (measured).
-- `from-item-kinds#4` — the LATERAL lookup always lands because every state
-  that supplies order-1 items also seeds products 1 and 2. Cheapest closed
-  in the FIXTURE rather than the data: give the VALUES list one id that no
-  product carries, keeping the matching row beside it so both arms run.
-- `scalar-subquery#2` — `max(val)` over `sparse`'s single non-NULL row.
-  `sparse`'s `t.name` IS NULL, so the same shape one column over is
-  witnessed by data that already exists.
+- `extreme-correlated-everywhere#10` — a correlated `avg(rating)` is NULL
+  exactly for a product that was ordered and never reviewed, and every state
+  reviewed every ordered product. `dense` sells product 6 now, one row in
+  `order_items`. The only change that touched the seed data, and it moved
+  nothing else in the corpus.
+- `from-item-kinds#4` — the LATERAL lookup always landed because every state
+  supplying order-1 items also seeds products 1 and 2. Closed in the FIXTURE:
+  its `VALUES` list carries `-1` beside `1`, an id no state can seed
+  (surrogate keys are numbered from 1), so both arms of the LEFT JOIN
+  LATERAL run. The fixture now asserts what its own comment always claimed.
+- `scalar-subquery#2` — `max(val)` over `sparse`'s single row, whose val is
+  non-NULL. The subquery aggregates `name` now: same shape one column over,
+  and `sparse`'s `t.name` IS NULL, so an aggregate's second route to NULL —
+  a non-empty all-NULL input — is exercised rather than described.
+
+Two of the three cost a fixture one literal. That is the general lesson: a
+claim can go unwitnessed because of which ids a fixture happens to name,
+which is not what the fixture asserts and is free to change.
 
 ### D. Conservative by design — 33 claims. Correct, and mostly chartered
 elsewhere.
@@ -272,13 +284,12 @@ Four kinds, and only the first is closable by work already planned:
 
 ## Order, and why
 
-**C, then A, then B.** Step 0 is done.
+**A, then B.** Step 0 and class C are done.
 
-C is three claims and needs no design — two of them close in the fixture
-rather than in a data state. A is contained, reuses proven machinery, and
-carries the largest count. B is a new mechanism whose hazards deserve their
-own measurement pass first — and it is the one where being wrong produces a
-wrong `notNull` on a very common query shape.
+A is contained, reuses proven machinery, and carries the largest count. B is
+a new mechanism whose hazards deserve their own measurement pass first — and
+it is the one where being wrong produces a wrong `notNull` on a very common
+query shape.
 
 Both A and B move claims from nullable to notNull, which is the UNSOUND
 direction. Neither should land without the generated-corpus dry-run, and

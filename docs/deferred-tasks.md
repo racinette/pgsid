@@ -197,16 +197,23 @@ Each correction is measured against PGlite and recorded on the fixture;
 eleven were half-recorded and the report printed the first clause as the
 whole justification.
 
-Two classes are worth closing and are independent of everything else:
+**Class C then closed the same day**: three claims, all now witnessed by
+real NULLs. One needed seed data (`dense` sells product 6, so a correlated
+`avg(rating)` finally has an ordered-but-unreviewed product to be NULL
+over); the other two cost a fixture one literal — an id no state can seed,
+so a LEFT JOIN LATERAL exercises both arms, and an aggregate over the
+column `sparse` leaves NULL rather than the one it fills. Nothing else in
+the corpus moved.
+
+Two classes are left, and both are independent of everything else:
 ROW-TYPE ERASURE (15 — `SETOF order_items` erases the table's NOT NULLs
 while the `LANGUAGE sql` body selects those very columns; the walk already
 inlines bodies for scalar returns and simply does not for row returns) and
 KEY ENTAILMENT (11 — a join on a NOT NULL foreign key always matches, and
 the snapshot already carries the constraint; five hazards to measure
-first, `NOT VALID` and `DEFERRABLE` among them). Three are seed data, not
-engine, and each has a measured witness. The remaining 71 are correct: 33
-conservative by design (only four of them the overload charter's) and 38
-structurally unwitnessable. Order is C, then A, then B.
+first, `NOT VALID` and `DEFERRABLE` among them). The remaining 71 are
+correct: 33 conservative by design (only four of them the overload
+charter's) and 38 structurally unwitnessable. Order is A, then B.
 
 **A refactor chartered, not started: type-aware overload narrowing** —
 `docs/type-aware-overloads.md` (2026-08-05). The curated-table audit's

@@ -1,11 +1,5 @@
 -- @unwitnessable 2: SETOF row types carry no NOT NULL constraints, but the function's body selects NOT NULL columns and cannot emit NULL
 -- @unwitnessable 3: same row-type erasure as srf_id
--- @unwitnessable 4: NOT row-type erasure — lat is the optional side of a LEFT
---   JOIN LATERAL, and its subquery returns no row when no product carries
---   v.a's id. A data gap: the fixture returns rows only where order 1 has
---   items (dense, uniform), and both of those states also seed products 1 and
---   2, so the lookup always lands. Measured — a state with order-1 items and
---   no product 1 or 2 witnesses this NULL on every row.
 -- FROM-item kinds other than a plain table: VALUES, set-returning functions,
 -- LATERAL, and DISTINCT ON.
 --
@@ -24,10 +18,14 @@ SELECT DISTINCT ON (v.a)
   g.quantity              AS srf_qty,          -- @nullable
 
   -- LATERAL on the optional side of a LEFT JOIN: nullable because the
-  -- subquery may produce no row for a given outer row.
+  -- subquery may produce no row for a given outer row. `v.a` supplies both
+  -- arms on purpose — 1 is a product every populated state seeds, -1 is one
+  -- no state can, since surrogate keys are numbered from 1. With two
+  -- matching ids this claim had no witness and carried a reason blaming the
+  -- SETOF row type above it, which is a different rule entirely.
   lat.sku                 AS lateral_sku,      -- @nullable
   COALESCE(lat.sku, 'n/a') AS safe_lateral     -- @notNull
-FROM (VALUES (1, NULL), (2, 3)) v(a, b)
+FROM (VALUES (1, NULL), (-1, 3)) v(a, b)
 CROSS JOIN get_order_items(1) g
 LEFT JOIN LATERAL (
   SELECT p.sku FROM products p WHERE p.id = v.a LIMIT 1
