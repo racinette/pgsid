@@ -276,12 +276,21 @@ simplest function in SQL reading nullable is a credibility problem before
 it is a precision one. The structural cause is that a curated entry keys
 on a NAME while PostgreSQL keys on a SIGNATURE — 137 curated names cover
 235 signatures, 55 of them backed by more than one C implementation, and
-`TOTAL_STRICT_OPERATORS`' 22 names cover 558. The charter's design is
-NARROW, DO NOT RESOLVE: implement step 2 of PostgreSQL's resolution
-algorithm (discard candidates the arguments cannot be implicitly coerced
-to) and stop, because every later tiebreak only removes more candidates,
-so the survivors are a superset of PostgreSQL's answer and consensus over
-a superset is sound. Governing invariant: eliminate only on certainty,
+`TOTAL_STRICT_OPERATORS`' 22 names cover 558. The charter's design was
+NARROW, DO NOT RESOLVE and was **substantially revised 2026-08-06** after
+that premise was measured and found wrong: it filed EXACT MATCH under
+"later tiebreaks", when exact match is early, terminal and unique by
+construction (two operators cannot share a name and operand types), so
+where the argument types are known the overload is a LOOKUP rather than a
+resolution. The design is now layered — tier 0 reads PREPARE's PARAMETER
+TYPES as an input (the consumer runs it anyway, and it collapses most
+vagueness: `ARRAY[1,2] || $1` types `$1` as `integer[]`); tier 1 takes the
+exact match and reads that one candidate's flags, which composes through
+nesting; tier 2 is the original superset narrowing as fallback, with the
+consensus quantifier now PER-PROPERTY (`every` for totality, `some` for
+strictness, because the two fail in opposite directions); tier 3 — letting
+a receiver constrain the set — is sound for valid statements but optional,
+and PostgreSQL itself is measured NOT to resolve that way. Governing invariant: eliminate only on certainty,
 which makes an incomplete coercion model safe. Non-goals are explicit —
 no type inference, no tiebreak algorithm, no polymorphic return types, and
 types never leave the engine (`PREPARE` stays the type oracle). It carries
@@ -352,6 +361,33 @@ PSEUDO-type and not polymorphic (trigger, void, cstring, record, internal
 ride along), so it holds 572 names where its own comment claims 68 — safe
 direction, since the sole consumer refuses on it and over-capture costs
 precision only.
+
+**Item 4 is BUILT (2026-08-06): the schema axis**,
+`tests/unit/query/generated/schema-axis.test.ts` with `schema-variants.ts` —
+seven variants, eight assertions, and a rank-1 unsoundness on the first run
+(closure entry at the top of section 2). The design collapsed once the
+generator was read properly: its schema contract is a set of NAMES, so a
+variant that keeps `t`/`u`/`v` and changes only the CATALOG FEATURES behind
+them runs the whole structural corpus unchanged, with no generator change at
+all. Item 1 is the vocabulary literally — the census list moved to
+`tests/unit/query/catalog-features.ts`, both suites read one copy, and each
+variant declares by NAME what it brings under generation with the suite
+asserting its snapshot actually carries it. Two oracles only, ordered column
+NAMES and no falsified notNull, because a wider schema finds unsoundness and
+wrong column lists and no imprecision; parameterised queries are skipped and
+counted. Bounded at 420 queries per variant (a stride sample of 8854) against
+`empty` and the variant's own generated state, ~14s, with
+`GENERATED_ALL_SCHEMAS=1` for the full corpus. **5 of the census's 22 gaps are
+now under generation**; the other 17 are reported by name, and most are not a
+schema-patch problem at all — a `LANGUAGE sql` table function has nothing
+calling it until the generator grows a FROM-item axis, and a procedure has no
+call site in any query. That distinction, unreachable-by-a-schema-patch versus
+uncovered, is this item's residue. One thing the build found on its own, which
+sharpens the register's measurement: FK entailment had zero generated coverage
+not merely because t/u/v declare no keys — `u.t_id`'s seed generator
+DELIBERATELY dangles a quarter of its rows so the corpus's RIGHT and FULL JOIN
+structures have something to extend, so the data was built to violate the key
+the mechanism reasons from.
 
 **Item 3 is BUILT (2026-08-06): the totality tables, probed by execution**,
 `tests/unit/query/totality-probe.test.ts`, seven assertions each
@@ -580,6 +616,32 @@ routes named; `docs/imprecision-closure.md` carries the measurements.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the SCHEMA AXIS (2026-08-06, `docs/generated-surface.md` item 4) on
+its first run, in the mechanism the register had measured as having zero
+generated coverage: foreign-key entailment promoted a referenced side that a
+DEEPER join had already extended. Reduced to `SELECT u.email FROM t FULL JOIN u
+ON u.t_id = t.id FULL JOIN v ON v.u_id = u.id` — `u.email` is NOT NULL, the
+engine claimed notNull, PostgreSQL returns NULL. Characterised before anything
+changed: it needs the key whose REFERENCED side is `u`, and a FULL join to `v`
+while `u` is already extended; `FULL u, LEFT v` is fine and the `u → t` key
+alone changes nothing. The cause is that the second arm of the gate is
+conditioned on `incomingRequired`, which is a property of the incoming SLICE
+rather than of the member being promoted — the slice is required, and `u`
+inside it is not. The key says every stored `v` has a matching `u` and is
+silent about a row with no `v` at all. The walk's own comment already named the
+case ("a side already extended by a DEEPER join is neither"); it was enforced
+for the referencing side and never for the referenced one, so the fix is one
+line beside the check it mirrors. Pinned by
+`fk-entail-optional-referenced.sql`, the mirror of
+`fk-entail-optional-referencer.sql`, whose comment had flagged this exact arm
+as "the near miss to keep in view". Positive control: reverting the fix gives
+36 violations under the `fk-chain` variant and ZERO under the other six.
+Recorded on the fixture as the cost: `c.id` there is genuinely never NULL and
+the engine no longer says so — it had that answer by the wrong route, the
+unsound promotion cascading through null-group co-membership, and recovering it
+soundly needs a distinction the walk does not draw ("this join never extends
+its left side" is not "every member of that side is present").
 
 Closed by the totality probe (2026-08-06, `docs/generated-surface.md` item
 3), three findings in one run — the first automated pass over a question
