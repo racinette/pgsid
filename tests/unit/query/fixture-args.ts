@@ -69,7 +69,9 @@ export interface FixtureDirectives {
    * reason`. The witness invariant in nullability-soundness.test.ts requires
    * every unwitnessed nullable claim to carry one of these, and requires the
    * annotation to come OFF the moment data witnesses the claim — so a reason
-   * is a reviewed, current fact, not a historical excuse.
+   * is a reviewed, current fact, not a historical excuse. A reason continues
+   * onto following comment lines indented two or more spaces past the `--`,
+   * and is recorded joined: the report prints what is recorded.
    */
   unwitnessable: Map<number, string>;
   /**
@@ -97,6 +99,12 @@ const RAISES_RE = /^\s*--\s*@raises\b:?(.*)$/;
 const PARAM_REJECT_RE = /^\s*--\s*@param-reject\b(.*)$/;
 const PARAM_RE = /^\s*--\s*@param\b(?!-)(.*)$/;
 const UNWITNESSABLE_RE = /^\s*--\s*@unwitnessable\b:?(.*)$/;
+// A reason may run past one line, and what is RECORDED is what WITNESS_REPORT
+// prints — a reason whose second half lives only in the file reads as a
+// truncated sentence in the report that is supposed to justify it. A comment
+// line indented two or more spaces past the `--` continues the reason above
+// it; a flush `-- ` line is ordinary prose and ends it.
+const UNWITNESSABLE_CONT_RE = /^\s*--\s{2,}(\S.*)$/;
 // NOTE: the per-column markers in nullability-walk.test.ts match the bare
 // substrings `@notNull` / `@nullable` anywhere in a line; `@null-group`
 // contains neither, which is a load-bearing property of the spelling.
@@ -111,7 +119,30 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   let noRowsReason: string | null = null;
   let raisesPattern: string | null = null;
 
+  // The column index whose reason is still open, or null. Only the line
+  // immediately following an @unwitnessable line (or one of its own
+  // continuations) can continue it.
+  let openReason: number | null = null;
+
   for (const line of content.split("\n")) {
+    if (openReason !== null) {
+      const cont = UNWITNESSABLE_CONT_RE.exec(line);
+      if (cont) {
+        // nullability-walk.test.ts counts a per-column claim by matching
+        // `@notNull`/`@nullable` anywhere after a `--`, so a reason carrying
+        // one would invent a column.
+        if (/@(notNull|nullable)\b/.test(cont[1]!)) {
+          throw new Error(
+            `@unwitnessable reason for column ${openReason} contains a per-column ` +
+              `marker, which would be counted as a claim: ${cont[1]!.trim()}`,
+          );
+        }
+        unwitnessable.set(openReason, `${unwitnessable.get(openReason)!} ${cont[1]!.trim()}`);
+        continue;
+      }
+      openReason = null;
+    }
+
     const nullGroupMatch = NULL_GROUP_RE.exec(line);
     if (nullGroupMatch) {
       const raw = nullGroupMatch[1]!.trim();
@@ -186,6 +217,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
         throw new Error(`duplicate @unwitnessable annotation for column ${index}`);
       }
       unwitnessable.set(index, m[2]!.trim());
+      openReason = index;
       continue;
     }
 

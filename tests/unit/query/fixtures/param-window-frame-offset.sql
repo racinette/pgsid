@@ -7,8 +7,8 @@
 -- analogy. Execution-time like mechanism B, so no output narrowing. The
 -- first binding is the control; the second witnesses the raise.
 -- @unwitnessable 0: the frame always contains the current row and t.id is
--- NOT NULL, so the sum is never NULL on any surviving binding; the engine
--- stays conservative for every explicit frame by design.
+--   NOT NULL, so the sum is never NULL on any surviving binding; the engine
+--   stays conservative for every explicit frame by design.
 -- @args [1]
 -- @args [null]
 -- @param 1 notNull

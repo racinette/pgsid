@@ -1,5 +1,7 @@
 -- @unwitnessable 4: JSON_TABLE columns are conservative (see the node census); the fixed document always provides this member
--- @unwitnessable 5: same: the EXISTS column tests a member the document always has
+-- @unwitnessable 5: '$.b' is NOT in the document — an EXISTS column answers a
+--   missing member with false rather than NULL (measured), and only an
+--   explicit UNKNOWN ON ERROR could make it NULL
 -- @unwitnessable 6: same: the nested path always resolves in the fixed document
 -- XMLTABLE and JSON_TABLE are FROM items that spell out their own columns.
 --

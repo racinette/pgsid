@@ -332,43 +332,53 @@ declare `@no-rows`.
 
 Every remaining claim's reason lives on its fixture as an `@unwitnessable`
 annotation — `WITNESS_REPORT=1` prints the per-column list with those reasons
-inline. They fall into four groups; annotations whose reason begins "data
-gap:" mark the ones a richer data state could witness, and the staleness
-check removes each annotation automatically the moment that happens.
+inline. A reason may run past one line: continuation lines (`--` followed by
+two or more spaces) are recorded joined, so the report prints the whole fact
+rather than its first clause.
 
-**A row type carries no constraints (10 claims).** `SETOF <table>` and
+They fall into four groups. `docs/imprecision-closure.md` carries the exact
+per-claim census behind these counts, audited claim by claim on 2026-08-06 —
+ten of the hundred reasons were wrong, five of them calling a filter in the
+fixture's own query a gap in the data, so the counts below are the corrected
+ones.
+
+**A row type carries no constraints (15 claims).** `SETOF <table>` and
 `SETOF <composite>` results are nullable because NOT NULL constraints do not
 travel with a row type. The functions behind them select NOT NULL columns, so
-PostgreSQL never emits NULL there. Witnessing these would need a function whose
-body actually produces NULL, which asserts something different from what the
-fixtures are for. `from-item-kinds`, `table-function-return-types`,
-`setof-composite-type`.
+PostgreSQL never emits NULL there. Closing these means analysing the body's
+target list per column, which `docs/imprecision-closure.md` charters as its
+class A. `table-function-return-types`, `from-item-kinds`,
+`setof-composite-type`, `coldeflist-user-record`,
+`pg-catalog-shadowed-from-shape`, and the two OUT-parameter shapes.
 
-**Conservative by design (18 claims).** The value is provably non-null and the
+**Conservative by design (33 claims).** The value is provably non-null and the
 engine reports nullable anyway. Each is a known imprecision registered in
 the "Known imprecisions in the walk" entry in
-`docs/deferred-tasks.md` — array subscripting, ordered-set
-aggregates, population statistics, built-ins outside the curated tables,
-multi-statement function bodies, JSON_TABLE columns, multi-candidate
-operators — or `CURRENT_SCHEMA`,
-which is unwitnessable by construction. These are the candidates for engine
-work; closing one turns its claim into `notNull` rather than witnessing it
-(the presence-consumption entry retired exactly that way — its fixture's
-carrier now reads notNull and the annotation came off).
+`docs/deferred-tasks.md` — array subscripting, population statistics,
+built-ins outside the curated tables, genuinely partial ones inside them
+(`date_part`, `array_length`), multi-statement function bodies, JSON_TABLE
+columns, the VARIADIC gate, the SRF padding rule, multi-candidate operators,
+and the CHECK machinery's deliberate gates. Only four are closable by work
+already planned (`docs/type-aware-overloads.md`); the rest are correct
+conservatism, and closing one would turn its claim into `notNull` rather than
+witnessing it (the presence-consumption entry retired exactly that way — its
+fixture's carrier now reads notNull and the annotation came off).
 
-**The query's own shape rules out the NULL case (33 claims).** The largest
-group, and the least interesting: the fixture selects away the rows that would
-show the NULL. A `LEFT JOIN` whose `ON` is an equality on a NOT NULL foreign key
-always matches. A `CROSS JOIN LATERAL` drops exactly the orders that would leave
-the aggregate side of an earlier `LEFT JOIN` unmatched. A correlated subquery
-keyed on a primary key always finds its row. `RETURNING` a column a literal was
-just written into reports that literal. Two of `scalar-subquery-zero-row-guards`'
-cases need a review count that its own set-operation cases forbid.
+**The query's own shape rules out the NULL case (52 claims).** The largest
+group: the fixture selects away the rows that would show the NULL. A
+`LEFT JOIN` whose `ON` is an equality on a NOT NULL foreign key always
+matches. A `CROSS JOIN LATERAL` drops exactly the orders that would leave the
+aggregate side of an earlier `LEFT JOIN` unmatched. A correlated subquery
+keyed on a primary key always finds its row. Unnesting a NULL array produces
+no rows, so the unnested column is never observed. `scalar-subquery-zero-row-guards`
+forces every product to exactly seven reviews in any state that returns rows.
 `presence-group-full`'s orders side never extends because `shipments.order_id`
 is a NOT NULL foreign key — the annotations that also exempt its group's
-absent arm by derivation. Changing any
-of these means changing what the fixture asserts, which is a worse trade than
-leaving the claim unwitnessed.
+absent arm by derivation. Changing any of these means changing what the
+fixture asserts, which is a worse trade than leaving the claim unwitnessed —
+except for the three the audit found to be genuine data gaps, whose reasons
+say "data gap" and name the state or fixture change that witnesses them. The
+staleness check removes each annotation automatically the moment one does.
 
 **Inside a `@no-rows` fixture (2 claims).** Nothing in a statement that never
 returns a row can be witnessed.

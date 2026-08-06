@@ -6,7 +6,7 @@
 -- NULL composite expands to a NULL in every field, domain types included
 -- (measured), so nothing survives this position.
 -- @unwitnessable 0: a row type carries no constraints, but the fields are
--- real order_items rows and PostgreSQL never emits NULL in them.
+--   real order_items rows and PostgreSQL never emits NULL in them.
 -- @unwitnessable 1: same — real rows of a NOT NULL column.
 -- @unwitnessable 2: same.
 -- @unwitnessable 3: same.

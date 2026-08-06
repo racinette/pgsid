@@ -1,4 +1,8 @@
--- @unwitnessable 24: data gap: NULL needs an updated product without a category, and every state's updated products carry one
+-- @unwitnessable 24: not a data gap — the UPDATE's own WHERE carries
+--   `EXISTS (… categories c WHERE c.id = p.category_id AND c.deleted_at IS
+--   NULL)`, so every updated row has a live category and this RETURNING
+--   subquery, keyed on that same id, finds it. Measured with a NULL-category
+--   product and a soft-deleted-category product: neither is ever updated.
 -- Extreme fixture: UPDATE with CTEs, FROM clause, WHERE with correlated
 -- subquery, and complex RETURNING expressions.
 --

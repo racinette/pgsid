@@ -8,7 +8,7 @@
 -- three elements per array (one whole, one with an empty qty, one with an
 -- empty sku) and NULLs a quarter of the two it does not unnest here.
 -- @unwitnessable 3: unnesting a NULL array produces no rows, so the column
--- being unnested is never observed NULL through this join.
+--   being unnested is never observed NULL through this join.
 SELECT * FROM pair_holder h, unnest(h.dompairs)
 -- @notNull    (id)
 -- @nullable   (pairs)

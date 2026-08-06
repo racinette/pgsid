@@ -1,7 +1,16 @@
--- @unwitnessable 2: the zero-row shape this HAVING guard would need is ruled out by the fixture's own construction in every state
--- @unwitnessable 5: the EXCEPT arm's construction forbids the empty case that would return NULL
--- @unwitnessable 7: the UNION arm always supplies a row, so the NULL branch cannot survive
--- @unwitnessable 8: the grouped subquery cannot produce an empty group
+-- One invariant rules three of these, and it is the fixture's own doing: the
+-- UNION case returns TWO rows unless the review count is exactly 7, and two
+-- rows raise. So a state that returns anything is a state where every product
+-- has exactly seven reviews — `uniform` is the only one (measured; adding a
+-- reviewless product makes every state raise).
+-- @unwitnessable 2: HAVING filters only a count of five or less, which the
+--   seven-review invariant above forbids wherever this fixture returns rows
+-- @unwitnessable 5: the EXCEPT arm is empty only for a count of exactly 1,
+--   which the same invariant forbids
+-- @unwitnessable 7: `UNION SELECT 7` always supplies a row, so this subquery
+--   can never be empty — structural, and independent of the data
+-- @unwitnessable 8: the group is empty exactly for a product with no reviews,
+--   and such a product makes the UNION case raise before any row is returned
 -- Constructs that break a scalar subquery's single-row guarantee.
 --
 -- An ungrouped aggregate normally collapses any input, including zero rows,

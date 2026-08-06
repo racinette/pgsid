@@ -5,8 +5,8 @@
 -- of NOT VALID itself: new writes ARE gated, the schema is applied before
 -- any data state, so every reachable row satisfies the constraint anyway.
 -- @unwitnessable 0: NOT VALID still gates new writes, so no fixture row can
--- carry a NULL badge; the claim under test is the engine IGNORING the
--- constraint, and the annotation-based suite holds it.
+--   carry a NULL badge; the claim under test is the engine IGNORING the
+--   constraint, and the annotation-based suite holds it.
 SELECT
   badge,   -- @nullable
   id       -- @notNull

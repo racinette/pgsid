@@ -4,7 +4,7 @@
 -- transition function accumulated, which the engine cannot analyse. The
 -- honest claim is nullable, the price of an unanalysable transition.
 -- @unwitnessable 1: count_it's transition ('SELECT state + 1') in fact
--- preserves non-null state, so no data can witness the conservative claim.
+--   preserves non-null state, so no data can witness the conservative claim.
 SELECT
   o.customer_id    AS customer_id,   -- @notNull
   count_it(oi.id)  AS item_count     -- @nullable

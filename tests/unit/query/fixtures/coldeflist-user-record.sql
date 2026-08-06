@@ -4,7 +4,7 @@
 -- BEFORE the metadata path runs. Its fields stay nullable like any
 -- record's.
 -- @unwitnessable 0: a record's fields carry no constraints, and this
--- function's body returns literals — PostgreSQL never emits NULL here.
+--   function's body returns literals — PostgreSQL never emits NULL here.
 -- @unwitnessable 1: same — the body's second literal is never NULL.
 SELECT * FROM rec_pairs() AS z(n integer, s text)
 -- @nullable   (n)
