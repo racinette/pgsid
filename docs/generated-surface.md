@@ -519,7 +519,48 @@ spelling, which needs a composite-star projection the target-list model does
 not accommodate (a `(col).*` target has no fixed arity, so literals and
 matchLiterals cannot be written for it).
 
-Four things the build measured, worth keeping:
+**The COMPOSITE-STAR projection followed (2026-08-06), and it found a defect
+before it could even be written.** `expandCompositeStar` is a branch with
+history — sweep-2 finding 13 was its alias-versus-column precedence, at equal
+arity — and it had no generated coverage at all.
+
+My first objection to building it was wrong: a `(col).*` target does have a
+fixed arity, because N is the composite's field count and is statically known.
+So `colNames`, `literals` and `matchLiterals` are written for the EXPANDED list
+and the projection fits the existing model unchanged.
+
+**The finding.** `expandCompositeStar` expands a cast to a `CREATE TYPE`
+composite and REFUSES a cast to a TABLE's row type, which PostgreSQL expands
+happily: `(NULL::trow).*` and `(h.row1).*` both yield `[a, b]` (measured), and
+the walk answered `UnsupportedNodeError`. `resolveCompositeType` is backed by
+`CREATE TYPE … AS (…)` entries alone, and the two-step fallback —
+composite first, relation second — that `columnsForReturnType` has always
+taken for `SETOF <table>` was never wired here. **It is the same latent defect
+the third fix phase's audit closed for the unnest ELEMENT-type resolver, at its
+second site**, which is the pattern the register keeps meeting. Sound (a
+refusal, not a wrong shape) but unnecessary: the engine had the information.
+Fixed, and pinned by `composite-star-table-row-type.sql` in both spellings,
+which enter `fieldsOf` by different routes — a column's rendered type, and a
+cast's target name.
+
+The projection itself casts to a purpose-built two-text composite rather than
+to `trow`. `sku_pair` would have done except that its `qty integer` can only be
+fed from the generator's one integer slot, `t.id`, which is NOT NULL — so that
+field's correctly-conservative nullable claim would go unwitnessed wherever `t`
+is present, buying an unwitnessable rule for nothing. Two text fields take the
+two nullable text slots and are witnessed by ordinary data.
+
+Corpus **10864 → 11632 queries, notNull claims 18683 → 19043**, all
+falsifiable, same zeroes across every oracle. Adding the bare `trow` column
+closed `table-row-type-column`, and **the actionable gap count is now 1** —
+`sub-partition`, which needs t/u/v restructured and is disproportionate.
+
+Two costs the change surfaced, both paid rather than deferred: a fixture that
+star-expands `trow_holder` gained a column and its annotation, and the seed
+generator needed a `trow` entry — `fixture-data/generate.ts` failing on a type
+with no generator, working exactly as this document said it would.
+
+Four things the earlier build measured, worth keeping:
 
 - **A NEW imprecision, and this axis is the first thing that could reach it.**
   `gfn_def(a integer, b integer DEFAULT 7)` called with one argument: the walk

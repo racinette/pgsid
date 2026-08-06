@@ -3074,11 +3074,22 @@ class NullabilityEngine {
     ): OutputNullability[] | null => {
       const cleaned = typeParts.filter((p): p is string => !!p && p !== "pg_catalog");
       if (!cleaned.length) return null;
-      const ct = this.catalog.resolveCompositeType(
-        cleaned.length >= 2 ? cleaned[cleaned.length - 2] : undefined,
-        cleaned[cleaned.length - 1]!,
-      );
-      return ct ? ct.fields.map(f => ({ name: f.name, notNull: false })) : null;
+      const schema = cleaned.length >= 2 ? cleaned[cleaned.length - 2] : undefined;
+      const name = cleaned[cleaned.length - 1]!;
+      const ct = this.catalog.resolveCompositeType(schema, name);
+      if (ct) return ct.fields.map(f => ({ name: f.name, notNull: false }));
+      // A TABLE's row type is a composite too, and `resolveCompositeType` is
+      // backed by `CREATE TYPE … AS (…)` entries alone — so without this the
+      // star REFUSED a statement PostgreSQL expands: `(NULL::trow).*` and
+      // `(h.row1).*` over a `trow`-typed column both yield [a, b] (measured),
+      // and the walk answered UnsupportedNodeError. It is the same two-step
+      // `columnsForReturnType` has always taken for `SETOF <table>` versus
+      // `SETOF <composite>`, and the same latent defect the post-fix audit
+      // closed for the unnest ELEMENT-type resolver — this was its second
+      // site, found by the composite-star axis (docs/generated-surface.md).
+      // Every field is nullable, which is the expansion rule regardless.
+      const rel = this.catalog.resolveTable(schema, name);
+      return rel ? rel.columns.map(c => ({ name: c, notNull: false })) : null;
     };
     if (argNode && parts.length === 1) {
       const cr = argNode["ColumnRef"] as ColumnRef | undefined;

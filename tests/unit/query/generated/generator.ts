@@ -81,6 +81,17 @@ const countStar = (): Ast => ({
   FuncCall: { funcname: [str("count")], agg_star: true, funcformat: "COERCE_EXPLICIT_CALL" },
 });
 const coalesce = (...args: Ast[]): Ast => ({ CoalesceExpr: { args } });
+/** `ROW(a, b)::typeName` — a row constructor cast to a known composite. */
+const rowCast = (args: Ast[], typeName: string): Ast => ({
+  TypeCast: {
+    arg: { RowExpr: { args, row_format: "COERCE_EXPLICIT_CALL" } },
+    typeName: { names: [str(typeName)], typemod: -1 },
+  },
+});
+/** `(expr).*` — the composite star, which expands to the type's fields. */
+const compositeStar = (arg: Ast): Ast => ({
+  A_Indirection: { arg, indirection: [{ A_Star: {} }] },
+});
 const caseWhen = (cond: Ast, then: Ast, otherwise: Ast): Ast => ({
   CaseExpr: { args: [{ CaseWhen: { expr: cond, result: then } }], defresult: otherwise },
 });
@@ -870,6 +881,34 @@ const PROJECTIONS: Projection[] = [
       matchLiterals: [nullConst(), intConst(1), textConst("u1@b.c"), intConst(1)],
     }),
     expectations: [expectWindow("lag"), expectWindow("ntile")],
+  },
+  {
+    // The COMPOSITE-STAR axis. `expandCompositeStar` is a walk branch with
+    // history — sweep-2 finding 13 was its alias-versus-column precedence,
+    // where the parentheses in `(x).*` force the VALUE reading and the engine
+    // expanded a range-table alias of the same name instead, at the same
+    // arity — and it had no generated coverage at all.
+    //
+    // A star target expands to N columns, which the projection model can carry
+    // because N is statically known: it is the composite's field count. So the
+    // colNames, literals and matchLiterals below are written for the EXPANDED
+    // list, `p` and `q`, not for the star.
+    //
+    // Both fields are forced nullable by the expansion rule whatever the
+    // arguments, so both claims are conservative — and both are witnessed by
+    // ordinary data, since the two text slots are nullable to begin with.
+    key: "composite-star",
+    build: s => ({
+      targets: [
+        target(compositeStar(rowCast([s.slots.textA, s.slots.textC], "gfn_pair"))),
+        target(s.slots.intKey, "a_int"),
+      ],
+      colNames: ["p", "q", "a_int"],
+      literals: [textConst("cp"), textConst("cq"), intConst(61)],
+      // sparse's matched row: t.name and u.val are both NULL there.
+      matchLiterals: [nullConst(), nullConst(), intConst(1)],
+    }),
+    expectations: [expect("composite star", "A_Star")],
   },
   {
     // The FUNCTION-CALL axis. The generator called exactly ONE function —
