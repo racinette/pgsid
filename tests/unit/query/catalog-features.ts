@@ -477,7 +477,6 @@ export const FEATURES: Record<string, Feature> = {
     category: "handled",
     why: "the subtree union behind notNullTree, writeRewritesTree, resolveGenerationExprTree and resolveForeignKeyTree is recursive, and the snapshot computes it; a two-level tree is what separates the recursion from its base case",
     detect: (s, env) => s.tables.some(t => t.relkind === "p" && env.childToParent.has(t.name)),
-    absent: "No partition is itself partitioned, and no inheritance child has a child. Every tree in the fixture schema is one level deep.",
   },
   "inheritance-parent-with-children": {
     category: "handled",

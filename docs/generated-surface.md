@@ -560,6 +560,35 @@ star-expands `trow_holder` gained a column and its annotation, and the seed
 generator needed a `trow` entry — `fixture-data/generate.ts` failing on a type
 with no generator, working exactly as this document said it would.
 
+**`sub-partition` closed the list (2026-08-06), and it was cheaper than twice
+predicted.** I had called it disproportionate on the grounds that it needed
+`t`/`u`/`v` restructured — true of the GENERATION half and false of the census
+half, which only ever wanted a two-level tree somewhere in the schema.
+`part_p` already had one partition; `part_2` is now itself partitioned, with
+`part_2a` beneath it.
+
+Every other partition and inheritance tree in this schema is ONE level deep,
+so the recursion behind `notNullTree`, `writeRewritesTree`,
+`resolveGenerationExprTree` and `resolveForeignKeyTree` had never left its base
+case. Making that discriminating took finding a fact that can DIVERGE at
+depth, and for partitions there is essentially one: a write hook. A partition
+may not drop a parent's NOT NULL, so the flag facts are identical however deep
+the tree — but a BEFORE ROW trigger on a GRANDCHILD fires on a write naming
+the root (measured: an INSERT into `part_p` routes two levels down and the
+trigger nulls the written value). `trigger-subpartition-routed.sql` pins it,
+and the mutation confirms it separates the recursion from its base case:
+making the subtree union one-level-only fails that fixture and ONLY it — the
+existing one-level `trigger-partition-routed` still passes.
+
+**Not under generation, and that is the right stopping point rather than a
+concession.** The discriminating fact is a DML/RETURNING shape, and the
+corpus's DML axis targets `t`/`ck`/`tags` rather than partitioned relations;
+the facts the corpus DOES generate cannot differ at depth for the reason
+above. A sub-partitioned variant would run the whole structural space over a
+deeper tree and prove nothing the one-level tree does not. The suite's report
+now says so where the count is printed, so "0 actionable" cannot be misread as
+"everything is generated".
+
 Four things the earlier build measured, worth keeping:
 
 - **A NEW imprecision, and this axis is the first thing that could reach it.**
