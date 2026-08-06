@@ -9,7 +9,7 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
 } from "../../../src/query/nullability-walk.js";
-import { TOTAL_STRICT_OPERATORS } from "../../../src/query/operators.js";
+import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
 
 // ---------------------------------------------------------------------------
 // The curated name tables, held to pg_catalog.
@@ -149,10 +149,11 @@ describe("curated name tables vs pg_catalog", () => {
       for (const n of set) sigs += fns.get(n)?.signatures ?? 0;
     }
     let opSigs = 0;
-    for (const o of TOTAL_STRICT_OPERATORS) opSigs += operators.get(o) ?? 0;
+    const opNames = new Set([...TOTAL_OPERATORS, ...STRICT_OPERATORS]);
+    for (const o of opNames) opSigs += operators.get(o) ?? 0;
     console.log(
       `\ncurated totality tables: ${names} names → ${sigs} pg_catalog signatures; ` +
-        `TOTAL_STRICT_OPERATORS: ${TOTAL_STRICT_OPERATORS.size} names → ${opSigs} signatures.\n` +
+        `operator sets: ${opNames.size} distinct names → ${opSigs} signatures.\n` +
         `  A curated entry keys on a NAME and PostgreSQL keys on a SIGNATURE; ` +
         `docs/type-aware-overloads.md is the narrowing that closes the gap.`,
     );
@@ -187,7 +188,9 @@ describe("curated name tables vs pg_catalog", () => {
   });
 
   it("every curated operator name exists in pg_catalog", () => {
-    const unknown = [...TOTAL_STRICT_OPERATORS].filter(o => !operators.has(o)).sort();
+    const unknown = [...new Set([...TOTAL_OPERATORS, ...STRICT_OPERATORS])]
+      .filter(o => !operators.has(o))
+      .sort();
     expect(
       unknown,
       `Curated operator(s) pg_operator does not carry. \`!=\` was one: the ` +

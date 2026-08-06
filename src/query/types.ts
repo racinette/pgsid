@@ -319,7 +319,7 @@ export interface NullabilityCatalog {
    * schema, when the reference is qualified) or null — operand types are
    * not available to the walk, so with overloads guessing is never correct.
    * Builtin operator names are NOT here; they keep the curated
-   * TOTAL_STRICT_OPERATORS set and its documented shadowing blind spot.
+   * curated operator sets and their documented shadowing blind spot.
    */
   resolveOperatorMetadata(schema: string | undefined, name: string): OperatorMetadata | null;
 

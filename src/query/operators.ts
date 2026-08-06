@@ -1,22 +1,60 @@
 // ---------------------------------------------------------------------------
-// Builtin operators that are both TOTAL and STRICT, shared between the two
-// analyses that need one property each:
+// Builtin operators, by the property each consumer actually needs:
 //
 //   TOTAL  — never NULL for non-null operands. The output walk
 //            (nullability-walk.ts) uses this to claim notNull for an A_Expr
 //            whose operands are all notNull.
 //   STRICT — NULL for any NULL operand. Mechanism-C attribution
-//            (param-nullability.ts) uses this to conclude that a parameter
-//            being NULL forces the expression NULL, so a runtime NOT NULL
-//            coercion downstream will raise.
+//            (param-nullability.ts) and WHERE-side promotion use this to
+//            conclude that a parameter being NULL forces the expression NULL,
+//            so a runtime NOT NULL coercion downstream will raise.
 //
-// Every listed builtin has BOTH properties; an operator with only one must
-// not be added — it would be sound for one consumer and wrong for the other.
+// **These were ONE set until the totality probe ran** (2026-08-06,
+// docs/generated-surface.md item 3), on the rule that every member must have
+// BOTH properties — with the file's own warning that "an operator with only
+// one must not be added, it would be sound for one consumer and wrong for the
+// other". Execution found two members with only one, in opposite directions,
+// so the warning had come true twice and the shared set was the thing making
+// it possible:
+//
+//   `+`  is not TOTAL. `path + path` returns NULL whenever EITHER operand is
+//        a CLOSED path (measured; open + open is a value, and `path + point`
+//        is total). Every other `+` overload is total.
+//   `||` is not STRICT. `ARRAY[1,2] || NULL` is `{1,2}`, not NULL (measured;
+//        `'a' || NULL::text` IS NULL, so the text meaning is strict and the
+//        array meaning is not). It IS total in every overload.
+//
+// Splitting is what the two consumers were already asking for — each use site
+// documented which property it wanted — so a defect in one property no longer
+// costs the other its precision.
+//
+// **BOTH names are KEPT, with the hole recorded** in `PARTIAL_OVERLOADS` and
+// `NON_STRICT_OVERLOADS` below, each asserted from both sides by
+// `totality-probe.test.ts` so it can never widen unnoticed. The reasoning is
+// the register's foreign-key-trust precedent rather than the `lower`/`upper`
+// one: the falsifying input needs a `path`-typed column, which essentially no
+// application schema has, while removing the name costs the general case —
+// `id + 1` on a NOT NULL integer, the most common arithmetic in SQL, would
+// read nullable. `random` went the OTHER way in the same sitting and the
+// contrast is the rule: its `random(min, max)` overloads take ordinary
+// integers, so the falsifying input is entirely ordinary and removal was
+// right.
+//
+// Both are name-level dispatch covering two meanings, which is exactly what
+// `docs/type-aware-overloads.md` narrows; that charter carries them as its
+// worked test cases.
+//
 // The two files cannot import from each other (nullability-walk already
-// imports param-nullability), which is why the set lives here.
+// imports param-nullability), which is why the sets live here.
 // ---------------------------------------------------------------------------
 
-export const TOTAL_STRICT_OPERATORS: ReadonlySet<string> = new Set([
+/**
+ * Never NULL for non-null operands. Consumed by the output walk.
+ *
+ * `+` is here despite its `path + path` overload — see the header and
+ * `PARTIAL_OVERLOADS`.
+ */
+export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   // Arithmetic. Division and modulo raise on a zero divisor rather than
   // returning NULL, so they are total in the sense that matters here.
   "+", "-", "*", "/", "%", "^",
@@ -24,8 +62,65 @@ export const TOTAL_STRICT_OPERATORS: ReadonlySet<string> = new Set([
   // `!=` was here and is gone: PostgreSQL's lexer converts it to `<>` before
   // a parse tree exists, so no A_Expr ever carries the spelling (measured).
   "=", "<>", "<", ">", "<=", ">=",
-  // Concatenation (text, array, jsonb).
+  // Concatenation (text, array, jsonb) — total in every overload, including
+  // the array ones that make it a recorded exception in STRICT_OPERATORS.
   "||",
   // Pattern matching: LIKE / ILIKE / regex, and their negations.
   "~~", "!~~", "~~*", "!~~*", "~", "!~", "~*", "!~*",
 ]);
+
+/**
+ * NULL for any NULL operand. Consumed by mechanism-C attribution and by
+ * WHERE-side promotion, neither of which needs totality — both conclude
+ * about the OPERANDS, never about the result.
+ *
+ * `||` is here DESPITE its array overloads not being strict, and that is a
+ * measured choice rather than an oversight — `NON_STRICT_OVERLOADS` below
+ * records it, and `totality-probe.test.ts` holds the record to the catalog.
+ * Removing it was tried and is worse in the direction that matters: the
+ * generated corpus immediately produced three bindings the CONTRACT ADMITTED
+ * and PostgreSQL rejected (`INSERT INTO tags (name) VALUES (COALESCE($1, $2
+ * || $3))` with all three NULL — text `||` IS strict, so the COALESCE is NULL
+ * and the NOT NULL column raises). Under-reporting strictness makes the
+ * emitted types LIE about a binding that fails; over-reporting it only makes
+ * a parameter read non-nullable where NULL would in fact have been accepted.
+ * The first is a runtime error, the second an over-strict type, so the
+ * over-report is the safer error and is what this set takes.
+ */
+export const STRICT_OPERATORS: ReadonlySet<string> = new Set([
+  "+", "-", "*", "/", "%", "^",
+  "=", "<>", "<", ">", "<=", ">=",
+  "||",
+  "~~", "!~~", "~~*", "!~~*", "~", "!~", "~*", "!~*",
+]);
+
+/**
+ * Members of `TOTAL_OPERATORS` with a NON-total overload, and why each is kept
+ * anyway. An entry is a known unsoundness, bounded by the operand types named
+ * in it: for those, the walk claims notNull where PostgreSQL can answer NULL.
+ * Recorded rather than tolerated silently, asserted from both sides by
+ * `totality-probe.test.ts`, and recovered by `docs/type-aware-overloads.md`.
+ */
+export const PARTIAL_OVERLOADS: Record<string, string> = {
+  "+":
+    "`path + path` is NULL whenever EITHER operand is a CLOSED path — " +
+    "`'((0,0),(1,1))'::path + '[(0,0),(1,1)]'::path` (measured; open + open " +
+    "is a value, and `path + point` is total). Kept because the falsifying " +
+    "input needs a path-typed column and removing the name costs `id + 1` on " +
+    "a NOT NULL integer, which is the general case.",
+};
+
+/**
+ * Members of `STRICT_OPERATORS` with a NON-strict overload, and why each is
+ * kept anyway. An entry is a known over-report: for these operand types the
+ * contract calls a parameter rejected where the statement would have
+ * succeeded.
+ */
+export const NON_STRICT_OVERLOADS: Record<string, string> = {
+  "||":
+    "array concatenation ABSORBS a NULL operand — `ARRAY[1,2] || NULL` is " +
+    "`{1,2}` (measured), while `'a' || NULL::text` IS NULL. Dropping the name " +
+    "loses the text meaning, and the text meaning is what mechanism C needs " +
+    "to predict a real rejection; measured, dropping it made the corpus admit " +
+    "three bindings PostgreSQL rejects.",
+};

@@ -353,6 +353,26 @@ ride along), so it holds 572 names where its own comment claims 68 — safe
 direction, since the sole consumer refuses on it and over-capture costs
 precision only.
 
+**Item 3 is BUILT (2026-08-06): the totality tables, probed by execution**,
+`tests/unit/query/totality-probe.test.ts`, seven assertions each
+mutation-tested to fail alone. 789 signatures → 13,270 expressions, 10,866
+evaluated and 2,426 raised; a plpgsql probe with per-expression error
+isolation evaluates the whole surface in one statement, and 20,000 probes run
+in ~130ms. Arguments come from a per-type corpus keyed on the input CLASSES
+that historically broke a claim, with polymorphic parameters instantiated as a
+FAMILY and every call `pg_catalog.`-qualified (six signatures raised on every
+combination until the qualifier went on — `position`, `overlay`,
+`current_user` and `session_user` are grammar). Each table is asked its OWN
+claim, which is three different claims. Because a raise is not a finding,
+silent non-coverage is the failure mode: every parameter type must have a
+value generator, every signature must have evaluated at least once, and the
+two exemptions are named with reasons and asserted both ways (`aclitem[] +
+aclitem` and `aclitem[] - aclitem` are still declared with their
+implementations removed, so they raise forever). The harness carries its own
+POSITIVE CONTROL, asserted first: the ten expressions three sweeps removed
+must still come back NULL, since every other assertion here is a negative.
+Its three findings have their closure entry at the top of section 2.
+
 **Item 2 is BUILT (2026-08-06): the curated tables, held to pg_catalog**,
 `tests/unit/query/curated-tables.test.ts`, six assertions, each
 mutation-tested to fail alone. It convicted on its first run and the biggest
@@ -391,7 +411,7 @@ type names, 572 down to 65, closing item 1's residue.
 
 What the catalog could NOT settle, recorded so it is not mistaken for
 covered: `proisstrict` is strictness, not totality, so the four totality
-tables are held to EXISTENCE only and probing them is item 3. The suite
+tables are held to EXISTENCE only and probing them is item 3, now BUILT. The suite
 prints the type-aware-overloads premise every run — **133 curated names cover
 235 pg_catalog signatures; 21 operator names cover 558.**
 `HYPOTHETICAL_SET_AGGREGATES` and `ORDERED_SET_AGGREGATES` are exactly
@@ -560,6 +580,37 @@ routes named; `docs/imprecision-closure.md` carries the measurements.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the totality probe (2026-08-06, `docs/generated-surface.md` item
+3), three findings in one run — the first automated pass over a question
+three sweeps had answered by hand. `random` left ALWAYS_NOT_NULL_BUILTINS:
+PG17 added `random(min, max)` for integer, bigint and numeric and they are
+STRICT, so `random(NULL, NULL)` is NULL while the table claims "never NULL
+whatever the arguments" (measured; the engine claimed notNull). The other two
+are KEPT with the hole recorded, on the FOREIGN-KEY-TRUST precedent rather
+than the `lower`/`upper` one — the falsifying operands are exotic and removal
+costs the general case. `+` is not TOTAL (`path + path` is NULL whenever
+either operand is a CLOSED path; `path + point` is total and open + open is a
+value), and removing it makes `id + 1` on a NOT NULL integer read nullable;
+`PARTIAL_OVERLOADS` records it. `||` is not STRICT (array concatenation
+ABSORBS a NULL operand — `ARRAY[1,2] || NULL` is `{1,2}` — while `'a' ||
+NULL::text` IS NULL), and removing it was TRIED, not merely weighed: the
+generated corpus immediately admitted three bindings PostgreSQL rejects,
+because mechanism C needs the strict TEXT meaning to predict a real
+rejection. Under-reporting strictness makes the emitted types lie about a
+binding that FAILS; over-reporting only makes a parameter read non-nullable
+where NULL would have been accepted, so the over-report is the safer error
+and `NON_STRICT_OVERLOADS` records it. Both records are asserted from BOTH
+sides, so neither outlives the defect it excuses, and
+`docs/type-aware-overloads.md` carries all three as its worked test cases:
+the contrast between `random` and the other two IS the rule — the
+exotic-operand argument is what makes a hole tolerable, and narrowing is what
+makes it unnecessary. `TOTAL_STRICT_OPERATORS` split into `TOTAL_OPERATORS`
+and `STRICT_OPERATORS` on the way: it required BOTH properties and warned
+that a member with one "would be sound for one consumer and wrong for the
+other", execution found one member failing each half in opposite directions,
+and all four use sites already documented which property they wanted. The
+only claim lost is `random()`'s, recorded on `builtin-functions.sql`.
 
 Closed by the curated-table diff (2026-08-06, `docs/generated-surface.md`
 item 2), and found by chasing a table entry rather than by writing a query:

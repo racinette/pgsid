@@ -2,7 +2,7 @@ import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
 import { checkConstraintsProveNotNull } from "./check-entailment.js";
-import { TOTAL_STRICT_OPERATORS } from "./operators.js";
+import { TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES, STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
   forcedNullParams,
@@ -5764,7 +5764,7 @@ class NullabilityEngine {
       const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
       if (ae.kind !== "AEXPR_OP" || !ae.lexpr || !ae.rexpr) return false;
       const parts = (ae.name ?? []).map(f => this.stringVal(f));
-      if (parts.length !== 1 || !TOTAL_STRICT_OPERATORS.has(parts[0]!)) return false;
+      if (parts.length !== 1 || !TOTAL_OPERATOR_NAMES.has(parts[0]!)) return false;
       return (
         this.operandNeverNull(ae.lexpr, scope) && this.operandNeverNull(ae.rexpr, scope)
       );
@@ -6313,7 +6313,7 @@ class NullabilityEngine {
     const op = parts[parts.length - 1] ?? "";
     // Builtin names keep the curated set, and only BARE names match it —
     // the documented shadowing blind spot.
-    if (parts.length === 1 && TOTAL_STRICT_OPERATORS.has(op)) return true;
+    if (parts.length === 1 && STRICT_OPERATORS.has(op)) return true;
     // A user operator's backing function carries a declared strictness flag,
     // which is exactly the property this gate needs: a strict comparison
     // cannot be TRUE with a NULL operand. Totality is NOT required here —
@@ -7857,8 +7857,14 @@ export const ALWAYS_NOT_NULL_BUILTINS = new Set([
   // SQLValueFunction node that never reaches this dispatch. (`current_user`
   // and `session_user` parse that way too, but they ARE functions, so a
   // qualified call can still arrive and they stay.)
+  // `random` was here and is gone: PG17 added `random(min, max)` overloads for
+  // integer, bigint and numeric which are STRICT, so `random(NULL, NULL)` is
+  // NULL while this table claims "never NULL whatever the arguments"
+  // (measured). Name-level dispatch cannot separate them from the total
+  // zero-argument form, which is the `lower`/`upper` shape once more; the cost
+  // is that `random()` now reads nullable.
   "current_database", "current_user",
-  "session_user", "version", "pi", "random", "gen_random_uuid",
+  "session_user", "version", "pi", "gen_random_uuid",
   "txid_current", "pg_backend_pid",
   // concat ignores NULL arguments; all-NULL input yields '' , not NULL.
   "concat",
@@ -8046,9 +8052,10 @@ function splitColumnDefinition(part: string): { name: string; type: string } | n
 /** Shared empty set — most scopes have no grouping-set columns. */
 const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
 
-// Moved to operators.ts so mechanism-C attribution can share it without an
-// import cycle; see the comment there for the total/strict distinction.
-const TOTAL_OPERATORS = TOTAL_STRICT_OPERATORS;
+// Moved to operators.ts so mechanism-C attribution can share the strict half
+// without an import cycle; see the comment there for why the two properties
+// are now two sets.
+const TOTAL_OPERATORS = TOTAL_OPERATOR_NAMES;
 
 // The curated AGGREGATE_NAMES table is gone. `pg_proc.prokind = 'a'` was in
 // the catalog the whole time, and the table had drifted in three directions

@@ -18,7 +18,19 @@ SELECT
   -- Always non-null, whatever the arguments.
   now()                                   AS ts,              -- @notNull
   CURRENT_DATE                            AS today,           -- @notNull
-  random()                                AS rnd,             -- @notNull
+  -- `random` left ALWAYS_NOT_NULL_BUILTINS (2026-08-06, the totality probe):
+  -- PG17 added `random(min, max)` overloads for integer, bigint and numeric
+  -- which are STRICT, so `random(NULL, NULL)` is NULL while the table claimed
+  -- "never NULL whatever the arguments". Name-level dispatch cannot separate
+  -- them from the total zero-argument form, and unlike `+` and `||` — kept as
+  -- recorded holes because their falsifying operands are exotic — this one's
+  -- falsifying input is ordinary integers, so removal was right and the
+  -- zero-argument call pays for it.
+  -- @unwitnessable 2: random() itself is total, so no data state can produce
+  -- a NULL here — the claim is dropped for the NAME, on account of the
+  -- two-argument overloads, and recovering it needs the argument types
+  -- (docs/type-aware-overloads.md).
+  random()                                AS rnd,             -- @nullable
   gen_random_uuid()                       AS uuid,            -- @notNull
 
   -- Total over non-null arguments.

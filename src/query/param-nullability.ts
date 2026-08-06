@@ -51,7 +51,7 @@
 // ---------------------------------------------------------------------------
 
 import type { Node } from "libpg-query";
-import { TOTAL_STRICT_OPERATORS } from "./operators.js";
+import { STRICT_OPERATORS } from "./operators.js";
 import type { NullabilityCatalog } from "./types.js";
 
 /**
@@ -395,7 +395,7 @@ function forcedNullBy(
     // backing function's declared strictness (single candidate or refuse) —
     // strictness is the only property NULL-propagation needs.
     const strict =
-      (parts.length === 1 && TOTAL_STRICT_OPERATORS.has(op)) ||
+      (parts.length === 1 && STRICT_OPERATORS.has(op)) ||
       (catalog.resolveOperatorMetadata(schema, op)?.strict ?? false);
     if (ae.kind === "AEXPR_OP" && strict) {
       return unionLists([ae.lexpr, ae.rexpr].map(o => forcedNullBy(o, catalog, ctx, anyRow)));
