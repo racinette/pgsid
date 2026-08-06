@@ -1575,6 +1575,22 @@ class NullabilityEngine {
             ? referencing.nullGroup === j.leftOptionalGroup
             : referencing.nullGroup === j.rightOptionalGroup);
         if (!provenPresent && !optionalByThisJoin) continue;
+        // …and on that second arm the REFERENCED side must be extended by
+        // this join too. `incomingRequired` is a property of the incoming
+        // SLICE, not of the member being promoted: in
+        // `t FULL JOIN u ON u.t_id = t.id FULL JOIN v ON v.u_id = u.id` the
+        // slice is required while `u` inside it is already optional from the
+        // deeper join, so a `t` row with no `u` survives this join with BOTH
+        // `u` and `v` extended — and the key, which only says every stored
+        // `v` has a matching `u`, is silent about a row that has no `v` at
+        // all. Promoting `u` there claimed notNull for a column PostgreSQL
+        // returns NULL in (schema axis, fk-chain variant). The doc above
+        // already names this case — "a side already extended by a DEEPER join
+        // is neither" — it was enforced for the referencing side and not for
+        // the referenced one. `provenPresent` needs no such gate: if every
+        // emitted row carries a stored referencing row, it carries the match
+        // however the referenced side became optional.
+        if (!provenPresent && referenced.nullGroup !== side.group) continue;
 
         // Tables only. A view's rows are a query's output, not the stored
         // rows the key constrains, and relations and views share one alias
