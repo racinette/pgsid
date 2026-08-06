@@ -83,20 +83,296 @@ outlive the defect it excuses: the probe must still reproduce the NULL, and
 any OTHER overload of the same name returning NULL fails immediately rather
 than hiding behind the note.
 
-## The design: narrow, do not resolve
+## The design: resolve exactly where you can, narrow everywhere else
 
-PostgreSQL's function resolution is roughly: (1) gather candidates by name
-and arity; (2) discard candidates the arguments cannot be *implicitly*
-coerced to; (3) if one remains, done; (4–8) tiebreak by exact matches,
-preferred types and category rules; else fail as ambiguous.
+**Corrected 2026-08-06, and the correction matters more than the original
+text.** This section previously described PostgreSQL's algorithm as "(1)
+gather by name and arity; (2) discard what cannot be implicitly coerced; (3)
+if one remains, done; (4–8) tiebreak by exact matches, preferred types and
+category rules", and concluded "we implement step 2 and stop… we never need to
+know which candidate wins". Filing EXACT MATCH under "tiebreak" is wrong, and
+it is load-bearing: an exact match is not a tiebreak at all. It is an early,
+terminal, deterministic step, and it comes BEFORE the coercion narrowing:
 
-**We implement step 2 and stop.** Everything after it only ever REMOVES
-more candidates, so the set surviving step 2 is a SUPERSET of PostgreSQL's
-answer — and consensus over a superset is sound. We never need to know
-which candidate wins, only that the ones we dropped were impossible.
+> Check for an operator accepting exactly the input argument types. If one
+> exists — and there can be only one — use it.
+
+Its uniqueness is structural rather than probabilistic: two operators cannot
+share a name and a pair of operand types, so the "exact match" set has at most
+one member (measured: 0 of `+`'s pg_catalog signatures share a (left, right)
+pair). So where every argument type is known exactly, naming the overload is a
+LOOKUP, not a resolution algorithm, and the engine may read that one
+candidate's properties directly — totality, strictness, and its return type.
+
+So the design is two tiers, and the first is the one that carries the weight:
+
+1. **Exact match.** Every argument type known exactly and some candidate's
+   parameter types equal them → that candidate IS what PostgreSQL runs.
+   Read it directly. Its return type is exact, which is what makes the rule
+   COMPOSE: `(a + b) + (c + d)` over integer columns resolves to
+   `integer + integer` at every level and keeps its claim (measured —
+   `pg_typeof` says `integer` throughout).
+2. **Superset narrowing**, when tier 1 does not apply: discard the candidates
+   the arguments cannot be implicitly coerced to, and take CONSENSUS over what
+   survives. Everything after step 2 only ever removes candidates, so the
+   survivors are a superset of PostgreSQL's answer and consensus over a
+   superset is sound.
+
+Tier 2 alone was the original design, and it is not enough. `a + b` over two
+`integer` columns leaves NINE survivors — integer coerces implicitly to
+bigint, numeric, real and double precision, so `bigint + bigint` and
+`numeric + numeric` survive beside `integer + integer` — returning FIVE
+distinct types. That is fine for the totality question (all nine are total)
+and useless for the type question, so a nested operator had no type for its
+parent to narrow with, and `(a + b) + (c + d)` would have LOST a claim it
+holds today. Tier 1 removes the problem rather than working around it.
+
+**Tier 1 needs a NORMALISATION step, or it misses the commonest types**
+(measured 2026-08-06). `character varying` has ZERO operators declared on it —
+no `+`, no `||`, no `=` — and `'a'::varchar || 'b'::varchar` resolves to `text`
+by BINARY COERCION rather than by an exact match. The same holds for `uuid`
+(`=` only), `character`, and every domain. So a naive exact-match lookup fires
+for `integer` and `text` and misses varchar, which is one of the most common
+column types in real schemas, with `||` on it being everyday SQL.
+
+This is a REACH hole, not a correctness one: tier 2 handles varchar correctly
+(it coerces to text, the array candidates die, consensus holds). But the fast
+path would silently never fire. Canonicalise the argument type before lookup —
+through binary-coercible casts (`pg_cast.castmethod = 'b'`) and domain bases —
+and then attempt exact match.
+
+Three further things tier 1 must get right, each measured:
+
+- **Domains follow to their base.** A column typed `dint` (a domain over
+  integer) renders as `dint` and no `dint + dint` operator exists; PostgreSQL
+  resolves it as integer. `resolveDomainBaseTypeName` already does this.
+- **Typmod is stripped.** A column renders `character varying(20)`; operator
+  parameters carry no typmod. Compare `format_type(oid, null)`.
+- **An unknown-typed literal is not an exact type.** `ty.i + 1` is fine (an
+  integer constant is typed), a string literal is `unknown` and PostgreSQL has
+  a separate rule for it. Fall back to tier 2 rather than implement that rule.
 
 This is the same move the walk already makes with arity, and it inherits
 the same soundness argument.
+
+### Literals: what may be assumed, measured
+
+A quoted literal is **not a string** in PostgreSQL's type system. `pg_typeof('a')`
+answers `unknown`, and the SAME literal resolves differently by context —
+measured: `coalesce('2020-01-01', <timestamp col>)` is `timestamp`,
+`coalesce('2020-01-01', <text col>)` is `text`, `coalesce('{1,2}', <int[] col>)`
+is `integer[]`. So an unknown literal is not a gap in OUR knowledge; PostgreSQL
+does not consider it typed either.
+
+That is why "no type, eliminate nothing" is the CORRECT model rather than a
+concession: `unknown` is a wildcard, implicitly coercible to almost anything,
+so it constrains no candidate. It can never COST a claim — only fail to
+contribute one.
+
+| A_Const node | assume | safe? |
+|---|---|---|
+| `ival` | `integer` | yes, always |
+| `boolval` | `boolean` | yes, always |
+| `fval` | INSPECT THE VALUE | node kind is not enough — see below |
+| `sval` | `unknown` | **never assume `text`** |
+| `isnull` (bare NULL) | `unknown` | same |
+
+**`fval` is the sharp edge.** PostgreSQL's lexer emits `ival` only for values
+fitting in int32 and spills everything else — including plain integers — into
+`fval` as digit text. Measured: `2147483647` → `ival`/integer, `2147483648` →
+`fval`/**bigint**, `9223372036854775808` → `fval`/**numeric**, `1.5` →
+`fval`/numeric. So `fval` means "numeric-ish literal" and the digits must be
+read to tell bigint from numeric.
+
+**Assuming `sval` is text is UNSOUND**, not merely imprecise: it would
+eliminate the timestamp candidate from `coalesce('2020-01-01', ts_col)`, which
+is the one PostgreSQL picks. A false elimination is what the governing
+invariant forbids.
+
+Two of PostgreSQL's own rules are cheap and deterministic and worth taking:
+a binary operator with ONE unknown operand gives it the other operand's type
+(measured: settles 80 of the corpus's 129 unknown literals), and when ALL
+inputs are unknown the resolution is `text` (which is why `'a' = 'b'` is
+accepted and returns boolean).
+
+### Tier 0: PREPARE's parameter types are an INPUT, and they collapse most vagueness
+
+**Added 2026-08-06, and it reorders the whole design.** The main source of a
+vague operand is an untyped parameter — and the consumer runs `PREPARE`
+anyway, which reports the resolved type of every parameter. Measured:
+
+| statement | parameters PostgreSQL reports |
+|---|---|
+| `SELECT ARRAY[1,2] \|\| $1` | `integer[]` |
+| `INSERT INTO arrt (a) VALUES (ARRAY[1,2] \|\| $1)` | `integer[]` |
+| `SELECT $1 \|\| 'x'` | `text` |
+| `SELECT $1 + $2` | REJECTED — "operator is not unique" |
+
+So a parameter is not an unknown to be modelled; it is a FACT to be read, from
+the oracle this document already defers to. Feeding those types into the walk
+makes `ARRAY[1,2] || $1` a tier-1 exact match on the array `||`, which is NOT
+strict, so mechanism C correctly declines to attribute — closing
+`NON_STRICT_OVERLOADS`' `||` entry precisely rather than approximately.
+
+The last row matters as much as the others: where NOTHING determines the
+types, PostgreSQL rejects the statement outright. The engine only ever
+analyses statements PostgreSQL accepts, so the both-operands-vague case is
+substantially rarer than it looks — which is the argument for keeping the
+candidate-set machinery below small.
+
+**This does not make the walk impure.** It stays a pure function; it gains an
+optional argument, the way `buildNullabilityCatalog` gained `searchPath`. The
+impurity — running PREPARE — lives in the consumer, which does it regardless
+and which the arity-and-order gate already requires to hold a contract and a
+PREPARE result at the same time. The walk must remain CORRECT without the
+input, degrading to tier 1/2 on the AST alone, so that callers without a
+database keep working and the engine's own purity property survives.
+
+### A vague type is a candidate SET, not a type
+
+When no exact type is available for an operand — a sublink, a `CASE` common
+type, an unknown literal — tier 2 leaves a residual set whose members disagree
+on return type. Measured for `+` with a known `integer` on the left and an
+unknown right: FOURTEEN survivors returning EIGHT distinct types (bigint,
+date, double precision, inet, integer, numeric, pg_lsn, real — `integer + date`
+and `numeric + pg_lsn` are why the spread is wider than the numeric tower).
+
+Carry that set rather than collapsing it to "unknown". The only question ever
+asked of it is **"can ANY member reach parameter type P?"**, never "what is
+it?" — so it needs no convergence, and it still does real work: none of those
+eight reaches `path`, so a parent operator can discard `path + path` even
+though its operand's type is vague.
+
+It matters less often than it looks, for two reasons now. The elimination rule
+is a CONJUNCTION over arguments — a candidate dies if ANY argument cannot reach
+its parameter — so one exactly-known operand settles the whole call:
+`(a + $1) + c` is decided by `c`. And with tier 0, `$1` is usually not vague at
+all.
+
+### Tier 3, optional and probably unnecessary: the receiver constrains the set
+
+The tempting extension is to let an outer call narrow an inner one — `f` accepts
+only `bigint`, so the inner's `text`-returning candidates are impossible.
+
+**PostgreSQL itself does not resolve this way, measured.** With `ov3(integer,
+integer) → bigint` and `ov3(integer, text) → text`, and `eat(bigint)`:
+
+```
+SELECT eat(ov3($1::integer, $2))   →   ERROR: function eat(text) does not exist
+```
+
+The inner resolved bottom-up to the `text` overload and the statement FAILED,
+rather than reconsidering the `bigint` one that would have made it valid.
+Expression resolution is bottom-up and assignment coercion applies to the
+result afterwards.
+
+That refutes it as a model of PostgreSQL, but not as an ENGINE rule, and the
+distinction is worth keeping: PostgreSQL has ONE answer where the engine has a
+SET, and for a statement PostgreSQL accepts the real answer must satisfy the
+receiver. So discarding inner candidates that no surviving outer candidate can
+accept is sound — it relies on the statement being valid, which the engine
+already assumes everywhere.
+
+It is nonetheless the last thing to build, if ever: it needs a constraint pass
+rather than a bottom-up walk, and tier 0 removes most of what motivates it.
+Recorded so the idea is not re-derived from scratch, with its soundness
+argument and its cost attached.
+
+### The prerequisite: pg_catalog SIGNATURES must reach the snapshot
+
+**Measured 2026-08-06, and it is the sequencing constraint for this whole
+document.** The snapshot carries user-schema signatures only — 69 functions and
+5 operators for the fixture schema, all `public`. pg_catalog is captured as
+NAME SETS (`builtinFunctionNames`, 2726 names; `builtinStrictFunctions`; and
+siblings), which answer "is this name strict?" and cannot answer "which
+overload is `integer + integer`?".
+
+So tier 1 is not implementable for BUILTIN operators today, and `+` and `||` —
+this document's two worked cases — are builtins. `docs/generated-surface.md`
+carries a standing boundary against closing that gap ("pg_catalog signatures
+stay out of the snapshot until the consumer's search-path input lands"), so
+this refactor is downstream of that decision and should not start before it.
+
+**The scope is far smaller than "all of pg_catalog", and that is the way
+through.** Signatures are needed only for names the engine makes a CLAIM
+about — every other builtin has no totality or strictness verdict to narrow, so
+its overloads are never consulted. That is exactly the curated tables: 133
+function names covering 235 signatures, and 21 operator names covering 558.
+Under 800 rows, bounded, and ENVIRONMENT rather than schema — it changes with
+the PostgreSQL version, never with a migration, so it belongs beside
+`builtinStrictFunctions` and stays out of the diff for the same reason.
+
+Each row needs `(name, parameter types, return type)` plus the backing
+function's `proisstrict` for operators — the same shape `OperatorInfo` already
+has for user operators.
+
+### How much of the tree gets typed — measured
+
+Over 411 statements (the fixture corpus plus the grammar sampler), 1592
+operator and function ARGUMENT positions, which are the places a type is needed:
+
+| where the type comes from | share |
+|---|---|
+| catalog — a column reference | 71.0% |
+| exact — a typed literal, a cast target, a row/boolean-valued node | 12.5% |
+| recursion — an operator, function call or subquery below it | 4.0% |
+| PREPARE — a parameter (tier 0) | 1.8% |
+| **UNKNOWN — a string or NULL literal** | **8.1%** |
+| **needs common-type resolution — ARRAY, COALESCE, CASE** | **1.4%** |
+
+**90.5% is typeable from catalog + PREPARE + recursion.** Of the unknown
+literals, 80 of 129 sit OPPOSITE a typeable operand, where PostgreSQL's own
+rule — one unknown operand of a binary operator takes the other's type — settles
+them deterministically and cheaply. Implementing that one rule takes the total
+to roughly 95%. The residue is 44 unknown literals in FUNCTION-argument
+positions (which need the category/preferred-type rule this document still
+declines), 22 common-type constructs, and 5 literals with nothing typed
+opposite them.
+
+None of that residue is a failure mode: an untyped operand degrades to tier 2's
+candidate set, which answers the property question whenever the survivors
+agree. Filling the whole tree is a stronger goal than the engine's purpose
+requires — it needs a type only where candidates DISAGREE about totality or
+strictness.
+
+### Still uncovered — named so they are not mistaken for settled
+
+The 2026-08-06 design conversation did not reach these, and each is a real
+question rather than a detail:
+
+- **Operator shadowing under `search_path`.** `src/query/operators.ts` carries
+  a documented blind spot: the curated sets match BARE NAMES, so a user-defined
+  operator of the same name is invisible to them. Tier 1 with real signatures
+  could close that — or inherit it, if the candidate set is gathered without
+  the path. Undecided.
+- **Aggregates and window functions.** This document's witness corpus covers
+  them, but exact match against `VARIADIC "any"`, `WITHIN GROUP` and `FILTER`
+  shapes was never worked through. `rank('a') WITHIN GROUP (ORDER BY u.val)` is
+  the shape to reason about first.
+- **Domain-following is asserted from ONE measurement** (`dint + dint` resolves
+  as integer). That it holds for every domain over every base is assumed, not
+  established.
+
+### Tier 2's consensus quantifier is per-PROPERTY, not global
+
+`every` is the right quantifier for TOTALITY and the wrong one for
+STRICTNESS, and the difference is which way each property fails.
+
+- **Totality**: claiming total when a survivor is not is UNSOUND (a wrong
+  notNull). Consensus with `every` under-claims, which costs precision only.
+- **Strictness**: it is the ABSENCE of the claim that hurts. Mechanism C uses
+  strictness to predict a raise; not claiming strict where PostgreSQL is
+  strict makes the emitted contract ADMIT a binding that raises — a lie about
+  a call that fails. Claiming strict where it is not merely reads a parameter
+  as non-nullable where NULL would have been accepted.
+
+So tier 2 takes `every` for totality and `some` for strictness. This is not a
+new principle: it is `builtinSetReturningFunctions`' `bool_or` argument
+(2026-08-05) and the reason `TOTAL_OPERATORS` and `STRICT_OPERATORS` became
+two sets (2026-08-06) — measured, when dropping `||` from the strict set made
+the generated corpus admit three bindings PostgreSQL rejects.
+
+Tier 1 needs no quantifier at all: one candidate, read its flags.
 
 ### The governing invariant
 
@@ -120,6 +396,22 @@ Read from the catalog, never inferred:
 Explicitly NOT available, and each degrades to "no type, eliminate
 nothing": operator results, `CASE`/`COALESCE` common types, unknown-typed
 literals, and the result of an implicit coercion.
+
+**Operator results DO have a type, via tier 1** — corrected 2026-08-06, after
+two wrong answers. The closed list above excludes them, which was right only
+under the tier-2-only design: there, `a + b` yields five possible return types
+and no consensus, so `(a + b) + (c + d)` loses its claim. Two remedies were
+proposed and both were wrong — "take the return type by consensus across
+survivors" (there is none) and "carry the SET of survivor return types" (sound,
+but solving a problem that need not exist). Under tier 1 an operator whose
+arguments resolve exactly HAS an exact return type, and the nesting composes
+with no new machinery at all.
+
+The exclusion therefore stands only for operands tier 1 cannot resolve, where
+it means what it always meant: no type, eliminate nothing, degrade to today's
+behaviour. `CASE`/`COALESCE` common types and unknown-typed literals stay
+excluded outright — those need the common-type resolution this document still
+refuses to implement.
 
 ### The elimination rule
 
