@@ -6629,14 +6629,38 @@ class NullabilityEngine {
     const node = expr as Record<string, unknown>;
     if ("FuncCall" in node) {
       const fc = node["FuncCall"] as FuncCall;
+      // A call carrying OVER is a WINDOW call, and a window call collapses
+      // NOTHING: `sum(x) OVER ()` yields one row per input row, so an empty
+      // input yields no rows at all. The sole consumer is
+      // `guaranteesSingleRow`, where a wrong TRUE is the unsound direction —
+      // a scalar sublink over zero rows is NULL, and a `LANGUAGE sql` body
+      // that returns no row returns NULL. Measured six ways against PGlite at
+      // both call sites, including `count(*) OVER ()`, which reached the same
+      // wrong answer through the `agg_star` short-circuit without consulting
+      // a name table at all.
+      //
+      // The ARGUMENTS still count: `sum(count(*)) OVER ()` is a single-group
+      // aggregate query producing exactly one row, which the window function
+      // then ranges over. Recursing preserves that reading, which the old
+      // code reached by accident, via `sum` being an aggregate name.
+      //
+      // The two sibling aggregate tests have always excluded `over` (the
+      // origin rule's `containsAggregate`, and the strict-scalar gate). This
+      // was the one site that did not.
+      if (fc.over) {
+        for (const a of fc.args ?? []) {
+          if (this.exprHasAggregate(a)) return true;
+        }
+        return false;
+      }
       // count(*) is always an aggregate.
       if (fc.agg_star) return true;
       // Check by function name against common built-in aggregates.
       const name = this.funcName(fc);
-      if (AGGREGATE_NAMES.has(name)) return true;
-      // Also check catalog for isAggregate.
+      // The user catalog first, then pg_catalog's own aggregate names.
       const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
       if (meta?.isAggregate) return true;
+      if (!meta && this.catalog.isAggregateBuiltin(name)) return true;
     }
     // Recurse into sub-expressions.
     if ("A_Expr" in node) {
@@ -6761,7 +6785,8 @@ class NullabilityEngine {
     }
 
     // Priority 2b: window functions. Checked before the aggregate rule because
-    // the ranking functions share names with entries in AGGREGATE_NAMES.
+    // the ranking functions are BOTH — prokind 'aw' — so they answer yes to
+    // the aggregate question too.
     if (fc.over) {
       trace.addFact("windowFunction", "true");
       if (NEVER_NULL_WINDOW_FNS.has(name)) {
@@ -6860,7 +6885,8 @@ class NullabilityEngine {
 
     // Priority 3: Aggregate (other than count).
     const isAggregate =
-      !!meta?.isAggregate || (!meta && AGGREGATE_NAMES.has(name) && name !== "count");
+      !!meta?.isAggregate ||
+      (!meta && this.catalog.isAggregateBuiltin(name) && name !== "count");
     if (isAggregate) {
       trace.addFact("priority", meta ? "3 (aggregate)" : "3 (aggregate by name, not in catalog)");
       return this.resolveAggregateTraced(fc, name, argResults, scope, trace);
@@ -7043,7 +7069,7 @@ class NullabilityEngine {
 
   private isAggregateByName(name: string, schema: string | undefined): boolean {
     const meta = this.catalog.resolveFunctionMetadata(schema, name);
-    return meta?.isAggregate ?? AGGREGATE_NAMES.has(name);
+    return meta?.isAggregate ?? this.catalog.isAggregateBuiltin(name);
   }
 
   private funcReturnsNotNullDomain(meta: FunctionInfo): boolean {
@@ -7766,13 +7792,13 @@ class NullabilityEngine {
 // because their WITHIN GROUP argument is not modelled here.
 // ---------------------------------------------------------------------------
 
-const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
+export const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
   "sum", "avg", "min", "max",
   "bit_and", "bit_or", "bool_and", "bool_or", "every",
   "array_agg", "string_agg", "json_agg", "jsonb_agg",
 ]);
 
-const NEVER_NULL_WINDOW_FNS = new Set([
+export const NEVER_NULL_WINDOW_FNS = new Set([
   "row_number", "rank", "dense_rank", "percent_rank", "cume_dist",
 ]);
 
@@ -7791,7 +7817,7 @@ const FRAMEOPTION_DEFAULTS = 1058;
  * NULL argument (NULLs order like values). Measured; total, hence notNull
  * unconditionally.
  */
-const HYPOTHETICAL_SET_AGGREGATES = new Set([
+export const HYPOTHETICAL_SET_AGGREGATES = new Set([
   "rank", "dense_rank", "percent_rank", "cume_dist",
 ]);
 
@@ -7801,7 +7827,7 @@ const HYPOTHETICAL_SET_AGGREGATES = new Set([
  * direct argument (percentile fraction) — all measured. Non-null exactly
  * when none of those can happen.
  */
-const ORDERED_SET_AGGREGATES = new Set(["percentile_disc", "percentile_cont", "mode"]);
+export const ORDERED_SET_AGGREGATES = new Set(["percentile_disc", "percentile_cont", "mode"]);
 
 // ---------------------------------------------------------------------------
 // pg_catalog built-ins.
@@ -7823,11 +7849,16 @@ const ORDERED_SET_AGGREGATES = new Set(["percentile_disc", "percentile_cont", "m
 // ---------------------------------------------------------------------------
 
 /** Built-ins that never return NULL, whatever their arguments. */
-const ALWAYS_NOT_NULL_BUILTINS = new Set([
+export const ALWAYS_NOT_NULL_BUILTINS = new Set([
   // Clock / session. Zero-argument, always defined.
   "now", "clock_timestamp", "statement_timestamp", "transaction_timestamp",
-  "current_database", "current_catalog", "current_user", "current_role",
-  "session_user", "user", "version", "pi", "random", "gen_random_uuid",
+  // `current_catalog`, `current_role` and `user` were here and are gone: they
+  // are not pg_catalog FUNCTIONS at all, and the parser turns each into a
+  // SQLValueFunction node that never reaches this dispatch. (`current_user`
+  // and `session_user` parse that way too, but they ARE functions, so a
+  // qualified call can still arrive and they stay.)
+  "current_database", "current_user",
+  "session_user", "version", "pi", "random", "gen_random_uuid",
   "txid_current", "pg_backend_pid",
   // concat ignores NULL arguments; all-NULL input yields '' , not NULL.
   "concat",
@@ -7843,13 +7874,13 @@ const ALWAYS_NOT_NULL_BUILTINS = new Set([
  * `concat_ws(NULL, 'a')` is NULL but `concat_ws(',', NULL)` is ''; likewise
  * `format(NULL)` is NULL but `format('%s', NULL)` is ''.
  */
-const FIRST_ARG_BUILTINS = new Set(["concat_ws", "format"]);
+export const FIRST_ARG_BUILTINS = new Set(["concat_ws", "format"]);
 
 /**
  * Built-ins that are total over non-null arguments: non-null in, non-null out.
  * Raising on bad input still counts — an error is not a NULL.
  */
-const STRICT_TOTAL_BUILTINS = new Set([
+export const STRICT_TOTAL_BUILTINS = new Set([
   // Math
   "abs", "ceil", "ceiling", "floor", "round", "trunc", "sign", "sqrt", "cbrt",
   "exp", "ln", "log", "log10", "power", "mod", "div", "gcd", "lcm",
@@ -7875,7 +7906,10 @@ const STRICT_TOTAL_BUILTINS = new Set([
   "initcap", "length", "char_length", "character_length",
   "octet_length", "bit_length", "md5", "ascii", "chr", "repeat", "reverse",
   "substr", "replace", "translate", "overlay",
-  "ltrim", "rtrim", "btrim", "trim", "lpad", "rpad",
+  // `trim` was here and is gone: PostgreSQL's grammar rewrites every TRIM
+  // spelling to `pg_catalog.btrim` before the walk sees it (measured), and
+  // there is no pg_catalog.trim for a quoted call to reach either.
+  "ltrim", "rtrim", "btrim", "lpad", "rpad",
   "split_part", "strpos", "position", "left", "right", "starts_with",
   "quote_ident", "quote_literal", "quote_nullable",
   "to_date", "to_timestamp", "to_hex",
@@ -8016,17 +8050,14 @@ const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
 // import cycle; see the comment there for the total/strict distinction.
 const TOTAL_OPERATORS = TOTAL_STRICT_OPERATORS;
 
-const AGGREGATE_NAMES = new Set([
-  "array_agg", "avg", "bit_and", "bit_or", "bool_and", "bool_or",
-  "cluster", "corr", "count", "covar_pop", "covar_samp", "cume_dist",
-  "dense_rank", "every", "first_value", "lag", "last_value", "lead",
-  "listagg", "max", "min", "mode", "percent_rank", "percentile_cont",
-  "percentile_disc", "rank", "regr_avgx", "regr_avgy", "regr_count",
-  "regr_intercept", "regr_r2", "regr_slope", "regr_sxx", "regr_sxy",
-  "regr_syy", "row_number", "stddev", "stddev_pop", "stddev_samp",
-  "string_agg", "sum", "variance", "var_pop", "var_samp", "xmlagg",
-  "jsonb_agg", "jsonb_object_agg", "json_agg", "json_object_agg",
-]);
+// The curated AGGREGATE_NAMES table is gone. `pg_proc.prokind = 'a'` was in
+// the catalog the whole time, and the table had drifted in three directions
+// at once — 12 of PG18's 54 aggregates missing, two names PostgreSQL has no
+// function for (`cluster`, `listagg`), and five pure WINDOW functions that no
+// consumer can reach. The replacement is
+// `CatalogSnapshot.builtinAggregateFunctions`, read through
+// `catalog.isAggregateBuiltin`; see that field for why a MISSING name is the
+// direction that bites.
 
 // ---------------------------------------------------------------------------
 // AST node types (minimal — only fields we access).

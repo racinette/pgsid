@@ -439,6 +439,8 @@ export async function buildNullabilityCatalog(
 
   const builtinSetReturning = new Set(snapshot.builtinSetReturningFunctions ?? []);
   const isSetReturningBuiltin = (name: string): boolean => builtinSetReturning.has(name);
+  const builtinAggregates = new Set(snapshot.builtinAggregateFunctions ?? []);
+  const isAggregateBuiltin = (name: string): boolean => builtinAggregates.has(name);
 
   const resolveColumnNotNull = (
     schema: string,
@@ -733,6 +735,7 @@ export async function buildNullabilityCatalog(
     resolveFunctionShapes,
     functionReturnsSet,
     isSetReturningBuiltin,
+    isAggregateBuiltin,
     resolveBuiltinFunctionShape,
     resolveColumnNotNull,
     resolveColumnNotNullTree,

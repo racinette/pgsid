@@ -415,6 +415,7 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     builtinStrictFunctions: [],
     builtinTableFunctions: {},
     builtinSetReturningFunctions: [],
+    builtinAggregateFunctions: [],
     builtinFunctionNames: [],
     builtinPolymorphicFunctions: [],
   };

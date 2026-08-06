@@ -1,0 +1,12 @@
+-- The same defect at the other call site: a `LANGUAGE sql` function body.
+--
+-- The body of `window_body()` is `SELECT count(*) OVER () FROM t`, which
+-- returns one row per row of `t` — so over an empty `t` it returns no row and
+-- the function returns NULL. The body's gate is the same
+-- `guaranteesSingleRow`, reached from the function-body path rather than from
+-- the scalar-sublink one, and it reported "single row" for the same reason.
+--
+-- The sublink half is window-call-not-single-row-sublink.sql. A bare
+-- aggregate in the same position genuinely does collapse, and keeps its claim
+-- (`SELECT (SELECT count(*) FROM t)` is notNull over every state, measured).
+SELECT window_body() AS body_window  -- @nullable

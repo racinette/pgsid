@@ -452,6 +452,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinStrictFunctions,
     builtinTableFunctions,
     builtinSetReturningFunctions,
+    builtinAggregateFunctions,
     builtinFunctionNames,
     builtinPolymorphicFunctions,
     inheritsRows,
@@ -478,6 +479,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinStrictFunctions(pg),
     queryBuiltinTableFunctions(pg),
     queryBuiltinSetReturningFunctions(pg),
+    queryBuiltinAggregateFunctions(pg),
     queryBuiltinFunctionNames(pg),
     queryBuiltinPolymorphicFunctions(pg),
     queryInherits(pg),
@@ -863,6 +865,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinStrictFunctions,
     builtinTableFunctions,
     builtinSetReturningFunctions,
+    builtinAggregateFunctions,
     builtinFunctionNames,
     builtinPolymorphicFunctions,
   };
@@ -1232,6 +1235,16 @@ async function queryBuiltinFunctionNames(pg: PGlite): Promise<string[]> {
  * pg_catalog function names with a POLYMORPHIC return type, where the type
  * a call actually yields comes from its arguments. See
  * CatalogSnapshot.builtinPolymorphicFunctions.
+ *
+ * The predicate is the `any…` type NAMES, not `typtype = 'p'`. Those are not
+ * the same question and the difference is 572 names against 65: `'p'` is
+ * PSEUDO-type, which also covers `trigger`, `void`, `cstring`, `record`,
+ * `internal` and the handler types, none of which is polymorphic. The
+ * direction was safe — the only consumer concludes `scalar` from a builtin
+ * being NON-polymorphic, so over-capture refuses where PostgreSQL would have
+ * answered — but it made a documented 68-name set silently nine times wider
+ * than its own comment. Found by the catalog-feature census
+ * (docs/generated-surface.md item 1) while classifying `pg_type.typtype`.
  */
 async function queryBuiltinPolymorphicFunctions(pg: PGlite): Promise<string[]> {
   const res = await pg.query<{ name: string }>(
@@ -1240,7 +1253,22 @@ async function queryBuiltinPolymorphicFunctions(pg: PGlite): Promise<string[]> {
      JOIN pg_namespace n ON n.oid = p.pronamespace
      JOIN pg_type rt ON rt.oid = p.prorettype
      WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
-       AND rt.typtype = 'p'
+       AND rt.typname LIKE 'any%'
+     ORDER BY p.proname;`,
+  );
+  return res.rows.map(r => r.name);
+}
+
+/**
+ * pg_catalog aggregate names. See CatalogSnapshot.builtinAggregateFunctions
+ * for the three ways the hand-curated table it replaces had drifted.
+ */
+async function queryBuiltinAggregateFunctions(pg: PGlite): Promise<string[]> {
+  const res = await pg.query<{ name: string }>(
+    `SELECT DISTINCT p.proname AS name
+     FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'pg_catalog' AND p.prokind = 'a'
      ORDER BY p.proname;`,
   );
   return res.rows.map(r => r.name);

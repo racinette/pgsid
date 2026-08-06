@@ -449,6 +449,30 @@ export interface CatalogSnapshot {
    */
   builtinSetReturningFunctions: string[];
   /**
+   * pg_catalog AGGREGATE names (prokind 'a').
+   *
+   * Replaces a hand-curated table of 49 names that was wrong in three
+   * directions at once, which is what a name table unfalsifiable by
+   * construction looks like after enough time: it MISSED 12 of PG18's 54
+   * aggregates (`any_value`, `bit_xor`, `range_agg`, the eight
+   * `json*_agg_strict`/`_unique` forms), it carried two names PostgreSQL has
+   * no function for at all (`cluster`, `listagg`), and it carried five pure
+   * WINDOW functions (`row_number`, `lag`, `lead`, `first_value`,
+   * `last_value` — prokind 'w'), which can only be called with OVER and are
+   * therefore unreachable at every consumer.
+   *
+   * A missing name is the direction that bites. The strict-scalar gate
+   * excludes aggregates by asking this question, so a name it does not
+   * recognise proceeds to the strictness test — and an aggregate over zero
+   * rows is NULL however strict it is. Nothing was reachable in PG18 only
+   * because `builtinStrictFunctions` filters `prokind = 'f'`, so no aggregate
+   * name currently reaches it: safety by coincidence of a DIFFERENT table's
+   * filter, which is what this capture removes.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinAggregateFunctions: string[];
+  /**
    * Every pg_catalog function name (prokind 'f').
    *
    * The name SET, not their signatures: it answers "does PostgreSQL search
@@ -468,7 +492,13 @@ export interface CatalogSnapshot {
    * renders with `any…` (`anyarray`, `anycompatiblearray`, `anyelement`,
    * `anyrange`), so the actual type comes from the call's arguments.
    *
-   * 68 of PG18's 2726 function names. A builtin whose return type is
+   * 65 of PG18's 2726 function names, keyed on the `any…` type NAMES. Not
+   * `typtype = 'p'`, which is PSEUDO-type and admits `trigger`, `void`,
+   * `cstring`, `record` and `internal` — that spelling made this set 572
+   * names wide against a comment claiming 68, in the safe direction but
+   * silently (found by the catalog-feature census).
+   *
+   * A builtin whose return type is
    * concrete can never yield an array of a USER composite type, which is
    * what makes the difference between one `unnest` column and the element
    * type's fields; a polymorphic one can (`array_cat` of two `sku_pair[]`
