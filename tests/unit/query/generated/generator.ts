@@ -509,6 +509,52 @@ function joinStructures(): JoinStructure[] {
     expectations: [expectLateral, expectJoins("JOIN_LEFT")],
   });
 
+  // The FROM-ITEM axis: a SETOF <table> function standing where `u` stood.
+  //
+  // `RETURNS SETOF u` ERASES u's NOT NULLs — PostgreSQL re-imposes nothing,
+  // measured — so the only sound source of a guarantee is the BODY, which the
+  // walk reads back and ORs into the declared list. That is the imprecision
+  // closure's class A, and it moves claims from nullable to notNull, which is
+  // the UNSOUND direction; until this axis it had no generated coverage at
+  // all, because the corpus had no table function to call.
+  //
+  // The slots are the t–u slots with `u` replaced by the function's output, so
+  // every projection, set operation and wrapper runs over it unchanged — and
+  // the matchLiterals still hold, because `gfn_urows(t.id)` returns exactly
+  // the rows `ON u.t_id = t.id` selects.
+  //
+  // Only the cross and LEFT forms exist, for the same reason the lateral
+  // structures have no FULL variant: a function FROM-item referencing an
+  // earlier one is lateral, and RIGHT/FULL LATERAL is not legal SQL.
+  const srfItem = (lateral: boolean): Ast => ({
+    RangeFunction: {
+      ...(lateral ? { lateral: true } : {}),
+      functions: [
+        { List: { items: [funcCall("gfn_urows", [colRef("t", "id")]), {}] } },
+      ],
+      alias: { aliasname: "g" },
+    },
+  });
+  const srfSlots: Slots = {
+    ...tuSlots,
+    textB: colRef("g", "email"),
+    textC: colRef("g", "val"),
+  };
+  out.push({
+    key: "srf-cross",
+    fromClause: [rangeVar("t"), srfItem(false)],
+    slots: srfSlots,
+    extras: [],
+    expectations: [expect("table function", "RangeFunction"), expectJoins()],
+  });
+  out.push({
+    key: "srf-left",
+    fromClause: [join("JOIN_LEFT", rangeVar("t"), srfItem(true), boolConst(true))],
+    slots: srfSlots,
+    extras: [],
+    expectations: [expect("table function", "RangeFunction"), expectJoins("JOIN_LEFT")],
+  });
+
   // The generated-columns structure: gm's text slots are GENERATED columns
   // (safe_label = COALESCE(b,'anon'), label = b||'!'), so every projection
   // and wrapper puts presumePresent-through-generation under the oracle —

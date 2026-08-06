@@ -812,6 +812,9 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     "nest-right(right,right)",
     "single(inner)",
     "single(right)",
+    // A cross-joined table function does not NULL-extend: a call returning
+    // no rows removes the row outright, so `g` is present wherever a row is.
+    "srf-cross",
   ]);
 
   const UNWITNESSABLE: UnwitnessableRule[] = [
@@ -827,6 +830,18 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         axes.projection === "case-nullif" &&
         column === "a_case" &&
         CASE_DARK_STRUCTURES.has(axes.structure),
+    },
+    {
+      label: "srf-refilter-implies-the-function-row-is-present",
+      why:
+        "the refilter wrappers pin a_tc IS NOT NULL, and under srf-left a_tc " +
+        "is g.val — non-null only on a row the table function actually " +
+        "returned. So g is present there, and g.email is NOT NULL through the " +
+        "body read-back that recovers what SETOF u erased. The LEFT JOIN's " +
+        "extension is real and witnessed in every other wrapper; under the " +
+        "refilter no surviving row can carry it.",
+      matches: (axes, column) =>
+        axes.structure === "srf-left" && column === "a_tb" && axes.wrapper.endsWith("refilter"),
     },
     {
       label: "variadic-refused-while-its-operands-are-present",

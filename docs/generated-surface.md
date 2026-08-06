@@ -482,6 +482,43 @@ from `absent` to carried-and-exercised, and the actionable gap count went
 both need a FROM-ITEM axis rather than a target-list one, and `sub-partition`
 needs t/u/v restructured.
 
+**The FROM-ITEM axis followed immediately (2026-08-06), and it closes the
+row-returning half of the same mechanism.** `fn-call` covers the walk reading a
+SCALAR body back; a `RETURNS SETOF <table>` function is the OTHER half — the
+declaration ERASES the table's NOT NULLs, PostgreSQL re-imposes nothing, and
+the BODY is the only sound source of a guarantee (the imprecision closure's
+class A). Two structures, `srf-cross` and `srf-left`, put `gfn_urows(t.id)`
+where `u` stood, with the t–u slots pointing at the function's output — so
+every projection, set operation and wrapper runs over it unchanged, and the
+matchLiterals still hold because the function returns exactly the rows
+`ON u.t_id = t.id` selects. Measured before building: the cross form recovers
+`g.id` and `g.email` through the erasure, the LEFT form correctly drops them,
+and PostgreSQL agrees with both.
+
+Only the cross and LEFT forms exist, for the same reason the lateral
+structures have no FULL variant — a function FROM-item referencing an earlier
+one is lateral, and RIGHT/FULL LATERAL is not legal SQL. The corpus went
+**10456 → 10864 queries and notNull claims 17747 → 18683**, all falsifiable,
+with the same zeroes across every oracle.
+
+The body is `SELECT *` rather than an explicit column list, which is not
+laziness: the `composite-key` variant ADDS a column to `u`, and an explicit
+list stops matching the declared return type the moment it does. The star
+expansion is handled and the read-back recovers the same flags either way
+(measured with and without the extra column).
+
+Two more things this axis settled. `function-overloaded-across-schemas`
+closed by giving the `second-schema` variant an `app_s.gfn_sd(integer)` beside
+public's `gfn_sd(text)` — an unqualified call the corpus already makes, now
+with candidates in two schemas and different signatures. And
+`table-row-type-column` is narrower than the count suggests: the census entry
+is about a COLUMN's declared type, but the WALK BRANCH behind it —
+`resolveCompositeType` falling through to the relation — is now exercised by
+`SETOF u` through `columnsForReturnType`. What is missing is the column
+spelling, which needs a composite-star projection the target-list model does
+not accommodate (a `(col).*` target has no fixed arity, so literals and
+matchLiterals cannot be written for it).
+
 Four things the build measured, worth keeping:
 
 - **A NEW imprecision, and this axis is the first thing that could reach it.**
