@@ -585,6 +585,12 @@ Four gates gives the reading, each measured and each pinned from both sides by a
   single-field composite the body's one column is the field under one reading and
   the whole row under the other, and those disagree.
 
+#### A call that never runs
+
+Both readings above describe what the function produces *when it runs*, and a STRICT call handed an argument that is not provably non-null does not. For a non-set-returning function that call emits one row of **all NULLs** (measured — its NOT NULL domain columns included), which is exactly the row the FROM item contributes. So the flags are cleared where the item's column list is assembled: the body reading and the declared domain reading fall together, because the same row falsifies both. The names stay — a FROM item that contributes the wrong COLUMNS is the one thing worse than a wrong flag.
+
+The argument that is NULL is often the one the caller never wrote: a `DEFAULT NULL` parameter the call omits reaches the function as NULL like any other. Set-returning functions are excluded for the reason above — strictness makes them return no rows — and an unresolved overloaded name is quantified the conservative way: any candidate that could short-circuit clears the list.
+
 Two bounds are recorded rather than closed. A body's PARAMETERS read nullable —
 the caller's NULL does reach the output (measured), and proving otherwise means
 threading the call's argument nullability and being right about its join state at
@@ -663,9 +669,24 @@ Once step 3 has run for every output column, we emit the result: a list of `{ na
 
 When the walk arrives at a `FuncCall` node, it recurses into the function's arguments first (each arg resolves to a boolean), then looks up the function in the catalog by name + arg types and applies the appropriate rule. The rules are checked **in priority order** — the first match wins:
 
+### What the call passes: named order, then defaults
+
+Before any rule runs, the walked arguments are laid out over the *parameter* list. Named notation is reordered to definition order, and every position the call left empty is filled from that parameter's **default expression** (`FunctionArgInfo.defaultExpr`, pre-parsed into `NullabilityCatalog.fnArgDefaultAsts`). A call that omits a defaulted parameter is a call that passes that expression: `def_lit(a integer, b integer DEFAULT 7)` invoked as `def_lit(x)` computes `a + b` with `b` = 7, and PostgreSQL's result is total.
+
+The default is **walked, never evaluated** — `DEFAULT 7` and `DEFAULT length('abc')` are non-null, `DEFAULT nullif(1, 1)` is not, `DEFAULT NULL` is the case that turns a strict call into a NULL. It is walked in an empty scope with no enclosing function context: a default cannot reference the caller's columns or the function's other parameters (`column "a" does not exist` — measured), so it is closed over nothing.
+
+Two positions are left unbound, and both then read as unproven rather than as non-null: a default the walk could not parse, and anything **past an interleaved OUT parameter**. `(a int, OUT x int, b int DEFAULT 5)` is a legal declaration (measured) and a call's own positional arguments stop lining up with the parameter list at `x`, so a misaligned binding is worse than an unbound one.
+
+Everything that asks "are all the arguments non-null" therefore asks it per INPUT parameter, not over the supplied list — a position the call never reached counts as unproven.
+
 ### Priority 1: NOT NULL domain return
 
 If the function's return type is a domain whose `notNull` flag is set (from `DomainInfo.notNull` in the catalog), the result is **non-null**. PG enforces domain constraints at the call boundary — if the function body returns NULL, PG throws an error. This wins over everything below. This is the PG-native escape hatch for guaranteeing non-null returns from user functions (especially `LANGUAGE plpgsql` whose bodies we can't statically analyze).
+
+**The domain is enforced on a value the function RETURNS**, so two calls that produce no such value are excluded and each returns NULL past the declaration:
+
+- a **STRICT** function handed an argument that is not provably non-null. It returns NULL without entering the body, and the domain never sees it — measured for `LANGUAGE sql` and plpgsql alike, and for the argument PostgreSQL supplied itself from a `DEFAULT NULL`. Such a call falls through to priority 4, which concludes nullable for it; the domain rule is the only thing that would have preempted that. A set-returning function is not excluded: strictness makes it return NO rows (measured), and a claim about columns of rows that do not exist cannot be contradicted;
+- an **AGGREGATE**. Over zero input rows there is no transition and no final value, so the result is NULL whatever the declared return type says (measured). Aggregates continue to priority 3, which owns the empty-input question.
 
 ### Priority 2: `count`
 
@@ -690,7 +711,7 @@ The default is **nullable** — an aggregate over zero rows returns NULL, and ov
 
 ### Priority 4: Strict scalar function — the nullable direction only
 
-If `isAggregate` is false and `strict` is true (from `FunctionInfo.strict` in the catalog) and **any argument resolved nullable** → **nullable**, concluded before the body walk, whose analysis a strict function with a NULL argument never even runs. That is the whole of what strictness licenses: NULL in ⇒ NULL out. It says nothing about non-null input — `lookup_name(t.id)` over a missing row returns NULL from a non-null argument (measured, the sweep's finding 5) — so with all arguments non-null the dispatch falls THROUGH: to priority 5's body walk for `LANGUAGE sql` (whose zero-row gate is what makes `lookup_name` honest), and to conservative nullable otherwise. The notNull direction needs TOTALITY, which no catalog flag carries — the same distinction `TOTAL_OPERATORS` and `STRICT_TOTAL_BUILTINS` draw. The consensus twin over overloaded names follows the same rule.
+If `isAggregate` is false and `strict` is true (from `FunctionInfo.strict` in the catalog) and **any input parameter is not provably non-null** → **nullable**, concluded before the body walk, whose analysis a strict function with a NULL argument never even runs. That is the whole of what strictness licenses: NULL in ⇒ NULL out. It says nothing about non-null input — `lookup_name(t.id)` over a missing row returns NULL from a non-null argument (measured, the sweep's finding 5) — so with all arguments non-null the dispatch falls THROUGH: to priority 5's body walk for `LANGUAGE sql` (whose zero-row gate is what makes `lookup_name` honest), and to conservative nullable otherwise. The notNull direction needs TOTALITY, which no catalog flag carries — the same distinction `TOTAL_OPERATORS` and `STRICT_TOTAL_BUILTINS` draw. The consensus twin over overloaded names follows the same rule.
 
 ### Priority 5: `LANGUAGE sql` user function
 
@@ -1094,7 +1115,7 @@ Each category should have multiple fixtures covering the cases listed:
 10. **Subqueries (FROM):** subquery in FROM with internal join structure; output columns inherit.
 11. **Scalar subqueries (EXPR_SUBLINK):** plain FROM → nullable; aggregate → recurse; count(*) → non-null; LIMIT 1 → still nullable.
 12. **EXISTS / NOT EXISTS:** → non-null.
-13. **Functions:** strict scalar (AND of args); non-strict (nullable); count (non-null); max/sum (nullable); NOT NULL domain return (non-null); LANGUAGE sql body (recurse); window function (ignore OVER).
+13. **Functions:** strict scalar (AND of args, over the parameter list a default may have filled); non-strict (nullable); count (non-null); max/sum (nullable); NOT NULL domain return (non-null, unless the call short-circuits or aggregates); LANGUAGE sql body (recurse); window function (ignore OVER).
 14. **Set operations:** UNION (AND of operands); INTERSECT; EXCEPT.
 15. **VALUES:** with NULL and non-null literals.
 16. **`SELECT *` expansion:** multiple relations, column order.

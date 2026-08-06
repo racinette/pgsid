@@ -118,6 +118,10 @@ interface FunctionRow {
   proargmodes: string[] | null;
   pronargs: number;
   pronargdefaults: number;
+  /** One rendered default expression per argument POSITION (null where the
+   *  argument has none), aligned with `proallargtypes`/`proargtypes`; null
+   *  for a function with no defaults at all. */
+  argdefaults: (string | null)[] | null;
   /** `pg_aggregate.agginitval` for aggregates; null otherwise (and null when
    *  the aggregate has no initial condition). */
   agg_init_val: string | null;
@@ -334,7 +338,13 @@ function resolveAttnums(
  *   all-IN types.
  * - `proargmodes` (char[]) is null when all args are IN.
  * - `proargnames` (text[]) is null when all args are unnamed.
- * - The last `pronargdefaults` args have defaults (PG stores trailing defaults).
+ * - The last `pronargdefaults` INPUT args have defaults (PG stores trailing
+ *   defaults). Counting over input args is what makes this right when an OUT
+ *   parameter sits between them: `(a int, OUT x int, b int DEFAULT 5, OUT y
+ *   int)` defaults its THIRD position, not its fourth (measured), and the
+ *   count-everything reading marked `y` and left `b` required — which put a
+ *   legal one-argument call outside the arity window `resolveFunctionCandidates`
+ *   computes from these flags.
  */
 function resolveFunctionArgs(
   row: FunctionRow,
@@ -355,17 +365,22 @@ function resolveFunctionArgs(
   const names = row.proargnames ?? typeOids.map(() => "");
   const nargs = typeOids.length;
   const nDefaults = row.pronargdefaults ?? 0;
-  const firstDefault = nargs - nDefaults;
+  const isInput = (m: ArgMode): boolean => m !== "out" && m !== "table";
+  const inputCount = modes.slice(0, nargs).filter(m => isInput(mapArgMode(m))).length;
+  const firstDefaultInput = inputCount - nDefaults;
 
   const args: FunctionArgInfo[] = [];
+  let inputIndex = 0;
   for (let i = 0; i < nargs; i++) {
     const oid = typeOids[i]!;
+    const mode = mapArgMode(modes[i] ?? "i");
     args.push({
       name: names[i] ?? "",
       typeOid: oid,
       typeName: typeNames.get(oid) ?? "unknown",
-      mode: mapArgMode(modes[i] ?? "i"),
-      hasDefault: i >= firstDefault,
+      mode,
+      hasDefault: isInput(mode) && inputIndex++ >= firstDefaultInput,
+      defaultExpr: row.argdefaults?.[i] ?? null,
     });
   }
   return args;
@@ -1123,6 +1138,21 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
             p.proargmodes,
             p.pronargs,
             p.pronargdefaults,
+            -- One default expression per argument POSITION. The second
+            -- argument of pg_get_function_arg_default indexes the FULL
+            -- argument list (it maps that position to the input-argument
+            -- number itself, and answers NULL for an OUT position —
+            -- measured), so the array lines up with proallargtypes and needs
+            -- no mode arithmetic on this side. Skipped entirely for the
+            -- functions that have no defaults, which is nearly all of them.
+            CASE WHEN p.pronargdefaults > 0
+                 THEN ARRAY(SELECT pg_get_function_arg_default(p.oid, i)
+                            FROM generate_series(
+                                   1,
+                                   coalesce(array_length(p.proallargtypes, 1), p.pronargs)
+                                 ) i)
+                 ELSE NULL
+            END AS argdefaults,
             a.agginitval AS agg_init_val
      FROM pg_proc p
      JOIN pg_namespace n ON n.oid = p.pronamespace

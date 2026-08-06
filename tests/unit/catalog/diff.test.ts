@@ -286,6 +286,20 @@ describe("diffCatalogs: functions", () => {
     expect(diff.modified).toEqual([]);
   });
 
+  it("argument default change → modified (the identity args do not carry it)", () => {
+    // `pg_get_function_identity_arguments` renders `a integer` whether or not
+    // the parameter declares a DEFAULT, so the entity id is unchanged and the
+    // state has to say it. A default decides what a call that omits the
+    // parameter passes — a query-visible property, unlike the body.
+    const arg = (defaultExpr: string | null): FunctionInfo["args"] => [
+      { name: "a", typeOid: 23, typeName: "integer", mode: "in", hasDefault: defaultExpr !== null, defaultExpr },
+    ];
+    const before = snapshot({ functions: [fn("public", "calc", "integer", { args: arg("7") })] });
+    const after = snapshot({ functions: [fn("public", "calc", "integer", { args: arg("9") })] });
+    const diff = diffCatalogs(before, after);
+    expect(diff.modified.map(m => m.entityId)).toEqual(["public.calc(integer)"]);
+  });
+
   it("arg type change → different id (old removed, new added)", () => {
     const before = snapshot({ functions: [fn("public", "calc", "integer")] });
     const after = snapshot({ functions: [fn("public", "calc", "text")] });

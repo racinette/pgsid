@@ -139,11 +139,19 @@ function viewState(v: ViewInfo): {
  * intentionally excluded: a body-only change (CREATE OR REPLACE with the same
  * signature) does NOT affect query type signatures, so it must not trigger a
  * re-typecheck.
+ *
+ * Argument DEFAULTS are in, and `argTypes` does not carry them:
+ * `pg_get_function_identity_arguments` renders `a integer, b integer` for a
+ * parameter declared `DEFAULT 7` (measured). A default decides which call
+ * ARITIES resolve to this function and what value an omitted parameter
+ * carries, so changing one changes what a call site means — the property the
+ * entity id and this state exist to detect.
  */
 function functionState(f: FunctionInfo): {
   schema: string;
   name: string;
   argTypes: string;
+  argDefaults: (string | null)[];
   returnType: string;
   language: string;
   isProcedure: boolean;
@@ -159,6 +167,7 @@ function functionState(f: FunctionInfo): {
     // Both rendered by PostgreSQL from the same catalog rows the OIDs point at
     // — `pg_get_function_identity_arguments` and `pg_get_function_result`.
     argTypes: f.argTypes,
+    argDefaults: f.args.map(a => a.defaultExpr),
     returnType: f.returnType,
     language: f.language,
     isProcedure: f.isProcedure,

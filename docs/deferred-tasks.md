@@ -601,21 +601,19 @@ corpora surface.
    than being retrofitted.
 
 **The precision residue is now its own handoff** — `docs/precision-residue.md`
-(2026-08-07). Four open items that neither chartered effort owns, collected
-because they were otherwise scattered across an `@unwitnessable` reason, an
-`UNWITNESSABLE` rule in a generated suite, a residue paragraph in a closed
-charter and an entry in this register — four places, none of which reads as a
-work list. All four are SOUND: a nullable where the value is provably
-non-null, or a refusal rather than a guess. None blocks a consumer, and
-shipping with all four open costs precision only.
+(2026-08-07). Items that neither chartered effort owns, collected because they
+were otherwise scattered across an `@unwitnessable` reason, an `UNWITNESSABLE`
+rule in a generated suite, a residue paragraph in a closed charter and an entry
+in this register — four places, none of which reads as a work list. Item 1 is
+closed; the three below are open and SOUND as assessed: a nullable where the
+value is provably non-null, or a refusal rather than a guess. None blocks a
+consumer, and shipping with all three open costs precision only.
 
-1. **A defaulted argument is not substituted into the body** — the walk binds
-   only the arguments the CALL supplies, so a `DEFAULT`ed parameter is unbound
-   and reads nullable where PostgreSQL substitutes and the result is total.
-   Found by the function-call generator axis, which was the first thing that
-   could reach it. A SNAPSHOT change before a walk change:
-   `FunctionArgInfo.hasDefault` is a boolean and the default EXPRESSION is
-   captured nowhere.
+1. **A defaulted argument is not substituted into the body** — CLOSED
+   2026-08-07, and it did not stay a precision item: `DEFAULT NULL` plus
+   strictness made five claims wrong. The closure entry in section 2 has the
+   list and the fix; the standing lesson is that "sound" on an item in that
+   handoff is a measurement someone made once, not a property.
 2. **Join-level versus member-level presence** — "this join cannot extend its
    left side" is not "every member of that side is present", and the fixpoint's
    vocabulary is aliases. Costs `c.id` in
@@ -732,6 +730,60 @@ routes named; `docs/imprecision-closure.md` carries the measurements.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by ARGUMENT SUBSTITUTION (2026-08-07, `docs/precision-residue.md` item
+1), which began as one precision item and ended as five wrong claims. The
+precision item first: a defaulted parameter the call omits was left unbound
+and read nullable, where PostgreSQL substitutes the declared expression —
+`gfn_def(a integer, b integer DEFAULT 7)` called with one argument is total. A
+snapshot change before a walk change, as the handoff predicted:
+`pg_get_function_arg_default` per argument POSITION (its second argument
+indexes the full list and answers NULL for an OUT position — measured), parsed
+in the adapter beside the generation expressions, filled into the argument
+vector before any FuncCall rule runs. Walked, never evaluated: `DEFAULT 7` and
+`DEFAULT length('abc')` are non-null, `DEFAULT nullif(1, 1)` is not.
+
+Then the question the item forces — what does a call actually PASS — met
+strictness, and `DEFAULT NULL` is where they meet. **A strict function handed
+a NULL argument does not run**, so no guarantee read off the function
+describes that call. Five shapes claimed notNull against PostgreSQL's NULL,
+one cause:
+
+1. a strict `LANGUAGE sql` body inlined for a call whose omitted argument
+   defaults to NULL (the body's own claim, never reached);
+2. the NOT NULL DOMAIN return at priority 1, which preempted the strict rule —
+   `dom_strict(t.name) RETURNS nn_text` is NULL for a NULL name, `LANGUAGE sql`
+   and plpgsql alike, because the domain is enforced on a value the call never
+   produces;
+3. the same in the FROM position, where a non-set-returning strict call emits
+   one row of ALL NULLs — the declared domain columns among them;
+4. the BODY reading in the FROM position, on that same all-NULL row (measured
+   through the plain spelling, a `ROWS FROM` and a column definition list);
+5. an AGGREGATE returning a NOT NULL domain, which priority 1 also claimed —
+   over zero input rows there is no final value for the domain to constrain.
+
+The fixes are one idea in three places: the argument vector is built once and
+asked per INPUT parameter (a position the call never reached counts as
+unproven); priority 1 stands down for a call that can short-circuit and for
+aggregates; the FROM item's flags are cleared where its column list is
+assembled, since one row falsifies the declared and body readings together.
+Set-returning functions are excluded throughout — strictness makes them return
+NO rows, and a claim about columns of rows that do not exist cannot be
+contradicted. `FunctionArgInfo.hasDefault` was wrong too, and fixed on the
+way: it counted trailing positions over ALL arguments, so an interleaved OUT
+parameter took the flag and the defaulted input lost it, putting a legal call
+arity outside the window `resolveFunctionCandidates` computes. Argument
+defaults joined the diff's comparable state with it —
+`pg_get_function_identity_arguments` does not render them, so a default-only
+change was invisible.
+
+Seven fixtures, each mutation-checked to fail alone; the generated corpus
+(11632 queries) ran clean and `a_fd` moved to notNull, retiring the
+`default-argument-not-substituted` rule. What it costs: a call is not bound
+past an interleaved OUT parameter, so `mid_out(t.id, 2)` reads nullable where
+PostgreSQL returns the id — recorded on
+`function-strict-out-parameter-gap.sql`, the one shape where positional
+arguments and the parameter list stop lining up.
 
 Closed by the SCHEMA AXIS (2026-08-06, `docs/generated-surface.md` item 4) on
 its first run, in the mechanism the register had measured as having zero

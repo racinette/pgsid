@@ -282,6 +282,32 @@ describe("snapshotCatalog: functions and procedures", () => {
     expect(f?.args[0]?.hasDefault).toBe(false);
     expect(f?.args[1]?.hasDefault).toBe(true);
     expect(f?.args[2]?.mode).toBe("variadic");
+
+    // The default EXPRESSION, not just the flag: what a call that omits the
+    // parameter actually passes. Rendered by PostgreSQL, so it carries the
+    // cast it resolved to.
+    expect(f?.args[0]?.defaultExpr).toBeNull();
+    expect(f?.args[1]?.defaultExpr).toBe("5");
+    expect(f?.args[2]?.defaultExpr).toBe("'{}'::integer[]");
+  });
+
+  it("counts defaults over INPUT arguments when an OUT parameter interleaves", async () => {
+    await pg.exec("SET check_function_bodies TO off;");
+    // Legal, and the shape that separates the two readings: PostgreSQL stores
+    // the default against `b` — the third POSITION and the second INPUT
+    // argument — so counting trailing positions over the whole list marks the
+    // OUT parameter instead, and leaves `b` looking required.
+    await pg.exec(`
+      CREATE FUNCTION public.mid_out_fn(a integer, OUT x integer, b integer DEFAULT NULL)
+      LANGUAGE sql AS $$ SELECT a $$;
+    `);
+    const s = await snapshotCatalog(pg);
+    const f = findFn(s, "public", "mid_out_fn", "a integer, OUT x integer, b integer");
+    expect(f?.args.map(a => [a.name, a.mode, a.hasDefault, a.defaultExpr])).toEqual([
+      ["a", "in", false, null],
+      ["x", "out", false, null],
+      ["b", "in", true, "NULL::integer"],
+    ]);
   });
 
   it("includes extension functions (plpgsql_check) but they are not validated", async () => {

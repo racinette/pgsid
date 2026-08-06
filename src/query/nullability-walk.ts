@@ -3517,6 +3517,17 @@ class NullabilityEngine {
       const fc = callNode?.["FuncCall"] as FuncCall | undefined;
       if (!fc) continue;
 
+      // Every route that can contribute a CLAIM goes through here. A call
+      // that SHORT-CIRCUITS contributes none: a strict function handed a NULL
+      // argument returns one row of all NULLs (measured), which is exactly
+      // the row this item emits. It falsifies the declared reading (a NOT
+      // NULL domain among the OUT parameters) and the body reading alike, so
+      // the flags are cleared where they are ASSEMBLED rather than in each
+      // rule. The two routes that push directly below have nothing to clear.
+      const push = (itemCols: { name: string; notNull: boolean }[]): void => {
+        cols.push(...this.clearShortCircuitedColumns(itemCols, fc, scope));
+      };
+
       // A column definition list (`AS z(a integer, b text)`) is what makes a
       // record-returning call legal at all, and it fully determines the
       // item's shape: the ColumnDefs' names, one column each, every one
@@ -3538,7 +3549,7 @@ class NullabilityEngine {
         const recMeta = bodyReadable
           ? this.catalog.resolveFunctionMetadata(this.funcSchema(fc), this.funcName(fc))
           : null;
-        cols.push(...(recMeta ? this.refineColumnsFromBody(declared, recMeta, 0) : declared));
+        push(recMeta ? this.refineColumnsFromBody(declared, recMeta, 0) : declared);
         continue;
       }
 
@@ -3605,7 +3616,7 @@ class NullabilityEngine {
         if (allCandidates.length > 0) {
           const shapes = allCandidates.map(shapeOf);
           if (agree(shapes)) {
-            cols.push(...shapes[0]!);
+            push(shapes[0]!);
             continue;
           }
           // Disagreement: narrow to the candidates that accept this
@@ -3621,7 +3632,7 @@ class NullabilityEngine {
           if (candidates && candidates.length > 0) {
             const narrowed = candidates.map(shapeOf);
             if (agree(narrowed)) {
-              cols.push(...narrowed[0]!);
+              push(narrowed[0]!);
               continue;
             }
           }
@@ -3641,7 +3652,7 @@ class NullabilityEngine {
         // nullable column, which is what PostgreSQL emits for them.
         const builtinShape = this.catalog.resolveBuiltinFunctionShape(this.funcSchema(fc), name);
         if (builtinShape) {
-          cols.push(...this.columnsForReturnType(builtinShape, scalarName));
+          push(this.columnsForReturnType(builtinShape, scalarName));
           continue;
         }
         cols.push({ name: scalarName, notNull: false });
@@ -3652,7 +3663,7 @@ class NullabilityEngine {
       // consensus loop above runs over candidates that share one `fnBodyAsts`
       // key, so reading a body there would hand every overload the same one.
       const declared = this.functionOutputColumns(meta, scalarName);
-      cols.push(...(bodyReadable ? this.refineColumnsFromBody(declared, meta, 0) : declared));
+      push(bodyReadable ? this.refineColumnsFromBody(declared, meta, 0) : declared);
     }
 
     if (rf?.ordinality) {
@@ -4169,6 +4180,31 @@ class NullabilityEngine {
       name: a.name,
       notNull: this.catalog.isNotNullDomain(a.typeOid),
     }));
+  }
+
+  /**
+   * A FROM item's column list with every flag cleared when the call behind it
+   * can SHORT-CIRCUIT — see `callCanShortCircuit`. The row such a call emits
+   * is all NULLs, whatever the declaration or the body says.
+   *
+   * The candidate set is quantified the conservative way: ANY candidate that
+   * could short-circuit clears the list, because an overloaded name is
+   * resolved by argument types the walk does not compute. Skipped outright
+   * when the list claims nothing, which is the common case and keeps the
+   * argument walk off the hot path.
+   */
+  private clearShortCircuitedColumns(
+    cols: { name: string; notNull: boolean }[],
+    fc: FuncCall,
+    scope: Scope | null,
+  ): { name: string; notNull: boolean }[] {
+    if (!cols.some(c => c.notNull)) return cols;
+    const candidates = this.catalog.resolveFunctionShapes(this.funcSchema(fc), this.funcName(fc));
+    const shortCircuits = candidates.some(m =>
+      this.callCanShortCircuit(m, this.callArgumentResults(m, fc, scope, 0)),
+    );
+    if (!shortCircuits) return cols;
+    return cols.map(c => ({ name: c.name, notNull: false }));
   }
 
   /** Whether a type name as printed by PostgreSQL is a NOT NULL domain. */
@@ -6783,11 +6819,29 @@ class NullabilityEngine {
     const meta = this.catalog.resolveFunctionMetadata(schema, name);
     trace.addFact("catalogMeta", meta ? `${meta.schema}.${meta.name} (lang=${meta.language}, strict=${meta.strict}, agg=${meta.isAggregate})` : "not found");
 
-    // Reorder named arguments to match function definition order.
-    const orderedArgs = this.maybeReorderNamedArgs(fc.args ?? [], argResults, meta);
+    // Reorder named arguments to match function definition order, then fill
+    // the positions the call left to their DEFAULTS — what the function
+    // actually receives, which is what every rule below reasons about.
+    const reordered = this.maybeReorderNamedArgs(fc.args ?? [], argResults, meta);
+    const orderedArgs = meta
+      ? this.bindDefaultArguments(meta, reordered.ordered, reordered.supplied, depth, trace)
+      : reordered.ordered;
 
-    // Priority 1: NOT NULL domain return.
-    if (meta && this.funcReturnsNotNullDomain(meta)) {
+    // Priority 1: NOT NULL domain return — for a call that RUNS. Two calls
+    // never reach the domain at all, and each returns NULL past it:
+    //
+    //   - a STRICT function handed a NULL argument, which returns without
+    //     entering the body, so there is no returned value for the domain to
+    //     be enforced on (measured, `LANGUAGE sql` and plpgsql alike);
+    //   - an AGGREGATE over zero input rows, which is NULL whatever its
+    //     declared return type (measured) — they continue to the aggregate
+    //     rule, which owns the empty-input question.
+    //
+    // The strict call falls through to priority 4, which concludes nullable
+    // for it; the domain is the only rule that would have preempted that.
+    const shortCircuits = !!meta && this.callCanShortCircuit(meta, orderedArgs);
+    if (shortCircuits) trace.addFact("shortCircuits", "true");
+    if (meta && !meta.isAggregate && !shortCircuits && this.funcReturnsNotNullDomain(meta)) {
       trace.addFact("priority", "1 (NOT NULL domain return)");
       trace.conclude(true, "returns NOT NULL domain -> PG enforces at call boundary");
       return true;
@@ -6804,7 +6858,18 @@ class NullabilityEngine {
         : null;
     if (consensus && consensus.length > 0) {
       trace.addFact("overloadConsensus", `${consensus.length} arity-compatible candidates`);
-      if (consensus.every(c => this.funcReturnsNotNullDomain(c))) {
+      // The domain claim needs the same short-circuit clearance the resolved
+      // case needs, and by consensus that means NO candidate may short-circuit
+      // — whichever one PostgreSQL picks has to be one that runs.
+      const suppliedPositions = argResults.map(() => true);
+      const noneShortCircuits = consensus.every(
+        c =>
+          !this.callCanShortCircuit(
+            c,
+            this.bindDefaultArguments(c, argResults, suppliedPositions, depth, NOOP),
+          ),
+      );
+      if (noneShortCircuits && consensus.every(c => !c.isAggregate && this.funcReturnsNotNullDomain(c))) {
         trace.addFact("priority", "1 (NOT NULL domain return, by consensus)");
         trace.conclude(true, "every candidate returns a NOT NULL domain → notNull whichever runs");
         return true;
@@ -6930,7 +6995,12 @@ class NullabilityEngine {
     // zero-row gate is what makes lookup_name honest), and to conservative
     // nullable otherwise. The same distinction TOTAL_OPERATORS and
     // STRICT_TOTAL_BUILTINS draw, now drawn here too.
-    if (meta && meta.strict && !meta.isAggregate && !orderedArgs.every(r => r)) {
+    if (
+      meta &&
+      meta.strict &&
+      !meta.isAggregate &&
+      !this.allArgumentsNonNull(meta, orderedArgs)
+    ) {
       trace.addFact("priority", "4 (strict)");
       trace.addFact("argsNotNull", `[${orderedArgs.map(r => r ? "T" : "F").join(", ")}]`);
       trace.conclude(false, "strict: at least one arg nullable");
@@ -7065,18 +7135,26 @@ class NullabilityEngine {
    * Positional args fill from the start; named args fill their specific
    * definition position. If no NamedArgExpr is present, no reordering is
    * needed.
+   *
+   * `supplied` marks the positions the CALL actually filled, which is what
+   * separates "the caller passed something nullable" from "the caller passed
+   * nothing at all" — the second is a defaulted parameter, and
+   * `bindDefaultArguments` is what puts a value there.
    */
   private maybeReorderNamedArgs(
     args: Node[],
     argResults: boolean[],
     meta: FunctionInfo | null,
-  ): boolean[] {
-    if (!meta) return argResults;
+  ): { ordered: boolean[]; supplied: boolean[] } {
+    const positional = (n: number): boolean[] => argResults.map((_, i) => i < n);
+    if (!meta) return { ordered: argResults, supplied: positional(argResults.length) };
     const hasNamed = args.some(a => "NamedArgExpr" in (a as Record<string, unknown>));
-    if (!hasNamed) return argResults;
+    if (!hasNamed) return { ordered: argResults, supplied: positional(argResults.length) };
 
     const paramNames = meta.args.map(a => a.name);
-    const ordered = new Array<boolean>(Math.max(paramNames.length, argResults.length)).fill(false);
+    const width = Math.max(paramNames.length, argResults.length);
+    const ordered = new Array<boolean>(width).fill(false);
+    const supplied = new Array<boolean>(width).fill(false);
     let positionalIdx = 0;
     for (let i = 0; i < args.length; i++) {
       const arg = args[i] as Record<string, unknown>;
@@ -7085,13 +7163,151 @@ class NullabilityEngine {
         const defIdx = paramNames.indexOf(na.name);
         if (defIdx >= 0) {
           ordered[defIdx] = argResults[i]!;
+          supplied[defIdx] = true;
         }
       } else {
         ordered[positionalIdx] = argResults[i]!;
+        supplied[positionalIdx] = true;
         positionalIdx++;
       }
     }
-    return ordered;
+    return { ordered, supplied };
+  }
+
+  /**
+   * What each PARAMETER of `meta` receives, with declared DEFAULTS filling the
+   * positions the call left empty.
+   *
+   * A call that omits a defaulted parameter is a call that passes that
+   * parameter's expression: `gfn_def(a integer, b integer DEFAULT 7)` invoked
+   * as `gfn_def(x)` computes `a + b` with `b` = 7, and PostgreSQL's result is
+   * total where the unbound reading called it nullable. The expression is
+   * WALKED, never evaluated — `DEFAULT nullif(1, 1)` is NULL and
+   * `DEFAULT now()` is not — and a default that did not parse leaves its
+   * position alone, where the caller's conservative reading already sits.
+   *
+   * It is walked in an EMPTY scope with no enclosing function context: a
+   * default cannot reference the caller's columns or the function's other
+   * parameters (`column "a" does not exist` — measured), so it is closed over
+   * nothing. The cycle-detection set is the one thing carried through, since
+   * the default may itself be a call.
+   *
+   * Substitution stops at the first non-input parameter. Positions after an
+   * OUT parameter no longer line up with the call's own argument list —
+   * `(a int, OUT x int, b int DEFAULT 5)` is legal (measured) — and a
+   * misaligned binding is worse than an unbound one.
+   */
+  private bindDefaultArguments(
+    meta: FunctionInfo,
+    ordered: boolean[],
+    supplied: boolean[],
+    depth: number,
+    trace: ITrace,
+  ): boolean[] {
+    const defaults = this.catalog.fnArgDefaultAsts.get(
+      `${meta.schema}.${meta.name}(${meta.argTypes})`,
+    );
+    if (!defaults) return ordered;
+
+    let bound: boolean[] | null = null;
+    for (let i = 0; i < meta.args.length; i++) {
+      const arg = meta.args[i]!;
+      if (arg.mode === "out" || arg.mode === "table") break;
+      if (supplied[i]) continue;
+      const expr = defaults[i];
+      if (!expr) continue;
+      bound ??= ordered.slice();
+      bound[i] = this.walkDefaultExpr(expr, depth, trace.addChild(`default[${arg.name}]`));
+    }
+    return bound ?? ordered;
+  }
+
+  /** Walk one argument default in the context it is evaluated in: none. */
+  private walkDefaultExpr(expr: Node, depth: number, trace: ITrace): boolean {
+    const prevCtx = this.fnCtx;
+    const prevParamNames = this.fnParamNames;
+    this.fnCtx = prevCtx ? { argResults: [], analyzing: prevCtx.analyzing } : null;
+    this.fnParamNames = null;
+    try {
+      return this.walkExprTraced(expr, this.emptyScope(null), depth + 1, trace);
+    } catch (e) {
+      // A default the walk refuses costs the CALL its precision, not the
+      // statement its analysis — the rule the body inliner already follows.
+      if (e instanceof UnsupportedNodeError) return false;
+      throw e;
+    } finally {
+      this.fnCtx = prevCtx;
+      this.fnParamNames = prevParamNames;
+    }
+  }
+
+  /**
+   * Whether every ARGUMENT this call passes is provably non-null — the
+   * question strictness turns into "does the function run at all".
+   *
+   * Asked per INPUT parameter rather than over the array, because a position
+   * the call never reached (an under-supplied argument, a default the walk
+   * could not read, a position after an interleaved OUT parameter) is absent
+   * from `bound` and must count as unproven. The extra pass over `bound`
+   * itself catches a VARIADIC call's overflow arguments, which sit past the
+   * end of the parameter list.
+   */
+  private allArgumentsNonNull(meta: FunctionInfo, bound: boolean[]): boolean {
+    return (
+      bound.every(r => r) &&
+      meta.args.every(
+        (a, i) => a.mode === "out" || a.mode === "table" || bound[i] === true,
+      )
+    );
+  }
+
+  /**
+   * Whether a call to `meta` can SHORT-CIRCUIT: return without running its
+   * body at all, because strictness saw a NULL argument.
+   *
+   * PostgreSQL answers a strict call with a NULL argument by returning NULL
+   * and never entering the function — so nothing the body proves, and nothing
+   * the DECLARED return type promises, describes that call. Measured in all
+   * three shapes: a scalar returns NULL; a `RETURNS <composite>` yields one
+   * row of all NULLs, its NOT NULL domain columns included; a set-returning
+   * one yields no rows at all, which is why `returnsSet` is excluded here —
+   * a claim about columns of rows that do not exist cannot be contradicted.
+   *
+   * Aggregates are excluded too: `proisstrict` on an aggregate is a property
+   * of its transition function, not of the call.
+   */
+  private callCanShortCircuit(meta: FunctionInfo, bound: boolean[]): boolean {
+    if (!meta.strict || meta.isAggregate || meta.returnsSet) return false;
+    return !this.allArgumentsNonNull(meta, bound);
+  }
+
+  /**
+   * The substituted argument vector for a call the walk is looking at from
+   * OUTSIDE an expression walk — the FROM-position shape questions, which
+   * have a `FuncCall` and a scope but no walked arguments yet.
+   *
+   * A refused argument counts as unproven rather than propagating: the shape
+   * question must still be answered, and answering it conservatively is the
+   * standing response to a sub-expression the walk cannot read.
+   */
+  private callArgumentResults(
+    meta: FunctionInfo,
+    fc: FuncCall,
+    scope: Scope | null,
+    depth: number,
+  ): boolean[] {
+    const argScope = scope ?? this.emptyScope(null);
+    const args = fc.args ?? [];
+    const walked = args.map(a => {
+      try {
+        return this.walkExpr(a, argScope, depth + 1);
+      } catch (e) {
+        if (e instanceof UnsupportedNodeError) return false;
+        throw e;
+      }
+    });
+    const { ordered, supplied } = this.maybeReorderNamedArgs(args, walked, meta);
+    return this.bindDefaultArguments(meta, ordered, supplied, depth, NOOP);
   }
 
   private isAggregateByName(name: string, schema: string | undefined): boolean {
