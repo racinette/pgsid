@@ -417,6 +417,26 @@ DELIBERATELY dangles a quarter of its rows so the corpus's RIGHT and FULL JOIN
 structures have something to extend, so the data was built to violate the key
 the mechanism reasons from.
 
+**Item 4's residue is CLOSED (2026-08-06): the function-call axis.** The
+generator called exactly ONE function — `max` — while the fixture schema
+defined 66, so a VARIADIC parameter, a DEFAULTED argument, an INOUT
+parameter, a user aggregate without INITCOND, a user window function, a
+SECURITY DEFINER body and — the one that mattered — a `LANGUAGE sql` body
+being READ BACK all had no call site. Two projections (`fn-call`,
+`fn-agg-window`) and six new schema functions close it: **the corpus grew
+8980 → 10456 queries, notNull claims 16631 → 17747, all falsifiable, with
+zero rejections, refusals, column-list disagreements or violations.** Both
+mechanisms the register measured at zero generated coverage are now covered
+— foreign-key entailment by the schema axis, the body read-back by this.
+Actionable census gaps went 9 → 3 (`table-row-type-column` and
+`function-overloaded-across-schemas` need a FROM-item axis rather than a
+target-list one; `sub-partition` needs t/u/v restructured). It found one
+NEW imprecision, recorded not fixed: the walk reads a body back but binds
+only the arguments the CALL supplies, so a DEFAULTED parameter is unbound
+and reads nullable where PostgreSQL substitutes the default and the result
+is total. Closing it means substituting declared defaults into the body
+scope before descending.
+
 **Item 3 is BUILT (2026-08-06): the totality tables, probed by execution**,
 `tests/unit/query/totality-probe.test.ts`, seven assertions each
 mutation-tested to fail alone. 789 signatures → 13,270 expressions, 10,866

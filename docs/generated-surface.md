@@ -456,15 +456,54 @@ invisible would starve the reference.
 | **no query can EVER reach** | 2 | `procedure` (CALL is a statement, not an expression — no SELECT/INSERT/UPDATE/DELETE/MERGE can invoke one) and `foreign-table` (PGlite ships no FDW; `postgres_fdw` and `file_fdw` are both absent from `pg_available_extensions`, measured). Marked `unreachableByQuery` in `catalog-features.ts` so they stop being counted as pending work, with an assertion that no variant may claim one. |
 | **actionable** | 9 | 8 of them wait on ONE piece of work — see below — and the ninth is `sub-partition`, which needs `t`/`u`/`v` restructured. |
 
-**The one remaining job is a generator axis that CALLS a user function.** The
-generator calls exactly ONE function today — `max` — while the fixture schema
-defines 66, so nothing reaches a variadic parameter, a defaulted argument, an
-INOUT parameter, a user aggregate or window function, a SECURITY DEFINER body,
-or a cross-schema overload. The same axis closes the `LANGUAGE sql` body
-read-back, which is the second of the two mechanisms this document measured at
-ZERO generated coverage (item 4 closed the foreign-key half). Eight gaps and
-one uncovered mechanism, from one piece of work — it is the highest-value item
-left in this document.
+**The function-call axis is BUILT (2026-08-06), and it closes the last
+zero-coverage mechanism.** The generator called exactly ONE function — `max` —
+while the fixture schema defined 66, so a VARIADIC parameter, a DEFAULTED
+argument, an INOUT parameter, a user aggregate or window function, a SECURITY
+DEFINER body, and — the one that mattered — a `LANGUAGE sql` body being READ
+BACK all had no call site. Two projections now exist:
+
+- `fn-call` — a VARIADIC call, a call with ONE argument against a DEFAULTED
+  two-parameter declaration, an INOUT parameter, a SECURITY DEFINER body, and
+  `double_val`, whose `LANGUAGE sql` body the walk reads back. That last one is
+  the second of the two mechanisms this document measured at ZERO generated
+  coverage, and it is now exercised across the entire structural space.
+- `fn-agg-window` — a user aggregate with NO INITCOND (the branch `aggInitVal`
+  gates, which the schema's three existing user aggregates all declare their
+  way out of) and a USER window function.
+
+Six new functions in `fixtures/schema.sql` give it a vocabulary, each
+deliberately able to return NULL because the suite requires every nullable
+claim to be witnessed. **The corpus grew from 8980 to 10456 queries; notNull
+claims from 16631 to 17747, all falsifiable; zero rejections, zero refusals,
+zero column-list disagreements, zero violations.** Six census features moved
+from `absent` to carried-and-exercised, and the actionable gap count went
+**9 → 3** — `table-row-type-column` and `function-overloaded-across-schemas`
+both need a FROM-ITEM axis rather than a target-list one, and `sub-partition`
+needs t/u/v restructured.
+
+Four things the build measured, worth keeping:
+
+- **A NEW imprecision, and this axis is the first thing that could reach it.**
+  `gfn_def(a integer, b integer DEFAULT 7)` called with one argument: the walk
+  reads the body back but binds only the arguments the CALL supplies, so `b`
+  is unbound and `a + b` reads nullable, while PostgreSQL substitutes 7 and the
+  result is total. Sound conservatism. Closing it means substituting declared
+  defaults into the body scope before the walk descends; recorded as an
+  UNWITNESSABLE rule rather than fixed.
+- **`upper`'s lost totality, now observed rather than argued.** `gfn_io`'s body
+  is `SELECT upper(a)`, and `upper` left `STRICT_TOTAL_BUILTINS` over the
+  empty-range finding, so the body reads nullable however non-null its
+  argument. This is the precision cost `docs/type-aware-overloads.md` exists to
+  recover, and it now has a measurement attached.
+- **`CREATE FUNCTION … WINDOW` works in SQL.** The attribute is documented
+  C-only; PostgreSQL accepts and runs a `LANGUAGE sql` one (measured), which is
+  the only reason `user-window-function` was reachable at all.
+- **An enum column and a text-taking function axis conflict.** The
+  `enum-column` variant retypes `textC`, and an enum is not implicitly
+  coercible to `text`, so a call taking that slot does not resolve there — 128
+  rejections until the axis moved to `textB`. The slot a function-call axis
+  reads has to stay text-compatible across every variant.
 
 The twelve variants cover validated and DEFERRABLE foreign keys, a NOT
 ENFORCED one, NOT NULL domains and a domain over a domain, inheritance with an

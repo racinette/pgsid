@@ -774,6 +774,46 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     "nest-left(full,right)",
   ]);
 
+  /**
+   * Structures in which the `u` side is never absent from a returned row, so
+   * a claim whose only witness is an ABSENT u cannot be witnessed there.
+   *
+   * Enumerated rather than computed, following CASE_DARK_STRUCTURES above and
+   * for the same reason: the property is not one rule. Three different things
+   * produce it — the join that attaches `u` is INNER (only matched rows
+   * survive) or RIGHT (every u row survives and `t` extends instead); a LATER
+   * join is INNER and its strict qual on `u`'s columns discards the extended
+   * rows; or the extension is joint, so no row has `u` absent while the other
+   * slots are present. A predicate broad enough to cover all three would also
+   * excuse structures that SHOULD witness, and would do it silently.
+   *
+   * 22 of the axis's structures. Collected by measurement, not by reasoning.
+   */
+  const U_NEVER_ABSENT = new Set([
+    "gm(inner)",
+    "gm(right)",
+    "lateral-cross",
+    "nest-left(full,inner)",
+    "nest-left(full,right)",
+    "nest-left(inner,inner)",
+    "nest-left(inner,left)",
+    "nest-left(left,inner)",
+    "nest-left(right,full)",
+    "nest-left(right,inner)",
+    "nest-left(right,left)",
+    "nest-left(right,right)",
+    "nest-right(inner,full)",
+    "nest-right(inner,inner)",
+    "nest-right(inner,left)",
+    "nest-right(inner,right)",
+    "nest-right(right,full)",
+    "nest-right(right,inner)",
+    "nest-right(right,left)",
+    "nest-right(right,right)",
+    "single(inner)",
+    "single(right)",
+  ]);
+
   const UNWITNESSABLE: UnwitnessableRule[] = [
     {
       label: "case-needs-t-without-u",
@@ -787,6 +827,58 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         axes.projection === "case-nullif" &&
         column === "a_case" &&
         CASE_DARK_STRUCTURES.has(axes.structure),
+    },
+    {
+      label: "variadic-refused-while-its-operands-are-present",
+      why:
+        "gfn_var is VARIADIC, so resolveFunctionCandidates refuses to " +
+        "arity-filter against it and the call is conservatively nullable — " +
+        "which is the whole point of having it. Its body returns NULL only " +
+        "when EVERY argument is NULL, because array_to_string ignores them; " +
+        "in single(inner) and single(right) the u side is always present " +
+        "carrying a NOT NULL email, so no data can produce that. Every other " +
+        "structure witnesses it.",
+      matches: (axes, column) =>
+        axes.projection === "fn-call" && column === "a_fv" && U_NEVER_ABSENT.has(axes.structure),
+    },
+    {
+      label: "user-aggregate-transition-function-is-opaque",
+      why:
+        "gfn_noinit has no INITCOND, so it is NULL over zero input rows — but " +
+        "GROUP BY yields no empty group, and the walk cannot know that THIS " +
+        "transition function never returns NULL over non-empty input " +
+        "(NON_NULL_OVER_NONEMPTY_AGGREGATES is a curated set of BUILTINS; a " +
+        "user aggregate's sfunc is opaque to it). In single(inner) and " +
+        "single(right) the aggregated column is always present and non-null, " +
+        "so nothing witnesses the claim there.",
+      matches: (axes, column) =>
+        axes.projection === "fn-agg-window" && column === "a_fa" && U_NEVER_ABSENT.has(axes.structure),
+    },
+    {
+      label: "default-argument-not-substituted",
+      why:
+        "gfn_def is declared `(a integer, b integer DEFAULT 7)` and called " +
+        "with ONE argument, so PostgreSQL substitutes 7 and `a + b` is never " +
+        "NULL. The walk reads the body back but binds only the arguments the " +
+        "CALL supplies, leaving `b` unbound and therefore nullable — sound " +
+        "conservatism, and a real imprecision this axis is the first thing to " +
+        "reach. Closing it means substituting declared defaults into the body " +
+        "scope before the walk descends. Witnessed nowhere: the claim is " +
+        "false only where t.id is present, and there the result is total.",
+      matches: (axes, column) => axes.projection === "fn-call" && column === "a_fd",
+    },
+    {
+      label: "upper-lost-its-totality",
+      why:
+        "gfn_io's body is `SELECT upper(a)`, and `upper` left " +
+        "STRICT_TOTAL_BUILTINS when the curated-table audit found its " +
+        "`(anyrange)` overload returns NULL for an empty range — name-level " +
+        "dispatch cannot separate that from the total `(text)` form. So the " +
+        "body reads nullable however non-null its argument, and no data can " +
+        "witness it: `upper` of a non-null text is always non-null. This is " +
+        "the precision cost docs/type-aware-overloads.md exists to recover, " +
+        "now measured under generation rather than argued.",
+      matches: (axes, column) => axes.projection === "fn-call" && column === "a_fi",
     },
     {
       label: "merge-action-conservative",
