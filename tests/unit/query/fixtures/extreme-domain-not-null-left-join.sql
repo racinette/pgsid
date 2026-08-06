@@ -1,5 +1,11 @@
--- @unwitnessable 1: the LEFT JOIN's ON is an equality on a NOT NULL foreign key, so it always matches and never null-extends
--- @unwitnessable 2: same join: the optional side is present in every state
+-- @unwitnessable 1: the ON is `c.id = 1`, a CONSTANT — not a key of any
+--   kind — and `dense` is the one state that seeds coupons row 1, so the
+--   join matches wherever this fixture returns rows and the optional side
+--   never null-extends. A state seeding coupons WITHOUT id 1 would witness
+--   both claims: a seed-data gap, not engine imprecision. (The reason
+--   recorded here before named a NOT NULL foreign key, which this join
+--   does not have.)
+-- @unwitnessable 2: same join, same reason
 -- @null-group 1*,2*
 -- (c's unit; its absent arm is unwitnessable by the discriminants' own
 -- recorded reasons above — the derived exemption. c2's unit forms no group:
