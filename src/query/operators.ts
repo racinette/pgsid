@@ -21,7 +21,9 @@ export const TOTAL_STRICT_OPERATORS: ReadonlySet<string> = new Set([
   // returning NULL, so they are total in the sense that matters here.
   "+", "-", "*", "/", "%", "^",
   // Comparison — always a plain boolean for non-null operands.
-  "=", "<>", "!=", "<", ">", "<=", ">=",
+  // `!=` was here and is gone: PostgreSQL's lexer converts it to `<>` before
+  // a parse tree exists, so no A_Expr ever carries the spelling (measured).
+  "=", "<>", "<", ">", "<=", ">=",
   // Concatenation (text, array, jsonb).
   "||",
   // Pattern matching: LIKE / ILIKE / regex, and their negations.

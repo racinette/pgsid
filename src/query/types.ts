@@ -168,6 +168,15 @@ export interface NullabilityCatalog {
   isSetReturningBuiltin(name: string): boolean;
 
   /**
+   * Whether `name` is a pg_catalog AGGREGATE (prokind 'a') — the snapshot's
+   * measured replacement for a curated table that missed 12 of PG18's 54
+   * aggregates while carrying two non-functions and five pure window
+   * functions. Consulted only where the user catalog has no metadata for the
+   * name, like every builtin question.
+   */
+  isAggregateBuiltin(name: string): boolean;
+
+  /**
    * The FROM-position shape of a pg_catalog function with named output
    * columns, as `TABLE(col type, …)`, or null. Consulted only where the
    * user catalog has no candidate for the name — a user function of the

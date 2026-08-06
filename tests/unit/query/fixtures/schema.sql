@@ -983,3 +983,15 @@ CREATE TABLE fk_chi () INHERITS (fk_par);
 -- claimed notNull for both meanings. Found by auditing the curated tables
 -- against PostgreSQL's own source rather than by hand.
 CREATE TABLE rng (id integer NOT NULL, span int4range NOT NULL);
+
+-- A `LANGUAGE sql` body whose last statement carries a WINDOW call. The
+-- body's row-count gate asks `guaranteesSingleRow`, which reads "an
+-- aggregate with no GROUP BY collapses to exactly one row" — and the
+-- aggregate test it used counted a WINDOWED call as an aggregate. A window
+-- call collapses nothing: this body returns one row per row of `t`, so over
+-- an empty `t` it returns NO row and the function returns NULL. Found by
+-- auditing AGGREGATE_NAMES against pg_catalog, where `row_number` and four
+-- siblings are prokind 'w'.
+CREATE FUNCTION window_body() RETURNS bigint LANGUAGE sql AS $$
+  SELECT count(*) OVER () FROM t
+$$;

@@ -353,6 +353,55 @@ ride along), so it holds 572 names where its own comment claims 68 — safe
 direction, since the sole consumer refuses on it and over-capture costs
 precision only.
 
+**Item 2 is BUILT (2026-08-06): the curated tables, held to pg_catalog**,
+`tests/unit/query/curated-tables.test.ts`, six assertions, each
+mutation-tested to fail alone. It convicted on its first run and the biggest
+finding was not in a table at all.
+
+**`AGGREGATE_NAMES` is gone**, the `BUILTIN_SRF_NAMES` treatment applied to
+the table the register had trusted longest. `prokind = 'a'` was in the
+catalog the whole time, and the table had drifted in three directions at
+once: 12 of PG18's 54 aggregates MISSING (`any_value`, `bit_xor`,
+`range_agg`, the eight `json*_agg_strict`/`_unique` forms), two names
+PostgreSQL has no function for (`cluster`, `listagg`), and five pure WINDOW
+functions (`row_number`, `lag`, `lead`, `first_value`, `last_value`) that
+can only be called with OVER and so reach no consumer.
+`CatalogSnapshot.builtinAggregateFunctions` replaces it, ENVIRONMENT like
+`builtinStrictFunctions`, and one predicate fixes all three directions.
+Completeness had to be the goal rather than correction: the strict-scalar
+gate excludes aggregates by asking this question, so an unrecognised name
+proceeded to the strictness test, and an aggregate over zero rows is NULL
+however strict it is. Nothing was reachable in PG18 only because
+`builtinStrictFunctions` filters `prokind = 'f'` — safety by coincidence of a
+DIFFERENT table's filter, now asserted rather than relied on.
+
+**The rank-1 unsoundness it led to is in the WALK** and has its own closure
+entry at the top of section 2: chasing why `row_number` sat in an aggregate
+table reached `guaranteesSingleRow` and the windowed-call defect. That is the
+audit heuristic paying its third dividend — sweep every hand-curated table
+against the catalog it approximates — and the first time the table was the
+route rather than the destination.
+
+Three dead entries elsewhere, each measured at the parse tree before removal:
+`trim` (the grammar rewrites every spelling to `pg_catalog.btrim`), `!=` (the
+lexer converts it to `<>`), and `current_catalog`/`current_role`/`user`
+(keywords the parser makes `SQLValueFunction`, never a FuncCall).
+`builtinPolymorphicFunctions` re-keyed from `typtype = 'p'` to the `any…`
+type names, 572 down to 65, closing item 1's residue.
+
+What the catalog could NOT settle, recorded so it is not mistaken for
+covered: `proisstrict` is strictness, not totality, so the four totality
+tables are held to EXISTENCE only and probing them is item 3. The suite
+prints the type-aware-overloads premise every run — **133 curated names cover
+235 pg_catalog signatures; 21 operator names cover 558.**
+`HYPOTHETICAL_SET_AGGREGATES` and `ORDERED_SET_AGGREGATES` are exactly
+`pg_aggregate.aggkind` and are asserted EQUAL in both directions;
+`NEVER_NULL_WINDOW_FNS` is deliberately a subset of `prokind = 'w'`, so only
+its membership is a catalog question. One limit item 1 shares: the catalog
+says a name EXISTS, never that it ARRIVES — `trim` and `!=` exist and never
+reach the walk, and `current_user`/`session_user` are real functions whose
+entries are dead anyway. Both took parse-tree probes, not the diff.
+
 **Then the consumer build** — the slice plan is
 `docs/consumer-design.md`, as above, with the arity-and-order gate in
 its first contract-holding slice, now carrying twelve defects across
@@ -511,6 +560,26 @@ routes named; `docs/imprecision-closure.md` carries the measurements.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the curated-table diff (2026-08-06, `docs/generated-surface.md`
+item 2), and found by chasing a table entry rather than by writing a query:
+a WINDOW call does not collapse a query to one row. `guaranteesSingleRow`
+licenses a claim from "an aggregate with no GROUP BY collapses to exactly
+one row", which is true of a BARE aggregate and false of a windowed one —
+`sum(x) OVER ()` yields one row per input row, so over EMPTY input it yields
+no rows, a scalar sublink is NULL and a `LANGUAGE sql` body returns NULL.
+The walk has three aggregate tests and this was the one that never excluded
+`over`; `count(*) OVER ()` reached the same wrong answer through its
+`agg_star` short-circuit without consulting a name table at all, so
+correcting the table's membership would NOT have fixed it. Measured six ways
+against PGlite at both call sites (scalar sublink and function body), with
+the bare-aggregate and GROUP BY controls unchanged. The fix excludes windowed
+calls while still recursing into their ARGUMENTS, since `sum(count(*)) OVER
+()` is a genuine single-group query — a reading the old code reached by
+accident, via `sum` being in the aggregate table. Pinned from both sites by
+`window-call-not-single-row-sublink.sql` and `-body.sql`, both witnessed by a
+real NULL under `empty`; the sublink's derived table bounds it to at most one
+row in every state, so the shape is witnessable rather than raising.
 
 Closed by the THIRD adversarial fix phase (2026-08-05), finding 5 /
 RC-5 — a two-part AST test standing in for a shape test. `alias.*` is

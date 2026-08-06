@@ -84,20 +84,25 @@ All eight sweep-3 findings arrived through node types already classified
 CATALOG features those nodes are interpreted against.
 
 **3. Hand-curated tables are unfalsifiable by construction.** Eight name
-tables remain in `nullability-walk.ts` (`ALWAYS_NOT_NULL_BUILTINS`,
+tables remained in `nullability-walk.ts` (`ALWAYS_NOT_NULL_BUILTINS`,
 `STRICT_TOTAL_BUILTINS`, `FIRST_ARG_BUILTINS`, `AGGREGATE_NAMES`,
 `NEVER_NULL_WINDOW_FNS`, `NON_NULL_OVER_NONEMPTY_AGGREGATES`,
 `HYPOTHETICAL_SET_AGGREGATES`, `ORDERED_SET_AGGREGATES`) plus
-`TOTAL_STRICT_OPERATORS` in `operators.ts`. No test asserts what should be
-*in* one, so a missing entry is invisible until a sweep writes the query.
-This has now yielded three sweeps running — `ALWAYS_NOT_NULL`, then
-`STRICT_TOTAL_BUILTINS`, then `BUILTIN_SRF_NAMES`.
+`TOTAL_STRICT_OPERATORS` in `operators.ts`. No test asserted what should be
+*in* one, so a missing entry was invisible until a sweep wrote the query.
+This yielded three sweeps running — `ALWAYS_NOT_NULL`, then
+`STRICT_TOTAL_BUILTINS`, then `BUILTIN_SRF_NAMES` — and a fourth time the
+moment item 2 finally asked: `AGGREGATE_NAMES` was wrong in three directions
+at once and is now a catalog capture. Seven tables remain, all under the item-2
+suite.
 
 ## The work, in cost order
 
 Items 1–3 are each about an afternoon and, together, would have caught
 findings 1, 2, 3, 4 and 6. Item 4 is the real fix and would have caught five
-of eight on its own.
+of eight on its own. **Items 1 and 2 are built (2026-08-06)**; item 2 closed
+a rank-1 unsoundness on its first run, so the pair has already paid for
+itself independently of item 4.
 
 ### 1. A catalog-feature census — BUILT (2026-08-06)
 
@@ -193,6 +198,77 @@ against `prokind = 'a'`, the window sets against `prokind = 'w'`. This is
 how `BUILTIN_SRF_NAMES` should have died: `proretset` was in `pg_proc` the
 whole time.
 
+**BUILT (2026-08-06): `tests/unit/query/curated-tables.test.ts`**, six
+assertions, mutation-tested to fail alone. It convicted on the first run, and
+the biggest finding was not in a table at all.
+
+**`AGGREGATE_NAMES` is gone.** `prokind = 'a'` was in the catalog the whole
+time, and the table had drifted in three directions at once — the shape a
+name table takes when nothing can falsify it. It MISSED 12 of PG18's 54
+aggregates (`any_value`, `bit_xor`, `range_agg`, the eight
+`json*_agg_strict`/`_unique` forms); it carried two names PostgreSQL has no
+function for (`cluster`, `listagg`); and it carried five pure WINDOW
+functions (`row_number`, `lag`, `lead`, `first_value`, `last_value` —
+`prokind = 'w'`), callable only with `OVER` and therefore unreachable at
+every consumer. `CatalogSnapshot.builtinAggregateFunctions` replaces it,
+ENVIRONMENT like `builtinStrictFunctions`, and the catalog predicate gets all
+three directions right at once.
+
+A missing name was the direction that bites, and the reason it had not: the
+strict-scalar gate excludes aggregates by asking this question, so a name it
+did not recognise proceeded to the strictness test — and an aggregate over
+zero rows is NULL however strict it is. Nothing was reachable in PG18 only
+because `builtinStrictFunctions` filters `prokind = 'f'`, so no aggregate name
+reaches it. That is safety by coincidence of a DIFFERENT table's filter, and
+the suite now asserts the coincidence holds rather than relying on it.
+
+**The rank-1 unsoundness the audit led to was in the WALK, not in a table.**
+Chasing why `row_number` sat in an aggregate table reached
+`guaranteesSingleRow`, which licenses a claim from "an aggregate with no GROUP
+BY collapses to exactly one row" — true of a BARE aggregate, false of a
+WINDOWED one. `sum(x) OVER ()` yields one row per input row, so over empty
+input it yields NO rows: a scalar sublink is then NULL, and a `LANGUAGE sql`
+body returns NULL. Of the walk's three aggregate tests, this was the one that
+never excluded `over`. Measured six ways against PGlite at both call sites,
+including `count(*) OVER ()`, which reached the same wrong answer through its
+`agg_star` short-circuit without consulting a name table at all — so
+correcting the table's membership would not have fixed it. Fixed by excluding
+windowed calls while still recursing into their ARGUMENTS (`sum(count(*))
+OVER ()` is a genuine single-group query, which the old code got right by
+accident), and pinned from both sites by `window-call-not-single-row-*.sql`.
+
+**Three dead entries elsewhere**, each convicted by existence alone and each
+measured at the parse tree before removal: `trim` (the grammar rewrites every
+spelling to `pg_catalog.btrim`), `!=` (the lexer converts it to `<>`), and
+`current_catalog`/`current_role`/`user` (keywords the parser turns into
+`SQLValueFunction`, never a FuncCall). A name PostgreSQL does not have is dead
+weight that reads as coverage.
+
+**What the catalog could NOT settle, stated so it is not mistaken for
+covered.** `proisstrict` is strictness, not totality — 2548 of 2726 builtin
+names carry it — so `ALWAYS_NOT_NULL_BUILTINS`, `FIRST_ARG_BUILTINS`,
+`STRICT_TOTAL_BUILTINS` and `TOTAL_STRICT_OPERATORS` are held to EXISTENCE
+only here. Probing them is item 3. The suite prints the
+`docs/type-aware-overloads.md` premise every run rather than leaving it in
+prose: **133 curated names cover 235 pg_catalog signatures, and 21 operator
+names cover 558.**
+
+Two tables ARE exactly a catalog predicate — `HYPOTHETICAL_SET_AGGREGATES` and
+`ORDERED_SET_AGGREGATES` against `pg_aggregate.aggkind` — and are asserted
+EQUAL in both directions, so a new hypothetical-set aggregate in a future
+PostgreSQL fails here. `NEVER_NULL_WINDOW_FNS` is deliberately a SUBSET of
+`prokind = 'w'` (`lag`, `lead`, `nth_value`, `ntile` can each be NULL, and
+`first_value`/`last_value` depend on a frame the walk does not analyse), so
+only its membership is a catalog question.
+
+**One limit of this item, worth recording because item 1 shares it.** The
+catalog can say a name exists; it cannot say the name ever ARRIVES. `trim` and
+`!=` exist as concepts and never reach the walk, and `current_user` /
+`session_user` are the converse — real pg_catalog functions that the parser
+nonetheless turns into `SQLValueFunction`, so their entries are dead too and
+no catalog assertion can see it. Both were caught by probing parse trees, not
+by the diff.
+
 ### 3. Probe the totality tables by execution
 
 `ALWAYS_NOT_NULL_BUILTINS`, `STRICT_TOTAL_BUILTINS`, `FIRST_ARG_BUILTINS`
@@ -279,7 +355,8 @@ Two additions specific to this work:
 | Generator specification | `docs/query-generator.md` |
 | AST node census — the pattern to copy | `tests/unit/query/node-census.test.ts` |
 | Catalog-feature census — item 1 | `tests/unit/query/catalog-census.test.ts` (`CATALOG_CENSUS_REPORT=1` for the gap list) |
-| Curated tables | `src/query/nullability-walk.ts` (eight), `src/query/operators.ts` |
+| Curated tables vs pg_catalog — item 2 | `tests/unit/query/curated-tables.test.ts` |
+| Curated tables | `src/query/nullability-walk.ts` (seven), `src/query/operators.ts` |
 | Fixture schema | `tests/unit/query/fixtures/schema.sql` |
 | Seed-data generators | `tests/unit/query/fixture-data/` |
 | Fixture suite design + measurements | `docs/witness-coverage.md` |

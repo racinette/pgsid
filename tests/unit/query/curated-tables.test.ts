@@ -1,0 +1,281 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+import {
+  NON_NULL_OVER_NONEMPTY_AGGREGATES,
+  NEVER_NULL_WINDOW_FNS,
+  HYPOTHETICAL_SET_AGGREGATES,
+  ORDERED_SET_AGGREGATES,
+  ALWAYS_NOT_NULL_BUILTINS,
+  FIRST_ARG_BUILTINS,
+  STRICT_TOTAL_BUILTINS,
+} from "../../../src/query/nullability-walk.js";
+import { TOTAL_STRICT_OPERATORS } from "../../../src/query/operators.js";
+
+// ---------------------------------------------------------------------------
+// The curated name tables, held to pg_catalog.
+//
+// `docs/generated-surface.md` item 2. Eight hand-curated tables remained in
+// the walk, and no test asserted what should be *in* one — so a missing entry
+// was invisible until a sweep happened to write the query. That yielded three
+// sweeps running (ALWAYS_NOT_NULL, then STRICT_TOTAL_BUILTINS, then
+// BUILTIN_SRF_NAMES) and once more when this suite was written: AGGREGATE_NAMES
+// had drifted in three directions at once and is now gone, replaced by
+// `CatalogSnapshot.builtinAggregateFunctions`. That is the rule the document
+// states — wherever PostgreSQL records the property, the table should not
+// exist; where it must, a test holds it to the catalog.
+//
+// What the catalog can and cannot answer, because conflating the two is how a
+// suite like this overclaims:
+//
+//   IT CAN answer KIND. `prokind` distinguishes plain functions, aggregates
+//   and window functions; `pg_aggregate.aggkind` distinguishes normal,
+//   ordered-set and hypothetical-set aggregates. Three tables are exactly a
+//   catalog predicate and are asserted as EQUAL to it — if PostgreSQL grows a
+//   fourth hypothetical-set aggregate, this suite fails.
+//
+//   IT CANNOT answer TOTALITY. `proisstrict` is strictness — NULL in, NULL
+//   out — and 2548 of PG18's 2726 builtin names carry it, so it is no proxy
+//   for "never returns NULL for non-null arguments". That property lives only
+//   in the C implementations, a scanner for it was built and discarded
+//   (`docs/type-aware-overloads.md` records why in full), and the four
+//   totality tables are therefore held only to EXISTENCE here. Probing them
+//   by execution is item 3.
+//
+// Existence is worth asserting on its own: it is what convicted `cluster` and
+// `listagg` (no such function), `trim` (the grammar rewrites every spelling to
+// `pg_catalog.btrim` before a parse tree exists) and `!=` (the lexer converts
+// it to `<>`). A name PostgreSQL does not have is dead weight that reads as
+// coverage.
+//
+// The signature counts are printed rather than asserted. They are the premise
+// of `docs/type-aware-overloads.md`: a curated entry keys on a NAME while
+// PostgreSQL keys on a SIGNATURE, which is how `lower`/`upper` carried a total
+// `(text)` form and a NULL-returning `(anyrange)` form under one entry.
+// ---------------------------------------------------------------------------
+
+interface CatalogFn {
+  /** Distinct `prokind` values across every overload of the name. */
+  kinds: Set<string>;
+  /** Distinct `pg_aggregate.aggkind` values, for the aggregate overloads. */
+  aggKinds: Set<string>;
+  /** How many pg_catalog entries share this name. */
+  signatures: number;
+}
+
+describe("curated name tables vs pg_catalog", () => {
+  let pg: PGlite;
+  let fns: Map<string, CatalogFn>;
+  let operators: Map<string, number>;
+  /** pg_catalog names by the property the catalog records directly. */
+  let byKind: Map<string, Set<string>>;
+  let strictBuiltins: Set<string>;
+
+  beforeAll(async () => {
+    pg = await PGlite.create();
+    const rows = (
+      await pg.query<{ name: string; kinds: string; aggkinds: string | null; n: number }>(
+        `SELECT p.proname AS name,
+                string_agg(DISTINCT p.prokind::text, '')  AS kinds,
+                string_agg(DISTINCT a.aggkind::text, '')  AS aggkinds,
+                count(*)::int                             AS n
+           FROM pg_proc p
+           JOIN pg_namespace ns ON ns.oid = p.pronamespace
+           LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
+          WHERE ns.nspname = 'pg_catalog'
+          GROUP BY p.proname;`,
+      )
+    ).rows;
+    fns = new Map(
+      rows.map(r => [
+        r.name,
+        {
+          kinds: new Set(r.kinds.split("")),
+          aggKinds: new Set((r.aggkinds ?? "").split("").filter(Boolean)),
+          signatures: r.n,
+        },
+      ]),
+    );
+
+    byKind = new Map();
+    for (const [name, f] of fns) {
+      for (const k of f.kinds) {
+        if (!byKind.has(k)) byKind.set(k, new Set());
+        byKind.get(k)!.add(name);
+      }
+      for (const k of f.aggKinds) {
+        const key = `agg:${k}`;
+        if (!byKind.has(key)) byKind.set(key, new Set());
+        byKind.get(key)!.add(name);
+      }
+    }
+
+    strictBuiltins = new Set(
+      (
+        await pg.query<{ name: string }>(
+          `SELECT p.proname AS name
+             FROM pg_proc p
+             JOIN pg_namespace ns ON ns.oid = p.pronamespace
+            WHERE ns.nspname = 'pg_catalog' AND p.prokind = 'f'
+            GROUP BY p.proname
+           HAVING bool_and(p.proisstrict);`,
+        )
+      ).rows.map(r => r.name),
+    );
+
+    operators = new Map(
+      (
+        await pg.query<{ name: string; n: number }>(
+          `SELECT o.oprname AS name, count(*)::int AS n
+             FROM pg_operator o
+             JOIN pg_namespace ns ON ns.oid = o.oprnamespace
+            WHERE ns.nspname = 'pg_catalog'
+            GROUP BY o.oprname;`,
+        )
+      ).rows.map(r => [r.name, r.n]),
+    );
+  }, 60_000);
+
+  afterAll(async () => {
+    // The type-aware-overloads premise, measured rather than remembered.
+    const tables: [string, ReadonlySet<string>][] = [
+      ["ALWAYS_NOT_NULL_BUILTINS", ALWAYS_NOT_NULL_BUILTINS],
+      ["FIRST_ARG_BUILTINS", FIRST_ARG_BUILTINS],
+      ["STRICT_TOTAL_BUILTINS", STRICT_TOTAL_BUILTINS],
+    ];
+    let names = 0;
+    let sigs = 0;
+    for (const [, set] of tables) {
+      names += set.size;
+      for (const n of set) sigs += fns.get(n)?.signatures ?? 0;
+    }
+    let opSigs = 0;
+    for (const o of TOTAL_STRICT_OPERATORS) opSigs += operators.get(o) ?? 0;
+    console.log(
+      `\ncurated totality tables: ${names} names → ${sigs} pg_catalog signatures; ` +
+        `TOTAL_STRICT_OPERATORS: ${TOTAL_STRICT_OPERATORS.size} names → ${opSigs} signatures.\n` +
+        `  A curated entry keys on a NAME and PostgreSQL keys on a SIGNATURE; ` +
+        `docs/type-aware-overloads.md is the narrowing that closes the gap.`,
+    );
+    if (!pg.closed) await pg.close();
+  });
+
+  // --- existence: the assertion every table gets ---------------------------
+
+  const ALL: [string, ReadonlySet<string>][] = [
+    ["NON_NULL_OVER_NONEMPTY_AGGREGATES", NON_NULL_OVER_NONEMPTY_AGGREGATES],
+    ["NEVER_NULL_WINDOW_FNS", NEVER_NULL_WINDOW_FNS],
+    ["HYPOTHETICAL_SET_AGGREGATES", HYPOTHETICAL_SET_AGGREGATES],
+    ["ORDERED_SET_AGGREGATES", ORDERED_SET_AGGREGATES],
+    ["ALWAYS_NOT_NULL_BUILTINS", ALWAYS_NOT_NULL_BUILTINS],
+    ["FIRST_ARG_BUILTINS", FIRST_ARG_BUILTINS],
+    ["STRICT_TOTAL_BUILTINS", STRICT_TOTAL_BUILTINS],
+  ];
+
+  it("every curated function name exists in pg_catalog", () => {
+    const unknown = ALL.flatMap(([label, set]) =>
+      [...set].filter(n => !fns.has(n)).sort().map(n => `${label}: ${n}`),
+    );
+    expect(
+      unknown,
+      `Curated name(s) PostgreSQL has no function for. Either the name is ` +
+        `spelled by the GRAMMAR and rewritten before the walk sees it (\`trim\` ` +
+        `becomes \`pg_catalog.btrim\`), or it is a keyword the parser turns into ` +
+        `a SQLValueFunction (\`user\`, \`current_role\`), or it was never a ` +
+        `PostgreSQL function at all (\`cluster\`, \`listagg\`). All three are ` +
+        `dead weight that reads as coverage — delete them:\n  ${unknown.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("every curated operator name exists in pg_catalog", () => {
+    const unknown = [...TOTAL_STRICT_OPERATORS].filter(o => !operators.has(o)).sort();
+    expect(
+      unknown,
+      `Curated operator(s) pg_operator does not carry. \`!=\` was one: the ` +
+        `lexer converts it to \`<>\` before a parse tree exists, so no A_Expr ` +
+        `can ever carry the spelling:\n  ${unknown.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  // --- kind: where the catalog records the property directly ---------------
+
+  it("every aggregate table holds only aggregates", () => {
+    const wrong = [
+      ...[...NON_NULL_OVER_NONEMPTY_AGGREGATES].map(n => ["NON_NULL_OVER_NONEMPTY_AGGREGATES", n] as const),
+      ...[...HYPOTHETICAL_SET_AGGREGATES].map(n => ["HYPOTHETICAL_SET_AGGREGATES", n] as const),
+      ...[...ORDERED_SET_AGGREGATES].map(n => ["ORDERED_SET_AGGREGATES", n] as const),
+    ]
+      .filter(([, n]) => fns.has(n) && !fns.get(n)!.kinds.has("a"))
+      .map(([label, n]) => `${label}: ${n} (prokind '${[...fns.get(n)!.kinds].join("")}')`)
+      .sort();
+    expect(
+      wrong,
+      `Classified as an aggregate, but pg_catalog says otherwise. A pure ` +
+        `window function (prokind 'w') can only be called with OVER, so an ` +
+        `aggregate rule can never reach it — that was five of AGGREGATE_NAMES' ` +
+        `entries:\n  ${wrong.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("NEVER_NULL_WINDOW_FNS holds only window-callable functions", () => {
+    // Deliberately a SUBSET of prokind 'w' rather than equal to it: the table
+    // is "window functions that are never NULL", and `lag`, `lead`,
+    // `nth_value` and `ntile` can each be NULL while `first_value` and
+    // `last_value` depend on a frame the walk does not analyse. Only
+    // membership is a catalog question.
+    const wrong = [...NEVER_NULL_WINDOW_FNS]
+      .filter(n => fns.has(n) && !fns.get(n)!.kinds.has("w"))
+      .map(n => `${n} (prokind '${[...fns.get(n)!.kinds].join("")}')`)
+      .sort();
+    expect(
+      wrong,
+      `Classified as a window function, but pg_catalog disagrees:\n  ${wrong.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("the aggkind tables EQUAL their catalog predicate", () => {
+    // The strongest form available, and the one the document asks for: these
+    // two tables are exactly `pg_aggregate.aggkind`, so they are asserted in
+    // BOTH directions. A missing entry is the BUILTIN_SRF_NAMES failure mode —
+    // a rule silently switched off for a name nobody wrote down.
+    const compare = (label: string, table: ReadonlySet<string>, key: string): string[] => {
+      const catalog = byKind.get(key) ?? new Set<string>();
+      return [
+        ...[...catalog].filter(n => !table.has(n)).map(n => `${label} is MISSING ${n}`),
+        ...[...table].filter(n => !catalog.has(n)).map(n => `${label} has EXTRA ${n}`),
+      ].sort();
+    };
+    const drift = [
+      ...compare("HYPOTHETICAL_SET_AGGREGATES", HYPOTHETICAL_SET_AGGREGATES, "agg:h"),
+      ...compare("ORDERED_SET_AGGREGATES", ORDERED_SET_AGGREGATES, "agg:o"),
+    ];
+    expect(
+      drift,
+      `A table that IS a catalog predicate has drifted from it. These two are ` +
+        `derivable — if this keeps happening they should stop being tables and ` +
+        `become a snapshot capture, the way AGGREGATE_NAMES did:\n  ${drift.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  // --- the latent hazard the AGGREGATE_NAMES replacement closed ------------
+
+  it("no pg_catalog aggregate or window name is treated as a strict builtin", () => {
+    // Why the aggregate capture had to be complete rather than merely
+    // corrected. The strict-scalar gate excludes aggregates by NAME and then
+    // asks `isStrictBuiltin`; an aggregate the name test missed would proceed
+    // to the strictness test, and an aggregate over zero rows is NULL however
+    // strict it is. Nothing was reachable in PG18 only because
+    // `builtinStrictFunctions` filters `prokind = 'f'` — safety by coincidence
+    // of a different table's filter. This asserts the coincidence holds, so
+    // that a PostgreSQL version shipping a plain function sharing a name with
+    // an aggregate fails here rather than in a consumer's output.
+    const overlap = [...(byKind.get("a") ?? []), ...(byKind.get("w") ?? [])]
+      .filter(n => strictBuiltins.has(n))
+      .sort();
+    expect(
+      overlap,
+      `A pg_catalog aggregate or window name also has an all-strict ` +
+        `plain-function overload. The strict-scalar gate would claim notNull ` +
+        `for a call PostgreSQL can answer NULL over zero rows:\n  ${overlap.join(", ")}`,
+    ).toEqual([]);
+  });
+});
