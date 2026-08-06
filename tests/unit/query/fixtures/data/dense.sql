@@ -60,8 +60,16 @@ INSERT INTO orders (id, customer_id, status, placed_at) VALUES
 -- that joins orders to their items drops every order with none, so a customer
 -- column is only observably NULL when a NULL-named customer's order has an
 -- item.
+--
+-- Item 5 sells product 6, which no review references. A correlated
+-- `avg(rating)` is NULL exactly for a product that has been ordered and never
+-- reviewed, and the fixtures that compute one filter to products with an
+-- order OR a review — so without this row the NULL branch is reachable by no
+-- state at all. Product 6's price (30) still differs from category 1's
+-- average (20), which those same fixtures also demand.
 INSERT INTO order_items (id, order_id, product_id, quantity, unit_price) VALUES
-  (1, 1, 1, 2, 10), (2, 1, 2, 60, 900), (3, 3, 3, 1, 5), (4, 2, 1, 3, 10);
+  (1, 1, 1, 2, 10), (2, 1, 2, 60, 900), (3, 3, 3, 1, 5), (4, 2, 1, 3, 10),
+  (5, 3, 6, 1, 30);
 
 INSERT INTO reviews (id, product_id, customer_id, rating, comment) VALUES
   (1, 1, 1, 5, 'great'), (2, 1, 2, 1, NULL), (3, 2, 3, 4, 'ok');

@@ -301,8 +301,8 @@ the growth over the second phase's 311, itself grown from the first's 288):
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
 | `nullable` claims | 542 | |
-| — witnessed | 440 (81%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 102 | every one carries an `@unwitnessable` annotation |
+| — witnessed | 443 (82%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 99 | every one carries an `@unwitnessable` annotation |
 | `@null-group` claims | 42 (36 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
 The new unwitnessed entries are one shape repeated: unnesting a NULL array
@@ -336,11 +336,12 @@ inline. A reason may run past one line: continuation lines (`--` followed by
 two or more spaces) are recorded joined, so the report prints the whole fact
 rather than its first clause.
 
-They fall into four groups. `docs/imprecision-closure.md` carries the exact
-per-claim census behind these counts, audited claim by claim on 2026-08-06 —
-ten of the hundred reasons were wrong, five of them calling a filter in the
-fixture's own query a gap in the data, so the counts below are the corrected
-ones.
+They fall into three groups, plus the rowless fixtures.
+`docs/imprecision-closure.md` carries the exact per-claim census behind these
+counts, audited claim by claim on 2026-08-06 — ten of the hundred reasons
+were wrong, five of them calling a filter in the fixture's own query a gap in
+the data. The three that were genuinely data gaps are closed (2026-08-06),
+which is why no group below is one.
 
 **A row type carries no constraints (15 claims).** `SETOF <table>` and
 `SETOF <composite>` results are nullable because NOT NULL constraints do not
@@ -364,7 +365,7 @@ conservatism, and closing one would turn its claim into `notNull` rather than
 witnessing it (the presence-consumption entry retired exactly that way — its
 fixture's carrier now reads notNull and the annotation came off).
 
-**The query's own shape rules out the NULL case (52 claims).** The largest
+**The query's own shape rules out the NULL case (49 claims).** The largest
 group: the fixture selects away the rows that would show the NULL. A
 `LEFT JOIN` whose `ON` is an equality on a NOT NULL foreign key always
 matches. A `CROSS JOIN LATERAL` drops exactly the orders that would leave the
@@ -375,10 +376,10 @@ forces every product to exactly seven reviews in any state that returns rows.
 `presence-group-full`'s orders side never extends because `shipments.order_id`
 is a NOT NULL foreign key — the annotations that also exempt its group's
 absent arm by derivation. Changing any of these means changing what the
-fixture asserts, which is a worse trade than leaving the claim unwitnessed —
-except for the three the audit found to be genuine data gaps, whose reasons
-say "data gap" and name the state or fixture change that witnesses them. The
-staleness check removes each annotation automatically the moment one does.
+fixture asserts, which is a worse trade than leaving the claim unwitnessed.
+The three the audit found to be genuine data gaps were the exception and are
+closed: two of them cost a fixture one literal, because what a fixture
+asserts and what its ids happen to match are not the same thing.
 
 **Inside a `@no-rows` fixture (2 claims).** Nothing in a statement that never
 returns a row can be witnessed.
