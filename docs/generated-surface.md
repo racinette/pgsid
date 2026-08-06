@@ -428,38 +428,52 @@ member of that side is present".
 
 #### What the axis reaches, and what it does not
 
-**What the 17 remaining gaps actually cost, classified 2026-08-06** — the
-number is misleading until it is broken up:
+**Group A was then built out (2026-08-06), and the classification revised by
+measurement.** Six more variants landed — `enum-column`, `domain-over-domain`,
+`generated-virtual`, `not-enforced-fk`, `identity-always` and
+`exclusion-constraint` — taking coverage from 5 of 22 to **11 of 22**. Two
+corrections came out of building them, both worth keeping:
+
+- **An exclusion constraint IS producible here**, so it was group A rather
+  than out of scope: range types carry gist support built in and `btree_gist`
+  is not needed (it is unavailable in PGlite — measured).
+- **`enum-column` had to widen its enum rather than move.** `u.val` is the
+  generator's `textC` slot, so the corpus pairs it with text literals; the two
+  fallbacks that actually reach the column, `'zc'` and `'zm'`, are declared as
+  labels. Retyping a column the corpus merely PROJECTED would have been easier
+  and would have exercised nothing.
+
+`identity-always` sits on `v.id` rather than `t.id` for a reason worth
+recording: the seed generator already skips an ALWAYS identity and lets
+PostgreSQL assign it, and `t.id` is what `u.t_id` draws from — making it
+invisible would starve the reference.
+
+**Where that leaves the remainder, as the suite now reports it:**
 
 | | count | what it needs |
 |---|---|---|
-| A | 5 | A cheap schema patch the corpus already exercises: `enum-type` (retype `u.val`), `generated-virtual-column` (recreate `gm` VIRTUAL), `not-enforced-foreign-key` (on the t–u join), `identity-always`, `domain-over-domain`. Each is one more entry in `schema-variants.ts`. |
-| B | 8 | **All blocked on ONE piece of work**: a function-call / FROM-item axis. `variadic-parameter`, `argument-with-default`, `inout-parameter`, `user-aggregate-without-initcond`, `user-window-function`, `security-definer-function`, `function-overloaded-across-schemas`, `table-row-type-column`. |
-| C | 1 | `sub-partition` — `t`/`u`/`v` are not partitioned, so it needs the corpus's own relations restructured. |
-| D | 3 | Permanently unreachable by a QUERY corpus: `procedure` (CALL is a statement; no call site exists in any query), `foreign-table` (needs an FDW PGlite does not ship), `exclusion-constraint` (nothing in the walk reads it). |
+| under generation | 11 | done |
+| **no query can EVER reach** | 2 | `procedure` (CALL is a statement, not an expression — no SELECT/INSERT/UPDATE/DELETE/MERGE can invoke one) and `foreign-table` (PGlite ships no FDW; `postgres_fdw` and `file_fdw` are both absent from `pg_available_extensions`, measured). Marked `unreachableByQuery` in `catalog-features.ts` so they stop being counted as pending work, with an assertion that no variant may claim one. |
+| **actionable** | 9 | 8 of them wait on ONE piece of work — see below — and the ninth is `sub-partition`, which needs `t`/`u`/`v` restructured. |
 
-**Group B is the highest-value remaining item in this document.** The generator
-calls exactly ONE function — `max` — while the fixture schema defines 66, so
-there is no axis calling a user function at all. Adding one closes all eight
-gaps AND closes the `LANGUAGE sql` body read-back, which is the second of the
-two mechanisms this document measured at zero generated coverage (item 4 closed
-the foreign-key half). It is one job, not eight.
+**The one remaining job is a generator axis that CALLS a user function.** The
+generator calls exactly ONE function today — `max` — while the fixture schema
+defines 66, so nothing reaches a variadic parameter, a defaulted argument, an
+INOUT parameter, a user aggregate or window function, a SECURITY DEFINER body,
+or a cross-schema overload. The same axis closes the `LANGUAGE sql` body
+read-back, which is the second of the two mechanisms this document measured at
+ZERO generated coverage (item 4 closed the foreign-key half). Eight gaps and
+one uncovered mechanism, from one piece of work — it is the highest-value item
+left in this document.
 
-**Group D should stop being counted as a gap.** The census marks a feature
-`absent` when the FIXTURE SCHEMA lacks it, which conflates "nobody wrote the
-DDL" with "no query can reach this". The three above are the second kind and
-are permanent; they want a distinct marker so the remaining count means
-something.
-
-**5 of the census's 22 gaps are now under generation** (validated and
-DEFERRABLE foreign keys, NOT NULL domains, inheritance with an ONLY-parent
-constraint, a second schema with same-named relations, composite keys and
-unique constraints, a materialized view standing in for a relation). Seventeen
-remain, and the report names every one. Most are not a schema-patch problem at
-all: a `LANGUAGE sql` table function has nothing calling it until the generator
-grows a FROM-item axis, and a procedure has no call site in any query. That
-distinction — unreachable by a SCHEMA patch versus uncovered — is the residue
-this item hands on.
+The twelve variants cover validated and DEFERRABLE foreign keys, a NOT
+ENFORCED one, NOT NULL domains and a domain over a domain, inheritance with an
+ONLY-parent constraint, a second schema with same-named relations, composite
+keys and unique constraints, an exclusion constraint, an enum column, a VIRTUAL
+generated column, an ALWAYS identity, and a materialized view standing in for a
+relation. The report names every gap that remains and separates the two kinds —
+a schema patch nobody has written yet, versus a feature no query can reach at
+all — because counting them together overstates the work left.
 
 **One thing the build itself found**, and it sharpens the register's
 measurement. Foreign-key entailment had zero generated coverage not merely
