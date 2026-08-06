@@ -428,9 +428,18 @@ being READ BACK all had no call site. Two projections (`fn-call`,
 zero rejections, refusals, column-list disagreements or violations.** Both
 mechanisms the register measured at zero generated coverage are now covered
 — foreign-key entailment by the schema axis, the body read-back by this.
-Actionable census gaps went 9 → 3 (`table-row-type-column` and
-`function-overloaded-across-schemas` need a FROM-item axis rather than a
-target-list one; `sub-partition` needs t/u/v restructured). It found one
+**The FROM-ITEM axis followed immediately**: `srf-cross` and `srf-left` put a
+`RETURNS SETOF u` function where `u` stood, closing the ROW-returning half of
+the body read-back (class A — the declaration erases the table's NOT NULLs and
+the body is the only sound source of a guarantee). Corpus 10456 → 10864,
+notNull claims 17747 → 18683, all falsifiable. `function-overloaded-across-schemas`
+closed with it, via an `app_s.gfn_sd(integer)` beside public's `gfn_sd(text)`.
+Actionable census gaps went 9 → 2. `table-row-type-column` is narrower than it
+reads — the WALK BRANCH (resolveCompositeType falling through to the relation)
+is now exercised by `SETOF u`; only the column SPELLING is missing, and that
+needs a composite-star projection the target-list model cannot express, since
+a `(col).*` target has no fixed arity. `sub-partition` needs t/u/v
+restructured and is disproportionate. It found one
 NEW imprecision, recorded not fixed: the walk reads a body back but binds
 only the arguments the CALL supplies, so a DEFAULTED parameter is unbound
 and reads nullable where PostgreSQL substitutes the default and the result

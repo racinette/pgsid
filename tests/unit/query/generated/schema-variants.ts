@@ -266,13 +266,24 @@ ALTER TABLE ONLY t ALTER COLUMN name SET NOT NULL;
     name: "second-schema",
     why:
       "The corpus references `t`, `u` and `v` UNQUALIFIED, so which relation they name is a search-path question — the one sweep-3 found the engine had backwards. A shadow schema first in the path makes every structure resolve through `inPath`, with the public originals still present as the wrong answer.",
-    covers: ["second-schema", "relation-name-in-two-schemas"],
+    covers: [
+      "second-schema",
+      "relation-name-in-two-schemas",
+      "function-overloaded-across-schemas",
+    ],
     searchPath: ["app_s", "public"],
     patch: `
 CREATE SCHEMA app_s;
 CREATE TABLE app_s.t (id integer NOT NULL, name text, val text, active boolean NOT NULL);
 CREATE TABLE app_s.u (id integer NOT NULL, t_id integer NOT NULL, email text NOT NULL, val text, status text);
 CREATE TABLE app_s.v (id integer NOT NULL, u_id integer NOT NULL, amount numeric);
+-- A cross-schema OVERLOAD of a name the corpus calls. gfn_sd exists in
+-- public taking text; this one takes integer, so an unqualified call has
+-- candidates in TWO schemas with different signatures — the shape sweep-3
+-- found the engine had backwards, and which it must now resolve by merging
+-- candidates across the path rather than stopping at the first schema.
+CREATE FUNCTION app_s.gfn_sd(a integer) RETURNS text
+  LANGUAGE sql AS $$ SELECT a::text $$;
 `,
     get registry(): GeneratorRegistry {
       const { byType } = fixtureGeneratorRegistry;

@@ -1045,3 +1045,16 @@ CREATE AGGREGATE gfn_noinit(text) (SFUNC = gfn_sfunc, STYPE = text);
 -- NEVER_NULL_WINDOW_FNS, so the walk must fall through to conservative.
 CREATE FUNCTION gfn_win(x text) RETURNS text WINDOW
   LANGUAGE sql AS $$ SELECT x $$;
+
+-- A SETOF <table> function for the FROM-item axis. `SETOF u` ERASES u's NOT
+-- NULLs — PostgreSQL re-imposes nothing, measured — so the only sound source
+-- of a guarantee is the BODY, which the walk reads back and ORs into the
+-- declared list (the imprecision closure's class A).
+--
+-- `SELECT *` rather than an explicit column list, and that is deliberate: a
+-- schema variant may ADD a column to u (composite-key does), and an explicit
+-- list would then fail to match the declared return type. The star expansion
+-- is handled — the read-back recovers u.id and u.email either way, measured
+-- with and without the extra column.
+CREATE FUNCTION gfn_urows(k integer) RETURNS SETOF u
+  LANGUAGE sql AS $$ SELECT * FROM u WHERE u.t_id = k $$;
