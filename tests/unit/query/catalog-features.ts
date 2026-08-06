@@ -59,6 +59,16 @@ export interface Feature {
    * instead (a suite that builds its own catalog) or what it would take.
    */
   absent?: string;
+  /**
+   * No QUERY can reach this feature, whatever DDL anyone writes — so it is
+   * permanently outside a query corpus's reach rather than pending work.
+   *
+   * `absent` alone conflates two different things: "nobody wrote the DDL",
+   * which a schema variant fixes, and "there is no call site", which nothing
+   * fixes. Counting them together makes the remaining-gap number read as more
+   * work than exists. Only for the second kind.
+   */
+  unreachableByQuery?: string;
 }
 
 // --- detector helpers ------------------------------------------------------
@@ -414,6 +424,8 @@ export const FEATURES: Record<string, Feature> = {
     why: "FunctionInfo.isProcedure is captured and no branch reads it; a CALL is not a query the walk analyses",
     detect: s => s.functions.some(f => f.isProcedure),
     absent: "No CREATE PROCEDURE. prokind 'p' is unrepresented in the snapshot the walk sees.",
+    unreachableByQuery:
+      "CALL is a STATEMENT, not an expression. No SELECT, INSERT, UPDATE, DELETE or MERGE can invoke a procedure, so no schema patch and no generator axis can bring one under a query oracle.",
   },
   "security-definer-function": {
     category: "conservative",
@@ -552,6 +564,8 @@ export const FEATURES: Record<string, Feature> = {
     why: "TableInfo.relkind admits 'f' and no branch distinguishes it; a foreign table's columns are read like any other relation's",
     detect: s => s.tables.some(t => t.relkind === "f"),
     absent: "No foreign-data wrapper in the fixture schema. relkind 'f' is declared in the snapshot's type and never produced.",
+    unreachableByQuery:
+      "PGlite ships no FDW — `postgres_fdw` and `file_fdw` are both absent from pg_available_extensions (measured) — so relkind 'f' cannot be produced in this harness at all.",
   },
 
   // --- constraints --------------------------------------------------------

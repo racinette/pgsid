@@ -334,10 +334,26 @@ describe("generated-query soundness across schema variants", () => {
     ).toEqual([]);
   });
 
+  it("no variant claims a feature no query can reach", () => {
+    // The marker's other side. A variant claiming `procedure` would be
+    // claiming something no DDL can deliver, and the coverage assertion above
+    // would pass on the snapshot while the corpus reached nothing.
+    const impossible = SCHEMA_VARIANTS.flatMap(v =>
+      v.covers.filter(f => FEATURES[f]?.unreachableByQuery).map(f => `${v.name}: ${f}`),
+    );
+    expect(
+      impossible,
+      `A variant claims a feature marked unreachable by any query. The DDL may ` +
+        `well exist; what does not exist is a call site:\n  ${impossible.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
   it("prints the report", () => {
     const gaps = Object.entries(FEATURES).filter(([, f]) => f.absent);
     const covered = new Set(SCHEMA_VARIANTS.flatMap(v => v.covers));
-    const stillUnreachable = gaps.filter(([k]) => !covered.has(k)).map(([k]) => k);
+    const uncovered = gaps.filter(([k]) => !covered.has(k));
+    const impossible = uncovered.filter(([, f]) => f.unreachableByQuery).map(([k]) => k);
+    const stillUnreachable = uncovered.filter(([, f]) => !f.unreachableByQuery).map(([k]) => k);
     const lines = [
       `\nschema axis: ${results.length} variants${WIDE ? " (GENERATED_ALL_SCHEMAS)" : ""}`,
       ...results.map(
@@ -351,14 +367,18 @@ describe("generated-query soundness across schema variants", () => {
       ),
       ``,
       `  census features the fixture schema cannot reach: ${gaps.length}`,
-      `  of those, now under generation:                  ${gaps.length - stillUnreachable.length}`,
-      `  still unreachable by any variant:                ${stillUnreachable.length}`,
+      `  of those, now under generation:                  ${gaps.length - uncovered.length}`,
+      `  no query can EVER reach (not pending work):      ${impossible.length}`,
+      `    ${impossible.join(", ")}`,
+      `  actionable gaps remaining:                       ${stillUnreachable.length}`,
       `    ${stillUnreachable.join(", ")}`,
       ``,
-      `  Unreachable is not the same as uncovered: most of these need a`,
-      `  GENERATOR axis rather than a schema patch — a table function with a`,
-      `  LANGUAGE sql body has nothing calling it until the FROM-item axis`,
-      `  exists, and a procedure has no call site at all.`,
+      `  Nearly all of the remainder wait on ONE piece of work — a generator`,
+      `  axis that CALLS a user function. The generator calls exactly one`,
+      `  function today (max) while the fixture schema defines 66, so nothing`,
+      `  reaches a variadic parameter, a defaulted argument, a user aggregate`,
+      `  or window function — nor the LANGUAGE sql body read-back, the second`,
+      `  mechanism this document measured at zero generated coverage.`,
     ];
     console.log(lines.join("\n"));
     expect(results.length).toBe(SCHEMA_VARIANTS.length);

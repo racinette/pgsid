@@ -118,6 +118,84 @@ ALTER TABLE v ADD CONSTRAINT gen_v_u_fk FOREIGN KEY (u_id) REFERENCES u(id)${mod
 
 export const SCHEMA_VARIANTS: SchemaVariant[] = [
   {
+    name: "exclusion-constraint",
+    why:
+      "`ConstraintType` admits `exclusion` and no fixture ever produced one, so the walk's constraint reading had never been shown to IGNORE it — an exclusion constraint is not a CHECK and must not be read as one. Placed on `t`, which every structure in the corpus scans, so the constraint is in the list the walk actually consults.",
+    covers: ["exclusion-constraint"],
+    patch: `
+ALTER TABLE t ADD COLUMN gen_span int4range;
+ALTER TABLE t ADD CONSTRAINT gen_t_excl EXCLUDE USING gist (gen_span WITH &&);
+`,
+    // Range types carry gist support built in, so this needs no extension —
+    // `btree_gist` is unavailable in PGlite and is not required here. The
+    // column stays NULL because an exclusion constraint ignores NULLs, so no
+    // seed row can violate it while the constraint still reaches the snapshot.
+    registry: withColumns("public", { t: { gen_span: () => null } }),
+  },
+  {
+    name: "enum-column",
+    why:
+      "An enum is an ordinary scalar to the walk — `catalog-features.ts` classifies it `conservative`, meaning no branch reads it — and that claim was asserted nowhere. Retyping `u.val`, which the corpus projects, COALESCEs and joins on, puts the claim under the oracle: if an enum were eventful anywhere, the column lists or the flags would move.",
+    covers: ["enum-type"],
+    patch: `
+CREATE TYPE gen_kind AS ENUM ('a', 'b', 'c', 'zc', 'zm');
+ALTER TABLE u ALTER COLUMN val TYPE gen_kind USING val::gen_kind;
+`,
+    // `u.val` is the generator's `textC` slot, so the corpus pairs it with TEXT
+    // LITERALS — `COALESCE(u.val, 'zc')` and friends. An enum rejects a label
+    // it does not declare, so the two fallbacks the corpus actually uses,
+    // 'zc' and 'zm' (measured: they are the only ones that reach this column),
+    // are declared as labels. Retyping a column the corpus merely PROJECTED
+    // would have been easier and would have exercised nothing.
+    registry: withColumns("public", { u: { val: rand => rand.pick(["a", "b", "c"]) } }),
+  },
+  {
+    name: "domain-over-domain",
+    why:
+      "`resolveCompositeType` and `resolveDomainBaseTypeName` follow a domain to its base TRANSITIVELY, and every domain in the fixture schema reaches its base in ONE hop — so the second hop is written and never taken. `t.name` is read by the whole corpus, so a two-level domain exercises the walk rather than only the snapshot.",
+    covers: ["domain-over-domain"],
+    patch: `
+CREATE DOMAIN gen_inner AS text;
+CREATE DOMAIN gen_outer AS gen_inner NOT NULL;
+ALTER TABLE t ALTER COLUMN name TYPE gen_outer USING name::gen_outer;
+`,
+  },
+  {
+    name: "generated-virtual",
+    why:
+      "PG18's second generation mode. STORED and VIRTUAL are read through ONE code path — `resolveGenerationExpr` walks the expression at the READING site either way — and only STORED was ever measured. The corpus reads all three of `gm`'s generated columns across the join kinds, so the claim that the modes are interchangeable is put under execution.",
+    covers: ["generated-virtual-column"],
+    patch: `
+DROP TABLE gm;
+CREATE TABLE gm (
+  a          integer NOT NULL,
+  b          text,
+  doubled    integer GENERATED ALWAYS AS (a * 2) VIRTUAL,
+  label      text    GENERATED ALWAYS AS (b || '!') VIRTUAL,
+  safe_label text    GENERATED ALWAYS AS (coalesce(b, 'anon')) VIRTUAL
+);
+`,
+  },
+  {
+    name: "not-enforced-fk",
+    why:
+      "The third route by which a key entails nothing, and the only one with no fixture: PG18's NOT ENFORCED. `convalidated` is false for such a key, which is what the adapter gates on, so the claim is that one bit covers the NOT VALID and NOT ENFORCED routes alike. Unlike `fk-chain` this variant does NOT resolve the dangling rows — a NOT ENFORCED key permits them, which is exactly what makes a promoted claim falsifiable here.",
+    covers: ["not-enforced-foreign-key"],
+    patch: `
+ALTER TABLE t ADD CONSTRAINT gen_t_uq3 UNIQUE (id);
+ALTER TABLE u ADD CONSTRAINT gen_u_ne FOREIGN KEY (t_id) REFERENCES t(id) NOT ENFORCED;
+`,
+  },
+  {
+    name: "identity-always",
+    why:
+      "`ColumnInfo.identity` is captured and nothing under `src/query` reads it, so like the enum this variant asserts an absence. Applied to `v.id` rather than `t.id` because the seed generator skips an ALWAYS identity — PostgreSQL assigns it — and `t.id` is what `u.t_id` draws from, so making it invisible would starve the reference.",
+    covers: ["identity-always"],
+    patch: `
+ALTER TABLE v ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY;
+`,
+  },
+  {
     name: "composite-key",
     why:
       "Two gates that had never had anything to reject: the adapter drops a COMPOSITE foreign key (the entailment reasons about one column matching, and MATCH SIMPLE matches nothing when any part is NULL), and `unique-constraint` was a ConstraintType member no fixture produced. Both ride on the join the corpus already writes, so the drop is observed rather than assumed — a claim that appeared here would be the finding.",
