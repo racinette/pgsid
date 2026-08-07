@@ -694,9 +694,20 @@ application schema already in `fixtures/schema.sql` — which is not work to be
 done, since 164 fixtures already query it — generating over the catalog the way
 `tests/unit/query/fixture-data/` already generates DATA over it, with the same
 tier resolution and the same "no match is an ERROR, not a default" rule.
-Enumerated axes stay for regression; randomised exploration under a seed is the
-second mode, which `docs/query-generator.md` already named as the widening to
-take once the enumerated axes stopped finding defects. They have.
+**The handoff's central decision is that COVERAGE and DISCOVERY are separate
+instruments with opposite requirements**, and that conflating them is what has
+made the generated suite hard to reason about. Coverage needs a bounded space
+where every claim is adjudicated, deterministic and fast enough to gate CI —
+that is the enumerated corpus and the fixtures, and their discipline is
+unchanged. Discovery needs an unbounded space, consumes only SELF-ADJUDICATING
+signals (a claimed notNull against an observed NULL, a name-list disagreement,
+a parity break, a crash, a rejection), and must never gate anything — that is
+the randomiser, which is the four adversarial sweeps with the human removed
+from the search and kept in the promotion. Its output is a shrunk falsifying
+statement that becomes a fixture, not a green checkmark. Emptiness stops being
+a problem for it: a query returning no rows contributes no signal, which is the
+whole of it — no tag, no excuse, and no surface for the 12% mislabelling rate
+the reason audit measured.
 
 **One metric is retired by this and should not be replaced carelessly.**
 `capability-reach.test.ts` reads 34 of 34 over a corpus this thin because it
