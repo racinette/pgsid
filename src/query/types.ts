@@ -91,14 +91,6 @@ export interface AliasNullability {
 // ---------------------------------------------------------------------------
 
 /**
- * The richer catalog the nullability walk needs: name resolution (same as
- * `DepCatalog`) plus intrinsic column nullability, function metadata (for
- * FuncCall dispatch), and domain metadata (for NOT NULL domain returns).
- *
- * Built from a `CatalogSnapshot` (or mocked in tests). The walk is a pure
- * function over `(AST, catalog)` — no PGlite needed.
- */
-/**
  * What the walk needs to know about a resolved custom operator name. With
  * several candidates, `strict` is their CONSENSUS — true only when every
  * candidate's backing function is declared strict, which holds whichever
@@ -112,6 +104,28 @@ export interface OperatorMetadata {
   functionName?: string;
 }
 
+/**
+ * Members of the adapter's product that belong to `DepCatalog` ALONE — the
+ * walk cannot call them, so a coverage census must not expect them to be
+ * exercised by queries. `satisfies` keeps every name a real DepCatalog key;
+ * a new dep-only member that nobody adds here shows up as an unexercised
+ * capability, which is the failure that asks for it.
+ */
+export const DEP_CATALOG_ONLY = ["resolveFunctions"] as const satisfies readonly (keyof DepCatalog)[];
+
+/**
+ * The richer catalog the nullability walk needs, and ONLY what it needs: name
+ * resolution (`resolveTable`, shared with `DepCatalog`) plus intrinsic column
+ * nullability, function metadata for FuncCall dispatch, and domain metadata
+ * for NOT NULL domain returns. Built from a `CatalogSnapshot` (or mocked in
+ * tests); the walk is a pure function over `(AST, catalog)` — no PGlite.
+ *
+ * `DepCatalog` is the other consumer's face and one adapter builds both from
+ * one snapshot, but the two lists are not the same list. A member kept here
+ * that only dependency extraction calls made the walk's surface unmeasurable:
+ * `catalog-census.test.ts` records which members the corpus asks, and one no
+ * nullability question can reach reads as an untested branch forever.
+ */
 export interface NullabilityCatalog {
   /**
    * Resolve a table/view by (schema, name) via search_path.
@@ -119,12 +133,6 @@ export interface NullabilityCatalog {
    * Returns null if not found.
    */
   resolveTable(schema: string | undefined, name: string): ResolvedTable | null;
-
-  /**
-   * Every function of this name the call could resolve to — see
-   * `DepCatalog.resolveFunctions`.
-   */
-  resolveFunctions(schema: string | undefined, name: string): ResolvedFunction[];
 
   /**
    * Every candidate for this name, UNFILTERED by arity — empty when the

@@ -1,6 +1,7 @@
 import type { Node } from "libpg-query";
 import type { CatalogSnapshot } from "../catalog/types.js";
 import type {
+  DepCatalog,
   FunctionInfo,
   NullabilityCatalog,
   OutputNullability,
@@ -25,7 +26,7 @@ import { splitQualifiedName } from "../catalog/qualified-name.js";
 export async function buildNullabilityCatalog(
   snapshot: CatalogSnapshot,
   options?: { searchPath?: readonly string[] },
-): Promise<NullabilityCatalog> {
+): Promise<NullabilityCatalog & DepCatalog> {
   // The search path an UNQUALIFIED name resolves under — the contract the
   // interface has documented all along, now actually true (adversarial-2
   // finding 5: the adapter hardcoded "public", so under a real search path

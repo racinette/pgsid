@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import type { CatalogSnapshot } from "../../../src/catalog/types.js";
+import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 export type Category =
   /** A walk branch keys on this catalog fact. */
@@ -59,6 +60,23 @@ export interface Feature {
    * instead (a suite that builds its own catalog) or what it would take.
    */
   absent?: string;
+  /**
+   * The `NullabilityCatalog` accessor a `handled` or `gated` label rests on:
+   * the question the walk asks to reach this fact. The census runs the corpus
+   * through a recording catalog and asserts it fired.
+   *
+   * What that proves and does not: the accessor is BRANCH-level, not
+   * feature-level, so a passing entry means the branch that carries the fact
+   * is still being asked — not that this particular feature reached it. It
+   * fails when a branch is deleted or refactored past, which is the drift a
+   * `handled` label suffers; distinguishing two features behind one accessor
+   * would need per-feature argument predicates and is not built.
+   *
+   * An adapter-consumed fact names the accessor whose ANSWER the adapter's
+   * narrowing changes — `domain-not-null` is `resolveColumnNotNull`, because
+   * that is where a NOT NULL domain stops being invisible.
+   */
+  reads?: keyof NullabilityCatalog;
   /**
    * The source token that makes a `conservative` label FALSIFIABLE: the
    * snapshot field, or the value test, that nothing under `src/query` may
@@ -131,6 +149,7 @@ export const FEATURES: Record<string, Feature> = {
 
   "domain-over-scalar": {
     category: "handled",
+    reads: "isNotNullDomainByName",
     why: "isNotNullDomain / isNotNullDomainByName — the priority-1 function dispatch rule and NOT NULL cast targets",
     detect: s => s.domains.some(d => {
       const composites = qualified(s.compositeTypes);
@@ -140,11 +159,13 @@ export const FEATURES: Record<string, Feature> = {
   },
   "domain-not-null": {
     category: "handled",
+    reads: "resolveColumnNotNull",
     why: "notNullDomainOids in the adapter: a column TYPED by a NOT NULL domain is non-null in every stored row while attnotnull stays false",
     detect: s => s.domains.some(d => d.notNull),
   },
   "domain-nullable": {
     category: "handled",
+    reads: "resolveColumnNotNull",
     why: "the control for the above — a domain without NOT NULL must not upgrade its column",
     detect: s => s.domains.some(d => !d.notNull),
   },
@@ -156,6 +177,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "domain-over-composite": {
     category: "handled",
+    reads: "resolveCompositeType",
     why: "resolveCompositeType follows a domain to its base composite — one snapshot predicate (typtype='c') decided what 'is a composite' meant for three callers, and a domain over one was not one anywhere (sweep-3 finding 4)",
     detect: s => {
       const composites = qualified(s.compositeTypes);
@@ -164,6 +186,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "domain-over-array-of-composite": {
     category: "handled",
+    reads: "resolveDomainBaseTypeName",
     why: "resolveDomainBaseTypeName — how the unnest element-type resolver sees through a domain that hides its array-ness behind its own name (sweep-3 finding 3)",
     detect: s => {
       const composites = qualified(s.compositeTypes);
@@ -175,6 +198,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "domain-over-domain": {
     category: "handled",
+    reads: "resolveCompositeType",
     why: "resolveCompositeType follows a domain TRANSITIVELY to its base; one hop is all the fixture schema tests",
     detect: s => {
       const domains = qualified(s.domains);
@@ -184,11 +208,13 @@ export const FEATURES: Record<string, Feature> = {
   },
   "composite-type": {
     category: "handled",
+    reads: "resolveCompositeType",
     why: "resolveCompositeType — SETOF <composite> expands to the type's fields exactly as a table row type does",
     detect: s => s.compositeTypes.length > 0,
   },
   "composite-column": {
     category: "handled",
+    reads: "resolveCompositeType",
     why: "expandCompositeStar — `(p).*` over a composite COLUMN, where the parentheses force the value reading over a range-table alias of the same name (sweep-2 finding 13)",
     detect: s => {
       const composites = qualified(s.compositeTypes);
@@ -197,6 +223,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "array-of-composite-column": {
     category: "handled",
+    reads: "resolveCompositeType",
     why: "unnestCompositeElementFields — unnest of a composite-element array expands the element's FIELDS, one column per field (sweep-2 finding 4)",
     detect: s => {
       const composites = qualified(s.compositeTypes);
@@ -208,6 +235,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "array-of-domain-column": {
     category: "handled",
+    reads: "resolveDomainBaseTypeName",
     why: "the same resolver reaching the element type through a domain rather than a composite name",
     detect: s => {
       const domains = qualified(s.domains);
@@ -219,6 +247,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "domain-over-array-column": {
     category: "handled",
+    reads: "resolveDomainBaseTypeName",
     why: "a column whose declared type is a DOMAIN that renders without brackets while being an array — the spelling resolveDomainBaseTypeName exists for",
     detect: s => {
       const domains = qualified(s.domains);
@@ -227,6 +256,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "array-of-table-row-type-column": {
     category: "handled",
+    reads: "resolveCompositeType",
     why: "the element-type resolver falling through to the RELATION — resolveCompositeType is backed by CREATE TYPE entries alone, so `trow[]` resolved to nothing and unnest contributed one column against PostgreSQL's N (post-fix audit (a))",
     detect: s => {
       const tables = qualified(s.tables);
@@ -238,6 +268,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "table-row-type-column": {
     category: "handled",
+    reads: "resolveTable",
     why: "the same two-step relation fallback in its BARE spelling — a column declared with a table's row type rather than an array of it",
     detect: s => {
       const tables = qualified(s.tables);
@@ -266,12 +297,14 @@ export const FEATURES: Record<string, Feature> = {
 
   "second-schema": {
     category: "handled",
+    reads: "resolveTable",
     why: "inPath walks searchPath in order for tables, functions, composites and domains (sweep-2 finding 5 half (a))",
     detect: s => s.schemas.some(x => x.name !== "public" && x.name !== "information_schema" && !x.name.startsWith("pg_")),
     absent: "The fixture schema is single-schema. search-path.test.ts and resolver.test.ts build their own catalogs with `app_s` because the fixture harness cannot hold two.",
   },
   "relation-name-in-two-schemas": {
     category: "handled",
+    reads: "resolveTable",
     why: "first-schema-wins for relations, and scope.visible rather than scope.aliases resolving a schema-qualified star when two same-named relations are in scope (post-fix audit (b))",
     detect: s => {
       const seen = new Map<string, number>();
@@ -282,6 +315,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "function-overloaded-in-one-schema": {
     category: "handled",
+    reads: "resolveFunctionCandidates",
     why: "resolveFunctionMetadata refuses to pick one, and resolveFunctionCandidates / resolveFunctionShapes take CONSENSUS over what survives",
     detect: s => {
       const seen = new Map<string, Set<string>>();
@@ -295,6 +329,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "function-overloaded-across-schemas": {
     category: "handled",
+    reads: "resolveFunctionShapes",
     why: "unqualified lookups merge candidates ACROSS the path deduped by argTypes — a function is identified by name AND argument types, so first-schema-wins is wrong for it (sweep-3 section A)",
     detect: s => {
       const seen = new Map<string, Set<string>>();
@@ -308,6 +343,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "user-function-named-after-a-builtin": {
     category: "handled",
+    reads: "isBuiltinFunction",
     why: "isBuiltinFunction — pg_catalog is searched implicitly and FIRST unless the path names it, so for an identical signature the BUILTIN hides the user function, which is the opposite of what every builtin table documented (sweep-3 finding 6)",
     detect: s => {
       const builtins = new Set(s.builtinFunctionNames);
@@ -316,21 +352,25 @@ export const FEATURES: Record<string, Feature> = {
   },
   "quoted-identifier-with-space": {
     category: "handled",
+    reads: "resolveFunctionShapes",
     why: "columnsForReturnType's identifier-aware split — pg_get_function_result renders names with quote_ident, and splitting each TABLE(…) part at indexOf(' ') split INSIDE the quotes (sweep-3 finding 7, arity-preserving and NAME-only, so nothing but an ordered name comparison sees it)",
     detect: s => anyQuotedIdentifier(s, id => id.includes(" ")),
   },
   "quoted-identifier-for-case": {
     category: "handled",
+    reads: "resolveFunctionShapes",
     why: "the same split — a name quoted only for its case kept its quote characters and came back spelled with them",
     detect: s => anyQuotedIdentifier(s, id => /[A-Z]/.test(id)),
   },
   "quoted-identifier-with-comma-or-bracket": {
     category: "handled",
+    reads: "resolveFunctionShapes",
     why: "splitTopLevel is identifier-aware too, so a comma or bracket inside quotes is text rather than structure (measured: TABLE(\"a,b\" integer, \"c)d\" text) is a faithful rendering)",
     detect: s => anyQuotedIdentifier(s, id => /[,()]/.test(id)),
   },
   "quoted-identifier-with-embedded-quote": {
     category: "handled",
+    reads: "resolveFunctionShapes",
     why: "the doubled-quote escape, which is what makes the scan pair-wise rather than character-wise at both the split and the census's own reader",
     detect: s => s.functions.some(f => quotedIdentifiers(f.returnType).some(id => id.includes('""'))),
   },
@@ -339,6 +379,7 @@ export const FEATURES: Record<string, Feature> = {
 
   "setof-table-return": {
     category: "handled",
+    reads: "resolveFunctionMetadata",
     why: "columnsForReturnType's SETOF branch — a SETOF <table> return ERASES the table's NOT NULLs (measured), so the body is the only sound source of a guarantee and the walk reads it back (imprecision-closure class A)",
     detect: s => {
       const tables = qualified(s.tables);
@@ -347,6 +388,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "setof-composite-return": {
     category: "handled",
+    reads: "resolveCompositeType",
     why: "the same branch resolving through resolveCompositeType rather than the relation",
     detect: s => {
       const composites = qualified(s.compositeTypes);
@@ -355,6 +397,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "setof-domain-return": {
     category: "handled",
+    reads: "isNotNullDomainByName",
     why: "the scalar element case — one column, whose NOT NULL domain survives the SETOF where a table's constraints do not",
     detect: s => {
       const domains = qualified(s.domains);
@@ -363,16 +406,19 @@ export const FEATURES: Record<string, Feature> = {
   },
   "setof-record-return-from-out-params": {
     category: "handled",
+    reads: "resolveFunctionMetadata",
     why: "functionOutputColumns reads proargmodes/proargnames/proallargtypes — a function declared with OUT parameters renders `SETOF record` and contributed ONE column named after the function against PostgreSQL's N (post-fix audit item 3)",
     detect: s => s.functions.some(f => f.returnType === "SETOF record" && f.args.some(a => a.mode === "out")),
   },
   "table-return": {
     category: "handled",
+    reads: "resolveFunctionMetadata",
     why: "columnsForReturnType's TABLE(…) branch — the column list is the rendering",
     detect: s => s.functions.some(f => f.returnType.startsWith("TABLE(")),
   },
   "table-return-with-one-composite-column": {
     category: "handled",
+    reads: "resolveCompositeType",
     why: "a RETURNS TABLE(r <composite>) with a SINGLE output column is a function whose row type IS that composite, so PostgreSQL emits its FIELDS where the rendering reads as one column named r (post-fix audit item 3)",
     detect: s => {
       const composites = qualified(s.compositeTypes);
@@ -386,6 +432,7 @@ export const FEATURES: Record<string, Feature> = {
   },
   "composite-return-not-set": {
     category: "handled",
+    reads: "fnBodyAsts",
     why: "a non-set-returning composite return whose body can yield zero rows comes back as ONE all-NULL row (measured), so the scalar path's single-row gate applies (imprecision-closure class A, body-shape-* fixtures)",
     detect: s => {
       const composites = qualified(s.compositeTypes);
@@ -395,41 +442,49 @@ export const FEATURES: Record<string, Feature> = {
   },
   "scalar-return": {
     category: "handled",
+    reads: "fnBodyAsts",
     why: "the ordinary case — priority 5 reads a single-candidate LANGUAGE sql body's column 0",
     detect: s => s.functions.some(f => !f.returnsSet && !f.returnType.startsWith("TABLE(")),
   },
   "out-parameter": {
     category: "handled",
+    reads: "resolveFunctionMetadata",
     why: "FunctionArgInfo.mode 'o' — what functionOutputColumns reads instead of the lossy rendering",
     detect: s => s.functions.some(f => f.args.some(a => a.mode === "out")),
   },
   "inout-parameter": {
     category: "handled",
+    reads: "resolveFunctionCandidates",
     why: "resolveFunctionCandidates counts 'in' and 'inout' as INPUTS when filtering by arity; an INOUT argument is also an output column",
     detect: s => s.functions.some(f => f.args.some(a => a.mode === "inout")),
   },
   "variadic-parameter": {
     category: "gated",
+    reads: "resolveFunctionCandidates",
     why: "resolveFunctionCandidates returns null outright for a variadic candidate — arity filtering is unsound against one, and it once sent a whole FROM item to a single wrongly-named column (measured: vp(VARIADIC text[]) beside vp(integer))",
     detect: s => s.functions.some(f => f.args.some(a => a.mode === "variadic")),
   },
   "argument-with-default": {
     category: "handled",
+    reads: "resolveFunctionCandidates",
     why: "resolveFunctionCandidates' arity window is `argCount >= required && argCount <= inputs.length`, where `required` counts arguments WITHOUT a default — a call with fewer arguments than the declaration still resolves",
     detect: s => s.functions.some(f => f.args.some(a => a.hasDefault)),
   },
   "set-returning-user-function": {
     category: "handled",
+    reads: "functionReturnsSet",
     why: "functionReturnsSet by consensus over candidates — srfPaddedTargets needs a count of TWO, so one unrecognised SRF turned the padding rule off for the WHOLE target list (sweep-3 findings 1 and 2)",
     detect: s => s.functions.some(f => f.returnsSet),
   },
   "user-aggregate-with-initcond": {
     category: "handled",
+    reads: "resolveFunctionMetadata",
     why: "FunctionInfo.aggInitVal — a non-null INITCOND is what makes an aggregate non-null over zero input rows, since with no rows to transition the initial state IS the result",
     detect: s => s.functions.some(f => f.isAggregate && f.aggInitVal !== null),
   },
   "user-aggregate-without-initcond": {
     category: "handled",
+    reads: "resolveFunctionMetadata",
     why: "the control for the above: no INITCOND means the zero-row result is NULL and the claim must be dropped",
     detect: s => s.functions.some(f => f.isAggregate && f.aggInitVal === null),
   },
@@ -456,31 +511,37 @@ export const FEATURES: Record<string, Feature> = {
   },
   "strict-function": {
     category: "handled",
+    reads: "resolveFunctionMetadata",
     why: "the strict dispatch — a strict function returns NULL for a NULL argument without the body running, which short-circuits body recursion entirely",
     detect: s => s.functions.some(f => f.strict),
   },
   "language-sql-body": {
     category: "handled",
+    reads: "fnBodyAsts",
     why: "fnBodyAsts — the walk recurses into a single-candidate LANGUAGE sql body; the map is keyed by NAME alone, so only a single candidate may be read",
     detect: s => s.functions.some(f => f.language === "sql"),
   },
   "language-plpgsql-body": {
     category: "handled",
+    reads: "resolveFunctionMetadata",
     why: "the control: an unanalysable body means priority 1 (a NOT NULL domain return) is the only thing that can still speak",
     detect: s => s.functions.some(f => f.language === "plpgsql"),
   },
   "user-operator-strict": {
     category: "handled",
+    reads: "resolveOperatorMetadata",
     why: "resolveOperatorMetadata — a strict backing function plus a TRUE comparison licenses WHERE-side promotion and narrowing exactly like a builtin",
     detect: s => s.operators.some(o => o.strict),
   },
   "user-operator-non-strict": {
     category: "handled",
+    reads: "resolveOperatorMetadata",
     why: "the counterexample that pins the boundary — the engine's first measured unsoundness was WHERE promotion trusting an arbitrary operator",
     detect: s => s.operators.some(o => !o.strict),
   },
   "user-operator-overloaded": {
     category: "handled",
+    reads: "resolveOperatorMetadata",
     why: "strictness by CONSENSUS across candidates while output-side body dispatch stays single-candidate, because bodies differ across overloads",
     detect: s => {
       const seen = new Map<string, number>();
@@ -493,51 +554,61 @@ export const FEATURES: Record<string, Feature> = {
 
   "partitioned-parent": {
     category: "handled",
+    reads: "resolveIsPartitioned",
     why: "resolveIsPartitioned — an UPDATE through a partitioned parent can MOVE a row, which PostgreSQL performs as DELETE + INSERT and which fires the DESTINATION partition's BEFORE INSERT triggers, so the hook question becomes two-command",
     detect: s => s.tables.some(t => t.relkind === "p"),
   },
   "partition-leaf-carrying-a-trigger": {
     category: "handled",
+    reads: "resolveWriteRewritesTree",
     why: "writeRewritesTree unions beforeRow over the subtree — the trigger that rewrites a row is the trigger of the relation the row LIVES in (sweep-2's relation-SET lesson)",
     detect: s => s.tables.some(t => t.writeRewrites.beforeRow.length === 0 && t.writeRewritesTree.beforeRow.length > 0),
   },
   "sub-partition": {
     category: "handled",
+    reads: "resolveGenerationExprTree",
     why: "the subtree union behind notNullTree, writeRewritesTree, resolveGenerationExprTree and resolveForeignKeyTree is recursive, and the snapshot computes it; a two-level tree is what separates the recursion from its base case",
     detect: (s, env) => s.tables.some(t => t.relkind === "p" && env.childToParent.has(t.name)),
   },
   "inheritance-parent-with-children": {
     category: "handled",
+    reads: "resolveColumnNotNullTree",
     why: "hasDescendants gates the NO INHERIT CHECK reading, and the tree variants of notNull, the hooks, the generation expression and the foreign key all diverge from their own-relation forms exactly here",
     detect: s => s.tables.some(t => t.relkind === "r" && t.hasDescendants),
   },
   "inheritance-parent-without-children": {
     category: "handled",
+    reads: "resolveColumnNotNullTree",
     why: "the control — with no descendants a tree scan returns the named relation's rows only and every tree accessor equals its plain form",
     detect: s => s.tables.some(t => t.relkind === "r" && !t.hasDescendants),
   },
   "not-null-on-the-parent-only": {
     category: "gated",
+    reads: "resolveColumnNotNullTree",
     why: "notNullTree — `ALTER TABLE ONLY p … SET NOT NULL` is legal (measured), so a child may store the NULL the parent's own flag forbids and a tree scan may rely only on the conjunction",
     detect: s => anyColumn(s, c => c.notNull && !c.notNullTree),
   },
   "check-no-inherit": {
     category: "gated",
+    reads: "resolveCheckConstraintsTree",
     why: "resolveCheckConstraintsTree excludes it — a CHECK … NO INHERIT is never copied to a child (measured, the only CHECK divergence route PostgreSQL permits), so no child row ever satisfied it",
     detect: s => anyConstraint(s, c => c.type === "check" && c.noInherit),
   },
   "generated-stored-column": {
     category: "handled",
+    reads: "resolveGenerationExpr",
     why: "resolveGenerationExpr — the generation expression is walked at the READING site with its refs bound to the read entry, which is how a generated column gets a notNull the catalog flag never carries",
     detect: s => anyColumn(s, c => c.generated === "stored"),
   },
   "generation-diverging-in-the-tree": {
     category: "gated",
+    reads: "resolveGenerationExprTree",
     why: "resolveGenerationExprTree returns null — a child may define its OWN generation expression for an inherited column (measured), so a tree scan would otherwise evaluate a formula the row it reads was never computed with",
     detect: s => anyColumn(s, c => c.generationDivergesInTree),
   },
   "generated-virtual-column": {
     category: "handled",
+    reads: "resolveGenerationExpr",
     why: "attgenerated 'v', new in PG18 — ColumnInfo.generated carries it and the generation-expression path treats it the same as STORED",
     detect: s => anyColumn(s, c => c.generated === "virtual"),
     absent: "No GENERATED … VIRTUAL column. The two modes are read through one code path, and only one of them is measured.",
@@ -557,27 +628,32 @@ export const FEATURES: Record<string, Feature> = {
   },
   view: {
     category: "handled",
+    reads: "viewAsts",
     why: "viewAsts — PostgreSQL does not propagate attnotnull to view columns, so reading the catalog flag alone would make every view column nullable; the walk analyses the stored definition instead",
     detect: s => s.views.length > 0,
   },
   "materialized-view": {
     category: "handled",
+    reads: "viewAsts",
     why: "the adapter folds matviews in beside views at three sites, so the same definition analysis applies",
     detect: s => s.materializedViews.length > 0,
     absent: "No CREATE MATERIALIZED VIEW. The claim that a matview behaves as a view does is made by the adapter and checked by nothing.",
   },
   "before-row-trigger": {
     category: "handled",
+    reads: "resolveWriteRewrites",
     why: "resolveWriteRewrites — RETURNING reports the row AFTER the rewrite stage, and a BEFORE ROW trigger may replace NEW wholesale, so the walk voids the corresponding reasoning",
     detect: s => s.tables.some(t => t.writeRewrites.beforeRow.length > 0),
   },
   "instead-of-trigger": {
     category: "handled",
+    reads: "resolveWriteRewrites",
     why: "an INSTEAD OF trigger's NEW is reported verbatim and the view's own definition expressions are never evaluated (measured — even a literal view column comes back NULL)",
     detect: s => s.views.some(v => v.writeRewrites.insteadOf.length > 0),
   },
   "do-instead-rule": {
     category: "handled",
+    reads: "resolveWriteRewrites",
     why: "a DO INSTEAD rule replaces the statement outright; rules attach to the named RTE and do not fire through a parent (measured), which is why insteadRules stays the relation's own",
     detect: s => s.tables.some(t => t.writeRewrites.insteadRules.length > 0) || s.views.some(v => v.writeRewrites.insteadRules.length > 0),
   },
@@ -595,57 +671,68 @@ export const FEATURES: Record<string, Feature> = {
 
   "validated-check": {
     category: "handled",
+    reads: "resolveCheckConstraints",
     why: "resolveCheckConstraints feeds the entailment kernel; these are notFALSE facts, never TRUE facts, because PostgreSQL accepts a row whose CHECK evaluates NULL (measured)",
     detect: s => anyConstraint(s, c => c.type === "check" && c.validated && !/^NOT NULL /.test(c.definition)),
   },
   "not-valid-check": {
     category: "gated",
+    reads: "resolveCheckConstraints",
     why: "excluded at adapter build time — stored rows may violate a NOT VALID constraint, so it is no fact at all",
     detect: s => anyConstraint(s, c => c.type === "check" && !c.validated && /NOT VALID/i.test(c.definition)),
   },
   "not-enforced-check": {
     category: "gated",
+    reads: "resolveCheckConstraints",
     why: "the same convalidated bit covers it: a PG18 NOT ENFORCED constraint is never validated, and ALTER CONSTRAINT … NOT ENFORCED CLEARS the bit on an already-validated one (measured)",
     detect: s => anyConstraint(s, c => c.type === "check" && /NOT ENFORCED/i.test(c.definition)),
   },
   "pg18-not-null-constraint-row": {
     category: "gated",
+    reads: "resolveCheckConstraints",
     why: "PG18 records NOT NULL as contype 'n', which the snapshot's mapConstraintType folds into \"check\"; the adapter filters them by the PARSED node type (CONSTR_NOTNULL) rather than by the rendered definition",
     detect: s => anyConstraint(s, c => c.type === "check" && /^NOT NULL /.test(c.definition)),
   },
   "validated-single-column-foreign-key": {
     category: "handled",
+    reads: "resolveForeignKey",
     why: "resolveForeignKey — a join whose ON is an equality on a NOT NULL foreign key always matches, so the referenced side never null-extends (imprecision-closure class B)",
     detect: s => anyConstraint(s, c => c.type === "foreign" && c.validated && !c.deferrable && c.columns.length === 1),
   },
   "not-valid-foreign-key": {
     category: "gated",
+    reads: "resolveForeignKey",
     why: "dropped by the adapter — pre-existing rows are unchecked and one survives the ADD CONSTRAINT to be read back through the join",
     detect: s => anyConstraint(s, c => c.type === "foreign" && !c.validated),
   },
   "deferrable-foreign-key": {
     category: "gated",
+    reads: "resolveForeignKey",
     why: "dropped — violable mid-transaction and OBSERVABLE there, with INITIALLY IMMEDIATE no protection (SET CONSTRAINTS ALL DEFERRED, measured), so the gate is on condeferrable rather than condeferred",
     detect: s => anyConstraint(s, c => c.type === "foreign" && c.deferrable),
   },
   "foreign-key-on-an-inheritance-parent": {
     category: "gated",
+    reads: "resolveForeignKeyTree",
     why: "resolveForeignKeyTree drops it — a parent's FK is NOT copied to a child, so a tree scan reads rows nothing checked (the relation-SET lesson, third instance; partitioning is the opposite and safe)",
     detect: s => anyConstraint(s, (c, t) => c.type === "foreign" && t.hasDescendants),
   },
   "self-referencing-foreign-key": {
     category: "handled",
+    reads: "resolveForeignKey",
     why: "the shape a correlated self-lookup reads — the subquery scans what the outer scans, keyed on the same column",
     detect: s => anyConstraint(s, (c, t) => c.type === "foreign" && c.foreignTable === t.name),
   },
   "composite-foreign-key": {
     category: "gated",
+    reads: "resolveForeignKey",
     why: "dropped — the entailment reasons about ONE column matching, and a multi-column key under MATCH SIMPLE matches nothing when any part is NULL",
     detect: s => anyConstraint(s, c => c.type === "foreign" && c.columns.length > 1),
     absent: "Every foreign key here is single-column, so the gate that drops composite ones has never had anything to drop.",
   },
   "not-enforced-foreign-key": {
     category: "gated",
+    reads: "resolveForeignKey",
     why: "covered by the same convalidated bit as the NOT ENFORCED check, and measured to be so",
     detect: s => anyConstraint(s, c => c.type === "foreign" && /NOT ENFORCED/i.test(c.definition)),
     absent: "The fixture schema's NOT ENFORCED constraint is a CHECK (guest_vip_reason). The claim that convalidated covers the FK route too is measured in docs/imprecision-closure.md and pinned by no fixture.",

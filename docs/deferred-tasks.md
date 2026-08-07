@@ -734,6 +734,59 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the CATALOG SPY (2026-08-07), which finishes the `handled` half the
+category check named and left. The catalog is a pure data interface, so which
+QUESTIONS a statement asks is observable by wrapping it — a `Proxy` recording
+each member on call, no instrument inside the walk and nothing it can tell
+apart (`tests/unit/query/catalog-spy.ts`). Two assertions run off one corpus
+pass (the grammar sampler plus every fixture, 437 statements).
+
+Every `handled`/`gated` entry now names the accessor its label rests on and
+the census asserts it fired — 68 annotated, 25 of which already named it in
+prose. What that proves is stated at the field rather than assumed: accessor
+granularity is BRANCH-level, so it fails when a branch is deleted or
+refactored past (mutation-checked: disabling the foreign-key read reports
+every entry that names `resolveForeignKeyTree`, and mis-naming an accessor
+reports that entry alone) and it does not separate two features behind one
+accessor. Per-feature argument predicates would; they are not built, and the
+field says so.
+
+**Which corpus the spy should run, measured rather than assumed.** The
+generated corpus is 11632 queries against the fixture corpus's 438, and it
+touches FEWER catalog capabilities: 24 of 35 against the fixtures' 34, and the
+union is 34 — the generated half reaches nothing the fixtures do not. It is
+broad in STRUCTURE and narrow in CATALOG SURFACE: its `t`/`u`/`v` carry no
+foreign keys, no triggers or rules, no custom operators, and no
+unnest/composite/domain shapes, so `resolveForeignKey`,
+`resolveWriteRewrites`, `resolveOperatorMetadata`,
+`resolveLiteralDistinctnessSound`, `resolveColumnTypeName`,
+`resolveDomainBaseTypeName`, `resolveBuiltinFunctionShape`,
+`resolvePolymorphicArraySignatures` and the two builtin predicates are all
+cold there. (Measured over the four default generator entry points; the schema
+axis runs the same generator against 22 variants including `fk-chain`, which
+would reach the key path.) So the census keeps the cheap corpus: adding
+minutes of generation would buy zero capability coverage. It is the standing
+"hand-written fixtures reach what volume does not" claim, in the direction
+nobody had measured.
+
+The second assertion needs no annotation and asks a question nothing asked
+before: which capabilities the corpus never exercises. Three of 35 came back
+cold. `resolveFunctions` belonged to `extractDeps`, a different consumer of the same
+catalog shape, and the interfaces were SPLIT rather than the member exempted:
+`NullabilityCatalog` is now the questions the walk asks and only those, one
+adapter builds both faces from one snapshot (`resolveTable` is genuinely in
+both), and `DEP_CATALOG_ONLY` beside the interfaces is type-checked against
+`keyof DepCatalog`. So the census's scope is a type boundary rather than a
+list of excuses, asserted both ways: a dep-only member nobody declares shows
+up as an unexercised capability, and one the walk starts asking fails as a
+wrong split.
+The other two were a real gap: `isBuiltinFunction` and `isPolymorphicBuiltin`
+are reached only at the tail of the unnest element-type reading, which every
+fixture happened to miss and only `unsupported-nodes.test.ts` covered. Closed
+with a fixture rather than an exemption
+(`unnest-builtin-scalar-array.sql`), so the branch is now executed against
+PostgreSQL like every other claim.
+
 Closed by the CATALOG-CENSUS CATEGORY CHECK (2026-08-07), the same class as
 the node-census audit below and the wider half: `category` appeared in that
 suite only in the report and in one filter, so all 86 labels were

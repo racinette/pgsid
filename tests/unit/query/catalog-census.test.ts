@@ -5,6 +5,12 @@ import { PGlite } from "@electric-sql/pglite";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import type { CatalogSnapshot } from "../../../src/catalog/types.js";
 import { FEATURES, type Category, type CensusEnv } from "./catalog-features.js";
+import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { inferNullability } from "../../../src/query/nullability-walk.js";
+import { parseSql } from "../../../src/ast.js";
+import { spyOnCatalog, catalogMembers } from "./catalog-spy.js";
+import { DEP_CATALOG_ONLY } from "../../../src/query/types.js";
+import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 
 // ---------------------------------------------------------------------------
 // Catalog-feature census.
@@ -185,6 +191,9 @@ describe("catalog-feature census", () => {
   let env: CensusEnv;
   /** column name → the distinct values the live catalog carries. */
   const observedValues = new Map<string, Set<string>>();
+  /** Catalog members the corpus actually asked (see catalog-spy.ts). */
+  let touched: Set<string>;
+  let catalogMemberNames: string[];
 
   beforeAll(async () => {
     pg = await PGlite.create();
@@ -205,7 +214,29 @@ describe("catalog-feature census", () => {
       const res = await pg.query<{ v: string }>(spec.sql);
       observedValues.set(column, new Set(res.rows.map(r => r.v)));
     }
-  }, 60_000);
+
+    // Which catalog QUESTIONS the corpus actually asks. The catalog is a pure
+    // data interface, so this is observable by wrapping it — no instrument
+    // inside the walk, and the walk cannot tell the difference.
+    const spy = spyOnCatalog(await buildNullabilityCatalog(snapshot));
+    catalogMemberNames = catalogMembers(spy.catalog);
+    touched = spy.touched;
+    const corpus = [
+      ...GRAMMAR_SAMPLER,
+      ...readdirSync(FIXTURES_DIR)
+        .filter(f => f.endsWith(".sql") && f !== "schema.sql")
+        .map(f => readFileSync(join(FIXTURES_DIR, f), "utf8")),
+    ];
+    for (const sql of corpus) {
+      const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
+      if (!stmt) continue;
+      try {
+        inferNullability(stmt, spy.catalog);
+      } catch {
+        // A refusal still asked its questions on the way to refusing.
+      }
+    }
+  }, 120_000);
 
   afterAll(async () => {
     // The gap list is this suite's product, not a by-product: every `absent`
@@ -263,6 +294,59 @@ describe("catalog-feature census", () => {
       `Marked \`absent\` but the fixture schema now carries it. Drop the ` +
         `marker, and check that a fixture actually exercises the branch — the ` +
         `DDL existing is not the same as a query reaching it:\n  ${present.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("every catalog capability the corpus can exercise is exercised", () => {
+    // A member nothing calls is either a branch no query reaches or a capture
+    // nobody needs, and neither is visible from outside the walk. The
+    // exemptions name where a member IS covered, so the two stay apart.
+    // The adapter's product wears two faces; only the walk's is in scope here.
+    // `DEP_CATALOG_ONLY` lives beside the interfaces and is type-checked
+    // against `keyof DepCatalog`, so this is a type boundary rather than a
+    // list of excuses.
+    const depOnly = new Set<string>(DEP_CATALOG_ONLY);
+    const cold = catalogMemberNames.filter(m => !touched.has(m) && !depOnly.has(m)).sort();
+    expect(
+      cold,
+      `Catalog members no statement in the corpus asked. Either add SQL that ` +
+        `reaches the branch, or — if the member is not a nullability question ` +
+        `at all — move it off NullabilityCatalog:\n  ${cold.join("\n  ")}`,
+    ).toEqual([]);
+
+    const askedAnyway = [...depOnly].filter(m => touched.has(m)).sort();
+    expect(
+      askedAnyway,
+      `Declared DepCatalog-only, but the walk asked them — the split is ` +
+        `wrong, or the member belongs on NullabilityCatalog after all:\n  ` +
+        askedAnyway.join("\n  "),
+    ).toEqual([]);
+  });
+
+  it("every `handled` feature names an accessor the corpus actually asks", () => {
+    // The converse of the `conservative` check below, and the reason the
+    // catalog spy exists: `handled` claims a branch keys on this fact, and
+    // nothing verified that the branch is still there. Accessor granularity —
+    // see `Feature.reads` for what that does and does not prove.
+    const unannotated: string[] = [];
+    const cold: string[] = [];
+    for (const [key, f] of Object.entries(FEATURES)) {
+      if (f.category !== "handled" && f.category !== "gated") continue;
+      if (!f.reads) {
+        unannotated.push(`${key} — add \`reads\`, the accessor the walk asks this through`);
+        continue;
+      }
+      if (!touched.has(f.reads)) cold.push(`${key} — \`${f.reads}\` was never called`);
+    }
+    expect(
+      unannotated,
+      `\`handled\`/\`gated\` entries whose label nothing can falsify:\n  ${unannotated.join("\n  ")}`,
+    ).toEqual([]);
+    expect(
+      cold,
+      `These features claim a branch keys on them, but the accessor that ` +
+        `carries the fact was never asked across the corpus — the branch is ` +
+        `gone, or the entry names the wrong accessor:\n  ${cold.join("\n  ")}`,
     ).toEqual([]);
   });
 
