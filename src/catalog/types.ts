@@ -234,6 +234,16 @@ export interface IndexInfo {
 // Functions / procedures
 // ---------------------------------------------------------------------------
 
+/**
+ * One pg_catalog signature: the declared argument types in order and the
+ * declared return type, both as `format_type` renders them.
+ */
+export interface BuiltinSignature {
+  name: string;
+  args: string[];
+  returns: string;
+}
+
 export type ArgMode = "in" | "out" | "inout" | "variadic" | "table";
 
 export interface FunctionArgInfo {
@@ -518,6 +528,32 @@ export interface CatalogSnapshot {
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
   builtinPolymorphicFunctions: string[];
+
+  /**
+   * The pg_catalog signatures whose RETURN type is a polymorphic ARRAY, with
+   * their declared argument types — the one thing needed to answer what a
+   * call to one of them actually yields.
+   *
+   * `builtinPolymorphicFunctions` says a name is polymorphic, which is enough
+   * to REFUSE and not enough to answer. PostgreSQL resolves these from the
+   * arguments by a rule that is uniform across all 26 signatures: a result
+   * declared `anyarray`/`anycompatiblearray` takes its type from the argument
+   * declared with the matching ARRAY pseudo-type, or, where there is none,
+   * from the argument declared with the matching ELEMENT pseudo-type plus one
+   * array dimension. So `array_agg(anynonarray) → anyarray` over a
+   * `sku_pair` column yields `sku_pair[]`, and `array_remove(anycompatiblearray,
+   * anycompatible)` over a `sku_pair[]` yields `sku_pair[]` (both measured).
+   *
+   * Only signatures carrying at least one polymorphic ARGUMENT are captured:
+   * the rest — `anyarray_in(cstring)` and friends — declare a polymorphic
+   * result the walk could never resolve and are not callable from a query
+   * anyway.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`: it changes
+   * with the PostgreSQL version, never with a migration, and stays out of the
+   * diff for the same reason.
+   */
+  builtinPolymorphicArraySignatures: BuiltinSignature[];
 }
 
 // ---------------------------------------------------------------------------

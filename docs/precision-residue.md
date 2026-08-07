@@ -3,11 +3,9 @@
 ## What this document is
 
 Four items in the output-nullability engine that were covered by neither of
-the two efforts already chartered. **All four are now closed** as far as this
-engine reaches; what is left of item 4 is one refusal cause that belongs to
-`docs/type-aware-overloads.md` and waits behind the same prerequisite that
-charter does. This document is now a RECORD rather than a work list, and it is
-kept for what closing the four found. They were collected here because they
+the two efforts already chartered. **All four are closed.** This document is
+now a RECORD rather than a work list, and it is kept for what closing the four
+found. They were collected here because they
 were otherwise scattered across an `@unwitnessable` reason, an `UNWITNESSABLE`
 rule in a generated suite, a residue paragraph in a closed charter, and a
 numbered entry in the register — four places, none of which read as a work
@@ -130,7 +128,7 @@ the restriction was hiding a claim while making a real requirement look
 unwitnessable. A restriction no test can hold you to is not a cost, it is an
 unpinned assumption; close it or pin it.
 
-### 4. The `unnest` refusal class — CLOSED 2026-08-07 down to one cause
+### 4. The `unnest` refusal class — CLOSED 2026-08-07
 
 **What it was.** `unnest` contributes one column per argument unless the
 element type is a COMPOSITE, when it contributes one per FIELD — so the shape
@@ -148,16 +146,24 @@ way. Both recurse into the SAME reading rather than growing a second partial
 type system, so the CTE spelling, the WHERE-qualified sublink and an
 array-of-table-row-type column all fell out with no branch of their own.
 
-**What still refuses, and who owns it.** One cause: a POLYMORPHIC builtin.
-`array_agg(p)` yields `sku_pair[]` and PostgreSQL resolves it from the
-argument types; saying so needs pg_catalog SIGNATURES in the snapshot — 25
-`anyarray`-returning names plus seven `anycompatiblearray` ones, readable
-straight off `pg_proc`. That is blocked by a standing decision recorded before
-this work: `docs/generated-surface.md`'s boundary keeps pg_catalog signatures
-out until the consumer's search-path input lands, and
-`docs/type-aware-overloads.md` is sequenced behind the same prerequisite. So
-this arm is not an open judgement call — it is one line of that charter's
-work, and this document's guess that it "may fall out for free" was right.
+**The third was the polymorphic builtin, and it closed too.**
+`array_agg(p)` yields `sku_pair[]` because PostgreSQL resolves the result from
+the argument types, and the snapshot now carries the 26 pg_catalog signatures
+that say how — ENVIRONMENT data beside the six pg_catalog captures already
+there. One rule covers all of them: the result takes its type from the
+argument declared with the matching ARRAY pseudo-type, or from the one
+declared with the matching ELEMENT pseudo-type plus a dimension.
+
+This arm was briefly written up here as blocked on "the consumer's search-path
+input". It never was — the walk has taken `searchPath` as an argument since
+the adversarial-2 fix phase, and the boundary that sentence cited is about how
+to USE signatures in candidate resolution, a question sweep-3 finding 6 had
+already answered. The walk is a pure function over (AST, catalog); a claim
+that it waits on anything outside itself deserves the same scepticism as any
+other claim here.
+
+**What still refuses is common-type resolution** — a CASE arm, a set
+operation — which `docs/type-aware-overloads.md` lists as its own residue.
 
 **The refusal itself stays deliberate**, with its positive controls beside it
 in `unsupported-nodes.test.ts`. Fourteen spellings were measured against
@@ -202,6 +208,10 @@ kind should:
 - **A restriction no test can hold you to is not a cost, it is an unpinned
   assumption.** Item 3's first pass left one and it was hiding a claim. Close
   it or pin it; recording it is the wrong third option.
+- **A dependency on something outside the walk deserves the same scepticism as
+  a claim.** Item 4's polymorphic arm was written up as blocked on work
+  elsewhere; the dependency did not survive being read. The walk is a pure
+  function over (AST, catalog) — verify before repeating a sequencing story.
 
 ## Where things are
 
@@ -210,7 +220,7 @@ kind should:
 | Item 1's fixtures (closed) | `function-default-argument.sql`, `function-strict-*.sql`, `aggregate-domain-empty-input.sql` |
 | Item 2's fixtures (closed) | `fk-entail-optional-referenced.sql`, `fk-entail-join-level-*.sql`, `fk-entail-referenced-not-preserved*.sql` |
 | Item 3's fixtures (closed) | `fk-entail-subquery-join-*.sql` |
-| Item 4's fixtures (closed) | `unnest-derived-computed-column.sql`, `unnest-sublink-array-column.sql`, and the pins in `unsupported-nodes.test.ts` |
+| Item 4's fixtures (closed) | `unnest-derived-computed-column.sql`, `unnest-sublink-array-column.sql`, `unnest-polymorphic-aggregate.sql`, and the pins in `unsupported-nodes.test.ts` |
 | The foreign-key gate fixtures | `tests/unit/query/fixtures/fk-entail-*.sql` — eighteen, each pinning a hazard from the side that would produce a wrong `notNull` |
 | The engine | `src/query/nullability-walk.ts`, `src/query/catalog-adapter.ts` |
 | The snapshot | `src/catalog/snapshot.ts`, `src/catalog/types.ts` |

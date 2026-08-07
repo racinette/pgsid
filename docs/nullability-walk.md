@@ -735,13 +735,31 @@ Two forms override the per-item resolution above:
   `unnest((SELECT h.pairs FROM pair_holder h LIMIT 1))` both expand to
   sku_pair's fields because of it.
 
-  **One cause still refuses: a POLYMORPHIC builtin.** `array_agg(p)` over a
-  composite column yields `sku_pair[]` and the snapshot cannot say so —
-  PostgreSQL resolves the return type from the arguments, and answering that
-  needs pg_catalog SIGNATURES, which a standing boundary keeps out of the
-  snapshot until the consumer's search-path input lands
-  (`docs/generated-surface.md`, "Boundaries"). The refusal is pinned with its
-  positive controls in `unsupported-nodes.test.ts` so a fix cannot widen it.
+  **A POLYMORPHIC builtin takes its type from its ARGUMENTS**, and
+  `CatalogSnapshot.builtinPolymorphicArraySignatures` says from which: the 26
+  pg_catalog signatures whose declared return is `anyarray` or
+  `anycompatiblearray`, with their declared argument types. One rule covers
+  all of them — the result takes its type from the argument declared with the
+  matching ARRAY pseudo-type, or, where a signature has none, from the one
+  declared with the matching ELEMENT pseudo-type plus a dimension — and
+  `unnest` strips that dimension straight back off. So an array-declared
+  position answers with its own element type and an element-declared position
+  with the argument's own type.
+
+  A signature the call does not fit is DISCARDED rather than counted as
+  disagreement: `array_agg` declares `(anynonarray)` beside `(anyarray)` and a
+  composite argument satisfies exactly the one PostgreSQL picks. Telling those
+  apart needs the argument to be provably an ARRAY — an ARRAY constructor, a
+  cast with array bounds, or a catalog type rendering with `[]` — because the
+  "not a composite array" verdict is also what a non-array expression gives.
+  What remains must agree, the same consensus quantifier every other
+  overloaded question takes.
+
+  **What still refuses is common-type resolution**: a CASE arm and a set
+  operation each declare their type by agreement between branches, which is
+  the rule `docs/type-aware-overloads.md` lists as its own residue and the
+  walk does not implement. The refusal is pinned with its positive controls in
+  `unsupported-nodes.test.ts` so a fix cannot widen it.
 
 **`(expr).*` in the target list** is the same problem from the other side: a
 target-list entry that expands to one column per field of the expression's

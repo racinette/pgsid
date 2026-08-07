@@ -694,6 +694,24 @@ export async function buildNullabilityCatalog(
   const builtinPolymorphic = new Set(snapshot.builtinPolymorphicFunctions ?? []);
   const isPolymorphicBuiltin = (name: string): boolean => builtinPolymorphic.has(name);
 
+  // The signatures behind that flag, grouped by name. Environment data like
+  // the flag itself, and consulted only where the flag already sends the
+  // walk: a name pg_catalog carries, called without a schema or with
+  // `pg_catalog`.
+  const polymorphicArraySignatures = new Map<string, { args: string[]; returns: string }[]>();
+  for (const sig of snapshot.builtinPolymorphicArraySignatures ?? []) {
+    const existing = polymorphicArraySignatures.get(sig.name);
+    if (existing) existing.push({ args: sig.args, returns: sig.returns });
+    else polymorphicArraySignatures.set(sig.name, [{ args: sig.args, returns: sig.returns }]);
+  }
+  const resolvePolymorphicArraySignatures = (
+    schema: string | undefined,
+    name: string,
+  ): { args: string[]; returns: string }[] | null =>
+    schema === undefined || schema === "pg_catalog"
+      ? (polymorphicArraySignatures.get(name) ?? null)
+      : null;
+
   // Operators grouped by name (and by schema.name for qualified refs). An
   // oprname can overload across operand types, and arg types are not
   // available to the walk — same single-candidate policy as functions.
@@ -772,6 +790,7 @@ export async function buildNullabilityCatalog(
     isStrictBuiltin,
     isBuiltinFunction,
     isPolymorphicBuiltin,
+    resolvePolymorphicArraySignatures,
     isNotNullDomain,
     isNotNullDomainByName,
     resolveDomainBaseTypeName,
