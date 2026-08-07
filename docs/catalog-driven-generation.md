@@ -802,35 +802,54 @@ to expect, it is to measure.
 
 ## Open questions
 
-Genuinely open; they change the design and are not to be answered from the
-armchair.
+One real decision. The rest are things to measure once the generator exists.
 
-1. **The AST-equality allowlist is validated only over HAND-WRITTEN queries.**
-   398 of 411 identical is a strong result and it is drawn from fixtures a
-   person wrote, which may simply avoid the spellings a deparser normalises.
-   Randomised generation will emit spellings nobody chose. If normalisation
-   turns out to be common there, the guard starts discarding valid queries as
-   `ast-differed` and the corpus quietly narrows — the failure mode this
-   document exists to prevent, arriving through its own guard. MEASURE the
-   identical rate over the first few thousand random queries before trusting
-   it, and expect the allowlist to be longer than 2.
-2. **One big dataset, or several states?** The tool spec says the dataset is
-   generated once per session and modifying statements roll back, which argues
-   for a single large one. But sweep-4 finding 2 needed an EMPTY relation —
-   `tags`, empty in every state — and a single huge dataset has no empty
-   relations and no sparse ones. Emptiness and sparsity are catalog-independent
-   witnesses that a "big realistic dataset" actively destroys. Resolve before
-   seeding: either several states as today (huge, sparse, empty-somewhere), or
-   one dataset with deliberate holes.
-3. **What replaces exhaustiveness as the coverage claim?** "34 of 34" must not
-   be succeeded by another number that reads green over a thin corpus. The
-   claim-based capability metric above is a candidate; it needs a definition
-   that cannot be satisfied by an accessor returning null.
-4. **What is the shared-state / targeted-seed split?** The funnel above says
-   shared states first and targeted seeding on the residue, but not where the
-   line sits. If shared states witness 95% the funnel is cheap; if they witness
-   40% it is the dominant cost. MEASURE it on the first spine before designing
-   around either answer.
+1. **One big dataset, or one with deliberate HOLES?** The tool spec says the
+   dataset is generated once per session, which argues for a single large one —
+   right for making random predicates overlap. But nullability is witnessed by
+   ABSENCE, and volume destroys absence:
+
+   | witness | needs |
+   |---|---|
+   | a cross join that empties the referenced side (sweep-4 finding 2) | an EMPTY relation |
+   | an outer join's absent arm | a parent with NO children |
+   | an aggregate NULL over an empty group | a product with NO reviews |
+   | MERGE's `NOT MATCHED BY SOURCE` arm | a target row with NO source match |
+   | any nullable column claim | a real NULL in the column |
+
+   Seed every table full and every reference resolving, and all five vanish.
+   Volume gets ROWS back; holes get NULLS back, and the run needs both. Resolve
+   before seeding: deliberate holes in one dataset, or a small set of states.
+
+2. **Two numbers replace the coverage claim, and neither pretends to be one.**
+   Decided 2026-08-08 — the tool is a finder, so "coverage" is not the
+   question; whether the run had TEETH is.
+
+   - **RETURN RATE** — the fraction of queries that returned at least one row,
+     measured only over queries that CAN return (a SELECT, or DML with
+     RETURNING; an INSERT without one is excluded from the denominator rather
+     than counted as a failure). This answers "is the query space aligned with
+     the data", which is what predicate literals and dataset size control. A
+     target in the region of half is a reasonable working figure; the point is
+     to watch it, not to hit a number.
+   - **NULL DENSITY** — NULLs observed per returned row. Return rate alone can
+     be high over a dataset with no NULLs anywhere, which returns plenty of
+     rows and tests nothing about nullability. This is the number that says the
+     data is exercising the thing under test.
+
+   Both are cheap, both self-adjudicating, and neither requires per-claim
+   bookkeeping. The reasoning behind accepting them: we cannot guarantee every
+   query returns, nor that what returns witnesses every claim it carries. What
+   we can rely on is volume — enough queries returning over a varied catalog
+   means many different claim shapes get exercised, some more than others.
+
+3. **The AST-equality allowlist is validated only over HAND-WRITTEN queries.**
+   398 of 411 identical is drawn from fixtures a person wrote, which may avoid
+   spellings the deparser normalises. Randomised generation will emit spellings
+   nobody chose. Not a decision to take now — MEASURE the identical rate on the
+   first few thousand random queries. If it stays in the high nineties the
+   guard is sound as designed; if it drops sharply, the allowlist needs
+   entries before the guard can be trusted to discard.
 
 ## Where things are
 
