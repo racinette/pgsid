@@ -3,23 +3,21 @@
 ## What this document is
 
 Four items in the output-nullability engine that are covered by neither of the
-two efforts already chartered. Items 1 and 2 are CLOSED; two are open. Each open one
-is **sound as assessed**: the engine reports nullable where a value is provably
-non-null, or refuses a shape rather than guessing it. They are collected here
-because they are otherwise scattered across an `@unwitnessable` reason, an
-`UNWITNESSABLE` rule in a generated suite, a residue paragraph in a closed
-charter, and a numbered entry in the register — four places, none of which
-reads as a work list.
+two efforts already chartered. Items 1, 2 and 3 are CLOSED; **item 4 is the
+one still open** — a refusal rather than a guess, blocking no consumer and
+costing precision only. They were collected here because they were otherwise
+scattered across an `@unwitnessable` reason, an `UNWITNESSABLE` rule in a
+generated suite, a residue paragraph in a closed charter, and a numbered entry
+in the register — four places, none of which read as a work list.
 
 Read `docs/nullability-walk.md` for how the engine works and
 `docs/deferred-tasks.md` for everything else that is open.
 
-**No consumer is blocked by either of the two, and shipping with both open
-costs precision only.** Take them in the order below or not at all; what this
-document exists to prevent is rediscovering each one from scratch. Item 1's
-entry stays because of what closing it found: a precision question about what a
-call MEANS turned out to sit one step from a soundness question about what it
-DOES, so measure each neighbourhood before trusting its "sound" label.
+The closed entries stay because of what closing them found. Each was recorded
+as a precision item and assessed as sound; two of the three had a WRONG CLAIM
+in the same neighbourhood, one step away — what a call means from what it
+does, what a key proves from where the join looks. Measure the neighbourhood
+before trusting the "sound" label on item 4 either.
 
 ## What this is NOT — the two efforts that own everything else
 
@@ -99,37 +97,33 @@ as dropping rows whatever its qual says. Deliberate: the alternative is
 reasoning about which rows a qual keeps, which is the analysis the engine does
 not do.
 
-### 3. Foreign-key entailment does not compose through a JOIN inside a correlated subquery
+### 3. Foreign-key entailment does not compose through a JOIN inside a correlated subquery — CLOSED 2026-08-07
 
-**Shape.** From `docs/imprecision-closure.md`, which closed the rest of this
-mechanism:
+**What it was.** The subquery form read a FROM of ONE relation, so
+`(SELECT c.email FROM customers c JOIN orders o ON o.customer_id = c.id WHERE
+o.id = s.order_id)` fell through to nullable even though each hop is a NOT
+NULL key the mechanism already reads.
 
-```sql
-(SELECT c.email FROM customers c JOIN orders o ON o.customer_id = c.id
-  WHERE o.id = s.order_id)
-```
+**What it is now.** The WHERE settles the ANCHOR — the relation it keys into —
+and every join between it and the output must then either PRESERVE the
+anchor's side or MATCH it, which is the same pair the join form uses. A match
+is a NOT NULL key carried by a relation already settled, pointing at a
+relation on the other side that no join inside that side has dropped; that
+relation is settled in turn, so a chain proves itself one join at a time. The
+two claims the register carried as this item's reason are recovered;
+`docs/nullability-walk.md`'s foreign-key section has the rule and
+`fk-entail-subquery-join-*.sql` the nine fixtures.
 
-Each hop is individually a NOT NULL key the mechanism already reads. What is
-missing is proving the INNER join matches for the row the outer key found.
+**The direction is the whole content of the match arm**, and it is the same
+asymmetry the join form turns on: `o.customer_id = c.id` read from `c` says
+every order has a customer, and is silent about a customer with no orders.
 
-**Why it is open.** It is a composition rather than a gap: the mechanism
-reads a single hop, and this shape needs two. Two claims carry it as their
-reason, in `extreme-activity-feed-union` (#7) and
-`extreme-dml-insert-shipping-pipeline` (#9).
-
-**What closing it takes.** Chaining the existing subquery-form entailment
-through the subquery's own FROM. Thirteen gate fixtures pin the hazards from
-the side that would produce a wrong `notNull` (`fk-entail-not-valid`,
-`-deferrable`, `-inheritance` and its `ONLY` control, `-extra-conjunct`,
-`-optional-referencer`, `-optional-referenced`, the two
-`-referenced-not-preserved` and the four `-subquery-*`); any composition rule
-has to keep every one of them passing, and they are the specification. The
-subquery's FROM raises the same question the join form answered in the
-`-referenced-not-preserved` pair — the key proves a row exists in the TABLE,
-and an INNER join inside the subquery can have dropped it before the
-correlation is evaluated.
-
-**Cost of leaving it.** Two claims today.
+**No cost recorded, and that is the second lesson after item 1's.** The first
+pass restricted the FROM to INNER joins and wrote the outer-join case down as
+a deliberate cost. It was not one — the preserved-side arm is four lines — and
+the restriction was hiding a claim while making a real requirement look
+unwitnessable. A restriction no test can hold you to is not a cost, it is an
+unpinned assumption; close it or pin it.
 
 ### 4. The `unnest` refusal class
 
@@ -162,12 +156,12 @@ anyway.
 
 ## Boundaries — do not re-derive these
 
-- **Neither open item is unsound as assessed.** If you find
-  yourself trading soundness for precision on one of them, stop: the register's
-  standing rule is that a dropped claim is never a wrong one. What items 1 and 2
-  showed is that the assessment is a measurement, not a property — each turned
-  up wrong claims in its own neighbourhood. Probe first, and if one is there,
-  that becomes the work.
+- **The open item is not unsound as assessed.** If you find
+  yourself trading soundness for precision on it, stop: the register's standing
+  rule is that a dropped claim is never a wrong one. What items 1 and 2 showed
+  is that the assessment is a measurement, not a property — each turned up wrong
+  claims in its own neighbourhood. Probe first, and if one is there, that
+  becomes the work.
 - **The refusal in item 4 is deliberate**, and its positive controls exist so
   that a fix cannot silently widen it into a blanket refusal. Keep them.
 - **The foreign-key gates are load-bearing and mutation-tested**: a referenced
@@ -203,8 +197,8 @@ Specifically for this document:
 |---|---|
 | Item 1's fixtures (closed) | `function-default-argument.sql`, `function-strict-*.sql`, `aggregate-domain-empty-input.sql` |
 | Item 2's fixtures (closed) | `fk-entail-optional-referenced.sql`, `fk-entail-join-level-*.sql`, `fk-entail-referenced-not-preserved*.sql` |
-| Item 3's record | `docs/imprecision-closure.md`, "The residue is one shape" |
-| Item 3's gate fixtures | `tests/unit/query/fixtures/fk-entail-*.sql` |
+| Item 3's fixtures (closed) | `fk-entail-subquery-join-*.sql` |
+| The foreign-key gate fixtures | `tests/unit/query/fixtures/fk-entail-*.sql` — eighteen, each pinning a hazard from the side that would produce a wrong `notNull` |
 | Item 4's pins | `tests/unit/query/unsupported-nodes.test.ts`, "unnest's element type" |
 | The engine | `src/query/nullability-walk.ts`, `src/query/catalog-adapter.ts` |
 | The snapshot | `src/catalog/snapshot.ts`, `src/catalog/types.ts` |

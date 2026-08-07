@@ -1,8 +1,3 @@
--- @unwitnessable 9: the RETURNING subquery keys on the new shipment's order
---   id — a NOT NULL foreign key — but reaches the email through a JOIN inside
---   the subquery, and key entailment reads a subquery whose FROM is a single
---   relation. Both hops are NOT NULL keys and the row exists in every state;
---   composing them is the mechanism's recorded boundary
 -- Extreme fixture: INSERT...SELECT from a CTE chain with complex RETURNING.
 --
 -- Tests: DML with CTEs that reference each other, INSERT...SELECT from a
@@ -102,7 +97,7 @@ RETURNING
     FROM orders o
     JOIN customers c ON c.id = o.customer_id
     WHERE o.id = shipments.order_id
-  )                                          AS customer_email,   -- @nullable
+  )                                          AS customer_email,   -- @notNull
   (
     SELECT COALESCE(sum(oi.quantity * oi.unit_price), 0)
     FROM order_items oi

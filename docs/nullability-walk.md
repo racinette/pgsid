@@ -457,6 +457,37 @@ contradict anything.
 -- a KEY LOOKUP: shipments.order_id is a NOT NULL key onto orders
 ```
 
+Either settles ONE relation — the **anchor**, the one the WHERE keys into. A
+subquery whose FROM is a JOIN needs the rest to match for that anchor row too,
+and the keys that prove it are the ordinary ones one hop further in:
+
+```sql
+(SELECT c.email FROM orders o JOIN customers c ON c.id = o.customer_id
+  WHERE o.id = oi.order_id)
+-- the outer key settles `o`; that order's NOT NULL customer_id settles the join
+```
+
+Every join between the anchor and the output then has to answer one of two
+things, and it is the same preserve-or-match pair the join form uses:
+
+- it **preserves** the anchor's side — a LEFT join keeps its left whatever the
+  qual does, a RIGHT join its right, a FULL join both — and then nothing is
+  asked about the other side at all, not even that anything inside it survives;
+- it can **drop** the anchor row (an INNER join, or an outer join with the
+  anchor on the side it extends), and then the row must MATCH: a NOT NULL key
+  carried by a relation already SETTLED, pointing at a relation on the other
+  side that no join inside that side has dropped. That relation is settled in
+  turn, so the next join out can key from it.
+
+Three things in that are load-bearing and each has its gate. The **direction**
+is not symmetric: `o.customer_id = c.id` read from `c` says every order has a
+customer, which is silent about a customer with no orders. The key must be
+carried by a **settled** relation, since one the anchor's side merely acquired
+through a preserving join may have no row and a NULL key points at nothing.
+And the relation it points at must still be **in the slice**, which is the
+same question the join form answers — a key is a fact about the table, not
+about what a join inside the referenced side left behind.
+
 The join form is a promotion inside the existing presence fixpoint
 (`resolveJoinImplications`), so a promoted alias activates further joins and
 carries its null-group co-members with it. The subquery form is a second
