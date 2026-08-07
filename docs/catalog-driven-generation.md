@@ -214,10 +214,10 @@ claims. Repair it by making the DATA a function of the query.
 ### The three-way disposition, per claim
 
 1. **Witnessed** by the shared data states. The common case; unchanged.
-2. **REPAIRABLE** — the generator emitted a WITNESS PLAN for this claim when it
-   built the query, so the rows that produce a witness are already known. Seed
-   them inside `BEGIN`/`ROLLBACK`, re-run, promote to (1). This is where the
-   bulk of the residue must land.
+2. **REACHABLE BY DECLARATION** — no witness under the current schema, but a
+   schema that DECLARES the right thing produces one, with no change to the
+   query and no per-query reasoning. This is where the bulk of the residue must
+   land, and the mechanism is below.
 3. **UNINHABITABLE BY CONSTRUCTION** — no data can witness it, and the
    generator can say why FROM ITS OWN DERIVATION: it emitted `WHERE false`, it
    intersected disjoint literal sets, the absent arm of this join shape cannot
@@ -230,49 +230,58 @@ claim may only be called uninhabitable if the generator can name the structural
 reason it built in. Anything else is an unproven excuse wearing a category
 name.
 
-### Why repair is tractable here, when reverse query processing is not
+### Repair is a SCHEMA question, not a query question
 
-Deriving data that makes an ARBITRARY query non-empty is a research problem. We
-are not handed an arbitrary query — **we built it.** The generator chose the FK
-edge, the predicate, the literal and the join direction, so the witness
-requirement is a by-product of the derivation rather than something to be
-recovered from the finished SQL. Emit it alongside the query.
+The first draft of this section proposed a per-claim WITNESS PLAN — the
+generator emitting, beside each query, the rows that would witness its claims.
+That was wrong and it is recorded here so nobody rebuilds it.
 
-The precedent is again in `fixture-data/generators.ts`, done by hand: the
-column entries exist because "`orders.status` must sometimes be `'fulfilled'`
-because fixtures filter on it". That is this mechanism, hardcoded for the
-queries someone had already written. Generalise it.
+**The objection that kills it.** To predict a witness you must know what kind
+of query you are looking at. That forces a taxonomy of query shapes, and a
+taxonomy makes the corpus an expander of fixture templates — variations on
+queries someone already enumerated, which is what the static fixtures are for
+and where they are better. The generated corpus exists to reach the shapes
+nobody enumerated; a mechanism that requires enumerating them defeats it.
 
-**The witness plan is computed at GENERATION time, not diagnosed at FAILURE
-time.** This is the difference between a mechanism and a chore, and it is easy
-to read the funnel below the wrong way. Nobody examines a list of unwitnessed
-queries after a run and hand-feeds each one data. The generator emits, beside
-`ast` and `expectations`, a `witnessPlan`: per claim, the rows that would
-witness it — which it knows because it CHOSE the join edge, the direction, the
-predicate and the literal that created the claim. A LEFT JOIN's absent arm is
-witnessed by a left row with no match; that is ONE rule, written once, covering
-every query the spine walker emits.
+It is also unreliable on its own terms. Witness requirements do not compose
+through filters: a LEFT JOIN's absent-arm rule asks for a left row with no
+match, and `WHERE o.status = 'x'` then discards exactly that row, because its
+`o.status` is NULL. The corpus already knows this failure mode by name — the
+refilter live-traps. So the plan would have been a taxonomy AND a guess.
 
-Order the run as a funnel, so the expensive step touches the residue only:
+**What actually works, with a first-run rank-1 to prove it.** The schema axis
+(`schema-axis.test.ts`) found a rank-1 unsoundness on its first run and needed
+NO witness engineering, no query analysis and no generator change at all. Its
+design note says why: "its schema contract is a set of NAMES, so a variant that
+keeps `t`/`u`/`v` and changes only the CATALOG FEATURES behind them runs the
+whole structural corpus unchanged."
 
-1. shared data states — cheap, and they should witness most claims;
-2. for each claim still unwitnessed, apply ITS OWN witness plan inside
-   `BEGIN`/`ROLLBACK` and re-run. The `BEGIN`/`ROLLBACK` cost is already paid
-   by the DML corpus, so it is known;
-3. anything still unwitnessed is one of exactly two things, and both are LOUD:
-   a claim the generator already declared uninhabitable by construction
-   (fine — it goes in the per-cause table), or **a witness plan PostgreSQL did
-   not honour**, which is a defect in the generator's model of its own output
-   and should fail the run.
+That is the mechanism. **Vary what the schema DECLARES; the queries and the
+data generator both follow for free.** The data generator already seeds
+whatever a catalog contains — that is why the schema axis needed nothing — so
+enriching the schema enriches the witnesses automatically, with no per-query
+reasoning anywhere.
 
-That third case is worth wanting rather than avoiding: it is the generator
-being wrong about what it built, caught by execution.
+Witnessing then becomes a question about DDL, answerable once per shape and
+independent of every query:
 
-**Where human judgement actually enters**, and it is per RULE, not per query:
-writing a witness-plan rule for a construct that has none, and classifying a
-NEW cause the first time it appears in bucket 3. If anyone finds themselves
-inspecting individual queries, that is the signal that a rule is missing — the
-fix is the rule, never a patch to the data for one query.
+| to witness | declare |
+|---|---|
+| an outer join's absent arm | a NULLABLE foreign-key column, or a parent whose children are optional |
+| a key entailment | a NOT NULL foreign-key column |
+| an entailment the slice destroys | a relation that some state leaves EMPTY |
+| a domain claim, a generated column, a trigger rewrite | the domain, the column, the trigger |
+
+Two of those are in tension and both are wanted, which is a schema-design
+answer rather than a query-analysis one: a NOT NULL key entails and never
+dangles, a nullable key dangles and never entails. Declare BOTH — they are two
+columns, or two variants — and stop reasoning about queries entirely.
+
+**What remains, and what it is not.** Some claims will still go unwitnessed,
+and the answer is NOT to chase 100%. Report them per named cause with the
+ratchet on a NEW cause appearing, per the reporting rule below. An unwitnessed
+claim over a rich catalog is information about coverage; the thing this
+document exists to prevent is an unwitnessed claim nobody counted.
 
 ### The trap this hits on day one: an FK join always matches
 
