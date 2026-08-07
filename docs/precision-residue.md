@@ -2,22 +2,27 @@
 
 ## What this document is
 
-Four items in the output-nullability engine that are covered by neither of the
-two efforts already chartered. Items 1, 2 and 3 are CLOSED; **item 4 is the
-one still open** — a refusal rather than a guess, blocking no consumer and
-costing precision only. They were collected here because they were otherwise
-scattered across an `@unwitnessable` reason, an `UNWITNESSABLE` rule in a
-generated suite, a residue paragraph in a closed charter, and a numbered entry
-in the register — four places, none of which read as a work list.
+Four items in the output-nullability engine that were covered by neither of
+the two efforts already chartered. **All four are now closed** as far as this
+engine reaches; what is left of item 4 is one refusal cause that belongs to
+`docs/type-aware-overloads.md` and waits behind the same prerequisite that
+charter does. This document is now a RECORD rather than a work list, and it is
+kept for what closing the four found. They were collected here because they
+were otherwise scattered across an `@unwitnessable` reason, an `UNWITNESSABLE`
+rule in a generated suite, a residue paragraph in a closed charter, and a
+numbered entry in the register — four places, none of which read as a work
+list.
 
 Read `docs/nullability-walk.md` for how the engine works and
 `docs/deferred-tasks.md` for everything else that is open.
 
-The closed entries stay because of what closing them found. Each was recorded
-as a precision item and assessed as sound; two of the three had a WRONG CLAIM
-in the same neighbourhood, one step away — what a call means from what it
-does, what a key proves from where the join looks. Measure the neighbourhood
-before trusting the "sound" label on item 4 either.
+**What closing them found is the reason to keep this document.** Each of the
+four was recorded as a precision item and assessed as sound. Two of the four
+had a WRONG CLAIM in the same neighbourhood, one step away — what a call means
+from what it does, what a key proves from where the join looks — and seven
+claims were fixed that nobody had gone looking for. The other two were sound
+exactly as recorded. The label on an item is a measurement somebody made once;
+re-measure the neighbourhood before trusting it.
 
 ## What this is NOT — the two efforts that own everything else
 
@@ -125,43 +130,47 @@ the restriction was hiding a claim while making a real requirement look
 unwitnessable. A restriction no test can hold you to is not a cost, it is an
 unpinned assumption; close it or pin it.
 
-### 4. The `unnest` refusal class
+### 4. The `unnest` refusal class — CLOSED 2026-08-07 down to one cause
 
-**Shape.** Statements PostgreSQL accepts that the walk REFUSES rather than
-answering with a wrong shape, pinned in `unsupported-nodes.test.ts` with a
-positive control beside them so the refusal cannot quietly widen:
+**What it was.** `unnest` contributes one column per argument unless the
+element type is a COMPOSITE, when it contributes one per FIELD — so the shape
+depends on a type, and three spellings refused because the walk could not read
+one: an aggregate, a sublink, and a derived-table column the inner query
+computes.
 
-```sql
-SELECT * FROM unnest((SELECT array_agg(p) FROM cc))                  -- aggregate
-SELECT * FROM unnest(array_remove((SELECT array_agg(p) FROM cc), NULL))  -- polymorphic builtin
-SELECT * FROM (SELECT ARRAY[p] AS ps FROM cc) s, unnest(s.ps)        -- derived-table column
-```
+**What it is now.** Two of the three were not type inference at all, only the
+reading stopping at a door it could have opened. A CTE or subquery column with
+no base column behind it is one the inner query COMPUTES, and its defining
+expression is an expression like any other — typed against a scope built for
+that statement's own FROM, `ARRAY[p]` over a composite column answers
+`sku_pair[]`. A scalar sublink is its single output column, typed the same
+way. Both recurse into the SAME reading rather than growing a second partial
+type system, so the CTE spelling, the WHERE-qualified sublink and an
+array-of-table-row-type column all fell out with no branch of their own.
 
-**Why it is open.** Each needs the TYPE of an expression the walk does not
-compute, which is the boundary the engine has held everywhere else. The
-refusal is the designed behaviour: a column list has no conservative value, so
-refusing beats guessing.
+**What still refuses, and who owns it.** One cause: a POLYMORPHIC builtin.
+`array_agg(p)` yields `sku_pair[]` and PostgreSQL resolves it from the
+argument types; saying so needs pg_catalog SIGNATURES in the snapshot — 25
+`anyarray`-returning names plus seven `anycompatiblearray` ones, readable
+straight off `pg_proc`. That is blocked by a standing decision recorded before
+this work: `docs/generated-surface.md`'s boundary keeps pg_catalog signatures
+out until the consumer's search-path input lands, and
+`docs/type-aware-overloads.md` is sequenced behind the same prerequisite. So
+this arm is not an open judgement call — it is one line of that charter's
+work, and this document's guess that it "may fall out for free" was right.
 
-**What closing it takes — and check the other charter first.** The
-POLYMORPHIC-builtin arm may fall out of `docs/type-aware-overloads.md` for
-free: with per-signature return types, `array_remove` of a `sku_pair[]` is
-answerable. Re-measure that arm after the refactor lands before treating it as
-work. The aggregate, the sublink and the derived-table column are genuinely
-this document's, and they need expression typing the walk deliberately does
-not do — which is exactly the boundary to think hard about before crossing.
-
-**Cost of leaving it.** A refusal the consumer must handle, on shapes that are
-rare. The consumer's escape is `PREPARE` plus all-nullable, which it holds
-anyway.
+**The refusal itself stays deliberate**, with its positive controls beside it
+in `unsupported-nodes.test.ts`. Fourteen spellings were measured against
+PostgreSQL's own column lists before and after, and the engine answered a
+WRONG shape in none of them — which is what kept this item precision rather
+than soundness, unlike the three above it.
 
 ## Boundaries — do not re-derive these
 
-- **The open item is not unsound as assessed.** If you find
-  yourself trading soundness for precision on it, stop: the register's standing
-  rule is that a dropped claim is never a wrong one. What items 1 and 2 showed
-  is that the assessment is a measurement, not a property — each turned up wrong
-  claims in its own neighbourhood. Probe first, and if one is there, that
-  becomes the work.
+- **A dropped claim is never a wrong one** — the register's standing rule, and
+  none of the four fixes traded soundness for precision. Where an item's
+  neighbourhood turned out to hold a wrong claim, fixing that came first and
+  the precision followed from the same condition.
 - **The refusal in item 4 is deliberate**, and its positive controls exist so
   that a fix cannot silently widen it into a blanket refusal. Keep them.
 - **The foreign-key gates are load-bearing and mutation-tested**: a referenced
@@ -173,23 +182,26 @@ anyway.
   three ways a call produces no value for the declaration to constrain. Any new
   rule that reads something off `FunctionInfo` owes the same question.
 
-## What "done" looks like
+## How the four were closed
 
 The project's standing loop, unchanged: counterexample → pinned fixture →
 engine fix, with the fixture landing BEFORE the fix and failing without it.
-Specifically for this document:
+What each closure additionally held itself to, and what a fifth item of this
+kind should:
 
-- Every claim recovered must be WITNESSED or its unwitnessability recorded —
-  `docs/witness-coverage.md` is the standard, and the suite enforces it.
-- Every fix needs a mutation check: revert it and confirm the new fixture
-  fails, and that it fails ALONE. Items 2 and 3 both touch the foreign-key
-  fixpoint, where a broad change quietly excuses claims that should be
-  witnessed.
-- Run the generated corpus before landing anything that moves claims toward
-  notNull. It is 11632 queries and it has caught this class before.
-- Update the `@unwitnessable` reason or `UNWITNESSABLE` rule that currently
-  records the item — a stale reason is worse than none, and the reason audit
-  of 2026-08-05 found ten of them wrong.
+- Every claim recovered is WITNESSED or its unwitnessability recorded —
+  `docs/witness-coverage.md` is the standard and the suite enforces it.
+- Every fix is mutation-checked: revert it, confirm the new fixture fails, and
+  that it fails ALONE. Items 2 and 3 both touch the foreign-key fixpoint,
+  where a broad change quietly excuses claims that should be witnessed.
+- The generated corpus (11632 queries) runs before anything that moves claims
+  toward notNull lands. It has caught this class before.
+- A stale reason is worse than none: the `@unwitnessable` reason or
+  `UNWITNESSABLE` rule that recorded each item came off with it, and the
+  suites fail on a reason that no longer matches.
+- **A restriction no test can hold you to is not a cost, it is an unpinned
+  assumption.** Item 3's first pass left one and it was hiding a claim. Close
+  it or pin it; recording it is the wrong third option.
 
 ## Where things are
 
@@ -198,8 +210,8 @@ Specifically for this document:
 | Item 1's fixtures (closed) | `function-default-argument.sql`, `function-strict-*.sql`, `aggregate-domain-empty-input.sql` |
 | Item 2's fixtures (closed) | `fk-entail-optional-referenced.sql`, `fk-entail-join-level-*.sql`, `fk-entail-referenced-not-preserved*.sql` |
 | Item 3's fixtures (closed) | `fk-entail-subquery-join-*.sql` |
+| Item 4's fixtures (closed) | `unnest-derived-computed-column.sql`, `unnest-sublink-array-column.sql`, and the pins in `unsupported-nodes.test.ts` |
 | The foreign-key gate fixtures | `tests/unit/query/fixtures/fk-entail-*.sql` — eighteen, each pinning a hazard from the side that would produce a wrong `notNull` |
-| Item 4's pins | `tests/unit/query/unsupported-nodes.test.ts`, "unnest's element type" |
 | The engine | `src/query/nullability-walk.ts`, `src/query/catalog-adapter.ts` |
 | The snapshot | `src/catalog/snapshot.ts`, `src/catalog/types.ts` |
 | Everything else that is open | `docs/deferred-tasks.md` |

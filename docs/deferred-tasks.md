@@ -604,9 +604,10 @@ corpora surface.
 (2026-08-07). Items that neither chartered effort owns, collected because they
 were otherwise scattered across an `@unwitnessable` reason, an `UNWITNESSABLE`
 rule in a generated suite, a residue paragraph in a closed charter and an entry
-in this register — four places, none of which reads as a work list. Only item 4
-is still open, and it is SOUND as assessed: a refusal rather than a guess. It
-blocks no consumer, and shipping with it open costs precision only.
+in this register — four places, none of which read as a work list. **All four
+are now closed as far as this engine reaches**; what is left of item 4 is one
+refusal cause that belongs to `docs/type-aware-overloads.md` and waits behind
+the same prerequisite that charter does. None of it blocks a consumer.
 
 1. **A defaulted argument is not substituted into the body** — CLOSED
    2026-08-07, and it did not stay a precision item: `DEFAULT NULL` plus
@@ -622,10 +623,12 @@ blocks no consumer, and shipping with it open costs precision only.
    correlated subquery** — CLOSED 2026-08-07, and the one of the four that was
    exactly what it said: the composition, iterated from the anchor, with the
    two claims recovered. The closure entry in section 2 has the rule.
-4. **The `unnest` refusal class** — an aggregate, a sublink, a derived-table
-   COMPUTED column. Check the type-aware-overloads refactor first: its
-   polymorphic-builtin arm may fall out for free, and that should be
-   re-measured rather than assumed either way.
+4. **The `unnest` refusal class** — CLOSED 2026-08-07 down to one cause. The
+   sublink and the computed derived-table column were the reading stopping
+   early, not type inference; what remains is the POLYMORPHIC builtin, which
+   needs pg_catalog signatures and belongs to `docs/type-aware-overloads.md`
+   behind the same standing boundary. The closure entry in section 2 has the
+   measurement.
 
 What that document deliberately does NOT own is stated at its top:
 `docs/type-aware-overloads.md` has every one-name-many-signatures defect —
@@ -730,6 +733,41 @@ routes named; `docs/imprecision-closure.md` carries the measurements.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the UNNEST ELEMENT TYPE (2026-08-07, `docs/precision-residue.md`
+item 4), as far as the engine's own boundary reaches — and the residue has an
+owner rather than a shrug. `unnest` contributes one column per argument unless
+the element type is a COMPOSITE, when it contributes one per field, so the
+shape depends on a type and the walk refuses where it cannot read one. Two of
+the three refusing causes were not type inference at all, only the reading
+stopping at a door it could have opened:
+
+- a CTE or subquery column with no base column behind it is one the inner
+  query COMPUTES, and its defining expression is an expression like any
+  other. Typed against a scope built for that statement's own FROM,
+  `ARRAY[p]` over a composite column answers `sku_pair[]` — and the const-array
+  rule that was already there answers `ARRAY[1, 2]` as one column;
+- a scalar SUBLINK is its single output column, typed the same way.
+
+Both reuse `unnestElementType` recursively rather than growing a second
+partial type system, which is why the answer improves everywhere at once: the
+CTE spelling, the WHERE-qualified sublink and the array-of-table-row-type
+column all fell out with no branch of their own. Measured against PostgreSQL's
+own column lists across fourteen spellings before and after; the engine never
+answered a WRONG shape in any of them, before or after, which is the property
+that made this item precision rather than soundness.
+
+**What still refuses is one cause: a POLYMORPHIC builtin.** `array_agg(p)`
+yields `sku_pair[]`, `array_remove`/`array_cat`/`array_append` the same, and
+PostgreSQL resolves all of them from the ARGUMENT types. Answering needs
+pg_catalog SIGNATURES in the snapshot — 25 `anyarray`-returning names plus
+seven `anycompatiblearray` ones, read straight off `pg_proc` — and that is
+blocked by a standing decision, not by a judgement made here:
+`docs/generated-surface.md`'s boundary keeps pg_catalog signatures out until
+the consumer's search-path input lands, and `docs/type-aware-overloads.md` is
+sequenced behind the same prerequisite. The refusal is pinned with its
+positive controls, and the register's entry for that charter now carries the
+return pointer.
 
 Closed by the SUBQUERY CHAIN (2026-08-07, `docs/precision-residue.md` item
 3), the third of the four and the one that was exactly what it said. Key
