@@ -214,9 +214,10 @@ claims. Repair it by making the DATA a function of the query.
 ### The three-way disposition, per claim
 
 1. **Witnessed** by the shared data states. The common case; unchanged.
-2. **REPAIRABLE** — no witness yet, and the generator can synthesise the rows
-   that produce one. Seed them inside `BEGIN`/`ROLLBACK`, re-run, promote to
-   (1). This is where the bulk of the residue must land.
+2. **REPAIRABLE** — the generator emitted a WITNESS PLAN for this claim when it
+   built the query, so the rows that produce a witness are already known. Seed
+   them inside `BEGIN`/`ROLLBACK`, re-run, promote to (1). This is where the
+   bulk of the residue must land.
 3. **UNINHABITABLE BY CONSTRUCTION** — no data can witness it, and the
    generator can say why FROM ITS OWN DERIVATION: it emitted `WHERE false`, it
    intersected disjoint literal sets, the absent arm of this join shape cannot
@@ -242,10 +243,36 @@ column entries exist because "`orders.status` must sometimes be `'fulfilled'`
 because fixtures filter on it". That is this mechanism, hardcoded for the
 queries someone had already written. Generalise it.
 
-Order the work as a funnel, so the expensive step runs on the residue only:
-shared states witness most claims; per-query targeted seeding repairs what is
-left; what survives BOTH must present its construction-level reason. The
-`BEGIN`/`ROLLBACK` cost is already paid by the DML corpus, so it is known.
+**The witness plan is computed at GENERATION time, not diagnosed at FAILURE
+time.** This is the difference between a mechanism and a chore, and it is easy
+to read the funnel below the wrong way. Nobody examines a list of unwitnessed
+queries after a run and hand-feeds each one data. The generator emits, beside
+`ast` and `expectations`, a `witnessPlan`: per claim, the rows that would
+witness it — which it knows because it CHOSE the join edge, the direction, the
+predicate and the literal that created the claim. A LEFT JOIN's absent arm is
+witnessed by a left row with no match; that is ONE rule, written once, covering
+every query the spine walker emits.
+
+Order the run as a funnel, so the expensive step touches the residue only:
+
+1. shared data states — cheap, and they should witness most claims;
+2. for each claim still unwitnessed, apply ITS OWN witness plan inside
+   `BEGIN`/`ROLLBACK` and re-run. The `BEGIN`/`ROLLBACK` cost is already paid
+   by the DML corpus, so it is known;
+3. anything still unwitnessed is one of exactly two things, and both are LOUD:
+   a claim the generator already declared uninhabitable by construction
+   (fine — it goes in the per-cause table), or **a witness plan PostgreSQL did
+   not honour**, which is a defect in the generator's model of its own output
+   and should fail the run.
+
+That third case is worth wanting rather than avoiding: it is the generator
+being wrong about what it built, caught by execution.
+
+**Where human judgement actually enters**, and it is per RULE, not per query:
+writing a witness-plan rule for a construct that has none, and classifying a
+NEW cause the first time it appears in bucket 3. If anyone finds themselves
+inspecting individual queries, that is the signal that a rule is missing — the
+fix is the rule, never a patch to the data for one query.
 
 ### The trap this hits on day one: an FK join always matches
 
