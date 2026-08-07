@@ -5191,6 +5191,16 @@ class NullabilityEngine {
       trace.conclude(true, "SQL/JSON value-list constructor always produces a container → notNull");
       return true;
     }
+
+    // `merge_action()` labels the arm that produced the row — 'INSERT',
+    // 'UPDATE' or 'DELETE' — and every returned row came from one, including
+    // the NOT MATCHED BY SOURCE arm (measured, all three). It is legal only
+    // in a MERGE's RETURNING list, which PostgreSQL enforces, so there is no
+    // context in which it has no arm to name.
+    if ("MergeSupportFunc" in node) {
+      trace.conclude(true, "merge_action() names the arm every returned row came from → notNull");
+      return true;
+    }
     {
       const strictJson =
         ("JsonParseExpr" in node && (node["JsonParseExpr"] as JsonUnaryShape)) ||

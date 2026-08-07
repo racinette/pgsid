@@ -734,6 +734,39 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the NODE-CENSUS AUDIT (2026-08-07), which began as "fix the
+fourteen conservative nodes" and found that ten of them were not conservative
+at all. The walk answers for `JSON_OBJECT`, `JSON_ARRAY`, `JSON_SCALAR`,
+`JSON()`, `JSON_SERIALIZE`, `IS JSON`, `XMLSERIALIZE` and the JSON_VALUE
+family; `MultiAssignRef` is recognised and skipped by the written-value map at
+all three DML sites; `WHERE CURRENT OF` reaches no dispatch at all. Every one
+carried a `why` describing an imprecision that had already been closed — work
+that read as outstanding and was not.
+
+**The census could not detect it, and now can.** Its three assertions caught a
+node classified `handled` that falls through, a node nobody classified, and a
+classification the corpus never reaches. Nothing caught the converse — a node
+classified `conservative` that the walk in fact handles — so the label was
+unfalsifiable in one direction. A fourth assertion closes it, in the shape the
+fixture suite already uses for `@unwitnessable`: a reason on a claim that IS
+answered fails as loudly as a missing one.
+
+One real imprecision was in the list: `merge_action()` reached the fallback and
+is never NULL — it names the arm a returned row came from, measured across
+INSERT, UPDATE and NOT MATCHED BY SOURCE, and PostgreSQL allows the call
+nowhere but a MERGE's RETURNING. It now reads notNull, which retired the
+`merge-action-conservative` rule in the generated suite and one
+`@unwitnessable` on `param-merge.sql`.
+
+The census reads 43 handled, 33 structural, 7 ignored, **3 conservative** —
+`JSON_ARRAY` over a subquery (NULL over zero rows, unlike the value-list form)
+and the two JSON aggregates (NULL over zero input rows, and the non-empty-group
+rule is keyed on curated aggregate NAMES a syntactic node never reaches). All
+three are correctly nullable, each with the measurement in its reason. One
+recorded reason was also WRONG rather than stale: `IS JSON` was described as
+"could be tightened to non-null boolean", and `NULL IS JSON` is NULL, not
+false — acting on it would have produced a wrong claim.
+
 Closed by the UNNEST ELEMENT TYPE (2026-08-07, `docs/precision-residue.md`
 item 4), as far as the engine's own boundary reaches — and the residue has an
 owner rather than a shrug. `unnest` contributes one column per argument unless

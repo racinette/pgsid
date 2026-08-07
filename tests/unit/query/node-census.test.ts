@@ -105,8 +105,8 @@ const CLASSIFICATION: Record<string, Classification> = {
   SQLValueFunction: { category: "handled", why: "CURRENT_DATE etc.; CURRENT_SCHEMA can be NULL" },
   GroupingFunc: { category: "handled", why: "GROUPING() returns a bitmask" },
   MergeSupportFunc: {
-    category: "conservative",
-    why: "merge_action() in MERGE RETURNING; never NULL in practice, but a dedicated node the walk has no branch for",
+    category: "handled",
+    why: "merge_action() names the arm a returned row came from — INSERT, UPDATE or DELETE, measured across all three including NOT MATCHED BY SOURCE — and PostgreSQL allows it only in a MERGE RETURNING list, so it always has an arm to name",
   },
   FuncCall: { category: "handled", why: "the seven-priority function dispatch" },
   SubLink: { category: "handled", why: "EXISTS/ANY/ALL/ARRAY/scalar subqueries" },
@@ -120,19 +120,58 @@ const CLASSIFICATION: Record<string, Classification> = {
   SetToDefault: { category: "handled", why: "conservatively nullable" },
 
   // --- expression nodes deliberately left to the fallback ----------------
-  XmlSerialize: { category: "conservative", why: "XMLSERIALIZE — nullable; no precision case yet" },
-  JsonFuncExpr: { category: "conservative", why: "JSON_VALUE/QUERY/EXISTS — ON EMPTY/ON ERROR make the result hard to pin" },
-  JsonIsPredicate: { category: "conservative", why: "IS JSON — could be tightened to non-null boolean" },
-  JsonObjectConstructor: { category: "conservative", why: "JSON_OBJECT — constructor, could be tightened" },
-  JsonArrayConstructor: { category: "conservative", why: "JSON_ARRAY — constructor, could be tightened" },
-  JsonArrayQueryConstructor: { category: "conservative", why: "JSON_ARRAY over a subquery" },
-  JsonScalarExpr: { category: "conservative", why: "JSON_SCALAR — strict in its argument" },
-  JsonParseExpr: { category: "conservative", why: "JSON() parse expression" },
-  JsonSerializeExpr: { category: "conservative", why: "JSON_SERIALIZE" },
-  JsonObjectAgg: { category: "conservative", why: "ordered-set style JSON aggregate" },
-  JsonArrayAgg: { category: "conservative", why: "ordered-set style JSON aggregate" },
-  MultiAssignRef: { category: "conservative", why: "UPDATE SET (a,b) = (SELECT ...) source side" },
-  CurrentOfExpr: { category: "conservative", why: "WHERE CURRENT OF — predicate only" },
+  XmlSerialize: {
+    category: "handled",
+    why: "strict: XMLSERIALIZE of a NULL is NULL and of a value is text — measured through CONTENT, DOCUMENT and INDENT alike",
+  },
+  JsonFuncExpr: {
+    category: "handled",
+    why: "JSON_EXISTS over a non-null context is a plain boolean (ON ERROR defaults FALSE); JSON_VALUE/QUERY map a found JSON null to SQL NULL through every handler, so they stay nullable",
+  },
+  JsonIsPredicate: {
+    category: "handled",
+    why: "strict, NOT an always-non-null boolean: `NULL IS JSON` is NULL rather than false (measured, IS NOT JSON and the type-qualified forms too), while a non-null operand always gives a boolean",
+  },
+  JsonObjectConstructor: {
+    category: "handled",
+    why: "always a container: a NULL member becomes a JSON null or is dropped — measured through ABSENT/NULL ON NULL, WITH UNIQUE KEYS and every RETURNING type — so the constructor itself is never NULL",
+  },
+  JsonArrayConstructor: {
+    category: "handled",
+    why: "always a container, for the same measured reasons as JSON_OBJECT: `JSON_ARRAY(NULL)` is `[]` and `JSON_ARRAY()` is `[]`",
+  },
+  JsonArrayQueryConstructor: {
+    category: "conservative",
+    why: "JSON_ARRAY over a SUBQUERY, which is NULL over zero rows rather than `[]` (measured) — the container guarantee the two value-list constructors carry does not extend to it",
+  },
+  JsonScalarExpr: {
+    category: "handled",
+    why: "strict in its argument: JSON_SCALAR(NULL) is NULL, a non-null argument is a value (measured)",
+  },
+  JsonParseExpr: {
+    category: "handled",
+    why: "strict in its argument: JSON(NULL) is NULL; a malformed non-null argument RAISES rather than yielding NULL",
+  },
+  JsonSerializeExpr: {
+    category: "handled",
+    why: "strict in its argument: JSON_SERIALIZE(NULL) is NULL, through RETURNING too (measured)",
+  },
+  JsonObjectAgg: {
+    category: "conservative",
+    why: "an aggregate: NULL over zero input rows (measured), and the non-empty-group rule is keyed on the curated aggregate NAME sets, which a syntactic JSON_OBJECTAGG never reaches",
+  },
+  JsonArrayAgg: {
+    category: "conservative",
+    why: "an aggregate: NULL over zero input rows (measured), same as JSON_OBJECTAGG",
+  },
+  MultiAssignRef: {
+    category: "structural",
+    why: "the source of `SET (a, b) = (SELECT …)`; the written-value map recognises and SKIPS it at all three DML sites, so those columns keep their catalog flag and it is never dispatched as an expression",
+  },
+  CurrentOfExpr: {
+    category: "ignored",
+    why: "WHERE CURRENT OF is a cursor predicate: it contributes no output value and promotes nothing, so no dispatch ever reaches it",
+  },
 
   // --- structural: consumed by a parent handler --------------------------
   List: { category: "structural", why: "generic list wrapper" },
@@ -275,6 +314,26 @@ describe("node-type census", () => {
         `'conservative'. At the 'expression' site that only costs precision; ` +
         `at 'from-item' or 'statement' it silently drops output columns:\n  ` +
         misclassified.join("\n  "),
+    ).toEqual([]);
+  });
+
+  it("every `conservative` node type actually reaches a fallback", () => {
+    // The converse of the assertion above, and the one whose absence let
+    // eight entries drift: a node classified `conservative` that the walk in
+    // fact HANDLES is a reason nobody can falsify. The label then reads as an
+    // open imprecision — work that looks outstanding and is already done —
+    // which is how the fixture suite treats a stale `@unwitnessable`: a
+    // reason on a claim that IS witnessed fails as loudly as a missing one.
+    const handledAfterAll = Object.entries(CLASSIFICATION)
+      .filter(([t, v]) => v.category === "conservative" && observed.has(t) && !unhandled.has(t))
+      .map(([t, v]) => `${t} — classified conservative, never reached a fallback (${v.why})`)
+      .sort();
+    expect(
+      handledAfterAll,
+      `These node types are classified 'conservative' but the walk answers ` +
+        `for them — reclassify as 'handled' with what the branch concludes, ` +
+        `or as 'ignored' if they cannot reach an output value at all:\n  ` +
+        handledAfterAll.join("\n  "),
     ).toEqual([]);
   });
 

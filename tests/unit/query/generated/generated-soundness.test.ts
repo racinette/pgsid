@@ -883,14 +883,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       matches: (axes, column) => axes.projection === "fn-call" && column === "a_fi",
     },
     {
-      label: "merge-action-conservative",
-      why:
-        "merge_action() labels every returned row and never yields NULL, but " +
-        "it is a dedicated MergeSupportFunc node the walk has no branch for, " +
-        "so it lands on the conservative fallback (see the node census).",
-      matches: (axes, column) => axes.wrapper.startsWith("merge-") && column === "act",
-    },
-    {
       label: "merge-source-needs-by-source-arm",
       why:
         "the engine treats the MERGE source as optional unconditionally " +
