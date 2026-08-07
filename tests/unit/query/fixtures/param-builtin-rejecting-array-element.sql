@@ -1,0 +1,21 @@
+-- The same mechanism one level IN: an array-typed builtin position that
+-- rejects a NULL ELEMENT.
+--
+-- `array_fill(1, ARRAY[NULL])` raises "dimension values cannot be null" — a
+-- DIFFERENT check from `array_fill(1, NULL)`'s "dimension array or low bound
+-- array cannot be null", with a different message. Neither implies the other,
+-- and the two tables only overlap: `jsonb_set_lax` accepts a NULL path array
+-- and rejects a NULL path ELEMENT, which is why there are two.
+--
+-- The rule reaches an ARRAY CONSTRUCTOR only, because that is where the
+-- elements are visible as expressions. `$1::integer[]` bound to an array that
+-- CONTAINS a NULL is the same rejection and cannot be claimed — the parameter
+-- is the whole array, and its being non-null says nothing about its contents.
+-- That boundary is deliberate and is the sibling fixture's shape.
+--
+-- The OUTPUT is notNull: `array_fill` returns an array, never NULL, whatever
+-- the dimensions say — and the only binding that could argue otherwise is the
+-- one this fixture claims raises.
+-- @args [2]
+-- @param 1 notNull
+SELECT array_fill(7, ARRAY[$1::integer]) AS filled   -- @notNull

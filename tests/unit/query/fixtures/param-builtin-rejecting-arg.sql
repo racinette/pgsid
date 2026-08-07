@@ -1,0 +1,31 @@
+-- Mechanism D: a BUILTIN argument position that rejects NULL in its own C
+-- implementation, with nothing in pg_catalog saying so.
+--
+-- `array_fill(1, NULL)` raises "dimension array or low bound array cannot be
+-- null". Strictness cannot express that — a strict function handed NULL
+-- returns NULL rather than running — so the entire class sits inside the
+-- NON-strict set and no declared type shows it. Sweep-4 finding 8.
+--
+-- This is the side of the contract that is NOT the schema author's to declare.
+-- No claim is made about a USER function's arguments beyond its declared
+-- parameter types, because a body is not an interface; a builtin's behaviour is
+-- documented and knowable, so a rejection it performs is one the engine owes a
+-- claim for.
+--
+-- `$1` is the control in the same statement: `array_fill`'s ELEMENT position
+-- accepts NULL happily and fills the array with it (measured), so the rule must
+-- reject the DIMENSION argument alone and not the call.
+-- The OUTPUT reads nullable here and notNull in the sibling, and the asymmetry
+-- is correct: `array_fill` is non-null when its arguments are, and `$1` is a
+-- parameter the walk cannot prove non-null, where the sibling's `ARRAY[...]`
+-- constructor is non-null whatever is inside it.
+-- @unwitnessable 0: `array_fill` of a NULL element yields an array OF NULLs,
+--   which is not a NULL array — no binding or state makes this column NULL,
+--   so the conservative claim is structurally unwitnessable
+--
+-- The second binding is PostgreSQL's array-literal syntax rather than JSON's:
+-- `@args` values go to the wire as text.
+-- @args [1, "{2}"]
+-- @param 1 nullable
+-- @param 2 notNull
+SELECT array_fill($1::integer, $2::integer[]) AS filled   -- @nullable

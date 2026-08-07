@@ -4,7 +4,7 @@
 one commit per fix in the recommended order below. The quarantine directory is
 retired: every fixture graduated into `tests/unit/query/fixtures/` with
 corrected claims and witnesses, and the sweep's DDL is folded into
-`fixtures/schema.sql`. Suite 42 files / 2662 tests / 408 fixtures, green;
+`fixtures/schema.sql`. Suite 43 files / 3088 tests / 410 fixtures, green;
 `pnpm typecheck` passes. (`pnpm lint` fails, and did before this sweep too:
 there is no `eslint.config.*` in the repository at all. Untouched — it is not
 this sweep's business.) The per-fix closure entries are at the top of section 2
@@ -31,20 +31,22 @@ the useful part.**
    beyond its DECLARED parameter types — is in
    `docs/argument-nullability.md`.
 
-**An EIGHTH finding came out of taking that decision, and it is OPEN.** The
-decision scopes the must-not-raise convention to BUILTINS; probing that
-carve-out rather than assuming it falsified it immediately. 10 signatures
-across 11 argument positions reject a NULL argument where the engine claims
-nothing — `array_fill`'s dimension and low-bound arrays, `array_position`'s
+**An EIGHTH finding came out of taking that decision, and it is CLOSED as
+MECHANISM D.** The decision scopes the must-not-raise convention to BUILTINS;
+probing that carve-out rather than assuming it falsified it immediately. Two
+checks, neither implying the other: a NULL ARGUMENT (10 signatures, 11
+positions — `array_fill`'s dimension and low-bound arrays, `array_position`'s
 three-argument initial position, the six range constructors' flags argument,
-`jsonb_set_lax`'s `null_value_treatment` — measured with a per-position control
-over the 208 non-strict pg_catalog functions. Registered in
-`docs/deferred-tasks.md` rather than built: the fix is a curated table, and
-this project's standing lesson about those is that they drift.
+`jsonb_set_lax`'s `null_value_treatment`) and a NULL ELEMENT of an array
+argument (3 signatures, 4 positions, where `jsonb_set_lax` accepts a NULL path
+array and rejects a NULL path element). Both DERIVED from pg_catalog by
+execution on every run and asserted equal to the tables, so the tables are a
+cache of a measurement rather than a curated list — which is what makes them
+safe where this project's totality tables were not.
 
 **The probe loop was kept rather than deleted this time**, and the disposition
-below held. `tests/probe/harness.ts` stays as TOOLING, beside
-`builtin-null-rejection.ts` — the standing measurement behind finding 8. The
+below held. `tests/probe/harness.ts` stays as TOOLING. Finding 8's derivation graduated out
+of it into `builtin-null-rejection.test.ts`, where it runs every build. The
 per-round files retired with the quarantine; each fix's CONTROLS graduated as
 fixtures instead, which is what makes an overshoot fail rather than pass
 quietly. Probe ids cited below (`A1`, `C11`, `FF13`, …) no longer resolve to a

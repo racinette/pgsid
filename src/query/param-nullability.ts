@@ -21,6 +21,11 @@
 //                        rejecting column target. Raises when the expression
 //                        is evaluated, so existential like B, and like B it
 //                        never licenses output narrowing.
+//   D (execution-time) — a BUILTIN argument position that rejects NULL in its
+//                        own C implementation, with nothing in pg_catalog
+//                        saying so: `array_fill`'s dimension array, a range
+//                        constructor's flags. See
+//                        BUILTIN_NULL_REJECTING_ARGS below.
 //
 // Both mean the same thing to a caller — do not pass NULL — so the result
 // does not distinguish them. Everything else is nullable: a comparison
@@ -206,7 +211,13 @@ function castTargetIsNotNullDomain(c: Collector, typeName: unknown): boolean {
  * row written, or when the expression is evaluated — so a statement can
  * return rows without them ever firing.
  */
-function reject(c: Collector, num: number, mechanism: "domain" | "constraint" | "flow"): void {
+function reject(
+  c: Collector,
+  num: number,
+  // `builtin-arg` is mechanism D: execution-time like `constraint` and `flow`,
+  // so a never-executed subtree drops it the same way.
+  mechanism: "domain" | "constraint" | "flow" | "builtin-arg",
+): void {
   // In a never-executed subtree only the bind-time mechanism survives.
   if (c.bindOnly && mechanism !== "domain") return;
   c.rejected.add(num);
@@ -579,6 +590,116 @@ function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): vo
   else rejectFlow(c, tc.arg);
 }
 
+/**
+ * Mechanism D: BUILTIN argument positions that reject NULL, by name → arity →
+ * 1-based positions.
+ *
+ * **Why this is a table, and why the table is safe.** The rejection lives in
+ * the function's C implementation and pg_catalog records nothing about it.
+ * Strictness cannot express it — a strict function returns NULL rather than
+ * raising, so the entire class sits inside the NON-strict set — which is the
+ * same shape as totality, and totality's tables are the ones that drifted
+ * three times in this project's history. What makes this one different is that
+ * it is cheaply DECIDABLE BY EXECUTION: call the function with NULL in one
+ * position and again with a value, and the pair answers exactly.
+ *
+ * So `builtin-null-rejection.test.ts` does not check this table, it DERIVES
+ * the class — probing every non-strict pg_catalog function, every position,
+ * each with its own control — and asserts the derived set EQUALS what is
+ * written here. A PostgreSQL upgrade that adds, removes or moves a rejection
+ * fails that test with the diff. The table is a cache of a measurement, not a
+ * hand-curated list, and the thing `docs/generated-surface.md` warns about
+ * cannot happen to it silently.
+ *
+ * Arity is part of the key because the signatures differ: `array_fill` rejects
+ * NULL at position 2 in its two-argument form and at 2 and 3 in its
+ * three-argument one.
+ *
+ * The contract reason this exists at all: a user function's body is not its
+ * interface and the engine claims nothing about it, but a BUILTIN's behaviour
+ * is documented and knowable, so a rejection it performs is one the engine
+ * owes a claim for (`docs/argument-nullability.md`, "What a nullable parameter
+ * does not promise"). Sweep-4 finding 8.
+ */
+export const BUILTIN_NULL_REJECTING_ARGS: ReadonlyMap<
+  string,
+  ReadonlyMap<number, readonly number[]>
+> = new Map([
+  // "dimension array or low bound array cannot be null"
+  ["array_fill", new Map([[2, [2]], [3, [2, 3]]])],
+  // "initial position must not be null" — the three-argument form only; the
+  // two-argument one has no such position.
+  ["array_position", new Map([[3, [3]]])],
+  // "range constructor flags argument must not be null" — the same third
+  // argument across every range type's three-argument constructor.
+  ["daterange", new Map([[3, [3]]])],
+  ["int4range", new Map([[3, [3]]])],
+  ["int8range", new Map([[3, [3]]])],
+  ["numrange", new Map([[3, [3]]])],
+  ["tsrange", new Map([[3, [3]]])],
+  ["tstzrange", new Map([[3, [3]]])],
+  // "null_value_treatment must be \"delete_key\", \"return_target\",
+  // \"use_json_null\", or \"raise_exception\"" — NULL is not one of them.
+  ["jsonb_set_lax", new Map([[5, [5]]])],
+]);
+
+/**
+ * The same mechanism one level IN: array-typed builtin positions that reject a
+ * NULL ELEMENT, which is a DIFFERENT rejection from a NULL argument and does
+ * not follow from it either way.
+ *
+ * `array_fill(1, ARRAY[NULL])` raises "dimension values cannot be null" where
+ * `array_fill(1, NULL)` raises "dimension array or low bound array cannot be
+ * null" — two messages, two checks. And the two sets only overlap: a NULL path
+ * ARRAY is fine for `jsonb_set_lax` while a NULL path ELEMENT is not ("path
+ * element at position 1 is null"), so neither table implies the other.
+ *
+ * Derived by the same execution probe over the array-typed positions of every
+ * non-strict pg_catalog function, and asserted equal to it, so this is a cache
+ * of a measurement like its sibling above.
+ *
+ * The rule reaches only an ARRAY CONSTRUCTOR at such a position, because that
+ * is where elements are visible as expressions. `$1::integer[]` bound to an
+ * array containing NULL is the same rejection and cannot be claimed — the
+ * parameter is the whole array, and its being non-null says nothing about what
+ * is inside it.
+ */
+export const BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS: ReadonlyMap<
+  string,
+  ReadonlyMap<number, readonly number[]>
+> = new Map([
+  // "dimension values cannot be null"
+  ["array_fill", new Map([[2, [2]], [3, [2, 3]]])],
+  // "path element at position N is null" — and note the whole-argument table
+  // does NOT carry this position, which is the point of having two.
+  ["jsonb_set_lax", new Map([[5, [2]]])],
+]);
+
+/**
+ * Mechanism D's rejecting positions for this call, or null when the name is
+ * not a builtin in the table at this arity.
+ *
+ * A USER function of the same name is not one of these, whatever it does: the
+ * table describes pg_catalog's implementations, and the engine makes no claim
+ * about a user body. An explicit schema qualifier other than `pg_catalog`
+ * says so outright; otherwise the catalog is asked whether it carries the
+ * name.
+ */
+function builtinRejectingPositions(
+  c: Collector,
+  table: ReadonlyMap<string, ReadonlyMap<number, readonly number[]>>,
+  schema: string | undefined,
+  name: string,
+  argCount: number,
+): readonly number[] | null {
+  if (schema !== undefined && schema !== "pg_catalog") return null;
+  const byArity = table.get(name);
+  if (!byArity) return null;
+  if (c.catalog.resolveFunctionMetadata(schema, name)) return null;
+  if ((c.catalog.resolveFunctionCandidates(schema, name, argCount) ?? []).length > 0) return null;
+  return byArity.get(argCount) ?? null;
+}
+
 function checkFuncCall(
   c: Collector,
   fc: { funcname?: Node[]; args?: Node[] },
@@ -592,6 +713,37 @@ function checkFuncCall(
 
   // Named notation shifts positions and degrades to nullable.
   if (fc.args.some(a => !!(a as { NamedArgExpr?: unknown }).NamedArgExpr)) return;
+
+  // Mechanism D, before the declared-type reading below: these positions are
+  // rejected by the implementation rather than by a domain, so nothing in the
+  // candidates' declared types would show it.
+  const argCount = fc.args.length;
+  const rejecting = builtinRejectingPositions(
+    c, BUILTIN_NULL_REJECTING_ARGS, schema, name, argCount,
+  );
+  for (const position of rejecting ?? []) {
+    const arg = fc.args[position - 1];
+    if (!arg) continue;
+    const num = paramNumberOf(arg);
+    if (num !== null) reject(c, num, "builtin-arg");
+    else rejectFlow(c, arg);
+  }
+
+  // The same one level in. Only an ARRAY CONSTRUCTOR exposes its elements as
+  // expressions; any other spelling hands over an array whose contents the
+  // walk cannot see, and a claim there would be about the binding's VALUE
+  // rather than its nullness.
+  const rejectingElements = builtinRejectingPositions(
+    c, BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS, schema, name, argCount,
+  );
+  for (const position of rejectingElements ?? []) {
+    const arg = fc.args[position - 1] as { A_ArrayExpr?: { elements?: Node[] } } | undefined;
+    for (const element of arg?.A_ArrayExpr?.elements ?? []) {
+      const num = paramNumberOf(element);
+      if (num !== null) reject(c, num, "builtin-arg");
+      else rejectFlow(c, element);
+    }
+  }
 
   // One candidate: its declared types are the ones that apply. Several:
   // arity-filtered CONSENSUS — a position every remaining candidate
