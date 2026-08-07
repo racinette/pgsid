@@ -448,6 +448,23 @@ export interface NullabilityCatalog {
   isPolymorphicBuiltin(name: string): boolean;
 
   /**
+   * The pg_catalog signatures of `name` whose return type is a polymorphic
+   * ARRAY, or null when the name has none (or is qualified to another
+   * schema). Each carries the declared argument types in order and the
+   * declared return type.
+   *
+   * `isPolymorphicBuiltin` says a call's type comes from its arguments, which
+   * is enough to refuse. This says HOW: a result declared
+   * `anyarray`/`anycompatiblearray` takes its type from the argument declared
+   * with the matching array pseudo-type, or from the one declared with the
+   * matching element pseudo-type plus a dimension.
+   */
+  resolvePolymorphicArraySignatures(
+    schema: string | undefined,
+    name: string,
+  ): { args: string[]; returns: string }[] | null;
+
+  /**
    * Pre-parsed ASTs of `LANGUAGE sql` function bodies, keyed by
    * `"schema.name"`. The value is the last statement's AST node (the
    * statement whose output expression is the function's return value).

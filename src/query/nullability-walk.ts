@@ -4161,16 +4161,150 @@ class NullabilityEngine {
         const first = returnTypes[0]!;
         return returnTypes.every(rt => rt === first) ? fromRendered(first) : { kind: "unknown" };
       }
+      // A polymorphic builtin takes its type FROM ITS ARGUMENTS, and the
+      // snapshot carries the signatures that say how.
+      const poly = this.polymorphicArrayElementType(fc, scope, depth);
+      if (poly) return poly;
       // A builtin with a CONCRETE return type cannot yield an array of a
       // USER composite, which is the only thing that turns one column into
-      // several here. A polymorphic one takes its type from its arguments,
-      // and an unrecognised name is not a symbol the walk knows at all.
+      // several here. A polymorphic one whose signatures did not answer, and
+      // an unrecognised name, are both unknown.
       return this.catalog.isBuiltinFunction(name) && !this.catalog.isPolymorphicBuiltin(name)
         ? { kind: "scalar" }
         : { kind: "unknown" };
     }
 
     return { kind: "unknown" };
+  }
+
+  /**
+   * Whether an expression is ARRAY-typed on evidence rather than by
+   * elimination — an ARRAY constructor, a cast with array bounds, or a
+   * catalog type that renders with `[]`. `unnestElementType`'s `scalar`
+   * verdict cannot be read this way: it means "not an array of a user
+   * composite", which a non-array expression satisfies too.
+   */
+  private isProvablyArrayExpr(expr: Node, scope: Scope | null): boolean {
+    const rec = expr as Record<string, unknown>;
+    if ("A_ArrayExpr" in rec) return true;
+    const tc = rec["TypeCast"] as { typeName?: { arrayBounds?: unknown[] } } | undefined;
+    if (tc?.typeName?.arrayBounds?.length) return true;
+    const rendered = this.renderedTypeOfExpr(expr, scope);
+    return !!rendered && rendered.trim().endsWith("[]");
+  }
+
+  /**
+   * The element type of a call to a pg_catalog function whose declared
+   * return is a polymorphic ARRAY — `array_agg`, `array_remove`, `array_cat`
+   * and the twenty-odd others — or null where the signatures do not answer.
+   *
+   * PostgreSQL resolves these from the arguments by one rule, uniform across
+   * every captured signature: the result takes its type from the argument
+   * declared with the matching ARRAY pseudo-type, and where a signature has
+   * none, from the argument declared with the matching ELEMENT pseudo-type
+   * plus one dimension. `unnest` then strips a dimension back off, so an
+   * array-declared position answers with ITS element type and an
+   * element-declared position answers with the argument's own type.
+   *
+   * Signatures that do not fit the call are DISCARDED rather than counted as
+   * disagreement: `array_agg` declares both `(anynonarray)` and `(anyarray)`,
+   * and a composite argument satisfies exactly one of them — the one
+   * PostgreSQL picks. What remains must agree, the same consensus quantifier
+   * every other overloaded question here takes.
+   *
+   * A call with `WITHIN GROUP`, `VARIADIC` or `*` is left alone: the
+   * argument LIST no longer lines up with the signature's positions, and
+   * `percentile_disc(double precision[], anyelement)` is exactly that shape.
+   */
+  private polymorphicArrayElementType(
+    fc: FuncCall,
+    scope: Scope | null,
+    depth: number,
+  ): { kind: "type"; parts: string[]; provablyComposite: boolean } | { kind: "scalar" } | null {
+    // `WITHIN GROUP` is the only spelling whose argument list stops lining up
+    // with the signature's — `percentile_disc(double precision[],
+    // anyelement)` declares two while the call writes one and puts the other
+    // after ORDER BY. A plain `agg(x ORDER BY y)` or `agg(DISTINCT x)` is an
+    // ordinary call with a sort clause attached and its positions are
+    // unaffected, so only the first is excluded.
+    //
+    // No fixture can tell this guard from its absence: the aggregated
+    // argument never appears in `args`, so the arity test below rejects every
+    // WITHIN GROUP call in PG18's catalog on its own. The guard states the
+    // reason rather than relying on that coincidence holding.
+    if (fc.agg_within_group || fc.agg_star || fc.func_variadic) return null;
+    const sigs = this.catalog.resolvePolymorphicArraySignatures(
+      this.funcSchema(fc),
+      this.funcName(fc),
+    );
+    if (!sigs) return null;
+    const args = fc.args ?? [];
+
+    const answers: ({ kind: "type"; parts: string[] } | { kind: "scalar" })[] = [];
+    for (const sig of sigs) {
+      if (sig.args.length !== args.length) continue;
+      const answer = this.elementTypeFromSignature(sig.args, args, scope, depth);
+      if (answer) answers.push(answer);
+    }
+    if (answers.length === 0) return null;
+    const first = answers[0]!;
+    const agree = answers.every(a =>
+      a.kind === "scalar" || first.kind === "scalar"
+        ? a.kind === first.kind
+        : a.parts.length === first.parts.length && a.parts.every((p, i) => p === first.parts[i]),
+    );
+    if (!agree) return null;
+    return first.kind === "scalar"
+      ? { kind: "scalar" }
+      : { kind: "type", parts: first.parts, provablyComposite: false };
+  }
+
+  /**
+   * The element type one signature yields for this argument list, or null
+   * when the argument at its polymorphic position is not one the walk can
+   * type — which is also how a signature the call does not fit drops out.
+   */
+  private elementTypeFromSignature(
+    declared: string[],
+    args: Node[],
+    scope: Scope | null,
+    depth: number,
+  ): { kind: "type"; parts: string[] } | { kind: "scalar" } | null {
+    const ARRAY_POLY = new Set(["anyarray", "anycompatiblearray"]);
+    const ELEMENT_POLY = new Set([
+      "anyelement",
+      "anynonarray",
+      "anycompatible",
+      "anyenum",
+    ]);
+
+    for (let i = 0; i < declared.length; i++) {
+      if (!ARRAY_POLY.has(declared[i]!)) continue;
+      const element = this.unnestElementType(args[i]!, scope, depth);
+      if (element.kind === "type") return { kind: "type", parts: element.parts };
+      // A scalar array in, a scalar array out: `array_remove(ARRAY[1, 2],
+      // NULL)` contributes one column, and the polymorphic name is no reason
+      // to refuse what the argument already answered. But `scalar` is also
+      // what a NON-array expression answers, and here that distinction
+      // decides whether this SIGNATURE is the one PostgreSQL picked:
+      // `array_agg` declares `(anyarray)` beside `(anynonarray)`, and a
+      // composite argument fits only the second. So the scalar answer counts
+      // only where the argument is provably an array.
+      return element.kind === "scalar" && this.isProvablyArrayExpr(args[i]!, scope)
+        ? { kind: "scalar" }
+        : null;
+    }
+    for (let i = 0; i < declared.length; i++) {
+      if (!ELEMENT_POLY.has(declared[i]!)) continue;
+      const rendered = this.renderedTypeOfExpr(args[i]!, scope);
+      if (!rendered) return null;
+      // The result is this type with a dimension added and `unnest` takes it
+      // straight back off, so an argument that is itself an array answers
+      // with its own element type — `unnest` flattens every dimension.
+      const { schema, name } = splitQualifiedName(rendered.replace(/(\[\])+$/, "").trim());
+      return { kind: "type", parts: schema ? [schema, name] : [name] };
+    }
+    return null;
   }
 
   /**
@@ -8913,6 +9047,12 @@ interface FuncCall {
   over?: Node;
   /** `f(VARIADIC arr)` — the variadic parameter passed as ONE array. */
   func_variadic?: boolean;
+  /** `agg(x) WITHIN GROUP (ORDER BY y)` — the ordered-set spelling, whose
+   *  direct and aggregated arguments do not line up positionally with the
+   *  signature's own list. */
+  agg_within_group?: boolean;
+  /** The ORDER BY inside an aggregate call, present for the same reason. */
+  agg_order?: Node[];
 }
 
 interface SubLink {

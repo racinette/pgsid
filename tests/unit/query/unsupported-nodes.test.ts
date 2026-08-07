@@ -280,24 +280,17 @@ describe("unsupported nodes are refused, not guessed", () => {
   // wrong shape in six measured spellings (adversarial-3 finding 3). It
   // refuses when it cannot tell.
   //
-  // What remains is ONE cause: a POLYMORPHIC builtin, whose return type
-  // PostgreSQL resolves from its arguments and the snapshot cannot state.
-  // `array_agg(p)` over a composite column yields `sku_pair[]` (measured),
-  // and saying so needs pg_catalog SIGNATURES — which a standing boundary
-  // keeps out of the snapshot until the consumer's search-path input lands
-  // (`docs/generated-surface.md`, "Boundaries"), and which
-  // `docs/type-aware-overloads.md` is sequenced behind. The spelling with a
-  // sublink around it is the same function, not a second cause.
-  it("refuses unnest of a polymorphic builtin's result", async () => {
+  // What remains is ONE cause, and it is the one the type charter names as
+  // its own residue: an expression whose type needs COMMON-TYPE resolution
+  // across several branches. A CASE arm and a set operation each declare
+  // their type by agreement between arms, which is a rule the walk does not
+  // implement — every other source here is read, not inferred.
+  it("refuses unnest of an expression needing common-type resolution", async () => {
     for (const sql of [
-      "SELECT * FROM unnest((SELECT array_agg(p) FROM cc))",
-      "SELECT * FROM unnest(array_remove((SELECT array_agg(p) FROM cc), NULL))",
-      "SELECT * FROM unnest(array_remove(ARRAY[ROW('a', 1)::sku_pair], NULL))",
-      "SELECT * FROM unnest(array_cat(ARRAY[ROW('a', 1)::sku_pair], ARRAY[ROW('b', 2)::sku_pair]))",
-      // A scalar one refuses for the same reason and costs a column list
-      // that would have been right: the cause is the polymorphic name, not
-      // the element type behind it.
-      "SELECT * FROM unnest((SELECT array_agg(id) FROM cc))",
+      "SELECT * FROM unnest(CASE WHEN true THEN ARRAY[ROW('a', 1)::sku_pair] END)",
+      "WITH w AS (SELECT ARRAY[p] AS ps FROM cc UNION ALL SELECT ARRAY[p] FROM cc)" +
+        " SELECT * FROM w, unnest(w.ps)",
+      "SELECT * FROM unnest((SELECT ARRAY[p] FROM cc UNION ALL SELECT ARRAY[p] FROM cc LIMIT 1))",
     ]) {
       await expect(infer(sql), sql).rejects.toMatchObject({
         name: "UnsupportedNodeError",
@@ -333,6 +326,26 @@ describe("unsupported nodes are refused, not guessed", () => {
       ["SELECT * FROM unnest((SELECT h.pairs FROM ch h LIMIT 1))", ["sku", "qty"]],
       ["SELECT * FROM unnest((SELECT ARRAY[c.p] FROM cc c LIMIT 1))", ["sku", "qty"]],
       ["SELECT * FROM unnest((SELECT ARRAY[1, 2] LIMIT 1))", ["unnest"]],
+      // A POLYMORPHIC builtin takes its type from its arguments, and the
+      // captured pg_catalog signatures say from WHICH argument: an
+      // array-declared position answers with its own element type, an
+      // element-declared one with the argument's type. `array_agg` declares
+      // both and a composite argument fits exactly one.
+      ["SELECT * FROM unnest((SELECT array_agg(c.p) FROM cc c))", ["sku", "qty"]],
+      ["SELECT * FROM unnest((SELECT array_agg(c.p ORDER BY c.id) FROM cc c))", ["sku", "qty"]],
+      ["SELECT * FROM unnest((SELECT array_agg(c.id) FROM cc c))", ["unnest"]],
+      ["SELECT * FROM unnest(array_remove(ARRAY[ROW('a', 1)::sku_pair], NULL))",
+        ["sku", "qty"]],
+      ["SELECT * FROM unnest(array_cat(ARRAY[ROW('a', 1)::sku_pair], ARRAY[ROW('b', 2)::sku_pair]))",
+        ["sku", "qty"]],
+      ["SELECT * FROM unnest(trim_array(ARRAY[ROW('a', 1)::sku_pair], 0))", ["sku", "qty"]],
+      ["SELECT * FROM unnest(array_fill(ROW('a', 1)::sku_pair, ARRAY[1]))", ["sku", "qty"]],
+      // The composition: the argument of one polymorphic call is another.
+      ["SELECT * FROM unnest(array_remove((SELECT array_agg(c.p) FROM cc c), NULL))",
+        ["sku", "qty"]],
+      // A scalar array through the same names keeps its single column.
+      ["SELECT * FROM unnest(array_remove(ARRAY[1, 2], NULL))", ["unnest"]],
+      ["SELECT * FROM unnest((SELECT array_agg(h.pairs) FROM ch h))", ["sku", "qty"]],
     ];
     for (const [sql, names] of cases) {
       expect((await infer(sql)).map(r => r.name), sql).toEqual(names);

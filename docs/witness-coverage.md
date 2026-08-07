@@ -287,7 +287,7 @@ group.
 
 ## Current measurement
 
-Across 380 fixtures and 5 data states, at the default seed (the two
+Across 381 fixtures and 5 data states, at the default seed (the three
 `unnest-*` fixtures of the element-type work, the nine
 `fk-entail-subquery-join-*` fixtures of the subquery-chain composition, the
 five `fk-entail-*` fixtures of the join-level presence work and the seven
@@ -303,8 +303,8 @@ fix phase from 311 and 288):
 | — falsifiable | 892 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 584 | |
-| — witnessed | 504 (86%) | some state or binding produces a real NULL there |
+| `nullable` claims | 588 | |
+| — witnessed | 508 (86%) | some state or binding produces a real NULL there |
 | — unwitnessed, reason recorded | 80 | every one carries an `@unwitnessable` annotation |
 | `@null-group` claims | 44 (38 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 

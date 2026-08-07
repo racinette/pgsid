@@ -310,6 +310,40 @@ describe("snapshotCatalog: functions and procedures", () => {
     ]);
   });
 
+  it("captures the polymorphic ARRAY signatures, with their argument types", async () => {
+    const s = await snapshotCatalog(pg);
+    const byName = (name: string) =>
+      s.builtinPolymorphicArraySignatures
+        .filter(sig => sig.name === name)
+        .map(sig => `${sig.args.join(", ")} -> ${sig.returns}`)
+        .sort();
+
+    // Both array_agg signatures, which is the pair that makes the resolution
+    // a CHOICE rather than a lookup: a composite argument fits the first.
+    expect(byName("array_agg")).toEqual([
+      "anyarray -> anyarray",
+      "anynonarray -> anyarray",
+    ]);
+    expect(byName("array_remove")).toEqual([
+      "anycompatiblearray, anycompatible -> anycompatiblearray",
+    ]);
+    expect(byName("array_prepend")).toEqual([
+      "anycompatible, anycompatiblearray -> anycompatiblearray",
+    ]);
+
+    // Every captured signature declares at least one polymorphic ARGUMENT —
+    // a polymorphic result with none (`anyarray_in(cstring)`) could never be
+    // resolved and is not callable from a query.
+    const POLY = new Set([
+      "anyarray", "anycompatiblearray", "anyelement",
+      "anynonarray", "anycompatible", "anyenum",
+    ]);
+    for (const sig of s.builtinPolymorphicArraySignatures) {
+      expect(sig.args.some(a => POLY.has(a)), `${sig.name}(${sig.args.join(", ")})`).toBe(true);
+      expect(["anyarray", "anycompatiblearray"]).toContain(sig.returns);
+    }
+  });
+
   it("includes extension functions (plpgsql_check) but they are not validated", async () => {
     const s = await snapshotCatalog(pg);
     const extFns = s.functions.filter(f => f.name === "plpgsql_check_function_tb" || f.name === "plpgsql_check_function");

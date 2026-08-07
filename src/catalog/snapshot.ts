@@ -1,5 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 import type {
+  BuiltinSignature,
   CatalogSnapshot,
   ColumnInfo,
   CompositeTypeInfo,
@@ -470,6 +471,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinAggregateFunctions,
     builtinFunctionNames,
     builtinPolymorphicFunctions,
+    builtinPolymorphicArraySignatures,
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
@@ -497,6 +499,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinAggregateFunctions(pg),
     queryBuiltinFunctionNames(pg),
     queryBuiltinPolymorphicFunctions(pg),
+    queryBuiltinPolymorphicArraySignatures(pg),
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
@@ -883,6 +886,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinAggregateFunctions,
     builtinFunctionNames,
     builtinPolymorphicFunctions,
+    builtinPolymorphicArraySignatures,
   };
 }
 
@@ -1287,6 +1291,39 @@ async function queryBuiltinPolymorphicFunctions(pg: PGlite): Promise<string[]> {
      ORDER BY p.proname;`,
   );
   return res.rows.map(r => r.name);
+}
+
+/**
+ * The pg_catalog signatures whose return type is a polymorphic ARRAY. See
+ * CatalogSnapshot.builtinPolymorphicArraySignatures for the resolution rule
+ * they exist to answer.
+ *
+ * `proargtypes` rather than `proallargtypes` deliberately: it is the INPUT
+ * list, which is what a call's own argument list lines up against, and none
+ * of these declares an OUT parameter. Aggregates are included — `array_agg`
+ * is one, and it is the shape that made this capture necessary.
+ */
+async function queryBuiltinPolymorphicArraySignatures(
+  pg: PGlite,
+): Promise<BuiltinSignature[]> {
+  const res = await pg.query<{ name: string; args: string[] | null; returns: string }>(
+    `SELECT p.proname AS name,
+            (SELECT array_agg(format_type(t, null) ORDER BY o)
+               FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, o)) AS args,
+            format_type(p.prorettype, null) AS returns
+     FROM pg_proc p
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'pg_catalog'
+       AND p.prokind IN ('f', 'a')
+       AND format_type(p.prorettype, null) IN ('anyarray', 'anycompatiblearray')
+       AND EXISTS (
+         SELECT 1 FROM unnest(p.proargtypes) t
+         WHERE format_type(t, null) IN ('anyarray', 'anycompatiblearray', 'anyelement',
+                                        'anynonarray', 'anycompatible', 'anyenum')
+       )
+     ORDER BY p.proname, 2;`,
+  );
+  return res.rows.map(r => ({ name: r.name, args: r.args ?? [], returns: r.returns }));
 }
 
 /**

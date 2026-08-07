@@ -757,17 +757,37 @@ own column lists across fourteen spellings before and after; the engine never
 answered a WRONG shape in any of them, before or after, which is the property
 that made this item precision rather than soundness.
 
-**What still refuses is one cause: a POLYMORPHIC builtin.** `array_agg(p)`
-yields `sku_pair[]`, `array_remove`/`array_cat`/`array_append` the same, and
-PostgreSQL resolves all of them from the ARGUMENT types. Answering needs
-pg_catalog SIGNATURES in the snapshot — 25 `anyarray`-returning names plus
-seven `anycompatiblearray` ones, read straight off `pg_proc` — and that is
-blocked by a standing decision, not by a judgement made here:
-`docs/generated-surface.md`'s boundary keeps pg_catalog signatures out until
-the consumer's search-path input lands, and `docs/type-aware-overloads.md` is
-sequenced behind the same prerequisite. The refusal is pinned with its
-positive controls, and the register's entry for that charter now carries the
-return pointer.
+**The third cause closed the same day, and the "blocked" reading that briefly
+stood here was wrong.** A POLYMORPHIC builtin takes its type from its
+arguments — `array_agg(p)` yields `sku_pair[]`, `array_remove`/`array_cat`/
+`array_append`/`trim_array`/`array_fill` the same — and saying so needs the
+pg_catalog SIGNATURES. Those are now captured as
+`builtinPolymorphicArraySignatures`: the 26 signatures whose declared return
+is `anyarray` or `anycompatiblearray`, with their declared argument types,
+ENVIRONMENT data beside `builtinStrictFunctions` and the five other pg_catalog
+captures that landed the same way. One rule covers all 26 — the result takes
+its type from the argument declared with the matching ARRAY pseudo-type, or
+from the one declared with the matching ELEMENT pseudo-type plus a dimension —
+so nothing here is curated.
+
+Two details earned their own gates. A signature the call does not fit is
+DISCARDED rather than counted as disagreement (`array_agg` declares
+`(anynonarray)` beside `(anyarray)`, and a composite argument fits exactly the
+one PostgreSQL picks), which needs the argument to be provably an ARRAY rather
+than merely "not a composite array" — the same verdict a non-array expression
+gives. And `WITHIN GROUP` is excluded because its aggregated argument never
+appears in the call's argument list; no fixture can tell that guard from its
+absence, since the arity test rejects those calls anyway, and the code says so.
+
+**What still refuses is common-type resolution** — a CASE arm, a set
+operation — which `docs/type-aware-overloads.md` lists as its own residue.
+
+The sequencing claim that stood here for an afternoon said the capture was
+blocked until "the consumer's search-path input lands". It was not: the walk
+has taken `searchPath` as an argument since the adversarial-2 fix phase, and
+six pg_catalog environment captures had already shipped. The boundary that
+sentence cited is about how to USE signatures in candidate resolution, which
+sweep-3 finding 6 had already answered.
 
 Closed by the SUBQUERY CHAIN (2026-08-07, `docs/precision-residue.md` item
 3), the third of the four and the one that was exactly what it said. Key
