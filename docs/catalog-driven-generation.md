@@ -124,6 +124,61 @@ The discovery instrument, spec settled 2026-08-08:
 6. **Execution is compared against the engine's claims**; a disagreement is a
    fixture and a fix.
 
+### Modifying statements, in full
+
+The spec line above — "DML rolls back" — covers ISOLATION and nothing else.
+Five things it does not cover, and DML is where a third of the engine's
+mechanisms live, so none of them is optional.
+
+**1. `RETURNING` is the only observable, so it is near-mandatory.** A DML
+statement without it produces no output columns, therefore no nullability
+claims, therefore no rank-1 or rank-4 signal — only shape, parity and refusal.
+That is not nothing, but it is a fraction of the budget's worth. The generator
+should emit `RETURNING` on almost every modifying statement, and the fraction
+without one exists to exercise the no-output path deliberately rather than by
+neglect.
+
+**2. Written VALUES have the same overlap problem as predicate literals, and
+worse consequences.** A random value in an `INSERT` collides on a primary key
+(`23505`), dangles a foreign key (`23503`) or fails a CHECK (`23514`), and the
+statement raises — no rows, no signal, budget gone. The fix is the same
+mechanism one layer over: **an FK column draws from the parent's seeded values;
+a surrogate key takes a FRESH value; a domain or CHECK-constrained column uses
+its own generator.** That is `fixture-data/generators.ts`'s tier resolution
+applied to the written row instead of the seeded one, and it is the difference
+between random DML that mostly raises and random DML that mostly returns.
+
+**3. `UPDATE` and `DELETE` need their WHERE to MATCH.** A modifying statement
+that touches zero rows returns zero `RETURNING` rows, which is
+`agreed-norows` — legal, unaccounted, and worthless. Same answer: the WHERE's
+literals come from the data.
+
+**4. MERGE arms only fire when the data makes them.** `WHEN NOT MATCHED BY
+SOURCE` needs a target row with no source match; `WHEN MATCHED` needs one with
+a match. A source drawn entirely from the target's own keys exercises one arm
+and never the others — measured the hard way during the sweep-4 fix phase,
+where a MERGE fixture's presence group reported "present arm never observed"
+until the source was widened. The generator must construct sources that
+straddle: some rows matching, some not.
+
+**5. The write-rewrite hooks are the high-value target.** `RETURNING` reports
+the row AFTER PostgreSQL's rewrite stage, so a BEFORE ROW trigger that replaces
+NEW, an INSTEAD OF trigger on a view, and a DO INSTEAD rule each change what
+comes back — and the engine models all three. The fixture schema already
+carries trigger-bearing tables, partitioned targets whose triggers fire on the
+DESTINATION partition after row movement, and rule-bearing views. DML aimed at
+those is worth more per query than DML aimed at a plain table.
+
+**One reproducibility hazard, because it is invisible until it bites.**
+Sequences and identity columns are NON-TRANSACTIONAL: `ROLLBACK` does not
+reclaim a consumed value. So `INSERT … RETURNING id` over a
+`GENERATED … AS IDENTITY` column yields DIFFERENT values on a re-run with an
+identical seed. This does not affect nullability — the claim is about NULL, not
+about which integer — but it means **a repro must not be keyed on returned
+VALUES**, and a fingerprint that includes them will fail to dedupe across runs.
+Key on structure, which the fingerprint rule already says; this is the concrete
+case that punishes forgetting it.
+
 ### What the tool DOES owe: the input contract
 
 "Owes no coverage claim" is about ACCOUNTING and must not be read as
