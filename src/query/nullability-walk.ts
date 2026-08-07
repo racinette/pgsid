@@ -2258,13 +2258,34 @@ class NullabilityEngine {
    * Flatten a JSON_TABLE COLUMNS list. NESTED PATH columns are spliced into
    * the same output row, so they contribute alongside their siblings.
    *
-   * Only FOR ORDINALITY is non-null. A regular column is NULL when its path
-   * matches nothing, and an EXISTS column can still yield NULL under
-   * `UNKNOWN ON ERROR`.
+   * Only FOR ORDINALITY is non-null, and only OUTSIDE a NESTED PATH. A regular
+   * column is NULL when its path matches nothing, and an EXISTS column can
+   * still yield NULL under `UNKNOWN ON ERROR`.
+   *
+   * **A NESTED PATH is an OUTER JOIN against the level above it** (sweep-4
+   * finding 5), which is what an ordinality counter inside one cannot survive:
+   * the counter is generated for every row of its OWN path, and PostgreSQL
+   * emits rows that path did not produce. Four ways in, all measured:
+   *
+   *   - a SIBLING nested path — the two are unioned, so a row from `$.a[*]`
+   *     carries NULL in every column of `$.b[*]`, ordinality included;
+   *   - the path matching NOTHING (an empty array, or a key absent from the
+   *     document) — the parent row still comes back, with the counter NULL,
+   *     and this needs no sibling at all;
+   *   - the same one level down: a nested path INSIDE another whose inner
+   *     array is empty for one outer element;
+   *   - either of the above beside an ordinary root column.
+   *
+   * So the boundary is "inside a NESTED PATH", not "has a sibling" — the
+   * sibling reading was the shape the sweep happened to falsify first, and it
+   * is sound only over paths that always match. A ROOT-level counter is not
+   * affected however many NESTED siblings it has: it counts the root's rows
+   * and is present on every one of them (measured).
    */
   private collectJsonTableColumns(
     columns: Node[] | undefined,
     out: { name: string; notNull: boolean }[],
+    nested = false,
   ): void {
     for (const c of columns ?? []) {
       const col = (c as Record<string, unknown>)["JsonTableColumn"] as
@@ -2272,11 +2293,11 @@ class NullabilityEngine {
         | undefined;
       if (!col) continue;
       if (col.coltype === "JTC_NESTED") {
-        this.collectJsonTableColumns(col.columns, out);
+        this.collectJsonTableColumns(col.columns, out, true);
         continue;
       }
       if (!col.name) continue;
-      out.push({ name: col.name, notNull: col.coltype === "JTC_FOR_ORDINALITY" });
+      out.push({ name: col.name, notNull: !nested && col.coltype === "JTC_FOR_ORDINALITY" });
     }
   }
 
