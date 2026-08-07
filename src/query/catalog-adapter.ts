@@ -297,8 +297,20 @@ export async function buildNullabilityCatalog(
   //     records it on the parent alone and a violating child row inserts
   //     without complaint (measured), so a TREE scan of a relation with
   //     descendants may not read it. Partitioning is the opposite and needs
-  //     no exclusion: the constraint is recorded on every partition and
-  //     ATTACH PARTITION validates the incoming rows (both measured).
+  //     no exclusion on the REFERENCING side: the constraint is recorded on
+  //     every partition and ATTACH PARTITION validates the incoming rows
+  //     (both measured).
+  //   - PARTITION CLONES on the REFERENCED side, which is the other question
+  //     entirely and the one that sentence was not about (sweep-4 finding 4).
+  //     A key pointing AT a partitioned table is recorded once per partition
+  //     on top of the declared constraint, and this map keyed on
+  //     `schema.table.column` with last-row-wins, so `sw4_pref.p_id` resolved
+  //     to whichever partition the snapshot happened to order last. Two wrong
+  //     answers from one capture: joining that partition promoted it, and a
+  //     referencing row pointing into any OTHER partition NULL-extends; and
+  //     joining the DECLARED parent promoted nothing, because the declared
+  //     target had been overwritten. Skipping the clones recovers the second
+  //     and removes the first in one move.
   //
   // The remaining hazards are not catalog-visible and are not gated here:
   // the referencing column must be NOT NULL and the join must equate exactly
@@ -316,6 +328,9 @@ export async function buildNullabilityCatalog(
   for (const t of snapshot.tables) {
     for (const con of t.constraints) {
       if (con.type !== "foreign" || !con.validated || con.deferrable) continue;
+      // A clone is not a key the author declared, and says nothing about
+      // which partition a referencing row lands in.
+      if (con.inheritedClone) continue;
       // Single-column keys only. A composite key is sound under the same
       // reasoning once every pair is equated in the ON clause, and matching a
       // conjunction against a column list is work with no fixture behind it.

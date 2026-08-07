@@ -128,6 +128,27 @@ export interface ConstraintInfo {
    * changes what a join may conclude.
    */
   deferrable: boolean;
+  /**
+   * `pg_constraint.conparentid <> 0` — this row is a CLONE that PostgreSQL
+   * created, not a constraint the schema author wrote.
+   *
+   * A foreign key REFERENCING a partitioned table is recorded once per
+   * partition on top of the declared constraint: `sw4_pref.p_id REFERENCES
+   * sw4_pp(id)` over two partitions gives three rows, whose `confrelid` is
+   * `sw4_pp`, `sw4_pp1` and `sw4_pp2`. The clones exist so a delete on one
+   * partition fires the right referential trigger; NONE of them means "every
+   * referencing row matches THIS partition" (sweep-4 finding 4).
+   *
+   * Reading them as declared keys is wrong twice over: the map kept whichever
+   * clone came last, which is a claim about one partition that no referencing
+   * row need satisfy, and the DECLARED key — the shape anyone actually writes
+   * — was overwritten and lost.
+   *
+   * The wider lesson this is the first instance of: a catalog READ has to ask
+   * which rows PostgreSQL added that nobody wrote. Partition clones are one
+   * kind; inherited constraints and index-backing rows are the same class.
+   */
+  inheritedClone: boolean;
 }
 
 /**
