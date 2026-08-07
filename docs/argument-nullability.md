@@ -142,17 +142,41 @@ guess at rejections also inverts the interface: two functions with identical
 signatures would carry different contracts.
 
 **The must-not-raise convention holds for BUILTINS**, whose behaviour is
-documented and knowable, and where a claim is therefore owed. It is not
-currently satisfied: 10 signatures across 11 argument positions reject NULL
-and the engine claims nothing — `array_fill`'s dimension and low-bound arrays,
-`array_position`'s three-argument initial position, the six range
-constructors' flags argument, and `jsonb_set_lax`'s `null_value_treatment`
-(measured 2026-08-07 with a per-position control, over the 208 non-strict
-pg_catalog functions). Strictness does not record it — a strict function
-returns NULL rather than raising, so the class is entirely inside the
-non-strict set — and pg_catalog has no column that does. That makes it a
-curated table, with the drift risk every curated table in this project has
-had, and it is registered rather than built.
+documented and knowable, and where a claim is therefore owed. That is
+**mechanism D**, built 2026-08-07: some builtin argument positions reject NULL
+in their own C implementation with nothing in pg_catalog saying so. Strictness
+cannot express the class — a strict function returns NULL rather than raising,
+so the whole of it sits inside the non-strict set.
+
+Two tables, because there are two distinct checks and neither implies the
+other:
+
+| | positions | message |
+|---|---|---|
+| a NULL ARGUMENT | `array_fill`'s dimension and low-bound arrays; `array_position`'s three-argument initial position; the six range constructors' flags argument; `jsonb_set_lax`'s `null_value_treatment` | 10 signatures, 11 positions |
+| a NULL ELEMENT of an array argument | `array_fill`'s two dimension arrays; `jsonb_set_lax`'s PATH — which accepts a NULL array and rejects a NULL element | 3 signatures, 4 positions |
+
+**These are tables, and that is normally this project's mistake.** The property
+has the same shape as TOTALITY, whose four tables drifted three times
+(`docs/generated-surface.md` items 2 and 3). What makes these safe is that the
+property is cheaply DECIDABLE BY EXECUTION — call the function with NULL in one
+position, call it again with a value, and the pair answers exactly — so
+`builtin-null-rejection.test.ts` does not CHECK the tables, it DERIVES the
+class from pg_catalog and asserts equality. A PostgreSQL upgrade that adds,
+removes or moves a rejection fails with the diff. The tables are a cache of
+that measurement.
+
+Two things bound the rule. The element rule reaches an ARRAY CONSTRUCTOR only,
+where the elements are visible as expressions: `$1::integer[]` bound to an
+array CONTAINING a NULL is the same rejection and cannot be claimed, because
+the parameter is the whole array and its being non-null says nothing about its
+contents. And a USER function of the same name is never matched — the tables
+describe pg_catalog's implementations, and the engine claims nothing about a
+user body.
+
+The rule composes for free: `array_fill(1, coalesce($1, $2))` yields the joint
+rejection set `{1,2}`, because mechanism C's implicant machinery already
+answers "which parameters force this expression NULL".
 
 **How the suite holds the line.** `param-soundness.test.ts` still falsifies a
 nullable claim whose NULL binding raises, because over the hand-written corpus

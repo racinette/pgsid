@@ -621,8 +621,8 @@ retired: every fixture graduated into `tests/unit/query/fixtures/` with
 corrected claims and witnesses, the sweep's DDL folded into the fixture schema,
 and the section-B objects that produced nothing dropped rather than folded
 (`sw4_def_*`, `sw4_ovd`, `sw4_def_body`, `sw4_self` — named here so "0
-actionable" is not misread as "everything is covered"). Suite: 42 files, 2662
-tests, 408 fixtures; the generated corpus's 14964 queries and the schema axis
+actionable" is not misread as "everything is covered"). Suite: 43 files, 3088
+tests, 410 fixtures; the generated corpus's 14964 queries and the schema axis
 both ran clean.
 
 **Two deviations from the report, both recorded in the closure entries.** Its
@@ -643,15 +643,15 @@ quietly, and the negative sections' three uncovered shapes (`E4`, `E6`, `F2`)
 graduated on the report's own criterion while the rest stand as the report's
 record.
 
-**An EIGHTH finding came out of taking finding 7's decision, and it is OPEN** —
-the only thing this fix phase leaves unclosed. The decision scopes the
-must-not-raise convention to BUILTINS; probing that carve-out instead of
-assuming it falsified it on the first try. 10 signatures across 11 argument
-positions reject NULL where the engine claims nothing, measured with a
-per-position control over the 208 non-strict pg_catalog functions. The closure
-entry in section 2 has the list and why it is registered rather than built (it
-is a curated table, and this project's standing lesson about those is that they
-drift from the catalog they approximate).
+**An EIGHTH finding came out of taking finding 7's decision, and it is CLOSED
+too** — as MECHANISM D, the fourth rejection channel in the parameter contract.
+The decision scopes the must-not-raise convention to BUILTINS; probing that
+carve-out instead of assuming it falsified it on the first try. Two tables (a
+NULL argument, and a NULL element of an array argument) covering 13 signatures
+across 15 positions, DERIVED by execution every run rather than curated — which
+is what makes a table defensible here at all, given that this register's
+totality tables drifted three times. The closure entry in section 2 has the
+reasoning and the two deliberate boundaries.
 
 Yield is 7 in 169 against sweep 3's 8 in ~155 — the same rate on findings and
 a heavier severity mix, from two thirds of the budget. **What it does NOT
@@ -997,21 +997,36 @@ engine should have seen or by `-- @param-opaque N: <reason>`, whose raise must
 be OBSERVED — mutation-checked in both directions, so a stale marker fails as
 loudly as a missing one.
 
-**Taking that decision produced an eighth finding, and it is OPEN.** The
-decision scopes the must-not-raise convention to BUILTINS, whose behaviour is
-documented and knowable, and probing that carve-out rather than assuming it
+**Taking that decision produced an EIGHTH finding, now CLOSED as mechanism D.**
+The decision scopes the must-not-raise convention to BUILTINS, whose behaviour
+is documented and knowable, and probing that carve-out rather than assuming it
 falsified it immediately: `array_fill(1, $1)` raises `dimension array or low
-bound array cannot be null` and the engine claims the parameter nullable. Sized
-with a per-position control over the 208 non-strict pg_catalog functions —
-**10 signatures, 11 argument positions**: `array_fill`'s dimension and
-low-bound arrays, `array_position`'s three-argument initial position, the six
-range constructors' flags argument, and `jsonb_set_lax`'s
-`null_value_treatment`. Strictness cannot express it (a strict function returns
-NULL rather than raising, so the whole class is inside the non-strict set) and
-pg_catalog has no column that does, which makes the fix a CURATED TABLE with
-every drift risk this project has met before — hence registered rather than
-built, with `tests/probe/builtin-null-rejection.ts` kept as the standing
-measurement so the table's drift would be a number rather than a guess.
+bound array cannot be null` and the engine claimed the parameter nullable. Two
+distinct checks, neither implying the other — a NULL ARGUMENT (10 signatures,
+11 positions) and a NULL ELEMENT of an array argument (3 signatures, 4
+positions), where `jsonb_set_lax` accepts a NULL path array and rejects a NULL
+path element.
+
+**It is a TABLE, which is normally this register's mistake, and the reason it
+is not here is worth stating.** The property has totality's exact shape —
+invisible to `proisstrict`, living only in the C implementations — and this
+project's four totality tables drifted three times. What differs is that this
+one is cheaply DECIDABLE BY EXECUTION: call the function with NULL in one
+position and again with a value, and the pair answers exactly. So
+`builtin-null-rejection.test.ts` does not CHECK the tables, it DERIVES the
+class from pg_catalog every run and asserts equality, both directions in one
+assertion; the tables are a cache of that measurement, and a PostgreSQL upgrade
+that moves a rejection fails with the diff. The suite also asserts its own
+coverage bounds (silent non-coverage would agree with an empty table) and ties
+the derived MESSAGES to `param-soundness.test.ts`'s rejection pattern, so a
+claim cannot go quietly unwitnessed behind an unmatched string.
+
+Two boundaries are deliberate and have fixtures: the element rule reaches an
+ARRAY CONSTRUCTOR only — `$1::integer[]` bound to an array CONTAINING a NULL is
+the same rejection, and the parameter is the whole array — and a USER function
+of the same name is never matched, because the tables describe pg_catalog's
+implementations. The rule composes for free through mechanism C's implicants:
+`array_fill(1, coalesce($1, $2))` yields the joint rejection set `{1,2}`.
 
 Closed by the CATALOG SPY (2026-08-07), which finishes the `handled` half the
 category check named and left. The catalog is a pure data interface, so which
