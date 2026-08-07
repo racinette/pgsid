@@ -118,7 +118,7 @@ const ENUMERATED_COLUMNS: Record<string, EnumeratedColumn> = {
       m: { meaning: "materialized view", absent: "see the `materialized-view` feature" },
       c: { meaning: "composite type's relation row — captured as a compositeType, never as a table" },
       i: { meaning: "index — IndexInfo; the nullability engine reads none of it" },
-      I: { meaning: "partitioned index", absent: "no partitioned table here carries an index" },
+      I: { meaning: "partitioned index — sw4_pp's PRIMARY KEY, which is what makes a key onto a partitioned parent expressible at all; the walk reads none of it" },
       S: { meaning: "sequence — SequenceInfo; unread by the walk" },
       t: { meaning: "TOAST table — never captured" },
     },

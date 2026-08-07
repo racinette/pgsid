@@ -3723,15 +3723,21 @@ class NullabilityEngine {
 
     const rf = entry.rangeFunction;
     const cols: { name: string; notNull: boolean }[] = [];
-    // Only a lone function can take the alias as its column name.
-    const single = (rf?.functions?.length ?? 0) === 1 && !rf?.is_rowsfrom;
-    // Two or more functions in one `ROWS FROM` expand in lockstep to the
-    // LONGEST one's row count, and every shorter one's columns are NULL-padded
-    // after it has returned — measured, and measured for a body whose columns
-    // are provably non-null, which is exactly the claim the body reading would
-    // otherwise make. The same shape as the target list's SRF padding rule.
-    // One function has no partner to be padded against.
-    const bodyReadable = (rf?.functions?.length ?? 0) === 1;
+    // ONE predicate, asked by three rules that all mean "this FROM item has a
+    // lone arm". It used to be two, and they disagreed: the naming rule
+    // excluded `ROWS FROM` and the body rule did not (sweep-4 finding 6).
+    //
+    //   - NAMING. A lone function returning a SCALAR takes the relation alias
+    //     as its column name, `ROWS FROM` or not — measured across the
+    //     spelling space, including `WITH ORDINALITY`. Two arms take the
+    //     function names whatever the alias says, and a composite arm keeps
+    //     its own field names either way.
+    //   - THE BODY READING and THE DECLARED READING. Two or more functions in
+    //     one `ROWS FROM` expand in lockstep to the LONGEST one's row count,
+    //     and every shorter one's columns are NULL-padded after it has
+    //     returned (measured). The same shape as the target list's SRF padding
+    //     rule. One function has no partner to be padded against.
+    const loneArm = (rf?.functions?.length ?? 0) === 1;
 
     for (const fnItem of rf?.functions ?? []) {
       // Each entry is a List whose first item is the FuncCall and whose
@@ -3760,7 +3766,7 @@ class NullabilityEngine {
       // nullable — a record's fields carry no constraints.
       const coldeflist =
         (list?.items?.[1] as { List?: { items?: Node[] } } | undefined)?.List?.items ??
-        (single ? rf?.coldeflist : undefined);
+        (loneArm ? rf?.coldeflist : undefined);
       if (coldeflist?.length) {
         const declared: { name: string; notNull: boolean }[] = [];
         for (const cd of coldeflist) {
@@ -3772,7 +3778,7 @@ class NullabilityEngine {
         // is still readable, and PostgreSQL maps it to this list positionally
         // (measured: a coldeflist type that differs from the body's coerces in
         // place). A coercion of a non-null value cannot yield NULL.
-        const recMeta = bodyReadable
+        const recMeta = loneArm
           ? this.catalog.resolveFunctionMetadata(this.funcSchema(fc), this.funcName(fc))
           : null;
         push(recMeta ? this.refineColumnsFromBody(declared, recMeta, 0) : declared);
@@ -3783,7 +3789,7 @@ class NullabilityEngine {
       // A function returning a scalar contributes one column, and PostgreSQL
       // names it after the relation alias when there is one. Composite results
       // keep their own column names, so the alias applies only to the relation.
-      const scalarName = single && entry.alias ? entry.alias : name;
+      const scalarName = loneArm && entry.alias ? entry.alias : name;
       const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
       if (!meta) {
         // `unnest` is a special form twice over. Per ARGUMENT (sweep-1
@@ -3889,7 +3895,7 @@ class NullabilityEngine {
       // consensus loop above runs over candidates that share one `fnBodyAsts`
       // key, so reading a body there would hand every overload the same one.
       const declared = this.functionOutputColumns(meta, scalarName);
-      push(bodyReadable ? this.refineColumnsFromBody(declared, meta, 0) : declared);
+      push(loneArm ? this.refineColumnsFromBody(declared, meta, 0) : declared);
     }
 
     if (rf?.ordinality) {

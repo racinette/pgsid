@@ -1154,3 +1154,79 @@ CREATE AGGREGATE nn_agg(text) (SFUNC = nn_sfunc, STYPE = nn_text);
 -- here, which is why the walk binds nothing past `x`.
 CREATE FUNCTION mid_out(a integer, OUT x integer, b integer DEFAULT NULL)
   LANGUAGE sql STRICT AS $$ SELECT a $$;
+
+-- The fourth adversarial sweep's DDL ---------------------------------------
+--
+-- Folded in by that sweep's fix phase, as the three prior ones folded theirs.
+-- What is NOT here is as deliberate: the sweep's section-B objects (a default
+-- that is itself a defaulted call, the volatile and session-dependent
+-- spellings, an overloaded name whose picked candidate defaults to NULL) and
+-- its self-referencing-key table produced no finding and reach no shape the
+-- corpus lacks, so they stayed in the probe loop and retired with it.
+
+-- `ROWS FROM` NULL-PADS every arm shorter than the longest, and a function
+-- returning a NOT NULL DOMAIN is the one shape whose DECLARED column reading
+-- carries a notNull into that padding. Three declarations reach it: a
+-- non-strict SETOF, the same STRICT (a NULL argument returns NO rows, so it
+-- is padded over its whole length), and the TABLE(...) spelling.
+CREATE FUNCTION sw4_dom_rows(n integer) RETURNS SETOF nn_text
+  LANGUAGE sql AS $$ SELECT 'v'::nn_text FROM generate_series(1, n) $$;
+CREATE FUNCTION sw4_dom_srf(n integer) RETURNS SETOF nn_text
+  LANGUAGE sql STRICT AS $$ SELECT 'v'::nn_text FROM generate_series(1, n) $$;
+CREATE FUNCTION sw4_tab_srf(n integer) RETURNS TABLE(a nn_text, b integer)
+  LANGUAGE sql STRICT AS $$ SELECT 'v'::nn_text, n $$;
+
+-- A record-returning call, for the `ROWS FROM` column-definition-list arm:
+-- its declared columns carry no flags, so it is the arm with nothing to lose
+-- to the padding and the control that says so.
+CREATE FUNCTION sw4_rec(n integer) RETURNS SETOF record
+  LANGUAGE sql AS $$ SELECT 'v'::text, 1 FROM generate_series(1, n) $$;
+
+-- A foreign key whose REFERENCED side is a PARTITIONED parent. PostgreSQL
+-- records it more than once: the declared constraint plus one CLONE per
+-- partition, so the capture has to tell them apart. TWO partitions,
+-- deliberately — a clone says nothing about which partition a referencing row
+-- lands in, and one partition cannot show that.
+CREATE TABLE sw4_pp (id integer NOT NULL PRIMARY KEY, k text) PARTITION BY RANGE (id);
+CREATE TABLE sw4_pp1 PARTITION OF sw4_pp FOR VALUES FROM (0) TO (100);
+CREATE TABLE sw4_pp2 PARTITION OF sw4_pp FOR VALUES FROM (100) TO (200);
+CREATE TABLE sw4_pref (
+  id   integer NOT NULL PRIMARY KEY,
+  p_id integer NOT NULL REFERENCES sw4_pp(id)
+);
+
+-- The INHERITANCE control, and it is the opposite way round: a parent holds
+-- its OWN rows, so `ONLY sw4_ip` is exactly where the key's match lives.
+CREATE TABLE sw4_ip (id integer NOT NULL PRIMARY KEY, k text);
+CREATE TABLE sw4_ic () INHERITS (sw4_ip);
+CREATE TABLE sw4_iref (
+  id   integer NOT NULL PRIMARY KEY,
+  p_id integer NOT NULL REFERENCES sw4_ip(id)
+);
+
+-- A key whose two columns share a NAME, so a USING or NATURAL join
+-- synthesises exactly the key equality — the control for the join recording.
+CREATE TABLE sw4_c (id integer NOT NULL PRIMARY KEY, v text);
+CREATE TABLE sw4_r (
+  rid integer NOT NULL PRIMARY KEY,
+  id  integer NOT NULL REFERENCES sw4_c(id),
+  v   text
+);
+
+-- A relation sharing no column name with anything: a NATURAL join against it
+-- merges nothing and is a CROSS JOIN in disguise.
+CREATE TABLE sw4_none (zz integer);
+
+-- A non-strict function returning a NOT NULL DOMAIN whose body is
+-- NULL-PRESERVING. Every other such function here returns a CONSTANT, which
+-- is why the class went unreached: `dom_lenient` proves nothing about its
+-- argument and these two reject it.
+CREATE FUNCTION sw4_dom_id(x text) RETURNS nn_text
+  LANGUAGE sql AS $$ SELECT x::nn_text $$;
+CREATE FUNCTION sw4_dom_echo(x text) RETURNS nn_text
+  LANGUAGE sql AS $$ SELECT x $$;
+
+-- The WIDE control for the parameter contract: nothing catalog-visible says
+-- this rejects NULL, and no static analysis can see that it does.
+CREATE FUNCTION sw4_raiser(x text) RETURNS text LANGUAGE plpgsql AS
+  $$ BEGIN IF x IS NULL THEN RAISE 'nope'; END IF; RETURN x; END $$;
