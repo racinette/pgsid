@@ -14,12 +14,14 @@
 -- r_sid is notNull since the arm-aware source treatment (Wave 4): only a
 -- NOT MATCHED BY SOURCE arm can null-extend the source, and this statement
 -- has none — the imprecision the old @unwitnessable note here recorded.
--- @unwitnessable 0: merge_action() labels every returned row and never yields NULL; merge_action() is a dedicated MergeSupportFunc node the walk treats conservatively
+--
+-- `act` is notNull because every returned row came from an arm and
+-- merge_action() names it; PostgreSQL allows the call nowhere else.
 MERGE INTO ck USING (VALUES (1), (740)) s(sid) ON ck.id = s.sid
 WHEN MATCHED THEN UPDATE SET val = $1
 WHEN NOT MATCHED THEN INSERT (id, name) VALUES (s.sid, $2)
 RETURNING
-  merge_action() AS act,    -- @nullable
+  merge_action() AS act,    -- @notNull
   ck.id          AS r_id,   -- @notNull
   ck.name        AS r_nm,   -- @nullable
   ck.val         AS r_val,  -- @notNull
