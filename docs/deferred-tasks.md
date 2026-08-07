@@ -604,10 +604,9 @@ corpora surface.
 (2026-08-07). Items that neither chartered effort owns, collected because they
 were otherwise scattered across an `@unwitnessable` reason, an `UNWITNESSABLE`
 rule in a generated suite, a residue paragraph in a closed charter and an entry
-in this register — four places, none of which reads as a work list. Items 1
-and 2 are closed; the two below are open and SOUND as assessed: a nullable
-where the value is provably non-null, or a refusal rather than a guess. None
-blocks a consumer, and shipping with both open costs precision only.
+in this register — four places, none of which reads as a work list. Only item 4
+is still open, and it is SOUND as assessed: a refusal rather than a guess. It
+blocks no consumer, and shipping with it open costs precision only.
 
 1. **A defaulted argument is not substituted into the body** — CLOSED
    2026-08-07, and it did not stay a precision item: `DEFAULT NULL` plus
@@ -620,8 +619,9 @@ blocks a consumer, and shipping with both open costs precision only.
    two shapes claimed notNull against PostgreSQL's NULL. The closure entry in
    section 2 has both.
 3. **Foreign-key entailment does not compose through a JOIN inside a
-   correlated subquery** — each hop is a key the mechanism already reads; only
-   the composition is missing. Two claims.
+   correlated subquery** — CLOSED 2026-08-07, and the one of the four that was
+   exactly what it said: the composition, iterated from the anchor, with the
+   two claims recovered. The closure entry in section 2 has the rule.
 4. **The `unnest` refusal class** — an aggregate, a sublink, a derived-table
    COMPUTED column. Check the type-aware-overloads refactor first: its
    polymorphic-builtin arm may fall out for free, and that should be
@@ -730,6 +730,47 @@ routes named; `docs/imprecision-closure.md` carries the measurements.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the SUBQUERY CHAIN (2026-08-07, `docs/precision-residue.md` item
+3), the third of the four and the one that was exactly what it said. Key
+entailment reads a correlated scalar subquery as returning at least one row
+when its WHERE keys into a relation a key guarantees a match in; it read a
+FROM of ONE relation, and the shape that needed it carries a JOIN:
+`(SELECT c.email FROM orders o JOIN customers c ON c.id = o.customer_id WHERE
+o.id = oi.order_id)`. The outer key settles the ANCHOR — the relation the
+WHERE keys into — and the join is then the ordinary key one hop further in:
+that order's NOT NULL `customer_id` onto an unfiltered `customers`.
+
+The rule is the join form's preserve-or-match pair, asked of every join
+between the anchor and the output. A join that PRESERVES the anchor's side —
+LEFT with the anchor on the left, RIGHT on the right, FULL either — needs
+nothing at all from the other side. A join that can DROP the anchor row needs
+it to MATCH: a NOT NULL key carried by a relation already settled, pointing at
+a relation on the other side that no join inside that side has dropped, which
+settles that relation in turn. Three parts are load-bearing and each has its
+gate: the direction (`o.customer_id = c.id` read from `c` says every order has
+a customer and is silent about a customer with no orders), the key being
+carried by a SETTLED relation rather than one the anchor's side merely
+acquired, and the pointed-at relation still being in the slice.
+
+Nine fixtures — the chain, a three-relation chain anchored by a self-lookup, a
+preserved-side positive whose match arm cannot carry it, and gates for the
+direction, a nullable key one hop in, an extra conjunct on the JOIN's own ON,
+an anchor on the side an outer join extends, a key read off an unsettled
+relation, and a settled relation dropped inside its own side — each
+mutation-checked to fail alone. The two claims the register carried as this
+item's reason are recovered and their `@unwitnessable` reasons retired
+(`extreme-activity-feed-union` #7, `extreme-dml-insert-shipping-pipeline` #9);
+the generated corpus ran clean.
+
+The first pass of this fix restricted the FROM to INNER joins and recorded the
+outer-join case as a cost. It was not one: the preserved-side arm is four
+lines beside the match arm, and the restriction was hiding a claim
+(`SELECT o.status` through a LEFT JOIN the anchor sits on the left of). It
+also made the settled-relation requirement look unwitnessable — under an
+all-INNER chain the only shape needing it is a CYCLE of NOT NULL keys, which
+admits no rows at all — while with outer joins admitted it is ordinary data
+and has a fixture.
 
 Closed by the JOIN-LEVEL PRESENCE FACT (2026-08-07,
 `docs/precision-residue.md` item 2), which — like item 1 before it — began as

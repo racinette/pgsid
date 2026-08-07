@@ -368,6 +368,42 @@ interface JoinPredicate {
   rightOptionalGroup?: number;
 }
 
+/**
+ * The shape the subtree readings need of a join: which relations lie on each
+ * side, and which side its type NULL-extends. `JoinPredicate` satisfies it,
+ * and so does the flattened form of a subquery's own FROM tree — the two
+ * readings are about join structure and nothing else.
+ */
+interface JoinSides {
+  jointype: string;
+  leftAliases: string[];
+  rightAliases: string[];
+}
+
+/**
+ * A relation named directly enough to ask the catalog about its keys: the
+ * table it resolves to, and whether the reference scans the inheritance TREE
+ * or only the relation's own rows — the split every per-column catalog fact
+ * takes.
+ */
+interface KeyedRelation {
+  schema: string;
+  name: string;
+  scansTree: boolean;
+}
+
+/** One join of a scalar subquery's FROM, as `subqueryFromTree` reads it. */
+interface SubqueryJoin extends JoinSides {
+  quals: Node;
+}
+
+/** One relation of a scalar subquery's FROM, as `subqueryFromTree` reads it. */
+interface SubqueryRelation extends KeyedRelation {
+  alias: string;
+  schemaname?: string;
+  relname: string;
+}
+
 // ---------------------------------------------------------------------------
 // Scope: the address book for one SELECT level.
 // ---------------------------------------------------------------------------
@@ -1607,7 +1643,7 @@ class NullabilityEngine {
         // customer is dropped for having no address. Presence of the
         // REFERENCING side does not help there: those rows carry a stored
         // referencing row and are exactly the extended ones.
-        if (!this.subtreePreserves(scope, side.optionalAliases, targetCol.alias)) continue;
+        if (!this.subtreePreserves(scope.joins, side.optionalAliases, targetCol.alias)) continue;
         // On the second arm this join also emits rows from the referenced
         // side ALONE, so the referenced relation must be present within that
         // side: in `t FULL JOIN u ON u.t_id = t.id FULL JOIN v ON v.u_id =
@@ -1624,7 +1660,12 @@ class NullabilityEngine {
           continue;
         }
 
-        if (!this.keyEntails(referencing, refCol.column, referenced, targetCol.column)) continue;
+        const referencingKey = this.keyedRelation(referencing);
+        const referencedKey = this.keyedRelation(referenced);
+        if (!referencingKey || !referencedKey) continue;
+        if (!this.keyEntails(referencingKey, refCol.column, referencedKey, targetCol.column)) {
+          continue;
+        }
         return targetCol.alias;
       }
     }
@@ -1642,43 +1683,55 @@ class NullabilityEngine {
    * inheritance — are the adapter's, in `resolveForeignKey[Tree]`; the NOT
    * NULL read takes the same `scanInh` split every other per-column fact does.
    */
+  /**
+   * A scope entry as a relation the catalog can be asked about keys, or null
+   * for anything that is not a plain table. A view's rows are a query's
+   * output, not the stored rows a key constrains, and relations and views
+   * share one alias kind in the scope.
+   */
+  private keyedRelation(entry: RelationEntry): KeyedRelation | null {
+    if (entry.kind !== "table" || !entry.table) return null;
+    return {
+      schema: entry.table.schema,
+      name: entry.table.name,
+      scansTree: entry.scanInh !== false,
+    };
+  }
+
   private keyEntails(
-    referencing: RelationEntry,
+    referencing: KeyedRelation,
     referencingColumn: string,
-    referenced: RelationEntry,
+    referenced: { schema: string; name: string },
     referencedColumn: string,
   ): boolean {
-    if (referencing.kind !== "table" || !referencing.table) return false;
-    if (referenced.kind !== "table" || !referenced.table) return false;
-
-    const fk = referencing.scanInh === false
-      ? this.catalog.resolveForeignKey(
-          referencing.table.schema,
-          referencing.table.name,
+    const fk = referencing.scansTree
+      ? this.catalog.resolveForeignKeyTree(
+          referencing.schema,
+          referencing.name,
           referencingColumn,
         )
-      : this.catalog.resolveForeignKeyTree(
-          referencing.table.schema,
-          referencing.table.name,
+      : this.catalog.resolveForeignKey(
+          referencing.schema,
+          referencing.name,
           referencingColumn,
         );
     if (!fk) return false;
     if (
-      fk.schema !== referenced.table.schema ||
-      fk.table !== referenced.table.name ||
+      fk.schema !== referenced.schema ||
+      fk.table !== referenced.name ||
       fk.column !== referencedColumn
     ) {
       return false;
     }
-    return referencing.scanInh === false
-      ? this.catalog.resolveColumnNotNull(
-          referencing.table.schema,
-          referencing.table.name,
+    return referencing.scansTree
+      ? this.catalog.resolveColumnNotNullTree(
+          referencing.schema,
+          referencing.name,
           referencingColumn,
         )
-      : this.catalog.resolveColumnNotNullTree(
-          referencing.table.schema,
-          referencing.table.name,
+      : this.catalog.resolveColumnNotNull(
+          referencing.schema,
+          referencing.name,
           referencingColumn,
         );
   }
@@ -1696,11 +1749,11 @@ class NullabilityEngine {
    * the NULL-extended one a claim here is about.
    */
   private subtreePreserves(
-    scope: Scope,
+    joins: readonly JoinSides[],
     subtreeAliases: string[],
     alias: string,
   ): boolean {
-    for (const inner of scope.joins) {
+    for (const inner of joins) {
       if (!this.joinWithin(inner, subtreeAliases)) continue;
       if (inner.leftAliases.includes(alias)) {
         if (inner.jointype !== "JOIN_LEFT" && inner.jointype !== "JOIN_FULL") return false;
@@ -1748,7 +1801,7 @@ class NullabilityEngine {
   }
 
   /** Whether a join lies entirely inside the subtree spanning these aliases. */
-  private joinWithin(j: JoinPredicate, subtreeAliases: string[]): boolean {
+  private joinWithin(j: JoinSides, subtreeAliases: string[]): boolean {
     return (
       j.leftAliases.every(a => subtreeAliases.includes(a)) &&
       j.rightAliases.every(a => subtreeAliases.includes(a))
@@ -1795,8 +1848,13 @@ class NullabilityEngine {
       const referenced = scope.aliases.get(targetCol.alias);
       if (!referencing || !referenced) continue;
       if (!this.subtreeAlwaysPresent(scope, other, refCol.alias)) continue;
-      if (!this.subtreePreserves(scope, extendable, targetCol.alias)) continue;
-      if (!this.keyEntails(referencing, refCol.column, referenced, targetCol.column)) continue;
+      if (!this.subtreePreserves(scope.joins, extendable, targetCol.alias)) continue;
+      const referencingKey = this.keyedRelation(referencing);
+      const referencedKey = this.keyedRelation(referenced);
+      if (!referencingKey || !referencedKey) continue;
+      if (!this.keyEntails(referencingKey, refCol.column, referencedKey, targetCol.column)) {
+        continue;
+      }
       return true;
     }
     return false;
@@ -6762,6 +6820,10 @@ class NullabilityEngine {
    *   - FOREIGN KEY. The outer column is a NOT NULL key referencing exactly
    *     the subquery's relation and column, with the adapter's gates.
    *
+   * Either way that settles ONE relation — the ANCHOR, the one the WHERE keys
+   * into. A subquery whose FROM carries JOINs needs the anchor row to reach
+   * the output through them as well, which is `anchorSurvivesJoins`.
+   *
    * The outer relation must be PRESENT — a NULL-extended slice has a NULL key
    * — and both relations must be plain tables. The WHERE must be exactly the
    * equality: another conjunct can empty the result, which is the whole claim.
@@ -6774,14 +6836,14 @@ class NullabilityEngine {
     if (select.havingClause || select.groupClause?.length) return false;
     if ((select.fromClause?.length ?? 0) !== 1 || !select.whereClause) return false;
 
-    const rv = (select.fromClause![0] as Record<string, unknown>)["RangeVar"] as
-      | { schemaname?: string; relname?: string; inh?: boolean; alias?: { aliasname?: string } }
-      | undefined;
-    if (!rv?.relname) return false;
-    const inner = this.catalog.resolveTable(rv.schemaname, rv.relname);
-    if (!inner) return false;
-    const innerAlias = rv.alias?.aliasname ?? rv.relname;
-    const innerScansTree = rv.inh === true;
+    const from = this.subqueryFromTree(select.fromClause![0]!);
+    if (!from) return false;
+    const rels: SubqueryRelation[] = [];
+    for (const r of from.rels) {
+      const resolved = this.catalog.resolveTable(r.schemaname, r.relname);
+      if (!resolved) return false;
+      rels.push({ ...r, schema: resolved.schema, name: resolved.name });
+    }
 
     const eq = this.equalityColumnRefs(select.whereClause);
     if (!eq) return false;
@@ -6790,7 +6852,8 @@ class NullabilityEngine {
       [eq[0], eq[1]],
       [eq[1], eq[0]],
     ] as const) {
-      if (innerRef.alias !== innerAlias) continue;
+      const anchor = rels.find(r => r.alias === innerRef.alias);
+      if (!anchor) continue;
       const outer = scope.aliases.get(outerRef.alias);
       if (!outer || outer.kind !== "table" || !outer.table) continue;
       if (outer.joinState !== REQUIRED) continue;
@@ -6810,33 +6873,172 @@ class NullabilityEngine {
       if (!keyNotNull) continue;
 
       const selfLookup =
-        outer.table.schema === inner.schema &&
-        outer.table.name === inner.name &&
+        outer.table.schema === anchor.schema &&
+        outer.table.name === anchor.name &&
         outerRef.column === innerRef.column &&
         // A tree-scanning outer may be reading a CHILD row that an `ONLY`
         // subquery cannot see.
-        (innerScansTree || !outerScansTree);
-      if (selfLookup) return true;
+        (anchor.scansTree || !outerScansTree);
+      const keyed =
+        selfLookup ||
+        this.keyEntails(
+          { schema: outer.table.schema, name: outer.table.name, scansTree: outerScansTree },
+          outerRef.column,
+          anchor,
+          innerRef.column,
+        );
+      if (!keyed) continue;
+      if (this.anchorSurvivesJoins(rels, from.joins, anchor)) return true;
+    }
+    return false;
+  }
 
-      const fk = outerScansTree
-        ? this.catalog.resolveForeignKeyTree(
-            outer.table.schema,
-            outer.table.name,
-            outerRef.column,
-          )
-        : this.catalog.resolveForeignKey(
-            outer.table.schema,
-            outer.table.name,
-            outerRef.column,
-          );
-      if (
-        fk &&
-        fk.schema === inner.schema &&
-        fk.table === inner.name &&
-        fk.column === innerRef.column
-      ) {
-        return true;
-      }
+  /**
+   * A subquery FROM item flattened into its relations and its joins, or null
+   * for anything the reading cannot see through. Join TYPES are kept: which
+   * side a join preserves is half of what `anchorSurvivesJoins` asks.
+   *
+   * Every leaf must be a plain relation and every join must carry an ON
+   * clause: a subquery, a VALUES list or a function has rows this reasoning
+   * knows nothing about, and a CROSS join (or a USING/NATURAL one, whose
+   * equality is implied rather than written) ends the read rather than being
+   * guessed at.
+   */
+  private subqueryFromTree(
+    item: Node,
+  ): { rels: Omit<SubqueryRelation, "schema" | "name">[]; joins: SubqueryJoin[] } | null {
+    const node = item as Record<string, unknown>;
+    if ("RangeVar" in node) {
+      const rv = node["RangeVar"] as {
+        schemaname?: string;
+        relname?: string;
+        inh?: boolean;
+        alias?: { aliasname?: string };
+      };
+      if (!rv.relname) return null;
+      return {
+        rels: [
+          {
+            alias: rv.alias?.aliasname ?? rv.relname,
+            schemaname: rv.schemaname,
+            relname: rv.relname,
+            scansTree: rv.inh === true,
+          },
+        ],
+        joins: [],
+      };
+    }
+    if ("JoinExpr" in node) {
+      const j = node["JoinExpr"] as JoinExpr;
+      if (!j.quals || j.usingClause?.length || j.isNatural) return null;
+      const left = j.larg ? this.subqueryFromTree(j.larg) : null;
+      const right = j.rarg ? this.subqueryFromTree(j.rarg) : null;
+      if (!left || !right) return null;
+      return {
+        rels: [...left.rels, ...right.rels],
+        joins: [
+          ...left.joins,
+          ...right.joins,
+          {
+            jointype: j.jointype ?? "JOIN_INNER",
+            quals: j.quals,
+            leftAliases: left.rels.map(r => r.alias),
+            rightAliases: right.rels.map(r => r.alias),
+          },
+        ],
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Whether the ANCHOR row is guaranteed to reach the subquery's output —
+   * the composition step, and the whole of what a FROM with joins adds over
+   * a FROM with one relation.
+   *
+   *   (SELECT c.email FROM customers c JOIN orders o ON o.customer_id = c.id
+   *     WHERE o.id = s.order_id)
+   *
+   * The outer key settles `o`: the row exists. Every join between the anchor
+   * and the output then has to answer one of two things.
+   *
+   *   - It PRESERVES the anchor's side, and nothing more is needed: a LEFT
+   *     join keeps its left side whatever the qual does, a RIGHT join its
+   *     right, a FULL join both. What sits on the other side, and whether
+   *     anything inside that side filters it, cannot remove the anchor row.
+   *   - It can DROP the anchor row — an INNER join, or an outer join with the
+   *     anchor on the side it extends — and then the row must MATCH. A NOT
+   *     NULL key carried by a relation already settled, pointing at a
+   *     relation on the other side that no join inside that side has dropped,
+   *     is what proves it does. That relation is then settled too, so the
+   *     next join out can key from it.
+   *
+   * The direction is the entire content of the second arm and is not
+   * symmetric: `o.customer_id = c.id` read from `c` says every order has a
+   * customer, which is silent about a customer with no orders — anchoring on
+   * `c` there and expecting a row is how the composition goes wrong
+   * (measured: NULL).
+   *
+   * The key must be carried by a relation already SETTLED, not merely by one
+   * standing on the anchor's side: a relation the anchor's side acquired
+   * through a preserving join may have no row at all, and a NULL-extended one
+   * carries a NULL key that points at nothing
+   * (`fk-entail-subquery-join-unsettled-key.sql`).
+   */
+  private anchorSurvivesJoins(
+    rels: SubqueryRelation[],
+    joins: SubqueryJoin[],
+    anchor: SubqueryRelation,
+  ): boolean {
+    const settled = new Set([anchor.alias]);
+    // Innermost first: the flattening appends a join after both its sides, so
+    // a settled relation is available to every join that encloses it.
+    for (const j of joins) {
+      const anchorOnLeft = j.leftAliases.includes(anchor.alias);
+      const anchorOnRight = j.rightAliases.includes(anchor.alias);
+      if (!anchorOnLeft && !anchorOnRight) continue;
+      const preservesAnchor =
+        j.jointype === "JOIN_FULL" ||
+        (j.jointype === "JOIN_LEFT" && anchorOnLeft) ||
+        (j.jointype === "JOIN_RIGHT" && anchorOnRight);
+      if (preservesAnchor) continue;
+      if (!this.joinMatchesAnchor(j, rels, joins, settled, anchorOnLeft)) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Whether this join provably matches the anchor row, adding the relation it
+   * settles to `settled`. The anchor's side supplies the key; the other side
+   * supplies the row it points at, which must still be there.
+   */
+  private joinMatchesAnchor(
+    j: SubqueryJoin,
+    rels: SubqueryRelation[],
+    joins: SubqueryJoin[],
+    settled: Set<string>,
+    anchorOnLeft: boolean,
+  ): boolean {
+    const eq = this.equalityColumnRefs(j.quals);
+    if (!eq) return false;
+    const anchorSide = anchorOnLeft ? j.leftAliases : j.rightAliases;
+    const otherSide = anchorOnLeft ? j.rightAliases : j.leftAliases;
+
+    for (const [refCol, targetCol] of [
+      [eq[0], eq[1]],
+      [eq[1], eq[0]],
+    ] as const) {
+      if (!settled.has(refCol.alias) || !anchorSide.includes(refCol.alias)) continue;
+      if (!otherSide.includes(targetCol.alias)) continue;
+      const referencing = rels.find(r => r.alias === refCol.alias);
+      const referenced = rels.find(r => r.alias === targetCol.alias);
+      if (!referencing || !referenced) continue;
+      // The key says the row exists in the TABLE; this join finds it only if
+      // no join inside the other side has dropped it.
+      if (!this.subtreePreserves(joins, otherSide, targetCol.alias)) continue;
+      if (!this.keyEntails(referencing, refCol.column, referenced, targetCol.column)) continue;
+      settled.add(targetCol.alias);
+      return true;
     }
     return false;
   }
