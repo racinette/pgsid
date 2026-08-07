@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
@@ -169,6 +169,14 @@ const ENUMERATED_COLUMNS: Record<string, EnumeratedColumn> = {
   },
 };
 
+/** Every walk source, for the "nothing reads this" half of the census. */
+function walkSources(): string[] {
+  const dir = join(__dirname, "..", "..", "..", "src", "query");
+  return readdirSync(dir)
+    .filter(f => f.endsWith(".ts"))
+    .map(f => readFileSync(join(dir, f), "utf8"));
+}
+
 const FIXTURES_DIR = join(__dirname, "fixtures");
 
 describe("catalog-feature census", () => {
@@ -255,6 +263,48 @@ describe("catalog-feature census", () => {
       `Marked \`absent\` but the fixture schema now carries it. Drop the ` +
         `marker, and check that a fixture actually exercises the branch — the ` +
         `DDL existing is not the same as a query reaching it:\n  ${present.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("every `conservative` feature is really unread by the walk", () => {
+    // The label claims the snapshot captures the fact and no branch reads it.
+    // Nothing checked that, so it could only ever go stale in the direction
+    // that matters: a fact someone STARTS reading leaves an entry reading as
+    // open work that is already done. Ten node-census entries drifted exactly
+    // that way before its own converse assertion landed (2026-08-07).
+    //
+    // Comments are stripped before the search, because prose is not a read:
+    // the word "identity" appears twelve times under src/query and every one
+    // is English, not `ColumnInfo.identity`.
+    const stripped = walkSources()
+      .map(src => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, ""))
+      .join("\n");
+
+    const unannotated: string[] = [];
+    const nowRead: string[] = [];
+    for (const [key, f] of Object.entries(FEATURES)) {
+      if (f.category !== "conservative") continue;
+      if (f.unread === undefined) {
+        unannotated.push(`${key} — add \`unread\` (the token nothing may read) or \`unread: null\` with a note`);
+        continue;
+      }
+      if (f.unread === null) {
+        if (!f.unreadNote) unannotated.push(`${key} — \`unread: null\` needs \`unreadNote\``);
+        continue;
+      }
+      if (stripped.includes(f.unread)) nowRead.push(`${key} — \`${f.unread}\` now appears under src/query`);
+    }
+
+    expect(
+      unannotated,
+      `\`conservative\` entries whose label nothing can falsify:\n  ${unannotated.join("\n  ")}`,
+    ).toEqual([]);
+    expect(
+      nowRead,
+      `These features are classified 'conservative' but the walk now reads ` +
+        `them. Reclassify as 'handled' (or 'gated') and say what the branch ` +
+        `concludes — an entry claiming an imprecision that is closed reads as ` +
+        `work nobody needs to do:\n  ${nowRead.join("\n  ")}`,
     ).toEqual([]);
   });
 

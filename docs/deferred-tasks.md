@@ -734,6 +734,31 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed by the CATALOG-CENSUS CATEGORY CHECK (2026-08-07), the same class as
+the node-census audit below and the wider half: `category` appeared in that
+suite only in the report and in one filter, so all 86 labels were
+unfalsifiable. The `conservative` half is now asserted — each entry names the
+snapshot field, or the value test, that nothing under `src/query` may read,
+and the census fails when it appears. Comments are stripped first, because
+prose is not a read: "identity" occurs twelve times under `src/query` and
+every one is the English word rather than `ColumnInfo.identity`. Twelve
+entries annotated, one opting out with a reason (a range column is read like
+any other scalar; what stays conservative there is `lower`/`upper` totality,
+which the curated tables own and assert).
+
+**The `handled` half is NOT done, and a token check would be the wrong
+instrument for it.** Measured: 42 of the 68 `handled`/`gated` entries name an
+identifier that exists in the walk, and the other 26 describe a shared branch
+or a control ("the same resolver…", "the control for the above"). A
+presence-of-token assertion over 8000 lines proves a string exists, not that a
+branch keys on this fact — a green that means nothing is worse than a label
+nobody checks. The instrument that would work is a SPY on the
+`NullabilityCatalog` accessors during the corpus run, asserting each entry's
+declared accessor actually fires; the facts the ADAPTER consumes
+(`notNullDomainOids` and its siblings) reach the walk through no accessor at
+all and need their own reading. That is the next piece, described rather than
+half-built.
+
 Closed by the NODE-CENSUS AUDIT (2026-08-07), which began as "fix the
 fourteen conservative nodes" and found that ten of them were not conservative
 at all. The walk answers for `JSON_OBJECT`, `JSON_ARRAY`, `JSON_SCALAR`,
