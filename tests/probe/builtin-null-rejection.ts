@@ -1,16 +1,27 @@
-// Round 8c — which of the 87 reachable non-strict builtins actually REJECT a
-// NULL argument, measured rather than guessed.
+// A STANDING CHECK, not a sweep round: which BUILTIN functions reject a NULL
+// argument, and therefore where the engine owes a `notNull` parameter claim it
+// does not currently make.
 //
-// params4.ts bounded the class from above (208 non-strict pg_catalog
-// functions, 87 reachable). This calls each one with NULL in one argument
-// position at a time and every OTHER position filled with a type-appropriate
-// literal, inside a rolled-back transaction. A function whose every position
-// accepts NULL is not in the class; one that raises is.
+// The contract says no claim is made about a USER function's arguments beyond
+// its declared parameter types — a body is not an interface. Builtins are the
+// other side of that line: their behaviour is documented and knowable, so a
+// rejection they perform is one the engine should be able to state. This
+// measures the gap rather than assuming it is empty, and it found 10
+// signatures across 11 argument positions (docs/argument-nullability.md, "What
+// a nullable parameter does not promise").
+//
+// Strictness is catalog-visible and a strict function cannot be in the class
+// (it returns NULL rather than running), so the universe is the NON-STRICT
+// pg_catalog functions. "Raises on NULL" is in no catalog column at all, which
+// is what makes the fix a curated table and the reason this script exists: run
+// it against a new PostgreSQL and the table's drift is a measurement, not a
+// guess.
+//
+// Run: `pnpm exec tsx tests/probe/params5.ts`
 //
 // The administrative and handler families are excluded by name rather than
 // called: `binary_upgrade_*` mutates catalogs, the trigger handlers are not
-// callable as functions, and `set_config` is a GUC write. They are named here
-// so the count below is a measurement over a stated universe.
+// callable as functions, and `set_config` is a GUC write.
 import { ProbeLoop } from "./harness.js";
 
 const loop = await ProbeLoop.create();
