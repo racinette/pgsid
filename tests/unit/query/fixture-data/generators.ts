@@ -274,6 +274,11 @@ const columnSpecificGenerators: Record<
     sw4_pp1: { id: (_rand, ctx) => ctx.row + 50 },
     sw4_pp2: { id: (_rand, ctx) => ctx.row + 150 },
 
+    // The referencing-partitioned pair: the parent routes, the partition is
+    // seeded directly, and both must stay inside sw4_rs1's range.
+    sw4_rs: { id: (_rand, ctx) => ctx.row + 1 },
+    sw4_rs1: { id: (_rand, ctx) => ctx.row + 50 },
+
     // The trigger-bearing partitioned pair, same range rule. The partition
     // trigger nulls a and rescues a NULL b on every insert, seeding
     // included.
