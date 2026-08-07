@@ -1739,9 +1739,26 @@ class NullabilityEngine {
   private keyEntails(
     referencing: KeyedRelation,
     referencingColumn: string,
-    referenced: { schema: string; name: string },
+    referenced: KeyedRelation,
     referencedColumn: string,
   ): boolean {
+    // The scan mode of the REFERENCED relation, which nothing read until the
+    // partition-clone capture was fixed and made it matter (sweep-4 finding 4).
+    // A PARTITIONED table holds none of its own rows — they all live in the
+    // partitions — so `ONLY <partitioned parent>` scans nothing, and a key
+    // promising a match "in sw4_pp" is silent about the empty slice that
+    // produces. Measured: every referencing row NULL-extends.
+    //
+    // INHERITANCE is the opposite way round and must keep its promotion: a
+    // parent holds its OWN rows and the key's target index covers exactly
+    // those, so `ONLY <inheritance parent>` is where the match lives. The gate
+    // is therefore on being partitioned, not on `ONLY`.
+    if (
+      !referenced.scansTree &&
+      this.catalog.resolveIsPartitioned(referenced.schema, referenced.name)
+    ) {
+      return false;
+    }
     const fk = referencing.scansTree
       ? this.catalog.resolveForeignKeyTree(
           referencing.schema,

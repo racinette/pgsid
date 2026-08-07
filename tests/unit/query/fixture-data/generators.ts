@@ -256,15 +256,23 @@ const columnSpecificGenerators: Record<
     part_2: { id: rand => rand.int(100, 149) },
     part_2a: { id: rand => rand.int(100, 149) },
 
-    // The sweep-4 partitioned pair, and the range rule has one more job here
-    // than it does for part_p: sw4_pp carries a PRIMARY KEY (a foreign key
-    // needs one to point at), so the parent's routed rows and the partitions'
-    // directly seeded ones share a unique index and must not collide.
-    // Disjoint by construction rather than by luck — the parent takes the low
-    // end of sw4_pp1's range, sw4_pp1 the high end, sw4_pp2 its own.
-    sw4_pp: { id: (_rand, ctx) => ctx.row + 1 },
+    // The sweep-4 partitioned pair, and the range rule has two more jobs here
+    // than it does for part_p.
+    //
+    // First, sw4_pp carries a PRIMARY KEY (a foreign key needs one to point
+    // at), so the parent's ROUTED rows and the partitions' DIRECTLY SEEDED
+    // ones share a unique index and must not collide. Disjoint by
+    // construction rather than by luck: the parent takes the low end of each
+    // range, the partitions the high end of their own.
+    //
+    // Second, the parent's rows must reach BOTH partitions. `sw4_pref.p_id`
+    // draws from the parent's own rows, so a parent seeded entirely into
+    // sw4_pp1 leaves nothing referencing sw4_pp2 — and the partition-clone
+    // fixture's presence group then never observes its PRESENT arm, which the
+    // witness rule rightly refuses. Alternating rows puts references in both.
+    sw4_pp: { id: (_rand, ctx) => (ctx.row % 2 === 0 ? ctx.row + 1 : ctx.row + 100) },
     sw4_pp1: { id: (_rand, ctx) => ctx.row + 50 },
-    sw4_pp2: { id: (_rand, ctx) => ctx.row + 100 },
+    sw4_pp2: { id: (_rand, ctx) => ctx.row + 150 },
 
     // The trigger-bearing partitioned pair, same range rule. The partition
     // trigger nulls a and rescues a NULL b on every insert, seeding

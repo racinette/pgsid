@@ -73,6 +73,8 @@ interface ConstraintRow {
   validated: boolean;
   noinherit: boolean;
   deferrable: boolean;
+  /** `conparentid <> 0`: a row PostgreSQL cloned, not one the author wrote. */
+  inherited_clone: boolean;
 }
 
 interface ViewRow {
@@ -619,6 +621,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       validated: con.validated,
       noInherit: con.noinherit,
       deferrable: con.deferrable,
+      inheritedClone: con.inherited_clone,
     };
     const arr = constraintsByRel.get(con.conrelid);
     if (arr) arr.push(ci);
@@ -1053,7 +1056,8 @@ async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
             pg_get_constraintdef(con.oid) AS definition,
             con.convalidated AS validated,
             con.connoinherit AS noinherit,
-            con.condeferrable AS deferrable
+            con.condeferrable AS deferrable,
+            con.conparentid <> 0 AS inherited_clone
      FROM pg_constraint con
      JOIN pg_class c ON c.oid = con.conrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace
