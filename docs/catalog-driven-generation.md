@@ -357,17 +357,45 @@ language: parenthesise defensively, quote identifiers always, and the hard
 parts of a general deparser — precedence recovery, every node kind — never
 arise.
 
-**Recommendation: build (1) because it is cheap and immediate; turn on (2)
-regardless, since it is a few lines over machinery that already exists and
-would have caught the `SEARCH`/`CYCLE` drop without anyone predicting it; and
-evaluate (3) BEFORE the construct vocabulary grows**, because it is the one
-that removes the ceiling rather than measuring it.
+### DECIDED (2026-08-08): answer 2, with the deviations pinned as fixtures
 
-**"Ignore the badly-deparsed queries" is the one answer to refuse.** A silent
-skip means believing a construct is covered when it is unreachable — this
-document's own subject, one layer down. Account for them instead: those buckets
-are counted and reported per construct, so a run states exactly which parts of
-the language it could not reach.
+**Round-trip AST equality is the guard.** It replaces `expectations` rather
+than supplementing them: at 398 of 411 identical the legitimate-normalisation
+allowlist is short enough to name, and equality catches drops nobody predicted,
+which is the whole failure mode. Answer (1) is not built. Answer (3) stays on
+the table and should be evaluated before the construct vocabulary grows, since
+it removes the ceiling rather than measuring it.
+
+**A query whose round trip is not identical is DISCARDED from finding
+analysis** — we cannot claim the text tests what the AST asked for — and
+COUNTED as `ast-differed` / `deparse-threw` / `reparse-failed`. Discarded is
+not ignored: the run reports the rate and the classes, and they are the raw
+material for upstream bug reports against the deparser.
+
+**And every non-deparseable CLASS is promoted to a static fixture, so nothing
+is silently unreachable.** This is the important half, and the mechanism
+already exists:
+
+- write ONE minimal fixture per class — not per instance, or the corpus fills
+  with fifty JSON_TABLE variants;
+- add it to `KNOWN_DEVIATIONS` in `deparser-roundtrip.test.ts` with its
+  expected outcome.
+
+That list is **bidirectional**, which is what makes it an acknowledgement
+rather than a suppression: if the deparser is fixed upstream, the suite fails
+with "was pinned as `deparse-threw`, now `identical` — update
+KNOWN_DEVIATIONS". A construct cannot quietly stay broken OR quietly become
+fixed.
+
+The fixture keeps its full value everywhere else. The soundness suite reads SQL
+text from the file and never deparses, so a non-deparseable fixture still has
+its claims executed against PostgreSQL like any other — demonstrated this
+session by the five `jsontable-*` fixtures, which are pinned deviations in the
+round-trip suite and ordinary falsifiable fixtures in the soundness one.
+
+So the discipline is the one `unsupported-nodes.test.ts` already applies to
+refusals: **a limitation is pinned WITH a named example, so it can never
+quietly become blanket.**
 
 ### Two instruments, and they have OPPOSITE requirements
 
@@ -591,8 +619,7 @@ missing — and it fails the run rather than being swallowed.
 | `generator-threw` | the generator could not build the AST | TOOL |
 | `deparse-threw` | deparser has no case for a node | TOOL (known-deviation list) |
 | `reparse-failed` | deparser emitted SQL PostgreSQL cannot parse | TOOL |
-| `ast-differed` | round trip lost a clause but still parsed | TOOL — the dangerous one |
-| `expectation-failed` | the construct the axes requested is not in the re-parsed AST | TOOL |
+| `ast-differed` | round trip changed the tree — the query is DISCARDED from finding analysis, counted, and its class promoted to a pinned fixture | TOOL — the dangerous one |
 | `pg-rejected` | PostgreSQL refused the statement | TOOL — we emitted bad SQL |
 | `pg-raised` | executed and raised (constraint violation, division by zero) | BUDGET |
 | `engine-refused` | `UnsupportedNodeError` | EXPECTED — count, classify by site+tag |
