@@ -3807,15 +3807,32 @@ class NullabilityEngine {
       const fc = callNode?.["FuncCall"] as FuncCall | undefined;
       if (!fc) continue;
 
-      // Every route that can contribute a CLAIM goes through here. A call
-      // that SHORT-CIRCUITS contributes none: a strict function handed a NULL
-      // argument returns one row of all NULLs (measured), which is exactly
-      // the row this item emits. It falsifies the declared reading (a NOT
-      // NULL domain among the OUT parameters) and the body reading alike, so
-      // the flags are cleared where they are ASSEMBLED rather than in each
-      // rule. The two routes that push directly below have nothing to clear.
+      // Every route that can contribute a CLAIM goes through here, and both
+      // things that take a claim away apply at this ONE point rather than in
+      // each rule. The two routes that push directly below have nothing to
+      // clear — they carry no flags at all.
+      //
+      // THE PADDING (sweep-4 finding 1). Beside a longer arm this item's
+      // columns are NULL on every row after it has returned, so no reading of
+      // it survives: not the body reading, which `loneArm` already gated, and
+      // not the DECLARED one — a NOT NULL domain return, or a NOT NULL domain
+      // among the OUT/TABLE parameters — which was pushed unclipped on all
+      // three arms. This is also why the clearance sits BEFORE the presence
+      // groups are assembled: a surviving flag makes the column a group
+      // DISCRIMINANT, and the group then says "the unit is absent" on rows
+      // where a longer arm is still producing values.
+      //
+      // THE STRICT SHORT-CIRCUIT. A strict function handed a NULL argument
+      // returns one row of all NULLs (measured), which is exactly the row this
+      // item emits. `callCanShortCircuit` excludes set-returning functions,
+      // on the true argument that a claim about rows that do not exist cannot
+      // be contradicted — and `ROWS FROM` is where the rows come back anyway,
+      // the long arm supplying them and the padding the NULLs. The exclusion
+      // stays: the padding covers that shape for a reason of its own, and a
+      // strict SRF can never BE the longest arm, since it returns no rows.
       const push = (itemCols: { name: string; notNull: boolean }[]): void => {
-        cols.push(...this.clearShortCircuitedColumns(itemCols, fc, scope));
+        const padded = loneArm ? itemCols : itemCols.map(c => ({ name: c.name, notNull: false }));
+        cols.push(...this.clearShortCircuitedColumns(padded, fc, scope));
       };
 
       // A column definition list (`AS z(a integer, b text)`) is what makes a
