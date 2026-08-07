@@ -311,7 +311,8 @@ and it is wider than this one node: the SQL/JSON constructor family
 re-emitted with mangled bounds, and the recursive-CTE `SEARCH`/`CYCLE` clauses
 are DROPPED while still parsing — the silent-drop case the expectation checks
 exist for. That list is the honest ceiling on "as many SQL constructs as
-possible", and shrinking it is a prerequisite rather than a nice-to-have.
+possible", and closing entries on it is a prerequisite rather than a
+nice-to-have.
 
 ### Surviving the round trip: three answers, in increasing order of merit
 
@@ -421,7 +422,7 @@ unwitnessed nullable claim** — and that is a coverage metric, not a defect.
 
 Therefore: **the randomiser consumes only self-adjudicating signals, and makes
 no coverage claim at all.** It is a sweep that runs itself. Its output is a
-falsifying statement, shrunk, promoted to a permanent fixture — which is
+falsifying statement promoted to a permanent fixture — which is
 precisely the loop all four adversarial sweeps ran by hand, with the human
 removed from the SEARCH and kept in the PROMOTION.
 
@@ -457,7 +458,7 @@ easy ones:
   corpus going green by vacuity, at scale, with a ratchet to hide behind. It is
   the failure this whole refactor exists to remove.
 - **Constraining the generator** to emit only queries the current data
-  satisfies. That shrinks the query space to fit our expectations, which is
+  satisfies. That narrows the query space to fit our expectations, which is
   precisely how three placeholder tables came to dictate 14,964 queries.
 
 ### Reframe 1 — the unit is the CLAIM, not the query
@@ -756,26 +757,34 @@ Fingerprint quality is the single biggest determinant of whether the tool is
 usable. Expect to iterate on it, and expect the first version to be too
 specific (n findings that are one) rather than too loose.
 
-### Per unique fingerprint, ONE representative is shrunk
+### Per unique fingerprint, ONE representative is kept — VERBATIM
 
-The shrunk query IS the fixture. An unshrunk 40-line random statement is not a
-fixture, it is a lead. Shrink by removing constructs while the finding
-survives — drop a wrapper, a setop, a join, a projection column, a predicate —
-and stop when nothing more can be removed. The result should be readable enough
-that a human can state WHY it fails, which is the bar every fixture in this
-suite already meets.
+The representative is promoted as a fixture exactly as generated. Two reasons
+it needs no reduction, and property-based testing has neither:
+
+- **The trace already names the cause.** `inferNullabilityTraced` gives a
+  decision tree per output column with the decisive reason at each node, so a
+  finding arrives with the rule that concluded wrongly. There is no search to
+  do for "which part of this query is the problem" — the engine says.
+- **Large fixtures are normal and WANTED here.** The suite carries 32
+  `extreme-*` fixtures, up to 224 lines, and they exist precisely to pin
+  INTERACTIONS between constructs. A big generated finding is that kind of
+  fixture, not a defective version of a small one.
+
+Deduplication needs nothing either: fingerprints key on the RULE PATH, never on
+the text, so surrounding noise cannot split one finding into many.
 
 ### The run's output is a machine-actionable artifact
 
 One JSONL record per unique fingerprint, ranked most-severe first, each
-carrying: fingerprint, bucket, tier, instance count, the shrunk repro SQL, the
+carrying: fingerprint, bucket, tier, instance count, the repro SQL verbatim, the
 seed and query id that reproduce it, the engine's claim, PostgreSQL's
 observation, and the construct set. That is enough for the next step to be
 mechanical:
 
 | tier | next action |
 |---|---|
-| FINDING | graduate the shrunk query as a fixture with the corrected claim, then fix the engine — the loop all four sweeps ran by hand |
+| FINDING | graduate the query as a fixture with the corrected claim, then fix the engine — the loop all four sweeps ran by hand |
 | TOOL | fix the generator or deparser; the fingerprint is the regression test |
 | BUDGET | tune the data or the literal-drawing; no code is wrong |
 
@@ -823,16 +832,11 @@ to expect, it is to measure.
 Genuinely open; they change the design and are not to be answered from the
 armchair.
 
-1. **How does a randomised corpus SHRINK a failure?** Property-based testing's
-   standard answer is a shrinker, and this corpus has none. Without one, a
-   falsifying random query is a 40-line statement nobody can read. With one,
-   the shrink IS the fixture. This may be the highest-value single piece of the
-   whole refactor.
-2. **What replaces exhaustiveness as the coverage claim?** "34 of 34" must not
+1. **What replaces exhaustiveness as the coverage claim?** "34 of 34" must not
    be succeeded by another number that reads green over a thin corpus. The
    claim-based capability metric above is a candidate; it needs a definition
    that cannot be satisfied by an accessor returning null.
-3. **What is the shared-state / targeted-seed split?** The funnel above says
+2. **What is the shared-state / targeted-seed split?** The funnel above says
    shared states first and targeted seeding on the residue, but not where the
    line sits. If shared states witness 95% the funnel is cheap; if they witness
    40% it is the dominant cost. MEASURE it on the first spine before designing
