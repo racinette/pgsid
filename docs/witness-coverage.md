@@ -287,28 +287,47 @@ group.
 
 ## Current measurement
 
-Across 381 fixtures and 5 data states, at the default seed (the three
-`unnest-*` fixtures of the element-type work, the nine
-`fk-entail-subquery-join-*` fixtures of the subquery-chain composition, the
-five `fk-entail-*` fixtures of the join-level presence work and the seven
-`function-default-*`, `function-strict-*` and `aggregate-domain-*` fixtures of
-the argument-substitution work are the latest growth; before them the
-imprecision closure's sixteen `body-shape-*` and `fk-entail-*` gate fixtures
-accounted for the step over 336 — itself grown through the third adversarial
-fix phase from 311 and 288):
+Across 408 fixtures and 5 data states, at the default seed (the FOURTH
+adversarial fix phase's twenty-odd `rowsfrom-*`, `jsontable-*`, `fk-entail-*`
+and `fk-clone-*` fixtures are the latest growth, and roughly half of them are
+OVERSHOOT CONTROLS rather than new claims — the shape a soundness fix has no
+other way to be held to; before them the three `unnest-*` fixtures of the
+element-type work, the nine `fk-entail-subquery-join-*` of the subquery-chain
+composition, the five `fk-entail-*` of the join-level presence work and the
+seven `function-default-*`, `function-strict-*` and `aggregate-domain-*` of
+the argument-substitution work took it to 381, and the imprecision closure's
+sixteen `body-shape-*` and `fk-entail-*` gate fixtures accounted for the step
+over 336 — itself grown through the third adversarial fix phase from 311 and
+288):
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 902 | |
-| — falsifiable | 892 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 913 | |
+| — falsifiable | 903 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 588 | |
-| — witnessed | 508 (86%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 80 | every one carries an `@unwitnessable` annotation |
-| `@null-group` claims | 44 (38 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
+| `nullable` claims | 626 | |
+| — witnessed | 538 (86%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 88 | every one carries an `@unwitnessable` annotation |
+| `@null-group` claims | 46 (40 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
-The new unwitnessed entries are one shape repeated: unnesting a NULL array
+**A fourth annotation kind joined the three above**, on the ARGUMENT side:
+`-- @param-opaque N: <reason>` records a parameter whose NULL binding raises
+for a reason no static analysis can see — a user function's BODY, which the
+contract deliberately does not read. It is held to the same bar as the rest:
+the raise must be OBSERVED, so a stale marker fails as loudly as a missing
+one, mutation-checked in both directions. One fixture carries it
+(`param-domain-return-body.sql`), and what it records is a decision rather
+than a gap — see `docs/argument-nullability.md`, "What a nullable parameter
+does not promise".
+
+The fourth sweep's unwitnessed entries are also one shape repeated, and it is
+the padding rule's own: in a multi-arm `ROWS FROM` the LONGEST arm is never
+padded, so its conservative nullable claim has nothing to witness it — the
+same uniform conservatism `body-shape-rows-from-padding.sql` already recorded
+one clause over.
+
+The unwitnessed entries before them are one shape repeated too: unnesting a NULL array
 produces NO rows, so the array column a fixture unnests can never be
 observed NULL through that join. `pair_holder`'s three array columns
 rotate their NULLs by row index for exactly this reason — whichever column

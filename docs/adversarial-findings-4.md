@@ -1,24 +1,55 @@
 # Adversarial sweep 4 — findings
 
-**Status: EXPLORATION COMPLETE, FIX PHASE NOT STARTED (2026-08-07).** Seven
-findings, all confirmed against PGlite: five rank-1 `notNull` unsoundnesses
-(two of which also falsify a presence group, rank 4), one rank-2 shape defect,
-one rank-3 param-contract defect. Zero parity breaks and zero engine crashes —
-four sweeps at zero on both. Quarantine fixtures are in
-`tests/unit/query/fixtures-adversarial/`, their DDL in
-`schema-adversarial.sql`, deliberately not folded into `fixtures/schema.sql`.
-The suite was green throughout (42 files, 2532 tests, 1 skipped) and is green
-now; `pnpm typecheck` passes. (`pnpm lint` fails, and did before this sweep
-too: there is no `eslint.config.*` in the repository at all. Untouched — it is
-not this sweep's business.)
+**Status: FIX PHASE COMPLETE (2026-08-07).** All seven findings are closed,
+one commit per fix in the recommended order below. The quarantine directory is
+retired: every fixture graduated into `tests/unit/query/fixtures/` with
+corrected claims and witnesses, and the sweep's DDL is folded into
+`fixtures/schema.sql`. Suite 42 files / 2662 tests / 408 fixtures, green;
+`pnpm typecheck` passes. (`pnpm lint` fails, and did before this sweep too:
+there is no `eslint.config.*` in the repository at all. Untouched — it is not
+this sweep's business.) The per-fix closure entries are at the top of section 2
+of `docs/deferred-tasks.md`; this document stands as the sweep's report.
 
-**The probe loop is kept rather than deleted this time**, in `tests/probe/`:
-`harness.ts` plus one file per round. It is NOT a test file — vitest's glob is
-`tests/**/*.test.ts` — and runs with `pnpm exec tsx tests/probe/<file>.ts`.
-Every probe id cited below (`A1`, `C11`, `FF13`, …) is a live entry in one of
-those files, so each finding re-runs in seconds and each negative result can be
-re-measured rather than taken on trust. It retires with the quarantine
-directory, as the three prior sweeps' probe files did.
+**Two things below are now WRONG, and are left in place with this header
+correcting them rather than edited away — the reasoning that produced them is
+the useful part.**
+
+1. **Finding 5's recommended fix (the sibling test) is wrong.** It rests on
+   "one NESTED path is sound" and "NESTED inside NESTED is sound", both
+   measured only over paths that always MATCH. A NESTED PATH is an OUTER JOIN
+   against the level above it: a lone path over an EMPTY array, or one whose
+   key is absent from the document, emits a row with the counter NULL and no
+   sibling anywhere — as does an empty inner array under NESTED-in-NESTED. The
+   boundary is "inside a NESTED path", which this document carries as its
+   conservative fallback. A ROOT-level counter is unaffected however many
+   siblings it has, and has a fixture that fails if that moves.
+2. **Finding 7 landed as the wording decision alone, with no rule.** The
+   sketched mechanism-C rule is not built and should not be: the class is real
+   and catalog-visible, but a plpgsql body that simply `RAISE`s on NULL is the
+   same rejection with no catalog trace, so the line would move without
+   arriving anywhere. The decision — no claim about a user function's arguments
+   beyond its DECLARED parameter types — is in
+   `docs/argument-nullability.md`.
+
+**An EIGHTH finding came out of taking that decision, and it is OPEN.** The
+decision scopes the must-not-raise convention to BUILTINS; probing that
+carve-out rather than assuming it falsified it immediately. 10 signatures
+across 11 argument positions reject a NULL argument where the engine claims
+nothing — `array_fill`'s dimension and low-bound arrays, `array_position`'s
+three-argument initial position, the six range constructors' flags argument,
+`jsonb_set_lax`'s `null_value_treatment` — measured with a per-position control
+over the 208 non-strict pg_catalog functions. Registered in
+`docs/deferred-tasks.md` rather than built: the fix is a curated table, and
+this project's standing lesson about those is that they drift.
+
+**The probe loop was kept rather than deleted this time**, and the disposition
+below held. `tests/probe/harness.ts` stays as TOOLING, beside
+`builtin-null-rejection.ts` — the standing measurement behind finding 8. The
+per-round files retired with the quarantine; each fix's CONTROLS graduated as
+fixtures instead, which is what makes an overshoot fail rather than pass
+quietly. Probe ids cited below (`A1`, `C11`, `FF13`, …) no longer resolve to a
+live file; the shapes that earned a permanent home are named in the closure
+entries.
 
 **Yield: 7 findings in 169 probes (157 of them engine-vs-PGlite comparisons
 through the probe loop, 12 parameter probes with a real Bind).** Sweep 3 was 8

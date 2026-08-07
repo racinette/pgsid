@@ -520,7 +520,11 @@ A join cannot extend a side when every row of the OTHER side carries a stored
 referencing row, its key is NOT NULL onto a relation on that side, and every
 stored row of that relation is still in the slice — the same three questions
 the promotion rule asks, minus everything about ancestors. Both subtree
-questions are read off join types (`subtreePreserves`, `subtreeAlwaysPresent`):
+questions are read off join types, over a `scope.joins` that records EVERY
+join — a join with no qual to imply (a CROSS JOIN, a comma join, a NATURAL
+join sharing no column name) is still a join whose type and alias sets these
+readings need, and while it was omitted a side containing one read as a leaf
+that drops nothing (`subtreePreserves`, `subtreeAlwaysPresent`):
 a LEFT join preserves its left side and extends its right, a RIGHT join the
 mirror, a FULL join preserves both and extends both, an INNER join preserves
 neither and extends neither. WHERE is not consulted — it filters after the
@@ -548,7 +552,8 @@ before the gate was written:
 | `NOT VALID` | pre-existing rows are unchecked, and one survives to be read back through the join |
 | `NOT ENFORCED` (PG18) | violations insert freely — and it needs no gate of its own: `convalidated` is false for one, and `ALTER CONSTRAINT … NOT ENFORCED` CLEARS it on an already-validated key |
 | `DEFERRABLE` | violable mid-transaction and observable there, with `INITIALLY IMMEDIATE` no protection |
-| INHERITANCE | a parent's key is NOT copied to a child — pg_constraint records it on the parent alone and a violating child row inserts without complaint — so a TREE scan may not read it. Partitioning is the opposite and needs no exclusion: the constraint is recorded on every partition and `ATTACH PARTITION` validates the incoming rows |
+| INHERITANCE | a parent's key is NOT copied to a child — pg_constraint records it on the parent alone and a violating child row inserts without complaint — so a TREE scan may not read it. Partitioning of the REFERENCING table is the opposite and needs no exclusion: the constraint is recorded on every partition and `ATTACH PARTITION` validates the incoming rows |
+| PARTITION CLONES | a key pointing AT a partitioned table is recorded once per PARTITION on top of the declared constraint (`conparentid` names the parent), and none of those clones means "every referencing row matches THIS partition". Read as declared keys they both invent a claim and destroy the real one, since the map keyed on `schema.table.column` kept whichever came last |
 
 The rest are the walk's, and they are about the query rather than the catalog:
 
@@ -575,6 +580,20 @@ The rest are the walk's, and they are about the query rather than the catalog:
   o.customer_id` extends for an order whose customer has no address — both
   measured, and a proven-present referencing side does not help on either: the
   rows it guarantees are exactly the extended ones.
+- **A referenced PARTITIONED parent scanned `ONLY` holds no rows at all.** A
+  partitioned table stores none of its own — they all live in the partitions —
+  so `ONLY sw4_pp` is an empty slice and the key, which promises a match in the
+  TREE, is silent about it. Inheritance is the opposite way round and keeps its
+  promotion: a parent holds its OWN rows and a key's target index covers
+  exactly those, so `ONLY` there is precisely where the match lives. The gate
+  is therefore on the referenced relation being PARTITIONED, not on `ONLY`.
+- **Neither side may be a `TABLESAMPLE`.** The walk unwraps `RangeTableSample`
+  and registers the relation underneath, so the alias would otherwise go on
+  standing for the whole table while the statement reads a fraction of it —
+  `BERNOULLI (0)` reads none. A sampled relation is never a key's side and is
+  never `subtreePreserves`-preserved. The fraction is not read: `BERNOULLI
+  (100)` keeps every row and is refused anyway, the same stance the walk takes
+  on which rows a qual keeps.
 - For the subquery form, **the scan MODE matters**: an `ONLY` subquery under a
   tree-scanning outer reads a SUBSET, and the outer row may be the child row it
   excludes.
@@ -661,7 +680,13 @@ Four gates gives the reading, each measured and each pinned from both sides by a
   lockstep to the longest one's row count, and every shorter one's columns are
   NULL-padded after it has returned — measured for a body whose columns are
   otherwise provably non-null. The same shape as the target list's SRF padding
-  rule.
+  rule. This gates the DECLARED reading too, not only the body one: a NOT NULL
+  domain return, or a NOT NULL domain among the OUT/TABLE parameters, is padded
+  away exactly as a proven body column is, and the clearance sits where the
+  item's column list is ASSEMBLED so all three arms take it (sweep-4 finding 1).
+  It also has to sit BEFORE the presence groups read the flags — a surviving
+  flag makes the padded column a group DISCRIMINANT, and the group then reads
+  "the unit is absent" on rows where a longer arm is still producing values.
 - **A guaranteed row when the function is not set-returning.** `RETURNS
   <composite>` is one row always, and a body that selects nothing makes that row
   all NULLs (measured) — so `guaranteesSingleRow` gates it, exactly as it gates
@@ -693,6 +718,13 @@ wrong, which for a codegen consumer is worse than an imprecise flag.
 Naming follows PostgreSQL: a composite result keeps its own column names and the
 alias names only the relation, while a scalar result takes the alias as its
 column name. An explicit alias list (`f() AS t(a, b)`) renames positionally.
+The scalar-takes-the-alias rule is the LONE-FUNCTION rule and nothing else —
+`ROWS FROM (generate_series(1, 2)) AS z` names its column `z`, with or without
+`WITH ORDINALITY`, exactly as the bare spelling does (measured across the
+spelling space, sweep-4 finding 6). Two arms take the function names whatever
+the alias says. One predicate answers "lone arm" for the naming, body and
+declared readings; when it was two they disagreed, and only one was
+PostgreSQL's.
 
 Two forms override the per-item resolution above:
 
@@ -771,6 +803,33 @@ expands to a NULL in every field, domain types included (measured —
 `(NULL::ct).*` yields NULL in an `nn_text` field). Anything else refuses
 (`UnsupportedNodeError`, site `composite-star`): the field count is
 unknowable, and a wrong column list is worse than no answer.
+
+#### FROM items that spell out their own columns: XMLTABLE and JSON_TABLE
+
+The `COLUMNS` list in the query IS the column list — neither resolves against
+the catalog — so failing to read it drops every column from `SELECT *`. Only
+two things in one are non-null.
+
+**`FOR ORDINALITY`** is a generated counter, non-null for the rows it counts.
+Which rows those are is the whole question: in XMLTABLE there is one row set
+and the counter is simply present. JSON_TABLE has `NESTED PATH`, and **a
+NESTED PATH is an OUTER JOIN against the level above it** — so a counter
+INSIDE one is nullable (sweep-4 finding 5). Four ways it comes back NULL, all
+measured: a sibling nested path (the two are unioned, and a row from one
+carries NULL in every column of the other); the path matching nothing, whether
+an empty array or a key absent from the document, where the parent row still
+comes back; the same one level down, an empty inner array under
+NESTED-in-NESTED; and either beside an ordinary root column. A ROOT-level
+counter is unaffected however many NESTED siblings it has — it counts the
+root's rows and is present on every emitted row. So the test is "inside a
+NESTED path", asked during the descent, because the columns are flattened into
+one output list before anything else could ask it.
+
+**An XMLTABLE column declared `NOT NULL`** is enforced: PostgreSQL raises
+`null is not allowed in column "a"` rather than emitting NULL (measured), so
+the claim is safe. JSON_TABLE has no `NOT NULL` column option at all. A
+regular column is NULL when its path matches nothing, and a JSON_TABLE
+`EXISTS` column can still yield NULL under `UNKNOWN ON ERROR`.
 
 ### Where the recursion crosses scopes:
 

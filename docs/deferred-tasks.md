@@ -609,15 +609,49 @@ exercises 24 of the walk's 34 catalog capabilities against the fixtures' 34, so
 volume is blind on the axis where those findings lived. The sweep did not wait
 for it; the two are independent.
 
-**The FOURTH sweep RAN (2026-08-07). Its FIX PHASE HAS NOT STARTED** — the
-report is `docs/adversarial-findings-4.md`, the quarantine fixtures are in
-`tests/unit/query/fixtures-adversarial/` with their DDL in
-`schema-adversarial.sql`, and the probe loop that produced them is kept in
-`tests/probe/` (not a vitest glob; `pnpm exec tsx tests/probe/<file>.ts`).
-169 probes, **seven findings**: five rank-1 `notNull` unsoundnesses, two of
-which also falsify a presence group; one rank-2 shape defect; one rank-3
-param-contract defect. Zero parity breaks and zero crashes — four sweeps at
-zero on both. The suite is untouched and green (2532 tests, 42 files).
+**The FOURTH sweep RAN (2026-08-07) and its FIX PHASE is COMPLETE
+(2026-08-07).** The report is `docs/adversarial-findings-4.md`. 169 probes,
+**seven findings**: five rank-1 `notNull` unsoundnesses, two of which also
+falsify a presence group; one rank-2 shape defect; one rank-3 param-contract
+defect. Zero parity breaks and zero crashes — four sweeps at zero on both.
+
+All seven are CLOSED, one commit per fix in the report's recommended order, with
+the per-fix closure entries at the top of section 2. The quarantine directory is
+retired: every fixture graduated into `tests/unit/query/fixtures/` with
+corrected claims and witnesses, the sweep's DDL folded into the fixture schema,
+and the section-B objects that produced nothing dropped rather than folded
+(`sw4_def_*`, `sw4_ovd`, `sw4_def_body`, `sw4_self` — named here so "0
+actionable" is not misread as "everything is covered"). Suite: 42 files, 2662
+tests, 408 fixtures; the generated corpus's 14964 queries and the schema axis
+both ran clean.
+
+**Two deviations from the report, both recorded in the closure entries.** Its
+recommended fix for finding 5 was WRONG — a sibling test, resting on two
+measurements taken only over JSON_TABLE paths that always match — and four
+shapes nobody had run put the boundary one step wider, at "inside a NESTED
+path". And finding 7 landed as the wording decision alone, with no rule: the
+class the report sketched is real and catalog-visible, and building for it would
+have moved the line without arriving anywhere, because a plpgsql `RAISE` is the
+same rejection with no catalog trace.
+
+**`tests/probe/` does NOT retire empty, and did not.** `harness.ts` stays as
+tooling — three sweeps rebuilt it privately and threw it away — beside
+`builtin-null-rejection.ts`, the standing measurement behind finding 8 below.
+The round files retired with the quarantine; each fix's CONTROLS graduated as
+fixtures instead, which is what makes an OVERSHOOT fail rather than pass
+quietly, and the negative sections' three uncovered shapes (`E4`, `E6`, `F2`)
+graduated on the report's own criterion while the rest stand as the report's
+record.
+
+**An EIGHTH finding came out of taking finding 7's decision, and it is OPEN** —
+the only thing this fix phase leaves unclosed. The decision scopes the
+must-not-raise convention to BUILTINS; probing that carve-out instead of
+assuming it falsified it on the first try. 10 signatures across 11 argument
+positions reject NULL where the engine claims nothing, measured with a
+per-position control over the 208 non-strict pg_catalog functions. The closure
+entry in section 2 has the list and why it is registered rather than built (it
+is a curated table, and this project's standing lesson about those is that they
+drift from the catalog they approximate).
 
 Yield is 7 in 169 against sweep 3's 8 in ~155 — the same rate on findings and
 a heavier severity mix, from two thirds of the budget. **What it does NOT
@@ -637,14 +671,14 @@ catalog READ for rows PostgreSQL adds that nobody wrote (partition-cloned
 constraints are the instance found; inherited constraints and index-backing
 rows are the same class).
 
-One finding is gated on a DECISION rather than on code, and the fix phase must
-take it first: finding 7 turns on what a `nullable` PARAMETER claim means when
-a user function's body can raise. `param-soundness.test.ts` says "binding NULL
-must never raise, in any state"; `docs/argument-nullability.md` says "claims
-mean raises; absence of a claim promises nothing". The two cannot both hold,
-and the second is the only one achievable for arbitrary user functions. It is
-the dual, on the nullable side, of the reachability question that document
-already records as open on the `notNull` side.
+That decision is TAKEN (2026-08-07) and recorded in
+`docs/argument-nullability.md` under "What a nullable parameter does not
+promise": the contract is one-directional, and **no claim is made about a user
+function's arguments beyond its declared parameter types**. The declared type
+is the channel — a parameter declared as a NOT NULL domain is rejected at Bind
+by mechanism A — and standard types are nullable by design. It is the dual, on
+the nullable side, of the reachability question that document already records
+as open on the `notNull` side.
 
 **The precision residue is now its own handoff** — `docs/precision-residue.md`
 (2026-08-07). Items that neither chartered effort owns, collected because they
@@ -713,12 +747,48 @@ PREPARE result at the same time — BEFORE the emitter slice, not with it
 (`docs/consumer-design.md`): every slice between would otherwise build on a
 failure mode that is silent by construction. Permanent, not transitional —
 the sweep found five shape defects in one sitting and the engine will keep
-growing. Across three sweeps this gate now carries TWELVE defects it would
-have caught, three of them arity-preserving and therefore invisible to any
+growing. Across four sweeps this gate now carries THIRTEEN defects it would
+have caught, FOUR of them arity-preserving and therefore invisible to any
 check but the ordered name comparison: sweep-1 finding 10 (the permuted
 MERGE `RETURNING *`), sweep-2 finding 13 (`(p).*` reading the alias where
-PostgreSQL reads the column — same arity, entirely different columns), and
-sweep-3 finding 7 (quoted `TABLE(…)` column names split at a space).
+PostgreSQL reads the column — same arity, entirely different columns),
+sweep-3 finding 7 (quoted `TABLE(…)` column names split at a space), and
+sweep-4 finding 6 (a one-arm `ROWS FROM` ignoring the relation alias — one
+column, the wrong name, and three sweeps plus a census walked past it). That
+is no longer an argument; it is a count.
+
+---
+
+## 1a. Sweep every catalog READ for rows PostgreSQL adds that nobody wrote
+
+**What.** The converse of the curated-table audit, and the second standing
+check this register carries. The existing heuristic is "sweep every
+hand-curated TABLE against the catalog it approximates". This is the other
+direction: a catalog read can return MORE than the schema author declared,
+and a reader that assumes one row per declaration is wrong without ever
+looking wrong.
+
+**Why it matters — it has one confirmed instance and two candidates.**
+Sweep-4 finding 4 is the instance: `pg_constraint` holds three rows where the
+author wrote one foreign key, because a key referencing a PARTITIONED table is
+cloned once per partition, and the adapter's last-row-wins map kept a clone.
+That produced an unsound claim and destroyed a correct one at the same time.
+The same class, not yet swept:
+
+- **inherited constraints** (`coninhcount > 0`) — a child's copy of a parent's
+  CHECK is a row nobody wrote;
+- **index-backing rows** — a PRIMARY KEY or UNIQUE constraint materialises a
+  `pg_index` row and, on a partitioned table, a partitioned index plus one per
+  partition (`relkind = 'I'`, which the catalog census now observes).
+
+**What it costs.** It is a QUERY, not a sweep: ask each captured catalog for
+the rows whose provenance column says "derived", and check the reader. Cheap
+to do once.
+
+**Trigger.** Do it the next time any capture is added to `snapshot.ts`, and
+before the consumer's first contract-holding slice. `queryConstraints` now
+captures `conparentid`, so the partition case is closed and the pattern for
+the rest is written down.
 
 ---
 
@@ -779,6 +849,169 @@ routes named; `docs/imprecision-closure.md` carries the measurements.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the FOURTH adversarial fix phase (2026-08-07), finding 4 / RC-C — a
+catalog READ that answered a different question than the one asked.
+`pg_constraint` holds THREE rows where the schema author wrote one key: a
+foreign key referencing a PARTITIONED table is recorded as the declared
+constraint plus one CLONE per partition, and `fkByColumn` keyed on
+`schema.table.column` with last-row-wins kept whichever the snapshot ordered
+last. Two wrong answers from one capture, and they point opposite ways —
+joining the landed-on partition PROMOTED it, so a referencing row pointing into
+any other partition NULL-extended (rank 1), while joining the DECLARED parent,
+the shape anyone actually writes, promoted nothing at all (rank 7). Skipping
+clones (`conparentid <> 0`, one new snapshot column) removes the first and
+recovers the second in one move. The adapter's existing comment was not wrong,
+it was about the other side: partitioning of the REFERENCING table needs no
+exclusion, and the referenced side is a different mechanism.
+
+**The two halves had to land together, and the report was right that a
+half-landed version is a new rank-1.** Recovering the declared key makes `ONLY
+<partitioned parent>` live: a partitioned table holds NONE of its own rows, so
+that scan is empty and every referencing row NULL-extends — measured going from
+`ok` to `RANK1` between the two edits. The gate reads the scan mode of the
+REFERENCED relation, which nothing did before (`keyedRelation` carried
+`scansTree` for the referencing side alone), and it keys on being PARTITIONED
+rather than on `ONLY`: inheritance is the opposite way round and its promotion
+must survive, because a parent holds its own rows and the key's target index
+covers exactly those. Four fixtures, one per corner, plus a generator change —
+`sw4_pp`'s rows alternate across both partitions so the clone fixture's
+presence group observes both arms rather than only its absent one.
+
+Closed by the same phase, finding 2 / RC-B — a structural reading over a data
+structure built for a different question. `scope.joins` carried QUALS for the
+presence fixpoint, and a join was pushed onto it only when it HAD one; the
+2026-08-07 session then made the same array carry the JOIN TREE for
+`subtreePreserves` / `subtreeAlwaysPresent` / `joinWithin`, and the reading that
+arrived second inherited the first one's filter. So a side containing a CROSS
+JOIN read as a leaf that drops nothing, and the foreign-key entailment's "the
+match is still in the SLICE" gate — the condition that session had just added —
+passed on a side that had been emptied. This is
+`fk-entail-referenced-not-preserved.sql`'s own counterexample with the INNER
+join replaced by a CROSS join: the reasoning it pins is right, the structure it
+reads could not see the case.
+
+Four routes in, all measured: CROSS JOIN, a comma join, CROSS JOIN LATERAL over
+a subquery returning nothing, and NATURAL JOIN sharing no column name. `ON TRUE`
+was the control and always behaved, because it carries a qual. Every join is
+recorded now and `quals` gains a null case; the fixpoint skips an entry with
+nothing to imply, and the three reading sites needed no new branch because
+`equalityColumnRefs` answers null for a missing qual — which is what they
+already do with "not a key equality". The same array feeds
+`joinCannotExtendSide`, so one record closed both sites. Dry-run before landing,
+as the report asked: the generated corpus (14964 queries) and the schema axis
+both clean. What it costs: nothing measured — an unrecorded cross join in the
+REFERENCING side was always harmless, and its fixture is the overshoot control,
+because the cheapest wrong fix refuses whenever any qual-less join is in scope.
+
+Closed by the same phase, finding 1 / RC-A — a rule stated at the site and
+applied to one of three readings. `resolveTableFunctionColumns` knows that a
+multi-arm `ROWS FROM` expands in lockstep to the LONGEST arm and NULL-pads the
+others; `bodyReadable` gated the BODY reading on it and the DECLARED reading —
+a NOT NULL domain return, or a NOT NULL domain among the OUT/TABLE parameters —
+was pushed unclipped on all three arms. Six shapes, one cause. The clearance
+now sits where the item's columns are ASSEMBLED, beside the strict
+short-circuit that was already cleared there.
+
+`returnsSet` was not the bug and did not move: `callCanShortCircuit` excludes
+set-returning functions because a claim about rows that do not exist cannot be
+contradicted, which is true of the call and false of the call inside a `ROWS
+FROM`, where the long arm supplies the rows and the padding the NULLs. The
+padding covers that shape for a reason of its own, and a strict SRF can never BE
+the longest arm. `WITH ORDINALITY` is unaffected and has the fixture that says
+so: the counter belongs to the FROM item as a whole and is present on every
+emitted row, so a clearance written as "this FROM item is padded" would be
+wrong where "this ITEM is padded" is right. The rank-4 face needed no second
+fix — a padded column was a presence-group DISCRIMINANT precisely because the
+flag survived, and a group needs at least one, so clearing the flag removes the
+group rather than correcting it. That is why the clearance had to sit before the
+group assembly reads the flags.
+
+Closed by the same phase, finding 5 / RC-A — **and the report's recommended fix
+was wrong, which is worth recording because the measurement that corrected it
+cost one probe file.** The sweep found sibling NESTED paths in a JSON_TABLE
+NULLing each other's `FOR ORDINALITY` columns and proposed a SIBLING test, on
+the measurements that one nested path is sound and that NESTED-inside-NESTED is
+sound. Both were taken over paths that always MATCH. Four shapes nobody had run
+— a lone nested path over an EMPTY array, one whose key is absent from the
+document, an empty inner array under NESTED-in-NESTED, and either beside a root
+column — all emit a row with the counter NULL and no sibling anywhere. A NESTED
+PATH is an OUTER JOIN against the level above it, so the boundary is "inside a
+NESTED path", which the report carried as its conservative fallback. A
+root-level counter keeps its claim however many NESTED siblings it has
+(measured), and has the fixture that fails if that moves outward. The standing
+lesson is the register's own, one turn later: a "sound" verdict in a findings
+doc is a measurement someone made once, over the shapes they happened to try.
+
+Closed by the same phase, finding 3 / RC-A — a row-dropper the walk does not
+MODEL, where finding 2 is one it cannot SEE. The `RangeTableSample` arm was one
+line that unwrapped the node and registered the relation underneath, so the
+alias went on standing for the whole table and every fact keyed on "the STORED
+rows of this relation" over-read: `keyedRelation` handed it to the entailment as
+a plain table and `subtreePreserves` found no join dropping it. One flag on
+`RelationEntry`, read at both sites rather than one, so a later reader of the
+second cannot re-acquire the wrong answer. The correlated-subquery anchor rule
+was SOUND for a reason that is not a gate — `subqueryFromTree` accepts only a
+plain RangeVar leaf and a sampled relation arrives wrapped — and the probes
+confirm it still refuses rather than having been turned into a wrong answer.
+What it deliberately costs has its own fixture: `BERNOULLI (100)` keeps every
+row and is refused anyway, because the walk does not reason about which rows a
+fraction keeps, the same stance it takes on which rows a qual keeps.
+
+Closed by the same phase, finding 6 / RC-A — two gates one line apart
+disagreeing about what "single" means. `const single = functions.length === 1
+&& !rf?.is_rowsfrom` gated the alias-as-column-name rule, and PostgreSQL's rule
+has no `is_rowsfrom` in it: a lone arm returning a SCALAR takes the relation
+alias, `ROWS FROM` or not. The seven-row spelling table is measured and three
+rows of it are now fixtures, including the two overshoot controls — a composite
+arm keeps its own field names, and `WITH ORDINALITY` renames the scalar column
+while the counter keeps its own name. One predicate serves the naming, body and
+declared readings now, which is also what finding 1's clearance keys on.
+Arity-preserving and NAME-only: the FOURTH defect of that kind, after sweep-1's
+permuted MERGE `RETURNING *`, sweep-2's `(p).*` and sweep-3's quoted `TABLE(…)`
+names, and more argument for section 1's gate. It survives re-export and a
+qualified star; a VIEW does not, because PostgreSQL re-renders the definition
+with an explicit alias column list — which is why no view fixture could have
+caught it.
+
+Closed by the same phase, finding 7 / RC-D — **a WORDING decision, taken first
+because the report was right that the code depended on it.** Two documents
+disagreed: `param-soundness.test.ts` said a nullable parameter means "binding
+NULL must never raise, in any state", and `docs/argument-nullability.md` said
+"claims mean raises; absence of a claim promises nothing". The decision, and it
+is not to be re-litigated: **no claim is made about a USER function's arguments
+beyond its DECLARED parameter types — a body is not an interface.** The channel
+a schema author uses to GET a claim is the declared type, where a NOT NULL
+domain is rejected at Bind by mechanism A before the body is reached; standard
+types are nullable by design.
+
+The catalog-visible class the report proposed a rule for — a non-strict
+function with a NOT NULL domain return whose body is NULL-preserving — is
+deliberately NOT built. It would not close the question, because a plpgsql body
+that simply `RAISE`s on NULL is the same rejection with no catalog trace, so the
+line would move without arriving anywhere; and reading bodies inverts the
+interface, giving two functions with identical signatures different contracts.
+What the suite keeps is its oracle: over the hand-written corpus a nullable
+claim whose NULL binding raises must be ACCOUNTED FOR, either as a channel the
+engine should have seen or by `-- @param-opaque N: <reason>`, whose raise must
+be OBSERVED — mutation-checked in both directions, so a stale marker fails as
+loudly as a missing one.
+
+**Taking that decision produced an eighth finding, and it is OPEN.** The
+decision scopes the must-not-raise convention to BUILTINS, whose behaviour is
+documented and knowable, and probing that carve-out rather than assuming it
+falsified it immediately: `array_fill(1, $1)` raises `dimension array or low
+bound array cannot be null` and the engine claims the parameter nullable. Sized
+with a per-position control over the 208 non-strict pg_catalog functions —
+**10 signatures, 11 argument positions**: `array_fill`'s dimension and
+low-bound arrays, `array_position`'s three-argument initial position, the six
+range constructors' flags argument, and `jsonb_set_lax`'s
+`null_value_treatment`. Strictness cannot express it (a strict function returns
+NULL rather than raising, so the whole class is inside the non-strict set) and
+pg_catalog has no column that does, which makes the fix a CURATED TABLE with
+every drift risk this project has met before — hence registered rather than
+built, with `tests/probe/builtin-null-rejection.ts` kept as the standing
+measurement so the table's drift would be a number rather than a guess.
 
 Closed by the CATALOG SPY (2026-08-07), which finishes the `handled` half the
 category check named and left. The catalog is a pure data interface, so which
