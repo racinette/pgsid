@@ -449,7 +449,7 @@ Promoted as a fixture exactly as generated. It needs no reduction:
 Deduplication needs nothing either, since fingerprints key on shape rather than
 text.
 
-### Output, and the ledger
+### Output
 
 One JSONL record per unique fingerprint, ranked most-severe first, carrying:
 fingerprint, bucket, tier, instance count, repro SQL verbatim, seed and query
@@ -462,16 +462,8 @@ that the next step is mechanical:
 | TOOL | fix the generator or deparser; the fingerprint is the regression test |
 | BUDGET | tune the data or the literal-drawing; no code is wrong |
 
-Fingerprints already seen are recorded with their disposition, or every run
-re-reports everything known and the new work is invisible. Two rules stop that
-ledger becoming a place to file things away — the failure this project has
-already measured at 12%:
-
-1. **A closed fingerprint must name the FIXTURE that pins it.** "Fixed" with no
-   fixture is not a disposition.
-2. **A closed fingerprint that RE-APPEARS is itself a finding**, and a valuable
-   one: the fixture does not pin what it claims to. It is reported as new, not
-   matched away.
+Each run reports everything it found, with no memory of previous runs. Suppress
+nothing.
 
 ### The negative result carries its bound
 
