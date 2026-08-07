@@ -3715,6 +3715,7 @@ class NullabilityEngine {
   private resolveTableFunctionColumns(
     entry: RelationEntry,
     scope: Scope | null,
+    depth: number,
   ): { name: string; notNull: boolean }[] {
     // Precomputed for FROM items that spell out their own COLUMNS list, and
     // memoized for everything else.
@@ -3797,7 +3798,7 @@ class NullabilityEngine {
         if (name === "unnest" && (fc.args?.length ?? 0) >= 1) {
           const multi = fc.args!.length > 1;
           for (const arg of fc.args!) {
-            const fields = this.unnestCompositeElementFields(arg, scope);
+            const fields = this.unnestCompositeElementFields(arg, scope, depth);
             if (fields) {
               for (const f of fields) cols.push({ name: f, notNull: false });
             } else {
@@ -3926,8 +3927,12 @@ class NullabilityEngine {
    * derived-table column. Those refuse now; before, they were wrong
    * whenever the element was composite and right otherwise.
    */
-  private unnestCompositeElementFields(arg: Node, scope: Scope | null): string[] | null {
-    const element = this.unnestElementType(arg, scope);
+  private unnestCompositeElementFields(
+    arg: Node,
+    scope: Scope | null,
+    depth: number,
+  ): string[] | null {
+    const element = this.unnestElementType(arg, scope, depth);
     if (element.kind === "scalar") return null;
     if (element.kind === "unknown") {
       throw new UnsupportedNodeError(
@@ -3973,6 +3978,7 @@ class NullabilityEngine {
   private unnestElementType(
     arg: Node,
     scope: Scope | null,
+    depth: number,
   ):
     | { kind: "type"; parts: string[]; provablyComposite: boolean }
     | { kind: "scalar" }
@@ -4076,7 +4082,32 @@ class NullabilityEngine {
 
     if ("ColumnRef" in rec) {
       const rendered = this.renderedTypeOfExpr(arg, scope);
-      return rendered ? fromRendered(rendered) : { kind: "unknown" };
+      if (rendered) return fromRendered(rendered);
+      // No base column behind it: the CTE or subquery COMPUTES this column.
+      // Its defining expression is an expression like any other, and this
+      // same reading answers for it one level in — `(SELECT ARRAY[p] AS ps
+      // FROM cc) s, unnest(s.ps)` types `ARRAY[p]` against `cc` and expands
+      // to sku_pair's fields (measured). No new typing, one more place to
+      // ask.
+      return this.computedColumnElementType(arg, scope, depth);
+    }
+
+    // A scalar sublink contributes its single output column, and that column
+    // is an expression this reading can be asked about inside the subquery's
+    // own FROM — `unnest((SELECT h.rows FROM h))` is a column reference one
+    // level down. The subquery's row COUNT does not matter: a scalar sublink
+    // yielding several rows raises, and the shape question is about the type
+    // either way.
+    if ("SubLink" in rec) {
+      const sl = rec["SubLink"] as SubLink;
+      if (sl.subLinkType !== "EXPR_SUBLINK" || !sl.subselect) return { kind: "unknown" };
+      const inner = (sl.subselect as Record<string, unknown>)["SelectStmt"] as
+        | SelectStmt
+        | undefined;
+      const targets = inner?.targetList ?? [];
+      if (!inner || targets.length !== 1) return { kind: "unknown" };
+      const val = this.unwrapResTarget(targets[0]!).val;
+      return val ? this.elementTypeInSelect(val, inner, scope, depth) : { kind: "unknown" };
     }
 
     // `pairs[1:1]` — a SLICE of an array is an array of the same element
@@ -4088,7 +4119,7 @@ class NullabilityEngine {
       const allSlices =
         parts.length > 0 &&
         parts.every(p => !!(p as { A_Indices?: { is_slice?: boolean } }).A_Indices?.is_slice);
-      return allSlices && ai.arg ? this.unnestElementType(ai.arg, scope) : { kind: "unknown" };
+      return allSlices && ai.arg ? this.unnestElementType(ai.arg, scope, depth) : { kind: "unknown" };
     }
 
     // `a || b` and `COALESCE(a, b)` — every operand shares the result's
@@ -4108,7 +4139,9 @@ class NullabilityEngine {
           ? ((rec["CoalesceExpr"] as { args?: Node[] }).args ?? [])
           : null;
     if (operands) {
-      const resolved = operands.map(o => (o ? this.unnestElementType(o, scope) : { kind: "unknown" as const }));
+      const resolved = operands.map(o =>
+        o ? this.unnestElementType(o, scope, depth) : { kind: "unknown" as const },
+      );
       const array = resolved.find(r => r.kind === "type");
       if (array) return array;
       return resolved.length > 0 && resolved.every(r => r.kind === "scalar")
@@ -4138,6 +4171,76 @@ class NullabilityEngine {
     }
 
     return { kind: "unknown" };
+  }
+
+  /**
+   * The element type of a column a CTE or subquery COMPUTES rather than
+   * re-exports, read from the expression that defines it.
+   *
+   * `reExportedBaseColumn` stops at "no base column", which is the right
+   * answer to the question it asks and not to this one: `ARRAY[p]` has no
+   * base column and a perfectly readable type. Unknown for anything that is
+   * not a plain SELECT target — a star entry shifts positions, and a set
+   * operation has two sides to disagree.
+   */
+  private computedColumnElementType(
+    ref: Node,
+    scope: Scope | null,
+    depth: number,
+  ): ReturnType<typeof this.unnestElementType> {
+    if (!scope) return { kind: "unknown" };
+    const parts = ((ref as Record<string, unknown>)["ColumnRef"] as ColumnRef).fields ?? [];
+    const names = parts.map(f => this.stringVal(f));
+    const colName = names[names.length - 1];
+    if (!colName) return { kind: "unknown" };
+    let owner: RelationEntry | undefined;
+    if (names.length >= 2) {
+      owner = this.resolveAlias(names[names.length - 2]!, scope) ?? undefined;
+    } else {
+      owner = scope.visible.find(v => v.name === colName && v.entry)?.entry ?? undefined;
+    }
+    if (!owner || (owner.kind !== "cte" && owner.kind !== "subquery")) return { kind: "unknown" };
+    const select = (owner.ast as Record<string, unknown> | undefined)?.["SelectStmt"] as
+      | SelectStmt
+      | undefined;
+    if (!select || (select.op && select.op !== "SETOP_NONE")) return { kind: "unknown" };
+
+    const targets = select.targetList ?? [];
+    const aliases = owner.cteColumns?.length ? owner.cteColumns : null;
+    for (let i = 0; i < targets.length; i++) {
+      const rt = this.unwrapResTarget(targets[i]!);
+      if (!rt.val || this.isStarColumn(rt.val)) return { kind: "unknown" };
+      const exported = aliases ? aliases[i] : (rt.name ?? this.inferName(rt.val));
+      if (exported === colName) return this.elementTypeInSelect(rt.val, select, scope, depth);
+    }
+    return { kind: "unknown" };
+  }
+
+  /**
+   * The same reading applied to an expression that lives inside `select` —
+   * its column references resolve against that statement's own FROM, not the
+   * caller's.
+   *
+   * The scope is built with the walk's own builder rather than a private
+   * resolution: a derived table may join, alias or stage through a CTE, and
+   * a second implementation of that would drift. A scope the builder refuses
+   * leaves the type unknown, which is the caller's conservative path.
+   */
+  private elementTypeInSelect(
+    expr: Node,
+    select: SelectStmt,
+    outerScope: Scope | null,
+    depth: number,
+  ): ReturnType<typeof this.unnestElementType> {
+    this.checkDepth(depth);
+    let innerScope: Scope;
+    try {
+      innerScope = this.buildScope(select, outerScope, depth + 1);
+    } catch (e) {
+      if (e instanceof UnsupportedNodeError) return { kind: "unknown" };
+      throw e;
+    }
+    return this.unnestElementType(expr, innerScope, depth + 1);
   }
 
   /**
@@ -4471,7 +4574,7 @@ class NullabilityEngine {
     depth: number,
   ): { name: string; notNull: boolean }[] {
     if (entry.kind === "function") {
-      return this.resolveTableFunctionColumns(entry, scope);
+      return this.resolveTableFunctionColumns(entry, scope, depth);
     }
     if (entry.kind === "subquery" || entry.kind === "cte") {
       return this.innerRelationColumns(entry, scope, depth);
@@ -5435,7 +5538,7 @@ class NullabilityEngine {
 
     // Table functions: the resolved return-type columns.
     if (entry.kind === "function") {
-      const col = this.resolveTableFunctionColumns(entry, scope).find(c => c.name === colName);
+      const col = this.resolveTableFunctionColumns(entry, scope, depth).find(c => c.name === colName);
       if (!col) {
         trace.conclude(false, `column '${colName}' not found in the function's return type`);
         return false;

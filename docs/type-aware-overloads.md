@@ -280,6 +280,17 @@ argument and its cost attached.
 
 ### The prerequisite: pg_catalog SIGNATURES must reach the snapshot
 
+**One more caller waits on this, added 2026-08-07.** `unnest` of a POLYMORPHIC
+builtin's result — `array_agg(p)`, `array_remove`, `array_cat`, `array_append`
+— refuses because the element type is resolved from the ARGUMENTS and the
+snapshot cannot state it. It is the whole of what remains of
+`docs/precision-residue.md` item 4, its refusal is pinned with positive
+controls in `unsupported-nodes.test.ts`, and it needs a smaller slice than
+this charter's own: 25 `anyarray`-returning names plus seven
+`anycompatiblearray` ones, whose rule is uniform and readable off `pg_proc`
+(a polymorphic result takes its type from the argument declared with the
+matching polymorphic type). Re-measure that arm when the signatures land.
+
 **Measured 2026-08-06, and it is the sequencing constraint for this whole
 document.** The snapshot carries user-schema signatures only — 69 functions and
 5 operators for the fixture schema, all `public`. pg_catalog is captured as

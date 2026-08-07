@@ -75,6 +75,9 @@ describe("unsupported nodes are refused, not guessed", () => {
       CREATE TYPE sku_pair AS (sku text, qty integer);
       -- A composite COLUMN, for the unnest element-type cases below.
       CREATE TABLE cc (id int NOT NULL, p sku_pair);
+      -- An array of that composite, for the spellings that reach the element
+      -- type through a column rather than through a constructor.
+      CREATE TABLE ch (id int NOT NULL, pairs sku_pair[]);
       CREATE FUNCTION ov_shape(x text) RETURNS SETOF sku_pair
         LANGUAGE sql AS $$ SELECT ROW('a', 1)::sku_pair $$;
       CREATE FUNCTION ov_shape(x integer) RETURNS TABLE(a int, b int, c int)
@@ -275,19 +278,26 @@ describe("unsupported nodes are refused, not guessed", () => {
   // a composite, in which case it contributes one per FIELD — so the shape
   // depends on a type, and reading "I could not tell" as "scalar" was a
   // wrong shape in six measured spellings (adversarial-3 finding 3). It
-  // refuses when it cannot tell. The list below is what remains after the
-  // catalog is asked everywhere it can answer, and every entry needs type
-  // inference the walk deliberately does not do.
-  it("refuses unnest of an argument whose element type is not derivable", async () => {
+  // refuses when it cannot tell.
+  //
+  // What remains is ONE cause: a POLYMORPHIC builtin, whose return type
+  // PostgreSQL resolves from its arguments and the snapshot cannot state.
+  // `array_agg(p)` over a composite column yields `sku_pair[]` (measured),
+  // and saying so needs pg_catalog SIGNATURES — which a standing boundary
+  // keeps out of the snapshot until the consumer's search-path input lands
+  // (`docs/generated-surface.md`, "Boundaries"), and which
+  // `docs/type-aware-overloads.md` is sequenced behind. The spelling with a
+  // sublink around it is the same function, not a second cause.
+  it("refuses unnest of a polymorphic builtin's result", async () => {
     for (const sql of [
-      // An aggregate over a composite column: `array_agg` is polymorphic and
-      // PostgreSQL yields sku_pair[] here (measured).
       "SELECT * FROM unnest((SELECT array_agg(p) FROM cc))",
-      // A polymorphic builtin — same reason, no sublink needed.
       "SELECT * FROM unnest(array_remove((SELECT array_agg(p) FROM cc), NULL))",
-      // A derived-table column the inner query COMPUTES rather than
-      // re-exports, so there is no base column to read a type from.
-      "SELECT * FROM (SELECT ARRAY[p] AS ps FROM cc) s, unnest(s.ps)",
+      "SELECT * FROM unnest(array_remove(ARRAY[ROW('a', 1)::sku_pair], NULL))",
+      "SELECT * FROM unnest(array_cat(ARRAY[ROW('a', 1)::sku_pair], ARRAY[ROW('b', 2)::sku_pair]))",
+      // A scalar one refuses for the same reason and costs a column list
+      // that would have been right: the cause is the polymorphic name, not
+      // the element type behind it.
+      "SELECT * FROM unnest((SELECT array_agg(id) FROM cc))",
     ]) {
       await expect(infer(sql), sql).rejects.toMatchObject({
         name: "UnsupportedNodeError",
@@ -311,6 +321,18 @@ describe("unsupported nodes are refused, not guessed", () => {
       // element type IS the member's type, which the catalog answers for a
       // column reference.
       ["SELECT * FROM cc c, unnest(ARRAY[c.p])", ["id", "p", "sku", "qty"]],
+      // A column a derived table COMPUTES has no base column and a readable
+      // type all the same: the defining expression is typed one level in,
+      // against that statement's own FROM. The CTE spelling is the same
+      // reading, and a scalar array stays one column.
+      ["SELECT * FROM (SELECT ARRAY[p] AS ps FROM cc) s, unnest(s.ps)", ["ps", "sku", "qty"]],
+      ["WITH w AS (SELECT ARRAY[p] AS ps FROM cc) SELECT * FROM w, unnest(w.ps)",
+        ["ps", "sku", "qty"]],
+      ["SELECT * FROM (SELECT ARRAY[1, 2] AS ns FROM cc) s, unnest(s.ns)", ["ns", "unnest"]],
+      // A scalar sublink is its single output column, typed the same way.
+      ["SELECT * FROM unnest((SELECT h.pairs FROM ch h LIMIT 1))", ["sku", "qty"]],
+      ["SELECT * FROM unnest((SELECT ARRAY[c.p] FROM cc c LIMIT 1))", ["sku", "qty"]],
+      ["SELECT * FROM unnest((SELECT ARRAY[1, 2] LIMIT 1))", ["unnest"]],
     ];
     for (const [sql, names] of cases) {
       expect((await infer(sql)).map(r => r.name), sql).toEqual(names);

@@ -717,16 +717,31 @@ Two forms override the per-item resolution above:
 - **`unnest` of a COMPOSITE-element array** expands the element's FIELDS
   instead — one column per field, named by the field, all nullable. Which
   it is depends on a TYPE, so the walk asks the catalog for the argument's
-  element type: a cast's array bounds, an ARRAY constructor of casts, a
-  column's rendered `T[]`, a domain followed to its base, a user function's
-  declared return type by consensus, a CTE/subquery column followed to the
-  base column it re-exports, an array SLICE, and `||`/`COALESCE` through
-  their operands. Where it cannot tell it REFUSES (adversarial-3 finding 3):
-  reading "I could not tell" as "scalar" was a wrong SHAPE in six measured
-  spellings, and a FROM item's wrong shape puts every later column's flag on
-  the wrong column. What still refuses needs type inference the walk does
-  not do — a polymorphic built-in, an aggregate, a sublink, a computed
-  derived-table column, an ARRAY constructor over an expression.
+  element type: a cast's array bounds, an ARRAY constructor of casts or of
+  expressions it can type, a column's rendered `T[]`, a domain followed to
+  its base, a user function's declared return type by consensus, a
+  CTE/subquery column followed to the base column it re-exports, an array
+  SLICE, and `||`/`COALESCE` through their operands. Where it cannot tell it
+  REFUSES (adversarial-3 finding 3): reading "I could not tell" as "scalar"
+  was a wrong SHAPE in six measured spellings, and a FROM item's wrong shape
+  puts every later column's flag on the wrong column.
+
+  Two sources are one level IN, and neither needs anything the walk does not
+  already do. A CTE or subquery column with no base column behind it is one
+  the inner query COMPUTES, and its defining expression is an expression like
+  any other: the same reading answers for it, against a scope built for that
+  statement's own FROM. A scalar SUBLINK is its single output column, typed
+  the same way. `(SELECT ARRAY[p] AS ps FROM cc) s, unnest(s.ps)` and
+  `unnest((SELECT h.pairs FROM pair_holder h LIMIT 1))` both expand to
+  sku_pair's fields because of it.
+
+  **One cause still refuses: a POLYMORPHIC builtin.** `array_agg(p)` over a
+  composite column yields `sku_pair[]` and the snapshot cannot say so —
+  PostgreSQL resolves the return type from the arguments, and answering that
+  needs pg_catalog SIGNATURES, which a standing boundary keeps out of the
+  snapshot until the consumer's search-path input lands
+  (`docs/generated-surface.md`, "Boundaries"). The refusal is pinned with its
+  positive controls in `unsupported-nodes.test.ts` so a fix cannot widen it.
 
 **`(expr).*` in the target list** is the same problem from the other side: a
 target-list entry that expands to one column per field of the expression's
