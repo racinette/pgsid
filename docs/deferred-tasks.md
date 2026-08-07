@@ -711,11 +711,12 @@ concluded wrongly, and this suite's 32 `extreme-*` fixtures are large by design
 because interactions are what they pin. Emptiness stops being
 a problem for it: a query returning no rows contributes no signal, which is the
 whole of it — no tag, no excuse, and no surface for the 12% mislabelling rate
-the reason audit measured. Two numbers replace the coverage claim without
-pretending to be one — RETURN RATE over queries that can return, and NULL
-DENSITY in what comes back — and the one real open decision is whether the
-generated dataset carries deliberate HOLES, since nullability is witnessed by
-absence and volume destroys it.
+the reason audit measured. RETURN RATE — the fraction of queries that
+return a row, over queries that can — replaces the coverage claim without
+pretending to be one, because it is emergent where NULL rates and row counts
+are merely settings. Nothing else is a design fork: nullability is witnessed by
+absence, and ordinary random generation supplies most of it once a null rate
+per column and a row count per table (including zero for one or two) are set.
 
 **One metric is retired by this and should not be replaced carelessly.**
 `capability-reach.test.ts` reads 34 of 34 over a corpus this thin because it
