@@ -199,7 +199,11 @@ WEAK, and inputs are the cheapest control plane there is.
   entry per table with a cross-table or range invariant; the type and
   foreign-key tiers cover everything else for free.
 - **A BIG dataset**, generated, so that a genuinely random query returns two or
-  three rows rather than none.
+  three rows rather than none. Set a NULL rate per nullable column
+  (`generate.ts` already carries `nullRate(p)` for it) and a row count per
+  table — including ZERO for one or two, since an empty relation is the one
+  witness random data never produces on its own, and it is what made sweep-4
+  finding 2 observable.
 - **Volume alone does not buy OVERLAP**, and this is the sharp edge: `WHERE
   p.name = 'zeta-17'` returns nothing against a million rows if the literal was
   invented by a type generator. **Predicate literals must be DRAWN FROM the
@@ -778,6 +782,23 @@ a ledger becomes a place to file things away. Two rules keep it honest:
 So the ledger can only ever suppress something a passing fixture already
 covers, and it fails loudly when that stops being true.
 
+### RETURN RATE is the number to watch
+
+The fraction of queries that returned at least one row, over queries that CAN
+return — a SELECT, or DML with RETURNING; an INSERT without one is excluded
+from the denominator rather than counted as a failure.
+
+It is worth tracking because it is EMERGENT: it measures whether the query
+space and the data overlap, which is controlled indirectly through predicate
+literals and dataset size. NULL rates and row counts are settings, so measuring
+those only confirms they took effect. Something near half is a reasonable
+working figure; watch it move rather than hit a target.
+
+Not a coverage claim. We cannot guarantee every query returns, nor that what
+returns witnesses every claim it carries — the reliance is on volume: enough
+queries returning over a varied catalog exercises many claim shapes, some more
+than others.
+
 ### The negative result is reported with its bound
 
 A run that finds nothing must say what it covered: queries generated, distinct
@@ -799,64 +820,6 @@ choosing which relations the join-spine walker admits first.
 Expect the answer to be dominated by foreign keys, partitions and domains,
 because that is where the last two sweeps' findings were — but the point is not
 to expect, it is to measure.
-
-## What is left to settle
-
-Not much, and none of it is a design fork.
-
-### Dataset tuning — row counts and NULL rates are per-table knobs
-
-Nullability is witnessed by ABSENCE: a customer with no orders, a product with
-no reviews, a NULL in a nullable column, an empty relation. Ordinary random
-generation produces most of that for free — an FK column drawing randomly from
-its parent leaves some parents undrawn, and a null rate produces NULLs at
-whatever rate it is set to. `generate.ts` already carries `nullRate(p)` per
-column for exactly this.
-
-So there is nothing to design, only values to set:
-
-- **a NULL rate per nullable column** (`price` at 5%, say), because NULL is a
-  value option like any other and simply wants to occur more often than chance
-  would give it;
-- **a row count per table**, including ZERO for one or two, because an empty
-  relation is the one witness volume genuinely destroys — it is what made
-  sweep-4 finding 2 observable, and no amount of random data produces it.
-
-Set them per table when the schema is pointed at, and revisit if the return
-rate comes back low.
-
-### One number to watch: RETURN RATE
-
-The fraction of queries that returned at least one row, measured only over
-queries that CAN return — a SELECT, or DML with RETURNING. An INSERT without
-RETURNING is excluded from the denominator rather than counted as a failure.
-
-It is the one worth tracking because it is EMERGENT: it measures whether the
-query space and the data overlap, which is controlled indirectly through
-predicate literals and dataset size, and cannot be set directly. Something near
-half is a reasonable working figure; the point is to watch it move, not to hit
-a target.
-
-NULL rates are deliberately NOT a metric — they are a setting, so measuring
-them mostly confirms the setting took effect.
-
-This is not a coverage claim and does not pretend to be one. We cannot
-guarantee every query returns, nor that what returns witnesses every claim it
-carries. What we rely on is volume: enough queries returning over a varied
-catalog means many claim shapes get exercised, some more than others.
-
-### One thing to measure once the generator runs
-
-Round-trip AST equality holds for 398 of 411 fixtures, and the 13 that fail are
-all REAL deparser defects, each pinned by name in `KNOWN_DEVIATIONS`. So today
-every difference is a bug and nothing is ignored.
-
-What is unknown is whether randomised generation produces differences that are
-HARMLESS — a spelling the deparser legitimately normalises, which a person
-writing fixtures happened never to use. If it does, those normalisations need
-listing so the guard stops discarding valid queries over them; if it does not,
-there is nothing to list. Check the identical rate on the first few thousand
-random queries and find out.
 
 ## Where things are
 
