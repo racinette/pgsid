@@ -772,12 +772,27 @@ unnest/composite/domain shapes, so `resolveForeignKey`,
 `resolveLiteralDistinctnessSound`, `resolveColumnTypeName`,
 `resolveDomainBaseTypeName`, `resolveBuiltinFunctionShape`,
 `resolvePolymorphicArraySignatures` and the two builtin predicates are all
-cold there. (Measured over the four default generator entry points; the schema
-axis runs the same generator against 22 variants including `fk-chain`, which
-would reach the key path.) So the census keeps the cheap corpus: adding
-minutes of generation would buy zero capability coverage. It is the standing
-"hand-written fixtures reach what volume does not" claim, in the direction
-nobody had measured.
+cold there. (Measured over the four default generator entry points.) So the
+census keeps the cheap corpus: adding minutes of generation would buy zero
+capability coverage. It is the standing "hand-written fixtures reach what
+volume does not" claim, in the direction nobody had measured.
+
+**Two corrections from the follow-up measurement (2026-08-07), both worth
+keeping because the parenthesis above got them wrong.** The first draft
+guessed that the schema axis "runs the same generator against 22 variants
+including `fk-chain`, which would reach the key path". Measured: 13 variants,
+not 22, and every one of them touches the IDENTICAL 18 members — the schema
+axis moves capability reach by exactly ZERO. The spy records the QUESTION, not
+the ANSWER: `resolveForeignKeyTree` is already warm over the base schema
+because `keyEntails` asks it and is told `null`, and `fk-chain` changes only
+what comes back. Reach is a property of the QUERY SHAPES alone.
+
+The conclusion for THIS suite is unchanged and now rests on a measurement
+rather than a guess — the census keeps the fixture corpus. What changed is the
+generated one: `docs/generated-surface.md` item 5 closed all ten with five new
+call-site families, and `capability-reach.test.ts` now holds it at **34 of 34
+over 14964 statements**, asserted in both directions. The two corpora are
+still asserted separately and for different reasons, which that item states.
 
 The second assertion needs no annotation and asks a question nothing asked
 before: which capabilities the corpus never exercises. Three of 35 came back
