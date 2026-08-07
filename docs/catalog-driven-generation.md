@@ -158,6 +158,22 @@ Two more the tool owes, added for reasons that only bite later:
   as a hard invariant; a randomiser will start above zero, and each class is a
   generator bug. What is forbidden is silently skipping one.
 
+### Non-canonical joins are IN SCOPE, deliberately
+
+The join-spine walker follows declared foreign keys, and that must not become
+the only thing it emits. A join on columns no key relates is legal SQL, common
+in real applications, and takes a DIFFERENT path through the engine — no
+entailment, no key gate, pure join-state reasoning. Both paths need traffic.
+
+So the schema should carry a few relations with NO foreign keys, and the
+walker should sometimes join on a non-key column, or relate two tables nothing
+connects. This is not the generator being wrong; it is a second shape.
+
+Worth noticing where this idea comes from: it is what `t`/`u`/`v` were doing
+by ACCIDENT for years — "these three declare no keys and no foreign keys, but
+the fixtures join them as though they did". That was the whole corpus. Now it
+becomes one deliberate case among many, over a schema that declares things.
+
 ### The precedent to copy, deliberately
 
 `tests/unit/query/fixture-data/generate.ts` already solves the structurally
@@ -407,6 +423,127 @@ The precedent to copy exactly is the deep-join axis, which already does this:
 dies at a strict edge qual — "verified 44/44 against a hand-checked
 join-semantics model". Verified against an independent MODEL, not against the
 run that produced them. That is the bar for bucket 3.
+
+
+## The error protocol
+
+What a 10,000-query run actually produces, and how anything acts on it.
+Answering this is the difference between a tool and a wall of output.
+
+### Every query lands in exactly ONE bucket, and the buckets are exhaustive
+
+No `other`. An outcome nothing classifies is itself a finding — a bucket is
+missing — and it fails the run rather than being swallowed.
+
+| bucket | what happened | tier |
+|---|---|---|
+| `generator-threw` | the generator could not build the AST | TOOL |
+| `deparse-threw` | deparser has no case for a node | TOOL (known-deviation list) |
+| `reparse-failed` | deparser emitted SQL PostgreSQL cannot parse | TOOL |
+| `ast-differed` | round trip lost a clause but still parsed | TOOL — the dangerous one |
+| `expectation-failed` | the construct the axes requested is not in the re-parsed AST | TOOL |
+| `pg-rejected` | PostgreSQL refused the statement | TOOL — we emitted bad SQL |
+| `pg-raised` | executed and raised (constraint violation, division by zero) | BUDGET |
+| `engine-refused` | `UnsupportedNodeError` | EXPECTED — count, classify by site+tag |
+| `engine-crashed` | any other exception from the walk | **FINDING (rank 6)** |
+| `shape-mismatch` | ordered column names disagree | **FINDING (rank 2)** |
+| `notnull-violated` | claimed `notNull`, a row had NULL | **FINDING (rank 1)** |
+| `group-violated` | a returned row the presence-group contract forbids | **FINDING (rank 4)** |
+| `parity-broke` | traced and untraced walks disagree | **FINDING (rank 5)** |
+| `param-violated` | claimed nullable, binding NULL raised | **FINDING (rank 3)** |
+| `agreed-rows` | executed, rows returned, everything agreed | signal, no action |
+| `agreed-norows` | executed, no rows | NOT an error — see below |
+
+Three tiers, three different responses:
+
+- **FINDING** — the product. Self-adjudicating: no rule, no reason, no
+  reviewer. Becomes a fixture and an engine fix.
+- **TOOL** — our bug. Fix the generator or the deparser. Never a filter: a
+  `pg-rejected` query is not skipped, it is classified.
+- **BUDGET** — legal but wasteful. `pg-raised` and `agreed-norows` produce no
+  signal, so a high rate means the run is spending itself on nothing. Tracked
+  as a QUALITY metric of the tool, never as a correctness problem.
+
+**`agreed-norows` is not an error and owes no explanation.** It contributes no
+rank-1 signal and that is the entire consequence — no tag, no reason, no
+classification. It still contributed shape, parity and rejection signal, which
+need no rows. This is the whole benefit of the coverage/discovery split, and
+the place to resist the urge to account for it.
+
+### Classification keys on SQLSTATE, not message text
+
+`pg-rejected` and `pg-raised` are subdivided by SQLSTATE (`42601` syntax,
+`42883` undefined function, `23505` unique violation, `23503` FK violation,
+`23514` CHECK violation, …). Message text drifts between PostgreSQL versions
+and is not a key. Each SQLSTATE class is a work item with a count.
+
+### Deduplication is the central problem, not an optimisation
+
+10,000 random queries hitting ONE engine bug produce hundreds of instances. A
+report listing them all is unusable, and worse, it hides how many DISTINCT
+things were found. So every outcome carries a **fingerprint**, and the report
+is keyed on it: *one finding, 340 instances* — never 340 findings.
+
+The fingerprint must be structural rather than textual, or every random literal
+makes a new "finding". Compose it from the causes:
+
+- the bucket;
+- for an engine finding: the CONSTRUCT SET the query used and the derivation of
+  the offending column — which rule produced the claim — not the SQL text;
+- for a tool defect: the node kind, or the SQLSTATE plus the construct that
+  triggered it.
+
+Fingerprint quality is the single biggest determinant of whether the tool is
+usable. Expect to iterate on it, and expect the first version to be too
+specific (n findings that are one) rather than too loose.
+
+### Per unique fingerprint, ONE representative is shrunk
+
+The shrunk query IS the fixture. An unshrunk 40-line random statement is not a
+fixture, it is a lead. Shrink by removing constructs while the finding
+survives — drop a wrapper, a setop, a join, a projection column, a predicate —
+and stop when nothing more can be removed. The result should be readable enough
+that a human can state WHY it fails, which is the bar every fixture in this
+suite already meets.
+
+### The run's output is a machine-actionable artifact
+
+One JSONL record per unique fingerprint, ranked most-severe first, each
+carrying: fingerprint, bucket, tier, instance count, the shrunk repro SQL, the
+seed and query id that reproduce it, the engine's claim, PostgreSQL's
+observation, and the construct set. That is enough for the next step to be
+mechanical:
+
+| tier | next action |
+|---|---|
+| FINDING | graduate the shrunk query as a fixture with the corrected claim, then fix the engine — the loop all four sweeps ran by hand |
+| TOOL | fix the generator or deparser; the fingerprint is the regression test |
+| BUDGET | tune the data or the literal-drawing; no code is wrong |
+
+### A findings LEDGER, and why it is not a suppression list
+
+Fingerprints already seen are recorded with their disposition. Without this,
+every run re-reports everything known and the new work is invisible.
+
+The failure mode to avoid is the one this project has already measured at 12%:
+a ledger becomes a place to file things away. Two rules keep it honest:
+
+1. **A closed fingerprint must name the FIXTURE that pins it.** "Fixed" with no
+   fixture is not a disposition.
+2. **A closed fingerprint that RE-APPEARS is itself a finding**, and a
+   high-value one: it means the fixture does not pin what it claims to. It is
+   reported as a new item, not matched away.
+
+So the ledger can only ever suppress something a passing fixture already
+covers, and it fails loudly when that stops being true.
+
+### The negative result is reported with its bound
+
+A run that finds nothing must say what it covered: queries generated, distinct
+construct sets reached, relations touched, the rejection rate and its SQLSTATE
+breakdown, and the budget lost to `pg-raised` and `agreed-norows`. Per the
+no-silent-caps rule — a bare "0 findings" over an unstated space is the number
+this whole document exists to distrust.
 
 ## Step 0, before any code
 
