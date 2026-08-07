@@ -832,11 +832,41 @@ to expect, it is to measure.
 Genuinely open; they change the design and are not to be answered from the
 armchair.
 
-1. **What replaces exhaustiveness as the coverage claim?** "34 of 34" must not
+1. **Rule identity is PROSE, and both the fingerprint and the ledger depend on
+   it.** Checked 2026-08-08: the walk has **129 `conclude()` sites** and each
+   passes a free-text reason, many with interpolated values —
+   `` `arg[${i}] is non-null → COALESCE is non-null` ``,
+   `` `operator '${op}' may return NULL…` ``. Two consequences. Interpolation
+   must be normalised away or every query mints a new rule (said already). And
+   the deeper one: a reason is a SENTENCE, so rewording it silently changes
+   every fingerprint that contains it — the ledger loses its history and the
+   saturation curve resets, for an edit that changed no behaviour. The fix is
+   to give each site a stable identifier beside its prose, which is 129
+   mechanical edits and a prerequisite for the ledger rather than a
+   nice-to-have. Decide whether to pay it before building anything that keys
+   on rule identity.
+2. **The AST-equality allowlist is validated only over HAND-WRITTEN queries.**
+   398 of 411 identical is a strong result and it is drawn from fixtures a
+   person wrote, which may simply avoid the spellings a deparser normalises.
+   Randomised generation will emit spellings nobody chose. If normalisation
+   turns out to be common there, the guard starts discarding valid queries as
+   `ast-differed` and the corpus quietly narrows — the failure mode this
+   document exists to prevent, arriving through its own guard. MEASURE the
+   identical rate over the first few thousand random queries before trusting
+   it, and expect the allowlist to be longer than 2.
+3. **One big dataset, or several states?** The tool spec says the dataset is
+   generated once per session and modifying statements roll back, which argues
+   for a single large one. But sweep-4 finding 2 needed an EMPTY relation —
+   `tags`, empty in every state — and a single huge dataset has no empty
+   relations and no sparse ones. Emptiness and sparsity are catalog-independent
+   witnesses that a "big realistic dataset" actively destroys. Resolve before
+   seeding: either several states as today (huge, sparse, empty-somewhere), or
+   one dataset with deliberate holes.
+4. **What replaces exhaustiveness as the coverage claim?** "34 of 34" must not
    be succeeded by another number that reads green over a thin corpus. The
    claim-based capability metric above is a candidate; it needs a definition
    that cannot be satisfied by an accessor returning null.
-2. **What is the shared-state / targeted-seed split?** The funnel above says
+5. **What is the shared-state / targeted-seed split?** The funnel above says
    shared states first and targeted seeding on the residue, but not where the
    line sits. If shared states witness 95% the funnel is cheap; if they witness
    40% it is the dominant cost. MEASURE it on the first spine before designing
