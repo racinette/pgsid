@@ -600,6 +600,16 @@ corpora surface.
 4. **The arity gate** — small, and waits for the first consumer to exist rather
    than being retrofitted.
 
+**Two handoffs are chartered and unstarted**, both written 2026-08-07 from
+that session's measurements. `docs/adversarial-sweep-4.md` attacks the six
+mechanisms that session added — the prior it opens with is that probing two
+items recorded as SOUND produced seven rank-1 unsoundnesses, and that the
+generated corpus cannot express five of them. `docs/generated-surface.md`
+item 5 carries the other half: the corpus exercises 24 of the walk's 34
+catalog capabilities against the fixtures' 34, so volume is blind on the axis
+where those findings lived. The sweep does not wait for it; the two are
+independent and the sweep is the one with the evidence behind it.
+
 **The precision residue is now its own handoff** — `docs/precision-residue.md`
 (2026-08-07). Items that neither chartered effort owns, collected because they
 were otherwise scattered across an `@unwitnessable` reason, an `UNWITNESSABLE`
