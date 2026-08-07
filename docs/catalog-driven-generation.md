@@ -687,37 +687,11 @@ large and its catalog profile is a single point, because `t`/`u`/`v` declare
 nothing. A run reporting *14,964 queries, 9,000 shapes, 3 catalog profiles*
 would have said so in one line, years ago.
 
-### All three levels are computed from the AST and the CATALOG — no engine involvement
+### All three are computed from the AST and the CATALOG
 
-Which is the point: diversity is a property of what was GENERATED, and asking
-the engine what it concluded is a different question. Levels 1–3 need a parse
-tree and a catalog snapshot, both of which the generator already holds.
-
-**A fourth level was proposed and REJECTED (2026-08-08), recorded so it is not
-rebuilt.** The idea was to key on the RULE PATH — which engine rules fired,
-read from `inferNullabilityTraced`'s per-column reasons — on the argument that
-two queries firing the same rules are the same test however different they
-look. It is a real idea and it is not worth its price here:
-
-- it serves neither requirement. Generator diversity is answered by levels 1–3;
-  finding dedup is answered by bucket + shape + column, and the volume problem
-  it solves is identical shapes with different LITERALS, which the shape hash
-  already collapses;
-- it costs a traced walk per generated query, which the corpus does not
-  currently run (the probe harness does — an earlier draft of this document
-  confused the two);
-- and it is not STABLE. The walk has 129 `conclude()` sites whose reasons are
-  free-text prose with interpolated values (`` `arg[${i}] is non-null → …` ``,
-  `` `operator '${op}' may return NULL…` ``). Interpolation splits one rule
-  into hundreds unless normalised; six distinct sites end in "conservative
-  nullable" and collapse into one if normalised too hard; and rewording any
-  sentence changes every fingerprint containing it, resetting the ledger and
-  the saturation curve for an edit that changed no behaviour. Making it stable
-  means giving all 129 sites an identifier beside their prose.
-
-Revisit only if the structural levels prove unable to distinguish tests that
-matter — and price the 129 edits into that decision, because the fingerprint is
-worthless without them.
+No engine involvement, which is the point: diversity is a property of what was
+GENERATED. Both inputs — a parse tree and a catalog snapshot — are already in
+the generator's hand.
 
 ### The operational metric is the SATURATION CURVE
 
@@ -770,8 +744,8 @@ it needs no reduction, and property-based testing has neither:
   INTERACTIONS between constructs. A big generated finding is that kind of
   fixture, not a defective version of a small one.
 
-Deduplication needs nothing either: fingerprints key on the RULE PATH, never on
-the text, so surrounding noise cannot split one finding into many.
+Deduplication needs nothing either: fingerprints key on the query's SHAPE,
+never on the text, so surrounding noise cannot split one finding into many.
 
 ### The run's output is a machine-actionable artifact
 
