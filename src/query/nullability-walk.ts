@@ -256,6 +256,19 @@ interface RelationEntry {
    * Absent means tree, the conservative side.
    */
   scanInh?: boolean;
+  /**
+   * Whether this reference is a `TABLESAMPLE` of the relation rather than the
+   * relation (sweep-4 finding 3). The walk unwraps `RangeTableSample` and
+   * registers what is underneath, so without this flag the alias stands for a
+   * table whose rows the statement is not actually reading — and every fact
+   * keyed on "the STORED rows of this relation" over-reads. `BERNOULLI (0)`
+   * keeps none of them.
+   *
+   * Where finding 2 is a row-dropper the walk cannot SEE, this is one it does
+   * not MODEL, so the flag is the modelling: a sampled relation is never a
+   * key's side and is never preserved.
+   */
+  sampled?: boolean;
   /** For CTEs: the column names (from aliascolnames or inferred). */
   cteColumns?: string[];
   /**
@@ -1643,7 +1656,7 @@ class NullabilityEngine {
         // customer is dropped for having no address. Presence of the
         // REFERENCING side does not help there: those rows carry a stored
         // referencing row and are exactly the extended ones.
-        if (!this.subtreePreserves(scope.joins, side.optionalAliases, targetCol.alias)) continue;
+        if (!this.subtreePreserves(scope.joins, side.optionalAliases, targetCol.alias, scope)) continue;
         // On the second arm this join also emits rows from the referenced
         // side ALONE, so the referenced relation must be present within that
         // side: in `t FULL JOIN u ON u.t_id = t.id FULL JOIN v ON v.u_id =
@@ -1691,6 +1704,13 @@ class NullabilityEngine {
    */
   private keyedRelation(entry: RelationEntry): KeyedRelation | null {
     if (entry.kind !== "table" || !entry.table) return null;
+    // A SAMPLE of a table is not the table. A key constrains the stored rows,
+    // and neither side of one can be a relation the statement is reading a
+    // fraction of: as the referenced side the match may have been sampled
+    // away, and as the referencing side the rows that carry the key are not
+    // the rows the join sees. Refusing both is what the flag buys — and it
+    // costs nothing real, since no codegen query writes TABLESAMPLE.
+    if (entry.sampled) return null;
     return {
       schema: entry.table.schema,
       name: entry.table.name,
@@ -1752,7 +1772,14 @@ class NullabilityEngine {
     joins: readonly JoinSides[],
     subtreeAliases: string[],
     alias: string,
+    scope?: Scope,
   ): boolean {
+    // A row-dropper that is not a join at all: `TABLESAMPLE` keeps a fraction
+    // of the relation's stored rows, so "every stored row reaches the output"
+    // is false before any join is consulted. The flag lives on the entry
+    // rather than being re-derived here, because the walk has already unwrapped
+    // the `RangeTableSample` node by the time this runs.
+    if (scope?.aliases.get(alias)?.sampled) return false;
     for (const inner of joins) {
       if (!this.joinWithin(inner, subtreeAliases)) continue;
       if (inner.leftAliases.includes(alias)) {
@@ -1848,7 +1875,7 @@ class NullabilityEngine {
       const referenced = scope.aliases.get(targetCol.alias);
       if (!referencing || !referenced) continue;
       if (!this.subtreeAlwaysPresent(scope, other, refCol.alias)) continue;
-      if (!this.subtreePreserves(scope.joins, extendable, targetCol.alias)) continue;
+      if (!this.subtreePreserves(scope.joins, extendable, targetCol.alias, scope)) continue;
       const referencingKey = this.keyedRelation(referencing);
       const referencedKey = this.keyedRelation(referenced);
       if (!referencingKey || !referencedKey) continue;
@@ -2213,8 +2240,18 @@ class NullabilityEngine {
       this.collectJsonTableColumns(jt.columns, cols);
       return this.addColumnListRelation(jt.alias?.aliasname ?? "", cols, jt.alias?.colnames, joinState, scope, nullGroup, unitChain);
     } else if ("RangeTableSample" in node) {
+      // The sampled relation is walked as itself — its COLUMNS are the
+      // relation's, and the shape does not change. What changes is which ROWS
+      // are there, and that has to be recorded or the alias silently keeps
+      // standing for the whole table (sweep-4 finding 3).
       const rts = node["RangeTableSample"] as { relation?: Node };
-      if (rts.relation) return this.walkFromItem(rts.relation, joinState, scope, nullGroup, unitChain, depth);
+      if (!rts.relation) return [];
+      const before = new Set(scope.aliases.values());
+      const cols = this.walkFromItem(rts.relation, joinState, scope, nullGroup, unitChain, depth);
+      for (const entry of scope.aliases.values()) {
+        if (!before.has(entry)) entry.sampled = true;
+      }
+      return cols;
     } else {
       // An unrecognised FROM item contributes no columns and no alias, so
       // `SELECT *` over it silently loses them. A shape defect, not a flag.
