@@ -1,12 +1,22 @@
-// Sweep-4 probe loop. Not a test file (vitest's glob is *.test.ts): a
+// The adversarial PROBE LOOP. Not a test file (vitest's glob is *.test.ts): a
 // standalone script run with `pnpm exec tsx tests/probe/<file>.ts`.
 //
-// One PGlite holds the fixture schema plus the sweep's own DDL; each probe
-// runs inferQueryContract on the parsed statement AND executes the same text
-// against seed data inside a transaction that is rolled back, so probes stay
-// independent. Comparison is the rank table: names first (a wrong column list
-// misassigns every flag past it), then notNull against the returned rows,
-// then traced/untraced parity.
+// This is TOOLING and it stays. Three sweeps rebuilt it privately and threw it
+// away; the fourth's fix phase kept it, because what retires with a quarantine
+// directory is the FIXTURES — which graduate — and this has no destination of
+// its own. Writing a round file is how a claim gets measured against
+// PostgreSQL before anyone writes a rule about it, and that is the project's
+// first discipline.
+//
+// One PGlite holds the fixture schema; each probe runs inferQueryContract on
+// the parsed statement AND executes the same text against seed data inside a
+// transaction that is rolled back, so probes stay independent. Comparison is
+// the rank table: names first (a wrong column list misassigns every flag past
+// it), then notNull against the returned rows, then traced/untraced parity.
+//
+// `extraDdl` is how a round introduces objects the fixture schema does not
+// carry, without touching it: a shape that earns its place graduates into
+// `fixtures/schema.sql` with the fix, and one that does not leaves no trace.
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,7 +35,6 @@ import type { NullabilityCatalog } from "../../src/query/types.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(HERE, "..", "unit", "query", "fixtures");
-const ADVERSARIAL = join(HERE, "..", "unit", "query", "fixtures-adversarial");
 
 export interface Probe {
   id: string;
@@ -66,13 +75,6 @@ export class ProbeLoop {
     const pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
     await pg.exec(readFileSync(join(FIXTURES, "schema.sql"), "utf8"));
-    let adversarial = "";
-    try {
-      adversarial = readFileSync(join(ADVERSARIAL, "schema-adversarial.sql"), "utf8");
-    } catch {
-      /* not created yet */
-    }
-    if (adversarial.trim()) await pg.exec(adversarial);
     for (const ddl of extraDdl) await pg.exec(ddl);
     const catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
     return new ProbeLoop(pg, catalog);
