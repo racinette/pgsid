@@ -865,6 +865,22 @@ recovers the second in one move. The adapter's existing comment was not wrong,
 it was about the other side: partitioning of the REFERENCING table needs no
 exclusion, and the referenced side is a different mechanism.
 
+**The first version of this fix was WRONG in the other direction, and a probe
+of its own blast radius caught it.** PostgreSQL clones a key for TWO reasons
+and only one produces an unreadable row: when the REFERENCED table is
+partitioned the clones carry DIFFERENT `confrelid`s and disagree about where
+the match lives, but when the REFERENCING table is partitioned they all share
+the declared target and each is simply that partition's copy. Skipping every
+clone cost the second case its promotion — a query naming `sw4_rs1` directly
+finds no other key, because the declared row sits on the parent. Sound, and
+wrong for nothing. The discriminator is not "is this a clone" but "is there a
+DECLARED key for this column": prefer the declared row, fall back to a clone
+only when there is none. Both arms have fixtures. This is sweep-2's root cause
+one generation later — a fact changed at the sites the fix phase was looking
+at rather than at every site that asks the question — and it says something
+about method: the fix phase's own changes deserve the probe loop as much as
+the code they replace.
+
 **The two halves had to land together, and the report was right that a
 half-landed version is a new rank-1.** Recovering the declared key makes `ONLY
 <partitioned parent>` live: a partitioned table holds NONE of its own rows, so

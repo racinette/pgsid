@@ -325,25 +325,47 @@ export async function buildNullabilityCatalog(
     string,
     { schema: string; table: string; column: string }
   >();
-  for (const t of snapshot.tables) {
-    for (const con of t.constraints) {
-      if (con.type !== "foreign" || !con.validated || con.deferrable) continue;
-      // A clone is not a key the author declared, and says nothing about
-      // which partition a referencing row lands in.
-      if (con.inheritedClone) continue;
-      // Single-column keys only. A composite key is sound under the same
-      // reasoning once every pair is equated in the ON clause, and matching a
-      // conjunction against a column list is work with no fixture behind it.
-      if (con.columns.length !== 1 || con.foreignColumns?.length !== 1) continue;
-      if (!con.foreignSchema || !con.foreignTable) continue;
-      const target = {
-        schema: con.foreignSchema,
-        table: con.foreignTable,
-        column: con.foreignColumns[0]!,
-      };
-      const key = `${t.schema}.${t.name}.${con.columns[0]}`;
-      fkByColumn.set(key, target);
-      if (!t.hasDescendants || t.relkind === "p") fkTreeByColumn.set(key, target);
+  // PostgreSQL clones a foreign key for TWO different reasons, and only one of
+  // them produces a row that must not be read:
+  //
+  //   - the REFERENCED table is partitioned. One clone per partition of the
+  //     TARGET, each with a different `confrelid`, so the same referencing
+  //     column acquires several disagreeing targets. None of them means "every
+  //     referencing row matches THIS partition" — reading one invents a claim.
+  //   - the REFERENCING table is partitioned. One clone per partition of the
+  //     SOURCE, all with the SAME `confrelid`. Each is the key for its own
+  //     partition, and it is the only key that partition has: a query naming
+  //     `rp_src1` directly finds nothing else.
+  //
+  // So the discriminator is not "is this a clone" but "is there a DECLARED key
+  // for this column". Skipping clones outright was the first fix and it cost
+  // the second case its promotion (measured) — the same shape as sweep-2's
+  // root cause, a fact changed at the sites the fix was looking at rather than
+  // at every site that asks. Preferring the declared row and falling back to a
+  // clone answers both: a referencing column with a declared key ignores its
+  // clones, and a partition whose only key IS a clone still gets one.
+  const declared = new Set<string>();
+  for (const pass of ["declared", "clone"] as const) {
+    for (const t of snapshot.tables) {
+      for (const con of t.constraints) {
+        if (con.type !== "foreign" || !con.validated || con.deferrable) continue;
+        if (con.inheritedClone !== (pass === "clone")) continue;
+        // Single-column keys only. A composite key is sound under the same
+        // reasoning once every pair is equated in the ON clause, and matching a
+        // conjunction against a column list is work with no fixture behind it.
+        if (con.columns.length !== 1 || con.foreignColumns?.length !== 1) continue;
+        if (!con.foreignSchema || !con.foreignTable) continue;
+        const key = `${t.schema}.${t.name}.${con.columns[0]}`;
+        if (pass === "declared") declared.add(key);
+        else if (declared.has(key)) continue;
+        const target = {
+          schema: con.foreignSchema,
+          table: con.foreignTable,
+          column: con.foreignColumns[0]!,
+        };
+        fkByColumn.set(key, target);
+        if (!t.hasDescendants || t.relkind === "p") fkTreeByColumn.set(key, target);
+      }
     }
   }
   const resolveForeignKey = (schema: string, table: string, column: string) =>

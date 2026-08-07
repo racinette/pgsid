@@ -1195,6 +1195,15 @@ CREATE TABLE sw4_pref (
   p_id integer NOT NULL REFERENCES sw4_pp(id)
 );
 
+-- The OTHER cloning direction, and the one a naive clone filter breaks: a key
+-- declared on a PARTITIONED REFERENCING table is cloned per partition too,
+-- all clones sharing one referenced table. Each is the only key its partition
+-- has, so a query naming the partition directly needs it.
+CREATE TABLE sw4_rt (id integer NOT NULL PRIMARY KEY, k text);
+CREATE TABLE sw4_rs (id integer NOT NULL, t_id integer NOT NULL REFERENCES sw4_rt(id))
+  PARTITION BY RANGE (id);
+CREATE TABLE sw4_rs1 PARTITION OF sw4_rs FOR VALUES FROM (0) TO (100);
+
 -- The INHERITANCE control, and it is the opposite way round: a parent holds
 -- its OWN rows, so `ONLY sw4_ip` is exactly where the key's match lives.
 CREATE TABLE sw4_ip (id integer NOT NULL PRIMARY KEY, k text);
