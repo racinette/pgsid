@@ -287,7 +287,7 @@ group.
 
 ## Current measurement
 
-Across 408 fixtures and 5 data states, at the default seed (the FOURTH
+Across 410 fixtures and 5 data states, at the default seed (the FOURTH
 adversarial fix phase's twenty-odd `rowsfrom-*`, `jsontable-*`, `fk-entail-*`
 and `fk-clone-*` fixtures are the latest growth, and roughly half of them are
 OVERSHOOT CONTROLS rather than new claims — the shape a soundness fix has no
@@ -302,13 +302,13 @@ over 336 — itself grown through the third adversarial fix phase from 311 and
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 913 | |
-| — falsifiable | 903 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 917 | |
+| — falsifiable | 907 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 626 | |
+| `nullable` claims | 627 | |
 | — witnessed | 538 (86%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 88 | every one carries an `@unwitnessable` annotation |
+| — unwitnessed, reason recorded | 89 | every one carries an `@unwitnessable` annotation |
 | `@null-group` claims | 46 (40 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
 **A fourth annotation kind joined the three above**, on the ARGUMENT side:

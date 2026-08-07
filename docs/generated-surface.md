@@ -98,6 +98,19 @@ at once and is now a catalog capture. Seven tables remain — plus the two
 operator sets — all under the item-2 suite for kind and the item-3 probe for
 totality.
 
+**Two more tables joined them 2026-08-07 (sweep-4 finding 8), and they are the
+shape this item argues FOR rather than against.**
+`BUILTIN_NULL_REJECTING_ARGS` and `BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS` in
+`param-nullability.ts` name the builtin argument positions that reject a NULL
+binding — a property pg_catalog does not record, exactly like totality, and
+therefore exactly the kind of table that drifted three times above. The
+difference is that this one is cheaply DECIDABLE BY EXECUTION, so
+`builtin-null-rejection.test.ts` does not check the tables, it DERIVES the
+class from `pg_catalog` on every run and asserts equality both ways. That is
+this item's own rule taken to its conclusion: where the catalog cannot answer
+but EXECUTION can, the table is a cache of a measurement and the measurement
+is what ships.
+
 ## The work, in cost order
 
 Items 1–3 are each about an afternoon and, together, would have caught

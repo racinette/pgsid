@@ -288,13 +288,27 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
     const claims = runs.flatMap(r => r.evidence);
     const notNull = claims.filter(e => e.claim.notNull);
     const witnessed = notNull.filter(e => e.witnessed.length > 0);
-    const falsified = claims.filter(e => !e.claim.notNull && e.raises.length > 0);
+    // A DECLARED-opaque raise is not a falsification and must not be counted
+    // as one: the suite passes on it by design, so a report saying "1
+    // falsified" beside a green run reads as a defect nobody is acting on —
+    // which is the misleading-green this suite exists to prevent. The two are
+    // separated, and `falsified` stays at zero or the run has already failed.
+    const opaqueRaises = runs.flatMap(r =>
+      r.evidence.filter(e => r.opaque.has(e.claim.number) && e.raises.length > 0),
+    );
+    const falsified = runs.flatMap(r =>
+      r.evidence.filter(
+        e => !e.claim.notNull && !r.opaque.has(e.claim.number) && e.raises.length > 0,
+      ),
+    );
     const joints = runs.flatMap(r => r.jointEvidence);
     console.log(
       `\nargument soundness over ${runs.length} parameterized fixtures and ` +
         `${stateNames.length} data states (${stateNames.join(", ")}):\n` +
         `  notNull claims:  ${notNull.length} — ${witnessed.length} witnessed by an observed null-rejection\n` +
         `  nullable claims: ${claims.length - notNull.length} — ${falsified.length} falsified by a raise under a passing control\n` +
+        `  of those, opaque: ${opaqueRaises.length} — raises OUTSIDE the contract, each with `+
+        `\`@param-opaque\` and its raise observed\n` +
         `  joint sets:      ${joints.length} — ${joints.filter(j => j.witnessed.length > 0).length} witnessed by the all-members-NULL raise\n` +
         `  literal-substitution fallback (protocol could not type the statement): ` +
         `${literal.length ? literal.join(", ") : "none"}`,

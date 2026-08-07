@@ -555,7 +555,7 @@ export const FEATURES: Record<string, Feature> = {
   "partitioned-parent": {
     category: "handled",
     reads: "resolveIsPartitioned",
-    why: "resolveIsPartitioned — an UPDATE through a partitioned parent can MOVE a row, which PostgreSQL performs as DELETE + INSERT and which fires the DESTINATION partition's BEFORE INSERT triggers, so the hook question becomes two-command",
+    why: "resolveIsPartitioned — an UPDATE through a partitioned parent can MOVE a row, which PostgreSQL performs as DELETE + INSERT and which fires the DESTINATION partition's BEFORE INSERT triggers, so the hook question becomes two-command. The same accessor gates key entailment on the REFERENCED side: a partitioned parent holds none of its own rows, so ONLY that parent is an empty slice and a key promising a match in the tree is silent about it (sweep-4 finding 4)",
     detect: s => s.tables.some(t => t.relkind === "p"),
   },
   "partition-leaf-carrying-a-trigger": {
@@ -716,6 +716,12 @@ export const FEATURES: Record<string, Feature> = {
     reads: "resolveForeignKeyTree",
     why: "resolveForeignKeyTree drops it — a parent's FK is NOT copied to a child, so a tree scan reads rows nothing checked (the relation-SET lesson, third instance; partitioning is the opposite and safe)",
     detect: s => anyConstraint(s, (c, t) => c.type === "foreign" && t.hasDescendants),
+  },
+  "foreign-key-cloned-onto-a-partition": {
+    category: "gated",
+    reads: "resolveForeignKey",
+    why: "dropped by the adapter — a key REFERENCING a partitioned table is recorded once per partition on top of the declared constraint (conparentid names the parent), and no clone means \"every referencing row matches THIS partition\". Reading one as declared both invented a claim and destroyed the real one, since the map keyed on schema.table.column kept whichever came last (sweep-4 finding 4)",
+    detect: s => anyConstraint(s, c => c.type === "foreign" && c.inheritedClone),
   },
   "self-referencing-foreign-key": {
     category: "handled",
