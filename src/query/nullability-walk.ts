@@ -1455,6 +1455,32 @@ class NullabilityEngine {
         }
       }
 
+      // The join-level fact, which is what the alias-level `present` set has
+      // no way to say: a join that cannot extend one of its sides leaves the
+      // joins INSIDE that side un-extendable too, provided its own slice is.
+      // That is `incomingRequired` for them — the same property the walk
+      // records when a side arrives REQUIRED — so the existing rules pick it
+      // up unchanged, and the extendable side's own members stay optional,
+      // which they must: in the FULL-FULL chain the fact recovers `customers`
+      // while `orders` genuinely can be absent from the FIRST join.
+      for (const j of scope.joins) {
+        if (!j.incomingRequired) continue;
+        for (const side of ["left", "right"] as const) {
+          const group = side === "left" ? j.leftOptionalGroup : j.rightOptionalGroup;
+          if (group === undefined) continue;
+          const aliases = side === "left" ? j.leftAliases : j.rightAliases;
+          if (!scope.joins.some(inner => !inner.incomingRequired && this.joinWithin(inner, aliases))) {
+            continue;
+          }
+          if (!this.joinCannotExtendSide(j, scope, side)) continue;
+          for (const inner of scope.joins) {
+            if (inner.incomingRequired || !this.joinWithin(inner, aliases)) continue;
+            inner.incomingRequired = true;
+            changed = true;
+          }
+        }
+      }
+
       for (const j of scope.joins) {
         const referenced = this.foreignKeyEntailedAlias(j, scope, present);
         if (referenced && !present.has(referenced)) {
@@ -1497,36 +1523,32 @@ class NullabilityEngine {
    *
    * What the key guarantees is a property of the referencing relation's STORED
    * rows, and everything below is about keeping the reasoning to those rows.
-   * There are two ways to have them, and they need different gates:
+   * Every row on the OTHER side must carry one, which has two forms:
    *
    *   - The referencing alias is PROVEN PRESENT — by its join state, by WHERE
-   *     promotion, or by an earlier round of this fixpoint. Then every row
-   *     this scope emits carries a stored referencing row, so it carries the
-   *     match too, and no further gate is needed: presence already means any
-   *     enclosing extension did not happen. This is what lets the products
-   *     side of a five-way join promote once the WHERE has proven the orders
-   *     side.
-   *   - Nothing is present yet, and the referencing side is made optional by
-   *     exactly THIS join — the FULL JOIN case, where its own extension
-   *     produces rows on which the REFERENCED side is present rather than
-   *     absent. That arm needs `incomingRequired`: under an ancestor outer
-   *     join the whole slice can be extended, and promoting a member would
-   *     erase that.
+   *     promotion, or by an earlier round of this fixpoint. Then no row this
+   *     scope emits comes from the other side being extended, so every emitted
+   *     row is one this join MATCHED, and the matched row carries the
+   *     referenced relation genuinely. This is what lets the products side of
+   *     a five-way join promote once the WHERE has proven the orders side.
+   *   - Nothing is present yet, and the referencing alias is never extended
+   *     WITHIN the other side (`subtreeAlwaysPresent`) while this join's own
+   *     slice is not extended from above (`incomingRequired`). This join then
+   *     also emits rows from the referenced side alone — its own extension of
+   *     the other side — so on this arm the referenced relation must be
+   *     present within ITS side too, which a deeper join can deny.
    *
-   * A side already extended by a DEEPER join is neither, and carries NULL keys
-   * that match nothing.
+   * Both arms need the match to still be in the SLICE: the key says it exists
+   * in the TABLE, and a join inside the referenced side can have dropped it
+   * (`subtreePreserves`). Three more gates:
+   *
    *   - The qual must be EXACTLY the key equality. Any further conjunct can
    *     only remove matches, and removing a match is what makes the extension
    *     the claim denies.
    *   - The referencing column must be NOT NULL — a NULL key matches nothing
-   *     (which is also what closes MATCH SIMPLE's partial-NULL hole) — read
-   *     TREE-wide or not by the same `scanInh` split every other per-column
-   *     fact takes.
+   *     (which is also what closes MATCH SIMPLE's partial-NULL hole).
    *   - Both sides must be plain relation references. A subquery or CTE column
    *     may be an expression, and the key is a fact about tables.
-   *
-   * The catalog-visible gates — NOT VALID, NOT ENFORCED, DEFERRABLE,
-   * inheritance — are the adapter's, in `resolveForeignKey[Tree]`.
    */
   private foreignKeyEntailedAlias(
     j: JoinPredicate,
@@ -1569,70 +1591,215 @@ class NullabilityEngine {
         if (!side.otherAliases.includes(refCol.alias)) continue;
 
         const provenPresent = present.has(refCol.alias);
-        const optionalByThisJoin =
+        const otherSideCarriesTheKey =
           j.incomingRequired &&
-          (j.leftAliases.includes(refCol.alias)
-            ? referencing.nullGroup === j.leftOptionalGroup
-            : referencing.nullGroup === j.rightOptionalGroup);
-        if (!provenPresent && !optionalByThisJoin) continue;
-        // …and on that second arm the REFERENCED side must be extended by
-        // this join too. `incomingRequired` is a property of the incoming
-        // SLICE, not of the member being promoted: in
-        // `t FULL JOIN u ON u.t_id = t.id FULL JOIN v ON v.u_id = u.id` the
-        // slice is required while `u` inside it is already optional from the
-        // deeper join, so a `t` row with no `u` survives this join with BOTH
-        // `u` and `v` extended — and the key, which only says every stored
-        // `v` has a matching `u`, is silent about a row that has no `v` at
-        // all. Promoting `u` there claimed notNull for a column PostgreSQL
-        // returns NULL in (schema axis, fk-chain variant). The doc above
-        // already names this case — "a side already extended by a DEEPER join
-        // is neither" — it was enforced for the referencing side and not for
-        // the referenced one. `provenPresent` needs no such gate: if every
-        // emitted row carries a stored referencing row, it carries the match
-        // however the referenced side became optional.
-        if (!provenPresent && referenced.nullGroup !== side.group) continue;
-
-        // Tables only. A view's rows are a query's output, not the stored
-        // rows the key constrains, and relations and views share one alias
-        // kind in the scope.
-        if (referencing.kind !== "table" || !referencing.table) continue;
-        if (referenced.kind !== "table" || !referenced.table) continue;
-
-        const fk = referencing.scanInh === false
-          ? this.catalog.resolveForeignKey(
-              referencing.table.schema,
-              referencing.table.name,
-              refCol.column,
-            )
-          : this.catalog.resolveForeignKeyTree(
-              referencing.table.schema,
-              referencing.table.name,
-              refCol.column,
-            );
-        if (!fk) continue;
+          this.subtreeAlwaysPresent(scope, side.otherAliases, refCol.alias);
+        if (!provenPresent && !otherSideCarriesTheKey) continue;
+        // The key says the match exists in the TABLE; the join finds it only
+        // if it is still in the SLICE. `customers c INNER JOIN orders o ON
+        // o.customer_id = c.id AND o.status = 'fulfilled' FULL JOIN
+        // order_items oi ON oi.order_id = o.id` is the counterexample
+        // (measured): the inner join keeps only fulfilled orders, and an item
+        // whose order has another status has nothing to match, so the FULL
+        // join emits a row with `o` AND `c` NULL. The same hole on the other
+        // arm is `orders o LEFT JOIN (customers c INNER JOIN addresses a ON
+        // a.customer_id = c.id) ON c.id = o.customer_id`, where an order's
+        // customer is dropped for having no address. Presence of the
+        // REFERENCING side does not help there: those rows carry a stored
+        // referencing row and are exactly the extended ones.
+        if (!this.subtreePreserves(scope, side.optionalAliases, targetCol.alias)) continue;
+        // On the second arm this join also emits rows from the referenced
+        // side ALONE, so the referenced relation must be present within that
+        // side: in `t FULL JOIN u ON u.t_id = t.id FULL JOIN v ON v.u_id =
+        // u.id` a `t` row with no `u` survives this join with both `u` and
+        // `v` extended, and the key — every stored `v` has a matching `u` —
+        // is silent about a row that has no `v` at all. Promoting `u` there
+        // claimed notNull for a column PostgreSQL returns NULL in (schema
+        // axis, fk-chain variant). `provenPresent` needs no such gate: every
+        // emitted row is then a matched one.
         if (
-          fk.schema !== referenced.table.schema ||
-          fk.table !== referenced.table.name ||
-          fk.column !== targetCol.column
+          !provenPresent &&
+          !this.subtreeAlwaysPresent(scope, side.optionalAliases, targetCol.alias)
         ) {
           continue;
         }
-        const keyNotNull = referencing.scanInh === false
-          ? this.catalog.resolveColumnNotNull(
-              referencing.table.schema,
-              referencing.table.name,
-              refCol.column,
-            )
-          : this.catalog.resolveColumnNotNullTree(
-              referencing.table.schema,
-              referencing.table.name,
-              refCol.column,
-            );
-        if (!keyNotNull) continue;
+
+        if (!this.keyEntails(referencing, refCol.column, referenced, targetCol.column)) continue;
         return targetCol.alias;
       }
     }
     return null;
+  }
+
+  /**
+   * Whether `referencing.column` is a NOT NULL foreign key onto
+   * `referenced.column` — "every stored row of the referencing relation has a
+   * match", the one fact both readings of a key rest on.
+   *
+   * Tables only. A view's rows are a query's output, not the stored rows the
+   * key constrains, and relations and views share one alias kind in the scope.
+   * The catalog-visible gates — NOT VALID, NOT ENFORCED, DEFERRABLE,
+   * inheritance — are the adapter's, in `resolveForeignKey[Tree]`; the NOT
+   * NULL read takes the same `scanInh` split every other per-column fact does.
+   */
+  private keyEntails(
+    referencing: RelationEntry,
+    referencingColumn: string,
+    referenced: RelationEntry,
+    referencedColumn: string,
+  ): boolean {
+    if (referencing.kind !== "table" || !referencing.table) return false;
+    if (referenced.kind !== "table" || !referenced.table) return false;
+
+    const fk = referencing.scanInh === false
+      ? this.catalog.resolveForeignKey(
+          referencing.table.schema,
+          referencing.table.name,
+          referencingColumn,
+        )
+      : this.catalog.resolveForeignKeyTree(
+          referencing.table.schema,
+          referencing.table.name,
+          referencingColumn,
+        );
+    if (!fk) return false;
+    if (
+      fk.schema !== referenced.table.schema ||
+      fk.table !== referenced.table.name ||
+      fk.column !== referencedColumn
+    ) {
+      return false;
+    }
+    return referencing.scanInh === false
+      ? this.catalog.resolveColumnNotNull(
+          referencing.table.schema,
+          referencing.table.name,
+          referencingColumn,
+        )
+      : this.catalog.resolveColumnNotNullTree(
+          referencing.table.schema,
+          referencing.table.name,
+          referencingColumn,
+        );
+  }
+
+  /**
+   * Whether every STORED row of `alias` reaches the output of the subtree
+   * spanning `subtreeAliases`, genuinely present rather than NULL-extended.
+   *
+   * Read off the join types alone: a LEFT join preserves its left side and a
+   * RIGHT join its right, a FULL join preserves both, and an INNER join
+   * preserves neither — its qual can drop rows from either. A leaf side has no
+   * join inside it and is preserved by definition, which is the shape almost
+   * every foreign-key join takes. WHERE is not consulted: it filters the
+   * scope's output AFTER the joins, so it can remove a row but never create
+   * the NULL-extended one a claim here is about.
+   */
+  private subtreePreserves(
+    scope: Scope,
+    subtreeAliases: string[],
+    alias: string,
+  ): boolean {
+    for (const inner of scope.joins) {
+      if (!this.joinWithin(inner, subtreeAliases)) continue;
+      if (inner.leftAliases.includes(alias)) {
+        if (inner.jointype !== "JOIN_LEFT" && inner.jointype !== "JOIN_FULL") return false;
+      } else if (inner.rightAliases.includes(alias)) {
+        if (inner.jointype !== "JOIN_RIGHT" && inner.jointype !== "JOIN_FULL") return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Whether `alias` is genuinely present in EVERY row the subtree spanning
+   * `subtreeAliases` emits — the dual of `subtreePreserves`, and about this
+   * subtree only: an ancestor join may still extend the whole slice.
+   *
+   * A join NULL-extends the side it makes optional, which is its type: LEFT
+   * extends its right, RIGHT its left, FULL both, INNER neither — unless that
+   * join is itself one that cannot extend the side in question, which is where
+   * the fact COMPOSES: in `order_items oi FULL JOIN orders o ON oi.order_id =
+   * o.id FULL JOIN customers c ON o.customer_id = c.id` the inner join emits
+   * no item-only row, so every row it emits carries a stored order, so every
+   * row of the outer join's left side carries a customer key — and `customers`
+   * is present throughout while `orders` is NULL wherever the outer join
+   * extends that side (measured, both).
+   *
+   * The recursion is well-founded: each step descends to a strictly smaller
+   * subtree.
+   */
+  private subtreeAlwaysPresent(
+    scope: Scope,
+    subtreeAliases: string[],
+    alias: string,
+  ): boolean {
+    for (const inner of scope.joins) {
+      if (!this.joinWithin(inner, subtreeAliases)) continue;
+      if (inner.leftAliases.includes(alias)) {
+        if (inner.jointype !== "JOIN_RIGHT" && inner.jointype !== "JOIN_FULL") continue;
+        if (!this.joinCannotExtendSide(inner, scope, "left")) return false;
+      } else if (inner.rightAliases.includes(alias)) {
+        if (inner.jointype !== "JOIN_LEFT" && inner.jointype !== "JOIN_FULL") continue;
+        if (!this.joinCannotExtendSide(inner, scope, "right")) return false;
+      }
+    }
+    return true;
+  }
+
+  /** Whether a join lies entirely inside the subtree spanning these aliases. */
+  private joinWithin(j: JoinPredicate, subtreeAliases: string[]): boolean {
+    return (
+      j.leftAliases.every(a => subtreeAliases.includes(a)) &&
+      j.rightAliases.every(a => subtreeAliases.includes(a))
+    );
+  }
+
+  /**
+   * Whether this join provably never NULL-EXTENDS the given side — a fact
+   * about the JOIN, which is what the presence fixpoint's alias vocabulary
+   * cannot express.
+   *
+   * A join extends side S exactly for the rows of the OTHER side that find no
+   * match in S. A foreign key rules those out when: every row of the other
+   * side carries a stored referencing row (`subtreeAlwaysPresent`), that row's
+   * key is NOT NULL and points at the referenced relation on S, and every
+   * stored row of that relation is still in S's slice (`subtreePreserves`).
+   * Then each other-side row has its match and none is left over to extend S.
+   *
+   * `SELECT c.id FROM customers c FULL JOIN orders o ON o.customer_id = c.id
+   * FULL JOIN order_items oi ON oi.order_id = o.id` is the shape: every item
+   * has an order, the left slice keeps every order because a FULL join drops
+   * nothing, so the second join produces no item-only row. That says nothing
+   * about `o`, which the FIRST join can still extend — the fact is the JOIN's,
+   * not any alias's, and what it licenses is that the joins INSIDE S are not
+   * extended from above.
+   */
+  private joinCannotExtendSide(
+    j: JoinPredicate,
+    scope: Scope,
+    side: "left" | "right",
+  ): boolean {
+    const eq = this.equalityColumnRefs(j.quals);
+    if (!eq) return false;
+    const extendable = side === "left" ? j.leftAliases : j.rightAliases;
+    const other = side === "left" ? j.rightAliases : j.leftAliases;
+
+    for (const [refCol, targetCol] of [
+      [eq[0], eq[1]],
+      [eq[1], eq[0]],
+    ] as const) {
+      if (!extendable.includes(targetCol.alias)) continue;
+      if (!other.includes(refCol.alias)) continue;
+      const referencing = scope.aliases.get(refCol.alias);
+      const referenced = scope.aliases.get(targetCol.alias);
+      if (!referencing || !referenced) continue;
+      if (!this.subtreeAlwaysPresent(scope, other, refCol.alias)) continue;
+      if (!this.subtreePreserves(scope, extendable, targetCol.alias)) continue;
+      if (!this.keyEntails(referencing, refCol.column, referenced, targetCol.column)) continue;
+      return true;
+    }
+    return false;
   }
 
   /**

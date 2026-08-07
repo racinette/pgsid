@@ -462,6 +462,50 @@ The join form is a promotion inside the existing presence fixpoint
 carries its null-group co-members with it. The subquery form is a second
 licence beside `guaranteesSingleRow`.
 
+#### The join-level fact
+
+"This join cannot extend that side" is not "every member of that side is
+present", and the second does not follow from the first. The fixpoint's
+vocabulary is ALIASES, so the first has nowhere to live in it — and it is what
+some claims need:
+
+```sql
+SELECT c.id FROM customers c
+FULL JOIN orders o       ON o.customer_id = c.id
+FULL JOIN order_items oi ON oi.order_id   = o.id
+-- c.id is never NULL; o.id is NULL for a customer with no orders
+```
+
+Every item has an order and the left slice keeps every order, so the second
+join finds a match for every item and emits no item-only row. That says
+nothing about `o`, which the FIRST join still extends. What it does say is
+that the first join is not extended from above — which is exactly
+`incomingRequired`, the property the walk already records when a side arrives
+REQUIRED — and the key on that join then promotes `customers` by the ordinary
+rule. So the fact is carried as an upgrade to the joins INSIDE the side, and
+nothing else in the fixpoint has to learn a second vocabulary.
+
+A join cannot extend a side when every row of the OTHER side carries a stored
+referencing row, its key is NOT NULL onto a relation on that side, and every
+stored row of that relation is still in the slice — the same three questions
+the promotion rule asks, minus everything about ancestors. Both subtree
+questions are read off join types (`subtreePreserves`, `subtreeAlwaysPresent`):
+a LEFT join preserves its left side and extends its right, a RIGHT join the
+mirror, a FULL join preserves both and extends both, an INNER join preserves
+neither and extends neither. WHERE is not consulted — it filters after the
+joins, so it can remove a row but never create the NULL-extended one a claim
+is about.
+
+The fact COMPOSES with itself, which is what makes it general rather than a
+special case: a join that cannot extend a side leaves the aliases on that side
+present within it, which is the premise the next join out needs.
+
+```sql
+SELECT c.id FROM order_items oi
+FULL JOIN orders o    ON oi.order_id = o.id      -- no item-only row: every row carries an order
+FULL JOIN customers c ON o.customer_id = c.id    -- so every left row carries a customer key
+```
+
 **What the key actually guarantees is a property of the referencing relation's
 STORED rows**, and every gate below keeps the reasoning to those rows. Four are
 catalog-visible and live in the adapter (`resolveForeignKey[Tree]`), where a
@@ -484,11 +528,22 @@ The rest are the walk's, and they are about the query rather than the catalog:
 - **The `ON` must be EXACTLY the key equality.** A further conjunct can only
   remove matches, and removing a match is the extension the claim denies.
 - **The referencing side must arrive carrying stored rows** — proven PRESENT,
-  or made optional by exactly THIS join (the FULL JOIN case, where its own
-  extension yields rows on which the referenced side is present rather than
-  absent; that arm additionally needs `incomingRequired`, since under an
-  ancestor outer join the whole slice can be extended). A side already
-  extended by a DEEPER join carries NULL keys.
+  or never NULL-extended WITHIN its own side of this join while this join's
+  slice is not extended from above (`incomingRequired`). On that second arm the
+  join also emits rows from the referenced side alone, so the referenced
+  relation must be present within ITS side too: in `t FULL JOIN u ON u.t_id =
+  t.id FULL JOIN v ON v.u_id = u.id` a `t` row with no `u` survives with both
+  `u` and `v` extended, and the key is silent about a row that has no `v` at
+  all.
+- **The referenced side must still HOLD the match.** The key says the row
+  exists in the TABLE; the join finds it only if no join inside the referenced
+  side has dropped it. `customers c INNER JOIN orders o ON o.customer_id = c.id
+  AND o.status = 'fulfilled' FULL JOIN order_items oi ON oi.order_id = o.id`
+  emits an item-only row for an item on any other order, and `orders o LEFT
+  JOIN (customers c INNER JOIN addresses a ON a.customer_id = c.id) ON c.id =
+  o.customer_id` extends for an order whose customer has no address — both
+  measured, and a proven-present referencing side does not help on either: the
+  rows it guarantees are exactly the extended ones.
 - For the subquery form, **the scan MODE matters**: an `ONLY` subquery under a
   tree-scanning outer reads a SUBSET, and the outer row may be the child row it
   excludes.
