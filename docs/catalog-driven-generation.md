@@ -79,9 +79,9 @@ The realistic schema is not work to be done. It is already there, built for the
 hand-written half: `customers`, `orders`, `order_items`, `products`, `reviews`,
 `addresses`, `shipments`, `payment_methods`, `coupons`, `categories`, `tags`,
 `product_tags`, `subscription`, with meaningful foreign keys, NOT NULL columns,
-CHECK constraints, domains, generated columns, partitions and triggers. **164
-fixtures already query it**; 87 query `t`/`u`/`v`. The generator was simply
-never pointed at it.
+CHECK constraints, domains, generated columns, partitions and triggers. The
+hand-written fixtures query it extensively. The generator was simply never
+pointed at it.
 
 So the scope is: change what the generator ranges over, not what the schema
 contains.
@@ -90,11 +90,11 @@ contains.
 
 Not migrated, not extended, not used again.
 
-- **The 87 fixtures that reference them KEEP them.** They are pinned, passing,
-  and each asserts something specific; rewriting them onto a realistic schema
-  would change 87 claims in one diff, and a claim that moved during a mechanical
-  migration is indistinguishable from one that moved because the migration was
-  wrong. The risk buys nothing.
+- **The fixtures that reference them KEEP them.** They are pinned, passing, and
+  each asserts something specific; rewriting them onto a realistic schema would
+  move a large number of claims in one diff, and a claim that moved during a
+  mechanical migration is indistinguishable from one that moved because the
+  migration was wrong. The risk buys nothing.
 - **Nothing new uses them — generator, fixture, or variant.** They are a closed
   legacy set from here on. Their whole failure mode was becoming the default
   vehicle for anything that needed a table; the fix is to stop, not to
@@ -312,6 +312,62 @@ re-emitted with mangled bounds, and the recursive-CTE `SEARCH`/`CYCLE` clauses
 are DROPPED while still parsing — the silent-drop case the expectation checks
 exist for. That list is the honest ceiling on "as many SQL constructs as
 possible", and shrinking it is a prerequisite rather than a nice-to-have.
+
+### Surviving the round trip: three answers, in increasing order of merit
+
+The generator builds an AST, the suite deparses it to text, and both the engine
+and PostgreSQL are given that text. Anything the deparser mangles or drops is a
+construct the corpus believes it tested and did not. Today's guard is
+`expectations` — per-axis, hand-written predicates over the RE-PARSED tree —
+and whether that scales to randomised generation was an open assumption. It has
+three answers.
+
+**1. Make expectations COMPOSITIONAL.** If the generator picks constructs from
+a registry, each entry carries its own `present()` predicate and the
+expectation set is the union over the constructs a query used — mechanical
+rather than hand-written per query. The rule that makes it safe is the one the
+data generator already applies to types: **a construct with no presence
+predicate may not be emitted.** No match is an error, not a default. This
+works, and it is bookkeeping.
+
+**2. Compare the WHOLE re-parsed AST to the one the generator built** — which
+is strictly stronger, because it catches drops nobody thought to write a
+predicate for, and needs no per-construct work at all. The objection would be
+that deparse/re-parse legitimately normalises things, so equality would
+false-positive. **Measured 2026-08-08: it does not.** Over 411 fixtures,
+`deparser-roundtrip.test.ts` reports **398 IDENTICAL**, 8 deparse-threw, 3
+reparse-failed, and just **2 AST-differed** — and those two are the
+recursive-CTE `SEARCH`/`CYCLE` drop, i.e. precisely the defect this check
+exists to find. So round-trip AST equality is a viable general guard with a
+short allowlist, and `expectations` becomes a backstop rather than the
+mechanism.
+
+**3. Take the deparser OUT OF THE LOOP — generate TEXT.** The round trip exists
+only because building an AST is easier than emitting SQL. Emit the text, parse
+it ONCE, hand that AST to the engine and that same text to PostgreSQL. There is
+then no round trip, nothing to survive, and four of the sixteen outcome buckets
+disappear — `deparse-threw`, `reparse-failed`, `ast-differed`,
+`expectation-failed` — along with the deparser ceiling, which today rules out
+`JSON_TABLE`, the SQL/JSON constructor family, and correct `array-slices` and
+window frames.
+
+The cost is that the generator must render valid SQL, which is what the
+deparser exists to do. But it only has to render **what it emits**, not the
+language: parenthesise defensively, quote identifiers always, and the hard
+parts of a general deparser — precedence recovery, every node kind — never
+arise.
+
+**Recommendation: build (1) because it is cheap and immediate; turn on (2)
+regardless, since it is a few lines over machinery that already exists and
+would have caught the `SEARCH`/`CYCLE` drop without anyone predicting it; and
+evaluate (3) BEFORE the construct vocabulary grows**, because it is the one
+that removes the ceiling rather than measuring it.
+
+**"Ignore the badly-deparsed queries" is the one answer to refuse.** A silent
+skip means believing a construct is covered when it is unreachable — this
+document's own subject, one layer down. Account for them instead: those buckets
+are counted and reported per construct, so a run states exactly which parts of
+the language it could not reach.
 
 ### Two instruments, and they have OPPOSITE requirements
 
