@@ -159,13 +159,12 @@ load-bearing and each has been paid for once already.
    expectation. A query PostgreSQL REJECTS is a generator defect, not a skip —
    the current corpus holds "rejected by PostgreSQL: 0" and that must stay a
    hard zero, or type-incorrect generation hides behind a filter.
-2. **Every query must RETURN ROWS somewhere.** "returned rows somewhere:
-   14964" is the assertion that stops the corpus asserting nothing. This gets
-   HARDER with a realistic schema and randomised predicates, because selective
-   predicates over seeded data return nothing — and a zero-row query falsifies
-   no claim. Budget design effort here; it is the single biggest way this
-   refactor could go green by vacuity, which is the failure mode the whole
-   effort exists to remove.
+2. **Every claim must be witnessed, repaired, or uninhabitable by
+   construction.** "returned rows somewhere: 14964" is the assertion that stops
+   the corpus asserting nothing, and it gets HARDER with a realistic schema and
+   randomised predicates. It is the single biggest way this refactor could go
+   green by vacuity. The mechanism is designed above, in "Emptiness"; it is not
+   an implementation detail and should not be discovered during coding.
 3. **Expected-node checks.** `expectations` assert the construct an axis
    requested survived deparsing. A deparser that drops a clause and still emits
    parseable SQL turns a requested construct into silent false confidence
@@ -179,6 +178,124 @@ load-bearing and each has been paid for once already.
 6. **PGlite memory.** `docs/query-generator.md`'s constraint section, and rule
    6 of the workspace `AGENTS.md`: replaying hundreds of single-row statements
    against a long-lived instance exhausts WASM linear memory. Batch.
+
+## Emptiness: the mechanism, in full
+
+The question this design lives or dies on. Two answers are forbidden, and they
+are the two easy ones:
+
+- **Excusing the claim** — filing it unwitnessable and moving on. That is the
+  corpus going green by vacuity, at scale, with a ratchet to hide behind. It is
+  the failure this whole refactor exists to remove.
+- **Constraining the generator** to emit only queries the current data
+  satisfies. That shrinks the query space to fit our expectations, which is
+  precisely how three placeholder tables came to dictate 14,964 queries.
+
+### Reframe 1 — the unit is the CLAIM, not the query
+
+A query can return rows and still leave one column's claim unwitnessed: the
+outer join produced no absent arm, so the `nullable` on column 3 was never
+seen. Disposing of whole queries is too coarse and would throw away the
+witnessed claims sitting beside the unwitnessed one.
+
+And a zero-row query is NOT a query that asserts nothing. `res.fields` comes
+back from an empty result, so the ORDERED NAME comparison — rank 2, the defect
+class that misassigns every later flag, four instances across four sweeps —
+runs at full strength. So do the traced/untraced parity check, the deparser
+round-trip, and the refusal behaviour. Zero rows costs exactly one thing: the
+`notNull` falsification oracle. Say that in the report rather than treating an
+empty result as a failure.
+
+### Reframe 2 — it is not the query that is wrong, it is the (query, DATA) pair
+
+Which is the whole opening: do not repair it by deleting queries or excusing
+claims. Repair it by making the DATA a function of the query.
+
+### The three-way disposition, per claim
+
+1. **Witnessed** by the shared data states. The common case; unchanged.
+2. **REPAIRABLE** — no witness yet, and the generator can synthesise the rows
+   that produce one. Seed them inside `BEGIN`/`ROLLBACK`, re-run, promote to
+   (1). This is where the bulk of the residue must land.
+3. **UNINHABITABLE BY CONSTRUCTION** — no data can witness it, and the
+   generator can say why FROM ITS OWN DERIVATION: it emitted `WHERE false`, it
+   intersected disjoint literal sets, the absent arm of this join shape cannot
+   exist, the column is a builtin SRF's uniformly-conservative one.
+
+**The rule that keeps (3) honest, and it is the load-bearing sentence of this
+section: bucket 3 is admitted BY CONSTRUCTION, never by OBSERVATION.** "We ran
+it and saw no NULL" is the trigger for bucket 2, not evidence for bucket 3. A
+claim may only be called uninhabitable if the generator can name the structural
+reason it built in. Anything else is an unproven excuse wearing a category
+name.
+
+### Why repair is tractable here, when reverse query processing is not
+
+Deriving data that makes an ARBITRARY query non-empty is a research problem. We
+are not handed an arbitrary query — **we built it.** The generator chose the FK
+edge, the predicate, the literal and the join direction, so the witness
+requirement is a by-product of the derivation rather than something to be
+recovered from the finished SQL. Emit it alongside the query.
+
+The precedent is again in `fixture-data/generators.ts`, done by hand: the
+column entries exist because "`orders.status` must sometimes be `'fulfilled'`
+because fixtures filter on it". That is this mechanism, hardcoded for the
+queries someone had already written. Generalise it.
+
+Order the work as a funnel, so the expensive step runs on the residue only:
+shared states witness most claims; per-query targeted seeding repairs what is
+left; what survives BOTH must present its construction-level reason. The
+`BEGIN`/`ROLLBACK` cost is already paid by the DML corpus, so it is known.
+
+### The trap this hits on day one: an FK join always matches
+
+The current corpus gets absent arms from one hand-written trick — 25% of
+`u.t_id` dangles, and the comment states the reason: "`u` declares NO foreign
+key … with every reference resolving, an outer join is an INNER join and its
+NULL-extended columns are never observed."
+
+Follow a REAL key and that trick is illegal: PostgreSQL enforces the reference,
+so no row can dangle. An FK-driven join spine therefore produces outer joins
+whose absent arm is uninhabitable — the corpus would emit LEFT, RIGHT and FULL
+joins by the thousand and witness the NULL-extension of none of them. This is
+not a hypothetical; it is the direct consequence of the change this document
+proposes, and it must be designed for before the first query is generated.
+
+Which direction of an edge is inhabitable is a property of the SCHEMA:
+
+| shape | absent arm inhabitable? |
+|---|---|
+| parent → child (`customers LEFT JOIN orders`) | ALWAYS — a parent with no children needs no violation |
+| child → parent (`orders LEFT JOIN customers`) | only if the FK column is NULLABLE — this schema has exactly THREE (`categories.parent_id`, `products.category_id`, `customers.default_address_id`) |
+| child → parent over a `NOT VALID` key | yes — pre-existing rows are unchecked, which is what that key means; the schema carries one |
+| either, under a filtered/sampled/cross-joined side | yes — this is what sweep-4 findings 2 and 3 were about |
+
+So the join-spine walker must carry a per-edge inhabitability verdict and bias
+toward the parent→child direction, or the outer-join half of the corpus is
+decorative.
+
+**One hazard to name explicitly: common-mode error.** The engine's foreign-key
+entailment reasons about exactly this question — when can an outer join over a
+key null-extend. If the generator decides inhabitability by the same reasoning,
+generator and engine can be wrong TOGETHER and the corpus will confirm the bug.
+The mitigation is that a repair is **verified by execution, never asserted**: a
+synthesised witness counts only when PostgreSQL actually returns the row. The
+generator proposes; PostgreSQL disposes. That keeps the answer key independent
+even where the two share a subject.
+
+### Reporting: per cause, never aggregate
+
+The residue is reported as a table of NAMED CAUSES with counts, not a total.
+This register's own rule, from the verification philosophy: no aggregate
+ratchets, because a regression hides behind an unrelated improvement. A NEW
+cause fails the run — it is an unclassified claim, which is the thing held at
+zero. A cause whose count moves is visible in the diff.
+
+The precedent to copy exactly is the deep-join axis, which already does this:
+44 structures whose `a_ue` is unwitnessable because every u-null-extended row
+dies at a strict edge qual — "verified 44/44 against a hand-checked
+join-semantics model". Verified against an independent MODEL, not against the
+run that produced them. That is the bar for bucket 3.
 
 ## Step 0, before any code
 
@@ -212,11 +329,11 @@ armchair.
    right vehicle for a fixture that wants NO constraints in the way. Retiring
    them from the GENERATOR does not require deleting them; migrating the 87 is
    a separate, optional cleanup that should not gate this work.
-4. **How is seed data kept in step with a wider corpus?** The generated data
-   state seeds every table in the catalog, which is why this is not already
-   blocking — but selective predicates over realistic data is question 2 of the
-   "must not be lost" list, and the two are the same problem seen from both
-   ends.
+4. **What is the shared-state / targeted-seed split?** The funnel above says
+   shared states first and targeted seeding on the residue, but not where the
+   line sits. If shared states witness 95% the funnel is cheap; if they witness
+   40% it is the dominant cost. MEASURE it on the first spine before designing
+   around either answer.
 
 ## Where things are
 
