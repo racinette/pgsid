@@ -46,6 +46,13 @@ type Outcome =
 const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   // An unhandled node type inside the join tree.
   "xmltable-jsontable": "deparse-threw",
+  // The same unhandled `JsonTable` node, in the sweep-4 nested-ordinality
+  // fixtures — the whole family deparses no better than the one above.
+  "jsontable-sibling-nested-ordinality": "deparse-threw",
+  "jsontable-sibling-nested-group": "deparse-threw",
+  "jsontable-lone-nested-empty-path": "deparse-threw",
+  "jsontable-nested-in-nested-ordinality": "deparse-threw",
+  "jsontable-root-ordinality-with-siblings": "deparse-threw",
   // Emits a stray `[` the parser rejects.
   "expression-node-coverage": "reparse-failed",
   // Same subscripting emission defect, on the slice fixture.

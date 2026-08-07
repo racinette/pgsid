@@ -600,15 +600,51 @@ corpora surface.
 4. **The arity gate** — small, and waits for the first consumer to exist rather
    than being retrofitted.
 
-**Two handoffs are chartered and unstarted**, both written 2026-08-07 from
-that session's measurements. `docs/adversarial-sweep-4.md` attacks the six
-mechanisms that session added — the prior it opens with is that probing two
-items recorded as SOUND produced seven rank-1 unsoundnesses, and that the
-generated corpus cannot express five of them. `docs/generated-surface.md`
-item 5 carries the other half: the corpus exercises 24 of the walk's 34
-catalog capabilities against the fixtures' 34, so volume is blind on the axis
-where those findings lived. The sweep does not wait for it; the two are
-independent and the sweep is the one with the evidence behind it.
+**Two handoffs were chartered 2026-08-07 from that session's measurements.**
+`docs/adversarial-sweep-4.md` attacks the six mechanisms that session added —
+the prior it opens with is that probing two items recorded as SOUND produced
+seven rank-1 unsoundnesses, and that the generated corpus cannot express five
+of them. `docs/generated-surface.md` item 5 carries the other half: the corpus
+exercises 24 of the walk's 34 catalog capabilities against the fixtures' 34, so
+volume is blind on the axis where those findings lived. The sweep did not wait
+for it; the two are independent.
+
+**The FOURTH sweep RAN (2026-08-07). Its FIX PHASE HAS NOT STARTED** — the
+report is `docs/adversarial-findings-4.md`, the quarantine fixtures are in
+`tests/unit/query/fixtures-adversarial/` with their DDL in
+`schema-adversarial.sql`, and the probe loop that produced them is kept in
+`tests/probe/` (not a vitest glob; `pnpm exec tsx tests/probe/<file>.ts`).
+169 probes, **seven findings**: five rank-1 `notNull` unsoundnesses, two of
+which also falsify a presence group; one rank-2 shape defect; one rank-3
+param-contract defect. Zero parity breaks and zero crashes — four sweeps at
+zero on both. The suite is untouched and green (2532 tests, 42 files).
+
+Yield is 7 in 169 against sweep 3's 8 in ~155 — the same rate on findings and
+a heavier severity mix, from two thirds of the budget. **What it does NOT
+confirm is the charter's own prior.** Three of the seven are in the six
+mechanisms the 2026-08-07 session added; four are older, and the two widest —
+a foreign key onto a partitioned table captured from its per-partition CLONES,
+and a `ROWS FROM` whose padding the declared column reading survives — are not
+about code age at all. The report's reading, which is what should decide
+whether a fifth sweep is ever chartered: **the discriminating variable is
+POSITION, not age.** Five of seven are FROM items, where the engine's model of
+"what rows does this produce" is thinnest and where a wrong answer is worst,
+because a shape defect there misassigns every later flag. Two items for this
+register fall out of it — the arity-and-order gate (section 1) now carries
+THIRTEEN defects across four sweeps, four of them arity-preserving; and a new
+standing check that is the converse of the curated-table audit: sweep every
+catalog READ for rows PostgreSQL adds that nobody wrote (partition-cloned
+constraints are the instance found; inherited constraints and index-backing
+rows are the same class).
+
+One finding is gated on a DECISION rather than on code, and the fix phase must
+take it first: finding 7 turns on what a `nullable` PARAMETER claim means when
+a user function's body can raise. `param-soundness.test.ts` says "binding NULL
+must never raise, in any state"; `docs/argument-nullability.md` says "claims
+mean raises; absence of a claim promises nothing". The two cannot both hold,
+and the second is the only one achievable for arbitrary user functions. It is
+the dual, on the nullable side, of the reachability question that document
+already records as open on the `notNull` side.
 
 **The precision residue is now its own handoff** — `docs/precision-residue.md`
 (2026-08-07). Items that neither chartered effort owns, collected because they
