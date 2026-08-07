@@ -532,6 +532,77 @@ the place to resist the urge to account for it.
 `23514` CHECK violation, …). Message text drifts between PostgreSQL versions
 and is not a key. Each SQLSTATE class is a work item with a count.
 
+### TWO fingerprints, and conflating them is a mistake
+
+One word, two jobs:
+
+- the **FINDING fingerprint** groups instances of the same defect, so a report
+  reads *one finding, 340 instances*;
+- the **QUERY fingerprint** groups structurally identical queries, so a run can
+  answer *how many genuinely different things did I just test?*
+
+The second is what stops 10,000 queries sitting in one bucket, and it is the
+metric the current corpus most conspicuously lacks — 14,964 queries whose
+variety nobody measured, over five relations.
+
+### The query fingerprint, at four granularities
+
+Diversity is not one number, and picking a single granularity gives a
+misleading answer in one direction or the other. Compute all four; each answers
+a different question.
+
+| level | key | answers |
+|---|---|---|
+| 1. **shape** | the AST with every name and literal erased — node kinds, nesting, join types, clause presence | how many structural skeletons? |
+| 2. **shape + catalog profile** | shape, plus the PROPERTIES of each column and relation used: nullable / NOT NULL / domain / FK / partitioned / generated / trigger-bearing | how many skeletons over genuinely different catalogs? |
+| 3. **node-kind set** | which parse-tree node kinds appeared | maps onto the node census: "reached 43 of 43 handled kinds" |
+| 4. **rule path** | which ENGINE RULES fired to produce the claims | what did this query actually TEST? |
+
+Level 2 is the one the current corpus fails: its shape variety is genuinely
+large and its catalog profile is a single point, because `t`/`u`/`v` declare
+nothing. A run reporting *14,964 queries, 9,000 shapes, 3 catalog profiles*
+would have said so in one line, years ago.
+
+### Level 4 is the headline, and it is already computed
+
+`inferNullabilityTraced` produces a `TraceNode` tree per output column, and
+each node carries a `reason` — "why this decision was reached (the decisive
+factor)". **The SET of reasons a query fires is the set of engine rules it
+exercised**, which is the most meaningful definition of "a different test"
+available: two queries that look nothing alike but fire the same rules are the
+same test, and two that differ by one join kind but fire the foreign-key
+entailment in one case and not the other are different tests.
+
+The cost is near zero. The suite ALREADY runs the traced walk on every
+generated query, for the traced/untraced parity check — the traces are computed
+and discarded. Collect them instead.
+
+Reasons carry interpolated values (`"single-row subquery propagates inner
+result: notNull"`), so normalise before hashing: strip the interpolation and
+keep the rule identity. Expect to refine that normalisation; too-specific
+splits one rule into many and inflates the diversity number, which is the
+failure direction to watch, because it flatters.
+
+**This also replaces `capability-reach` honestly.** That metric counts
+accessors the walk ASKS, so `resolveForeignKeyTree` reads as reached when it is
+asked over `t` and answered null. A rule-path counts what CONCLUDED. It cannot
+be satisfied by an accessor returning nothing.
+
+### The operational metric is the SATURATION CURVE
+
+The number to watch during a run is not the total; it is **new distinct
+fingerprints per 1,000 queries**, at each level.
+
+- While the curve is climbing, volume is buying something.
+- When it FLATTENS, the generator has exhausted its vocabulary and every
+  further query is waste — no matter how many more it emits. That is both a
+  stopping criterion and a diagnosis: the fix is new vocabulary (relations,
+  constructs, catalog features), never more volume.
+- A curve that flattens IMMEDIATELY at high volume is the `t`/`u`/`v` signature.
+
+Report the curve with the run. It is the single number that would have made
+this whole conversation unnecessary.
+
 ### Deduplication is the central problem, not an optimisation
 
 10,000 random queries hitting ONE engine bug produce hundreds of instances. A
@@ -543,8 +614,10 @@ The fingerprint must be structural rather than textual, or every random literal
 makes a new "finding". Compose it from the causes:
 
 - the bucket;
-- for an engine finding: the CONSTRUCT SET the query used and the derivation of
-  the offending column — which rule produced the claim — not the SQL text;
+- for an engine finding: the RULE PATH of the offending column — which is level
+  4 above, so the two fingerprints share machinery rather than each inventing a
+  notion of sameness. Never the SQL text: every random literal would mint a
+  fresh "finding";
 - for a tool defect: the node kind, or the SQLSTATE plus the construct that
   triggered it.
 
