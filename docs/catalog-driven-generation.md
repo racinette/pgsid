@@ -64,10 +64,11 @@ moves capability reach by exactly ZERO across its variants, because reach is a
 property of query SHAPES alone. That was filed as a curiosity. It was a
 warning.
 
-**A replacement is part of this work**: a capability is reached when a
-generated query produces a CLAIM that depends on it — an entailed promotion, a
-cleared flag, a refusal — not when an accessor returns null. That metric would
-not have read 34/34.
+**A replacement is part of this work**, and level 2 of the query fingerprint
+below is the natural basis: count the CATALOG PROFILES the corpus actually
+queries — which declared features appeared on the columns and relations a query
+touched — rather than which accessors the walk asked. Over `t`/`u`/`v` that
+number is 1, and it would not have read 34 of 34.
 
 ## The direction
 
@@ -680,45 +681,43 @@ a different question.
 | 1. **shape** | the AST with every name and literal erased — node kinds, nesting, join types, clause presence | how many structural skeletons? |
 | 2. **shape + catalog profile** | shape, plus the PROPERTIES of each column and relation used: nullable / NOT NULL / domain / FK / partitioned / generated / trigger-bearing | how many skeletons over genuinely different catalogs? |
 | 3. **node-kind set** | which parse-tree node kinds appeared | maps onto the node census: "reached 43 of 43 handled kinds" |
-| 4. **rule path** | which ENGINE RULES fired to produce the claims | what did this query actually TEST? |
 
 Level 2 is the one the current corpus fails: its shape variety is genuinely
 large and its catalog profile is a single point, because `t`/`u`/`v` declare
 nothing. A run reporting *14,964 queries, 9,000 shapes, 3 catalog profiles*
 would have said so in one line, years ago.
 
-### Level 4 is the headline, and it is already computed
+### All three levels are computed from the AST and the CATALOG — no engine involvement
 
-`inferNullabilityTraced` produces a `TraceNode` tree per output column, and
-each node carries a `reason` — "why this decision was reached (the decisive
-factor)". **The SET of reasons a query fires is the set of engine rules it
-exercised**, which is the most meaningful definition of "a different test"
-available: two queries that look nothing alike but fire the same rules are the
-same test, and two that differ by one join kind but fire the foreign-key
-entailment in one case and not the other are different tests.
+Which is the point: diversity is a property of what was GENERATED, and asking
+the engine what it concluded is a different question. Levels 1–3 need a parse
+tree and a catalog snapshot, both of which the generator already holds.
 
-**The cost is NOT zero, and an earlier draft of this document said it was.**
-Checked 2026-08-08: `generated-soundness.test.ts` does NOT call
-`inferNullabilityTraced` — the probe harness does, and this document confused
-the two. So collecting rule paths means adding a traced walk per generated
-query, roughly doubling the ENGINE-side cost of a run. That is still small
-beside PostgreSQL execution, and the discovery tool gates nothing, so it is
-affordable — but it is a cost to plan for, not a free by-product.
+**A fourth level was proposed and REJECTED (2026-08-08), recorded so it is not
+rebuilt.** The idea was to key on the RULE PATH — which engine rules fired,
+read from `inferNullabilityTraced`'s per-column reasons — on the argument that
+two queries firing the same rules are the same test however different they
+look. It is a real idea and it is not worth its price here:
 
-(Running the traced walk everywhere buys a second thing for the same price: the
-traced/untraced parity check, currently a separate 11-test suite, would then
-cover the whole corpus.)
+- it serves neither requirement. Generator diversity is answered by levels 1–3;
+  finding dedup is answered by bucket + shape + column, and the volume problem
+  it solves is identical shapes with different LITERALS, which the shape hash
+  already collapses;
+- it costs a traced walk per generated query, which the corpus does not
+  currently run (the probe harness does — an earlier draft of this document
+  confused the two);
+- and it is not STABLE. The walk has 129 `conclude()` sites whose reasons are
+  free-text prose with interpolated values (`` `arg[${i}] is non-null → …` ``,
+  `` `operator '${op}' may return NULL…` ``). Interpolation splits one rule
+  into hundreds unless normalised; six distinct sites end in "conservative
+  nullable" and collapse into one if normalised too hard; and rewording any
+  sentence changes every fingerprint containing it, resetting the ledger and
+  the saturation curve for an edit that changed no behaviour. Making it stable
+  means giving all 129 sites an identifier beside their prose.
 
-Reasons carry interpolated values (`"single-row subquery propagates inner
-result: notNull"`), so normalise before hashing: strip the interpolation and
-keep the rule identity. Expect to refine that normalisation; too-specific
-splits one rule into many and inflates the diversity number, which is the
-failure direction to watch, because it flatters.
-
-**This also replaces `capability-reach` honestly.** That metric counts
-accessors the walk ASKS, so `resolveForeignKeyTree` reads as reached when it is
-asked over `t` and answered null. A rule-path counts what CONCLUDED. It cannot
-be satisfied by an accessor returning nothing.
+Revisit only if the structural levels prove unable to distinguish tests that
+matter — and price the 129 edits into that decision, because the fingerprint is
+worthless without them.
 
 ### The operational metric is the SATURATION CURVE
 
@@ -746,10 +745,10 @@ The fingerprint must be structural rather than textual, or every random literal
 makes a new "finding". Compose it from the causes:
 
 - the bucket;
-- for an engine finding: the RULE PATH of the offending column — which is level
-  4 above, so the two fingerprints share machinery rather than each inventing a
-  notion of sameness. Never the SQL text: every random literal would mint a
-  fresh "finding";
+- for an engine finding: the query's SHAPE (level 1) plus the index of the
+  offending column, so the two fingerprints share machinery rather than each
+  inventing a notion of sameness. Never the SQL text: every random literal
+  would mint a fresh "finding";
 - for a tool defect: the node kind, or the SQLSTATE plus the construct that
   triggered it.
 
@@ -832,20 +831,7 @@ to expect, it is to measure.
 Genuinely open; they change the design and are not to be answered from the
 armchair.
 
-1. **Rule identity is PROSE, and both the fingerprint and the ledger depend on
-   it.** Checked 2026-08-08: the walk has **129 `conclude()` sites** and each
-   passes a free-text reason, many with interpolated values —
-   `` `arg[${i}] is non-null → COALESCE is non-null` ``,
-   `` `operator '${op}' may return NULL…` ``. Two consequences. Interpolation
-   must be normalised away or every query mints a new rule (said already). And
-   the deeper one: a reason is a SENTENCE, so rewording it silently changes
-   every fingerprint that contains it — the ledger loses its history and the
-   saturation curve resets, for an edit that changed no behaviour. The fix is
-   to give each site a stable identifier beside its prose, which is 129
-   mechanical edits and a prerequisite for the ledger rather than a
-   nice-to-have. Decide whether to pay it before building anything that keys
-   on rule identity.
-2. **The AST-equality allowlist is validated only over HAND-WRITTEN queries.**
+1. **The AST-equality allowlist is validated only over HAND-WRITTEN queries.**
    398 of 411 identical is a strong result and it is drawn from fixtures a
    person wrote, which may simply avoid the spellings a deparser normalises.
    Randomised generation will emit spellings nobody chose. If normalisation
@@ -854,7 +840,7 @@ armchair.
    document exists to prevent, arriving through its own guard. MEASURE the
    identical rate over the first few thousand random queries before trusting
    it, and expect the allowlist to be longer than 2.
-3. **One big dataset, or several states?** The tool spec says the dataset is
+2. **One big dataset, or several states?** The tool spec says the dataset is
    generated once per session and modifying statements roll back, which argues
    for a single large one. But sweep-4 finding 2 needed an EMPTY relation —
    `tags`, empty in every state — and a single huge dataset has no empty
@@ -862,11 +848,11 @@ armchair.
    witnesses that a "big realistic dataset" actively destroys. Resolve before
    seeding: either several states as today (huge, sparse, empty-somewhere), or
    one dataset with deliberate holes.
-4. **What replaces exhaustiveness as the coverage claim?** "34 of 34" must not
+3. **What replaces exhaustiveness as the coverage claim?** "34 of 34" must not
    be succeeded by another number that reads green over a thin corpus. The
    claim-based capability metric above is a candidate; it needs a definition
    that cannot be satisfied by an accessor returning null.
-5. **What is the shared-state / targeted-seed split?** The funnel above says
+4. **What is the shared-state / targeted-seed split?** The funnel above says
    shared states first and targeted seeding on the residue, but not where the
    line sits. If shared states witness 95% the funnel is cheap; if they witness
    40% it is the dominant cost. MEASURE it on the first spine before designing
