@@ -359,7 +359,21 @@ interface JsonUnaryShape {
  */
 interface JoinPredicate {
   jointype: string;
-  quals: Node;
+  /**
+   * The join's qual, or NULL for a join that has none — a CROSS JOIN, a
+   * comma join, a NATURAL join sharing no column name, a USING join whose
+   * merged name has no concrete owning entry.
+   *
+   * A qual-less join used to be absent from `scope.joins` entirely, which was
+   * right for the ONE reader this array was built for and wrong for the three
+   * that arrived later (sweep-4 finding 2). The fixpoint wants the QUAL; the
+   * subtree readings want the join's TYPE and its two alias sets, and those
+   * exist with or without one — so a side containing a CROSS JOIN read as a
+   * leaf that drops nothing, and a key was entailed across a side that had
+   * been emptied. Everything structural is recorded now, and the fixpoint
+   * skips the entries with nothing to imply.
+   */
+  quals: Node | null;
   leftAliases: string[];
   rightAliases: string[];
   /**
@@ -1498,7 +1512,11 @@ class NullabilityEngine {
                   ? leftPresent && rightPresent
                   : false;
         if (active) {
-          scope.impliedQuals.push(j.quals);
+          // A qual-less join implies nothing — an INNER join with no ON
+          // clause constrains no column — so it leaves the pending list
+          // without contributing. It is in `scope.joins` for the subtree
+          // readings, which want its TYPE, not its qual.
+          if (j.quals) scope.impliedQuals.push(j.quals);
           pending.splice(i, 1);
           changed = true;
         }
@@ -1893,8 +1911,12 @@ class NullabilityEngine {
    * merely contains one, since the other conjuncts filter.
    */
   private equalityColumnRefs(
-    qual: Node,
+    qual: Node | null | undefined,
   ): [{ alias: string; column: string }, { alias: string; column: string }] | null {
+    // A join with no qual answers null here, which is what every caller
+    // already does with "this is not a key equality" — so recording qual-less
+    // joins needed no new branch at the three reading sites.
+    if (!qual) return null;
     const ae = (qual as Record<string, unknown>)["A_Expr"] as
       | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
       | undefined;
@@ -2156,8 +2178,15 @@ class NullabilityEngine {
       // checks, outer-qual implication). A merged name whose side has no
       // concrete owning entry (an already-merged column of a nested USING)
       // is skipped conservatively.
+      // A join with NO qual to record is still a join: its type and its two
+      // alias sets are what the subtree readings need, and a CROSS JOIN
+      // dropping every row of a side is exactly what they exist to see. So
+      // `record` runs once per JoinExpr whatever the qual — the structural
+      // entry is unconditional and the qual is the optional part.
       const keys = [...scope.aliases.keys()];
-      const record = (quals: Node): void => {
+      let recorded = false;
+      const record = (quals: Node | null): void => {
+        recorded = true;
         scope.joins.push({
           jointype: join.jointype ?? "JOIN_INNER",
           quals,
@@ -2201,6 +2230,11 @@ class NullabilityEngine {
           );
         }
       }
+      // Neither an ON qual nor a synthesizable merge: the join is still
+      // recorded, with nothing for the fixpoint to imply. PostgreSQL forbids
+      // ON together with USING or NATURAL, so at most one of the two branches
+      // above can have fired and this never double-records.
+      if (!recorded) record(null);
       return this.mergeJoinColumns(join, left, right);
     } else if ("RangeFunction" in node) {
       const rf = node["RangeFunction"] as RangeFunction;
