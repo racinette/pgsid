@@ -171,7 +171,8 @@ those is worth more per query than DML aimed at a plain table.
 
 **One reproducibility hazard, because it is invisible until it bites.**
 Sequences and identity columns are NON-TRANSACTIONAL: `ROLLBACK` does not
-reclaim a consumed value. So `INSERT … RETURNING id` over a
+reclaim a consumed value — measured in PGlite 2026-08-08, two rolled-back
+inserts returning `id` 1 then 2. So `INSERT … RETURNING id` over a
 `GENERATED … AS IDENTITY` column yields DIFFERENT values on a re-run with an
 identical seed. This does not affect nullability — the claim is about NULL, not
 about which integer — but it means **a repro must not be keyed on returned
@@ -187,8 +188,15 @@ and produces no signal — bad data does not make the finder wrong, it makes it
 WEAK, and inputs are the cheapest control plane there is.
 
 - **Valid data, always.** Foreign keys resolve, domains hold, CHECKs are
-  satisfied, keys are unique. Already built and transfers untouched:
-  `fixture-data/generate.ts` does exactly this for an arbitrary catalog.
+  satisfied, keys are unique. `fixture-data/generate.ts` already does this —
+  but "for an ARBITRARY catalog" overstates it, and this document said so in an
+  earlier draft. It needs a per-table entry whenever a constraint is not
+  inferable from types: adding the sweep-4 partitioned tables produced
+  duplicate-key violations until explicit range generators were written for the
+  parent AND each partition, because a partitioned parent's routed rows share a
+  unique index with rows seeded directly into a partition. Budget a generator
+  entry per table with a cross-table or range invariant; the type and
+  foreign-key tiers cover everything else for free.
 - **A BIG dataset**, generated, so that a genuinely random query returns two or
   three rows rather than none.
 - **Volume alone does not buy OVERLAP**, and this is the sharp edge: `WHERE
@@ -272,7 +280,38 @@ hard-coded tables. Concretely, four things stop being literals:
 4. **The FROM item.** Today a RangeVar or a subquery. This is where five of the
    fourth sweep's seven findings lived, and the corpus emits neither `ROWS
    FROM`, `JSON_TABLE`, `TABLESAMPLE` nor a qual-less join. A FROM-item axis is
-   cheap next to the rest and should not wait.
+   cheap next to the rest and should not wait — **but see the deparser bound
+   below, which rules one of them out for now.**
+
+### The generator's reachable language is bounded by the DEPARSER, not the parser
+
+The generator builds an AST and the suite DEPARSES it to get the text both the
+engine and PostgreSQL see. So a construct the deparser cannot emit is
+unreachable, however well the parser and the engine handle it: every such query
+lands in `deparse-threw` and never reaches PostgreSQL at all. Whoever widens
+the construct vocabulary should check this FIRST — it is invisible until a
+whole axis produces zero signal.
+
+Measured 2026-08-08 for the FROM items this document proposes:
+
+| construct | deparses? |
+|---|---|
+| `ROWS FROM (…)`, multi-arm | YES |
+| `TABLESAMPLE BERNOULLI (n)` | YES |
+| `CROSS JOIN` | YES |
+| comma join | YES |
+| `unnest(…)` | YES |
+| **`JSON_TABLE(…)`** | **NO — `Error deparsing SelectStmt: … JsonTable`** |
+
+So four of the five are ready today and **JSON_TABLE is blocked on a deparser
+fix**. `deparser-roundtrip.test.ts`'s `KNOWN_DEVIATIONS` is the full boundary
+and it is wider than this one node: the SQL/JSON constructor family
+(`json-constructors`, `json-exists`) is un-deparsable too, `array-slices` and
+`expression-node-coverage` re-parse wrongly, `window-default-frame` is
+re-emitted with mangled bounds, and the recursive-CTE `SEARCH`/`CYCLE` clauses
+are DROPPED while still parsing — the silent-drop case the expectation checks
+exist for. That list is the honest ceiling on "as many SQL constructs as
+possible", and shrinking it is a prerequisite rather than a nice-to-have.
 
 ### Two instruments, and they have OPPOSITE requirements
 
@@ -345,7 +384,8 @@ seen. Disposing of whole queries is too coarse and would throw away the
 witnessed claims sitting beside the unwitnessed one.
 
 And a zero-row query is NOT a query that asserts nothing. `res.fields` comes
-back from an empty result, so the ORDERED NAME comparison — rank 2, the defect
+back from an empty result — measured 2026-08-08, `WHERE false` still returning
+the full column list — so the ORDERED NAME comparison — rank 2, the defect
 class that misassigns every later flag, four instances across four sweeps —
 runs at full strength. So do the traced/untraced parity check, the deparser
 round-trip, and the refusal behaviour. Zero rows costs exactly one thing: the
@@ -573,9 +613,17 @@ available: two queries that look nothing alike but fire the same rules are the
 same test, and two that differ by one join kind but fire the foreign-key
 entailment in one case and not the other are different tests.
 
-The cost is near zero. The suite ALREADY runs the traced walk on every
-generated query, for the traced/untraced parity check — the traces are computed
-and discarded. Collect them instead.
+**The cost is NOT zero, and an earlier draft of this document said it was.**
+Checked 2026-08-08: `generated-soundness.test.ts` does NOT call
+`inferNullabilityTraced` — the probe harness does, and this document confused
+the two. So collecting rule paths means adding a traced walk per generated
+query, roughly doubling the ENGINE-side cost of a run. That is still small
+beside PostgreSQL execution, and the discovery tool gates nothing, so it is
+affordable — but it is a cost to plan for, not a free by-product.
+
+(Running the traced walk everywhere buys a second thing for the same price: the
+traced/untraced parity check, currently a separate 11-test suite, would then
+cover the whole corpus.)
 
 Reasons carry interpolated values (`"single-row subquery propagates inner
 result: notNull"`), so normalise before hashing: strip the interpolation and
