@@ -319,6 +319,39 @@ exist for. That list is the honest ceiling on "as many SQL constructs as
 possible", and closing entries on it is a prerequisite rather than a
 nice-to-have.
 
+### An FK join always matches, so absent arms need a direction
+
+The current corpus gets absent arms from one hand-written trick — 25% of
+`u.t_id` dangles, and the comment states why: "`u` declares NO foreign key …
+with every reference resolving, an outer join is an INNER join and its
+NULL-extended columns are never observed."
+
+Follow a REAL key and that trick is illegal: PostgreSQL enforces the reference,
+so no row can dangle. An FK-driven join spine therefore emits LEFT, RIGHT and
+FULL joins by the thousand and witnesses the NULL-extension of none of them.
+That is a direct consequence of following keys, so the walker has to know
+which direction of an edge can produce an absent arm.
+
+Which direction of an edge is inhabitable is a property of the SCHEMA:
+
+| shape | absent arm inhabitable? |
+|---|---|
+| parent → child (`customers LEFT JOIN orders`) | ALWAYS — a parent with no children needs no violation |
+| child → parent (`orders LEFT JOIN customers`) | only if the FK column is NULLABLE — this schema has exactly THREE (`categories.parent_id`, `products.category_id`, `customers.default_address_id`) |
+| child → parent over a `NOT VALID` key | yes — pre-existing rows are unchecked, which is what that key means; the schema carries one |
+| either, under a filtered/sampled/cross-joined side | yes — this is what sweep-4 findings 2 and 3 were about |
+
+So the walker carries a per-edge verdict and biases toward parent→child, or the
+outer-join half of the corpus is decorative.
+
+**One hazard: common-mode error.** The engine's foreign-key entailment reasons
+about exactly this question — when an outer join over a key can null-extend. If
+the generator decides it by the same reasoning, generator and engine can be
+wrong together and the corpus confirms the bug. What keeps the answer key
+independent is that PostgreSQL always adjudicates: a claim is falsified by a
+returned row, never by the generator's model of what should have been
+returned.
+
 ### Surviving the round trip: three answers, in increasing order of merit
 
 The generator builds an AST, the suite deparses it to text, and both the engine
@@ -436,7 +469,9 @@ What this buys, and it is most of the difficulty in this document disappearing:
 - **Emptiness stops being a problem.** A query that returns no rows contributes
   no rank-1 signal, and that is the whole of it — no tag, no excuse, no
   classification, no reason for anyone to write. It still contributes shape,
-  parity and rejection signal, which need no rows.
+  parity and rejection signal: `res.fields` comes back from an empty result
+  (measured — `WHERE false` still returns the full column list), so the
+  ordered-name comparison runs at full strength on zero rows.
 - **No UNWITNESSABLE rules are owed by the randomised half**, so the 12%
   mislabelling rate the reason audit measured has no surface to attach to.
 - **It may be slow, non-deterministic and unbounded**, because it gates
@@ -448,167 +483,6 @@ The consequence for the corpus that exists: it keeps its current discipline
 unchanged — the axes, the bound printed with the result, the UNWITNESSABLE
 rules with their bidirectional staleness check. Nothing about it gets looser.
 It simply stops being asked to do a job it was never shaped for.
-
-## Emptiness — a question for the COVERAGE instrument only
-
-With the split above, this stops being the question the design lives or dies
-on. It applies to the enumerated corpus, whose job is a number that can be
-trusted; the randomiser is out of scope for all of it, because it claims no
-coverage and therefore owes no excuses.
-
-Two answers remain forbidden for the enumerated half, and they are the two
-easy ones:
-
-- **Excusing the claim** — filing it unwitnessable and moving on. That is the
-  corpus going green by vacuity, at scale, with a ratchet to hide behind. It is
-  the failure this whole refactor exists to remove.
-- **Constraining the generator** to emit only queries the current data
-  satisfies. That narrows the query space to fit our expectations, which is
-  precisely how three placeholder tables came to dictate 14,964 queries.
-
-### Reframe 1 — the unit is the CLAIM, not the query
-
-A query can return rows and still leave one column's claim unwitnessed: the
-outer join produced no absent arm, so the `nullable` on column 3 was never
-seen. Disposing of whole queries is too coarse and would throw away the
-witnessed claims sitting beside the unwitnessed one.
-
-And a zero-row query is NOT a query that asserts nothing. `res.fields` comes
-back from an empty result — measured 2026-08-08, `WHERE false` still returning
-the full column list — so the ORDERED NAME comparison — rank 2, the defect
-class that misassigns every later flag, four instances across four sweeps —
-runs at full strength. So do the traced/untraced parity check, the deparser
-round-trip, and the refusal behaviour. Zero rows costs exactly one thing: the
-`notNull` falsification oracle. Say that in the report rather than treating an
-empty result as a failure.
-
-### Reframe 2 — it is not the query that is wrong, it is the (query, DATA) pair
-
-Which is the whole opening: do not repair it by deleting queries or excusing
-claims. Repair it by making the DATA a function of the query.
-
-### The three-way disposition, per claim
-
-1. **Witnessed** by the shared data states. The common case; unchanged.
-2. **REACHABLE BY DECLARATION** — no witness under the current schema, but a
-   schema that DECLARES the right thing produces one, with no change to the
-   query and no per-query reasoning. This is where the bulk of the residue must
-   land, and the mechanism is below.
-3. **UNINHABITABLE BY CONSTRUCTION** — no data can witness it, and the
-   generator can say why FROM ITS OWN DERIVATION: it emitted `WHERE false`, it
-   intersected disjoint literal sets, the absent arm of this join shape cannot
-   exist, the column is a builtin SRF's uniformly-conservative one.
-
-**The rule that keeps (3) honest, and it is the load-bearing sentence of this
-section: bucket 3 is admitted BY CONSTRUCTION, never by OBSERVATION.** "We ran
-it and saw no NULL" is the trigger for bucket 2, not evidence for bucket 3. A
-claim may only be called uninhabitable if the generator can name the structural
-reason it built in. Anything else is an unproven excuse wearing a category
-name.
-
-### Repair is a SCHEMA question, not a query question
-
-The first draft of this section proposed a per-claim WITNESS PLAN — the
-generator emitting, beside each query, the rows that would witness its claims.
-That was wrong and it is recorded here so nobody rebuilds it.
-
-**The objection that kills it.** To predict a witness you must know what kind
-of query you are looking at. That forces a taxonomy of query shapes, and a
-taxonomy makes the corpus an expander of fixture templates — variations on
-queries someone already enumerated, which is what the static fixtures are for
-and where they are better. The generated corpus exists to reach the shapes
-nobody enumerated; a mechanism that requires enumerating them defeats it.
-
-It is also unreliable on its own terms. Witness requirements do not compose
-through filters: a LEFT JOIN's absent-arm rule asks for a left row with no
-match, and `WHERE o.status = 'x'` then discards exactly that row, because its
-`o.status` is NULL. The corpus already knows this failure mode by name — the
-refilter live-traps. So the plan would have been a taxonomy AND a guess.
-
-**What actually works, with a first-run rank-1 to prove it.** The schema axis
-(`schema-axis.test.ts`) found a rank-1 unsoundness on its first run and needed
-NO witness engineering, no query analysis and no generator change at all. Its
-design note says why: "its schema contract is a set of NAMES, so a variant that
-keeps `t`/`u`/`v` and changes only the CATALOG FEATURES behind them runs the
-whole structural corpus unchanged."
-
-That is the mechanism. **Vary what the schema DECLARES; the queries and the
-data generator both follow for free.** The data generator already seeds
-whatever a catalog contains — that is why the schema axis needed nothing — so
-enriching the schema enriches the witnesses automatically, with no per-query
-reasoning anywhere.
-
-Witnessing then becomes a question about DDL, answerable once per shape and
-independent of every query:
-
-| to witness | declare |
-|---|---|
-| an outer join's absent arm | a NULLABLE foreign-key column, or a parent whose children are optional |
-| a key entailment | a NOT NULL foreign-key column |
-| an entailment the slice destroys | a relation that some state leaves EMPTY |
-| a domain claim, a generated column, a trigger rewrite | the domain, the column, the trigger |
-
-Two of those are in tension and both are wanted, which is a schema-design
-answer rather than a query-analysis one: a NOT NULL key entails and never
-dangles, a nullable key dangles and never entails. Declare BOTH — they are two
-columns, or two variants — and stop reasoning about queries entirely.
-
-**What remains, and what it is not.** Some claims will still go unwitnessed,
-and the answer is NOT to chase 100%. Report them per named cause with the
-ratchet on a NEW cause appearing, per the reporting rule below. An unwitnessed
-claim over a rich catalog is information about coverage; the thing this
-document exists to prevent is an unwitnessed claim nobody counted.
-
-### The trap this hits on day one: an FK join always matches
-
-The current corpus gets absent arms from one hand-written trick — 25% of
-`u.t_id` dangles, and the comment states the reason: "`u` declares NO foreign
-key … with every reference resolving, an outer join is an INNER join and its
-NULL-extended columns are never observed."
-
-Follow a REAL key and that trick is illegal: PostgreSQL enforces the reference,
-so no row can dangle. An FK-driven join spine therefore produces outer joins
-whose absent arm is uninhabitable — the corpus would emit LEFT, RIGHT and FULL
-joins by the thousand and witness the NULL-extension of none of them. This is
-not a hypothetical; it is the direct consequence of the change this document
-proposes, and it must be designed for before the first query is generated.
-
-Which direction of an edge is inhabitable is a property of the SCHEMA:
-
-| shape | absent arm inhabitable? |
-|---|---|
-| parent → child (`customers LEFT JOIN orders`) | ALWAYS — a parent with no children needs no violation |
-| child → parent (`orders LEFT JOIN customers`) | only if the FK column is NULLABLE — this schema has exactly THREE (`categories.parent_id`, `products.category_id`, `customers.default_address_id`) |
-| child → parent over a `NOT VALID` key | yes — pre-existing rows are unchecked, which is what that key means; the schema carries one |
-| either, under a filtered/sampled/cross-joined side | yes — this is what sweep-4 findings 2 and 3 were about |
-
-So the join-spine walker must carry a per-edge inhabitability verdict and bias
-toward the parent→child direction, or the outer-join half of the corpus is
-decorative.
-
-**One hazard to name explicitly: common-mode error.** The engine's foreign-key
-entailment reasons about exactly this question — when can an outer join over a
-key null-extend. If the generator decides inhabitability by the same reasoning,
-generator and engine can be wrong TOGETHER and the corpus will confirm the bug.
-The mitigation is that a repair is **verified by execution, never asserted**: a
-synthesised witness counts only when PostgreSQL actually returns the row. The
-generator proposes; PostgreSQL disposes. That keeps the answer key independent
-even where the two share a subject.
-
-### Reporting: per cause, never aggregate
-
-The residue is reported as a table of NAMED CAUSES with counts, not a total.
-This register's own rule, from the verification philosophy: no aggregate
-ratchets, because a regression hides behind an unrelated improvement. A NEW
-cause fails the run — it is an unclassified claim, which is the thing held at
-zero. A cause whose count moves is visible in the diff.
-
-The precedent to copy exactly is the deep-join axis, which already does this:
-44 structures whose `a_ue` is unwitnessable because every u-null-extended row
-dies at a strict edge qual — "verified 44/44 against a hand-checked
-join-semantics model". Verified against an independent MODEL, not against the
-run that produced them. That is the bar for bucket 3.
-
 
 ## The error protocol
 
@@ -674,11 +548,11 @@ The second is what stops 10,000 queries sitting in one bucket, and it is the
 metric the current corpus most conspicuously lacks — 14,964 queries whose
 variety nobody measured, over five relations.
 
-### The query fingerprint, at four granularities
+### The query fingerprint, at three granularities
 
 Diversity is not one number, and picking a single granularity gives a
-misleading answer in one direction or the other. Compute all four; each answers
-a different question.
+misleading answer in one direction or the other. Compute all three; each
+answers a different question.
 
 | level | key | answers |
 |---|---|---|
