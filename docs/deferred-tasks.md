@@ -680,6 +680,31 @@ by mechanism A — and standard types are nullable by design. It is the dual, on
 the nullable side, of the reachability question that document already records
 as open on the `notNull` side.
 
+**Chartered, not started: CATALOG-DRIVEN QUERY GENERATION** —
+`docs/catalog-driven-generation.md` (2026-08-07), a self-contained handoff. The
+measurement that forces it: the generated corpus references EIGHT relation
+names across all 14,964 queries, three of which are derived-table aliases, so
+it queries FIVE of the fixture schema's 82 relations — and `t`/`u`/`v` carry no
+keys, no constraints, no triggers. All NINE findings of the fourth sweep and
+its fix phase were unexpressible in it, including the two ordinary ones. The
+engine is a function of (AST, CATALOG) and the corpus explores one argument.
+
+The direction is to retire `t`/`u`/`v` FROM THE GENERATOR and point it at the
+application schema already in `fixtures/schema.sql` — which is not work to be
+done, since 164 fixtures already query it — generating over the catalog the way
+`tests/unit/query/fixture-data/` already generates DATA over it, with the same
+tier resolution and the same "no match is an ERROR, not a default" rule.
+Enumerated axes stay for regression; randomised exploration under a seed is the
+second mode, which `docs/query-generator.md` already named as the widening to
+take once the enumerated axes stopped finding defects. They have.
+
+**One metric is retired by this and should not be replaced carelessly.**
+`capability-reach.test.ts` reads 34 of 34 over a corpus this thin because it
+counts accessors the walk ASKS — `resolveForeignKeyTree` is "reached" when it
+is asked over `t` and answered null. It measures interrogation, not variety,
+and the already-recorded observation that the schema axis moves reach by
+exactly ZERO was the warning rather than the curiosity it was filed as.
+
 **The precision residue is now its own handoff** — `docs/precision-residue.md`
 (2026-08-07). Items that neither chartered effort owns, collected because they
 were otherwise scattered across an `@unwitnessable` reason, an `UNWITNESSABLE`
