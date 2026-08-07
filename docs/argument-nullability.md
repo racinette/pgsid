@@ -17,8 +17,19 @@ Per parameter, one boolean, mirroring `OutputNullability`:
 
 - **`notNull`** — binding NULL to this parameter can make the statement
   raise. A caller must not pass NULL.
-- **nullable** — NULL is a universally safe binding: no data state, no guard,
-  no path makes it raise. Whether it is a *useful* binding is not addressed.
+- **nullable** — no claim. The engine found no rejection channel it can see.
+  Whether NULL is a *useful* binding is not addressed, and neither is whether
+  some code the engine cannot read rejects it anyway.
+
+**The contract is ONE-DIRECTIONAL, and that is a decision** (2026-08-07,
+forced by sweep-4 finding 7 — see "What a nullable parameter does not promise"
+below). An earlier draft of this document read nullable as *universally safe*:
+"no data state, no guard, no path makes it raise". That is not achievable and
+never was. A `LANGUAGE plpgsql` body of two lines —
+`IF x IS NULL THEN RAISE …` — rejects the binding with nothing catalog-visible
+behind it, and no static analysis short of executing the body reaches it. A
+rule the engine cannot satisfy is worse than a weaker one it can: it makes a
+green suite mean "the corpus happens to contain no such function".
 
 The second half of that sentence is a decision, recorded here so it is not
 re-litigated: **the engine models what PostgreSQL does, not what a caller
@@ -106,7 +117,49 @@ each claim quantifies over:
 - **`notNull` is existential**: there is an execution in which NULL raises.
   (For mechanism A it is in fact universal — it always raises — but the
   consumer-facing meaning does not change: do not pass NULL.)
-- **nullable is universal**: NULL never raises, anywhere.
+- **nullable is the ABSENCE of that claim**: no channel the engine models
+  rejects NULL here. Not a guarantee that nothing does.
+
+### What a nullable parameter does not promise
+
+The boundary, decided 2026-08-07 and scoped deliberately:
+
+**No claim is made about a USER function's arguments beyond its DECLARED
+parameter types.** A function body is not its interface. `sw4_dom_id(x text)
+RETURNS nn_text AS $$ SELECT x::nn_text $$` is non-strict, so it runs, and its
+body maps the argument into a NOT NULL domain — binding NULL raises. The
+engine says nothing, and that is correct rather than a gap to be closed. The
+channel a schema author uses to *get* the claim is the declared type: declare
+the parameter as a NOT NULL domain and mechanism A rejects at Bind, before the
+body is reached at all. Standard types are nullable by design.
+
+That class is catalog-visible and a rule could be written for it — a
+non-strict function with a NOT NULL domain return whose body is
+NULL-preserving. It is deliberately not written, because it would not close
+the question: the plpgsql `RAISE` above is the same rejection with no catalog
+trace, so the line would move without arriving anywhere. Reading bodies to
+guess at rejections also inverts the interface: two functions with identical
+signatures would carry different contracts.
+
+**The must-not-raise convention holds for BUILTINS**, whose behaviour is
+documented and knowable, and where a claim is therefore owed. It is not
+currently satisfied: 10 signatures across 11 argument positions reject NULL
+and the engine claims nothing — `array_fill`'s dimension and low-bound arrays,
+`array_position`'s three-argument initial position, the six range
+constructors' flags argument, and `jsonb_set_lax`'s `null_value_treatment`
+(measured 2026-08-07 with a per-position control, over the 208 non-strict
+pg_catalog functions). Strictness does not record it — a strict function
+returns NULL rather than raising, so the class is entirely inside the
+non-strict set — and pg_catalog has no column that does. That makes it a
+curated table, with the drift risk every curated table in this project has
+had, and it is registered rather than built.
+
+**How the suite holds the line.** `param-soundness.test.ts` still falsifies a
+nullable claim whose NULL binding raises, because over the hand-written corpus
+that is the strongest oracle the input side has. A fixture in the opaque class
+declares it with `-- @param-opaque N: <reason>`, and the marker is itself
+checked: the raise must be OBSERVED, so a stale marker fails as loudly as a
+missing one — the same bar `@unwitnessable` and `@no-rows` are held to.
 
 This is the output side's structure with the polarity flipped. Output
 `notNull` is universal (no row ever contains NULL) and execution can only
@@ -119,7 +172,8 @@ So the verification machinery transfers wholesale, mirrored:
 | output nullable | existential | witness | input `notNull` |
 
 Concretely: a claimed-nullable parameter is checked by binding NULL (others
-held valid) — any raise, in any data state, falsifies it. A claimed-`notNull`
+held valid) — any raise, in any data state, is either a channel the engine
+should have seen or an opaque one it must record. A claimed-`notNull`
 parameter is checked by binding NULL and requiring the raise to be *observed*
 in at least one state — mechanism-A claims raise even under `empty`;
 mechanism-B claims need a state that routes a row into the target, exactly the

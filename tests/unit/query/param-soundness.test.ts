@@ -25,10 +25,27 @@ import { hasStatements, loadDataStates, type DataState } from "./fixture-data/st
 //              fixture that legitimately cannot witness should force that
 //              decision explicitly.
 //
-//   nullable — universal: binding NULL must never raise, in any state. A
-//              raise only counts against the claim when the same statement
-//              with the all-valid binding succeeded in that state — a
-//              failure the control shares is not evidence about NULL.
+//   nullable — NOT a promise, and this is where the two documents used to
+//              disagree (sweep-4 finding 7). The contract is one-directional:
+//              a claim means "binding NULL can raise", and the ABSENCE of a
+//              claim promises nothing. "NULL never raises anywhere" is not
+//              achievable for arbitrary user functions and never was — a
+//              plpgsql body that simply RAISEs on NULL rejects the binding
+//              with nothing catalog-visible behind it, and no static analysis
+//              can see that. The declared ARGUMENT type is the channel a
+//              schema author uses to get a claim: declare the parameter as a
+//              NOT NULL domain and mechanism A answers at Bind. A standard
+//              type is nullable by design.
+//
+//              What this suite still does, because it is the strongest oracle
+//              the input side has: over THIS corpus, a nullable claim whose
+//              NULL binding raises must be ACCOUNTED FOR. Either the engine
+//              is missing a catalog-visible channel — a real defect — or the
+//              fixture records `-- @param-opaque N: <why>`, which is itself
+//              checked: the raise must be observed, so a stale marker fails.
+//              A raise only counts when the same statement with the all-valid
+//              binding succeeded in that state — a failure the control shares
+//              is not evidence about NULL.
 //
 // Bindings go through the real protocol Bind step wherever the statement can
 // be typed — mechanism A lives at Bind, and a substituted NULL literal
@@ -67,6 +84,8 @@ interface FixtureRun {
   name: string;
   sql: string;
   claims: ParamClaim[];
+  /** `-- @param-opaque N: reason` — a raise the contract does not claim. */
+  opaque: Map<number, string>;
   validArgs: unknown[];
   /** null until decided by the first control run. */
   mode: "protocol" | "literal" | null;
@@ -119,12 +138,13 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
       .filter(f => f.endsWith(".sql") && f !== "schema.sql")
       .sort()) {
       const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const { bindings, paramClaims, rejectClaims } = parseFixtureDirectives(sql);
+      const { bindings, paramClaims, paramOpaque, rejectClaims } = parseFixtureDirectives(sql);
       if (paramClaims.length === 0) continue;
       runs.push({
         name: basename(file, ".sql"),
         sql,
         claims: paramClaims,
+        opaque: paramOpaque,
         validArgs: validArgsFor(paramClaims, bindings.map(b => b.args)),
         mode: null,
         controlOk: [],
@@ -218,11 +238,28 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
               `the rejecting site — give it one, the way @no-rows fixtures ` +
               `must observe their refusal.`,
           ).toBeGreaterThan(0);
+        } else if (run.opaque.has(ev.claim.number)) {
+          // Declared opaque: the raise is EXPECTED and must be OBSERVED, the
+          // same bar `@no-rows` sets for its refusal. A marker whose raise
+          // never happens is a stale excuse, and this is what takes it off.
+          expect(
+            ev.raises.length,
+            `$${ev.claim.number} is marked @param-opaque but binding NULL never ` +
+              `raised under any state (${stateNames.join(", ")}) — the contract ` +
+              `already covers it, so remove the marker:\n  ` +
+              `${run.opaque.get(ev.claim.number)!}`,
+          ).toBeGreaterThan(0);
         } else {
           expect(
             ev.raises,
             `$${ev.claim.number} is claimed nullable but binding NULL raised ` +
-              `where the control succeeded — the claim is falsified:\n  ` +
+              `where the control succeeded. A claim means "binding NULL can ` +
+              `raise" and its ABSENCE promises nothing, so this is not ` +
+              `automatically a defect — but it IS outside what the engine can ` +
+              `see, and this suite holds that explicit. Either the engine ` +
+              `should claim it (a catalog-visible channel it is missing), or ` +
+              `record it with \`-- @param-opaque ${ev.claim.number}: <why no ` +
+              `analysis can see it>\`:\n  ` +
               ev.raises.map(r => `[${r.state}] ${r.message}`).join("\n  "),
           ).toEqual([]);
         }

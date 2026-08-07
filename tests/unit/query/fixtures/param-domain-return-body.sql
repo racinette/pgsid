@@ -1,0 +1,40 @@
+-- A user function's BODY can reject NULL, and the contract does not claim it
+-- — sweep-4 finding 7, closed as a wording decision rather than a rule.
+--
+-- `sw4_dom_id(x text) RETURNS nn_text AS $$ SELECT x::nn_text $$` is
+-- NON-strict, so it runs; its body maps the argument into a NOT NULL domain,
+-- so a NULL argument raises `domain nn_text does not allow null values`. The
+-- engine claims nothing about `$1`, and under the contract that is correct:
+-- a claim means "binding NULL can raise", and its absence promises nothing.
+--
+-- Why not a rule. This class IS catalog-visible — a non-strict function with a
+-- NOT NULL domain return whose body is NULL-preserving — and a rule could be
+-- written for it. It would not close the question: `sw4_raiser`, a plpgsql
+-- body that simply RAISEs on NULL, rejects the same binding with nothing in
+-- the catalog behind it, and no analysis reaches that. So the boundary is not
+-- "which bodies can we read" but "the body is not the interface". The
+-- declared ARGUMENT type is: a parameter declared as a NOT NULL domain is
+-- rejected at Bind by mechanism A, which is what `param-domain-cast.sql` and
+-- the mechanism pins cover, and that is the channel a schema author uses to
+-- get the claim.
+--
+-- The marker below is not an excuse — the suite requires the raise to be
+-- OBSERVED, so it comes off the moment the engine learns to claim this.
+--
+-- Measured, with the controls that bound the class:
+--
+--   sw4_dom_id($1)   body `SELECT x::nn_text`   -> RAISES    (unclaimed)
+--   sw4_dom_echo($1) body `SELECT x`            -> RAISES    (unclaimed)
+--   dom_lenient($1)  body `SELECT 'd'::nn_text` -> ACCEPTED  (unclaimed, and safe)
+--   dom_strict($1)   STRICT, short-circuits     -> ACCEPTED  (unclaimed, and safe)
+--   $1::nn_text      mechanism A                -> RAISES    (CLAIMED notNull)
+--
+-- The corpus could not express this before: every other NOT-NULL-domain
+-- returning function in the fixture schema returns a CONSTANT, so the class
+-- was unreached rather than merely unlikely.
+-- @args ["v"]
+-- @param 1 nullable
+-- @param-opaque 1: the rejection lives in the function's BODY, which is not
+--   the interface — no claim is made about a user function's arguments beyond
+--   its declared parameter types, and `text` is nullable by design
+SELECT sw4_dom_id($1) AS d  -- @notNull

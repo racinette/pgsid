@@ -51,10 +51,32 @@ export interface FixtureDirectives {
    * Expected argument nullability, from `-- @param N notNull|nullable` lines.
    * One entry per annotated parameter, in annotation order. See
    * docs/argument-nullability.md: `notNull` claims binding NULL can make the
-   * statement raise; `nullable` claims NULL is a universally safe binding —
-   * never that it is a useful one.
+   * statement raise; `nullable` claims NOTHING — it records that no channel
+   * the engine models rejects NULL, never that nothing does. See
+   * `paramOpaque` for the raises that fall outside.
    */
   paramClaims: ParamClaim[];
+  /**
+   * Parameters whose NULL binding is KNOWN to raise for a reason no static
+   * analysis can see, by 1-based number, with the reason recorded:
+   * `-- @param-opaque N: reason`.
+   *
+   * The contract is one-directional — a claim means "binding NULL can raise",
+   * and the ABSENCE of a claim promises nothing (sweep-4 finding 7). What
+   * forces this to be spelled out rather than assumed is that
+   * param-soundness.test.ts falsifies a nullable claim the moment a NULL
+   * binding raises, and that check is worth keeping: over THIS corpus it is
+   * the strongest oracle the input side has. So a fixture that legitimately
+   * raises declares it here, exactly the way `@unwitnessable` declares a
+   * nullable output claim no state reaches.
+   *
+   * The class is a user function whose BODY rejects NULL with nothing
+   * catalog-visible behind it: a plpgsql `RAISE`, or a body that maps its
+   * argument into a NOT NULL domain. The declared ARGUMENT type is the
+   * channel a schema author uses to get a claim — declare the parameter as a
+   * NOT NULL domain and mechanism A answers.
+   */
+  paramOpaque: Map<number, string>;
   /**
    * Expected JOINT rejection sets, from `-- @param-reject N,M[,…]` lines:
    * binding NULL to every listed parameter together must make the statement
@@ -98,6 +120,7 @@ const NO_ROWS_RE = /^\s*--\s*@no-rows\b:?(.*)$/;
 const RAISES_RE = /^\s*--\s*@raises\b:?(.*)$/;
 const PARAM_REJECT_RE = /^\s*--\s*@param-reject\b(.*)$/;
 const PARAM_RE = /^\s*--\s*@param\b(?!-)(.*)$/;
+const PARAM_OPAQUE_RE = /^\s*--\s*@param-opaque\b(.*)$/;
 const UNWITNESSABLE_RE = /^\s*--\s*@unwitnessable\b:?(.*)$/;
 // A reason may run past one line, and what is RECORDED is what WITNESS_REPORT
 // prints — a reason whose second half lives only in the file reads as a
@@ -116,6 +139,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   const rejectClaims: number[][] = [];
   const nullGroupClaims: { columns: number[]; discriminants: number[] }[] = [];
   const unwitnessable = new Map<number, string>();
+  const paramOpaque = new Map<number, string>();
   let noRowsReason: string | null = null;
   let raisesPattern: string | null = null;
 
@@ -221,6 +245,23 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
       continue;
     }
 
+    const opaqueMatch = PARAM_OPAQUE_RE.exec(line);
+    if (opaqueMatch) {
+      const m = /^(\d+)\s*:\s*(.+)$/.exec(opaqueMatch[1]!.trim());
+      const number = m ? Number(m[1]) : NaN;
+      if (!m || !Number.isInteger(number) || number < 1) {
+        throw new Error(
+          `@param-opaque must be \`-- @param-opaque <n>: <reason>\`, ` +
+            `got: ${opaqueMatch[1]!.trim()}`,
+        );
+      }
+      if (paramOpaque.has(number)) {
+        throw new Error(`duplicate @param-opaque annotation for $${number}`);
+      }
+      paramOpaque.set(number, m[2]!.trim());
+      continue;
+    }
+
     const paramMatch = PARAM_RE.exec(line);
     if (paramMatch) {
       const parts = paramMatch[1]!.trim().split(/\s+/);
@@ -310,6 +351,19 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
     }
   }
 
+  // An opaque marker is about a claim, so the claim has to exist and has to be
+  // the one it explains: a notNull parameter is already claimed and needs no
+  // excuse, and an unannotated number is a marker pointing at nothing.
+  for (const [number] of paramOpaque) {
+    const claim = paramClaims.find(p => p.number === number);
+    if (!claim || claim.notNull) {
+      throw new Error(
+        `@param-opaque $${number} must also carry \`-- @param ${number} nullable\`: ` +
+          `it records that an UNCLAIMED parameter raises anyway`,
+      );
+    }
+  }
+
   if (bindings.length === 0) {
     bindings.push({ label: "unbound", args: null });
   }
@@ -318,6 +372,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
     noRowsReason,
     raisesPattern,
     paramClaims,
+    paramOpaque,
     rejectClaims,
     nullGroupClaims,
     unwitnessable,
