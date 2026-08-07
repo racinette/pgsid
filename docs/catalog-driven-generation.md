@@ -131,58 +131,61 @@ hard-coded tables. Concretely, four things stop being literals:
    FROM`, `JSON_TABLE`, `TABLESAMPLE` nor a qual-less join. A FROM-item axis is
    cheap next to the rest and should not wait.
 
-### Enumerated and randomised, both
+### Two instruments, and they have OPPOSITE requirements
 
-The existing axes are exhaustive over a defined space, and the suite prints its
-bound. That is worth keeping where it is affordable — the structural space is
-the part the corpus genuinely covers, and it should not be traded away.
+The single most important decision in this document, and getting it wrong is
+what made every earlier draft complicated.
 
-What the product space forces is a second mode: **randomised exploration under
-a seed**, which `docs/query-generator.md` already names as the widening to take
-once the enumerated axes stop finding defects. They have. The goal is stated
-plainly: reach the queries nobody thought to write.
+|  | COVERAGE instrument | DISCOVERY instrument |
+|---|---|---|
+| space | bounded, enumerated | unbounded, randomised |
+| every claim adjudicated? | yes — that is what coverage MEANS | no — and it must not try |
+| deterministic | required | not required |
+| speed | must gate CI | must never gate anything |
+| success | green | findings per run |
+| output | a number you can trust | candidate FIXTURES |
+| today | the enumerated corpus + 411 fixtures | the four adversarial sweeps, by hand |
 
-The two modes answer different questions and both belong:
+**A finding is SELF-ADJUDICATING; coverage is not.** The engine claims
+`notNull` and PostgreSQL returned a NULL — that is a fact, requiring no rule,
+no reason and no reviewer. So is an ordered-name disagreement, a traced/untraced
+parity break, an engine crash, a PostgreSQL rejection, a presence-group row the
+contract forbids. **The only ambiguous signal in the entire apparatus is the
+unwitnessed nullable claim** — and that is a coverage metric, not a defect.
 
-- **enumerated** — "no regression in the space we defined", printed with its
-  bound;
-- **randomised** — "expansion", with a seed corpus per run and any falsifying
-  case promoted to a permanent fixture, which is the loop every sweep has used
-  by hand.
+Therefore: **the randomiser consumes only self-adjudicating signals, and makes
+no coverage claim at all.** It is a sweep that runs itself. Its output is a
+falsifying statement, shrunk, promoted to a permanent fixture — which is
+precisely the loop all four adversarial sweeps ran by hand, with the human
+removed from the SEARCH and kept in the PROMOTION.
 
-## What must not be lost
+What this buys, and it is most of the difficulty in this document disappearing:
 
-Six properties the current suite has that a rewrite can quietly drop. Each is
-load-bearing and each has been paid for once already.
+- **Emptiness stops being a problem.** A query that returns no rows contributes
+  no rank-1 signal, and that is the whole of it — no tag, no excuse, no
+  classification, no reason for anyone to write. It still contributes shape,
+  parity and rejection signal, which need no rows.
+- **No UNWITNESSABLE rules are owed by the randomised half**, so the 12%
+  mislabelling rate the reason audit measured has no surface to attach to.
+- **It may be slow, non-deterministic and unbounded**, because it gates
+  nothing. Run it nightly, or for an hour on demand.
+- **The coverage claim stays where it can be honest**: the enumerated corpus
+  and the fixtures, both bounded and both reviewable.
 
-1. **PostgreSQL is the answer key.** No generated query carries a hand-written
-   expectation. A query PostgreSQL REJECTS is a generator defect, not a skip —
-   the current corpus holds "rejected by PostgreSQL: 0" and that must stay a
-   hard zero, or type-incorrect generation hides behind a filter.
-2. **Every claim must be witnessed, repaired, or uninhabitable by
-   construction.** "returned rows somewhere: 14964" is the assertion that stops
-   the corpus asserting nothing, and it gets HARDER with a realistic schema and
-   randomised predicates. It is the single biggest way this refactor could go
-   green by vacuity. The mechanism is designed above, in "Emptiness"; it is not
-   an implementation detail and should not be discovered during coding.
-3. **Expected-node checks.** `expectations` assert the construct an axis
-   requested survived deparsing. A deparser that drops a clause and still emits
-   parseable SQL turns a requested construct into silent false confidence
-   (measured: the recursive-CTE SEARCH/CYCLE drop). Randomised generation needs
-   these more, not less.
-4. **No silent caps.** Any sampling bound must be REPORTED, the way implicant
-   widths and the deep-join axis bound are. A corpus that truncates quietly
-   reads as "covered everything".
-5. **Reproducibility.** A failing random query must be reconstructible from its
-   id and seed alone, with no wall-clock or unseeded randomness anywhere.
-6. **PGlite memory.** `docs/query-generator.md`'s constraint section, and rule
-   6 of the workspace `AGENTS.md`: replaying hundreds of single-row statements
-   against a long-lived instance exhausts WASM linear memory. Batch.
+The consequence for the corpus that exists: it keeps its current discipline
+unchanged — the axes, the bound printed with the result, the UNWITNESSABLE
+rules with their bidirectional staleness check. Nothing about it gets looser.
+It simply stops being asked to do a job it was never shaped for.
 
-## Emptiness: the mechanism, in full
+## Emptiness — a question for the COVERAGE instrument only
 
-The question this design lives or dies on. Two answers are forbidden, and they
-are the two easy ones:
+With the split above, this stops being the question the design lives or dies
+on. It applies to the enumerated corpus, whose job is a number that can be
+trusted; the randomiser is out of scope for all of it, because it claims no
+coverage and therefore owes no excuses.
+
+Two answers remain forbidden for the enumerated half, and they are the two
+easy ones:
 
 - **Excusing the claim** — filing it unwitnessable and moving on. That is the
   corpus going green by vacuity, at scale, with a ratchet to hide behind. It is
