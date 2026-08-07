@@ -86,6 +86,78 @@ never pointed at it.
 So the scope is: change what the generator ranges over, not what the schema
 contains.
 
+### `t`/`u`/`v` are FROZEN — decided 2026-08-08
+
+Not migrated, not extended, not used again.
+
+- **The 87 fixtures that reference them KEEP them.** They are pinned, passing,
+  and each asserts something specific; rewriting them onto a realistic schema
+  would change 87 claims in one diff, and a claim that moved during a mechanical
+  migration is indistinguishable from one that moved because the migration was
+  wrong. The risk buys nothing.
+- **Nothing new uses them — generator, fixture, or variant.** They are a closed
+  legacy set from here on. Their whole failure mode was becoming the default
+  vehicle for anything that needed a table; the fix is to stop, not to
+  relitigate the past.
+
+So the placeholders stop growing and stop dictating, without anybody spending a
+week moving assertions between schemas.
+
+### The tool, as agreed
+
+The discovery instrument, spec settled 2026-08-08:
+
+1. Generates **syntactically correct** queries.
+2. **Tends toward** semantically correct ones — "tends" is deliberate; a
+   rejection is a defect to classify, not a reason to constrain the generator
+   into safety.
+3. Uses **as many discovered SQL constructs as possible** — the language
+   surface is the target, and every construct the engine claims about should be
+   reachable.
+4. **All DML, not just SELECT** — INSERT, UPDATE, DELETE, MERGE. RETURNING is
+   where DML nullability claims live, so this is high-value rather than
+   optional. Modifying statements roll back (`BEGIN`/`ROLLBACK`, the pattern
+   the DML corpus already uses), because the dataset is generated ONCE per
+   session and every query must see the same one.
+5. **Operators triage the rejected queries** and fix the generator, rather than
+   the generator quietly avoiding whatever it gets wrong.
+6. **Execution is compared against the engine's claims**; a disagreement is a
+   fixture and a fix.
+
+### What the tool DOES owe: the input contract
+
+"Owes no coverage claim" is about ACCOUNTING and must not be read as
+permission to be careless with inputs. A query returning nothing burns a run
+and produces no signal — bad data does not make the finder wrong, it makes it
+WEAK, and inputs are the cheapest control plane there is.
+
+- **Valid data, always.** Foreign keys resolve, domains hold, CHECKs are
+  satisfied, keys are unique. Already built and transfers untouched:
+  `fixture-data/generate.ts` does exactly this for an arbitrary catalog.
+- **A BIG dataset**, generated, so that a genuinely random query returns two or
+  three rows rather than none.
+- **Volume alone does not buy OVERLAP**, and this is the sharp edge: `WHERE
+  p.name = 'zeta-17'` returns nothing against a million rows if the literal was
+  invented by a type generator. **Predicate literals must be DRAWN FROM the
+  seeded values**, which is `drawFrom`/`ctx.values(table, column)` — the
+  mechanism that already makes foreign keys resolve — applied one layer up.
+  Range predicates are satisfiable with volume; equality is not.
+- **The data must contain what nullability is ABOUT**: real NULLs in nullable
+  columns at meaningful rates, and danglable rows wherever a key permits one
+  (a nullable FK, a NOT VALID key, a parent with optional children). A dataset
+  where every reference resolves turns every outer join into an inner join and
+  witnesses nothing.
+- **A realistic schema**, which mostly exists already — see above.
+
+Two more the tool owes, added for reasons that only bite later:
+
+- **Reproducibility.** It gates nothing, but a finding must replay from
+  `seed + query id` alone. Cheap to build in, impossible to retrofit.
+- **The rejection rate is a WORKLIST, not a filter.** Report it, classify the
+  causes, close them. The enumerated corpus holds "rejected by PostgreSQL: 0"
+  as a hard invariant; a randomiser will start above zero, and each class is a
+  generator bug. What is forbidden is silently skipping one.
+
 ### The precedent to copy, deliberately
 
 `tests/unit/query/fixture-data/generate.ts` already solves the structurally
@@ -364,11 +436,7 @@ armchair.
    be succeeded by another number that reads green over a thin corpus. The
    claim-based capability metric above is a candidate; it needs a definition
    that cannot be satisfied by an accessor returning null.
-3. **Do `t`/`u`/`v` survive at all?** 87 fixtures use them, and they are the
-   right vehicle for a fixture that wants NO constraints in the way. Retiring
-   them from the GENERATOR does not require deleting them; migrating the 87 is
-   a separate, optional cleanup that should not gate this work.
-4. **What is the shared-state / targeted-seed split?** The funnel above says
+3. **What is the shared-state / targeted-seed split?** The funnel above says
    shared states first and targeted seeding on the residue, but not where the
    line sits. If shared states witness 95% the funnel is cheap; if they witness
    40% it is the dominant cost. MEASURE it on the first spine before designing
