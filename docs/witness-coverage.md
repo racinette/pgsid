@@ -287,23 +287,24 @@ group.
 
 ## Current measurement
 
-Across 364 fixtures and 5 data states, at the default seed (the seven
-`function-default-*`, `function-strict-*` and `aggregate-domain-*` fixtures
-of the argument-substitution work are the latest growth; before them the
+Across 369 fixtures and 5 data states, at the default seed (the five
+`fk-entail-*` fixtures of the join-level presence work and the seven
+`function-default-*`, `function-strict-*` and `aggregate-domain-*` fixtures of
+the argument-substitution work are the latest growth; before them the
 imprecision closure's sixteen `body-shape-*` and `fk-entail-*` gate fixtures
 accounted for the step over 336 — itself grown through the third adversarial
 fix phase from 311 and 288):
 
 | | count | |
 |---|---|---|
-| `notNull` claims | 883 | |
-| — falsifiable | 873 (99%) | the query returns rows, so a NULL could contradict it |
+| `notNull` claims | 887 | |
+| — falsifiable | 877 (99%) | the query returns rows, so a NULL could contradict it |
 | — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
 | — unverified | 0 | held at zero |
-| `nullable` claims | 564 | |
-| — witnessed | 481 (85%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 83 | every one carries an `@unwitnessable` annotation |
-| `@null-group` claims | 42 (36 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
+| `nullable` claims | 575 | |
+| — witnessed | 493 (86%) | some state or binding produces a real NULL there |
+| — unwitnessed, reason recorded | 82 | every one carries an `@unwitnessable` annotation |
+| `@null-group` claims | 44 (38 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
 
 The new unwitnessed entries are one shape repeated: unnesting a NULL array
 produces NO rows, so the array column a fixture unnests can never be

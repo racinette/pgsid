@@ -3,7 +3,7 @@
 ## What this document is
 
 Four items in the output-nullability engine that are covered by neither of the
-two efforts already chartered. Item 1 is CLOSED; three are open. Each open one
+two efforts already chartered. Items 1 and 2 are CLOSED; two are open. Each open one
 is **sound as assessed**: the engine reports nullable where a value is provably
 non-null, or refuses a shape rather than guessing it. They are collected here
 because they are otherwise scattered across an `@unwitnessable` reason, an
@@ -14,7 +14,7 @@ reads as a work list.
 Read `docs/nullability-walk.md` for how the engine works and
 `docs/deferred-tasks.md` for everything else that is open.
 
-**No consumer is blocked by any of the three, and shipping with all three open
+**No consumer is blocked by either of the two, and shipping with both open
 costs precision only.** Take them in the order below or not at all; what this
 document exists to prevent is rediscovering each one from scratch. Item 1's
 entry stays because of what closing it found: a precision question about what a
@@ -69,35 +69,35 @@ each was assessed as sound at the time it was recorded. Re-measure the
 neighbourhood before assuming that still holds — a precision question about
 what a call means is one step from a soundness question about what it does.
 
-### 2. "This join never extends its left side" is not "every member of that side is present"
+### 2. "This join never extends its left side" is not "every member of that side is present" — CLOSED 2026-08-07
 
-**Shape.** Measured, in `fk-entail-optional-referenced.sql`:
+**What it was.** `c.id` read nullable in the FULL-FULL chain of
+`fk-entail-optional-referenced.sql`, where every `order_items` row has a
+matching order and the left slice keeps every order, so the second join emits
+no item-only row and `customers` is present throughout.
 
-```sql
-SELECT c.id
-FROM customers c
-FULL JOIN orders o       ON o.customer_id = c.id
-FULL JOIN order_items oi ON oi.order_id   = o.id
-```
+**What it is now.** The join-level fact exists, and it is carried without
+teaching the fixpoint a second vocabulary: a join that cannot extend a side
+leaves the joins INSIDE that side un-extendable from above, which is
+`incomingRequired` — a property the walk already records — and the ordinary
+key rule on the inner join then promotes `customers`. `orders` stays nullable,
+as it must. The fact composes with itself, so a chain proves its own premise
+one join at a time; `docs/nullability-walk.md`, "The join-level fact", has the
+rule and the two subtree readings it rests on.
 
-`c.id` is never NULL: every `order_items` row has a matching order, the left
-slice keeps every order, so the second FULL JOIN produces no order-items-only
-row and never extends its left side at all — which makes `customers` present
-throughout. The engine reads it nullable.
+**What pursuing it found.** Two live unsoundnesses in the mechanism this item
+was a residue OF. Reading a key as "this join always matches" needs the match
+to be in the SLICE, not merely in the table, and nothing checked that a join
+inside the referenced side had not dropped it — an ordinary status predicate
+is enough (`fk-entail-referenced-not-preserved.sql`, and the proven-present arm
+beside it). The condition that fixes them is the same one item 2's fact needs,
+which is why the two arrived together.
 
-**Why it is open.** The evidence concludes about a JOIN and the presence
-fixpoint concludes about ALIASES, so there is nowhere to put the fact. The
-claim is recoverable only by giving the fixpoint that second vocabulary.
-
-**What closing it takes.** A JOIN-LEVEL fact the walk does not currently
-carry: "this join cannot extend its left side", distinct from the
-member-level `present` set the fixpoint maintains. The evidence is available —
-every referencing row has a match, and the left slice retains every referenced
-row — but it concludes about the JOIN, and the fixpoint's vocabulary is about
-ALIASES. Note that `o` genuinely can be absent, from the FIRST join's
-extension, so the fact cannot simply be pushed down to the members.
-
-**Cost of leaving it.** Deep FULL-JOIN chains over foreign keys. Narrow.
+**Cost of the closure, recorded.** A relation the walk cannot prove PRESERVED
+loses the promotion even where it is preserved in fact — an INNER join is read
+as dropping rows whatever its qual says. Deliberate: the alternative is
+reasoning about which rows a qual keeps, which is the analysis the engine does
+not do.
 
 ### 3. Foreign-key entailment does not compose through a JOIN inside a correlated subquery
 
@@ -118,12 +118,16 @@ reason, in `extreme-activity-feed-union` (#7) and
 `extreme-dml-insert-shipping-pipeline` (#9).
 
 **What closing it takes.** Chaining the existing subquery-form entailment
-through the subquery's own FROM. Eleven gate fixtures already pin the hazards
-from the side that would produce a wrong `notNull` (`fk-entail-not-valid`,
+through the subquery's own FROM. Thirteen gate fixtures pin the hazards from
+the side that would produce a wrong `notNull` (`fk-entail-not-valid`,
 `-deferrable`, `-inheritance` and its `ONLY` control, `-extra-conjunct`,
-`-optional-referencer`, `-optional-referenced`, and the four `-subquery-*`);
-any composition rule has to keep every one of them passing, and they are the
-specification.
+`-optional-referencer`, `-optional-referenced`, the two
+`-referenced-not-preserved` and the four `-subquery-*`); any composition rule
+has to keep every one of them passing, and they are the specification. The
+subquery's FROM raises the same question the join form answered in the
+`-referenced-not-preserved` pair — the key proves a row exists in the TABLE,
+and an INNER join inside the subquery can have dropped it before the
+correlation is evaluated.
 
 **Cost of leaving it.** Two claims today.
 
@@ -158,17 +162,18 @@ anyway.
 
 ## Boundaries — do not re-derive these
 
-- **None of the three open items is unsound as assessed.** If you find
+- **Neither open item is unsound as assessed.** If you find
   yourself trading soundness for precision on one of them, stop: the register's
-  standing rule is that a dropped claim is never a wrong one. What item 1
-  showed is that the assessment is a measurement, not a property — probe the
-  neighbourhood first, and if a wrong claim is in it, that becomes the work.
+  standing rule is that a dropped claim is never a wrong one. What items 1 and 2
+  showed is that the assessment is a measurement, not a property — each turned
+  up wrong claims in its own neighbourhood. Probe first, and if one is there,
+  that becomes the work.
 - **The refusal in item 4 is deliberate**, and its positive controls exist so
   that a fix cannot silently widen it into a blanket refusal. Keep them.
-- **The foreign-key gate that `fk-entail-optional-referenced.sql` pins is
-  load-bearing and mutation-tested**: it is what stops a referenced side
-  extended by a DEEPER join from being promoted. Item 2's claim must be
-  recovered by adding the join-level fact, never by relaxing that gate.
+- **The foreign-key gates are load-bearing and mutation-tested**: a referenced
+  side extended by a DEEPER join, or one whose rows an inner join has dropped,
+  may not be promoted. `fk-entail-*.sql` pins each from the side that would
+  produce a wrong `notNull`, and item 3 has to keep every one of them passing.
 - **A guarantee read off a FUNCTION describes a call that RUNS.** Item 1's
   fix rests on it: strictness, an empty aggregate input and a zero-row body are
   three ways a call produces no value for the declaration to constrain. Any new
@@ -197,7 +202,7 @@ Specifically for this document:
 | | |
 |---|---|
 | Item 1's fixtures (closed) | `function-default-argument.sql`, `function-strict-*.sql`, `aggregate-domain-empty-input.sql` |
-| Item 2's record | `tests/unit/query/fixtures/fk-entail-optional-referenced.sql` (`@unwitnessable 0`) |
+| Item 2's fixtures (closed) | `fk-entail-optional-referenced.sql`, `fk-entail-join-level-*.sql`, `fk-entail-referenced-not-preserved*.sql` |
 | Item 3's record | `docs/imprecision-closure.md`, "The residue is one shape" |
 | Item 3's gate fixtures | `tests/unit/query/fixtures/fk-entail-*.sql` |
 | Item 4's pins | `tests/unit/query/unsupported-nodes.test.ts`, "unnest's element type" |

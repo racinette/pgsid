@@ -604,21 +604,21 @@ corpora surface.
 (2026-08-07). Items that neither chartered effort owns, collected because they
 were otherwise scattered across an `@unwitnessable` reason, an `UNWITNESSABLE`
 rule in a generated suite, a residue paragraph in a closed charter and an entry
-in this register — four places, none of which reads as a work list. Item 1 is
-closed; the three below are open and SOUND as assessed: a nullable where the
-value is provably non-null, or a refusal rather than a guess. None blocks a
-consumer, and shipping with all three open costs precision only.
+in this register — four places, none of which reads as a work list. Items 1
+and 2 are closed; the two below are open and SOUND as assessed: a nullable
+where the value is provably non-null, or a refusal rather than a guess. None
+blocks a consumer, and shipping with both open costs precision only.
 
 1. **A defaulted argument is not substituted into the body** — CLOSED
    2026-08-07, and it did not stay a precision item: `DEFAULT NULL` plus
    strictness made five claims wrong. The closure entry in section 2 has the
    list and the fix; the standing lesson is that "sound" on an item in that
    handoff is a measurement someone made once, not a property.
-2. **Join-level versus member-level presence** — "this join cannot extend its
-   left side" is not "every member of that side is present", and the fixpoint's
-   vocabulary is aliases. Costs `c.id` in
-   `fk-entail-optional-referenced.sql`, a claim the engine used to reach by an
-   unsound route.
+2. **Join-level versus member-level presence** — CLOSED 2026-08-07, and it did
+   not stay a precision item either: reading a key as "this join always
+   matches" was missing the condition that the match is still in the SLICE, and
+   two shapes claimed notNull against PostgreSQL's NULL. The closure entry in
+   section 2 has both.
 3. **Foreign-key entailment does not compose through a JOIN inside a
    correlated subquery** — each hop is a key the mechanism already reads; only
    the composition is missing. Two claims.
@@ -730,6 +730,52 @@ routes named; `docs/imprecision-closure.md` carries the measurements.
 Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
+
+Closed by the JOIN-LEVEL PRESENCE FACT (2026-08-07,
+`docs/precision-residue.md` item 2), which — like item 1 before it — began as
+a precision item and turned up wrong claims on the way. The precision item:
+"this join never extends its left side" is not "every member of that side is
+present", and the presence fixpoint's vocabulary is aliases, so the first had
+nowhere to live. It now lives where it already fits: a join that cannot extend
+a side leaves the joins INSIDE that side un-extendable from above, which is
+`incomingRequired`, and the ordinary key rule on the inner join then promotes
+`customers` in the FULL-FULL chain of `fk-entail-optional-referenced.sql`.
+`orders` stays nullable there, as it must — it is the FIRST join that extends
+it. The fact composes with itself, so a chain proves its own premise one join
+at a time (`fk-entail-join-level-composed.sql` and its mirrored spelling), and
+a nullable key at the inner join stops the composition dead
+(`-nullable-key.sql`).
+
+**Two live unsoundnesses in the mechanism this item was a residue of.**
+Reading a key as "this join always matches" needs the match to be in the
+SLICE, and nothing checked that a join inside the referenced side had not
+already dropped it. `customers c INNER JOIN orders o ON o.customer_id = c.id
+AND o.status = 'fulfilled' FULL JOIN order_items oi ON oi.order_id = o.id`
+emits an item-only row for an item on any other order — an ordinary status
+predicate is the whole counterexample — and the proven-present arm fails the
+same way through `orders o LEFT JOIN (customers c INNER JOIN addresses a ON
+a.customer_id = c.id) ON c.id = o.customer_id`, where an order's customer is
+dropped for having no address. Presence of the REFERENCING side is no defence:
+those rows carry a stored referencing row and are exactly the extended ones.
+Both measured against PG18, both now pinned
+(`fk-entail-referenced-not-preserved*.sql`).
+
+One condition fixes both and is what the join-level fact needed anyway — the
+referenced relation must be PRESERVED on its side — so the two arrived
+together. Two subtree readings carry it, both read off join types alone: a
+LEFT join preserves its left side and extends its right, a RIGHT join the
+mirror, a FULL join preserves and extends both, an INNER join neither. WHERE
+is not consulted; it filters after the joins and can only remove a row, never
+create the extended one a claim is about. The deeper-join gate the schema axis
+added generalises into the same vocabulary and keeps its counterexample
+failing.
+
+Five fixtures, each mutation-checked to fail alone; the generated corpus
+(11632 queries) and the schema axis both ran clean. What it costs: a relation
+the walk cannot prove preserved loses the promotion even where it is preserved
+in fact, because an INNER join is read as dropping rows whatever its qual
+says — the alternative is reasoning about which rows a qual keeps, which is
+the analysis this engine deliberately does not do.
 
 Closed by ARGUMENT SUBSTITUTION (2026-08-07, `docs/precision-residue.md` item
 1), which began as one precision item and ended as five wrong claims. The
