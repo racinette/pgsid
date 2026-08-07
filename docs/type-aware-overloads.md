@@ -303,10 +303,36 @@ siblings), which answer "is this name strict?" and cannot answer "which
 overload is `integer + integer`?".
 
 So tier 1 is not implementable for BUILTIN operators today, and `+` and `||` —
-this document's two worked cases — are builtins. `docs/generated-surface.md`
-carries a standing boundary against closing that gap ("pg_catalog signatures
-stay out of the snapshot until the consumer's search-path input lands"), so
-this refactor is downstream of that decision and should not start before it.
+this document's two worked cases — are builtins.
+
+**The capture is this document's own first slice, and it is not blocked on
+anything.** An earlier reading had it waiting on "the consumer's search-path
+input"; both halves of that are false, measured 2026-08-07. The search path is
+already an INPUT to the engine — `buildNullabilityCatalog(snapshot, {
+searchPath })`, with a documented default — and pg_catalog metadata already
+reaches the snapshot as ENVIRONMENT in six captures
+(`builtinStrictFunctions`, `builtinTableFunctions`,
+`builtinSetReturningFunctions`, `builtinAggregateFunctions`,
+`builtinFunctionNames`, `builtinPolymorphicFunctions`), one of which already
+reassembles per-name SHAPES from `proargnames`/`proallargtypes`. What the
+search path actually interacts with is how candidates are MERGED once
+signatures exist, and finding 6 of sweep 3 settled that: unqualified lookups
+gather candidates from every schema in the path, deduped by
+`pg_get_function_identity_arguments`, with pg_catalog searched implicitly and
+first.
+
+**A seventh capture landed on 2026-08-07 and is the working precedent.**
+`builtinPolymorphicArraySignatures` carries `(name, argument type names,
+return type name)` for the pg_catalog functions and aggregates whose return is
+a polymorphic ARRAY — read from `pg_proc` rather than curated, asserted
+against the catalog in both directions, and ENVIRONMENT like its siblings so
+it stays out of the diff. It exists to answer one question (the element type
+of `unnest(array_agg(p))`) and it answers it by exactly the rule this document
+needs at full scale: match the call's argument types against the signature's
+polymorphic positions, then read the return type off the match. Roughly 30
+rows. The remaining capture — 133 function names over 235 signatures, 21
+operator names over 558 — is the same shape, wider, and `BuiltinSignature` is
+the type to grow.
 
 **The scope is far smaller than "all of pg_catalog", and that is the way
 through.** Signatures are needed only for names the engine makes a CLAIM

@@ -657,6 +657,67 @@ Four, with the constraints that bound them:
   census fails loudly on a feature nobody generated, where a generator
   silently does not generate it.
 
+### 5. Capability reach — the corpus's other blind axis (2026-08-07)
+
+Items 1–4 asked which catalog FEATURES the schema carries. This asks a
+different question about the same corpus and gets a worse answer: which of the
+walk's catalog CAPABILITIES a generated query ever exercises.
+
+`tests/unit/query/catalog-spy.ts` answers it by wrapping `NullabilityCatalog`
+in a recording Proxy — the catalog is a pure data interface, so "which
+question did this statement ask" is observable without touching the walk.
+Measured 2026-08-07:
+
+| corpus | statements | capabilities touched |
+|---|---|---|
+| fixtures + grammar sampler | 438 | 34 of 34 |
+| generated corpus (four default entry points) | 11632 | 24 |
+| union | | 34 |
+
+**27 times the statements, ten fewer capabilities, and nothing the fixtures do
+not already reach.** Cold under generation: `resolveForeignKey`,
+`resolveWriteRewrites`, `resolveOperatorMetadata`,
+`resolveLiteralDistinctnessSound`, `resolveColumnTypeName`,
+`resolveDomainBaseTypeName`, `resolveBuiltinFunctionShape`,
+`resolvePolymorphicArraySignatures`, `isBuiltinFunction`,
+`isPolymorphicBuiltin`.
+
+That is item 4's diagnosis one level sharper. A schema axis varies the
+CATALOG the queries run against; it does not follow that the queries then ASK
+about what varies. `t`, `u` and `v` gained a foreign key under the `fk-chain`
+variant, and the corpus reached the entailment mechanism — but a corpus can
+carry a composite column and never write `unnest`, carry a custom operator and
+never apply it, carry a domain and never cast to it.
+
+**The work, in the order the measurement suggests.**
+
+1. **Measure the schema axis first.** The numbers above cover the four default
+   generator entry points, not `generated/schema-axis.test.ts`, which runs the
+   same generator against 22 variants. Some of the ten are certainly reached
+   there (`resolveForeignKey` under `fk-chain`). Run the spy over that corpus
+   before building anything: the gap to close is whatever is still cold, and
+   assuming it is all ten would be the same mistake this item exists to name.
+2. **Add the missing call sites to the projection and FROM axes**, one per
+   cold capability, driven by that list rather than by taste. The function-call
+   axis is the model: it was added because two mechanisms measured zero
+   generated coverage, and it found a defect on its first run.
+3. **The one gap already known, and it is not small.** The generator's function
+   vocabulary contains **zero STRICT functions**. Five of the seven rank-1
+   unsoundnesses found on 2026-08-07 were in the strict family — a strict call
+   short-circuits past its body, its declared NOT NULL domain, and its whole
+   FROM-position column list — and no generated query can express one. A strict
+   `gfn_*` beside the existing six is the cheapest coverage in this document.
+4. **Then assert it.** `catalog-census.test.ts` already fails when a capability
+   goes cold over the fixture corpus. The same assertion over the generated
+   corpus, once its reach is worth asserting, turns this measurement into a
+   ratchet instead of a one-off.
+
+**What it cannot prove**, stated with item 4's: exercising a capability is not
+exercising it WELL. `resolveForeignKey` being asked once by one shape says the
+branch is reachable, not that its gates are probed — that is what the
+adversarial sweeps are for, and `docs/adversarial-sweep-4.md` takes the
+mechanisms this measurement leaves uncovered.
+
 ## What "done" looks like
 
 Item 4 inherits `docs/query-generator.md`'s "What done looks like" verbatim —
@@ -682,9 +743,14 @@ Two additions specific to this work:
   encode structural situations volume does not reach
   (`docs/witness-coverage.md`, "Hand-written"); they are complementary to
   generation, not superseded by it.
-- **`pg_catalog` signatures stay out of the snapshot** until the consumer's
-  search-path input lands — the two interact, and the register's residue
-  entry for sweep-3 finding 6 records why.
+- **`pg_catalog` signature capture belongs to `docs/type-aware-overloads.md`**,
+  which owns the rule that consumes it and carries the working precedent
+  (`builtinPolymorphicArraySignatures`, 2026-08-07). It is an ENVIRONMENT
+  capture like the six already here, not a schema one, so it changes with the
+  PostgreSQL version and stays out of the diff. What the search path
+  interacts with is how candidates MERGE once signatures exist, which sweep-3
+  finding 6 settled: unqualified lookups gather from every schema in the path,
+  pg_catalog searched implicitly and first.
 - **The stop condition for SWEEPS is already decided**
   (`docs/deferred-tasks.md`, "What to do next"): stop chartering them
   against code age. This document is the answer to "then what" for the
