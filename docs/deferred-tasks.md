@@ -689,12 +689,11 @@ keys, no constraints, no triggers. All NINE findings of the fourth sweep and
 its fix phase were unexpressible in it, including the two ordinary ones. The
 engine is a function of (AST, CATALOG) and the corpus explores one argument.
 
-The direction is to FREEZE `t`/`u`/`v` — the 87 fixtures that reference them
-keep them, and nothing new uses them ever again, so the placeholders stop
-dictating without anyone spending a week moving 87 assertions between schemas
-— and point the generator at the application schema already in
-`fixtures/schema.sql`, which is not work to be done, since 164 fixtures already
-query it; generating over the catalog the way
+The direction is to FREEZE `t`/`u`/`v` — the fixtures that reference them keep
+them, and nothing new uses them ever again, so the placeholders stop dictating
+without anyone moving a pile of assertions between schemas — and point the
+generator at the application schema already in `fixtures/schema.sql`, which is
+not work to be done, since the hand-written fixtures query it extensively; generating over the catalog the way
 `tests/unit/query/fixture-data/` already generates DATA over it, with the same
 tier resolution and the same "no match is an ERROR, not a default" rule.
 **The handoff's central decision is that COVERAGE and DISCOVERY are separate
