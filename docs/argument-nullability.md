@@ -54,7 +54,11 @@ whose parameters have gaps (`SELECT $2` fails at parse analysis with "could
 not determine data type of parameter $1"), so the contract is a dense
 positional array `$1..$n` for any statement PostgreSQL accepts.
 
-## The two mechanisms, measured
+## The mechanisms, measured
+
+Two mechanisms were measured first and named A and B; C (value flow) and D
+(builtin argument positions) were added later and are described in "The
+algorithm" and "What a nullable parameter does not promise" respectively.
 
 Everything below was measured against PGlite (PostgreSQL 18) on 2026-07-31,
 with `CREATE DOMAIN uname AS text NOT NULL`, a table `d (n uname)`, a table
