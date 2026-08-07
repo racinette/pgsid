@@ -1,0 +1,51 @@
+-- SWEEP-4 FINDING 4 (rank 1). Quarantined: `pid` is the engine's CURRENT
+-- claim and is WRONG.
+--
+-- Falsifying data:
+--   INSERT INTO sw4_pp (id, k) VALUES (1, 'a'), (150, 'b');   -- one per partition
+--   INSERT INTO sw4_pref (id, p_id) VALUES (10, 1), (11, 150);
+-- Observed: two rows, `pid` NULL in the first.
+--
+--     id     | k
+--     -------+--------
+--     (null) | (null)      <- r(10, 1), whose match lives in sw4_pp1
+--     150    | b
+--
+-- A foreign key REFERENCING a partitioned table is recorded in pg_constraint
+-- more than once: the declared constraint (`confrelid` = sw4_pp,
+-- `conparentid` = 0) plus one CLONE per partition of the referenced table
+-- (`confrelid` = sw4_pp1 / sw4_pp2, `conparentid` = the declared one). The
+-- clones exist so a delete on one partition can fire the right referential
+-- trigger; none of them means "every referencing row matches THIS partition".
+--
+-- The adapter keys its FK map on `schema.table.column` and lets the last row
+-- win, so `sw4_pref.p_id` resolves to whichever partition the snapshot
+-- happens to order last — here `sw4_pp2`. Two wrong answers fall out of one
+-- capture:
+--
+--   1. UNSOUND (this fixture): joining the partition the map landed on
+--      promotes it, and a referencing row pointing into any OTHER partition
+--      null-extends.
+--   2. IMPRECISE: joining the DECLARED parent — `LEFT JOIN sw4_pp p ON
+--      p.id = r.p_id`, the shape anyone would actually write — promotes
+--      nothing, because the declared target was overwritten. That claim is
+--      recoverable and is what the fix buys back.
+--
+-- The adapter's comment beside the gate list already says "Partitioning is
+-- the opposite and needs no exclusion", and that is true of the case it was
+-- reasoning about — the REFERENCING table being partitioned. The referenced
+-- side is a different question and the clones are a different mechanism.
+--
+-- Suspected mechanism: catalog-adapter.ts `buildNullabilityCatalog`,
+-- `fkByColumn.set(key, target)` with no `conparentid` filter; snapshot.ts
+-- `queryConstraints` does not capture `conparentid`, so the adapter cannot
+-- currently tell a declared key from a clone.
+--
+-- Attack-catalog entry: D — "a key whose referenced side is a partitioned
+-- parent". It landed one layer below where the charter pointed: not in the
+-- walk's slice reasoning but in what the catalog answers.
+SELECT
+  p.id AS pid,   -- @notNull   <- FALSE
+  p.k            -- @nullable
+FROM sw4_pref r
+LEFT JOIN sw4_pp2 p ON p.id = r.p_id

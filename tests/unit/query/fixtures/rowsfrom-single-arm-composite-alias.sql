@@ -1,0 +1,17 @@
+-- The OVERSHOOT control for the lone-arm naming rule: the relation alias
+-- names the RELATION, and a composite arm keeps its own field names.
+--
+-- `AS z` here does not make the columns `z` — PostgreSQL returns `a` and `b`.
+-- A fix that dropped the `ROWS FROM` condition and stopped there, applying
+-- the alias to every lone arm, would rename both of these and this fixture is
+-- what fails.
+--
+-- `a` is a NOT NULL domain in the declared TABLE(...) list and there is no
+-- padding partner, so it keeps its claim — which is the other half of the
+-- boundary: the flag survives here and must not survive beside a longer arm.
+-- @unwitnessable 1: `b` is declared plain integer, so the walk reads it
+--   nullable, and the body returns the call's own literal argument — no state
+--   can make a constant NULL. Structural, not a data gap
+SELECT * FROM ROWS FROM (sw4_tab_srf(1)) AS z
+-- @notNull   (a: the declared NOT NULL domain, no arm to be padded against)
+-- @nullable  (b)
