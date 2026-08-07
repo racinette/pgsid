@@ -705,8 +705,10 @@ unchanged. Discovery needs an unbounded space, consumes only SELF-ADJUDICATING
 signals (a claimed notNull against an observed NULL, a name-list disagreement,
 a parity break, a crash, a rejection), and must never gate anything — that is
 the randomiser, which is the four adversarial sweeps with the human removed
-from the search and kept in the promotion. Its output is a shrunk falsifying
-statement that becomes a fixture, not a green checkmark. Emptiness stops being
+from the search and kept in the promotion. Its output is a falsifying statement
+that becomes a fixture VERBATIM: the traced walk already names the rule that
+concluded wrongly, and this suite's 32 `extreme-*` fixtures are large by design
+because interactions are what they pin. Emptiness stops being
 a problem for it: a query returning no rows contributes no signal, which is the
 whole of it — no tag, no excuse, and no surface for the 12% mislabelling rate
 the reason audit measured.
