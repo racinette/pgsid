@@ -674,6 +674,13 @@ Measured 2026-08-07:
 | generated corpus (four default entry points) | 11632 | 24 |
 | union | | 34 |
 
+**CLOSED (2026-08-07): the generated corpus is at 34 of 34 over 14964
+statements.** The four steps below are all built, and each keeps its original
+text above the result — including step 1's prediction, which the measurement
+falsified, and step 3's cost estimate, which was wrong in the cheap direction.
+The rest of this section is the record of what it took; the state to read
+first is `capability-reach.test.ts`'s report.
+
 **27 times the statements, ten fewer capabilities, and nothing the fixtures do
 not already reach.** Cold under generation: `resolveForeignKey`,
 `resolveWriteRewrites`, `resolveOperatorMetadata`,
@@ -691,30 +698,197 @@ never apply it, carry a domain and never cast to it.
 
 **The work, in the order the measurement suggests.**
 
-1. **Measure the schema axis first.** The numbers above cover the four default
-   generator entry points, not `generated/schema-axis.test.ts`, which runs the
-   same generator against 22 variants. Some of the ten are certainly reached
-   there (`resolveForeignKey` under `fk-chain`). Run the spy over that corpus
-   before building anything: the gap to close is whatever is still cold, and
-   assuming it is all ten would be the same mistake this item exists to name.
-2. **Add the missing call sites to the projection and FROM axes**, one per
-   cold capability, driven by that list rather than by taste. The function-call
-   axis is the model: it was added because two mechanisms measured zero
-   generated coverage, and it found a defect on its first run.
-3. **The one gap already known, and it is not small.** The generator's function
-   vocabulary contains **zero STRICT functions**. Five of the seven rank-1
-   unsoundnesses found on 2026-08-07 were in the strict family — a strict call
-   short-circuits past its body, its declared NOT NULL domain, and its whole
-   FROM-position column list — and no generated query can express one. A strict
-   `gfn_*` beside the existing six is the cheapest coverage in this document.
-4. **Then assert it.** `catalog-census.test.ts` already fails when a capability
-   goes cold over the fixture corpus. The same assertion over the generated
-   corpus, once its reach is worth asserting, turns this measurement into a
-   ratchet instead of a one-off.
+1. **Measure the schema axis first — DONE (2026-08-07), and it answered NO.**
+   The prediction in this slot was that some of the ten would already be
+   reached under the variants, `resolveForeignKey` under `fk-chain` most
+   obviously. Measured, both halves of that are wrong.
+
+   | corpus | statements | capabilities |
+   |---|---|---|
+   | four default entry points, base schema | 11632 | 24 of 34 |
+   | schema-axis pool (`generateQueries` + `generateDeepJoinQueries`, non-parameterised), base schema | 9968 | 18 |
+   | the same pool against **each of the 13 variants** | 9968 × 13 | **18, every one** |
+   | union of all of it | | **24 — unchanged** |
+
+   **Every variant touches the identical eighteen. The schema axis moves
+   capability reach by exactly zero**, and not because the run is bounded: the
+   420-query stride sample reaches the same 18 the full 9968 do, so the cap is
+   not what limits it. (Thirteen variants, not the 22 this item said — 22 is
+   the census's gap count, a different number that had drifted into this
+   sentence.)
+
+   **The cause is the instrument, and it sharpens what the spy measures.** The
+   spy records the QUESTION a statement asks, not the ANSWER it gets back.
+   `resolveForeignKeyTree` is already warm over the BASE schema — `keyEntails`
+   asks it for every join the corpus writes and is told `null`, because `t`, `u`
+   and `v` declare no keys. `fk-chain` changes what comes back, which is exactly
+   why it convicted the entailment gate; it does not change what is asked. So
+   **capability reach is a property of the QUERY SHAPES and nothing else**, and
+   the schema axis varies the other argument. The two axes are orthogonal in
+   the strict sense — item 4 widens what the answers can say, item 5 widens
+   what gets asked — and neither substitutes for the other.
+
+   `resolveForeignKey` is cold for a second reason on top: it is the non-tree
+   accessor, taken only when the referencing side is spelled `ONLY`, and the
+   generator never writes `ONLY` at all.
+
+   **The gap to close is therefore all ten**, which is the answer this step was
+   written to distrust, arrived at by measurement rather than by assuming it.
+   The six the DML and parameter entry points add over the schema-axis pool —
+   `isStrictBuiltin`, `resolveCheckConstraints`, `resolveColumnNotNull`,
+   `resolveGenerationExpr`, `resolveIsPartitioned`, `resolveWriteRewritesTree` —
+   are the shape of the fix in miniature: a capability comes in with a new
+   STATEMENT KIND, never with a new schema.
+
+   **Each cold capability has a fixture that reaches it**, measured the same
+   way (one spy per fixture, 382 fixtures plus 56 sampler statements), so
+   step 2 is transcription rather than taste. Grouped by what closes them:
+
+   | what the corpus is missing | capabilities it would light | witness to copy |
+   |---|---|---|
+   | `unnest` — the generator writes none | `isBuiltinFunction`, `isPolymorphicBuiltin`, `resolvePolymorphicArraySignatures`, `resolveDomainBaseTypeName` | `unnest-builtin-scalar-array.sql`, `unnest-composite-domain-element.sql` |
+   | a CHECK constraint the entailment kernel consults | `resolveColumnTypeName`, `resolveLiteralDistinctnessSound` | the 24-strong `check-*` family, `bpchar-literal-distinctness.sql` |
+   | the `ONLY` spelling | `resolveForeignKey` (SELECT), `resolveWriteRewrites` (DML) | `fk-entail-only-control.sql`, `trigger-inherit-only-control.sql` |
+   | a user-defined operator | `resolveOperatorMetadata` | `custom-operator.sql` |
+   | a builtin SRF in FROM position | `resolveBuiltinFunctionShape` | `builtin-table-function-shape.sql` |
+
+   The CHECK row is the one that needs the schema axis after all, and it is
+   not a contradiction of the paragraph above: the kernel is already ENTERED
+   by the corpus (`resolveCheckConstraintsTree` is one of the warm 18) and
+   comes back empty, so what it needs is a constraint to consult — a schema
+   fact — before the callbacks it would then make can fire. The question is
+   asked; the answer has to be non-trivial before the questions BEHIND it
+   exist. That is the one place the two axes compose rather than run parallel.
+2. **Add the missing call sites — BUILT (2026-08-07). All ten closed; the
+   generated corpus is at 34 of 34.** Five families, one per row of the triage
+   table above, and the corpus went **11632 → 14964 queries, notNull claims
+   19043 → 24089, nullable claims → 32659** with zero rejections, zero
+   refusals, zero column-list disagreements and zero violations throughout.
+
+   | call site | capabilities closed |
+   |---|---|
+   | the `op-custom` projection — `===` and `====`, the two custom operators whose backing functions sit on opposite sides of the strictness boundary | `resolveOperatorMetadata` |
+   | the `unnest(left)`/`unnest(full)` structures — four FROM items, each taking a different arm of `unnestElementType`, each returning exactly ONE row so the whole structural corpus runs over them unchanged | `isBuiltinFunction`, `isPolymorphicBuiltin`, `resolvePolymorphicArraySignatures`, `resolveDomainBaseTypeName`, `resolveColumnTypeName`, `resolveBuiltinFunctionShape` |
+   | the `only(…)` structures and the `update-only`/`delete-only` DML | `resolveForeignKey`, `resolveWriteRewrites` |
+   | the `check-lit` projection against the new `check-entail` variant | `resolveLiteralDistinctnessSound` |
+
+   **The unnest structure is four items rather than one**, because the four
+   cold members are four different arms of one function and no single spelling
+   takes them all: `ARRAY[ROW(u.val::text, u.email)::gfn_pair]` reads the
+   element type from a CAST (and must follow it through any domain),
+   `string_to_array('z', ',', 'z')` reads it from a FUNCTION CALL (polymorphic
+   signatures first, then the two builtin predicates), `ARRAY[t.name]` reads it
+   from a COLUMN — the member-typed spelling, which is what finally asked
+   `resolveColumnTypeName` — and `json_each_text('{"a": null}'::json)` is a
+   pg_catalog SRF whose NAMED OUTPUT COLUMNS the fallback would get wrong.
+   Every one returns exactly one row, which is what lets them cross the entire
+   projection/setop/wrapper space without invalidating a single matchLiteral.
+
+   **`ONLY` is the case that proves step 1's point.** It is not a new relation,
+   a new schema or a new function — it is the SAME join with one bit flipped,
+   and that bit is what chooses between every tree accessor and its non-tree
+   half. No amount of schema variation could ever have reached it, which is why
+   `resolveForeignKeyTree` was warm on all thirteen variants while
+   `resolveForeignKey` was cold on all thirteen.
+
+   **`check-entail` is where items 4 and 5 compose, and the only place they
+   do.** `resolveLiteralDistinctnessSound` sits two levels down: the kernel
+   asks it only from `litsDistinct`, which runs only when a TRUE fact
+   `col = 'a'` meets a constraint atom `col = 'b'`. So it needed BOTH halves —
+   the query's literal comparison (a projection) and the constraint's (a schema
+   variant). The corpus had been ENTERING the kernel all along and learning
+   nothing, because `t`/`u`/`v` carry no CHECK: a question asked of an empty
+   answer never reaches the questions behind it. Measured discriminating rather
+   than assumed — **all 876 `check-lit` queries promote `t.name` from nullable
+   to notNull under the variant and none under the base schema**, and every one
+   of those promotions is executed against PostgreSQL by the schema-axis suite.
+   It is the only variant the reach report names as contributing a capability
+   the base schema does not.
+
+3. **The strict family — BUILT (2026-08-07), and this item's own estimate was
+   wrong in the cheap direction.** The claim was that a strict `gfn_*` had to
+   be ADDED. It did not: `fixtures/schema.sql` already declares `dom_strict`,
+   `def_strict`, `pair_strict` and `mid_out`, all STRICT, all written for the
+   2026-08-07 findings. What had no call site was the GENERATOR, so the whole
+   item cost two lines in the `fn-call` projection and no DDL at all.
+
+   `dom_strict(textA)` returns `nn_text` — a NOT NULL DOMAIN — and is strict,
+   so a NULL argument short-circuits past a domain the declared return type
+   would otherwise license a notNull from; `t.name`'s NULLs falsify that on
+   real rows. `def_strict(intKey)` is where the two mechanisms meet: the call
+   supplies one argument, PostgreSQL SUBSTITUTES the `DEFAULT NULL`,
+   strictness then sees a NULL and the body never runs, so it is NULL for
+   every input there is. Nullable claims went 30907 → 32659, all witnessed or
+   classified.
+
+4. **The floor — BUILT (2026-08-07): `tests/unit/query/generated/capability-reach.test.ts`.**
+   Five assertions over the union of the four default entry points and all
+   fourteen schema variants, about 17 seconds and no PostgreSQL execution at
+   all — the walk is a pure function of (AST, catalog), so "which question did
+   this statement ask" costs one snapshot per schema and nothing per query.
+
+   The FIXTURE corpus stays where it was, asserted EXACTLY in
+   `catalog-census.test.ts`: there a cold capability is a branch that lost its
+   only executable coverage, which deserves the stricter bar.
+
+   The GENERATED corpus gets the floor this item asked for, **asserted in both
+   directions** — which is not the all-or-nothing bar the item rejected,
+   because it is measured against today's set rather than against 34. A
+   capability going cold is the regression; a capability going warm that
+   nobody declared is drift, and acknowledging it costs one line. Both halves
+   convicted while the work was in progress: the floor named
+   `resolveOperatorMetadata` the moment the operator projection landed and
+   refused to pass until it was declared with the call site that did it.
+
+   The two remaining assertions keep the gap list honest rather than the
+   count: every cold capability must carry a triage entry naming what would
+   reach it and a FIXTURE that does, and every triage entry must still be
+   cold. Both are empty now, which is the point — but the machinery is what
+   made step 2 transcription instead of taste, and it is what a future cold
+   capability will land in.
+
+**One thing this widening did NOT do, recorded because the pattern it breaks
+is one this document leans on.** Every previous generator widening here found
+an engine defect on its first run, and the paragraph below used to say so as
+an argument for doing this before the next sweep. **This one found none.**
+14964 queries across five new call-site families, every one of them reaching a
+mechanism no generated query had ever reached, and the engine was right about
+all of them — including the 876 CHECK-entailment promotions in the unsound
+direction and the whole strict family.
+
+That is worth two readings and neither should be skipped. It is evidence the
+engine's recent fix phases did generalise past their own fixtures, which is
+the thing the fixture suite structurally cannot tell you. And it is a reminder
+that reach is not depth: these call sites ask each capability ONCE per shape,
+where the eleven `fk-entail-*` fixtures exist because each gate needed its own
+falsifying input. A widening that convicts nothing has raised the floor and
+not probed the ceiling.
+
+**The one defect it did find was in the harness**, and it is worth keeping
+because it would silently disarm any future ONLY coverage: **libpg-query omits
+protobuf defaults, so `FROM ONLY t` parses to a RangeVar with NO `inh` key at
+all** — not `inh: false`. The deparser reads it the same way, so an
+`inh: false` the generator writes round-trips to a plain `FROM t`, the query
+still runs, and every catalog question it asks moves quietly back to the tree
+accessor. The first version of the ONLY axis produced 1126 queries that
+spelled no ONLY anywhere and lit no accessor. Caught by the suite's own
+"silent deparser drops" assertion once `expectOnly` was taught that a DML
+target is a BARE RangeVar under `relation` rather than a wrapped node — the
+axis-tuple-versus-regenerated-SQL check earning its place a second time.
+
+**Do this before the next adversarial sweep, on the evidence rather than the
+intuition.** Widening is not a delay before the sweep: it hands the sweep a
+corpus that can express the fixes the sweep produces, and it is now the case
+that every catalog capability the walk has is reachable from generated input.
+`docs/adversarial-sweep-4.md` is written to run either way and says so.
 
 **What it cannot prove**, stated with item 4's: exercising a capability is not
 exercising it WELL. `resolveForeignKey` being asked once by one shape says the
-branch is reachable, not that its gates are probed — that is what the
+branch is reachable, not that its gates are probed — the eleven `fk-entail-*`
+fixtures exist because each gate needed its own falsifying input. Read the
+floor as a REACHABILITY invariant and nothing more: it catches a capability no
+query can reach, which is the failure that hides everything else, and it says
+nothing about how hard the reachable ones are pushed. That is what the
 adversarial sweeps are for, and `docs/adversarial-sweep-4.md` takes the
 mechanisms this measurement leaves uncovered.
 
@@ -767,6 +941,7 @@ Two additions specific to this work:
 | Curated tables vs pg_catalog — item 2 | `tests/unit/query/curated-tables.test.ts` |
 | Totality probed by execution — item 3 | `tests/unit/query/totality-probe.test.ts` |
 | Schema axis — item 4 | `tests/unit/query/generated/schema-axis.test.ts`, `schema-variants.ts` (`GENERATED_ALL_SCHEMAS=1` for the full corpus per variant) |
+| Capability reach — item 5 | `tests/unit/query/generated/capability-reach.test.ts` (`CAPABILITY_WITNESSES=1` for the per-fixture witness map), `catalog-spy.ts` |
 | The census list both items share | `tests/unit/query/catalog-features.ts` |
 | Curated tables | `src/query/nullability-walk.ts` (seven), `src/query/operators.ts` |
 | Fixture schema | `tests/unit/query/fixtures/schema.sql` |

@@ -90,6 +90,34 @@ function renamingTable(schema: string, from: string, to: string): GeneratorRegis
   return { ...fixtureGeneratorRegistry, byColumn: { ...byColumn(), [schema]: tables } };
 }
 
+/**
+ * The base registry with a column's NULL policy pinned to "never". The policy
+ * tier overrides the generator tier (`generate.ts`: a policy that fires
+ * returns null WITHOUT calling the generator), so a patch whose CHECK forbids
+ * a NULL has to reach this tier rather than the column one.
+ */
+function withoutNulls(schema: string, table: string, columns: string[]): GeneratorRegistry {
+  const policies = fixtureGeneratorRegistry.nullPolicies ?? {};
+  const byCol = policies.byColumn ?? {};
+  const schemaPolicies = byCol[schema] ?? {};
+  return {
+    ...fixtureGeneratorRegistry,
+    nullPolicies: {
+      ...policies,
+      byColumn: {
+        ...byCol,
+        [schema]: {
+          ...schemaPolicies,
+          [table]: {
+            ...(schemaPolicies[table] ?? {}),
+            ...Object.fromEntries(columns.map(c => [c, () => false])),
+          },
+        },
+      },
+    },
+  };
+}
+
 /** The base registry with per-column overrides merged into one schema. */
 function withColumns(schema: string, overrides: TableMap): GeneratorRegistry {
   const merged: TableMap = { ...(byColumn()[schema] ?? {}) };
@@ -117,6 +145,20 @@ ALTER TABLE v ADD CONSTRAINT gen_v_u_fk FOREIGN KEY (u_id) REFERENCES u(id)${mod
 `;
 
 export const SCHEMA_VARIANTS: SchemaVariant[] = [
+  {
+    name: "check-entail",
+    why:
+      "The CAPABILITY axis rather than the feature axis (docs/generated-surface.md item 5), and the one place the two compose. The corpus already ENTERS the entailment kernel — resolveCheckConstraintsTree is warm over the base schema — and learns nothing, because t/u/v carry no CHECK: a question asked of an empty answer never reaches the questions behind it. This variant supplies the answer, and the `check-lit` projection supplies the query half, so `litsDistinct` finally has a TRUE fact `val = 'x'` to set against the constraint's `val = 'zz'` and resolveLiteralDistinctnessSound is asked. The promotion it licenses is the UNSOUND direction — nullable to notNull on a column PostgreSQL will happily return NULL for if the reasoning is wrong.",
+    covers: ["validated-check"],
+    patch: `
+ALTER TABLE t ADD CONSTRAINT gen_t_ck CHECK (val = 'zz' OR name IS NOT NULL);
+`,
+    // 'zz' is outside the seed vocabulary, so the constraint reduces to
+    // "name IS NOT NULL" for every row that can exist — which the generator
+    // must then honour, at the POLICY tier: the column tier is not consulted
+    // when a null policy fires.
+    registry: withoutNulls("public", "t", ["name"]),
+  },
   {
     name: "exclusion-constraint",
     why:

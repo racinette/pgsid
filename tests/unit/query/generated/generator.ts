@@ -104,6 +104,23 @@ const eq = (l: Ast, r: Ast): Ast => ({
 const rangeVar = (relname: string): Ast => ({
   RangeVar: { relname, inh: true, relpersistence: "p" },
 });
+/**
+ * `ONLY rel` — the relation's own rows, not its inheritance tree. `inh` is
+ * the one bit that separates the walk's TREE accessors from their non-tree
+ * halves (`resolveForeignKey`, `resolveWriteRewrites`, `resolveColumnNotNull`
+ * and friends), and the generator wrote `inh: true` everywhere.
+ *
+ * The field is OMITTED rather than set to `false`, which is not a style
+ * choice: libpg-query serialises protobuf defaults by leaving them out, so
+ * `FROM ONLY t` parses to a RangeVar with no `inh` key at all (measured). The
+ * deparser reads it the same way and emits `ONLY` for an absent `inh` —
+ * `inh: false` round-trips to a plain `FROM t`, silently, which is how the
+ * first version of this helper produced 1126 queries that spelled no ONLY
+ * anywhere and lit no accessor.
+ */
+const onlyVar = (relname: string): Ast => ({
+  RangeVar: { relname, relpersistence: "p" },
+});
 const paramRef = (number: number): Ast => ({ ParamRef: { number } });
 const castTo = (arg: Ast, typeName: string): Ast => ({
   TypeCast: { arg, typeName: { names: [str(typeName)], typemod: -1 } },
@@ -114,6 +131,11 @@ const neq = (l: Ast, r: Ast): Ast => ({
 const concatOp = (l: Ast, r: Ast): Ast => ({
   A_Expr: { kind: "AEXPR_OP", name: [str("||")], lexpr: l, rexpr: r },
 });
+/** A binary operator by NAME — the user-defined ones the curated sets exclude. */
+const opExpr = (name: string, l: Ast, r: Ast): Ast => ({
+  A_Expr: { kind: "AEXPR_OP", name: [str(name)], lexpr: l, rexpr: r },
+});
+const arrayExpr = (elements: Ast[]): Ast => ({ A_ArrayExpr: { elements } });
 const isNull = (arg: Ast): Ast => ({ NullTest: { arg, nulltesttype: "IS_NULL" } });
 const orExpr = (...args: Ast[]): Ast => ({ BoolExpr: { boolop: "OR_EXPR", args } });
 const andExpr = (...args: Ast[]): Ast => ({ BoolExpr: { boolop: "AND_EXPR", args } });
@@ -123,6 +145,8 @@ const plus = (l: Ast, r: Ast): Ast => ({
 // DML pieces. A DML statement's relation is an INLINED RangeVar (no tag),
 // and RETURNING is a ReturningClause struct: `{ exprs: [ResTarget...] }`.
 const relation = (relname: string): Ast => ({ relname, inh: true, relpersistence: "p" });
+/** A DML target spelled `ONLY rel` — see `onlyVar` for why `inh` is absent. */
+const onlyRelation = (relname: string): Ast => ({ relname, relpersistence: "p" });
 const insertCols = (...names: string[]): Ast[] => names.map(n => ({ ResTarget: { name: n } }));
 const setItem = (name: string, val: Ast): Ast => ({ ResTarget: { name, val } });
 const valuesRow = (...items: Ast[]): Ast => ({ List: { items } });
@@ -318,6 +342,40 @@ const expectOnConflict = (action: string): Expectation => ({
   },
 });
 
+/**
+ * A `RangeVar` for `rel` with inheritance OFF in the re-parsed AST. The
+ * deparse/re-parse round trip is where an `inh: false` would go missing, and
+ * silently: the query still runs, and every catalog question it asks moves
+ * back to the tree accessor.
+ */
+const expectOnly = (rel: string): Expectation => ({
+  label: `ONLY ${rel}`,
+  present: root => {
+    for (const n of walk(root)) {
+      // A FROM item is a wrapped `{RangeVar: …}`; a DML target is the bare
+      // message under `relation`, which is why `relation()` builds one.
+      const rv = (n.RangeVar ?? n) as { relname?: string; inh?: boolean };
+      // `inh !== true`, because absent IS the ONLY spelling — see `onlyVar`.
+      if (rv?.relname === rel && rv.inh !== true) return true;
+    }
+    return false;
+  },
+});
+
+/** An `A_Expr` naming this operator symbol in the re-parsed AST. */
+const expectOperator = (op: string): Expectation => ({
+  label: `${op} operator`,
+  present: root => {
+    for (const n of walk(root)) {
+      const ae = n.A_Expr as { name?: unknown[] } | undefined;
+      if ((ae?.name ?? []).some(f => (f as { String?: { sval?: string } }).String?.sval === op)) {
+        return true;
+      }
+    }
+    return false;
+  },
+});
+
 /** A call of `fn` carrying an OVER clause in the re-parsed AST. */
 const expectWindow = (fn: string): Expectation => ({
   label: `${fn}() OVER`,
@@ -453,6 +511,37 @@ function joinStructures(): JoinStructure[] {
     });
   }
 
+  // The ONLY spelling of the same join — `docs/generated-surface.md` item 5.
+  //
+  // `inh` is the bit that chooses between the walk's TREE accessors and their
+  // non-tree halves, and the generator set it true everywhere: every catalog
+  // fact the corpus asked for came back through `…Tree`, so `resolveForeignKey`
+  // measured cold across all 12962 statements and all thirteen schema variants
+  // while `resolveForeignKeyTree` was warm on every one of them. ONLY is not a
+  // new relation or a new schema — it is the same join with one bit flipped,
+  // which is precisely why no amount of schema variation could reach it.
+  //
+  // Both sides carry it. `ONLY u` is what puts the non-tree accessor under the
+  // key entailment (the entailment's REFERENCING side is `u`, and `scansTree`
+  // is a property of the scanned entry), and `ONLY t` is what makes the
+  // structure discriminating under the `inherit-child` variant, where
+  // `ALTER TABLE ONLY t … SET NOT NULL` leaves a child free to store the NULL
+  // the parent forbids: `FROM t` must read the tree and `FROM ONLY t` must
+  // not. Under the base schema neither relation has children, so the rows are
+  // identical to `single(k)`'s and every projection's literals carry over
+  // unchanged.
+  for (const k of JOIN_KINDS) {
+    out.push({
+      key: `only(${kindLabel(k)})`,
+      fromClause: [
+        join(k, onlyVar("t"), onlyVar("u"), eq(colRef("u", "t_id"), colRef("t", "id"))),
+      ],
+      slots: tuSlots,
+      extras: [],
+      expectations: [expectJoins(k), expectOnly("t"), expectOnly("u")],
+    });
+  }
+
   for (const k1 of JOIN_KINDS) {
     for (const k2 of JOIN_KINDS) {
       out.push({
@@ -565,6 +654,180 @@ function joinStructures(): JoinStructure[] {
     extras: [],
     expectations: [expect("table function", "RangeFunction"), expectJoins("JOIN_LEFT")],
   });
+
+  // The UNNEST / builtin-SRF axis — `docs/generated-surface.md` item 5.
+  //
+  // Four catalog capabilities measured cold across the entire generated corpus
+  // AND all thirteen schema variants, all four behind ONE missing call site:
+  // `unnestElementType` is entered only by an `unnest` in FROM position, and
+  // the generator wrote no unnest anywhere. A fifth, `resolveBuiltinFunctionShape`,
+  // is the FROM-item shape branch for a pg_catalog function, and the corpus's
+  // only table function was the user-defined `gfn_urows`.
+  //
+  // Three FROM items, each chosen for the branch it takes and each returning
+  // EXACTLY ONE ROW so the whole structural corpus runs over them unchanged —
+  // a cross-joined item that multiplied rows would invalidate every
+  // projection's matchLiterals at once.
+  //
+  //   unnest(ARRAY[ROW(t.name, u.email)::gfn_pair]) — the COMPOSITE element
+  //     path. The array's first element is a cast, so the element type is read
+  //     from the cast's target name, which `fromRendered` must follow through
+  //     any domain layer before deciding it is composite: that is
+  //     `resolveDomainBaseTypeName`, asked here of a name that is NOT a domain,
+  //     which is the answer the branch needs and the one no fixture makes
+  //     cheap. The item expands to gfn_pair's two fields, so it supplies the
+  //     structure's text slots and the column-list oracle checks the expansion
+  //     on every projection.
+  //   unnest(string_to_array('z', ',', 'z')) — the FUNCTION-CALL element path:
+  //     no user candidate, so the walk asks for polymorphic signatures first
+  //     (`resolvePolymorphicArraySignatures`) and then falls to the two builtin
+  //     predicates (`isBuiltinFunction`, `isPolymorphicBuiltin`). The
+  //     three-argument form's null_string turns the single piece into a NULL,
+  //     so the column is one row of NULL — the nullable claim is witnessed by
+  //     construction rather than by a data state.
+  //   json_each_text('{"a": null}'::json) — a pg_catalog SRF with NAMED OUTPUT
+  //     COLUMNS, which is the case `resolveBuiltinFunctionShape` exists for:
+  //     the fallback would contribute one column named after the function
+  //     where PostgreSQL emits `key` and `value`. Referencing `je.value` is
+  //     the test — a wrong shape does not resolve. json_each_text rather than
+  //     json_each because it maps a JSON null to a SQL NULL, so the claim is
+  //     witnessed; json_each's `value` is a json datum and never NULL.
+  //
+  // LEFT and FULL only, and that is a coverage decision rather than an
+  // oversight: the walk calls every unnest field nullable, so `g.q` (which
+  // carries u.email) has a nullable claim that only a NULL-extended `u` can
+  // witness. Under INNER and RIGHT the u side is always present and the claim
+  // would go dark in every projection at once — an UNWITNESSABLE rule for a
+  // structure that need not exist.
+  const unnestPairItem = (): Ast => ({
+    RangeFunction: {
+      functions: [
+        {
+          List: {
+            items: [
+              funcCall("unnest", [
+                arrayExpr([
+                  rowCast(
+                    // u.val, not t.name: the refilter wrappers pin the textC
+                    // slot IS NOT NULL, so a textC drawn from the same column
+                    // as textA would pin textA too and take both claims dark
+                    // in one move (measured — 32 unwitnessed claims and two
+                    // unobserved presence-group arms). Drawing textB and textC
+                    // from `u` reproduces tuSlots exactly, which is what makes
+                    // every projection's matchLiterals hold over this
+                    // structure.
+                    //
+                    // The `::text` is for the schema axis: `enum-column`
+                    // retypes u.val, and an enum is not implicitly coercible
+                    // to gfn_pair's text field. It changes nothing the walk
+                    // reads — the element type comes from the RowExpr's own
+                    // cast — and it keeps the element-type branch measuring
+                    // the same thing under all thirteen variants.
+                    [castTo(colRef("u", "val"), "text"), colRef("u", "email")],
+                    "gfn_pair",
+                  ),
+                ]),
+              ]),
+              {},
+            ],
+          },
+        },
+      ],
+      alias: { aliasname: "g" },
+    },
+  });
+  const unnestBuiltinItem = (): Ast => ({
+    RangeFunction: {
+      functions: [
+        {
+          List: {
+            items: [
+              funcCall("unnest", [
+                funcCall("string_to_array", [textConst("z"), textConst(","), textConst("z")]),
+              ]),
+              {},
+            ],
+          },
+        },
+      ],
+      alias: { aliasname: "w" },
+    },
+  });
+  const jsonEachItem = (): Ast => ({
+    RangeFunction: {
+      functions: [
+        {
+          List: {
+            items: [
+              funcCall("json_each_text", [castTo(textConst('{"a": null}'), "json")]),
+              {},
+            ],
+          },
+        },
+      ],
+      alias: { aliasname: "je" },
+    },
+  });
+  // The COLUMN spelling of the element type. An ARRAY constructor with no
+  // cast to read from types itself from its MEMBERS, so the walk asks the
+  // catalog for the member's rendered type — `resolveColumnTypeName`, which
+  // measured cold everywhere else because the corpus's only composite-typed
+  // expression was the composite-star projection's CAST. One member, so the
+  // item is row-preserving like the others, and its value IS t.name, so the
+  // nullable claim is witnessed by the same data that witnesses the slot.
+  const unnestColumnItem = (): Ast => ({
+    RangeFunction: {
+      functions: [
+        { List: { items: [funcCall("unnest", [arrayExpr([colRef("t", "name")])]), {}] } },
+      ],
+      alias: { aliasname: "n" },
+    },
+  });
+  const unnestSlots: Slots = {
+    ...tuSlots,
+    // gfn_pair is (p text, q text) and the row cast is ROW(t.name, u.email),
+    // so q carries the NOT NULL side and p the nullable one — the same values
+    // tuSlots' textB and textC take, which is what keeps every projection's
+    // matchLiterals correct over this structure.
+    textB: colRef("g", "q"),
+    textC: colRef("g", "p"),
+  };
+  for (const k of ["JOIN_LEFT", "JOIN_FULL"]) {
+    out.push({
+      key: `unnest(${kindLabel(k)})`,
+      fromClause: [
+        join(k, rangeVar("t"), rangeVar("u"), eq(colRef("u", "t_id"), colRef("t", "id"))),
+        unnestPairItem(),
+        unnestBuiltinItem(),
+        unnestColumnItem(),
+        jsonEachItem(),
+      ],
+      slots: unnestSlots,
+      extras: [
+        {
+          expr: colRef("w", "w"),
+          alias: "a_un",
+          literal: textConst("un"),
+          matchLiteral: nullConst(),
+        },
+        {
+          expr: colRef("n", "n"),
+          alias: "a_uc",
+          literal: textConst("uc"),
+          // sparse's matched row: t.name is NULL there, and this column IS
+          // t.name routed through a one-element array.
+          matchLiteral: nullConst(),
+        },
+        {
+          expr: colRef("je", "value"),
+          alias: "a_je",
+          literal: textConst("je"),
+          matchLiteral: nullConst(),
+        },
+      ],
+      expectations: [expect("unnest element", "A_ArrayExpr"), expectJoins(k)],
+    });
+  }
 
   // The generated-columns structure: gm's text slots are GENERATED columns
   // (safe_label = COALESCE(b,'anon'), label = b||'!'), so every projection
@@ -943,12 +1206,44 @@ const PROJECTIONS: Projection[] = [
         target(funcCall("gfn_io", [s.slots.textB]), "a_fi"),
         target(funcCall("gfn_sd", [s.slots.textA]), "a_fs"),
         target(funcCall("double_val", [s.slots.intKey]), "a_fb"),
+        // The STRICT family — `docs/generated-surface.md` item 5, step 3.
+        // Every function the generator called was non-strict, and five of the
+        // seven rank-1 unsoundnesses found on 2026-08-07 were strict ones: a
+        // strict call handed a NULL does not run, so it returns NULL past its
+        // body, past its declared NOT NULL domain, and past the whole column
+        // list of a FROM-position return.
+        //
+        // No new DDL was needed, which is the one place the item's own
+        // estimate was wrong: `fixtures/schema.sql` already declares the
+        // strict vocabulary, and what it had no call site for was the
+        // GENERATOR. Both members here are the mechanism at its sharpest.
+        //
+        // dom_strict returns nn_text — a NOT NULL DOMAIN — and is STRICT, so
+        // `dom_strict(NULL)` is NULL and the domain is enforced on a value the
+        // call never produces. Reading the declared return type would claim
+        // notNull; t.name's NULLs falsify that on real rows.
+        //
+        // def_strict declares `b integer DEFAULT NULL` and the call supplies
+        // one argument, so the two mechanisms meet: PostgreSQL SUBSTITUTES the
+        // default, strictness then sees a NULL argument, and the body (`SELECT
+        // a`, a non-null value) never runs. It is NULL for every input there
+        // is, which makes the claim witnessed under every state.
+        target(funcCall("dom_strict", [s.slots.textA]), "a_fst"),
+        target(funcCall("def_strict", [s.slots.intKey]), "a_fdn"),
       ],
-      colNames: ["a_fd", "a_fv", "a_fi", "a_fs", "a_fb"],
-      literals: [intConst(31), textConst("fv"), textConst("fi"), textConst("fs"), intConst(32)],
+      colNames: ["a_fd", "a_fv", "a_fi", "a_fs", "a_fb", "a_fst", "a_fdn"],
+      literals: [
+        intConst(31), textConst("fv"), textConst("fi"), textConst("fs"), intConst(32),
+        textConst("fst"), intConst(33),
+      ],
       // sparse's matched t–u row: t.id 1, t.name NULL, u.val NULL,
       // u.email 'u1@b.c'. Measured against PGlite rather than reasoned.
-      matchLiterals: [intConst(8), textConst("u1@b.c"), textConst("U1@B.C"), nullConst(), intConst(1)],
+      // t.name is NULL there, so the strict dom_strict short-circuits; the
+      // strict def_strict is NULL whatever the row.
+      matchLiterals: [
+        intConst(8), textConst("u1@b.c"), textConst("U1@B.C"), nullConst(), intConst(1),
+        nullConst(), nullConst(),
+      ],
     }),
     expectations: [expect("gfn_def", "FuncCall")],
   },
@@ -985,6 +1280,83 @@ const PROJECTIONS: Projection[] = [
       matchLiterals: [intConst(1), textConst("u1@b.c"), nullConst()],
     }),
     expectations: [expectGroupBy, expectWindow("gfn_win")],
+  },
+  {
+    // The USER-OPERATOR axis. `docs/generated-surface.md` item 5 measured
+    // `resolveOperatorMetadata` cold across the whole generated corpus and all
+    // thirteen schema variants: the fixture schema declares four custom
+    // operators and the generator wrote only bare builtin symbols, every one
+    // of which the curated `TOTAL_OPERATORS`/`STRICT_OPERATORS` sets answer
+    // for without asking the catalog anything.
+    //
+    // Both directions of the trust boundary, in one projection, because they
+    // are one branch taking opposite exits — and because a schema axis cannot
+    // reach either: an operator can be DECLARED and never APPLIED.
+    //
+    //   === is backed by the NON-strict lenient_eq, whose body is `SELECT
+    //     true`. The walk dispatches the backing function through the FuncCall
+    //     rules and reads that body, so the result is notNull however NULL its
+    //     operands — the claim PostgreSQL agrees with, and the one a blanket
+    //     "operators are strict" reading would get backwards.
+    //   ==== is backed by the STRICT strict_same (`SELECT a = b`), so it is
+    //     NULL whenever either operand is, and t.name is NULL across the
+    //     sparse and generated states.
+    //
+    // textA and textB, never textC: `enum-column` retypes the textC slot and
+    // an enum is not implicitly coercible to the operators' text arguments —
+    // the same constraint the fn-call projection records, measured there at
+    // 128 rejections.
+    key: "op-custom",
+    build: s => ({
+      targets: [
+        target(opExpr("===", s.slots.textA, s.slots.textB), "a_ol"),
+        target(opExpr("====", s.slots.textA, s.slots.textB), "a_os"),
+        target(s.slots.intKey, "a_int"),
+      ],
+      colNames: ["a_ol", "a_os", "a_int"],
+      literals: [boolConst(true), boolConst(false), intConst(71)],
+      // sparse's matched t–u row: t.name is NULL there, so lenient_eq still
+      // returns true and strict_same returns NULL.
+      matchLiterals: [boolConst(true), nullConst(), intConst(1)],
+    }),
+    expectations: [expectOperator("==="), expectOperator("====")],
+  },
+  {
+    // The CHECK-ENTAILMENT axis, and the one place items 4 and 5 COMPOSE.
+    //
+    // `resolveLiteralDistinctnessSound` was the last capability the generated
+    // corpus could not reach, and it sits two levels down: the kernel asks it
+    // only from `litsDistinct`, which runs only when a TRUE fact `col = 'a'`
+    // meets a constraint atom `col = 'b'` on the same column. So it needs BOTH
+    // halves — a literal comparison in the query (this projection) and a CHECK
+    // constraint carrying one (the `check-entail` schema variant).
+    //
+    // That is why the corpus already ENTERED the kernel and learned nothing:
+    // `resolveCheckConstraintsTree` is warm over the base schema and comes
+    // back empty, because t/u/v carry no CHECK. A question asked of an empty
+    // answer never reaches the questions behind it.
+    //
+    // `t.val` and `t.name` are named directly rather than through slots. Every
+    // structure in the axis contains `t` — that is the generator's schema
+    // contract — and the pair has to be two columns of ONE table for a CHECK
+    // to relate them at all, which no combination of slots can guarantee.
+    //
+    // 'x' is the sparse state's `t.1` value, so the WHERE selects the row every
+    // projection's matchLiterals are written against, and t.1's NULL name
+    // witnesses the base schema's nullable claim. Under `check-entail` the
+    // constraint promotes it and PostgreSQL is asked to agree.
+    key: "check-lit",
+    build: s => ({
+      targets: [
+        target(colRef("t", "name"), "a_ckn"),
+        target(s.slots.intKey, "a_int"),
+      ],
+      where: eq(colRef("t", "val"), textConst("x")),
+      colNames: ["a_ckn", "a_int"],
+      literals: [textConst("cn"), intConst(72)],
+      matchLiterals: [nullConst(), intConst(1)],
+    }),
+    expectations: [],
   },
   {
     key: "group-coalesce",
@@ -1299,6 +1671,60 @@ export function generateDmlQueries(): GeneratedQuery[] {
       );
     }
   }
+
+  // --- ONLY: the non-tree write-rewrite accessor. --------------------------
+  //
+  // `targetWriteRewrites` reads the target RangeVar's `inh` and takes
+  // `resolveWriteRewritesTree` when it is set — which it was for every DML
+  // statement the generator wrote, so the non-tree half measured cold across
+  // the whole corpus (`docs/generated-surface.md` item 5). The distinction is
+  // real work, not a spelling: a BEFORE ROW trigger on a CHILD fires on a
+  // write that names the parent, and `ONLY` is what excludes it.
+  //
+  // `t` carries no children under the base schema, so these are `single`'s
+  // rows through a different accessor; under `inherit-child` they are the
+  // discriminating pair. RETURNING projects the same two columns as the
+  // insert-values shapes so the claims are comparable: `id` is NOT NULL and
+  // `name` is nullable and witnessed by the seeded NULL names.
+  dml(
+    "update-only",
+    "only(t)",
+    "plain",
+    {
+      UpdateStmt: {
+        relation: onlyRelation("t"),
+        targetList: [setItem("name", paramRef(1))],
+        whereClause: eq(colRef("id"), paramRef(2)),
+        returningClause: {
+          exprs: [target(colRef("id"), "r_id"), target(colRef("name"), "r_nm")],
+        },
+      },
+    },
+    [
+      { number: 1, valid: "nm" },
+      { number: 2, valid: 1 },
+    ],
+    [expect("UPDATE", "UpdateStmt"), expectReturning, expectOnly("t"), expectParams(1, 2)],
+  );
+  dml(
+    "delete-only",
+    "only(t)",
+    "plain",
+    {
+      DeleteStmt: {
+        relation: onlyRelation("t"),
+        // The disjunct keeps the parameter in comparison position with NULL
+        // legal, which is delete-using's contract shape — and it keeps the
+        // statement from depending on a particular id existing.
+        whereClause: orExpr(neq(colRef("id"), paramRef(1)), isNull(paramRef(1))),
+        returningClause: {
+          exprs: [target(colRef("id"), "r_id"), target(colRef("name"), "r_nm")],
+        },
+      },
+    },
+    [{ number: 1, valid: 999 }],
+    [expect("DELETE", "DeleteStmt"), expectReturning, expectOnly("t"), expectParams(1)],
+  );
 
   // --- insert-select: every join structure as the source. -------------------
   for (const structure of joinStructures()) {

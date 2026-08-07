@@ -787,12 +787,19 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
    * slots are present. A predicate broad enough to cover all three would also
    * excuse structures that SHOULD witness, and would do it silently.
    *
-   * 22 of the axis's structures. Collected by measurement, not by reasoning.
+   * 24 of the axis's structures. Collected by measurement, not by reasoning.
    */
   const U_NEVER_ABSENT = new Set([
     "gm(inner)",
     "gm(right)",
     "lateral-cross",
+    // The ONLY spelling of single(inner)/single(right). Neither `t` nor `u`
+    // has children under the base schema, so these scan exactly the same rows
+    // through the non-tree catalog accessors — which is the whole point of
+    // the structure, and it means they inherit `single`'s witness geometry
+    // exactly.
+    "only(inner)",
+    "only(right)",
     "nest-left(full,inner)",
     "nest-left(full,right)",
     "nest-left(inner,inner)",
@@ -816,6 +823,13 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     // no rows removes the row outright, so `g` is present wherever a row is.
     "srf-cross",
   ]);
+
+  /**
+   * The two unnest structures, enumerated rather than matched by prefix for
+   * the reason the sets above are: a pattern would quietly cover a third one
+   * nobody has measured.
+   */
+  const UNNEST_STRUCTURES = new Set(["unnest(left)", "unnest(full)"]);
 
   const UNWITNESSABLE: UnwitnessableRule[] = [
     {
@@ -842,6 +856,24 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         "refilter no surviving row can carry it.",
       matches: (axes, column) =>
         axes.structure === "srf-left" && column === "a_tb" && axes.wrapper.endsWith("refilter"),
+    },
+    {
+      label: "unnest-refilter-implies-the-u-row-is-present",
+      why:
+        "the same shape as the srf rule above, one branch over. Under the " +
+        "unnest structures a_tc is g.p, the composite field carrying u.val, " +
+        "and the refilter wrappers pin it IS NOT NULL — so the u row is " +
+        "present on every surviving row and its NOT NULL email is too, which " +
+        "makes a_tb (g.q) non-null there. The walk calls EVERY unnest field " +
+        "nullable whatever the element expression put in it, which is the " +
+        "conservatism this structure exists to exercise rather than a claim " +
+        "worth recovering: the array element is an arbitrary expression and " +
+        "the field's own type carries no flag. Witnessed under every other " +
+        "wrapper, where the LEFT/FULL extension is real.",
+      matches: (axes, column) =>
+        UNNEST_STRUCTURES.has(axes.structure) &&
+        column === "a_tb" &&
+        axes.wrapper.endsWith("refilter"),
     },
     {
       label: "variadic-refused-while-its-operands-are-present",
