@@ -719,10 +719,25 @@ RowExpr  SQLValueFunction  SelectStmt  SetToDefault  SortBy  String
 SubLink  TypeCast  UpdateStmt
 ```
 
-Still absent and reachable: `MergeStmt` with `MergeWhenClause` and
-`MergeSupportFunc` (§9.3 left it — a MERGE's arms only fire when the source
-STRADDLES the target, per §5.3, and that deserves its own attention rather
-than being bolted onto the DML pass), `NamedArgExpr`, `XmlExpr`,
+MERGE landed after that count, bringing `MergeStmt`, `MergeWhenClause` and
+`MergeSupportFunc` — **41**. Its source is built to STRADDLE: some keys drawn
+from the target's own rows and some absent, because §5.3 measured that a source
+drawn from the target's keys exercises one arm and never the others. Two things
+that took care rather than code:
+
+- **An unmatched key must be LEGAL as well as absent.** Where the target's key
+  is also a foreign key — a 1:1 extension table like `order_gift_wrap`, whose
+  `id` is both its primary key and a reference to `orders.id` — a value past
+  the end of the range satisfies the key and violates the reference. The
+  parent's own values minus the ones the target already carries are exactly the
+  keys that are unmatched AND insertable.
+- **"The arm fired" is now measured, not assumed.** `RETURNING merge_action()`
+  is the only observable that says which arm produced a row, and the run tallies
+  them: UPDATE ~68%, INSERT ~20%, DELETE ~11% across seeds. Without that number
+  a source that quietly stopped straddling would look identical to one that
+  worked — which is the failure §5.3 recorded.
+
+Still absent and reachable: `NamedArgExpr`, `XmlExpr`,
 `XmlSerialize`, `WindowDef` as a NAMED window, `InferClause`,
 `ReturningOption`, and the leaf literal kinds a wider value vocabulary would
 bring (`Float`, `Boolean`, `BitString`).
