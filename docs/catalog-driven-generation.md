@@ -701,6 +701,123 @@ exactly one usable instance in this schema (`products.category_id`).
 
 ---
 
+## 9. The vocabulary work list
+
+Measured 2026-08-08. `node-census.test.ts` classifies **86** parse-tree node
+types (excluding `analyzed-only`, which `parseSql` cannot produce). The
+discovery generator emits **10**:
+
+```
+A_Const  A_Expr  BoolExpr  ColumnRef  JoinExpr
+NullTest  RangeVar  ResTarget  SelectStmt  String
+```
+
+**25 are unreachable on the AST path** (§9.5 — the deparser cannot emit them,
+which is the ceiling §5.1 accepted). **51 remain**, grouped below by what it
+takes to add them rather than alphabetically, because most arrive in batches:
+one projection axis brings a dozen expression nodes at once.
+
+Status per node is measured, not assumed. A node the ENUMERATED corpus emits is
+proven deparsable — that suite deparses every query it generates. The rest were
+round-tripped individually (parse → deparse → reparse → compare).
+
+### 9.1 Expression vocabulary — one projection/predicate axis
+
+Today a target is always a bare `ColumnRef` and a predicate always a comparison
+or a null test. Everything here is a target-list or WHERE entry:
+
+| node | spelling | proven by |
+|---|---|---|
+| `CaseExpr`, `CaseWhen` | `CASE WHEN … THEN … END` | enumerated |
+| `CoalesceExpr` | `coalesce(a, b)` | enumerated |
+| `MinMaxExpr` | `greatest(a, b)` / `least` | round-trip |
+| `A_ArrayExpr` | `ARRAY[…]` | enumerated |
+| `RowExpr` | `ROW(a, b)` | enumerated |
+| `TypeCast` | `x::text` | enumerated |
+| `A_Indirection` | `(x).field` | enumerated |
+| `BooleanTest` | `x IS TRUE` / `IS NOT UNKNOWN` | round-trip |
+| `CollateClause` | `x COLLATE "C"` | round-trip |
+| `SQLValueFunction` | `CURRENT_DATE`, `SESSION_USER` | round-trip |
+| `FuncCall` | any call — and with it aggregates, `FILTER`, `OVER`, `WITHIN GROUP` | enumerated |
+| `NamedArgExpr` | `f(x => 1)` | round-trip |
+| `XmlExpr`, `XmlSerialize` | `xmlelement`, `xmlserialize` | round-trip |
+| `SubLink` | a scalar subquery, `EXISTS`, `IN`, `ANY`/`ALL` | round-trip |
+| `ParamRef` | `$1` — and the whole parameter contract with it | enumerated |
+| `Boolean`, `Float`, `BitString`, `Integer` | literal leaves, arriving with the above | — |
+
+`FuncCall` and `SubLink` are the two that carry the most engine behind them:
+strictness, totality, aggregate emptiness and the builtin tables for the first;
+correlated-subquery entailment for the second.
+
+### 9.2 FROM-item vocabulary
+
+The `FROM` clause is a left-deep chain of `RangeVar`s. The engine's model of
+"what rows does this produce" is thinnest here, and sweep-4's own reading was
+that **position, not age, is the discriminating variable** — five of its seven
+findings were FROM items.
+
+| node | spelling | proven by |
+|---|---|---|
+| `RangeSubselect` | a derived table | enumerated |
+| `RangeFunction` | `f(…)` in FROM, and `ROWS FROM (…)` | enumerated |
+| `RangeTableSample` | `TABLESAMPLE BERNOULLI (n)` | round-trip |
+| `Alias` | column aliases on a FROM item | arrives with the above |
+| — | `LATERAL` | round-trip |
+| — | `CROSS JOIN`, comma join, qual-less join | §5.1's table |
+| — | non-key join conditions | Step 0's residue |
+
+### 9.3 Statement vocabulary — DML
+
+`RETURNING` is the only observable (§5.3), and the write-rewrite hooks are only
+reachable through it. The schema now carries all three rewriters.
+
+| node | spelling | proven by |
+|---|---|---|
+| `InsertStmt`, `ReturningClause`, `ReturningOption` | `INSERT … RETURNING` | enumerated / round-trip |
+| `UpdateStmt` | `UPDATE … RETURNING` | enumerated |
+| `DeleteStmt` | `DELETE … RETURNING` | enumerated |
+| `MergeStmt`, `MergeWhenClause`, `MergeSupportFunc` | `MERGE` and its arms | enumerated |
+| `OnConflictClause`, `InferClause` | `ON CONFLICT … DO UPDATE` | round-trip |
+| `MultiAssignRef` | `SET (a, b) = (SELECT …)` | round-trip |
+| `SetToDefault` | `DEFAULT` in a VALUES row | round-trip |
+| `TypeName` | arrives with casts and column definitions | — |
+
+### 9.4 Clause vocabulary
+
+| node | spelling | proven by |
+|---|---|---|
+| `CommonTableExpr`, `WithClause` | `WITH`, and `WITH RECURSIVE` | enumerated |
+| `GroupingSet`, `GroupingFunc` | `GROUPING SETS`, `CUBE`, `ROLLUP`, `GROUPING()` | round-trip |
+| `SortBy`, `IndexElem` | `ORDER BY`, and `DISTINCT ON` | enumerated |
+| `WindowDef` | a named or inline `OVER` window — DEFAULT frames only | round-trip |
+| `LockingClause` | `FOR UPDATE` | unproven |
+| `A_Star` | `SELECT *`, and `t.*` | enumerated |
+| — | `UNION` / `INTERSECT` / `EXCEPT`, `LIMIT`/`OFFSET`, `VALUES` | round-trip |
+
+### 9.5 Unreachable on the AST path — do not put these on the work list
+
+Measured individually. Each is an upstream `pgsql-deparser` defect, and §5.4's
+rule applies: one static fixture per class plus a `KNOWN_DEVIATIONS` entry, so
+the gap is accounted rather than silent, and a fix upstream fails the suite
+loudly.
+
+| family | nodes | verdict |
+|---|---|---|
+| SQL/JSON constructors | `JsonObjectConstructor`, `JsonArrayConstructor`, `JsonAggConstructor`, `JsonObjectAgg`, `JsonArrayAgg`, `JsonArrayQueryConstructor`, `JsonIsPredicate`, `JsonKeyValue`, `JsonValueExpr`, `JsonOutput`, `JsonReturning`, `JsonFormat`, `JsonParseExpr`, `JsonScalarExpr`, `JsonSerializeExpr` | deparse throws |
+| SQL/JSON query | `JsonFuncExpr`, `JsonArgument` | deparse throws |
+| `JSON_TABLE` | `JsonTable`, `JsonTableColumn`, `JsonTablePathSpec` | deparse throws |
+| `XMLTABLE` | `RangeTableFunc`, `RangeTableFuncCol` | **reparse fails** — a SIXTH upstream defect, found 2026-08-08 and distinct from the `JsonTable` one `xmltable-jsontable` is pinned for: that fixture carries both constructs and the deviation list records only the first |
+| subscripting | `A_Indices` | reparse fails — the deparser emits a stray `[` |
+| recursive-CTE `SEARCH`/`CYCLE` | `CTESearchClause`, `CTECycleClause` | silently dropped; the round trip differs |
+| explicit window frames | (not a node — `WindowDef.frameOptions`) | reparse fails; bounds come back mangled |
+
+### 9.6 Needs something other than a query
+
+| node | why |
+|---|---|
+| `CurrentOfExpr` | `WHERE CURRENT OF cur` needs an open cursor. It deparses cleanly; the harness has no cursor to name |
+| `ColumnDef`, `DefElem` | DDL vocabulary — they reach the walk only through a `CREATE TABLE AS` or a function's `RETURNS TABLE`, not through a query the generator writes |
+
 ## 8. Where things are
 
 | | |
