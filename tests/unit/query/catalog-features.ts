@@ -276,8 +276,15 @@ export const FEATURES: Record<string, Feature> = {
   },
   "enum-type": {
     category: "conservative",
-    unread: "enums",
-    why: "enums are captured (CatalogSnapshot.enums) and no branch reads them; an enum column is an ordinary scalar to the walk",
+    unread: null,
+    unreadNote:
+      "the capture IS now read under src/query — the OverloadCatalog accessors " +
+      "(mayCoerceImplicitly's anyenum predicate, coercibility.test.ts) consult " +
+      "it — but no WALK branch does, so the token falsifier stopped " +
+      "discriminating; an enum column is still an ordinary scalar to the walk, " +
+      "and this entry reclassifies when the overload threading moves those " +
+      "accessors onto NullabilityCatalog",
+    why: "enums are captured (CatalogSnapshot.enums) and no walk branch reads them; an enum column is an ordinary scalar to the walk",
     detect: s => s.enums.length > 0,
   },
   "range-type-column": {

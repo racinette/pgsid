@@ -14,9 +14,17 @@ export type { EntityId } from "../catalog/types.js";
 
 // Re-export FunctionInfo for the NullabilityCatalog interface.
 export type { FunctionInfo } from "../catalog/types.js";
+export type {
+  BuiltinFunctionSignature,
+  BuiltinOperatorSignature,
+} from "../catalog/types.js";
 
 // Import types needed for the NullabilityCatalog interface.
-import type { FunctionInfo } from "../catalog/types.js";
+import type {
+  BuiltinFunctionSignature,
+  BuiltinOperatorSignature,
+  FunctionInfo,
+} from "../catalog/types.js";
 import type { Node } from "libpg-query";
 
 /**
@@ -112,6 +120,82 @@ export interface OperatorMetadata {
  * capability, which is the failure that asks for it.
  */
 export const DEP_CATALOG_ONLY = ["resolveFunctions"] as const satisfies readonly (keyof DepCatalog)[];
+
+/**
+ * The catalog face of the type-aware overload refactor
+ * (`docs/type-aware-overloads.md`) — candidate signatures and the
+ * elimination rule's coercibility questions. A SEPARATE face, deliberately:
+ * no walk branch consults these yet, so they must not sit on
+ * `NullabilityCatalog`, whose census demands a fixture reaching every
+ * member. When the walk starts threading argument types, each member it
+ * consults MOVES onto `NullabilityCatalog` and off `OVERLOAD_CATALOG_ONLY`,
+ * and the census then demands its coverage — the boundary is the
+ * enforcement, exactly as with `DepCatalog`.
+ */
+export interface OverloadCatalog {
+  /**
+   * The pg_catalog signatures behind a claim-table function name — empty
+   * for a qualified reference to any other schema, and for names outside
+   * the claim tables (which have no verdict to narrow). Tier 1 resolves a
+   * call to ONE of these rows; `docs/type-aware-overloads.md` has the rules.
+   */
+  resolveBuiltinFunctionSignatures(
+    schema: string | undefined,
+    name: string,
+  ): BuiltinFunctionSignature[];
+
+  /**
+   * The pg_catalog rows behind a curated operator symbol — the builtin half
+   * of the merged candidate set the answered shadowing question requires
+   * (path-visible user operators are the other half).
+   */
+  resolveBuiltinOperatorSignatures(
+    schema: string | undefined,
+    name: string,
+  ): BuiltinOperatorSignature[];
+
+  /**
+   * The rendered type name with domains recursively resolved to their bases
+   * (`public.dint2` → `public.dint` → `integer`; array element domains
+   * likewise). Measured caveat (overload-resolution-mechanism.test.ts):
+   * this is the FALLBACK key — exact match tries the DECLARED name first,
+   * because a candidate declared on the domain type wins.
+   */
+  resolveCanonicalTypeName(typeName: string): string;
+
+  /**
+   * Whether an argument of `fromType` could be accepted at a parameter of
+   * `toType` by PostgreSQL's implicit coercion — FALSE only on certainty,
+   * which is what licenses eliminating a candidate; any type this catalog
+   * cannot fully explain answers true and keeps it (the governing
+   * invariant of docs/type-aware-overloads.md). Implements the five-clause
+   * elimination rule: identity, the polymorphic predicate, domain bases,
+   * array element recursion, and the captured pg_cast implicit rows.
+   */
+  mayCoerceImplicitly(fromType: string, toType: string): boolean;
+
+  /**
+   * Targets of implicit BINARY-coercible casts from this type — the images
+   * a failed exact-match lookup retries under (`character varying` has zero
+   * operators; the `text` image is where `varchar || varchar` resolves).
+   */
+  resolveBinaryCoercionTargets(typeName: string): string[];
+}
+
+/**
+ * Members of the adapter's product that belong to `OverloadCatalog` ALONE —
+ * same contract as `DEP_CATALOG_ONLY`: the walk cannot call them, the
+ * censuses must not expect query coverage of them, and `satisfies` keeps
+ * every name a real key. Moving a member into the walk's reach means
+ * removing it here, which is what makes the move visible.
+ */
+export const OVERLOAD_CATALOG_ONLY = [
+  "resolveBuiltinFunctionSignatures",
+  "resolveBuiltinOperatorSignatures",
+  "resolveCanonicalTypeName",
+  "mayCoerceImplicitly",
+  "resolveBinaryCoercionTargets",
+] as const satisfies readonly (keyof OverloadCatalog)[];
 
 /**
  * The richer catalog the nullability walk needs, and ONLY what it needs: name

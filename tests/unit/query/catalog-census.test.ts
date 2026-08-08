@@ -9,7 +9,7 @@ import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
 import { inferNullability } from "../../../src/query/nullability-walk.js";
 import { parseSql } from "../../../src/ast.js";
 import { spyOnCatalog, catalogMembers } from "./catalog-spy.js";
-import { DEP_CATALOG_ONLY } from "../../../src/query/types.js";
+import { DEP_CATALOG_ONLY, OVERLOAD_CATALOG_ONLY } from "../../../src/query/types.js";
 import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 
 // ---------------------------------------------------------------------------
@@ -306,7 +306,10 @@ describe("catalog-feature census", () => {
     // against `keyof DepCatalog`, so this is a type boundary rather than a
     // list of excuses.
     const depOnly = new Set<string>(DEP_CATALOG_ONLY);
-    const cold = catalogMemberNames.filter(m => !touched.has(m) && !depOnly.has(m)).sort();
+    const overloadOnly = new Set<string>(OVERLOAD_CATALOG_ONLY);
+    const cold = catalogMemberNames
+      .filter(m => !touched.has(m) && !depOnly.has(m) && !overloadOnly.has(m))
+      .sort();
     expect(
       cold,
       `Catalog members no statement in the corpus asked. Either add SQL that ` +
@@ -314,11 +317,12 @@ describe("catalog-feature census", () => {
         `at all — move it off NullabilityCatalog:\n  ${cold.join("\n  ")}`,
     ).toEqual([]);
 
-    const askedAnyway = [...depOnly].filter(m => touched.has(m)).sort();
+    const askedAnyway = [...depOnly, ...overloadOnly].filter(m => touched.has(m)).sort();
     expect(
       askedAnyway,
-      `Declared DepCatalog-only, but the walk asked them — the split is ` +
-        `wrong, or the member belongs on NullabilityCatalog after all:\n  ` +
+      `Declared DepCatalog- or OverloadCatalog-only, but the walk asked them — ` +
+        `the member belongs on NullabilityCatalog now, with its exemption ` +
+        `removed and a fixture reaching it:\n  ` +
         askedAnyway.join("\n  "),
     ).toEqual([]);
   });
