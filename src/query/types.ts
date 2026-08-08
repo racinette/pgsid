@@ -416,6 +416,28 @@ export interface NullabilityCatalog {
   resolveOperatorMetadata(schema: string | undefined, name: string): OperatorMetadata | null;
 
   /**
+   * Type-aware totality for a BINARY operator expression, where the walk
+   * can name the operand types (null = unknown): a declared-types exact
+   * match over the merged user + builtin candidate set, then elimination
+   * plus per-signature consensus over the survivors
+   * (docs/type-aware-overloads.md, tiers 1 and 2 — the operator slice).
+   * `user-exact` hands the walk a backing function to dispatch; `unknown`
+   * means the machinery has nothing sound to add and the caller keeps its
+   * existing behaviour, including the curated name rule with its recorded
+   * holes for the both-types-unknown residue.
+   */
+  resolveOperatorTotality(
+    schema: string | undefined,
+    name: string,
+    leftType: string | null,
+    rightType: string | null,
+  ):
+    | { kind: "user-exact"; functionSchema: string; functionName: string }
+    | { kind: "total" }
+    | { kind: "nullable" }
+    | { kind: "unknown" };
+
+  /**
    * Whether every pg_catalog plain-function overload of `name` is declared
    * STRICT — from the snapshot's environment capture, the source of truth
    * the strict-expression closures consult for builtin names the user

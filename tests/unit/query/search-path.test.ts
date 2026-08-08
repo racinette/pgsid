@@ -68,6 +68,19 @@ beforeAll(async () => {
     -- A user function whose signature is IDENTICAL to a pg_catalog one.
     CREATE FUNCTION public.min_scale(v numeric) RETURNS non_empty_text
       LANGUAGE sql IMMUTABLE AS $$ SELECT 'user'::non_empty_text $$;
+
+    -- The operator shadowing blind spot (closed by the narrowing): a user +
+    -- on operand types pg_catalog has no candidate for, whose backing
+    -- function returns NULL from NON-NULL inputs — the curated bare-name
+    -- allowlist claimed notNull here, the demonstrated rank-1.
+    CREATE FUNCTION public.badd(a boolean, b boolean) RETURNS boolean
+      LANGUAGE sql AS $$ SELECT NULL::boolean $$;
+    CREATE OPERATOR public.+ (LEFTARG = boolean, RIGHTARG = boolean, FUNCTION = public.badd);
+    -- The same shape visible only under the app_s path, for the
+    -- visibility pin: the path is a candidate FILTER (measured, Q1).
+    CREATE FUNCTION app_s.tsub(a text, b text) RETURNS text
+      LANGUAGE sql AS $$ SELECT NULL::text $$;
+    CREATE OPERATOR app_s.- (LEFTARG = text, RIGHTARG = text, FUNCTION = app_s.tsub);
   `);
   const snapshot = await snapshotCatalog(pg);
   defaultCatalog = await buildNullabilityCatalog(snapshot);
@@ -112,6 +125,49 @@ describe("search-path resolution", () => {
       const results = await infer(catalog, "SELECT * FROM app_s.t");
       expect(results.map(r => r.name)).toEqual(["zzz", "qqq", "www"]);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Operator narrowing under the path — the shadowing blind spot, closed.
+// The curated sets matched BARE NAMES, so a user operator named `+` was
+// invisible and the walk claimed the builtin's totality for it; measured as
+// a live rank-1 while answering the charter's first pre-refactor question.
+// With operand types readable, the merged candidate set resolves the user
+// signature exactly and dispatches its backing function instead.
+// ---------------------------------------------------------------------------
+
+describe("operator narrowing: user operators on curated names", () => {
+  it("PostgreSQL runs the user + on booleans, and it answers NULL from non-null inputs", async () => {
+    const r = await pg.query<{ s: boolean | null }>(`SELECT true + false AS s`);
+    expect(r.rows[0]!.s).toBeNull();
+  });
+
+  it("the walk dispatches the user operator where the curated name once answered", async () => {
+    const results = await infer(defaultCatalog, "SELECT active + active AS s FROM t");
+    expect(results.map(r => r.notNull)).toEqual([false]);
+  });
+
+  it("integer + integer keeps its claim through the same merged candidate set", async () => {
+    // The integer operands ELIMINATE both the user row and the path row;
+    // every survivor is total, so the general case costs nothing.
+    const results = await infer(defaultCatalog, "SELECT id + 1 AS s FROM t");
+    expect(results.map(r => r.notNull)).toEqual([true]);
+  });
+
+  it("the user operator is a candidate only where its schema is on the path", async () => {
+    // Referee both ways: the app_s operator resolves under the app_s path
+    // and does not exist under the default one.
+    await pg.exec(`SET search_path = app_s, public`);
+    const r = await pg.query<{ d: string | null }>(`SELECT 'a'::text - 'b'::text AS d`);
+    expect(r.rows[0]!.d).toBeNull();
+    await pg.exec(`SET search_path = public`);
+    await expect(pg.query(`SELECT 'a'::text - 'b'::text`)).rejects.toThrow(
+      /operator does not exist/,
+    );
+
+    const results = await infer(pathCatalog, "SELECT qqq - qqq AS d FROM t");
+    expect(results.map(r => r.notNull)).toEqual([false]);
   });
 });
 

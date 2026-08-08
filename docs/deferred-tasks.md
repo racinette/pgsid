@@ -337,10 +337,25 @@ when that finds nothing.
 `OVERLOAD_CATALOG_ONLY` so the censuses hold the walk's face to fixture
 coverage while the walk does not yet consult them;
 `tests/unit/query/coercibility.test.ts` asserts the elimination rule from
-both sides). What remains is step 3 (thread argument types into candidate
-selection — the hottest path, corpus dry-run discipline), step 4 (the
-signature-keyed verdicts, all seven tables plus the operator sets), and
-step 5 (the witness corpus).
+both sides). **Step 3's OPERATOR half is LANDED (2026-08-09)**: the walk
+types a binary A_Expr's operands (`operandTypeName` — the charter's literal
+table plus `renderedTypeOfExpr`, with the captured `int4`→`integer` alias
+bridge for casts) and consults `resolveOperatorTotality`, which merges
+path-visible user operators with the captured builtin rows, takes a
+declared-types exact match, and otherwise reads totality by consensus over
+the non-eliminated survivors, each builtin row against
+`NON_TOTAL_OPERATOR_SIGNATURES`. Both recorded defects CLOSED where types
+are known: `path + path` reads nullable (`operator-path-plus.sql`, NULL
+witnessed, with `1 + 2` beside it eliminating the path row) and the
+operator-shadowing rank-1 dispatches the user operator's body
+(`search-path.test.ts`, four pins with PostgreSQL as referee). The
+both-types-unknown residue keeps the name rule with its recorded holes —
+the exotic-operand argument unchanged. The corpus dry-run moved nothing;
+`resolveOperatorMetadata` went cold in the generated corpus (triaged: only
+the strictness sites still consult it). What remains: step 3's FUNCTION and
+aggregate half, the two STRICTNESS sites still on bare names
+(`promotionOperatorIsStrict`, mechanism C), step 4 (the signature-keyed
+verdicts for the seven function tables), and step 5 (the witness corpus).
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table

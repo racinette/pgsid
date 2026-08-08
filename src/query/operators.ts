@@ -111,6 +111,20 @@ export const PARTIAL_OVERLOADS: Record<string, string> = {
 };
 
 /**
+ * The SIGNATURE-keyed half of `PARTIAL_OVERLOADS` — the rows of a kept name
+ * that are not total, keyed `name(left,right)` in format_type renderings.
+ * The operator narrowing (docs/type-aware-overloads.md tier 2) consults
+ * this per SURVIVOR: a survivor in this set fails the totality consensus,
+ * which is what turns the recorded name-level hole into a typed claim —
+ * `id + 1` eliminates the path row and keeps notNull; a path-typed operand
+ * keeps the row and reads nullable. The prose record above stays the
+ * human-facing reason; the two must list the same defects.
+ */
+export const NON_TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set([
+  "+(path,path)",
+]);
+
+/**
  * Members of `STRICT_OPERATORS` with a NON-strict overload, and why each is
  * kept anyway. An entry is a known over-report: for these operand types the
  * contract calls a parameter rejected where the statement would have
