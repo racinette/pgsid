@@ -194,6 +194,14 @@ class Generation {
       if (rows.length === 0) continue;
       statements.push(renderInsert(table, rows));
     }
+    // A materialized view holds its OWN rows, taken when it is refreshed — so
+    // one created with the schema is empty however much data lands afterwards,
+    // and every claim over it would be unwitnessable for a reason that is an
+    // artefact of load order rather than of the query. Refreshed last, once
+    // every table it reads is populated.
+    for (const mv of this.snapshot.materializedViews) {
+      statements.push(`REFRESH MATERIALIZED VIEW "${mv.schema}"."${mv.name}";`);
+    }
     return { sql: `${statements.join("\n\n")}\n`, rowCounts };
   }
 

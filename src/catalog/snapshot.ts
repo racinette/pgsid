@@ -102,7 +102,8 @@ interface FunctionRow {
   schema: string;
   name: string;
   arg_types: string;
-  return_type: string;
+  /** NULL for a procedure — see the mapping, which renders it empty. */
+  return_type: string | null;
   return_type_oid: number;
   language: string;
   prokind: string;
@@ -767,7 +768,13 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     name: f.name,
     argTypes: f.arg_types,
     args: resolveFunctionArgs(f, typeNames),
-    returnType: f.return_type,
+    // `pg_get_function_result` answers NULL for a PROCEDURE — it returns no
+    // rows, so there is no result to render — while `FunctionInfo.returnType`
+    // is declared `string` and eight readers do prefix or regex work on it.
+    // The empty rendering is the honest one (a procedure's result shape is
+    // nothing) and it matches none of them, where the raw NULL crashed the
+    // first caller to meet a procedure.
+    returnType: f.return_type ?? "",
     returnTypeOid: f.return_type_oid,
     returnsSet: f.proretset,
     language: f.language,
