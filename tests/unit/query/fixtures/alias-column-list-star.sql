@@ -1,0 +1,26 @@
+-- A FROM item's alias COLUMN LIST renames the relation's columns, and star
+-- expansion must emit the names the item ANSWERS TO rather than the ones the
+-- catalog carries.
+--
+-- `addRangeVar` never read `rv.alias.colnames`. The machinery was already
+-- there — `addColumnListRelation` does exactly this for a function item and a
+-- join alias — and only the RangeVar path skipped it, so the engine answered
+-- `id, order_id, amount` where PostgreSQL answers `c0, c1, c2`. A wrong column
+-- LIST is the worst answer a FROM item can give: it misassigns every flag past
+-- the point of divergence while looking authoritative, which is the whole
+-- argument for the arity-and-order gate.
+--
+-- The rename is positional and the CATALOG name is what every lookup behind
+-- the entry still needs — `entryColumnNotNull`, the generation expression, the
+-- type OID, the foreign key, the CHECK the entailment kernel reads — so the
+-- two lists are carried side by side rather than one replacing the other.
+-- `refunds_archive` inherits all three columns NOT NULL from `refunds`, so the
+-- flags survive the rename and it is the NAMES this pins.
+--
+-- Found by the discovery generator (docs/catalog-driven-generation.md §9.4) on
+-- the first run that emitted alias column lists.
+SELECT *
+  -- @notNull
+  -- @notNull
+  -- @notNull
+FROM refunds_archive AS r(c0, c1, c2)
