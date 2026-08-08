@@ -975,6 +975,33 @@ Each of these is *sound* — the engine reports nullable where a value is
 provably non-null. They cost precision, never correctness, and are listed so
 that a decision to close one is deliberate.
 
+Closed 2026-08-08, and it is the DISCOVERY GENERATOR's first finding — the
+instrument `docs/catalog-driven-generation.md` charters, on the first run that
+had a real join graph under it. The join-level fact reads "a join that cannot
+extend one of its sides leaves the joins INSIDE that side un-extendable too",
+and "from above" was taken to mean the top of that side rather than everything
+above. `tags JOIN product_tags RIGHT JOIN products FULL JOIN product_tags`: the
+last join cannot extend its left side, so the rule reached both joins nested in
+it — including the RIGHT JOIN, which null-extends the first two for a product
+with no tags. The damage came from where `incomingRequired` lands: on an INNER
+join it makes the join ACTIVE, pushing its qual into `scope.impliedQuals`,
+which is a claim about every emitted row. `r0.id = r1.tag_id` was implied over
+rows where both are NULL and two columns read notNull against PostgreSQL's
+NULLs. An inner join is now skipped when another join within the SAME side has
+an optional group covering it; the fact still reaches the joins nothing inside
+the side extends, which is what it was built for. Pinned by
+`fk-entail-join-level-inner-extended.sql` with its presence group, mutation
+-tested to fail alone, and every one of the shape's four conditions measured
+necessary on its own.
+
+**What the finding says about the instrument, which is the reason it is
+recorded here rather than only on the fixture.** Three thousand random joins
+found it in under three seconds, and it needed FOUR joins over THREE tables
+carrying two foreign keys — a shape the enumerated corpus cannot express, since
+it queries six relations and `t`/`u`/`v` declare no keys. The register measured
+that gap twice (`docs/generated-surface.md`, and §1 of the generation handoff)
+without being able to act on it. The first run acting on it convicted.
+
 Closed by the FOURTH adversarial fix phase (2026-08-07), finding 4 / RC-C — a
 catalog READ that answered a different question than the one asked.
 `pg_constraint` holds THREE rows where the schema author wrote one key: a

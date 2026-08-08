@@ -1530,18 +1530,53 @@ class NullabilityEngine {
       // up unchanged, and the extendable side's own members stay optional,
       // which they must: in the FULL-FULL chain the fact recovers `customers`
       // while `orders` genuinely can be absent from the FIRST join.
+      //
+      // "Un-extendable from above" means by EVERYTHING above, and `j` is only
+      // the top of that side. A join nested deeper inside the same side can
+      // extend the aliases of one nested deeper still, and marking the inner
+      // one required then asserts its qual over rows where it does not hold —
+      // `incomingRequired` makes an INNER join's qual an IMPLIED QUAL of the
+      // whole scope, which is a claim about every emitted row. Measured
+      // counterexample, from the first run of the discovery generator:
+      //
+      //     tags r0
+      //     JOIN product_tags r1 ON r0.id = r1.tag_id
+      //     RIGHT JOIN products r2 ON r1.product_id = r2.id
+      //     FULL JOIN product_tags r3 ON r2.id = r3.product_id
+      //
+      // The last join cannot extend its left side (`r3.product_id` is a NOT
+      // NULL key onto `r2`), so this rule reached both joins inside it — but
+      // the RIGHT JOIN is inside it too, and null-extends `r0` and `r1` for a
+      // product with no tags. `r0.id = r1.tag_id` was then implied over rows
+      // where both are NULL, claiming notNull for two columns PostgreSQL
+      // returns NULL in. So an inner join is skipped when another join within
+      // the SAME side has an optional group covering it.
+      const extendedWithinSide = (inner: JoinPredicate, within: string[]): boolean =>
+        scope.joins.some(other => {
+          if (other === inner || !this.joinWithin(other, within)) return false;
+          return (["left", "right"] as const).some(s => {
+            const g = s === "left" ? other.leftOptionalGroup : other.rightOptionalGroup;
+            if (g === undefined) return false;
+            return this.joinWithin(inner, s === "left" ? other.leftAliases : other.rightAliases);
+          });
+        });
       for (const j of scope.joins) {
         if (!j.incomingRequired) continue;
         for (const side of ["left", "right"] as const) {
           const group = side === "left" ? j.leftOptionalGroup : j.rightOptionalGroup;
           if (group === undefined) continue;
           const aliases = side === "left" ? j.leftAliases : j.rightAliases;
-          if (!scope.joins.some(inner => !inner.incomingRequired && this.joinWithin(inner, aliases))) {
+          if (!scope.joins.some(inner =>
+            !inner.incomingRequired &&
+            this.joinWithin(inner, aliases) &&
+            !extendedWithinSide(inner, aliases))
+          ) {
             continue;
           }
           if (!this.joinCannotExtendSide(j, scope, side)) continue;
           for (const inner of scope.joins) {
             if (inner.incomingRequired || !this.joinWithin(inner, aliases)) continue;
+            if (extendedWithinSide(inner, aliases)) continue;
             inner.incomingRequired = true;
             changed = true;
           }
