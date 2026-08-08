@@ -348,8 +348,10 @@ no type inference, no tiebreak algorithm, no polymorphic return types, and
 types never leave the engine (`PREPARE` stays the type oracle). It carries
 its own test suite: per-overload NULL witnesses for functions, aggregates
 and window functions, with the control line that keeps a witness honest.
-The real cost is re-keying the three tables from 137 name entries to 235
-signature entries, each needing its own verdict.
+The real cost is re-keying the claim tables — ALL SEVEN plus the two
+operator sets, aggregates and window functions not excepted (decided
+2026-08-09) — from name entries to signature entries (153 names → 327 rows,
+21 symbols → 558), each needing its own verdict.
 
 **Before or beside the consumer build: widen the generated suite's
 surface** — `docs/generated-surface.md` (2026-08-05), a self-contained
