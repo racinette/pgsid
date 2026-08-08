@@ -1,10 +1,16 @@
 // Catalog reach — a diagnostic, not a test. Run it with
 // `pnpm exec tsx tests/probe/catalog-reach.ts`.
 //
-// Which of the fixture schema's relations carry a catalog feature no generated
+// Which of the fixture schema's tables carry a catalog feature no generated
 // query can reach? It is `docs/catalog-driven-generation.md` §7 (Step 0) as a
-// re-runnable meter: the ranked admission list, plus level 2 of §6's query
-// fingerprint — the count of distinct CATALOG PROFILES the corpus queries.
+// re-runnable meter, and it prints three things:
+//
+//   - how many distinct CATALOG SHAPES the corpus queries — how many genuinely
+//     different combinations of declared features it has ever seen on a table,
+//     against how many the schema has (§6 calls this level 2);
+//   - LIST 1, the fewest tables that would touch every feature it misses;
+//   - LIST 2, which tables can be joined to each other at all by following
+//     foreign keys, since list 1's tables mostly cannot.
 //
 // It gates nothing and asserts nothing, which is deliberate. It is also NOT a
 // replacement for `capability-reach.test.ts`, whatever an earlier draft of that
@@ -160,7 +166,7 @@ for (const x of rels
 }
 
 // --- 6b. greedy cover: the minimum admission set ---------------------------
-console.log(`\nADMISSION ORDER, minimum cover (new features this relation brings that nothing before it has)`);
+console.log(`\nLIST 1 — FEWEST TABLES THAT TOUCH EVERY MISSING FEATURE\n(each line: what this table brings that nothing above it has)`);
 const covered = new Set(reached);
 const done = new Set<string>();
 const pool = rels.filter(r => !relNames.has(r.name));
@@ -181,7 +187,7 @@ const rest = pool.filter(r => !done.has(r.id));
 console.log(`\n${rest.length} further relations add nothing beyond the above:`);
 console.log("  " + rest.map(r => r.id).join(", "));
 
-// --- 7. the join spine ------------------------------------------------------
+// --- 7. which tables can be joined to each other ----------------------------
 // §5.2 — an FK join always matches, so LEFT/RIGHT/FULL over a key witnesses no
 // null extension unless the schema permits an absent arm.
 const notNullCol = new Map<string, boolean>();
@@ -195,13 +201,13 @@ for (const t of s.tables) {
     const nn = notNullCol.get(`${child}.${c.columns[0]}`) ?? false;
     edges.push({
       child, parent: `${c.foreignSchema}.${c.foreignTable}`, col: c.columns[0]!,
-      verdict: !c.validated ? "both arms (NOT VALID)" : nn ? "parent->child only" : "both arms (nullable FK)",
+      verdict: !c.validated ? "yes — key is NOT VALID" : nn ? "only joining parent -> child" : "yes — key column is nullable",
     });
   }
 }
-console.log(`\nFOREIGN-KEY SPINE — ${edges.length} single-column edges`);
+console.log(`\nSINGLE-COLUMN FOREIGN KEYS — ${edges.length}`);
 for (const e of edges.sort((a, b) => (a.child + a.col < b.child + b.col ? -1 : 1))) {
-  console.log(`  ${(e.child + "." + e.col).padEnd(38)} -> ${e.parent.padEnd(20)} absent arm: ${e.verdict}`);
+  console.log(`  ${(e.child + "." + e.col).padEnd(38)} -> ${e.parent.padEnd(20)} NULL-extended row possible: ${e.verdict}`);
 }
 const up = new Map<string, string>();
 const find = (x: string): string => { let r = x; while (up.get(r) !== r) r = up.get(r)!; return r; };
@@ -214,13 +220,13 @@ for (const r of rels) {
   if (arr) arr.push(r.id); else comp.set(root, [r.id]);
 }
 const joined = [...comp.values()].filter(c => c.length > 1).sort((a, b) => b.length - a.length);
-console.log(`\nFK-CONNECTED COMPONENTS (size > 1): ${joined.length}`);
+console.log(`\nLIST 2 — GROUPS OF TABLES A QUERY CAN JOIN (following those keys): ${joined.length}`);
 for (const c of joined) console.log(`  ${c.length}: ${c.sort().join(", ")}`);
-console.log(`  isolated (no single-column FK either way): ${[...comp.values()].filter(c => c.length === 1).length} relations`);
+console.log(`  no single-column key in either direction, so nothing joins to them: ${[...comp.values()].filter(c => c.length === 1).length} tables`);
 
 const inComponent = new Set(joined.flat());
 const onlyIsolated = unreached.filter(f => !rels.some(r => inComponent.has(r.id) && r.features.has(f)));
 console.log(`\nof the ${unreached.length} unreachable features:`);
-console.log(`  ${unreached.length - onlyIsolated.length} sit on a relation inside an FK component — ` +
+console.log(`  ${unreached.length - onlyIsolated.length} are on a table inside one of those joinable groups — ` +
   unreached.filter(f => !onlyIsolated.includes(f)).join(", "));
-console.log(`  ${onlyIsolated.length} exist ONLY on relations no single-column key connects — ${onlyIsolated.join(", ")}`);
+console.log(`  ${onlyIsolated.length} are ONLY on tables no key connects to anything — ${onlyIsolated.join(", ")}`);
