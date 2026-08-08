@@ -484,6 +484,41 @@ total.
   features — never more volume.
 - Flat immediately at high volume is the `t`/`u`/`v` signature.
 
+### Measured 2026-08-08: volume is not the lever, VOCABULARY is
+
+Five seeds, 100,000 queries each — **500,000 statements, zero findings**. The
+run is healthy: 72% return rate, 2% `pg-raised` (all of it deleting a
+referenced row, which is a real statement that really raises), zero rejections,
+zero crashes, zero tool defects. 80 seconds per 100,000.
+
+The saturation curve says why more of it will not help. At 100,000 queries
+**~80% of them still produce a shape never seen before** — marginal yield
+~800/1000 at the end against ~915 at the start. The space is not being
+exhausted, it is barely dented, so there is no volume at which this converges
+and no point at which a clean run means "covered".
+
+Set against that, both defects this instrument has found arrived at once:
+
+| defect | found at |
+|---|---|
+| the join-level fact reaching past an extending join | 3,000 queries — the first run of the first slice |
+| a FROM item's alias column list ignored | 5,000 queries — the first run that emitted the construct |
+
+Each surfaced within the first few thousand queries after the vocabulary that
+could express it existed. Neither needed volume; both needed a CONSTRUCT.
+
+**So §4's "run it nightly, or for an hour on demand" is the wrong instinct, and
+this section corrects it.** A 100,000-query run is an excellent post-change
+check — 80 seconds, and it is a real regression net over everything the
+vocabulary reaches. It is not a search strategy. Effort belongs in the
+vocabulary work list (§9), and after that in pointing the instrument at
+mechanisms it cannot currently express, not in running the same space longer.
+
+This is the same conclusion the register reached about the adversarial sweeps
+by a different route — four sweeps found 7–13 findings each by trying new
+MECHANISMS, and the enumerated corpus found none in its lifetime by repeating a
+fixed one.
+
 ### Return rate
 
 The fraction of queries returning at least one row, over queries that CAN
