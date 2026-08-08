@@ -372,12 +372,20 @@ PATH-VISIBLE for bare names — the whole-snapshot merge let an off-path
 operator poison the strictness consensus in the under-report direction,
 which for mechanism C makes the contract lie. Mechanism C itself keeps its
 RECORDED over-report (`NON_STRICT_OVERLOADS`) — its module has no scope to
-type operands with; it joins the function half's shared typing work. What
-remains: TIER 0 (PREPARE parameter types as an optional walk input — every
-harness holds a live PGlite; NOT gated on any consumer), step 3's FUNCTION
-and aggregate half with step 4's verdicts interleaved, step 5 (the witness
-corpus), and the fallback measurement once parameters and function results
-type.
+type operands with; it joins the function half's shared typing work. **TIER 0 LANDED (2026-08-09)**: the walk's entry points take an optional
+`paramTypes` input (`paramTypes[n-1]` types `$n`, exactly as PREPARE
+reports them), `operandTypeSet` types a ParamRef from it, and the probe
+harness PREPAREs each parameterized probe against its own PGlite and
+threads `pg_prepared_statements.parameter_types` in — the input was never
+gated on a consumer. A parameter operand cannot move an OUTPUT claim (a
+parameter is nullable by design), so `param-types-input.test.ts` pins the
+RESOLUTION: typed → signature-narrowed, untyped → name rule, plus the seam
+that regtype text is format_type's spelling. The input's claim-level
+consumers are mechanism C (where `ARRAY[1,2] || $1` stops over-reporting
+strictness) and the function half. What remains: step 3's FUNCTION and
+aggregate half with step 4's verdicts interleaved and mechanism C's typing
+folded in, step 5 (the witness corpus), and the fallback measurement once
+parameters and function results type.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
