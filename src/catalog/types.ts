@@ -300,6 +300,28 @@ export interface BuiltinFunctionSignature extends BuiltinSignature {
 }
 
 /**
+ * One implicit cast edge from `pg_cast` (`castcontext = 'i'`) — the fifth
+ * clause of the elimination rule in `docs/type-aware-overloads.md`. IMPLICIT
+ * only, deliberately: function arguments do not use assignment casts, and
+ * PostgreSQL does not chain casts, so this is a direct lookup, never a
+ * reachability search.
+ */
+export interface ImplicitCastInfo {
+  /** Source and target as `format_type` renders them. */
+  source: string;
+  target: string;
+  /**
+   * `castmethod = 'b'` — binary-coercible. These 49 edges are ALSO the
+   * canonicalisation images tier 1 retries a failed exact-match lookup
+   * under (`character varying` has zero operators; `varchar || varchar`
+   * resolves through this edge to `text || text`, measured). The graph has
+   * two-way edges (`text ↔ varchar`), so canonicalisation tries images —
+   * there is no single canonical target.
+   */
+  binary: boolean;
+}
+
+/**
  * One pg_catalog operator row for a symbol the curated operator sets cover —
  * `OperatorInfo`'s shape minus the user-schema fields, plus the result type
  * an exact match threads upward.
@@ -656,6 +678,26 @@ export interface CatalogSnapshot {
    * `builtinFunctionSignatures`; ENVIRONMENT like it.
    */
   builtinOperatorSignatures: BuiltinOperatorSignature[];
+  /**
+   * The `pg_cast` implicit rows (117 in PG18), with the binary-coercible
+   * flag that marks the canonicalisation edges. See `ImplicitCastInfo`.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinImplicitCasts: ImplicitCastInfo[];
+  /**
+   * Every pg_catalog type name → its `pg_type.typtype` ('b' base, 'c'
+   * composite, 'p' pseudo, 'r' range, 'm' multirange — pg_catalog holds no
+   * enums or domains). The polymorphic predicate of the elimination rule
+   * reads it in BOTH directions: `anyrange` admits a type whose kind is
+   * 'r', and a type the record KNOWS to be something else is certainly
+   * refused — while a name absent here (a user type the user-schema
+   * captures do not explain either) keeps the candidate, per the governing
+   * invariant.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinTypeKinds: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------

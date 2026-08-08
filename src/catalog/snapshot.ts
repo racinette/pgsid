@@ -3,6 +3,7 @@ import type {
   BuiltinFunctionSignature,
   BuiltinOperatorSignature,
   BuiltinSignature,
+  ImplicitCastInfo,
   CatalogSnapshot,
   ColumnInfo,
   CompositeTypeInfo,
@@ -512,6 +513,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinPolymorphicArraySignatures,
     builtinFunctionSignatures,
     builtinOperatorSignatures,
+    builtinImplicitCasts,
+    builtinTypeKinds,
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
@@ -542,6 +545,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinPolymorphicArraySignatures(pg),
     queryBuiltinFunctionSignatures(pg),
     queryBuiltinOperatorSignatures(pg),
+    queryBuiltinImplicitCasts(pg),
+    queryBuiltinTypeKinds(pg),
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
@@ -938,6 +943,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinPolymorphicArraySignatures,
     builtinFunctionSignatures,
     builtinOperatorSignatures,
+    builtinImplicitCasts,
+    builtinTypeKinds,
   };
 }
 
@@ -1487,6 +1494,41 @@ async function queryBuiltinOperatorSignatures(
     returns: r.returns,
     strict: r.strict,
   }));
+}
+
+/**
+ * The pg_cast implicit rows. See CatalogSnapshot.builtinImplicitCasts;
+ * IMPLICIT only because function arguments never use assignment casts
+ * (docs/type-aware-overloads.md, the elimination rule).
+ */
+async function queryBuiltinImplicitCasts(pg: PGlite): Promise<ImplicitCastInfo[]> {
+  const res = await pg.query<{ source: string; target: string; binary: boolean }>(
+    `SELECT format_type(c.castsource, null) AS source,
+            format_type(c.casttarget, null) AS target,
+            c.castmethod = 'b' AS binary
+     FROM pg_cast c
+     WHERE c.castcontext = 'i'
+     ORDER BY 1, 2;`,
+  );
+  return res.rows.map(r => ({ source: r.source, target: r.target, binary: r.binary }));
+}
+
+/**
+ * Every pg_catalog type's typtype, keyed by rendered name. See
+ * CatalogSnapshot.builtinTypeKinds for the both-directions reading the
+ * polymorphic predicate makes of it.
+ */
+async function queryBuiltinTypeKinds(pg: PGlite): Promise<Record<string, string>> {
+  const res = await pg.query<{ name: string; kind: string }>(
+    `SELECT format_type(t.oid, null) AS name, t.typtype AS kind
+     FROM pg_type t
+     JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE n.nspname = 'pg_catalog'
+     ORDER BY 1;`,
+  );
+  const out: Record<string, string> = {};
+  for (const r of res.rows) out[r.name] = r.kind;
+  return out;
 }
 
 /**
