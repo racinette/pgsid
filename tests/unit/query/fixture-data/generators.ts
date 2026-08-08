@@ -251,6 +251,33 @@ const columnSpecificGenerators: Record<
     order_events_early: { id: (_rand, ctx) => ctx.row + 50 },
     order_events_late: { id: (_rand, ctx) => ctx.row + 150 },
 
+    // The composite-key pair, and the one place this registry has to hold a
+    // CROSS-COLUMN invariant rather than a per-column one.
+    //
+    // `leg_no` makes the composite primary key unique on its own, so a
+    // shipment drawn twice does not collide. And `leg_scans` must reference a
+    // pair that EXISTS: the foreign-key tier draws each column independently
+    // from the target column, which for a composite key produces a pair the
+    // cross product allows and the table does not. `ctx.values` answers in ROW
+    // ORDER, so zipping the two columns of `shipment_legs` recovers the real
+    // pairs — `shipment_id` comes from the FK tier, and `leg_no` is then the
+    // leg that actually belongs to it.
+    shipment_legs: { leg_no: (_rand, ctx) => ctx.row + 1 },
+    leg_scans: {
+      leg_no: (rand, ctx) => {
+        const shipmentIds = ctx.values("public.shipment_legs", "shipment_id");
+        const legNos = ctx.values("public.shipment_legs", "leg_no");
+        const want = ctx.current("shipment_id");
+        const matching = legNos.filter((_, i) => shipmentIds[i] === want);
+        if (matching.length === 0) {
+          throw new Error(
+            `leg_scans.shipment_id drew ${String(want)}, which no shipment_legs row carries`,
+          );
+        }
+        return rand.pick(matching);
+      },
+    },
+
     // The NATURAL/USING key pair. `sw4_r.id` draws from `sw4_c.id` through the
     // foreign-key tier, so the USING join always matches; `v` is the column
     // that decides the NATURAL one, which shares BOTH names and so joins on

@@ -13,7 +13,15 @@
 // is:
 //
 //   - joins 2..4 tables by following foreign keys, in any of the four join
-//     kinds, plus a self-join where a key points a table at itself;
+//     kinds, plus a self-join where a key points a table at itself. Single and
+//     COMPOSITE keys, the latter as a conjunctive ON — which is the input the
+//     single-column entailment gate exists to reject, and a gate with nothing
+//     to reject is untested. PARTITIONS and inheritance CHILDREN are named
+//     directly too, reached through a partition's key CLONE and through a
+//     child's inherited COLUMN standing where its parent's key column stands
+//     — the latter a join PostgreSQL does not enforce, so it takes the
+//     non-entailment path while the same shape over the parent takes the
+//     other;
 //   - projects a random subset of columns, qualified and aliased;
 //   - puts a WHERE on about 70% of them, built from `IS [NOT] NULL` and the
 //     six comparisons against a literal DRAWN FROM the column's own seeded
@@ -45,8 +53,11 @@ interface Edge {
   child: string;
   /** The table it references. */
   parent: string;
-  childColumn: string;
-  parentColumn: string;
+  /** Key columns, paired positionally. More than one is a COMPOSITE key,
+   *  whose ON is a conjunction — the input `resolveForeignKey`'s
+   *  single-column gate exists to reject. */
+  childColumns: string[];
+  parentColumns: string[];
   /**
    * Whether an outer join over this key can actually produce a NULL-extended
    * row (§5.2). PostgreSQL enforces the key, so joining child -> parent finds
@@ -57,24 +68,79 @@ interface Edge {
   childToParentCanExtend: boolean;
 }
 
-function edgesOf(snapshot: CatalogSnapshot): Edge[] {
+/**
+ * Every join the generator may write, from the keys the catalog declares.
+ *
+ * Three sources, and the last two are what let a query name a PARTITION or an
+ * inheritance CHILD directly — shapes an application writes and the walker
+ * could not previously reach, because neither kind of relation declares a key
+ * of its own:
+ *
+ *   1. A declared key.
+ *   2. A key CLONE on a partition. `pg_constraint` records one per partition,
+ *      and for the partition it is not a duplicate — it is the only key that
+ *      partition has. This is the adapter's own rule (prefer the declared row,
+ *      fall back to a clone) read from the other end.
+ *   3. An INHERITED COLUMN standing where its parent's key column stands. A
+ *      child does NOT inherit the key itself (measured, and the reason
+ *      `resolveForeignKeyTree` excludes a parent with descendants), so this
+ *      edge is a join PostgreSQL does not enforce — which is the point. It
+ *      takes the non-entailment path through the engine, and the same shape
+ *      over the parent takes the other one.
+ */
+function edgesOf(snapshot: CatalogSnapshot, childToParent: Map<string, string>): Edge[] {
   const out: Edge[] = [];
+  const byName = new Map(snapshot.tables.map(t => [t.name, t]));
+  const push = (
+    t: TableInfo,
+    c: { columns: string[]; foreignColumns: string[] | null; foreignSchema: string | null; foreignTable: string | null; validated: boolean | null },
+    enforced: boolean,
+    parentOverride?: string,
+  ): void => {
+    if (!c.foreignTable || !c.foreignColumns) return;
+    if (c.foreignColumns.length !== c.columns.length || c.columns.length === 0) return;
+    const cols = c.columns.map(n => t.columns.find(x => x.name === n));
+    if (cols.some(x => !x)) return;
+    out.push({
+      child: `${t.schema}.${t.name}`,
+      parent: parentOverride ?? `${c.foreignSchema ?? t.schema}.${c.foreignTable}`,
+      childColumns: [...c.columns],
+      parentColumns: [...c.foreignColumns],
+      // An unenforced edge can dangle by construction, so BOTH arms of an
+      // outer join over it are inhabitable.
+      childToParentCanExtend:
+        !enforced || !c.validated || cols.some(x => !x!.notNull),
+    });
+  };
   for (const t of snapshot.tables) {
-    const notNull = new Map(t.columns.map(c => [c.name, c.notNull]));
     for (const c of t.constraints) {
-      if (c.type !== "foreign" || c.columns.length !== 1) continue;
-      if (!c.foreignTable || c.foreignColumns?.length !== 1) continue;
-      // A clone is the same key recorded again for a partition; following it
-      // would emit the same join twice under a different name.
-      if (c.inheritedClone) continue;
-      const childColumn = c.columns[0]!;
-      out.push({
-        child: `${t.schema}.${t.name}`,
-        parent: `${c.foreignSchema ?? t.schema}.${c.foreignTable}`,
-        childColumn,
-        parentColumn: c.foreignColumns[0]!,
-        childToParentCanExtend: !c.validated || !(notNull.get(childColumn) ?? false),
-      });
+      if (c.type !== "foreign") continue;
+      push(t, c, true);
+    }
+    // The inherited-column edges: a child's copy of a parent's key column,
+    // with no key behind it.
+    const parentName = childToParent.get(t.name);
+    const parent = parentName ? byName.get(parentName) : undefined;
+    if (!parent || parent.relkind === "p") continue; // partitions get clones instead
+    for (const c of parent.constraints) {
+      if (c.type !== "foreign" || c.inheritedClone) continue;
+      if (t.constraints.some(own => own.name === c.name)) continue;
+      push(t, c, false);
+    }
+  }
+  // And the mirror: a child standing where its parent stands on the REFERENCED
+  // side. `warehouses_overflow` inherits the column a key points at without
+  // inheriting anything that enforces it, so joining onto the child is legal,
+  // unenforced, and reachable no other way — `warehouses` is only ever a
+  // target, so it lends its children no edge through the rule above.
+  for (const [childName, parentName] of childToParent) {
+    const child = byName.get(childName), parent = byName.get(parentName);
+    if (!child || !parent || parent.relkind === "p") continue;
+    const childId = `${child.schema}.${child.name}`;
+    for (const e of [...out]) {
+      if (e.parent !== `${parent.schema}.${parent.name}`) continue;
+      if (!e.parentColumns.every(n => child.columns.some(c => c.name === n))) continue;
+      out.push({ ...e, parent: childId, childToParentCanExtend: true });
     }
   }
   return out;
@@ -274,15 +340,22 @@ function buildQuery(
     const alias = `r${i}`;
     const kind = rand.pick(JOIN_KINDS);
     kinds.push(kind);
-    const anchorCol = addParent ? edge.childColumn : edge.parentColumn;
-    const addedCol = addParent ? edge.parentColumn : edge.childColumn;
+    // A composite key becomes a CONJUNCTIVE ON — the whole key equated, which
+    // is what the entailment gate must decline as a unit rather than reading
+    // one column of.
+    const anchorCols = addParent ? edge.childColumns : edge.parentColumns;
+    const addedCols = addParent ? edge.parentColumns : edge.childColumns;
+    const conjuncts = anchorCols.map((c, k) =>
+      eq(colRef(anchor.alias, c), colRef(alias, addedCols[k]!)));
 
     from = {
       JoinExpr: {
         jointype: kind,
         larg: from,
         rarg: fromItem(addedTable, alias),
-        quals: eq(colRef(anchor.alias, anchorCol), colRef(alias, addedCol)),
+        quals: conjuncts.length === 1
+          ? conjuncts[0]!
+          : boolExpr("AND_EXPR", conjuncts),
       },
     };
     used.push({ alias, table: added });
@@ -408,7 +481,15 @@ for (const t of snapshot.tables) {
 }
 
 const tableIds = snapshot.tables.map(t => `${t.schema}.${t.name}`);
-const edges = edgesOf(snapshot);
+const inheritsRows = await loop.pg.query<{ child: string; parent: string }>(
+  `SELECT cc.relname AS child, pc.relname AS parent
+     FROM pg_inherits i
+     JOIN pg_class cc ON cc.oid = i.inhrelid
+     JOIN pg_class pc ON pc.oid = i.inhparent
+    WHERE cc.relkind IN ('r','p','f')`,
+);
+const childToParent = new Map(inheritsRows.rows.map(r => [r.child, r.parent]));
+const edges = edgesOf(snapshot, childToParent);
 const groups = groupsOf(tableIds, edges);
 const inGroups = new Set(groups.flat());
 
@@ -434,6 +515,7 @@ const APPLICATION_TABLES = [
   "orders", "payment_methods", "product_tags", "products", "refunds",
   "refunds_archive", "reviews", "shipments", "stock", "stock_moves",
   "subscription", "tags", "warehouses", "warehouses_overflow",
+  "shipment_legs", "leg_scans",
 ];
 {
   const known = new Set(snapshot.tables.map(t => t.name));
@@ -462,7 +544,7 @@ console.log(`discovery slice 1 — seed ${SEED}, ${COUNT} queries`);
 console.log(`join graph: ${usableEdges.length} single-column foreign keys over ` +
   `${groups.length} groups of joinable tables (largest ${groups[0]!.length})`);
 console.log(`  child->parent outer joins that can null-extend: ` +
-  usableEdges.filter(e => e.childToParentCanExtend).map(e => `${e.child}.${e.childColumn}`).join(", "));
+  usableEdges.filter(e => e.childToParentCanExtend).map(e => `${e.child}.${e.childColumns.join("+")}`).join(", "));
 
 const rand = makeRand(SEED);
 const counts = new Map<Bucket, number>();
@@ -560,6 +642,8 @@ if (curve.length > 1) {
     `${curve[0]} at the start (${Math.round((last / curve[0]!) * 100)}%)`);
 }
 console.log(`  bound: 2..4 tables, left-deep, SELECT only, no subqueries, no set operations, no DML;`);
+console.log(`         application tables only, partitions and inheritance children included,`);
+console.log(`         single and composite keys;`);
 console.log(`         WHERE on ${pct(COUNT - (whereUse.get("-") ?? 0), COUNT).trim()} of queries (measured) — IS [NOT] NULL, and = <> < <= > >= against a literal`);
 console.log(`         drawn from the column's own seeded values, combined with AND, OR, NOT, AND(OR)`);
 
