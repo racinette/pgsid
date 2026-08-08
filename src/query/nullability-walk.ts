@@ -4660,6 +4660,15 @@ class NullabilityEngine {
       );
       return narrowed.kind === "unknown" ? null : narrowed.returns;
     }
+    if (ae && (ae.kind === undefined || ae.kind === "AEXPR_OP") && !ae.lexpr && ae.rexpr) {
+      const opNames = (ae.name ?? []).map(n => this.stringVal(n));
+      const narrowed = this.catalog.resolveUnaryOperatorTotality(
+        opNames.length > 1 ? opNames[opNames.length - 2] : undefined,
+        opNames[opNames.length - 1] ?? "",
+        this.operandTypeSet(ae.rexpr, scope, depth + 1),
+      );
+      return narrowed.kind === "unknown" ? null : narrowed.returns;
+    }
     const rendered = this.renderedTypeOfExpr(expr, scope);
     return rendered === null ? null : [rendered];
   }
@@ -5722,6 +5731,55 @@ class NullabilityEngine {
             trace.conclude(
               false,
               `operator '${op}' keeps a non-total or unvouched candidate for these operand types → nullable`,
+            );
+            return false;
+          }
+        }
+
+        // The PREFIX form, same machinery over the leftType-null rows.
+        if (!ae.lexpr && ae.rexpr) {
+          const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined;
+          const at = this.operandTypeSet(ae.rexpr, scope, depth + 1);
+          const narrowed = this.catalog.resolveUnaryOperatorTotality(opSchema2, op, at);
+          if (narrowed.kind !== "unknown") {
+            trace.addFact("operandTypes", at?.join("|") ?? "unknown");
+            if (narrowed.kind === "user-exact") {
+              trace.addFact(
+                "customOperator",
+                `${op} → ${narrowed.functionSchema}.${narrowed.functionName} (type-narrowed)`,
+              );
+              const synthetic = {
+                funcname: [
+                  { String: { sval: narrowed.functionSchema } },
+                  { String: { sval: narrowed.functionName } },
+                ],
+                args: [ae.rexpr],
+              } as unknown as FuncCall;
+              const childTrace = trace.addChild(`operator '${op}' backing function`);
+              const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace);
+              trace.conclude(
+                result,
+                `type-narrowed operator dispatched through its backing function → ${result ? "notNull" : "nullable"}`,
+              );
+              return result;
+            }
+            if (narrowed.kind === "total") {
+              trace.addFact("totalOperator", "true (signature-narrowed)");
+              const allNotNull = this.operandsAllNotNull(
+                [ae.rexpr], scope, depth, trace, "operand",
+              );
+              trace.conclude(
+                allNotNull,
+                allNotNull
+                  ? `every surviving candidate of '${op}' is total and the operand non-null → non-null`
+                  : `operand of '${op}' is nullable → nullable`,
+              );
+              return allNotNull;
+            }
+            trace.addFact("totalOperator", "false (signature-narrowed)");
+            trace.conclude(
+              false,
+              `operator '${op}' keeps a non-total or unvouched candidate for this operand type → nullable`,
             );
             return false;
           }
@@ -7131,8 +7189,15 @@ class NullabilityEngine {
 
       switch (ae.kind) {
         case "AEXPR_OP":
+          return (
+            this.promotionOperatorIsStrict(ae.name, ae.lexpr, ae.rexpr) &&
+            (forced(ae.lexpr) || forced(ae.rexpr))
+          );
         case "AEXPR_OP_ANY":
         case "AEXPR_OP_ALL":
+          // The right operand is an ARRAY compared element-wise, so its
+          // rendered type is NOT the comparison operator's parameter type —
+          // no operands are passed, and the name rule answers as before.
           return this.promotionOperatorIsStrict(ae.name) && (forced(ae.lexpr) || forced(ae.rexpr));
         case "AEXPR_IN":
           return forced(ae.lexpr);
@@ -7176,11 +7241,14 @@ class NullabilityEngine {
 
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
+      if (ae.kind === "AEXPR_OP") {
+        return (
+          this.promotionOperatorIsStrict(ae.name, ae.lexpr, ae.rexpr) &&
+          [ae.lexpr, ae.rexpr].some(o => !!o && this.exprStrictlyForces(o, leaf))
+        );
+      }
       if (ae.kind === "AEXPR_NULLIF") {
         return !!ae.lexpr && this.exprStrictlyForces(ae.lexpr, leaf);
-      }
-      if (ae.kind === "AEXPR_OP" && this.promotionOperatorIsStrict(ae.name)) {
-        return [ae.lexpr, ae.rexpr].some(o => !!o && this.exprStrictlyForces(o, leaf));
       }
       return false;
     }
@@ -7239,12 +7307,33 @@ class NullabilityEngine {
    * rule runs on; a user operator that shadows a builtin name over custom
    * types is out of reach there too, by the curated-list policy.
    */
-  private promotionOperatorIsStrict(name: Node[] | undefined): boolean {
+  private promotionOperatorIsStrict(
+    name: Node[] | undefined,
+    lexpr?: Node,
+    rexpr?: Node,
+    scope: Scope | null = null,
+  ): boolean {
     if (!name?.length) return false;
     const parts = name.map(n => this.stringVal(n));
     const op = parts[parts.length - 1] ?? "";
+    // Type-aware first, EVERY-quantified — a wrong "strict" here is a
+    // wrong notNull. Casts and literals type even without a scope; the
+    // name rule below serves only what the narrowing cannot see, and its
+    // shadowing hole is guarded inside the accessor (a user operator on a
+    // curated name with nothing known answers false).
+    if (lexpr && rexpr) {
+      const schema2 = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+      const verdict = this.catalog.resolveOperatorStrictness(
+        schema2,
+        op,
+        this.operandTypeSet(lexpr, scope, 0),
+        this.operandTypeSet(rexpr, scope, 0),
+      );
+      if (verdict !== null) return verdict;
+    }
     // Builtin names keep the curated set, and only BARE names match it —
-    // the documented shadowing blind spot.
+    // the documented shadowing blind spot, now reached only when the
+    // narrowing has no candidates at all.
     if (parts.length === 1 && STRICT_OPERATORS.has(op)) return true;
     // A user operator's backing function carries a declared strictness flag,
     // which is exactly the property this gate needs: a strict comparison

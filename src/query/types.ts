@@ -441,6 +441,39 @@ export interface NullabilityCatalog {
     | { kind: "unknown" };
 
   /**
+   * The PREFIX form of `resolveOperatorTotality` — candidates are the rows
+   * with no left operand, matched and narrowed on the single argument's
+   * type set by the same rules.
+   */
+  resolveUnaryOperatorTotality(
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly string[] | null,
+  ):
+    | { kind: "user-exact"; functionSchema: string; functionName: string; returns: string[] }
+    | { kind: "total"; returns: string[] }
+    | { kind: "nullable"; returns: string[] }
+    | { kind: "unknown" };
+
+  /**
+   * Type-aware STRICTNESS for a binary operator, quantified `every` over
+   * the non-eliminated survivors — the promotion consumer's direction: a
+   * wrong "strict" there is a wrong notNull, so one unvouched survivor
+   * denies the property (mechanism C's `some` reading is a different
+   * consumer and keeps its recorded over-report for now). True/false are
+   * verdicts over the merged candidate set; null means no candidates or
+   * nothing known, and the caller falls back to the name rule — except
+   * that a user operator sharing a curated name with nothing known answers
+   * FALSE, the shadowing guard the totality side already takes.
+   */
+  resolveOperatorStrictness(
+    schema: string | undefined,
+    name: string,
+    leftTypes: readonly string[] | null,
+    rightTypes: readonly string[] | null,
+  ): boolean | null;
+
+  /**
    * Whether every pg_catalog plain-function overload of `name` is declared
    * STRICT — from the snapshot's environment capture, the source of truth
    * the strict-expression closures consult for builtin names the user

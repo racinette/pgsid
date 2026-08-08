@@ -12,7 +12,8 @@ SELECT
   1 + 2                                         AS int_sum,     -- @notNull
   ('((0,0),(1,1))'::path + '((1,1),(2,2))'::path)
     + '[(0,0),(1,1)]'::path                     AS nested_sum,  -- @nullable
-  (1 + 2) + (3 + 4)                             AS nested_int   -- @notNull
+  (1 + 2) + (3 + 4)                             AS nested_int,  -- @notNull
+  - (1 + 2)                                     AS neg_sum      -- @notNull
 -- @unwitnessable 1: open + open CONCATENATES to a value (measured) — the
 --   NULL needs a closed operand, which column 0 supplies; the claim is the
 --   same per-signature verdict, nullable because the row is the recorded

@@ -776,7 +776,29 @@ export async function buildNullabilityCatalog(
     schema: string | undefined,
     name: string,
   ): { strict: boolean; functionSchema?: string; functionName?: string } | null => {
-    const candidates = schema ? opBySchemaName.get(`${schema}.${name}`) : opByName.get(name);
+    // Bare names gather PATH-VISIBLE candidates only (Q1, measured: the
+    // path is a visibility filter), deduped by signature with the earliest
+    // schema winning — the function side's rule. The old whole-snapshot
+    // merge let an off-path operator poison the strictness consensus, an
+    // under-report, which for mechanism C is the direction that makes the
+    // contract lie.
+    let candidates: typeof snapshot.operators | undefined;
+    if (schema) {
+      candidates = opBySchemaName.get(`${schema}.${name}`);
+    } else {
+      const merged: typeof snapshot.operators = [];
+      const seen = new Set<string>();
+      for (const s of searchPath) {
+        for (const o of opBySchemaName.get(`${s}.${name}`) ?? []) {
+          const sig = `${o.leftType},${o.rightType}`;
+          if (!seen.has(sig)) {
+            seen.add(sig);
+            merged.push(o);
+          }
+        }
+      }
+      candidates = merged;
+    }
     if (!candidates || candidates.length === 0) return null;
     // Strictness by consensus (holds whichever overload PostgreSQL picks);
     // the backing function only when the pick is determined.
@@ -1068,6 +1090,132 @@ export async function buildNullabilityCatalog(
       : { kind: "nullable", returns };
   };
 
+  // The PREFIX form: candidates are the leftType-null rows, matched and
+  // narrowed on the single argument by the same rules. No signature-keyed
+  // totality exceptions exist among prefix rows today, so the verdict is
+  // the name-level one per row.
+  const resolveUnaryOperatorTotality = (
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly string[] | null,
+  ):
+    | { kind: "user-exact"; functionSchema: string; functionName: string; returns: string[] }
+    | { kind: "total"; returns: string[] }
+    | { kind: "nullable"; returns: string[] }
+    | { kind: "unknown" } => {
+    const As = argTypes === null ? null : argTypes.map(normalizeTypeName);
+    const A = As !== null && As.length === 1 ? As[0]! : null;
+    const builtins = resolveBuiltinOperatorSignatures(schema, name)
+      .filter(o => o.leftType === null && o.rightType !== null);
+    const userSchemas = schema ? [schema] : searchPath;
+    const users: typeof snapshot.operators = [];
+    const seenSig = new Set<string>();
+    for (const s of userSchemas) {
+      for (const o of opBySchemaName.get(`${s}.${name}`) ?? []) {
+        if (o.leftType !== null || o.rightType === null) continue;
+        if (!seenSig.has(o.rightType)) {
+          seenSig.add(o.rightType);
+          users.push(o);
+        }
+      }
+    }
+    if (builtins.length === 0 && users.length === 0) return { kind: "unknown" };
+    const verdict = (r: string): "total" | "nullable" =>
+      TOTAL_OPERATOR_NAMES.has(name) &&
+      !NON_TOTAL_OPERATOR_SIGNATURES.has(`${name}(,${r})`)
+        ? "total"
+        : "nullable";
+    if (A !== null) {
+      const builtinExact = builtins.find(o => o.rightType === A);
+      if (builtinExact) return { kind: verdict(A), returns: [builtinExact.returns] };
+      const userExact = users.find(o => o.rightType === A);
+      if (userExact) {
+        return {
+          kind: "user-exact",
+          functionSchema: userExact.functionSchema,
+          functionName: userExact.functionName,
+          returns: [userExact.resultType],
+        };
+      }
+    }
+    if (As === null) {
+      return users.length > 0 && builtins.length > 0
+        ? { kind: "nullable", returns: unionOf(users, builtins) }
+        : { kind: "unknown" };
+    }
+    const userSurvivors = users.filter(o =>
+      As.some(m => mayCoerceImplicitly(m, o.rightType!)));
+    const builtinSurvivors = builtins.filter(o =>
+      As.some(m => mayCoerceImplicitly(m, o.rightType!)));
+    const count = userSurvivors.length + builtinSurvivors.length;
+    if (count === 0) return { kind: "unknown" };
+    const returns = unionOf(userSurvivors, builtinSurvivors);
+    if (count === 1 && userSurvivors.length === 1) {
+      const o = userSurvivors[0]!;
+      return {
+        kind: "user-exact",
+        functionSchema: o.functionSchema,
+        functionName: o.functionName,
+        returns,
+      };
+    }
+    if (userSurvivors.length > 0) return { kind: "nullable", returns };
+    return builtinSurvivors.every(o => verdict(o.rightType!) === "total")
+      ? { kind: "total", returns }
+      : { kind: "nullable", returns };
+  };
+
+  /**
+   * EVERY-quantified strictness over the merged candidate set — the
+   * promotion consumer's direction (a wrong "strict" is a wrong notNull).
+   * Null cedes to the caller's name rule; a user operator sharing a
+   * curated name with nothing known answers false, the shadowing guard.
+   */
+  const resolveOperatorStrictness = (
+    schema: string | undefined,
+    name: string,
+    leftTypes: readonly string[] | null,
+    rightTypes: readonly string[] | null,
+  ): boolean | null => {
+    const Ls = leftTypes === null ? null : leftTypes.map(normalizeTypeName);
+    const Rs = rightTypes === null ? null : rightTypes.map(normalizeTypeName);
+    const L = Ls !== null && Ls.length === 1 ? Ls[0]! : null;
+    const R = Rs !== null && Rs.length === 1 ? Rs[0]! : null;
+    const builtins = resolveBuiltinOperatorSignatures(schema, name)
+      .filter(o => o.leftType !== null && o.rightType !== null);
+    const userSchemas = schema ? [schema] : searchPath;
+    const users: typeof snapshot.operators = [];
+    const seenSig = new Set<string>();
+    for (const s of userSchemas) {
+      for (const o of opBySchemaName.get(`${s}.${name}`) ?? []) {
+        if (o.leftType === null || o.rightType === null) continue;
+        const sig = `${o.leftType},${o.rightType}`;
+        if (!seenSig.has(sig)) {
+          seenSig.add(sig);
+          users.push(o);
+        }
+      }
+    }
+    if (builtins.length === 0 && users.length === 0) return null;
+    if (L !== null && R !== null) {
+      const builtinExact = builtins.find(o => o.leftType === L && o.rightType === R);
+      if (builtinExact) return builtinExact.strict;
+      const userExact = users.find(o => o.leftType === L && o.rightType === R);
+      if (userExact) return userExact.strict;
+    }
+    if (Ls === null && Rs === null) {
+      return users.length > 0 && builtins.length > 0 ? false : null;
+    }
+    const reaches = (set: readonly string[] | null, param: string): boolean =>
+      set === null || set.some(member => mayCoerceImplicitly(member, param));
+    const survivors = [
+      ...users.filter(o => reaches(Ls, o.leftType!) && reaches(Rs, o.rightType!)),
+      ...builtins.filter(o => reaches(Ls, o.leftType!) && reaches(Rs, o.rightType!)),
+    ];
+    if (survivors.length === 0) return null;
+    return survivors.every(o => o.strict);
+  };
+
   // The FROM-position shape of a pg_catalog function with named output
   // columns. Consulted where the user catalog has no candidate the walk may
   // reason from — which now INCLUDES a name pg_catalog also carries, since
@@ -1103,6 +1251,8 @@ export async function buildNullabilityCatalog(
     resolveFunctionCandidates,
     resolveOperatorMetadata,
     resolveOperatorTotality,
+    resolveUnaryOperatorTotality,
+    resolveOperatorStrictness,
     resolveBuiltinFunctionSignatures,
     resolveBuiltinOperatorSignatures,
     resolveCanonicalTypeName,

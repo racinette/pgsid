@@ -128,6 +128,10 @@ const FLOOR: string[] = [
   // `user-exact` through this member, which also took over the builtin
   // totality question from the bare-name allowlist
   "resolveOperatorTotality",
+  // every WHERE-promotion strictness question since the typed strictness
+  // slice: the promotion path asks EVERY-quantified strictness over the
+  // same merged candidate set before falling back to the name rule
+  "resolveOperatorStrictness",
   // the `unnest(string_to_array(...))` item: asked before the two builtin
   // predicates, and it declines — string_to_array's return is concrete
   "resolvePolymorphicArraySignatures",
@@ -146,6 +150,12 @@ const FLOOR: string[] = [
  * leave, and a cold member nobody triaged fails.
  */
 const COLD_TRIAGE: Record<string, { needs: string; witness: string }> = {
+  resolveUnaryOperatorTotality: {
+    needs:
+      "a PREFIX operator expression — the generated corpus's operator axis " +
+      "produces only binary shapes",
+    witness: "operator-path-plus.sql",
+  },
   resolveOperatorMetadata: {
     needs:
       "a user operator whose STRICTNESS the WHERE-promotion or mechanism-C " +
