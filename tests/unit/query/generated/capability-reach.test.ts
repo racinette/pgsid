@@ -9,7 +9,11 @@ import { parseSql } from "../../../../src/ast.js";
 import { snapshotCatalog } from "../../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../../src/query/catalog-adapter.js";
 import { inferNullability } from "../../../../src/query/nullability-walk.js";
-import { DEP_CATALOG_ONLY, type NullabilityCatalog } from "../../../../src/query/types.js";
+import {
+  DEP_CATALOG_ONLY,
+  OVERLOAD_CATALOG_ONLY,
+  type NullabilityCatalog,
+} from "../../../../src/query/types.js";
 import { spyOnCatalog, catalogMembers } from "../catalog-spy.js";
 import { GRAMMAR_SAMPLER } from "../grammar-sampler.js";
 import {
@@ -207,7 +211,7 @@ describe("capability reach of the generated corpus", () => {
 
   beforeAll(async () => {
     const baseCatalog = await catalogFor(null);
-    const depOnly = new Set<string>(DEP_CATALOG_ONLY);
+    const depOnly = new Set<string>([...DEP_CATALOG_ONLY, ...OVERLOAD_CATALOG_ONLY]);
     members = catalogMembers(baseCatalog).filter(m => !depOnly.has(m));
 
     const prepared = await prepare([
@@ -385,7 +389,7 @@ describe.runIf(process.env.CAPABILITY_WITNESSES)("which fixture reaches each cap
         witnesses.get(m)!.push(label);
       }
     }
-    const depOnly = new Set<string>(DEP_CATALOG_ONLY);
+    const depOnly = new Set<string>([...DEP_CATALOG_ONLY, ...OVERLOAD_CATALOG_ONLY]);
     const members = catalogMembers(catalog).filter(m => !depOnly.has(m));
     console.log(
       `\nfixture witnesses over ${corpus.length} statements:\n` +

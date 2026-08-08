@@ -330,6 +330,18 @@ ordering: exact match tries the DECLARED types against the merged candidate
 set FIRST (a candidate declared on a domain wins), and canonicalises only
 when that finds nothing.
 
+**The refactor is STARTED (2026-08-09): steps 1 and 2 of the charter's
+"What must change" are LANDED** — the `pg_cast`/`pg_type` captures
+(`builtinImplicitCasts`, `builtinTypeKinds`) and the coercibility accessor
+(`OverloadCatalog` in `src/query/catalog-adapter.ts`, five members behind
+`OVERLOAD_CATALOG_ONLY` so the censuses hold the walk's face to fixture
+coverage while the walk does not yet consult them;
+`tests/unit/query/coercibility.test.ts` asserts the elimination rule from
+both sides). What remains is step 3 (thread argument types into candidate
+selection — the hottest path, corpus dry-run discipline), step 4 (the
+signature-keyed verdicts, all seven tables plus the operator sets), and
+step 5 (the witness corpus).
+
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
 names → 327 pg_proc rows, carrying per-signature strictness, prokind,

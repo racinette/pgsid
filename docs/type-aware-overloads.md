@@ -598,9 +598,24 @@ always agree, so it is cheap in practice.
 1. **Snapshot** — `pg_cast` (implicit rows), and whatever `pg_type` needs
    for the polymorphic predicate (`typtype`, element type of arrays).
    ENVIRONMENT facts, like `builtinStrictFunctions`: a property of the
-   PostgreSQL version, absent from the diff.
+   PostgreSQL version, absent from the diff. **LANDED 2026-08-09**:
+   `builtinImplicitCasts` (117 rows, with the binary flag that marks the
+   canonicalisation edges — the graph is two-way, `text ↔ varchar`, so
+   canonicalisation tries images) and `builtinTypeKinds` (every pg_catalog
+   name → typtype; array elements need no capture, the `[]` rendering
+   carries them). Pinned in `tests/unit/catalog/snapshot.test.ts`.
 2. **Catalog adapter** — a coercibility accessor implementing the five
-   clauses, plus the array/domain normalisation.
+   clauses, plus the array/domain normalisation. **LANDED 2026-08-09** as
+   the `OverloadCatalog` face: `mayCoerceImplicitly` (false only on
+   certainty), `resolveCanonicalTypeName` (recursive domain smash, the
+   FALLBACK key per the answered third question),
+   `resolveBinaryCoercionTargets`, and the two builtin signature lookups.
+   Deliberately a SEPARATE interface from `NullabilityCatalog`
+   (`OVERLOAD_CATALOG_ONLY`, the `DEP_CATALOG_ONLY` pattern): the census
+   demands a fixture for every walk-facing member, so each member moves
+   over exactly when step 3 makes the walk consult it.
+   `tests/unit/query/coercibility.test.ts` asserts every clause from both
+   sides — the elimination side is what the invariant polices.
 3. **The walk** — thread the known argument types into candidate
    selection; narrow; leave consensus untouched. This touches the hottest
    path, so the corpus dry-run discipline the fix phases used applies.

@@ -1,9 +1,12 @@
 import type { Node } from "libpg-query";
 import type { CatalogSnapshot } from "../catalog/types.js";
 import type {
+  BuiltinFunctionSignature,
+  BuiltinOperatorSignature,
   DepCatalog,
   FunctionInfo,
   NullabilityCatalog,
+  OverloadCatalog,
   OutputNullability,
   ResolvedTable,
   ResolvedFunction,
@@ -26,7 +29,7 @@ import { splitQualifiedName } from "../catalog/qualified-name.js";
 export async function buildNullabilityCatalog(
   snapshot: CatalogSnapshot,
   options?: { searchPath?: readonly string[] },
-): Promise<NullabilityCatalog & DepCatalog> {
+): Promise<NullabilityCatalog & DepCatalog & OverloadCatalog> {
   // The search path an UNQUALIFIED name resolves under — the contract the
   // interface has documented all along, now actually true (adversarial-2
   // finding 5: the adapter hardcoded "public", so under a real search path
@@ -784,6 +787,151 @@ export async function buildNullabilityCatalog(
   const builtinStrict = new Set(snapshot.builtinStrictFunctions ?? []);
   const isStrictBuiltin = (name: string): boolean => builtinStrict.has(name);
 
+  // -------------------------------------------------------------------------
+  // Coercibility — the elimination rule of docs/type-aware-overloads.md,
+  // implemented from the environment captures. The WALK does not consult any
+  // of this yet: the accessors exist so the rule is testable in isolation
+  // before argument types are threaded into candidate selection.
+  // -------------------------------------------------------------------------
+
+  const builtinFnSigsByName = new Map<string, BuiltinFunctionSignature[]>();
+  for (const sig of snapshot.builtinFunctionSignatures ?? []) {
+    const existing = builtinFnSigsByName.get(sig.name);
+    if (existing) existing.push(sig);
+    else builtinFnSigsByName.set(sig.name, [sig]);
+  }
+  const resolveBuiltinFunctionSignatures = (
+    schema: string | undefined,
+    name: string,
+  ): BuiltinFunctionSignature[] =>
+    schema === undefined || schema === "pg_catalog"
+      ? (builtinFnSigsByName.get(name) ?? [])
+      : [];
+
+  const builtinOpSigsByName = new Map<string, BuiltinOperatorSignature[]>();
+  for (const sig of snapshot.builtinOperatorSignatures ?? []) {
+    const existing = builtinOpSigsByName.get(sig.name);
+    if (existing) existing.push(sig);
+    else builtinOpSigsByName.set(sig.name, [sig]);
+  }
+  const resolveBuiltinOperatorSignatures = (
+    schema: string | undefined,
+    name: string,
+  ): BuiltinOperatorSignature[] =>
+    schema === undefined || schema === "pg_catalog"
+      ? (builtinOpSigsByName.get(name) ?? [])
+      : [];
+
+  const builtinTypeKinds = snapshot.builtinTypeKinds ?? {};
+  const implicitCasts = new Set<string>();
+  const binaryTargets = new Map<string, string[]>();
+  for (const c of snapshot.builtinImplicitCasts ?? []) {
+    implicitCasts.add(`${c.source} ${c.target}`);
+    if (c.binary) {
+      const existing = binaryTargets.get(c.source);
+      if (existing) existing.push(c.target);
+      else binaryTargets.set(c.source, [c.target]);
+    }
+  }
+  const resolveBinaryCoercionTargets = (typeName: string): string[] =>
+    binaryTargets.get(typeName) ?? [];
+
+  // A rendered name is qualified for user types (the snapshot reads with an
+  // empty search_path) and bare for builtins — both sides of every
+  // comparison here use the same rendering, which is what makes string
+  // equality sound. A bare USER-typed name (a cast target as the query
+  // wrote it) resolves through the path, like every other bare reference.
+  const domainBaseOfRendered = (rendered: string): string | null => {
+    const direct = domainBaseNames.get(rendered);
+    if (direct !== undefined) return direct;
+    if (!rendered.includes(".")) return inPath(domainBaseNames, rendered) ?? null;
+    return null;
+  };
+
+  const resolveCanonicalTypeName = (typeName: string): string => {
+    if (typeName.endsWith("[]")) {
+      return `${resolveCanonicalTypeName(typeName.slice(0, -2))}[]`;
+    }
+    let cur = typeName;
+    // Nested domains resolve base-of-base (measured: dint2 + dint2 →
+    // integer); the bound only guards a cyclic snapshot, which PostgreSQL
+    // cannot produce.
+    for (let hops = 0; hops < 32; hops++) {
+      const base = domainBaseOfRendered(cur);
+      if (base === null) return cur;
+      cur = base;
+    }
+    return cur;
+  };
+
+  const enumTypeNames = new Map<string, true>();
+  for (const e of snapshot.enums) enumTypeNames.set(`${e.schema}.${e.name}`, true);
+
+  /**
+   * What kind of type a rendered name denotes, where this catalog can say:
+   * pg_type.typtype for builtins, the user captures for enums, composites
+   * and domains; null for anything it cannot explain. Null is what keeps a
+   * candidate — the generous default the invariant requires.
+   */
+  const kindOfRendered = (rendered: string): string | null => {
+    const builtin = builtinTypeKinds[rendered];
+    if (builtin !== undefined) return builtin;
+    const qualified = rendered.includes(".");
+    if (qualified ? enumTypeNames.has(rendered) : inPath(enumTypeNames, rendered) !== undefined) return "e";
+    if (qualified ? compositeTypes.has(rendered) : resolveCompositeType(undefined, rendered) !== null) return "c";
+    if (domainBaseOfRendered(rendered) !== null) return "d";
+    return null;
+  };
+
+  const typeUnderstood = (rendered: string): boolean =>
+    rendered.endsWith("[]")
+      ? typeUnderstood(rendered.slice(0, -2))
+      : kindOfRendered(rendered) !== null;
+
+  const mayCoerceImplicitly = (fromType: string, toType: string): boolean => {
+    if (fromType === toType) return true;
+    // An unknown literal is not a gap in our knowledge; PostgreSQL does not
+    // consider it typed either, and it constrains no candidate (measured —
+    // the charter's literals section).
+    if (fromType === "unknown") return true;
+    const from = resolveCanonicalTypeName(fromType);
+    const to = resolveCanonicalTypeName(toType);
+    if (from === to) return true;
+    // The polymorphic predicate. Generous on anything not understood, and
+    // deliberately generous on domains: every family admits a domain over
+    // its structure except anyenum (measured), where admitting anyway is a
+    // safe over-retention.
+    switch (to) {
+      case '"any"':
+      case "anyelement":
+      case "anycompatible":
+        return true;
+      case "anyarray":
+      case "anycompatiblearray":
+        return from.endsWith("[]") || !typeUnderstood(from);
+      case "anynonarray":
+      case "anycompatiblenonarray":
+        return !from.endsWith("[]");
+      case "anyrange":
+      case "anycompatiblerange":
+        return kindOfRendered(from) === "r" || !typeUnderstood(from);
+      case "anymultirange":
+      case "anycompatiblemultirange":
+        return kindOfRendered(from) === "m" || !typeUnderstood(from);
+      case "anyenum":
+        return kindOfRendered(from) === "e" || !typeUnderstood(from);
+      default:
+        break;
+    }
+    if (from.endsWith("[]") && to.endsWith("[]")) {
+      return mayCoerceImplicitly(from.slice(0, -2), to.slice(0, -2));
+    }
+    if (implicitCasts.has(`${from} ${to}`)) return true;
+    // No clause holds. Eliminate only when BOTH sides are fully explained;
+    // an unrecognised type on either side keeps the candidate.
+    return !(typeUnderstood(from) && typeUnderstood(to));
+  };
+
   // The FROM-position shape of a pg_catalog function with named output
   // columns. Consulted where the user catalog has no candidate the walk may
   // reason from — which now INCLUDES a name pg_catalog also carries, since
@@ -818,6 +966,11 @@ export async function buildNullabilityCatalog(
     resolveFunctionMetadata,
     resolveFunctionCandidates,
     resolveOperatorMetadata,
+    resolveBuiltinFunctionSignatures,
+    resolveBuiltinOperatorSignatures,
+    resolveCanonicalTypeName,
+    mayCoerceImplicitly,
+    resolveBinaryCoercionTargets,
     resolveGenerationExpr,
     resolveGenerationExprTree,
     fnArgDefaultAsts,
