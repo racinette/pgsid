@@ -240,6 +240,17 @@ const columnSpecificGenerators: Record<
         ctx.current("plan") === "team" ? rand.pick([2, 5]) : rand.pick([0, 1]),
     },
 
+    // The application event log. Same range rule as every other partitioned
+    // pair here: `order_events` routes its rows and the two partitions are
+    // seeded directly, and all three share one unique index, so the parent
+    // takes the low end of each range and the partitions the high end of
+    // their own. Alternating puts the parent's rows in BOTH partitions, so
+    // `order_event_notes` — whose key points at the partitioned table and is
+    // therefore CLONED once per partition — has references into each.
+    order_events: { id: (_rand, ctx) => (ctx.row % 2 === 0 ? ctx.row + 1 : ctx.row + 100) },
+    order_events_early: { id: (_rand, ctx) => ctx.row + 50 },
+    order_events_late: { id: (_rand, ctx) => ctx.row + 150 },
+
     // The NATURAL/USING key pair. `sw4_r.id` draws from `sw4_c.id` through the
     // foreign-key tier, so the USING join always matches; `v` is the column
     // that decides the NATURAL one, which shares BOTH names and so joins on

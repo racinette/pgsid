@@ -236,13 +236,12 @@ function whereClause(rand: Rand, used: { alias: string; table: string }[], byId:
 function buildQuery(
   rand: Rand,
   snapshot: CatalogSnapshot,
-  group: string[],
+  start: string,
   edges: Edge[],
   pool: ValuePool,
 ): Built | null {
   const byId = new Map(snapshot.tables.map(t => [`${t.schema}.${t.name}`, t]));
   const target_ = rand.int(2, 4);
-  const start = rand.pick(group);
   const used: { alias: string; table: string }[] = [{ alias: "r0", table: start }];
   const kinds: string[] = [];
 
@@ -308,7 +307,15 @@ function buildQuery(
 
   // A WHERE clause on most queries, and deliberately none on the rest: the
   // unfiltered path is the one every existing claim was measured on.
-  const where = rand.chance(0.7) ? whereClause(rand, used, byId, pool) : null;
+  // Retry: `whereClause` answers null when the column it picked has no
+  // drawable literal, and one attempt made the real rate 54% against the 70%
+  // this line asks for — a bound the report was stating wrongly.
+  let where: { node: Ast; shape: string } | null = null;
+  if (rand.chance(0.7)) {
+    for (let attempt = 0; attempt < 5 && !where; attempt++) {
+      where = whereClause(rand, used, byId, pool);
+    }
+  }
 
   const stmt = {
     SelectStmt: {
@@ -404,7 +411,52 @@ const tableIds = snapshot.tables.map(t => `${t.schema}.${t.name}`);
 const edges = edgesOf(snapshot);
 const groups = groupsOf(tableIds, edges);
 const inGroups = new Set(groups.flat());
-const usableEdges = edges.filter(e => inGroups.has(e.child) && inGroups.has(e.parent));
+
+// The tables a generated query may name: the APPLICATION schema, and nothing
+// else. The fixture schema also holds single-purpose probe relations —
+// `sw4_*`, `fk_df`/`fk_nv`/`fk_par`, `t`/`u`/`v` — which exist to make one
+// gate testable and read as noise in a generated query. Every catalog feature
+// they carried has an application-shaped carrier here (`order_events` for the
+// partitioned key and its clones, `refunds` for a key on an inheritance
+// parent, `warehouses` for one pointing AT an inheritance parent, `invoices`
+// deferrable, `legacy_order_notes` NOT VALID, `order_gift_wrap` for the
+// shared column name a USING or NATURAL join needs).
+//
+// A whitelist rather than a blacklist, because "is this a probe relation" is
+// not a catalog fact: nothing distinguishes `sw4_pref` from `shipments` except
+// what it is FOR. Hand-maintained, so it is asserted against the snapshot
+// below — a renamed or dropped table fails the run instead of quietly
+// shrinking what it ranges over.
+const APPLICATION_TABLES = [
+  "addresses", "categories", "coupons", "customers", "invoices",
+  "legacy_order_notes", "order_event_notes", "order_events",
+  "order_events_early", "order_events_late", "order_gift_wrap", "order_items",
+  "orders", "payment_methods", "product_tags", "products", "refunds",
+  "refunds_archive", "reviews", "shipments", "stock", "stock_moves",
+  "subscription", "tags", "warehouses", "warehouses_overflow",
+];
+{
+  const known = new Set(snapshot.tables.map(t => t.name));
+  const missing = APPLICATION_TABLES.filter(n => !known.has(n));
+  if (missing.length) {
+    throw new Error(
+      `APPLICATION_TABLES names ${missing.length} relation(s) the schema does not have: ` +
+      `${missing.join(", ")}. Renamed or dropped — fix the list rather than let the ` +
+      `generator quietly range over less.`,
+    );
+  }
+}
+// Uniformly over the application tables the join graph connects. Drawing a
+// GROUP first was the earlier bug: each two-table `sw4_*` pair weighed as much
+// as the whole 13-table application half, so 82% of a run went to artifacts.
+const startTables = [...inGroups]
+  .filter(id => APPLICATION_TABLES.includes(id.split(".")[1]!))
+  .sort();
+// Both ends must be application tables, or the walk starts in the application
+// schema and follows a key straight back into a probe relation.
+const isApp = (id: string): boolean => APPLICATION_TABLES.includes(id.split(".")[1]!);
+const usableEdges = edges.filter(e =>
+  inGroups.has(e.child) && inGroups.has(e.parent) && isApp(e.child) && isApp(e.parent));
 
 console.log(`discovery slice 1 — seed ${SEED}, ${COUNT} queries`);
 console.log(`join graph: ${usableEdges.length} single-column foreign keys over ` +
@@ -419,6 +471,11 @@ const tablesTouched = new Set<string>();
 const findings: { id: string; bucket: Bucket; sql: string; detail: string }[] = [];
 const findingKeys = new Set<string>();
 const rejectionDetail = new Map<string, number>();
+const tableUse = new Map<string, number>();
+const kindUse = new Map<string, number>();
+const whereUse = new Map<string, number>();
+const samples: string[] = [];
+const SAMPLE = Number(process.env.DISCOVERY_SAMPLE ?? 0);
 let returnable = 0, returned = 0;
 const curve: number[] = [];
 let lastMark = 0;
@@ -427,7 +484,7 @@ for (let i = 0; i < COUNT; i++) {
   const id = `q${i}`;
   let built: Built | null;
   try {
-    built = buildQuery(rand, snapshot, rand.pick(groups), usableEdges, pool);
+    built = buildQuery(rand, snapshot, rand.pick(startTables), usableEdges, pool);
   } catch (e) {
     counts.set("generator-threw", (counts.get("generator-threw") ?? 0) + 1);
     rejectionDetail.set(`generator: ${(e as Error).message}`, (rejectionDetail.get(`generator: ${(e as Error).message}`) ?? 0) + 1);
@@ -439,7 +496,14 @@ for (let i = 0; i < COUNT; i++) {
   // — the fix for which is new vocabulary, never a bigger run.
   if (i > 0 && i % 1000 === 0) { curve.push(shapes.size - lastMark); lastMark = shapes.size; }
   shapes.add(built.shape);
-  for (const u of built.used) tablesTouched.add(u.table);
+  for (const u of built.used) {
+    tablesTouched.add(u.table);
+    tableUse.set(u.table, (tableUse.get(u.table) ?? 0) + 1);
+  }
+  for (const k of built.kinds) kindUse.set(k, (kindUse.get(k) ?? 0) + 1);
+  const wf = built.shape.split("|W:")[1] ?? "-";
+  whereUse.set(wf, (whereUse.get(wf) ?? 0) + 1);
+  if (samples.length < SAMPLE) samples.push(built.sql);
 
   const r = await loop.run({ id, sql: built.sql });
   const bucket = classify(r);
@@ -468,6 +532,7 @@ for (let i = 0; i < COUNT; i++) {
   }
 }
 
+const pct = (n: number, d: number) => `${Math.round((n / d) * 100)}%`.padStart(4);
 console.log(`\nbuckets`);
 for (const [b, n] of [...counts.entries()].sort((a, b2) => b2[1] - a[1])) {
   console.log(`  ${String(n).padStart(5)}  ${b.padEnd(18)} ${TIER[b]}`);
@@ -479,7 +544,7 @@ if (unclassified !== 0) {
 
 console.log(`\ncoverage of this run`);
 console.log(`  distinct query shapes:      ${shapes.size}`);
-console.log(`  tables touched:             ${tablesTouched.size} of ${tableIds.length} — ${[...tablesTouched].sort().join(", ")}`);
+console.log(`  tables in the join graph:   ${inGroups.size} (the rest of the schema declares no single-column key, by design)`);
 console.log(`  return rate:                ${returnable ? Math.round((returned / returnable) * 100) : 0}% (${returned}/${returnable} queries returned a row)`);
 console.log(`  columns with drawable literals:  ${pool.size}`);
 if (curve.length > 1) {
@@ -495,14 +560,30 @@ if (curve.length > 1) {
     `${curve[0]} at the start (${Math.round((last / curve[0]!) * 100)}%)`);
 }
 console.log(`  bound: 2..4 tables, left-deep, SELECT only, no subqueries, no set operations, no DML;`);
-console.log(`         WHERE on ~70% — IS [NOT] NULL, and = <> < <= > >= against a literal drawn from`);
-console.log(`         the column's own seeded values, combined with AND, OR, NOT and AND(OR)`);
+console.log(`         WHERE on ${pct(COUNT - (whereUse.get("-") ?? 0), COUNT).trim()} of queries (measured) — IS [NOT] NULL, and = <> < <= > >= against a literal`);
+console.log(`         drawn from the column's own seeded values, combined with AND, OR, NOT, AND(OR)`);
 
 if (rejectionDetail.size) {
   console.log(`\nrejections and refusals, by cause`);
   for (const [k, n] of [...rejectionDetail.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)) {
     console.log(`  ${String(n).padStart(5)}  ${k}`);
   }
+}
+
+console.log(`\nwhat was generated`);
+const totalUse = [...tableUse.values()].reduce((a, b) => a + b, 0);
+console.log(`  tables, by how often they appear in a FROM clause:`);
+for (const [t, n] of [...tableUse.entries()].sort((a, b) => b[1] - a[1])) {
+  console.log(`    ${String(n).padStart(6)}  ${pct(n, totalUse)}  ${t}`);
+}
+const totalKinds = [...kindUse.values()].reduce((a, b) => a + b, 0);
+console.log(`  join kinds:  ` + [...kindUse.entries()].sort((a, b) => b[1] - a[1])
+  .map(([k, n]) => `${k.replace("JOIN_", "")} ${pct(n, totalKinds)}`).join("   "));
+console.log(`  WHERE shape: ` + [...whereUse.entries()].sort((a, b) => b[1] - a[1])
+  .map(([k, n]) => `${k === "-" ? "(none)" : k} ${pct(n, COUNT)}`).join("   "));
+if (samples.length) {
+  console.log(`\nsample of what that looks like (DISCOVERY_SAMPLE=${SAMPLE})`);
+  for (const q of samples) console.log(`\n${q.split("\n").map(l => "  " + l).join("\n")}`);
 }
 
 console.log(`\nFINDINGS: ${findings.length} distinct`);
