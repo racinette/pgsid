@@ -737,10 +737,47 @@ that took care rather than code:
   a source that quietly stopped straddling would look identical to one that
   worked — which is the failure §5.3 recorded.
 
-Still absent and reachable: `NamedArgExpr`, `XmlExpr`,
-`XmlSerialize`, `WindowDef` as a NAMED window, `InferClause`,
-`ReturningOption`, and the leaf literal kinds a wider value vocabulary would
-bring (`Float`, `Boolean`, `BitString`).
+### What "emits N node types" can and cannot mean
+
+Measured 2026-08-08 by parsing 2,500 REAL generated statements, after a
+key-scanning count gave a misleading answer.
+
+**Ten node types the census classifies never appear as a JSON key at all.**
+PostgreSQL declares them as concrete struct fields — `WithClause *withClause`,
+`Alias *alias`, `TypeName *typeName` — rather than as `Node *`, so a scan for
+capitalised keys cannot see them however thoroughly they are generated. The
+`Classification` interface in `node-census.test.ts` says so; this section's
+first count did not, and reported `WITH`, `ON CONFLICT`, `RETURNING`, casts,
+windows and aliases as MISSING while the generator was emitting all of them.
+
+So the work-list arithmetic at the top of §9 overstated itself: some of the
+"51 remaining" were never observable, and no amount of generation would have
+moved them. The honest split is:
+
+| | |
+|---|---|
+| emitted and observable | 41 |
+| unobservable (struct fields), emitted or not | 10 |
+| blocked by the deparser (§9.5) | 25 |
+| needs more than a query (§9.6) | 3 |
+| **genuinely open** | **5** |
+
+**The five, and only the first carries weight:**
+
+- **`ParamRef`** — `$1`, and with it the entire parameter contract: mechanisms
+  A–D, the rejection sets, bind-time behaviour. The ENUMERATED corpus covers
+  parameters (`generateParamPlacementQueries`); the discovery instrument does
+  not, so nothing exercises the contract over a varied catalog.
+- `A_Indirection` — `(x).field` on a composite column.
+- `NamedArgExpr` — `f(x => 1)`.
+- `XmlExpr` — `xmlelement(…)`.
+- `Integer` — incidental; it reaches the parse tree inside other nodes rather
+  than as a target a generator writes.
+
+`XmlSerialize`, `ReturningOption`, `BitString`, `Boolean`, `Float`,
+`InferClause`, `OnConflictClause`, `ReturningClause`, `TypeName`, `WindowDef`,
+`Alias` and `WithClause` are all in the unobservable ten — several of them
+emitted already.
 
 **25 are unreachable on the AST path** (§9.5 — the deparser cannot emit them,
 which is the ceiling §5.1 accepted). **51 remain**, grouped below by what it
