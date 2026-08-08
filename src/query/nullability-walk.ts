@@ -1745,7 +1745,13 @@ class NullabilityEngine {
         const referencingKey = this.keyedRelation(referencing);
         const referencedKey = this.keyedRelation(referenced);
         if (!referencingKey || !referencedKey) continue;
-        if (!this.keyEntails(referencingKey, refCol.column, referencedKey, targetCol.column)) {
+        // The join qual names columns as the QUERY spells them; a key is
+        // recorded in `pg_constraint` under the catalog's names. An alias
+        // column list is exactly the case where those differ.
+        const refCat = this.entryCatalogColumn(referencing, refCol.column);
+        const tgtCat = this.entryCatalogColumn(referenced, targetCol.column);
+        if (refCat === undefined || tgtCat === undefined) continue;
+        if (!this.keyEntails(referencingKey, refCat, referencedKey, tgtCat)) {
           continue;
         }
         return targetCol.alias;
@@ -1965,7 +1971,12 @@ class NullabilityEngine {
       const referencingKey = this.keyedRelation(referencing);
       const referencedKey = this.keyedRelation(referenced);
       if (!referencingKey || !referencedKey) continue;
-      if (!this.keyEntails(referencingKey, refCol.column, referencedKey, targetCol.column)) {
+      // Same translation as the join-level reading — the qual is in the
+      // query's names and the key is in the catalog's.
+      const refCat2 = this.entryCatalogColumn(referencing, refCol.column);
+      const tgtCat2 = this.entryCatalogColumn(referenced, targetCol.column);
+      if (refCat2 === undefined || tgtCat2 === undefined) continue;
+      if (!this.keyEntails(referencingKey, refCat2, referencedKey, tgtCat2)) {
         continue;
       }
       return true;
@@ -2043,7 +2054,17 @@ class NullabilityEngine {
    * to the entry being read, or an unrelated relation's same-named column
    * could capture them.
    */
-  private qualifyColumnRefs(expr: Node, alias: string): Node {
+  private qualifyColumnRefs(expr: Node, alias: string, entry?: RelationEntry): Node {
+    // The expression comes from the CATALOG — a CHECK definition, a generation
+    // expression — so its bare column refs are catalog names. The scope it is
+    // about to be compared against speaks the names the FROM item ANSWERS TO,
+    // and under an alias column list those differ. Renaming here is what keeps
+    // the two sides comparable: the entailment kernel matches a goal against a
+    // CHECK syntactically, and `st.weight_kg` resolves to nothing in a scope
+    // that only knows `st.k5`.
+    const shown = entry?.columnAliases
+      ? new Map((entry.table?.columns ?? []).map((c, i) => [c, entry.columnAliases![i] ?? c]))
+      : null;
     const clone = structuredClone(expr);
     const rewrite = (node: unknown): void => {
       if (Array.isArray(node)) {
@@ -2054,7 +2075,12 @@ class NullabilityEngine {
       const obj = node as Record<string, unknown>;
       const cr = obj["ColumnRef"] as { fields?: Node[] } | undefined;
       if (cr?.fields?.length === 1) {
-        cr.fields = [{ String: { sval: alias } } as unknown as Node, cr.fields[0]!];
+        const bare = this.stringVal(cr.fields[0]!);
+        const name = shown?.get(bare) ?? bare;
+        cr.fields = [
+          { String: { sval: alias } } as unknown as Node,
+          { String: { sval: name } } as unknown as Node,
+        ];
         return;
       }
       Object.values(obj).forEach(rewrite);
@@ -6051,7 +6077,7 @@ class NullabilityEngine {
           try {
             const genTrace = trace.addChild("generation expression");
             const result = this.walkExprTraced(
-              this.qualifyColumnRefs(genExpr, entry.alias),
+              this.qualifyColumnRefs(genExpr, entry.alias, entry),
               scope,
               depth + 1,
               genTrace,
@@ -6105,8 +6131,8 @@ class NullabilityEngine {
           const colGenExpr = this.entryGenerationExpr(entry, col);
           if (colGenExpr) {
             generatedEqualities.push({
-              column: `${entry.alias}.${col}`,
-              expr: this.qualifyColumnRefs(colGenExpr, entry.alias),
+              column: `${entry.alias}.${this.entryColumnNames(entry)[entry.table.columns.indexOf(col)] ?? col}`,
+              expr: this.qualifyColumnRefs(colGenExpr, entry.alias, entry),
             });
           }
         }
@@ -6152,8 +6178,11 @@ class NullabilityEngine {
               `CHECK entailment (${channel.label}): ${entry.table.schema}.${entry.table.name}`,
             );
             const proved = checkConstraintsProveNotNull({
-              goal: { alias: entry.alias, column: catalogCol },
-              checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
+              // The shown name, not the catalog one: the CHECKs above were
+              // renamed into this scope's vocabulary, and a goal in the other
+              // vocabulary matches none of them.
+              goal: { alias: entry.alias, column: colName },
+              checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias, entry)),
               evidence: channel.evidence,
               generatedEqualities,
               isMasked: (alias, col) => !!setCols && alias === entry.alias && setCols.has(col),
@@ -6166,16 +6195,23 @@ class NullabilityEngine {
                 }
                 return owner;
               },
+              // The kernel asks these with the names the CHECK expressions
+              // carry, which are this scope's — so they translate back before
+              // the catalog sees them. Only the CASE arm-exclusion path calls
+              // them, which is why a plain `OR` CHECK survived a rename and
+              // one written as a CASE did not.
               columnTypeName: (alias, col) => {
                 const e = scope.aliases.get(alias);
-                return e?.table
-                  ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
+                const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+                return e?.table && cat !== undefined
+                  ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
                   : null;
               },
               literalDistinctnessSound: (alias, col) => {
                 const e = scope.aliases.get(alias);
-                return e?.table
-                  ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, col)
+                const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+                return e?.table && cat !== undefined
+                  ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, cat)
                   : false;
               },
               trace: ckTrace,
@@ -6316,7 +6352,7 @@ class NullabilityEngine {
       if (genExpr) {
         generatedEqualities.push({
           column: `${entry.alias}.${col}`,
-          expr: this.qualifyColumnRefs(genExpr, entry.alias),
+          expr: this.qualifyColumnRefs(genExpr, entry.alias, entry),
         });
       }
     }
@@ -6429,6 +6465,11 @@ class NullabilityEngine {
     }
     const proved = checkConstraintsProveNotNull({
       goal: { alias: entry.alias, column: goalOrigin.column },
+      // NOT renamed through `entry`: these CHECKs belong to the BASE table the
+      // origin points at, while `entry` is the view or CTE it was reached
+      // through. This site resolves unqualified refs through its own
+      // outer-name → origin-column map below, so the expressions stay in
+      // catalog names and renaming here would apply a second, unrelated one.
       checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
       evidence,
       generatedEqualities,
