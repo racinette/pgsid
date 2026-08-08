@@ -108,20 +108,41 @@ export class ProbeLoop {
       groups: [],
     };
 
+    // --- tier 0: the statement's parameter types, from PREPARE -------------
+    // The walk's optional input (docs/type-aware-overloads.md tier 0): the
+    // caller holds the database, so it asks PostgreSQL rather than leaving
+    // every ParamRef untyped. A statement PREPARE rejects (or one with no
+    // parameters) simply supplies nothing.
+    let paramTypes: string[] | undefined;
+    if (/\$\d/.test(probe.sql)) {
+      try {
+        await this.pg.exec(`PREPARE pgsid_t0_probe AS ${probe.sql}`);
+        const r = await this.pg.query<{ t: string[] }>(
+          `SELECT parameter_types::text[] AS t FROM pg_prepared_statements
+           WHERE name = 'pgsid_t0_probe'`,
+        );
+        paramTypes = r.rows[0]?.t;
+      } catch {
+        paramTypes = undefined;
+      } finally {
+        await this.pg.exec("DEALLOCATE ALL").catch(() => {});
+      }
+    }
+
     // --- engine half -------------------------------------------------------
     let stmt;
     try {
       const parsed = await parseSql(probe.sql);
       stmt = parsed.stmts![0]!.stmt!;
-      const contract = inferQueryContract(stmt, this.catalog);
+      const contract = inferQueryContract(stmt, this.catalog, { paramTypes });
       out.engineColumns = contract.outputs.map(o => ({ name: o.name, notNull: o.notNull }));
       out.groups = contract.outputPresenceGroups.map(g => ({
         columns: [...g.columns],
         discriminants: [...g.discriminants],
       }));
       // Parity: the traced walk must reach the same columns and groups.
-      const plain = inferNullability(stmt, this.catalog);
-      const traced = inferNullabilityTraced(stmt, this.catalog);
+      const plain = inferNullability(stmt, this.catalog, { paramTypes });
+      const traced = inferNullabilityTraced(stmt, this.catalog, undefined, { paramTypes });
       out.traced = traced.map(c => ({
         name: c.name,
         notNull: c.notNull,

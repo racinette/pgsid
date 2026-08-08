@@ -41,8 +41,9 @@ const MAX_DEPTH = 200;
 export function inferNullability(
   stmt: Node,
   catalog: NullabilityCatalog,
+  options?: { paramTypes?: readonly string[] },
 ): OutputNullability[] {
-  const engine = new NullabilityEngine(catalog);
+  const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes);
   return engine.run(stmt);
 }
 
@@ -89,9 +90,13 @@ export interface QueryContract {
  * side alone is total, and available separately via
  * `collectParamNullability` for callers that handle refused statements.
  */
-export function inferQueryContract(stmt: Node, catalog: NullabilityCatalog): QueryContract {
+export function inferQueryContract(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+  options?: { paramTypes?: readonly string[] },
+): QueryContract {
   const facts = collectParamFacts(stmt, catalog);
-  const engine = new NullabilityEngine(catalog);
+  const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes);
   return {
     outputs: engine.run(stmt),
     params: facts.params,
@@ -127,8 +132,9 @@ export function inferNullabilityTraced(
   stmt: Node,
   catalog: NullabilityCatalog,
   onUnhandled?: UnhandledNodeObserver,
+  options?: { paramTypes?: readonly string[] },
 ): OutputNullabilityTraced[] {
-  const engine = new NullabilityEngine(catalog, true, onUnhandled);
+  const engine = new NullabilityEngine(catalog, true, onUnhandled, options?.paramTypes);
   return engine.runTraced(stmt);
 }
 
@@ -716,14 +722,25 @@ class NullabilityEngine {
 
   private readonly onUnhandled: UnhandledNodeObserver | undefined;
 
+  /**
+   * Tier 0 (docs/type-aware-overloads.md): the statement's resolved
+   * parameter types, as PREPARE reports them — `paramTypes[n-1]` types
+   * `$n`. An INPUT, not an inference: the caller runs PREPARE against its
+   * database (every harness holds one) and the walk stays pure and stays
+   * correct without it, degrading to an untyped ParamRef.
+   */
+  private readonly paramTypes: readonly string[] | undefined;
+
   constructor(
     catalog: NullabilityCatalog,
     tracing = false,
     onUnhandled?: UnhandledNodeObserver,
+    paramTypes?: readonly string[],
   ) {
     this.catalog = catalog;
     this.tracing = tracing;
     this.onUnhandled = onUnhandled;
+    this.paramTypes = paramTypes;
   }
 
   /** First key of a node object — its type tag. */
@@ -4646,6 +4663,11 @@ class NullabilityEngine {
           : ["numeric"];
       }
       return null;
+    }
+    const pr = rec["ParamRef"] as { number?: number } | undefined;
+    if (pr) {
+      const t = pr.number !== undefined ? this.paramTypes?.[pr.number - 1] : undefined;
+      return t !== undefined ? [t] : null;
     }
     const ae = rec["A_Expr"] as AExpr | undefined;
     if (ae && (ae.kind === undefined || ae.kind === "AEXPR_OP") && ae.lexpr && ae.rexpr) {
