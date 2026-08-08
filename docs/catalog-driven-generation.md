@@ -22,9 +22,12 @@ references eight relation names across all 14,964 queries:
  13446  u        4934  q        329  ck        3  tags
 ```
 
-`q`, `gm` and `ins` are derived-table aliases, so the corpus queries **five**
-relations of the **82** the fixture schema declares. `t`, `u` and `v` carry no
-keys, no constraints, no triggers, no domains. 94% of the schema is never
+`q` and `ins` are derived-table aliases, so the corpus queries **six**
+relations of the **82** the fixture schema declares. (`gm` was counted as an
+alias here and is a real table — `fixtures/schema.sql:114`, reached through
+`rangeVar("gm")`; corrected by Step 0's own count in §7, which reads relation
+names off the ASTs rather than the query text.) `t`, `u` and `v` carry no
+keys, no constraints, no triggers, no domains. 93% of the schema is never
 queried by a generated statement.
 
 **All nine findings of the fourth sweep and its fix phase were unexpressible
@@ -52,16 +55,30 @@ thing that found a defect. That is a real role — a regression net — but it i
 not the assurance the number looks like, and the report should say so in its
 own output.
 
-### `capability-reach` reads 34 of 34 over this, and must be replaced
+### `capability-reach` reads 34 of 34 over this, and is not the metric that is missing
 
-It counts *accessors the walk ASKS*, so `resolveForeignKeyTree` is "reached"
-when it is asked over `t` and answered `null`. It measures interrogation, not
-variety — which is why the register already recorded, as a curiosity, that the
-schema axis moves it by exactly zero.
+**Corrected 2026-08-08 — an earlier draft of this section said it "must be
+replaced", and that does not follow from its own argument.** It counts
+*accessors the walk ASKS*, so `resolveForeignKeyTree` is "reached" when it is
+asked over `t` and answered `null`. That makes it a measure of interrogation
+rather than variety — which is why the schema axis moves it by exactly zero —
+and interrogation is a real question no other instrument here answers: **when a
+new capability lands in the walk, does any query reach it at all?** A corpus
+can be endlessly varied in its catalog and still never ask. Deleting it would
+delete the only check on that.
 
-The replacement is level 2 of the query fingerprint (§6): count the CATALOG
-PROFILES the corpus actually queries — which declared features appeared on the
-columns and relations a query touched. Over `t`/`u`/`v` that number is 1.
+The two are complements, and the suite already splits the corpora between them:
+`capability-reach.test.ts` holds the GENERATED corpus to a floor in both
+directions (a capability going cold is a regression, one going warm undeclared
+is drift), and `catalog-census.test.ts` holds the FIXTURE corpus to an exact
+set, where a cold capability means a branch has lost its only executable
+coverage.
+
+What is genuinely missing beside it is level 2 of the query fingerprint (§6):
+count the CATALOG PROFILES the corpus actually queries — which declared
+features appeared on the columns and relations a query touched. Over
+`t`/`u`/`v` that number is 1; over the six relations the corpus really names it
+is 5, against 39 in the schema (§7). That is the number nothing was reporting.
 
 ---
 
@@ -475,7 +492,7 @@ distrust.
 
 ---
 
-## 7. Step 0
+## 7. Step 0 — RUN 2026-08-08
 
 Produce the work list by measurement rather than judgement:
 
@@ -487,6 +504,133 @@ relations the join-spine walker admits first.
 Expect foreign keys, partitions and domains to dominate, because that is where
 the last two sweeps' findings were. But the point is to measure, not to expect.
 
+### The vocabulary is `catalog-features.ts`, called per relation
+
+Not a second list. The census's own `detect` predicates run against a snapshot
+restricted to ONE relation, which needs no new classification and cannot drift
+from the census. Two mechanical rules make that work:
+
+- **Which census features are relation-scoped** is itself measured: a feature is
+  relation-scoped exactly when removing every relation from the snapshot turns
+  its detector off. Domains, composites, function shapes and the environment
+  sets survive that and fall out on their own. **47 of the 87 are
+  relation-scoped**; 33 of those are carried by the fixture schema and 14 are
+  the census's existing `absent` markers.
+- **A relation carries a feature two ways.** SUFFICIENT — it still detects with
+  only that relation present. NECESSARY — it detects over the whole schema and
+  stops when that relation is removed. The second is not decoration:
+  `table-row-type-column` needs the holder AND the table whose row type it is,
+  so restriction alone credited it to neither and it disappeared between the
+  schema total and the per-relation sum. With both, all 33 are attributed.
+
+A hand-written vocabulary was the first attempt and it drifted inside an hour —
+it tested `ColumnInfo.identity` against the catalog chars `'a'`/`'d'` rather
+than the enum `"always"`/`"byDefault"`, so identity columns read as absent, and
+it minted `quoted-identifier-for-case`, a name the census already uses for a
+function's return-type identifiers. Both were caught only by asking which
+detectors never fired anywhere, which is the check any list like this needs.
+
+### The measurement
+
+**Six relations of 82**, across all 14,964 queries: `t`, `u`, `v`, `ck`, `gm`,
+`tags`. §1 above says five and calls `gm` a derived-table alias — `gm` is a
+real table (`fixtures/schema.sql:114`), queried through `rangeVar("gm")`; `q`
+and `ins` are the aliases. The relation names come from every `relname` key at
+any depth, because the generator spells a DML target as an INLINED RangeVar
+struct and keying on the `RangeVar` wrapper alone misses every write target.
+
+**5 distinct catalog profiles across the queried set, against 39 in the
+schema** — the level-2 fingerprint of §6, which predicted 1 over `t`/`u`/`v`
+alone and is not much better over the six.
+
+**7 of the 33 relation-scoped features are reachable. 26 are not.**
+
+| | |
+|---|---|
+| reachable | `domain-over-array-column` (ck), `generated-stored-column` (gm), `identity-column` (tags), `inheritance-parent-without-children` (all six), `pg18-not-null-constraint-row` (all six), `primary-key` (ck, tags), `setof-table-return` (u) |
+| unreachable | `array-of-composite-column`, `array-of-domain-column`, `array-of-table-row-type-column`, `before-row-trigger`, `check-no-inherit`, `composite-column`, `deferrable-foreign-key`, `do-instead-rule`, `foreign-key-cloned-onto-a-partition`, `foreign-key-on-an-inheritance-parent`, `generation-diverging-in-the-tree`, `inheritance-parent-with-children`, `instead-of-trigger`, `not-enforced-check`, `not-null-on-the-parent-only`, `not-valid-check`, `not-valid-foreign-key`, `partition-leaf-carrying-a-trigger`, `partitioned-parent`, `range-type-column`, `self-referencing-foreign-key`, `sub-partition`, `table-row-type-column`, `validated-check`, `validated-single-column-foreign-key`, `view` |
+
+**Every constraint mechanism the engine reasons from is in the second column.**
+Not one validated CHECK, not one foreign key of any kind, no trigger, no view,
+no partition. §1's "`t`, `u` and `v` carry no keys, no constraints, no
+triggers" is exact as far as it goes, and the three relations it does not name
+add a domain-over-array column, a stored generated column, an identity column
+and a `SETOF u` return — nothing structural.
+
+### The ranked list, and why there are two of them
+
+**Minimum cover — 16 relations reach all 26:**
+
+```
+ 1. inh_p       +4  check-no-inherit, inheritance-parent-with-children,
+                    not-null-on-the-parent-only, partition-leaf-carrying-a-trigger
+ 2. guest       +3  not-enforced-check, not-valid-check, validated-check
+ 3. sw4_rs      +3  foreign-key-on-an-inheritance-parent, partitioned-parent,
+                    validated-single-column-foreign-key
+ 4. pair_holder +2  array-of-composite-column, array-of-domain-column
+ 5. trow        +2  array-of-table-row-type-column, table-row-type-column
+ 6. iot_v       +2  instead-of-trigger, view
+ 7. addresses   +1  self-referencing-foreign-key
+ 8. cc          +1  composite-column
+ 9. fk_df       +1  deferrable-foreign-key
+10. fk_nv       +1  not-valid-foreign-key
+11. gen_p       +1  generation-diverging-in-the-tree
+12. inh_c       +1  before-row-trigger
+13. part_2      +1  sub-partition
+14. rng         +1  range-type-column
+15. rule_src    +1  do-instead-rule
+16. sw4_pref    +1  foreign-key-cloned-onto-a-partition
+```
+
+**The join spine — 19 single-column foreign keys, 5 components:**
+
+```
+13: addresses categories customers fk_df fk_nv fk_par order_items
+    orders product_tags products reviews shipments tags
+ 2: sw4_c sw4_r     2: sw4_ip sw4_iref
+ 2: sw4_pp sw4_pref 2: sw4_rs sw4_rt
+61 relations are isolated — no single-column key either way.
+```
+
+**These two lists barely intersect, and that is the decision this step exists
+to force.** The minimum cover is 13 isolated singletons plus three joinable
+relations; a walker admitting them in that order gets feature variety and
+almost no spine. The 13-relation component is the opposite: it contains the
+whole e-commerce half, and it already contains `tags`, so the walker has an
+entry point that admits no new relation at all — but the component carries only
+**8 of the 26** unreachable features. The other **18 exist only on relations no
+single-column key connects to anything**, so a pure FK-spine walker cannot
+reach them however many relations it admits. Reaching them needs the walker to
+also join on non-key columns, which §3's "non-canonical joins are in scope"
+already asks for — this measurement says that is not an option but a
+requirement, and how much rides on it.
+
+The expectation at the head of this section holds for foreign keys and
+partitions, which dominate the FK-component half. It does not hold for domains:
+`domain-over-array-column` is already reachable through `ck`, and the domain
+entries that remain (`array-of-domain-column`, and the composite and row-type
+families) are column-TYPE features on isolated tables, which arrive with a
+relation rather than with a join.
+
+### One correction to §5.2
+
+Its table names `customers.default_address_id` as one of the three nullable
+child→parent keys. The column is on `addresses` and references `addresses` —
+a self-reference, not `customers → addresses`. Measured, the absent arm is
+inhabitable on four edges and nowhere else:
+
+| edge | why |
+|---|---|
+| `addresses.default_address_id → addresses` | nullable FK |
+| `categories.parent_id → categories` | nullable FK |
+| `products.category_id → categories` | nullable FK |
+| `fk_nv.o_id → orders` | NOT VALID |
+
+The other 15 are `parent→child only`. Two of the three nullable edges are
+SELF-references, which the walker must be able to emit — an alias pair over one
+relation — or the child→parent half of §5.2's table has exactly one instance in
+this schema.
+
 ---
 
 ## 8. Where things are
@@ -496,7 +640,8 @@ the last two sweeps' findings were. But the point is to measure, not to expect.
 | the generator | `tests/unit/query/generated/generator.ts` — ~2600 lines, four entry points, axis tuple `{structure, projection, setop, wrapper}` |
 | its oracle | `tests/unit/query/generated/generated-soundness.test.ts` |
 | the schema axis | `tests/unit/query/generated/schema-variants.ts` (14 variants), driven by `schema-axis.test.ts` |
-| the metric to replace | `tests/unit/query/generated/capability-reach.test.ts` |
+| the interrogation metric, which STAYS | `tests/unit/query/generated/capability-reach.test.ts` |
+| the variety metric beside it | `tests/probe/catalog-reach.ts` — a diagnostic, gates nothing |
 | the pattern to copy | `tests/unit/query/fixture-data/generate.ts`, `generators.ts`, `random.ts` |
 | the deparser boundary | `KNOWN_DEVIATIONS` in `tests/unit/query/deparser-roundtrip.test.ts` |
 | the schema | `tests/unit/query/fixtures/schema.sql` — 82 relations, the e-commerce half already realistic |

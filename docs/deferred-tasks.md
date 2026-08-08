@@ -680,8 +680,24 @@ by mechanism A — and standard types are nullable by design. It is the dual, on
 the nullable side, of the reachability question that document already records
 as open on the `notNull` side.
 
-**Chartered, not started: CATALOG-DRIVEN QUERY GENERATION** —
-`docs/catalog-driven-generation.md` (2026-08-07), a self-contained handoff. The
+**Chartered, STEP 0 DONE (2026-08-08): CATALOG-DRIVEN QUERY GENERATION** —
+`docs/catalog-driven-generation.md` (2026-08-07), a self-contained handoff. Its
+§7 now carries the measurement and the ranked list. **Six relations of 82** are
+named across all 14,964 queries (five, plus `gm`, which §1 had miscounted as a
+derived-table alias), giving 5 catalog profiles against the schema's 39. Of the
+**47 census features that are relation-scoped** — itself measured, by removing
+every relation from the snapshot and seeing which detectors go off — 33 are in
+the fixture schema and **7 are reachable**. Every constraint mechanism the
+engine reasons from is in the other 26: not one validated CHECK, not one
+foreign key, no trigger, no view, no partition. The step's own deliverable is
+that **the two admission orders barely intersect** — the 16-relation minimum
+cover is mostly ISOLATED singletons, while the one 13-relation FK component
+already contains `tags` (so the walker needs no new relation to start) and
+carries only 8 of the 26; the other **18 sit on relations no single-column key
+connects to anything**, which turns §3's "non-canonical joins are in scope"
+from an option into a requirement. §5.2's nullable-FK list is corrected there
+too: the column is `addresses.default_address_id` referencing `addresses`, a
+SELF-reference, not `customers.default_address_id`. The
 measurement that forces it: the generated corpus references EIGHT relation
 names across all 14,964 queries, three of which are derived-table aliases, so
 it queries FIVE of the fixture schema's 82 relations — and `t`/`u`/`v` carry no
@@ -718,12 +734,17 @@ are merely settings. Nothing else is a design fork: nullability is witnessed by
 absence, and ordinary random generation supplies most of it once a null rate
 per column and a row count per table (including zero for one or two) are set.
 
-**One metric is retired by this and should not be replaced carelessly.**
-`capability-reach.test.ts` reads 34 of 34 over a corpus this thin because it
-counts accessors the walk ASKS — `resolveForeignKeyTree` is "reached" when it
-is asked over `t` and answered null. It measures interrogation, not variety,
-and the already-recorded observation that the schema axis moves reach by
-exactly ZERO was the warning rather than the curiosity it was filed as.
+**One metric was said to be retired by this, and that is WITHDRAWN
+(2026-08-08).** `capability-reach.test.ts` reads 34 of 34 over a corpus this
+thin because it counts accessors the walk ASKS — `resolveForeignKeyTree` is
+"reached" when it is asked over `t` and answered null. It measures
+interrogation, not variety, and the schema axis moves reach by exactly ZERO.
+But "different question" is not "wrong question": it is the only check that a
+newly landed walk capability is reached by ANY query, which no amount of
+catalog variety implies, and the two corpora are already split between the two
+suites — generated held to a floor here, fixtures held exactly in
+`catalog-census.test.ts`. It stays, as a diagnostic beside the profile count,
+not under it.
 
 **The precision residue is now its own handoff** — `docs/precision-residue.md`
 (2026-08-07). Items that neither chartered effort owns, collected because they
