@@ -809,7 +809,55 @@ reachable through it. The schema now carries all three rewriters.
 | `SetToDefault` | `DEFAULT` in a VALUES row | round-trip |
 | `TypeName` | arrives with casts and column definitions | — |
 
-### 9.4 Clause vocabulary
+### 9.4 Clause vocabulary — BUILT 2026-08-08, and it convicted
+
+`WITH`, set operations (UNION/INTERSECT/EXCEPT, ALL and distinct), `GROUP BY`
+with `CUBE`/`ROLLUP`/`GROUPING SETS` and `GROUPING()`, `HAVING`, window
+functions (default frames — an explicit one is un-deparsable, §9.5),
+`DISTINCT`, `DISTINCT ON`, `ORDER BY`, `LIMIT`/`OFFSET`, `FOR UPDATE`, and
+`SELECT *` / `t.*`. Applied as DECORATIONS over a built SELECT, since most are
+independent of how the FROM clause was assembled and the few that are not are
+mutually exclusive by SQL's own rules rather than by caution: GROUP BY replaces
+the target list, DISTINCT ON demands an ORDER BY starting with the same
+expressions, and FOR UPDATE is refused over grouping, DISTINCT, a set operation
+or the nullable side of an outer join.
+
+**FINDING (rank 2) — the engine ignores a FROM item's alias COLUMN LIST.**
+`FROM refunds_archive AS r(c0, c1, c2)` renames the columns and the walk keeps
+reading the catalog names. Measured, with a passing control:
+
+| query | engine | PostgreSQL |
+|---|---|---|
+| `SELECT * FROM refunds_archive AS r(c0,c1,c2)` | `id, order_id, amount` | `c0, c1, c2` |
+| `SELECT r.* …` | `id, order_id, amount` | `c0, c1, c2` |
+| partial list `AS r(c0)` | `id, order_id, amount` | `c0, order_id, amount` |
+| `… AS r` (control) | `id, order_id, amount` | identical |
+
+It is worse than a name mismatch, and wrong in BOTH directions: `r.c0` resolves
+to nothing and falls back to `nullable` where the column is NOT NULL, while
+`r.id` — which PostgreSQL REJECTS, because the rename hides the catalog name —
+is answered `notNull`.
+
+`addRangeVar` never reads `rv.alias.colnames`. The machinery exists:
+`addColumnListRelation` does exactly this for function items and join aliases,
+and only the RangeVar path skips it.
+
+**Decision taken: SUPPORT it, not refuse it.** Refusing would have been five
+lines and sound — the engine's documented FROM-item policy is that contributing
+the wrong columns is worse than refusing — but the construct is ordinary SQL and
+the rename is information the walk already holds. The cost is that ten sites
+read `entry.table.columns` and every catalog lookup behind them
+(`entryColumnNotNull`, generation expressions, type OIDs, foreign keys, check
+constraints) is keyed by COLUMN NAME, so each has to translate back.
+
+**One thing this run says about the instrument itself:** those 108 reported
+findings are ONE defect. The finding fingerprint keys on the query shape, and a
+shape defect produces a different column list per shape, so it fragments —
+exactly what §6 predicted ("expect the first version to be too specific rather
+than too loose, because that is the direction that flatters"). Confirmed by
+disabling only the alias-list form, which took `shape-mismatch` to zero.
+
+### 9.4a Clause vocabulary — the original list
 
 | node | spelling | proven by |
 |---|---|---|
