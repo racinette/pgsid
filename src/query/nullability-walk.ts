@@ -269,6 +269,22 @@ interface RelationEntry {
    * key's side and is never preserved.
    */
   sampled?: boolean;
+  /**
+   * A FROM item's alias COLUMN LIST — `FROM refunds_archive AS r(c0, c1, c2)`.
+   *
+   * The names the relation ANSWERS TO, positionally, which is not the same
+   * question as what the catalog calls its columns. `table.columns` stays the
+   * CATALOG names, because every catalog lookup behind this entry
+   * (`entryColumnNotNull`, generation expressions, type OIDs, foreign keys,
+   * check constraints) is keyed by them; this list is what a reference must
+   * match and what star expansion must emit. PostgreSQL allows a PARTIAL list,
+   * where the columns past its end keep their own names, so it is not
+   * necessarily as long as `table.columns`.
+   *
+   * Absent when the item carries no list, which is the ordinary case and the
+   * one where both questions have the same answer.
+   */
+  columnAliases?: string[];
   /** For CTEs: the column names (from aliascolnames or inferred). */
   cteColumns?: string[];
   /**
@@ -1020,7 +1036,7 @@ class NullabilityEngine {
     colName: string,
     innerResults: { name: string }[],
   ): number {
-    if (entry.kind === "view" && entry.table) return entry.table.columns.indexOf(colName);
+    if (entry.kind === "view" && entry.table) return this.entryColumnNames(entry).indexOf(colName);
     if (entry.cteColumns && entry.cteColumns.length > 0) {
       const idx = entry.cteColumns.indexOf(colName);
       if (idx >= 0 && idx < innerResults.length) return idx;
@@ -2463,6 +2479,9 @@ class NullabilityEngine {
         alias: aliasName,
         kind: table.schema === "" ? "cte" : viewAst ? "view" : "table",
         table,
+        ...(rv.alias?.colnames && rv.alias.colnames.length > 0
+          ? { columnAliases: rv.alias.colnames.map((n: Node) => this.stringVal(n)) }
+          : {}),
         ast: viewAst,
         // libpg-query emits `inh: true` for a plain reference and omits the
         // field for ONLY (measured).
@@ -3657,7 +3676,7 @@ class NullabilityEngine {
 
   /** The ordered output column names of a view/CTE/subquery entry. */
   private innerColumnNames(entry: RelationEntry, scope: Scope, depth: number): string[] {
-    if (entry.kind === "view" && entry.table) return entry.table.columns;
+    if (entry.kind === "view" && entry.table) return this.entryColumnNames(entry);
     if (entry.cteColumns && entry.cteColumns.length > 0) return entry.cteColumns;
     return this.innerRelationColumns(entry, scope, depth).map(r => r.name);
   }
@@ -3773,14 +3792,18 @@ class NullabilityEngine {
     };
 
     if (entry.kind === "table" && entry.table) {
-      if (!entry.table.schema || !entry.table.columns.includes(colName)) return undefined;
+      // An origin names the column the CATALOG carries — it is what a CHECK
+      // constraint and a foreign key are stated over — while the lookup is by
+      // the name the query used.
+      const catalogCol = this.entryCatalogColumn(entry, colName);
+      if (!entry.table.schema || catalogCol === undefined) return undefined;
       return {
         origins: [
           {
             rowPath: [entry.instance],
             schema: entry.table.schema,
             table: entry.table.name,
-            column: colName,
+            column: catalogCol,
             ...(optionalHere ? { optional: true } : {}),
             ...(hereUnits.length > 0 ? { units: hereUnits } : {}),
           },
@@ -3789,7 +3812,7 @@ class NullabilityEngine {
     }
 
     if (entry.kind === "view" && entry.ast && entry.table) {
-      const idx = ordinal ?? entry.table.columns.indexOf(colName);
+      const idx = ordinal ?? this.entryColumnNames(entry).indexOf(colName);
       if (idx < 0) return undefined;
       return lift(this.analyzeStatement(entry.ast, scope, depth + 1)[idx]);
     }
@@ -4884,14 +4907,18 @@ class NullabilityEngine {
     // the only source of truth — the same path a named reference takes.
     if (entry.kind === "view" && entry.ast && entry.table) {
       const inner = this.analyzeStatement(entry.ast, scope, depth + 1);
-      return entry.table.columns.map((col, i) => ({
+      return this.entryColumnNames(entry).map((col, i) => ({
         name: col,
         notNull: inner[i]?.notNull ?? false,
       }));
     }
     if (entry.table) {
-      return entry.table.columns.map(col => ({
-        name: col,
+      // The NAME is what the item answers to; the flag is a catalog question,
+      // so the two lists are walked together rather than one standing for
+      // both.
+      const shown = this.entryColumnNames(entry);
+      return entry.table.columns.map((col, i) => ({
+        name: shown[i] ?? col,
         notNull: this.entryColumnNotNull(entry, col),
       }));
     }
@@ -4907,6 +4934,34 @@ class NullabilityEngine {
    * relation's own flag. Entries with no explicit scan bit — synthetic
    * scopes, function results — take the conjunction, the conservative side.
    */
+  /**
+   * The names this entry ANSWERS TO — the catalog names with the alias column
+   * list applied over them positionally. A partial list renames a prefix and
+   * leaves the rest, which is PostgreSQL's rule.
+   */
+  private entryColumnNames(entry: RelationEntry): string[] {
+    const cols = entry.table?.columns ?? [];
+    const names = entry.columnAliases;
+    return names ? cols.map((c, i) => names[i] ?? c) : cols;
+  }
+
+  /**
+   * The CATALOG name behind a name the query used, or undefined when this
+   * entry has no such column.
+   *
+   * The two directions are not symmetric and both matter: under
+   * `AS r(c0, c1, c2)` the reference `r.c0` means the catalog's first column,
+   * and the reference `r.id` means NOTHING — PostgreSQL rejects it, because
+   * the rename hides the original name. Answering undefined for the second is
+   * as much of the fix as translating the first.
+   */
+  private entryCatalogColumn(entry: RelationEntry, used: string): string | undefined {
+    const cols = entry.table?.columns ?? [];
+    if (!entry.columnAliases) return cols.includes(used) ? used : undefined;
+    const i = this.entryColumnNames(entry).indexOf(used);
+    return i >= 0 ? cols[i] : undefined;
+  }
+
   private entryColumnNotNull(entry: RelationEntry, col: string): boolean {
     const t = entry.table!;
     return entry.scanInh === false
@@ -5825,7 +5880,7 @@ class NullabilityEngine {
     // here — PostgreSQL reports false for every view column.
     if (entry.kind === "view" && entry.ast && entry.table) {
       const innerResults = this.analyzeStatement(entry.ast, scope, depth + 1);
-      const colIndex = ordinal ?? entry.table.columns.indexOf(colName);
+      const colIndex = ordinal ?? this.entryColumnNames(entry).indexOf(colName);
       const inner = colIndex >= 0 ? innerResults[colIndex] : undefined;
       if (inner) {
         const result = inner.notNull && joinState !== OPTIONAL;
@@ -5835,7 +5890,7 @@ class NullabilityEngine {
           !result &&
           joinState !== OPTIONAL &&
           inner.origins &&
-          this.originCheckEntailment(entry, inner.origins, inner.originNotNull, innerResults, entry.table.columns, scope, trace)
+          this.originCheckEntailment(entry, inner.origins, inner.originNotNull, innerResults, this.entryColumnNames(entry), scope, trace)
         ) {
           trace.conclude(true, "origin CHECK entailment through the view → notNull");
           return true;
@@ -5947,7 +6002,18 @@ class NullabilityEngine {
 
     // For tables/views: read catalog notNull + join nullability.
     if (entry.table) {
-      const catalogNotNull = this.entryColumnNotNull(entry, colName);
+      // Under an alias COLUMN LIST the name the query used is not the name
+      // the catalog knows, and everything below this line asks the catalog or
+      // a constraint definition — both of which speak catalog names. An
+      // unknown name here is a column the relation does not answer to, which
+      // PostgreSQL rejects outright; nullable is the safe answer to a question
+      // that will never be asked.
+      const catalogCol = this.entryCatalogColumn(entry, colName);
+      if (catalogCol === undefined) {
+        trace.conclude(false, `'${colName}' is not a column of ${entry.alias}`);
+        return false;
+      }
+      const catalogNotNull = this.entryColumnNotNull(entry, catalogCol);
       trace.addFact("catalog.notNull", String(catalogNotNull));
       trace.addFact("table", `${entry.table.schema}.${entry.table.name}`);
       // DML RETURNING: a column whose WRITTEN value is provably non-null on
@@ -5958,7 +6024,7 @@ class NullabilityEngine {
       if (
         scope.dmlWrittenColumns &&
         scope.dmlWrittenColumns.alias === entry.alias &&
-        scope.dmlWrittenColumns.columns.get(colName) === true
+        scope.dmlWrittenColumns.columns.get(catalogCol) === true
       ) {
         trace.addFact("writtenValue", "provably non-null on every returning path");
         trace.conclude(true, "the written value is non-null → notNull in RETURNING");
@@ -5975,11 +6041,11 @@ class NullabilityEngine {
       // Cycle-free by PostgreSQL's rules; the in-flight set is insurance
       // against hand-built catalogs, not a reachable state.
       if (!catalogNotNull && joinState !== OPTIONAL) {
-        const genKey = `${entry.table.schema}.${entry.table.name}.${colName}`;
+        const genKey = `${entry.table.schema}.${entry.table.name}.${catalogCol}`;
         const genExpr =
           this.generationInFlight.has(genKey)
             ? null
-            : this.entryGenerationExpr(entry, colName);
+            : this.entryGenerationExpr(entry, catalogCol);
         if (genExpr) {
           this.generationInFlight.add(genKey);
           try {
@@ -6071,7 +6137,7 @@ class NullabilityEngine {
                 ...guardPreds.map(pred => ({ pred, applySetMask: false })),
               ],
             });
-            if (!setCols.has(colName)) {
+            if (!setCols.has(catalogCol)) {
               channels.push({
                 label: "OLD row",
                 evidence: [
@@ -6086,7 +6152,7 @@ class NullabilityEngine {
               `CHECK entailment (${channel.label}): ${entry.table.schema}.${entry.table.name}`,
             );
             const proved = checkConstraintsProveNotNull({
-              goal: { alias: entry.alias, column: colName },
+              goal: { alias: entry.alias, column: catalogCol },
               checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
               evidence: channel.evidence,
               generatedEqualities,

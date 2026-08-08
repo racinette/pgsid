@@ -102,4 +102,32 @@ describe("ambiguous unqualified references", () => {
     const r = await infer("SELECT p.name, c.name FROM products p, customers c");
     expect(r.map(x => x.notNull)).toEqual([true, false]);
   });
+
+  // A name an alias COLUMN LIST has HIDDEN, which is here for the reason at
+  // the top of this file rather than as a fixture: PostgreSQL rejects the
+  // statement at parse-analysis, so the fixture suites' PREPARE gate fires
+  // first and the case would fail for the wrong reason.
+  //
+  // `FROM refunds_archive AS r(c0, c1, c2)` renames all three columns, so
+  // `r.id` names nothing. The engine used to answer `notNull` for it — reading
+  // `refunds.id` through a name the query cannot use — which is the same
+  // failure this file's other cases pin: inventing a confident answer about a
+  // reference that does not resolve. The visible half of the defect (star
+  // expansion emitting catalog names) is pinned by the `alias-column-list-*`
+  // fixtures, which PostgreSQL does accept.
+  it("does not claim notNull for a catalog name an alias column list hides", async () => {
+    const hidden = await infer("SELECT r.id FROM refunds_archive AS r(c0, c1, c2)");
+    expect(hidden.length).toBe(1);
+    expect(hidden[0]!.notNull, "answered for a column the rename hides").toBe(false);
+
+    // The control, and the reason this is not simply "unknown names are
+    // nullable": WITHOUT the list the very same reference resolves and the
+    // column really is NOT NULL, so the rename is what has to be read.
+    const visible = await infer("SELECT r.id FROM refunds_archive AS r");
+    expect(visible[0]!.notNull).toBe(true);
+
+    // And the renamed name reaches the same column's facts.
+    const renamed = await infer("SELECT r.c0 FROM refunds_archive AS r(c0, c1, c2)");
+    expect(renamed[0]!.notNull).toBe(true);
+  });
 });
