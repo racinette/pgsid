@@ -59,6 +59,13 @@ export interface ProbeResult {
   groupViolations: string[];
   /** rank 5 — traced vs untraced. */
   parity: string | null;
+  /**
+   * The TRACED walk's per-column result. The traced run happens anyway for the
+   * parity check and used to be discarded; a caller grouping findings needs
+   * the decisive REASON it carries, because that names the rule that
+   * concluded rather than the query that tripped it.
+   */
+  traced: { name: string; notNull: boolean; reason: string }[];
   /** rank 6, or an expected refusal. */
   error: string | null;
   pgError: string | null;
@@ -93,6 +100,7 @@ export class ProbeLoop {
       rows: [],
       violations: [],
       groupViolations: [],
+      traced: [],
       shape: null,
       parity: null,
       error: null,
@@ -114,6 +122,11 @@ export class ProbeLoop {
       // Parity: the traced walk must reach the same columns and groups.
       const plain = inferNullability(stmt, this.catalog);
       const traced = inferNullabilityTraced(stmt, this.catalog);
+      out.traced = traced.map(c => ({
+        name: c.name,
+        notNull: c.notNull,
+        reason: (c as { trace?: { reason?: string } }).trace?.reason ?? "",
+      }));
       if (
         plain.length !== traced.length ||
         plain.some((p, i) => p.name !== traced[i]!.name || p.notNull !== traced[i]!.notNull)
