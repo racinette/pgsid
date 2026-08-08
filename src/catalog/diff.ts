@@ -432,5 +432,6 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     builtinOperatorSignatures: [],
     builtinImplicitCasts: [],
     builtinTypeKinds: {},
+    builtinTypeNameAliases: {},
   };
 }

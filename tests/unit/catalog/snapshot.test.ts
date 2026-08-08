@@ -481,6 +481,14 @@ describe("snapshotCatalog: functions and procedures", () => {
     expect(s.builtinTypeKinds["text"]).toBe("b");
     expect(s.builtinTypeKinds["record"]).toBe("p");
     expect(s.builtinTypeKinds["public.mood"]).toBeUndefined();
+
+    // The grammar-to-format_type bridge: a cast's `int4` must find the
+    // signature rows keyed `integer`, and a name the two spellings agree on
+    // has no entry.
+    expect(s.builtinTypeNameAliases["int4"]).toBe("integer");
+    expect(s.builtinTypeNameAliases["varchar"]).toBe("character varying");
+    expect(s.builtinTypeNameAliases["float8"]).toBe("double precision");
+    expect(s.builtinTypeNameAliases["text"]).toBeUndefined();
   });
 
   it("includes extension functions (plpgsql_check) but they are not validated", async () => {

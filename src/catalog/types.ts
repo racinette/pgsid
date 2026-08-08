@@ -698,6 +698,19 @@ export interface CatalogSnapshot {
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
   builtinTypeKinds: Record<string, string>;
+  /**
+   * `pg_type.typname` → the `format_type` rendering, for the 15 pg_catalog
+   * types where they differ (`int4` → `integer`, `varchar` → `character
+   * varying`, …). The GRAMMAR canonicalises a cast's spelling to the
+   * typname — `x::integer` parses with names `[pg_catalog, int4]` — while
+   * every signature capture renders `format_type` names, so an exact-match
+   * key built from a cast must pass through this map or it matches nothing.
+   * Captured rather than curated, for the reason every curated table in
+   * this project has eventually demonstrated.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinTypeNameAliases: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------

@@ -515,6 +515,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinOperatorSignatures,
     builtinImplicitCasts,
     builtinTypeKinds,
+    builtinTypeNameAliases,
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
@@ -547,6 +548,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinOperatorSignatures(pg),
     queryBuiltinImplicitCasts(pg),
     queryBuiltinTypeKinds(pg),
+    queryBuiltinTypeNameAliases(pg),
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
@@ -945,6 +947,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinOperatorSignatures,
     builtinImplicitCasts,
     builtinTypeKinds,
+    builtinTypeNameAliases,
   };
 }
 
@@ -1528,6 +1531,27 @@ async function queryBuiltinTypeKinds(pg: PGlite): Promise<Record<string, string>
   );
   const out: Record<string, string> = {};
   for (const r of res.rows) out[r.name] = r.kind;
+  return out;
+}
+
+/**
+ * typname → format_type for the pg_catalog types where they differ. See
+ * CatalogSnapshot.builtinTypeNameAliases; array spellings (`_int4`) are
+ * excluded because a cast's array-ness arrives as `arrayBounds`, not in the
+ * name.
+ */
+async function queryBuiltinTypeNameAliases(pg: PGlite): Promise<Record<string, string>> {
+  const res = await pg.query<{ alias: string; name: string }>(
+    `SELECT t.typname AS alias, format_type(t.oid, null) AS name
+     FROM pg_type t
+     JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE n.nspname = 'pg_catalog'
+       AND t.typname NOT LIKE '\\_%'
+       AND t.typname <> format_type(t.oid, null)
+     ORDER BY 1;`,
+  );
+  const out: Record<string, string> = {};
+  for (const r of res.rows) out[r.alias] = r.name;
   return out;
 }
 
