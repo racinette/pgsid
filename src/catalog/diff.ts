@@ -191,7 +191,7 @@ function domainState(d: DomainInfo): Omit<DomainInfo, "oid" | "baseTypeOid"> {
     baseTypeName: d.baseTypeName,
     notNull: d.notNull,
     default: d.default,
-    check: d.check,
+    checks: d.checks,
   };
 }
 

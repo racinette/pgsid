@@ -349,8 +349,16 @@ export interface DomainInfo {
   notNull: boolean;
   /** Default expression from `pg_get_expr(typdefaultbin, oid)`, or null. */
   default: string | null;
-  /** CHECK constraint expression, or null. */
-  check: string | null;
+  /**
+   * Every CHECK constraint on the domain, rendered by `pg_get_constraintdef`
+   * and ordered by constraint name. A domain may carry any number of them
+   * (`CREATE DOMAIN twochk AS int CONSTRAINT lo CHECK (VALUE > 0) CONSTRAINT
+   * hi CHECK (VALUE < 10)`), so a single entry is a reader assuming one row
+   * per declaration — this held one, picked without an ORDER BY, which both
+   * hid the others from the diff and made the state depend on catalog row
+   * order across a replay.
+   */
+  checks: string[];
 }
 
 export interface CompositeTypeAttrInfo {

@@ -806,6 +806,63 @@ is no longer an argument; it is a count.
 
 ## 1a. Sweep every catalog READ for rows PostgreSQL adds that nobody wrote
 
+**RAN 2026-08-08, and its two findings are CLOSED.** Every capture in
+`snapshot.ts` was asked for its derived rows against PG 18.3, with constructed
+DDL for the cases `fixtures/schema.sql` does not carry. Both of this item's
+named candidates were wrong in an instructive direction, and both findings
+landed in the two captures the nullability walk never reads.
+
+*What was clean.* Partition TRIGGER clones are `tgisinternal = FALSE` with
+`tgparentid <> 0`, so the `NOT tgisinternal` filter KEEPS them and a trigger
+declared once on a partitioned parent is a hook on every partition — measured
+end to end, `resolveWriteRewrites('pp1').beforeRow` carries it. The six clones
+in the fixture schema are FK machinery and ARE internal, so the one filter
+separates the two populations correctly. **Inherited constraints, the candidate
+named below, carry `coninhcount > 0` and `conparentid = 0`** — a different
+provenance column from the partition clones that produced sweep-4 finding 4 —
+and they need no gate at all: the row is a true fact about the child, which
+does enforce the constraint. Only FK and PK clones set `conparentid`.
+Elsewhere: 36 of 245 fixture columns are inherited (`attinhcount > 0`) and
+per-`relid` grouping is right; the five view `_RETURN` rules are excluded;
+shell operators (`oprcode = 0`, from a forward `COMMUTATOR` reference) are
+dropped by the `JOIN pg_proc` and cannot be invoked, so dropping is sound;
+`CREATE TYPE … AS RANGE` puts five constructor functions in the user schema
+that nobody wrote and they are read as the ordinary callable functions they
+are; the three identity-derived sequences produce exactly one `pg_depend` row
+each, so the LEFT JOIN does not multiply them; and `pg_inherits`, captured
+unfiltered, holds INDEX edges too, inert only because an index OID can never
+appear as a table OID.
+
+*Finding 1 — `queryIndexes` captured the clones and dropped the declaration.*
+`WHERE c.relkind = 'i'`: one `CREATE INDEX` on a partitioned table makes the
+declared index as relkind `'I'` plus one relkind `'i'` clone per partition, so
+`CREATE INDEX pp_amt_ix ON pp (amt)` snapshotted as `pp1_amt_idx` and
+`pp2_amt_idx` — entities named after partitions, which no migration mentions —
+while the index the author wrote was invisible. Now `relkind IN ('i','I') AND
+NOT relispartition`: one entity per declaration. An index written directly on a
+partition keeps its row, because `relispartition` is false until a parent
+partitioned index adopts it, at which point it IS a clone of that declaration
+(measured). The count that says how well this was hiding: the fixture schema
+declares ZERO explicit indexes and captured 30 rows, every one materialised by
+a `PRIMARY KEY`.
+
+*Finding 2 — `queryDomains` read one row of many.* The `check_expr` subquery
+was `LIMIT 1` with no `ORDER BY`, so a domain declaring two CHECKs captured one
+of them, chosen by catalog row order. Dropping the other produced no diff, and
+the same domain could compare unequal to itself across a replay into a fresh
+database — the exact property `comparableStates`' header argues must hold.
+`DomainInfo.check: string | null` is now `checks: string[]`, aggregated
+`ORDER BY conname`. The item's own class mirrored: not a row PostgreSQL added,
+but the same reader assuming one row per declaration.
+
+Neither moved a nullability claim, and the sweep says exactly why: the walk
+reads only `check` and `foreign` constraints — never `primaryKey`, `unique` or
+`exclusion` — and never a domain's CHECK, so `snapshot.indexes` and
+`DomainInfo.checks` reach nothing but the diff's entity map. **That is the
+finding under the findings**, and it is what this check should be pointed at
+next: both defects survived because nothing downstream was strict enough to
+notice. Three tests pin the two fixes, each mutation-tested to fail alone.
+
 **What.** The converse of the curated-table audit, and the second standing
 check this register carries. The existing heuristic is "sweep every
 hand-curated TABLE against the catalog it approximates". This is the other
@@ -833,7 +890,9 @@ to do once.
 **Trigger.** Do it the next time any capture is added to `snapshot.ts`, and
 before the consumer's first contract-holding slice. `queryConstraints` now
 captures `conparentid`, so the partition case is closed and the pattern for
-the rest is written down.
+the rest is written down. The 2026-08-08 run recorded above is the pattern
+worked end to end; a capture whose consumer is the diff alone is where it pays,
+since no oracle downstream will complain.
 
 ---
 

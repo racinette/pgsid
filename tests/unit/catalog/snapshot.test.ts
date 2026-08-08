@@ -195,6 +195,28 @@ describe("snapshotCatalog: tables, columns, constraints, indexes", () => {
     expect(partial?.columns).toEqual(["published_at"]);
   });
 
+  // One CREATE INDEX on a partitioned table makes the declared index
+  // (relkind 'I') plus one CLONE per partition (relkind 'i',
+  // relispartition). The capture read relkind = 'i', so it dropped the
+  // declaration and registered its clones — named after the partitions,
+  // which no migration mentions.
+  it("captures the DECLARED index on a partitioned table, not its per-partition clones", async () => {
+    await pg.exec(`
+      CREATE TABLE public.snap_part (id int, amt int, note text) PARTITION BY RANGE (id);
+      CREATE TABLE public.snap_part_1 PARTITION OF public.snap_part FOR VALUES FROM (0) TO (100);
+      CREATE TABLE public.snap_part_2 PARTITION OF public.snap_part FOR VALUES FROM (100) TO (200);
+      CREATE INDEX snap_part_amt_ix ON public.snap_part (amt);
+      -- Written on the partition itself, with no parent index to belong to.
+      CREATE INDEX snap_part_1_note_ix ON public.snap_part_1 (note);
+    `);
+    const s = await snapshotCatalog(pg);
+    const named = s.indexes.filter(i => i.name.startsWith("snap_part")).map(i => i.name);
+    expect(named).toEqual(["snap_part_1_note_ix", "snap_part_amt_ix"]);
+    const declared = s.indexes.find(i => i.name === "snap_part_amt_ix");
+    expect(declared?.tableName).toBe("snap_part");
+    expect(declared?.columns).toEqual(["amt"]);
+  });
+
   it("captures storage parameters (fillfactor)", async () => {
     await pg.exec(`
       CREATE TABLE public.snap_fill (id int) WITH (fillfactor = 75);
@@ -411,11 +433,26 @@ describe("snapshotCatalog: enums, domains, composite types, sequences", () => {
     const posint = s.domains.find(d => d.schema === "public" && d.name === "posint");
     expect(posint?.baseTypeName).toBe("integer");
     // pg_get_constraintdef normalizes identifiers to uppercase.
-    expect(posint?.check).toContain("CHECK");
-    expect(posint?.check?.toLowerCase()).toContain("value > 0");
+    expect(posint?.checks).toHaveLength(1);
+    expect(posint?.checks[0]).toContain("CHECK");
+    expect(posint?.checks[0]?.toLowerCase()).toContain("value > 0");
     const tagged = s.domains.find(d => d.schema === "public" && d.name === "tagged");
     expect(tagged?.notNull).toBe(true);
     expect(tagged?.default).toBe("'unknown'::text");
+    expect(tagged?.checks).toEqual([]);
+  });
+
+  // A domain may declare any number of CHECKs, and the capture kept one of
+  // them — chosen by catalog row order, so the second was invisible and the
+  // first was not stable across a replay.
+  it("captures EVERY check on a domain, ordered by constraint name", async () => {
+    await pg.exec(
+      "CREATE DOMAIN public.twochk AS integer" +
+        " CONSTRAINT zz_lo CHECK (VALUE > 0) CONSTRAINT aa_hi CHECK (VALUE < 10);",
+    );
+    const s = await snapshotCatalog(pg);
+    const twochk = s.domains.find(d => d.schema === "public" && d.name === "twochk");
+    expect(twochk?.checks).toEqual(["CHECK ((VALUE < 10))", "CHECK ((VALUE > 0))"]);
   });
 
   it("captures composite type attributes", async () => {

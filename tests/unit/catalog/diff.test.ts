@@ -340,15 +340,24 @@ describe("diffCatalogs: enums", () => {
 
 describe("diffCatalogs: domains", () => {
   it("base type change → domain modified", () => {
-    const before = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, check: "CHECK (value > 0)" }] });
-    const after = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 20, baseTypeName: "bigint", notNull: false, default: null, check: "CHECK (value > 0)" }] });
+    const before = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, checks: ["CHECK (value > 0)"] }] });
+    const after = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 20, baseTypeName: "bigint", notNull: false, default: null, checks: ["CHECK (value > 0)"] }] });
     expect(diffCatalogs(before, after).modified.map(m => m.entityId)).toEqual(["public.posint"]);
   });
 
   it("NOT NULL change → domain modified", () => {
-    const before = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, check: null }] });
-    const after = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: true, default: null, check: null }] });
+    const before = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, checks: [] }] });
+    const after = snapshot({ domains: [{ schema: "public", name: "posint", oid: 90001, baseTypeOid: 23, baseTypeName: "integer", notNull: true, default: null, checks: [] }] });
     expect(diffCatalogs(before, after).modified.map(m => m.entityId)).toEqual(["public.posint"]);
+  });
+
+  // The capture kept ONE check, picked without an ORDER BY, so a domain
+  // declaring several hid all but that one from the diff.
+  it("dropping the second of two checks → domain modified", () => {
+    const dom = (checks: string[]) => snapshot({ domains: [{ schema: "public", name: "twochk", oid: 90002, baseTypeOid: 23, baseTypeName: "integer", notNull: false, default: null, checks }] });
+    const before = dom(["CHECK ((VALUE < 10))", "CHECK ((VALUE > 0))"]);
+    const after = dom(["CHECK ((VALUE > 0))"]);
+    expect(diffCatalogs(before, after).modified.map(m => m.entityId)).toEqual(["public.twochk"]);
   });
 });
 
