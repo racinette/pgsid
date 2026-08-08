@@ -46,7 +46,13 @@
 //     rather than assembling one column at a time, which is what keeps a
 //     composite key, a partition range and a cross-column CHECK satisfied by
 //     construction;
-//   - no set operations, no CTEs, no MERGE.
+//   - MERGE, whose source is built to STRADDLE the target — some keys drawn
+//     from the target's own rows, some absent — because §5.3 measured that a
+//     source drawn from the target's keys exercises one arm and never the
+//     others. All three match kinds are emitted, with per-arm conditions, and
+//     `RETURNING merge_action()` is the only observable that says which arm
+//     produced a row. The report tallies those, so "the arm fired" is measured
+//     rather than assumed.
 //
 // Everything absent from that list is a later slice. The bound is printed with
 // the result, because §6's closing rule is that a run finding nothing must
@@ -947,6 +953,202 @@ function buildQuery(
 }
 
 // ---------------------------------------------------------------------------
+// MERGE — §9.3's deliberate omission, because its arms need the DATA arranged
+// for them.
+//
+// §5.3: "MERGE arms only fire when the data makes them. `WHEN NOT MATCHED BY
+// SOURCE` needs a target row with no source match. A source drawn entirely
+// from the target's keys exercises one arm and never the others — measured the
+// hard way in the sweep-4 fix phase, where a MERGE fixture's presence group
+// reported 'present arm never observed' until the source was widened. Sources
+// must straddle."
+//
+// So the source is built to straddle by construction: some keys drawn from the
+// target's own seeded values (those MATCH), some past the end of its range
+// (those do not), and the target keeps rows no source key names (that is the
+// BY SOURCE arm). One VALUES list covers all three.
+//
+// `RETURNING merge_action()` is the only way to observe WHICH arm produced a
+// row, and it is a node — `MergeSupportFunc` — that reaches the walk from
+// nowhere else.
+// ---------------------------------------------------------------------------
+
+function buildMerge(
+  rand: Rand,
+  t: TableInfo,
+  pool: ValuePool,
+  rowPool: RowPool,
+  partitioned: Set<string>,
+): Built | null {
+  const tableId = `${t.schema}.${t.name}`;
+  // A single-column key to join on. A composite one would need a source of
+  // matching arity, and the straddle would have to be built per column.
+  const keyCon = t.constraints.find(
+    c => (c.type === "primaryKey" || c.type === "unique") && c.columns.length === 1,
+  );
+  if (!keyCon) return null;
+  const keyCol = keyCon.columns[0]!;
+  const keyInfo = t.columns.find(c => c.name === keyCol);
+  if (!keyInfo) return null;
+  const existing = (pool.get(`${tableId}.${keyCol}`) ?? []).filter(v => v !== null);
+  if (existing.length === 0) return null;
+  const rows = rowPool.get(tableId) ?? [];
+  if (rows.length === 0) return null;
+
+  // The straddle. Matched keys come from the target; unmatched ones are past
+  // the end of its range, the same rule the INSERT builder uses for a fresh
+  // key. A partitioned target cannot take an invented key at all, so it gets
+  // matched keys only and simply never fires its NOT MATCHED arm — reported
+  // rather than hidden, since a source that cannot straddle is exactly what
+  // §5.3 warns about.
+  const routed = t.relkind === "p" || partitioned.has(tableId);
+  const nums = existing.filter(v => typeof v === "number") as number[];
+  const sourceKeys: Ast[] = [];
+  for (const v of [...existing].slice(0, rand.int(1, 3))) {
+    const lit = literalFor(v);
+    if (lit) sourceKeys.push(lit);
+  }
+  let straddles = false;
+  if (!routed && rand.chance(0.8)) {
+    // An unmatched key must be legal as well as absent. When the target's key
+    // is ALSO a foreign key — a 1:1 extension table like `order_gift_wrap`,
+    // whose `id` is both its primary key and a reference to `orders.id` — a
+    // value past the end of the range satisfies the key and violates the
+    // reference. The parent's own values minus the ones the target already
+    // carries are exactly the keys that are unmatched AND insertable.
+    const keyFk = t.constraints.find(
+      c => c.type === "foreign" && c.columns.length === 1 && c.columns[0] === keyCol,
+    );
+    let unmatched: Ast | null = null;
+    if (keyFk?.foreignTable && keyFk.foreignColumns?.length === 1) {
+      const parentId = `${keyFk.foreignSchema ?? t.schema}.${keyFk.foreignTable}`;
+      const taken = new Set(existing.map(v => String(v)));
+      const free = (pool.get(`${parentId}.${keyFk.foreignColumns[0]}`) ?? [])
+        .filter(v => v !== null && !taken.has(String(v)));
+      if (free.length) unmatched = literalFor(rand.pick(free));
+    } else if (nums.length > 0) {
+      unmatched = literalFor(Math.max(...nums) + rand.int(1000, 9000));
+    }
+    if (unmatched) { sourceKeys.push(unmatched); straddles = true; }
+  }
+  if (sourceKeys.length === 0) return null;
+
+  const writable = writableColumns(t);
+  const keys = keyColumns(t);
+  const entangled = new Set<string>();
+  for (const c of t.constraints) {
+    if (c.columns.length > 1) for (const n of c.columns) entangled.add(n);
+  }
+  const settable = writable.filter(c => !keys.has(c.name) && !entangled.has(c.name));
+
+  const setClause = (): Ast[] | null => {
+    if (settable.length === 0) return null;
+    const c = rand.pick(settable);
+    const v = writtenValue(rand, tableId, c, pool, false);
+    return v ? [{ ResTarget: { name: c.name, val: v } }] : null;
+  };
+
+  const arms: Ast[] = [];
+  const armForms: string[] = [];
+  const addArm = (matchKind: string, commandType: string, extra: Record<string, unknown> = {}): void => {
+    arms.push({
+      MergeWhenClause: {
+        matchKind, commandType, override: "OVERRIDING_NOT_SET",
+        // A per-arm condition narrows which rows the arm claims, and the walk
+        // must not read it as narrowing the STATEMENT.
+        ...(rand.chance(0.3) && matchKind !== "MERGE_WHEN_NOT_MATCHED_BY_TARGET"
+          ? { condition: nullTest(colRef(t.name, rand.pick(t.columns).name), false) }
+          : {}),
+        ...extra,
+      },
+    });
+    armForms.push(`${matchKind.replace("MERGE_WHEN_", "").toLowerCase()}:${commandType.replace("CMD_", "").toLowerCase()}`);
+  };
+
+  // WHEN MATCHED — update, delete, or decline.
+  if (rand.chance(0.8)) {
+    const roll = rand.int(0, 2);
+    const sets = roll === 0 ? setClause() : null;
+    if (roll === 0 && sets) addArm("MERGE_WHEN_MATCHED", "CMD_UPDATE", { targetList: sets });
+    else if (roll === 1) addArm("MERGE_WHEN_MATCHED", "CMD_DELETE");
+    else addArm("MERGE_WHEN_MATCHED", "CMD_NOTHING");
+  }
+
+  // WHEN NOT MATCHED (BY TARGET) — the INSERT arm. Its row is copied from an
+  // existing one for the reason the INSERT builder copies: a row PostgreSQL
+  // already accepted satisfies every constraint spanning more than one column.
+  // Only the key moves, and it takes the SOURCE's key, which is unmatched by
+  // definition and therefore free.
+  if (straddles && rand.chance(0.8)) {
+    const base = rand.pick(rows);
+    const cols: string[] = [keyCol];
+    const vals: Ast[] = [colRef("ms", "k")];
+    for (const c of writable) {
+      if (c.name === keyCol) continue;
+      const required = c.notNull && !c.hasDefault && c.identity === null;
+      if (!required && rand.chance(0.4)) continue;
+      const v = base[c.name] === null || base[c.name] === undefined
+        ? (c.notNull ? writtenValue(rand, tableId, c, pool, false) : nullConst())
+        : literalFor(base[c.name]);
+      if (!v) { if (required) return null; continue; }
+      cols.push(c.name);
+      vals.push(v);
+    }
+    addArm("MERGE_WHEN_NOT_MATCHED_BY_TARGET", "CMD_INSERT", {
+      targetList: cols.map(n => ({ ResTarget: { name: n } })),
+      values: vals,
+    });
+  }
+
+  // WHEN NOT MATCHED BY SOURCE — a target row no source key names. DELETE here
+  // would remove most of the table and take every referencing row's key with
+  // it, so this arm updates or declines.
+  if (rand.chance(0.45)) {
+    const sets = rand.chance(0.6) ? setClause() : null;
+    if (sets) addArm("MERGE_WHEN_NOT_MATCHED_BY_SOURCE", "CMD_UPDATE", { targetList: sets });
+    else addArm("MERGE_WHEN_NOT_MATCHED_BY_SOURCE", "CMD_NOTHING");
+  }
+
+  if (arms.length === 0) return null;
+
+  // RETURNING, and with it `merge_action()` — the only observable that says
+  // WHICH arm produced a row.
+  let ret: Ast | undefined;
+  if (rand.chance(0.9)) {
+    const cols = t.columns.filter(c => c.generated !== "virtual");
+    const take = Math.min(cols.length, rand.int(1, 3));
+    const chosen = new Set<string>();
+    for (let k = 0; k < take; k++) chosen.add(rand.pick(cols).name);
+    const exprs: Ast[] = [...chosen].map(n => target(colRef(t.name, n), `r_${n}`));
+    if (rand.chance(0.5)) exprs.push(target({ MergeSupportFunc: { msftype: 25 } }, "r_action"));
+    ret = { exprs };
+  }
+
+  const stmt = {
+    MergeStmt: {
+      relation: dmlRelation(t),
+      sourceRelation: rangeSubselect(
+        { SelectStmt: { valuesLists: sourceKeys.map(k => ({ List: { items: [k] } })), limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } },
+        "ms", false),
+      joinCondition: eq(colRef(t.name, keyCol), colRef("ms", "k")),
+      mergeWhenClauses: arms,
+      ...(ret ? { returningClause: ret } : {}),
+    },
+  };
+  // The source alias needs its column name, which `rangeSubselect` does not
+  // carry — a VALUES source is referenced by it in both the ON and the arms.
+  ((stmt.MergeStmt.sourceRelation as Record<string, any>)["RangeSubselect"] as Record<string, unknown>)["alias"] =
+    { aliasname: "ms", colnames: [str("k")] };
+
+  return {
+    sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
+    used: [{ alias: t.name, table: tableId }],
+    kinds: [],
+    shape: `${tableId}|MERGE:${[...armForms].sort().join(",")}${straddles ? "+straddle" : ""}${ret ? "+RET" : ""}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Clause vocabulary — §9.4.
 //
 // Applied as DECORATIONS over a built SELECT rather than woven into it,
@@ -1625,6 +1827,11 @@ const tableUse = new Map<string, number>();
 const kindUse = new Map<string, number>();
 const whereUse = new Map<string, number>();
 const exprUse = new Map<string, number>();
+// Which MERGE arm actually PRODUCED a row. §5.3's warning is that arms fire
+// only when the data makes them, and a source drawn from the target's keys
+// exercises one and never the others — so this is the measurement that says
+// whether the straddle worked, rather than whether the arm was emitted.
+const mergeActions = new Map<string, number>();
 const samples: string[] = [];
 const SAMPLE = Number(process.env.DISCOVERY_SAMPLE ?? 0);
 let returnable = 0, returned = 0;
@@ -1638,7 +1845,9 @@ for (let i = 0; i < COUNT; i++) {
     // A quarter of the run is DML. Every statement is rolled back by the
     // harness, so the dataset every query sees is the same one.
     built = rand.chance(0.25)
-      ? buildDml(rand, rand.pick(appTableInfos), pool, rowPool, partitionedIds)
+      ? (rand.chance(0.25)
+          ? buildMerge(rand, rand.pick(appTableInfos), pool, rowPool, partitionedIds)
+          : buildDml(rand, rand.pick(appTableInfos), pool, rowPool, partitionedIds))
       : buildQuery(rand, snapshot, rand.pick(startTables), usableEdges, pool, appTableInfos);
   } catch (e) {
     counts.set("generator-threw", (counts.get("generator-threw") ?? 0) + 1);
@@ -1686,6 +1895,13 @@ for (let i = 0; i < COUNT; i++) {
   returnable++;
   if (bucket === "agreed-rows") returned++;
 
+  const actionAt = r.pgColumns.indexOf("r_action");
+  if (actionAt >= 0) {
+    for (const row of r.rows) {
+      const a = String(row[actionAt] ?? "?");
+      mergeActions.set(a, (mergeActions.get(a) ?? 0) + 1);
+    }
+  }
   if (bucket === "pg-rejected" || bucket === "pg-raised") {
     const key = (r.pgError ?? "").split("\n")[0]!.slice(0, 90);
     rejectionDetail.set(key, (rejectionDetail.get(key) ?? 0) + 1);
@@ -1760,6 +1976,11 @@ console.log(`  join kinds:  ` + [...kindUse.entries()].sort((a, b) => b[1] - a[1
   .map(([k, n]) => `${k.replace("JOIN_", "")} ${pct(n, totalKinds)}`).join("   "));
 console.log(`  expression targets: ` + ([...exprUse.entries()].sort((a, b) => b[1] - a[1])
   .map(([k, n]) => `${k} ${pct(n, COUNT)}`).join("   ") || "(none)"));
+if (mergeActions.size) {
+  const tot = [...mergeActions.values()].reduce((a, b) => a + b, 0);
+  console.log(`  MERGE arms that produced a row: ` + [...mergeActions.entries()]
+    .sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${pct(n, tot)}`).join("   "));
+}
 console.log(`  WHERE shape: ` + [...whereUse.entries()].sort((a, b) => b[1] - a[1])
   .map(([k, n]) => `${k === "-" ? "(none)" : k} ${pct(n, COUNT)}`).join("   "));
 if (samples.length) {
