@@ -1413,6 +1413,78 @@ function classify(r: ProbeResult): Bucket {
 }
 
 // ---------------------------------------------------------------------------
+// The finding fingerprint — §6.
+//
+// What groups instances of ONE defect, so a report reads "one finding, 340
+// instances" instead of 340 findings. The first version keyed on the query
+// SHAPE plus the failure message, and both are properties of the QUERY rather
+// than of the bug: the alias-column-list defect reported as 108 findings
+// because every query that tripped it produced a different pair of column
+// lists. §6 predicted exactly that ("expect the first version to be too
+// specific rather than too loose, because that is the direction that
+// flatters"), and establishing it was one bug took a manual experiment the
+// report should have done.
+//
+// So it keys on the CAUSE. For a per-column finding the traced walk already
+// names the rule that concluded — "CHECK-constraint entailment (row) →
+// notNull", "catalog.notNull=true && join REQUIRED" — and those strings
+// describe the rule, not the query, so two unrelated queries tripping one bug
+// collide and two bugs never do. That second direction matters more than the
+// first: fragmentation is noise, but MERGING two distinct defects would hide
+// one.
+//
+// Identifiers are stripped, because some reasons embed a relation name
+// (`viewDefinition public.orders`) and the same bug over three tables must not
+// read as three.
+// ---------------------------------------------------------------------------
+
+const normalise = (s: string): string =>
+  s.replace(/"[^"]*"/g, "\"…\"")        // quoted identifiers
+    .replace(/\b\w+\.\w+\b/g, "…")      // schema.table / alias.column
+    .replace(/\b\d+\b/g, "N")
+    .trim();
+
+function fingerprint(bucket: Bucket, r: ProbeResult, built: Built): string {
+  switch (bucket) {
+    case "notnull-violated":
+    case "group-violated": {
+      // The offending columns' decisive reasons, deduped and ordered so the
+      // key does not depend on which column the harness happened to list
+      // first.
+      const idx = [...r.violations, ...r.groupViolations]
+        .map(v => /col (\d+)|\{([\d,]+)\}/.exec(v))
+        .flatMap(m => (m ? (m[1] ? [Number(m[1])] : (m[2] ?? "").split(",").map(Number)) : []));
+      const reasons = [...new Set(idx.map(i => normalise(r.traced[i]?.reason ?? "?")))].sort();
+      return `${bucket}|${reasons.join(" + ") || "no-trace"}`;
+    }
+    case "shape-mismatch": {
+      // No offending column — the whole list disagrees — so there is no rule
+      // to name. §6's fallback: the CONSTRUCTS that triggered it, plus whether
+      // the arity survived, which separates a permutation from a drop.
+      const engine = r.engineColumns.length, pg = r.pgColumns.length;
+      // The FROM-item FORMS present, as a set — not the join sequence, not the
+      // WHERE, not the expressions. Those are all properties of the query, and
+      // keying on them is what fragmented this bucket in the first place.
+      const ITEM_FORMS = ["rel", "derived", "sample", "aliasall", "aliaspart",
+                          "srf", "rowsfrom", "lateral", "comma"];
+      const forms = [...new Set(
+        (built.shape.split("|")[1] ?? "")
+          .split(",")
+          .flatMap(part => ITEM_FORMS.filter(f => part.split(/[:\/]/).includes(f))),
+      )].sort().join(",");
+      const star = /C:[^|]*\bstar\b/.test(built.shape) || /qualstar/.test(built.shape);
+      return `${bucket}|${engine === pg ? "same-arity" : "arity-differs"}|from:${forms}|${star ? "star" : "no-star"}`;
+    }
+    case "parity-broke":
+      return `${bucket}|${normalise(r.parity ?? "")}`;
+    case "engine-crashed":
+      return `${bucket}|${normalise(r.error ?? "")}`;
+    default:
+      return `${bucket}|${normalise(r.error ?? r.pgError ?? "")}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The run
 // ---------------------------------------------------------------------------
 
@@ -1545,8 +1617,9 @@ const rand = makeRand(SEED);
 const counts = new Map<Bucket, number>();
 const shapes = new Set<string>();
 const tablesTouched = new Set<string>();
-const findings: { id: string; bucket: Bucket; sql: string; detail: string }[] = [];
-const findingKeys = new Set<string>();
+interface Finding { id: string; bucket: Bucket; sql: string; detail: string; key: string; instances: number }
+const findings: Finding[] = [];
+const findingKeys = new Map<string, Finding>();
 const rejectionDetail = new Map<string, number>();
 const tableUse = new Map<string, number>();
 const kindUse = new Map<string, number>();
@@ -1624,12 +1697,13 @@ for (let i = 0; i < COUNT; i++) {
   if (TIER[bucket] === "FINDING") {
     const detail = r.violations.join("; ") || r.groupViolations.join("; ") ||
       r.shape || r.parity || r.error || "";
-    // One entry per (bucket, shape, detail) — 10,000 queries hitting one bug
-    // must read as one finding, not as hundreds.
-    const key = `${bucket}|${built.shape}|${detail.replace(/\d+/g, "N")}`;
-    if (!findingKeys.has(key)) {
-      findingKeys.add(key);
-      findings.push({ id, bucket, sql: built.sql, detail });
+    const key = fingerprint(bucket, r, built);
+    const seen = findingKeys.get(key);
+    if (seen) seen.instances++;
+    else {
+      const entry = { id, bucket, sql: built.sql, detail, key, instances: 1 };
+      findingKeys.set(key, entry);
+      findings.push(entry);
     }
   }
 }
@@ -1693,9 +1767,37 @@ if (samples.length) {
   for (const q of samples) console.log(`\n${q.split("\n").map(l => "  " + l).join("\n")}`);
 }
 
-console.log(`\nFINDINGS: ${findings.length} distinct`);
-for (const f of findings.slice(0, 20)) {
-  console.log(`\n  [${f.bucket}] ${f.id}  (seed ${SEED})`);
+const instances = findings.reduce((a, f) => a + f.instances, 0);
+console.log(`\nFINDINGS: ${findings.length} distinct, ${instances} instances`);
+
+// Which CONSTRUCT appears in a bucket's findings against how often it appears
+// at all. A construct present in most instances of a bucket and a minority of
+// the run is the thing to look at — and unlike the fingerprint it needs no
+// guess about what causes what, so it stays useful for a defect nobody has
+// seen. `shape-mismatch` is the bucket that needs it: it has no offending
+// COLUMN, so no rule to name, and its key falls back to the constructs the
+// query used, which fragments once an unrelated third table joins in.
+if (findings.length > 0) {
+  const byBucket = new Map<Bucket, Map<string, number>>();
+  for (const f of findings) {
+    const forms = f.key.match(/from:([^|]*)/)?.[1]?.split(",").filter(Boolean) ?? [];
+    const m = byBucket.get(f.bucket) ?? new Map<string, number>();
+    for (const x of forms) m.set(x, (m.get(x) ?? 0) + f.instances);
+    byBucket.set(f.bucket, m);
+  }
+  for (const [b, m] of byBucket) {
+    if (m.size === 0) continue;
+    const total = findings.filter(f => f.bucket === b).reduce((a, f) => a + f.instances, 0);
+    const ranked = [...m.entries()].sort((a, b2) => b2[1] - a[1])
+      .map(([k, n]) => `${k} ${Math.round((n / total) * 100)}%`);
+    console.log(`  constructs across ${b} instances: ${ranked.join("   ")}`);
+    console.log(`    (a construct near 100% here and rare in the run is the suspect;` +
+      ` "what was generated" above has the run-wide rates)`);
+  }
+}
+for (const f of [...findings].sort((a, b) => b.instances - a.instances).slice(0, 20)) {
+  console.log(`\n  [${f.bucket}] ${f.instances} instance${f.instances === 1 ? "" : "s"}  (first: ${f.id}, seed ${SEED})`);
+  console.log(`  cause: ${f.key.slice(f.bucket.length + 1)}`);
   console.log(`  ${f.detail}`);
   console.log(`  ${f.sql}`);
 }
