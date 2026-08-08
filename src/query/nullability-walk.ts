@@ -445,6 +445,16 @@ interface SubqueryRelation extends KeyedRelation {
   alias: string;
   schemaname?: string;
   relname: string;
+  /**
+   * The relation's alias COLUMN LIST, if it carries one. The subquery paths
+   * work on this reduced structure rather than on a `RelationEntry`, so
+   * without the list here a rename inside a correlated subquery reaches
+   * nothing — the key is recorded in `pg_constraint` under catalog names and
+   * the WHERE is written in the query's.
+   */
+  columnAliases?: string[];
+  /** The resolved catalog column order, for translating through that list. */
+  catalogColumns?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -7363,7 +7373,7 @@ class NullabilityEngine {
     for (const r of from.rels) {
       const resolved = this.catalog.resolveTable(r.schemaname, r.relname);
       if (!resolved) return false;
-      rels.push({ ...r, schema: resolved.schema, name: resolved.name });
+      rels.push({ ...r, schema: resolved.schema, name: resolved.name, catalogColumns: resolved.columns });
     }
 
     const eq = this.equalityColumnRefs(select.whereClause);
@@ -7379,24 +7389,34 @@ class NullabilityEngine {
       if (!outer || outer.kind !== "table" || !outer.table) continue;
       if (outer.joinState !== REQUIRED) continue;
 
+      // Both sides of the correlation may be renamed by an alias column list,
+      // and the outer and inner ones live in different structures — a
+      // RelationEntry out here, the reduced SubqueryRelation in there. Every
+      // catalog question below is keyed by the catalog's names.
+      const outerCol = this.entryCatalogColumn(outer, outerRef.column);
+      const innerCol = this.subqueryCatalogColumn(anchor, innerRef.column);
+      if (outerCol === undefined || innerCol === undefined) continue;
+
       const outerScansTree = outer.scanInh !== false;
       const keyNotNull = outerScansTree
         ? this.catalog.resolveColumnNotNullTree(
             outer.table.schema,
             outer.table.name,
-            outerRef.column,
+            outerCol,
           )
         : this.catalog.resolveColumnNotNull(
             outer.table.schema,
             outer.table.name,
-            outerRef.column,
+            outerCol,
           );
       if (!keyNotNull) continue;
 
       const selfLookup =
         outer.table.schema === anchor.schema &&
         outer.table.name === anchor.name &&
-        outerRef.column === innerRef.column &&
+        // Compared as CATALOG names: two sides renamed differently still key
+        // on the same column, and two sides renamed to the SAME name need not.
+        outerCol === innerCol &&
         // A tree-scanning outer may be reading a CHILD row that an `ONLY`
         // subquery cannot see.
         (anchor.scansTree || !outerScansTree);
@@ -7404,9 +7424,9 @@ class NullabilityEngine {
         selfLookup ||
         this.keyEntails(
           { schema: outer.table.schema, name: outer.table.name, scansTree: outerScansTree },
-          outerRef.column,
+          outerCol,
           anchor,
-          innerRef.column,
+          innerCol,
         );
       if (!keyed) continue;
       if (this.anchorSurvivesJoins(rels, from.joins, anchor)) return true;
@@ -7425,6 +7445,19 @@ class NullabilityEngine {
    * equality is implied rather than written) ends the read rather than being
    * guessed at.
    */
+  /**
+   * The catalog name behind a column a correlated subquery's WHERE or ON
+   * names, through that relation's alias column list. `undefined` when the
+   * relation does not answer to the name at all — which PostgreSQL rejects,
+   * and which must not silently read the catalog's column of the same name.
+   */
+  private subqueryCatalogColumn(r: SubqueryRelation, used: string): string | undefined {
+    const cols = r.catalogColumns ?? [];
+    if (!r.columnAliases) return cols.includes(used) ? used : undefined;
+    const i = cols.map((c, k) => r.columnAliases![k] ?? c).indexOf(used);
+    return i >= 0 ? cols[i] : undefined;
+  }
+
   private subqueryFromTree(
     item: Node,
   ): { rels: Omit<SubqueryRelation, "schema" | "name">[]; joins: SubqueryJoin[] } | null {
@@ -7434,7 +7467,7 @@ class NullabilityEngine {
         schemaname?: string;
         relname?: string;
         inh?: boolean;
-        alias?: { aliasname?: string };
+        alias?: { aliasname?: string; colnames?: Node[] };
       };
       if (!rv.relname) return null;
       return {
@@ -7444,6 +7477,9 @@ class NullabilityEngine {
             schemaname: rv.schemaname,
             relname: rv.relname,
             scansTree: rv.inh === true,
+            ...(rv.alias?.colnames && rv.alias.colnames.length > 0
+              ? { columnAliases: rv.alias.colnames.map(n => this.stringVal(n)) }
+              : {}),
           },
         ],
         joins: [],
@@ -7554,10 +7590,15 @@ class NullabilityEngine {
       const referencing = rels.find(r => r.alias === refCol.alias);
       const referenced = rels.find(r => r.alias === targetCol.alias);
       if (!referencing || !referenced) continue;
+      // Both relations of the subquery's own join may carry an alias column
+      // list, so the ON clause is in the query's names and the key is not.
+      const refCat = this.subqueryCatalogColumn(referencing, refCol.column);
+      const tgtCat = this.subqueryCatalogColumn(referenced, targetCol.column);
+      if (refCat === undefined || tgtCat === undefined) continue;
       // The key says the row exists in the TABLE; this join finds it only if
       // no join inside the other side has dropped it.
       if (!this.subtreePreserves(joins, otherSide, targetCol.alias)) continue;
-      if (!this.keyEntails(referencing, refCol.column, referenced, targetCol.column)) continue;
+      if (!this.keyEntails(referencing, refCat, referenced, tgtCat)) continue;
       settled.add(targetCol.alias);
       return true;
     }
