@@ -704,13 +704,28 @@ exactly one usable instance in this schema (`products.category_id`).
 ## 9. The vocabulary work list
 
 Measured 2026-08-08. `node-census.test.ts` classifies **86** parse-tree node
-types (excluding `analyzed-only`, which `parseSql` cannot produce). The
-discovery generator emits **10**:
+types (excluding `analyzed-only`, which `parseSql` cannot produce).
+
+**When this list was written the discovery generator emitted 10. After
+§§9.1–9.4 it emits 38:**
 
 ```
-A_Const  A_Expr  BoolExpr  ColumnRef  JoinExpr
-NullTest  RangeVar  ResTarget  SelectStmt  String
+A_ArrayExpr  A_Const  A_Expr  A_Star  BoolExpr  BooleanTest  CaseExpr
+CaseWhen  CoalesceExpr  CollateClause  ColumnRef  CommonTableExpr
+DeleteStmt  FuncCall  GroupingFunc  GroupingSet  IndexElem  InsertStmt
+JoinExpr  List  LockingClause  MinMaxExpr  MultiAssignRef  NullTest
+RangeFunction  RangeSubselect  RangeTableSample  RangeVar  ResTarget
+RowExpr  SQLValueFunction  SelectStmt  SetToDefault  SortBy  String
+SubLink  TypeCast  UpdateStmt
 ```
+
+Still absent and reachable: `MergeStmt` with `MergeWhenClause` and
+`MergeSupportFunc` (§9.3 left it — a MERGE's arms only fire when the source
+STRADDLES the target, per §5.3, and that deserves its own attention rather
+than being bolted onto the DML pass), `NamedArgExpr`, `XmlExpr`,
+`XmlSerialize`, `WindowDef` as a NAMED window, `InferClause`,
+`ReturningOption`, and the leaf literal kinds a wider value vocabulary would
+bring (`Float`, `Boolean`, `BitString`).
 
 **25 are unreachable on the AST path** (§9.5 — the deparser cannot emit them,
 which is the ceiling §5.1 accepted). **51 remain**, grouped below by what it
@@ -842,13 +857,53 @@ is answered `notNull`.
 `addColumnListRelation` does exactly this for function items and join aliases,
 and only the RangeVar path skips it.
 
-**Decision taken: SUPPORT it, not refuse it.** Refusing would have been five
-lines and sound — the engine's documented FROM-item policy is that contributing
-the wrong columns is worse than refusing — but the construct is ordinary SQL and
-the rename is information the walk already holds. The cost is that ten sites
-read `entry.table.columns` and every catalog lookup behind them
-(`entryColumnNotNull`, generation expressions, type OIDs, foreign keys, check
-constraints) is keyed by COLUMN NAME, so each has to translate back.
+**Decision taken: SUPPORT it — CLOSED 2026-08-08.** Refusing would have been
+five lines and sound (the engine's documented FROM-item policy is that
+contributing the wrong columns is worse than refusing), but the construct is
+ordinary SQL and the rename is information the walk already holds.
+
+`RelationEntry` and `SubqueryRelation` now carry the list; `table.columns` stays
+the CATALOG names, because every lookup behind an entry is keyed by them. Two
+helpers make each site translate once — the names an item ANSWERS TO, and the
+catalog name behind a name the query used — and the second answers `undefined`
+for a name the rename HIDES, which is as much of the fix as translating the
+first.
+
+**It took three passes, and the last two are the ones worth remembering.**
+
+*Pass 1 — names.* Star expansion, view column lists, the plain `attnotnull`
+read. This is what the reported defect looked like, and stopping here would
+have left the engine knowing nothing about `c0`.
+
+*Pass 2 — the DERIVED facts, which pass 1 silently broke.* CHECK entailment,
+generated columns and foreign-key entailment all compare NAMES across the
+boundary the rename sits on, in OPPOSITE directions: a CHECK definition and a
+generation expression are catalog-name EXPRESSIONS that must be renamed INTO
+the scope's vocabulary, while a join qual and a correlated WHERE are
+query-name REFERENCES that must be translated back OUT of it. They degraded to
+`nullable` — sound, and exactly the kind of soundness that hides a hole. Found
+by asking the question, not by a failing test, which is why
+`alias-column-list-carries-facts.sql` claims four columns notNull for four
+DIFFERENT reasons with a no-rename control beside it.
+
+*A fourth mechanism surfaced only because two tables disagreed.* After the
+CHECKs were renamed, the kernel's `columnTypeName` and
+`literalDistinctnessSound` callbacks still handed the SHOWN name to the
+catalog. Only the CASE arm-exclusion path calls them — so a CHECK written as a
+plain `OR` (`stock`) survived a rename and the same logic written as a `CASE`
+(`subscription`) did not. A single test table would have hidden it.
+
+*Pass 3 — the correlated-subquery paths.* Those work on `SubqueryRelation`, a
+reduced structure carrying alias, schema and relation name and nothing else, so
+a rename inside a subquery reached nothing. It carries the list now. The
+subtlety is the SELF-LOOKUP test, which compared the two sides' column names to
+decide whether the subquery scans what the outer scans: that comparison had to
+move to catalog names, and is wrong both ways otherwise — two sides renamed
+differently still key on the same column, and two sides renamed to the same
+name need not.
+
+Six fixtures, each mutation-tested, the last two split so that breaking the
+anchor hop and breaking the composition hop fail different ones.
 
 **One thing this run says about the instrument itself:** those 108 reported
 findings are ONE defect. The finding fingerprint keys on the query shape, and a
