@@ -428,5 +428,7 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     builtinFunctionNames: [],
     builtinPolymorphicFunctions: [],
     builtinPolymorphicArraySignatures: [],
+    builtinFunctionSignatures: [],
+    builtinOperatorSignatures: [],
   };
 }

@@ -1,5 +1,7 @@
 import type { PGlite } from "@electric-sql/pglite";
 import type {
+  BuiltinFunctionSignature,
+  BuiltinOperatorSignature,
   BuiltinSignature,
   CatalogSnapshot,
   ColumnInfo,
@@ -21,6 +23,39 @@ import type {
   Volatility,
   WriteRewriteInfo,
 } from "./types.js";
+import {
+  ALWAYS_NOT_NULL_BUILTINS,
+  FIRST_ARG_BUILTINS,
+  STRICT_TOTAL_BUILTINS,
+  NON_NULL_OVER_NONEMPTY_AGGREGATES,
+  NEVER_NULL_WINDOW_FNS,
+  HYPOTHETICAL_SET_AGGREGATES,
+  ORDERED_SET_AGGREGATES,
+} from "../query/nullability-walk.js";
+import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../query/operators.js";
+
+// ---------------------------------------------------------------------------
+// The names the engine's curated tables make claims about — the scope of the
+// two signature captures below (docs/type-aware-overloads.md). Imported from
+// the tables themselves so the scope cannot drift from the claims. The
+// import direction (catalog ← query) carries no cycle: nothing under
+// src/query imports this module, and the walk's own catalog imports are
+// type-only or side modules.
+// ---------------------------------------------------------------------------
+
+const CLAIMED_FUNCTION_NAMES = [...new Set([
+  ...ALWAYS_NOT_NULL_BUILTINS,
+  ...FIRST_ARG_BUILTINS,
+  ...STRICT_TOTAL_BUILTINS,
+  ...NON_NULL_OVER_NONEMPTY_AGGREGATES,
+  ...NEVER_NULL_WINDOW_FNS,
+  ...HYPOTHETICAL_SET_AGGREGATES,
+  ...ORDERED_SET_AGGREGATES,
+])];
+const CLAIMED_OPERATOR_NAMES = [...new Set([
+  ...TOTAL_OPERATORS,
+  ...STRICT_OPERATORS,
+])];
 
 // ---------------------------------------------------------------------------
 // User-schema filter (excludes system + temp schemas).
@@ -475,6 +510,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinFunctionNames,
     builtinPolymorphicFunctions,
     builtinPolymorphicArraySignatures,
+    builtinFunctionSignatures,
+    builtinOperatorSignatures,
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
@@ -503,6 +540,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinFunctionNames(pg),
     queryBuiltinPolymorphicFunctions(pg),
     queryBuiltinPolymorphicArraySignatures(pg),
+    queryBuiltinFunctionSignatures(pg),
+    queryBuiltinOperatorSignatures(pg),
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
@@ -897,6 +936,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinFunctionNames,
     builtinPolymorphicFunctions,
     builtinPolymorphicArraySignatures,
+    builtinFunctionSignatures,
+    builtinOperatorSignatures,
   };
 }
 
@@ -1350,6 +1391,102 @@ async function queryBuiltinPolymorphicArraySignatures(
      ORDER BY p.proname, 2;`,
   );
   return res.rows.map(r => ({ name: r.name, args: r.args ?? [], returns: r.returns }));
+}
+
+/**
+ * The pg_catalog signatures behind the curated claim tables. See
+ * CatalogSnapshot.builtinFunctionSignatures for scope; the extra columns are
+ * the resolution keys docs/type-aware-overloads.md measured — prokind for
+ * call-shape dispatch, aggnumdirectargs for the WITHIN GROUP split,
+ * provariadic for the never-exact `"any"` variadic, per-row strictness.
+ *
+ * `proargtypes` for the same reason as the polymorphic capture above: it is
+ * the INPUT list a call's arguments line up against — and for an ordered-set
+ * aggregate it includes the ORDER BY positions, which is exactly what the
+ * capture must preserve.
+ */
+async function queryBuiltinFunctionSignatures(
+  pg: PGlite,
+): Promise<BuiltinFunctionSignature[]> {
+  const res = await pg.query<{
+    name: string;
+    args: string[] | null;
+    returns: string;
+    strict: boolean;
+    kind: string;
+    agg_kind: string | null;
+    num_direct_args: number | null;
+    variadic: string | null;
+  }>(
+    `SELECT p.proname AS name,
+            (SELECT array_agg(format_type(t, null) ORDER BY o)
+               FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, o)) AS args,
+            format_type(p.prorettype, null) AS returns,
+            p.proisstrict AS strict,
+            p.prokind AS kind,
+            a.aggkind AS agg_kind,
+            a.aggnumdirectargs::int AS num_direct_args,
+            CASE WHEN p.provariadic <> 0
+                 THEN format_type(p.provariadic, null) END AS variadic
+     FROM pg_proc p
+     LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
+     JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'pg_catalog'
+       AND p.prokind IN ('f', 'a', 'w')
+       AND p.proname = ANY($1)
+     ORDER BY p.proname, 2;`,
+    [CLAIMED_FUNCTION_NAMES],
+  );
+  return res.rows.map(r => ({
+    name: r.name,
+    args: r.args ?? [],
+    returns: r.returns,
+    strict: r.strict,
+    kind: r.kind as "f" | "a" | "w",
+    aggKind: r.agg_kind as "n" | "o" | "h" | null,
+    numDirectArgs: r.num_direct_args,
+    variadic: r.variadic,
+  }));
+}
+
+/**
+ * The pg_catalog rows for the curated operator symbols. See
+ * CatalogSnapshot.builtinOperatorSignatures. The JOIN on pg_proc drops shell
+ * operators (`oprcode = 0`) — the register's 1a sweep measured they cannot
+ * be invoked, so dropping is sound; none exists in pg_catalog anyway.
+ */
+async function queryBuiltinOperatorSignatures(
+  pg: PGlite,
+): Promise<BuiltinOperatorSignature[]> {
+  const res = await pg.query<{
+    name: string;
+    left_type: string | null;
+    right_type: string | null;
+    returns: string;
+    strict: boolean;
+  }>(
+    `SELECT o.oprname AS name,
+            CASE WHEN o.oprleft <> 0
+                 THEN format_type(o.oprleft, null) END AS left_type,
+            CASE WHEN o.oprright <> 0
+                 THEN format_type(o.oprright, null) END AS right_type,
+            format_type(o.oprresult, null) AS returns,
+            p.proisstrict AS strict
+     FROM pg_operator o
+     JOIN pg_proc p ON p.oid = o.oprcode
+     JOIN pg_namespace n ON n.oid = o.oprnamespace
+     WHERE n.nspname = 'pg_catalog'
+       AND o.oprname = ANY($1)
+     ORDER BY o.oprname, 2, 3;`,
+    [CLAIMED_OPERATOR_NAMES],
+  );
+  return res.rows.map(r => ({
+    name: r.name,
+    leftType: r.left_type,
+    rightType: r.right_type,
+    returns: r.returns,
+    strict: r.strict,
+  }));
 }
 
 /**
