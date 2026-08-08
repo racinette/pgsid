@@ -498,8 +498,23 @@ interface Item {
   /** The relation id, when this item IS one — absent for functions and
    *  derived tables, which is what makes the union type worth having. */
   table?: string;
+  /** The names this item ANSWERS TO, which an alias column list can change. */
   columns: { name: string; type: string }[];
+  /**
+   * Catalog name → the name this item answers to. Only an alias column list
+   * makes it non-trivial, and forgetting it on ONE side is what produced 419
+   * "column does not exist" rejections: a key join reads its columns from
+   * `pg_constraint`, which knows only catalog names, so BOTH ends have to be
+   * translated and translating the added end alone is silently wrong.
+   */
+  renamed: Map<string, string>;
 }
+
+const renameOf = (
+  catalog: { name: string }[],
+  effective: { name: string }[],
+): Map<string, string> =>
+  new Map(catalog.map((c, i) => [c.name, effective[i]?.name ?? c.name]));
 
 const rangeSubselect = (subquery: Ast, alias: string, lateral: boolean): Ast =>
   ({ RangeSubselect: { ...(lateral ? { lateral: true } : {}), subquery, alias: { aliasname: alias } } });
@@ -525,12 +540,32 @@ const seriesCall = (lo: number, hi: number): Ast =>
  * costs the run its rows without testing anything the empty relation does not
  * already test.
  */
-function relationItem(rand: Rand, t: TableInfo, alias: string): { ast: Ast; form: string } {
-  const roll = rand.int(0, 9);
+function relationItem(
+  rand: Rand,
+  t: TableInfo,
+  alias: string,
+  cols: { name: string; type: string }[],
+): { ast: Ast; form: string; columns: { name: string; type: string }[] } {
+  const roll = rand.int(0, 11);
+  // An alias COLUMN LIST renames the relation's columns positionally, so every
+  // downstream reference and the ordered-name oracle see names the catalog
+  // does not carry. PostgreSQL allows a partial list — the columns past its
+  // end keep their own names — and both halves are generated.
+  if (roll === 10 || roll === 11) {
+    const n = roll === 10 ? cols.length : Math.max(1, Math.floor(cols.length / 2));
+    const renamed = cols.map((c, i) => (i < n ? { name: `c${i}`, type: c.type } : c));
+    return {
+      ast: { RangeVar: { schemaname: t.schema, relname: t.name, inh: true, relpersistence: "p",
+                         alias: { aliasname: alias, colnames: renamed.slice(0, n).map(c => str(c.name)) } } },
+      form: n === cols.length ? "aliasall" : "aliaspart",
+      columns: renamed,
+    };
+  }
   if (roll === 0) {
     return {
       ast: { RangeTableSample: { relation: rangeVar(t.schema, t.name, alias), method: [str("bernoulli")], args: [intConst(rand.int(60, 100))] } },
       form: "sample",
+      columns: cols,
     };
   }
   if (roll === 1) {
@@ -541,9 +576,10 @@ function relationItem(rand: Rand, t: TableInfo, alias: string): { ast: Ast; form
         { SelectStmt: { targetList: [{ ResTarget: { val: { ColumnRef: { fields: [{ A_Star: {} }] } } } }], fromClause: [rangeVar(t.schema, t.name, `${alias}_b`)], limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } },
         alias, false),
       form: "derived",
+      columns: cols,
     };
   }
-  return { ast: rangeVar(t.schema, t.name, alias), form: "rel" };
+  return { ast: rangeVar(t.schema, t.name, alias), form: "rel", columns: cols };
 }
 
 function buildQuery(
@@ -559,8 +595,9 @@ function buildQuery(
     t.columns.filter(c => c.generated !== "virtual").map(c => ({ name: c.name, type: c.typeName }));
   const target_ = rand.int(2, 4);
   const startTable = byId.get(start)!;
-  const first = relationItem(rand, startTable, "r0");
-  const used: Item[] = [{ alias: "r0", table: start, columns: colsOf(startTable) }];
+  const first = relationItem(rand, startTable, "r0", colsOf(startTable));
+  const used: Item[] = [{ alias: "r0", table: start, columns: first.columns,
+    renamed: renameOf(colsOf(startTable), first.columns) }];
   const kinds: string[] = [];
   const shapeParts: string[] = [first.form];
 
@@ -610,7 +647,7 @@ function buildQuery(
           // route sweep-4 finding 2 took into an unrecorded join.
         },
       };
-      used.push({ alias, columns: cols.map(n => ({ name: n, type: "integer" })) });
+      used.push({ alias, columns: cols.map(n => ({ name: n, type: "integer" })), renamed: new Map() });
       treeAliases.add(alias);
       kinds.push("JOIN_INNER");
       shapeParts.push(rowsFrom ? "rowsfrom" : "srf");
@@ -632,7 +669,7 @@ function buildQuery(
           quals: { A_Const: { boolval: { boolval: true } } },
         },
       };
-      used.push({ alias, columns: [{ name: "lv", type: c.type }] });
+      used.push({ alias, columns: [{ name: "lv", type: c.type }], renamed: new Map() });
       treeAliases.add(alias);
       kinds.push("JOIN_LATERAL");
       shapeParts.push("lateral");
@@ -647,6 +684,7 @@ function buildQuery(
     if (roll === 2 || roll === 3) {
       const t = rand.pick(appTables);
       const pair = roll === 2 ? nonKeyPair(t) : null;
+      const item = relationItem(rand, t, alias, colsOf(t));
       // A qual-less join is only legal as INNER — PostgreSQL requires ON or
       // USING on every outer join, and emitting one without is a syntax error
       // rather than an interesting shape.
@@ -655,11 +693,12 @@ function buildQuery(
         JoinExpr: {
           jointype: kind,
           larg: from,
-          rarg: relationItem(rand, t, alias).ast,
-          ...(pair ? { quals: eq(colRef(pair.anchor.alias, pair.a), colRef(alias, pair.b)) } : {}),
+          rarg: item.ast,
+          ...(pair ? { quals: eq(colRef(pair.anchor.alias, pair.a), colRef(alias, item.columns[colsOf(t).findIndex(x => x.name === pair.b)]!.name)) } : {}),
         },
       };
-      used.push({ alias, table: `${t.schema}.${t.name}`, columns: colsOf(t) });
+      used.push({ alias, table: `${t.schema}.${t.name}`, columns: item.columns,
+        renamed: renameOf(colsOf(t), item.columns) });
       treeAliases.add(alias);
       kinds.push(kind);
       shapeParts.push(pair ? `${kind}:nonkey` : `${kind}:qualless`);
@@ -669,8 +708,10 @@ function buildQuery(
     // --- a comma join: a second FROM entry rather than a join tree --------
     if (roll === 4) {
       const t = rand.pick(appTables);
-      extraFrom.push(relationItem(rand, t, alias).ast);
-      used.push({ alias, table: `${t.schema}.${t.name}`, columns: colsOf(t) });
+      const item = relationItem(rand, t, alias, colsOf(t));
+      extraFrom.push(item.ast);
+      used.push({ alias, table: `${t.schema}.${t.name}`, columns: item.columns,
+        renamed: renameOf(colsOf(t), item.columns) });
       shapeParts.push("comma");
       continue;
     }
@@ -697,19 +738,28 @@ function buildQuery(
     kinds.push(kind);
     const anchorCols = addParent ? edge.childColumns : edge.parentColumns;
     const addedCols = addParent ? edge.parentColumns : edge.childColumns;
-    const conjuncts = anchorCols.map((c, k) =>
-      eq(colRef(anchor.alias, c), colRef(alias, addedCols[k]!)));
-    const item = relationItem(rand, addedTable, alias);
+    // A renamed item changes what the ON must say, so the key column is
+    // translated through the alias list before the conjuncts are built.
+    const addedCatalogCols = colsOf(addedTable);
+    const item = relationItem(rand, addedTable, alias, addedCatalogCols);
+    const renamedTo = (name: string): string => {
+      const i = addedCatalogCols.findIndex(x => x.name === name);
+      return i >= 0 ? item.columns[i]!.name : name;
+    };
+    const conjuncts2 = anchorCols.map((c, k) =>
+      eq(colRef(anchor.alias, anchor.renamed.get(c) ?? c),
+         colRef(alias, renamedTo(addedCols[k]!))));
 
     from = {
       JoinExpr: {
         jointype: kind,
         larg: from,
         rarg: item.ast,
-        quals: conjuncts.length === 1 ? conjuncts[0]! : boolExpr("AND_EXPR", conjuncts),
+        quals: conjuncts2.length === 1 ? conjuncts2[0]! : boolExpr("AND_EXPR", conjuncts2),
       },
     };
-    used.push({ alias, table: added, columns: colsOf(addedTable) });
+    used.push({ alias, table: added, columns: item.columns,
+      renamed: renameOf(addedCatalogCols, item.columns) });
     treeAliases.add(alias);
     shapeParts.push(`${kind}:${addParent ? "child->parent" : "parent->child"}${item.form === "rel" ? "" : `/${item.form}`}`);
   }
@@ -764,6 +814,31 @@ function buildQuery(
     exprForms.push("sublink");
   }
 
+  // A quantified SubLink — IN, `= ANY`, `<> ALL`. Three more `subLinkType`
+  // values the walk dispatches on, and unlike EXISTS their result depends on
+  // the SUBQUERY's rows rather than only on whether any exist: `x <> ALL
+  // (empty)` is TRUE, and `x = ANY (…)` over a NULL row is UNKNOWN.
+  let quantified: Ast | null = null;
+  if (rand.chance(0.12)) {
+    const t = rand.pick(appTables);
+    const p = nonKeyPair(t);
+    if (p) {
+      const kind = rand.int(0, 2);
+      quantified = {
+        SubLink: {
+          subLinkType: kind === 2 ? "ALL_SUBLINK" : "ANY_SUBLINK",
+          testexpr: colRef(p.anchor.alias, p.a),
+          // Bare IN is an ANY_SUBLINK with no operator named.
+          ...(kind === 0 ? {} : { operName: [str(kind === 2 ? "<>" : "=")] }),
+          subselect: { SelectStmt: {
+            targetList: [{ ResTarget: { val: colRef("qs", p.b) } }],
+            fromClause: [rangeVar(t.schema, t.name, "qs")],
+            limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } },
+        },
+      };
+    }
+  }
+
   // An EXISTS predicate, correlated on a same-typed column — the SubLink form
   // whose entailment the walk reasons about separately from a join's.
   let existsPred: Ast | null = null;
@@ -793,10 +868,11 @@ function buildQuery(
       where = whereClause(rand, used, pool);
     }
   }
-  if (existsPred) {
+  for (const [node, tag] of [[existsPred, "EXISTS"], [quantified, "QUANT"]] as const) {
+    if (!node) continue;
     where = where
-      ? { node: boolExpr("AND_EXPR", [where.node, existsPred]), shape: `${where.shape}+EXISTS` }
-      : { node: existsPred, shape: "EXISTS" };
+      ? { node: boolExpr("AND_EXPR", [where.node, node]), shape: `${where.shape}+${tag}` }
+      : { node, shape: tag };
   }
 
   const stmt = {
