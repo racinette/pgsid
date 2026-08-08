@@ -292,33 +292,57 @@ strictness, because the two fail in opposite directions); tier 3 — letting
 a receiver constrain the set — is sound for valid statements but optional,
 and PostgreSQL itself is measured NOT to resolve that way.
 
-**THREE QUESTIONS MUST BE ANSWERED BEFORE THIS REFACTOR STARTS**, listed in
-the charter's "Still uncovered" section and repeated here because this
-register is the resume point and they are easy to mistake for settled:
+**THE THREE PRE-REFACTOR QUESTIONS ARE ANSWERED (2026-08-09)**, by
+measurement against PGlite 18.3, pinned in
+`tests/unit/query/overload-resolution-mechanism.test.ts` (15 assertions,
+PostgreSQL only — `param-mechanism.test.ts`'s shape). The full answers are in
+the charter's "The three pre-refactor questions, ANSWERED" section; the
+one-line versions:
 
-1. **Operator shadowing under `search_path`.** `src/query/operators.ts`
-   carries a documented blind spot — the curated sets match BARE NAMES, so a
-   user-defined operator of the same name is invisible. Does tier 1's
-   candidate gathering close that, or inherit it?
-2. **Aggregates and window functions.** Exact match against `VARIADIC "any"`,
-   `WITHIN GROUP` and `FILTER` shapes was never worked through.
-   `rank('a') WITHIN GROUP (ORDER BY u.val)` is the shape to reason about
-   first.
-3. **Domain-following generality.** That a domain resolves as its base for
-   operator lookup is measured ONCE (`dint + dint` → integer) and assumed for
-   every domain over every base.
+1. **Operator shadowing: tier 1 closes it only if candidate gathering merges
+   path-visible user operators with the pg_catalog signatures** — the
+   function side's merge rule, confirmed for operators: path is a visibility
+   filter, exact match beats path position, position breaks only
+   identical-signature ties, pg_catalog implicitly first unless explicitly
+   demoted. The blind spot is demonstrated live rank-1 (a user
+   `+ (boolean, boolean)` returning NULL from non-null inputs reads notNull,
+   because `TOTAL_OPERATORS` is consulted by bare name BEFORE
+   `resolveOperatorMetadata`), so the refactor must consult the merged set
+   FIRST and demote the curated tables to property source.
+2. **Aggregates and window functions: three rules, none the scalar exact
+   match.** A WITHIN GROUP signature includes the ORDER BY types
+   (`percentile_cont`'s four rows differ only there); the hypothetical-set
+   family resolves by call shape alone (`VARIADIC "any"` + mutually
+   exclusive shapes); a `VARIADIC "any"` candidate is never eliminable by
+   type nor exact-matchable. FILTER/DISTINCT/`*` are orthogonal.
+3. **Domain-following generalises across every base measured, with the smash
+   as FALLBACK, not first step** — a candidate declared ON the domain type
+   wins exact match over the base's — **and one polymorphic exception:
+   `anyenum` refuses domains** (every other family admits them; admitting
+   generously is a safe over-retention under the governing invariant).
 
 A fourth item is decided rather than open, and is the first thing to build:
-tier 1 must CANONICALISE an argument type before lookup — through
-binary-coercible casts and domain bases — or it misses `character varying`,
-which has ZERO operators declared on it (measured; `varchar || varchar`
-resolves to `text` by binary coercion). Everyday SQL would never reach the
-fast path.
+tier 1 must CANONICALISE an argument type — through binary-coercible casts
+and domain bases — or it misses `character varying`, which has ZERO operators
+declared on it (measured; `varchar || varchar` resolves to `text` by binary
+coercion). Everyday SQL would never reach the fast path. Answer 3 added the
+ordering: exact match tries the DECLARED types against the merged candidate
+set FIRST (a candidate declared on a domain wins), and canonicalises only
+when that finds nothing.
 
-And the prerequisite that gates the whole thing: pg_catalog SIGNATURES must
-reach the snapshot, which today holds user-schema signatures only. Scope is
-bounded — only names the engine makes a claim about, ~800 rows — but it is
-downstream of the search-path boundary in `docs/generated-surface.md`. Governing invariant: eliminate only on certainty,
+**The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
+the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
+names → 327 pg_proc rows, carrying per-signature strictness, prokind,
+aggkind/aggnumdirectargs and the variadic type — the resolution keys the
+three answers established) and `builtinOperatorSignatures` (21 symbols → 558
+pg_operator rows, operand/result types plus backing-function strictness).
+ENVIRONMENT beside the seven sibling captures, out of the diff by
+construction; scope imported from the claim tables themselves so it cannot
+drift. **Captured but NOT read** — nothing in the walk or adapter consults
+either field until the refactor starts; spot pins are in
+`tests/unit/catalog/snapshot.test.ts`, including `path + path` with
+`strict = true`, the in-data reminder that the capture settles strictness
+and never totality. Governing invariant: eliminate only on certainty,
 which makes an incomplete coercion model safe. Non-goals are explicit —
 no type inference, no tiebreak algorithm, no polymorphic return types, and
 types never leave the engine (`PREPARE` stays the type oracle). It carries

@@ -265,6 +265,55 @@ export interface BuiltinSignature {
   returns: string;
 }
 
+/**
+ * One pg_catalog signature for a name the curated claim tables cover,
+ * carrying the resolution keys `docs/type-aware-overloads.md` measured
+ * ("The three pre-refactor questions, ANSWERED"): per-signature strictness,
+ * the call-shape kind, the ordered-set direct/aggregated split, and the
+ * variadic parameter type.
+ */
+export interface BuiltinFunctionSignature extends BuiltinSignature {
+  /** `pg_proc.proisstrict` — strictness of THIS signature, not a name consensus. */
+  strict: boolean;
+  /** `pg_proc.prokind`: 'f' scalar, 'a' aggregate, 'w' window. */
+  kind: "f" | "a" | "w";
+  /**
+   * `pg_aggregate.aggkind` for kind 'a' — 'n' normal, 'o' ordered-set, 'h'
+   * hypothetical-set; null otherwise. An ordered-set row's `args` INCLUDE
+   * the ORDER BY types, which is what keys `percentile_cont`'s four rows.
+   */
+  aggKind: "n" | "o" | "h" | null;
+  /**
+   * `pg_aggregate.aggnumdirectargs` for kind 'a', null otherwise: `args`
+   * positions before this index are the WITHIN GROUP call's direct
+   * arguments; the rest line up against the ORDER BY expressions.
+   */
+  numDirectArgs: number | null;
+  /**
+   * The declared VARIADIC parameter's type as `format_type` renders it —
+   * `"any"` (with quotes) for `rank`/`concat`/`format` — or null when the
+   * signature is not variadic. A `"any"` variadic admits every argument
+   * untouched (measured), so such a candidate is never eliminable by
+   * argument type and never an exact match.
+   */
+  variadic: string | null;
+}
+
+/**
+ * One pg_catalog operator row for a symbol the curated operator sets cover —
+ * `OperatorInfo`'s shape minus the user-schema fields, plus the result type
+ * an exact match threads upward.
+ */
+export interface BuiltinOperatorSignature {
+  name: string;
+  /** Operand type names (`format_type`); leftType null for prefix operators. */
+  leftType: string | null;
+  rightType: string | null;
+  returns: string;
+  /** `pg_proc.proisstrict` of the backing function. */
+  strict: boolean;
+}
+
 export type ArgMode = "in" | "out" | "inout" | "variadic" | "table";
 
 export interface FunctionArgInfo {
@@ -583,6 +632,30 @@ export interface CatalogSnapshot {
    * diff for the same reason.
    */
   builtinPolymorphicArraySignatures: BuiltinSignature[];
+
+  /**
+   * Every pg_catalog signature behind a name the engine's curated claim
+   * tables cover — the prerequisite capture of
+   * `docs/type-aware-overloads.md`. The claim tables key on NAMES while
+   * PostgreSQL keys on SIGNATURES, and this is what lets the overload
+   * refactor re-key: an exact match finds the row a call resolves to, and
+   * each row can carry its own verdict.
+   *
+   * Scope is deliberately the claim tables, not all of pg_catalog: every
+   * other builtin has no totality or strictness verdict to narrow, so its
+   * overloads are never consulted. CAPTURED BUT NOT YET READ — nothing in
+   * the walk or adapter consults this until that refactor starts.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinFunctionSignatures: BuiltinFunctionSignature[];
+  /**
+   * Every pg_catalog row for an operator symbol in `TOTAL_OPERATORS` or
+   * `STRICT_OPERATORS` — the 21-names-over-558-rows spread the charter
+   * measures, materialised. Same scope rule and same not-yet-read status as
+   * `builtinFunctionSignatures`; ENVIRONMENT like it.
+   */
+  builtinOperatorSignatures: BuiltinOperatorSignature[];
 }
 
 // ---------------------------------------------------------------------------

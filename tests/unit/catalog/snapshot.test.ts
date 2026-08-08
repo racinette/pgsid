@@ -7,6 +7,16 @@ import { join } from "node:path";
 import { SchemaBuilder } from "../../../src/schema-builder.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { diffCatalogs, emptyCatalogSnapshot } from "../../../src/catalog/diff.js";
+import {
+  ALWAYS_NOT_NULL_BUILTINS,
+  FIRST_ARG_BUILTINS,
+  STRICT_TOTAL_BUILTINS,
+  NON_NULL_OVER_NONEMPTY_AGGREGATES,
+  NEVER_NULL_WINDOW_FNS,
+  HYPOTHETICAL_SET_AGGREGATES,
+  ORDERED_SET_AGGREGATES,
+} from "../../../src/query/nullability-walk.js";
+import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
 import { cleanupPg } from "../../helpers/cleanup.js";
 import type {
   CatalogSnapshot,
@@ -364,6 +374,85 @@ describe("snapshotCatalog: functions and procedures", () => {
       expect(sig.args.some(a => POLY.has(a)), `${sig.name}(${sig.args.join(", ")})`).toBe(true);
       expect(["anyarray", "anycompatiblearray"]).toContain(sig.returns);
     }
+  });
+
+  it("captures the claim-table signatures, scoped both ways", async () => {
+    // The type-aware-overloads prerequisite: pg_catalog signatures for
+    // exactly the names the curated tables make claims about. Both
+    // directions, the polymorphic-array capture's discipline: every captured
+    // name is claimed, and every claimed name resolves to at least one row —
+    // a claim about nothing is the `trim`/`!=` dead-entry class.
+    const s = await snapshotCatalog(pg);
+    const fnNames = new Set([
+      ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
+      ...NON_NULL_OVER_NONEMPTY_AGGREGATES, ...NEVER_NULL_WINDOW_FNS,
+      ...HYPOTHETICAL_SET_AGGREGATES, ...ORDERED_SET_AGGREGATES,
+    ]);
+    const opNames = new Set([...TOTAL_OPERATORS, ...STRICT_OPERATORS]);
+
+    const capturedFn = new Set(s.builtinFunctionSignatures.map(sig => sig.name));
+    for (const sig of s.builtinFunctionSignatures) expect(fnNames).toContain(sig.name);
+    for (const name of fnNames) expect(capturedFn, name).toContain(name);
+
+    const capturedOp = new Set(s.builtinOperatorSignatures.map(sig => sig.name));
+    for (const sig of s.builtinOperatorSignatures) expect(opNames).toContain(sig.name);
+    for (const name of opNames) expect(capturedOp, name).toContain(name);
+  });
+
+  it("carries the resolution keys the overload measurements established", async () => {
+    // Spot pins from overload-resolution-mechanism.test.ts, here asserted on
+    // the CAPTURE so the snapshot's copy of each fact cannot drift from the
+    // measured one.
+    const s = await snapshotCatalog(pg);
+
+    // rank: one window row, one hypothetical-set row — call-shape dispatch,
+    // never type dispatch, because the aggregate's parameter is "any".
+    const rank = s.builtinFunctionSignatures.filter(sig => sig.name === "rank");
+    expect(rank.map(({ kind, aggKind, numDirectArgs, variadic, args }) =>
+      ({ kind, aggKind, numDirectArgs, variadic, args }))).toEqual([
+      { kind: "a", aggKind: "h", numDirectArgs: 1, variadic: '"any"', args: ['"any"'] },
+      { kind: "w", aggKind: null, numDirectArgs: null, variadic: null, args: [] },
+    ]);
+
+    // percentile_cont: four rows keyed on the position AFTER numDirectArgs —
+    // the ORDER BY type — which is why WITHIN GROUP exact match must append
+    // agg_order types to the direct arguments.
+    const pc = s.builtinFunctionSignatures.filter(sig => sig.name === "percentile_cont");
+    expect(pc.map(sig => `${sig.args.join(", ")} -> ${sig.returns}`)).toEqual([
+      "double precision, double precision -> double precision",
+      "double precision, interval -> interval",
+      "double precision[], double precision -> double precision[]",
+      "double precision[], interval -> interval[]",
+    ]);
+    for (const sig of pc) {
+      expect(sig.aggKind).toBe("o");
+      expect(sig.numDirectArgs).toBe(1);
+    }
+
+    // ||: strictness DIVERGES across the rows — the three array forms are
+    // non-strict (a NULL operand is absorbed), the rest strict. The measured
+    // reason tier 2's consensus quantifier is per-property, visible in data.
+    const concat = s.builtinOperatorSignatures.filter(sig => sig.name === "||");
+    const nonStrict = concat.filter(sig => !sig.strict);
+    expect(nonStrict.length).toBeGreaterThan(0);
+    expect(nonStrict.length).toBeLessThan(concat.length);
+    for (const sig of nonStrict) {
+      expect([sig.leftType, sig.rightType]).toContain("anycompatiblearray");
+    }
+
+    // + over (path, path): the recorded PARTIAL_OVERLOADS hole is in the
+    // capture — and its strict flag is TRUE, which pins the boundary the
+    // charter states: strictness is in the catalog, totality is not, so the
+    // capture can never settle a totality verdict by itself.
+    const pathPlus = s.builtinOperatorSignatures.find(
+      sig => sig.name === "+" && sig.leftType === "path" && sig.rightType === "path",
+    );
+    expect(pathPlus).toMatchObject({ returns: "path", strict: true });
+
+    // Prefix rows survive the capture: unary minus has no left operand.
+    expect(s.builtinOperatorSignatures.some(
+      sig => sig.name === "-" && sig.leftType === null,
+    )).toBe(true);
   });
 
   it("includes extension functions (plpgsql_check) but they are not validated", async () => {

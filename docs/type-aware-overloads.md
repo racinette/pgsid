@@ -141,6 +141,14 @@ path would silently never fire. Canonicalise the argument type before lookup —
 through binary-coercible casts (`pg_cast.castmethod = 'b'`) and domain bases —
 and then attempt exact match.
 
+**Ordering caveat, measured 2026-08-09** (the third pre-refactor question):
+exact match must try the DECLARED types against the merged candidate set
+BEFORE canonicalising, because a candidate declared ON a domain type wins —
+`+ (dint, dint)` beats integer's builtin, `gd(dint)` beats `gd(integer)` for
+a domain argument. Canonicalise-first is safe only against pg_catalog
+signatures, where no candidate takes a user domain. Pinned in
+`overload-resolution-mechanism.test.ts`.
+
 Three further things tier 1 must get right, each measured:
 
 - **Domains follow to their base.** A column typed `dint` (a domain over
@@ -295,15 +303,31 @@ since the adversarial-2 fix phase, and the boundary in
 which sweep-3 finding 6 already settled. The sequencing paragraph below should
 be read as "resolve the candidate-set question", not "wait for a build".
 
-**Measured 2026-08-06, and it is the sequencing constraint for this whole
-document.** The snapshot carries user-schema signatures only — 69 functions and
-5 operators for the fixture schema, all `public`. pg_catalog is captured as
-NAME SETS (`builtinFunctionNames`, 2726 names; `builtinStrictFunctions`; and
-siblings), which answer "is this name strict?" and cannot answer "which
-overload is `integer + integer`?".
+**The full capture LANDED 2026-08-09.**
+`CatalogSnapshot.builtinFunctionSignatures` — 153 claim-table names over 327
+`pg_proc` rows, each row carrying per-signature strictness, `prokind`,
+`aggkind`/`aggnumdirectargs` and the variadic type, which are the resolution
+keys the three answered questions established — and
+`builtinOperatorSignatures` — 21 symbols over 558 `pg_operator` rows, operand
+and result types plus backing-function strictness, shell operators dropped by
+the `pg_proc` join. ENVIRONMENT beside the seven sibling captures, out of the
+diff by construction; the scope is imported from the claim tables themselves
+(`snapshot.ts` ← the walk's exported tables and `operators.ts`, verified
+cycle-free) so it cannot drift from the claims. **Captured but NOT read**:
+nothing in the walk or adapter consults either field until this refactor
+starts. Spot-pinned in `tests/unit/catalog/snapshot.test.ts` — both-ways
+scope, `rank`'s two rows, `percentile_cont`'s four, `||`'s strictness
+divergence, and `path + path` with `strict = true`, the in-data demonstration
+that strictness is in the catalog and totality is not.
 
-So tier 1 is not implementable for BUILTIN operators today, and `+` and `||` —
-this document's two worked cases — are builtins.
+**Measured 2026-08-06, and it was the sequencing constraint for this whole
+document — DISCHARGED by the capture above.** The snapshot then carried
+user-schema signatures only — 69 functions and 5 operators for the fixture
+schema, all `public`. pg_catalog was captured as NAME SETS
+(`builtinFunctionNames`, 2726 names; `builtinStrictFunctions`; and siblings),
+which answer "is this name strict?" and cannot answer "which overload is
+`integer + integer`?". That is what made tier 1 unimplementable for BUILTIN
+operators, and `+` and `||` — this document's two worked cases — are builtins.
 
 **The capture is this document's own first slice, and it is not blocked on
 anything.** An earlier reading had it waiting on "the consumer's search-path
@@ -376,23 +400,72 @@ agree. Filling the whole tree is a stronger goal than the engine's purpose
 requires — it needs a type only where candidates DISAGREE about totality or
 strictness.
 
-### Still uncovered — named so they are not mistaken for settled
+### The three pre-refactor questions, ANSWERED (2026-08-09)
 
-The 2026-08-06 design conversation did not reach these, and each is a real
-question rather than a detail:
+Measured against PGlite 18.3 and pinned as executable assertions in
+`tests/unit/query/overload-resolution-mechanism.test.ts` — that suite is this
+section in `param-mechanism.test.ts`'s shape, PostgreSQL only, no engine.
 
-- **Operator shadowing under `search_path`.** `src/query/operators.ts` carries
-  a documented blind spot: the curated sets match BARE NAMES, so a user-defined
-  operator of the same name is invisible to them. Tier 1 with real signatures
-  could close that — or inherit it, if the candidate set is gathered without
-  the path. Undecided.
-- **Aggregates and window functions.** This document's witness corpus covers
-  them, but exact match against `VARIADIC "any"`, `WITHIN GROUP` and `FILTER`
-  shapes was never worked through. `rank('a') WITHIN GROUP (ORDER BY u.val)` is
-  the shape to reason about first.
-- **Domain-following is asserted from ONE measurement** (`dint + dint` resolves
-  as integer). That it holds for every domain over every base is assumed, not
-  established.
+- **Operator shadowing under `search_path`: tier 1 closes it ONLY IF the
+  candidate set merges path-visible user operators with the pg_catalog
+  signatures** — a pg_catalog-only lookup inherits it. The measured gathering
+  rule is the function side's (adversarial-3 finding 6), now confirmed for
+  operators: the path is a VISIBILITY filter (an operator is a candidate iff
+  its schema is on the path, position irrelevant); an exact match in a later
+  schema beats a polymorphic candidate in an earlier one; position decides
+  only ties between IDENTICAL signatures, earliest first, with pg_catalog
+  implicitly FIRST unless the path names it later (a user duplicate of
+  `+ (integer, integer)` wins `1 + 2` under `search_path = s1, pg_catalog` —
+  measured). The blind spot is meanwhile a live rank-1, demonstrated: a user
+  `+ (boolean, boolean)` in `public` whose function returns NULL from
+  non-null inputs gets `notNull` claimed for `b1 + b2` over NOT NULL columns,
+  because the walk consults `TOTAL_OPERATORS` by bare name BEFORE
+  `resolveOperatorMetadata`; the same operator under a non-curated name or as
+  `OPERATOR(public.+)` correctly reads nullable. So the refactor's ordering
+  obligation: consult the merged candidate set FIRST; the curated tables
+  become the property source for builtin signatures, never the dispatch.
+
+- **Aggregates and window functions: three separate rules, none of them the
+  scalar exact match.** (1) An ordered-set aggregate's pg_proc signature
+  INCLUDES the ORDER BY types — `percentile_cont`'s four rows differ only in
+  the position after `aggnumdirectargs`, and the ORDER BY expression's type
+  picks the row (`… (ORDER BY interval_col)` returns `interval`, measured) —
+  so the WITHIN GROUP type key is direct args ++ `agg_order` types, and an
+  exact match ignoring `agg_order` picks a wrong row or none. A plain
+  aggregate's ORDER BY (`agg_order` WITHOUT `agg_within_group`) is NOT part
+  of the key. (2) The hypothetical-set family (`rank`, `dense_rank`,
+  `percent_rank`, `cume_dist`) resolves by call SHAPE, not by types: each
+  name is one window row plus one `aggkind='h'` row declared `VARIADIC
+  "any"`, the shapes are mutually exclusive (bare `rank()` demands OVER;
+  `WITHIN GROUP … OVER ()` is an error), and the direct arguments are
+  unified with the ORDER BY types, contributing nothing (`rank('a') …
+  ORDER BY int_col` fails coercing `'a'` to integer). (3) `VARIADIC "any"`
+  admits every argument untouched (`concat(int, text, interval)` keeps each
+  type), so such a candidate can never be eliminated by argument type and
+  never exact-matched; where it overlaps a fixed-arity row (`format`),
+  consensus over both is the sound reading. FILTER, DISTINCT and `*` are
+  orthogonal — `agg_filter`/`agg_distinct`/`agg_star` sit beside `args` and
+  resolution ignores them.
+
+- **Domain-following generalises, with one ordering caveat and one
+  polymorphic exception.** The base-resolution rule holds for every base
+  measured — text, varchar (two hops: domain smash, then binary coercion),
+  numeric, integer, NESTED domains (recursive smash), arrays (both `||`
+  overloads), ranges, constrained domains (CHECK and NOT NULL never join
+  resolution), cross-domain numeric towers. But the smash is the FALLBACK,
+  not the first step: a candidate declared ON the domain type exact-matches
+  the domain and WINS — `+ (dint, dint)` beats integer's builtin, `gd(dint)`
+  beats `gd(integer)` for a domain argument, and a base value coerces
+  implicitly INTO a domain parameter. So tier 1 tries exact match on the
+  DECLARED types against the merged candidate set first, and canonicalises
+  only when that finds nothing. For a pg_catalog-only lookup
+  canonicalise-first stays safe — no builtin takes a user domain. And the
+  polymorphic families all admit a domain over their required structure
+  EXCEPT `anyenum` (`denum = denum` is "operator does not exist" while
+  `lower(domain-over-range)` resolves — this document's `lower(anyrange)`
+  example survives). For the elimination rule the asymmetry is safe in the
+  only direction that matters: admitting a domain generously can only
+  RETAIN a candidate PostgreSQL discarded, never eliminate one it ran.
 
 ### Tier 2's consensus quantifier is per-PROPERTY, not global
 
@@ -463,7 +536,10 @@ type P iff none of these hold:
 2. P is **polymorphic** and admits T — a predicate, not a lookup:
    `anyrange` admits `typtype='r'`, `anyarray` admits arrays, `anyelement`
    admits anything, and the `anycompatible*` family admits anything (its
-   cross-argument unification is out of scope, so it never eliminates);
+   cross-argument unification is out of scope, so it never eliminates).
+   Domains count as their base for this predicate — measured 2026-08-09:
+   every family admits a domain over its required structure except
+   `anyenum`, and admitting one there anyway is a safe over-retention;
 3. T is a **domain** whose base satisfies this rule — normalise first;
 4. T and P are both **arrays** and their element types satisfy this rule;
 5. `pg_cast` holds a direct row T→P with `castcontext = 'i'`.
