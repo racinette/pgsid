@@ -37,7 +37,16 @@
 //     purpose rather than avoided: they must BLOCK the promotion that a strict
 //     comparison licenses, and getting that backwards is the classic
 //     unsoundness in this area;
-//   - SELECT only. No DML, no set operations, no subqueries.
+//   - is a modifying statement about a quarter of the time (§9.3): INSERT,
+//     INSERT … ON CONFLICT, UPDATE, UPDATE … SET (a,b) = (SELECT …), DELETE,
+//     each with RETURNING on nine tenths of them. `RETURNING` is the only
+//     observable a DML statement has, and the write-rewrite hooks — a BEFORE
+//     ROW trigger, an INSTEAD OF trigger on a view, a DO INSTEAD rule — are
+//     reachable through nothing else. An INSERT copies a whole sampled ROW
+//     rather than assembling one column at a time, which is what keeps a
+//     composite key, a partition range and a cross-column CHECK satisfied by
+//     construction;
+//   - no set operations, no CTEs, no MERGE.
 //
 // Everything absent from that list is a later slice. The bound is printed with
 // the result, because §6's closing rule is that a run finding nothing must
@@ -260,7 +269,19 @@ const SCALAR_BUILTINS: Record<string, { name: string; args: 1 }[]> = {
 const ORDERABLE = (t: string): boolean => t !== "json";
 
 const typeCast = (arg: Ast, typeName: string): Ast =>
-  ({ TypeCast: { arg, typeName: { names: [str(typeName)], typemod: -1 } } });
+  ({ TypeCast: { arg, typeName: { names: typeName.split(".").map(str), typemod: -1 } } });
+
+/**
+ * Whether a rendered type name can be written as a cast target verbatim.
+ *
+ * `format_type` renders a builtin alias as several words (`timestamp with time
+ * zone`) and a user type qualified (`public.positive_amount`). The second is a
+ * dotted name list; the first is not a name at all and needs the pg_catalog
+ * spelling, which this does not try to map — a column typed that way simply
+ * does not get the forms that need an explicit cast.
+ */
+const castableType = (typeName: string): boolean =>
+  !/[ (\[]/.test(typeName) && typeName.split(".").length <= 2;
 
 /**
  * One target-list expression over the query's columns, or null when no form
@@ -411,6 +432,18 @@ interface Built {
 
 /** Sampled values per `schema.table.column`, for drawing predicate literals. */
 type ValuePool = Map<string, unknown[]>;
+
+/**
+ * Whole sampled ROWS per relation, which is what an INSERT is built from.
+ *
+ * Assembling a row column-by-column out of the per-column pool breaks every
+ * constraint that spans more than one column: a composite foreign key gets a
+ * pair the cross product allows and the table does not, a partition gets a key
+ * outside its range, and a cross-column CHECK gets two values that never
+ * co-occurred. Copying a row PostgreSQL already accepted satisfies all of them
+ * by construction, and only the key columns then have to move.
+ */
+type RowPool = Map<string, Record<string, unknown>[]>;
 
 /**
  * One WHERE predicate over an alias in the query.
@@ -899,6 +932,246 @@ function buildQuery(
 }
 
 // ---------------------------------------------------------------------------
+// DML — §9.3.
+//
+// `RETURNING` is the only observable: without it a modifying statement has no
+// output columns, so no nullability claims and no rank-1 signal. It goes on
+// almost every statement, and the fraction without one is deliberate — the
+// no-output path is a shape too.
+//
+// The whole difficulty is §5.3's second point: a random written value collides
+// on a primary key (23505), dangles a foreign key (23503) or fails a CHECK
+// (23514), and the statement raises before it returns anything. The rule that
+// makes almost all of it work is to draw every value from the column's OWN
+// seeded values — those came out of rows PostgreSQL already accepted, so every
+// single-column CHECK and every foreign key holds by construction. The
+// exception is a key column, where drawing from the pool guarantees the
+// collision instead of avoiding it, so those get a value past the end of the
+// existing range.
+// ---------------------------------------------------------------------------
+
+const setToDefault = (): Ast => ({ SetToDefault: {} });
+const nullConst = (): Ast => ({ A_Const: { isnull: true } });
+
+/** Columns a statement may WRITE: not generated, not an ALWAYS identity. */
+const writableColumns = (t: TableInfo) =>
+  t.columns.filter(c => c.generated === "none" && c.identity !== "always");
+
+/** The single-column key columns of a table, which must not be drawn from. */
+function keyColumns(t: TableInfo): Set<string> {
+  const out = new Set<string>();
+  for (const c of t.constraints) {
+    if (c.type === "primaryKey" || c.type === "unique") for (const n of c.columns) out.add(n);
+  }
+  return out;
+}
+
+/**
+ * A value for one column. `fresh` means "must not already exist" — past the
+ * end of the numeric range, or a string nothing carries.
+ */
+function writtenValue(
+  rand: Rand, tableId: string, col: { name: string; typeName: string; notNull: boolean },
+  pool: ValuePool, fresh: boolean,
+): Ast | null {
+  const values = (pool.get(`${tableId}.${col.name}`) ?? []).filter(v => v !== null);
+  if (fresh) {
+    const nums = values.filter(v => typeof v === "number") as number[];
+    if (nums.length) return literalFor(Math.max(...nums) + rand.int(1000, 9000));
+    if (values.some(v => typeof v === "string")) return literalFor(`gen-${rand.int(1, 1e6)}`);
+    return null;
+  }
+  if (values.length === 0) return col.notNull ? null : nullConst();
+  // A nullable column is sometimes written NULL on purpose: that is the value
+  // whose claim the engine is making.
+  if (!col.notNull && rand.chance(0.2)) return nullConst();
+  return literalFor(rand.pick(values));
+}
+
+/** `col = <a value the table actually holds>` — a WHERE that matches. */
+function matchingWhere(rand: Rand, t: TableInfo, tableId: string, pool: ValuePool): Ast | null {
+  const options = t.columns.filter(c => (pool.get(`${tableId}.${c.name}`) ?? []).length > 0);
+  if (options.length === 0) return null;
+  const col = rand.pick(options);
+  const lit = literalFor(rand.pick(pool.get(`${tableId}.${col.name}`)!));
+  return lit ? op("=", colRef(t.name, col.name), lit) : null;
+}
+
+function returningOf(rand: Rand, t: TableInfo): Ast | undefined {
+  // The fraction with no RETURNING is deliberate — a modifying statement with
+  // no output columns is its own shape, and the engine must say so.
+  if (rand.chance(0.1)) return undefined;
+  const cols = t.columns.filter(c => c.generated !== "virtual");
+  const take = Math.min(cols.length, rand.int(1, 4));
+  const chosen = new Set<string>();
+  for (let k = 0; k < take; k++) chosen.add(rand.pick(cols).name);
+  return { exprs: [...chosen].map(n => target(colRef(t.name, n), `r_${n}`)) };
+}
+
+const dmlRelation = (t: TableInfo): Ast =>
+  ({ schemaname: t.schema, relname: t.name, inh: true, relpersistence: "p" });
+
+function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, partitioned: Set<string>): Built | null {
+  const tableId = `${t.schema}.${t.name}`;
+  const keys = keyColumns(t);
+  // A key column that is ALSO a foreign key cannot be given a fresh value:
+  // `order_gift_wrap.id` is its own primary key AND a reference to
+  // `orders.id`, so inventing one past the range satisfies the key and
+  // violates the reference. Those columns keep the sampled value, which means
+  // the insert WILL collide — so it carries ON CONFLICT.
+  const fkCols = new Set<string>();
+  for (const c of t.constraints) {
+    if (c.type === "foreign") for (const n of c.columns) fkCols.add(n);
+  }
+  const keyIsReference = [...keys].some(k => fkCols.has(k));
+  // Columns bound to a sibling by a MULTI-COLUMN constraint — a composite
+  // foreign key, or a CHECK over a pair. An INSERT copies a whole row so it
+  // never breaks one; an UPDATE setting a single column does, which is what
+  // `stock_check`, `subscription_check` and `leg_scans`' composite key were
+  // raising on. They stay readable and are not written.
+  const entangled = new Set<string>();
+  for (const c of t.constraints) {
+    if (c.columns.length > 1) for (const n of c.columns) entangled.add(n);
+  }
+  const writable = writableColumns(t);
+  if (writable.length === 0) return null;
+  const ret = returningOf(rand, t);
+  const shapeOf = (kind: string) => `${tableId}|DML:${kind}${ret ? "+RET" : ""}`;
+
+  const kind = rand.int(0, 4);
+
+  // --- INSERT, optionally ON CONFLICT ------------------------------------
+  if (kind === 0 || kind === 1) {
+    const rows = rowPool.get(tableId) ?? [];
+    if (rows.length === 0) return null;
+    const base = rand.pick(rows);
+    // A partition (or a partitioned parent, whose rows route into one) cannot
+    // take a fresh key: the value has to stay inside a range this generator
+    // does not know. It keeps the sampled key and handles the collision.
+    const routed = t.relkind === "p" || partitioned.has(tableId) || keyIsReference;
+    const cols: string[] = [];
+    const vals: Ast[] = [];
+    for (const c of writable) {
+      const required = c.notNull && !c.hasDefault && c.identity === null;
+      if (!required && rand.chance(0.3)) continue;
+      if (c.hasDefault && rand.chance(0.2)) { cols.push(c.name); vals.push(setToDefault()); continue; }
+      let v: Ast | null;
+      if (keys.has(c.name) && !routed && !fkCols.has(c.name)) {
+        v = writtenValue(rand, tableId, c, pool, true);
+      } else if (base[c.name] === null || base[c.name] === undefined) {
+        v = c.notNull ? writtenValue(rand, tableId, c, pool, false) : nullConst();
+      } else {
+        v = literalFor(base[c.name]);
+      }
+      if (!v) { if (required) return null; continue; }
+      cols.push(c.name);
+      vals.push(v);
+    }
+    if (cols.length === 0) return null;
+
+    // ON CONFLICT infers a WHOLE unique constraint — one column of a composite
+    // key matches no index and PostgreSQL rejects the specification.
+    const keyCon = t.constraints.find(c => c.type === "primaryKey" || c.type === "unique");
+    const settable = writable.filter(x => !keys.has(x.name) && !entangled.has(x.name));
+    const conflictSets = settable.length
+      ? (() => {
+          const c = rand.pick(settable);
+          const v = writtenValue(rand, tableId, c, pool, false);
+          return v ? [{ ResTarget: { name: c.name, val: v } }] : [];
+        })()
+      : [];
+    // A routed target always attaches ON CONFLICT, because its key is reused.
+    const wantConflict = (kind === 1 || routed) && keyCon && keyCon.columns.length > 0;
+    const onConflict = wantConflict
+      ? {
+          onConflictClause: {
+            // `DO UPDATE SET` with nothing to set is a syntax error, so an
+            // empty assignment list becomes DO NOTHING rather than nothing.
+            action: conflictSets.length ? "ONCONFLICT_UPDATE" : "ONCONFLICT_NOTHING",
+            infer: { indexElems: keyCon!.columns.map(n => ({ IndexElem: { name: n, ordering: "SORTBY_DEFAULT", nulls_ordering: "SORTBY_NULLS_DEFAULT" } })) },
+            ...(conflictSets.length ? { targetList: conflictSets } : {}),
+          },
+        }
+      : {};
+    const stmt = {
+      InsertStmt: {
+        relation: dmlRelation(t),
+        cols: cols.map(n => ({ ResTarget: { name: n } })),
+        selectStmt: { SelectStmt: { valuesLists: [{ List: { items: vals } }], limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } },
+        ...onConflict,
+        ...(ret ? { returningClause: ret } : {}),
+        override: "OVERRIDING_NOT_SET",
+      },
+    };
+    return {
+      sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
+      used: [{ alias: t.name, table: tableId }], kinds: [],
+      shape: shapeOf(wantConflict ? "insert-onconflict" : "insert"),
+    };
+  }
+
+  // --- UPDATE, sometimes with a multi-column assignment ------------------
+  if (kind === 2 || kind === 3) {
+    const settable = writable.filter(c => !keys.has(c.name) && !entangled.has(c.name));
+    if (settable.length === 0) return null;
+    const where = matchingWhere(rand, t, tableId, pool);
+    if (!where) return null;
+    let targetList: Ast[];
+    let form = "update";
+    if (kind === 3 && settable.length >= 2) {
+      // `SET (a, b) = (SELECT …)` — the MultiAssignRef node, reachable no
+      // other way. Both assignments share ONE source SubLink.
+      const [a, b] = [rand.pick(settable), rand.pick(settable.filter(x => x !== settable[0]))];
+      if (!a || !b || a === b) return null;
+      if (!castableType(a.typeName) || !castableType(b.typeName)) return null;
+      const va = writtenValue(rand, tableId, a, pool, false);
+      const vb = writtenValue(rand, tableId, b, pool, false);
+      if (!va || !vb) return null;
+      // Inside a subquery a bare literal types as TEXT rather than staying
+      // unknown, so a numeric or domain column rejects it — the cast is what
+      // makes `SET (a, b) = (SELECT …)` assignable at all.
+      const source = { SubLink: { subLinkType: "EXPR_SUBLINK", subselect: { SelectStmt: {
+        targetList: [{ ResTarget: { val: typeCast(va, a.typeName) } }, { ResTarget: { val: typeCast(vb, b.typeName) } }],
+        limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } } } };
+      targetList = [
+        { ResTarget: { name: a.name, val: { MultiAssignRef: { source, colno: 1, ncolumns: 2 } } } },
+        { ResTarget: { name: b.name, val: { MultiAssignRef: { source, colno: 2, ncolumns: 2 } } } },
+      ];
+      form = "update-multiassign";
+    } else {
+      const c = rand.pick(settable);
+      const v = writtenValue(rand, tableId, c, pool, false);
+      if (!v) return null;
+      targetList = [{ ResTarget: { name: c.name, val: v } }];
+    }
+    const stmt = {
+      UpdateStmt: {
+        relation: dmlRelation(t), targetList, whereClause: where,
+        ...(ret ? { returningClause: ret } : {}),
+      },
+    };
+    return {
+      sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
+      used: [{ alias: t.name, table: tableId }], kinds: [], shape: shapeOf(form),
+    };
+  }
+
+  // --- DELETE -------------------------------------------------------------
+  const where = matchingWhere(rand, t, tableId, pool);
+  if (!where) return null;
+  const stmt = {
+    DeleteStmt: {
+      relation: dmlRelation(t), whereClause: where,
+      ...(ret ? { returningClause: ret } : {}),
+    },
+  };
+  return {
+    sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
+    used: [{ alias: t.name, table: tableId }], kinds: [], shape: shapeOf("delete"),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Buckets — §6. Every query lands in exactly one; an outcome nothing
 // classifies fails the run rather than being swallowed.
 // ---------------------------------------------------------------------------
@@ -972,6 +1245,27 @@ const inheritsRows = await loop.pg.query<{ child: string; parent: string }>(
 );
 const childToParent = new Map(inheritsRows.rows.map(r => [r.child, r.parent]));
 const edges = edgesOf(snapshot, childToParent);
+
+// Whole rows, for the INSERT builder (see RowPool).
+const rowPool: RowPool = new Map();
+for (const t of snapshot.tables) {
+  try {
+    const res = await loop.pg.query<Record<string, unknown>>(
+      `SELECT * FROM "${t.schema}"."${t.name}" LIMIT 8`);
+    if (res.rows.length) rowPool.set(`${t.schema}.${t.name}`, res.rows);
+  } catch { /* unreadable relation contributes no rows */ }
+}
+/** Relations whose rows live in a partition, so a key cannot be invented. */
+const partitionedIds = new Set<string>();
+for (const t of snapshot.tables) {
+  if (t.relkind === "p") partitionedIds.add(`${t.schema}.${t.name}`);
+}
+for (const [child, parent] of childToParent) {
+  const p = snapshot.tables.find(x => x.name === parent);
+  const c = snapshot.tables.find(x => x.name === child);
+  if (p?.relkind === "p" && c) partitionedIds.add(`${c.schema}.${c.name}`);
+}
+
 const groups = groupsOf(tableIds, edges);
 const inGroups = new Set(groups.flat());
 
@@ -1056,7 +1350,11 @@ for (let i = 0; i < COUNT; i++) {
   const id = `q${i}`;
   let built: Built | null;
   try {
-    built = buildQuery(rand, snapshot, rand.pick(startTables), usableEdges, pool, appTableInfos);
+    // A quarter of the run is DML. Every statement is rolled back by the
+    // harness, so the dataset every query sees is the same one.
+    built = rand.chance(0.25)
+      ? buildDml(rand, rand.pick(appTableInfos), pool, rowPool, partitionedIds)
+      : buildQuery(rand, snapshot, rand.pick(startTables), usableEdges, pool, appTableInfos);
   } catch (e) {
     counts.set("generator-threw", (counts.get("generator-threw") ?? 0) + 1);
     rejectionDetail.set(`generator: ${(e as Error).message}`, (rejectionDetail.get(`generator: ${(e as Error).message}`) ?? 0) + 1);
@@ -1092,6 +1390,7 @@ for (let i = 0; i < COUNT; i++) {
   } catch (e) {
     counts.set("reparse-failed", (counts.get("reparse-failed") ?? 0) + 1);
     const key = `deparse produced unparseable SQL: ${(e as Error).message.split("\n")[0]!.slice(0, 70)}`;
+    if (process.env.DISCOVERY_SHOW_REPARSE) console.log(`\n--- reparse-failed\n${built.sql}\n`);
     rejectionDetail.set(key, (rejectionDetail.get(key) ?? 0) + 1);
     continue;
   }
@@ -1152,7 +1451,7 @@ if (curve.length > 1) {
 }
 console.log(`  bound: 2..4 tables, left-deep, SELECT only, no subqueries, no set operations, no DML;`);
 console.log(`         application tables only, partitions and inheritance children included,`);
-console.log(`         0..3 flat expression targets per query;`);
+console.log(`         0..3 flat expression targets per query; ~25% DML with RETURNING;`);
 console.log(`         single and composite keys;`);
 console.log(`         WHERE on ${pct(COUNT - (whereUse.get("-") ?? 0), COUNT).trim()} of queries (measured) — IS [NOT] NULL, and = <> < <= > >= against a literal`);
 console.log(`         drawn from the column's own seeded values, combined with AND, OR, NOT, AND(OR)`);
