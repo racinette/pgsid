@@ -908,15 +908,29 @@ function buildQuery(
       : { node, shape: tag };
   }
 
-  const stmt = {
-    SelectStmt: {
-      targetList,
-      fromClause: [from, ...extraFrom],
-      ...(where ? { whereClause: where.node } : {}),
-      limitOption: "LIMIT_OPTION_DEFAULT",
-      op: "SETOP_NONE",
-    },
+  let sel: Record<string, unknown> = {
+    targetList,
+    fromClause: [from, ...extraFrom],
+    ...(where ? { whereClause: where.node } : {}),
+    limitOption: "LIMIT_OPTION_DEFAULT",
+    op: "SETOP_NONE",
   };
+  // §9.4. FOR UPDATE is refused over the nullable side of an outer join, so
+  // the decorator is told whether every join here was INNER.
+  const allInner = kinds.every(k => k === "JOIN_INNER");
+  const dec = decorate(rand, sel, slots, allInner);
+  sel = dec.sel;
+  const clauseForms = [...dec.forms];
+  if (rand.chance(0.08)) {
+    const so = setOperation(rand, sel);
+    sel = so.sel;
+    clauseForms.push(so.form);
+  }
+  if (rand.chance(0.08)) {
+    sel = asCte(sel);
+    clauseForms.push("cte");
+  }
+  const stmt = { SelectStmt: sel };
   const sql = deparseSync(stmt as Parameters<typeof deparseSync>[0]);
   return {
     sql,
@@ -927,7 +941,205 @@ function buildQuery(
     // or the projected column names. The WHERE contributes its STRUCTURE only,
     // for the same reason: a random literal must not mint a fresh shape.
     shape: `${used.map(u => u.table ?? "fn").join("+")}|${shapeParts.join(",")}|W:${where?.shape ?? "-"}` +
-      `|E:${[...exprForms].sort().join(",") || "-"}`,
+      `|E:${[...exprForms].sort().join(",") || "-"}` +
+      `|C:${[...clauseForms].sort().join(",") || "-"}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Clause vocabulary — §9.4.
+//
+// Applied as DECORATIONS over a built SELECT rather than woven into it,
+// because most of them are independent of how the FROM clause was assembled
+// and the few that are not are mutually exclusive in ways SQL itself dictates:
+// GROUP BY replaces the target list (only grouped columns and aggregates may
+// appear), DISTINCT ON demands an ORDER BY that starts with the same
+// expressions, and FOR UPDATE is refused over grouping, DISTINCT, a set
+// operation or the nullable side of an outer join. Each guard below is one of
+// those rules, not caution.
+// ---------------------------------------------------------------------------
+
+const sortBy = (node: Ast, rand: Rand): Ast => ({
+  SortBy: {
+    node,
+    sortby_dir: rand.pick(["SORTBY_DEFAULT", "SORTBY_ASC", "SORTBY_DESC"]),
+    sortby_nulls: rand.pick(["SORTBY_NULLS_DEFAULT", "SORTBY_NULLS_FIRST", "SORTBY_NULLS_LAST"]),
+  },
+});
+
+const cteRangeVar = (name: string, alias: string): Ast =>
+  ({ RangeVar: { relname: name, inh: true, relpersistence: "p", alias: { aliasname: alias } } });
+
+const starTarget = (alias?: string): Ast => ({
+  ResTarget: {
+    val: { ColumnRef: { fields: alias ? [str(alias), { A_Star: {} }] : [{ A_Star: {} }] } },
+  },
+});
+
+/** An aggregate over one slot, or `count(*)`. */
+function aggregateTarget(rand: Rand, slots: Slot[], i: number): Ast {
+  const numeric = slots.filter(sl => ["integer", "bigint", "smallint", "numeric", "double precision"].includes(sl.type));
+  const roll = rand.int(0, 3);
+  if (roll === 0 || slots.length === 0) {
+    return target({ FuncCall: { funcname: [str("count")], agg_star: true, funcformat: "COERCE_EXPLICIT_CALL" } }, `a${i}_count`);
+  }
+  if (roll === 3 && numeric.length) {
+    const sl = rand.pick(numeric);
+    return target({ FuncCall: { funcname: [str("sum")], args: [colRef(sl.alias, sl.column)], funcformat: "COERCE_EXPLICIT_CALL" } }, `a${i}_sum`);
+  }
+  const sl = rand.pick(slots.filter(x => !["json", "jsonb", "boolean"].includes(x.type) && !x.type.endsWith("[]")) ) ?? rand.pick(slots);
+  const fn = rand.pick(["max", "min", "count"]);
+  return target({ FuncCall: { funcname: [str(fn)], args: [colRef(sl.alias, sl.column)], funcformat: "COERCE_EXPLICIT_CALL" } }, `a${i}_${fn}`);
+}
+
+/** A window function — DEFAULT frames only; an explicit one is un-deparsable. */
+function windowTarget(rand: Rand, slots: Slot[], i: number): Ast | null {
+  if (slots.length === 0) return null;
+  const part = rand.pick(slots);
+  const ord = rand.pick(slots);
+  const over = {
+    ...(rand.chance(0.7) ? { partitionClause: [colRef(part.alias, part.column)] } : {}),
+    orderClause: [sortBy(colRef(ord.alias, ord.column), rand)],
+    frameOptions: 1058,
+  };
+  const kind = rand.int(0, 3);
+  const call = kind === 0
+    ? { FuncCall: { funcname: [str("row_number")], over, funcformat: "COERCE_EXPLICIT_CALL" } }
+    : kind === 1
+      ? { FuncCall: { funcname: [str("rank")], over, funcformat: "COERCE_EXPLICIT_CALL" } }
+      : kind === 2
+        ? { FuncCall: { funcname: [str("lag")], args: [colRef(ord.alias, ord.column)], over, funcformat: "COERCE_EXPLICIT_CALL" } }
+        : { FuncCall: { funcname: [str("count")], agg_star: true, over, funcformat: "COERCE_EXPLICIT_CALL" } };
+  return target(call, `w${i}_${["rownum", "rank", "lag", "wcount"][kind]}`);
+}
+
+interface Decorated { sel: Record<string, unknown>; forms: string[] }
+
+function decorate(
+  rand: Rand,
+  sel: Record<string, unknown>,
+  slots: Slot[],
+  allInner: boolean,
+): Decorated {
+  const forms: string[] = [];
+  let grouped = false;
+
+  // --- GROUP BY, which REPLACES the target list --------------------------
+  if (slots.length > 0 && rand.chance(0.18)) {
+    const groupCols = [rand.pick(slots), rand.pick(slots)].filter((v, i, a) => a.indexOf(v) === i);
+    const refs = groupCols.map(sl => colRef(sl.alias, sl.column));
+    const kind = rand.int(0, 3);
+    const grouping = kind === 0
+      ? refs
+      : [{ GroupingSet: { kind: kind === 1 ? "GROUPING_SET_CUBE" : kind === 2 ? "GROUPING_SET_ROLLUP" : "GROUPING_SET_SETS", content: refs } }];
+    sel["groupClause"] = grouping;
+    const tl: Ast[] = groupCols.map((sl, i) => target(colRef(sl.alias, sl.column), `g${i}_${sl.column}`));
+    for (let i = 0; i < rand.int(1, 2); i++) tl.push(aggregateTarget(rand, slots, i));
+    // GROUPING() is only meaningful over a grouping set, and only over a
+    // column the query groups by.
+    if (kind !== 0) {
+      tl.push(target({ GroupingFunc: { args: [refs[0]!] } }, "g_flag"));
+    }
+    sel["targetList"] = tl;
+    // HAVING, which filters the GROUPS rather than the rows.
+    if (rand.chance(0.3)) {
+      sel["havingClause"] = op(">", { FuncCall: { funcname: [str("count")], agg_star: true, funcformat: "COERCE_EXPLICIT_CALL" } }, intConst(0));
+      forms.push("having");
+    }
+    grouped = true;
+    forms.push(kind === 0 ? "groupby" : ["", "cube", "rollup", "groupingsets"][kind]!);
+  }
+
+  // --- window functions, which cannot sit over a grouped target list -----
+  if (!grouped && slots.length > 0 && rand.chance(0.18)) {
+    const w = windowTarget(rand, slots, 0);
+    if (w) {
+      (sel["targetList"] as Ast[]).push(w);
+      forms.push("window");
+    }
+  }
+
+  // --- SELECT * / t.* ----------------------------------------------------
+  if (!grouped && rand.chance(0.1)) {
+    const alias = rand.chance(0.5) ? slots[0]?.alias : undefined;
+    (sel["targetList"] as Ast[]).push(starTarget(alias));
+    forms.push(alias ? "qualstar" : "star");
+  }
+
+  // --- DISTINCT, and DISTINCT ON with the ORDER BY it requires -----------
+  let distinctOn = false;
+  if (!grouped && rand.chance(0.12)) {
+    if (rand.chance(0.5) && slots.length) {
+      // DISTINCT ON needs an ORDER BY starting with the same expressions, and
+      // under DISTINCT every ORDER BY expression must APPEAR IN THE SELECT
+      // LIST — so the column is drawn from the target list rather than from
+      // the scope, or PostgreSQL rejects the statement.
+      const sl = rand.pick(slots);
+      (sel["targetList"] as Ast[]).push(target(colRef(sl.alias, sl.column), `d_${sl.column}`));
+      sel["distinctClause"] = [colRef(sl.alias, sl.column)];
+      sel["sortClause"] = [sortBy(colRef(sl.alias, sl.column), rand)];
+      distinctOn = true;
+      forms.push("distincton");
+    } else {
+      sel["distinctClause"] = [{}];
+      forms.push("distinct");
+    }
+  }
+
+  // --- ORDER BY ----------------------------------------------------------
+  if (!distinctOn && !grouped && slots.length && rand.chance(0.25)) {
+    // Same rule when plain DISTINCT is present: order by a column the target
+    // list carries, which the first slot is not guaranteed to be.
+    const sl = rand.pick(slots);
+    if (sel["distinctClause"]) {
+      (sel["targetList"] as Ast[]).push(target(colRef(sl.alias, sl.column), `o_${sl.column}`));
+    }
+    sel["sortClause"] = [sortBy(colRef(sl.alias, sl.column), rand)];
+    forms.push("orderby");
+  }
+
+  // --- LIMIT / OFFSET ----------------------------------------------------
+  if (rand.chance(0.15)) {
+    sel["limitCount"] = intConst(rand.int(1, 20));
+    sel["limitOption"] = "LIMIT_OPTION_COUNT";
+    if (rand.chance(0.4)) sel["limitOffset"] = intConst(rand.int(0, 3));
+    forms.push("limit");
+  }
+
+  // --- FOR UPDATE, which every clause above forbids ----------------------
+  if (allInner && !grouped && !sel["distinctClause"] && rand.chance(0.05)) {
+    sel["lockingClause"] = [{ LockingClause: { strength: rand.pick(["LCS_FORUPDATE", "LCS_FORSHARE"]), waitPolicy: "LockWaitBlock" } }];
+    forms.push("forupdate");
+  }
+
+  return { sel, forms };
+}
+
+/** `a UNION b` over two arms of the same shape, so the types line up. */
+function setOperation(rand: Rand, sel: Record<string, unknown>): { sel: Record<string, unknown>; form: string } {
+  const right = JSON.parse(JSON.stringify(sel)) as Record<string, unknown>;
+  // A set operation forbids these on its ARMS; they belong to the whole.
+  for (const k of ["sortClause", "limitCount", "limitOffset", "lockingClause", "distinctClause"]) {
+    delete right[k]; delete sel[k];
+  }
+  sel["limitOption"] = "LIMIT_OPTION_DEFAULT";
+  right["limitOption"] = "LIMIT_OPTION_DEFAULT";
+  const op_ = rand.pick(["SETOP_UNION", "SETOP_INTERSECT", "SETOP_EXCEPT"]);
+  const all = rand.chance(0.5);
+  return {
+    sel: { op: op_, ...(all ? { all: true } : {}), larg: sel, rarg: right, limitOption: "LIMIT_OPTION_DEFAULT" },
+    form: `${op_.replace("SETOP_", "").toLowerCase()}${all ? "-all" : ""}`,
+  };
+}
+
+/** `WITH c AS (…) SELECT * FROM c` — the query becomes its own CTE. */
+function asCte(sel: Record<string, unknown>): Record<string, unknown> {
+  return {
+    withClause: { ctes: [{ CommonTableExpr: { ctename: "cte0", ctematerialized: "CTEMaterializeDefault", ctequery: { SelectStmt: sel } } }] },
+    targetList: [starTarget()],
+    fromClause: [cteRangeVar("cte0", "c0")],
+    limitOption: "LIMIT_OPTION_DEFAULT",
+    op: "SETOP_NONE",
   };
 }
 
