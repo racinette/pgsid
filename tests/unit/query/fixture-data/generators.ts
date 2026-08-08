@@ -240,6 +240,17 @@ const columnSpecificGenerators: Record<
         ctx.current("plan") === "team" ? rand.pick([2, 5]) : rand.pick([0, 1]),
     },
 
+    // The NATURAL/USING key pair. `sw4_r.id` draws from `sw4_c.id` through the
+    // foreign-key tier, so the USING join always matches; `v` is the column
+    // that decides the NATURAL one, which shares BOTH names and so joins on
+    // `id AND v`. Drawn from the type tier the two `v`s are `word-row` strings
+    // that never collide, and the presence group of
+    // `fk-entail-natural-extra-conjunct.sql` then never observes its PRESENT
+    // arm — the same reason `t.val` and `u.val` share SHARED_VALS. A tiny
+    // vocabulary makes both arms happen.
+    sw4_c: { v: rand => rand.pick(SHARED_VALS) },
+    sw4_r: { v: rand => rand.pick(SHARED_VALS) },
+
     // The bpchar padding tables and their varchar control. 'a' is the token
     // the fixtures compare against; bpchar pads it to 'a   ' on write.
     bp: { k: rand => rand.pick(["a", "b", "zz"]) },
