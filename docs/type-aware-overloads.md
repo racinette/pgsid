@@ -604,12 +604,22 @@ always agree, so it is cheap in practice.
 3. **The walk** — thread the known argument types into candidate
    selection; narrow; leave consensus untouched. This touches the hottest
    path, so the corpus dry-run discipline the fix phases used applies.
-4. **The tables, re-keyed to SIGNATURES.** This is the real cost:
-   `STRICT_TOTAL_BUILTINS`, `ALWAYS_NOT_NULL_BUILTINS` and
-   `FIRST_ARG_BUILTINS` go from 137 name entries to **235 signature
-   entries**, each needing its own verdict rather than inheriting one.
-   `TOTAL_STRICT_OPERATORS` likewise, against `pg_operator`'s operand
-   types.
+4. **The tables, re-keyed to SIGNATURES — all seven, plus the two operator
+   sets. Decided 2026-08-09: aggregates and window functions are NOT
+   exceptions.** This is the real cost: the three scalar tables AND
+   `NON_NULL_OVER_NONEMPTY_AGGREGATES`, `NEVER_NULL_WINDOW_FNS`,
+   `HYPOTHETICAL_SET_AGGREGATES`, `ORDERED_SET_AGGREGATES` go from 153 name
+   entries to **327 signature entries** (the capture's live count), each
+   needing its own verdict rather than inheriting one;
+   `TOTAL_OPERATORS`/`STRICT_OPERATORS` likewise against `pg_operator`'s
+   operand types, 21 symbols over 558 rows. Call shape (`agg_within_group`,
+   OVER) is part of candidate GATHERING, not an exemption from signature
+   keying: a hypothetical-set call narrows to its one `aggkind='h'` row by
+   shape and is then the ordinary single-candidate case — read that row's
+   verdict; an ordered-set call's exact-match key appends the `agg_order`
+   types to the direct arguments; window overloads (`lag`'s one-, two- and
+   three-argument forms, whose out-of-frame results differ — NULL versus
+   the supplied default) key on their argument types like any scalar.
 5. **User function overloads come free** — the same arity-then-consensus
    path serves them, so `over_fn`, `clean2`, `tag_of` and `ship` improve
    with no extra code, and want the same fixtures.
