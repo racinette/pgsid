@@ -228,7 +228,10 @@ CREATE TABLE orders (
   customer_id  integer  NOT NULL REFERENCES customers(id),
   status       text     NOT NULL,
   placed_at    timestamptz NOT NULL,
-  deleted_at   timestamptz
+  deleted_at   timestamptz,
+  -- Nullable, because an order exists before it is paid for. Its key is added
+  -- after `payment_methods` below, which is declared later in this file.
+  payment_method_id integer
 );
 
 -- Order line items (both FKs NOT NULL).
@@ -301,6 +304,14 @@ CREATE TABLE payment_methods (
   name   text   NOT NULL,
   active boolean NOT NULL DEFAULT true
 );
+
+-- The key from `orders`, declared here because `payment_methods` is. It is the
+-- only key reaching this table, which had none — so it sat outside the join
+-- graph entirely, and its `active` flag was the schema's only BOOLEAN column a
+-- generated query could have projected.
+ALTER TABLE orders
+  ADD CONSTRAINT orders_payment_method_fk
+  FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id);
 
 -- Addresses with nullable columns (line2, postal_code) and a self-reference.
 CREATE TABLE addresses (

@@ -721,7 +721,34 @@ Status per node is measured, not assumed. A node the ENUMERATED corpus emits is
 proven deparsable — that suite deparses every query it generates. The rest were
 round-tripped individually (parse → deparse → reparse → compare).
 
-### 9.1 Expression vocabulary — one projection/predicate axis
+### 9.1 Expression vocabulary — BUILT 2026-08-08
+
+All ten forms emit; the generator now reaches 20 node types rather than 10.
+`SubLink` is the one entry that moved out of this group — it is a query shape
+rather than an expression form and belongs with §9.2.
+
+The design decision worth keeping: these are TARGET-LIST entries, not WHERE
+entries. The engine makes one claim per OUTPUT COLUMN, so an expression in the
+target list is adjudicated by PostgreSQL on every returned row, where one in a
+WHERE only changes which rows come back — and predicates already get their
+traffic from the shapes §9.4 covers.
+
+FLAT, one level, no nesting. Only three forms need their operands to agree on a
+type (`coalesce`, `greatest`, `ARRAY[…]`), and that is a bucket keyed on
+`ColumnInfo.typeName` — pick a bucket, take two columns out of it. A recursive
+builder threading a wanted type was drafted and withdrawn: nesting is what
+forces it, and nesting's value is unproven, since the walk dispatches per node
+and what matters is that each kind APPEARS. Add it later against evidence if
+ever.
+
+One thing it exposed: `booltest` had nothing to apply to. The schema's only
+BOOLEAN columns were on `t` (frozen), `billing.invoices` (not generated) and
+`payment_methods` — which no foreign key reached, so an e-commerce schema had
+orders that referenced no payment method. `orders.payment_method_id` is that
+missing key, nullable because an order exists before it is paid for, and it
+brings both the table and the form into reach.
+
+### 9.1a Expression vocabulary — the original list
 
 Today a target is always a bare `ColumnRef` and a predicate always a comparison
 or a null test. Everything here is a target-list or WHERE entry:
