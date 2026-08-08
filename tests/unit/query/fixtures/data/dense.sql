@@ -99,3 +99,8 @@ INSERT INTO events (id, data, meta) VALUES
 -- this row dangles legally. `FROM fk_par` scans the tree and reads it, which
 -- is what witnesses the tree gate on foreign-key entailment.
 INSERT INTO fk_chi (id, o_id) VALUES (901, 90001);
+
+-- A materialized view holds its own rows: refresh it once the tables it
+-- reads are populated, or every claim over it is unwitnessable for a reason
+-- that is an artefact of load order.
+REFRESH MATERIALIZED VIEW warehouse_totals;

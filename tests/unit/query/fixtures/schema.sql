@@ -458,6 +458,83 @@ CREATE TABLE leg_scans (
   FOREIGN KEY (shipment_id, leg_no) REFERENCES shipment_legs(shipment_id, leg_no)
 );
 
+-- A state machine's states, the ordinary reason a schema declares an enum.
+CREATE TYPE shipment_state AS ENUM ('pending', 'in_transit', 'delivered', 'returned');
+
+-- A domain over a DOMAIN: money that is positive (the base domain's rule) and
+-- also within a declared cap. Domains resolve transitively, which is a
+-- different code path from a domain over a base type.
+CREATE DOMAIN capped_amount AS positive_amount CHECK (VALUE <= 100000);
+
+-- Shipment tracking, carrying the column kinds a long-lived application schema
+-- accumulates and this one had none of: an ENUM state, a domain over a domain,
+-- a VIRTUAL generated column (computed on read, PG18 — a different mode from
+-- the STORED one `gm` carries), and an identity the application may never
+-- supply a value for.
+CREATE TABLE shipment_tracking (
+  id             integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  shipment_id    integer NOT NULL REFERENCES shipments(id),
+  state          shipment_state NOT NULL,
+  declared_value capped_amount,
+  weight_kg      numeric NOT NULL,
+  weight_g       numeric GENERATED ALWAYS AS (weight_kg * 1000) VIRTUAL
+);
+
+-- No two bookings of the same warehouse dock slot. An EXCLUDE constraint is
+-- how a schema says that; `ConstraintType` has admitted 'exclusion' all along
+-- with nothing to produce one.
+CREATE TABLE dock_slots (
+  id           integer NOT NULL PRIMARY KEY,
+  warehouse_id integer NOT NULL REFERENCES warehouses(id),
+  slot         integer NOT NULL,
+  EXCLUDE USING btree (warehouse_id WITH =, slot WITH =)
+);
+
+-- A key the team declared and asked PostgreSQL not to enforce (PG18), because
+-- the writer is a bulk loader whose rows arrive out of order. `convalidated`
+-- is false for it, which is the bit the entailment gate reads — so this is the
+-- input that gate rejects, distinct from the NOT VALID one above.
+CREATE TABLE inbound_receipts (
+  id           integer NOT NULL PRIMARY KEY,
+  warehouse_id integer NOT NULL,
+  qty          integer NOT NULL,
+  CONSTRAINT inbound_receipts_wh_fk FOREIGN KEY (warehouse_id)
+    REFERENCES warehouses(id) NOT ENFORCED
+);
+
+-- A procedure. It has no call site in a SELECT, so no generated query reaches
+-- it; what it exercises is the SNAPSHOT's prokind 'p' branch, which had no
+-- instance.
+CREATE PROCEDURE close_shipment(p_id integer)
+LANGUAGE sql AS $$
+  UPDATE shipments SET delivered_at = now() WHERE id = p_id;
+$$;
+
+-- A second schema, because an application has one. `billing.invoices` repeats
+-- a table NAME public already carries — the shape `inPath`'s first-schema-wins
+-- rule decides — and `fee` is carried by both schemas with different argument
+-- types, which is the case unqualified lookup must MERGE across the path
+-- rather than resolve by first schema.
+CREATE SCHEMA billing;
+CREATE TABLE billing.invoices (
+  id       integer NOT NULL PRIMARY KEY,
+  order_id integer NOT NULL,
+  exported boolean NOT NULL DEFAULT false
+);
+CREATE FUNCTION fee(amount integer) RETURNS integer
+LANGUAGE sql IMMUTABLE AS $$ SELECT amount / 20 $$;
+CREATE FUNCTION billing.fee(amount numeric) RETURNS numeric
+LANGUAGE sql IMMUTABLE AS $$ SELECT amount * 0.03 $$;
+
+-- A materialized view over the warehouse tables. It holds its own rows, so it
+-- must be REFRESHed once the data states have loaded — the data files and
+-- `fixture-data/generate.ts` each end with one.
+CREATE MATERIALIZED VIEW warehouse_totals AS
+  SELECT w.id AS warehouse_id, w.code AS code, count(sm.id) AS moves
+  FROM warehouses w
+  LEFT JOIN stock_moves sm ON sm.warehouse_id = w.id
+  GROUP BY w.id, w.code;
+
 -- Views -----------------------------------------------------------------
 
 -- View over a FULL JOIN (both sides optional in every column).

@@ -50,27 +50,37 @@ const TIMESTAMPS = [
 // Tier 2: by type
 // ---------------------------------------------------------------------------
 
-const typeSpecificGenerators: Record<string, Record<string, ColumnGenerator>> = {
-  public: {
-    integer: rand => rand.int(1, 500),
-    bigint: rand => rand.int(1, 500),
-    smallint: rand => rand.int(1, 100),
-    text: (rand, ctx) => `${rand.pick(WORDS)}-${ctx.row}`,
-    boolean: rand => rand.chance(0.5),
-    numeric: rand => rand.decimal(1, 1000, 2),
-    "double precision": rand => rand.decimal(0, 1000, 4),
-    "timestamp with time zone": rand => rand.pick(TIMESTAMPS),
-    "timestamp without time zone": rand => rand.pick(TIMESTAMPS).slice(0, 19),
-    date: rand => rand.pick(TIMESTAMPS).slice(0, 10),
-    jsonb: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
-    json: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
+const publicTypeGenerators: Record<string, ColumnGenerator> = {
+  integer: rand => rand.int(1, 500),
+  bigint: rand => rand.int(1, 500),
+  smallint: rand => rand.int(1, 100),
+  text: (rand, ctx) => `${rand.pick(WORDS)}-${ctx.row}`,
+  boolean: rand => rand.chance(0.5),
+  numeric: rand => rand.decimal(1, 1000, 2),
+  "double precision": rand => rand.decimal(0, 1000, 4),
+  "timestamp with time zone": rand => rand.pick(TIMESTAMPS),
+  "timestamp without time zone": rand => rand.pick(TIMESTAMPS).slice(0, 19),
+  date: rand => rand.pick(TIMESTAMPS).slice(0, 10),
+  jsonb: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
+  json: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
 
-    // Domains. Each has to satisfy its own CHECK.
-    nn_text: (rand, ctx) => `${rand.pick(WORDS)}-${ctx.row}`,
-    non_empty_text: rand => rand.pick(WORDS),
-    positive_amount: rand => rand.decimal(0.01, 500, 2),
-    discount_percent: rand => rand.decimal(0, 100, 2),
-  },
+  // Domains. Each has to satisfy its own CHECK.
+  nn_text: (rand, ctx) => `${rand.pick(WORDS)}-${ctx.row}`,
+  non_empty_text: rand => rand.pick(WORDS),
+  positive_amount: rand => rand.decimal(0.01, 500, 2),
+  discount_percent: rand => rand.decimal(0, 100, 2),
+  // A domain over a DOMAIN has to satisfy BOTH checks: positive_amount's
+  // `> 0` and its own cap.
+  capped_amount: rand => rand.decimal(0.01, 500, 2),
+  // The enum's own labels are the only legal values.
+  shipment_state: rand => rand.pick(["pending", "in_transit", "delivered", "returned"]),
+};
+
+const typeSpecificGenerators: Record<string, Record<string, ColumnGenerator>> = {
+  public: publicTypeGenerators,
+  // The second schema draws from the same type vocabulary; nothing about a
+  // value depends on which schema its table lives in.
+  billing: publicTypeGenerators,
 };
 
 // ---------------------------------------------------------------------------
@@ -263,6 +273,11 @@ const columnSpecificGenerators: Record<
     // pairs — `shipment_id` comes from the FK tier, and `leg_no` is then the
     // leg that actually belongs to it.
     shipment_legs: { leg_no: (_rand, ctx) => ctx.row + 1 },
+
+    // The exclusion constraint forbids two rows sharing (warehouse, slot), so
+    // `slot` is made unique per row and the pair cannot collide however the
+    // warehouse is drawn.
+    dock_slots: { slot: (_rand, ctx) => ctx.row + 1 },
     leg_scans: {
       leg_no: (rand, ctx) => {
         const shipmentIds = ctx.values("public.shipment_legs", "shipment_id");
