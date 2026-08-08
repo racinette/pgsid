@@ -361,10 +361,23 @@ nothing types yet (string/NULL literals — untyped by PostgreSQL itself —
 parameters, function results, CASE/COALESCE); the exotic-operand argument
 covers it unchanged. The corpus dry-run moved nothing;
 `resolveOperatorMetadata` went cold in the generated corpus (triaged: only
-the strictness sites still consult it). What remains: step 3's FUNCTION and
-aggregate half, the two STRICTNESS sites still on bare names
-(`promotionOperatorIsStrict`, mechanism C), step 4 (the signature-keyed
-verdicts for the seven function tables), and step 5 (the witness corpus).
+the strictness sites still consult it). **The strictness and unary slice LANDED (2026-08-09)**: WHERE promotion
+asks EVERY-quantified strictness over the typed merged candidate set
+(`resolveOperatorStrictness` — a wrong "strict" there is a wrong notNull,
+so one unvouched survivor denies it; the shadowing guard answers false for
+a user operator on a curated name with nothing known), PREFIX operators
+narrow through `resolveUnaryOperatorTotality` (pinned by `neg_sum` in
+`operator-path-plus.sql`), and `resolveOperatorMetadata` became
+PATH-VISIBLE for bare names — the whole-snapshot merge let an off-path
+operator poison the strictness consensus in the under-report direction,
+which for mechanism C makes the contract lie. Mechanism C itself keeps its
+RECORDED over-report (`NON_STRICT_OVERLOADS`) — its module has no scope to
+type operands with; it joins the function half's shared typing work. What
+remains: TIER 0 (PREPARE parameter types as an optional walk input — every
+harness holds a live PGlite; NOT gated on any consumer), step 3's FUNCTION
+and aggregate half with step 4's verdicts interleaved, step 5 (the witness
+corpus), and the fallback measurement once parameters and function results
+type.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
