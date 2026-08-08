@@ -455,6 +455,34 @@ describe("snapshotCatalog: functions and procedures", () => {
     )).toBe(true);
   });
 
+  it("captures the implicit casts and the builtin type kinds", async () => {
+    const s = await snapshotCatalog(pg);
+    const cast = (source: string, target: string) =>
+      s.builtinImplicitCasts.find(c => c.source === source && c.target === target);
+
+    // The canonicalisation edge the charter's varchar case rides, present in
+    // BOTH directions — which is why canonicalisation tries images rather
+    // than following a single canonical target.
+    expect(cast("character varying", "text")).toMatchObject({ binary: true });
+    expect(cast("text", "character varying")).toMatchObject({ binary: true });
+    // Implicit but NOT binary: the numeric tower's worked example.
+    expect(cast("bigint", "numeric")).toMatchObject({ binary: false });
+    // Assignment and explicit casts stay out — `bigint → integer` is
+    // assignment, `boolean → integer` is explicit, and both would make the
+    // elimination rule keep candidates PostgreSQL refuses.
+    expect(cast("bigint", "integer")).toBeUndefined();
+    expect(cast("boolean", "integer")).toBeUndefined();
+
+    // Type kinds: ranges and multiranges are what the polymorphic predicate
+    // reads positively; a known base type is what it refuses on with
+    // certainty; an absent name keeps the candidate.
+    expect(s.builtinTypeKinds["int4range"]).toBe("r");
+    expect(s.builtinTypeKinds["int4multirange"]).toBe("m");
+    expect(s.builtinTypeKinds["text"]).toBe("b");
+    expect(s.builtinTypeKinds["record"]).toBe("p");
+    expect(s.builtinTypeKinds["public.mood"]).toBeUndefined();
+  });
+
   it("includes extension functions (plpgsql_check) but they are not validated", async () => {
     const s = await snapshotCatalog(pg);
     const extFns = s.functions.filter(f => f.name === "plpgsql_check_function_tb" || f.name === "plpgsql_check_function");
