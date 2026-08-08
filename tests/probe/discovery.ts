@@ -15,11 +15,19 @@
 //   - joins 2..4 tables by following foreign keys, in any of the four join
 //     kinds, plus a self-join where a key points a table at itself;
 //   - projects a random subset of columns, qualified and aliased;
-//   - SELECT only. No DML, no set operations, no subqueries, no WHERE.
+//   - puts a WHERE on about 70% of them, built from `IS [NOT] NULL` and the
+//     six comparisons against a literal DRAWN FROM the column's own seeded
+//     values (§3 — a literal from a type generator matches nothing), combined
+//     with AND, OR, NOT and one mixed tree. OR and NOT are generated on
+//     purpose rather than avoided: they must BLOCK the promotion that a strict
+//     comparison licenses, and getting that backwards is the classic
+//     unsoundness in this area;
+//   - SELECT only. No DML, no set operations, no subqueries.
 //
 // Everything absent from that list is a later slice. The bound is printed with
 // the result, because §6's closing rule is that a run finding nothing must
-// state what it covered.
+// state what it covered — and beside it the saturation curve, which says
+// whether running longer would have bought anything.
 import { deparseSync } from "pgsql-deparser";
 import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 import type { CatalogSnapshot, TableInfo } from "../../src/catalog/types.js";
@@ -111,6 +119,36 @@ const rangeVar = (schema: string, table: string, alias: string): Ast =>
   ({ RangeVar: { schemaname: schema, relname: table, inh: true, relpersistence: "p", alias: { aliasname: alias } } });
 const eq = (l: Ast, r: Ast): Ast =>
   ({ A_Expr: { kind: "AEXPR_OP", name: [str("=")], lexpr: l, rexpr: r } });
+const op = (name: string, l: Ast, r: Ast): Ast =>
+  ({ A_Expr: { kind: "AEXPR_OP", name: [str(name)], lexpr: l, rexpr: r } });
+const nullTest = (arg: Ast, isNull: boolean): Ast =>
+  ({ NullTest: { arg, nulltesttype: isNull ? "IS_NULL" : "IS_NOT_NULL" } });
+const boolExpr = (boolop: "AND_EXPR" | "OR_EXPR" | "NOT_EXPR", args: Ast[]): Ast =>
+  ({ BoolExpr: { boolop, args } });
+
+/**
+ * A literal for a value the DATA actually holds.
+ *
+ * §3: volume does not buy overlap. `WHERE p.name = 'zeta-17'` returns nothing
+ * against a million rows if the literal came from a type generator, so every
+ * predicate literal is drawn from the column it is compared against — the same
+ * mechanism that makes the seeded foreign keys resolve, one layer up.
+ */
+function literalFor(v: unknown): Ast | null {
+  if (v === null) return null;
+  if (typeof v === "number") {
+    return Number.isInteger(v)
+      ? { A_Const: { ival: v === 0 ? {} : { ival: v } } }
+      : { A_Const: { fval: { fval: String(v) } } };
+  }
+  if (typeof v === "boolean") return { A_Const: { boolval: v ? { boolval: true } : {} } };
+  if (typeof v === "string") return { A_Const: { sval: { sval: v } } };
+  if (typeof v === "bigint") return { A_Const: { ival: { ival: Number(v) } } };
+  // Dates, arrays, json and the rest: rendering them faithfully is a type
+  // problem, and a wrong rendering is a TOOL defect masquerading as a finding.
+  // They are skipped, and the run reports how often.
+  return null;
+}
 
 const JOIN_KINDS = ["JOIN_INNER", "JOIN_LEFT", "JOIN_RIGHT", "JOIN_FULL"] as const;
 
@@ -121,6 +159,71 @@ interface Built {
   kinds: string[];
   /** Stable description of the query's shape, literals and names erased. */
   shape: string;
+}
+
+/** Sampled values per `schema.table.column`, for drawing predicate literals. */
+type ValuePool = Map<string, unknown[]>;
+
+/**
+ * One WHERE predicate over an alias in the query.
+ *
+ * The shapes are chosen for what they do to PRESENCE, which is where the walk
+ * reasons and so where it can be wrong:
+ *
+ *   - a STRICT comparison cannot hold on a NULL-extended row, so it cancels an
+ *     outer join's extension and promotes the alias — the rule
+ *     `whereImpliesAliasNotNull` implements;
+ *   - `IS NOT NULL` promotes the one column, and `IS NULL` does the opposite,
+ *     keeping only extended rows;
+ *   - OR and NOT must BLOCK promotion (`a.x = 1 OR b.y = 2` proves neither
+ *     side), and getting that wrong is the classic unsoundness in this area,
+ *     so both are generated deliberately rather than avoided.
+ */
+function predicate(rand: Rand, used: { alias: string; table: string }[], byId: Map<string, TableInfo>, pool: ValuePool): Ast | null {
+  const u = rand.pick(used);
+  const t = byId.get(u.table);
+  if (!t) return null;
+  const cols = t.columns.filter(c => c.generated !== "virtual");
+  if (cols.length === 0) return null;
+  const col = rand.pick(cols);
+  const ref = colRef(u.alias, col.name);
+
+  const form = rand.int(0, 5);
+  if (form === 0) return nullTest(ref, true);
+  if (form === 1) return nullTest(ref, false);
+
+  const values = (pool.get(`${u.table}.${col.name}`) ?? []).filter(v => v !== null);
+  if (values.length === 0) return null;
+  const lit = literalFor(rand.pick(values));
+  if (!lit) return null;
+  if (form === 2) return op("=", ref, lit);
+  if (form === 3) return op("<>", ref, lit);
+  if (form === 4) return op(rand.pick([">", "<", ">=", "<="]), ref, lit);
+  return op("=", ref, lit);
+}
+
+function whereClause(rand: Rand, used: { alias: string; table: string }[], byId: Map<string, TableInfo>, pool: ValuePool): { node: Ast; shape: string } | null {
+  const one = (): Ast | null => predicate(rand, used, byId, pool);
+  const form = rand.int(0, 4);
+  if (form === 0) {
+    const p = one();
+    return p ? { node: p, shape: "1" } : null;
+  }
+  if (form === 1 || form === 2) {
+    const a = one(), b = one();
+    if (!a || !b) return null;
+    const boolop = form === 1 ? "AND_EXPR" : "OR_EXPR";
+    return { node: boolExpr(boolop, [a, b]), shape: form === 1 ? "AND" : "OR" };
+  }
+  if (form === 3) {
+    const p = one();
+    return p ? { node: boolExpr("NOT_EXPR", [p]), shape: "NOT" } : null;
+  }
+  const a = one(), b = one(), c = one();
+  if (!a || !b || !c) return null;
+  // A mixed tree — the shape where promotion has to survive one level and be
+  // blocked at another.
+  return { node: boolExpr("AND_EXPR", [a, boolExpr("OR_EXPR", [b, c])]), shape: "AND(OR)" };
 }
 
 /**
@@ -135,6 +238,7 @@ function buildQuery(
   snapshot: CatalogSnapshot,
   group: string[],
   edges: Edge[],
+  pool: ValuePool,
 ): Built | null {
   const byId = new Map(snapshot.tables.map(t => [`${t.schema}.${t.name}`, t]));
   const target_ = rand.int(2, 4);
@@ -202,7 +306,19 @@ function buildQuery(
   }
   if (targetList.length === 0) return null;
 
-  const stmt = { SelectStmt: { targetList, fromClause: [from], limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } };
+  // A WHERE clause on most queries, and deliberately none on the rest: the
+  // unfiltered path is the one every existing claim was measured on.
+  const where = rand.chance(0.7) ? whereClause(rand, used, byId, pool) : null;
+
+  const stmt = {
+    SelectStmt: {
+      targetList,
+      fromClause: [from],
+      ...(where ? { whereClause: where.node } : {}),
+      limitOption: "LIMIT_OPTION_DEFAULT",
+      op: "SETOP_NONE",
+    },
+  };
   const sql = deparseSync(stmt as Parameters<typeof deparseSync>[0]);
   return {
     sql,
@@ -210,8 +326,9 @@ function buildQuery(
     kinds,
     // Table identities matter here — the whole point is that the catalog
     // varies — so the shape keys on tables and join kinds, not on the aliases
-    // or the projected column names.
-    shape: `${used.map(u => u.table).join("+")}|${shapeParts.join(",")}`,
+    // or the projected column names. The WHERE contributes its STRUCTURE only,
+    // for the same reason: a random literal must not mint a fresh shape.
+    shape: `${used.map(u => u.table).join("+")}|${shapeParts.join(",")}|W:${where?.shape ?? "-"}`,
   };
 }
 
@@ -262,6 +379,27 @@ const snapshot = await snapshotCatalog(loop.pg);
 // query sees the same rows.
 await loop.pg.exec(generateFixtureData(snapshot, { registry: fixtureGeneratorRegistry }).sql);
 
+// Values the seeded data actually holds, per column, for drawing predicate
+// literals from (§3). Sampled once — the dataset does not change, since every
+// query runs inside its own rolled-back transaction.
+const pool: ValuePool = new Map();
+for (const t of snapshot.tables) {
+  if (t.relkind === "p") continue; // a partitioned parent's rows live in its partitions
+  for (const c of t.columns) {
+    if (c.generated === "virtual") continue;
+    try {
+      const res = await loop.pg.query<Record<string, unknown>>(
+        `SELECT DISTINCT "${c.name}" AS v FROM "${t.schema}"."${t.name}" WHERE "${c.name}" IS NOT NULL LIMIT 8`,
+      );
+      const vs = res.rows.map(r => r["v"]).filter(v => v !== null && v !== undefined);
+      if (vs.length) pool.set(`${t.schema}.${t.name}.${c.name}`, vs);
+    } catch {
+      // A type DISTINCT cannot order (json has no equality operator): that
+      // column simply contributes no literals.
+    }
+  }
+}
+
 const tableIds = snapshot.tables.map(t => `${t.schema}.${t.name}`);
 const edges = edgesOf(snapshot);
 const groups = groupsOf(tableIds, edges);
@@ -282,18 +420,24 @@ const findings: { id: string; bucket: Bucket; sql: string; detail: string }[] = 
 const findingKeys = new Set<string>();
 const rejectionDetail = new Map<string, number>();
 let returnable = 0, returned = 0;
+const curve: number[] = [];
+let lastMark = 0;
 
 for (let i = 0; i < COUNT; i++) {
   const id = `q${i}`;
   let built: Built | null;
   try {
-    built = buildQuery(rand, snapshot, rand.pick(groups), usableEdges);
+    built = buildQuery(rand, snapshot, rand.pick(groups), usableEdges, pool);
   } catch (e) {
     counts.set("generator-threw", (counts.get("generator-threw") ?? 0) + 1);
     rejectionDetail.set(`generator: ${(e as Error).message}`, (rejectionDetail.get(`generator: ${(e as Error).message}`) ?? 0) + 1);
     continue;
   }
   if (!built) { i--; continue; }
+  // §6's saturation curve: NEW shapes per 1000 queries, not the total. Falling
+  // toward zero means the vocabulary is exhausted and further volume is waste
+  // — the fix for which is new vocabulary, never a bigger run.
+  if (i > 0 && i % 1000 === 0) { curve.push(shapes.size - lastMark); lastMark = shapes.size; }
   shapes.add(built.shape);
   for (const u of built.used) tablesTouched.add(u.table);
 
@@ -337,7 +481,22 @@ console.log(`\ncoverage of this run`);
 console.log(`  distinct query shapes:      ${shapes.size}`);
 console.log(`  tables touched:             ${tablesTouched.size} of ${tableIds.length} — ${[...tablesTouched].sort().join(", ")}`);
 console.log(`  return rate:                ${returnable ? Math.round((returned / returnable) * 100) : 0}% (${returned}/${returnable} queries returned a row)`);
-console.log(`  bound: 2..4 tables, left-deep, SELECT only, no WHERE, no subqueries, no set operations, no DML`);
+console.log(`  columns with drawable literals:  ${pool.size}`);
+if (curve.length > 1) {
+  console.log(`  new shapes per 1000 queries: ${curve.join(" ")}`);
+  const tail = curve.slice(-3);
+  const last = tail.reduce((a, b) => a + b, 0) / tail.length;
+  // Reported, not judged. A falling curve here is ordinary coupon-collecting
+  // over a combinatorially large space — 2..4 tables drawn from 13, four join
+  // kinds, five WHERE structures — so it will decelerate forever without ever
+  // meaning "exhausted". What the number is good for is COMPARING runs: the
+  // same figure after a vocabulary is widened says the widening did nothing.
+  console.log(`    marginal yield: ${Math.round(last)}/1000 at the end against ` +
+    `${curve[0]} at the start (${Math.round((last / curve[0]!) * 100)}%)`);
+}
+console.log(`  bound: 2..4 tables, left-deep, SELECT only, no subqueries, no set operations, no DML;`);
+console.log(`         WHERE on ~70% — IS [NOT] NULL, and = <> < <= > >= against a literal drawn from`);
+console.log(`         the column's own seeded values, combined with AND, OR, NOT and AND(OR)`);
 
 if (rejectionDetail.size) {
   console.log(`\nrejections and refusals, by cause`);
