@@ -353,6 +353,87 @@ CREATE TABLE shipments (
   delivered_at timestamptz
 );
 
+-- Application tables carrying the catalog features that used to exist only on
+-- single-purpose probe relations (`sw4_*`, `fk_*`). Those stay for the
+-- fixtures that pin them and are excluded from generation; these are what a
+-- generator ranges over, so a generated query looks like one somebody would
+-- write. Each shape below is the ordinary reason an application has it.
+
+-- A high-volume event log, partitioned by id range the way one is. This is
+-- also the REFERENCING-side-partitioned shape: the key onto `orders` is
+-- recorded once per partition, all with the same target.
+CREATE TABLE order_events (
+  id       integer NOT NULL,
+  order_id integer NOT NULL REFERENCES orders(id),
+  kind     text NOT NULL,
+  note     text,
+  PRIMARY KEY (id)
+) PARTITION BY RANGE (id);
+CREATE TABLE order_events_early PARTITION OF order_events FOR VALUES FROM (0) TO (100);
+CREATE TABLE order_events_late  PARTITION OF order_events FOR VALUES FROM (100) TO (200);
+
+-- A note attached to an event. Its key points AT a partitioned table, so
+-- pg_constraint records one CLONE per partition on top of the declared row,
+-- and none of the clones means "every note matches THIS partition" —
+-- sweep-4 finding 4, in a shape an application would actually write.
+CREATE TABLE order_event_notes (
+  id       integer NOT NULL PRIMARY KEY,
+  event_id integer NOT NULL REFERENCES order_events(id),
+  body     text NOT NULL
+);
+
+-- Refunds, with the legacy inheritance a long-lived schema accumulates: the
+-- parent declares the key and the child does NOT inherit it (measured), so a
+-- tree scan of `refunds` reads archive rows the key never checked.
+CREATE TABLE refunds (
+  id       integer NOT NULL PRIMARY KEY,
+  order_id integer NOT NULL REFERENCES orders(id),
+  amount   positive_amount NOT NULL
+);
+CREATE TABLE refunds_archive () INHERITS (refunds);
+
+-- The other direction: a key pointing AT an inheritance parent. A parent holds
+-- its OWN rows, so `ONLY warehouses` is exactly where the match lives — the
+-- opposite of the partitioned case, where the parent holds none.
+CREATE TABLE warehouses (
+  id   integer NOT NULL PRIMARY KEY,
+  code text NOT NULL
+);
+CREATE TABLE warehouses_overflow () INHERITS (warehouses);
+CREATE TABLE stock_moves (
+  id           integer NOT NULL PRIMARY KEY,
+  warehouse_id integer NOT NULL REFERENCES warehouses(id),
+  qty          integer NOT NULL
+);
+
+-- A DEFERRABLE key: the invoice and its order are written together and checked
+-- at commit, which is the reason to declare one — and it is violable
+-- mid-transaction, so the engine may not reason from it.
+CREATE TABLE invoices (
+  id       integer NOT NULL PRIMARY KEY,
+  order_id integer NOT NULL REFERENCES orders(id) DEFERRABLE INITIALLY IMMEDIATE,
+  total    positive_amount NOT NULL
+);
+
+-- A key added to a table that already had history, NOT VALID so the migration
+-- does not rewrite it. Pre-existing rows are unchecked.
+CREATE TABLE legacy_order_notes (
+  id       integer NOT NULL PRIMARY KEY,
+  order_id integer NOT NULL,
+  body     text NOT NULL
+);
+ALTER TABLE legacy_order_notes
+  ADD CONSTRAINT legacy_order_notes_order_fk
+  FOREIGN KEY (order_id) REFERENCES orders(id) NOT VALID;
+
+-- A 1:1 extension table whose PRIMARY KEY is its foreign key, so it shares the
+-- parent's column name — the ordinary shape in which `USING (id)` or a NATURAL
+-- join synthesises exactly the key equality and nothing else.
+CREATE TABLE order_gift_wrap (
+  id      integer NOT NULL PRIMARY KEY REFERENCES orders(id),
+  message text
+);
+
 -- Views -----------------------------------------------------------------
 
 -- View over a FULL JOIN (both sides optional in every column).
