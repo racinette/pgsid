@@ -22,7 +22,14 @@
 //     — the latter a join PostgreSQL does not enforce, so it takes the
 //     non-entailment path while the same shape over the parent takes the
 //     other;
-//   - projects a random subset of columns, qualified and aliased;
+//   - projects a random subset of columns, qualified and aliased, plus 0..3
+//     EXPRESSIONS over them (§9.1): CASE, COALESCE, GREATEST/LEAST, ARRAY[…],
+//     ROW(…), a cast, a total scalar builtin, IS TRUE/FALSE/UNKNOWN, COLLATE
+//     and CURRENT_DATE/TIMESTAMP/ROLE/USER. Target list rather than WHERE by
+//     design: the engine makes one claim per OUTPUT COLUMN, so an expression
+//     there is adjudicated on every row. FLAT — the three forms needing their
+//     operands to agree draw from one bucket keyed on typeName, which is why
+//     no nesting and no result-type tracking are needed;
 //   - puts a WHERE on about 70% of them, built from `IS [NOT] NULL` and the
 //     six comparisons against a literal DRAWN FROM the column's own seeded
 //     values (§3 — a literal from a type generator matches nothing), combined
@@ -216,6 +223,180 @@ function literalFor(v: unknown): Ast | null {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Expression vocabulary — §9.1.
+//
+// A target used to be a bare ColumnRef, which is why the generator emitted ten
+// of the census's 86 node types. Everything here is a TARGET-LIST entry, and
+// that placement is the point rather than a convenience: the engine makes one
+// claim per OUTPUT COLUMN, so an expression in the target list is adjudicated
+// by PostgreSQL on every row, while an expression in a WHERE only changes which
+// rows come back. Predicates already get their traffic from §9.4's shapes.
+//
+// FLAT — one level, no nesting. Three of the forms need their operands to
+// agree on a type (`coalesce`, `greatest`, `ARRAY[…]`), and that is a bucket
+// keyed on `ColumnInfo.typeName`, not a type system: pick a bucket, take two
+// columns out of it. Nesting is what would force a recursive builder threading
+// a wanted type, and its value is unproven — the walk dispatches per node, so
+// what matters is that each node kind APPEARS.
+//
+// A domain counts as its own bucket rather than as its base type. Stricter
+// than PostgreSQL needs, and the safe direction: two columns of one domain
+// always combine.
+// ---------------------------------------------------------------------------
+
+/** A column available in the query, with what the catalog says it is. */
+interface Slot { alias: string; column: string; type: string }
+
+/** Total single-argument builtins by argument type — nothing here can raise. */
+const SCALAR_BUILTINS: Record<string, { name: string; args: 1 }[]> = {
+  text: [{ name: "length", args: 1 }, { name: "upper", args: 1 }, { name: "lower", args: 1 }],
+  integer: [{ name: "abs", args: 1 }],
+  numeric: [{ name: "abs", args: 1 }],
+};
+
+/** `json` has no ordering operators, so GREATEST/LEAST over it raises. */
+const ORDERABLE = (t: string): boolean => t !== "json";
+
+const typeCast = (arg: Ast, typeName: string): Ast =>
+  ({ TypeCast: { arg, typeName: { names: [str(typeName)], typemod: -1 } } });
+
+/**
+ * One target-list expression over the query's columns, or null when no form
+ * fits what is in scope. Returns the node kind alongside it, for the shape
+ * fingerprint — never the value, or every random literal mints a fresh shape.
+ */
+function projectionExpr(
+  rand: Rand,
+  slots: Slot[],
+  byType: Map<string, Slot[]>,
+): { ast: Ast; form: string } | null {
+  if (slots.length === 0) return null;
+  const one = rand.pick(slots);
+  const ref = (sl: Slot): Ast => colRef(sl.alias, sl.column);
+
+  /** Two columns of ONE type — the same column twice is a legal pair. */
+  const pair = (want?: string): [Slot, Slot] | null => {
+    const buckets = want
+      ? (byType.has(want) ? [byType.get(want)!] : [])
+      : [...byType.values()];
+    if (buckets.length === 0) return null;
+    const b = rand.pick(buckets);
+    return [rand.pick(b), rand.pick(b)];
+  };
+  const ofType = (want: string): Slot | null => {
+    const b = byType.get(want);
+    return b && b.length ? rand.pick(b) : null;
+  };
+
+  const forms = ["cast", "case", "coalesce", "minmax", "array", "row", "sqlvalue", "func", "booltest", "collate"];
+  switch (rand.pick(forms)) {
+    case "cast":
+      return { ast: typeCast(ref(one), "text"), form: "cast" };
+
+    case "case": {
+      const p = pair();
+      if (!p) return null;
+      return {
+        ast: {
+          CaseExpr: {
+            args: [{
+              CaseWhen: {
+                expr: nullTest(ref(one), rand.chance(0.5)),
+                result: ref(p[0]),
+              },
+            }],
+            defresult: ref(p[1]),
+          },
+        },
+        form: "case",
+      };
+    }
+
+    case "coalesce": {
+      const p = pair();
+      return p ? { ast: { CoalesceExpr: { args: [ref(p[0]), ref(p[1])] } }, form: "coalesce" } : null;
+    }
+
+    case "minmax": {
+      const orderable = [...byType.entries()].filter(([t]) => ORDERABLE(t));
+      if (orderable.length === 0) return null;
+      const b = rand.pick(orderable)[1];
+      return {
+        ast: {
+          MinMaxExpr: {
+            op: rand.pick(["IS_GREATEST", "IS_LEAST"]),
+            args: [ref(rand.pick(b)), ref(rand.pick(b))],
+          },
+        },
+        form: "minmax",
+      };
+    }
+
+    case "array": {
+      const p = pair();
+      return p ? { ast: { A_ArrayExpr: { elements: [ref(p[0]), ref(p[1])] } }, form: "array" } : null;
+    }
+
+    case "row": {
+      // A record's fields are the engine's claim here, and ROW needs no type
+      // agreement at all.
+      const other = rand.pick(slots);
+      return {
+        ast: { RowExpr: { args: [ref(one), ref(other)], row_format: "COERCE_EXPLICIT_CALL" } },
+        form: "row",
+      };
+    }
+
+    case "sqlvalue": {
+      const op = rand.pick([
+        "SVFOP_CURRENT_DATE", "SVFOP_CURRENT_TIMESTAMP",
+        "SVFOP_CURRENT_ROLE", "SVFOP_SESSION_USER",
+      ]);
+      return { ast: { SQLValueFunction: { op, typmod: -1 } }, form: "sqlvalue" };
+    }
+
+    case "func": {
+      const candidates = Object.keys(SCALAR_BUILTINS).filter(t => byType.has(t));
+      if (candidates.length === 0) return null;
+      const t = rand.pick(candidates);
+      const fn = rand.pick(SCALAR_BUILTINS[t]!);
+      const sl = ofType(t);
+      return sl
+        ? { ast: { FuncCall: { funcname: [str(fn.name)], args: [ref(sl)], funcformat: "COERCE_EXPLICIT_CALL" } }, form: "func" }
+        : null;
+    }
+
+    case "booltest": {
+      const sl = ofType("boolean");
+      return sl
+        ? {
+            ast: {
+              BooleanTest: {
+                arg: ref(sl),
+                booltesttype: rand.pick([
+                  "IS_TRUE", "IS_NOT_TRUE", "IS_FALSE",
+                  "IS_NOT_FALSE", "IS_UNKNOWN", "IS_NOT_UNKNOWN",
+                ]),
+              },
+            },
+            form: "booltest",
+          }
+        : null;
+    }
+
+    case "collate": {
+      const sl = ofType("text");
+      return sl
+        ? { ast: { CollateClause: { arg: ref(sl), collname: [str("C")] } }, form: "collate" }
+        : null;
+    }
+
+    default:
+      return null;
+  }
+}
+
 const JOIN_KINDS = ["JOIN_INNER", "JOIN_LEFT", "JOIN_RIGHT", "JOIN_FULL"] as const;
 
 interface Built {
@@ -365,10 +546,12 @@ function buildQuery(
 
   // Project a few columns per table, always at least one, so a claim exists.
   const targetList: Ast[] = [];
+  const slots: Slot[] = [];
   for (const u of used) {
     const t = byId.get(u.table)!;
     const cols = t.columns.filter(c => c.generated !== "virtual");
     if (cols.length === 0) continue;
+    for (const c of cols) slots.push({ alias: u.alias, column: c.name, type: c.typeName });
     const take = Math.min(cols.length, rand.int(1, 3));
     const chosen = new Set<string>();
     for (let k = 0; k < take; k++) chosen.add(rand.pick(cols).name);
@@ -377,6 +560,24 @@ function buildQuery(
     }
   }
   if (targetList.length === 0) return null;
+
+  // …and then some EXPRESSIONS over those columns. Bare columns stay in the
+  // list: they are what every existing claim was measured on, and an
+  // expression target is an addition to the query rather than a replacement
+  // for it.
+  const byType = new Map<string, Slot[]>();
+  for (const sl of slots) {
+    const b = byType.get(sl.type);
+    if (b) b.push(sl); else byType.set(sl.type, [sl]);
+  }
+  const exprForms: string[] = [];
+  const wanted = rand.int(0, 3);
+  for (let k = 0; k < wanted; k++) {
+    const e = projectionExpr(rand, slots, byType);
+    if (!e) continue;
+    exprForms.push(e.form);
+    targetList.push(target(e.ast, `e${k}_${e.form}`));
+  }
 
   // A WHERE clause on most queries, and deliberately none on the rest: the
   // unfiltered path is the one every existing claim was measured on.
@@ -408,7 +609,8 @@ function buildQuery(
     // varies — so the shape keys on tables and join kinds, not on the aliases
     // or the projected column names. The WHERE contributes its STRUCTURE only,
     // for the same reason: a random literal must not mint a fresh shape.
-    shape: `${used.map(u => u.table).join("+")}|${shapeParts.join(",")}|W:${where?.shape ?? "-"}`,
+    shape: `${used.map(u => u.table).join("+")}|${shapeParts.join(",")}|W:${where?.shape ?? "-"}` +
+      `|E:${[...exprForms].sort().join(",") || "-"}`,
   };
 }
 
@@ -515,6 +717,7 @@ const APPLICATION_TABLES = [
   "orders", "payment_methods", "product_tags", "products", "refunds",
   "refunds_archive", "reviews", "shipments", "stock", "stock_moves",
   "subscription", "tags", "warehouses", "warehouses_overflow",
+  "payment_methods",
   "shipment_legs", "leg_scans",
 ];
 {
@@ -556,6 +759,7 @@ const rejectionDetail = new Map<string, number>();
 const tableUse = new Map<string, number>();
 const kindUse = new Map<string, number>();
 const whereUse = new Map<string, number>();
+const exprUse = new Map<string, number>();
 const samples: string[] = [];
 const SAMPLE = Number(process.env.DISCOVERY_SAMPLE ?? 0);
 let returnable = 0, returned = 0;
@@ -583,7 +787,10 @@ for (let i = 0; i < COUNT; i++) {
     tableUse.set(u.table, (tableUse.get(u.table) ?? 0) + 1);
   }
   for (const k of built.kinds) kindUse.set(k, (kindUse.get(k) ?? 0) + 1);
-  const wf = built.shape.split("|W:")[1] ?? "-";
+  for (const f of (built.shape.split("|E:")[1] ?? "").split(",")) {
+    if (f && f !== "-") exprUse.set(f, (exprUse.get(f) ?? 0) + 1);
+  }
+  const wf = (built.shape.split("|W:")[1] ?? "-").split("|E:")[0]!;
   whereUse.set(wf, (whereUse.get(wf) ?? 0) + 1);
   if (samples.length < SAMPLE) samples.push(built.sql);
 
@@ -643,6 +850,7 @@ if (curve.length > 1) {
 }
 console.log(`  bound: 2..4 tables, left-deep, SELECT only, no subqueries, no set operations, no DML;`);
 console.log(`         application tables only, partitions and inheritance children included,`);
+console.log(`         0..3 flat expression targets per query;`);
 console.log(`         single and composite keys;`);
 console.log(`         WHERE on ${pct(COUNT - (whereUse.get("-") ?? 0), COUNT).trim()} of queries (measured) — IS [NOT] NULL, and = <> < <= > >= against a literal`);
 console.log(`         drawn from the column's own seeded values, combined with AND, OR, NOT, AND(OR)`);
@@ -663,6 +871,8 @@ for (const [t, n] of [...tableUse.entries()].sort((a, b) => b[1] - a[1])) {
 const totalKinds = [...kindUse.values()].reduce((a, b) => a + b, 0);
 console.log(`  join kinds:  ` + [...kindUse.entries()].sort((a, b) => b[1] - a[1])
   .map(([k, n]) => `${k.replace("JOIN_", "")} ${pct(n, totalKinds)}`).join("   "));
+console.log(`  expression targets: ` + ([...exprUse.entries()].sort((a, b) => b[1] - a[1])
+  .map(([k, n]) => `${k} ${pct(n, COUNT)}`).join("   ") || "(none)"));
 console.log(`  WHERE shape: ` + [...whereUse.entries()].sort((a, b) => b[1] - a[1])
   .map(([k, n]) => `${k === "-" ? "(none)" : k} ${pct(n, COUNT)}`).join("   "));
 if (samples.length) {
