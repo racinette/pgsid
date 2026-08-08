@@ -150,7 +150,7 @@ interface DomainRow {
   base_type_name: string;
   not_null: boolean;
   default_expr: string | null;
-  check_expr: string | null;
+  check_exprs: string[] | null;
 }
 
 interface InheritsRow {
@@ -806,7 +806,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     baseTypeName: d.base_type_name,
     notNull: d.not_null,
     default: d.default_expr,
-    check: d.check_expr,
+    checks: d.check_exprs ?? [],
   })).sort(bySchemaName);
 
   // --- Composite types (user-defined CREATE TYPE AS (...), not table row types). ---
@@ -1092,6 +1092,21 @@ async function queryMatViews(pg: PGlite): Promise<ViewRow[]> {
   return res.rows;
 }
 
+/**
+ * One row per index the schema author DECLARED.
+ *
+ * `relkind = 'i'` alone captured the wrong set on a partitioned table:
+ * `CREATE INDEX` there creates the declared index as relkind 'I' plus one
+ * relkind 'i' CLONE per partition, so the declaration was dropped and its
+ * clones — named after the partitions, which no migration mentions —
+ * registered in its place. Both halves are fixed here: 'I' joins the capture,
+ * and `relispartition` (true only for an index that is part of a partitioned
+ * index) removes the clones.
+ *
+ * An index written directly on a partition keeps its row: `relispartition` is
+ * false until a parent partitioned index adopts it, at which point it IS a
+ * clone of that declaration (measured).
+ */
 async function queryIndexes(pg: PGlite): Promise<IndexRow[]> {
   const res = await pg.query<IndexRow>(
     `SELECT c.oid, n.nspname AS schema, c.relname AS name,
@@ -1106,7 +1121,7 @@ async function queryIndexes(pg: PGlite): Promise<IndexRow[]> {
      JOIN pg_class tc ON tc.oid = i.indrelid
      JOIN pg_namespace tn ON tn.oid = tc.relnamespace
      JOIN pg_am am ON am.oid = c.relam
-     WHERE c.relkind = 'i' AND ${USER_NS}
+     WHERE c.relkind IN ('i', 'I') AND NOT c.relispartition AND ${USER_NS}
      ORDER BY n.nspname, c.relname;`,
   );
   return res.rows;
@@ -1424,10 +1439,14 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
             -- (e.g. 'unknown'::text). pg_get_expr(typdefaultbin, oid) returns
             -- null for domains, so use typdefault directly.
             t.typdefault AS default_expr,
-            (SELECT pg_get_constraintdef(con.oid)
+            -- EVERY check, ordered by name. A domain may declare any number
+            -- of them; this was LIMIT 1 with no ORDER BY, which kept one
+            -- arbitrarily — the rest were invisible to the diff, and the one
+            -- kept depended on catalog row order, so the same domain could
+            -- compare unequal to itself across a replay.
+            (SELECT array_agg(pg_get_constraintdef(con.oid) ORDER BY con.conname)
                FROM pg_constraint con
-              WHERE con.contypid = t.oid AND con.contype = 'c'
-              LIMIT 1) AS check_expr
+              WHERE con.contypid = t.oid AND con.contype = 'c') AS check_exprs
      FROM pg_type t
      JOIN pg_namespace n ON n.oid = t.typnamespace
      WHERE t.typtype = 'd' AND ${USER_NS}

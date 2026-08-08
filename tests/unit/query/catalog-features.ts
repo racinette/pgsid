@@ -171,9 +171,9 @@ export const FEATURES: Record<string, Feature> = {
   },
   "domain-with-check": {
     category: "conservative",
-    unread: "d.check",
+    unread: "d.checks",
     why: "domain CHECKs are a different mechanism from table CHECKs and the entailment kernel does not read them (resolveCheckConstraints)",
-    detect: s => s.domains.some(d => d.check !== null),
+    detect: s => s.domains.some(d => d.checks.length > 0),
   },
   "domain-over-composite": {
     category: "handled",
