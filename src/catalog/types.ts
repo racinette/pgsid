@@ -509,6 +509,11 @@ export interface OperatorInfo {
   functionName: string;
   /** pg_proc.proisstrict of the backing function. */
   strict: boolean;
+  /**
+   * `pg_operator.oprresult` rendered — what a resolved call to this
+   * operator carries upward as its return-type union member.
+   */
+  resultType: string;
 }
 
 export interface CatalogSnapshot {

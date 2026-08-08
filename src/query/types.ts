@@ -416,25 +416,28 @@ export interface NullabilityCatalog {
   resolveOperatorMetadata(schema: string | undefined, name: string): OperatorMetadata | null;
 
   /**
-   * Type-aware totality for a BINARY operator expression, where the walk
-   * can name the operand types (null = unknown): a declared-types exact
-   * match over the merged user + builtin candidate set, then elimination
-   * plus per-signature consensus over the survivors
-   * (docs/type-aware-overloads.md, tiers 1 and 2 — the operator slice).
-   * `user-exact` hands the walk a backing function to dispatch; `unknown`
-   * means the machinery has nothing sound to add and the caller keeps its
-   * existing behaviour, including the curated name rule with its recorded
-   * holes for the both-types-unknown residue.
+   * Type-aware totality for a BINARY operator expression. Each operand is a
+   * type SET — the survivor return-type union of whatever produced it
+   * (docs/type-aware-overloads.md, corrected 2026-08-09): null constrains
+   * nothing, a singleton is exact, a multi-member union eliminates with
+   * "can ANY member reach P" and never exact-matches. The result carries
+   * `returns`, the surviving candidates' return-type union, which is what
+   * the walk threads into a PARENT operator's operand position — exact
+   * composition is the singleton case of the same mechanism. `user-exact`
+   * hands the walk a backing function to dispatch; `unknown` means the
+   * machinery has nothing sound to add and the caller keeps its existing
+   * behaviour, including the curated name rule with its recorded holes for
+   * the nothing-known residue.
    */
   resolveOperatorTotality(
     schema: string | undefined,
     name: string,
-    leftType: string | null,
-    rightType: string | null,
+    leftTypes: readonly string[] | null,
+    rightTypes: readonly string[] | null,
   ):
-    | { kind: "user-exact"; functionSchema: string; functionName: string }
-    | { kind: "total" }
-    | { kind: "nullable" }
+    | { kind: "user-exact"; functionSchema: string; functionName: string; returns: string[] }
+    | { kind: "total"; returns: string[] }
+    | { kind: "nullable"; returns: string[] }
     | { kind: "unknown" };
 
   /**

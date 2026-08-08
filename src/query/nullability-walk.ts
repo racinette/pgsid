@@ -4611,33 +4611,57 @@ class NullabilityEngine {
    * to refuse; the walk simulates no types.
    */
   /**
-   * `renderedTypeOfExpr` extended with the TYPED literals — the charter's
-   * literal table, measured: `ival` is always integer, `boolval` always
-   * boolean, and `fval` is "numeric-ish digit text" whose value must be
-   * READ to tell bigint from numeric (the lexer spills every integer past
-   * int32 into fval — 2147483648 is bigint, 9223372036854775808 and 1.5
-   * are numeric). A string literal is `unknown` — NOT text; PostgreSQL
-   * does not consider it typed either, and assuming text would falsely
-   * eliminate the candidate PostgreSQL picks. Null means unknown.
+   * An operand's type SET — the survivor return-type union of whatever
+   * produced it (docs/type-aware-overloads.md, corrected 2026-08-09). Null
+   * constrains nothing; a singleton is an exact type; a wider union
+   * eliminates candidates no member can reach and collapses back to exact
+   * wherever its members agree.
+   *
+   * Sources: the charter's literal table, measured — `ival` is always
+   * integer, `boolval` always boolean, and `fval` is "numeric-ish digit
+   * text" whose value must be READ to tell bigint from numeric (the lexer
+   * spills every integer past int32 into fval — 2147483648 is bigint,
+   * 9223372036854775808 and 1.5 are numeric); a string literal is
+   * `unknown`, NOT text — PostgreSQL does not consider it typed either, and
+   * assuming text would falsely eliminate the candidate PostgreSQL picks.
+   * A nested BINARY operator recurses: its own candidate resolution's
+   * return-type union is this operand's set, which is what makes
+   * `(a + b) + (c + d)` compose — exactly, when each union is a singleton.
+   * Everything else falls to `renderedTypeOfExpr` (columns, casts).
    */
-  private operandTypeName(expr: Node, scope: Scope | null): string | null {
+  private operandTypeSet(expr: Node, scope: Scope | null, depth: number): string[] | null {
+    this.checkDepth(depth);
     const rec = expr as Record<string, unknown>;
     const ac = rec["A_Const"] as
       | { ival?: unknown; boolval?: unknown; fval?: { fval?: string } }
       | undefined;
     if (ac) {
-      if ("ival" in ac) return "integer";
-      if ("boolval" in ac) return "boolean";
+      if ("ival" in ac) return ["integer"];
+      if ("boolval" in ac) return ["boolean"];
       if ("fval" in ac) {
         const digits = ac.fval?.fval ?? "";
         return /^[0-9]+$/.test(digits) &&
           (digits.length < 19 || (digits.length === 19 && digits <= "9223372036854775807"))
-          ? "bigint"
-          : "numeric";
+          ? ["bigint"]
+          : ["numeric"];
       }
       return null;
     }
-    return this.renderedTypeOfExpr(expr, scope);
+    const ae = rec["A_Expr"] as AExpr | undefined;
+    if (ae && (ae.kind === undefined || ae.kind === "AEXPR_OP") && ae.lexpr && ae.rexpr) {
+      const opNames = (ae.name ?? []).map(n => this.stringVal(n));
+      const op = opNames[opNames.length - 1] ?? "";
+      const opSchema = opNames.length > 1 ? opNames[opNames.length - 2] : undefined;
+      const narrowed = this.catalog.resolveOperatorTotality(
+        opSchema,
+        op,
+        this.operandTypeSet(ae.lexpr, scope, depth + 1),
+        this.operandTypeSet(ae.rexpr, scope, depth + 1),
+      );
+      return narrowed.kind === "unknown" ? null : narrowed.returns;
+    }
+    const rendered = this.renderedTypeOfExpr(expr, scope);
+    return rendered === null ? null : [rendered];
   }
 
   private renderedTypeOfExpr(expr: Node, scope: Scope | null): string | null {
@@ -5653,11 +5677,14 @@ class NullabilityEngine {
         // recorded holes then apply only to the untypeable residue.
         if (ae.lexpr && ae.rexpr) {
           const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined;
-          const lt = this.operandTypeName(ae.lexpr, scope);
-          const rt = this.operandTypeName(ae.rexpr, scope);
+          const lt = this.operandTypeSet(ae.lexpr, scope, depth + 1);
+          const rt = this.operandTypeSet(ae.rexpr, scope, depth + 1);
           const narrowed = this.catalog.resolveOperatorTotality(opSchema2, op, lt, rt);
           if (narrowed.kind !== "unknown") {
-            trace.addFact("operandTypes", `${lt ?? "unknown"}, ${rt ?? "unknown"}`);
+            trace.addFact(
+              "operandTypes",
+              `${lt?.join("|") ?? "unknown"}, ${rt?.join("|") ?? "unknown"}`,
+            );
             if (narrowed.kind === "user-exact") {
               trace.addFact(
                 "customOperator",
