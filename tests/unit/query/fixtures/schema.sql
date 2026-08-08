@@ -395,9 +395,12 @@ CREATE TABLE refunds_archive () INHERITS (refunds);
 -- The other direction: a key pointing AT an inheritance parent. A parent holds
 -- its OWN rows, so `ONLY warehouses` is exactly where the match lives — the
 -- opposite of the partitioned case, where the parent holds none.
+-- `code` is UNIQUE, the way a warehouse code is. contype 'u' had never reached
+-- the snapshot from this schema — every referenced side was a PRIMARY KEY — so
+-- the constraint kind the walk captures and does not read had no instance.
 CREATE TABLE warehouses (
   id   integer NOT NULL PRIMARY KEY,
-  code text NOT NULL
+  code text NOT NULL UNIQUE
 );
 CREATE TABLE warehouses_overflow () INHERITS (warehouses);
 CREATE TABLE stock_moves (
@@ -432,6 +435,27 @@ ALTER TABLE legacy_order_notes
 CREATE TABLE order_gift_wrap (
   id      integer NOT NULL PRIMARY KEY REFERENCES orders(id),
   message text
+);
+
+-- A shipment moving in several hops, keyed by (shipment, leg) — the ordinary
+-- reason a table has a composite primary key.
+CREATE TABLE shipment_legs (
+  shipment_id integer NOT NULL REFERENCES shipments(id),
+  leg_no      integer NOT NULL,
+  carrier     text NOT NULL,
+  PRIMARY KEY (shipment_id, leg_no)
+);
+
+-- A scan event on one leg. Its foreign key is COMPOSITE, which is the input
+-- the entailment gate REJECTS: `resolveForeignKey` reads single-column keys
+-- only, and a gate with nothing to reject is untested. The engine must decline
+-- the whole key rather than half-read one column of it.
+CREATE TABLE leg_scans (
+  id          integer NOT NULL PRIMARY KEY,
+  shipment_id integer NOT NULL,
+  leg_no      integer NOT NULL,
+  location    text,
+  FOREIGN KEY (shipment_id, leg_no) REFERENCES shipment_legs(shipment_id, leg_no)
 );
 
 -- Views -----------------------------------------------------------------

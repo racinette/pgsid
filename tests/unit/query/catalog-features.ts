@@ -734,7 +734,6 @@ export const FEATURES: Record<string, Feature> = {
     reads: "resolveForeignKey",
     why: "dropped — the entailment reasons about ONE column matching, and a multi-column key under MATCH SIMPLE matches nothing when any part is NULL",
     detect: s => anyConstraint(s, c => c.type === "foreign" && c.columns.length > 1),
-    absent: "Every foreign key here is single-column, so the gate that drops composite ones has never had anything to drop.",
   },
   "not-enforced-foreign-key": {
     category: "gated",
@@ -754,7 +753,6 @@ export const FEATURES: Record<string, Feature> = {
     unread: '"unique"',
     why: "captured and unread. Recorded because it is the obvious candidate for a future at-most-one-row rule, and because a foreign key's referenced side must carry one",
     detect: s => anyConstraint(s, c => c.type === "unique"),
-    absent: "Every referenced side here is a PRIMARY KEY. contype 'u' never reaches the snapshot from this schema.",
   },
   "exclusion-constraint": {
     category: "conservative",
