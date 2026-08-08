@@ -962,18 +962,31 @@ export async function buildNullabilityCatalog(
    * operator shares the name: the exotic-operand argument that recorded the
    * hole applies to that residue unchanged.
    */
+  const unionOf = (
+    users: typeof snapshot.operators,
+    builtins: BuiltinOperatorSignature[],
+  ): string[] => [
+    ...new Set([...users.map(o => o.resultType), ...builtins.map(o => o.returns)]),
+  ];
+
   const resolveOperatorTotality = (
     schema: string | undefined,
     name: string,
-    leftType: string | null,
-    rightType: string | null,
+    leftTypes: readonly string[] | null,
+    rightTypes: readonly string[] | null,
   ):
-    | { kind: "user-exact"; functionSchema: string; functionName: string }
-    | { kind: "total" }
-    | { kind: "nullable" }
+    | { kind: "user-exact"; functionSchema: string; functionName: string; returns: string[] }
+    | { kind: "total"; returns: string[] }
+    | { kind: "nullable"; returns: string[] }
     | { kind: "unknown" } => {
-    const L = leftType === null ? null : normalizeTypeName(leftType);
-    const R = rightType === null ? null : normalizeTypeName(rightType);
+    // An operand is a type SET — the survivor return-type union of whatever
+    // produced it (charter correction 2026-08-09): null constrains nothing,
+    // a singleton is exact, and a multi-member union eliminates with "can
+    // ANY member reach P" but never exact-matches.
+    const Ls = leftTypes === null ? null : leftTypes.map(normalizeTypeName);
+    const Rs = rightTypes === null ? null : rightTypes.map(normalizeTypeName);
+    const L = Ls !== null && Ls.length === 1 ? Ls[0]! : null;
+    const R = Rs !== null && Rs.length === 1 ? Rs[0]! : null;
 
     const builtins = resolveBuiltinOperatorSignatures(schema, name)
       .filter(o => o.leftType !== null && o.rightType !== null);
@@ -1002,38 +1015,43 @@ export async function buildNullabilityCatalog(
         : "nullable";
 
     if (L !== null && R !== null) {
-      // Declared-types exact match — early, terminal, unique per schema. A
-      // user duplicate of a builtin signature loses the tie because
-      // pg_catalog is searched implicitly first (measured, Q1).
+      // Declared-types exact match — early, terminal, unique per schema,
+      // and applicable only to SINGLETON unions (every survivor behind the
+      // union returns this type, so the value really has it). A user
+      // duplicate of a builtin signature loses the tie because pg_catalog
+      // is searched implicitly first (measured, Q1).
       const builtinExact = builtins.find(o => o.leftType === L && o.rightType === R);
-      if (builtinExact) return { kind: totalVerdict(L, R) };
+      if (builtinExact) return { kind: totalVerdict(L, R), returns: [builtinExact.returns] };
       const userExact = users.find(o => o.leftType === L && o.rightType === R);
       if (userExact) {
         return {
           kind: "user-exact",
           functionSchema: userExact.functionSchema,
           functionName: userExact.functionName,
+          returns: [userExact.resultType],
         };
       }
     }
 
-    if (L === null && R === null) {
+    if (Ls === null && Rs === null) {
       // Nothing to eliminate with. A user operator sharing a curated name
       // makes the name-level fallback unsound (the demonstrated rank-1), so
       // only the builtin-only case cedes to it.
       return users.length > 0 && builtins.length > 0
-        ? { kind: "nullable" }
+        ? { kind: "nullable", returns: unionOf(users, builtins) }
         : { kind: "unknown" };
     }
 
+    const reaches = (set: readonly string[] | null, param: string): boolean =>
+      set === null || set.some(member => mayCoerceImplicitly(member, param));
     const survives = (l: string, r: string): boolean =>
-      (L === null || mayCoerceImplicitly(L, l)) &&
-      (R === null || mayCoerceImplicitly(R, r));
+      reaches(Ls, l) && reaches(Rs, r);
     const userSurvivors = users.filter(o => survives(o.leftType!, o.rightType!));
     const builtinSurvivors = builtins.filter(o => survives(o.leftType!, o.rightType!));
 
     const count = userSurvivors.length + builtinSurvivors.length;
     if (count === 0) return { kind: "unknown" };
+    const returns = unionOf(userSurvivors, builtinSurvivors);
     if (count === 1 && userSurvivors.length === 1) {
       // A superset with one member IS the answer, exact match or not.
       const o = userSurvivors[0]!;
@@ -1041,12 +1059,13 @@ export async function buildNullabilityCatalog(
         kind: "user-exact",
         functionSchema: o.functionSchema,
         functionName: o.functionName,
+        returns,
       };
     }
-    if (userSurvivors.length > 0) return { kind: "nullable" };
+    if (userSurvivors.length > 0) return { kind: "nullable", returns };
     return builtinSurvivors.every(o => totalVerdict(o.leftType!, o.rightType!) === "total")
-      ? { kind: "total" }
-      : { kind: "nullable" };
+      ? { kind: "total", returns }
+      : { kind: "nullable", returns };
   };
 
   // The FROM-position shape of a pg_catalog function with named output

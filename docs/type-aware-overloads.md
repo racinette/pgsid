@@ -511,15 +511,22 @@ Explicitly NOT available, and each degrades to "no type, eliminate
 nothing": operator results, `CASE`/`COALESCE` common types, unknown-typed
 literals, and the result of an implicit coercion.
 
-**Operator results DO have a type, via tier 1** — corrected 2026-08-06, after
-two wrong answers. The closed list above excludes them, which was right only
-under the tier-2-only design: there, `a + b` yields five possible return types
-and no consensus, so `(a + b) + (c + d)` loses its claim. Two remedies were
-proposed and both were wrong — "take the return type by consensus across
-survivors" (there is none) and "carry the SET of survivor return types" (sound,
-but solving a problem that need not exist). Under tier 1 an operator whose
-arguments resolve exactly HAS an exact return type, and the nesting composes
-with no new machinery at all.
+**Operator results carry their survivor return-type UNION — corrected
+2026-08-09, superseding the 2026-08-06 note that dismissed exactly that.**
+The earlier correction called "carry the SET of survivor return types" sound
+but "solving a problem that need not exist", reasoning that tier-1 exact
+match covers nesting. That got the relationship backwards: the SET is the
+UNIFORM mechanism and exact composition is its SINGLETON case — exact
+arguments leave one survivor, whose return type is a union of one. An
+operand typed on one side only still composes: `a + b` with `a` bigint
+carries the return types of every candidate bigint can implicitly REACH
+(the numeric rows included — filtering to first-argument-EQUALS-bigint
+would falsely eliminate a candidate PostgreSQL may pick, the one thing the
+invariant forbids), and the parent eliminates with "can ANY member reach
+P". A union whose members agree IS an exact type; a multi-member union
+never exact-matches, only eliminates. The one-unknown-operand literal rule
+is subsumed — an unknown operand is a null set and eliminates nothing while
+the typed side does the narrowing.
 
 The exclusion therefore stands only for operands tier 1 cannot resolve, where
 it means what it always meant: no type, eliminate nothing, degrade to today's
@@ -619,16 +626,25 @@ always agree, so it is cheap in practice.
 3. **The walk** — thread the known argument types into candidate
    selection; narrow; leave consensus untouched. This touches the hottest
    path, so the corpus dry-run discipline the fix phases used applies.
-   **The OPERATOR half LANDED 2026-08-09** — `operandTypeName` (the
-   literal table above, plus the existing `renderedTypeOfExpr`), the
-   `AEXPR_OP` case consulting `resolveOperatorTotality`, and the
-   signature-keyed exception set `NON_TOTAL_OPERATOR_SIGNATURES` held to
+   **The OPERATOR half LANDED 2026-08-09, with the return-type UNION
+   threading** — `operandTypeSet` (the literal table above, the existing
+   `renderedTypeOfExpr`, and RECURSION through nested binary operators:
+   the inner resolution's survivor union is the outer operand's set, per
+   the corrected model), the `AEXPR_OP` case consulting
+   `resolveOperatorTotality` over type sets, `OperatorInfo.resultType`
+   captured so user operators compose too, and the signature-keyed
+   exception set `NON_TOTAL_OPERATOR_SIGNATURES` held to
    `PARTIAL_OVERLOADS` by the totality probe. `path + path` and the
-   shadowing rank-1 both closed where types are known; the untypeable
-   residue keeps the name rule and its recorded holes. Still on bare
-   names: the STRICTNESS sites (`promotionOperatorIsStrict`,
-   mechanism C's operator test), unary operators, and everything
-   function-shaped.
+   shadowing rank-1 both closed where types are known; composition is
+   pinned by `operator-path-plus.sql`'s nested columns, which discriminate
+   (the nested path sum falls to the name rule and a WRONG claim if the
+   union stops threading). The one-unknown-operand literal rule is
+   subsumed. The residue that keeps the name rule and its recorded holes
+   is now only what nothing types yet: string/NULL literals (untyped by
+   PostgreSQL itself), parameters (tier 0), function results (the function
+   half), CASE/COALESCE (declined). Still on bare names: the STRICTNESS
+   sites (`promotionOperatorIsStrict`, mechanism C's operator test), unary
+   operators, and everything function-shaped.
 4. **The tables, re-keyed to SIGNATURES — all seven, plus the two operator
    sets. Decided 2026-08-09: aggregates and window functions are NOT
    exceptions.** This is the real cost: the three scalar tables AND

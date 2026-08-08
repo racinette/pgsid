@@ -348,9 +348,18 @@ the non-eliminated survivors, each builtin row against
 are known: `path + path` reads nullable (`operator-path-plus.sql`, NULL
 witnessed, with `1 + 2` beside it eliminating the path row) and the
 operator-shadowing rank-1 dispatches the user operator's body
-(`search-path.test.ts`, four pins with PostgreSQL as referee). The
-both-types-unknown residue keeps the name rule with its recorded holes —
-the exotic-operand argument unchanged. The corpus dry-run moved nothing;
+(`search-path.test.ts`, four pins with PostgreSQL as referee). **The return-type UNION threads upward (2026-08-09, same day)**: an
+operand is a type SET — null constrains nothing, a singleton is exact, a
+wider union eliminates with "can ANY member reach P" — and a nested binary
+operator's operand is the inner resolution's survivor union, so
+`(a + b) + (c + d)` composes with exact composition as the singleton case.
+The charter's 2026-08-06 note dismissing set-carrying is superseded in
+place; `OperatorInfo` grew `resultType` so user operators compose;
+`operator-path-plus.sql`'s nested columns pin it discriminatingly. The
+residue keeping the name rule with its recorded holes is now only what
+nothing types yet (string/NULL literals — untyped by PostgreSQL itself —
+parameters, function results, CASE/COALESCE); the exotic-operand argument
+covers it unchanged. The corpus dry-run moved nothing;
 `resolveOperatorMetadata` went cold in the generated corpus (triaged: only
 the strictness sites still consult it). What remains: step 3's FUNCTION and
 aggregate half, the two STRICTNESS sites still on bare names

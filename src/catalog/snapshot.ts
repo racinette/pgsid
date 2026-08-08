@@ -921,6 +921,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     functionSchema: o.function_schema,
     functionName: o.function_name,
     strict: o.strict,
+    resultType: o.result_type,
   }));
 
   return {
@@ -1591,6 +1592,7 @@ interface OperatorRow {
   function_schema: string;
   function_name: string;
   strict: boolean;
+  result_type: string;
 }
 
 /**
@@ -1607,7 +1609,8 @@ async function queryOperators(pg: PGlite): Promise<OperatorRow[]> {
             CASE WHEN o.oprright = 0 THEN NULL
                  ELSE format_type(o.oprright, NULL) END AS right_type,
             fn.nspname AS function_schema, p.proname AS function_name,
-            p.proisstrict AS strict
+            p.proisstrict AS strict,
+            format_type(o.oprresult, NULL) AS result_type
      FROM pg_operator o
      JOIN pg_namespace n ON n.oid = o.oprnamespace
      JOIN pg_proc p ON p.oid = o.oprcode
