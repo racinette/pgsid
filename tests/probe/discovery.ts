@@ -44,6 +44,7 @@
 // state what it covered — and beside it the saturation curve, which says
 // whether running longer would have bought anything.
 import { deparseSync } from "pgsql-deparser";
+import { parseSql } from "../../src/ast.js";
 import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 import type { CatalogSnapshot, TableInfo } from "../../src/catalog/types.js";
 import { generateFixtureData } from "../unit/query/fixture-data/generate.js";
@@ -426,20 +427,18 @@ type ValuePool = Map<string, unknown[]>;
  *     side), and getting that wrong is the classic unsoundness in this area,
  *     so both are generated deliberately rather than avoided.
  */
-function predicate(rand: Rand, used: { alias: string; table: string }[], byId: Map<string, TableInfo>, pool: ValuePool): Ast | null {
+function predicate(rand: Rand, used: Item[], pool: ValuePool): Ast | null {
   const u = rand.pick(used);
-  const t = byId.get(u.table);
-  if (!t) return null;
-  const cols = t.columns.filter(c => c.generated !== "virtual");
-  if (cols.length === 0) return null;
-  const col = rand.pick(cols);
+  if (u.columns.length === 0) return null;
+  const col = rand.pick(u.columns);
   const ref = colRef(u.alias, col.name);
 
   const form = rand.int(0, 5);
   if (form === 0) return nullTest(ref, true);
   if (form === 1) return nullTest(ref, false);
 
-  const values = (pool.get(`${u.table}.${col.name}`) ?? []).filter(v => v !== null);
+  // A function item has no catalog entry, so it contributes no literals.
+  const values = (u.table ? pool.get(`${u.table}.${col.name}`) ?? [] : []).filter(v => v !== null);
   if (values.length === 0) return null;
   const lit = literalFor(rand.pick(values));
   if (!lit) return null;
@@ -449,8 +448,8 @@ function predicate(rand: Rand, used: { alias: string; table: string }[], byId: M
   return op("=", ref, lit);
 }
 
-function whereClause(rand: Rand, used: { alias: string; table: string }[], byId: Map<string, TableInfo>, pool: ValuePool): { node: Ast; shape: string } | null {
-  const one = (): Ast | null => predicate(rand, used, byId, pool);
+function whereClause(rand: Rand, used: Item[], pool: ValuePool): { node: Ast; shape: string } | null {
+  const one = (): Ast | null => predicate(rand, used, pool);
   const form = rand.int(0, 4);
   if (form === 0) {
     const p = one();
@@ -480,91 +479,260 @@ function whereClause(rand: Rand, used: { alias: string; table: string }[], byId:
  * five tree shapes (`generateDeepJoinQueries`), and what is unexplored here is
  * the CATALOG, not the tree.
  */
+// ---------------------------------------------------------------------------
+// FROM-item vocabulary — §9.2.
+//
+// The FROM clause used to be a left-deep chain of bare RangeVars joined on
+// declared keys. Sweep-4's own reading was that POSITION, not code age, is the
+// discriminating variable — five of its seven findings were FROM items,
+// because that is where the engine's model of "what rows does this produce" is
+// thinnest and where a wrong answer misassigns every flag after it.
+//
+// A scope entry is no longer always a table: a function item and a derived
+// table have columns and an alias and no `TableInfo` at all, so everything
+// downstream reads `Item.columns` rather than the catalog.
+// ---------------------------------------------------------------------------
+
+interface Item {
+  alias: string;
+  /** The relation id, when this item IS one — absent for functions and
+   *  derived tables, which is what makes the union type worth having. */
+  table?: string;
+  columns: { name: string; type: string }[];
+}
+
+const rangeSubselect = (subquery: Ast, alias: string, lateral: boolean): Ast =>
+  ({ RangeSubselect: { ...(lateral ? { lateral: true } : {}), subquery, alias: { aliasname: alias } } });
+
+const funcItem = (calls: Ast[], alias: string, colnames: string[]): Ast => ({
+  RangeFunction: {
+    ...(calls.length > 1 ? { is_rowsfrom: true } : {}),
+    functions: calls.map(c => ({ List: { items: [c, {}] } })),
+    alias: { aliasname: alias, colnames: colnames.map(str) },
+  },
+});
+
+const intConst = (n: number): Ast => ({ A_Const: { ival: n === 0 ? {} : { ival: n } } });
+const seriesCall = (lo: number, hi: number): Ast =>
+  ({ FuncCall: { funcname: [str("generate_series")], args: [intConst(lo), intConst(hi)], funcformat: "COERCE_EXPLICIT_CALL" } });
+
+/**
+ * A relation as a FROM item, sometimes wrapped. The wrappers keep the same
+ * column names, so nothing downstream has to know which one it got.
+ *
+ * TABLESAMPLE is drawn at a HIGH fraction on purpose: the construct is what
+ * sweep-4 finding 3 needed, and a low fraction merely empties the side, which
+ * costs the run its rows without testing anything the empty relation does not
+ * already test.
+ */
+function relationItem(rand: Rand, t: TableInfo, alias: string): { ast: Ast; form: string } {
+  const roll = rand.int(0, 9);
+  if (roll === 0) {
+    return {
+      ast: { RangeTableSample: { relation: rangeVar(t.schema, t.name, alias), method: [str("bernoulli")], args: [intConst(rand.int(60, 100))] } },
+      form: "sample",
+    };
+  }
+  if (roll === 1) {
+    // A derived table over the relation — same columns, one more layer for the
+    // walk to carry them through.
+    return {
+      ast: rangeSubselect(
+        { SelectStmt: { targetList: [{ ResTarget: { val: { ColumnRef: { fields: [{ A_Star: {} }] } } } }], fromClause: [rangeVar(t.schema, t.name, `${alias}_b`)], limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } },
+        alias, false),
+      form: "derived",
+    };
+  }
+  return { ast: rangeVar(t.schema, t.name, alias), form: "rel" };
+}
+
 function buildQuery(
   rand: Rand,
   snapshot: CatalogSnapshot,
   start: string,
   edges: Edge[],
   pool: ValuePool,
+  appTables: TableInfo[],
 ): Built | null {
   const byId = new Map(snapshot.tables.map(t => [`${t.schema}.${t.name}`, t]));
+  const colsOf = (t: TableInfo) =>
+    t.columns.filter(c => c.generated !== "virtual").map(c => ({ name: c.name, type: c.typeName }));
   const target_ = rand.int(2, 4);
-  const used: { alias: string; table: string }[] = [{ alias: "r0", table: start }];
+  const startTable = byId.get(start)!;
+  const first = relationItem(rand, startTable, "r0");
+  const used: Item[] = [{ alias: "r0", table: start, columns: colsOf(startTable) }];
   const kinds: string[] = [];
+  const shapeParts: string[] = [first.form];
 
-  let from: Ast = fromItem(byId.get(start)!, "r0");
-  const shapeParts: string[] = [];
+  let from: Ast = first.ast;
+  /** Comma-joined items — a FROM list rather than a join tree. */
+  const extraFrom: Ast[] = [];
+  /**
+   * Aliases inside the join TREE. A comma-joined item is a sibling of the
+   * tree, not a member of it, so a later join's ON cannot reference it —
+   * `FROM a JOIN b ON …, c` leaves `c` invisible to that ON, and anchoring
+   * there is a "missing FROM-clause entry" rejection. Targets and WHERE see
+   * every item, which is why `used` still carries them all.
+   */
+  const treeAliases = new Set<string>(["r0"]);
+
+  /** Two same-typed columns, one from scope and one from a candidate table. */
+  const nonKeyPair = (t: TableInfo): { anchor: Item; a: string; b: string } | null => {
+    const options: { anchor: Item; a: string; b: string }[] = [];
+    for (const u of used) {
+      if (!treeAliases.has(u.alias)) continue;
+      for (const c of u.columns) {
+        for (const d of colsOf(t)) {
+          if (c.type === d.type && c.type !== "json") options.push({ anchor: u, a: c.name, b: d.name });
+        }
+      }
+    }
+    return options.length ? rand.pick(options) : null;
+  };
 
   for (let i = 1; i < target_; i++) {
-    // Any edge touching a table already in the query, in either direction. A
-    // self-referencing key qualifies too: it joins the table to itself under a
-    // second alias, which §7 measured to be the only way two of the three
-    // inhabitable child->parent keys can be reached at all.
-    const candidates = edges.filter(e =>
-      used.some(u => u.table === e.child) || used.some(u => u.table === e.parent));
-    if (candidates.length === 0) break;
-    const edge = rand.pick(candidates);
+    const alias = `r${i}`;
+    const roll = rand.int(0, 11);
 
-    // Which end is already present decides which end we are adding, and a
-    // self-reference is present at both ends — pick a direction.
-    const childIn = used.some(u => u.table === edge.child);
-    const parentIn = used.some(u => u.table === edge.parent);
+    // --- a function item: no relation, no key, columns from its alias ------
+    if (roll === 0) {
+      const rowsFrom = rand.chance(0.5);
+      const cols = rowsFrom ? ["fa", "fb"] : ["fa"];
+      const calls = rowsFrom
+        ? [seriesCall(1, rand.int(1, 3)), seriesCall(1, rand.int(1, 2))]
+        : [seriesCall(1, rand.int(1, 3))];
+      from = {
+        JoinExpr: {
+          jointype: "JOIN_INNER",
+          larg: from,
+          rarg: funcItem(calls, alias, cols),
+          // No qual at all — a CROSS JOIN in join-tree form, which is the
+          // route sweep-4 finding 2 took into an unrecorded join.
+        },
+      };
+      used.push({ alias, columns: cols.map(n => ({ name: n, type: "integer" })) });
+      treeAliases.add(alias);
+      kinds.push("JOIN_INNER");
+      shapeParts.push(rowsFrom ? "rowsfrom" : "srf");
+      continue;
+    }
+
+    // --- LATERAL over an earlier alias ------------------------------------
+    if (roll === 1) {
+      const anchor = rand.pick(used.filter(u => treeAliases.has(u.alias)));
+      if (!anchor || anchor.columns.length === 0) continue;
+      const c = rand.pick(anchor.columns);
+      from = {
+        JoinExpr: {
+          jointype: rand.pick(["JOIN_INNER", "JOIN_LEFT"]),
+          larg: from,
+          rarg: rangeSubselect(
+            { SelectStmt: { targetList: [target(colRef(anchor.alias, c.name), "lv")], limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } },
+            alias, true),
+          quals: { A_Const: { boolval: { boolval: true } } },
+        },
+      };
+      used.push({ alias, columns: [{ name: "lv", type: c.type }] });
+      treeAliases.add(alias);
+      kinds.push("JOIN_LATERAL");
+      shapeParts.push("lateral");
+      continue;
+    }
+
+    // --- a table joined on a NON-KEY condition, or on nothing at all ------
+    // Step 0's residue: 18 of the 26 features it measured as unreachable sit
+    // on tables no key connects, so a key-only walker cannot get to them at
+    // any depth. This path also takes the engine's other route — no
+    // entailment, pure join-state reasoning.
+    if (roll === 2 || roll === 3) {
+      const t = rand.pick(appTables);
+      const pair = roll === 2 ? nonKeyPair(t) : null;
+      // A qual-less join is only legal as INNER — PostgreSQL requires ON or
+      // USING on every outer join, and emitting one without is a syntax error
+      // rather than an interesting shape.
+      const kind = pair ? rand.pick(JOIN_KINDS) : "JOIN_INNER";
+      from = {
+        JoinExpr: {
+          jointype: kind,
+          larg: from,
+          rarg: relationItem(rand, t, alias).ast,
+          ...(pair ? { quals: eq(colRef(pair.anchor.alias, pair.a), colRef(alias, pair.b)) } : {}),
+        },
+      };
+      used.push({ alias, table: `${t.schema}.${t.name}`, columns: colsOf(t) });
+      treeAliases.add(alias);
+      kinds.push(kind);
+      shapeParts.push(pair ? `${kind}:nonkey` : `${kind}:qualless`);
+      continue;
+    }
+
+    // --- a comma join: a second FROM entry rather than a join tree --------
+    if (roll === 4) {
+      const t = rand.pick(appTables);
+      extraFrom.push(relationItem(rand, t, alias).ast);
+      used.push({ alias, table: `${t.schema}.${t.name}`, columns: colsOf(t) });
+      shapeParts.push("comma");
+      continue;
+    }
+
+    // --- the default: follow a declared key ------------------------------
+    const inTree = used.filter(u => treeAliases.has(u.alias));
+    const candidates = edges.filter(e =>
+      inTree.some(u => u.table === e.child) || inTree.some(u => u.table === e.parent));
+    if (candidates.length === 0) continue;
+    const edge = rand.pick(candidates);
+    const childIn = inTree.some(u => u.table === edge.child);
+    const parentIn = inTree.some(u => u.table === edge.parent);
     const addParent = edge.child === edge.parent ? rand.chance(0.5) : childIn && !parentIn;
     if (!addParent && parentIn === false) continue;
-
     const anchorTable = addParent ? edge.child : edge.parent;
-    const anchor = rand.pick(used.filter(u => u.table === anchorTable));
+    const anchors = inTree.filter(u => u.table === anchorTable);
+    if (anchors.length === 0) continue;
+    const anchor = rand.pick(anchors);
     const added = addParent ? edge.parent : edge.child;
     const addedTable = byId.get(added);
     if (!addedTable) continue;
 
-    const alias = `r${i}`;
     const kind = rand.pick(JOIN_KINDS);
     kinds.push(kind);
-    // A composite key becomes a CONJUNCTIVE ON — the whole key equated, which
-    // is what the entailment gate must decline as a unit rather than reading
-    // one column of.
     const anchorCols = addParent ? edge.childColumns : edge.parentColumns;
     const addedCols = addParent ? edge.parentColumns : edge.childColumns;
     const conjuncts = anchorCols.map((c, k) =>
       eq(colRef(anchor.alias, c), colRef(alias, addedCols[k]!)));
+    const item = relationItem(rand, addedTable, alias);
 
     from = {
       JoinExpr: {
         jointype: kind,
         larg: from,
-        rarg: fromItem(addedTable, alias),
-        quals: conjuncts.length === 1
-          ? conjuncts[0]!
-          : boolExpr("AND_EXPR", conjuncts),
+        rarg: item.ast,
+        quals: conjuncts.length === 1 ? conjuncts[0]! : boolExpr("AND_EXPR", conjuncts),
       },
     };
-    used.push({ alias, table: added });
-    shapeParts.push(`${kind}:${addParent ? "child->parent" : "parent->child"}`);
+    used.push({ alias, table: added, columns: colsOf(addedTable) });
+    treeAliases.add(alias);
+    shapeParts.push(`${kind}:${addParent ? "child->parent" : "parent->child"}${item.form === "rel" ? "" : `/${item.form}`}`);
   }
   if (used.length < 2) return null;
 
-  // Project a few columns per table, always at least one, so a claim exists.
+  // Project a few columns per item, always at least one, so a claim exists.
   const targetList: Ast[] = [];
   const slots: Slot[] = [];
   for (const u of used) {
-    const t = byId.get(u.table)!;
-    const cols = t.columns.filter(c => c.generated !== "virtual");
-    if (cols.length === 0) continue;
-    for (const c of cols) slots.push({ alias: u.alias, column: c.name, type: c.typeName });
-    const take = Math.min(cols.length, rand.int(1, 3));
+    if (u.columns.length === 0) continue;
+    for (const c of u.columns) slots.push({ alias: u.alias, column: c.name, type: c.type });
+    const take = Math.min(u.columns.length, rand.int(1, 3));
     const chosen = new Set<string>();
-    for (let k = 0; k < take; k++) chosen.add(rand.pick(cols).name);
+    for (let k = 0; k < take; k++) chosen.add(rand.pick(u.columns).name);
     for (const name of chosen) {
       targetList.push(target(colRef(u.alias, name), `${u.alias}_${name}`));
     }
   }
   if (targetList.length === 0) return null;
 
-  // …and then some EXPRESSIONS over those columns. Bare columns stay in the
-  // list: they are what every existing claim was measured on, and an
-  // expression target is an addition to the query rather than a replacement
-  // for it.
+  // …and then some EXPRESSIONS over those columns (§9.1). Bare columns stay in
+  // the list: they are what every existing claim was measured on, and an
+  // expression target is an addition rather than a replacement.
   const byType = new Map<string, Slot[]>();
   for (const sl of slots) {
     const b = byType.get(sl.type);
@@ -579,22 +747,62 @@ function buildQuery(
     targetList.push(target(e.ast, `e${k}_${e.form}`));
   }
 
-  // A WHERE clause on most queries, and deliberately none on the rest: the
-  // unfiltered path is the one every existing claim was measured on.
+  // A scalar SubLink target — uncorrelated, so it always has a value and
+  // cannot fail; its nullability is the aggregate-over-empty question.
+  if (rand.chance(0.15)) {
+    const t = rand.pick(appTables);
+    // `max` has no boolean or json form, so the column has to be one it takes.
+    const orderable = colsOf(t).filter(x => !["boolean", "json", "jsonb"].includes(x.type) && !x.type.endsWith("[]"));
+    if (orderable.length === 0) return null;
+    const c = rand.pick(orderable);
+    targetList.push(target(
+      { SubLink: { subLinkType: "EXPR_SUBLINK", subselect: { SelectStmt: {
+        targetList: [{ ResTarget: { val: { FuncCall: { funcname: [str("max")], args: [colRef("sq", c.name)], funcformat: "COERCE_EXPLICIT_CALL" } } } }],
+        fromClause: [rangeVar(t.schema, t.name, "sq")],
+        limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } } } },
+      "sub_max"));
+    exprForms.push("sublink");
+  }
+
+  // An EXISTS predicate, correlated on a same-typed column — the SubLink form
+  // whose entailment the walk reasons about separately from a join's.
+  let existsPred: Ast | null = null;
+  if (rand.chance(0.12)) {
+    const t = rand.pick(appTables);
+    const p = nonKeyPair(t);
+    if (p) {
+      existsPred = {
+        SubLink: {
+          subLinkType: "EXISTS_SUBLINK",
+          subselect: { SelectStmt: {
+            targetList: [{ ResTarget: { val: intConst(1) } }],
+            fromClause: [rangeVar(t.schema, t.name, "ex")],
+            whereClause: eq(colRef("ex", p.b), colRef(p.anchor.alias, p.a)),
+            limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } },
+        },
+      };
+    }
+  }
+
   // Retry: `whereClause` answers null when the column it picked has no
   // drawable literal, and one attempt made the real rate 54% against the 70%
   // this line asks for — a bound the report was stating wrongly.
   let where: { node: Ast; shape: string } | null = null;
   if (rand.chance(0.7)) {
     for (let attempt = 0; attempt < 5 && !where; attempt++) {
-      where = whereClause(rand, used, byId, pool);
+      where = whereClause(rand, used, pool);
     }
+  }
+  if (existsPred) {
+    where = where
+      ? { node: boolExpr("AND_EXPR", [where.node, existsPred]), shape: `${where.shape}+EXISTS` }
+      : { node: existsPred, shape: "EXISTS" };
   }
 
   const stmt = {
     SelectStmt: {
       targetList,
-      fromClause: [from],
+      fromClause: [from, ...extraFrom],
       ...(where ? { whereClause: where.node } : {}),
       limitOption: "LIMIT_OPTION_DEFAULT",
       op: "SETOP_NONE",
@@ -603,19 +811,15 @@ function buildQuery(
   const sql = deparseSync(stmt as Parameters<typeof deparseSync>[0]);
   return {
     sql,
-    used,
+    used: used.map(u => ({ alias: u.alias, table: u.table ?? "(function)" })),
     kinds,
     // Table identities matter here — the whole point is that the catalog
     // varies — so the shape keys on tables and join kinds, not on the aliases
     // or the projected column names. The WHERE contributes its STRUCTURE only,
     // for the same reason: a random literal must not mint a fresh shape.
-    shape: `${used.map(u => u.table).join("+")}|${shapeParts.join(",")}|W:${where?.shape ?? "-"}` +
+    shape: `${used.map(u => u.table ?? "fn").join("+")}|${shapeParts.join(",")}|W:${where?.shape ?? "-"}` +
       `|E:${[...exprForms].sort().join(",") || "-"}`,
   };
-}
-
-function fromItem(t: TableInfo, alias: string): Ast {
-  return rangeVar(t.schema, t.name, alias);
 }
 
 // ---------------------------------------------------------------------------
@@ -734,6 +938,12 @@ const APPLICATION_TABLES = [
 // Uniformly over the application tables the join graph connects. Drawing a
 // GROUP first was the earlier bug: each two-table `sw4_*` pair weighed as much
 // as the whole 13-table application half, so 82% of a run went to artifacts.
+// The relations a non-key join, a comma join or a subquery may draw — the
+// application set, whether or not a key connects them, which is the point:
+// Step 0 measured 18 of 26 unreachable features on tables no key touches.
+const appTableInfos = snapshot.tables.filter(t =>
+  APPLICATION_TABLES.includes(t.name) && t.relkind !== "p");
+
 const startTables = [...inGroups]
   .filter(id => APPLICATION_TABLES.includes(id.split(".")[1]!))
   .sort();
@@ -770,7 +980,7 @@ for (let i = 0; i < COUNT; i++) {
   const id = `q${i}`;
   let built: Built | null;
   try {
-    built = buildQuery(rand, snapshot, rand.pick(startTables), usableEdges, pool);
+    built = buildQuery(rand, snapshot, rand.pick(startTables), usableEdges, pool, appTableInfos);
   } catch (e) {
     counts.set("generator-threw", (counts.get("generator-threw") ?? 0) + 1);
     rejectionDetail.set(`generator: ${(e as Error).message}`, (rejectionDetail.get(`generator: ${(e as Error).message}`) ?? 0) + 1);
@@ -793,6 +1003,22 @@ for (let i = 0; i < COUNT; i++) {
   const wf = (built.shape.split("|W:")[1] ?? "-").split("|E:")[0]!;
   whereUse.set(wf, (whereUse.get(wf) ?? 0) + 1);
   if (samples.length < SAMPLE) samples.push(built.sql);
+
+  // Reparse FIRST, and on its own. `ProbeLoop.run` parses inside its engine
+  // half and reports a failure as an engine error, which put a deparser defect
+  // of OURS in `engine-crashed` — a FINDING bucket — and read as 226 engine
+  // crashes on the first §9.2 run. §6's tiers exist to stop exactly that
+  // misattribution, so the parse is done here where its failure is
+  // unambiguous: the text did not survive the round trip, which is a TOOL
+  // defect and nothing to do with the walk.
+  try {
+    await parseSql(built.sql);
+  } catch (e) {
+    counts.set("reparse-failed", (counts.get("reparse-failed") ?? 0) + 1);
+    const key = `deparse produced unparseable SQL: ${(e as Error).message.split("\n")[0]!.slice(0, 70)}`;
+    rejectionDetail.set(key, (rejectionDetail.get(key) ?? 0) + 1);
+    continue;
+  }
 
   const r = await loop.run({ id, sql: built.sql });
   const bucket = classify(r);
