@@ -111,6 +111,38 @@ Not migrated, not extended, not used again.
   mode was becoming the default vehicle for anything needing a table. The fix
   is to stop.
 
+### Do not prune the rest of the schema by looking for unused relations
+
+Measured 2026-08-08, because "point the generator at the realistic tables and
+delete the obscure ones" is the obvious next thought and it is a trap. Only
+SEVEN of the 82 relations are named by no fixture and no test source, and five
+of those are structural counterparts that nothing names BY DESIGN — the point
+of each is that scanning its parent reads it:
+
+| relation | what it is |
+|---|---|
+| `inh_c` | the child that makes `ALTER TABLE ONLY inh_p … SET NOT NULL` observable — it is what makes `notNullTree` false on the parent |
+| `fk_chi` | the inheritance child holding rows the key never saw; the gate `resolveForeignKeyTree` exists for |
+| `sw4_ic` | sweep-4's inheritance control, the same shape |
+| `gen_c` | dropping it loses `generation-diverging-in-the-tree` outright |
+| `iot_base` | `DROP … CASCADE` takes `iot_v` with it, and `instead-of-trigger` with that |
+
+Dropping the first three fails NO test — the census only asserts a feature
+exists somewhere, and each of theirs survives on another relation — while
+silently flipping the exact gates the fixtures querying `inh_p` and `fk_par`
+assert. That is the removal to be careful of: green, and wrong.
+
+The remaining two, `sw4_c`/`sw4_r`, were genuinely orphaned, and the reason was
+a missing test rather than dead DDL. Their schema comment ("a key whose two
+columns share a NAME, so a USING or NATURAL join synthesises exactly the key
+equality — the control for the join recording") describes a case no fixture
+covered: `fk-entail-natural-no-common-columns.sql` pins that a NATURAL join
+synthesising NO equality entails nothing, and the direction where the
+synthesised equality IS the key was never written. Both halves exist now
+(`fk-entail-using-synthesized-key.sql`, `fk-entail-natural-extra-conjunct.sql`),
+each mutation-tested to fail alone, and `sw4_c.v`/`sw4_r.v` gained a shared
+vocabulary so the second one's presence group observes both arms.
+
 ---
 
 ## 3. The tool
@@ -249,13 +281,29 @@ is wider than one node: the SQL/JSON constructor family is un-deparsable,
 `window-default-frame` comes back with mangled bounds, and recursive-CTE
 `SEARCH`/`CYCLE` are dropped while still parsing.
 
-**A live alternative worth evaluating before the vocabulary grows: generate
-TEXT instead of an AST.** Emit the text, parse it once, hand that AST to the
-engine and that same text to PostgreSQL. No round trip, nothing to survive,
-four outcome buckets gone, and the ceiling with them. The cost is rendering
-valid SQL — but only *what the generator emits*, not the language: parenthesise
-defensively, quote identifiers always, and a general deparser's hard parts
-never arise.
+**DECIDED 2026-08-08: the generator keeps building ASTs.** This section
+previously floated generating TEXT instead, on the argument that one would only
+render *what the generator emits, not the language*. That argument fails for
+this instrument specifically: the discovery generator is RANDOMISED over an
+unbounded space (§3), so what it emits approaches the language, and the
+rendering cost is a query builder — precedence, identifier quoting, literal
+escaping, type-name rendering — which is harder to get right than juggling AST
+nodes and has no oracle of its own.
+
+The ceiling is smaller than the table above reads. The 13 pinned deviations
+across 411 fixtures are **five upstream defects in `pgsql-deparser`**, not a
+structural boundary: the `JsonTable` node is unhandled (6 fixtures), the
+SQL/JSON constructor and `JsonFuncExpr` nodes are unhandled (2), subscripting
+emits a stray `[` (2), recursive-CTE `SEARCH`/`CYCLE` are dropped (2), and an
+explicit window frame comes back with its bounds mangled (1). Each is a bug
+report, and each is already pinned in both directions by `KNOWN_DEVIATIONS`, so
+a fix upstream fails the suite with "was pinned as `deparse-threw`, now
+`identical`" rather than passing unnoticed.
+
+So the gap is ACCOUNTED, not silent, and §5.4's promotion rule is what keeps it
+that way: one static fixture per non-deparseable class, which the soundness
+suite reads as SQL text and never deparses. Reporting the five upstream is the
+standing follow-up.
 
 ### 5.2 An FK join always matches, so absent arms need a direction
 
