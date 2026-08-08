@@ -547,7 +547,7 @@ Produce the work list by measurement rather than judgement:
 **Which of the 82 relations carry a catalog feature no generated query can
 reach?** The converse of capability reach — a query, not a sweep — and it turns
 "point it at the schema" into a ranked list. Run it before choosing which
-relations the join-spine walker admits first.
+tables the generator is allowed to put in a `FROM` clause first.
 
 Expect foreign keys, partitions and domains to dominate, because that is where
 the last two sweeps' findings were. But the point is to measure, not to expect.
@@ -605,9 +605,14 @@ triggers" is exact as far as it goes, and the three relations it does not name
 add a domain-over-array column, a stored generated column, an identity column
 and a `SETOF u` return — nothing structural.
 
-### The ranked list, and why there are two of them
+### Two ranked lists, answering two different questions
 
-**Minimum cover — 16 relations reach all 26:**
+The same 82 tables order differently depending on what you ask for, and the two
+orders barely overlap. Both are printed by the script.
+
+**List 1 — the fewest tables that touch every missing feature.** Take the table
+carrying the most features nothing else has, cross those off, repeat. Sixteen
+tables reach all 26:
 
 ```
  1. inh_p       +4  check-no-inherit, inheritance-parent-with-children,
@@ -630,54 +635,69 @@ and a `SETOF u` return — nothing structural.
 16. sw4_pref    +1  foreign-key-cloned-onto-a-partition
 ```
 
-**The join spine — 19 single-column foreign keys, 5 components:**
+**List 2 — the tables that can be joined to each other.** Following the 19
+single-column foreign keys splits the schema into five separate groups, where a
+generated query can only join tables within one group:
 
 ```
 13: addresses categories customers fk_df fk_nv fk_par order_items
     orders product_tags products reviews shipments tags
  2: sw4_c sw4_r     2: sw4_ip sw4_iref
  2: sw4_pp sw4_pref 2: sw4_rs sw4_rt
-61 relations are isolated — no single-column key either way.
+61 tables have no single-column foreign key in either direction, so nothing
+can be joined to them by a key at all.
 ```
 
-**These two lists barely intersect, and that is the decision this step exists
-to force.** The minimum cover is 13 isolated singletons plus three joinable
-relations; a walker admitting them in that order gets feature variety and
-almost no spine. The 13-relation component is the opposite: it contains the
-whole e-commerce half, and it already contains `tags`, so the walker has an
-entry point that admits no new relation at all — but the component carries only
-**8 of the 26** unreachable features. The other **18 exist only on relations no
-single-column key connects to anything**, so a pure FK-spine walker cannot
-reach them however many relations it admits. Reaching them needs the walker to
-also join on non-key columns, which §3's "non-canonical joins are in scope"
-already asks for — this measurement says that is not an option but a
-requirement, and how much rides on it.
+**The two lists barely overlap, and choosing between them is what this step
+exists to force.** Thirteen of list 1's sixteen tables are in that group of 61:
+a generator can put each in a `FROM` clause, but cannot join them to anything,
+so it gets catalog variety and one-table queries. The group of 13 is the
+opposite — it is the whole e-commerce half, and it already contains `tags`, one
+of the six tables the corpus queries today, so a generator can start joining
+without being given any new table at all. But those 13 carry only **8 of the
+26** missing features.
+
+The other **18 are only on tables no key connects to anything**. So no amount
+of following foreign keys reaches them, however many tables the generator is
+allowed to use. Reaching them means also joining on ordinary non-key columns,
+which §3 already asks for under "non-canonical joins are in scope" — this
+measurement turns that from a nice-to-have into a requirement, and says how
+much rides on it.
 
 The expectation at the head of this section holds for foreign keys and
-partitions, which dominate the FK-component half. It does not hold for domains:
-`domain-over-array-column` is already reachable through `ck`, and the domain
-entries that remain (`array-of-domain-column`, and the composite and row-type
-families) are column-TYPE features on isolated tables, which arrive with a
-relation rather than with a join.
+partitions, which are most of what the group of 13 contributes. It does not
+hold for domains: `domain-over-array-column` is already reachable through `ck`,
+and what remains (`array-of-domain-column`, and the composite and row-type
+families) are column-TYPE features on unjoinable tables — they arrive with a
+table, not with a join.
 
 ### One correction to §5.2
 
 Its table names `customers.default_address_id` as one of the three nullable
-child→parent keys. The column is on `addresses` and references `addresses` —
-a self-reference, not `customers → addresses`. Measured, the absent arm is
-inhabitable on four edges and nowhere else:
+keys pointing from a child row to its parent. The column is on `addresses` and
+references `addresses` — a table pointing at itself, not `customers` pointing
+at `addresses`.
 
-| edge | why |
+That matters because of what §5.2 is about: PostgreSQL enforces a foreign key,
+so if you `LEFT JOIN` from the child to the parent, every child row finds its
+parent and the join never produces a NULL-extended row — there is nothing for
+the outer join to be outer about. It can only produce one where the key column
+is nullable (the child may point at nothing) or the key is `NOT VALID` (rows
+predating it were never checked). Measured, that is true of exactly four
+foreign keys in this schema:
+
+| foreign key | why a NULL-extended row is possible |
 |---|---|
-| `addresses.default_address_id → addresses` | nullable FK |
-| `categories.parent_id → categories` | nullable FK |
-| `products.category_id → categories` | nullable FK |
-| `fk_nv.o_id → orders` | NOT VALID |
+| `addresses.default_address_id → addresses` | the column is nullable |
+| `categories.parent_id → categories` | the column is nullable |
+| `products.category_id → categories` | the column is nullable |
+| `fk_nv.o_id → orders` | the key is `NOT VALID` |
 
-The other 15 are `parent→child only`. Two of the three nullable edges are
-SELF-references, which the walker must be able to emit — an alias pair over one
-relation — or the child→parent half of §5.2's table has exactly one instance in
-this schema.
+For the other 15, only the reverse direction works — join from the parent to
+the child, where a parent with no children needs no violation to exist. And two
+of the three nullable ones point a table at ITSELF, so unless the generator can
+join a table to itself under two aliases, the child-to-parent direction has
+exactly one usable instance in this schema (`products.category_id`).
 
 ---
 
