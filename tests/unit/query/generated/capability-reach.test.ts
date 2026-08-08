@@ -123,9 +123,11 @@ const FLOOR: string[] = [
   // capability that needed BOTH axes: a literal comparison in the query AND a
   // CHECK constraint carrying one, before litsDistinct has two lits to compare
   "resolveLiteralDistinctnessSound",
-  // the `op-custom` projection: === and ====, the two custom operators whose
-  // backing functions sit on opposite sides of the strictness boundary
-  "resolveOperatorMetadata",
+  // every binary A_Expr since the operator narrowing landed: the corpus's
+  // === and ==== projections resolve their text operands and dispatch as
+  // `user-exact` through this member, which also took over the builtin
+  // totality question from the bare-name allowlist
+  "resolveOperatorTotality",
   // the `unnest(string_to_array(...))` item: asked before the two builtin
   // predicates, and it declines — string_to_array's return is concrete
   "resolvePolymorphicArraySignatures",
@@ -143,7 +145,16 @@ const FLOOR: string[] = [
  * transcription. Asserted from both sides — an entry that goes warm has to
  * leave, and a cold member nobody triaged fails.
  */
-const COLD_TRIAGE: Record<string, { needs: string; witness: string }> = {};
+const COLD_TRIAGE: Record<string, { needs: string; witness: string }> = {
+  resolveOperatorMetadata: {
+    needs:
+      "a user operator whose STRICTNESS the WHERE-promotion or mechanism-C " +
+      "path asks about — the expression path now resolves typed operands " +
+      "through resolveOperatorTotality instead, so only the strictness sites " +
+      "(promotionOperatorIsStrict, param-nullability) still consult this",
+    witness: "where-promotion-non-strict-op.sql",
+  },
+};
 
 const FIXTURES_DIR = join(__dirname, "..", "fixtures");
 

@@ -4610,6 +4610,36 @@ class NullabilityEngine {
    * cast's target. Null for everything else, which is the caller's signal
    * to refuse; the walk simulates no types.
    */
+  /**
+   * `renderedTypeOfExpr` extended with the TYPED literals — the charter's
+   * literal table, measured: `ival` is always integer, `boolval` always
+   * boolean, and `fval` is "numeric-ish digit text" whose value must be
+   * READ to tell bigint from numeric (the lexer spills every integer past
+   * int32 into fval — 2147483648 is bigint, 9223372036854775808 and 1.5
+   * are numeric). A string literal is `unknown` — NOT text; PostgreSQL
+   * does not consider it typed either, and assuming text would falsely
+   * eliminate the candidate PostgreSQL picks. Null means unknown.
+   */
+  private operandTypeName(expr: Node, scope: Scope | null): string | null {
+    const rec = expr as Record<string, unknown>;
+    const ac = rec["A_Const"] as
+      | { ival?: unknown; boolval?: unknown; fval?: { fval?: string } }
+      | undefined;
+    if (ac) {
+      if ("ival" in ac) return "integer";
+      if ("boolval" in ac) return "boolean";
+      if ("fval" in ac) {
+        const digits = ac.fval?.fval ?? "";
+        return /^[0-9]+$/.test(digits) &&
+          (digits.length < 19 || (digits.length === 19 && digits <= "9223372036854775807"))
+          ? "bigint"
+          : "numeric";
+      }
+      return null;
+    }
+    return this.renderedTypeOfExpr(expr, scope);
+  }
+
   private renderedTypeOfExpr(expr: Node, scope: Scope | null): string | null {
     const rec = expr as Record<string, unknown>;
     const tc = rec["TypeCast"] as
@@ -5613,6 +5643,62 @@ class NullabilityEngine {
         const qualified = opNames.length > 1;
         const op = opNames[opNames.length - 1] ?? "";
         trace.addFact("operator", opNames.join("."));
+
+        // Type-aware narrowing first (docs/type-aware-overloads.md, the
+        // operator slice): where the operand types are readable, the
+        // candidate set — path-visible user operators MERGED with the
+        // captured builtin signatures — replaces the bare-name allowlist,
+        // which closed the shadowing blind spot and the `path + path`
+        // hole. "unknown" falls through to the allowlist path below, whose
+        // recorded holes then apply only to the untypeable residue.
+        if (ae.lexpr && ae.rexpr) {
+          const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined;
+          const lt = this.operandTypeName(ae.lexpr, scope);
+          const rt = this.operandTypeName(ae.rexpr, scope);
+          const narrowed = this.catalog.resolveOperatorTotality(opSchema2, op, lt, rt);
+          if (narrowed.kind !== "unknown") {
+            trace.addFact("operandTypes", `${lt ?? "unknown"}, ${rt ?? "unknown"}`);
+            if (narrowed.kind === "user-exact") {
+              trace.addFact(
+                "customOperator",
+                `${op} → ${narrowed.functionSchema}.${narrowed.functionName} (type-narrowed)`,
+              );
+              const synthetic = {
+                funcname: [
+                  { String: { sval: narrowed.functionSchema } },
+                  { String: { sval: narrowed.functionName } },
+                ],
+                args: [ae.lexpr, ae.rexpr],
+              } as unknown as FuncCall;
+              const childTrace = trace.addChild(`operator '${op}' backing function`);
+              const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace);
+              trace.conclude(
+                result,
+                `type-narrowed operator dispatched through its backing function → ${result ? "notNull" : "nullable"}`,
+              );
+              return result;
+            }
+            if (narrowed.kind === "total") {
+              trace.addFact("totalOperator", "true (signature-narrowed)");
+              const allNotNull = this.operandsAllNotNull(
+                [ae.lexpr, ae.rexpr], scope, depth, trace, "operand",
+              );
+              trace.conclude(
+                allNotNull,
+                allNotNull
+                  ? `every surviving candidate of '${op}' is total and all operands non-null → non-null`
+                  : `operand of '${op}' is nullable → nullable`,
+              );
+              return allNotNull;
+            }
+            trace.addFact("totalOperator", "false (signature-narrowed)");
+            trace.conclude(
+              false,
+              `operator '${op}' keeps a non-total or unvouched candidate for these operand types → nullable`,
+            );
+            return false;
+          }
+        }
         // A schema-qualified operator may be user-defined and shadow a
         // built-in symbol, so only bare names are matched.
         if (qualified || !TOTAL_OPERATORS.has(op)) {

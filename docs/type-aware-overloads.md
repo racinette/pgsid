@@ -619,6 +619,16 @@ always agree, so it is cheap in practice.
 3. **The walk** — thread the known argument types into candidate
    selection; narrow; leave consensus untouched. This touches the hottest
    path, so the corpus dry-run discipline the fix phases used applies.
+   **The OPERATOR half LANDED 2026-08-09** — `operandTypeName` (the
+   literal table above, plus the existing `renderedTypeOfExpr`), the
+   `AEXPR_OP` case consulting `resolveOperatorTotality`, and the
+   signature-keyed exception set `NON_TOTAL_OPERATOR_SIGNATURES` held to
+   `PARTIAL_OVERLOADS` by the totality probe. `path + path` and the
+   shadowing rank-1 both closed where types are known; the untypeable
+   residue keeps the name rule and its recorded holes. Still on bare
+   names: the STRICTNESS sites (`promotionOperatorIsStrict`,
+   mechanism C's operator test), unary operators, and everything
+   function-shaped.
 4. **The tables, re-keyed to SIGNATURES — all seven, plus the two operator
    sets. Decided 2026-08-09: aggregates and window functions are NOT
    exceptions.** This is the real cost: the three scalar tables AND

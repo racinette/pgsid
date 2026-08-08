@@ -10,6 +10,7 @@ import {
   STRICT_OPERATORS,
   PARTIAL_OVERLOADS,
   NON_STRICT_OVERLOADS,
+  NON_TOTAL_OPERATOR_SIGNATURES,
 } from "../../../src/query/operators.js";
 
 // ---------------------------------------------------------------------------
@@ -502,6 +503,20 @@ describe("totality tables, probed by execution", () => {
         `simply sound — or the corpus stopped reaching it, which is worse ` +
         `because the entry now hides whatever else the name does:\n  ${stale.join(", ")}`,
     ).toEqual([]);
+  });
+
+  it("the prose record and the signature verdicts list the same holes", () => {
+    // PARTIAL_OVERLOADS carries the human-facing reason; the operator
+    // narrowing consults NON_TOTAL_OPERATOR_SIGNATURES per survivor. Two
+    // copies of one fact drift unless something holds them together: every
+    // recorded name must carry at least one signature verdict, and every
+    // verdict's name must have a recorded reason.
+    const proseNames = new Set(Object.keys(PARTIAL_OVERLOADS));
+    const verdictNames = new Set(
+      [...NON_TOTAL_OPERATOR_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
+    );
+    expect([...proseNames].filter(n => !verdictNames.has(n))).toEqual([]);
+    expect([...verdictNames].filter(n => !proseNames.has(n))).toEqual([]);
   });
 
   it("every parameter type has a value generator", () => {

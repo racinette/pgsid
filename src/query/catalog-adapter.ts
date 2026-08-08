@@ -13,6 +13,10 @@ import type {
 } from "./types.js";
 import { parseSql } from "../ast.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
+import {
+  TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES,
+  NON_TOTAL_OPERATOR_SIGNATURES,
+} from "./operators.js";
 
 // ---------------------------------------------------------------------------
 // buildNullabilityCatalog: CatalogSnapshot + pre-parsed function bodies → NullabilityCatalog
@@ -826,7 +830,7 @@ export async function buildNullabilityCatalog(
   const implicitCasts = new Set<string>();
   const binaryTargets = new Map<string, string[]>();
   for (const c of snapshot.builtinImplicitCasts ?? []) {
-    implicitCasts.add(`${c.source} ${c.target}`);
+    implicitCasts.add(`${c.source}->${c.target}`);
     if (c.binary) {
       const existing = binaryTargets.get(c.source);
       if (existing) existing.push(c.target);
@@ -926,10 +930,123 @@ export async function buildNullabilityCatalog(
     if (from.endsWith("[]") && to.endsWith("[]")) {
       return mayCoerceImplicitly(from.slice(0, -2), to.slice(0, -2));
     }
-    if (implicitCasts.has(`${from} ${to}`)) return true;
+    if (implicitCasts.has(`${from}->${to}`)) return true;
     // No clause holds. Eliminate only when BOTH sides are fully explained;
     // an unrecognised type on either side keeps the candidate.
     return !(typeUnderstood(from) && typeUnderstood(to));
+  };
+
+  // A cast's type name arrives in the GRAMMAR's spelling (`x::integer`
+  // parses as `int4`) while every signature here renders format_type names;
+  // the captured alias map is the bridge, applied to the base name so
+  // `int4` plus arrayBounds normalises to `integer[]`.
+  const typeAliases = snapshot.builtinTypeNameAliases ?? {};
+  const normalizeTypeName = (typeName: string): string => {
+    if (typeName.endsWith("[]")) return `${normalizeTypeName(typeName.slice(0, -2))}[]`;
+    return typeAliases[typeName] ?? typeName;
+  };
+
+  /**
+   * The operator half of docs/type-aware-overloads.md tiers 1 and 2, for a
+   * BINARY A_Expr: gather the merged candidate set — path-visible user
+   * operators plus the captured builtin rows, the answered shadowing
+   * question's requirement — take a declared-types exact match where one
+   * exists, otherwise eliminate candidates the known operand types
+   * certainly cannot reach and read totality by consensus over the
+   * survivors, each builtin row against its own signature verdict
+   * (NON_TOTAL_OPERATOR_SIGNATURES).
+   *
+   * "unknown" means this machinery has nothing sound to add and the caller
+   * keeps its existing behaviour — including the name-level claim with its
+   * RECORDED hole when both operand types are unresolvable and no user
+   * operator shares the name: the exotic-operand argument that recorded the
+   * hole applies to that residue unchanged.
+   */
+  const resolveOperatorTotality = (
+    schema: string | undefined,
+    name: string,
+    leftType: string | null,
+    rightType: string | null,
+  ):
+    | { kind: "user-exact"; functionSchema: string; functionName: string }
+    | { kind: "total" }
+    | { kind: "nullable" }
+    | { kind: "unknown" } => {
+    const L = leftType === null ? null : normalizeTypeName(leftType);
+    const R = rightType === null ? null : normalizeTypeName(rightType);
+
+    const builtins = resolveBuiltinOperatorSignatures(schema, name)
+      .filter(o => o.leftType !== null && o.rightType !== null);
+    // Path membership is a VISIBILITY filter (measured, Q1 of the charter's
+    // answered questions); position matters only for identical signatures,
+    // earliest first — the dedup key the function side already uses.
+    const userSchemas = schema ? [schema] : searchPath;
+    const users: typeof snapshot.operators = [];
+    const seenSig = new Set<string>();
+    for (const s of userSchemas) {
+      for (const o of opBySchemaName.get(`${s}.${name}`) ?? []) {
+        if (o.leftType === null || o.rightType === null) continue;
+        const sig = `${o.leftType},${o.rightType}`;
+        if (!seenSig.has(sig)) {
+          seenSig.add(sig);
+          users.push(o);
+        }
+      }
+    }
+    if (builtins.length === 0 && users.length === 0) return { kind: "unknown" };
+
+    const totalVerdict = (l: string, r: string): "total" | "nullable" =>
+      TOTAL_OPERATOR_NAMES.has(name) &&
+      !NON_TOTAL_OPERATOR_SIGNATURES.has(`${name}(${l},${r})`)
+        ? "total"
+        : "nullable";
+
+    if (L !== null && R !== null) {
+      // Declared-types exact match — early, terminal, unique per schema. A
+      // user duplicate of a builtin signature loses the tie because
+      // pg_catalog is searched implicitly first (measured, Q1).
+      const builtinExact = builtins.find(o => o.leftType === L && o.rightType === R);
+      if (builtinExact) return { kind: totalVerdict(L, R) };
+      const userExact = users.find(o => o.leftType === L && o.rightType === R);
+      if (userExact) {
+        return {
+          kind: "user-exact",
+          functionSchema: userExact.functionSchema,
+          functionName: userExact.functionName,
+        };
+      }
+    }
+
+    if (L === null && R === null) {
+      // Nothing to eliminate with. A user operator sharing a curated name
+      // makes the name-level fallback unsound (the demonstrated rank-1), so
+      // only the builtin-only case cedes to it.
+      return users.length > 0 && builtins.length > 0
+        ? { kind: "nullable" }
+        : { kind: "unknown" };
+    }
+
+    const survives = (l: string, r: string): boolean =>
+      (L === null || mayCoerceImplicitly(L, l)) &&
+      (R === null || mayCoerceImplicitly(R, r));
+    const userSurvivors = users.filter(o => survives(o.leftType!, o.rightType!));
+    const builtinSurvivors = builtins.filter(o => survives(o.leftType!, o.rightType!));
+
+    const count = userSurvivors.length + builtinSurvivors.length;
+    if (count === 0) return { kind: "unknown" };
+    if (count === 1 && userSurvivors.length === 1) {
+      // A superset with one member IS the answer, exact match or not.
+      const o = userSurvivors[0]!;
+      return {
+        kind: "user-exact",
+        functionSchema: o.functionSchema,
+        functionName: o.functionName,
+      };
+    }
+    if (userSurvivors.length > 0) return { kind: "nullable" };
+    return builtinSurvivors.every(o => totalVerdict(o.leftType!, o.rightType!) === "total")
+      ? { kind: "total" }
+      : { kind: "nullable" };
   };
 
   // The FROM-position shape of a pg_catalog function with named output
@@ -966,6 +1083,7 @@ export async function buildNullabilityCatalog(
     resolveFunctionMetadata,
     resolveFunctionCandidates,
     resolveOperatorMetadata,
+    resolveOperatorTotality,
     resolveBuiltinFunctionSignatures,
     resolveBuiltinOperatorSignatures,
     resolveCanonicalTypeName,
