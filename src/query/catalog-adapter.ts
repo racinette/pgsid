@@ -1308,9 +1308,17 @@ export async function buildNullabilityCatalog(
     argTypes: readonly (readonly string[] | null)[],
   ): FunctionInfo | null => {
     if (schema !== undefined) return null;
-    if (!isBuiltinFunction(name)) return null;
-    const builtinRows = builtinFnSigsByName.get(name);
-    if (!builtinRows || builtinRows.some(r => r.kind !== "f")) return null;
+    // A non-builtin name's merged set is the user half alone, so typed
+    // selection among ORDINARY user overloads rides the same rule — the
+    // charter's item 5, now actually built rather than inherited from
+    // consensus. For a builtin name the captured rows join the set; a name
+    // the capture does not hold keeps the drop rule.
+    let builtinRows: BuiltinFunctionSignature[] = [];
+    if (isBuiltinFunction(name)) {
+      const captured = builtinFnSigsByName.get(name);
+      if (!captured || captured.some(r => r.kind !== "f")) return null;
+      builtinRows = captured;
+    }
     const users = candidatesInPath(name).filter(f =>
       f.args.every(a => a.mode === "in" || a.mode === "inout" || a.mode === "out"),
     );
@@ -1344,7 +1352,10 @@ export async function buildNullabilityCatalog(
         const ins = userIns(f);
         return ins.length === argCount && ins.every((a, i) => a === singles[i]);
       });
-      if (userExact && !builtinExact) return userExact;
+      if (userExact && !builtinExact) {
+        // Same body-map guard as the survivor path below.
+        return userExact.language === "sql" && users.length > 1 ? null : userExact;
+      }
       if (builtinExact) return null;
     }
 
@@ -1362,9 +1373,20 @@ export async function buildNullabilityCatalog(
     const builtinSurvivors = bRows.filter(r =>
       sets.every((s, i) => reaches(s, bParamAt(r, i))),
     );
-    return userSurvivors.length === 1 && builtinSurvivors.length === 0
-      ? userSurvivors[0]!
-      : null;
+    const winner =
+      userSurvivors.length === 1 && builtinSurvivors.length === 0
+        ? userSurvivors[0]!
+        : null;
+    // The body-map guard: `fnBodyAsts` is keyed by name alone, so an
+    // overloaded name's SQL bodies collide there — the invariant that made
+    // the key unambiguous was resolveFunctionMetadata's single-candidate
+    // shortcut, and typed selection must not smuggle a colliding meta past
+    // it (the class-A trap fixture is built on exactly that collision).
+    // Domain returns, strictness and plpgsql winners carry no body read
+    // and stay recoverable; a SQL-bodied overload waits for a
+    // signature-keyed body map.
+    if (winner && winner.language === "sql" && users.length > 1) return null;
+    return winner;
   };
 
   /**

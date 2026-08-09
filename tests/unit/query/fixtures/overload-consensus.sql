@@ -9,7 +9,10 @@
 -- and with both operands proven non-null the strict NULL can never
 -- actually occur, hence the annotation.
 -- @unwitnessable 1: both clean2 candidates return their argument, proven non-null by the WHERE — strictness no longer claims totality, and no data can show the plpgsql bodies returning NULL
--- @unwitnessable 2: a multi-candidate operator has no single backing body to dispatch (bodies differ), and the strict NULL cannot occur here — both operands are proven non-null by the WHERE promotion
+-- @unwitnessable 2: the TYPED narrowing resolves the text row (c.name
+--   eliminates the integer one) and dispatches same_tt — whose plpgsql body
+--   is unanalysable, so the claim stays conservative; the strict NULL cannot
+--   occur here anyway, both operands being proven non-null by the WHERE
 SELECT
   tag_of(c.id) AS tg,             -- @notNull
   clean2(c.name) AS cl,           -- @nullable
