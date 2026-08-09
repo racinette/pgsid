@@ -501,10 +501,10 @@ export interface NullabilityCatalog {
     name: string,
     argTypes: readonly (readonly string[] | null)[],
   ):
-    | { kind: "always" }
-    | { kind: "first-arg" }
-    | { kind: "strict-total" }
-    | { kind: "nullable" }
+    | { kind: "always"; returns: string[] }
+    | { kind: "first-arg"; returns: string[] }
+    | { kind: "strict-total"; returns: string[] }
+    | { kind: "nullable"; returns: string[] }
     | { kind: "unknown" };
 
   /**
