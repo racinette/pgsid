@@ -255,7 +255,7 @@ probe as the evidence bar.
 - `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 
-## no-null-found (1651: functions 1427, operators 218, aggregates 1, windows 5)
+## no-null-found (1632: functions 1408, operators 218, aggregates 1, windows 5)
 
 - `!!(,tsquery)`
 - `##(line,lseg)`
@@ -694,8 +694,6 @@ probe as the evidence bar.
 - `convert(bytea,name,name)`
 - `convert_from(bytea,name)`
 - `convert_to(text,name)`
-- `crc32(bytea)`
-- `crc32c(bytea)`
 - `current_schema()`
 - `current_schemas(boolean)`
 - `database_to_xml(boolean,boolean,text)`
@@ -915,7 +913,6 @@ probe as the evidence bar.
 - `hashxid8extended(xid8,bigint)`
 - `hashxidextended(xid,bigint)`
 - `height(box)`
-- `icu_unicode_version()`
 - `in_range(bigint,bigint,bigint,boolean,boolean)`
 - `in_range(date,date,interval,boolean,boolean)`
 - `in_range(double precision,double precision,double precision,boolean,boolean)`
@@ -1148,7 +1145,6 @@ probe as the evidence bar.
 - `interval_smaller(interval,interval)`
 - `interval_um(interval)`
 - `intervaltypmodout(integer)`
-- `is_normalized(text,text)`
 - `isclosed(path)`
 - `ishorizontal(line)`
 - `ishorizontal(lseg)`
@@ -1191,8 +1187,6 @@ probe as the evidence bar.
 - `like(bytea,bytea)`
 - `like(name,text)`
 - `like(text,text)`
-- `like_escape(bytea,bytea)`
-- `like_escape(text,text)`
 - `line(point,point)`
 - `line_distance(line,line)`
 - `line_eq(line,line)`
@@ -1621,12 +1615,6 @@ probe as the evidence bar.
 - `regexp_substr(text,text,integer,integer,text,integer)`
 - `regr_count(double precision,double precision)`
 - `row_security_active(oid)`
-- `sha224(bytea)`
-- `sha384(bytea)`
-- `sha512(bytea)`
-- `similar_escape(text,text)`
-- `similar_to_escape(text)`
-- `similar_to_escape(text,text)`
 - `slope(point,point)`
 - `spg_poly_quad_compress(polygon)`
 - `text("char")`
@@ -1826,8 +1814,6 @@ probe as the evidence bar.
 - `tsvectorout(tsvector)`
 - `tsvectorsend(tsvector)`
 - `txid_current_snapshot()`
-- `unicode_assigned(text)`
-- `unicode_version()`
 - `uuid_cmp(uuid,uuid)`
 - `uuid_eq(uuid,uuid)`
 - `uuid_ge(uuid,uuid)`
@@ -1875,11 +1861,6 @@ probe as the evidence bar.
 - `xidout(xid)`
 - `xidsend(xid)`
 - `xml(text)`
-- `xml_is_well_formed(text)`
-- `xml_is_well_formed_content(text)`
-- `xml_is_well_formed_document(text)`
-- `xmlcomment(text)`
-- `xmltext(text)`
 - `|&>(box,box)`
 - `|&>(circle,circle)`
 - `|&>(polygon,polygon)`
