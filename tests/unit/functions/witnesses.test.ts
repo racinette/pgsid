@@ -36,6 +36,18 @@ import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * `name(arg,arg)` in the spelling the claim tables and the signature capture
+ * use. `@signature` is written the way `to_regprocedure` wants it — `text,
+ * timestamp without time zone`, with the spaces — so both sides need
+ * normalising before either can be compared to a table key. Without it the
+ * loop-closer below silently passed for every MULTI-argument witness (it
+ * could only ever match a one-argument signature), which is exactly the case
+ * it exists to catch.
+ */
+const sigKey = (fn: string, args: string): string =>
+  `${fn}(${args.split(",").map(a => a.trim()).join(",")})`;
+
 interface Witness {
   fn: string;
   slug: string;
@@ -152,7 +164,7 @@ describe("per-overload NULL witnesses", () => {
       if (nameTables.has(w.fn)) {
         offenders.push(`${w.fn}(${w.signature}) — the NAME is in a totality table`);
       }
-      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${w.fn}(${w.signature})`)) {
+      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(sigKey(w.fn, w.signature))) {
         offenders.push(`${w.fn}(${w.signature}) — claimed by the signature additions`);
       }
     }
@@ -166,9 +178,9 @@ describe("per-overload NULL witnesses", () => {
     // witnessed row's is this corpus; the remainder is the honest gap the
     // charter's "who makes the 235 verdicts" question still owns.
     const s = await snapshotCatalog(shared);
-    const witnessed = new Set(witnesses.map(w => `${w.fn}(${w.signature})`));
+    const witnessed = new Set(witnesses.map(w => sigKey(w.fn, w.signature)));
     const fnRows = s.builtinFunctionSignatures.filter(r => r.kind === "f");
-    const witnessedRows = fnRows.filter(r => witnessed.has(`${r.name}(${r.args.join(",")})`));
+    const witnessedRows = fnRows.filter(r => witnessed.has(sigKey(r.name, r.args.join(","))));
     console.log(
       `\nwitness corpus: ${witnesses.length} witnesses over ` +
         `${new Set(witnesses.map(w => w.fn)).size} names; ` +
