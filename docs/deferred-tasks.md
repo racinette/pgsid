@@ -504,7 +504,12 @@ total, claimed 795 (the 558 operator rows are the totality probe's
 jurisdiction), null-witnessed 154 (15 operator witnesses, `->` on a
 missing jsonb key the positive control), no-null-found 1826 (218 operator
 rows join the work list), the shell-operator drop per the 1a sweep's
-measurement. Aggregates and window functions are NOT yet under this
+measurement. **The work list is a durable handoff**:
+`docs/builtin-surface-worklist.md`, written by the suite itself
+(`BUILTIN_SURFACE_WORKLIST=docs/builtin-surface-worklist.md` on the run,
+regeneration command in the file's header) — every category listed in
+full, null-witnessed entries with their runnable witnesses, ready for a
+session to work the no-null-found promotions signature by signature. Aggregates and window functions are NOT yet under this
 discipline — their process (empty-input, empty-frame and all-NULL-input
 constructions) is proposed and awaiting discussion.
 
