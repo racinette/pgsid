@@ -6,6 +6,8 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
+  NON_NULL_OVER_NONEMPTY_AGGREGATES,
+  NEVER_NULL_WINDOW_FNS,
 } from "../../../src/query/nullability-walk.js";
 import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
 import {
@@ -73,7 +75,20 @@ describe("builtin scalar surface, witnessed or classified", () => {
    * a first-character regex read it as an operator): provenance is data the
    * builder holds, never something to re-guess from a name.
    */
-  const sigKind = new Map<string, "function" | "operator">();
+  const sigKind = new Map<string, "function" | "operator" | "aggregate" | "window">();
+  /**
+   * Aggregates and window functions run under TWO regimes. Their claimed
+   * rows had NO execution hold (the totality probe never probed them), so a
+   * claimed row producing NULL under its OWN claim's conditions is a
+   * FAILURE collected here — while unclaimed rows classify like the rest.
+   * `claimOf` maps a claimed key to the constructions its claim covers:
+   * "always" fails on any NULL, "nonempty" only on the nonempty
+   * non-null-input construction (empty and all-NULL input are the class's
+   * expected NULLs).
+   */
+  const claimOf = new Map<string, "always" | "nonempty">();
+  const constructionOf = new Map<string, "nonempty" | "empty" | "all-null" | "window">();
+  const claimFailures: string[] = [];
   const noNullFound: string[] = [];
   const noGeneratorTypes = new Map<string, number>();
   let capped = 0;
@@ -98,17 +113,22 @@ describe("builtin scalar surface, witnessed or classified", () => {
     ).rows;
     totalRows = rows.length;
 
+    // A NAME table claims every row of the name; a SIGNATURE addition claims
+    // exactly the row it names, and the OTHER rows of that name carry no
+    // claim and must still classify — `substring`'s regex rows are witnessed
+    // NULL while its positional rows are claimed, and reading the name as
+    // claimed hid the witnesses and left the loop-closer below with nothing
+    // to check. The totality probe already splits them this way.
     const claimedNames = new Set([
       ...ALWAYS_NOT_NULL_BUILTINS,
       ...FIRST_ARG_BUILTINS,
       ...STRICT_TOTAL_BUILTINS,
-      ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
     ]);
 
     for (const r of rows) {
       const key = `${r.name}(${r.types.join(",")})`;
       sigKind.set(key, "function");
-      if (claimedNames.has(r.name)) {
+      if (claimedNames.has(r.name) || STRICT_TOTAL_BUILTIN_SIGNATURES.has(key)) {
         category.set(key, "claimed");
         continue;
       }
@@ -189,6 +209,185 @@ describe("builtin scalar surface, witnessed or classified", () => {
       exprsBySig.set(key, [...new Set(mine)]);
     }
 
+    // The AGGREGATE and WINDOW surface. Their NULL routes are not argument
+    // values — empty input, discarded all-NULL input, and frame boundaries
+    // — so the constructions differ: an aggregate is probed over a
+    // three-row corner-value table, over the same table WHERE false, and
+    // over all-NULL arguments; an ordered/hypothetical-set row gets the
+    // WITHIN GROUP spelling with the ORDER BY types taken from the
+    // positions after aggnumdirectargs; a window row is probed as a scalar
+    // subquery at the first row, the last row, and over a single-row
+    // partition. Every expression is tagged with its construction, which
+    // is what lets a claimed row's NULL be judged against the claim's own
+    // conditions.
+    const aggRows = (
+      await pg.query<{
+        name: string;
+        types: string[];
+        volatile: boolean;
+        aggkind: string;
+        ndirect: number;
+      }>(
+        `SELECT p.proname AS name,
+                COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
+                            FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
+                p.provolatile = 'v' AS volatile,
+                a.aggkind, a.aggnumdirectargs::int AS ndirect
+           FROM pg_proc p
+           JOIN pg_namespace n ON n.oid = p.pronamespace
+           JOIN pg_aggregate a ON a.aggfnoid = p.oid
+          WHERE n.nspname = 'pg_catalog' AND p.prokind = 'a'
+          ORDER BY p.proname, 2;`,
+      )
+    ).rows;
+    const winRows = (
+      await pg.query<{ name: string; types: string[]; volatile: boolean }>(
+        `SELECT p.proname AS name,
+                COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
+                            FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
+                p.provolatile = 'v' AS volatile
+           FROM pg_proc p
+           JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname = 'pg_catalog' AND p.prokind = 'w'
+          ORDER BY p.proname, 2;`,
+      )
+    ).rows;
+    totalRows += aggRows.length + winRows.length;
+
+    /** A value for `t` at corner index `i`, from the corpus or the family. */
+    const valueAt = (t: string, i: number): string | null => {
+      const family = POLYMORPHIC_FAMILIES[Math.min(i, POLYMORPHIC_FAMILIES.length - 1)]!;
+      if (t in family) return family[t]!;
+      const list = VALUES[t];
+      return list ? list[Math.min(i, list.length - 1)]! : null;
+    };
+
+    for (const r of aggRows) {
+      const key = `${r.name}(${r.types.join(",")})`;
+      sigKind.set(key, "aggregate");
+      if (r.volatile) {
+        category.set(key, "volatile");
+        continue;
+      }
+      if (r.types.some(t => !POLYMORPHIC.has(t) && !VALUES[t] && t !== '"any"')) {
+        category.set(key, "no-generator");
+        continue;
+      }
+      // The claim regimes: count and the hypothetical class are total; the
+      // nonempty table and the ordered-set gate promise non-null exactly
+      // over a nonempty group with non-null input.
+      if (r.name === "count" || r.aggkind === "h") claimOf.set(key, "always");
+      else if (NON_NULL_OVER_NONEMPTY_AGGREGATES.has(r.name) || r.aggkind === "o") {
+        claimOf.set(key, "nonempty");
+      }
+      const mine: string[] = [];
+      const tag = (exprs: string[], c: "nonempty" | "empty" | "all-null"): void => {
+        for (const e of exprs) {
+          if (!constructionOf.has(e)) constructionOf.set(e, c);
+          mine.push(e);
+        }
+      };
+      if (r.aggkind === "h") {
+        // Direct args are unified with the ORDER BY types (measured, Q2);
+        // one integer column stands for both.
+        tag([
+          `(SELECT ${qualify(r.name)}(1) WITHIN GROUP (ORDER BY x) FROM (VALUES (1),(2)) t(x))`,
+        ], "nonempty");
+        tag([
+          `(SELECT ${qualify(r.name)}(1) WITHIN GROUP (ORDER BY x) FROM (VALUES (1)) t(x) WHERE false)`,
+        ], "empty");
+      } else if (r.aggkind === "o") {
+        const direct = r.types.slice(0, r.ndirect);
+        const ordered = r.types.slice(r.ndirect);
+        for (const i of [0, 1]) {
+          const dv = direct.map(t => valueAt(t, i));
+          if (dv.some(v => v === null) || ordered.length === 0) continue;
+          const cols = ordered.map((_, j) => `c${j}`).join(", ");
+          const row = (k: number): string | null => {
+            const vs = ordered.map(t => valueAt(t, k));
+            return vs.some(v => v === null) ? null : `(${vs.join(", ")})`;
+          };
+          const rows3 = [row(0), row(1), row(2)].filter((x): x is string => x !== null);
+          if (rows3.length === 0) continue;
+          const call = `${qualify(r.name)}(${dv.join(", ")}) WITHIN GROUP (ORDER BY ${cols})`;
+          tag([`(SELECT ${call} FROM (VALUES ${rows3.join(",")}) t(${cols}))`], "nonempty");
+          tag([`(SELECT ${call} FROM (VALUES ${rows3[0]}) t(${cols}) WHERE false)`], "empty");
+        }
+      } else {
+        const cols = r.types.map((_, j) => `c${j}`).join(", ");
+        const callCols = `${qualify(r.name)}(${r.types.map((_, j) => `c${j}`).join(", ")})`;
+        for (const i of [0, 1]) {
+          const row = (k: number): string | null => {
+            const vs = r.types.map(t => (t === '"any"' ? "1" : valueAt(t, k)));
+            return vs.some(v => v === null) ? null : `(${vs.join(", ")})`;
+          };
+          // Rows 0..2 shifted by the combo index, so corner values reach
+          // every position without a full cross product.
+          const rows3 = [row(i), row(i + 1), row(i + 2)].filter((x): x is string => x !== null);
+          if (rows3.length === 0 || r.types.length === 0) break;
+          tag([`(SELECT ${callCols} FROM (VALUES ${rows3.join(",")}) t(${cols}))`], "nonempty");
+          // The SINGLE-row group is its own class: stddev and friends are
+          // NULL over one row however non-null it is, which is exactly why
+          // they are excluded from the nonempty table — a member that NULLs
+          // here fails the claim.
+          tag([`(SELECT ${callCols} FROM (VALUES ${rows3[0]}) t(${cols}))`], "nonempty");
+          tag([`(SELECT ${callCols} FROM (VALUES ${rows3[0]}) t(${cols}) WHERE false)`], "empty");
+        }
+        if (r.types.length === 0) {
+          tag([`(SELECT ${qualify(r.name)}(*) FROM (VALUES (1),(2)) t(x))`], "nonempty");
+          tag([`(SELECT ${qualify(r.name)}(*) FROM (VALUES (1)) t(x) WHERE false)`], "empty");
+        } else {
+          const nulls = r.types
+            .map(t => (t === '"any"' || POLYMORPHIC.has(t) ? "NULL::int" : `NULL::${t}`))
+            .join(", ");
+          tag([
+            `(SELECT ${qualify(r.name)}(${nulls}) FROM (VALUES (1),(2)) s(z))`,
+          ], "all-null");
+        }
+      }
+      if (mine.length === 0) {
+        category.set(key, "no-generator");
+        claimOf.delete(key);
+        continue;
+      }
+      exprsBySig.set(key, [...new Set(mine)]);
+    }
+
+    for (const r of winRows) {
+      const key = `${r.name}(${r.types.join(",")})`;
+      sigKind.set(key, "window");
+      if (r.volatile) {
+        category.set(key, "volatile");
+        continue;
+      }
+      if (r.types.some(t => !POLYMORPHIC.has(t) && !VALUES[t] && t !== '"any"')) {
+        category.set(key, "no-generator");
+        continue;
+      }
+      // never-null ranking set: any NULL fails. ntile's claim is
+      // conditional on its argument, which these constructions supply
+      // non-null — so it holds to "always" under them too.
+      if (NEVER_NULL_WINDOW_FNS.has(r.name) || r.name === "ntile") {
+        claimOf.set(key, "always");
+      }
+      const args = r.types
+        .map(t => (t === '"any"' ? "1" : valueAt(t, 0)))
+        .filter((v): v is string => v !== null);
+      if (args.length !== r.types.length) {
+        category.set(key, "no-generator");
+        claimOf.delete(key);
+        continue;
+      }
+      const call = `${qualify(r.name)}(${args.join(", ")}) OVER (ORDER BY x)`;
+      const mine = [
+        `(SELECT ${call} FROM (VALUES (1),(2)) t(x) LIMIT 1)`,
+        `(SELECT ${call} FROM (VALUES (1),(2)) t(x) ORDER BY x DESC LIMIT 1)`,
+        `(SELECT ${call} FROM (VALUES (1)) t(x))`,
+      ];
+      for (const e of mine) if (!constructionOf.has(e)) constructionOf.set(e, "window");
+      exprsBySig.set(key, [...new Set(mine)]);
+    }
+
     // Evaluate in batches; per-expression error isolation via probe(). The
     // full surface holds expressions the claimed probe never met — at least
     // one raises in a way that overflows the backend's error stack
@@ -259,6 +458,23 @@ describe("builtin scalar surface, witnessed or classified", () => {
     }
 
     for (const [key, mine] of exprsBySig) {
+      // The claim regime: a claimed aggregate or window row is judged
+      // against its OWN conditions — an "always" claim fails on any NULL,
+      // a "nonempty" claim only on the nonempty non-null-input
+      // construction; the empty and all-NULL NULLs are the class behaving
+      // as documented.
+      const claim = claimOf.get(key);
+      if (claim) {
+        category.set(key, "claimed");
+        for (const e of mine) {
+          if (verdicts.get(e) !== "NULL") continue;
+          const c = constructionOf.get(e);
+          if (claim === "always" || c === "nonempty") {
+            claimFailures.push(`${key} [${c ?? "?"}]: SELECT ${e};`);
+          }
+        }
+        continue;
+      }
       let evaluated = 0;
       let witness: string | null = null;
       for (const e of mine) {
@@ -277,6 +493,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
       }
     }
     noNullFound.sort();
+    claimFailures.sort();
   }, 240_000);
 
   afterAll(async () => {
@@ -311,8 +528,9 @@ describe("builtin scalar surface, witnessed or classified", () => {
       const byCat = (cat: string): string[] =>
         [...category.entries()].filter(([, c]) => c === cat).map(([k]) => k).sort();
       const split = (keys: string[]): string =>
-        `functions ${keys.filter(k => sigKind.get(k) === "function").length}, ` +
-        `operators ${keys.filter(k => sigKind.get(k) === "operator").length}`;
+        (["function", "operator", "aggregate", "window"] as const)
+          .map(kind => `${kind}s ${keys.filter(k => sigKind.get(k) === kind).length}`)
+          .join(", ");
       const lines: string[] = [
         `# Builtin surface work list`,
         ``,
@@ -360,11 +578,21 @@ describe("builtin scalar surface, witnessed or classified", () => {
     expect(evaluated).toBeGreaterThan(500);
   });
 
+  it("every claimed aggregate and window row survives its own claim's conditions", () => {
+    // The execution hold those rows never had: the totality probe covers
+    // scalar claims only, so until this suite a nonempty-table aggregate
+    // or never-null window function could NULL under its own claim with
+    // nothing failing.
+    expect(claimFailures).toEqual([]);
+  });
+
   it("no null-witnessed signature carries a totality claim", () => {
     // The loop-closer, extended from the witness corpus to the whole
     // surface: the machine found a NULL, so no table may claim the row.
     // Structurally guaranteed for the name tables (claimed names are never
-    // evaluated), so the live half is the signature additions.
+    // evaluated), so the live half is the signature additions — which it is
+    // only because an addition's OTHER rows still classify; reading an
+    // addition's name as claimed made this assertion vacuous.
     const offenders = [...nullWitness.keys()].filter(k =>
       STRICT_TOTAL_BUILTIN_SIGNATURES.has(k),
     );
@@ -383,6 +611,11 @@ describe("builtin scalar surface, witnessed or classified", () => {
       // The operator control: `->` on a missing key is the walk's own
       // documented example of strict-but-not-total.
       "->(jsonb,text)",
+      // The aggregate control: stddev_samp over a single row is the
+      // documented reason the nonempty table excludes it.
+      "stddev_samp(double precision)",
+      // The window control: lag on the partition's first row.
+      "lag(anyelement)",
     ]) {
       expect(
         nullWitness.has(key),
