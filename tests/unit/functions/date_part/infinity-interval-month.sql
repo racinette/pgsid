@@ -1,0 +1,7 @@
+-- PG17 gave intervals their own infinities, and they behave like the
+-- timestamp ones the sweep already convicted: a monotonically-increasing
+-- field is ±Infinity, every other one is NULL. 'day' and 'hour' ARE
+-- monotonic here, so the corpus's units alone would have missed this.
+-- @signature text, interval
+-- @null  date_part('month', 'infinity'::interval)
+-- @value date_part('month', '1 day'::interval)

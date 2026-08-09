@@ -13,7 +13,7 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (154: functions 139, operators 15)
+## null-witnessed (230: functions 145, operators 15, aggregates 66, windows 4)
 
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
 - `#(line,line)` — witness: `SELECT '{1,1,0}'::line OPERATOR(pg_catalog.#) '{1,1,0}'::line;`
@@ -30,6 +30,7 @@ probe as the evidence bar.
 - `->>(json,text)` — witness: `SELECT 'null'::json OPERATOR(pg_catalog.->>) 'abc';`
 - `->>(jsonb,integer)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.->>) 1;`
 - `->>(jsonb,text)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.->>) 'abc';`
+- `any_value(anyelement)` — witness: `SELECT (SELECT pg_catalog.any_value(c0) FROM (VALUES (1)) t(c0) WHERE false);`
 - `area(path)` — witness: `SELECT pg_catalog.area('[(0,0),(1,1)]'::path);`
 - `array_dims(anyarray)` — witness: `SELECT pg_catalog.array_dims('{}'::text[]);`
 - `array_length(anyarray,integer)` — witness: `SELECT pg_catalog.array_length(ARRAY[1,2], 0);`
@@ -38,14 +39,23 @@ probe as the evidence bar.
 - `array_position(anycompatiblearray,anycompatible)` — witness: `SELECT pg_catalog.array_position('{}'::text[], 'x');`
 - `array_position(anycompatiblearray,anycompatible,integer)` — witness: `SELECT pg_catalog.array_position(ARRAY[1,2], 1, 65);`
 - `array_upper(anyarray,integer)` — witness: `SELECT pg_catalog.array_upper(ARRAY[1,2], 0);`
+- `bit_xor(bigint)` — witness: `SELECT (SELECT pg_catalog.bit_xor(c0) FROM (VALUES (1::bigint)) t(c0) WHERE false);`
+- `bit_xor(bit)` — witness: `SELECT (SELECT pg_catalog.bit_xor(c0) FROM (VALUES (B'0')) t(c0) WHERE false);`
+- `bit_xor(integer)` — witness: `SELECT (SELECT pg_catalog.bit_xor(c0) FROM (VALUES (1)) t(c0) WHERE false);`
+- `bit_xor(smallint)` — witness: `SELECT (SELECT pg_catalog.bit_xor(c0) FROM (VALUES (1::smallint)) t(c0) WHERE false);`
 - `bool(jsonb)` — witness: `SELECT pg_catalog.bool('null'::jsonb);`
 - `close_lseg(lseg,lseg)` — witness: `SELECT pg_catalog.close_lseg('[(0,0),(1,1)]'::lseg, '[(0,0),(1,1)]'::lseg);`
 - `col_description(oid,integer)` — witness: `SELECT pg_catalog.col_description(0::oid, 1);`
+- `corr(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.corr(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1));`
+- `covar_pop(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.covar_pop(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1) WHERE false);`
+- `covar_samp(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.covar_samp(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1));`
 - `current_setting(text,boolean)` — witness: `SELECT pg_catalog.current_setting('abc', true);`
 - `date_part(text,date)` — witness: `SELECT pg_catalog.date_part('day', 'infinity'::date);`
+- `date_part(text,interval)` — witness: `SELECT pg_catalog.date_part('month', 'infinity'::interval);`
 - `date_part(text,timestamp with time zone)` — witness: `SELECT pg_catalog.date_part('day', 'infinity'::timestamptz);`
 - `date_part(text,timestamp without time zone)` — witness: `SELECT pg_catalog.date_part('day', 'infinity'::timestamp);`
 - `extract(text,date)` — witness: `SELECT pg_catalog.extract('day', 'infinity'::date);`
+- `extract(text,interval)` — witness: `SELECT pg_catalog.extract('month', 'infinity'::interval);`
 - `extract(text,timestamp with time zone)` — witness: `SELECT pg_catalog.extract('day', 'infinity'::timestamptz);`
 - `extract(text,timestamp without time zone)` — witness: `SELECT pg_catalog.extract('day', 'infinity'::timestamp);`
 - `float4(jsonb)` — witness: `SELECT pg_catalog.float4('null'::jsonb);`
@@ -55,15 +65,31 @@ probe as the evidence bar.
 - `int2(jsonb)` — witness: `SELECT pg_catalog.int2('null'::jsonb);`
 - `int4(jsonb)` — witness: `SELECT pg_catalog.int4('null'::jsonb);`
 - `int8(jsonb)` — witness: `SELECT pg_catalog.int8('null'::jsonb);`
+- `json_agg_strict(anyelement)` — witness: `SELECT (SELECT pg_catalog.json_agg_strict(c0) FROM (VALUES (1)) t(c0) WHERE false);`
 - `json_array_element(json,integer)` — witness: `SELECT pg_catalog.json_array_element('null'::json, 1);`
 - `json_array_element_text(json,integer)` — witness: `SELECT pg_catalog.json_array_element_text('null'::json, 1);`
+- `json_object_agg("any","any")` — witness: `SELECT (SELECT pg_catalog.json_object_agg(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
+- `json_object_agg_strict("any","any")` — witness: `SELECT (SELECT pg_catalog.json_object_agg_strict(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
+- `json_object_agg_unique("any","any")` — witness: `SELECT (SELECT pg_catalog.json_object_agg_unique(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
+- `json_object_agg_unique_strict("any","any")` — witness: `SELECT (SELECT pg_catalog.json_object_agg_unique_strict(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
 - `json_object_field(json,text)` — witness: `SELECT pg_catalog.json_object_field('null'::json, 'abc');`
 - `json_object_field_text(json,text)` — witness: `SELECT pg_catalog.json_object_field_text('null'::json, 'abc');`
+- `jsonb_agg_strict(anyelement)` — witness: `SELECT (SELECT pg_catalog.jsonb_agg_strict(c0) FROM (VALUES (1)) t(c0) WHERE false);`
 - `jsonb_array_element(jsonb,integer)` — witness: `SELECT pg_catalog.jsonb_array_element('null'::jsonb, 1);`
 - `jsonb_array_element_text(jsonb,integer)` — witness: `SELECT pg_catalog.jsonb_array_element_text('null'::jsonb, 1);`
+- `jsonb_object_agg("any","any")` — witness: `SELECT (SELECT pg_catalog.jsonb_object_agg(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
+- `jsonb_object_agg_strict("any","any")` — witness: `SELECT (SELECT pg_catalog.jsonb_object_agg_strict(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
+- `jsonb_object_agg_unique("any","any")` — witness: `SELECT (SELECT pg_catalog.jsonb_object_agg_unique(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
+- `jsonb_object_agg_unique_strict("any","any")` — witness: `SELECT (SELECT pg_catalog.jsonb_object_agg_unique_strict(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
 - `jsonb_object_field(jsonb,text)` — witness: `SELECT pg_catalog.jsonb_object_field('null'::jsonb, 'abc');`
 - `jsonb_object_field_text(jsonb,text)` — witness: `SELECT pg_catalog.jsonb_object_field_text('null'::jsonb, 'abc');`
+- `lag(anyelement)` — witness: `SELECT (SELECT pg_catalog.lag(1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) LIMIT 1);`
+- `lag(anyelement,integer)` — witness: `SELECT (SELECT pg_catalog.lag(1, 1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) LIMIT 1);`
+- `lead(anyelement)` — witness: `SELECT (SELECT pg_catalog.lead(1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) ORDER BY x DESC LIMIT 1);`
+- `lead(anyelement,integer)` — witness: `SELECT (SELECT pg_catalog.lead(1, 1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) ORDER BY x DESC LIMIT 1);`
 - `line_interpt(line,line)` — witness: `SELECT pg_catalog.line_interpt('{1,1,0}'::line, '{1,1,0}'::line);`
+- `lower(anymultirange)` — witness: `SELECT pg_catalog.lower('{}'::int4multirange);`
+- `lower(anyrange)` — witness: `SELECT pg_catalog.lower('empty'::int4range);`
 - `lseg_interpt(lseg,lseg)` — witness: `SELECT pg_catalog.lseg_interpt('[(0,0),(1,1)]'::lseg, '[(0,0),(1,1)]'::lseg);`
 - `min_scale(numeric)` — witness: `SELECT pg_catalog.min_scale('NaN'::numeric);`
 - `numeric(jsonb)` — witness: `SELECT pg_catalog.numeric('null'::jsonb);`
@@ -139,12 +165,42 @@ probe as the evidence bar.
 - `pg_ts_parser_is_visible(oid)` — witness: `SELECT pg_catalog.pg_ts_parser_is_visible(0::oid);`
 - `pg_ts_template_is_visible(oid)` — witness: `SELECT pg_catalog.pg_ts_template_is_visible(0::oid);`
 - `pg_type_is_visible(oid)` — witness: `SELECT pg_catalog.pg_type_is_visible(0::oid);`
+- `range_agg(anymultirange)` — witness: `SELECT (SELECT pg_catalog.range_agg(c0) FROM (VALUES ('{[1,2)}'::int4multirange)) t(c0) WHERE false);`
+- `range_agg(anyrange)` — witness: `SELECT (SELECT pg_catalog.range_agg(c0) FROM (VALUES ('[1,2)'::int4range)) t(c0) WHERE false);`
+- `range_intersect_agg(anymultirange)` — witness: `SELECT (SELECT pg_catalog.range_intersect_agg(c0) FROM (VALUES ('{[1,2)}'::int4multirange)) t(c0) WHERE false);`
+- `range_intersect_agg(anyrange)` — witness: `SELECT (SELECT pg_catalog.range_intersect_agg(c0) FROM (VALUES ('[1,2)'::int4range)) t(c0) WHERE false);`
 - `regexp_match(text,text)` — witness: `SELECT pg_catalog.regexp_match('abc', '  ');`
 - `regexp_substr(text,text)` — witness: `SELECT pg_catalog.regexp_substr('abc', '  ');`
-- `regexp_substr(text,text,integer)` — witness: `SELECT pg_catalog.regexp_substr('', 'abc', 1);`
+- `regexp_substr(text,text,integer)` — witness: `SELECT pg_catalog.regexp_substr('abc', 'abc', 65);`
 - `regexp_substr(text,text,integer,integer)` — witness: `SELECT pg_catalog.regexp_substr('', 'abc', 1, 1);`
+- `regr_avgx(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_avgx(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1) WHERE false);`
+- `regr_avgy(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_avgy(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1) WHERE false);`
+- `regr_intercept(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_intercept(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1));`
+- `regr_r2(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_r2(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1));`
+- `regr_slope(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_slope(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1));`
+- `regr_sxx(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_sxx(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1) WHERE false);`
+- `regr_sxy(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_sxy(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1) WHERE false);`
+- `regr_syy(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_syy(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1) WHERE false);`
 - `scale(numeric)` — witness: `SELECT pg_catalog.scale('NaN'::numeric);`
 - `shobj_description(oid,name)` — witness: `SELECT pg_catalog.shobj_description(0::oid, ''::name);`
+- `stddev(bigint)` — witness: `SELECT (SELECT pg_catalog.stddev(c0) FROM (VALUES (1::bigint)) t(c0));`
+- `stddev(double precision)` — witness: `SELECT (SELECT pg_catalog.stddev(c0) FROM (VALUES (1::float8)) t(c0));`
+- `stddev(integer)` — witness: `SELECT (SELECT pg_catalog.stddev(c0) FROM (VALUES (1)) t(c0));`
+- `stddev(numeric)` — witness: `SELECT (SELECT pg_catalog.stddev(c0) FROM (VALUES (0::numeric)) t(c0));`
+- `stddev(real)` — witness: `SELECT (SELECT pg_catalog.stddev(c0) FROM (VALUES (0::float4)) t(c0));`
+- `stddev(smallint)` — witness: `SELECT (SELECT pg_catalog.stddev(c0) FROM (VALUES (1::smallint)) t(c0));`
+- `stddev_pop(bigint)` — witness: `SELECT (SELECT pg_catalog.stddev_pop(c0) FROM (VALUES (1::bigint)) t(c0) WHERE false);`
+- `stddev_pop(double precision)` — witness: `SELECT (SELECT pg_catalog.stddev_pop(c0) FROM (VALUES (1::float8)) t(c0) WHERE false);`
+- `stddev_pop(integer)` — witness: `SELECT (SELECT pg_catalog.stddev_pop(c0) FROM (VALUES (1)) t(c0) WHERE false);`
+- `stddev_pop(numeric)` — witness: `SELECT (SELECT pg_catalog.stddev_pop(c0) FROM (VALUES (0::numeric)) t(c0) WHERE false);`
+- `stddev_pop(real)` — witness: `SELECT (SELECT pg_catalog.stddev_pop(c0) FROM (VALUES (0::float4)) t(c0) WHERE false);`
+- `stddev_pop(smallint)` — witness: `SELECT (SELECT pg_catalog.stddev_pop(c0) FROM (VALUES (1::smallint)) t(c0) WHERE false);`
+- `stddev_samp(bigint)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (1::bigint)) t(c0));`
+- `stddev_samp(double precision)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (1::float8)) t(c0));`
+- `stddev_samp(integer)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (1)) t(c0));`
+- `stddev_samp(numeric)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (0::numeric)) t(c0));`
+- `stddev_samp(real)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (0::float4)) t(c0));`
+- `stddev_samp(smallint)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (1::smallint)) t(c0));`
 - `string_to_table(text,text,text)` — witness: `SELECT pg_catalog.string_to_table('abc', '', 'abc');`
 - `substring(text,text)` — witness: `SELECT pg_catalog.substring('abc', '  ');`
 - `substring(text,text,text)` — witness: `SELECT pg_catalog.substring('9', '9', '9');`
@@ -167,10 +223,30 @@ probe as the evidence bar.
 - `to_regtype(text)` — witness: `SELECT pg_catalog.to_regtype('abc');`
 - `to_regtypemod(text)` — witness: `SELECT pg_catalog.to_regtypemod('abc');`
 - `txid_current_if_assigned()` — witness: `SELECT pg_catalog.txid_current_if_assigned();`
+- `upper(anymultirange)` — witness: `SELECT pg_catalog.upper('{}'::int4multirange);`
+- `upper(anyrange)` — witness: `SELECT pg_catalog.upper('empty'::int4range);`
 - `uuid_extract_timestamp(uuid)` — witness: `SELECT pg_catalog.uuid_extract_timestamp('00000000-0000-0000-0000-000000000000'::uuid);`
 - `uuid_extract_version(uuid)` — witness: `SELECT pg_catalog.uuid_extract_version('00000000-0000-0000-0000-000000000000'::uuid);`
+- `var_pop(bigint)` — witness: `SELECT (SELECT pg_catalog.var_pop(c0) FROM (VALUES (1::bigint)) t(c0) WHERE false);`
+- `var_pop(double precision)` — witness: `SELECT (SELECT pg_catalog.var_pop(c0) FROM (VALUES (1::float8)) t(c0) WHERE false);`
+- `var_pop(integer)` — witness: `SELECT (SELECT pg_catalog.var_pop(c0) FROM (VALUES (1)) t(c0) WHERE false);`
+- `var_pop(numeric)` — witness: `SELECT (SELECT pg_catalog.var_pop(c0) FROM (VALUES (0::numeric)) t(c0) WHERE false);`
+- `var_pop(real)` — witness: `SELECT (SELECT pg_catalog.var_pop(c0) FROM (VALUES (0::float4)) t(c0) WHERE false);`
+- `var_pop(smallint)` — witness: `SELECT (SELECT pg_catalog.var_pop(c0) FROM (VALUES (1::smallint)) t(c0) WHERE false);`
+- `var_samp(bigint)` — witness: `SELECT (SELECT pg_catalog.var_samp(c0) FROM (VALUES (1::bigint)) t(c0));`
+- `var_samp(double precision)` — witness: `SELECT (SELECT pg_catalog.var_samp(c0) FROM (VALUES (1::float8)) t(c0));`
+- `var_samp(integer)` — witness: `SELECT (SELECT pg_catalog.var_samp(c0) FROM (VALUES (1)) t(c0));`
+- `var_samp(numeric)` — witness: `SELECT (SELECT pg_catalog.var_samp(c0) FROM (VALUES (0::numeric)) t(c0));`
+- `var_samp(real)` — witness: `SELECT (SELECT pg_catalog.var_samp(c0) FROM (VALUES (0::float4)) t(c0));`
+- `var_samp(smallint)` — witness: `SELECT (SELECT pg_catalog.var_samp(c0) FROM (VALUES (1::smallint)) t(c0));`
+- `variance(bigint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::bigint)) t(c0));`
+- `variance(double precision)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::float8)) t(c0));`
+- `variance(integer)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1)) t(c0));`
+- `variance(numeric)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::numeric)) t(c0));`
+- `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
+- `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 
-## no-null-found (1826: functions 1608, operators 218)
+## no-null-found (1715: functions 1491, operators 218, aggregates 1, windows 5)
 
 - `!!(,tsquery)`
 - `##(line,lseg)`
@@ -362,13 +438,11 @@ probe as the evidence bar.
 - `@@@(tsquery,tsvector)`
 - `@@@(tsvector,tsquery)`
 - `^@(text,text)`
-- `abbrev(cidr)`
-- `abbrev(inet)`
 - `aclcontains(aclitem[],aclitem)`
+- `acldefault("char",oid)`
 - `aclexplode(aclitem[])`
 - `aclitemeq(aclitem,aclitem)`
 - `aclitemout(aclitem)`
-- `acosd(double precision)`
 - `any_value_transfn(anyelement,anyelement)`
 - `anyarray_out(anyarray)`
 - `anyarray_send(anyarray)`
@@ -389,22 +463,12 @@ probe as the evidence bar.
 - `array_lt(anyarray,anyarray)`
 - `array_ne(anyarray,anyarray)`
 - `array_out(anyarray)`
-- `array_replace(anycompatiblearray,anycompatible,anycompatible)`
-- `array_reverse(anyarray)`
 - `array_send(anyarray)`
 - `array_smaller(anyarray,anyarray)`
-- `array_sort(anyarray)`
-- `array_sort(anyarray,boolean)`
-- `array_sort(anyarray,boolean,boolean)`
-- `array_to_json(anyarray)`
-- `array_to_json(anyarray,boolean)`
 - `array_to_tsvector(text[])`
 - `arraycontained(anyarray,anyarray)`
 - `arraycontains(anyarray,anyarray)`
 - `arrayoverlap(anyarray,anyarray)`
-- `asind(double precision)`
-- `atan2d(double precision,double precision)`
-- `atand(double precision)`
 - `bit(bigint,integer)`
 - `bit(bit,integer,boolean)`
 - `bit(integer,integer)`
@@ -497,7 +561,6 @@ probe as the evidence bar.
 - `bpcharregexne(character,text)`
 - `bpcharsend(character)`
 - `bpchartypmodout(integer)`
-- `broadcast(inet)`
 - `btarraycmp(anyarray,anyarray)`
 - `btboolcmp(boolean,boolean)`
 - `btbpchar_pattern_cmp(character,character)`
@@ -543,7 +606,6 @@ probe as the evidence bar.
 - `byteanlike(bytea,bytea)`
 - `byteaout(bytea)`
 - `byteasend(bytea)`
-- `casefold(text)`
 - `cash_cmp(money,money)`
 - `cash_div_cash(money,money)`
 - `cash_div_flt4(money,real)`
@@ -625,9 +687,6 @@ probe as the evidence bar.
 - `convert(bytea,name,name)`
 - `convert_from(bytea,name)`
 - `convert_to(text,name)`
-- `cosd(double precision)`
-- `cot(double precision)`
-- `cotd(double precision)`
 - `crc32(bytea)`
 - `crc32c(bytea)`
 - `current_schema()`
@@ -637,10 +696,6 @@ probe as the evidence bar.
 - `database_to_xmlschema(boolean,boolean,text)`
 - `date(timestamp with time zone)`
 - `date(timestamp without time zone)`
-- `date_add(timestamp with time zone,interval)`
-- `date_add(timestamp with time zone,interval,text)`
-- `date_bin(interval,timestamp with time zone,timestamp with time zone)`
-- `date_bin(interval,timestamp without time zone,timestamp without time zone)`
 - `date_cmp(date,date)`
 - `date_cmp_timestamp(date,timestamp without time zone)`
 - `date_cmp_timestamptz(date,timestamp with time zone)`
@@ -667,15 +722,11 @@ probe as the evidence bar.
 - `date_ne_timestamp(date,timestamp without time zone)`
 - `date_ne_timestamptz(date,timestamp with time zone)`
 - `date_out(date)`
-- `date_part(text,interval)`
 - `date_pl_interval(date,interval)`
 - `date_pli(date,integer)`
 - `date_send(date)`
 - `date_smaller(date,date)`
-- `date_subtract(timestamp with time zone,interval)`
-- `date_subtract(timestamp with time zone,interval,text)`
 - `datemultirange()`
-- `daterange(date,date)`
 - `daterange_subdiff(date,date)`
 - `datetime_pl(date,time without time zone)`
 - `datetimetz_pl(date,time with time zone)`
@@ -724,10 +775,7 @@ probe as the evidence bar.
 - `enum_range(anyenum,anyenum)`
 - `enum_send(anyenum)`
 - `enum_smaller(anyenum,anyenum)`
-- `erf(double precision)`
-- `erfc(double precision)`
-- `extract(text,interval)`
-- `family(inet)`
+- `first_value(anyelement)`
 - `float4(bigint)`
 - `float4(double precision)`
 - `float4(integer)`
@@ -795,7 +843,6 @@ probe as the evidence bar.
 - `flt4_mul_cash(real,money)`
 - `flt8_mul_cash(double precision,money)`
 - `format_type(oid,integer)`
-- `gamma(double precision)`
 - `generate_series(bigint,bigint)`
 - `generate_series(bigint,bigint,bigint)`
 - `generate_series(integer,integer)`
@@ -807,9 +854,6 @@ probe as the evidence bar.
 - `generate_series(timestamp without time zone,timestamp without time zone,interval)`
 - `generate_subscripts(anyarray,integer)`
 - `generate_subscripts(anyarray,integer,boolean)`
-- `get_bit(bit,integer)`
-- `get_bit(bytea,bigint)`
-- `get_byte(bytea,integer)`
 - `get_current_ts_config()`
 - `getdatabaseencoding()`
 - `getpgusername()`
@@ -873,8 +917,6 @@ probe as the evidence bar.
 - `hashxid8extended(xid8,bigint)`
 - `hashxidextended(xid,bigint)`
 - `height(box)`
-- `host(inet)`
-- `hostmask(inet)`
 - `icu_unicode_version()`
 - `in_range(bigint,bigint,bigint,boolean,boolean)`
 - `in_range(date,date,interval,boolean,boolean)`
@@ -894,9 +936,7 @@ probe as the evidence bar.
 - `in_range(timestamp without time zone,timestamp without time zone,interval,boolean,boolean)`
 - `inet_client_addr()`
 - `inet_client_port()`
-- `inet_merge(inet,inet)`
 - `inet_out(inet)`
-- `inet_same_family(inet,inet)`
 - `inet_send(inet)`
 - `inetand(inet,inet)`
 - `inetmi(inet,inet)`
@@ -1006,7 +1046,6 @@ probe as the evidence bar.
 - `int4or(integer,integer)`
 - `int4out(integer)`
 - `int4pl(integer,integer)`
-- `int4range(integer,integer)`
 - `int4range_subdiff(integer,integer)`
 - `int4send(integer)`
 - `int4shl(integer,integer)`
@@ -1069,7 +1108,6 @@ probe as the evidence bar.
 - `int8out(bigint)`
 - `int8pl(bigint,bigint)`
 - `int8pl_inet(bigint,inet)`
-- `int8range(bigint,bigint)`
 - `int8range_subdiff(bigint,bigint)`
 - `int8send(bigint)`
 - `int8shl(bigint,integer)`
@@ -1110,8 +1148,6 @@ probe as the evidence bar.
 - `intervaltypmodout(integer)`
 - `is_normalized(text,text)`
 - `isclosed(path)`
-- `isempty(anymultirange)`
-- `isempty(anyrange)`
 - `ishorizontal(line)`
 - `ishorizontal(lseg)`
 - `ishorizontal(point,point)`
@@ -1127,12 +1163,9 @@ probe as the evidence bar.
 - `json_array_elements_text(json)`
 - `json_each(json)`
 - `json_each_text(json)`
-- `json_object(text[])`
-- `json_object(text[],text[])`
 - `json_object_keys(json)`
 - `json_out(json)`
 - `json_send(json)`
-- `json_strip_nulls(json,boolean)`
 - `json_to_tsvector(json,jsonb)`
 - `jsonb_array_elements(jsonb)`
 - `jsonb_array_elements_text(jsonb)`
@@ -1156,14 +1189,13 @@ probe as the evidence bar.
 - `jsonb_le(jsonb,jsonb)`
 - `jsonb_lt(jsonb,jsonb)`
 - `jsonb_ne(jsonb,jsonb)`
-- `jsonb_object(text[])`
-- `jsonb_object(text[],text[])`
 - `jsonb_object_keys(jsonb)`
 - `jsonb_out(jsonb)`
 - `jsonb_send(jsonb)`
-- `jsonb_set_lax(jsonb,text[],jsonb,boolean,text)`
 - `jsonb_to_tsvector(jsonb,jsonb)`
-- `lgamma(double precision)`
+- `lag(anycompatible,integer,anycompatible)`
+- `last_value(anyelement)`
+- `lead(anycompatible,integer,anycompatible)`
 - `like(bytea,bytea)`
 - `like(name,text)`
 - `like(text,text)`
@@ -1179,10 +1211,6 @@ probe as the evidence bar.
 - `line_perp(line,line)`
 - `line_send(line)`
 - `line_vertical(line)`
-- `lower_inc(anymultirange)`
-- `lower_inc(anyrange)`
-- `lower_inf(anymultirange)`
-- `lower_inf(anyrange)`
 - `lseg(box)`
 - `lseg(point,point)`
 - `lseg_center(lseg)`
@@ -1227,12 +1255,10 @@ probe as the evidence bar.
 - `macaddr_or(macaddr,macaddr)`
 - `macaddr_out(macaddr)`
 - `macaddr_send(macaddr)`
-- `masklen(inet)`
 - `money(bigint)`
 - `money(integer)`
 - `money(numeric)`
 - `mul_d_interval(double precision,interval)`
-- `multirange(anyrange)`
 - `multirange_adjacent_multirange(anymultirange,anymultirange)`
 - `multirange_adjacent_range(anymultirange,anyrange)`
 - `multirange_after_multirange(anymultirange,anymultirange)`
@@ -1289,8 +1315,6 @@ probe as the evidence bar.
 - `nameregexeq(name,text)`
 - `nameregexne(name,text)`
 - `namesend(name)`
-- `netmask(inet)`
-- `network(inet)`
 - `network_cmp(inet,inet)`
 - `network_eq(inet,inet)`
 - `network_ge(inet,inet)`
@@ -1310,6 +1334,7 @@ probe as the evidence bar.
 - `notlike(text,text)`
 - `npoints(path)`
 - `npoints(polygon)`
+- `nth_value(anyelement,integer)`
 - `numeric(bigint)`
 - `numeric(double precision)`
 - `numeric(integer)`
@@ -1347,7 +1372,6 @@ probe as the evidence bar.
 - `numerictypmodout(integer)`
 - `nummultirange()`
 - `numnode(tsquery)`
-- `numrange(numeric,numeric)`
 - `numrange_subdiff(numeric,numeric)`
 - `oid(bigint)`
 - `oideq(oid,oid)`
@@ -1375,20 +1399,6 @@ probe as the evidence bar.
 - `on_ps(point,lseg)`
 - `on_sb(lseg,box)`
 - `on_sl(lseg,line)`
-- `overlaps(time with time zone,time with time zone,time with time zone,time with time zone)`
-- `overlaps(time without time zone,interval,time without time zone,interval)`
-- `overlaps(time without time zone,interval,time without time zone,time without time zone)`
-- `overlaps(time without time zone,time without time zone,time without time zone,interval)`
-- `overlaps(time without time zone,time without time zone,time without time zone,time without time zone)`
-- `overlaps(timestamp with time zone,interval,timestamp with time zone,interval)`
-- `overlaps(timestamp with time zone,interval,timestamp with time zone,timestamp with time zone)`
-- `overlaps(timestamp with time zone,timestamp with time zone,timestamp with time zone,interval)`
-- `overlaps(timestamp with time zone,timestamp with time zone,timestamp with time zone,timestamp with time zone)`
-- `overlaps(timestamp without time zone,interval,timestamp without time zone,interval)`
-- `overlaps(timestamp without time zone,interval,timestamp without time zone,timestamp without time zone)`
-- `overlaps(timestamp without time zone,timestamp without time zone,timestamp without time zone,interval)`
-- `overlaps(timestamp without time zone,timestamp without time zone,timestamp without time zone,timestamp without time zone)`
-- `parse_ident(text,boolean)`
 - `path(polygon)`
 - `path_add_pt(path,point)`
 - `path_contain_pt(path,point)`
@@ -1607,8 +1617,6 @@ probe as the evidence bar.
 - `range_intersect(anyrange,anyrange)`
 - `range_le(anyrange,anyrange)`
 - `range_lt(anyrange,anyrange)`
-- `range_merge(anymultirange)`
-- `range_merge(anyrange,anyrange)`
 - `range_minus(anyrange,anyrange)`
 - `range_ne(anyrange,anyrange)`
 - `range_out(anyrange)`
@@ -1637,12 +1645,6 @@ probe as the evidence bar.
 - `record_send(record)`
 - `record_smaller(record,record)`
 - `regclass(text)`
-- `regexp_instr(text,text)`
-- `regexp_instr(text,text,integer)`
-- `regexp_instr(text,text,integer,integer)`
-- `regexp_instr(text,text,integer,integer,integer)`
-- `regexp_instr(text,text,integer,integer,integer,text)`
-- `regexp_instr(text,text,integer,integer,integer,text,integer)`
 - `regexp_match(text,text,text)`
 - `regexp_matches(text,text)`
 - `regexp_matches(text,text,text)`
@@ -1650,12 +1652,8 @@ probe as the evidence bar.
 - `regexp_split_to_table(text,text,text)`
 - `regexp_substr(text,text,integer,integer,text)`
 - `regexp_substr(text,text,integer,integer,text,integer)`
+- `regr_count(double precision,double precision)`
 - `row_security_active(oid)`
-- `set_bit(bit,integer,integer)`
-- `set_bit(bytea,bigint,integer)`
-- `set_byte(bytea,integer,integer)`
-- `set_masklen(cidr,integer)`
-- `set_masklen(inet,integer)`
 - `setweight(tsvector,"char")`
 - `setweight(tsvector,"char",text[])`
 - `sha224(bytea)`
@@ -1664,18 +1662,10 @@ probe as the evidence bar.
 - `similar_escape(text,text)`
 - `similar_to_escape(text)`
 - `similar_to_escape(text,text)`
-- `sind(double precision)`
 - `slope(point,point)`
 - `spg_poly_quad_compress(polygon)`
 - `string_to_table(text,text)`
 - `strip(tsvector)`
-- `substring(bit,integer)`
-- `substring(bit,integer,integer)`
-- `substring(bytea,integer)`
-- `substring(bytea,integer,integer)`
-- `substring(text,integer)`
-- `substring(text,integer,integer)`
-- `tand(double precision)`
 - `text("char")`
 - `text(boolean)`
 - `text(character)`
@@ -1833,24 +1823,6 @@ probe as the evidence bar.
 - `timetz_smaller(time with time zone,time with time zone)`
 - `timetzdate_pl(time with time zone,date)`
 - `timetztypmodout(integer)`
-- `timezone(interval,time with time zone)`
-- `timezone(interval,timestamp with time zone)`
-- `timezone(interval,timestamp without time zone)`
-- `timezone(text,time with time zone)`
-- `timezone(text,timestamp with time zone)`
-- `timezone(text,timestamp without time zone)`
-- `timezone(time with time zone)`
-- `timezone(timestamp with time zone)`
-- `timezone(timestamp without time zone)`
-- `to_bin(bigint)`
-- `to_bin(integer)`
-- `to_char(bigint,text)`
-- `to_char(double precision,text)`
-- `to_char(integer,text)`
-- `to_char(numeric,text)`
-- `to_char(real,text)`
-- `to_oct(bigint)`
-- `to_oct(integer)`
 - `to_tsquery(text)`
 - `to_tsvector(json)`
 - `to_tsvector(jsonb)`
@@ -1890,10 +1862,8 @@ probe as the evidence bar.
 - `tsquery_phrase(tsquery,tsquery,integer)`
 - `tsqueryout(tsquery)`
 - `tsquerysend(tsquery)`
-- `tsrange(timestamp without time zone,timestamp without time zone)`
 - `tsrange_subdiff(timestamp without time zone,timestamp without time zone)`
 - `tstzmultirange()`
-- `tstzrange(timestamp with time zone,timestamp with time zone)`
 - `tstzrange_subdiff(timestamp with time zone,timestamp with time zone)`
 - `tsvector_cmp(tsvector,tsvector)`
 - `tsvector_concat(tsvector,tsvector)`
@@ -1909,14 +1879,9 @@ probe as the evidence bar.
 - `txid_current_snapshot()`
 - `unicode_assigned(text)`
 - `unicode_version()`
-- `unistr(text)`
 - `unnest(anyarray)`
 - `unnest(anymultirange)`
 - `unnest(tsvector)`
-- `upper_inc(anymultirange)`
-- `upper_inc(anyrange)`
-- `upper_inf(anymultirange)`
-- `upper_inf(anyrange)`
 - `uuid_cmp(uuid,uuid)`
 - `uuid_eq(uuid,uuid)`
 - `uuid_ge(uuid,uuid)`
@@ -1999,7 +1964,7 @@ probe as the evidence bar.
 - `~>~(character,character)`
 - `~>~(text,text)`
 
-## raised-everywhere (166: functions 160, operators 6)
+## raised-everywhere (155: functions 149, operators 6, aggregates 0, windows 0)
 
 - `*<(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<) ROW(1,2)` raises
 - `*<=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<=) ROW(1,2)` raises
@@ -2007,7 +1972,6 @@ probe as the evidence bar.
 - `*=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*=) ROW(1,2)` raises
 - `*>(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*>) ROW(1,2)` raises
 - `*>=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*>=) ROW(1,2)` raises
-- `acldefault("char",oid)` — e.g. `pg_catalog.acldefault('a'::"char", 0::oid)` raises
 - `aclinsert(aclitem[],aclitem)` — e.g. `pg_catalog.aclinsert(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
 - `aclremove(aclitem[],aclitem)` — e.g. `pg_catalog.aclremove(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
 - `any_out("any")` — e.g. `pg_catalog.any_out(1)` raises
@@ -2017,11 +1981,6 @@ probe as the evidence bar.
 - `anynonarray_out(anynonarray)` — e.g. `pg_catalog.anynonarray_out(1)` raises
 - `btvarstrequalimage(oid)` — e.g. `pg_catalog.btvarstrequalimage(0::oid)` raises
 - `current_setting(text)` — e.g. `pg_catalog.current_setting('abc')` raises
-- `date_part(text,time with time zone)` — e.g. `pg_catalog.date_part('abc', '00:00+00'::timetz)` raises
-- `date_part(text,time without time zone)` — e.g. `pg_catalog.date_part('abc', '00:00'::time)` raises
-- `daterange(date,date,text)` — e.g. `pg_catalog.daterange('2020-01-01'::date, '2020-01-01'::date, 'abc')` raises
-- `extract(text,time with time zone)` — e.g. `pg_catalog.extract('abc', '00:00+00'::timetz)` raises
-- `extract(text,time without time zone)` — e.g. `pg_catalog.extract('abc', '00:00'::time)` raises
 - `fmgr_c_validator(oid)` — e.g. `pg_catalog.fmgr_c_validator(0::oid)` raises
 - `fmgr_internal_validator(oid)` — e.g. `pg_catalog.fmgr_internal_validator(0::oid)` raises
 - `fmgr_sql_validator(oid)` — e.g. `pg_catalog.fmgr_sql_validator(0::oid)` raises
@@ -2109,8 +2068,6 @@ probe as the evidence bar.
 - `has_type_privilege(oid,text)` — e.g. `pg_catalog.has_type_privilege(0::oid, 'abc')` raises
 - `has_type_privilege(oid,text,text)` — e.g. `pg_catalog.has_type_privilege(0::oid, 'abc', 'abc')` raises
 - `has_type_privilege(text,text)` — e.g. `pg_catalog.has_type_privilege('abc', 'abc')` raises
-- `int4range(integer,integer,text)` — e.g. `pg_catalog.int4range(1, 1, 'abc')` raises
-- `int8range(bigint,bigint,text)` — e.g. `pg_catalog.int8range(1::bigint, 1::bigint, 'abc')` raises
 - `json_extract_path(json,text[])` — e.g. `pg_catalog.json_extract_path('null'::json, '{}'::text[])` raises
 - `json_extract_path_text(json,text[])` — e.g. `pg_catalog.json_extract_path_text('null'::json, '{}'::text[])` raises
 - `json_populate_record(anyelement,json,boolean)` — e.g. `pg_catalog.json_populate_record(1, 'null'::json, true)` raises
@@ -2128,7 +2085,6 @@ probe as the evidence bar.
 - `macaddr(macaddr8)` — e.g. `pg_catalog.macaddr('08:00:2b:01:02:03:04:05'::macaddr8)` raises
 - `makeaclitem(oid,oid,text,boolean)` — e.g. `pg_catalog.makeaclitem(0::oid, 0::oid, 'abc', true)` raises
 - `multirange_intersect_agg_transfn(anymultirange,anymultirange)` — e.g. `pg_catalog.multirange_intersect_agg_transfn('{[1,2)}'::int4multirange, '{[1,2)}'::int4multirange)` raises
-- `numrange(numeric,numeric,text)` — e.g. `pg_catalog.numrange(0::numeric, 0::numeric, 'abc')` raises
 - `pg_event_trigger_ddl_commands()` — e.g. `pg_catalog.pg_event_trigger_ddl_commands()` raises
 - `pg_event_trigger_dropped_objects()` — e.g. `pg_catalog.pg_event_trigger_dropped_objects()` raises
 - `pg_event_trigger_table_rewrite_oid()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_oid()` raises
@@ -2165,10 +2121,8 @@ probe as the evidence bar.
 - `ts_parse(text,text)` — e.g. `pg_catalog.ts_parse('abc', 'abc')` raises
 - `ts_token_type(oid)` — e.g. `pg_catalog.ts_token_type(0::oid)` raises
 - `ts_token_type(text)` — e.g. `pg_catalog.ts_token_type('abc')` raises
-- `tsrange(timestamp without time zone,timestamp without time zone,text)` — e.g. `pg_catalog.tsrange('2020-01-01'::timestamp, '2020-01-01'::timestamp, 'abc')` raises
-- `tstzrange(timestamp with time zone,timestamp with time zone,text)` — e.g. `pg_catalog.tstzrange('2020-01-01Z'::timestamptz, '2020-01-01Z'::timestamptz, 'abc')` raises
 
-## no-generator (803: functions 801, operators 2)
+## no-generator (807: functions 801, operators 2, aggregates 4, windows 0)
 
 - `@?(jsonb,jsonpath)`
 - `@@(jsonb,jsonpath)`
@@ -2655,10 +2609,13 @@ probe as the evidence bar.
 - `path_in(cstring)`
 - `path_recv(internal)`
 - `percent_rank_final(internal,"any")`
+- `percentile_cont(double precision[],double precision)`
+- `percentile_cont(double precision[],interval)`
 - `percentile_cont_float8_final(internal,double precision)`
 - `percentile_cont_float8_multi_final(internal,double precision[])`
 - `percentile_cont_interval_final(internal,double precision)`
 - `percentile_cont_interval_multi_final(internal,double precision[])`
+- `percentile_disc(double precision[],anyelement)`
 - `percentile_disc_final(internal,double precision,anyelement)`
 - `percentile_disc_multi_final(internal,double precision[],anyelement)`
 - `pg_basetype(regtype)`
@@ -2966,6 +2923,7 @@ probe as the evidence bar.
 - `xml_out(xml)`
 - `xml_recv(internal)`
 - `xml_send(xml)`
+- `xmlagg(xml)`
 - `xmlconcat2(xml,xml)`
 - `xmlexists(text,xml)`
 - `xmlvalidate(xml,text)`
@@ -2974,7 +2932,7 @@ probe as the evidence bar.
 - `xpath_exists(text,xml)`
 - `xpath_exists(text,xml,text[])`
 
-## volatile (281: functions 281, operators 0)
+## volatile (281: functions 281, operators 0, aggregates 0, windows 0)
 
 - `RI_FKey_cascade_del()`
 - `RI_FKey_cascade_upd()`

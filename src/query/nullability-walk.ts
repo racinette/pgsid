@@ -9427,6 +9427,53 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   "regexp_like", "regexp_count", "regexp_replace", "regexp_split_to_array",
   "array_fill", "array_positions", "trim_array",
   "jsonb_set", "jsonb_insert",
+  // ---------------------------------------------------------------------
+  // The work-list batch (2026-08-09, docs/builtin-surface-worklist.md). Each
+  // name below had EVERY one of its pg_catalog rows in `no-null-found` —
+  // claimed nullable with no witness across the corner corpus — and each was
+  // then convicted individually on input classes the corpus does not carry.
+  // A raise is not a NULL, and these raise freely: `gamma(0)` overflows,
+  // `asind(2)` is out of range, `parse_ident('')` rejects the string,
+  // `date_bin` rejects a zero stride, `inet_merge` rejects mixed families.
+  // The totality probe holds every row of every name from here on.
+  // ---------------------------------------------------------------------
+  // Math: the degree-argument trig (PG14) and the special functions (PG18).
+  "erf", "erfc", "gamma", "lgamma", "cot", "cotd",
+  "sind", "cosd", "tand", "asind", "acosd", "atand", "atan2d",
+  // String. `regexp_instr` answers 0 for no match and for a subexpression
+  // that did not participate — the position where its `regexp_substr`
+  // sibling answers NULL, which is why that one is witnessed and not here.
+  "parse_ident", "unistr", "casefold", "to_bin", "to_oct", "regexp_instr",
+  // Date/time. `timezone` is what `AT TIME ZONE` parses to, and `overlaps`
+  // what the OVERLAPS grammar does, so both are ordinary application SQL
+  // reaching this dispatch under a name nobody writes. Infinite timestamps
+  // and infinite intervals are values through all of them (measured) — the
+  // class that removed `extract`/`date_part` does not touch these.
+  "timezone", "overlaps", "date_bin", "date_add", "date_subtract",
+  // JSON. `json_strip_nulls` is the missing half of `jsonb_strip_nulls`
+  // above; `jsonb_set_lax`'s NULL routes are all reached by a NULL
+  // `new_value`, which is nullable input and not a totality question.
+  "json_object", "jsonb_object", "json_strip_nulls", "jsonb_set_lax",
+  // Arrays. An array holding NULL ELEMENTS is still a non-null array, and
+  // each of these returns one (`array_to_json(ARRAY[NULL]::int[])` is
+  // `[null]`, a JSON value).
+  "array_replace", "array_reverse", "array_sort", "array_to_json",
+  // Ranges: the predicates, over the empty range and the empty multirange
+  // that removed `lower`/`upper`. These read the bound, they do not return
+  // it, so the empty range is a `false` rather than a NULL.
+  "isempty", "lower_inc", "upper_inc", "lower_inf", "upper_inf", "range_merge",
+  // Ranges, constructing. A lower bound above the upper one raises; an
+  // empty result is the EMPTY range, which is a value. The multirange
+  // constructors are deliberately NOT here — their rows are VARIADIC over a
+  // range-array the corpus has no generator for, so the claim would be
+  // unprobed on the rows that matter.
+  "int4range", "int8range", "numrange", "daterange", "tsrange", "tstzrange",
+  "multirange",
+  // Network.
+  "abbrev", "broadcast", "family", "host", "hostmask", "inet_merge",
+  "inet_same_family", "masklen", "netmask", "network", "set_masklen",
+  // Bits and bytes — out-of-range indexes raise rather than answering NULL.
+  "get_bit", "get_byte", "set_bit", "set_byte",
 ]);
 
 /**
@@ -9444,6 +9491,37 @@ export const STRICT_TOTAL_BUILTINS = new Set([
 export const STRICT_TOTAL_BUILTIN_SIGNATURES: ReadonlySet<string> = new Set([
   "lower(text)",
   "upper(text)",
+  // The POSITIONAL substring forms (2026-08-09). `substring` left the name
+  // table because the FROM-regex spellings — `substring(text,text)` and
+  // `substring(text,text,text)` — are NULL on no match, and they are
+  // witnessed. The offset/length forms are total for every operand type:
+  // an offset past the end gives '', a negative length raises.
+  "substring(text,integer)",
+  "substring(text,integer,integer)",
+  "substring(bytea,integer)",
+  "substring(bytea,integer,integer)",
+  "substring(bit,integer)",
+  "substring(bit,integer,integer)",
+  // The NUMERIC to_char forms (2026-08-09) — the recovery the removal note
+  // above predicted. `to_char(<datetime>,'')` and `to_char(<interval>,'')`
+  // are NULL and witnessed; the number forms answer '' for an empty format
+  // and a value for every corner of their input (NaN, ±Infinity, 'RN',
+  // 'EEEE'), raising on a malformed pattern rather than answering NULL.
+  "to_char(numeric,text)",
+  "to_char(integer,text)",
+  "to_char(bigint,text)",
+  "to_char(double precision,text)",
+  "to_char(real,text)",
+  // The TIME rows of extract/date_part (2026-08-09). The pair left the name
+  // table over the infinities, and its date, timestamp, timestamptz and
+  // interval rows are all witnessed — but `time` and `timetz` HAVE no
+  // infinity, so every unit those two types accept answers a value and every
+  // other unit raises ("unit \"month\" not supported for type time without
+  // time zone"). `extract(hour FROM <time column>)` recovers its notNull.
+  "date_part(text,time without time zone)",
+  "date_part(text,time with time zone)",
+  "extract(text,time without time zone)",
+  "extract(text,time with time zone)",
 ]);
 
 /**

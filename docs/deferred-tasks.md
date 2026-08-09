@@ -544,6 +544,57 @@ row and lag on a first row are the positive controls). Final surface:
 4201 signatures, all categorized, the work list regenerated with per-kind
 splits.
 
+**THE FIRST PROMOTION BATCH RAN (2026-08-09)**: 126 signatures over 64
+names left `no-null-found`, each convicted individually on input classes
+the corpus does not carry rather than on the probe's silence. Triaged for
+what real SQL calls — the internal machinery (aclitem, RI_*, binary I/O,
+the C functions behind operators, the cast functions `::` never routes
+through this dispatch) was deliberately skipped, and so were the
+set-returning rows, where the probe's scalar construction reads a zero-row
+result as a value and could not witness anything (measured, not assumed:
+`generate_series(1,0)` and `unnest('{}'::int[])` both come back "value").
+What went in: 60 whole
+names into `STRICT_TOTAL_BUILTINS` — `timezone` and `overlaps` first,
+since `AT TIME ZONE` and OVERLAPS are ordinary SQL arriving under a name
+nobody writes; then the network set, the range predicates and constructors,
+the degree-argument trig and PG18's special functions, the JSON and array
+constructors, `get_bit`/`set_byte` and friends — plus 15
+`STRICT_TOTAL_BUILTIN_SIGNATURES` rows recovering names that can never
+carry the claim: `substring`'s six POSITIONAL forms (the FROM-regex ones
+are witnessed), `to_char`'s five NUMBER forms (the datetime ones are), and
+`extract`/`date_part` over `time` and `timetz`, which have no infinity and
+so escape the class that removed the pair. **Two convictions went the
+other way and are the better outcome**: PG17's INFINITE INTERVAL is the
+infinite timestamp's class one type over — `date_part('month',
+'infinity'::interval)` is NULL while `'day'` and `'hour'` are ±Infinity —
+so `date_part(text,interval)` and `extract(text,interval)` are witnessed
+and barred forever. **Three more NULLs sit past the combination cap**
+(`regexp_substr`'s five- and six-argument rows and `regexp_match`'s
+three-argument one): reaching them needs a non-matching pattern AND a
+valid flags string, two arguments varied at once, which one-at-a-time
+sampling cannot do — found by hand, and in the witness corpus with the
+cap named as the reason the machine cannot re-find them. Corpus additions,
+each measured against the whole claimed surface first (no claimed NULL):
+`'hour'`, `'month'` and `'[]'` to text, `'r'` to `"char"`, the two
+infinite intervals — which closed 11 `raised-everywhere` rows that were a
+corpus gap rather than a gutted function (`to_ascii` is the other
+population and stays: this database is UTF8 and it raises for every input,
+and the encoding name that would fix it is exactly what must never enter
+the corpus). `MAX_COMBOS` moved 512 → 1024 because the three text values
+took `date_trunc(text, timestamptz, text)` — the signature the cap was
+sized for — past it. **Two defects in the harness itself, both found by
+this batch and both fixed**: the witness corpus compared `@signature`'s
+`text, interval` spelling against the capture's `text,interval`, so its
+LOOP-CLOSER — no witnessed signature may be claimed total — could only
+ever match a ONE-argument witness and passed vacuously for every other;
+and the surface suite read a signature addition's whole NAME as claimed,
+which hid that name's witnessed rows and left its own loop-closer nothing
+to check. Surface now: claimed 1013, no-null-found 1715, null-witnessed
+230, raised-everywhere 155, no-generator 807, volatile 281. The next
+batch's queue is what this one skipped by triage, and the honest note on
+it is that the remainder is mostly internal: the 218 operator rows want
+`operators.ts`'s name-keyed tables, which this batch left alone.
+
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
 names → 327 pg_proc rows, carrying per-signature strictness, prokind,

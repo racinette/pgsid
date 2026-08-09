@@ -1,0 +1,7 @@
+-- The no-match NULL, on the rows the corner corpus cannot reach: past the
+-- combination cap a signature varies ONE argument from the baseline, and
+-- this needs TWO — a non-matching pattern AND a valid flags string, where
+-- the corpus's baseline flags value raises. Found by hand, 2026-08-09.
+-- @signature text, text, integer, integer, text
+-- @null  regexp_substr('abc', 'zzz', 1, 1, '')
+-- @value regexp_substr('abc', 'abc', 1, 1, '')
