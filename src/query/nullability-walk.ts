@@ -9494,6 +9494,22 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   // same input, which is a value.
   "jsonb_path_query_array", "jsonb_path_query_array_tz",
   // ---------------------------------------------------------------------
+  // The third batch (2026-08-09): what the first two skipped that is still
+  // reachable from an application query. `sha256` was already here and its
+  // three siblings were not, which is the shape of most of this group —
+  // a claimed name with unclaimed relatives.
+  // ---------------------------------------------------------------------
+  "sha224", "sha384", "sha512", "crc32", "crc32c",
+  // `is_normalized` is the predicate half of the claimed `normalize`.
+  "is_normalized", "unicode_assigned", "unicode_version", "icu_unicode_version",
+  // XML: the constructors escape their input rather than rejecting it, and
+  // the three well-formedness predicates answer false rather than NULL.
+  "xmlcomment", "xmltext",
+  "xml_is_well_formed", "xml_is_well_formed_content", "xml_is_well_formed_document",
+  // What `LIKE … ESCAPE` and `SIMILAR TO` rewrite to. Grammar, like `btrim`
+  // and `position` above, so the name is reached by SQL nobody wrote.
+  "like_escape", "similar_escape", "similar_to_escape",
+  // ---------------------------------------------------------------------
   // NO SET-RETURNING NAME IS HERE, and the reason is a measurement rather
   // than a missing verdict (2026-08-09). `generate_series`,
   // `generate_subscripts`, `regexp_split_to_table`, the json expanders and

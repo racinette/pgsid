@@ -58,15 +58,24 @@ interface Witness {
 }
 
 function parseWitness(fn: string, slug: string, text: string, schemaDir: string | null): Witness {
-  const directive = (name: string): string => {
-    const m = new RegExp(`^--\\s*@${name}\\s+(.+)$`, "m").exec(text);
+  /**
+   * `@signature` may be EMPTY — a zero-argument function's argument list is
+   * — so its pattern ends the line rather than demanding a character. The
+   * greedy form was tried and is a trap: `\s+` crosses the newline, so
+   * `-- @signature` alone captured the FOLLOWING directive's text and
+   * to_regprocedure reported a syntax error from a file that looked right.
+   * `@null` and `@value` keep the strict form: an empty expression there is
+   * a broken witness, not a legitimate one.
+   */
+  const directive = (name: string, mayBeEmpty = false): string => {
+    const m = new RegExp(`^--\\s*@${name}${mayBeEmpty ? "[ \\t]*(.*)" : "\\s+(.+)"}$`, "m").exec(text);
     if (!m) throw new Error(`${fn}/${slug}: missing @${name}`);
     return m[1]!.trim();
   };
   return {
     fn,
     slug,
-    signature: directive("signature"),
+    signature: directive("signature", true),
     nullExpr: directive("null"),
     valueExpr: directive("value"),
     schemaDir,

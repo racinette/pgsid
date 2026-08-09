@@ -674,10 +674,43 @@ NULL it is not. Surface now: claimed 1060, no-null-found 1651,
 null-witnessed 239, raised-everywhere 148, set-returning 71,
 no-generator 751, volatile 281.
 
+**A THIRD BATCH CLOSED THE APPLICATION-FACING TAIL (2026-08-09)**: with the
+internal prefixes and suffixes stripped, only 85 names / 125 rows of the
+queue were left that an application query can reach at all, and most of
+those are geometry or the C functions behind operators. 19 promoted, and
+the shape of the group is a claimed name with unclaimed relatives —
+`sha256` was in the table and `sha224`/`sha384`/`sha512` were not;
+`normalize` was and its `is_normalized` predicate was not. With them:
+`crc32`/`crc32c`, the unicode-version trio, the XML constructors and the
+three well-formedness predicates (which answer false, not NULL), and
+`like_escape`/`similar_escape`/`similar_to_escape` — what `LIKE … ESCAPE`
+and `SIMILAR TO` rewrite to, so the names are reached by SQL nobody wrote.
+Geometry and the `d*` float8 internals (`dexp`, `dpow`, …, the private
+implementations of names already claimed under their public spelling) were
+measured total and deliberately SKIPPED: no application query calls them,
+and the queue's meaning thins if it fills with rows nobody was going to
+ask about. **One witness, and it is a class the surface probe cannot see
+at all**: `current_schema()` returns NULL when `search_path` names no
+existing schema — a zero-argument function whose NULL route is session
+state rather than input. The fixture sets it with `set_config(…, true)` so
+the setting reverts at statement end and the shared PGlite is untouched.
+Two residues from writing it, both now fixed in the harness: `@signature`
+must be allowed to be EMPTY for a zero-argument function, and the greedy
+`\s+` in the directive pattern crossed the newline and captured the
+FOLLOWING directive, so `to_regprocedure` reported a syntax error from a
+file that read correctly. Surface: claimed 1079, no-null-found 1632.
+
 The next batch's queue is what these three skipped by triage, and the
 honest note on it is that the remainder is mostly internal: the 218
 operator rows want `operators.ts`'s name-keyed tables, which no batch
-touched.
+touched. Two precision items were found and NOT taken, both because they
+need a mechanism rather than a verdict, and both are recorded here rather
+than acted on: the three-argument `lag`/`lead` are total whenever their
+DEFAULT argument is non-null, and `first_value`/`last_value` are total
+under the parser's default frame (the walk already computes
+`FRAMEOPTION_DEFAULTS`) — but `NEVER_NULL_WINDOW_FNS` is name-keyed and
+those names' other rows are witnessed, so both need a signature-keyed
+window table that does not exist.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table

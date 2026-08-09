@@ -1,0 +1,11 @@
+-- A zero-argument function with a NULL route, which no argument corpus can
+-- reach: `current_schema()` answers NULL when `search_path` names nothing
+-- that exists. Session state, not input — the class the surface probe is
+-- structurally blind to.
+--
+-- `set_config`'s third argument is is_local = true, so the setting reverts
+-- at the end of this statement and the shared PGlite is left as it was.
+-- The FROM clause is what orders it before the target list.
+-- @signature
+-- @null  SELECT current_schema() FROM (SELECT set_config('search_path', 'nosuchschema', true)) s
+-- @value SELECT current_schema()
