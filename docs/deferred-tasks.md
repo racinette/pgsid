@@ -590,10 +590,42 @@ ever match a ONE-argument witness and passed vacuously for every other;
 and the surface suite read a signature addition's whole NAME as claimed,
 which hid that name's witnessed rows and left its own loop-closer nothing
 to check. Surface now: claimed 1013, no-null-found 1715, null-witnessed
-230, raised-everywhere 155, no-generator 807, volatile 281. The next
-batch's queue is what this one skipped by triage, and the honest note on
-it is that the remainder is mostly internal: the 218 operator rows want
-`operators.ts`'s name-keyed tables, which this batch left alone.
+230, raised-everywhere 155, no-generator 807, volatile 281.
+
+**THE `no-generator` TRIAGE FOLLOWED (2026-08-09, same day), and it was
+the cheaper half**: 706 of the 807 are `internal` (520) or `cstring`
+(186), and the two are unprobeable for DIFFERENT reasons — PostgreSQL
+refuses a value of type `internal` from SQL at all, while `cstring` is
+merely never written by anyone (`textin('abc'::cstring)` runs fine,
+measured, which is why the reason had to be checked rather than assumed).
+Both are permanent skips, as are the transition-state arrays, the snapshot
+and statistics types, the `reg*` out/send pairs and the handler
+pseudo-types. What the triage KEPT was four generators for types real
+application SQL passes — `jsonpath`, `regconfig`, the six concrete range
+types with their arrays, and `ts_rank`'s `real[]` weight vector — and they
+paid for themselves twice over. **Ten new witnesses, all jsonpath**: under
+`silent => true` a STRICT path error is suppressed into a NULL rather than
+a false, so `jsonb_path_exists`, `jsonb_path_match`, their _tz twins and
+the `@?`/`@@` operators all answer NULL for wholly non-null input — and
+`jsonb_path_query_first`, named in the walk's own excluded list since the
+beginning, finally has the witness that list always asserted. The lax
+paths alone missed every one of them; `'strict $.a'` is in the corpus for
+that reason. **47 more promotions**: full-text search entire —
+`to_tsvector`, the four tsquery spellings, `ts_headline`, `ts_rank`,
+`ts_rank_cd`, `setweight`, `strip`, `querytree` and the rest — which was
+never a hard case, only an unprobed one (empty input is the class to beat
+and every one survives it), plus `jsonb_path_query_array` and its _tz
+twin, which answer `[]` where their siblings answer NULL. Six rows moved
+to `raised-everywhere` rather than being probed: the VARIADIC multirange
+constructors, which can only be called through the `VARIADIC` keyword —
+the totality probe supplies a variadic tail twice and the surface suite
+does not, and closing that is a construction change, not a corpus one.
+Surface now: claimed 1060, no-null-found 1705, null-witnessed 240,
+raised-everywhere 161, no-generator 754, volatile 281.
+
+The next batch's queue is what these two skipped by triage, and the honest
+note on it is that the remainder is mostly internal: the 218 operator rows
+want `operators.ts`'s name-keyed tables, which neither batch touched.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table

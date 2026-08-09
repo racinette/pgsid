@@ -9474,6 +9474,25 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   "inet_same_family", "masklen", "netmask", "network", "set_masklen",
   // Bits and bytes — out-of-range indexes raise rather than answering NULL.
   "get_bit", "get_byte", "set_bit", "set_byte",
+  // ---------------------------------------------------------------------
+  // The no-generator triage's harvest (2026-08-09, same day): full-text
+  // search was unprobed for want of a `regconfig` value, not for want of a
+  // verdict. Empty input is the class to beat here and every one of these
+  // survives it — `to_tsvector('english','')` is the empty tsvector,
+  // `plainto_tsquery('  ')` the empty tsquery, `ts_rank` over an empty
+  // tsvector is 0 — while a malformed tsquery raises (`to_tsquery('')`).
+  // ---------------------------------------------------------------------
+  "to_tsvector", "to_tsquery", "plainto_tsquery", "phraseto_tsquery",
+  "websearch_to_tsquery", "json_to_tsvector", "jsonb_to_tsvector",
+  "ts_headline", "ts_rank", "ts_rank_cd",
+  "setweight", "strip", "numnode", "querytree",
+  "tsvector_to_array", "array_to_tsvector",
+  // jsonpath, the ARRAY-returning half only. Its siblings are witnessed and
+  // stay out: under `silent => true` a STRICT path error is suppressed into
+  // a NULL, which takes `jsonb_path_exists`, `jsonb_path_match` and
+  // `jsonb_path_query_first` out permanently. These two answer `[]` for the
+  // same input, which is a value.
+  "jsonb_path_query_array", "jsonb_path_query_array_tz",
 ]);
 
 /**

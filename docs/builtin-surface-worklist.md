@@ -13,7 +13,7 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (230: functions 145, operators 15, aggregates 66, windows 4)
+## null-witnessed (240: functions 153, operators 17, aggregates 66, windows 4)
 
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
 - `#(line,line)` — witness: `SELECT '{1,1,0}'::line OPERATOR(pg_catalog.#) '{1,1,0}'::line;`
@@ -30,6 +30,8 @@ probe as the evidence bar.
 - `->>(json,text)` — witness: `SELECT 'null'::json OPERATOR(pg_catalog.->>) 'abc';`
 - `->>(jsonb,integer)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.->>) 1;`
 - `->>(jsonb,text)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.->>) 'abc';`
+- `@?(jsonb,jsonpath)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.@?) 'strict $.a'::jsonpath;`
+- `@@(jsonb,jsonpath)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.@@) '$'::jsonpath;`
 - `any_value(anyelement)` — witness: `SELECT (SELECT pg_catalog.any_value(c0) FROM (VALUES (1)) t(c0) WHERE false);`
 - `area(path)` — witness: `SELECT pg_catalog.area('[(0,0),(1,1)]'::path);`
 - `array_dims(anyarray)` — witness: `SELECT pg_catalog.array_dims('{}'::text[]);`
@@ -83,6 +85,14 @@ probe as the evidence bar.
 - `jsonb_object_agg_unique_strict("any","any")` — witness: `SELECT (SELECT pg_catalog.jsonb_object_agg_unique_strict(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
 - `jsonb_object_field(jsonb,text)` — witness: `SELECT pg_catalog.jsonb_object_field('null'::jsonb, 'abc');`
 - `jsonb_object_field_text(jsonb,text)` — witness: `SELECT pg_catalog.jsonb_object_field_text('null'::jsonb, 'abc');`
+- `jsonb_path_exists(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_exists('null'::jsonb, 'strict $.a'::jsonpath, '{}'::jsonb, true);`
+- `jsonb_path_exists_opr(jsonb,jsonpath)` — witness: `SELECT pg_catalog.jsonb_path_exists_opr('null'::jsonb, 'strict $.a'::jsonpath);`
+- `jsonb_path_exists_tz(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_exists_tz('null'::jsonb, 'strict $.a'::jsonpath, '{}'::jsonb, true);`
+- `jsonb_path_match(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_match('null'::jsonb, '$'::jsonpath, '{}'::jsonb, true);`
+- `jsonb_path_match_opr(jsonb,jsonpath)` — witness: `SELECT pg_catalog.jsonb_path_match_opr('null'::jsonb, '$'::jsonpath);`
+- `jsonb_path_match_tz(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_match_tz('null'::jsonb, '$'::jsonpath, '{}'::jsonb, true);`
+- `jsonb_path_query_first(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_query_first('null'::jsonb, '$.a'::jsonpath, '{}'::jsonb, true);`
+- `jsonb_path_query_first_tz(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_query_first_tz('null'::jsonb, '$.a'::jsonpath, '{}'::jsonb, true);`
 - `lag(anyelement)` — witness: `SELECT (SELECT pg_catalog.lag(1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) LIMIT 1);`
 - `lag(anyelement,integer)` — witness: `SELECT (SELECT pg_catalog.lag(1, 1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) LIMIT 1);`
 - `lead(anyelement)` — witness: `SELECT (SELECT pg_catalog.lead(1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) ORDER BY x DESC LIMIT 1);`
@@ -246,7 +256,7 @@ probe as the evidence bar.
 - `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 
-## no-null-found (1715: functions 1491, operators 218, aggregates 1, windows 5)
+## no-null-found (1705: functions 1481, operators 218, aggregates 1, windows 5)
 
 - `!!(,tsquery)`
 - `##(line,lseg)`
@@ -465,7 +475,6 @@ probe as the evidence bar.
 - `array_out(anyarray)`
 - `array_send(anyarray)`
 - `array_smaller(anyarray,anyarray)`
-- `array_to_tsvector(text[])`
 - `arraycontained(anyarray,anyarray)`
 - `arraycontains(anyarray,anyarray)`
 - `arrayoverlap(anyarray,anyarray)`
@@ -727,6 +736,8 @@ probe as the evidence bar.
 - `date_send(date)`
 - `date_smaller(date,date)`
 - `datemultirange()`
+- `datemultirange(daterange)`
+- `daterange_canonical(daterange)`
 - `daterange_subdiff(date,date)`
 - `datetime_pl(date,time without time zone)`
 - `datetimetz_pl(date,time with time zone)`
@@ -1041,11 +1052,13 @@ probe as the evidence bar.
 - `int4mod(integer,integer)`
 - `int4mul(integer,integer)`
 - `int4multirange()`
+- `int4multirange(int4range)`
 - `int4ne(integer,integer)`
 - `int4not(integer)`
 - `int4or(integer,integer)`
 - `int4out(integer)`
 - `int4pl(integer,integer)`
+- `int4range_canonical(int4range)`
 - `int4range_subdiff(integer,integer)`
 - `int4send(integer)`
 - `int4shl(integer,integer)`
@@ -1102,12 +1115,14 @@ probe as the evidence bar.
 - `int8mod(bigint,bigint)`
 - `int8mul(bigint,bigint)`
 - `int8multirange()`
+- `int8multirange(int8range)`
 - `int8ne(bigint,bigint)`
 - `int8not(bigint)`
 - `int8or(bigint,bigint)`
 - `int8out(bigint)`
 - `int8pl(bigint,bigint)`
 - `int8pl_inet(bigint,inet)`
+- `int8range_canonical(int8range)`
 - `int8range_subdiff(bigint,bigint)`
 - `int8send(bigint)`
 - `int8shl(bigint,integer)`
@@ -1166,7 +1181,6 @@ probe as the evidence bar.
 - `json_object_keys(json)`
 - `json_out(json)`
 - `json_send(json)`
-- `json_to_tsvector(json,jsonb)`
 - `jsonb_array_elements(jsonb)`
 - `jsonb_array_elements_text(jsonb)`
 - `jsonb_cmp(jsonb,jsonb)`
@@ -1191,8 +1205,11 @@ probe as the evidence bar.
 - `jsonb_ne(jsonb,jsonb)`
 - `jsonb_object_keys(jsonb)`
 - `jsonb_out(jsonb)`
+- `jsonb_path_query(jsonb,jsonpath,jsonb,boolean)`
+- `jsonb_path_query_tz(jsonb,jsonpath,jsonb,boolean)`
 - `jsonb_send(jsonb)`
-- `jsonb_to_tsvector(jsonb,jsonb)`
+- `jsonpath_out(jsonpath)`
+- `jsonpath_send(jsonpath)`
 - `lag(anycompatible,integer,anycompatible)`
 - `last_value(anyelement)`
 - `lead(anycompatible,integer,anycompatible)`
@@ -1371,7 +1388,7 @@ probe as the evidence bar.
 - `numeric_uplus(numeric)`
 - `numerictypmodout(integer)`
 - `nummultirange()`
-- `numnode(tsquery)`
+- `nummultirange(numrange)`
 - `numrange_subdiff(numeric,numeric)`
 - `oid(bigint)`
 - `oideq(oid,oid)`
@@ -1549,8 +1566,6 @@ probe as the evidence bar.
 - `pg_wal_lsn_diff(pg_lsn,pg_lsn)`
 - `pg_walfile_name(pg_lsn)`
 - `pg_walfile_name_offset(pg_lsn)`
-- `phraseto_tsquery(text)`
-- `plainto_tsquery(text)`
 - `point(box)`
 - `point(circle)`
 - `point(double precision,double precision)`
@@ -1597,7 +1612,6 @@ probe as the evidence bar.
 - `postgresql_fdw_validator(text[],oid)`
 - `pt_contained_circle(point,circle)`
 - `pt_contained_poly(point,polygon)`
-- `querytree(tsquery)`
 - `radius(circle)`
 - `range_adjacent(anyrange,anyrange)`
 - `range_adjacent_multirange(anyrange,anymultirange)`
@@ -1645,6 +1659,8 @@ probe as the evidence bar.
 - `record_send(record)`
 - `record_smaller(record,record)`
 - `regclass(text)`
+- `regconfigout(regconfig)`
+- `regconfigsend(regconfig)`
 - `regexp_match(text,text,text)`
 - `regexp_matches(text,text)`
 - `regexp_matches(text,text,text)`
@@ -1654,8 +1670,6 @@ probe as the evidence bar.
 - `regexp_substr(text,text,integer,integer,text,integer)`
 - `regr_count(double precision,double precision)`
 - `row_security_active(oid)`
-- `setweight(tsvector,"char")`
-- `setweight(tsvector,"char",text[])`
 - `sha224(bytea)`
 - `sha384(bytea)`
 - `sha512(bytea)`
@@ -1665,7 +1679,6 @@ probe as the evidence bar.
 - `slope(point,point)`
 - `spg_poly_quad_compress(polygon)`
 - `string_to_table(text,text)`
-- `strip(tsvector)`
 - `text("char")`
 - `text(boolean)`
 - `text(character)`
@@ -1823,29 +1836,17 @@ probe as the evidence bar.
 - `timetz_smaller(time with time zone,time with time zone)`
 - `timetzdate_pl(time with time zone,date)`
 - `timetztypmodout(integer)`
-- `to_tsquery(text)`
-- `to_tsvector(json)`
-- `to_tsvector(jsonb)`
-- `to_tsvector(text)`
+- `ts_debug(regconfig,text)`
 - `ts_debug(text)`
 - `ts_delete(tsvector,text)`
 - `ts_delete(tsvector,text[])`
-- `ts_headline(json,tsquery)`
-- `ts_headline(json,tsquery,text)`
-- `ts_headline(jsonb,tsquery)`
-- `ts_headline(jsonb,tsquery,text)`
-- `ts_headline(text,tsquery)`
-- `ts_headline(text,tsquery,text)`
 - `ts_match_qv(tsquery,tsvector)`
 - `ts_match_tq(text,tsquery)`
 - `ts_match_tt(text,text)`
 - `ts_match_vq(tsvector,tsquery)`
-- `ts_rank(tsvector,tsquery)`
-- `ts_rank(tsvector,tsquery,integer)`
-- `ts_rank_cd(tsvector,tsquery)`
-- `ts_rank_cd(tsvector,tsquery,integer)`
 - `ts_rewrite(tsquery,tsquery,tsquery)`
 - `tsmultirange()`
+- `tsmultirange(tsrange)`
 - `tsq_mcontained(tsquery,tsquery)`
 - `tsq_mcontains(tsquery,tsquery)`
 - `tsquery_and(tsquery,tsquery)`
@@ -1864,6 +1865,7 @@ probe as the evidence bar.
 - `tsquerysend(tsquery)`
 - `tsrange_subdiff(timestamp without time zone,timestamp without time zone)`
 - `tstzmultirange()`
+- `tstzmultirange(tstzrange)`
 - `tstzrange_subdiff(timestamp with time zone,timestamp with time zone)`
 - `tsvector_cmp(tsvector,tsvector)`
 - `tsvector_concat(tsvector,tsvector)`
@@ -1873,7 +1875,6 @@ probe as the evidence bar.
 - `tsvector_le(tsvector,tsvector)`
 - `tsvector_lt(tsvector,tsvector)`
 - `tsvector_ne(tsvector,tsvector)`
-- `tsvector_to_array(tsvector)`
 - `tsvectorout(tsvector)`
 - `tsvectorsend(tsvector)`
 - `txid_current_snapshot()`
@@ -1909,7 +1910,6 @@ probe as the evidence bar.
 - `varcharout(character varying)`
 - `varcharsend(character varying)`
 - `varchartypmodout(integer)`
-- `websearch_to_tsquery(text)`
 - `width(box)`
 - `xid(xid8)`
 - `xid8_larger(xid8,xid8)`
@@ -1964,7 +1964,7 @@ probe as the evidence bar.
 - `~>~(character,character)`
 - `~>~(text,text)`
 
-## raised-everywhere (155: functions 149, operators 6, aggregates 0, windows 0)
+## raised-everywhere (161: functions 155, operators 6, aggregates 0, windows 0)
 
 - `*<(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<) ROW(1,2)` raises
 - `*<=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<=) ROW(1,2)` raises
@@ -1981,6 +1981,7 @@ probe as the evidence bar.
 - `anynonarray_out(anynonarray)` — e.g. `pg_catalog.anynonarray_out(1)` raises
 - `btvarstrequalimage(oid)` — e.g. `pg_catalog.btvarstrequalimage(0::oid)` raises
 - `current_setting(text)` — e.g. `pg_catalog.current_setting('abc')` raises
+- `datemultirange(daterange[])` — e.g. `pg_catalog.datemultirange('{}'::daterange[])` raises
 - `fmgr_c_validator(oid)` — e.g. `pg_catalog.fmgr_c_validator(0::oid)` raises
 - `fmgr_internal_validator(oid)` — e.g. `pg_catalog.fmgr_internal_validator(0::oid)` raises
 - `fmgr_sql_validator(oid)` — e.g. `pg_catalog.fmgr_sql_validator(0::oid)` raises
@@ -2068,6 +2069,8 @@ probe as the evidence bar.
 - `has_type_privilege(oid,text)` — e.g. `pg_catalog.has_type_privilege(0::oid, 'abc')` raises
 - `has_type_privilege(oid,text,text)` — e.g. `pg_catalog.has_type_privilege(0::oid, 'abc', 'abc')` raises
 - `has_type_privilege(text,text)` — e.g. `pg_catalog.has_type_privilege('abc', 'abc')` raises
+- `int4multirange(int4range[])` — e.g. `pg_catalog.int4multirange('{}'::int4range[])` raises
+- `int8multirange(int8range[])` — e.g. `pg_catalog.int8multirange('{}'::int8range[])` raises
 - `json_extract_path(json,text[])` — e.g. `pg_catalog.json_extract_path('null'::json, '{}'::text[])` raises
 - `json_extract_path_text(json,text[])` — e.g. `pg_catalog.json_extract_path_text('null'::json, '{}'::text[])` raises
 - `json_populate_record(anyelement,json,boolean)` — e.g. `pg_catalog.json_populate_record(1, 'null'::json, true)` raises
@@ -2085,6 +2088,7 @@ probe as the evidence bar.
 - `macaddr(macaddr8)` — e.g. `pg_catalog.macaddr('08:00:2b:01:02:03:04:05'::macaddr8)` raises
 - `makeaclitem(oid,oid,text,boolean)` — e.g. `pg_catalog.makeaclitem(0::oid, 0::oid, 'abc', true)` raises
 - `multirange_intersect_agg_transfn(anymultirange,anymultirange)` — e.g. `pg_catalog.multirange_intersect_agg_transfn('{[1,2)}'::int4multirange, '{[1,2)}'::int4multirange)` raises
+- `nummultirange(numrange[])` — e.g. `pg_catalog.nummultirange('{}'::numrange[])` raises
 - `pg_event_trigger_ddl_commands()` — e.g. `pg_catalog.pg_event_trigger_ddl_commands()` raises
 - `pg_event_trigger_dropped_objects()` — e.g. `pg_catalog.pg_event_trigger_dropped_objects()` raises
 - `pg_event_trigger_table_rewrite_oid()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_oid()` raises
@@ -2121,11 +2125,11 @@ probe as the evidence bar.
 - `ts_parse(text,text)` — e.g. `pg_catalog.ts_parse('abc', 'abc')` raises
 - `ts_token_type(oid)` — e.g. `pg_catalog.ts_token_type(0::oid)` raises
 - `ts_token_type(text)` — e.g. `pg_catalog.ts_token_type('abc')` raises
+- `tsmultirange(tsrange[])` — e.g. `pg_catalog.tsmultirange('{}'::tsrange[])` raises
+- `tstzmultirange(tstzrange[])` — e.g. `pg_catalog.tstzmultirange('{}'::tstzrange[])` raises
 
-## no-generator (807: functions 801, operators 2, aggregates 4, windows 0)
+## no-generator (754: functions 750, operators 0, aggregates 4, windows 0)
 
-- `@?(jsonb,jsonpath)`
-- `@@(jsonb,jsonpath)`
 - `aclitemin(cstring)`
 - `any_in(cstring)`
 - `anyarray_in(cstring)`
@@ -2267,9 +2271,6 @@ probe as the evidence bar.
 - `date_recv(internal)`
 - `date_skipsupport(internal)`
 - `date_sortsupport(internal)`
-- `datemultirange(daterange)`
-- `datemultirange(daterange[])`
-- `daterange_canonical(daterange)`
 - `dense_rank_final(internal,"any")`
 - `dispell_init(internal)`
 - `dispell_lexize(internal,internal,internal,internal)`
@@ -2432,9 +2433,6 @@ probe as the evidence bar.
 - `int4_avg_accum_inv(bigint[],integer)`
 - `int4_avg_combine(bigint[],bigint[])`
 - `int4in(cstring)`
-- `int4multirange(int4range)`
-- `int4multirange(int4range[])`
-- `int4range_canonical(int4range)`
 - `int4recv(internal)`
 - `int8_accum(internal,bigint)`
 - `int8_accum_inv(internal,bigint)`
@@ -2446,9 +2444,6 @@ probe as the evidence bar.
 - `int8_avg_serialize(internal)`
 - `int8in(cstring)`
 - `int8inc_support(internal)`
-- `int8multirange(int8range)`
-- `int8multirange(int8range[])`
-- `int8range_canonical(int8range)`
 - `int8recv(internal)`
 - `internal_in(cstring)`
 - `internal_out(internal)`
@@ -2480,7 +2475,6 @@ probe as the evidence bar.
 - `json_object_agg_unique_strict_transfn(internal,"any","any")`
 - `json_object_agg_unique_transfn(internal,"any","any")`
 - `json_recv(internal)`
-- `json_to_tsvector(regconfig,json,jsonb)`
 - `jsonb_agg_finalfn(internal)`
 - `jsonb_agg_strict_transfn(internal,anyelement)`
 - `jsonb_agg_transfn(internal,anyelement)`
@@ -2490,25 +2484,10 @@ probe as the evidence bar.
 - `jsonb_object_agg_transfn(internal,"any","any")`
 - `jsonb_object_agg_unique_strict_transfn(internal,"any","any")`
 - `jsonb_object_agg_unique_transfn(internal,"any","any")`
-- `jsonb_path_exists(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_exists_opr(jsonb,jsonpath)`
-- `jsonb_path_exists_tz(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_match(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_match_opr(jsonb,jsonpath)`
-- `jsonb_path_match_tz(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_query(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_query_array(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_query_array_tz(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_query_first(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_query_first_tz(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_query_tz(jsonb,jsonpath,jsonb,boolean)`
 - `jsonb_recv(internal)`
 - `jsonb_subscript_handler(internal)`
-- `jsonb_to_tsvector(regconfig,jsonb,jsonb)`
 - `jsonpath_in(cstring)`
-- `jsonpath_out(jsonpath)`
 - `jsonpath_recv(internal)`
-- `jsonpath_send(jsonpath)`
 - `koi8r_to_iso(integer,integer,cstring,internal,integer,boolean)`
 - `koi8r_to_mic(integer,integer,cstring,internal,integer,boolean)`
 - `koi8r_to_utf8(integer,integer,cstring,internal,integer,boolean)`
@@ -2598,8 +2577,6 @@ probe as the evidence bar.
 - `numeric_var_pop(internal)`
 - `numeric_var_samp(internal)`
 - `numerictypmodin(cstring[])`
-- `nummultirange(numrange)`
-- `nummultirange(numrange[])`
 - `oidin(cstring)`
 - `oidrecv(internal)`
 - `oidvectorin(cstring)`
@@ -2661,8 +2638,6 @@ probe as the evidence bar.
 - `pg_snapshot_xmax(pg_snapshot)`
 - `pg_snapshot_xmin(pg_snapshot)`
 - `pg_visible_in_snapshot(xid8,pg_snapshot)`
-- `phraseto_tsquery(regconfig,text)`
-- `plainto_tsquery(regconfig,text)`
 - `point_in(cstring)`
 - `point_recv(internal)`
 - `poly_in(cstring)`
@@ -2702,9 +2677,7 @@ probe as the evidence bar.
 - `regcollationrecv(internal)`
 - `regcollationsend(regcollation)`
 - `regconfigin(cstring)`
-- `regconfigout(regconfig)`
 - `regconfigrecv(internal)`
-- `regconfigsend(regconfig)`
 - `regdictionaryin(cstring)`
 - `regdictionaryout(regdictionary)`
 - `regdictionaryrecv(internal)`
@@ -2819,36 +2792,17 @@ probe as the evidence bar.
 - `timetz_in(cstring,oid,integer)`
 - `timetz_recv(internal,oid,integer)`
 - `timetztypmodin(cstring[])`
-- `to_tsquery(regconfig,text)`
-- `to_tsvector(regconfig,json)`
-- `to_tsvector(regconfig,jsonb)`
-- `to_tsvector(regconfig,text)`
 - `trigger_in(cstring)`
 - `trigger_out(trigger)`
-- `ts_debug(regconfig,text)`
 - `ts_filter(tsvector,"char"[])`
-- `ts_headline(regconfig,json,tsquery)`
-- `ts_headline(regconfig,json,tsquery,text)`
-- `ts_headline(regconfig,jsonb,tsquery)`
-- `ts_headline(regconfig,jsonb,tsquery,text)`
-- `ts_headline(regconfig,text,tsquery)`
-- `ts_headline(regconfig,text,tsquery,text)`
 - `ts_lexize(regdictionary,text)`
-- `ts_rank(real[],tsvector,tsquery)`
-- `ts_rank(real[],tsvector,tsquery,integer)`
-- `ts_rank_cd(real[],tsvector,tsquery)`
-- `ts_rank_cd(real[],tsvector,tsquery,integer)`
 - `ts_typanalyze(internal)`
 - `tsm_handler_in(cstring)`
 - `tsm_handler_out(tsm_handler)`
 - `tsmatchjoinsel(internal,oid,internal,smallint,internal)`
 - `tsmatchsel(internal,oid,internal,integer)`
-- `tsmultirange(tsrange)`
-- `tsmultirange(tsrange[])`
 - `tsqueryin(cstring)`
 - `tsqueryrecv(internal)`
-- `tstzmultirange(tstzrange)`
-- `tstzmultirange(tstzrange[])`
 - `tsvectorin(cstring)`
 - `tsvectorrecv(internal)`
 - `txid_snapshot_in(cstring)`
@@ -2897,7 +2851,6 @@ probe as the evidence bar.
 - `void_out(void)`
 - `void_recv(internal)`
 - `void_send(void)`
-- `websearch_to_tsquery(regconfig,text)`
 - `win1250_to_latin2(integer,integer,cstring,internal,integer,boolean)`
 - `win1250_to_mic(integer,integer,cstring,internal,integer,boolean)`
 - `win1251_to_iso(integer,integer,cstring,internal,integer,boolean)`

@@ -75,6 +75,38 @@ export const VALUES: Record<string, string[]> = {
   // --- ranges: the EMPTY range removed lower/upper.
   anyrange: ["'empty'::int4range", "'[1,2)'::int4range"],
   anymultirange: ["'{}'::int4multirange", "'{[1,2)}'::int4multirange"],
+  // The CONCRETE range types, and the arrays the multirange constructors
+  // take variadically (2026-08-09, from the no-generator triage): without
+  // them `int4multirange(int4range)` and its five siblings went unprobed,
+  // which is the gap this session's promotion batch had to record rather
+  // than close.
+  int4range: ["'empty'::int4range", "'[1,2)'::int4range"],
+  int8range: ["'empty'::int8range", "'[1,2)'::int8range"],
+  numrange: ["'empty'::numrange", "'[1,2)'::numrange"],
+  daterange: ["'empty'::daterange", "'[2020-01-01,2020-01-02)'::daterange"],
+  tsrange: ["'empty'::tsrange", "'[2020-01-01,2020-01-02)'::tsrange"],
+  tstzrange: ["'empty'::tstzrange", "'[2020-01-01Z,2020-01-02Z)'::tstzrange"],
+  "int4range[]": ["'{}'::int4range[]", "ARRAY['[1,2)'::int4range]"],
+  "int8range[]": ["'{}'::int8range[]", "ARRAY['[1,2)'::int8range]"],
+  "numrange[]": ["'{}'::numrange[]", "ARRAY['[1,2)'::numrange]"],
+  "daterange[]": ["'{}'::daterange[]", "ARRAY['empty'::daterange]"],
+  "tsrange[]": ["'{}'::tsrange[]", "ARRAY['empty'::tsrange]"],
+  "tstzrange[]": ["'{}'::tstzrange[]", "ARRAY['empty'::tstzrange]"],
+
+  // --- the two application-facing pseudo-ish types the triage kept. A
+  //     jsonpath that matches NOTHING is the point: it is what makes
+  //     `jsonb_path_query_first` answer NULL, the walk's own excluded-list
+  //     example, which until now had no witness. `regconfig` is full-text
+  //     search — to_tsvector and the four tsquery spellings take it.
+  // The STRICT path is its own class and the lax ones cannot stand in for
+  // it: under `silent => true` a strict path error is SUPPRESSED into a
+  // NULL rather than a false, so `jsonb_path_exists`, its _tz twin, the
+  // `@?` operator and `jsonb_path_match` all answer NULL for input that is
+  // entirely non-null — while the same call on a lax path answers false.
+  jsonpath: ["'$'::jsonpath", "'$.a'::jsonpath", "'$.a == 1'::jsonpath", "'strict $.a'::jsonpath"],
+  regconfig: ["'english'::regconfig", "'simple'::regconfig"],
+  // ts_rank's weight vector; the short array raises rather than answering.
+  "real[]": ["'{0.1,0.2,0.4,1.0}'::float4[]", "'{}'::float4[]"],
 
   // --- bits, network, identifiers and the geometry the operators reach.
   boolean: ["true", "false"],
