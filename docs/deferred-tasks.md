@@ -476,13 +476,37 @@ a signature-keyed body map is that residue's price. Pinned by
 domain return recovered, text row's NULL witnessed) and by the corrected
 `overload-consensus.sql` annotation, whose reason had gone stale the
 moment the narrowing started dispatching `same_tt` — the 12%
-reason-drift class, caught by a review question. On the OTHER question a
-review asks — per-builtin corner-case tests — the scope stands as
-chartered: the totality probe executes all 791 CLAIMED signatures against
-the historically-breaking input classes and the witness corpus holds the
-NULL-capable rows; builtins outside the claim tables have no verdict to
-falsify, and extending the corpus past the curated set stays the
-charter's recorded open question, not a default.
+reason-drift class, caught by a review question. On the OTHER question that review asked — per-builtin corner-case tests —
+the answer CHANGED by decision (2026-08-09): **the charter's open question
+is decided, and the FULL builtin scalar surface is witnessed or
+classified** (`builtin-surface.test.ts`). The reasoning, the user's: the
+engine's default "nullable" for an unclaimed builtin is itself a CLAIM,
+and this project's discipline says a nullable claim is witnessed or its
+unwitnessability is explicit — the fixture suite enforced that per column
+and exempted the whole unclaimed surface. Every pg_catalog `prokind='f'`
+signature now lands in exactly one category: claimed 237 (the totality
+probe's jurisdiction), volatile 281 (excluded on the catalog's own
+side-effect marker), no-generator 801 (explicit), raised-everywhere 160,
+**null-witnessed 139** (the machine found the NULL; asserted never to
+acquire a totality claim), and **no-null-found 1608 — THE WORK LIST**:
+claimed nullable, no witness found, each a graduation candidate for a
+human to promote (name table or signature addition, where the totality
+probe takes over) or to find the missing input class for. Promotion stays
+human — the discovery/coverage split. The probe corpus is shared with the
+totality probe (`probe-values.ts`, one copy). Engineering note recorded
+for the next person: PGlite's backend, once an expression overflows the
+errordata stack, stays POISONED while plain SELECTs still answer — the
+suite detects poison with the probe itself, treats short results as
+failures, bisects to the culprit, and rebuilds; the run costs ~2.5
+minutes, all of it in poison recovery. **The OPERATOR surface joined the same discipline (2026-08-09, same
+day)**: every pg_operator row classified alongside — 4025 signatures
+total, claimed 795 (the 558 operator rows are the totality probe's
+jurisdiction), null-witnessed 154 (15 operator witnesses, `->` on a
+missing jsonb key the positive control), no-null-found 1826 (218 operator
+rows join the work list), the shell-operator drop per the 1a sweep's
+measurement. Aggregates and window functions are NOT yet under this
+discipline — their process (empty-input, empty-frame and all-NULL-input
+constructions) is proposed and awaiting discussion.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
