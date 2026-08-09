@@ -442,9 +442,26 @@ included. Pinned by the charter's own example (`public.lower(integer)`
 returning a NOT NULL domain, `search-path.test.ts` — PostgreSQL as
 referee, with the builtin text side untouched beside it). The drop rule
 STAYS, correctly, for names the capture does not hold, for names carrying
-aggregate or window rows, and for undecided sets. What remains of the
-charter: the fallback measurement once function results type — the last
-open item.
+aggregate or window rows, and for undecided sets.
+
+**THE FALLBACK MEASUREMENT RAN (2026-08-09), and the charter's last open
+item is CLOSED with a kept fallback.** Function results now feed
+`operandTypeSet` (the scalar dispatch returns its survivors' return-type
+union; a resolved user function contributes its declared scalar return),
+which was the measurement's precondition. Then the both-unknown name-rule
+fallback was removed and the suite run: **two real claims regressed**, and
+they name the fallback's residual load exactly — `cte-self-join`'s
+`a.total + b.total` (a COMPUTED CTE column the re-export reading cannot
+type) and `function-default-argument`'s body arithmetic over the
+function's own parameters (nothing types inside a body scope). Both are
+typeable in principle — the inner target list, and the declared parameter
+types the snapshot already carries — so the fallback retires when those
+two sources type, not before and not by assumption; the reasoning is
+recorded at the fallback itself in `catalog-adapter.ts`. The
+type-aware-overloads charter has NO open items: what its residue reduces
+to is those two typing sources, the mechanism-C ParamRef threading, and
+named-notation dispatch — each a precision extension of landed machinery,
+none a soundness question.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table

@@ -4691,6 +4691,35 @@ class NullabilityEngine {
       );
       return narrowed.kind === "unknown" ? null : narrowed.returns;
     }
+    // A function result carries its union too — the resolved user
+    // function's declared scalar return, or the builtin survivors' union.
+    // Aggregate, window, set-returning, variadic-array and named-notation
+    // shapes stay untyped; their semantics live in their own dispatches.
+    const fcn = rec["FuncCall"] as FuncCall | undefined;
+    if (
+      fcn &&
+      !fcn.over &&
+      !(fcn as { agg_within_group?: boolean }).agg_within_group &&
+      !fcn.agg_star &&
+      !fcn.agg_distinct &&
+      !fcn.agg_filter &&
+      !fcn.func_variadic &&
+      !(fcn.args ?? []).some(a => "NamedArgExpr" in (a as Record<string, unknown>))
+    ) {
+      const fname = this.funcName(fcn);
+      const fschema = this.funcSchema(fcn);
+      const argSets = (fcn.args ?? []).map(a => this.operandTypeSet(a, scope, depth + 1));
+      const meta =
+        this.catalog.resolveFunctionMetadata(fschema, fname) ??
+        this.catalog.resolveUserFunctionTyped(fschema, fname, argSets);
+      if (meta) {
+        return !meta.isAggregate && !meta.returnsSet && meta.returnType !== ""
+          ? [meta.returnType]
+          : null;
+      }
+      const resolved = this.catalog.resolveBuiltinScalarTotality(fschema, fname, argSets);
+      return resolved.kind === "unknown" ? null : resolved.returns;
+    }
     const rendered = this.renderedTypeOfExpr(expr, scope);
     return rendered === null ? null : [rendered];
   }

@@ -1066,9 +1066,18 @@ export async function buildNullabilityCatalog(
     }
 
     if (Ls === null && Rs === null) {
-      // Nothing to eliminate with. A user operator sharing a curated name
-      // makes the name-level fallback unsound (the demonstrated rank-1), so
-      // only the builtin-only case cedes to it.
+      // The name-rule fallback, KEPT BY MEASUREMENT (2026-08-09, the
+      // charter's closing item): removing it cost two real claims —
+      // `cte-self-join`'s `a.total + b.total`, where `total` is a computed
+      // CTE column the re-export reading cannot type, and
+      // `function-default-argument`'s body arithmetic over the function's
+      // own parameters, which nothing types inside a body scope. Both are
+      // typeable in principle (the inner target list; the declared
+      // parameter types the snapshot already carries), so the fallback
+      // retires when those two sources type — not before, and not by
+      // assumption. A user operator sharing a curated name still makes the
+      // fallback unsound (the demonstrated rank-1), so that case answers
+      // here rather than ceding.
       return users.length > 0 && builtins.length > 0
         ? { kind: "nullable", returns: unionOf(users, builtins) }
         : { kind: "unknown" };
@@ -1149,6 +1158,7 @@ export async function buildNullabilityCatalog(
       }
     }
     if (As === null) {
+      // The binary form's measured fallback rule, unary spelling.
       return users.length > 0 && builtins.length > 0
         ? { kind: "nullable", returns: unionOf(users, builtins) }
         : { kind: "unknown" };
@@ -1394,10 +1404,10 @@ export async function buildNullabilityCatalog(
     name: string,
     argTypes: readonly (readonly string[] | null)[],
   ):
-    | { kind: "always" }
-    | { kind: "first-arg" }
-    | { kind: "strict-total" }
-    | { kind: "nullable" }
+    | { kind: "always"; returns: string[] }
+    | { kind: "first-arg"; returns: string[] }
+    | { kind: "strict-total"; returns: string[] }
+    | { kind: "nullable"; returns: string[] }
     | { kind: "unknown" } => {
     const rows = resolveBuiltinFunctionSignatures(schema, name).filter(r => r.kind === "f");
     if (rows.length === 0) return { kind: "unknown" };
@@ -1431,7 +1441,9 @@ export async function buildNullabilityCatalog(
       );
       if (exact) {
         const v = verdictOf(exact);
-        return v === null ? { kind: "nullable" } : { kind: v };
+        return v === null
+          ? { kind: "nullable", returns: [exact.returns] }
+          : { kind: v, returns: [exact.returns] };
       }
     }
 
@@ -1450,11 +1462,12 @@ export async function buildNullabilityCatalog(
       }),
     );
     if (survivors.length === 0) return { kind: "unknown" };
+    const returns = [...new Set(survivors.map(r => r.returns))];
     const verdicts = survivors.map(verdictOf);
-    if (verdicts.some(v => v === null)) return { kind: "nullable" };
-    if (verdicts.every(v => v === "always")) return { kind: "always" };
-    if (verdicts.every(v => v === "always" || v === "first-arg")) return { kind: "first-arg" };
-    return { kind: "strict-total" };
+    if (verdicts.some(v => v === null)) return { kind: "nullable", returns };
+    if (verdicts.every(v => v === "always")) return { kind: "always", returns };
+    if (verdicts.every(v => v === "always" || v === "first-arg")) return { kind: "first-arg", returns };
+    return { kind: "strict-total", returns };
   };
 
   // The FROM-position shape of a pg_catalog function with named output
