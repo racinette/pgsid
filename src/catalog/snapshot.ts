@@ -31,8 +31,6 @@ import {
   STRICT_TOTAL_BUILTIN_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_FNS,
-  HYPOTHETICAL_SET_AGGREGATES,
-  ORDERED_SET_AGGREGATES,
 } from "../query/nullability-walk.js";
 import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../query/operators.js";
 
@@ -51,8 +49,8 @@ const CLAIMED_FUNCTION_NAMES = [...new Set([
   ...STRICT_TOTAL_BUILTINS,
   ...NON_NULL_OVER_NONEMPTY_AGGREGATES,
   ...NEVER_NULL_WINDOW_FNS,
-  ...HYPOTHETICAL_SET_AGGREGATES,
-  ...ORDERED_SET_AGGREGATES,
+  // The WITHIN GROUP classes scope themselves — the capture's WHERE adds
+  // every aggkind 'h'/'o' row, since those verdicts are class claims.
   // A SIGNATURE-keyed claim covers a name no table holds — `lower(text)`
   // after lower's removal — and its rows must be captured for the typed
   // dispatch to resolve against.
@@ -1451,7 +1449,12 @@ async function queryBuiltinFunctionSignatures(
      JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'pg_catalog'
        AND p.prokind IN ('f', 'a', 'w')
-       AND p.proname = ANY($1)
+       AND (p.proname = ANY($1)
+            -- The WITHIN GROUP verdicts are CLASS claims — "hypothetical-set
+            -- → never NULL" holds per aggkind, not per curated name — so the
+            -- class scopes itself; the two name tables that mirrored it
+            -- retired (they were asserted catalog-equal both ways).
+            OR a.aggkind IN ('h', 'o'))
      ORDER BY p.proname, 2;`,
     [CLAIMED_FUNCTION_NAMES],
   );

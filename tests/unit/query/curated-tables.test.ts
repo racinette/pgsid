@@ -3,13 +3,13 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_FNS,
-  HYPOTHETICAL_SET_AGGREGATES,
-  ORDERED_SET_AGGREGATES,
   ALWAYS_NOT_NULL_BUILTINS,
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
 } from "../../../src/query/nullability-walk.js";
 import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
+import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
+import type { BuiltinFunctionSignature } from "../../../src/catalog/types.js";
 
 // ---------------------------------------------------------------------------
 // The curated name tables, held to pg_catalog.
@@ -69,9 +69,12 @@ describe("curated name tables vs pg_catalog", () => {
   /** pg_catalog names by the property the catalog records directly. */
   let byKind: Map<string, Set<string>>;
   let strictBuiltins: Set<string>;
+  /** The signature capture, for the assertions that hold IT to the catalog. */
+  let capturedSignatures: BuiltinFunctionSignature[];
 
   beforeAll(async () => {
     pg = await PGlite.create();
+    capturedSignatures = (await snapshotCatalog(pg)).builtinFunctionSignatures;
     const rows = (
       await pg.query<{ name: string; kinds: string; aggkinds: string | null; n: number }>(
         `SELECT p.proname AS name,
@@ -162,11 +165,15 @@ describe("curated name tables vs pg_catalog", () => {
 
   // --- existence: the assertion every table gets ---------------------------
 
+  // HYPOTHETICAL_SET_AGGREGATES and ORDERED_SET_AGGREGATES are gone from
+  // this list because they are gone entirely (2026-08-09): both were
+  // asserted EQUAL to `pg_aggregate.aggkind` in both directions, which is
+  // this suite's own retirement criterion — they stopped being tables and
+  // became the capture (`builtinFunctionSignatures.aggKind`, whose spot
+  // pins live in snapshot.test.ts), the way AGGREGATE_NAMES did.
   const ALL: [string, ReadonlySet<string>][] = [
     ["NON_NULL_OVER_NONEMPTY_AGGREGATES", NON_NULL_OVER_NONEMPTY_AGGREGATES],
     ["NEVER_NULL_WINDOW_FNS", NEVER_NULL_WINDOW_FNS],
-    ["HYPOTHETICAL_SET_AGGREGATES", HYPOTHETICAL_SET_AGGREGATES],
-    ["ORDERED_SET_AGGREGATES", ORDERED_SET_AGGREGATES],
     ["ALWAYS_NOT_NULL_BUILTINS", ALWAYS_NOT_NULL_BUILTINS],
     ["FIRST_ARG_BUILTINS", FIRST_ARG_BUILTINS],
     ["STRICT_TOTAL_BUILTINS", STRICT_TOTAL_BUILTINS],
@@ -204,8 +211,6 @@ describe("curated name tables vs pg_catalog", () => {
   it("every aggregate table holds only aggregates", () => {
     const wrong = [
       ...[...NON_NULL_OVER_NONEMPTY_AGGREGATES].map(n => ["NON_NULL_OVER_NONEMPTY_AGGREGATES", n] as const),
-      ...[...HYPOTHETICAL_SET_AGGREGATES].map(n => ["HYPOTHETICAL_SET_AGGREGATES", n] as const),
-      ...[...ORDERED_SET_AGGREGATES].map(n => ["ORDERED_SET_AGGREGATES", n] as const),
     ]
       .filter(([, n]) => fns.has(n) && !fns.get(n)!.kinds.has("a"))
       .map(([label, n]) => `${label}: ${n} (prokind '${[...fns.get(n)!.kinds].join("")}')`)
@@ -235,28 +240,24 @@ describe("curated name tables vs pg_catalog", () => {
     ).toEqual([]);
   });
 
-  it("the aggkind tables EQUAL their catalog predicate", () => {
-    // The strongest form available, and the one the document asks for: these
-    // two tables are exactly `pg_aggregate.aggkind`, so they are asserted in
-    // BOTH directions. A missing entry is the BUILTIN_SRF_NAMES failure mode —
-    // a rule silently switched off for a name nobody wrote down.
-    const compare = (label: string, table: ReadonlySet<string>, key: string): string[] => {
-      const catalog = byKind.get(key) ?? new Set<string>();
+  it("the capture's aggkind classes match the catalog predicate", () => {
+    // The successor of "the aggkind tables EQUAL their catalog predicate":
+    // the two tables took this suite's advice and became the capture, so
+    // the both-directions assertion now holds the CAPTURE's h/o rows to
+    // pg_aggregate — a drift here is a capture bug, not a curation one.
+    const captured = new Map<string, Set<string>>([["h", new Set()], ["o", new Set()]]);
+    for (const sig of capturedSignatures) {
+      if (sig.aggKind === "h" || sig.aggKind === "o") captured.get(sig.aggKind)!.add(sig.name);
+    }
+    const drift = (["h", "o"] as const).flatMap(k => {
+      const catalog = byKind.get(`agg:${k}`) ?? new Set<string>();
+      const cap = captured.get(k)!;
       return [
-        ...[...catalog].filter(n => !table.has(n)).map(n => `${label} is MISSING ${n}`),
-        ...[...table].filter(n => !catalog.has(n)).map(n => `${label} has EXTRA ${n}`),
+        ...[...catalog].filter(n => !cap.has(n)).map(n => `aggkind '${k}' capture is MISSING ${n}`),
+        ...[...cap].filter(n => !catalog.has(n)).map(n => `aggkind '${k}' capture has EXTRA ${n}`),
       ].sort();
-    };
-    const drift = [
-      ...compare("HYPOTHETICAL_SET_AGGREGATES", HYPOTHETICAL_SET_AGGREGATES, "agg:h"),
-      ...compare("ORDERED_SET_AGGREGATES", ORDERED_SET_AGGREGATES, "agg:o"),
-    ];
-    expect(
-      drift,
-      `A table that IS a catalog predicate has drifted from it. These two are ` +
-        `derivable — if this keeps happening they should stop being tables and ` +
-        `become a snapshot capture, the way AGGREGATE_NAMES did:\n  ${drift.join("\n  ")}`,
-    ).toEqual([]);
+    });
+    expect(drift).toEqual([]);
   });
 
   // --- the latent hazard the AGGREGATE_NAMES replacement closed ------------

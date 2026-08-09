@@ -157,6 +157,12 @@ const FLOOR: string[] = [
  * leave, and a cold member nobody triaged fails.
  */
 const COLD_TRIAGE: Record<string, { needs: string; witness: string }> = {
+  resolveBuiltinAggregateRows: {
+    needs:
+      "a WITHIN GROUP call — the generated corpus's aggregate axis produces " +
+      "plain and windowed aggregates only",
+    witness: "aggregate-modifiers.sql",
+  },
   resolveUnaryOperatorTotality: {
     needs:
       "a PREFIX operator expression — the generated corpus's operator axis " +

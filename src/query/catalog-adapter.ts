@@ -1279,6 +1279,26 @@ export async function buildNullabilityCatalog(
   };
 
   /**
+   * The WITHIN GROUP dispatch's row facts — CLASS claims keyed on
+   * `pg_aggregate.aggkind` from the capture, replacing the two retired
+   * name tables that mirrored it (they were asserted catalog-equal both
+   * ways, the AGGREGATE_NAMES precedent): a hypothetical-set row is total
+   * by class, an ordered-set row follows the plain-aggregate gates. Null
+   * when the name has no aggregate rows.
+   */
+  const resolveBuiltinAggregateRows = (
+    schema: string | undefined,
+    name: string,
+  ): { hypothetical: boolean; orderedSet: boolean } | null => {
+    const rows = resolveBuiltinFunctionSignatures(schema, name).filter(r => r.kind === "a");
+    if (rows.length === 0) return null;
+    return {
+      hypothetical: rows.some(r => r.aggKind === "h"),
+      orderedSet: rows.some(r => r.aggKind === "o"),
+    };
+  };
+
+  /**
    * The scalar half of the function dispatch, typed
    * (docs/type-aware-overloads.md, the function slice): the kind='f' rows
    * behind a claim-table name, arity-admitted with their captured defaults
@@ -1397,6 +1417,7 @@ export async function buildNullabilityCatalog(
     resolveOperatorStrictness,
     resolveOperatorStrictnessSome,
     resolveBuiltinScalarTotality,
+    resolveBuiltinAggregateRows,
     resolveBuiltinFunctionSignatures,
     resolveBuiltinOperatorSignatures,
     resolveCanonicalTypeName,

@@ -406,11 +406,23 @@ $1 rejected — pinned with PostgreSQL refereeing both directions in
 typing waits on threading the tier-0 input through
 `param-nullability`'s recursion (the `$1 || $2` shape keeps the name
 rule's safe over-report); named-notation builtin calls skip the typed
-dispatch. What remains: the AGGREGATE and WINDOW half (shape dispatch per
-the answered second question, the four remaining tables re-keyed), the
+dispatch. **The AGGREGATE/WINDOW half LANDED (2026-08-09): two more tables
+RETIRED.** `HYPOTHETICAL_SET_AGGREGATES` and `ORDERED_SET_AGGREGATES` were
+asserted catalog-equal to `pg_aggregate.aggkind` in both directions — the
+retirement criterion `AGGREGATE_NAMES` established, and the criterion
+their own assertion text named — so the WITHIN GROUP dispatch now reads
+the capture's aggkind directly (`resolveBuiltinAggregateRows`), the
+capture scopes the h/o CLASSES itself (the verdicts are class claims), and
+the both-directions assertion in `curated-tables.test.ts` now holds the
+CAPTURE to the catalog instead. The two VERDICT tables
+(`NEVER_NULL_WINDOW_FNS`, `NON_NULL_OVER_NONEMPTY_AGGREGATES`) keep their
+name keys deliberately: each window name has exactly one 'w' row, the
+aggregate names' rows are claim-uniform, and no per-row evidence exists to
+diverge them — that evidence is step 5's job. What remains: the
 user/builtin merged candidate gathering for functions (the precision the
-resolvableCandidates drop rule still costs), step 5 (the witness corpus),
-and the fallback measurement once function results type.
+resolvableCandidates drop rule still costs), step 5 (the witness corpus,
+which is also where the verdict tables earn per-row keys), and the
+fallback measurement once function results type.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
