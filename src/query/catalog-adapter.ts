@@ -1279,6 +1279,85 @@ export async function buildNullabilityCatalog(
   };
 
   /**
+   * The typed recovery of the drop rule's cost (adversarial-3 finding 6):
+   * for a bare name pg_catalog also carries, the user candidates are not
+   * the candidate set and the whole set drops — sound, and it costs every
+   * user function named after a builtin its metadata. With the claim
+   * names' signatures captured, the merged set is decidable for THEM: a
+   * user row that is the declared-types exact match (no builtin row
+   * sharing the signature — pg_catalog wins that tie, measured) or the
+   * single survivor of elimination across BOTH halves is certainly what
+   * PostgreSQL runs, and its full metadata (domain return, body, strict
+   * flag) comes back into play. Null everywhere else: names the capture
+   * does not hold keep the drop rule, and a name with aggregate or window
+   * rows refuses outright — their argument semantics differ.
+   */
+  const resolveUserFunctionTyped = (
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (readonly string[] | null)[],
+  ): FunctionInfo | null => {
+    if (schema !== undefined) return null;
+    if (!isBuiltinFunction(name)) return null;
+    const builtinRows = builtinFnSigsByName.get(name);
+    if (!builtinRows || builtinRows.some(r => r.kind !== "f")) return null;
+    const users = candidatesInPath(name).filter(f =>
+      f.args.every(a => a.mode === "in" || a.mode === "inout" || a.mode === "out"),
+    );
+    if (users.length === 0) return null;
+    const argCount = argTypes.length;
+    const sets = argTypes.map(s => (s === null ? null : s.map(normalizeTypeName)));
+    const singles = sets.map(s => (s !== null && s.length === 1 ? s[0]! : null));
+
+    const userIns = (f: FunctionInfo): string[] =>
+      f.args.filter(a => a.mode === "in" || a.mode === "inout").map(a => a.typeName);
+    const userAdmits = (f: FunctionInfo): boolean => {
+      const ins = f.args.filter(a => a.mode === "in" || a.mode === "inout");
+      const required = ins.filter(a => !a.hasDefault).length;
+      return argCount >= required && argCount <= ins.length;
+    };
+    const builtinAdmits = (r: BuiltinFunctionSignature): boolean =>
+      r.variadic !== null
+        ? argCount >= r.args.length - 1
+        : argCount <= r.args.length && argCount >= r.args.length - r.numArgDefaults;
+
+    const userRows = users.filter(userAdmits);
+    const bRows = builtinRows.filter(builtinAdmits);
+    if (userRows.length === 0) return null;
+
+    if (singles.every(s => s !== null)) {
+      const builtinExact = bRows.some(
+        r => r.variadic === null && r.args.length === argCount &&
+          r.args.every((a, i) => a === singles[i]),
+      );
+      const userExact = userRows.find(f => {
+        const ins = userIns(f);
+        return ins.length === argCount && ins.every((a, i) => a === singles[i]);
+      });
+      if (userExact && !builtinExact) return userExact;
+      if (builtinExact) return null;
+    }
+
+    const reaches = (s: readonly string[] | null, param: string): boolean =>
+      s === null || s.some(m => mayCoerceImplicitly(m, param));
+    const bParamAt = (r: BuiltinFunctionSignature, i: number): string => {
+      if (r.variadic === null || i < r.args.length - 1) return r.args[i]!;
+      const v = r.args[r.args.length - 1]!;
+      return v.endsWith("[]") ? v.slice(0, -2) : v;
+    };
+    const userSurvivors = userRows.filter(f => {
+      const ins = userIns(f);
+      return sets.every((s, i) => i >= ins.length || reaches(s, ins[i]!));
+    });
+    const builtinSurvivors = bRows.filter(r =>
+      sets.every((s, i) => reaches(s, bParamAt(r, i))),
+    );
+    return userSurvivors.length === 1 && builtinSurvivors.length === 0
+      ? userSurvivors[0]!
+      : null;
+  };
+
+  /**
    * The WITHIN GROUP dispatch's row facts — CLASS claims keyed on
    * `pg_aggregate.aggkind` from the capture, replacing the two retired
    * name tables that mirrored it (they were asserted catalog-equal both
@@ -1418,6 +1497,7 @@ export async function buildNullabilityCatalog(
     resolveOperatorStrictnessSome,
     resolveBuiltinScalarTotality,
     resolveBuiltinAggregateRows,
+    resolveUserFunctionTyped,
     resolveBuiltinFunctionSignatures,
     resolveBuiltinOperatorSignatures,
     resolveCanonicalTypeName,
