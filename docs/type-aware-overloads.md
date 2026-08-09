@@ -5,6 +5,12 @@
 `lower(email)` reads nullable, on a `NOT NULL` text column, for the most
 trivial function in SQL. That is the state this document exists to end.
 
+> **ENDED 2026-08-09.** The typed scalar dispatch resolves the argument to
+> the `(text)` row and reads its signature-keyed verdict
+> (`STRICT_TOTAL_BUILTIN_SIGNATURES`); `builtin-lower-upper-text.sql` pins
+> the recovery and the totality probe holds the two entries to execution.
+> The register tracks what of this charter remains.
+
 It is not a precision statistic. The contract's whole value is that
 `notNull` means something; a consumer who meets the simplest possible case
 coming back nullable stops trusting the flags and adds checks everywhere.

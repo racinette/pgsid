@@ -382,10 +382,35 @@ parameter is nullable by design), so `param-types-input.test.ts` pins the
 RESOLUTION: typed → signature-narrowed, untyped → name rule, plus the seam
 that regtype text is format_type's spelling. The input's claim-level
 consumers are mechanism C (where `ARRAY[1,2] || $1` stops over-reporting
-strictness) and the function half. What remains: step 3's FUNCTION and
-aggregate half with step 4's verdicts interleaved and mechanism C's typing
-folded in, step 5 (the witness corpus), and the fallback measurement once
-parameters and function results type.
+strictness) and the function half. **The SCALAR function slice LANDED (2026-08-09), with the founding
+recovery.** Priority 6b resolves a builtin call over the captured kind='f'
+rows — arity admitted with captured `pronargdefaults` (five claim names
+carry them; eliminating a shorter call would be a false elimination),
+exact match on singleton argument sets, elimination and verdict CONSENSUS
+over survivors on the lattice always ⇒ first-arg ⇒ strict-total. The
+verdict source is the name tables plus `STRICT_TOTAL_BUILTIN_SIGNATURES`,
+the signature-keyed additions whose first entries are `lower(text)` and
+`upper(text)`: **`lower(<NOT NULL text column>)` claims notNull again**
+(`builtin-lower-upper-text.sql`; `builtin-functions.sql`'s `upper_name`
+flipped from its recorded name-level cost, annotation retired), while the
+range rows keep reading nullable (`builtin-range-lower-upper.sql`,
+unchanged). The additions ride the totality probe's universe (791
+signatures now) — a NULL from an addition row fails the run — and the
+probe asserts each addition is probed and non-redundant. **Mechanism C's
+recorded `||` over-report is CLOSED where the operand types**: a
+context-free type resolver (literals, casts, uniform ARRAY constructors,
+nested operators) feeds SOME-quantified strictness
+(`resolveOperatorStrictnessSome`), so `ARRAY[1,2] || $1` no longer calls
+$1 rejected — pinned with PostgreSQL refereeing both directions in
+`param-types-input.test.ts`. Residues, each named: mechanism C's ParamRef
+typing waits on threading the tier-0 input through
+`param-nullability`'s recursion (the `$1 || $2` shape keeps the name
+rule's safe over-report); named-notation builtin calls skip the typed
+dispatch. What remains: the AGGREGATE and WINDOW half (shape dispatch per
+the answered second question, the four remaining tables re-keyed), the
+user/builtin merged candidate gathering for functions (the precision the
+resolvableCandidates drop rule still costs), step 5 (the witness corpus),
+and the fallback measurement once function results type.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table

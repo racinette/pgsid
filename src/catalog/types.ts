@@ -297,6 +297,14 @@ export interface BuiltinFunctionSignature extends BuiltinSignature {
    * argument type and never an exact match.
    */
   variadic: string | null;
+  /**
+   * `pg_proc.pronargdefaults` — how many trailing parameters carry
+   * defaults. Five claim-table names have them (measured: `jsonb_set`,
+   * `jsonb_insert`, `jsonb_strip_nulls`, `normalize`, `make_interval`), so
+   * arity elimination without this count would falsely eliminate a row a
+   * shorter call still resolves to.
+   */
+  numArgDefaults: number;
 }
 
 /**

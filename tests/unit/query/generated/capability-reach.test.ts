@@ -132,6 +132,13 @@ const FLOOR: string[] = [
   // slice: the promotion path asks EVERY-quantified strictness over the
   // same merged candidate set before falling back to the name rule
   "resolveOperatorStrictness",
+  // every builtin scalar call since the function slice: priority 6b
+  // resolves the captured kind='f' rows before the name checks
+  "resolveBuiltinScalarTotality",
+  // mechanism C's strictness question since the same slice: the
+  // SOME-quantified reading over the typed survivors, asked at every
+  // binary operator the param walker descends
+  "resolveOperatorStrictnessSome",
   // the `unnest(string_to_array(...))` item: asked before the two builtin
   // predicates, and it declines — string_to_array's return is concrete
   "resolvePolymorphicArraySignatures",

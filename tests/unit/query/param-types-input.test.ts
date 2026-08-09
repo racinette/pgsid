@@ -6,6 +6,7 @@ import { parseSql } from "../../../src/ast.js";
 import {
   inferNullability,
   inferNullabilityTraced,
+  inferQueryContract,
 } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
@@ -43,7 +44,13 @@ async function tracedFor(
 
 beforeAll(async () => {
   pg = await PGlite.create();
-  await pg.exec(`CREATE TABLE t (id integer NOT NULL);`);
+  await pg.exec(`
+    CREATE TABLE t (id integer NOT NULL);
+    CREATE TABLE ct (
+      name text NOT NULL DEFAULT 'x',
+      arr integer[] NOT NULL DEFAULT '{}'
+    );
+  `);
   catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
 });
 
@@ -71,6 +78,27 @@ describe("tier 0: parameter types as an input", () => {
       const cols = inferNullability(parsed.stmts![0]!.stmt!, catalog, { paramTypes });
       expect(cols.map(c => c.notNull)).toEqual([false]);
     }
+  });
+
+  it("closes the recorded || strictness over-report where the operand types", async () => {
+    // NON_STRICT_OVERLOADS' entry, finally precise: array concatenation
+    // ABSORBS a NULL operand, so a contract claiming $1 rejected there
+    // called a binding rejected that PostgreSQL accepts. With ARRAY[1,2]
+    // typed integer[], every surviving || row is non-strict and mechanism C
+    // declines to attribute; the text shape keeps its strict reading
+    // through the name rule, which is that consumer's safe over-report.
+    const arr = await parseSql("INSERT INTO ct (arr) VALUES (ARRAY[1,2] || $1)");
+    const arrContract = inferQueryContract(arr.stmts![0]!.stmt!, catalog);
+    expect(arrContract.params.map(p => p.notNull)).toEqual([false]);
+    // PostgreSQL agrees: binding NULL succeeds.
+    await pg.query("INSERT INTO ct (arr) VALUES (ARRAY[1,2] || $1)", [null]);
+
+    const text = await parseSql("INSERT INTO ct (name) VALUES ('a' || $1)");
+    const textContract = inferQueryContract(text.stmts![0]!.stmt!, catalog);
+    expect(textContract.params.map(p => p.notNull)).toEqual([true]);
+    await expect(
+      pg.query("INSERT INTO ct (name) VALUES ('a' || $1)", [null]),
+    ).rejects.toThrow(/not-null constraint/);
   });
 
   it("reads pg_prepared_statements in the captures' own rendering", async () => {

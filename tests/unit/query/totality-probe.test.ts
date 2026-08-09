@@ -4,6 +4,7 @@ import {
   ALWAYS_NOT_NULL_BUILTINS,
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
+  STRICT_TOTAL_BUILTIN_SIGNATURES,
 } from "../../../src/query/nullability-walk.js";
 import {
   TOTAL_OPERATORS,
@@ -296,7 +297,17 @@ describe("totality tables, probed by execution", () => {
 
     const tableOf = (n: string): Signature["table"] =>
       ALWAYS_NOT_NULL_BUILTINS.has(n) ? "alwaysNotNull" : FIRST_ARG_BUILTINS.has(n) ? "firstArg" : "strictTotal";
-    const fnNames = [...new Set([...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS])];
+    // The signature-keyed additions ride along: their NAMES join the fetch
+    // and the filter below keeps only the exact rows the additions claim,
+    // probed under the strict-total discipline — a NULL from `lower(text)`
+    // fails the run exactly as one from a name-table member would.
+    const additionNames = new Set(
+      [...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
+    );
+    const nameTableNames = new Set([
+      ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
+    ]);
+    const fnNames = [...new Set([...nameTableNames, ...additionNames])];
 
     const fnRows = (
       await pg.query<{ name: string; types: string[]; variadic: boolean }>(
@@ -309,14 +320,23 @@ describe("totality tables, probed by execution", () => {
           WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f' AND p.proname = ANY($1);`,
         [fnNames],
       )
-    ).rows.map(r =>
-      // A VARIADIC declaration carries ONE parameter of the element type, and
-      // several of these reject an odd argument count outright
-      // (`json_build_object` wants key/value pairs). Probing the declared
-      // arity alone left them raising on every combination, so the variadic
-      // tail is supplied twice.
-      r.variadic ? { ...r, types: [...r.types, r.types[r.types.length - 1]!] } : r,
-    );
+    ).rows
+      // An addition-only name contributes exactly the rows its signature
+      // keys claim; every other row of such a name carries no claim and
+      // must not be held to one (lower's anyrange row DOES return NULL).
+      .filter(
+        r =>
+          nameTableNames.has(r.name) ||
+          STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${r.name}(${r.types.join(",")})`),
+      )
+      .map(r =>
+        // A VARIADIC declaration carries ONE parameter of the element type, and
+        // several of these reject an odd argument count outright
+        // (`json_build_object` wants key/value pairs). Probing the declared
+        // arity alone left them raising on every combination, so the variadic
+        // tail is supplied twice.
+        r.variadic ? { ...r, types: [...r.types, r.types[r.types.length - 1]!] } : r,
+      );
 
     const opRows = (
       await pg.query<{ name: string; left: string | null; right: string | null }>(
@@ -503,6 +523,30 @@ describe("totality tables, probed by execution", () => {
         `simply sound — or the corpus stopped reaching it, which is worse ` +
         `because the entry now hides whatever else the name does:\n  ${stale.join(", ")}`,
     ).toEqual([]);
+  });
+
+  it("every signature-keyed strict-total addition is probed and non-redundant", () => {
+    // The recovery half of the removals: an addition claims totality for
+    // ONE row of a name no table may hold. The NULL-hold itself is the
+    // probed universe — an addition row producing NULL fails the
+    // unrecorded-results assertion like any name-table member — so this
+    // asserts the two preconditions: the row really is IN that universe,
+    // and the name is not already covered (a covered name would make the
+    // addition dead weight hiding a future removal).
+    const nameTables = new Set([
+      ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
+    ]);
+    const offenders: string[] = [];
+    for (const key of STRICT_TOTAL_BUILTIN_SIGNATURES) {
+      const name = key.slice(0, key.indexOf("("));
+      if (nameTables.has(name)) {
+        offenders.push(`${key} — the NAME already carries the claim`);
+      }
+      if (!signatures.some(s => s.name === name && key === `${name}(${s.types.join(",")})`)) {
+        offenders.push(`${key} — not in the probed universe`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 
   it("the prose record and the signature verdicts list the same holes", () => {
