@@ -139,6 +139,9 @@ const FLOOR: string[] = [
   // SOME-quantified reading over the typed survivors, asked at every
   // binary operator the param walker descends
   "resolveOperatorStrictnessSome",
+  // every builtin-named call whose metadata the drop rule nulled: the
+  // typed recovery asks whether a user row certainly wins the merged set
+  "resolveUserFunctionTyped",
   // the `unnest(string_to_array(...))` item: asked before the two builtin
   // predicates, and it declines — string_to_array's return is concrete
   "resolvePolymorphicArraySignatures",

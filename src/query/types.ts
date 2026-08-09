@@ -519,6 +519,21 @@ export interface NullabilityCatalog {
   ): { hypothetical: boolean; orderedSet: boolean } | null;
 
   /**
+   * The typed recovery of the builtin-name drop rule: a USER function that
+   * is certainly what PostgreSQL runs for this call — the declared-types
+   * exact match with no builtin row sharing the signature, or the single
+   * survivor of elimination across the merged user + captured-builtin set.
+   * Null cedes to the drop rule (names the capture does not hold, aggregate
+   * or window rows present, or an undecided set); the caller then behaves
+   * exactly as before this member existed.
+   */
+  resolveUserFunctionTyped(
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (readonly string[] | null)[],
+  ): FunctionInfo | null;
+
+  /**
    * Whether every pg_catalog plain-function overload of `name` is declared
    * STRICT — from the snapshot's environment capture, the source of truth
    * the strict-expression closures consult for builtin names the user

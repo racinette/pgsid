@@ -7970,8 +7970,21 @@ class NullabilityEngine {
       return true;
     }
 
-    // Look up function metadata.
-    const meta = this.catalog.resolveFunctionMetadata(schema, name);
+    // Look up function metadata. Where the builtin-name drop rule left it
+    // null (adversarial-3 finding 6 — user candidates beside a pg_catalog
+    // name are not the candidate set), the TYPED recovery may still name
+    // the user function: for claim-table names the merged set is decidable,
+    // and a user row that certainly wins gets its metadata — domain return,
+    // body, strictness — back into play.
+    let meta = this.catalog.resolveFunctionMetadata(schema, name);
+    if (!meta && !(fc.args ?? []).some(a => "NamedArgExpr" in (a as Record<string, unknown>))) {
+      meta = this.catalog.resolveUserFunctionTyped(
+        schema,
+        name,
+        (fc.args ?? []).map(a => this.operandTypeSet(a, scope, depth + 1)),
+      );
+      if (meta) trace.addFact("typedResolution", `${meta.schema}.${meta.name} (user, type-narrowed)`);
+    }
     trace.addFact("catalogMeta", meta ? `${meta.schema}.${meta.name} (lang=${meta.language}, strict=${meta.strict}, agg=${meta.isAggregate})` : "not found");
 
     // Reorder named arguments to match function definition order, then fill

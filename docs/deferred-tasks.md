@@ -433,10 +433,18 @@ a witnessed signature may be claimed total nowhere — not by name, not by
 the signature additions — and prints the coverage report over the
 capture's claim rows. Growth is by evidence: a removed name earns a row
 back through `STRICT_TOTAL_BUILTIN_SIGNATURES` only with the probe holding
-it, and the verdict tables earn per-row keys the same way. What remains of
-the charter: the user/builtin merged candidate gathering for functions
-(the precision the resolvableCandidates drop rule still costs), and the
-fallback measurement once function results type.
+it, and the verdict tables earn per-row keys the same way. **THE MERGED GATHERING LANDED (2026-08-09)**: `resolveUserFunctionTyped`
+recovers the drop rule's cost for CAPTURED names — a user function under a
+builtin name whose declared types exact-match (with no builtin row sharing
+the signature; pg_catalog wins that tie) or that survives elimination
+alone across the merged set gets its metadata back, domain return and body
+included. Pinned by the charter's own example (`public.lower(integer)`
+returning a NOT NULL domain, `search-path.test.ts` — PostgreSQL as
+referee, with the builtin text side untouched beside it). The drop rule
+STAYS, correctly, for names the capture does not hold, for names carrying
+aggregate or window rows, and for undecided sets. What remains of the
+charter: the fallback measurement once function results type — the last
+open item.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table

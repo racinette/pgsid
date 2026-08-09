@@ -68,6 +68,12 @@ beforeAll(async () => {
     -- A user function whose signature is IDENTICAL to a pg_catalog one.
     CREATE FUNCTION public.min_scale(v numeric) RETURNS non_empty_text
       LANGUAGE sql IMMUTABLE AS $$ SELECT 'user'::non_empty_text $$;
+    -- A user function under a CAPTURED builtin name with a DIFFERENT
+    -- signature — the charter's own example of the drop rule's cost: the
+    -- engine saw the user overload as the sole candidate, dropped the set,
+    -- and lost the NOT NULL domain return the metadata carries.
+    CREATE FUNCTION public.lower(v integer) RETURNS non_empty_text
+      LANGUAGE sql IMMUTABLE AS $$ SELECT 'low'::non_empty_text $$;
 
     -- The operator shadowing blind spot (closed by the narrowing): a user +
     -- on operand types pg_catalog has no candidate for, whose backing
@@ -153,6 +159,27 @@ describe("operator narrowing: user operators on curated names", () => {
     // every survivor is total, so the general case costs nothing.
     const results = await infer(defaultCatalog, "SELECT id + 1 AS s FROM t");
     expect(results.map(r => r.notNull)).toEqual([true]);
+  });
+
+  it("recovers a builtin-named user function where the argument type decides", async () => {
+    // The referee first: PostgreSQL runs the USER lower(integer) — no
+    // builtin lower takes an integer — and its NOT NULL domain guarantees
+    // the value.
+    const r = await pg.query<{ v: string }>(`SELECT lower(41) AS v`);
+    expect(r.rows[0]!.v).toBe("low");
+
+    // The typed merged set resolves the user row (integer eliminates every
+    // builtin lower), so the domain-return metadata is back: notNull. The
+    // drop rule had cost exactly this — the user overload was the sole
+    // candidate the engine could see, and seeing pg_catalog beside it
+    // meant seeing nothing.
+    const results = await infer(defaultCatalog, "SELECT lower(id) AS v FROM t");
+    expect(results.map(x => x.notNull)).toEqual([true]);
+
+    // The builtin side is untouched: a text argument resolves the captured
+    // (text) row and its signature-keyed verdict, not the user function.
+    const text = await infer(defaultCatalog, "SELECT lower('ABC'::text) AS v FROM t");
+    expect(text.map(x => x.notNull)).toEqual([true]);
   });
 
   it("the user operator is a candidate only where its schema is on the path", async () => {
