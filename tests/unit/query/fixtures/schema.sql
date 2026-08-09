@@ -159,6 +159,15 @@ CREATE FUNCTION same_tt(a text, b text) RETURNS boolean
 CREATE OPERATOR #=# (LEFTARG = integer, RIGHTARG = integer, FUNCTION = same_ii);
 CREATE OPERATOR #=# (LEFTARG = text, RIGHTARG = text, FUNCTION = same_tt);
 
+-- Overloads whose VERDICTS diverge, for the typed selection: the integer
+-- row returns a NOT NULL domain, the text row can return NULL. plpgsql on
+-- purpose — no body read, so the name-keyed body map is never consulted
+-- and the selection is observable through priority 1 alone.
+CREATE FUNCTION pick(a integer) RETURNS nn_text
+  LANGUAGE plpgsql AS $$ BEGIN RETURN 'i'; END $$;
+CREATE FUNCTION pick(a text) RETURNS text
+  LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;
+
 -- Deliberately overloaded: resolveFunctionMetadata must refuse to pick one,
 -- keeping both the output analysis (the text overload returns a NOT NULL
 -- domain) and the argument analysis conservative for calls to this name.

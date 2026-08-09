@@ -463,6 +463,27 @@ to is those two typing sources, the mechanism-C ParamRef threading, and
 named-notation dispatch — each a precision extension of landed machinery,
 none a soundness question.
 
+**A review question then found — and closed — the charter's item 5 gap
+(2026-08-09):** "user overloads come free" had been true of consensus
+only; typed SELECTION among ordinary user overloads was never wired.
+`resolveUserFunctionTyped` now serves non-builtin names too (the merged
+set is just the user half), with the body-map guard the class-A trap
+demands: a `LANGUAGE sql` winner among siblings refuses, because
+`fnBodyAsts` is keyed by name alone and typed selection must not smuggle a
+colliding meta past resolveFunctionMetadata's single-candidate shortcut —
+a signature-keyed body map is that residue's price. Pinned by
+`typed-overload-selection.sql` (the `pick` pair: integer row's NOT NULL
+domain return recovered, text row's NULL witnessed) and by the corrected
+`overload-consensus.sql` annotation, whose reason had gone stale the
+moment the narrowing started dispatching `same_tt` — the 12%
+reason-drift class, caught by a review question. On the OTHER question a
+review asks — per-builtin corner-case tests — the scope stands as
+chartered: the totality probe executes all 791 CLAIMED signatures against
+the historically-breaking input classes and the witness corpus holds the
+NULL-capable rows; builtins outside the claim tables have no verdict to
+falsify, and extending the corpus past the curated set stays the
+charter's recorded open question, not a default.
+
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
 names → 327 pg_proc rows, carrying per-signature strictness, prokind,
