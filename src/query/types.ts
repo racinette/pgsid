@@ -508,6 +508,17 @@ export interface NullabilityCatalog {
     | { kind: "unknown" };
 
   /**
+   * The WITHIN GROUP dispatch's row facts, keyed on `pg_aggregate.aggkind`
+   * from the capture — the CLASS claims the two retired name tables
+   * mirrored: hypothetical-set is total by class, ordered-set follows the
+   * plain-aggregate gates. Null when the name has no aggregate rows.
+   */
+  resolveBuiltinAggregateRows(
+    schema: string | undefined,
+    name: string,
+  ): { hypothetical: boolean; orderedSet: boolean } | null;
+
+  /**
    * Whether every pg_catalog plain-function overload of `name` is declared
    * STRICT — from the snapshot's environment capture, the source of truth
    * the strict-expression closures consult for builtin names the user

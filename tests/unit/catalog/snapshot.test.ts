@@ -14,8 +14,6 @@ import {
   STRICT_TOTAL_BUILTIN_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_FNS,
-  HYPOTHETICAL_SET_AGGREGATES,
-  ORDERED_SET_AGGREGATES,
 } from "../../../src/query/nullability-walk.js";
 import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
 import { cleanupPg } from "../../helpers/cleanup.js";
@@ -387,13 +385,25 @@ describe("snapshotCatalog: functions and procedures", () => {
     const fnNames = new Set([
       ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
       ...NON_NULL_OVER_NONEMPTY_AGGREGATES, ...NEVER_NULL_WINDOW_FNS,
-      ...HYPOTHETICAL_SET_AGGREGATES, ...ORDERED_SET_AGGREGATES,
       ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
     ]);
     const opNames = new Set([...TOTAL_OPERATORS, ...STRICT_OPERATORS]);
 
     const capturedFn = new Set(s.builtinFunctionSignatures.map(sig => sig.name));
-    for (const sig of s.builtinFunctionSignatures) expect(fnNames).toContain(sig.name);
+    for (const sig of s.builtinFunctionSignatures) {
+      // The WITHIN GROUP classes scope themselves — every aggkind 'h'/'o'
+      // row rides along for the class claims (the two name tables that
+      // mirrored the classes retired) — so a captured name is either
+      // table-claimed or carries such a row.
+      if (!fnNames.has(sig.name)) {
+        expect(
+          s.builtinFunctionSignatures.some(
+            r => r.name === sig.name && (r.aggKind === "h" || r.aggKind === "o"),
+          ),
+          sig.name,
+        ).toBe(true);
+      }
+    }
     for (const name of fnNames) expect(capturedFn, name).toContain(name);
 
     const capturedOp = new Set(s.builtinOperatorSignatures.map(sig => sig.name));

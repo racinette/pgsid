@@ -8094,12 +8094,18 @@ class NullabilityEngine {
     // expressions finally visible as arguments.
     if ((fc as { agg_within_group?: boolean }).agg_within_group) {
       trace.addFact("withinGroup", "true");
-      if (HYPOTHETICAL_SET_AGGREGATES.has(name)) {
+      // CLASS claims, keyed on the capture's aggkind rather than the two
+      // name tables that mirrored it (retired — they were asserted
+      // catalog-equal both ways, so the catalog answers directly). The
+      // call SHAPE selects the class: WITHIN GROUP reaches only 'h'/'o'
+      // rows, mutually exclusive with the window form (measured, Q2).
+      const aggRows = this.catalog.resolveBuiltinAggregateRows(schema, name);
+      if (aggRows?.hypothetical) {
         trace.addFact("priority", "2c (hypothetical-set aggregate)");
         trace.conclude(true, `${name}() WITHIN GROUP assigns the hypothetical row a position → never NULL`);
         return true;
       }
-      if (ORDERED_SET_AGGREGATES.has(name)) {
+      if (aggRows?.orderedSet) {
         trace.addFact("priority", "2c (ordered-set aggregate)");
         const sortResults: boolean[] = [];
         const aggOrder = (fc as { agg_order?: Node[] }).agg_order ?? [];
@@ -9251,23 +9257,16 @@ export const NEVER_NULL_WINDOW_FNS = new Set([
  */
 const FRAMEOPTION_DEFAULTS = 1058;
 
-/**
- * Hypothetical-set aggregates: `rank(v) WITHIN GROUP (ORDER BY x)` returns
- * the position v WOULD take — defined even over zero rows (1) and for a
- * NULL argument (NULLs order like values). Measured; total, hence notNull
- * unconditionally.
- */
-export const HYPOTHETICAL_SET_AGGREGATES = new Set([
-  "rank", "dense_rank", "percent_rank", "cume_dist",
-]);
-
-/**
- * Ordered-set aggregates proper: NULL over an empty group, an all-NULL sort
- * column (NULL inputs are discarded before the computation), or a NULL
- * direct argument (percentile fraction) — all measured. Non-null exactly
- * when none of those can happen.
- */
-export const ORDERED_SET_AGGREGATES = new Set(["percentile_disc", "percentile_cont", "mode"]);
+// Two name tables retired here 2026-08-09 — HYPOTHETICAL_SET_AGGREGATES
+// and ORDERED_SET_AGGREGATES. Both were asserted catalog-equal to
+// `pg_aggregate.aggkind` in both directions, which is the retirement
+// criterion AGGREGATE_NAMES established: the WITHIN GROUP dispatch now
+// reads the capture's aggkind directly (resolveBuiltinAggregateRows), and
+// the CLASS claims those tables carried live at the dispatch site —
+// hypothetical-set is total even over zero rows and for a NULL argument
+// (measured; NULLs order like values), ordered-set proper is NULL over an
+// empty group, an all-NULL sort column, or a NULL direct argument (all
+// measured).
 
 // ---------------------------------------------------------------------------
 // pg_catalog built-ins.
