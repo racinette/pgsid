@@ -418,10 +418,24 @@ CAPTURE to the catalog instead. The two VERDICT tables
 (`NEVER_NULL_WINDOW_FNS`, `NON_NULL_OVER_NONEMPTY_AGGREGATES`) keep their
 name keys deliberately: each window name has exactly one 'w' row, the
 aggregate names' rows are claim-uniform, and no per-row evidence exists to
-diverge them — that evidence is step 5's job. What remains: the
-user/builtin merged candidate gathering for functions (the precision the
-resolvableCandidates drop rule still costs), step 5 (the witness corpus,
-which is also where the verdict tables earn per-row keys), and the
+diverge them — that evidence is step 5's job. **STEP 5's WITNESS CORPUS LANDED (2026-08-09)**:
+`tests/unit/functions/<name>/<slug>.sql`, thirteen seed witnesses over
+eleven names — the durable per-overload home of every removal's evidence
+(the `lower`/`upper` range and multirange forms, `substring`'s regex form,
+`to_number`, `to_char`'s datetime form, `scale`/`min_scale` on NaN,
+`array_position`'s no-match, `date_part` on infinity) plus the aggregate
+and window constructions (`percentile_cont` over an empty group, `lag` on
+a first row). Each file names ONE signature (`to_regprocedure` validates;
+exact signatures are unique by construction), a `@null` refutation and a
+`@value` control — the liveness bar, since every other assertion is a
+negative. The suite (`witnesses.test.ts`, 30 assertions) closes the loop:
+a witnessed signature may be claimed total nowhere — not by name, not by
+the signature additions — and prints the coverage report over the
+capture's claim rows. Growth is by evidence: a removed name earns a row
+back through `STRICT_TOTAL_BUILTIN_SIGNATURES` only with the probe holding
+it, and the verdict tables earn per-row keys the same way. What remains of
+the charter: the user/builtin merged candidate gathering for functions
+(the precision the resolvableCandidates drop rule still costs), and the
 fallback measurement once function results type.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach

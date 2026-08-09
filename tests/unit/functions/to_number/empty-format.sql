@@ -1,0 +1,3 @@
+-- @signature text, text
+-- @null  to_number('', '')
+-- @value to_number('42', '99')

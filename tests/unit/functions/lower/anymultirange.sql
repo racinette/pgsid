@@ -1,0 +1,4 @@
+-- The multirange sibling: an empty multirange has no lower bound either.
+-- @signature anymultirange
+-- @null  lower('{}'::int4multirange)
+-- @value lower('{[1,5)}'::int4multirange)

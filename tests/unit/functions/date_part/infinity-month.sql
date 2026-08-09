@@ -1,0 +1,6 @@
+-- Only the monotonically-increasing fields of an infinite timestamp are
+-- ±Infinity; month/day/hour are NULL (adversarial-2 finding 11) — the
+-- input CLASS finite probes never tried.
+-- @signature text, timestamp without time zone
+-- @null  date_part('month', 'infinity'::timestamp)
+-- @value date_part('month', '2020-01-01'::timestamp)

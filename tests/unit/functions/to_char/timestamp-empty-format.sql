@@ -1,0 +1,6 @@
+-- The datetime form with an empty format is NULL; the numeric/int forms
+-- return '' and are total — indistinguishable at name level, which is why
+-- the NAME left the table (adversarial finding 7).
+-- @signature timestamp without time zone, text
+-- @null  to_char('2020-01-01'::timestamp, '')
+-- @value to_char('2020-01-01'::timestamp, 'YYYY')

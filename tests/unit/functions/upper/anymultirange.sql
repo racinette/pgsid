@@ -1,0 +1,3 @@
+-- @signature anymultirange
+-- @null  upper('{}'::int4multirange)
+-- @value upper('{[1,5)}'::int4multirange)

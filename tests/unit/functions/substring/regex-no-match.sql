@@ -1,0 +1,6 @@
+-- The FROM-regex form is NULL on no match; the total positional form
+-- (substr) is a different signature. This row is why `substring` left
+-- STRICT_TOTAL_BUILTINS (adversarial finding 7).
+-- @signature text, text
+-- @null  substring('abc' FROM 'x')
+-- @value substring('abc' FROM 'a')

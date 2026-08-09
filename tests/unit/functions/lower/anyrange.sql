@@ -1,0 +1,5 @@
+-- The overload that removed `lower` from STRICT_TOTAL_BUILTINS (curated-table
+-- audit, 2026-08-05): an EMPTY range has no lower bound.
+-- @signature anyrange
+-- @null  lower('empty'::int4range)
+-- @value lower(int4range(1, 5))
