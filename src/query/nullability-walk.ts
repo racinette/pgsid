@@ -9493,6 +9493,36 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   // `jsonb_path_query_first` out permanently. These two answer `[]` for the
   // same input, which is a value.
   "jsonb_path_query_array", "jsonb_path_query_array_tz",
+  // ---------------------------------------------------------------------
+  // NO SET-RETURNING NAME IS HERE, and the reason is a measurement rather
+  // than a missing verdict (2026-08-09). `generate_series`,
+  // `generate_subscripts`, `regexp_split_to_table`, the json expanders and
+  // `string_to_table`'s two-argument form were all measured TOTAL over
+  // bounded arguments — every emitted row carries a value, and zero rows is
+  // no row at all rather than a NULL. They were promoted, and the promotion
+  // was reverted, because NEITHER probe can hold the claim:
+  //
+  //   - the totality probe runs `EXECUTE 'SELECT (expr) IS NULL' INTO r`,
+  //     which RAISES on a multi-row result — so every honest combination
+  //     records as an error and the claim is held by nothing. Worse, each
+  //     raise costs 2-3.5s over the corpus's `2147483647` and
+  //     `9223372036854775807`, which took the gating suite from 4.6s to
+  //     over its 120s hook timeout.
+  //   - the row-wise alternative that WOULD hold it cannot run here: PGlite
+  //     materialises a function scan, so the same corpus values exhaust
+  //     memory, and neither `LIMIT` nor `statement_timeout` bounds it.
+  //
+  // A claim no suite can falsify is the thing this project does not ship,
+  // so the class stays unclaimed and the surface suite classifies it
+  // `set-returning` instead of pretending to have probed it. Recovering the
+  // precision needs a probe whose arguments are bounded independently of
+  // the shared corpus — recorded in docs/deferred-tasks.md, not attempted
+  // here. The NULL-capable members are witnessed either way, in
+  // tests/unit/functions/: `unnest` over an array holding a NULL, the
+  // `_text` json expanders (which turn a JSON null into a SQL NULL where
+  // their non-`_text` twins return it as a value), `unnest(tsvector)`'s
+  // positions column, and `string_to_table`'s null_string form.
+  // ---------------------------------------------------------------------
 ]);
 
 /**

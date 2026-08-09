@@ -1,0 +1,7 @@
+-- The record form: a lexeme with no position information has a NULL
+-- positions column, so the row is emitted with one field NULL and two
+-- non-null. A whole-row IS NULL test would miss it — the check has to be
+-- per output column.
+-- @signature tsvector
+-- @null  SELECT positions FROM unnest('a'::tsvector)
+-- @value SELECT positions FROM unnest(to_tsvector('simple', 'a'))

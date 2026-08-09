@@ -1,0 +1,5 @@
+-- The jsonb half of the same split; the json file records why the non-text
+-- twin cannot be the control.
+-- @signature jsonb
+-- @null  SELECT jsonb_array_elements_text('[null]'::jsonb)
+-- @value SELECT jsonb_array_elements_text('["a"]'::jsonb)

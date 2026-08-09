@@ -40,6 +40,11 @@ import {
 //                      list is known-safe.
 //   no-generator     — a parameter type the shared corpus has no values for
 //                      (internal, cstring, reg* …). Explicit, not silent.
+//   set-returning    — the scalar construction cannot answer it: it reads one
+//                      arbitrary row, or none. Explicit for the same reason,
+//                      and unpromotable from this suite's evidence; see the
+//                      classification below for why the row-wise alternative
+//                      is unavailable in PGlite.
 //   raised-everywhere — every combination raised; probed in name only.
 //   null-witnessed   — a corner combination returned NULL. The machine
 //                      found the witness; the signature may NEVER acquire a
@@ -61,6 +66,7 @@ interface SurfaceRow {
   name: string;
   types: string[];
   volatile: boolean;
+  retset: boolean;
 }
 
 describe("builtin scalar surface, witnessed or classified", () => {
@@ -104,7 +110,8 @@ describe("builtin scalar surface, witnessed or classified", () => {
         `SELECT p.proname AS name,
                 COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                             FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
-                p.provolatile = 'v' AS volatile
+                p.provolatile = 'v' AS volatile,
+                p.proretset AS retset
            FROM pg_proc p
            JOIN pg_namespace n ON n.oid = p.pronamespace
           WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
@@ -134,6 +141,27 @@ describe("builtin scalar surface, witnessed or classified", () => {
       }
       if (r.volatile) {
         category.set(key, "volatile");
+        continue;
+      }
+      // SET-RETURNING rows cannot be answered by this construction, and the
+      // honest move is to say so rather than to let them read as probed.
+      // `probe()` runs `SELECT (<expr>) IS NULL … INTO r`, which takes the
+      // FIRST emitted row and reads zero rows as a value — so the verdict
+      // depends on which row sorts first (`unnest(ARRAY[NULL,1])` witnessed,
+      // `unnest(ARRAY[1,NULL])` did not, same function, same elements) and an
+      // empty set passes as evidence it is not.
+      //
+      // A row-wise construction was designed and MEASURED, and it is not
+      // available here: PGlite MATERIALISES a function scan, so
+      // `generate_series(1::bigint, 9223372036854775807)` — which the corner
+      // corpus's bigint value produces — allocates until the process dies.
+      // `LIMIT` above it does not bound it and `statement_timeout` does not
+      // cancel it (both measured), and the WASM backend blocks the event loop
+      // so no JS timer can fire either. The claimed rows of this class are
+      // promoted on bounded per-signature evidence instead, and the
+      // NULL-capable ones are witnessed in tests/unit/functions/.
+      if (r.retset) {
+        category.set(key, "set-returning");
         continue;
       }
       const missing = r.types.filter(t => !POLYMORPHIC.has(t) && !VALUES[t]);
@@ -549,7 +577,8 @@ describe("builtin scalar surface, witnessed or classified", () => {
         ``,
       ];
       for (const cat of [
-        "null-witnessed", "no-null-found", "raised-everywhere", "no-generator", "volatile",
+        "null-witnessed", "no-null-found", "raised-everywhere", "set-returning",
+        "no-generator", "volatile",
       ]) {
         const keys = byCat(cat);
         lines.push(`## ${cat} (${keys.length}: ${split(keys)})`, ``);

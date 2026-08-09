@@ -1,0 +1,8 @@
+-- The three-argument form's null_string: every field equal to it is emitted
+-- as SQL NULL. The two-argument form has no such argument and is claimed by
+-- STRICT_TOTAL_BUILTIN_SIGNATURES, so this witness is what bars the NAME.
+-- The surface probe found this one before the set-returning class was
+-- classified; the fixture is where the evidence lives now.
+-- @signature text, text, text
+-- @null  SELECT string_to_table('a,,b', ',', 'a')
+-- @value SELECT string_to_table('a,,b', ',', 'z')

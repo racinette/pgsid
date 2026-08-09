@@ -13,7 +13,7 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (240: functions 153, operators 17, aggregates 66, windows 4)
+## null-witnessed (239: functions 152, operators 17, aggregates 66, windows 4)
 
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
 - `#(line,line)` — witness: `SELECT '{1,1,0}'::line OPERATOR(pg_catalog.#) '{1,1,0}'::line;`
@@ -211,7 +211,6 @@ probe as the evidence bar.
 - `stddev_samp(numeric)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (0::numeric)) t(c0));`
 - `stddev_samp(real)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (0::float4)) t(c0));`
 - `stddev_samp(smallint)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (1::smallint)) t(c0));`
-- `string_to_table(text,text,text)` — witness: `SELECT pg_catalog.string_to_table('abc', '', 'abc');`
 - `substring(text,text)` — witness: `SELECT pg_catalog.substring('abc', '  ');`
 - `substring(text,text,text)` — witness: `SELECT pg_catalog.substring('9', '9', '9');`
 - `system_user()` — witness: `SELECT pg_catalog.system_user();`
@@ -256,7 +255,7 @@ probe as the evidence bar.
 - `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 
-## no-null-found (1705: functions 1481, operators 218, aggregates 1, windows 5)
+## no-null-found (1651: functions 1427, operators 218, aggregates 1, windows 5)
 
 - `!!(,tsquery)`
 - `##(line,lseg)`
@@ -450,7 +449,6 @@ probe as the evidence bar.
 - `^@(text,text)`
 - `aclcontains(aclitem[],aclitem)`
 - `acldefault("char",oid)`
-- `aclexplode(aclitem[])`
 - `aclitemeq(aclitem,aclitem)`
 - `aclitemout(aclitem)`
 - `any_value_transfn(anyelement,anyelement)`
@@ -854,17 +852,6 @@ probe as the evidence bar.
 - `flt4_mul_cash(real,money)`
 - `flt8_mul_cash(double precision,money)`
 - `format_type(oid,integer)`
-- `generate_series(bigint,bigint)`
-- `generate_series(bigint,bigint,bigint)`
-- `generate_series(integer,integer)`
-- `generate_series(integer,integer,integer)`
-- `generate_series(numeric,numeric)`
-- `generate_series(numeric,numeric,numeric)`
-- `generate_series(timestamp with time zone,timestamp with time zone,interval)`
-- `generate_series(timestamp with time zone,timestamp with time zone,interval,text)`
-- `generate_series(timestamp without time zone,timestamp without time zone,interval)`
-- `generate_subscripts(anyarray,integer)`
-- `generate_subscripts(anyarray,integer,boolean)`
 - `get_current_ts_config()`
 - `getdatabaseencoding()`
 - `getpgusername()`
@@ -1174,15 +1161,8 @@ probe as the evidence bar.
 - `isvertical(line)`
 - `isvertical(lseg)`
 - `isvertical(point,point)`
-- `json_array_elements(json)`
-- `json_array_elements_text(json)`
-- `json_each(json)`
-- `json_each_text(json)`
-- `json_object_keys(json)`
 - `json_out(json)`
 - `json_send(json)`
-- `jsonb_array_elements(jsonb)`
-- `jsonb_array_elements_text(jsonb)`
 - `jsonb_cmp(jsonb,jsonb)`
 - `jsonb_concat(jsonb,jsonb)`
 - `jsonb_contained(jsonb,jsonb)`
@@ -1190,8 +1170,6 @@ probe as the evidence bar.
 - `jsonb_delete(jsonb,integer)`
 - `jsonb_delete(jsonb,text)`
 - `jsonb_delete_path(jsonb,text[])`
-- `jsonb_each(jsonb)`
-- `jsonb_each_text(jsonb)`
 - `jsonb_eq(jsonb,jsonb)`
 - `jsonb_exists(jsonb,text)`
 - `jsonb_exists_all(jsonb,text[])`
@@ -1203,10 +1181,7 @@ probe as the evidence bar.
 - `jsonb_le(jsonb,jsonb)`
 - `jsonb_lt(jsonb,jsonb)`
 - `jsonb_ne(jsonb,jsonb)`
-- `jsonb_object_keys(jsonb)`
 - `jsonb_out(jsonb)`
-- `jsonb_path_query(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_query_tz(jsonb,jsonpath,jsonb,boolean)`
 - `jsonb_send(jsonb)`
 - `jsonpath_out(jsonpath)`
 - `jsonpath_send(jsonpath)`
@@ -1434,24 +1409,16 @@ probe as the evidence bar.
 - `path_send(path)`
 - `path_sub_pt(path,point)`
 - `pclose(path)`
-- `pg_available_extension_versions()`
-- `pg_available_extensions()`
 - `pg_char_to_encoding(name)`
 - `pg_client_encoding()`
 - `pg_column_size("any")`
 - `pg_conf_load_time()`
-- `pg_config()`
 - `pg_current_snapshot()`
 - `pg_current_xact_id()`
 - `pg_current_xact_id_if_assigned()`
-- `pg_cursor()`
 - `pg_encoding_to_char(integer)`
-- `pg_get_catalog_foreign_keys()`
-- `pg_get_keywords()`
-- `pg_get_replication_slots()`
 - `pg_get_userbyid(oid)`
 - `pg_is_other_temp_schema(oid)`
-- `pg_listening_channels()`
 - `pg_lsn(numeric)`
 - `pg_lsn_cmp(pg_lsn,pg_lsn)`
 - `pg_lsn_eq(pg_lsn,pg_lsn)`
@@ -1471,20 +1438,15 @@ probe as the evidence bar.
 - `pg_lsn_smaller(pg_lsn,pg_lsn)`
 - `pg_my_temp_schema()`
 - `pg_numa_available()`
-- `pg_options_to_table(text[])`
 - `pg_postmaster_start_time()`
-- `pg_prepared_statement()`
-- `pg_show_all_settings()`
 - `pg_size_bytes(text)`
 - `pg_size_pretty(bigint)`
 - `pg_size_pretty(numeric)`
-- `pg_stat_get_activity(integer)`
 - `pg_stat_get_analyze_count(oid)`
 - `pg_stat_get_archiver()`
 - `pg_stat_get_autoanalyze_count(oid)`
 - `pg_stat_get_autovacuum_count(oid)`
 - `pg_stat_get_backend_activity(integer)`
-- `pg_stat_get_backend_idset()`
 - `pg_stat_get_bgwriter_buf_written_clean()`
 - `pg_stat_get_bgwriter_maxwritten_clean()`
 - `pg_stat_get_bgwriter_stat_reset_time()`
@@ -1540,8 +1502,6 @@ probe as the evidence bar.
 - `pg_stat_get_mod_since_analyze(oid)`
 - `pg_stat_get_numscans(oid)`
 - `pg_stat_get_replication_slot(text)`
-- `pg_stat_get_slru()`
-- `pg_stat_get_subscription(oid)`
 - `pg_stat_get_subscription_stats(oid)`
 - `pg_stat_get_total_analyze_time(oid)`
 - `pg_stat_get_total_autoanalyze_time(oid)`
@@ -1556,12 +1516,7 @@ probe as the evidence bar.
 - `pg_stat_get_tuples_updated(oid)`
 - `pg_stat_get_vacuum_count(oid)`
 - `pg_stat_get_wal()`
-- `pg_stat_get_wal_senders()`
-- `pg_tablespace_databases(oid)`
 - `pg_tablespace_location(oid)`
-- `pg_timezone_abbrevs_abbrevs()`
-- `pg_timezone_abbrevs_zone()`
-- `pg_timezone_names()`
 - `pg_trigger_depth()`
 - `pg_wal_lsn_diff(pg_lsn,pg_lsn)`
 - `pg_walfile_name(pg_lsn)`
@@ -1662,10 +1617,6 @@ probe as the evidence bar.
 - `regconfigout(regconfig)`
 - `regconfigsend(regconfig)`
 - `regexp_match(text,text,text)`
-- `regexp_matches(text,text)`
-- `regexp_matches(text,text,text)`
-- `regexp_split_to_table(text,text)`
-- `regexp_split_to_table(text,text,text)`
 - `regexp_substr(text,text,integer,integer,text)`
 - `regexp_substr(text,text,integer,integer,text,integer)`
 - `regr_count(double precision,double precision)`
@@ -1678,7 +1629,6 @@ probe as the evidence bar.
 - `similar_to_escape(text,text)`
 - `slope(point,point)`
 - `spg_poly_quad_compress(polygon)`
-- `string_to_table(text,text)`
 - `text("char")`
 - `text(boolean)`
 - `text(character)`
@@ -1836,8 +1786,6 @@ probe as the evidence bar.
 - `timetz_smaller(time with time zone,time with time zone)`
 - `timetzdate_pl(time with time zone,date)`
 - `timetztypmodout(integer)`
-- `ts_debug(regconfig,text)`
-- `ts_debug(text)`
 - `ts_delete(tsvector,text)`
 - `ts_delete(tsvector,text[])`
 - `ts_match_qv(tsquery,tsvector)`
@@ -1880,9 +1828,6 @@ probe as the evidence bar.
 - `txid_current_snapshot()`
 - `unicode_assigned(text)`
 - `unicode_version()`
-- `unnest(anyarray)`
-- `unnest(anymultirange)`
-- `unnest(tsvector)`
 - `uuid_cmp(uuid,uuid)`
 - `uuid_eq(uuid,uuid)`
 - `uuid_ge(uuid,uuid)`
@@ -1964,7 +1909,7 @@ probe as the evidence bar.
 - `~>~(character,character)`
 - `~>~(text,text)`
 
-## raised-everywhere (161: functions 155, operators 6, aggregates 0, windows 0)
+## raised-everywhere (148: functions 142, operators 6, aggregates 0, windows 0)
 
 - `*<(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<) ROW(1,2)` raises
 - `*<=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<=) ROW(1,2)` raises
@@ -2074,28 +2019,20 @@ probe as the evidence bar.
 - `json_extract_path(json,text[])` — e.g. `pg_catalog.json_extract_path('null'::json, '{}'::text[])` raises
 - `json_extract_path_text(json,text[])` — e.g. `pg_catalog.json_extract_path_text('null'::json, '{}'::text[])` raises
 - `json_populate_record(anyelement,json,boolean)` — e.g. `pg_catalog.json_populate_record(1, 'null'::json, true)` raises
-- `json_populate_recordset(anyelement,json,boolean)` — e.g. `pg_catalog.json_populate_recordset(1, 'null'::json, true)` raises
 - `json_to_record(json)` — e.g. `pg_catalog.json_to_record('null'::json)` raises
-- `json_to_recordset(json)` — e.g. `pg_catalog.json_to_recordset('null'::json)` raises
 - `jsonb_delete(jsonb,text[])` — e.g. `pg_catalog.jsonb_delete('null'::jsonb, '{}'::text[])` raises
 - `jsonb_extract_path(jsonb,text[])` — e.g. `pg_catalog.jsonb_extract_path('null'::jsonb, '{}'::text[])` raises
 - `jsonb_extract_path_text(jsonb,text[])` — e.g. `pg_catalog.jsonb_extract_path_text('null'::jsonb, '{}'::text[])` raises
 - `jsonb_populate_record(anyelement,jsonb)` — e.g. `pg_catalog.jsonb_populate_record(1, 'null'::jsonb)` raises
 - `jsonb_populate_record_valid(anyelement,jsonb)` — e.g. `pg_catalog.jsonb_populate_record_valid(1, 'null'::jsonb)` raises
-- `jsonb_populate_recordset(anyelement,jsonb)` — e.g. `pg_catalog.jsonb_populate_recordset(1, 'null'::jsonb)` raises
 - `jsonb_to_record(jsonb)` — e.g. `pg_catalog.jsonb_to_record('null'::jsonb)` raises
-- `jsonb_to_recordset(jsonb)` — e.g. `pg_catalog.jsonb_to_recordset('null'::jsonb)` raises
 - `macaddr(macaddr8)` — e.g. `pg_catalog.macaddr('08:00:2b:01:02:03:04:05'::macaddr8)` raises
 - `makeaclitem(oid,oid,text,boolean)` — e.g. `pg_catalog.makeaclitem(0::oid, 0::oid, 'abc', true)` raises
 - `multirange_intersect_agg_transfn(anymultirange,anymultirange)` — e.g. `pg_catalog.multirange_intersect_agg_transfn('{[1,2)}'::int4multirange, '{[1,2)}'::int4multirange)` raises
 - `nummultirange(numrange[])` — e.g. `pg_catalog.nummultirange('{}'::numrange[])` raises
-- `pg_event_trigger_ddl_commands()` — e.g. `pg_catalog.pg_event_trigger_ddl_commands()` raises
-- `pg_event_trigger_dropped_objects()` — e.g. `pg_catalog.pg_event_trigger_dropped_objects()` raises
 - `pg_event_trigger_table_rewrite_oid()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_oid()` raises
 - `pg_event_trigger_table_rewrite_reason()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_reason()` raises
-- `pg_extension_update_paths(name)` — e.g. `pg_catalog.pg_extension_update_paths(''::name)` raises
 - `pg_get_object_address(text,text[],text[])` — e.g. `pg_catalog.pg_get_object_address('abc', '{}'::text[], '{}'::text[])` raises
-- `pg_get_publication_tables(text[])` — e.g. `pg_catalog.pg_get_publication_tables('{}'::text[])` raises
 - `pg_get_serial_sequence(text,text)` — e.g. `pg_catalog.pg_get_serial_sequence('abc', 'abc')` raises
 - `pg_get_viewdef(text)` — e.g. `pg_catalog.pg_get_viewdef('abc')` raises
 - `pg_get_viewdef(text,boolean)` — e.g. `pg_catalog.pg_get_viewdef('abc', true)` raises
@@ -2111,7 +2048,6 @@ probe as the evidence bar.
 - `pg_input_is_valid(text,text)` — e.g. `pg_catalog.pg_input_is_valid('abc', 'abc')` raises
 - `pg_sequence_parameters(oid)` — e.g. `pg_catalog.pg_sequence_parameters(0::oid)` raises
 - `pg_split_walfile_name(text)` — e.g. `pg_catalog.pg_split_walfile_name('abc')` raises
-- `pg_stat_get_progress_info(text)` — e.g. `pg_catalog.pg_stat_get_progress_info('abc')` raises
 - `range_intersect_agg_transfn(anyrange,anyrange)` — e.g. `pg_catalog.range_intersect_agg_transfn('[1,2)'::int4range, '[1,2)'::int4range)` raises
 - `row_security_active(text)` — e.g. `pg_catalog.row_security_active('abc')` raises
 - `satisfies_hash_partition(oid,integer,integer,"any")` — e.g. `pg_catalog.satisfies_hash_partition(0::oid, 1, 1, 1)` raises
@@ -2121,14 +2057,84 @@ probe as the evidence bar.
 - `to_ascii(text)` — e.g. `pg_catalog.to_ascii('abc')` raises
 - `to_ascii(text,integer)` — e.g. `pg_catalog.to_ascii('abc', 1)` raises
 - `to_ascii(text,name)` — e.g. `pg_catalog.to_ascii('abc', ''::name)` raises
-- `ts_parse(oid,text)` — e.g. `pg_catalog.ts_parse(0::oid, 'abc')` raises
-- `ts_parse(text,text)` — e.g. `pg_catalog.ts_parse('abc', 'abc')` raises
-- `ts_token_type(oid)` — e.g. `pg_catalog.ts_token_type(0::oid)` raises
-- `ts_token_type(text)` — e.g. `pg_catalog.ts_token_type('abc')` raises
 - `tsmultirange(tsrange[])` — e.g. `pg_catalog.tsmultirange('{}'::tsrange[])` raises
 - `tstzmultirange(tstzrange[])` — e.g. `pg_catalog.tstzmultirange('{}'::tstzrange[])` raises
 
-## no-generator (754: functions 750, operators 0, aggregates 4, windows 0)
+## set-returning (71: functions 71, operators 0, aggregates 0, windows 0)
+
+- `aclexplode(aclitem[])`
+- `generate_series(bigint,bigint)`
+- `generate_series(bigint,bigint,bigint)`
+- `generate_series(integer,integer)`
+- `generate_series(integer,integer,integer)`
+- `generate_series(numeric,numeric)`
+- `generate_series(numeric,numeric,numeric)`
+- `generate_series(timestamp with time zone,timestamp with time zone,interval)`
+- `generate_series(timestamp with time zone,timestamp with time zone,interval,text)`
+- `generate_series(timestamp without time zone,timestamp without time zone,interval)`
+- `generate_subscripts(anyarray,integer)`
+- `generate_subscripts(anyarray,integer,boolean)`
+- `json_array_elements(json)`
+- `json_array_elements_text(json)`
+- `json_each(json)`
+- `json_each_text(json)`
+- `json_object_keys(json)`
+- `json_populate_recordset(anyelement,json,boolean)`
+- `json_to_recordset(json)`
+- `jsonb_array_elements(jsonb)`
+- `jsonb_array_elements_text(jsonb)`
+- `jsonb_each(jsonb)`
+- `jsonb_each_text(jsonb)`
+- `jsonb_object_keys(jsonb)`
+- `jsonb_path_query(jsonb,jsonpath,jsonb,boolean)`
+- `jsonb_path_query_tz(jsonb,jsonpath,jsonb,boolean)`
+- `jsonb_populate_recordset(anyelement,jsonb)`
+- `jsonb_to_recordset(jsonb)`
+- `pg_available_extension_versions()`
+- `pg_available_extensions()`
+- `pg_config()`
+- `pg_cursor()`
+- `pg_event_trigger_ddl_commands()`
+- `pg_event_trigger_dropped_objects()`
+- `pg_extension_update_paths(name)`
+- `pg_get_catalog_foreign_keys()`
+- `pg_get_keywords()`
+- `pg_get_publication_tables(text[])`
+- `pg_get_replication_slots()`
+- `pg_listening_channels()`
+- `pg_mcv_list_items(pg_mcv_list)`
+- `pg_options_to_table(text[])`
+- `pg_prepared_statement()`
+- `pg_show_all_settings()`
+- `pg_snapshot_xip(pg_snapshot)`
+- `pg_stat_get_activity(integer)`
+- `pg_stat_get_backend_idset()`
+- `pg_stat_get_progress_info(text)`
+- `pg_stat_get_slru()`
+- `pg_stat_get_subscription(oid)`
+- `pg_stat_get_wal_senders()`
+- `pg_tablespace_databases(oid)`
+- `pg_timezone_abbrevs_abbrevs()`
+- `pg_timezone_abbrevs_zone()`
+- `pg_timezone_names()`
+- `regexp_matches(text,text)`
+- `regexp_matches(text,text,text)`
+- `regexp_split_to_table(text,text)`
+- `regexp_split_to_table(text,text,text)`
+- `string_to_table(text,text)`
+- `string_to_table(text,text,text)`
+- `ts_debug(regconfig,text)`
+- `ts_debug(text)`
+- `ts_parse(oid,text)`
+- `ts_parse(text,text)`
+- `ts_token_type(oid)`
+- `ts_token_type(text)`
+- `txid_snapshot_xip(txid_snapshot)`
+- `unnest(anyarray)`
+- `unnest(anymultirange)`
+- `unnest(tsvector)`
+
+## no-generator (751: functions 747, operators 0, aggregates 4, windows 0)
 
 - `aclitemin(cstring)`
 - `any_in(cstring)`
@@ -2613,7 +2619,6 @@ probe as the evidence bar.
 - `pg_lsn_in(cstring)`
 - `pg_lsn_recv(internal)`
 - `pg_mcv_list_in(cstring)`
-- `pg_mcv_list_items(pg_mcv_list)`
 - `pg_mcv_list_out(pg_mcv_list)`
 - `pg_mcv_list_recv(internal)`
 - `pg_mcv_list_send(pg_mcv_list)`
@@ -2634,7 +2639,6 @@ probe as the evidence bar.
 - `pg_snapshot_out(pg_snapshot)`
 - `pg_snapshot_recv(internal)`
 - `pg_snapshot_send(pg_snapshot)`
-- `pg_snapshot_xip(pg_snapshot)`
 - `pg_snapshot_xmax(pg_snapshot)`
 - `pg_snapshot_xmin(pg_snapshot)`
 - `pg_visible_in_snapshot(xid8,pg_snapshot)`
@@ -2809,7 +2813,6 @@ probe as the evidence bar.
 - `txid_snapshot_out(txid_snapshot)`
 - `txid_snapshot_recv(internal)`
 - `txid_snapshot_send(txid_snapshot)`
-- `txid_snapshot_xip(txid_snapshot)`
 - `txid_snapshot_xmax(txid_snapshot)`
 - `txid_snapshot_xmin(txid_snapshot)`
 - `txid_visible_in_snapshot(bigint,txid_snapshot)`

@@ -1,0 +1,7 @@
+-- A non-null array holding a NULL ELEMENT emits a NULL row. The surface
+-- probe cannot be trusted here — it reads the first emitted row, so the
+-- same array witnesses or not depending on where the NULL sits — which is
+-- why the whole set-returning class is classified rather than probed.
+-- @signature anyarray
+-- @null  SELECT unnest(ARRAY[NULL, 1])
+-- @value SELECT unnest(ARRAY[1, 2])

@@ -623,9 +623,61 @@ does not, and closing that is a construction change, not a corpus one.
 Surface now: claimed 1060, no-null-found 1705, null-witnessed 240,
 raised-everywhere 161, no-generator 754, volatile 281.
 
-The next batch's queue is what these two skipped by triage, and the honest
-note on it is that the remainder is mostly internal: the 218 operator rows
-want `operators.ts`'s name-keyed tables, which neither batch touched.
+**THE SET-RETURNING CLASS IS CLASSIFIED, NOT PROBED (2026-08-09), and the
+attempt to probe it is the entry's real content.** 71 rows were sitting in
+the work list on evidence the construction never took: `probe()` runs
+`EXECUTE 'SELECT (expr) IS NULL' INTO r`, which takes the FIRST emitted row
+and reads zero rows as a value — so `unnest(ARRAY[NULL,1])` was witnessed
+and `unnest(ARRAY[1,NULL])` was not, the same function over the same
+elements, and an empty set passed as evidence of non-nullness. A row-wise
+construction was designed, approved and then ABANDONED on measurement,
+which is the part worth keeping: **PGlite MATERIALISES a function scan**,
+so `generate_series(1::bigint, 9223372036854775807)` — which the corner
+corpus produces on its own — allocates until the process is killed. It
+exhausted the developer machine's memory twice before the cause was found.
+`LIMIT` above the scan does NOT bound it and `statement_timeout` does NOT
+cancel it (both measured); and because the WASM backend runs synchronously
+in-process, a JS watchdog cannot fire either — the event loop is blocked,
+so only killing the process ends it. **That is a live trap for any future
+probe design and is the reason to read this entry**: a runaway query here
+is not slow, it is fatal, and nothing inside the suite can recover from it
+the way the poison machinery recovers from a corrupted backend.
+
+The fallback — promote the class on bounded hand evidence — was tried and
+reverted for a second measured reason. Every set-returning row measured
+TOTAL over bounded arguments (`generate_series` in all nine forms,
+`generate_subscripts`, `regexp_split_to_table`, `json_object_keys`,
+`json_array_elements`, `string_to_table`'s two-argument form), but neither
+suite can HOLD the claim: the totality probe's `INTO` raises on any
+multi-row result, so every honest combination records as an error, and each
+raise costs 2-3.5s over the corpus's large bounds — promoting the class
+took the gating suite from 4.6s to past its 120s hook timeout. A claim no
+suite can falsify is what this project does not ship, so the class stays
+unclaimed and says so. Recovering the precision needs a probe whose
+arguments are bounded independently of the shared corpus; that is the open
+item, deliberately not attempted here.
+
+What the classification bought: the queue is honest (1705 → 1651), and the
+surface run went from ~147s to **18s** — which corrects the earlier note in
+this register that the run cost was "all of it in poison recovery". Most of
+it was set-returning probes raising slowly. Five witnesses record the
+NULL-capable members, since the new category would otherwise swallow the
+one the probe had found by luck: `unnest` over an array holding a NULL,
+`unnest(tsvector)`'s positions column (a per-COLUMN NULL a whole-row test
+would miss), `json_array_elements_text` and its jsonb twin — which turn a
+JSON null into a SQL NULL where the non-`_text` versions return it as a
+value — and `string_to_table`'s null_string form. One trap for whoever
+writes the next such fixture: the non-`_text` twin cannot serve as the
+CONTROL, because `json_array_elements('[null]')` hands the driver a JSON
+null that deserialises to a JavaScript null and reads exactly like the SQL
+NULL it is not. Surface now: claimed 1060, no-null-found 1651,
+null-witnessed 239, raised-everywhere 148, set-returning 71,
+no-generator 751, volatile 281.
+
+The next batch's queue is what these three skipped by triage, and the
+honest note on it is that the remainder is mostly internal: the 218
+operator rows want `operators.ts`'s name-keyed tables, which no batch
+touched.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
