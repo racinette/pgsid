@@ -1,0 +1,5 @@
+-- The aggregate construction: an ordered-set aggregate over an EMPTY group
+-- is NULL — the class claim the WITHIN GROUP dispatch gates on.
+-- @signature double precision, double precision
+-- @null  SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY x) FROM (SELECT 1 AS x WHERE false) t
+-- @value SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY x) FROM (VALUES (1),(2)) t(x)

@@ -1,0 +1,3 @@
+-- @signature numeric
+-- @null  scale('NaN'::numeric)
+-- @value scale(1.5)

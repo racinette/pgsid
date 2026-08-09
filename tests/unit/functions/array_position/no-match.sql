@@ -1,0 +1,3 @@
+-- @signature anycompatiblearray, anycompatible
+-- @null  array_position(ARRAY[1,2], 9)
+-- @value array_position(ARRAY[1,2], 2)

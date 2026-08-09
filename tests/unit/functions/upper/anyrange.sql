@@ -1,0 +1,3 @@
+-- @signature anyrange
+-- @null  upper('empty'::int4range)
+-- @value upper(int4range(1, 5))
