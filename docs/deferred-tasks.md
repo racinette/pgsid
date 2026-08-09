@@ -498,7 +498,24 @@ for the next person: PGlite's backend, once an expression overflows the
 errordata stack, stays POISONED while plain SELECTs still answer — the
 suite detects poison with the probe itself, treats short results as
 failures, bisects to the culprit, and rebuilds; the run costs ~2.5
-minutes, all of it in poison recovery. **The OPERATOR surface joined the same discipline (2026-08-09, same
+minutes, all of it in poison recovery. **The culprits are ISOLATED
+(2026-08-09, `tests/probe/poison-hunt.ts` — kept as tooling): across all
+51,148 probe expressions, exactly the ENCODING-CONVERSION family** —
+`convert_to(text, name)`, `convert_from(bytea, name)`, `convert(bytea,
+name, name)` — and the boundary is measured precisely: an UNKNOWN encoding
+name raises the ordinary clean error (healthy); an identity or
+ascii-degenerate conversion (UTF8→UTF8, SQL_ASCII) works; **a REAL
+conversion attempt (e.g. →LATIN1) returns a zero-row "success" and leaves
+the backend broken** — called directly, even `SELECT 1` fails afterward;
+called inside a plpgsql exception context, the backend enters the
+answers-but-lies state (ERRORDATA_STACK_SIZE on error paths, short
+results). Deterministic, single-call, self-contained. Reading: the WASM
+build lacks the loadable conversion modules real PostgreSQL dlopens, and
+the failed attempt aborts below PostgreSQL's error machinery instead of
+through it. Consumer guidance: treat `convert`/`convert_to`/`convert_from`
+in analysed SQL as a rebuild trigger or refuse to execute them; the
+error-path sentinel plus result-cardinality checks remain the general
+detectors, since this list is one build's ground truth, not a warranty. **The OPERATOR surface joined the same discipline (2026-08-09, same
 day)**: every pg_operator row classified alongside — 4025 signatures
 total, claimed 795 (the 558 operator rows are the totality probe's
 jurisdiction), null-witnessed 154 (15 operator witnesses, `->` on a
@@ -509,9 +526,23 @@ measurement. **The work list is a durable handoff**:
 (`BUILTIN_SURFACE_WORKLIST=docs/builtin-surface-worklist.md` on the run,
 regeneration command in the file's header) — every category listed in
 full, null-witnessed entries with their runnable witnesses, ready for a
-session to work the no-null-found promotions signature by signature. Aggregates and window functions are NOT yet under this
-discipline — their process (empty-input, empty-frame and all-NULL-input
-constructions) is proposed and awaiting discussion.
+session to work the no-null-found promotions signature by signature. **Aggregates and window functions JOINED the discipline (2026-08-09), with
+the second regime their claims required**: their claimed rows had NO
+execution hold (the totality probe covers scalar claims only), so the
+suite both classifies the unclaimed rows AND holds every claimed row to
+its own claim's conditions — an "always" claim (count, the hypothetical
+class, the never-null window set, ntile with a non-null argument) fails on
+any NULL; a "nonempty" claim (the nonempty table, the ordered-set gate)
+fails only under the nonempty non-null-input construction, empty and
+all-NULL input being the class's documented NULLs. Constructions: three-row
+and SINGLE-row corner tables, WHERE false, all-NULL arguments, WITHIN
+GROUP spellings keyed on the post-aggnumdirectargs types, and window
+scalar subqueries at the first row, last row and a one-row partition.
+**Zero claim failures** — the first execution evidence those two verdict
+tables have ever had — and 70 new witnesses (stddev_samp over a single
+row and lag on a first row are the positive controls). Final surface:
+4201 signatures, all categorized, the work list regenerated with per-kind
+splits.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
