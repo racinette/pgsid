@@ -1,0 +1,13 @@
+-- The `_text` expander converts a JSON null into a SQL NULL; its non-text
+-- twin returns the JSON null as a value. Same input, same array, opposite
+-- verdicts — which is why the class is decided per signature and not by
+-- family resemblance.
+--
+-- The twin cannot serve as the CONTROL, though, and that is worth knowing
+-- before writing one: `json_array_elements('[null]'::json)` returns a JSON
+-- null, which the driver deserialises to a JavaScript null, so it reads
+-- here exactly like the SQL NULL it is not. The control is the same
+-- function over a non-null element.
+-- @signature json
+-- @null  SELECT json_array_elements_text('[null]'::json)
+-- @value SELECT json_array_elements_text('["a"]'::json)
