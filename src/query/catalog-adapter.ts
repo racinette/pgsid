@@ -17,6 +17,16 @@ import {
   TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES,
   NON_TOTAL_OPERATOR_SIGNATURES,
 } from "./operators.js";
+// The claim tables — the verdict source the signature-keyed dispatch reads
+// per surviving row. The import direction (adapter ← walk) carries no cycle:
+// the walk imports only interfaces and side modules; snapshot.ts set the
+// precedent when the capture took its scope from the same tables.
+import {
+  ALWAYS_NOT_NULL_BUILTINS,
+  FIRST_ARG_BUILTINS,
+  STRICT_TOTAL_BUILTINS,
+  STRICT_TOTAL_BUILTIN_SIGNATURES,
+} from "./nullability-walk.js";
 
 // ---------------------------------------------------------------------------
 // buildNullabilityCatalog: CatalogSnapshot + pre-parsed function bodies → NullabilityCatalog
@@ -1216,6 +1226,138 @@ export async function buildNullabilityCatalog(
     return survivors.every(o => o.strict);
   };
 
+  /**
+   * The SOME-quantified reading of the same survivors — mechanism C's
+   * direction (docs/type-aware-overloads.md, the per-property quantifier):
+   * over-reporting strictness only over-tightens a parameter, while
+   * under-reporting makes the contract admit a binding that raises. No
+   * shadowing guard here for the nothing-known case, deliberately: falling
+   * back to the name rule over-reports, which is this consumer's safe
+   * error.
+   */
+  const resolveOperatorStrictnessSome = (
+    schema: string | undefined,
+    name: string,
+    leftTypes: readonly string[] | null,
+    rightTypes: readonly string[] | null,
+  ): boolean | null => {
+    if (leftTypes === null && rightTypes === null) return null;
+    const Ls = leftTypes === null ? null : leftTypes.map(normalizeTypeName);
+    const Rs = rightTypes === null ? null : rightTypes.map(normalizeTypeName);
+    const L = Ls !== null && Ls.length === 1 ? Ls[0]! : null;
+    const R = Rs !== null && Rs.length === 1 ? Rs[0]! : null;
+    const builtins = resolveBuiltinOperatorSignatures(schema, name)
+      .filter(o => o.leftType !== null && o.rightType !== null);
+    const userSchemas = schema ? [schema] : searchPath;
+    const users: typeof snapshot.operators = [];
+    const seenSig = new Set<string>();
+    for (const s of userSchemas) {
+      for (const o of opBySchemaName.get(`${s}.${name}`) ?? []) {
+        if (o.leftType === null || o.rightType === null) continue;
+        const sig = `${o.leftType},${o.rightType}`;
+        if (!seenSig.has(sig)) {
+          seenSig.add(sig);
+          users.push(o);
+        }
+      }
+    }
+    if (builtins.length === 0 && users.length === 0) return null;
+    if (L !== null && R !== null) {
+      const builtinExact = builtins.find(o => o.leftType === L && o.rightType === R);
+      if (builtinExact) return builtinExact.strict;
+      const userExact = users.find(o => o.leftType === L && o.rightType === R);
+      if (userExact) return userExact.strict;
+    }
+    const reaches = (set: readonly string[] | null, param: string): boolean =>
+      set === null || set.some(member => mayCoerceImplicitly(member, param));
+    const survivors = [
+      ...users.filter(o => reaches(Ls, o.leftType!) && reaches(Rs, o.rightType!)),
+      ...builtins.filter(o => reaches(Ls, o.leftType!) && reaches(Rs, o.rightType!)),
+    ];
+    if (survivors.length === 0) return null;
+    return survivors.some(o => o.strict);
+  };
+
+  /**
+   * The scalar half of the function dispatch, typed
+   * (docs/type-aware-overloads.md, the function slice): the kind='f' rows
+   * behind a claim-table name, arity-admitted with their captured defaults
+   * (five names carry them — eliminating a shorter call would be a false
+   * elimination), exact-matched on singleton argument sets, otherwise
+   * eliminated per position and read by CONSENSUS over the survivors'
+   * verdicts. The verdict source is the name tables plus the
+   * signature-keyed additions (`lower(text)` is the founding recovery);
+   * the lattice weakens soundly — always ⇒ first-arg ⇒ strict-total, so
+   * mixed survivors conclude the weakest claim they all imply.
+   */
+  const resolveBuiltinScalarTotality = (
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (readonly string[] | null)[],
+  ):
+    | { kind: "always" }
+    | { kind: "first-arg" }
+    | { kind: "strict-total" }
+    | { kind: "nullable" }
+    | { kind: "unknown" } => {
+    const rows = resolveBuiltinFunctionSignatures(schema, name).filter(r => r.kind === "f");
+    if (rows.length === 0) return { kind: "unknown" };
+    const argCount = argTypes.length;
+    const sets = argTypes.map(s => (s === null ? null : s.map(normalizeTypeName)));
+
+    const admitsArity = (r: BuiltinFunctionSignature): boolean =>
+      r.variadic !== null
+        ? argCount >= r.args.length - 1
+        : argCount <= r.args.length && argCount >= r.args.length - r.numArgDefaults;
+    const arityRows = rows.filter(admitsArity);
+    if (arityRows.length === 0) return { kind: "unknown" };
+
+    const verdictOf = (r: BuiltinFunctionSignature): "always" | "first-arg" | "strict-total" | null => {
+      if (ALWAYS_NOT_NULL_BUILTINS.has(r.name)) return "always";
+      if (FIRST_ARG_BUILTINS.has(r.name)) return "first-arg";
+      if (STRICT_TOTAL_BUILTINS.has(r.name)) return "strict-total";
+      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${r.name}(${r.args.join(",")})`)) {
+        return "strict-total";
+      }
+      return null;
+    };
+
+    const singles = sets.map(s => (s !== null && s.length === 1 ? s[0]! : null));
+    if (singles.length === argCount && singles.every(s => s !== null)) {
+      const exact = arityRows.find(
+        r =>
+          r.variadic === null &&
+          r.args.length === argCount &&
+          r.args.every((a, i) => a === singles[i]),
+      );
+      if (exact) {
+        const v = verdictOf(exact);
+        return v === null ? { kind: "nullable" } : { kind: v };
+      }
+    }
+
+    // A variadic row's positions past the fixed prefix check the variadic
+    // type — its ELEMENT for a concrete array, and `"any"` admits all.
+    const paramAt = (r: BuiltinFunctionSignature, i: number): string => {
+      if (r.variadic === null || i < r.args.length - 1) return r.args[i]!;
+      const v = r.args[r.args.length - 1]!;
+      return v.endsWith("[]") ? v.slice(0, -2) : v;
+    };
+    const survivors = arityRows.filter(r =>
+      sets.every((s, i) => {
+        if (s === null) return true;
+        const p = paramAt(r, i);
+        return s.some(m => mayCoerceImplicitly(m, p));
+      }),
+    );
+    if (survivors.length === 0) return { kind: "unknown" };
+    const verdicts = survivors.map(verdictOf);
+    if (verdicts.some(v => v === null)) return { kind: "nullable" };
+    if (verdicts.every(v => v === "always")) return { kind: "always" };
+    if (verdicts.every(v => v === "always" || v === "first-arg")) return { kind: "first-arg" };
+    return { kind: "strict-total" };
+  };
+
   // The FROM-position shape of a pg_catalog function with named output
   // columns. Consulted where the user catalog has no candidate the walk may
   // reason from — which now INCLUDES a name pg_catalog also carries, since
@@ -1253,6 +1395,8 @@ export async function buildNullabilityCatalog(
     resolveOperatorTotality,
     resolveUnaryOperatorTotality,
     resolveOperatorStrictness,
+    resolveOperatorStrictnessSome,
+    resolveBuiltinScalarTotality,
     resolveBuiltinFunctionSignatures,
     resolveBuiltinOperatorSignatures,
     resolveCanonicalTypeName,

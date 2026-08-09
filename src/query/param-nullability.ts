@@ -345,6 +345,80 @@ export function forcedNullParamsAnyRow(
   return singletonsOf(forcedNullBy(node, catalog, ctx, true));
 }
 
+/**
+ * Context-free operand typing for the strictness question — the literal
+ * table, cast targets, uniform ARRAY constructors and nested operators.
+ * Column references need a scope this walker does not carry, and a bare
+ * ParamRef needs the tier-0 input nothing threads here yet; both read
+ * null, which keeps the name rule. Mirrors the walk's `operandTypeSet`
+ * where context allows; drift between the two costs precision only.
+ */
+function contextFreeTypeSet(
+  node: Node | undefined,
+  catalog: NullabilityCatalog,
+): string[] | null {
+  if (!node || typeof node !== "object") return null;
+  const n = node as Record<string, unknown>;
+  const ac = n["A_Const"] as
+    | { ival?: unknown; boolval?: unknown; fval?: { fval?: string } }
+    | undefined;
+  if (ac) {
+    if ("ival" in ac) return ["integer"];
+    if ("boolval" in ac) return ["boolean"];
+    if ("fval" in ac) {
+      const digits = ac.fval?.fval ?? "";
+      return /^[0-9]+$/.test(digits) &&
+        (digits.length < 19 || (digits.length === 19 && digits <= "9223372036854775807"))
+        ? ["bigint"]
+        : ["numeric"];
+    }
+    return null;
+  }
+  const tc = n["TypeCast"] as
+    | { typeName?: { names?: Node[]; arrayBounds?: unknown[] } }
+    | undefined;
+  if (tc) {
+    const parts = (tc.typeName?.names ?? [])
+      .map(stringVal)
+      .filter(p => !!p && p !== "pg_catalog");
+    if (!parts.length) return null;
+    return [parts.join(".") + (tc.typeName?.arrayBounds?.length ? "[]" : "")];
+  }
+  const arr = n["A_ArrayExpr"] as { elements?: Node[] } | undefined;
+  if (arr) {
+    // The trivial common type only: every element the SAME singleton. The
+    // full promotion rules stay a declined non-goal.
+    const els = (arr.elements ?? []).map(e => contextFreeTypeSet(e, catalog));
+    if (els.length > 0 && els.every(e => e !== null && e.length === 1 && e[0] === els[0]![0])) {
+      return [`${els[0]![0]}[]`];
+    }
+    return null;
+  }
+  const ae = n["A_Expr"] as
+    | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+    | undefined;
+  if (ae && (ae.kind === undefined || ae.kind === "AEXPR_OP")) {
+    const parts = (ae.name ?? []).map(stringVal);
+    const op = parts[parts.length - 1] ?? "";
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+    if (ae.lexpr && ae.rexpr) {
+      const r = catalog.resolveOperatorTotality(
+        schema, op,
+        contextFreeTypeSet(ae.lexpr, catalog),
+        contextFreeTypeSet(ae.rexpr, catalog),
+      );
+      return r.kind === "unknown" ? null : r.returns;
+    }
+    if (!ae.lexpr && ae.rexpr) {
+      const r = catalog.resolveUnaryOperatorTotality(
+        schema, op, contextFreeTypeSet(ae.rexpr, catalog),
+      );
+      return r.kind === "unknown" ? null : r.returns;
+    }
+  }
+  return null;
+}
+
 function forcedNullBy(
   node: Node | undefined,
   catalog: NullabilityCatalog,
@@ -402,12 +476,22 @@ function forcedNullBy(
     const parts = (ae.name ?? []).map(stringVal);
     const op = parts[parts.length - 1] ?? "";
     const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
-    // Bare builtin names via the curated set; user operators via their
-    // backing function's declared strictness (single candidate or refuse) —
-    // strictness is the only property NULL-propagation needs.
+    // Typed first: SOME-quantified strictness over the merged candidate
+    // set — over-reporting only over-tightens a parameter, so falling back
+    // to the bare-name rule (with its recorded `||` over-report) stays this
+    // consumer's safe error where nothing types. The array `||` rows are
+    // non-strict, so `ARRAY[1,2] || $1` now correctly declines to
+    // attribute.
+    const typedStrict = catalog.resolveOperatorStrictnessSome(
+      schema, op,
+      contextFreeTypeSet(ae.lexpr, catalog),
+      contextFreeTypeSet(ae.rexpr, catalog),
+    );
     const strict =
-      (parts.length === 1 && STRICT_OPERATORS.has(op)) ||
-      (catalog.resolveOperatorMetadata(schema, op)?.strict ?? false);
+      typedStrict !== null
+        ? typedStrict
+        : (parts.length === 1 && STRICT_OPERATORS.has(op)) ||
+          (catalog.resolveOperatorMetadata(schema, op)?.strict ?? false);
     if (ae.kind === "AEXPR_OP" && strict) {
       return unionLists([ae.lexpr, ae.rexpr].map(o => forcedNullBy(o, catalog, ctx, anyRow)));
     }

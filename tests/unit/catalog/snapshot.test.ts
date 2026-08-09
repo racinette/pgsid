@@ -11,6 +11,7 @@ import {
   ALWAYS_NOT_NULL_BUILTINS,
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
+  STRICT_TOTAL_BUILTIN_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_FNS,
   HYPOTHETICAL_SET_AGGREGATES,
@@ -387,6 +388,7 @@ describe("snapshotCatalog: functions and procedures", () => {
       ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
       ...NON_NULL_OVER_NONEMPTY_AGGREGATES, ...NEVER_NULL_WINDOW_FNS,
       ...HYPOTHETICAL_SET_AGGREGATES, ...ORDERED_SET_AGGREGATES,
+      ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
     ]);
     const opNames = new Set([...TOTAL_OPERATORS, ...STRICT_OPERATORS]);
 
@@ -453,6 +455,15 @@ describe("snapshotCatalog: functions and procedures", () => {
     expect(s.builtinOperatorSignatures.some(
       sig => sig.name === "-" && sig.leftType === null,
     )).toBe(true);
+
+    // Trailing defaults: arity elimination without this count would
+    // falsely eliminate the shorter jsonb_set call.
+    const js = s.builtinFunctionSignatures.find(sig => sig.name === "jsonb_set");
+    expect(js?.numArgDefaults).toBe(1);
+    const lo = s.builtinFunctionSignatures.find(
+      sig => sig.name === "lower" && sig.args.join(",") === "text",
+    );
+    expect(lo).toMatchObject({ numArgDefaults: 0, strict: true, kind: "f" });
   });
 
   it("captures the implicit casts and the builtin type kinds", async () => {

@@ -8197,6 +8197,48 @@ class NullabilityEngine {
         trace.conclude(false, "VARIADIC passes the parameter as one array, and a NULL array yields NULL → nullable");
         return false;
       }
+      // Typed dispatch first (docs/type-aware-overloads.md, the function
+      // slice): resolve the call over the captured kind='f' rows and read
+      // the verdict per SURVIVOR, which is what lets `lower(<text column>)`
+      // claim notNull while `lower(<range>)` keeps reading nullable — the
+      // name checks below serve only what the resolution cannot see. Named
+      // notation breaks the positional lineup, so it skips to them.
+      const args = fc.args ?? [];
+      if (!args.some(a => "NamedArgExpr" in (a as Record<string, unknown>))) {
+        const argTypeSets = args.map(a => this.operandTypeSet(a, scope, depth + 1));
+        const resolved = this.catalog.resolveBuiltinScalarTotality(schema, name, argTypeSets);
+        if (resolved.kind !== "unknown") {
+          trace.addFact(
+            "argTypes",
+            argTypeSets.map(s => s?.join("|") ?? "unknown").join(", "),
+          );
+          if (resolved.kind === "always") {
+            trace.addFact("priority", "6b (built-in, always non-null, signature-narrowed)");
+            trace.conclude(true, `${name}() never returns NULL (every surviving signature)`);
+            return true;
+          }
+          if (resolved.kind === "first-arg") {
+            trace.addFact("priority", "6b (built-in, first arg decides, signature-narrowed)");
+            const result = argResults.length > 0 && argResults[0] === true;
+            trace.conclude(result, result
+              ? `${name}() is non-null when its first argument is`
+              : `${name}() with a nullable first argument → nullable`);
+            return result;
+          }
+          if (resolved.kind === "strict-total") {
+            trace.addFact("priority", "6b (built-in, total over non-null args, signature-narrowed)");
+            trace.addFact("argsNotNull", `[${argResults.map(r => (r ? "T" : "F")).join(", ")}]`);
+            const result = argResults.every(r => r);
+            trace.conclude(result, result
+              ? `every surviving signature of ${name}() is total: non-null arguments → non-null result`
+              : `${name}() has a nullable argument → nullable`);
+            return result;
+          }
+          trace.addFact("priority", "6b (built-in, signature-narrowed)");
+          trace.conclude(false, `a surviving signature of ${name}() carries no totality claim → nullable`);
+          return false;
+        }
+      }
       if (ALWAYS_NOT_NULL_BUILTINS.has(name)) {
         trace.addFact("priority", "6b (built-in, always non-null)");
         trace.conclude(true, `${name}() never returns NULL`);
@@ -9344,6 +9386,23 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   "regexp_like", "regexp_count", "regexp_replace", "regexp_split_to_array",
   "array_fill", "array_positions", "trim_array",
   "jsonb_set", "jsonb_insert",
+]);
+
+/**
+ * SIGNATURE-keyed strict-total verdicts for rows whose NAME cannot carry
+ * the claim — the recovery half of the removals recorded above, and the
+ * operator side's `NON_TOTAL_OPERATOR_SIGNATURES` in the other direction.
+ * A key is `name(arg,arg)` in format_type renderings, matching the
+ * signature capture; the typed dispatch reads it per SURVIVOR, so
+ * `lower(<text column>)` claims notNull again while `lower(<range>)` keeps
+ * reading nullable — the charter's founding case. Grows only with
+ * per-signature evidence (the totality probe holds each entry to
+ * execution); the other removed names (`substring`, `to_char`, `extract`,
+ * …) wait for the witness corpus to earn theirs.
+ */
+export const STRICT_TOTAL_BUILTIN_SIGNATURES: ReadonlySet<string> = new Set([
+  "lower(text)",
+  "upper(text)",
 ]);
 
 /**

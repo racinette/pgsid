@@ -28,6 +28,7 @@ import {
   ALWAYS_NOT_NULL_BUILTINS,
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
+  STRICT_TOTAL_BUILTIN_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_FNS,
   HYPOTHETICAL_SET_AGGREGATES,
@@ -52,6 +53,10 @@ const CLAIMED_FUNCTION_NAMES = [...new Set([
   ...NEVER_NULL_WINDOW_FNS,
   ...HYPOTHETICAL_SET_AGGREGATES,
   ...ORDERED_SET_AGGREGATES,
+  // A SIGNATURE-keyed claim covers a name no table holds — `lower(text)`
+  // after lower's removal — and its rows must be captured for the typed
+  // dispatch to resolve against.
+  ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
 ])];
 const CLAIMED_OPERATOR_NAMES = [...new Set([
   ...TOTAL_OPERATORS,
@@ -1428,6 +1433,7 @@ async function queryBuiltinFunctionSignatures(
     agg_kind: string | null;
     num_direct_args: number | null;
     variadic: string | null;
+    num_arg_defaults: number;
   }>(
     `SELECT p.proname AS name,
             (SELECT array_agg(format_type(t, null) ORDER BY o)
@@ -1438,7 +1444,8 @@ async function queryBuiltinFunctionSignatures(
             a.aggkind AS agg_kind,
             a.aggnumdirectargs::int AS num_direct_args,
             CASE WHEN p.provariadic <> 0
-                 THEN format_type(p.provariadic, null) END AS variadic
+                 THEN format_type(p.provariadic, null) END AS variadic,
+            p.pronargdefaults::int AS num_arg_defaults
      FROM pg_proc p
      LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
      JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -1457,6 +1464,7 @@ async function queryBuiltinFunctionSignatures(
     aggKind: r.agg_kind as "n" | "o" | "h" | null,
     numDirectArgs: r.num_direct_args,
     variadic: r.variadic,
+    numArgDefaults: r.num_arg_defaults,
   }));
 }
 

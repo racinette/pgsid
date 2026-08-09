@@ -474,6 +474,40 @@ export interface NullabilityCatalog {
   ): boolean | null;
 
   /**
+   * The SOME-quantified reading of the same survivors — mechanism C's
+   * per-property quantifier: over-reporting strictness only over-tightens
+   * a parameter; under-reporting makes the contract admit a binding that
+   * raises. Null cedes to the name rule, whose over-report is this
+   * consumer's safe error.
+   */
+  resolveOperatorStrictnessSome(
+    schema: string | undefined,
+    name: string,
+    leftTypes: readonly string[] | null,
+    rightTypes: readonly string[] | null,
+  ): boolean | null;
+
+  /**
+   * The typed SCALAR builtin dispatch (docs/type-aware-overloads.md, the
+   * function slice): resolves a call over the kind='f' rows behind a
+   * claim-table name — arity with captured defaults, exact match on
+   * singleton sets, elimination and verdict CONSENSUS over survivors, with
+   * the signature-keyed additions recovering what name-level dispatch had
+   * to drop (`lower(text)`). "unknown" cedes to the caller's name rule;
+   * "nullable" is a sound conclusion — a survivor carries no claim.
+   */
+  resolveBuiltinScalarTotality(
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (readonly string[] | null)[],
+  ):
+    | { kind: "always" }
+    | { kind: "first-arg" }
+    | { kind: "strict-total" }
+    | { kind: "nullable" }
+    | { kind: "unknown" };
+
+  /**
    * Whether every pg_catalog plain-function overload of `name` is declared
    * STRICT — from the snapshot's environment capture, the source of truth
    * the strict-expression closures consult for builtin names the user
