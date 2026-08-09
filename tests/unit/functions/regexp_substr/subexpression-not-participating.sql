@@ -1,0 +1,7 @@
+-- The six-argument row, and a second NULL route beside no-match: the
+-- pattern matches, but the requested subexpression took no part in the
+-- match. Its `regexp_instr` sibling answers 0 for the same input, which is
+-- why that name carries a totality claim and this one never can.
+-- @signature text, text, integer, integer, text, integer
+-- @null  regexp_substr('abc', '(z)?a', 1, 1, '', 1)
+-- @value regexp_substr('abc', '(a)', 1, 1, '', 1)

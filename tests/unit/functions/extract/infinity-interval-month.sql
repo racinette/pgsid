@@ -1,0 +1,5 @@
+-- extract and date_part are one implementation under two names, so the
+-- infinite-interval NULL is the same defect reached by the other spelling.
+-- @signature text, interval
+-- @null  extract(month FROM 'infinity'::interval)
+-- @value extract(month FROM '1 day'::interval)

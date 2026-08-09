@@ -22,11 +22,23 @@ export const VALUES: Record<string, string[]> = {
   // valid for anything to evaluate. The adversarial members follow it. The
   // format/unit words are here because `date_trunc`, `encode`/`decode` and
   // `normalize` take their mode as text and raise on anything else — without
-  // them those signatures raise on every combination and go unprobed.
-  text: ["'abc'", "''", "'  '", "'NaN'", "'day'", "'base64'", "'hex'", "'escape'", "'NFC'", "'9'", "'UTC'"],
+  // them those signatures raise on every combination and go unprobed. Three
+  // more joined them the same way (2026-08-09, from the work list's
+  // raised-everywhere column): `'hour'` is a unit `date_part`/`extract` accept
+  // for a `time`/`timetz` — `'day'` is not, and those four rows raised on
+  // every combination; `'month'` is a unit that is NULL for an INFINITE
+  // interval while `'day'` and `'hour'` are ±Infinity, so it is what witnesses
+  // the interval rows; `'[]'` is a range BOUND spec, without which the six
+  // three-argument range constructors raised everywhere.
+  text: [
+    "'abc'", "''", "'  '", "'NaN'", "'day'", "'base64'", "'hex'", "'escape'",
+    "'NFC'", "'9'", "'UTC'", "'hour'", "'month'", "'[]'",
+  ],
   "character varying": ["''::varchar", "'abc'::varchar"],
   character: ["''::char", "'a'::char"],
-  '"char"': ["'a'::\"char\""],
+  // `'r'` is an object-type abbreviation `acldefault` accepts; `'a'` is not
+  // one, and alone it left that signature raising on every combination.
+  '"char"': ["'a'::\"char\"", "'r'::\"char\""],
   name: ["''::name", "'abc'::name"],
 
   // --- numbers: NaN and the infinities (scale/min_scale, and every float).
@@ -47,7 +59,10 @@ export const VALUES: Record<string, string[]> = {
   "timestamp with time zone": ["'2020-01-01Z'::timestamptz", "'infinity'::timestamptz", "'-infinity'::timestamptz"],
   "time without time zone": ["'00:00'::time", "'23:59:59'::time"],
   "time with time zone": ["'00:00+00'::timetz"],
-  interval: ["'0'::interval", "'1 day'::interval"],
+  // The infinite interval is PG17's addition and the same class as the
+  // infinite timestamp: `date_part`/`extract` answer ±Infinity for the
+  // monotonic fields and NULL for the rest.
+  interval: ["'0'::interval", "'1 day'::interval", "'infinity'::interval", "'-infinity'::interval"],
 
   // --- containers: the EMPTY array is the array_position/cardinality class.
   bytea: ["''::bytea", "'\\x00'::bytea", "'abc'::bytea"],
@@ -119,14 +134,17 @@ export const POLYMORPHIC = new Set(Object.keys(POLYMORPHIC_FAMILIES[0]!));
 
 /**
  * Beyond this many combinations a signature is sampled rather than crossed,
- * and the run reports how many. Set at 512 because `date_trunc(text,
- * timestamptz, text)` is 363: its unit and its timezone must be valid
- * TOGETHER, and a one-at-a-time sweep from a baseline can only ever make one
- * of them valid at a time, so the signature raised on every combination and
- * went unprobed. Probes are cheap enough that the cap is about the report
- * staying honest rather than about time — 20k of them run in ~130ms.
+ * and the run reports how many. Sized by `date_trunc(text, timestamptz,
+ * text)`: its unit and its timezone must be valid TOGETHER, and a
+ * one-at-a-time sweep from a baseline can only ever make one of them valid at
+ * a time, so above the cap the signature raises on every combination and goes
+ * unprobed. It was 363 combinations against a cap of 512; the three text
+ * values the 2026-08-09 batch added took it to 588, and the cap moved with it
+ * rather than letting a signature the cap exists for fall out. Probes are
+ * cheap enough that the cap is about the report staying honest rather than
+ * about time — the claimed surface is 26k of them in ~4s.
  */
-export const MAX_COMBOS = 512;
+export const MAX_COMBOS = 1024;
 
 /**
  * Calls are written `pg_catalog.name(...)`, which is not decoration: several

@@ -1,0 +1,6 @@
+-- The two-argument row is witnessed by the surface probe; the three-argument
+-- one sits past the combination cap for the same reason regexp_substr's
+-- does, and needs the same two-argument variation to reach the no-match NULL.
+-- @signature text, text, text
+-- @null  regexp_match('abc', 'zzz', '')
+-- @value regexp_match('abc', 'abc', '')
