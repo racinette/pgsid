@@ -16,6 +16,7 @@ import { splitQualifiedName } from "../catalog/qualified-name.js";
 import {
   TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES,
   NON_TOTAL_OPERATOR_SIGNATURES,
+  TOTAL_OPERATOR_SIGNATURES,
 } from "./operators.js";
 // The claim tables — the verdict source the signature-keyed dispatch reads
 // per surviving row. The import direction (adapter ← walk) carries no cycle:
@@ -1042,8 +1043,11 @@ export async function buildNullabilityCatalog(
     }
     if (builtins.length === 0 && users.length === 0) return { kind: "unknown" };
 
+    // The name grants, a signature key grants, and the non-total set
+    // exempts — read together so a claimed name's hole and an unclaimed
+    // name's total row are both expressible.
     const totalVerdict = (l: string, r: string): "total" | "nullable" =>
-      TOTAL_OPERATOR_NAMES.has(name) &&
+      (TOTAL_OPERATOR_NAMES.has(name) || TOTAL_OPERATOR_SIGNATURES.has(`${name}(${l},${r})`)) &&
       !NON_TOTAL_OPERATOR_SIGNATURES.has(`${name}(${l},${r})`)
         ? "total"
         : "nullable";
@@ -1142,7 +1146,7 @@ export async function buildNullabilityCatalog(
     }
     if (builtins.length === 0 && users.length === 0) return { kind: "unknown" };
     const verdict = (r: string): "total" | "nullable" =>
-      TOTAL_OPERATOR_NAMES.has(name) &&
+      (TOTAL_OPERATOR_NAMES.has(name) || TOTAL_OPERATOR_SIGNATURES.has(`${name}(,${r})`)) &&
       !NON_TOTAL_OPERATOR_SIGNATURES.has(`${name}(,${r})`)
         ? "total"
         : "nullable";

@@ -12,6 +12,7 @@ import {
   PARTIAL_OVERLOADS,
   NON_STRICT_OVERLOADS,
   NON_TOTAL_OPERATOR_SIGNATURES,
+  TOTAL_OPERATOR_SIGNATURES,
 } from "../../../src/query/operators.js";
 import {
   VALUES,
@@ -209,9 +210,21 @@ describe("totality tables, probed by execution", () => {
            FROM pg_operator o
            JOIN pg_namespace ns ON ns.oid = o.oprnamespace
           WHERE ns.nspname = 'pg_catalog' AND o.oprname = ANY($1);`,
-        [[...TOTAL_OPERATORS]],
+        [[...new Set([
+          ...TOTAL_OPERATORS,
+          ...[...TOTAL_OPERATOR_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
+        ])]],
       )
-    ).rows;
+    ).rows
+      // A signature-keyed symbol contributes exactly the rows its keys
+      // claim; its other rows carry no claim and must not be held to one —
+      // `jsonb @@ jsonpath` DOES answer NULL. Same filter the function side
+      // applies to an addition-only name.
+      .filter(
+        r =>
+          TOTAL_OPERATORS.has(r.name) ||
+          TOTAL_OPERATOR_SIGNATURES.has(`${r.name}(${r.left ?? ""},${r.right ?? ""})`),
+      );
 
     // Strictness is a catalog fact; take it from the catalog rather than
     // re-deriving it by execution. The table claims BOTH properties.
@@ -413,6 +426,16 @@ describe("totality tables, probed by execution", () => {
       ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
     ]);
     const offenders: string[] = [];
+    for (const key of TOTAL_OPERATOR_SIGNATURES) {
+      const name = key.slice(0, key.indexOf("("));
+      if (TOTAL_OPERATORS.has(name)) {
+        offenders.push(`${key} — the operator NAME already carries the claim`);
+      }
+      if (!signatures.some(s => s.table === "operator" &&
+          key === `${s.name}(${s.prefix ? "" : s.types[0]},${s.prefix ? s.types[0] : s.types[1]})`)) {
+        offenders.push(`${key} — not in the probed universe`);
+      }
+    }
     for (const key of STRICT_TOTAL_BUILTIN_SIGNATURES) {
       const name = key.slice(0, key.indexOf("("));
       if (nameTables.has(name)) {

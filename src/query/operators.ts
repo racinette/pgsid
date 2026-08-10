@@ -79,13 +79,6 @@ export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   // `inet & inet` across families and `bit & bit` at different widths are
   // the two that prove it.
   //
-  // Deliberately NOT here, though every row measured total: the
-  // geometry-only symbols (`<->`, `?#`, `<<|`, `|>>`, `~=`, `&<|`, `|&>`,
-  // `?-`, `<^`, `>^`, `?-|`, `?||`, `@-@`), the prefix math operators
-  // (`@`, `|/`, `||/`, `!!`) and the pattern-ops class comparisons
-  // (`~<~` and its three siblings). No application query writes them, and a
-  // claim that moves nothing costs the same to maintain as one that does.
-  //
   // These join TOTAL_OPERATORS only. STRICT_OPERATORS is a separate property
   // with a separate consumer — this file's founding lesson — and nothing
   // here has been measured for it.
@@ -101,6 +94,38 @@ export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   "^@",
   // Bitwise AND/OR over the integer types, bit strings and inet.
   "&", "|",
+  // -------------------------------------------------------------------------
+  // The REST of the operator surface (2026-08-09, second pass — "every
+  // operator, no exceptions"). The first pass left these on triage, that
+  // being a judgment about where to spend EFFORT rather than an argument for
+  // leaving convicted rows unclaimed; the effort was then spent. All 83
+  // remaining rows were probed individually against the DEGENERATE shapes the
+  // shared corpus lacks — a zero-length lseg, a zero-radius circle, a
+  // single-point polygon and path, horizontal and vertical lines — and the
+  // sweep convicted 82 and found one NULL, which is the whole reason the pass
+  // was worth running.
+  //
+  // `<->` is the one, and it is OUT: `path <-> path` is NULL whenever either
+  // path has a SINGLE POINT (`path_distance`; witnessed). Its other 25 rows
+  // are total, but a name cannot say so — and unlike `+`'s recorded hole
+  // there is no general case to protect here, so the whole symbol stays
+  // unclaimed rather than acquiring a PARTIAL_OVERLOADS excuse.
+  //
+  // Geometric position and containment: strictly-below/above, overlaps-above/
+  // below, intersects, is-horizontal/vertical/perpendicular/parallel, same-as.
+  "<<|", "|>>", "&<|", "|&>", "<^", ">^", "?#", "?-", "?-|", "?||", "~=",
+  // Prefix arithmetic: absolute value, square and cube root, tsquery
+  // negation, and the length of an lseg or path. `|/ (-1)` raises rather
+  // than answering NULL, which is the criterion, not an exception to it.
+  "@", "|/", "||/", "!!", "@-@",
+  // Text search: the deprecated two-argument match spellings.
+  "@@@",
+  // The pattern-ops class comparisons behind `text_pattern_ops` indexes.
+  "~<~", "~<=~", "~>~", "~>=~",
+  // The record-image comparisons (amcheck's, and REINDEX's). They compare
+  // byte images, so a NULL FIELD is part of the image rather than a NULL
+  // result — `ROW(1,NULL)::record *= ROW(1,NULL)::record` is true.
+  "*<", "*<=", "*=", "*<>", "*>", "*>=",
 ]);
 
 /**
@@ -156,6 +181,50 @@ export const PARTIAL_OVERLOADS: Record<string, string> = {
  */
 export const NON_TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set([
   "+(path,path)",
+]);
+
+/**
+ * The POSITIVE signature-keyed half (2026-08-09), completing the re-key for
+ * the operator surface: rows that are total under a symbol whose NAME cannot
+ * carry the claim, because a SIBLING row of the same symbol is witnessed
+ * NULL. `NON_TOTAL_OPERATOR_SIGNATURES` above is the same idea in the other
+ * direction — a hole in a claimed name — and the two are read together, this
+ * set granting and that one exempting.
+ *
+ * Four symbols needed it, and each is one witnessed row away from being
+ * claimable outright:
+ *
+ *   `@@` — `jsonb @@ jsonpath` is NULL for a strict path under `silent`, so
+ *          the name is out and `tsvector @@ tsquery`, the full-text search
+ *          match every application writes, was out with it.
+ *   `#`  — `line # line` and `lseg # lseg` are NULL for non-intersecting
+ *          operands, which took bitwise XOR on the integer types with them.
+ *   `##` — `lseg ## lseg` and `line ## lseg` are NULL (coincident and
+ *          zero-length operands respectively).
+ *   `<->`— `path <-> path` is NULL for a single-point path; the other 25
+ *          distance rows are total.
+ *
+ * A key is `name(left,right)` in format_type renderings, with an EMPTY left
+ * for a prefix operator — the spelling the operator capture and the surface
+ * work list both use.
+ */
+export const TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set([
+  // Text search match, and the geometric centre prefix.
+  "@@(tsvector,tsquery)", "@@(tsquery,tsvector)", "@@(text,text)", "@@(text,tsquery)",
+  "@@(,box)", "@@(,circle)", "@@(,lseg)", "@@(,polygon)",
+  // Bitwise XOR, box intersection, and the point-count prefix.
+  "#(integer,integer)", "#(bigint,bigint)", "#(smallint,smallint)", "#(bit,bit)",
+  "#(box,box)", "#(,path)", "#(,polygon)",
+  // Closest point — every row but the two witnessed ones.
+  "##(lseg,box)", "##(point,box)", "##(point,line)", "##(point,lseg)",
+  // Distance — every row but `path <-> path`.
+  "<->(box,box)", "<->(box,lseg)", "<->(box,point)", "<->(circle,circle)",
+  "<->(circle,point)", "<->(circle,polygon)", "<->(line,line)", "<->(line,lseg)",
+  "<->(line,point)", "<->(lseg,box)", "<->(lseg,line)", "<->(lseg,lseg)",
+  "<->(lseg,point)", "<->(path,point)", "<->(point,box)", "<->(point,circle)",
+  "<->(point,line)", "<->(point,lseg)", "<->(point,path)", "<->(point,point)",
+  "<->(point,polygon)", "<->(polygon,circle)", "<->(polygon,point)",
+  "<->(polygon,polygon)", "<->(tsquery,tsquery)",
 ]);
 
 /**

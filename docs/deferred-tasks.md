@@ -806,12 +806,46 @@ set turned out to be wrong for each half in opposite directions — and
 nothing in this batch was measured for strictness. The totality probe holds
 all of it: 38 operator names → 673 signatures, every one executed.
 
-Deliberately left, though every row measured total: the geometry-only
-symbols (`<->` alone is 26 rows), the prefix math operators (`@`, `|/`,
-`||/`, `!!`) and the pattern-ops class comparisons (`~<~` and siblings). No
-application query writes them, and a claim that moves nothing costs the
-same to maintain as one that does. Eight symbols stay barred by a witnessed
-row: `->`, `->>`, `#>`, `#>>`, `@?`, `@@`, `#`, `##`.
+**THE OPERATOR SURFACE IS CLOSED (2026-08-09, second pass): ZERO operator
+rows remain in the work list.** The first pass left the geometry-only
+symbols, the prefix math and the pattern-ops comparisons on triage; the
+user's correction is the one to keep — triage decides where to spend
+INVESTIGATION, and is not an argument for leaving convicted rows unclaimed.
+So all 83 remaining rows were probed individually against the DEGENERATE
+shapes the corpus lacks: a zero-length lseg, a zero-radius circle, a
+single-point polygon and path, horizontal and vertical lines. **That sweep
+paid for itself twice**, and both findings were rows about to be promoted
+on the corner corpus's silence:
+
+  - `path <-> path` is NULL whenever either path holds a SINGLE POINT
+    (`path_distance`), which is what keeps `<->` out of the name table.
+  - `line ## lseg` is NULL for a ZERO-LENGTH segment (`close_ls`) — and
+    only for a line with no horizontal component, so BOTH halves of that
+    combination had to enter the corpus before the machine could re-find
+    it.
+
+Both are witnessed. Four corpus values closed the gaps that hid them, each
+checked against the whole claimed surface first: the single-point path, the
+zero-length lseg, the vertical line, and `record`'s CAST spellings — an
+uncast `ROW(1,2)` is decomposed by the parser, so `ROW(1,2) *< ROW(1,2)`
+looked for `integer *< integer` and left all six record-image comparisons
+probed in name only.
+
+**`TOTAL_OPERATOR_SIGNATURES` completes the re-key** the charter decided for
+all nine tables: the POSITIVE signature-keyed half, read beside
+`NON_TOTAL_OPERATOR_SIGNATURES` — one granting where a name cannot, the
+other exempting where a name over-grants. Four symbols needed it, each one
+witnessed row away from being claimable outright, and one of them matters a
+great deal: `jsonb @@ jsonpath` is NULL under a strict path, and it had been
+holding `tsvector @@ tsquery` — the full-text search match — hostage to the
+shared name. Likewise `line # line` held bitwise XOR on the integers. Both
+loop-closers were extended to the new table, and the totality probe filters
+a signature-keyed symbol to exactly the rows its keys claim, the same way
+the function side treats an addition-only name.
+
+Final operator state: **0 no-null-found, 0 raised-everywhere, 0
+no-generator**, 19 witnessed, 12 volatile, everything else claimed and held
+by execution. It is the first of the four kinds to be finished.
 
 Surface after the session's five batches: claimed 1220, no-null-found 1526,
 null-witnessed 252, raised-everywhere 168, no-generator 754, volatile 281.

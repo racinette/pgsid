@@ -16,7 +16,11 @@ import {
   NEVER_NULL_WINDOW_SIGNATURES,
   STRICT_TOTAL_WINDOW_SIGNATURES,
 } from "../../../src/query/nullability-walk.js";
-import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
+import {
+  TOTAL_OPERATORS,
+  STRICT_OPERATORS,
+  TOTAL_OPERATOR_SIGNATURES,
+} from "../../../src/query/operators.js";
 import { cleanupPg } from "../../helpers/cleanup.js";
 import type {
   CatalogSnapshot,
@@ -390,7 +394,14 @@ describe("snapshotCatalog: functions and procedures", () => {
         .map(k => k.slice(0, k.indexOf("("))),
       ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
     ]);
-    const opNames = new Set([...TOTAL_OPERATORS, ...STRICT_OPERATORS]);
+    const opNames = new Set([
+      ...TOTAL_OPERATORS,
+      ...STRICT_OPERATORS,
+      // The signature-keyed operator claims scope themselves the same way
+      // the function-side additions do: the SYMBOL joins the capture so the
+      // typed dispatch can resolve the rows those keys name.
+      ...[...TOTAL_OPERATOR_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
+    ]);
 
     const capturedFn = new Set(s.builtinFunctionSignatures.map(sig => sig.name));
     for (const sig of s.builtinFunctionSignatures) {
