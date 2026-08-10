@@ -135,6 +135,11 @@ const FLOOR: string[] = [
   // every builtin scalar call since the function slice: priority 6b
   // resolves the captured kind='f' rows before the name checks
   "resolveBuiltinScalarTotality",
+  // every OVER call since the window re-key: priority 2b resolves the
+  // captured kind='w' rows against the two signature-keyed window tables,
+  // which is what separates `lag(x, 1, 0)` from `lag(x)`. The corpus
+  // reaches it through the window-function call sites in generator.ts
+  "resolveBuiltinWindowTotality",
   // mechanism C's strictness question since the same slice: the
   // SOME-quantified reading over the typed survivors, asked at every
   // binary operator the param walker descends

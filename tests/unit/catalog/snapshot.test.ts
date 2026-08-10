@@ -13,7 +13,8 @@ import {
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
-  NEVER_NULL_WINDOW_FNS,
+  NEVER_NULL_WINDOW_SIGNATURES,
+  STRICT_TOTAL_WINDOW_SIGNATURES,
 } from "../../../src/query/nullability-walk.js";
 import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
 import { cleanupPg } from "../../helpers/cleanup.js";
@@ -384,7 +385,9 @@ describe("snapshotCatalog: functions and procedures", () => {
     const s = await snapshotCatalog(pg);
     const fnNames = new Set([
       ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
-      ...NON_NULL_OVER_NONEMPTY_AGGREGATES, ...NEVER_NULL_WINDOW_FNS,
+      ...NON_NULL_OVER_NONEMPTY_AGGREGATES,
+      ...[...NEVER_NULL_WINDOW_SIGNATURES, ...STRICT_TOTAL_WINDOW_SIGNATURES]
+        .map(k => k.slice(0, k.indexOf("("))),
       ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
     ]);
     const opNames = new Set([...TOTAL_OPERATORS, ...STRICT_OPERATORS]);

@@ -1257,7 +1257,7 @@ const PROJECTIONS: Projection[] = [
     // zero rows, so it is NULL under `empty` and non-NULL wherever a group
     // exists. gfn_win is a USER window function — `CREATE FUNCTION … WINDOW`
     // is documented C-only and PostgreSQL runs a LANGUAGE sql one anyway
-    // (measured) — and it is deliberately absent from NEVER_NULL_WINDOW_FNS,
+    // (measured) — and it is deliberately absent from NEVER_NULL_WINDOW_SIGNATURES,
     // so the walk must fall through to conservative and the fall-through is
     // witnessed wherever t.name is NULL.
     key: "fn-agg-window",
