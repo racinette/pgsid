@@ -272,7 +272,7 @@ probe as the evidence bar.
 - `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 
-## no-null-found (1421: functions 1417, operators 0, aggregates 1, windows 3)
+## no-null-found (1306: functions 1302, operators 0, aggregates 1, windows 3)
 
 - `aclcontains(aclitem[],aclitem)`
 - `acldefault("char",oid)`
@@ -304,9 +304,6 @@ probe as the evidence bar.
 - `arraycontained(anyarray,anyarray)`
 - `arraycontains(anyarray,anyarray)`
 - `arrayoverlap(anyarray,anyarray)`
-- `bit(bigint,integer)`
-- `bit(bit,integer,boolean)`
-- `bit(integer,integer)`
 - `bit_out(bit)`
 - `bit_send(bit)`
 - `bitand(bit,bit)`
@@ -324,7 +321,6 @@ probe as the evidence bar.
 - `bitshiftright(bit,integer)`
 - `bittypmodout(integer)`
 - `bitxor(bit,bit)`
-- `bool(integer)`
 - `booland_statefunc(boolean,boolean)`
 - `booleq(boolean,boolean)`
 - `boolge(boolean,boolean)`
@@ -336,10 +332,6 @@ probe as the evidence bar.
 - `boolout(boolean)`
 - `boolsend(boolean)`
 - `bound_box(box,box)`
-- `box(circle)`
-- `box(point)`
-- `box(point,point)`
-- `box(polygon)`
 - `box_above(box,box)`
 - `box_above_eq(box,box)`
 - `box_add(box,point)`
@@ -369,9 +361,6 @@ probe as the evidence bar.
 - `box_same(box,box)`
 - `box_send(box)`
 - `box_sub(box,point)`
-- `bpchar("char")`
-- `bpchar(character,integer,boolean)`
-- `bpchar(name)`
 - `bpchar_larger(character,character)`
 - `bpchar_pattern_ge(character,character)`
 - `bpchar_pattern_gt(character,character)`
@@ -424,9 +413,6 @@ probe as the evidence bar.
 - `bttextcmp(text,text)`
 - `bttextnamecmp(text,name)`
 - `bttidcmp(tid,tid)`
-- `bytea(bigint)`
-- `bytea(integer)`
-- `bytea(smallint)`
 - `bytea_larger(bytea,bytea)`
 - `bytea_smaller(bytea,bytea)`
 - `byteacat(bytea,bytea)`
@@ -468,8 +454,6 @@ probe as the evidence bar.
 - `cashsmaller(money,money)`
 - `center(box)`
 - `center(circle)`
-- `char(integer)`
-- `char(text)`
 - `chareq("char","char")`
 - `charge("char","char")`
 - `chargt("char","char")`
@@ -480,13 +464,9 @@ probe as the evidence bar.
 - `charsend("char")`
 - `cideq(cid,cid)`
 - `cidout(cid)`
-- `cidr(inet)`
 - `cidr_out(cidr)`
 - `cidr_send(cidr)`
 - `cidsend(cid)`
-- `circle(box)`
-- `circle(point,double precision)`
-- `circle(polygon)`
 - `circle_above(circle,circle)`
 - `circle_add_pt(circle,point)`
 - `circle_below(circle,circle)`
@@ -526,8 +506,6 @@ probe as the evidence bar.
 - `database_to_xml(boolean,boolean,text)`
 - `database_to_xml_and_xmlschema(boolean,boolean,text)`
 - `database_to_xmlschema(boolean,boolean,text)`
-- `date(timestamp with time zone)`
-- `date(timestamp without time zone)`
 - `date_cmp(date,date)`
 - `date_cmp_timestamp(date,timestamp without time zone)`
 - `date_cmp_timestamptz(date,timestamp with time zone)`
@@ -559,7 +537,6 @@ probe as the evidence bar.
 - `date_send(date)`
 - `date_smaller(date,date)`
 - `datemultirange()`
-- `datemultirange(daterange)`
 - `daterange_canonical(daterange)`
 - `daterange_subdiff(date,date)`
 - `datetime_pl(date,time without time zone)`
@@ -610,11 +587,6 @@ probe as the evidence bar.
 - `enum_send(anyenum)`
 - `enum_smaller(anyenum,anyenum)`
 - `first_value(anyelement)`
-- `float4(bigint)`
-- `float4(double precision)`
-- `float4(integer)`
-- `float4(numeric)`
-- `float4(smallint)`
 - `float48div(real,double precision)`
 - `float48eq(real,double precision)`
 - `float48ge(real,double precision)`
@@ -642,11 +614,6 @@ probe as the evidence bar.
 - `float4smaller(real,real)`
 - `float4um(real)`
 - `float4up(real)`
-- `float8(bigint)`
-- `float8(integer)`
-- `float8(numeric)`
-- `float8(real)`
-- `float8(smallint)`
 - `float84div(double precision,real)`
 - `float84eq(double precision,real)`
 - `float84ge(double precision,real)`
@@ -766,12 +733,6 @@ probe as the evidence bar.
 - `inetnot(inet)`
 - `inetor(inet,inet)`
 - `inetpl(inet,bigint)`
-- `int2(bigint)`
-- `int2(bytea)`
-- `int2(double precision)`
-- `int2(integer)`
-- `int2(numeric)`
-- `int2(real)`
 - `int24div(smallint,integer)`
 - `int24eq(smallint,integer)`
 - `int24ge(smallint,integer)`
@@ -818,15 +779,6 @@ probe as the evidence bar.
 - `int2um(smallint)`
 - `int2up(smallint)`
 - `int2xor(smallint,smallint)`
-- `int4("char")`
-- `int4(bigint)`
-- `int4(bit)`
-- `int4(boolean)`
-- `int4(bytea)`
-- `int4(double precision)`
-- `int4(numeric)`
-- `int4(real)`
-- `int4(smallint)`
 - `int42div(integer,smallint)`
 - `int42eq(integer,smallint)`
 - `int42ge(integer,smallint)`
@@ -863,7 +815,6 @@ probe as the evidence bar.
 - `int4mod(integer,integer)`
 - `int4mul(integer,integer)`
 - `int4multirange()`
-- `int4multirange(int4range)`
 - `int4ne(integer,integer)`
 - `int4not(integer)`
 - `int4or(integer,integer)`
@@ -878,14 +829,6 @@ probe as the evidence bar.
 - `int4um(integer)`
 - `int4up(integer)`
 - `int4xor(integer,integer)`
-- `int8(bit)`
-- `int8(bytea)`
-- `int8(double precision)`
-- `int8(integer)`
-- `int8(numeric)`
-- `int8(oid)`
-- `int8(real)`
-- `int8(smallint)`
 - `int82div(bigint,smallint)`
 - `int82eq(bigint,smallint)`
 - `int82ge(bigint,smallint)`
@@ -926,7 +869,6 @@ probe as the evidence bar.
 - `int8mod(bigint,bigint)`
 - `int8mul(bigint,bigint)`
 - `int8multirange()`
-- `int8multirange(int8range)`
 - `int8ne(bigint,bigint)`
 - `int8not(bigint)`
 - `int8or(bigint,bigint)`
@@ -946,8 +888,6 @@ probe as the evidence bar.
 - `inter_lb(line,box)`
 - `inter_sb(lseg,box)`
 - `inter_sl(lseg,line)`
-- `interval(interval,integer)`
-- `interval(time without time zone)`
 - `interval_cmp(interval,interval)`
 - `interval_div(interval,double precision)`
 - `interval_eq(interval,interval)`
@@ -1022,8 +962,6 @@ probe as the evidence bar.
 - `line_perp(line,line)`
 - `line_send(line)`
 - `line_vertical(line)`
-- `lseg(box)`
-- `lseg(point,point)`
 - `lseg_center(lseg)`
 - `lseg_distance(lseg,lseg)`
 - `lseg_eq(lseg,lseg)`
@@ -1040,7 +978,6 @@ probe as the evidence bar.
 - `lseg_perp(lseg,lseg)`
 - `lseg_send(lseg)`
 - `lseg_vertical(lseg)`
-- `macaddr8(macaddr)`
 - `macaddr8_and(macaddr8,macaddr8)`
 - `macaddr8_cmp(macaddr8,macaddr8)`
 - `macaddr8_eq(macaddr8,macaddr8)`
@@ -1066,9 +1003,6 @@ probe as the evidence bar.
 - `macaddr_or(macaddr,macaddr)`
 - `macaddr_out(macaddr)`
 - `macaddr_send(macaddr)`
-- `money(bigint)`
-- `money(integer)`
-- `money(numeric)`
 - `mul_d_interval(double precision,interval)`
 - `multirange_adjacent_multirange(anymultirange,anymultirange)`
 - `multirange_adjacent_range(anymultirange,anyrange)`
@@ -1100,9 +1034,6 @@ probe as the evidence bar.
 - `multirange_send(anymultirange)`
 - `multirange_union(anymultirange,anymultirange)`
 - `mxid_age(xid)`
-- `name(character varying)`
-- `name(character)`
-- `name(text)`
 - `nameconcatoid(name,oid)`
 - `nameeq(name,name)`
 - `nameeqtext(name,text)`
@@ -1146,13 +1077,6 @@ probe as the evidence bar.
 - `npoints(path)`
 - `npoints(polygon)`
 - `nth_value(anyelement,integer)`
-- `numeric(bigint)`
-- `numeric(double precision)`
-- `numeric(integer)`
-- `numeric(money)`
-- `numeric(numeric,integer)`
-- `numeric(real)`
-- `numeric(smallint)`
 - `numeric_abs(numeric)`
 - `numeric_add(numeric,numeric)`
 - `numeric_cmp(numeric,numeric)`
@@ -1182,9 +1106,7 @@ probe as the evidence bar.
 - `numeric_uplus(numeric)`
 - `numerictypmodout(integer)`
 - `nummultirange()`
-- `nummultirange(numrange)`
 - `numrange_subdiff(numeric,numeric)`
-- `oid(bigint)`
 - `oideq(oid,oid)`
 - `oidge(oid,oid)`
 - `oidgt(oid,oid)`
@@ -1210,7 +1132,6 @@ probe as the evidence bar.
 - `on_ps(point,lseg)`
 - `on_sb(lseg,box)`
 - `on_sl(lseg,line)`
-- `path(polygon)`
 - `path_add_pt(path,point)`
 - `path_contain_pt(path,point)`
 - `path_div_pt(path,point)`
@@ -1348,11 +1269,6 @@ probe as the evidence bar.
 - `pg_wal_lsn_diff(pg_lsn,pg_lsn)`
 - `pg_walfile_name(pg_lsn)`
 - `pg_walfile_name_offset(pg_lsn)`
-- `point(box)`
-- `point(circle)`
-- `point(double precision,double precision)`
-- `point(lseg)`
-- `point(polygon)`
 - `point_above(point,point)`
 - `point_add(point,point)`
 - `point_below(point,point)`
@@ -1386,10 +1302,6 @@ probe as the evidence bar.
 - `poly_right(polygon,polygon)`
 - `poly_same(polygon,polygon)`
 - `poly_send(polygon)`
-- `polygon(box)`
-- `polygon(circle)`
-- `polygon(integer,circle)`
-- `polygon(path)`
 - `popen(path)`
 - `postgresql_fdw_validator(text[],oid)`
 - `pt_contained_circle(point,circle)`
@@ -1440,7 +1352,6 @@ probe as the evidence bar.
 - `record_out(record)`
 - `record_send(record)`
 - `record_smaller(record,record)`
-- `regclass(text)`
 - `regconfigout(regconfig)`
 - `regconfigsend(regconfig)`
 - `regexp_match(text,text,text)`
@@ -1450,11 +1361,6 @@ probe as the evidence bar.
 - `row_security_active(oid)`
 - `slope(point,point)`
 - `spg_poly_quad_compress(polygon)`
-- `text("char")`
-- `text(boolean)`
-- `text(character)`
-- `text(inet)`
-- `text(name)`
 - `text_ge(text,text)`
 - `text_gt(text,text)`
 - `text_larger(text,text)`
@@ -1496,9 +1402,6 @@ probe as the evidence bar.
 - `tidout(tid)`
 - `tidsend(tid)`
 - `tidsmaller(tid,tid)`
-- `time(interval)`
-- `time(time with time zone)`
-- `time(time without time zone,integer)`
 - `time_cmp(time without time zone,time without time zone)`
 - `time_eq(time without time zone,time without time zone)`
 - `time_ge(time without time zone,time without time zone)`
@@ -1516,10 +1419,6 @@ probe as the evidence bar.
 - `time_send(time without time zone)`
 - `time_smaller(time without time zone,time without time zone)`
 - `timedate_pl(time without time zone,date)`
-- `timestamp(date)`
-- `timestamp(date,time without time zone)`
-- `timestamp(timestamp with time zone)`
-- `timestamp(timestamp without time zone,integer)`
 - `timestamp_cmp(timestamp without time zone,timestamp without time zone)`
 - `timestamp_cmp_date(timestamp without time zone,date)`
 - `timestamp_cmp_timestamptz(timestamp without time zone,timestamp with time zone)`
@@ -1551,11 +1450,6 @@ probe as the evidence bar.
 - `timestamp_send(timestamp without time zone)`
 - `timestamp_smaller(timestamp without time zone,timestamp without time zone)`
 - `timestamptypmodout(integer)`
-- `timestamptz(date)`
-- `timestamptz(date,time with time zone)`
-- `timestamptz(date,time without time zone)`
-- `timestamptz(timestamp with time zone,integer)`
-- `timestamptz(timestamp without time zone)`
 - `timestamptz_cmp(timestamp with time zone,timestamp with time zone)`
 - `timestamptz_cmp_date(timestamp with time zone,date)`
 - `timestamptz_cmp_timestamp(timestamp with time zone,timestamp without time zone)`
@@ -1588,8 +1482,6 @@ probe as the evidence bar.
 - `timestamptz_smaller(timestamp with time zone,timestamp with time zone)`
 - `timestamptztypmodout(integer)`
 - `timetypmodout(integer)`
-- `timetz(time with time zone,integer)`
-- `timetz(time without time zone)`
 - `timetz_cmp(time with time zone,time with time zone)`
 - `timetz_eq(time with time zone,time with time zone)`
 - `timetz_ge(time with time zone,time with time zone)`
@@ -1615,7 +1507,6 @@ probe as the evidence bar.
 - `ts_match_vq(tsvector,tsquery)`
 - `ts_rewrite(tsquery,tsquery,tsquery)`
 - `tsmultirange()`
-- `tsmultirange(tsrange)`
 - `tsq_mcontained(tsquery,tsquery)`
 - `tsq_mcontains(tsquery,tsquery)`
 - `tsquery_and(tsquery,tsquery)`
@@ -1634,7 +1525,6 @@ probe as the evidence bar.
 - `tsquerysend(tsquery)`
 - `tsrange_subdiff(timestamp without time zone,timestamp without time zone)`
 - `tstzmultirange()`
-- `tstzmultirange(tstzrange)`
 - `tstzrange_subdiff(timestamp with time zone,timestamp with time zone)`
 - `tsvector_cmp(tsvector,tsvector)`
 - `tsvector_concat(tsvector,tsvector)`
@@ -1659,7 +1549,6 @@ probe as the evidence bar.
 - `uuid_ne(uuid,uuid)`
 - `uuid_out(uuid)`
 - `uuid_send(uuid)`
-- `varbit(bit varying,integer,boolean)`
 - `varbit_out(bit varying)`
 - `varbit_send(bit varying)`
 - `varbitcmp(bit varying,bit varying)`
@@ -1670,13 +1559,10 @@ probe as the evidence bar.
 - `varbitlt(bit varying,bit varying)`
 - `varbitne(bit varying,bit varying)`
 - `varbittypmodout(integer)`
-- `varchar(character varying,integer,boolean)`
-- `varchar(name)`
 - `varcharout(character varying)`
 - `varcharsend(character varying)`
 - `varchartypmodout(integer)`
 - `width(box)`
-- `xid(xid8)`
 - `xid8_larger(xid8,xid8)`
 - `xid8_smaller(xid8,xid8)`
 - `xid8cmp(xid8,xid8)`
@@ -1694,7 +1580,6 @@ probe as the evidence bar.
 - `xidneqint4(xid,integer)`
 - `xidout(xid)`
 - `xidsend(xid)`
-- `xml(text)`
 
 ## raised-everywhere (162: functions 162, operators 0, aggregates 0, windows 0)
 

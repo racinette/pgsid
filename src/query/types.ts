@@ -521,6 +521,18 @@ export interface NullabilityCatalog {
   ): { kind: "always" | "strict-total" | "nullable" | "unknown" };
 
   /**
+   * Is a cast from these source types to this target total? Read from
+   * `pg_cast` and the function verdict tables, so it answers every cast
+   * rather than a curated list of the NULL-capable ones. "unknown" is the
+   * pair pg_cast does not have — a user-defined cast — and leaves the walk
+   * on its previous reading.
+   */
+  resolveCastTotality(
+    sourceTypes: readonly string[] | null,
+    target: string,
+  ): "total" | "nullable" | "unknown";
+
+  /**
    * The WITHIN GROUP dispatch's row facts, keyed on `pg_aggregate.aggkind`
    * from the capture — the CLASS claims the two retired name tables
    * mirrored: hypothetical-set is total by class, ordered-set follows the

@@ -806,6 +806,48 @@ set turned out to be wrong for each half in opposite directions — and
 nothing in this batch was measured for strictness. The totality probe holds
 all of it: 38 operator names → 673 signatures, every one executed.
 
+**A RANK-1 UNSOUNDNESS, FOUND BY THE CLUSTER SWEEP AND FIXED (2026-08-09):
+a cast does NOT preserve its argument's nullability.** The walk's `TypeCast`
+branch concluded "cast preserves arg nullability" and that is false for ten
+pg_cast rows, on input no application would call exotic:
+
+    SELECT ts::time  FROM t;   -- engine: notNull, PostgreSQL: NULL ('infinity')
+    SELECT j::int4   FROM t;   -- engine: notNull, PostgreSQL: NULL ('null'::jsonb)
+
+`ts` and `j` are NOT NULL columns; the NULLs are the CAST's own. The ten are
+the seven jsonb → scalar conversions (a JSON null becomes a SQL NULL) and
+the three timestamp → time ones (an infinite timestamp has no time of day).
+
+**Why a whole session of function and operator work could not reach it**:
+`x::time` parses as a `TypeCast`, never a `FuncCall`, so it does not enter
+the builtin dispatch where every other totality question is answered. It
+surfaced only because the cluster methodology cuts by CATALOG ROLE rather
+than by name — `pg_cast.castfunc` is a role, and sweeping it reaches
+functions by the job PostgreSQL gives them instead of by how a query spells
+them. That is the argument for finishing the role sweep rather than the
+reverse.
+
+**Fixed from the CAPTURE rather than a list** (the user's call, and the more
+general one): `CatalogSnapshot.builtinCasts` holds every pg_cast row with its
+implementation function's signature, and `resolveCastTotality` answers a cast
+by asking the SAME verdict tables the function dispatch asks. So every future
+NULL-capable cast is answered without anybody maintaining a list of the ones
+somebody noticed. A `castfunc` of 0 — binary-coercible or an I/O round trip —
+computes nothing and is total by construction. A pair pg_cast does not carry
+is "unknown" and keeps the old reading, so this NARROWS a wrong claim rather
+than withdrawing every cast's.
+
+The soundness fix would have been a precision regression on its own —
+`n::integer` reads nullable if `int4(numeric)` carries no claim — so the
+`cast` role sweep's convictions landed with it: 24 cast function NAMES and 57
+SIGNATURES, the split falling exactly where the family does (`int4(numeric)`
+total, `int4(jsonb)` witnessed). Measured after: `ts::date` notNull,
+`ts::time` nullable, in the same query. Pinned by `cast-non-total.sql`; the
+jsonb half is `cast-jsonb-scalar.sql`, which carries an explicit `@raises` /
+`@no-rows` pair because every shared `events` row holds a jsonb OBJECT and
+casting one RAISES rather than returning the NULL the fixture is about — the
+execution oracle's gap, declared rather than left silent.
+
 **THE OPERATOR SURFACE IS CLOSED (2026-08-09, second pass): ZERO operator
 rows remain in the work list.** The first pass left the geometry-only
 symbols, the prefix math and the pattern-ops comparisons on triage; the
