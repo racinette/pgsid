@@ -12,6 +12,7 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
+  SWEPT_TOTAL_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_SIGNATURES,
   STRICT_TOTAL_WINDOW_SIGNATURES,
@@ -393,6 +394,7 @@ describe("snapshotCatalog: functions and procedures", () => {
       ...[...NEVER_NULL_WINDOW_SIGNATURES, ...STRICT_TOTAL_WINDOW_SIGNATURES]
         .map(k => k.slice(0, k.indexOf("("))),
       ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
+      ...[...SWEPT_TOTAL_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
     ]);
     const opNames = new Set([
       ...TOTAL_OPERATORS,

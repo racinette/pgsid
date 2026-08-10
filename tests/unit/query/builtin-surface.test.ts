@@ -6,6 +6,7 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
+  SWEPT_TOTAL_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_SIGNATURES,
   STRICT_TOTAL_WINDOW_SIGNATURES,
@@ -150,7 +151,11 @@ describe("builtin scalar surface, witnessed or classified", () => {
     for (const r of rows) {
       const key = `${r.name}(${r.types.join(",")})`;
       sigKind.set(key, "function");
-      if (claimedNames.has(r.name) || STRICT_TOTAL_BUILTIN_SIGNATURES.has(key)) {
+      if (
+        claimedNames.has(r.name) ||
+        STRICT_TOTAL_BUILTIN_SIGNATURES.has(key) ||
+        SWEPT_TOTAL_SIGNATURES.has(key)
+      ) {
         category.set(key, "claimed");
         continue;
       }
@@ -616,12 +621,18 @@ describe("builtin scalar surface, witnessed or classified", () => {
   });
 
   it("actually evaluated a substantial surface", () => {
-    // The guard against the probe silently covering nothing: witnessing plus
-    // the work list must together dwarf the claimed set.
-    const evaluated = [...category.values()].filter(
-      c => c === "null-witnessed" || c === "no-null-found",
+    // The guard against the probe silently covering nothing. It used to read
+    // "witnessing plus the work list must dwarf the claimed set", and that
+    // premise INVERTED once the cluster sweep promoted most of the surface:
+    // the rows did not stop being executed, they moved into `claimed`, where
+    // the totality probe executes them instead of this suite. So the count
+    // that matters is every row some suite decides by RUNNING it — claimed,
+    // witnessed, or on the work list — against the ones no execution reaches
+    // (no-generator, volatile, raised-everywhere).
+    const decided = [...category.values()].filter(
+      c => c === "claimed" || c === "null-witnessed" || c === "no-null-found",
     ).length;
-    expect(evaluated).toBeGreaterThan(500);
+    expect(decided).toBeGreaterThan(500);
   });
 
   it("every claimed aggregate and window row survives its own claim's conditions", () => {
@@ -640,7 +651,10 @@ describe("builtin scalar surface, witnessed or classified", () => {
     // only because an addition's OTHER rows still classify; reading an
     // addition's name as claimed made this assertion vacuous.
     const offenders = [...nullWitness.keys()].filter(
-      k => STRICT_TOTAL_BUILTIN_SIGNATURES.has(k) || TOTAL_OPERATOR_SIGNATURES.has(k),
+      k =>
+        STRICT_TOTAL_BUILTIN_SIGNATURES.has(k) ||
+        SWEPT_TOTAL_SIGNATURES.has(k) ||
+        TOTAL_OPERATOR_SIGNATURES.has(k),
     );
     expect(offenders).toEqual([]);
   });

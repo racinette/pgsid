@@ -806,6 +806,53 @@ set turned out to be wrong for each half in opposite directions — and
 nothing in this batch was measured for strictness. The totality probe holds
 all of it: 38 operator names → 673 signatures, every one executed.
 
+**THE WORK LIST IS EMPTY BUT FOR NINE ROWS (2026-08-09): 1832 → 9.** The
+remaining clusters went through `tests/probe/cluster-sweep.ts` by catalog
+ROLE — `pg_amproc` 158, `pg_type`'s I/O 123, `pg_aggregate`'s support 75,
+`pg_cast` 107, `pg_range` 9, `pg_operator.oprcode` 748, and the 633 rows no
+role claims — every row probed against the corner corpus plus the sweep's
+degenerate staging values, never a sample. 1292 landed in
+`SWEPT_TOTAL_SIGNATURES`, a table kept SEPARATE from the curated ones by
+decision: those are an argument, each name there because somebody reasoned
+about it, and burying that under a thousand rows nobody argued about
+individually would cost the comments their meaning. Signature-keyed without
+exception, because a name-level claim would re-import exactly the
+family-resemblance reasoning the sweep exists to refute.
+
+**The oprcode cluster is the one worth reading.** Its argument is not
+resemblance but IDENTITY: each of those 748 rows is the implementation of an
+operator whose totality was convicted individually one batch earlier. The
+sweep then found 16 NULL-capable, and every single one backs an operator
+already witnessed NULL — `close_ls`→`##(line,lseg)`,
+`path_add`→`+(path,path)`, `json_object_field`→`->(json,text)`. Two
+independent derivations agreeing across 748 rows is the strongest evidence
+this surface has produced.
+
+**Two guards fired, and both were right to.** The witness corpus's
+loop-closer refused `current_schema()`: the sweep convicted it, but its NULL
+route is `search_path` state rather than input, and a hand fixture had
+witnessed it — the hand witness outranks the sweep's silence, which is the
+whole reason that assertion exists. And the surface suite's "actually
+evaluated a substantial surface" guard failed at 270, because its premise
+INVERTED: the rows did not stop being executed, they moved into `claimed`,
+where the totality probe runs them instead. Re-based on every row some suite
+decides by RUNNING it, with the migration recorded rather than the threshold
+quietly lowered.
+
+The sweep also showed a staged value can HIDE a row as well as convict one:
+its money value sits at the type's negative extreme, every combination
+overflowed, and the three `cash_div_int*` rows came back all-raised. They
+are claimed on the corner corpus's evidence instead, with that noted.
+
+**What the nine are**, and none is an open question: two are the poison
+family (`convert_to`/`convert_from`, permanently skipped), four are
+hand-witnessed past what the machine can reach (`current_schema()`,
+`regexp_match`'s three-argument row, `regexp_substr`'s five- and
+six-argument ones), and three are window rows the walk decides at the FRAME
+rather than from a table (`first_value`, `last_value` under the default
+frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
+unlike `lag`/`lead` it has no DEFAULT argument to answer with).
+
 **A RANK-1 UNSOUNDNESS, FOUND BY THE CLUSTER SWEEP AND FIXED (2026-08-09):
 a cast does NOT preserve its argument's nullability.** The walk's `TypeCast`
 branch concluded "cast preserves arg nullability" and that is false for ten

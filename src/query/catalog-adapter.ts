@@ -27,6 +27,7 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
+  SWEPT_TOTAL_SIGNATURES,
   NEVER_NULL_WINDOW_SIGNATURES,
   STRICT_TOTAL_WINDOW_SIGNATURES,
 } from "./nullability-walk.js";
@@ -1543,7 +1544,8 @@ export async function buildNullabilityCatalog(
       return ALWAYS_NOT_NULL_BUILTINS.has(name) ||
         FIRST_ARG_BUILTINS.has(name) ||
         STRICT_TOTAL_BUILTINS.has(name) ||
-        STRICT_TOTAL_BUILTIN_SIGNATURES.has(func)
+        STRICT_TOTAL_BUILTIN_SIGNATURES.has(func) ||
+        SWEPT_TOTAL_SIGNATURES.has(func)
         ? ("total" as const)
         : ("nullable" as const);
     });
@@ -1574,7 +1576,8 @@ export async function buildNullabilityCatalog(
       if (ALWAYS_NOT_NULL_BUILTINS.has(r.name)) return "always";
       if (FIRST_ARG_BUILTINS.has(r.name)) return "first-arg";
       if (STRICT_TOTAL_BUILTINS.has(r.name)) return "strict-total";
-      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${r.name}(${r.args.join(",")})`)) {
+      const key = `${r.name}(${r.args.join(",")})`;
+      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(key) || SWEPT_TOTAL_SIGNATURES.has(key)) {
         return "strict-total";
       }
       return null;
