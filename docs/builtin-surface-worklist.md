@@ -321,7 +321,7 @@ probe as the evidence bar.
 - `regexp_substr(text,text,integer,integer,text)`
 - `regexp_substr(text,text,integer,integer,text,integer)`
 
-## raised-everywhere (171: functions 171, operators 0, aggregates 0, windows 0)
+## raised-everywhere (152: functions 152, operators 0, aggregates 0, windows 0)
 
 - `aclinsert(aclitem[],aclitem)` — e.g. `pg_catalog.aclinsert(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
 - `aclitemin(cstring)` — e.g. `pg_catalog.aclitemin('abc'::cstring)` raises
@@ -382,34 +382,15 @@ probe as the evidence bar.
 - `fmgr_internal_validator(oid)` — e.g. `pg_catalog.fmgr_internal_validator(0::oid)` raises
 - `fmgr_sql_validator(oid)` — e.g. `pg_catalog.fmgr_sql_validator(0::oid)` raises
 - `gtsvectorin(cstring)` — e.g. `pg_catalog.gtsvectorin('abc'::cstring)` raises
-- `has_column_privilege(name,text,smallint,text)` — e.g. `pg_catalog.has_column_privilege(''::name, 'abc', 1::smallint, 'abc')` raises
-- `has_column_privilege(name,text,text,text)` — e.g. `pg_catalog.has_column_privilege(''::name, 'abc', 'abc', 'abc')` raises
-- `has_column_privilege(oid,text,smallint,text)` — e.g. `pg_catalog.has_column_privilege(0::oid, 'abc', 1::smallint, 'abc')` raises
-- `has_column_privilege(oid,text,text,text)` — e.g. `pg_catalog.has_column_privilege(0::oid, 'abc', 'abc', 'abc')` raises
-- `has_column_privilege(text,smallint,text)` — e.g. `pg_catalog.has_column_privilege('abc', 1::smallint, 'abc')` raises
-- `has_column_privilege(text,text,text)` — e.g. `pg_catalog.has_column_privilege('abc', 'abc', 'abc')` raises
-- `has_database_privilege(name,text,text)` — e.g. `pg_catalog.has_database_privilege(''::name, 'abc', 'abc')` raises
-- `has_database_privilege(oid,text,text)` — e.g. `pg_catalog.has_database_privilege(0::oid, 'abc', 'abc')` raises
-- `has_database_privilege(text,text)` — e.g. `pg_catalog.has_database_privilege('abc', 'abc')` raises
 - `has_foreign_data_wrapper_privilege(name,text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(''::name, 'abc', 'abc')` raises
 - `has_foreign_data_wrapper_privilege(oid,text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(0::oid, 'abc', 'abc')` raises
 - `has_foreign_data_wrapper_privilege(text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege('abc', 'abc')` raises
-- `has_function_privilege(oid,text,text)` — e.g. `pg_catalog.has_function_privilege(0::oid, 'abc', 'abc')` raises
-- `has_language_privilege(name,text,text)` — e.g. `pg_catalog.has_language_privilege(''::name, 'abc', 'abc')` raises
-- `has_language_privilege(oid,text,text)` — e.g. `pg_catalog.has_language_privilege(0::oid, 'abc', 'abc')` raises
-- `has_language_privilege(text,text)` — e.g. `pg_catalog.has_language_privilege('abc', 'abc')` raises
-- `has_schema_privilege(name,text,text)` — e.g. `pg_catalog.has_schema_privilege(''::name, 'abc', 'abc')` raises
-- `has_schema_privilege(oid,text,text)` — e.g. `pg_catalog.has_schema_privilege(0::oid, 'abc', 'abc')` raises
-- `has_schema_privilege(text,text)` — e.g. `pg_catalog.has_schema_privilege('abc', 'abc')` raises
 - `has_sequence_privilege(name,text,text)` — e.g. `pg_catalog.has_sequence_privilege(''::name, 'abc', 'abc')` raises
 - `has_sequence_privilege(oid,text,text)` — e.g. `pg_catalog.has_sequence_privilege(0::oid, 'abc', 'abc')` raises
 - `has_sequence_privilege(text,text)` — e.g. `pg_catalog.has_sequence_privilege('abc', 'abc')` raises
 - `has_server_privilege(name,text,text)` — e.g. `pg_catalog.has_server_privilege(''::name, 'abc', 'abc')` raises
 - `has_server_privilege(oid,text,text)` — e.g. `pg_catalog.has_server_privilege(0::oid, 'abc', 'abc')` raises
 - `has_server_privilege(text,text)` — e.g. `pg_catalog.has_server_privilege('abc', 'abc')` raises
-- `has_tablespace_privilege(name,text,text)` — e.g. `pg_catalog.has_tablespace_privilege(''::name, 'abc', 'abc')` raises
-- `has_tablespace_privilege(oid,text,text)` — e.g. `pg_catalog.has_tablespace_privilege(0::oid, 'abc', 'abc')` raises
-- `has_tablespace_privilege(text,text)` — e.g. `pg_catalog.has_tablespace_privilege('abc', 'abc')` raises
 - `index_am_handler_in(cstring)` — e.g. `pg_catalog.index_am_handler_in('abc'::cstring)` raises
 - `inet_in(cstring)` — e.g. `pg_catalog.inet_in('abc'::cstring)` raises
 - `int4_avg_combine(bigint[],bigint[])` — e.g. `pg_catalog.int4_avg_combine('{}'::int8[], '{}'::int8[])` raises

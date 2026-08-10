@@ -26,6 +26,7 @@ import {
   srfQuery,
   nullTestExpr,
   variadicArgTypes,
+  COHERENT_CALLS,
 } from "./probe-values.js";
 
 /** One row under one table's claim; `prefix` marks a unary operator. */
@@ -310,6 +311,10 @@ describe("totality tables, probed by execution", () => {
               : `${qualify(sig.name)}(${args.join(", ")})`;
           mine.push(nullTestExpr(expr, !!sig.composite && sig.ncols === undefined));
         }
+      }
+      for (const c of COHERENT_CALLS[`${sig.name}(${sig.types.join(",")})`] ?? []) {
+        mine.push(nullTestExpr(`${qualify(sig.name)}(${c.join(", ")})`,
+          !!sig.composite && sig.ncols === undefined));
       }
       if (generatorMissing && mine.length === 0) stats.skipped++;
       perSignature.set(sig, mine);

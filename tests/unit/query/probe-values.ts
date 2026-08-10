@@ -337,6 +337,65 @@ export const PROBE_FN_SQL = `
   END $probe$;`;
 
 /**
+ * Argument lists known to be valid TOGETHER, appended to the generated
+ * combinations for ONE signature.
+ *
+ * The corpus is keyed by TYPE, which is the right shape for almost
+ * everything: a value good for `text` is good in any text position. It breaks
+ * where a row needs several arguments valid AT ONCE and no per-type choice
+ * can be right in every position — `has_column_privilege(name, text, text,
+ * text)` wants a role, a relation, a column of THAT relation and a privilege,
+ * and one `text` list cannot be a relation and a privilege simultaneously.
+ * Past the combination cap the sampler varies one argument from a baseline,
+ * so every combination it builds has at least one invalid member and the row
+ * raises everywhere — probed in name only, with the corpus holding every
+ * value it needed.
+ *
+ * This is the general answer to that, and it arrives late: `date_trunc(text,
+ * timestamptz, text)` is the same problem and was answered three times by
+ * RAISING `MAX_COMBOS` instead, which works only while the cross product
+ * stays affordable and cost a cap increase each time the text corpus grew.
+ * Its entry is here too, so that row's coverage no longer depends on the cap.
+ *
+ * An entry is EVIDENCE, not a shortcut: these are calls, run like any other
+ * combination, and a NULL from one witnesses exactly as loudly.
+ */
+export const COHERENT_CALLS: Record<string, readonly (readonly string[])[]> = {
+  // The unit and the timezone must be valid together — the signature the
+  // combination cap was sized for, twice.
+  "date_trunc(text,timestamp with time zone,text)": [
+    ["'day'", "'2020-01-01Z'::timestamptz", "'UTC'"],
+    ["'hour'", "'infinity'::timestamptz", "'UTC'"],
+  ],
+  // A role, an object of the right KIND, and a privilege that kind accepts.
+  // `pg_class`, `pg_catalog`, `sql` and `pg_default` exist in every
+  // PostgreSQL; the role is the one PGlite runs as.
+  "has_column_privilege(name,text,smallint,text)": [["'postgres'::name", "'pg_class'", "1::smallint", "'SELECT'"]],
+  "has_column_privilege(name,text,text,text)": [["'postgres'::name", "'pg_class'", "'relname'", "'SELECT'"]],
+  "has_column_privilege(oid,text,smallint,text)": [["'postgres'::regrole::oid", "'pg_class'", "1::smallint", "'SELECT'"]],
+  "has_column_privilege(oid,text,text,text)": [["'postgres'::regrole::oid", "'pg_class'", "'relname'", "'SELECT'"]],
+  "has_column_privilege(text,smallint,text)": [["'pg_class'", "1::smallint", "'SELECT'"]],
+  "has_column_privilege(text,text,text)": [["'pg_class'", "'relname'", "'SELECT'"]],
+  "has_database_privilege(name,text,text)": [["'postgres'::name", "current_database()", "'CONNECT'"]],
+  "has_database_privilege(oid,text,text)": [["'postgres'::regrole::oid", "current_database()", "'CONNECT'"]],
+  "has_database_privilege(text,text)": [["current_database()", "'CONNECT'"]],
+  "has_function_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'upper(text)'", "'EXECUTE'"]],
+  "has_language_privilege(name,text,text)": [["'postgres'::name", "'sql'", "'USAGE'"]],
+  "has_language_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'sql'", "'USAGE'"]],
+  "has_language_privilege(text,text)": [["'sql'", "'USAGE'"]],
+  "has_schema_privilege(name,text,text)": [["'postgres'::name", "'pg_catalog'", "'USAGE'"]],
+  "has_schema_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'pg_catalog'", "'USAGE'"]],
+  "has_schema_privilege(text,text)": [["'pg_catalog'", "'USAGE'"]],
+  "has_tablespace_privilege(name,text,text)": [["'postgres'::name", "'pg_default'", "'CREATE'"]],
+  "has_tablespace_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'pg_default'", "'CREATE'"]],
+  "has_tablespace_privilege(text,text)": [["'pg_default'", "'CREATE'"]],
+  // No entry for the foreign-data-wrapper, foreign-server or sequence
+  // privileges: a fresh PGlite has none of those objects, so the blocker is
+  // the DATABASE rather than the corpus, and they are pinned under the
+  // live-object reason instead.
+};
+
+/**
  * The argument types to build a call from, given the declared `proargtypes`
  * and `provariadic`'s ELEMENT type (null when the row is not variadic).
  *
