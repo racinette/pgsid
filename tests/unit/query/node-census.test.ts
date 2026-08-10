@@ -112,7 +112,10 @@ const CLASSIFICATION: Record<string, Classification> = {
   SubLink: { category: "handled", why: "EXISTS/ANY/ALL/ARRAY/scalar subqueries" },
   RowExpr: { category: "handled", why: "row constructor is never NULL" },
   A_ArrayExpr: { category: "handled", why: "array constructor is never NULL" },
-  TypeCast: { category: "handled", why: "NOT NULL domain target, else preserves arg" },
+  TypeCast: {
+    category: "handled",
+    why: "NOT NULL domain target, else the CAST's own totality — resolved through pg_cast to the implementation function's verdict. It does NOT simply preserve its argument, which is what this entry said until the cast finding: `'infinity'::timestamp::time` and `'null'::jsonb::int4` are NULL from non-null input",
+  },
   CollateClause: { category: "handled", why: "preserves its argument" },
   NamedArgExpr: { category: "handled", why: "unwrapped, with call-order reordering" },
   A_Indirection: { category: "handled", why: "subscript/field access is conservatively nullable" },

@@ -71,6 +71,53 @@ import {
 // classifying one.
 // ---------------------------------------------------------------------------
 
+/**
+ * THE WORK LIST, PINNED — every signature the engine still reads as nullable
+ * with no witness, and the reason it is still there.
+ *
+ * `node-census.test.ts`'s pattern, applied to the builtin surface, and added
+ * for the gap that pattern exists to close: without it a PostgreSQL upgrade
+ * that adds a function lands it in `no-null-found` and the suite PASSES, so
+ * the queue grows back from nine and nobody learns until somebody
+ * regenerates the work-list document by hand. Deliberately NOT a count: a
+ * ratchet lets a regression hide behind an unrelated improvement, which is
+ * the failure mode this project rejects everywhere else. Asserted in BOTH
+ * directions, so a row that stops being on the list fails too — its reason
+ * has become a claim about PostgreSQL that nothing checks.
+ *
+ * An entry here is a decision, not a TODO. Adding one means writing down why
+ * the signature cannot be promoted or witnessed; if that reason is "nobody
+ * has looked yet", the honest move is to look.
+ */
+const WORK_LIST: Record<string, string> = {
+  // The encoding-conversion family POISONS the PGlite backend — a real
+  // conversion attempt returns a zero-row "success" and leaves the instance
+  // answering plain SELECTs while lying. Permanently excluded by the
+  // register; `tests/probe/poison-hunt.ts` re-derives the list.
+  "convert_from(bytea,name)": "PGlite backend poisoner, excluded by the register",
+  "convert_to(text,name)": "PGlite backend poisoner, excluded by the register",
+  // WITNESSED by hand, where the probe cannot reach the NULL. `current_schema`
+  // needs a `search_path` naming nothing that exists — session state rather
+  // than input — and the regexp rows sit past the combination cap, which
+  // varies ONE argument from a baseline while these need two at once (a
+  // non-matching pattern AND a valid flags string).
+  "current_schema()": "witnessed in tests/unit/functions; its NULL route is search_path state",
+  "regexp_match(text,text,text)": "witnessed in tests/unit/functions; past the combination cap",
+  "regexp_substr(text,text,integer,integer,text)":
+    "witnessed in tests/unit/functions; past the combination cap",
+  "regexp_substr(text,text,integer,integer,text,integer)":
+    "witnessed in tests/unit/functions; past the combination cap",
+  // Decided at the FRAME rather than by a table, so no claim table names
+  // them and this suite cannot see the walk's reasoning. `first_value` and
+  // `last_value` ARE notNull under the parser's default frame (the walk's
+  // FRAMEOPTION_DEFAULTS gate); `nth_value` is witnessed — a frame shorter
+  // than N has no Nth row, and unlike lag/lead it has no DEFAULT to answer
+  // with.
+  "first_value(anyelement)": "claimed by the walk's default-frame gate, not by a table",
+  "last_value(anyelement)": "claimed by the walk's default-frame gate, not by a table",
+  "nth_value(anyelement,integer)": "witnessed in tests/unit/functions; a short frame has no Nth row",
+};
+
 interface SurfaceRow {
   name: string;
   types: string[];
@@ -657,6 +704,30 @@ describe("builtin scalar surface, witnessed or classified", () => {
         TOTAL_OPERATOR_SIGNATURES.has(k),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it("the work list is exactly what is recorded, in both directions", () => {
+    // The drift guard the classification lacked. A signature PostgreSQL adds
+    // in a future release arrives unclaimed and lands here, and without this
+    // the run would pass with the queue quietly larger.
+    const actual = new Set(noNullFound);
+    const unexplained = [...actual].filter(k => !(k in WORK_LIST)).sort();
+    const stale = Object.keys(WORK_LIST).filter(k => !actual.has(k)).sort();
+    expect(
+      unexplained,
+      `Signature(s) the engine reads as nullable with no witness and no ` +
+        `recorded reason. Either promote them (probe first — ` +
+        `tests/probe/cluster-sweep.ts sweeps by catalog role), witness them ` +
+        `in tests/unit/functions/, or add an entry to WORK_LIST saying why ` +
+        `neither is possible:\n  ${unexplained.join("\n  ")}`,
+    ).toEqual([]);
+    expect(
+      stale,
+      `WORK_LIST records a signature that is no longer on the work list. ` +
+        `Either it was promoted or witnessed — drop the entry — or ` +
+        `PostgreSQL removed it, and the entry is a reason about a signature ` +
+        `that no longer exists:\n  ${stale.join("\n  ")}`,
+    ).toEqual([]);
   });
 
   it("re-finds the historical witnesses, so its silence means something", () => {
