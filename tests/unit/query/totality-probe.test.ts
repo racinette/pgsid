@@ -24,6 +24,7 @@ import {
   qualify,
   SRF_PROBE_FN_SQL,
   srfQuery,
+  nullTestExpr,
 } from "./probe-values.js";
 
 /** One row under one table's claim; `prefix` marks a unary operator. */
@@ -41,6 +42,8 @@ interface Signature {
    * list rather than in FROM.
    */
   ncols?: number;
+  /** A COMPOSITE result needs `nullTestExpr`; see probe-values.ts for why. */
+  composite?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,17 +175,19 @@ describe("totality tables, probed by execution", () => {
     const fnNames = [...new Set([...nameTableNames, ...additionNames])];
 
     const fnRows = (
-      await pg.query<{ name: string; types: string[]; variadic: boolean; retset: boolean; ncols: number }>(
+      await pg.query<{ name: string; types: string[]; variadic: boolean; retset: boolean; ncols: number; composite: boolean }>(
         `SELECT p.proname AS name,
                 COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                             FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
                 p.provariadic <> 0 AS variadic,
                 p.proretset AS retset,
+                (rt.typtype = 'c' OR p.prorettype = 'record'::regtype) AS composite,
                 CASE WHEN p.proargmodes IS NULL THEN 1
                      ELSE greatest(1, (SELECT count(*) FROM unnest(p.proargmodes) m
                                         WHERE m IN ('o','b','t'))) END::int AS ncols
            FROM pg_proc p
            JOIN pg_namespace n ON n.oid = p.pronamespace
+           JOIN pg_type rt ON rt.oid = p.prorettype
           WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f' AND p.proname = ANY($1);`,
         [fnNames],
       )
@@ -249,6 +254,7 @@ describe("totality tables, probed by execution", () => {
         table: tableOf(r.name),
         name: r.name,
         types: r.types,
+        composite: r.composite,
         ...(r.retset ? { ncols: r.ncols } : {}),
       })),
       ...opRows.map(r => ({
@@ -303,7 +309,7 @@ describe("totality tables, probed by execution", () => {
                 ? `OPERATOR(pg_catalog.${sig.name}) ${args[0]}`
                 : `${args[0]} OPERATOR(pg_catalog.${sig.name}) ${args[1]}`
               : `${qualify(sig.name)}(${args.join(", ")})`;
-          mine.push(expr);
+          mine.push(nullTestExpr(expr, !!sig.composite && sig.ncols === undefined));
         }
       }
       if (generatorMissing && mine.length === 0) stats.skipped++;

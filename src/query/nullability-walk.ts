@@ -9748,6 +9748,44 @@ export const STRICT_TOTAL_BUILTIN_SIGNATURES: ReadonlySet<string> = new Set([
  * the curated ones; a row that starts answering NULL fails the run.
  */
 export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
+  "has_any_column_privilege(name,text,text)",
+  "has_any_column_privilege(oid,text,text)",
+  "has_any_column_privilege(text,text)",
+  "has_database_privilege(name,oid,text)",
+  "has_foreign_data_wrapper_privilege(name,oid,text)",
+  "has_function_privilege(name,oid,text)",
+  "has_function_privilege(name,text,text)",
+  "has_language_privilege(name,oid,text)",
+  "has_parameter_privilege(name,text,text)",
+  "has_schema_privilege(name,oid,text)",
+  "has_server_privilege(name,oid,text)",
+  "has_table_privilege(name,text,text)",
+  "has_table_privilege(oid,text,text)",
+  "has_table_privilege(text,text)",
+  "has_tablespace_privilege(name,oid,text)",
+  "has_type_privilege(name,oid,text)",
+  "has_type_privilege(name,text,text)",
+  "has_type_privilege(oid,text,text)",
+  "pg_has_role(name,name,text)",
+  "pg_has_role(name,oid,text)",
+  "pg_has_role(name,text)",
+  "pg_has_role(oid,name,text)",
+  // `pg_input_is_valid` answers a plain boolean; `row_security_active`
+  // answers one for a relation that exists and for one that does not.
+  // `pg_input_error_info` joins them, and the reason it nearly did not is
+  // worth the line: for VALID input it returns a record whose fields are
+  // all NULL, and `(record) IS NULL` is ROW-is-null, so it reads as a
+  // witness. The driver receives `(,,,)` — a value. The surface probe now
+  // casts a composite result to text before the NULL test for exactly
+  // this reason.
+  "pg_input_error_info(text,text)",
+  // The same composite trap as its neighbour above: a record of NULLs for
+  // a backend that does not exist, which `IS NULL` calls NULL and the
+  // driver receives as `(,)`.
+  "pg_stat_get_backend_subxact(integer)",
+  "pg_input_is_valid(text,text)",
+  "row_security_active(oid)",
+  "row_security_active(text)",
   // The privilege predicates that answer a VALUE for an object that does
   // not exist (2026-08-09). Their siblings answer NULL for the same input
   // and are witnessed — `has_table_privilege(oid, …)` against

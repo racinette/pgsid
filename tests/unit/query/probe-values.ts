@@ -41,13 +41,29 @@ export const VALUES: Record<string, string[]> = {
     // `has_database_privilege` answers a value, and no amount of staring at
     // the names predicts which.
     "'SELECT'", "'USAGE'", "'EXECUTE'", "'CREATE'", "'CONNECT'", "'SET'", "'MEMBER'",
+    // A real RELATION name, for the same family's spellings that identify the
+    // object by text rather than by OID — `has_table_privilege('abc', …)`
+    // raises because no such relation exists. `pg_class` exists in every
+    // PostgreSQL there has ever been.
+    "'pg_class'",
   ],
   "character varying": ["''::varchar", "'abc'::varchar"],
   character: ["''::char", "'a'::char"],
   // `'r'` is an object-type abbreviation `acldefault` accepts; `'a'` is not
   // one, and alone it left that signature raising on every combination.
   '"char"': ["'a'::\"char\"", "'r'::\"char\""],
-  name: ["''::name", "'abc'::name"],
+  // A REAL role name (2026-08-09): the `has_*_privilege` family takes its
+  // grantee as a `name` and raises for one that does not exist, which left
+  // 52 rows probed in name only — every spelling that identifies the role by
+  // name rather than by OID. `'postgres'` is the role PGlite runs as.
+  //
+  // Nothing that looks like an ENCODING may join this list, however useful:
+  // `convert_to(text, name)` reads its second argument as one, and a real
+  // conversion attempt returns a zero-row "success" and leaves the backend
+  // answering plain SELECTs while lying (the register's poison finding). A
+  // role name cannot be mistaken for an encoding, which is why this one is
+  // safe and `'LATIN1'` would not be.
+  name: ["''::name", "'abc'::name", "'postgres'::name"],
 
   // --- numbers: NaN and the infinities (scale/min_scale, and every float).
   smallint: ["1::smallint", "0::smallint", "(-1)::smallint", "32767::smallint"],
@@ -276,6 +292,22 @@ export const PROBE_FN_SQL = `
     RETURN CASE WHEN r THEN 'NULL' ELSE 'value' END;
   EXCEPTION WHEN OTHERS THEN RETURN 'error';
   END $probe$;`;
+
+/**
+ * The expression to run the NULL test on, given whether the call's result is
+ * a COMPOSITE. Shared, because the alternative is what happened when it was
+ * not: one suite cast and the other did not, and they disagreed about
+ * `pg_stat_get_backend_subxact` within the same run.
+ *
+ * `IS NULL` on a composite is ROW-is-null — true when every field is null —
+ * which is a different question from the one both suites ask. A record of
+ * NULLs is a VALUE: the driver receives `(,)` for it, and a NOT NULL output
+ * column holding one is not lying. Casting to text separates the two, since
+ * a NULL composite casts to NULL and a composite of NULLs casts to its
+ * rendering.
+ */
+export const nullTestExpr = (call: string, composite: boolean): string =>
+  composite ? `(${call})::text` : call;
 
 /**
  * How many emitted rows a set-returning probe inspects. A BOUND, recorded
