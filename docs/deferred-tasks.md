@@ -853,6 +853,43 @@ rather than from a table (`first_value`, `last_value` under the default
 frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
 unlike `lag`/`lead` it has no DEFAULT argument to answer with).
 
+**THE CALL-SHAPE CENSUS (2026-08-09) closes the class of bug the rest of
+this work kept hitting**, and the user's question is what named it: the
+ENUMERATION was never wrong — `builtin-surface.test.ts` asks pg_catalog for
+every signature and asserts it classified all 4201 — so nothing was ever
+"missed" in the sense of going unlisted. What went wrong four times was
+narrower and worse: **PostgreSQL had RECORDED the thing that changes how a
+call must be built or how its result must be tested, and the probe did not
+join to it.**
+
+  - `provariadic` names the ELEMENT type; reading `proargtypes` alone made
+    the probe pass the declared ARRAY positionally, a type error rather than
+    a call — 19 rows read as unprobeable and four real witnesses were hidden
+    behind that.
+  - `prorettype`'s composite kind makes `IS NULL` mean ROW-is-null; two rows
+    carried witnesses for a record of NULLs, which is a value.
+  - `pg_cast` was not consulted at all, and that one was UNSOUND.
+  - `proretset` was read, but the question asked of it took one arbitrary
+    row.
+
+`tests/unit/query/call-shape-census.test.ts` classifies EVERY column of the
+four catalogs the probes read — 73 of them across pg_proc, pg_operator,
+pg_cast and pg_aggregate — as `shape` (changes the call), `result` (changes
+the null test), `scope` (decides whether to probe at all) or `irrelevant`
+WITH a reason. It is `node-census.test.ts`'s instrument pointed at the
+catalog, and the mechanism is the same: writing "irrelevant" next to
+`provariadic` would have been visibly false, which is the sentence nobody
+was ever asked to write. A `shape` or `result` verdict is CHECKED rather
+than decorated — the column name must appear in a probe source, crude enough
+to miss a wrong join but exactly enough to catch a column that appears
+nowhere, which was the actual failure four times over.
+
+It convicted twice while being written, which is the liveness that matters:
+`oprkind` was classified `shape` and nothing reads it (the probes take
+prefix-ness from `oprleft = 0`, the same fact said better — and postfix
+operators went in PG14, so the two can no longer disagree), and ten verdicts
+were markers rather than reasons.
+
 **THE UNPROBED SURFACE IS AUDITED AND PINNED (2026-08-09): 162 → 79.** The
 `raised-everywhere` column was the last place a nullable claim could sit
 with nobody having looked, and it is now closed the same way the work list
