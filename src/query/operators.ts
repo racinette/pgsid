@@ -67,6 +67,40 @@ export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   "||",
   // Pattern matching: LIKE / ILIKE / regex, and their negations.
   "~~", "!~~", "~~*", "!~~*", "~", "!~", "~*", "!~*",
+  // -------------------------------------------------------------------------
+  // The operator batch (2026-08-09, docs/builtin-surface-worklist.md — the
+  // last half of the re-key's surface). Every row of each symbol below was
+  // unwitnessed across the corner corpus AND convicted by hand on the classes
+  // the corpus reaches for it: an array holding a NULL ELEMENT, the empty
+  // array, the empty range and multirange, a jsonb null and a null-VALUED
+  // key, mismatched inet families. They are containment, overlap and
+  // key-existence tests, so they answer a plain boolean, and where the
+  // operands are incompatible they RAISE rather than answer NULL —
+  // `inet & inet` across families and `bit & bit` at different widths are
+  // the two that prove it.
+  //
+  // Deliberately NOT here, though every row measured total: the
+  // geometry-only symbols (`<->`, `?#`, `<<|`, `|>>`, `~=`, `&<|`, `|&>`,
+  // `?-`, `<^`, `>^`, `?-|`, `?||`, `@-@`), the prefix math operators
+  // (`@`, `|/`, `||/`, `!!`) and the pattern-ops class comparisons
+  // (`~<~` and its three siblings). No application query writes them, and a
+  // claim that moves nothing costs the same to maintain as one that does.
+  //
+  // These join TOTAL_OPERATORS only. STRICT_OPERATORS is a separate property
+  // with a separate consumer — this file's founding lesson — and nothing
+  // here has been measured for it.
+  // -------------------------------------------------------------------------
+  // Containment and overlap: arrays, ranges, multiranges, jsonb, tsquery.
+  "@>", "<@", "&&",
+  // Range and network position, including the network containment pair that
+  // is the reason `<<=` and `>>=` exist at all (`ip <<= '10.0.0.0/8'`).
+  "<<", ">>", "<<=", ">>=", "-|-", "&<", "&>",
+  // jsonb key existence, and path deletion.
+  "?", "?|", "?&", "#-",
+  // Prefix match — the indexable half of `LIKE 'abc%'`.
+  "^@",
+  // Bitwise AND/OR over the integer types, bit strings and inet.
+  "&", "|",
 ]);
 
 /**

@@ -784,10 +784,41 @@ the stronger assertion the re-key makes possible: each window key must be a
 real `prokind = 'w'` row, so a typo fails instead of silently claiming
 nothing.
 
-The next batch's queue is what the three promotion batches skipped by
-triage, and the honest note on it is that the remainder is mostly internal:
-the 218 operator rows want `operators.ts`'s name-keyed tables, the last
-half of the re-key nothing has touched.
+**THE OPERATOR BATCH LANDED (2026-08-09), and it is the largest single
+precision move of the session**: 115 rows over 17 symbols into
+`TOTAL_OPERATORS` — containment and overlap (`@>`, `<@`, `&&`), range and
+network position (`<<`, `>>`, `<<=`, `>>=`, `-|-`, `&<`, `&>`), jsonb key
+existence and path deletion (`?`, `?|`, `?&`, `#-`), prefix match (`^@`)
+and the bitwise pair (`&`, `|`). These are the operators an application
+actually writes — `tags @> ARRAY['urgent']`, `meta ? 'user_id'`,
+`ip <<= '10.0.0.0/8'`, `span && int4range(10, 20)` — and all of them read
+nullable until now. Every row was unwitnessed across the corner corpus AND
+convicted by hand on the classes that corpus reaches for it: an array
+holding a NULL ELEMENT, the empty array, the empty range and multirange, a
+jsonb null and a null-VALUED key. They answer a plain boolean, and where
+the operands are incompatible they RAISE — `inet & inet` across families
+and `bit & bit` at different widths are the two that prove the criterion
+rather than assume it.
+
+`TOTAL_OPERATORS` only. `STRICT_OPERATORS` is a separate property with a
+separate consumer — that file's founding lesson, learned when one shared
+set turned out to be wrong for each half in opposite directions — and
+nothing in this batch was measured for strictness. The totality probe holds
+all of it: 38 operator names → 673 signatures, every one executed.
+
+Deliberately left, though every row measured total: the geometry-only
+symbols (`<->` alone is 26 rows), the prefix math operators (`@`, `|/`,
+`||/`, `!!`) and the pattern-ops class comparisons (`~<~` and siblings). No
+application query writes them, and a claim that moves nothing costs the
+same to maintain as one that does. Eight symbols stay barred by a witnessed
+row: `->`, `->>`, `#>`, `#>>`, `@?`, `@@`, `#`, `##`.
+
+Surface after the session's five batches: claimed 1220, no-null-found 1526,
+null-witnessed 252, raised-everywhere 168, no-generator 754, volatile 281.
+What remains in the queue is internal machinery — the C functions behind
+operators, type I/O, cast functions and geometry — plus the two mechanism
+items (`no-generator`'s `internal`/`cstring` bulk, and the six VARIADIC
+multirange rows the surface suite calls positionally).
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table
