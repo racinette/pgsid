@@ -16,6 +16,73 @@ is made to verify what it claims to verify is in `docs/witness-coverage.md`.
 
 ## What to do next
 
+**THE BUILTIN SURFACE IS CLOSED (2026-08-09). Read this before touching it.**
+
+All 4201 pg_catalog signatures — functions, operators, aggregates, window
+functions — are held by execution, witnessed, or pinned with a reason:
+claimed 2916, null-witnessed 293, no-null-found 9, raised-everywhere 152,
+no-generator 550, volatile 281. The promotion queue that opened this work at
+1832 is at 9, and those nine are pinned individually. Nothing on this
+surface can change without a suite failing.
+
+**Three pins hold it**, all in `builtin-surface.test.ts`, all asserted in
+BOTH directions: `WORK_LIST` (the nine, each with why it cannot be promoted
+or witnessed), `UNPROBED` (152 rows grouped by why PostgreSQL declined
+them), `NO_GENERATOR` (17 types, each marked REFUSED or DELIBERATELY
+SKIPPED). A signature a future PostgreSQL adds fails one of them until
+somebody decides about it.
+
+**The loop, when a pin fails.** Run from `pgsid/`:
+
+    pnpm exec vitest run tests/unit/query/builtin-surface.test.ts      # ~30s
+    pnpm exec tsx tests/probe/cluster-sweep.ts --role=oprcode          # convict
+    pnpm exec tsx tests/probe/cluster-sweep.ts '^has_' --list-total    # or by name
+    BUILTIN_SURFACE_WORKLIST=docs/builtin-surface-worklist.md \
+      pnpm exec vitest run tests/unit/query/builtin-surface.test.ts    # regenerate
+
+A convicted row goes into `SWEPT_TOTAL_SIGNATURES` (machine-swept) or a
+curated table (hand-argued); a NULL goes into
+`tests/unit/functions/<name>/<slug>.sql` with its `@null` and `@value`
+control. The gate is `totality-probe.test.ts`, ~10s, which executes every
+claimed row.
+
+**Five traps, each paid for once. Do not rediscover them.**
+
+1. **PGlite MATERIALISES a FROM-position function scan.** `SELECT * FROM
+   generate_series(1::bigint, 9223372036854775807) LIMIT 100` allocates until
+   the process dies — `LIMIT` does not bound it, `statement_timeout` does not
+   cancel it, and the WASM backend blocks the event loop so no JS timer can
+   fire. It exhausted a developer machine twice. Put a set-returning call in
+   the TARGET LIST, where `ProjectSet` is lazy and the same expression
+   answers in 2ms (`srfQuery`).
+2. **The encoding-conversion family poisons the backend.** Never add an
+   encoding name to the `name` or `text` corpus; `convert_to(text, name)`
+   fires on it.
+3. **Promotion subtracts the witness corpus.** The loop-closer caught
+   `current_schema()` twice — convicted by the sweep, witnessed by hand,
+   because its NULL route is `search_path` state the sweep cannot reach.
+4. **Corpus parity**: any corner value used to convict must join
+   `probe-values.ts`, or the standing probe cannot re-find what you found.
+5. **Arguments that must be valid together go in `COHERENT_CALLS`**, not
+   into a bigger `MAX_COMBOS`. The cap was raised three times for one
+   signature before the table existed.
+
+**What is open on this surface — both optional, neither blocking.** 57
+`io-syntax` rows close with more `cstring` shapes; 9 `no-such-object` rows
+close only by creating a foreign-data wrapper, a foreign server and a
+sequence in the probe database. Both are recorded in `UNPROBED` with those
+words.
+
+**The QUEUED item is elsewhere**: `docs/catalog-driven-generation.md`,
+chartered with STEP 0 DONE (2026-08-08). `docs/generated-surface.md` is
+FINISHED — all five of its items are built, item 4's schema axis included
+(2026-08-06), and the "four items in cost order" sentence further down this
+register predates that and describes the plan rather than the state. Read
+the documents' own headers, not this register's older prose, when the two
+disagree.
+
+---
+
 The engine's output analysis is verified as far as hand-written fixtures can
 take it. Every fixture returns rows or declares the error it raises instead, and
 every `notNull` claim is either falsifiable against returned rows or guarded by
