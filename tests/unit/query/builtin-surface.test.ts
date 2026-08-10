@@ -25,6 +25,7 @@ import {
   PROBE_FN_SQL,
   SRF_PROBE_FN_SQL,
   srfQuery,
+  nullTestExpr,
 } from "./probe-values.js";
 
 // ---------------------------------------------------------------------------
@@ -124,6 +125,7 @@ interface SurfaceRow {
   volatile: boolean;
   retset: boolean;
   ncols: number;
+  composite: boolean;
 }
 
 describe("builtin scalar surface, witnessed or classified", () => {
@@ -174,9 +176,11 @@ describe("builtin scalar surface, witnessed or classified", () => {
                 p.proretset AS retset,
                 CASE WHEN p.proargmodes IS NULL THEN 1
                      ELSE greatest(1, (SELECT count(*) FROM unnest(p.proargmodes) m
-                                        WHERE m IN ('o','b','t'))) END::int AS ncols
+                                        WHERE m IN ('o','b','t'))) END::int AS ncols,
+                (rt.typtype = 'c' OR p.prorettype = 'record'::regtype) AS composite
            FROM pg_proc p
            JOIN pg_namespace n ON n.oid = p.pronamespace
+           JOIN pg_type rt ON rt.oid = p.prorettype
           WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
           ORDER BY p.proname, 2;`,
       )
@@ -221,7 +225,18 @@ describe("builtin scalar surface, witnessed or classified", () => {
         const lists = r.types.map(t => (t in family ? [family[t]!] : VALUES[t]!));
         const { combos, capped: wasCapped } = combinations(lists);
         if (wasCapped) capped++;
-        for (const combo of combos) mine.push(`${qualify(r.name)}(${combo.join(", ")})`);
+        for (const combo of combos) {
+          // A COMPOSITE result needs `::text` before the NULL test, because
+          // `IS NULL` on a composite is ROW-is-null — true when every field
+          // is null — and that is a different question from the one this
+          // suite asks. `pg_stat_get_wal_receiver()` returns a record of
+          // NULLs when no walreceiver is running, and the driver receives
+          // `(,,,)`: a value, not a NULL. Casting first distinguishes them,
+          // since a NULL composite casts to NULL and a composite of NULLs
+          // casts to its text rendering.
+          const call = `${qualify(r.name)}(${combo.join(", ")})`;
+          mine.push(nullTestExpr(call, r.composite && !r.retset));
+        }
         if (r.types.every(t => !POLYMORPHIC.has(t))) break;
       }
       // A SET-RETURNING row is the same call under a different question —

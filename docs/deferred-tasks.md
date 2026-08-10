@@ -853,6 +853,30 @@ rather than from a table (`first_value`, `last_value` under the default
 frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
 unlike `lag`/`lead` it has no DEFAULT argument to answer with).
 
+**THE PRIVILEGE-NAME GAP CLOSED, AND THE PIN EARNED ITSELF ON ITS FIRST RUN
+(2026-08-09).** Two corpus values — a real role name and a real relation
+name — closed the last 52 of the `has_*_privilege` family, whose remaining
+spellings identify the grantee or the object by NAME and raise for one that
+does not exist. `raised-everywhere` went 127 → 93, 25 more witnesses, 25
+promotions. The pin fired the moment the newly evaluable rows landed, which
+is the whole point of it: they could not sit in the queue unexplained.
+
+**It also exposed a real defect in the probe itself, and the route to it is
+the instructive part.** Chasing one of those rows produced a witness the
+harness REJECTED — PostgreSQL returned `(,,,)` rather than NULL. `IS NULL`
+on a COMPOSITE is ROW-is-null, true when every field is null, and that is
+not the question either suite asks: a record of NULLs is a value, and a NOT
+NULL column holding one is not lying. Two witnesses rested on it
+(`pg_stat_get_wal_receiver`, `pg_stat_get_backend_subxact`) and were wrong
+evidence — conservative, so nothing unsound shipped, but wrong.
+
+The fix is `nullTestExpr` in probe-values.ts, casting a composite result to
+text before the test. It landed in the surface suite FIRST and the totality
+probe immediately disagreed with it about the same signature inside one run
+— the two-drifting-copies failure the shared corpus file exists to prevent,
+demonstrated in miniature. It belongs in the shared file, and that is where
+it now is.
+
 **THE WORK LIST IS PINNED (2026-08-09), which closes the last drift gap in
 this surface.** Everything else here already enforced no drift on every run
 — the totality probe EXECUTES all 2753 claimed rows against the corner
