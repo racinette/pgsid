@@ -147,7 +147,12 @@ export const VALUES: Record<string, string[]> = {
   // is NULL when the segment has no length, and a segment between two
   // distinct points cannot reach it.
   lseg: ["'[(0,0),(1,1)]'::lseg", "'[(0,0),(0,0)]'::lseg"],
-  box: ["'((0,0),(1,1))'::box"],
+  // The DEGENERATE shapes are here for corpus PARITY: the operator batch
+  // convicted `&<|`, `|&>`, `<<|`, `~=` and their siblings against a
+  // zero-area box, a zero-radius circle and a single-point polygon, and a
+  // conviction resting on a value the standing probe never re-tries is a
+  // claim held more weakly than it was made.
+  box: ["'((0,0),(1,1))'::box", "'((0,0),(0,0))'::box"],
   // Both spellings: `path + path` is NULL whenever EITHER operand is a CLOSED
   // path, and open + open is a value — so one spelling alone either misses
   // the defect or misses the control. The SINGLE-POINT path joined them
@@ -155,8 +160,8 @@ export const VALUES: Record<string, string[]> = {
   // and two two-point paths cannot reach it — the same shape as the closed
   // path one row up, found the same way.
   path: ["'[(0,0),(1,1)]'::path", "'((0,0),(1,1))'::path", "'[(0,0)]'::path"],
-  circle: ["'<(0,0),1>'::circle"],
-  polygon: ["'((0,0),(1,1),(1,0))'::polygon"],
+  circle: ["'<(0,0),1>'::circle", "'<(0,0),0>'::circle"],
+  polygon: ["'((0,0),(1,1),(1,0))'::polygon", "'((0,0))'::polygon"],
   aclitem: ["makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)"],
   "aclitem[]": ["ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)]"],
 };
