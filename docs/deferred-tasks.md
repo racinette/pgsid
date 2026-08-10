@@ -853,6 +853,22 @@ rather than from a table (`first_value`, `last_value` under the default
 frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
 unlike `lag`/`lead` it has no DEFAULT argument to answer with).
 
+**THE `cstring` SKIP WAS WRONG AND IS REVERSED (2026-08-09, on review).**
+The pin recorded it as a DECISION — 186 type-I/O entry points no query
+writes — and writing the decision down is what made it reviewable, which is
+the case for pins in one line. The reasoning was triage ("spend effort where
+a claim changes a real query") applied where the effort is ONE corpus value,
+and that is the same mistake `generate_series` drew out: if the engine reads
+186 signatures as nullable and nothing witnesses it, "nobody calls them" is
+not a reason. `int4in('42')` is a legal call. **45 promoted, and
+`no-generator` fell 652 → 550.**
+
+What the reversal left behind is honest and new: 57 rows moved to
+`raised-everywhere` under their own group — an input function whose type's
+INPUT SYNTAX none of the corpus's cstrings matches. That group is marked
+CLOSEABLE by more cstring shapes, unlike the eight above it, which are
+PostgreSQL refusing.
+
 **THE `no-generator` PIN LANDED (2026-08-09) AND PAID IMMEDIATELY.** It was
 the last of the four unclaimed categories with no recorded reason, and the
 reason belongs to the TYPE rather than the row — one missing type blocks

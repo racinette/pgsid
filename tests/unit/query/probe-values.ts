@@ -197,6 +197,14 @@ export const VALUES: Record<string, string[]> = {
   //     have been FALSE, which is the question that pin asks and nobody had
   //     asked before. Between them they unblock ~90 signatures that had been
   //     classified unprobeable for no reason anybody could state.
+  // `cstring` was DELIBERATELY skipped and the skip was wrong (2026-08-09,
+  // corrected on review): it is one corpus value, and 186 signatures reading
+  // nullable with nothing witnessing it is exactly the state this surface
+  // exists to flag — "nobody calls them" is not a reason, and `int4in('42')`
+  // is a legal call. The values are one that parses as most types and one
+  // that parses as few, since an I/O function RAISES on input it cannot read
+  // and a raise is not a NULL.
+  cstring: ["'abc'::cstring", "'42'::cstring", "''::cstring"],
   "double precision[]": ["'{}'::float8[]", "'{1,2}'::float8[]"],
   "bigint[]": ["'{}'::int8[]", "'{1,2}'::int8[]"],
   "cstring[]": ["'{}'::cstring[]", "'{a}'::cstring[]"],
