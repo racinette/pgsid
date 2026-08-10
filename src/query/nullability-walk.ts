@@ -9550,35 +9550,25 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   // and `position` above, so the name is reached by SQL nobody wrote.
   "like_escape", "similar_escape", "similar_to_escape",
   // ---------------------------------------------------------------------
-  // NO SET-RETURNING NAME IS HERE, and the reason is a measurement rather
-  // than a missing verdict (2026-08-09). `generate_series`,
-  // `generate_subscripts`, `regexp_split_to_table`, the json expanders and
-  // `string_to_table`'s two-argument form were all measured TOTAL over
-  // bounded arguments — every emitted row carries a value, and zero rows is
-  // no row at all rather than a NULL. They were promoted, and the promotion
-  // was reverted, because NEITHER probe can hold the claim:
+  // SET-RETURNING names (2026-08-09). Their claim is about every EMITTED
+  // row — zero rows is no row at all rather than a NULL — and both probes
+  // now ask exactly that, through `srfprobe`: any row, any output column.
+  // The construction is the whole story and probe-values.ts carries it
+  // (target list, not FROM; PGlite materialises a function scan and the
+  // corpus's own bigint bound exhausts memory in that position).
   //
-  //   - the totality probe runs `EXECUTE 'SELECT (expr) IS NULL' INTO r`,
-  //     which RAISES on a multi-row result — so every honest combination
-  //     records as an error and the claim is held by nothing. Worse, each
-  //     raise costs 2-3.5s over the corpus's `2147483647` and
-  //     `9223372036854775807`, which took the gating suite from 4.6s to
-  //     over its 120s hook timeout.
-  //   - the row-wise alternative that WOULD hold it cannot run here: PGlite
-  //     materialises a function scan, so the same corpus values exhaust
-  //     memory, and neither `LIMIT` nor `statement_timeout` bounds it.
-  //
-  // A claim no suite can falsify is the thing this project does not ship,
-  // so the class stays unclaimed and the surface suite classifies it
-  // `set-returning` instead of pretending to have probed it. Recovering the
-  // precision needs a probe whose arguments are bounded independently of
-  // the shared corpus — recorded in docs/deferred-tasks.md, not attempted
-  // here. The NULL-capable members are witnessed either way, in
-  // tests/unit/functions/: `unnest` over an array holding a NULL, the
-  // `_text` json expanders (which turn a JSON null into a SQL NULL where
-  // their non-`_text` twins return it as a value), `unnest(tsvector)`'s
-  // positions column, and `string_to_table`'s null_string form.
+  // The `_text` json expanders are the sharp exclusion: they turn a JSON
+  // null into a SQL NULL where their non-`_text` twins return it as a
+  // value, so `json_each` is here and `json_each_text` is witnessed.
+  // `unnest` stays out entirely — an array holding a NULL element, and a
+  // tsvector lexeme with no positions, are both witnessed.
   // ---------------------------------------------------------------------
+  "generate_series", "generate_subscripts",
+  "regexp_split_to_table", "regexp_matches",
+  "json_object_keys", "jsonb_object_keys",
+  "json_each", "jsonb_each",
+  "json_array_elements", "jsonb_array_elements",
+  "jsonb_path_query", "jsonb_path_query_tz",
 ]);
 
 /**
@@ -9627,6 +9617,12 @@ export const STRICT_TOTAL_BUILTIN_SIGNATURES: ReadonlySet<string> = new Set([
   "date_part(text,time with time zone)",
   "extract(text,time without time zone)",
   "extract(text,time with time zone)",
+  // The two-argument `string_to_table` (2026-08-09). Its three-argument row
+  // takes a null_string and emits SQL NULL for every field equal to it —
+  // `string_to_table('a,,b', ',', 'a')` — which is witnessed and bars the
+  // NAME. Splitting without one yields the empty string where the input was
+  // empty, never a NULL.
+  "string_to_table(text,text)",
 ]);
 
 /**

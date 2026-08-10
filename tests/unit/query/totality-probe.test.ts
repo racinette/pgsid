@@ -20,6 +20,8 @@ import {
   MAX_COMBOS,
   combinations,
   qualify,
+  SRF_PROBE_FN_SQL,
+  srfQuery,
 } from "./probe-values.js";
 
 /** One row under one table's claim; `prefix` marks a unary operator. */
@@ -28,6 +30,15 @@ interface Signature {
   name: string;
   types: string[];
   prefix?: boolean;
+  /**
+   * Output-column count for a SET-RETURNING row, absent for a scalar one.
+   * Such a row's claim is about every EMITTED row, which `probe()` cannot
+   * ask — it takes the first row, reads an empty set as a value, and RAISES
+   * on a multi-row result at 2-3.5s a time. `srfprobe` asks the real
+   * question; probe-values.ts records why the call must sit in the target
+   * list rather than in FROM.
+   */
+  ncols?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,6 +152,7 @@ describe("totality tables, probed by execution", () => {
         RETURN CASE WHEN r THEN 'NULL' ELSE 'value' END;
       EXCEPTION WHEN OTHERS THEN RETURN 'error';
       END $$;`);
+    await pg.exec(SRF_PROBE_FN_SQL);
 
     const tableOf = (n: string): Signature["table"] =>
       ALWAYS_NOT_NULL_BUILTINS.has(n) ? "alwaysNotNull" : FIRST_ARG_BUILTINS.has(n) ? "firstArg" : "strictTotal";
@@ -157,11 +169,15 @@ describe("totality tables, probed by execution", () => {
     const fnNames = [...new Set([...nameTableNames, ...additionNames])];
 
     const fnRows = (
-      await pg.query<{ name: string; types: string[]; variadic: boolean }>(
+      await pg.query<{ name: string; types: string[]; variadic: boolean; retset: boolean; ncols: number }>(
         `SELECT p.proname AS name,
                 COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                             FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
-                p.provariadic <> 0 AS variadic
+                p.provariadic <> 0 AS variadic,
+                p.proretset AS retset,
+                CASE WHEN p.proargmodes IS NULL THEN 1
+                     ELSE greatest(1, (SELECT count(*) FROM unnest(p.proargmodes) m
+                                        WHERE m IN ('o','b','t'))) END::int AS ncols
            FROM pg_proc p
            JOIN pg_namespace n ON n.oid = p.pronamespace
           WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f' AND p.proname = ANY($1);`,
@@ -213,7 +229,12 @@ describe("totality tables, probed by execution", () => {
     ).rows.map(r => r.sig);
 
     signatures = [
-      ...fnRows.map(r => ({ table: tableOf(r.name), name: r.name, types: r.types })),
+      ...fnRows.map(r => ({
+        table: tableOf(r.name),
+        name: r.name,
+        types: r.types,
+        ...(r.retset ? { ncols: r.ncols } : {}),
+      })),
       ...opRows.map(r => ({
         table: "operator" as const,
         name: r.name,
@@ -284,9 +305,15 @@ describe("totality tables, probed by execution", () => {
     const verdicts = new Map<string, string>();
     // One statement, per-expression error isolation inside plpgsql. 20k
     // probes run in ~130ms, so the whole surface costs a fraction of a second.
+    const srfArg = new Map<string, string>();
+    for (const [sig, mine] of perSignature) {
+      if (sig.ncols === undefined) continue;
+      for (const e of mine) srfArg.set(e, srfQuery(e, sig.ncols));
+    }
     const res = await pg.query<{ e: string; v: string }>(
-      `SELECT e, probe(e) AS v FROM unnest($1::text[]) AS e;`,
-      [all],
+      `SELECT e, CASE WHEN srf THEN srfprobe(q) ELSE probe(q) END AS v
+         FROM unnest($1::text[], $2::text[], $3::bool[]) AS z(e, q, srf);`,
+      [all, all.map(e => srfArg.get(e) ?? e), all.map(e => srfArg.has(e))],
     );
     for (const r of res.rows) verdicts.set(r.e, r.v);
 
@@ -294,7 +321,9 @@ describe("totality tables, probed by execution", () => {
       let evaluated = 0;
       for (const e of mine) {
         const v = verdicts.get(e);
-        if (v === "error") stats.raised++;
+        // `empty` is a set-returning combination that emitted no rows: no
+        // more evidence of totality than a raise is, and counted the same.
+        if (v === "error" || v === "empty") stats.raised++;
         else {
           evaluated++;
           stats.evaluated++;

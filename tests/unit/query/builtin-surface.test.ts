@@ -18,6 +18,8 @@ import {
   combinations,
   qualify,
   PROBE_FN_SQL,
+  SRF_PROBE_FN_SQL,
+  srfQuery,
 } from "./probe-values.js";
 
 // ---------------------------------------------------------------------------
@@ -41,11 +43,12 @@ import {
 //                      list is known-safe.
 //   no-generator     — a parameter type the shared corpus has no values for
 //                      (internal, cstring, reg* …). Explicit, not silent.
-//   set-returning    — the scalar construction cannot answer it: it reads one
-//                      arbitrary row, or none. Explicit for the same reason,
-//                      and unpromotable from this suite's evidence; see the
-//                      classification below for why the row-wise alternative
-//                      is unavailable in PGlite.
+//
+// SET-RETURNING rows are probed too, under the question their shape asks —
+// does ANY emitted row hold a NULL in ANY output column — via `srfprobe`
+// rather than `probe`. They are not a category: they classify like
+// everything else, and probe-values.ts records why the construction has to
+// put the call in the TARGET LIST to be affordable at all.
 //   raised-everywhere — every combination raised; probed in name only.
 //   null-witnessed   — a corner combination returned NULL. The machine
 //                      found the witness; the signature may NEVER acquire a
@@ -68,6 +71,7 @@ interface SurfaceRow {
   types: string[];
   volatile: boolean;
   retset: boolean;
+  ncols: number;
 }
 
 describe("builtin scalar surface, witnessed or classified", () => {
@@ -97,6 +101,8 @@ describe("builtin scalar surface, witnessed or classified", () => {
   const constructionOf = new Map<string, "nonempty" | "empty" | "all-null" | "window">();
   const claimFailures: string[] = [];
   const noNullFound: string[] = [];
+  /** Output-column count per set-returning expression; absent = scalar. */
+  const srfNcols = new Map<string, number>();
   const noGeneratorTypes = new Map<string, number>();
   let capped = 0;
   let totalRows = 0;
@@ -105,6 +111,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
     pg = await PGlite.create();
     await pg.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
     await pg.exec(PROBE_FN_SQL);
+    await pg.exec(SRF_PROBE_FN_SQL);
 
     const rows = (
       await pg.query<SurfaceRow>(
@@ -112,7 +119,10 @@ describe("builtin scalar surface, witnessed or classified", () => {
                 COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                             FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
                 p.provolatile = 'v' AS volatile,
-                p.proretset AS retset
+                p.proretset AS retset,
+                CASE WHEN p.proargmodes IS NULL THEN 1
+                     ELSE greatest(1, (SELECT count(*) FROM unnest(p.proargmodes) m
+                                        WHERE m IN ('o','b','t'))) END::int AS ncols
            FROM pg_proc p
            JOIN pg_namespace n ON n.oid = p.pronamespace
           WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
@@ -144,27 +154,6 @@ describe("builtin scalar surface, witnessed or classified", () => {
         category.set(key, "volatile");
         continue;
       }
-      // SET-RETURNING rows cannot be answered by this construction, and the
-      // honest move is to say so rather than to let them read as probed.
-      // `probe()` runs `SELECT (<expr>) IS NULL … INTO r`, which takes the
-      // FIRST emitted row and reads zero rows as a value — so the verdict
-      // depends on which row sorts first (`unnest(ARRAY[NULL,1])` witnessed,
-      // `unnest(ARRAY[1,NULL])` did not, same function, same elements) and an
-      // empty set passes as evidence it is not.
-      //
-      // A row-wise construction was designed and MEASURED, and it is not
-      // available here: PGlite MATERIALISES a function scan, so
-      // `generate_series(1::bigint, 9223372036854775807)` — which the corner
-      // corpus's bigint value produces — allocates until the process dies.
-      // `LIMIT` above it does not bound it and `statement_timeout` does not
-      // cancel it (both measured), and the WASM backend blocks the event loop
-      // so no JS timer can fire either. The claimed rows of this class are
-      // promoted on bounded per-signature evidence instead, and the
-      // NULL-capable ones are witnessed in tests/unit/functions/.
-      if (r.retset) {
-        category.set(key, "set-returning");
-        continue;
-      }
       const missing = r.types.filter(t => !POLYMORPHIC.has(t) && !VALUES[t]);
       if (missing.length > 0) {
         category.set(key, "no-generator");
@@ -179,6 +168,15 @@ describe("builtin scalar surface, witnessed or classified", () => {
         for (const combo of combos) mine.push(`${qualify(r.name)}(${combo.join(", ")})`);
         if (r.types.every(t => !POLYMORPHIC.has(t))) break;
       }
+      // A SET-RETURNING row is the same call under a different question —
+      // "does any EMITTED row hold a NULL" rather than "is the value NULL" —
+      // so it runs through srfprobe with its output-column count. `probe()`
+      // reads one arbitrary row and an empty set as a value, which made the
+      // verdict depend on sort order: `unnest(ARRAY[NULL,1])` witnessed and
+      // `unnest(ARRAY[1,NULL])` did not, the same function over the same
+      // elements. probe-values.ts records why the call must sit in the
+      // TARGET LIST for that to be affordable.
+      if (r.retset) for (const e of mine) srfNcols.set(e, r.ncols);
       exprsBySig.set(key, [...new Set(mine)]);
     }
 
@@ -445,12 +443,21 @@ describe("builtin scalar surface, witnessed or classified", () => {
       pg = await PGlite.create();
       await pg.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
       await pg.exec(PROBE_FN_SQL);
+      await pg.exec(SRF_PROBE_FN_SQL);
     };
+    // The probe an expression needs: a set-returning call answers a
+    // different question, over its own output columns, through srfprobe.
+    const argFor = (e: string): string => {
+      const n = srfNcols.get(e);
+      return n === undefined ? e : srfQuery(e, n);
+    };
+    const fnFor = (e: string): string => (srfNcols.has(e) ? "srfprobe" : "probe");
     const evalBatch = async (batch: string[]): Promise<void> => {
       try {
         const res = await pg.query<{ e: string; v: string }>(
-          `SELECT e, probe(e) AS v FROM unnest($1::text[]) AS e;`,
-          [batch],
+          `SELECT e, CASE WHEN srf THEN srfprobe(q) ELSE probe(q) END AS v
+             FROM unnest($1::text[], $2::text[], $3::bool[]) AS z(e, q, srf);`,
+          [batch, batch.map(argFor), batch.map(e => srfNcols.has(e))],
         );
         // A poisoned backend can "succeed" with a SHORT or empty result —
         // no exception, no rows. Route that into the recovery path too.
@@ -466,7 +473,9 @@ describe("builtin scalar surface, witnessed or classified", () => {
             let v: string | null = null;
             for (let attempt = 0; attempt < 2 && v === null; attempt++) {
               try {
-                const r = await pg.query<{ v: string }>(`SELECT probe($1) AS v`, [e]);
+                const r = await pg.query<{ v: string }>(
+                  `SELECT ${fnFor(e)}($1) AS v`, [argFor(e)],
+                );
                 v = r.rows[0]?.v ?? null;
                 if (v === null) await ensureAlive();
               } catch {
@@ -509,7 +518,10 @@ describe("builtin scalar surface, witnessed or classified", () => {
       for (const e of mine) {
         const v = verdicts.get(e);
         if (v === "NULL" && witness === null) witness = e;
-        if (v !== "error") evaluated++;
+        // `empty` is a set-returning combination that emitted no rows. Like a
+        // raise it is not evidence of non-nullness, so it does not count as
+        // evaluated — `generate_series(1, 0)` must not pass for a probe.
+        if (v !== "error" && v !== "empty") evaluated++;
       }
       if (witness !== null) {
         category.set(key, "null-witnessed");
@@ -578,7 +590,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
         ``,
       ];
       for (const cat of [
-        "null-witnessed", "no-null-found", "raised-everywhere", "set-returning",
+        "null-witnessed", "no-null-found", "raised-everywhere",
         "no-generator", "volatile",
       ]) {
         const keys = byCat(cat);

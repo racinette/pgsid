@@ -13,7 +13,7 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (239: functions 152, operators 17, aggregates 66, windows 4)
+## null-witnessed (252: functions 165, operators 17, aggregates 66, windows 4)
 
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
 - `#(line,line)` — witness: `SELECT '{1,1,0}'::line OPERATOR(pg_catalog.#) '{1,1,0}'::line;`
@@ -70,6 +70,8 @@ probe as the evidence bar.
 - `json_agg_strict(anyelement)` — witness: `SELECT (SELECT pg_catalog.json_agg_strict(c0) FROM (VALUES (1)) t(c0) WHERE false);`
 - `json_array_element(json,integer)` — witness: `SELECT pg_catalog.json_array_element('null'::json, 1);`
 - `json_array_element_text(json,integer)` — witness: `SELECT pg_catalog.json_array_element_text('null'::json, 1);`
+- `json_array_elements_text(json)` — witness: `SELECT pg_catalog.json_array_elements_text('[1,null]'::json);`
+- `json_each_text(json)` — witness: `SELECT pg_catalog.json_each_text('{"a":null}'::json);`
 - `json_object_agg("any","any")` — witness: `SELECT (SELECT pg_catalog.json_object_agg(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
 - `json_object_agg_strict("any","any")` — witness: `SELECT (SELECT pg_catalog.json_object_agg_strict(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
 - `json_object_agg_unique("any","any")` — witness: `SELECT (SELECT pg_catalog.json_object_agg_unique(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
@@ -79,6 +81,8 @@ probe as the evidence bar.
 - `jsonb_agg_strict(anyelement)` — witness: `SELECT (SELECT pg_catalog.jsonb_agg_strict(c0) FROM (VALUES (1)) t(c0) WHERE false);`
 - `jsonb_array_element(jsonb,integer)` — witness: `SELECT pg_catalog.jsonb_array_element('null'::jsonb, 1);`
 - `jsonb_array_element_text(jsonb,integer)` — witness: `SELECT pg_catalog.jsonb_array_element_text('null'::jsonb, 1);`
+- `jsonb_array_elements_text(jsonb)` — witness: `SELECT pg_catalog.jsonb_array_elements_text('[1,null]'::jsonb);`
+- `jsonb_each_text(jsonb)` — witness: `SELECT pg_catalog.jsonb_each_text('{"a":null}'::jsonb);`
 - `jsonb_object_agg("any","any")` — witness: `SELECT (SELECT pg_catalog.jsonb_object_agg(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
 - `jsonb_object_agg_strict("any","any")` — witness: `SELECT (SELECT pg_catalog.jsonb_object_agg_strict(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
 - `jsonb_object_agg_unique("any","any")` — witness: `SELECT (SELECT pg_catalog.jsonb_object_agg_unique(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
@@ -106,6 +110,7 @@ probe as the evidence bar.
 - `obj_description(oid)` — witness: `SELECT pg_catalog.obj_description(0::oid);`
 - `obj_description(oid,name)` — witness: `SELECT pg_catalog.obj_description(0::oid, ''::name);`
 - `path_add(path,path)` — witness: `SELECT pg_catalog.path_add('[(0,0),(1,1)]'::path, '((0,0),(1,1))'::path);`
+- `pg_available_extension_versions()` — witness: `SELECT pg_catalog.pg_available_extension_versions();`
 - `pg_collation_for("any")` — witness: `SELECT pg_catalog.pg_collation_for('x');`
 - `pg_collation_is_visible(oid)` — witness: `SELECT pg_catalog.pg_collation_is_visible(0::oid);`
 - `pg_column_compression("any")` — witness: `SELECT pg_catalog.pg_column_compression(1);`
@@ -143,8 +148,11 @@ probe as the evidence bar.
 - `pg_opclass_is_visible(oid)` — witness: `SELECT pg_catalog.pg_opclass_is_visible(0::oid);`
 - `pg_operator_is_visible(oid)` — witness: `SELECT pg_catalog.pg_operator_is_visible(0::oid);`
 - `pg_opfamily_is_visible(oid)` — witness: `SELECT pg_catalog.pg_opfamily_is_visible(0::oid);`
+- `pg_options_to_table(text[])` — witness: `SELECT pg_catalog.pg_options_to_table(ARRAY['a','b']);`
 - `pg_replication_origin_oid(text)` — witness: `SELECT pg_catalog.pg_replication_origin_oid('abc');`
 - `pg_settings_get_flags(text)` — witness: `SELECT pg_catalog.pg_settings_get_flags('abc');`
+- `pg_show_all_settings()` — witness: `SELECT pg_catalog.pg_show_all_settings();`
+- `pg_stat_get_activity(integer)` — witness: `SELECT pg_catalog.pg_stat_get_activity((-1));`
 - `pg_stat_get_backend_activity_start(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_activity_start(1);`
 - `pg_stat_get_backend_client_addr(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_client_addr(1);`
 - `pg_stat_get_backend_client_port(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_client_port(1);`
@@ -211,6 +219,7 @@ probe as the evidence bar.
 - `stddev_samp(numeric)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (0::numeric)) t(c0));`
 - `stddev_samp(real)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (0::float4)) t(c0));`
 - `stddev_samp(smallint)` — witness: `SELECT (SELECT pg_catalog.stddev_samp(c0) FROM (VALUES (1::smallint)) t(c0));`
+- `string_to_table(text,text,text)` — witness: `SELECT pg_catalog.string_to_table('abc', '', 'abc');`
 - `substring(text,text)` — witness: `SELECT pg_catalog.substring('abc', '  ');`
 - `substring(text,text,text)` — witness: `SELECT pg_catalog.substring('9', '9', '9');`
 - `system_user()` — witness: `SELECT pg_catalog.system_user();`
@@ -231,7 +240,11 @@ probe as the evidence bar.
 - `to_regrole(text)` — witness: `SELECT pg_catalog.to_regrole('abc');`
 - `to_regtype(text)` — witness: `SELECT pg_catalog.to_regtype('abc');`
 - `to_regtypemod(text)` — witness: `SELECT pg_catalog.to_regtypemod('abc');`
+- `ts_debug(regconfig,text)` — witness: `SELECT pg_catalog.ts_debug('english'::regconfig, '  ');`
+- `ts_debug(text)` — witness: `SELECT pg_catalog.ts_debug('  ');`
 - `txid_current_if_assigned()` — witness: `SELECT pg_catalog.txid_current_if_assigned();`
+- `unnest(anyarray)` — witness: `SELECT pg_catalog.unnest(ARRAY[1,NULL]);`
+- `unnest(tsvector)` — witness: `SELECT pg_catalog.unnest('a b'::tsvector);`
 - `upper(anymultirange)` — witness: `SELECT pg_catalog.upper('{}'::int4multirange);`
 - `upper(anyrange)` — witness: `SELECT pg_catalog.upper('empty'::int4range);`
 - `uuid_extract_timestamp(uuid)` — witness: `SELECT pg_catalog.uuid_extract_timestamp('00000000-0000-0000-0000-000000000000'::uuid);`
@@ -255,7 +268,7 @@ probe as the evidence bar.
 - `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 
-## no-null-found (1630: functions 1408, operators 218, aggregates 1, windows 3)
+## no-null-found (1641: functions 1419, operators 218, aggregates 1, windows 3)
 
 - `!!(,tsquery)`
 - `##(line,lseg)`
@@ -449,6 +462,7 @@ probe as the evidence bar.
 - `^@(text,text)`
 - `aclcontains(aclitem[],aclitem)`
 - `acldefault("char",oid)`
+- `aclexplode(aclitem[])`
 - `aclitemeq(aclitem,aclitem)`
 - `aclitemout(aclitem)`
 - `any_value_transfn(anyelement,anyelement)`
@@ -1401,14 +1415,19 @@ probe as the evidence bar.
 - `path_send(path)`
 - `path_sub_pt(path,point)`
 - `pclose(path)`
+- `pg_available_extensions()`
 - `pg_char_to_encoding(name)`
 - `pg_client_encoding()`
 - `pg_column_size("any")`
 - `pg_conf_load_time()`
+- `pg_config()`
 - `pg_current_snapshot()`
 - `pg_current_xact_id()`
 - `pg_current_xact_id_if_assigned()`
+- `pg_cursor()`
 - `pg_encoding_to_char(integer)`
+- `pg_get_catalog_foreign_keys()`
+- `pg_get_keywords()`
 - `pg_get_userbyid(oid)`
 - `pg_is_other_temp_schema(oid)`
 - `pg_lsn(numeric)`
@@ -1439,6 +1458,7 @@ probe as the evidence bar.
 - `pg_stat_get_autoanalyze_count(oid)`
 - `pg_stat_get_autovacuum_count(oid)`
 - `pg_stat_get_backend_activity(integer)`
+- `pg_stat_get_backend_idset()`
 - `pg_stat_get_bgwriter_buf_written_clean()`
 - `pg_stat_get_bgwriter_maxwritten_clean()`
 - `pg_stat_get_bgwriter_stat_reset_time()`
@@ -1494,6 +1514,7 @@ probe as the evidence bar.
 - `pg_stat_get_mod_since_analyze(oid)`
 - `pg_stat_get_numscans(oid)`
 - `pg_stat_get_replication_slot(text)`
+- `pg_stat_get_slru()`
 - `pg_stat_get_subscription_stats(oid)`
 - `pg_stat_get_total_analyze_time(oid)`
 - `pg_stat_get_total_autoanalyze_time(oid)`
@@ -1509,6 +1530,8 @@ probe as the evidence bar.
 - `pg_stat_get_vacuum_count(oid)`
 - `pg_stat_get_wal()`
 - `pg_tablespace_location(oid)`
+- `pg_timezone_abbrevs_abbrevs()`
+- `pg_timezone_names()`
 - `pg_trigger_depth()`
 - `pg_wal_lsn_diff(pg_lsn,pg_lsn)`
 - `pg_walfile_name(pg_lsn)`
@@ -1812,6 +1835,7 @@ probe as the evidence bar.
 - `tsvectorout(tsvector)`
 - `tsvectorsend(tsvector)`
 - `txid_current_snapshot()`
+- `unnest(anymultirange)`
 - `uuid_cmp(uuid,uuid)`
 - `uuid_eq(uuid,uuid)`
 - `uuid_ge(uuid,uuid)`
@@ -1888,7 +1912,7 @@ probe as the evidence bar.
 - `~>~(character,character)`
 - `~>~(text,text)`
 
-## raised-everywhere (148: functions 142, operators 6, aggregates 0, windows 0)
+## raised-everywhere (168: functions 162, operators 6, aggregates 0, windows 0)
 
 - `*<(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<) ROW(1,2)` raises
 - `*<=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<=) ROW(1,2)` raises
@@ -1998,20 +2022,29 @@ probe as the evidence bar.
 - `json_extract_path(json,text[])` — e.g. `pg_catalog.json_extract_path('null'::json, '{}'::text[])` raises
 - `json_extract_path_text(json,text[])` — e.g. `pg_catalog.json_extract_path_text('null'::json, '{}'::text[])` raises
 - `json_populate_record(anyelement,json,boolean)` — e.g. `pg_catalog.json_populate_record(1, 'null'::json, true)` raises
+- `json_populate_recordset(anyelement,json,boolean)` — e.g. `pg_catalog.json_populate_recordset(1, 'null'::json, true)` raises
 - `json_to_record(json)` — e.g. `pg_catalog.json_to_record('null'::json)` raises
+- `json_to_recordset(json)` — e.g. `pg_catalog.json_to_recordset('null'::json)` raises
 - `jsonb_delete(jsonb,text[])` — e.g. `pg_catalog.jsonb_delete('null'::jsonb, '{}'::text[])` raises
 - `jsonb_extract_path(jsonb,text[])` — e.g. `pg_catalog.jsonb_extract_path('null'::jsonb, '{}'::text[])` raises
 - `jsonb_extract_path_text(jsonb,text[])` — e.g. `pg_catalog.jsonb_extract_path_text('null'::jsonb, '{}'::text[])` raises
 - `jsonb_populate_record(anyelement,jsonb)` — e.g. `pg_catalog.jsonb_populate_record(1, 'null'::jsonb)` raises
 - `jsonb_populate_record_valid(anyelement,jsonb)` — e.g. `pg_catalog.jsonb_populate_record_valid(1, 'null'::jsonb)` raises
+- `jsonb_populate_recordset(anyelement,jsonb)` — e.g. `pg_catalog.jsonb_populate_recordset(1, 'null'::jsonb)` raises
 - `jsonb_to_record(jsonb)` — e.g. `pg_catalog.jsonb_to_record('null'::jsonb)` raises
+- `jsonb_to_recordset(jsonb)` — e.g. `pg_catalog.jsonb_to_recordset('null'::jsonb)` raises
 - `macaddr(macaddr8)` — e.g. `pg_catalog.macaddr('08:00:2b:01:02:03:04:05'::macaddr8)` raises
 - `makeaclitem(oid,oid,text,boolean)` — e.g. `pg_catalog.makeaclitem(0::oid, 0::oid, 'abc', true)` raises
 - `multirange_intersect_agg_transfn(anymultirange,anymultirange)` — e.g. `pg_catalog.multirange_intersect_agg_transfn('{[1,2)}'::int4multirange, '{[1,2)}'::int4multirange)` raises
 - `nummultirange(numrange[])` — e.g. `pg_catalog.nummultirange('{}'::numrange[])` raises
+- `pg_event_trigger_ddl_commands()` — e.g. `pg_catalog.pg_event_trigger_ddl_commands()` raises
+- `pg_event_trigger_dropped_objects()` — e.g. `pg_catalog.pg_event_trigger_dropped_objects()` raises
 - `pg_event_trigger_table_rewrite_oid()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_oid()` raises
 - `pg_event_trigger_table_rewrite_reason()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_reason()` raises
+- `pg_extension_update_paths(name)` — e.g. `pg_catalog.pg_extension_update_paths(''::name)` raises
 - `pg_get_object_address(text,text[],text[])` — e.g. `pg_catalog.pg_get_object_address('abc', '{}'::text[], '{}'::text[])` raises
+- `pg_get_publication_tables(text[])` — e.g. `pg_catalog.pg_get_publication_tables('{}'::text[])` raises
+- `pg_get_replication_slots()` — e.g. `pg_catalog.pg_get_replication_slots()` raises
 - `pg_get_serial_sequence(text,text)` — e.g. `pg_catalog.pg_get_serial_sequence('abc', 'abc')` raises
 - `pg_get_viewdef(text)` — e.g. `pg_catalog.pg_get_viewdef('abc')` raises
 - `pg_get_viewdef(text,boolean)` — e.g. `pg_catalog.pg_get_viewdef('abc', true)` raises
@@ -2025,8 +2058,15 @@ probe as the evidence bar.
 - `pg_identify_object_as_address(oid,oid,integer)` — e.g. `pg_catalog.pg_identify_object_as_address(0::oid, 0::oid, 1)` raises
 - `pg_input_error_info(text,text)` — e.g. `pg_catalog.pg_input_error_info('abc', 'abc')` raises
 - `pg_input_is_valid(text,text)` — e.g. `pg_catalog.pg_input_is_valid('abc', 'abc')` raises
+- `pg_listening_channels()` — e.g. `pg_catalog.pg_listening_channels()` raises
+- `pg_prepared_statement()` — e.g. `pg_catalog.pg_prepared_statement()` raises
 - `pg_sequence_parameters(oid)` — e.g. `pg_catalog.pg_sequence_parameters(0::oid)` raises
 - `pg_split_walfile_name(text)` — e.g. `pg_catalog.pg_split_walfile_name('abc')` raises
+- `pg_stat_get_progress_info(text)` — e.g. `pg_catalog.pg_stat_get_progress_info('abc')` raises
+- `pg_stat_get_subscription(oid)` — e.g. `pg_catalog.pg_stat_get_subscription(0::oid)` raises
+- `pg_stat_get_wal_senders()` — e.g. `pg_catalog.pg_stat_get_wal_senders()` raises
+- `pg_tablespace_databases(oid)` — e.g. `pg_catalog.pg_tablespace_databases(0::oid)` raises
+- `pg_timezone_abbrevs_zone()` — e.g. `pg_catalog.pg_timezone_abbrevs_zone()` raises
 - `range_intersect_agg_transfn(anyrange,anyrange)` — e.g. `pg_catalog.range_intersect_agg_transfn('[1,2)'::int4range, '[1,2)'::int4range)` raises
 - `row_security_active(text)` — e.g. `pg_catalog.row_security_active('abc')` raises
 - `satisfies_hash_partition(oid,integer,integer,"any")` — e.g. `pg_catalog.satisfies_hash_partition(0::oid, 1, 1, 1)` raises
@@ -2036,84 +2076,14 @@ probe as the evidence bar.
 - `to_ascii(text)` — e.g. `pg_catalog.to_ascii('abc')` raises
 - `to_ascii(text,integer)` — e.g. `pg_catalog.to_ascii('abc', 1)` raises
 - `to_ascii(text,name)` — e.g. `pg_catalog.to_ascii('abc', ''::name)` raises
+- `ts_parse(oid,text)` — e.g. `pg_catalog.ts_parse(0::oid, 'abc')` raises
+- `ts_parse(text,text)` — e.g. `pg_catalog.ts_parse('abc', 'abc')` raises
+- `ts_token_type(oid)` — e.g. `pg_catalog.ts_token_type(0::oid)` raises
+- `ts_token_type(text)` — e.g. `pg_catalog.ts_token_type('abc')` raises
 - `tsmultirange(tsrange[])` — e.g. `pg_catalog.tsmultirange('{}'::tsrange[])` raises
 - `tstzmultirange(tstzrange[])` — e.g. `pg_catalog.tstzmultirange('{}'::tstzrange[])` raises
 
-## set-returning (71: functions 71, operators 0, aggregates 0, windows 0)
-
-- `aclexplode(aclitem[])`
-- `generate_series(bigint,bigint)`
-- `generate_series(bigint,bigint,bigint)`
-- `generate_series(integer,integer)`
-- `generate_series(integer,integer,integer)`
-- `generate_series(numeric,numeric)`
-- `generate_series(numeric,numeric,numeric)`
-- `generate_series(timestamp with time zone,timestamp with time zone,interval)`
-- `generate_series(timestamp with time zone,timestamp with time zone,interval,text)`
-- `generate_series(timestamp without time zone,timestamp without time zone,interval)`
-- `generate_subscripts(anyarray,integer)`
-- `generate_subscripts(anyarray,integer,boolean)`
-- `json_array_elements(json)`
-- `json_array_elements_text(json)`
-- `json_each(json)`
-- `json_each_text(json)`
-- `json_object_keys(json)`
-- `json_populate_recordset(anyelement,json,boolean)`
-- `json_to_recordset(json)`
-- `jsonb_array_elements(jsonb)`
-- `jsonb_array_elements_text(jsonb)`
-- `jsonb_each(jsonb)`
-- `jsonb_each_text(jsonb)`
-- `jsonb_object_keys(jsonb)`
-- `jsonb_path_query(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_path_query_tz(jsonb,jsonpath,jsonb,boolean)`
-- `jsonb_populate_recordset(anyelement,jsonb)`
-- `jsonb_to_recordset(jsonb)`
-- `pg_available_extension_versions()`
-- `pg_available_extensions()`
-- `pg_config()`
-- `pg_cursor()`
-- `pg_event_trigger_ddl_commands()`
-- `pg_event_trigger_dropped_objects()`
-- `pg_extension_update_paths(name)`
-- `pg_get_catalog_foreign_keys()`
-- `pg_get_keywords()`
-- `pg_get_publication_tables(text[])`
-- `pg_get_replication_slots()`
-- `pg_listening_channels()`
-- `pg_mcv_list_items(pg_mcv_list)`
-- `pg_options_to_table(text[])`
-- `pg_prepared_statement()`
-- `pg_show_all_settings()`
-- `pg_snapshot_xip(pg_snapshot)`
-- `pg_stat_get_activity(integer)`
-- `pg_stat_get_backend_idset()`
-- `pg_stat_get_progress_info(text)`
-- `pg_stat_get_slru()`
-- `pg_stat_get_subscription(oid)`
-- `pg_stat_get_wal_senders()`
-- `pg_tablespace_databases(oid)`
-- `pg_timezone_abbrevs_abbrevs()`
-- `pg_timezone_abbrevs_zone()`
-- `pg_timezone_names()`
-- `regexp_matches(text,text)`
-- `regexp_matches(text,text,text)`
-- `regexp_split_to_table(text,text)`
-- `regexp_split_to_table(text,text,text)`
-- `string_to_table(text,text)`
-- `string_to_table(text,text,text)`
-- `ts_debug(regconfig,text)`
-- `ts_debug(text)`
-- `ts_parse(oid,text)`
-- `ts_parse(text,text)`
-- `ts_token_type(oid)`
-- `ts_token_type(text)`
-- `txid_snapshot_xip(txid_snapshot)`
-- `unnest(anyarray)`
-- `unnest(anymultirange)`
-- `unnest(tsvector)`
-
-## no-generator (751: functions 747, operators 0, aggregates 4, windows 0)
+## no-generator (754: functions 750, operators 0, aggregates 4, windows 0)
 
 - `aclitemin(cstring)`
 - `any_in(cstring)`
@@ -2598,6 +2568,7 @@ probe as the evidence bar.
 - `pg_lsn_in(cstring)`
 - `pg_lsn_recv(internal)`
 - `pg_mcv_list_in(cstring)`
+- `pg_mcv_list_items(pg_mcv_list)`
 - `pg_mcv_list_out(pg_mcv_list)`
 - `pg_mcv_list_recv(internal)`
 - `pg_mcv_list_send(pg_mcv_list)`
@@ -2618,6 +2589,7 @@ probe as the evidence bar.
 - `pg_snapshot_out(pg_snapshot)`
 - `pg_snapshot_recv(internal)`
 - `pg_snapshot_send(pg_snapshot)`
+- `pg_snapshot_xip(pg_snapshot)`
 - `pg_snapshot_xmax(pg_snapshot)`
 - `pg_snapshot_xmin(pg_snapshot)`
 - `pg_visible_in_snapshot(xid8,pg_snapshot)`
@@ -2792,6 +2764,7 @@ probe as the evidence bar.
 - `txid_snapshot_out(txid_snapshot)`
 - `txid_snapshot_recv(internal)`
 - `txid_snapshot_send(txid_snapshot)`
+- `txid_snapshot_xip(txid_snapshot)`
 - `txid_snapshot_xmax(txid_snapshot)`
 - `txid_snapshot_xmin(txid_snapshot)`
 - `txid_visible_in_snapshot(bigint,txid_snapshot)`
