@@ -27,6 +27,7 @@ import {
   srfQuery,
   nullTestExpr,
   variadicArgTypes,
+  COHERENT_CALLS,
 } from "./probe-values.js";
 
 // ---------------------------------------------------------------------------
@@ -206,7 +207,7 @@ const UNPROBED: Record<string, readonly string[]> = {
     "multirange_intersect_agg_transfn(anymultirange,anymultirange)",
     "range_intersect_agg_transfn(anyrange,anyrange)",
   ],
-  // an input function whose type's INPUT SYNTAX none of the corpus's cstrings matches — 'abc', '42' and '' parse as many types and not as these. Closeable by more cstring shapes, unlike the groups above it
+  // an input function whose type's INPUT SYNTAX none of the corpus's cstrings matches — 'abc', '42' and '' parse as many types and not as these. Closeable by more cstring shapes, unlike most groups here
   "io-syntax": [
     "aclitemin(cstring)",
     "any_in(cstring)",
@@ -296,36 +297,17 @@ const UNPROBED: Record<string, readonly string[]> = {
     "ts_parse(oid,text)",
     "ts_token_type(oid)",
   ],
-  // three arguments must be valid TOGETHER — a role, an object and a privilege — and capped sampling varies one at a time from a baseline
-  "privilege-triple": [
-    "has_column_privilege(name,text,smallint,text)",
-    "has_column_privilege(name,text,text,text)",
-    "has_column_privilege(oid,text,smallint,text)",
-    "has_column_privilege(oid,text,text,text)",
-    "has_column_privilege(text,smallint,text)",
-    "has_column_privilege(text,text,text)",
-    "has_database_privilege(name,text,text)",
-    "has_database_privilege(oid,text,text)",
-    "has_database_privilege(text,text)",
+  // a fresh PGlite has no foreign-data wrapper, foreign server or sequence, so the blocker is the DATABASE rather than the corpus: a coherent call cannot name an object that does not exist
+  "no-such-object": [
     "has_foreign_data_wrapper_privilege(name,text,text)",
     "has_foreign_data_wrapper_privilege(oid,text,text)",
     "has_foreign_data_wrapper_privilege(text,text)",
-    "has_function_privilege(oid,text,text)",
-    "has_language_privilege(name,text,text)",
-    "has_language_privilege(oid,text,text)",
-    "has_language_privilege(text,text)",
-    "has_schema_privilege(name,text,text)",
-    "has_schema_privilege(oid,text,text)",
-    "has_schema_privilege(text,text)",
     "has_sequence_privilege(name,text,text)",
     "has_sequence_privilege(oid,text,text)",
     "has_sequence_privilege(text,text)",
     "has_server_privilege(name,text,text)",
     "has_server_privilege(oid,text,text)",
     "has_server_privilege(text,text)",
-    "has_tablespace_privilege(name,text,text)",
-    "has_tablespace_privilege(oid,text,text)",
-    "has_tablespace_privilege(text,text)",
   ],
   // a pseudo-type argument no SQL literal can construct
   "pseudotype": [
@@ -510,6 +492,11 @@ describe("builtin scalar surface, witnessed or classified", () => {
           mine.push(nullTestExpr(call, r.composite && !r.retset));
         }
         if (argTypes.every(t => !POLYMORPHIC.has(t))) break;
+      }
+      // Calls whose arguments must be valid TOGETHER, which no per-type
+      // choice can produce past the combination cap.
+      for (const c of COHERENT_CALLS[key] ?? []) {
+        mine.push(nullTestExpr(`${qualify(r.name)}(${c.join(", ")})`, r.composite && !r.retset));
       }
       // A SET-RETURNING row is the same call under a different question —
       // "does any EMITTED row hold a NULL" rather than "is the value NULL" —

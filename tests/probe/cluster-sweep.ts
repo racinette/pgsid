@@ -48,6 +48,7 @@ import {
   srfQuery,
   qualify,
   variadicArgTypes,
+  COHERENT_CALLS,
 } from "../unit/query/probe-values.js";
 
 /**
@@ -283,6 +284,8 @@ for (const r of rows) {
   }
 
   const key = `${r.name}(${r.types.join(",")})`;
+  // Calls whose arguments must be valid TOGETHER; see probe-values.ts.
+  for (const c of COHERENT_CALLS[key] ?? []) exprs.set(render(r, [...c]), false);
   if (exprs.size === 0) {
     if (missingGenerator) noGenerator++;
     continue;

@@ -9748,6 +9748,30 @@ export const STRICT_TOTAL_BUILTIN_SIGNATURES: ReadonlySet<string> = new Set([
  * the curated ones; a row that starts answering NULL fails the run.
  */
 export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
+  // The privilege rows COHERENT_CALLS unblocked (2026-08-09): a role, an
+  // object of the right kind and a privilege that kind accepts, which no
+  // per-type choice can produce past the combination cap. Their
+  // OID-taking siblings answer NULL for an object that does not exist and
+  // are witnessed; these name objects that do.
+  "has_column_privilege(name,text,smallint,text)",
+  "has_column_privilege(name,text,text,text)",
+  "has_column_privilege(oid,text,smallint,text)",
+  "has_column_privilege(oid,text,text,text)",
+  "has_column_privilege(text,smallint,text)",
+  "has_column_privilege(text,text,text)",
+  "has_database_privilege(name,text,text)",
+  "has_database_privilege(oid,text,text)",
+  "has_database_privilege(text,text)",
+  "has_function_privilege(oid,text,text)",
+  "has_language_privilege(name,text,text)",
+  "has_language_privilege(oid,text,text)",
+  "has_language_privilege(text,text)",
+  "has_schema_privilege(name,text,text)",
+  "has_schema_privilege(oid,text,text)",
+  "has_schema_privilege(text,text)",
+  "has_tablespace_privilege(name,text,text)",
+  "has_tablespace_privilege(oid,text,text)",
+  "has_tablespace_privilege(text,text)",
   // The type I/O entry points, reachable once `cstring` had a generator
   // (2026-08-09). An input function RAISES on text it cannot read and
   // returns a value on text it can; neither is a NULL.

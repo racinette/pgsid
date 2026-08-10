@@ -853,6 +853,33 @@ rather than from a table (`first_value`, `last_value` under the default
 frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
 unlike `lag`/`lead` it has no DEFAULT argument to answer with).
 
+**`COHERENT_CALLS` CLOSED THE LAST HARNESS LIMIT (2026-08-09).** The corpus
+is keyed by TYPE, which is right for almost everything — a value good for
+`text` is good in any text position — and breaks exactly where a row needs
+several arguments valid AT ONCE:
+`has_column_privilege(name, text, text, text)` wants a role, a relation, a
+column OF that relation and a privilege, and one `text` list cannot be a
+relation and a privilege simultaneously. Past the combination cap the
+sampler varies one argument from a baseline, so every combination it built
+had an invalid member and 28 rows raised everywhere with the corpus holding
+every value they needed.
+
+`COHERENT_CALLS` is a signature-keyed table of argument lists known valid
+together, appended to the generated combinations and run like any other —
+evidence, not a shortcut, and a NULL from one witnesses as loudly. **19 rows
+claimed, and the `privilege-triple` group is gone from the unprobed pin
+entirely.** The other 9 moved to a new group that names the real blocker:
+a fresh PGlite has no foreign-data wrapper, no foreign server and no
+sequence, so a coherent call cannot name an object that does not exist —
+the DATABASE rather than the corpus, and closeable only by creating them.
+
+**It arrives late, and that is the lesson worth keeping**:
+`date_trunc(text, timestamptz, text)` is the same problem and was answered
+three times by RAISING `MAX_COMBOS` instead — 512 → 1024 → 2048, once per
+growth of the text corpus, each time restoring one row's coverage by
+enlarging every capped signature's cross product. Its entry is in the table
+now, so that row no longer depends on the cap at all.
+
 **THE `cstring` SKIP WAS WRONG AND IS REVERSED (2026-08-09, on review).**
 The pin recorded it as a DECISION — 186 type-I/O entry points no query
 writes — and writing the decision down is what made it reviewable, which is
