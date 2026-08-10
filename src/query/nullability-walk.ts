@@ -9748,6 +9748,26 @@ export const STRICT_TOTAL_BUILTIN_SIGNATURES: ReadonlySet<string> = new Set([
  * the curated ones; a row that starts answering NULL fails the run.
  */
 export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
+  // The privilege predicates that answer a VALUE for an object that does
+  // not exist (2026-08-09). Their siblings answer NULL for the same input
+  // and are witnessed — `has_table_privilege(oid, …)` against
+  // `has_database_privilege(oid, …)` — which is why this family is keyed
+  // row by row and not by any rule about its names.
+  "has_database_privilege(oid,text)",
+  "has_foreign_data_wrapper_privilege(oid,text)",
+  "has_function_privilege(oid,text)",
+  "has_function_privilege(text,text)",
+  "has_language_privilege(oid,text)",
+  "has_parameter_privilege(oid,text,text)",
+  "has_parameter_privilege(text,text)",
+  "has_schema_privilege(oid,text)",
+  "has_server_privilege(oid,text)",
+  "has_tablespace_privilege(oid,text)",
+  "has_type_privilege(oid,text)",
+  "has_type_privilege(text,text)",
+  "makeaclitem(oid,oid,text,boolean)",
+  "pg_has_role(oid,oid,text)",
+  "pg_has_role(oid,text)",
   // The money-division rows are here on the CORNER CORPUS's evidence, not
   // the sweep's: the sweep stages a money value at the type's negative
   // extreme, and every combination of it overflows, so the row came back

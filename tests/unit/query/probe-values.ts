@@ -33,6 +33,14 @@ export const VALUES: Record<string, string[]> = {
   text: [
     "'abc'", "''", "'  '", "'NaN'", "'day'", "'base64'", "'hex'", "'escape'",
     "'NFC'", "'9'", "'UTC'", "'hour'", "'month'", "'[]'",
+    // The PRIVILEGE words (2026-08-09): the `has_*_privilege` family and
+    // `pg_has_role` reject anything else, which left 84 rows — the largest
+    // block in raised-everywhere — probed in name only. They are worth the
+    // seven values because the family SPLITS: `has_table_privilege(oid, …)`
+    // answers NULL for an object that does not exist while
+    // `has_database_privilege` answers a value, and no amount of staring at
+    // the names predicts which.
+    "'SELECT'", "'USAGE'", "'EXECUTE'", "'CREATE'", "'CONNECT'", "'SET'", "'MEMBER'",
   ],
   "character varying": ["''::varchar", "'abc'::varchar"],
   character: ["''::char", "'a'::char"],
@@ -208,13 +216,15 @@ export const POLYMORPHIC = new Set(Object.keys(POLYMORPHIC_FAMILIES[0]!));
  * text)`: its unit and its timezone must be valid TOGETHER, and a
  * one-at-a-time sweep from a baseline can only ever make one of them valid at
  * a time, so above the cap the signature raises on every combination and goes
- * unprobed. It was 363 combinations against a cap of 512; the three text
- * values the 2026-08-09 batch added took it to 588, and the cap moved with it
- * rather than letting a signature the cap exists for fall out. Probes are
+ * unprobed. It was 363 combinations against a cap of 512; the text values
+ * the 2026-08-09 batches added took it to 588 and then to 1323, and the cap
+ * moved with it each time rather than letting the signature the cap exists
+ * for fall out. The rule, since it has now fired three times: this row is
+ * `len(text)^2 * 3`, so growing the text corpus is what moves the cap. Probes are
  * cheap enough that the cap is about the report staying honest rather than
  * about time — the claimed surface is 26k of them in ~4s.
  */
-export const MAX_COMBOS = 1024;
+export const MAX_COMBOS = 2048;
 
 /**
  * Calls are written `pg_catalog.name(...)`, which is not decoration: several

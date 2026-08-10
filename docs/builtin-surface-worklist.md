@@ -13,7 +13,7 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (257: functions 168, operators 19, aggregates 66, windows 4)
+## null-witnessed (277: functions 188, operators 19, aggregates 66, windows 4)
 
 - `##(line,lseg)` — witness: `SELECT '{1,0,0}'::line OPERATOR(pg_catalog.##) '[(0,0),(0,0)]'::lseg;`
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
@@ -65,6 +65,26 @@ probe as the evidence bar.
 - `extract(text,timestamp without time zone)` — witness: `SELECT pg_catalog.extract('day', 'infinity'::timestamp);`
 - `float4(jsonb)` — witness: `SELECT pg_catalog.float4('null'::jsonb);`
 - `float8(jsonb)` — witness: `SELECT pg_catalog.float8('null'::jsonb);`
+- `has_any_column_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_any_column_privilege(0::oid, 0::oid, 'SELECT');`
+- `has_any_column_privilege(oid,text)` — witness: `SELECT pg_catalog.has_any_column_privilege(0::oid, 'SELECT');`
+- `has_column_privilege(oid,oid,smallint,text)` — witness: `SELECT pg_catalog.has_column_privilege(0::oid, 0::oid, 1::smallint, 'SELECT');`
+- `has_column_privilege(oid,oid,text,text)` — witness: `SELECT pg_catalog.has_column_privilege(0::oid, 0::oid, 'abc', 'SELECT');`
+- `has_column_privilege(oid,smallint,text)` — witness: `SELECT pg_catalog.has_column_privilege(0::oid, 1::smallint, 'SELECT');`
+- `has_column_privilege(oid,text,text)` — witness: `SELECT pg_catalog.has_column_privilege(0::oid, 'abc', 'SELECT');`
+- `has_database_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_database_privilege(0::oid, 0::oid, 'CREATE');`
+- `has_foreign_data_wrapper_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_foreign_data_wrapper_privilege(0::oid, 0::oid, 'USAGE');`
+- `has_function_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_function_privilege(0::oid, 0::oid, 'EXECUTE');`
+- `has_language_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_language_privilege(0::oid, 0::oid, 'USAGE');`
+- `has_largeobject_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_largeobject_privilege(0::oid, 0::oid, 'SELECT');`
+- `has_largeobject_privilege(oid,text)` — witness: `SELECT pg_catalog.has_largeobject_privilege(0::oid, 'SELECT');`
+- `has_schema_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_schema_privilege(0::oid, 0::oid, 'USAGE');`
+- `has_sequence_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_sequence_privilege(0::oid, 0::oid, 'SELECT');`
+- `has_sequence_privilege(oid,text)` — witness: `SELECT pg_catalog.has_sequence_privilege(0::oid, 'SELECT');`
+- `has_server_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_server_privilege(0::oid, 0::oid, 'USAGE');`
+- `has_table_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_table_privilege(0::oid, 0::oid, 'SELECT');`
+- `has_table_privilege(oid,text)` — witness: `SELECT pg_catalog.has_table_privilege(0::oid, 'SELECT');`
+- `has_tablespace_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_tablespace_privilege(0::oid, 0::oid, 'CREATE');`
+- `has_type_privilege(oid,oid,text)` — witness: `SELECT pg_catalog.has_type_privilege(0::oid, 0::oid, 'USAGE');`
 - `inet_server_addr()` — witness: `SELECT pg_catalog.inet_server_addr();`
 - `inet_server_port()` — witness: `SELECT pg_catalog.inet_server_port();`
 - `int2(jsonb)` — witness: `SELECT pg_catalog.int2('null'::jsonb);`
@@ -194,7 +214,7 @@ probe as the evidence bar.
 - `range_intersect_agg(anyrange)` — witness: `SELECT (SELECT pg_catalog.range_intersect_agg(c0) FROM (VALUES ('[1,2)'::int4range)) t(c0) WHERE false);`
 - `regexp_match(text,text)` — witness: `SELECT pg_catalog.regexp_match('abc', '  ');`
 - `regexp_substr(text,text)` — witness: `SELECT pg_catalog.regexp_substr('abc', '  ');`
-- `regexp_substr(text,text,integer)` — witness: `SELECT pg_catalog.regexp_substr('abc', 'abc', 65);`
+- `regexp_substr(text,text,integer)` — witness: `SELECT pg_catalog.regexp_substr('', 'abc', 1);`
 - `regexp_substr(text,text,integer,integer)` — witness: `SELECT pg_catalog.regexp_substr('', 'abc', 1, 1);`
 - `regr_avgx(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_avgx(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1) WHERE false);`
 - `regr_avgy(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.regr_avgy(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1) WHERE false);`
@@ -285,7 +305,7 @@ probe as the evidence bar.
 - `regexp_substr(text,text,integer,integer,text)`
 - `regexp_substr(text,text,integer,integer,text,integer)`
 
-## raised-everywhere (162: functions 162, operators 0, aggregates 0, windows 0)
+## raised-everywhere (127: functions 127, operators 0, aggregates 0, windows 0)
 
 - `aclinsert(aclitem[],aclitem)` — e.g. `pg_catalog.aclinsert(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
 - `aclremove(aclitem[],aclitem)` — e.g. `pg_catalog.aclremove(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
@@ -302,88 +322,56 @@ probe as the evidence bar.
 - `fmgr_sql_validator(oid)` — e.g. `pg_catalog.fmgr_sql_validator(0::oid)` raises
 - `has_any_column_privilege(name,oid,text)` — e.g. `pg_catalog.has_any_column_privilege(''::name, 0::oid, 'abc')` raises
 - `has_any_column_privilege(name,text,text)` — e.g. `pg_catalog.has_any_column_privilege(''::name, 'abc', 'abc')` raises
-- `has_any_column_privilege(oid,oid,text)` — e.g. `pg_catalog.has_any_column_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_any_column_privilege(oid,text)` — e.g. `pg_catalog.has_any_column_privilege(0::oid, 'abc')` raises
 - `has_any_column_privilege(oid,text,text)` — e.g. `pg_catalog.has_any_column_privilege(0::oid, 'abc', 'abc')` raises
 - `has_any_column_privilege(text,text)` — e.g. `pg_catalog.has_any_column_privilege('abc', 'abc')` raises
 - `has_column_privilege(name,oid,smallint,text)` — e.g. `pg_catalog.has_column_privilege(''::name, 0::oid, 1::smallint, 'abc')` raises
 - `has_column_privilege(name,oid,text,text)` — e.g. `pg_catalog.has_column_privilege(''::name, 0::oid, 'abc', 'abc')` raises
 - `has_column_privilege(name,text,smallint,text)` — e.g. `pg_catalog.has_column_privilege(''::name, 'abc', 1::smallint, 'abc')` raises
 - `has_column_privilege(name,text,text,text)` — e.g. `pg_catalog.has_column_privilege(''::name, 'abc', 'abc', 'abc')` raises
-- `has_column_privilege(oid,oid,smallint,text)` — e.g. `pg_catalog.has_column_privilege(0::oid, 0::oid, 1::smallint, 'abc')` raises
-- `has_column_privilege(oid,oid,text,text)` — e.g. `pg_catalog.has_column_privilege(0::oid, 0::oid, 'abc', 'abc')` raises
-- `has_column_privilege(oid,smallint,text)` — e.g. `pg_catalog.has_column_privilege(0::oid, 1::smallint, 'abc')` raises
 - `has_column_privilege(oid,text,smallint,text)` — e.g. `pg_catalog.has_column_privilege(0::oid, 'abc', 1::smallint, 'abc')` raises
-- `has_column_privilege(oid,text,text)` — e.g. `pg_catalog.has_column_privilege(0::oid, 'abc', 'abc')` raises
 - `has_column_privilege(oid,text,text,text)` — e.g. `pg_catalog.has_column_privilege(0::oid, 'abc', 'abc', 'abc')` raises
 - `has_column_privilege(text,smallint,text)` — e.g. `pg_catalog.has_column_privilege('abc', 1::smallint, 'abc')` raises
 - `has_column_privilege(text,text,text)` — e.g. `pg_catalog.has_column_privilege('abc', 'abc', 'abc')` raises
 - `has_database_privilege(name,oid,text)` — e.g. `pg_catalog.has_database_privilege(''::name, 0::oid, 'abc')` raises
 - `has_database_privilege(name,text,text)` — e.g. `pg_catalog.has_database_privilege(''::name, 'abc', 'abc')` raises
-- `has_database_privilege(oid,oid,text)` — e.g. `pg_catalog.has_database_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_database_privilege(oid,text)` — e.g. `pg_catalog.has_database_privilege(0::oid, 'abc')` raises
 - `has_database_privilege(oid,text,text)` — e.g. `pg_catalog.has_database_privilege(0::oid, 'abc', 'abc')` raises
 - `has_database_privilege(text,text)` — e.g. `pg_catalog.has_database_privilege('abc', 'abc')` raises
 - `has_foreign_data_wrapper_privilege(name,oid,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(''::name, 0::oid, 'abc')` raises
 - `has_foreign_data_wrapper_privilege(name,text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(''::name, 'abc', 'abc')` raises
-- `has_foreign_data_wrapper_privilege(oid,oid,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_foreign_data_wrapper_privilege(oid,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(0::oid, 'abc')` raises
 - `has_foreign_data_wrapper_privilege(oid,text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(0::oid, 'abc', 'abc')` raises
 - `has_foreign_data_wrapper_privilege(text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege('abc', 'abc')` raises
 - `has_function_privilege(name,oid,text)` — e.g. `pg_catalog.has_function_privilege(''::name, 0::oid, 'abc')` raises
 - `has_function_privilege(name,text,text)` — e.g. `pg_catalog.has_function_privilege(''::name, 'abc', 'abc')` raises
-- `has_function_privilege(oid,oid,text)` — e.g. `pg_catalog.has_function_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_function_privilege(oid,text)` — e.g. `pg_catalog.has_function_privilege(0::oid, 'abc')` raises
 - `has_function_privilege(oid,text,text)` — e.g. `pg_catalog.has_function_privilege(0::oid, 'abc', 'abc')` raises
-- `has_function_privilege(text,text)` — e.g. `pg_catalog.has_function_privilege('abc', 'abc')` raises
 - `has_language_privilege(name,oid,text)` — e.g. `pg_catalog.has_language_privilege(''::name, 0::oid, 'abc')` raises
 - `has_language_privilege(name,text,text)` — e.g. `pg_catalog.has_language_privilege(''::name, 'abc', 'abc')` raises
-- `has_language_privilege(oid,oid,text)` — e.g. `pg_catalog.has_language_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_language_privilege(oid,text)` — e.g. `pg_catalog.has_language_privilege(0::oid, 'abc')` raises
 - `has_language_privilege(oid,text,text)` — e.g. `pg_catalog.has_language_privilege(0::oid, 'abc', 'abc')` raises
 - `has_language_privilege(text,text)` — e.g. `pg_catalog.has_language_privilege('abc', 'abc')` raises
 - `has_largeobject_privilege(name,oid,text)` — e.g. `pg_catalog.has_largeobject_privilege(''::name, 0::oid, 'abc')` raises
-- `has_largeobject_privilege(oid,oid,text)` — e.g. `pg_catalog.has_largeobject_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_largeobject_privilege(oid,text)` — e.g. `pg_catalog.has_largeobject_privilege(0::oid, 'abc')` raises
 - `has_parameter_privilege(name,text,text)` — e.g. `pg_catalog.has_parameter_privilege(''::name, 'abc', 'abc')` raises
-- `has_parameter_privilege(oid,text,text)` — e.g. `pg_catalog.has_parameter_privilege(0::oid, 'abc', 'abc')` raises
-- `has_parameter_privilege(text,text)` — e.g. `pg_catalog.has_parameter_privilege('abc', 'abc')` raises
 - `has_schema_privilege(name,oid,text)` — e.g. `pg_catalog.has_schema_privilege(''::name, 0::oid, 'abc')` raises
 - `has_schema_privilege(name,text,text)` — e.g. `pg_catalog.has_schema_privilege(''::name, 'abc', 'abc')` raises
-- `has_schema_privilege(oid,oid,text)` — e.g. `pg_catalog.has_schema_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_schema_privilege(oid,text)` — e.g. `pg_catalog.has_schema_privilege(0::oid, 'abc')` raises
 - `has_schema_privilege(oid,text,text)` — e.g. `pg_catalog.has_schema_privilege(0::oid, 'abc', 'abc')` raises
 - `has_schema_privilege(text,text)` — e.g. `pg_catalog.has_schema_privilege('abc', 'abc')` raises
 - `has_sequence_privilege(name,oid,text)` — e.g. `pg_catalog.has_sequence_privilege(''::name, 0::oid, 'abc')` raises
 - `has_sequence_privilege(name,text,text)` — e.g. `pg_catalog.has_sequence_privilege(''::name, 'abc', 'abc')` raises
-- `has_sequence_privilege(oid,oid,text)` — e.g. `pg_catalog.has_sequence_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_sequence_privilege(oid,text)` — e.g. `pg_catalog.has_sequence_privilege(0::oid, 'abc')` raises
 - `has_sequence_privilege(oid,text,text)` — e.g. `pg_catalog.has_sequence_privilege(0::oid, 'abc', 'abc')` raises
 - `has_sequence_privilege(text,text)` — e.g. `pg_catalog.has_sequence_privilege('abc', 'abc')` raises
 - `has_server_privilege(name,oid,text)` — e.g. `pg_catalog.has_server_privilege(''::name, 0::oid, 'abc')` raises
 - `has_server_privilege(name,text,text)` — e.g. `pg_catalog.has_server_privilege(''::name, 'abc', 'abc')` raises
-- `has_server_privilege(oid,oid,text)` — e.g. `pg_catalog.has_server_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_server_privilege(oid,text)` — e.g. `pg_catalog.has_server_privilege(0::oid, 'abc')` raises
 - `has_server_privilege(oid,text,text)` — e.g. `pg_catalog.has_server_privilege(0::oid, 'abc', 'abc')` raises
 - `has_server_privilege(text,text)` — e.g. `pg_catalog.has_server_privilege('abc', 'abc')` raises
 - `has_table_privilege(name,oid,text)` — e.g. `pg_catalog.has_table_privilege(''::name, 0::oid, 'abc')` raises
 - `has_table_privilege(name,text,text)` — e.g. `pg_catalog.has_table_privilege(''::name, 'abc', 'abc')` raises
-- `has_table_privilege(oid,oid,text)` — e.g. `pg_catalog.has_table_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_table_privilege(oid,text)` — e.g. `pg_catalog.has_table_privilege(0::oid, 'abc')` raises
 - `has_table_privilege(oid,text,text)` — e.g. `pg_catalog.has_table_privilege(0::oid, 'abc', 'abc')` raises
 - `has_table_privilege(text,text)` — e.g. `pg_catalog.has_table_privilege('abc', 'abc')` raises
 - `has_tablespace_privilege(name,oid,text)` — e.g. `pg_catalog.has_tablespace_privilege(''::name, 0::oid, 'abc')` raises
 - `has_tablespace_privilege(name,text,text)` — e.g. `pg_catalog.has_tablespace_privilege(''::name, 'abc', 'abc')` raises
-- `has_tablespace_privilege(oid,oid,text)` — e.g. `pg_catalog.has_tablespace_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_tablespace_privilege(oid,text)` — e.g. `pg_catalog.has_tablespace_privilege(0::oid, 'abc')` raises
 - `has_tablespace_privilege(oid,text,text)` — e.g. `pg_catalog.has_tablespace_privilege(0::oid, 'abc', 'abc')` raises
 - `has_tablespace_privilege(text,text)` — e.g. `pg_catalog.has_tablespace_privilege('abc', 'abc')` raises
 - `has_type_privilege(name,oid,text)` — e.g. `pg_catalog.has_type_privilege(''::name, 0::oid, 'abc')` raises
 - `has_type_privilege(name,text,text)` — e.g. `pg_catalog.has_type_privilege(''::name, 'abc', 'abc')` raises
-- `has_type_privilege(oid,oid,text)` — e.g. `pg_catalog.has_type_privilege(0::oid, 0::oid, 'abc')` raises
-- `has_type_privilege(oid,text)` — e.g. `pg_catalog.has_type_privilege(0::oid, 'abc')` raises
 - `has_type_privilege(oid,text,text)` — e.g. `pg_catalog.has_type_privilege(0::oid, 'abc', 'abc')` raises
-- `has_type_privilege(text,text)` — e.g. `pg_catalog.has_type_privilege('abc', 'abc')` raises
 - `int4multirange(int4range[])` — e.g. `pg_catalog.int4multirange('{}'::int4range[])` raises
 - `int8multirange(int8range[])` — e.g. `pg_catalog.int8multirange('{}'::int8range[])` raises
 - `json_extract_path(json,text[])` — e.g. `pg_catalog.json_extract_path('null'::json, '{}'::text[])` raises
@@ -401,7 +389,6 @@ probe as the evidence bar.
 - `jsonb_to_record(jsonb)` — e.g. `pg_catalog.jsonb_to_record('null'::jsonb)` raises
 - `jsonb_to_recordset(jsonb)` — e.g. `pg_catalog.jsonb_to_recordset('null'::jsonb)` raises
 - `macaddr(macaddr8)` — e.g. `pg_catalog.macaddr('08:00:2b:01:02:03:04:05'::macaddr8)` raises
-- `makeaclitem(oid,oid,text,boolean)` — e.g. `pg_catalog.makeaclitem(0::oid, 0::oid, 'abc', true)` raises
 - `multirange_intersect_agg_transfn(anymultirange,anymultirange)` — e.g. `pg_catalog.multirange_intersect_agg_transfn('{[1,2)}'::int4multirange, '{[1,2)}'::int4multirange)` raises
 - `nummultirange(numrange[])` — e.g. `pg_catalog.nummultirange('{}'::numrange[])` raises
 - `pg_event_trigger_ddl_commands()` — e.g. `pg_catalog.pg_event_trigger_ddl_commands()` raises
@@ -419,8 +406,6 @@ probe as the evidence bar.
 - `pg_has_role(name,oid,text)` — e.g. `pg_catalog.pg_has_role(''::name, 0::oid, 'abc')` raises
 - `pg_has_role(name,text)` — e.g. `pg_catalog.pg_has_role(''::name, 'abc')` raises
 - `pg_has_role(oid,name,text)` — e.g. `pg_catalog.pg_has_role(0::oid, ''::name, 'abc')` raises
-- `pg_has_role(oid,oid,text)` — e.g. `pg_catalog.pg_has_role(0::oid, 0::oid, 'abc')` raises
-- `pg_has_role(oid,text)` — e.g. `pg_catalog.pg_has_role(0::oid, 'abc')` raises
 - `pg_identify_object(oid,oid,integer)` — e.g. `pg_catalog.pg_identify_object(0::oid, 0::oid, 1)` raises
 - `pg_identify_object_as_address(oid,oid,integer)` — e.g. `pg_catalog.pg_identify_object_as_address(0::oid, 0::oid, 1)` raises
 - `pg_input_error_info(text,text)` — e.g. `pg_catalog.pg_input_error_info('abc', 'abc')` raises
