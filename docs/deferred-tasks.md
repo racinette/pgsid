@@ -853,6 +853,33 @@ rather than from a table (`first_value`, `last_value` under the default
 frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
 unlike `lag`/`lead` it has no DEFAULT argument to answer with).
 
+**THE PRIVILEGE FAMILY CLOSED THE LARGEST RAISED-EVERYWHERE BLOCK
+(2026-08-09)**: 84 of the 162 rows were `has_*_privilege` and `pg_has_role`,
+which reject any word that is not a privilege — so seven of them joined the
+text corpus and the block resolved. It resolved by SPLITTING, which is the
+part worth recording: `has_table_privilege(oid, …)`,
+`has_column_privilege`, `has_any_column_privilege`, `has_sequence_privilege`
+and `has_largeobject_privilege` answer NULL for an object that does not
+exist, while `has_database_privilege`, `has_schema_privilege`,
+`has_function_privilege`, `has_type_privilege` and `pg_has_role` answer a
+value for the same input. Nothing about the names predicts which, so the
+family is keyed row by row: 20 new witnesses, 15 promotions. `MAX_COMBOS`
+moved 1024 → 2048 for the third time, always for the same signature —
+`date_trunc(text, timestamptz, text)` is `len(text)² × 3`, so growing the
+text corpus is what moves the cap, and that rule is now written where the
+constant is.
+
+**FINAL SURFACE (2026-08-09): 4201 signatures — claimed 2753,
+null-witnessed 277, no-null-found 9, raised-everywhere 127, no-generator
+754, volatile 281.** The work list went 1832 → 9 in one session, and the
+nine are the accounted-for ones listed above. What remains is structural
+rather than open: `no-generator` is `internal` (PostgreSQL refuses the type
+from SQL) and `cstring` (type I/O entry points), `raised-everywhere` is what
+PostgreSQL declines for every input the corpus can build, and `volatile` is
+excluded on the catalog's own marker. Each is EXPLICIT, which is the
+discipline's bar — a nullable claim is witnessed or its unwitnessability is
+recorded — and none is a promotion candidate hiding as a gap.
+
 **A RANK-1 UNSOUNDNESS, FOUND BY THE CLUSTER SWEEP AND FIXED (2026-08-09):
 a cast does NOT preserve its argument's nullability.** The walk's `TypeCast`
 branch concluded "cast preserves arg nullability" and that is false for ten
