@@ -10,7 +10,11 @@ import {
   NEVER_NULL_WINDOW_SIGNATURES,
   STRICT_TOTAL_WINDOW_SIGNATURES,
 } from "../../../src/query/nullability-walk.js";
-import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
+import {
+  TOTAL_OPERATORS,
+  STRICT_OPERATORS,
+  TOTAL_OPERATOR_SIGNATURES,
+} from "../../../src/query/operators.js";
 import {
   VALUES,
   POLYMORPHIC_FAMILIES,
@@ -205,7 +209,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
       const key = `${r.name}(${r.left ?? ""},${r.right ?? ""})`;
       sigKind.set(key, "operator");
       const types = [r.left, r.right].filter((t): t is string => t !== null);
-      if (claimedOps.has(r.name)) {
+      if (claimedOps.has(r.name) || TOTAL_OPERATOR_SIGNATURES.has(key)) {
         category.set(key, "claimed");
         continue;
       }
@@ -635,8 +639,8 @@ describe("builtin scalar surface, witnessed or classified", () => {
     // evaluated), so the live half is the signature additions — which it is
     // only because an addition's OTHER rows still classify; reading an
     // addition's name as claimed made this assertion vacuous.
-    const offenders = [...nullWitness.keys()].filter(k =>
-      STRICT_TOTAL_BUILTIN_SIGNATURES.has(k),
+    const offenders = [...nullWitness.keys()].filter(
+      k => STRICT_TOTAL_BUILTIN_SIGNATURES.has(k) || TOTAL_OPERATOR_SIGNATURES.has(k),
     );
     expect(offenders).toEqual([]);
   });

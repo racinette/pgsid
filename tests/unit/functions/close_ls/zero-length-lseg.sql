@@ -1,0 +1,11 @@
+-- The operator is `line ## lseg` — the point on the segment closest to the
+-- line. A segment whose endpoints coincide has no direction to project onto,
+-- and PostgreSQL answers NULL rather than the point itself.
+--
+-- Found the same way as path_distance's single-point path: by probing every
+-- remaining operator row against DEGENERATE shapes after the corner corpus
+-- had reported no NULL. The corpus carried one lseg, between two distinct
+-- points, so the class was unreachable.
+-- @signature line, lseg
+-- @null  SELECT '{1,0,0}'::line OPERATOR(pg_catalog.##) '[(0,0),(0,0)]'::lseg
+-- @value SELECT '{1,0,0}'::line OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg

@@ -1,0 +1,12 @@
+-- The operator is `path <-> path`. A path holding a SINGLE POINT has no
+-- segment to measure from, and PostgreSQL answers NULL rather than 0 or an
+-- error — either operand is enough, and two single-point paths do it too.
+--
+-- Found by probing every remaining operator row against degenerate shapes
+-- after the corner corpus had reported no NULL for all 26 `<->` rows: the
+-- corpus carried an open and a closed two-point path and nothing smaller.
+-- It is what keeps `<->` out of TOTAL_OPERATORS, alone among the geometric
+-- position operators.
+-- @signature path, path
+-- @null  SELECT '[(0,0),(1,1)]'::path OPERATOR(pg_catalog.<->) '[(0,0)]'::path
+-- @value SELECT '[(0,0),(1,1)]'::path OPERATOR(pg_catalog.<->) '[(0,0),(1,1)]'::path

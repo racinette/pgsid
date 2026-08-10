@@ -33,7 +33,11 @@ import {
   NEVER_NULL_WINDOW_SIGNATURES,
   STRICT_TOTAL_WINDOW_SIGNATURES,
 } from "../query/nullability-walk.js";
-import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../query/operators.js";
+import {
+  TOTAL_OPERATORS,
+  STRICT_OPERATORS,
+  TOTAL_OPERATOR_SIGNATURES,
+} from "../query/operators.js";
 
 // ---------------------------------------------------------------------------
 // The names the engine's curated tables make claims about — the scope of the
@@ -61,6 +65,10 @@ const CLAIMED_FUNCTION_NAMES = [...new Set([
 const CLAIMED_OPERATOR_NAMES = [...new Set([
   ...TOTAL_OPERATORS,
   ...STRICT_OPERATORS,
+  // A SIGNATURE-keyed operator claim covers a symbol no name table holds —
+  // `tsvector @@ tsquery` under a name `jsonb @@ jsonpath` disqualifies —
+  // and its rows must be captured for the typed dispatch to resolve them.
+  ...[...TOTAL_OPERATOR_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
 ])];
 
 // ---------------------------------------------------------------------------

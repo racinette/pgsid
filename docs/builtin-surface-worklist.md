@@ -13,8 +13,9 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (252: functions 165, operators 17, aggregates 66, windows 4)
+## null-witnessed (256: functions 167, operators 19, aggregates 66, windows 4)
 
+- `##(line,lseg)` — witness: `SELECT '{1,0,0}'::line OPERATOR(pg_catalog.##) '[(0,0),(0,0)]'::lseg;`
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
 - `#(line,line)` — witness: `SELECT '{1,1,0}'::line OPERATOR(pg_catalog.#) '{1,1,0}'::line;`
 - `#(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.#) '[(0,0),(1,1)]'::lseg;`
@@ -30,6 +31,7 @@ probe as the evidence bar.
 - `->>(json,text)` — witness: `SELECT 'null'::json OPERATOR(pg_catalog.->>) 'abc';`
 - `->>(jsonb,integer)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.->>) 1;`
 - `->>(jsonb,text)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.->>) 'abc';`
+- `<->(path,path)` — witness: `SELECT '[(0,0),(1,1)]'::path OPERATOR(pg_catalog.<->) '[(0,0)]'::path;`
 - `@?(jsonb,jsonpath)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.@?) 'strict $.a'::jsonpath;`
 - `@@(jsonb,jsonpath)` — witness: `SELECT 'null'::jsonb OPERATOR(pg_catalog.@@) '$'::jsonpath;`
 - `any_value(anyelement)` — witness: `SELECT (SELECT pg_catalog.any_value(c0) FROM (VALUES (1)) t(c0) WHERE false);`
@@ -46,6 +48,7 @@ probe as the evidence bar.
 - `bit_xor(integer)` — witness: `SELECT (SELECT pg_catalog.bit_xor(c0) FROM (VALUES (1)) t(c0) WHERE false);`
 - `bit_xor(smallint)` — witness: `SELECT (SELECT pg_catalog.bit_xor(c0) FROM (VALUES (1::smallint)) t(c0) WHERE false);`
 - `bool(jsonb)` — witness: `SELECT pg_catalog.bool('null'::jsonb);`
+- `close_ls(line,lseg)` — witness: `SELECT pg_catalog.close_ls('{1,0,0}'::line, '[(0,0),(0,0)]'::lseg);`
 - `close_lseg(lseg,lseg)` — witness: `SELECT pg_catalog.close_lseg('[(0,0),(1,1)]'::lseg, '[(0,0),(1,1)]'::lseg);`
 - `col_description(oid,integer)` — witness: `SELECT pg_catalog.col_description(0::oid, 1);`
 - `corr(double precision,double precision)` — witness: `SELECT (SELECT pg_catalog.corr(c0, c1) FROM (VALUES (1::float8, 1::float8)) t(c0, c1));`
@@ -110,6 +113,7 @@ probe as the evidence bar.
 - `obj_description(oid)` — witness: `SELECT pg_catalog.obj_description(0::oid);`
 - `obj_description(oid,name)` — witness: `SELECT pg_catalog.obj_description(0::oid, ''::name);`
 - `path_add(path,path)` — witness: `SELECT pg_catalog.path_add('[(0,0),(1,1)]'::path, '((0,0),(1,1))'::path);`
+- `path_distance(path,path)` — witness: `SELECT pg_catalog.path_distance('[(0,0),(1,1)]'::path, '[(0,0)]'::path);`
 - `pg_available_extension_versions()` — witness: `SELECT pg_catalog.pg_available_extension_versions();`
 - `pg_collation_for("any")` — witness: `SELECT pg_catalog.pg_collation_for('x');`
 - `pg_collation_is_visible(oid)` — witness: `SELECT pg_catalog.pg_collation_is_visible(0::oid);`
@@ -268,90 +272,8 @@ probe as the evidence bar.
 - `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 
-## no-null-found (1526: functions 1419, operators 103, aggregates 1, windows 3)
+## no-null-found (1421: functions 1417, operators 0, aggregates 1, windows 3)
 
-- `!!(,tsquery)`
-- `##(line,lseg)`
-- `##(lseg,box)`
-- `##(point,box)`
-- `##(point,line)`
-- `##(point,lseg)`
-- `#(,path)`
-- `#(,polygon)`
-- `#(bigint,bigint)`
-- `#(bit,bit)`
-- `#(box,box)`
-- `#(integer,integer)`
-- `#(smallint,smallint)`
-- `&<|(box,box)`
-- `&<|(circle,circle)`
-- `&<|(polygon,polygon)`
-- `<->(box,box)`
-- `<->(box,lseg)`
-- `<->(box,point)`
-- `<->(circle,circle)`
-- `<->(circle,point)`
-- `<->(circle,polygon)`
-- `<->(line,line)`
-- `<->(line,lseg)`
-- `<->(line,point)`
-- `<->(lseg,box)`
-- `<->(lseg,line)`
-- `<->(lseg,lseg)`
-- `<->(lseg,point)`
-- `<->(path,path)`
-- `<->(path,point)`
-- `<->(point,box)`
-- `<->(point,circle)`
-- `<->(point,line)`
-- `<->(point,lseg)`
-- `<->(point,path)`
-- `<->(point,point)`
-- `<->(point,polygon)`
-- `<->(polygon,circle)`
-- `<->(polygon,point)`
-- `<->(polygon,polygon)`
-- `<->(tsquery,tsquery)`
-- `<<|(box,box)`
-- `<<|(circle,circle)`
-- `<<|(point,point)`
-- `<<|(polygon,polygon)`
-- `<^(box,box)`
-- `<^(point,point)`
-- `>^(box,box)`
-- `>^(point,point)`
-- `?#(box,box)`
-- `?#(line,box)`
-- `?#(line,line)`
-- `?#(lseg,box)`
-- `?#(lseg,line)`
-- `?#(lseg,lseg)`
-- `?#(path,path)`
-- `?-(,line)`
-- `?-(,lseg)`
-- `?-(point,point)`
-- `?-|(line,line)`
-- `?-|(lseg,lseg)`
-- `?||(line,line)`
-- `?||(lseg,lseg)`
-- `@(,bigint)`
-- `@(,double precision)`
-- `@(,integer)`
-- `@(,numeric)`
-- `@(,real)`
-- `@(,smallint)`
-- `@-@(,lseg)`
-- `@-@(,path)`
-- `@@(,box)`
-- `@@(,circle)`
-- `@@(,lseg)`
-- `@@(,polygon)`
-- `@@(text,text)`
-- `@@(text,tsquery)`
-- `@@(tsquery,tsvector)`
-- `@@(tsvector,tsquery)`
-- `@@@(tsquery,tsvector)`
-- `@@@(tsvector,tsquery)`
 - `aclcontains(aclitem[],aclitem)`
 - `acldefault("char",oid)`
 - `aclexplode(aclitem[])`
@@ -592,7 +514,6 @@ probe as the evidence bar.
 - `circle_same(circle,circle)`
 - `circle_send(circle)`
 - `circle_sub_pt(circle,point)`
-- `close_ls(line,lseg)`
 - `close_pb(point,box)`
 - `close_pl(point,line)`
 - `close_ps(point,lseg)`
@@ -1292,7 +1213,6 @@ probe as the evidence bar.
 - `path(polygon)`
 - `path_add_pt(path,point)`
 - `path_contain_pt(path,point)`
-- `path_distance(path,path)`
 - `path_div_pt(path,point)`
 - `path_inter(path,path)`
 - `path_length(path)`
@@ -1775,36 +1695,9 @@ probe as the evidence bar.
 - `xidout(xid)`
 - `xidsend(xid)`
 - `xml(text)`
-- `|&>(box,box)`
-- `|&>(circle,circle)`
-- `|&>(polygon,polygon)`
-- `|/(,double precision)`
-- `|>>(box,box)`
-- `|>>(circle,circle)`
-- `|>>(point,point)`
-- `|>>(polygon,polygon)`
-- `||/(,double precision)`
-- `~<=~(character,character)`
-- `~<=~(text,text)`
-- `~<~(character,character)`
-- `~<~(text,text)`
-- `~=(box,box)`
-- `~=(circle,circle)`
-- `~=(point,point)`
-- `~=(polygon,polygon)`
-- `~>=~(character,character)`
-- `~>=~(text,text)`
-- `~>~(character,character)`
-- `~>~(text,text)`
 
-## raised-everywhere (168: functions 162, operators 6, aggregates 0, windows 0)
+## raised-everywhere (162: functions 162, operators 0, aggregates 0, windows 0)
 
-- `*<(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<) ROW(1,2)` raises
-- `*<=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<=) ROW(1,2)` raises
-- `*<>(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*<>) ROW(1,2)` raises
-- `*=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*=) ROW(1,2)` raises
-- `*>(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*>) ROW(1,2)` raises
-- `*>=(record,record)` — e.g. `ROW(1,2) OPERATOR(pg_catalog.*>=) ROW(1,2)` raises
 - `aclinsert(aclitem[],aclitem)` — e.g. `pg_catalog.aclinsert(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
 - `aclremove(aclitem[],aclitem)` — e.g. `pg_catalog.aclremove(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
 - `any_out("any")` — e.g. `pg_catalog.any_out(1)` raises

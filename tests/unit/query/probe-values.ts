@@ -76,7 +76,11 @@ export const VALUES: Record<string, string[]> = {
   // turning it into a SQL NULL while the other returns it as a value.
   json: ["'null'::json", "'{}'::json", "'[]'::json", "'{\"a\":1}'::json", "'[1,null]'::json", "'{\"a\":null}'::json"],
   jsonb: ["'null'::jsonb", "'{}'::jsonb", "'[]'::jsonb", "'{\"a\":1}'::jsonb", "'[1,null]'::jsonb", "'{\"a\":null}'::jsonb"],
-  record: ["ROW(1,2)"],
+  // The CAST spellings matter: an uncast `ROW(1,2)` is decomposed by the
+  // parser, so `ROW(1,2) *< ROW(1,2)` looks for `integer *< integer` and
+  // raises — which left all six record-image comparison operators probed in
+  // name only. The NULL-holding row is the corner of the pair.
+  record: ["ROW(1,2)", "ROW(1,2)::record", "ROW(1,NULL)::record"],
 
   // --- ranges: the EMPTY range removed lower/upper.
   anyrange: ["'empty'::int4range", "'[1,2)'::int4range"],
@@ -133,13 +137,24 @@ export const VALUES: Record<string, string[]> = {
   tsvector: ["''::tsvector", "'a b'::tsvector"],
   tsquery: ["'a'::tsquery", "'a & b'::tsquery"],
   point: ["'(0,0)'::point", "'(1,1)'::point"],
-  line: ["'{1,1,0}'::line"],
-  lseg: ["'[(0,0),(1,1)]'::lseg"],
+  // The VERTICAL line is its own class: `line ## lseg` is NULL only when the
+  // line has no horizontal component, so the diagonal alone missed the defect
+  // even once the zero-length segment was in the corpus (measured — both
+  // halves of that combination are needed).
+  line: ["'{1,1,0}'::line", "'{1,0,0}'::line"],
+  // The ZERO-LENGTH segment is the lseg counterpart of the single-point path
+  // below (2026-08-09): `line ## lseg` — the closest point on the segment —
+  // is NULL when the segment has no length, and a segment between two
+  // distinct points cannot reach it.
+  lseg: ["'[(0,0),(1,1)]'::lseg", "'[(0,0),(0,0)]'::lseg"],
   box: ["'((0,0),(1,1))'::box"],
   // Both spellings: `path + path` is NULL whenever EITHER operand is a CLOSED
   // path, and open + open is a value — so one spelling alone either misses
-  // the defect or misses the control.
-  path: ["'[(0,0),(1,1)]'::path", "'((0,0),(1,1))'::path"],
+  // the defect or misses the control. The SINGLE-POINT path joined them
+  // (2026-08-09): `path <-> path` is NULL whenever either side has one point,
+  // and two two-point paths cannot reach it — the same shape as the closed
+  // path one row up, found the same way.
+  path: ["'[(0,0),(1,1)]'::path", "'((0,0),(1,1))'::path", "'[(0,0)]'::path"],
   circle: ["'<(0,0),1>'::circle"],
   polygon: ["'((0,0),(1,1),(1,0))'::polygon"],
   aclitem: ["makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)"],
