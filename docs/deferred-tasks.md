@@ -853,6 +853,46 @@ rather than from a table (`first_value`, `last_value` under the default
 frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
 unlike `lag`/`lead` it has no DEFAULT argument to answer with).
 
+**THE WORK LIST IS PINNED (2026-08-09), which closes the last drift gap in
+this surface.** Everything else here already enforced no drift on every run
+— the totality probe EXECUTES all 2753 claimed rows against the corner
+corpus and fails if PostgreSQL ever answers NULL, the witness corpus
+re-checks that each witness still witnesses, the curated tables are held to
+pg_catalog's existence, the capture's scope is asserted both ways — but the
+CLASSIFICATION had a hole: a function a future PostgreSQL adds arrives
+unclaimed, lands in `no-null-found`, and the run PASSES with the queue
+quietly larger. Nobody would learn until they regenerated the work-list
+document by hand.
+
+`node-census.test.ts`'s pattern closes it: `WORK_LIST` names the nine
+remaining signatures WITH the reason each is still there, asserted in BOTH
+directions. Deliberately not a count — a ratchet lets a regression hide
+behind an unrelated improvement, which this project rejects everywhere else
+— and deliberately a reason rather than a marker: an entry is a decision,
+and if the reason would be "nobody has looked yet" then the honest move is
+to look. Both directions were verified by MUTATION rather than assumed: an
+entry removed fails as unexplained, an entry invented fails as stale.
+
+**THE NON-FuncCall NODE KINDS WERE AUDITED (2026-08-09) AND THE CAST WAS
+THE ONLY HOLE.** The cast finding raised an obvious question — what ELSE
+reaches a builtin without parsing as a `FuncCall`? — so every expression
+node kind in `node-census.test.ts` went through an engine-versus-PostgreSQL
+differential on NOT NULL columns: 41 cases, `A_Indirection` subscript and
+slice, `MinMaxExpr`, `SQLValueFunction`, all six `XmlExpr` spellings,
+`XmlSerialize`, every `SubLink` form, `RowExpr`, `A_ArrayExpr`,
+`CollateClause`, `NullTest`, `BooleanTest`, `CaseExpr`, `CoalesceExpr`, the
+`A_Expr` sublanguages (IN, BETWEEN, LIKE, ANY/ALL over an array, IS
+DISTINCT FROM), `GroupingFunc`, and the seven JSON node kinds.
+
+**Zero unsound claims**, and the audit CONVICTS rather than merely passing:
+five of the cases produced a real NULL from PostgreSQL — `arr[5]` past the
+end, a scalar subquery over zero rows, `CASE` with no `ELSE` and no branch
+taken, `JSON_VALUE`/`JSON_QUERY` on a missing path, and `JSON_ARRAY` over an
+empty subquery — and the walk reads every one of them nullable. The census's
+per-kind `why` strings turn out to be load-bearing and accurate; the ONE
+that had gone stale was `TypeCast`'s own ("preserves arg"), corrected in
+place.
+
 **THE PRIVILEGE FAMILY CLOSED THE LARGEST RAISED-EVERYWHERE BLOCK
 (2026-08-09)**: 84 of the 162 rows were `has_*_privilege` and `pg_has_role`,
 which reject any word that is not a privilege — so seven of them joined the
