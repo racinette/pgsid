@@ -13,7 +13,7 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (288: functions 199, operators 19, aggregates 66, windows 4)
+## null-witnessed (293: functions 203, operators 19, aggregates 67, windows 4)
 
 - `##(line,lseg)` — witness: `SELECT '{1,0,0}'::line OPERATOR(pg_catalog.##) '[(0,0),(0,0)]'::lseg;`
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
@@ -168,6 +168,7 @@ probe as the evidence bar.
 - `pg_get_indexdef(oid,integer,boolean)` — witness: `SELECT pg_catalog.pg_get_indexdef(0::oid, 1, true);`
 - `pg_get_partition_constraintdef(oid)` — witness: `SELECT pg_catalog.pg_get_partition_constraintdef(0::oid);`
 - `pg_get_partkeydef(oid)` — witness: `SELECT pg_catalog.pg_get_partkeydef(0::oid);`
+- `pg_get_replica_identity_index(regclass)` — witness: `SELECT pg_catalog.pg_get_replica_identity_index('pg_class'::regclass);`
 - `pg_get_ruledef(oid)` — witness: `SELECT pg_catalog.pg_get_ruledef(0::oid);`
 - `pg_get_ruledef(oid,boolean)` — witness: `SELECT pg_catalog.pg_get_ruledef(0::oid, true);`
 - `pg_get_statisticsobjdef(oid)` — witness: `SELECT pg_catalog.pg_get_statisticsobjdef(0::oid);`
@@ -180,12 +181,15 @@ probe as the evidence bar.
 - `pg_get_viewdef(oid,integer)` — witness: `SELECT pg_catalog.pg_get_viewdef(0::oid, 1);`
 - `pg_get_viewdef(text)` — witness: `SELECT pg_catalog.pg_get_viewdef('pg_class');`
 - `pg_get_viewdef(text,boolean)` — witness: `SELECT pg_catalog.pg_get_viewdef('pg_class', true);`
+- `pg_index_column_has_property(regclass,integer,text)` — witness: `SELECT pg_catalog.pg_index_column_has_property('pg_class'::regclass, 1, 'abc');`
+- `pg_index_has_property(regclass,text)` — witness: `SELECT pg_catalog.pg_index_has_property('pg_class'::regclass, 'abc');`
 - `pg_indexam_has_property(oid,text)` — witness: `SELECT pg_catalog.pg_indexam_has_property(0::oid, 'abc');`
 - `pg_indexam_progress_phasename(oid,bigint)` — witness: `SELECT pg_catalog.pg_indexam_progress_phasename(0::oid, 1::bigint);`
 - `pg_opclass_is_visible(oid)` — witness: `SELECT pg_catalog.pg_opclass_is_visible(0::oid);`
 - `pg_operator_is_visible(oid)` — witness: `SELECT pg_catalog.pg_operator_is_visible(0::oid);`
 - `pg_opfamily_is_visible(oid)` — witness: `SELECT pg_catalog.pg_opfamily_is_visible(0::oid);`
 - `pg_options_to_table(text[])` — witness: `SELECT pg_catalog.pg_options_to_table(ARRAY['a','b']);`
+- `pg_partition_root(regclass)` — witness: `SELECT pg_catalog.pg_partition_root('pg_class'::regclass);`
 - `pg_replication_origin_oid(text)` — witness: `SELECT pg_catalog.pg_replication_origin_oid('abc');`
 - `pg_settings_get_flags(text)` — witness: `SELECT pg_catalog.pg_settings_get_flags('abc');`
 - `pg_show_all_settings()` — witness: `SELECT pg_catalog.pg_show_all_settings();`
@@ -303,6 +307,7 @@ probe as the evidence bar.
 - `variance(numeric)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::numeric)) t(c0));`
 - `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
+- `xmlagg(xml)` — witness: `SELECT (SELECT pg_catalog.xmlagg(c0) FROM (VALUES (''::xml)) t(c0) WHERE false);`
 
 ## no-null-found (9: functions 6, operators 0, aggregates 0, windows 3)
 
@@ -316,7 +321,7 @@ probe as the evidence bar.
 - `regexp_substr(text,text,integer,integer,text)`
 - `regexp_substr(text,text,integer,integer,text,integer)`
 
-## raised-everywhere (79: functions 79, operators 0, aggregates 0, windows 0)
+## raised-everywhere (114: functions 114, operators 0, aggregates 0, windows 0)
 
 - `aclinsert(aclitem[],aclitem)` — e.g. `pg_catalog.aclinsert(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
 - `aclremove(aclitem[],aclitem)` — e.g. `pg_catalog.aclremove(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
@@ -325,7 +330,30 @@ probe as the evidence bar.
 - `anycompatiblenonarray_out(anycompatiblenonarray)` — e.g. `pg_catalog.anycompatiblenonarray_out(1)` raises
 - `anyelement_out(anyelement)` — e.g. `pg_catalog.anyelement_out(1)` raises
 - `anynonarray_out(anynonarray)` — e.g. `pg_catalog.anynonarray_out(1)` raises
+- `bittypmodin(cstring[])` — e.g. `pg_catalog.bittypmodin('{}'::cstring[])` raises
+- `bpchartypmodin(cstring[])` — e.g. `pg_catalog.bpchartypmodin('{}'::cstring[])` raises
 - `btvarstrequalimage(oid)` — e.g. `pg_catalog.btvarstrequalimage(0::oid)` raises
+- `float4_accum(double precision[],real)` — e.g. `pg_catalog.float4_accum('{}'::float8[], 0::float4)` raises
+- `float8_accum(double precision[],double precision)` — e.g. `pg_catalog.float8_accum('{}'::float8[], 1::float8)` raises
+- `float8_avg(double precision[])` — e.g. `pg_catalog.float8_avg('{}'::float8[])` raises
+- `float8_combine(double precision[],double precision[])` — e.g. `pg_catalog.float8_combine('{}'::float8[], '{}'::float8[])` raises
+- `float8_corr(double precision[])` — e.g. `pg_catalog.float8_corr('{}'::float8[])` raises
+- `float8_covar_pop(double precision[])` — e.g. `pg_catalog.float8_covar_pop('{}'::float8[])` raises
+- `float8_covar_samp(double precision[])` — e.g. `pg_catalog.float8_covar_samp('{}'::float8[])` raises
+- `float8_regr_accum(double precision[],double precision,double precision)` — e.g. `pg_catalog.float8_regr_accum('{}'::float8[], 1::float8, 1::float8)` raises
+- `float8_regr_avgx(double precision[])` — e.g. `pg_catalog.float8_regr_avgx('{}'::float8[])` raises
+- `float8_regr_avgy(double precision[])` — e.g. `pg_catalog.float8_regr_avgy('{}'::float8[])` raises
+- `float8_regr_combine(double precision[],double precision[])` — e.g. `pg_catalog.float8_regr_combine('{}'::float8[], '{}'::float8[])` raises
+- `float8_regr_intercept(double precision[])` — e.g. `pg_catalog.float8_regr_intercept('{}'::float8[])` raises
+- `float8_regr_r2(double precision[])` — e.g. `pg_catalog.float8_regr_r2('{}'::float8[])` raises
+- `float8_regr_slope(double precision[])` — e.g. `pg_catalog.float8_regr_slope('{}'::float8[])` raises
+- `float8_regr_sxx(double precision[])` — e.g. `pg_catalog.float8_regr_sxx('{}'::float8[])` raises
+- `float8_regr_sxy(double precision[])` — e.g. `pg_catalog.float8_regr_sxy('{}'::float8[])` raises
+- `float8_regr_syy(double precision[])` — e.g. `pg_catalog.float8_regr_syy('{}'::float8[])` raises
+- `float8_stddev_pop(double precision[])` — e.g. `pg_catalog.float8_stddev_pop('{}'::float8[])` raises
+- `float8_stddev_samp(double precision[])` — e.g. `pg_catalog.float8_stddev_samp('{}'::float8[])` raises
+- `float8_var_pop(double precision[])` — e.g. `pg_catalog.float8_var_pop('{}'::float8[])` raises
+- `float8_var_samp(double precision[])` — e.g. `pg_catalog.float8_var_samp('{}'::float8[])` raises
 - `fmgr_c_validator(oid)` — e.g. `pg_catalog.fmgr_c_validator(0::oid)` raises
 - `fmgr_internal_validator(oid)` — e.g. `pg_catalog.fmgr_internal_validator(0::oid)` raises
 - `fmgr_sql_validator(oid)` — e.g. `pg_catalog.fmgr_sql_validator(0::oid)` raises
@@ -357,6 +385,8 @@ probe as the evidence bar.
 - `has_tablespace_privilege(name,text,text)` — e.g. `pg_catalog.has_tablespace_privilege(''::name, 'abc', 'abc')` raises
 - `has_tablespace_privilege(oid,text,text)` — e.g. `pg_catalog.has_tablespace_privilege(0::oid, 'abc', 'abc')` raises
 - `has_tablespace_privilege(text,text)` — e.g. `pg_catalog.has_tablespace_privilege('abc', 'abc')` raises
+- `int4_avg_combine(bigint[],bigint[])` — e.g. `pg_catalog.int4_avg_combine('{}'::int8[], '{}'::int8[])` raises
+- `intervaltypmodin(cstring[])` — e.g. `pg_catalog.intervaltypmodin('{}'::cstring[])` raises
 - `json_populate_record(anyelement,json,boolean)` — e.g. `pg_catalog.json_populate_record(1, 'null'::json, true)` raises
 - `json_populate_recordset(anyelement,json,boolean)` — e.g. `pg_catalog.json_populate_recordset(1, 'null'::json, true)` raises
 - `json_to_record(json)` — e.g. `(pg_catalog.json_to_record('null'::json))::text` raises
@@ -367,6 +397,7 @@ probe as the evidence bar.
 - `jsonb_to_record(jsonb)` — e.g. `(pg_catalog.jsonb_to_record('null'::jsonb))::text` raises
 - `jsonb_to_recordset(jsonb)` — e.g. `pg_catalog.jsonb_to_recordset('null'::jsonb)` raises
 - `multirange_intersect_agg_transfn(anymultirange,anymultirange)` — e.g. `pg_catalog.multirange_intersect_agg_transfn('{[1,2)}'::int4multirange, '{[1,2)}'::int4multirange)` raises
+- `numerictypmodin(cstring[])` — e.g. `pg_catalog.numerictypmodin('{}'::cstring[])` raises
 - `pg_event_trigger_ddl_commands()` — e.g. `pg_catalog.pg_event_trigger_ddl_commands()` raises
 - `pg_event_trigger_dropped_objects()` — e.g. `pg_catalog.pg_event_trigger_dropped_objects()` raises
 - `pg_event_trigger_table_rewrite_oid()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_oid()` raises
@@ -381,6 +412,7 @@ probe as the evidence bar.
 - `pg_listening_channels()` — e.g. `pg_catalog.pg_listening_channels()` raises
 - `pg_prepared_statement()` — e.g. `pg_catalog.pg_prepared_statement()` raises
 - `pg_sequence_parameters(oid)` — e.g. `(pg_catalog.pg_sequence_parameters(0::oid))::text` raises
+- `pg_snapshot_xip(pg_snapshot)` — e.g. `pg_catalog.pg_snapshot_xip('1:1:'::pg_snapshot)` raises
 - `pg_split_walfile_name(text)` — e.g. `(pg_catalog.pg_split_walfile_name('abc'))::text` raises
 - `pg_stat_get_progress_info(text)` — e.g. `pg_catalog.pg_stat_get_progress_info('abc')` raises
 - `pg_stat_get_subscription(oid)` — e.g. `pg_catalog.pg_stat_get_subscription(0::oid)` raises
@@ -392,13 +424,21 @@ probe as the evidence bar.
 - `schema_to_xml(name,boolean,boolean,text)` — e.g. `pg_catalog.schema_to_xml(''::name, true, true, 'abc')` raises
 - `schema_to_xml_and_xmlschema(name,boolean,boolean,text)` — e.g. `pg_catalog.schema_to_xml_and_xmlschema(''::name, true, true, 'abc')` raises
 - `schema_to_xmlschema(name,boolean,boolean,text)` — e.g. `pg_catalog.schema_to_xmlschema(''::name, true, true, 'abc')` raises
+- `timestamptypmodin(cstring[])` — e.g. `pg_catalog.timestamptypmodin('{}'::cstring[])` raises
+- `timestamptztypmodin(cstring[])` — e.g. `pg_catalog.timestamptztypmodin('{}'::cstring[])` raises
+- `timetypmodin(cstring[])` — e.g. `pg_catalog.timetypmodin('{}'::cstring[])` raises
+- `timetztypmodin(cstring[])` — e.g. `pg_catalog.timetztypmodin('{}'::cstring[])` raises
 - `to_ascii(text)` — e.g. `pg_catalog.to_ascii('abc')` raises
 - `to_ascii(text,integer)` — e.g. `pg_catalog.to_ascii('abc', 1)` raises
 - `to_ascii(text,name)` — e.g. `pg_catalog.to_ascii('abc', ''::name)` raises
 - `ts_parse(oid,text)` — e.g. `pg_catalog.ts_parse(0::oid, 'abc')` raises
 - `ts_token_type(oid)` — e.g. `pg_catalog.ts_token_type(0::oid)` raises
+- `txid_snapshot_xip(txid_snapshot)` — e.g. `pg_catalog.txid_snapshot_xip('1:1:'::txid_snapshot)` raises
+- `varbittypmodin(cstring[])` — e.g. `pg_catalog.varbittypmodin('{}'::cstring[])` raises
+- `varchartypmodin(cstring[])` — e.g. `pg_catalog.varchartypmodin('{}'::cstring[])` raises
+- `xmlvalidate(xml,text)` — e.g. `pg_catalog.xmlvalidate(''::xml, 'abc')` raises
 
-## no-generator (754: functions 750, operators 0, aggregates 4, windows 0)
+## no-generator (652: functions 652, operators 0, aggregates 0, windows 0)
 
 - `aclitemin(cstring)`
 - `any_in(cstring)`
@@ -408,7 +448,6 @@ probe as the evidence bar.
 - `anycompatiblearray_in(cstring)`
 - `anycompatiblearray_recv(internal)`
 - `anycompatiblemultirange_in(cstring,oid,integer)`
-- `anycompatiblemultirange_out(anycompatiblemultirange)`
 - `anycompatiblenonarray_in(cstring)`
 - `anycompatiblerange_in(cstring,oid,integer)`
 - `anyelement_in(cstring)`
@@ -443,7 +482,6 @@ probe as the evidence bar.
 - `big5_to_utf8(integer,integer,cstring,internal,integer,boolean)`
 - `bit_in(cstring,oid,integer)`
 - `bit_recv(internal,oid,integer)`
-- `bittypmodin(cstring[])`
 - `bool_accum(internal,boolean)`
 - `bool_accum_inv(internal,boolean)`
 - `bool_alltrue(internal)`
@@ -455,7 +493,6 @@ probe as the evidence bar.
 - `bpchar_sortsupport(internal)`
 - `bpcharin(cstring,oid,integer)`
 - `bpcharrecv(internal,oid,integer)`
-- `bpchartypmodin(cstring[])`
 - `brin_bloom_add_value(internal,internal,internal,internal)`
 - `brin_bloom_consistent(internal,internal,internal,integer)`
 - `brin_bloom_opcinfo(internal)`
@@ -571,29 +608,8 @@ probe as the evidence bar.
 - `event_trigger_out(event_trigger)`
 - `fdw_handler_in(cstring)`
 - `fdw_handler_out(fdw_handler)`
-- `float4_accum(double precision[],real)`
 - `float4in(cstring)`
 - `float4recv(internal)`
-- `float8_accum(double precision[],double precision)`
-- `float8_avg(double precision[])`
-- `float8_combine(double precision[],double precision[])`
-- `float8_corr(double precision[])`
-- `float8_covar_pop(double precision[])`
-- `float8_covar_samp(double precision[])`
-- `float8_regr_accum(double precision[],double precision,double precision)`
-- `float8_regr_avgx(double precision[])`
-- `float8_regr_avgy(double precision[])`
-- `float8_regr_combine(double precision[],double precision[])`
-- `float8_regr_intercept(double precision[])`
-- `float8_regr_r2(double precision[])`
-- `float8_regr_slope(double precision[])`
-- `float8_regr_sxx(double precision[])`
-- `float8_regr_sxy(double precision[])`
-- `float8_regr_syy(double precision[])`
-- `float8_stddev_pop(double precision[])`
-- `float8_stddev_samp(double precision[])`
-- `float8_var_pop(double precision[])`
-- `float8_var_samp(double precision[])`
 - `float8in(cstring)`
 - `float8recv(internal)`
 - `gb18030_to_utf8(integer,integer,cstring,internal,integer,boolean)`
@@ -688,25 +704,16 @@ probe as the evidence bar.
 - `inet_spg_picksplit(internal,internal)`
 - `int2_accum(internal,smallint)`
 - `int2_accum_inv(internal,smallint)`
-- `int2_avg_accum(bigint[],smallint)`
-- `int2_avg_accum_inv(bigint[],smallint)`
 - `int2in(cstring)`
-- `int2int4_sum(bigint[])`
 - `int2recv(internal)`
 - `int2vectorin(cstring)`
-- `int2vectorout(int2vector)`
 - `int2vectorrecv(internal)`
-- `int2vectorsend(int2vector)`
 - `int4_accum(internal,integer)`
 - `int4_accum_inv(internal,integer)`
-- `int4_avg_accum(bigint[],integer)`
-- `int4_avg_accum_inv(bigint[],integer)`
-- `int4_avg_combine(bigint[],bigint[])`
 - `int4in(cstring)`
 - `int4recv(internal)`
 - `int8_accum(internal,bigint)`
 - `int8_accum_inv(internal,bigint)`
-- `int8_avg(bigint[])`
 - `int8_avg_accum(internal,bigint)`
 - `int8_avg_accum_inv(internal,bigint)`
 - `int8_avg_combine(internal,internal)`
@@ -727,7 +734,6 @@ probe as the evidence bar.
 - `interval_recv(internal,oid,integer)`
 - `interval_sum(internal)`
 - `interval_support(internal)`
-- `intervaltypmodin(cstring[])`
 - `iso8859_1_to_utf8(integer,integer,cstring,internal,integer,boolean)`
 - `iso8859_to_utf8(integer,integer,cstring,internal,integer,boolean)`
 - `iso_to_koi8r(integer,integer,cstring,internal,integer,boolean)`
@@ -846,7 +852,6 @@ probe as the evidence bar.
 - `numeric_support(internal)`
 - `numeric_var_pop(internal)`
 - `numeric_var_samp(internal)`
-- `numerictypmodin(cstring[])`
 - `oidin(cstring)`
 - `oidrecv(internal)`
 - `oidvectorin(cstring)`
@@ -856,17 +861,12 @@ probe as the evidence bar.
 - `path_in(cstring)`
 - `path_recv(internal)`
 - `percent_rank_final(internal,"any")`
-- `percentile_cont(double precision[],double precision)`
-- `percentile_cont(double precision[],interval)`
 - `percentile_cont_float8_final(internal,double precision)`
 - `percentile_cont_float8_multi_final(internal,double precision[])`
 - `percentile_cont_interval_final(internal,double precision)`
 - `percentile_cont_interval_multi_final(internal,double precision[])`
-- `percentile_disc(double precision[],anyelement)`
 - `percentile_disc_final(internal,double precision,anyelement)`
 - `percentile_disc_multi_final(internal,double precision[],anyelement)`
-- `pg_basetype(regtype)`
-- `pg_column_is_updatable(regclass,smallint,boolean)`
 - `pg_ddl_command_in(cstring)`
 - `pg_ddl_command_out(pg_ddl_command)`
 - `pg_ddl_command_recv(internal)`
@@ -877,9 +877,6 @@ probe as the evidence bar.
 - `pg_dependencies_send(pg_dependencies)`
 - `pg_get_expr(pg_node_tree,oid)`
 - `pg_get_expr(pg_node_tree,oid,boolean)`
-- `pg_get_replica_identity_index(regclass)`
-- `pg_index_column_has_property(regclass,integer,text)`
-- `pg_index_has_property(regclass,text)`
 - `pg_lsn_in(cstring)`
 - `pg_lsn_recv(internal)`
 - `pg_mcv_list_in(cstring)`
@@ -895,19 +892,8 @@ probe as the evidence bar.
 - `pg_node_tree_out(pg_node_tree)`
 - `pg_node_tree_recv(internal)`
 - `pg_node_tree_send(pg_node_tree)`
-- `pg_partition_root(regclass)`
-- `pg_relation_filenode(regclass)`
-- `pg_relation_filepath(regclass)`
-- `pg_relation_is_publishable(regclass)`
-- `pg_relation_is_updatable(regclass,boolean)`
 - `pg_snapshot_in(cstring)`
-- `pg_snapshot_out(pg_snapshot)`
 - `pg_snapshot_recv(internal)`
-- `pg_snapshot_send(pg_snapshot)`
-- `pg_snapshot_xip(pg_snapshot)`
-- `pg_snapshot_xmax(pg_snapshot)`
-- `pg_snapshot_xmin(pg_snapshot)`
-- `pg_visible_in_snapshot(xid8,pg_snapshot)`
 - `point_in(cstring)`
 - `point_recv(internal)`
 - `poly_in(cstring)`
@@ -939,51 +925,31 @@ probe as the evidence bar.
 - `record_in(cstring,oid,integer)`
 - `record_recv(internal,oid,integer)`
 - `regclassin(cstring)`
-- `regclassout(regclass)`
 - `regclassrecv(internal)`
-- `regclasssend(regclass)`
 - `regcollationin(cstring)`
-- `regcollationout(regcollation)`
 - `regcollationrecv(internal)`
-- `regcollationsend(regcollation)`
 - `regconfigin(cstring)`
 - `regconfigrecv(internal)`
 - `regdictionaryin(cstring)`
-- `regdictionaryout(regdictionary)`
 - `regdictionaryrecv(internal)`
-- `regdictionarysend(regdictionary)`
 - `regexeqjoinsel(internal,oid,internal,smallint,internal)`
 - `regexeqsel(internal,oid,internal,integer)`
 - `regexnejoinsel(internal,oid,internal,smallint,internal)`
 - `regexnesel(internal,oid,internal,integer)`
 - `regnamespacein(cstring)`
-- `regnamespaceout(regnamespace)`
 - `regnamespacerecv(internal)`
-- `regnamespacesend(regnamespace)`
 - `regoperatorin(cstring)`
-- `regoperatorout(regoperator)`
 - `regoperatorrecv(internal)`
-- `regoperatorsend(regoperator)`
 - `regoperin(cstring)`
-- `regoperout(regoper)`
 - `regoperrecv(internal)`
-- `regopersend(regoper)`
 - `regprocedurein(cstring)`
-- `regprocedureout(regprocedure)`
 - `regprocedurerecv(internal)`
-- `regproceduresend(regprocedure)`
 - `regprocin(cstring)`
-- `regprocout(regproc)`
 - `regprocrecv(internal)`
-- `regprocsend(regproc)`
 - `regrolein(cstring)`
-- `regroleout(regrole)`
 - `regrolerecv(internal)`
-- `regrolesend(regrole)`
 - `regtypein(cstring)`
-- `regtypeout(regtype)`
 - `regtyperecv(internal)`
-- `regtypesend(regtype)`
 - `scalargejoinsel(internal,oid,internal,smallint,internal)`
 - `scalargesel(internal,oid,internal,integer)`
 - `scalargtjoinsel(internal,oid,internal,smallint,internal)`
@@ -1031,10 +997,6 @@ probe as the evidence bar.
 - `string_agg_transfn(internal,text,text)`
 - `table_am_handler_in(cstring)`
 - `table_am_handler_out(table_am_handler)`
-- `table_to_xml(regclass,boolean,boolean,text)`
-- `table_to_xml_and_xmlschema(regclass,boolean,boolean,text)`
-- `table_to_xmlschema(regclass,boolean,boolean,text)`
-- `text(xml)`
 - `text_starts_with_support(internal)`
 - `texticlike_support(internal)`
 - `texticregexeq_support(internal)`
@@ -1054,18 +1016,12 @@ probe as the evidence bar.
 - `timestamp_skipsupport(internal)`
 - `timestamp_sortsupport(internal)`
 - `timestamp_support(internal)`
-- `timestamptypmodin(cstring[])`
 - `timestamptz_in(cstring,oid,integer)`
 - `timestamptz_recv(internal,oid,integer)`
-- `timestamptztypmodin(cstring[])`
-- `timetypmodin(cstring[])`
 - `timetz_in(cstring,oid,integer)`
 - `timetz_recv(internal,oid,integer)`
-- `timetztypmodin(cstring[])`
 - `trigger_in(cstring)`
 - `trigger_out(trigger)`
-- `ts_filter(tsvector,"char"[])`
-- `ts_lexize(regdictionary,text)`
 - `ts_typanalyze(internal)`
 - `tsm_handler_in(cstring)`
 - `tsm_handler_out(tsm_handler)`
@@ -1076,13 +1032,7 @@ probe as the evidence bar.
 - `tsvectorin(cstring)`
 - `tsvectorrecv(internal)`
 - `txid_snapshot_in(cstring)`
-- `txid_snapshot_out(txid_snapshot)`
 - `txid_snapshot_recv(internal)`
-- `txid_snapshot_send(txid_snapshot)`
-- `txid_snapshot_xip(txid_snapshot)`
-- `txid_snapshot_xmax(txid_snapshot)`
-- `txid_snapshot_xmin(txid_snapshot)`
-- `txid_visible_in_snapshot(bigint,txid_snapshot)`
 - `uhc_to_utf8(integer,integer,cstring,internal,integer,boolean)`
 - `unknownin(cstring)`
 - `unknownout(unknown)`
@@ -1112,11 +1062,9 @@ probe as the evidence bar.
 - `varbit_in(cstring,oid,integer)`
 - `varbit_recv(internal,oid,integer)`
 - `varbit_support(internal)`
-- `varbittypmodin(cstring[])`
 - `varchar_support(internal)`
 - `varcharin(cstring,oid,integer)`
 - `varcharrecv(internal,oid,integer)`
-- `varchartypmodin(cstring[])`
 - `void_in(cstring)`
 - `void_out(void)`
 - `void_recv(internal)`
@@ -1143,17 +1091,7 @@ probe as the evidence bar.
 - `xidin(cstring)`
 - `xidrecv(internal)`
 - `xml_in(cstring)`
-- `xml_out(xml)`
 - `xml_recv(internal)`
-- `xml_send(xml)`
-- `xmlagg(xml)`
-- `xmlconcat2(xml,xml)`
-- `xmlexists(text,xml)`
-- `xmlvalidate(xml,text)`
-- `xpath(text,xml)`
-- `xpath(text,xml,text[])`
-- `xpath_exists(text,xml)`
-- `xpath_exists(text,xml,text[])`
 
 ## volatile (281: functions 281, operators 0, aggregates 0, windows 0)
 

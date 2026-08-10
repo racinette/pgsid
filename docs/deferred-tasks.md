@@ -853,6 +853,43 @@ rather than from a table (`first_value`, `last_value` under the default
 frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
 unlike `lag`/`lead` it has no DEFAULT argument to answer with).
 
+**THE `no-generator` PIN LANDED (2026-08-09) AND PAID IMMEDIATELY.** It was
+the last of the four unclaimed categories with no recorded reason, and the
+reason belongs to the TYPE rather than the row — one missing type blocks
+every signature taking it, and `internal` alone blocked 520. Writing those
+reasons forced the question nobody had asked: is a literal IMPOSSIBLE, or
+merely ABSENT?
+
+**The answer for nineteen of the thirty-eight types was "merely absent".**
+`'{1,2}'::float8[]`, `'<a/>'::xml`, `'pg_class'::regclass`,
+`'{a}'::cstring[]`, `'1:1:'::pg_snapshot` and the whole reg* family all run,
+and had never been tried. 102 signatures had been classified unprobeable
+behind them for no reason anybody could state — 60 promoted on the sweep's
+evidence, 5 newly witnessed, the rest joining the unprobed pin with a real
+reason. `anycompatiblemultirange` turned out to be missing from the
+polymorphic families outright.
+
+What is left is nineteen types and every entry names which of two things it
+is: REFUSED (`internal`, the statistics and BRIN summary types, the handler
+return-contracts — PostgreSQL declines the cast) or DELIBERATELY SKIPPED
+(`cstring`, which is not refused — `textin('abc'::cstring)` runs — but is
+186 type-I/O entry points no query writes). That distinction was the whole
+point of writing it down: the two ask completely different things of the
+next reader, and only one of them is permanent.
+
+**The loop-closer caught `current_schema()` for the SECOND time**, and the
+repeat is the useful part rather than an embarrassment: the promotion filter
+selected rows that were convicted and on the work list, and forgot to
+subtract rows that already have a WITNESS. The rule is now explicit —
+promotion subtracts the witness corpus, always — and the guard is what
+enforces it either way.
+
+Surface after: claimed 2852, no-null-found 9, null-witnessed 293,
+raised-everywhere 114, no-generator 652, volatile 281. **All four unclaimed
+categories now carry a pin with reasons** (`WORK_LIST`, `UNPROBED`,
+`NO_GENERATOR`; `volatile` is the catalog's own marker and self-explaining),
+so nothing on this surface can change silently.
+
 **THE CALL-SHAPE CENSUS (2026-08-09) closes the class of bug the rest of
 this work kept hitting**, and the user's question is what named it: the
 ENUMERATION was never wrong — `builtin-surface.test.ts` asks pg_catalog for
