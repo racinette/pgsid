@@ -1504,6 +1504,57 @@ export async function buildNullabilityCatalog(
     return { kind: judged.every(v => v === "always") ? "always" : "strict-total" };
   };
 
+  /**
+   * Is a cast from `sourceTypes` to `target` total — non-null in, non-null
+   * out? Answered from `pg_cast` and the SAME verdict tables the function
+   * dispatch reads, which is what makes it general: a cast is claimed
+   * exactly when its implementation function is, and every future
+   * NULL-capable cast falls out without a new list.
+   *
+   * "a cast preserves its argument's nullability" was the walk's assumption
+   * and it is false — `'infinity'::timestamp::time` and `'null'::jsonb::int4`
+   * are NULL from wholly non-null input. A `castfunc` of 0 is
+   * binary-coercible or an I/O round trip: it computes nothing, so it cannot
+   * invent a NULL and is total.
+   *
+   * "unknown" means the pair is not in pg_cast — a user-defined cast, or a
+   * source type the walk could not name — and leaves the caller on its
+   * previous behaviour rather than costing every such cast its claim.
+   */
+  const castsByPair = new Map<string, string | null>();
+  for (const c of snapshot.builtinCasts ?? []) {
+    castsByPair.set(`${c.source}->${c.target}`, c.func);
+  }
+  const resolveCastTotality = (
+    sourceTypes: readonly string[] | null,
+    target: string,
+  ): "total" | "nullable" | "unknown" => {
+    if (sourceTypes === null || sourceTypes.length === 0) return "unknown";
+    const t = normalizeTypeName(target);
+    const verdicts = sourceTypes.map(s => {
+      // A source equal to the target is not a cast at all.
+      const src = normalizeTypeName(s);
+      if (src === t) return "total" as const;
+      const key = `${src}->${t}`;
+      if (!castsByPair.has(key)) return "unknown" as const;
+      const func = castsByPair.get(key)!;
+      if (func === null) return "total" as const;
+      const name = func.slice(0, func.indexOf("("));
+      return ALWAYS_NOT_NULL_BUILTINS.has(name) ||
+        FIRST_ARG_BUILTINS.has(name) ||
+        STRICT_TOTAL_BUILTINS.has(name) ||
+        STRICT_TOTAL_BUILTIN_SIGNATURES.has(func)
+        ? ("total" as const)
+        : ("nullable" as const);
+    });
+    // The source is a type SET — the survivor union of whatever produced it —
+    // so the cast is total only if it is total for every member, and NULLABLE
+    // as soon as one member's cast is. An unknown member cedes to the caller.
+    if (verdicts.some(v => v === "nullable")) return "nullable";
+    if (verdicts.some(v => v === "unknown")) return "unknown";
+    return "total";
+  };
+
   const resolveBuiltinScalarTotality = (
     schema: string | undefined,
     name: string,
@@ -1584,6 +1635,7 @@ export async function buildNullabilityCatalog(
     resolveOperatorStrictnessSome,
     resolveBuiltinScalarTotality,
     resolveBuiltinWindowTotality,
+    resolveCastTotality,
     resolveBuiltinAggregateRows,
     resolveUserFunctionTyped,
     resolveBuiltinFunctionSignatures,

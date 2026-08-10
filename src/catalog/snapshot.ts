@@ -4,6 +4,7 @@ import type {
   BuiltinOperatorSignature,
   BuiltinSignature,
   ImplicitCastInfo,
+  BuiltinCast,
   CatalogSnapshot,
   ColumnInfo,
   CompositeTypeInfo,
@@ -527,6 +528,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinFunctionSignatures,
     builtinOperatorSignatures,
     builtinImplicitCasts,
+    builtinCasts,
     builtinTypeKinds,
     builtinTypeNameAliases,
     inheritsRows,
@@ -560,6 +562,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinFunctionSignatures(pg),
     queryBuiltinOperatorSignatures(pg),
     queryBuiltinImplicitCasts(pg),
+    queryBuiltinCasts(pg),
     queryBuiltinTypeKinds(pg),
     queryBuiltinTypeNameAliases(pg),
     queryInherits(pg),
@@ -960,6 +963,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinFunctionSignatures,
     builtinOperatorSignatures,
     builtinImplicitCasts,
+    builtinCasts,
     builtinTypeKinds,
     builtinTypeNameAliases,
   };
@@ -1536,6 +1540,28 @@ async function queryBuiltinImplicitCasts(pg: PGlite): Promise<ImplicitCastInfo[]
      ORDER BY 1, 2;`,
   );
   return res.rows.map(r => ({ source: r.source, target: r.target, binary: r.binary }));
+}
+
+/**
+ * EVERY pg_cast row with its implementation function's signature. See
+ * CatalogSnapshot.builtinCasts for why the walk needs it: a cast does NOT
+ * preserve its argument's nullability, and the counterexamples
+ * (`'infinity'::timestamp::time`, `'null'::jsonb::int4`) are ordinary values.
+ */
+async function queryBuiltinCasts(pg: PGlite): Promise<BuiltinCast[]> {
+  const res = await pg.query<{ source: string; target: string; func: string | null }>(
+    `SELECT format_type(c.castsource, null) AS source,
+            format_type(c.casttarget, null) AS target,
+            CASE WHEN c.castfunc = 0 THEN NULL ELSE
+              p.proname || '(' ||
+              COALESCE((SELECT string_agg(format_type(t, null), ',' ORDER BY o)
+                          FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '')
+              || ')' END AS func
+     FROM pg_cast c
+     LEFT JOIN pg_proc p ON p.oid = c.castfunc
+     ORDER BY 1, 2;`,
+  );
+  return res.rows.map(r => ({ source: r.source, target: r.target, func: r.func }));
 }
 
 /**

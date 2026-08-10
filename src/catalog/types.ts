@@ -314,6 +314,14 @@ export interface BuiltinFunctionSignature extends BuiltinSignature {
  * PostgreSQL does not chain casts, so this is a direct lookup, never a
  * reachability search.
  */
+/** One `pg_cast` row: the pair, and the function that implements it. */
+export interface BuiltinCast {
+  source: string;
+  target: string;
+  /** `name(argtype,…)` in format_type spelling, or null for castfunc = 0. */
+  func: string | null;
+}
+
 export interface ImplicitCastInfo {
   /** Source and target as `format_type` renders them. */
   source: string;
@@ -698,6 +706,22 @@ export interface CatalogSnapshot {
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
   builtinImplicitCasts: ImplicitCastInfo[];
+  /**
+   * EVERY `pg_cast` row with the signature of its implementation function,
+   * so a `TypeCast` can be answered by the same totality verdicts the
+   * function dispatch uses. `func` is null when `castfunc` is 0 — a
+   * binary-coercible or I/O-conversion cast, which computes nothing and so
+   * cannot invent a NULL.
+   *
+   * Captured because "a cast preserves its argument's nullability" is
+   * FALSE and the walk assumed it: `'infinity'::timestamp::time` and
+   * `'null'::jsonb::int4` are both NULL from non-null input, and a cast is
+   * a `TypeCast` node that never reaches the builtin function dispatch
+   * where every other totality question is answered.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinImplicitCasts`.
+   */
+  builtinCasts: BuiltinCast[];
   /**
    * Every pg_catalog type name → its `pg_type.typtype` ('b' base, 'c'
    * composite, 'p' pseudo, 'r' range, 'm' multirange — pg_catalog holds no

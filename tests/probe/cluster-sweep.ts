@@ -20,10 +20,19 @@
 // held more weakly than it was made. A staged value that changes nothing is
 // noise and can be dropped.
 //
+// How to CUT a cluster. By catalog ROLE, never by spelling — the first run of
+// this sweep was given `(eq|ne|lt|le|gt|ge|cmp)$` and dutifully swept
+// `pg_table_is_visible`, `scale` and `to_regrole`, because those end in "le"
+// too. A role is a join: `pg_amproc.amproc`, `pg_operator.oprcode`,
+// `pg_cast.castfunc`, `pg_type.typoutput`, `pg_aggregate.aggtransfn`. It says
+// what PostgreSQL USES the function for, which is what shares a mechanism.
+//
 // Run:
-//   pnpm exec tsx tests/probe/cluster-sweep.ts <name-regex>
+//   pnpm exec tsx tests/probe/cluster-sweep.ts --role=oprcode
 //   pnpm exec tsx tests/probe/cluster-sweep.ts '^(int2|int4|int8)'
 //   pnpm exec tsx tests/probe/cluster-sweep.ts . --operators
+//
+// Roles: amproc, oprcode, cast, typio, aggsupport, rangesupport, standalone.
 //
 // The report is per ROW: NULL (with the falsifying expression), total,
 // all-raised, or no-generator. Nothing here promotes anything — the verdict
@@ -90,8 +99,44 @@ const ADVERSARIAL: Record<string, string[]> = {
 /** Beyond this many combinations for one row, sample rather than cross. */
 const ROW_COMBO_CAP = 2_000;
 
-const pattern = new RegExp(process.argv[2] ?? ".");
+const roleArg = process.argv.find(a => a.startsWith("--role="))?.slice("--role=".length);
+const pattern = new RegExp(process.argv[2]?.startsWith("--") ? "." : (process.argv[2] ?? "."));
 const wantOperators = process.argv.includes("--operators");
+
+/**
+ * The catalog join behind each role. A function can serve several — a btree
+ * support proc is usually an operator's implementation too — so the roles are
+ * tested in this order and the FIRST match wins, most specific first. That
+ * makes the roles a PARTITION, which is what lets "every row swept" mean
+ * something across a sequence of runs.
+ */
+const ROLE_SQL: Record<string, string> = {
+  amproc: `EXISTS (SELECT 1 FROM pg_amproc a WHERE a.amproc = p.oid)`,
+  typio: `EXISTS (SELECT 1 FROM pg_type t
+                   WHERE p.oid IN (t.typinput, t.typoutput, t.typsend, t.typreceive,
+                                   t.typmodin, t.typmodout, t.typanalyze, t.typsubscript))`,
+  aggsupport: `EXISTS (SELECT 1 FROM pg_aggregate a
+                        WHERE p.oid IN (a.aggtransfn, a.aggfinalfn, a.aggcombinefn,
+                                        a.aggserialfn, a.aggdeserialfn, a.aggmtransfn,
+                                        a.aggminvtransfn, a.aggmfinalfn))`,
+  cast: `EXISTS (SELECT 1 FROM pg_cast c WHERE c.castfunc = p.oid)`,
+  rangesupport: `EXISTS (SELECT 1 FROM pg_range r WHERE p.oid IN (r.rngcanonical, r.rngsubdiff))`,
+  oprcode: `EXISTS (SELECT 1 FROM pg_operator o WHERE o.oprcode = p.oid)`,
+};
+const ROLE_ORDER = ["amproc", "typio", "aggsupport", "cast", "rangesupport", "oprcode"];
+if (roleArg !== undefined && roleArg !== "standalone" && !(roleArg in ROLE_SQL)) {
+  throw new Error(`unknown role ${roleArg}; roles: ${[...ROLE_ORDER, "standalone"].join(", ")}`);
+}
+/** SQL true for exactly the rows of the requested role, none double-counted. */
+const roleFilter =
+  roleArg === undefined
+    ? "true"
+    : roleArg === "standalone"
+      ? ROLE_ORDER.map(r => `NOT ${ROLE_SQL[r]!}`).join(" AND ")
+      : [
+          ROLE_SQL[roleArg]!,
+          ...ROLE_ORDER.slice(0, ROLE_ORDER.indexOf(roleArg)).map(r => `NOT ${ROLE_SQL[r]!}`),
+        ].join(" AND ");
 
 let pg = await PGlite.create();
 const setup = async (db: PGlite): Promise<void> => {
@@ -144,6 +189,7 @@ const fnRows: Row[] = (
        FROM pg_proc p
        JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f' AND p.provolatile <> 'v'
+        AND ${roleFilter}
       ORDER BY p.proname, 2;`,
   )
 ).rows.map(r => ({ ...r, kind: "function" as const, prefix: false }));
@@ -269,7 +315,8 @@ for (const r of rows) {
 
 console.log(findings.join("\n"));
 console.log(
-  `\n${rows.length} rows swept (/${pattern.source}/${wantOperators ? " +operators" : ""}): ` +
+  `\n${rows.length} rows swept (${roleArg ? `role=${roleArg}` : `/${pattern.source}/`}` +
+    `${wantOperators ? " +operators" : ""}): ` +
     `${totals} total, ${findings.length - allRaised} NULL-capable, ${allRaised} all-raised, ` +
     `${noGenerator} no-generator.`,
 );

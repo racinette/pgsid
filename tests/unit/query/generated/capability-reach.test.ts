@@ -140,6 +140,12 @@ const FLOOR: string[] = [
   // which is what separates `lag(x, 1, 0)` from `lag(x)`. The corpus
   // reaches it through the window-function call sites in generator.ts
   "resolveBuiltinWindowTotality",
+  // every `x::type` on a non-null argument since the cast fix: the walk
+  // resolves the pair through pg_cast to the implementation function's
+  // verdict, because a cast does NOT preserve its argument's nullability
+  // (`'infinity'::timestamp::time` is NULL). The corpus reaches it through
+  // every cast the generator emits
+  "resolveCastTotality",
   // mechanism C's strictness question since the same slice: the
   // SOME-quantified reading over the typed survivors, asked at every
   // binary operator the param walker descends

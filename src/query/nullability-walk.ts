@@ -5285,8 +5285,30 @@ class NullabilityEngine {
           }
         }
       }
+      // A cast does NOT simply preserve its argument's nullability, and the
+      // counterexamples are ordinary values rather than exotica:
+      // `'infinity'::timestamp::time` and `'null'::jsonb::int4` are both
+      // NULL from wholly non-null input. The cast's IMPLEMENTATION function
+      // is what decides, so this asks the same verdict tables the function
+      // dispatch asks — via pg_cast, so every NULL-capable cast is answered
+      // rather than a curated list of the ones somebody noticed.
+      //
+      // `unknown` (a pair pg_cast does not carry — a user-defined cast, or a
+      // source type the walk cannot name) keeps the old reading: this
+      // narrows a wrong claim, it does not withdraw every cast's claim.
       const childTrace = trace.addChild("TypeCast: arg");
       const result = this.walkExprTraced(tc.arg, scope, depth + 1, childTrace);
+      if (result && tc.typeName?.names) {
+        const target = this.stringVal(tc.typeName.names[tc.typeName.names.length - 1]!);
+        const sources = this.operandTypeSet(tc.arg, scope, depth + 1);
+        const cast = this.catalog.resolveCastTotality(sources, target);
+        trace.addFact("castSource", sources?.join("|") ?? "unknown");
+        trace.addFact("castTotality", cast);
+        if (cast === "nullable") {
+          trace.conclude(false, `the cast to ${target} can return NULL for non-null input`);
+          return false;
+        }
+      }
       trace.conclude(result, "cast preserves arg nullability");
       return result;
     }
@@ -9512,6 +9534,17 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   // Network.
   "abbrev", "broadcast", "family", "host", "hostmask", "inet_merge",
   "inet_same_family", "masklen", "netmask", "network", "set_masklen",
+  // ---------------------------------------------------------------------
+  // CAST implementation functions (2026-08-09, from the `cast` role sweep).
+  // These are what `x::type` runs, and the walk now resolves a TypeCast
+  // through pg_cast to the verdict tables — so an unclaimed cast function
+  // costs `n::integer` its notNull, and claiming the total ones is what
+  // keeps the soundness fix from being a precision regression. Every row of
+  // every name here was probed by tests/probe/cluster-sweep.ts; the names
+  // whose rows DISAGREE are signature-keyed below instead, which is most of
+  // the numeric family — `int4(numeric)` is total and `int4(jsonb)` is NULL.
+  // ---------------------------------------------------------------------
+  "bit", "box", "bpchar", "bytea", "char", "cidr", "circle", "date", "interval", "lseg", "macaddr8", "money", "name", "oid", "path", "point", "polygon", "regclass", "timestamp", "timestamptz", "varbit", "varchar", "xid", "xml",
   // Bits and bytes — out-of-range indexes raise rather than answering NULL.
   "get_bit", "get_byte", "set_bit", "set_byte",
   // ---------------------------------------------------------------------
@@ -9617,6 +9650,67 @@ export const STRICT_TOTAL_BUILTIN_SIGNATURES: ReadonlySet<string> = new Set([
   "date_part(text,time with time zone)",
   "extract(text,time without time zone)",
   "extract(text,time with time zone)",
+  // The cast functions whose NAME cannot carry the claim (2026-08-09):
+  // the numeric conversions are total from every source but `jsonb`, where
+  // a JSON null becomes a SQL NULL, and the time conversions are total from
+  // every source but a timestamp, where an infinite one has no time of day.
+  "bool(integer)",
+  "datemultirange(daterange)",
+  "float4(bigint)",
+  "float4(double precision)",
+  "float4(integer)",
+  "float4(numeric)",
+  "float4(smallint)",
+  "float8(bigint)",
+  "float8(integer)",
+  "float8(numeric)",
+  "float8(real)",
+  "float8(smallint)",
+  "int2(bigint)",
+  "int2(bytea)",
+  "int2(double precision)",
+  "int2(integer)",
+  "int2(numeric)",
+  "int2(real)",
+  'int4("char")',
+  "int4(bigint)",
+  "int4(bit)",
+  "int4(boolean)",
+  "int4(bytea)",
+  "int4(double precision)",
+  "int4(numeric)",
+  "int4(real)",
+  "int4(smallint)",
+  "int4multirange(int4range)",
+  "int8(bit)",
+  "int8(bytea)",
+  "int8(double precision)",
+  "int8(integer)",
+  "int8(numeric)",
+  "int8(oid)",
+  "int8(real)",
+  "int8(smallint)",
+  "int8multirange(int8range)",
+  "numeric(bigint)",
+  "numeric(double precision)",
+  "numeric(integer)",
+  "numeric(money)",
+  "numeric(numeric,integer)",
+  "numeric(real)",
+  "numeric(smallint)",
+  "nummultirange(numrange)",
+  'text("char")',
+  "text(boolean)",
+  "text(character)",
+  "text(inet)",
+  "text(name)",
+  "time(interval)",
+  "time(time with time zone)",
+  "time(time without time zone,integer)",
+  "timetz(time with time zone,integer)",
+  "timetz(time without time zone)",
+  "tsmultirange(tsrange)",
+  "tstzmultirange(tstzrange)",
   // The two-argument `string_to_table` (2026-08-09). Its three-argument row
   // takes a null_string and emits SQL NULL for every field equal to it —
   // `string_to_table('a,,b', ',', 'a')` — which is witnessed and bars the
