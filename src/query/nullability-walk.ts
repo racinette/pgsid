@@ -9748,6 +9748,24 @@ export const STRICT_TOTAL_BUILTIN_SIGNATURES: ReadonlySet<string> = new Set([
  * the curated ones; a row that starts answering NULL fails the run.
  */
 export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
+  // Reached once the corpus carried a real GUC name, a real text-search
+  // parser and a macaddr8 with FF:FE in the middle (2026-08-09).
+  // `current_setting(text)` raises for a setting that does not exist —
+  // its two-argument form with `missing_ok` is the one that answers
+  // NULL, and that row is witnessed.
+  "current_setting(text)", "macaddr(macaddr8)",
+  "ts_parse(text,text)", "ts_token_type(text)",
+  // The VARIADIC rows, reachable once the surface probe passed ELEMENTS
+  // rather than an array (2026-08-09). A multirange constructor always
+  // builds a multirange — the empty range makes an empty one, not a
+  // NULL — and `jsonb_delete` returns the object minus the keys, or
+  // RAISES on a scalar target. Their neighbours in the same fix went the
+  // other way: all four `*_extract_path*` rows are NULL for a missing
+  // path and are now witnessed by the machine.
+  "int4multirange(int4range[])", "int8multirange(int8range[])",
+  "nummultirange(numrange[])", "datemultirange(daterange[])",
+  "tsmultirange(tsrange[])", "tstzmultirange(tstzrange[])",
+  "jsonb_delete(jsonb,text[])",
   "has_any_column_privilege(name,text,text)",
   "has_any_column_privilege(oid,text,text)",
   "has_any_column_privilege(text,text)",

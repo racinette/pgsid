@@ -46,6 +46,10 @@ export const VALUES: Record<string, string[]> = {
     // raises because no such relation exists. `pg_class` exists in every
     // PostgreSQL there has ever been.
     "'pg_class'",
+    // A real GUC name and a real text-search parser name, each closing a row
+    // that raises for anything else: `current_setting('abc')` does not exist,
+    // and `ts_parse`/`ts_token_type` take a parser.
+    "'search_path'", "'default'",
   ],
   "character varying": ["''::varchar", "'abc'::varchar"],
   character: ["''::char", "'a'::char"],
@@ -149,7 +153,9 @@ export const VALUES: Record<string, string[]> = {
   inet: ["'127.0.0.1'::inet", "'::1'::inet"],
   cidr: ["'127.0.0.0/8'::cidr"],
   macaddr: ["'08:00:2b:01:02:03'::macaddr"],
-  macaddr8: ["'08:00:2b:01:02:03:04:05'::macaddr8"],
+  // The second value has FF:FE in the middle, which is what `macaddr(macaddr8)`
+  // requires to narrow to six bytes — it raises for any other eight.
+  macaddr8: ["'08:00:2b:01:02:03:04:05'::macaddr8", "'08:00:2b:ff:fe:01:02:03'::macaddr8"],
   uuid: ["'00000000-0000-0000-0000-000000000000'::uuid"],
   oid: ["0::oid", "1::oid"],
   xid: ["'0'::xid"],
@@ -292,6 +298,26 @@ export const PROBE_FN_SQL = `
     RETURN CASE WHEN r THEN 'NULL' ELSE 'value' END;
   EXCEPTION WHEN OTHERS THEN RETURN 'error';
   END $probe$;`;
+
+/**
+ * The argument types to build a call from, given the declared `proargtypes`
+ * and `provariadic`'s ELEMENT type (null when the row is not variadic).
+ *
+ * A VARIADIC declaration carries one parameter of the ARRAY type and
+ * PostgreSQL wants the ELEMENTS — `json_extract_path(j, 'a', 'b')`, not
+ * `json_extract_path(j, ARRAY['a','b'])`, which is a type error rather than a
+ * call. Two elements stand for "some".
+ *
+ * Shared because it was written three times before it was written once: the
+ * surface suite passed the array positionally and every variadic row raised
+ * on every combination, and the totality probe appended the ARRAY type a
+ * second time, which is the same mistake spelled differently.
+ */
+export const variadicArgTypes = (
+  types: readonly string[],
+  variadicElem: string | null,
+): string[] =>
+  variadicElem === null ? [...types] : [...types.slice(0, -1), variadicElem, variadicElem];
 
 /**
  * The expression to run the NULL test on, given whether the call's result is
