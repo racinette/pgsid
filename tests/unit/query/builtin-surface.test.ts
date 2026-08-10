@@ -26,6 +26,7 @@ import {
   SRF_PROBE_FN_SQL,
   srfQuery,
   nullTestExpr,
+  variadicArgTypes,
 } from "./probe-values.js";
 
 // ---------------------------------------------------------------------------
@@ -119,6 +120,124 @@ const WORK_LIST: Record<string, string> = {
   "nth_value(anyelement,integer)": "witnessed in tests/unit/functions; a short frame has no Nth row",
 };
 
+/**
+ * THE UNPROBED SURFACE, PINNED — every signature PostgreSQL declined for
+ * EVERY combination the corpus can build, grouped by the reason it declined.
+ *
+ * The work-list pin above covers rows that evaluated and never answered NULL;
+ * this covers rows that never evaluated at all. Both are the same claim in
+ * the end — the engine reads these nullable and nothing witnesses it — and
+ * both need the same guard, because a function a future PostgreSQL adds can
+ * land in either and the run would pass with the surface quietly changed.
+ *
+ * A reason here is about the PROBE, not about the function: "capped sampling
+ * cannot make three arguments valid at once" is a limit of this harness, and
+ * a row leaving this list because somebody widened the corpus is progress,
+ * not a failure. That is why the assertion names the group.
+ */
+const UNPROBED: Record<string, readonly string[]> = {
+  // an aggregate transition function, which rejects a call outside its aggregate
+  "aggstate": [
+    "multirange_intersect_agg_transfn(anymultirange,anymultirange)",
+    "range_intersect_agg_transfn(anyrange,anyrange)",
+  ],
+  // needs an OID or name of an object that exists in the probe database, which holds only the probe enum
+  "live-object": [
+    "btvarstrequalimage(oid)",
+    "fmgr_c_validator(oid)",
+    "fmgr_internal_validator(oid)",
+    "fmgr_sql_validator(oid)",
+    "pg_event_trigger_ddl_commands()",
+    "pg_event_trigger_dropped_objects()",
+    "pg_event_trigger_table_rewrite_oid()",
+    "pg_event_trigger_table_rewrite_reason()",
+    "pg_extension_update_paths(name)",
+    "pg_get_object_address(text,text[],text[])",
+    "pg_get_publication_tables(text[])",
+    "pg_get_replication_slots()",
+    "pg_get_serial_sequence(text,text)",
+    "pg_identify_object(oid,oid,integer)",
+    "pg_identify_object_as_address(oid,oid,integer)",
+    "pg_listening_channels()",
+    "pg_prepared_statement()",
+    "pg_sequence_parameters(oid)",
+    "pg_split_walfile_name(text)",
+    "pg_stat_get_progress_info(text)",
+    "pg_stat_get_subscription(oid)",
+    "pg_stat_get_wal_senders()",
+    "pg_tablespace_databases(oid)",
+    "pg_timezone_abbrevs_zone()",
+    "ts_parse(oid,text)",
+    "ts_token_type(oid)",
+  ],
+  // three arguments must be valid TOGETHER — a role, an object and a privilege — and capped sampling varies one at a time from a baseline
+  "privilege-triple": [
+    "has_column_privilege(name,text,smallint,text)",
+    "has_column_privilege(name,text,text,text)",
+    "has_column_privilege(oid,text,smallint,text)",
+    "has_column_privilege(oid,text,text,text)",
+    "has_column_privilege(text,smallint,text)",
+    "has_column_privilege(text,text,text)",
+    "has_database_privilege(name,text,text)",
+    "has_database_privilege(oid,text,text)",
+    "has_database_privilege(text,text)",
+    "has_foreign_data_wrapper_privilege(name,text,text)",
+    "has_foreign_data_wrapper_privilege(oid,text,text)",
+    "has_foreign_data_wrapper_privilege(text,text)",
+    "has_function_privilege(oid,text,text)",
+    "has_language_privilege(name,text,text)",
+    "has_language_privilege(oid,text,text)",
+    "has_language_privilege(text,text)",
+    "has_schema_privilege(name,text,text)",
+    "has_schema_privilege(oid,text,text)",
+    "has_schema_privilege(text,text)",
+    "has_sequence_privilege(name,text,text)",
+    "has_sequence_privilege(oid,text,text)",
+    "has_sequence_privilege(text,text)",
+    "has_server_privilege(name,text,text)",
+    "has_server_privilege(oid,text,text)",
+    "has_server_privilege(text,text)",
+    "has_tablespace_privilege(name,text,text)",
+    "has_tablespace_privilege(oid,text,text)",
+    "has_tablespace_privilege(text,text)",
+  ],
+  // a pseudo-type argument no SQL literal can construct
+  "pseudotype": [
+    "any_out(\"any\")",
+    "anycompatible_out(anycompatible)",
+    "anycompatiblenonarray_out(anycompatiblenonarray)",
+    "anyelement_out(anyelement)",
+    "anynonarray_out(anynonarray)",
+  ],
+  // PostgreSQL removed the implementation and the declaration raises for every input
+  "removed": [
+    "aclinsert(aclitem[],aclitem)",
+    "aclremove(aclitem[],aclitem)",
+  ],
+  // needs a shape the probe cannot supply — a column definition list, a composite target, or a valid modulus/remainder pair
+  "shape": [
+    "json_populate_record(anyelement,json,boolean)",
+    "json_populate_recordset(anyelement,json,boolean)",
+    "json_to_record(json)",
+    "json_to_recordset(json)",
+    "jsonb_populate_record(anyelement,jsonb)",
+    "jsonb_populate_record_valid(anyelement,jsonb)",
+    "jsonb_populate_recordset(anyelement,jsonb)",
+    "jsonb_to_record(jsonb)",
+    "jsonb_to_recordset(jsonb)",
+    "satisfies_hash_partition(oid,integer,integer,\"any\")",
+  ],
+  // the WASM build declines it for every input — libnuma for the XML exporters, and no LATIN source encoding for to_ascii
+  "wasm": [
+    "schema_to_xml(name,boolean,boolean,text)",
+    "schema_to_xml_and_xmlschema(name,boolean,boolean,text)",
+    "schema_to_xmlschema(name,boolean,boolean,text)",
+    "to_ascii(text)",
+    "to_ascii(text,integer)",
+    "to_ascii(text,name)",
+  ],
+};
+
 interface SurfaceRow {
   name: string;
   types: string[];
@@ -126,6 +245,7 @@ interface SurfaceRow {
   retset: boolean;
   ncols: number;
   composite: boolean;
+  variadic: string | null;
 }
 
 describe("builtin scalar surface, witnessed or classified", () => {
@@ -177,7 +297,9 @@ describe("builtin scalar surface, witnessed or classified", () => {
                 CASE WHEN p.proargmodes IS NULL THEN 1
                      ELSE greatest(1, (SELECT count(*) FROM unnest(p.proargmodes) m
                                         WHERE m IN ('o','b','t'))) END::int AS ncols,
-                (rt.typtype = 'c' OR p.prorettype = 'record'::regtype) AS composite
+                (rt.typtype = 'c' OR p.prorettype = 'record'::regtype) AS composite,
+                CASE WHEN p.provariadic <> 0
+                     THEN format_type(p.provariadic, null) END AS variadic
            FROM pg_proc p
            JOIN pg_namespace n ON n.oid = p.pronamespace
            JOIN pg_type rt ON rt.oid = p.prorettype
@@ -214,15 +336,24 @@ describe("builtin scalar surface, witnessed or classified", () => {
         category.set(key, "volatile");
         continue;
       }
-      const missing = r.types.filter(t => !POLYMORPHIC.has(t) && !VALUES[t]);
+      const probeTypes =
+        r.variadic === null ? r.types : [...r.types.slice(0, -1), r.variadic];
+      const missing = probeTypes.filter(t => !POLYMORPHIC.has(t) && !VALUES[t]);
       if (missing.length > 0) {
         category.set(key, "no-generator");
         for (const t of missing) noGeneratorTypes.set(t, (noGeneratorTypes.get(t) ?? 0) + 1);
         continue;
       }
+      // A VARIADIC declaration carries ONE parameter of the ARRAY type, and
+      // PostgreSQL wants the ELEMENTS: `json_extract_path(j, 'a', 'b')`, not
+      // `json_extract_path(j, ARRAY['a','b'])` — passing the array positionally
+      // is a type error, which is why every variadic row raised on every
+      // combination and was probed in name only. `provariadic` names the
+      // element type; two of them stand for "some".
+      const argTypes = variadicArgTypes(r.types, r.variadic);
       const mine: string[] = [];
       for (const family of POLYMORPHIC_FAMILIES) {
-        const lists = r.types.map(t => (t in family ? [family[t]!] : VALUES[t]!));
+        const lists = argTypes.map(t => (t in family ? [family[t]!] : VALUES[t]!));
         const { combos, capped: wasCapped } = combinations(lists);
         if (wasCapped) capped++;
         for (const combo of combos) {
@@ -237,7 +368,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
           const call = `${qualify(r.name)}(${combo.join(", ")})`;
           mine.push(nullTestExpr(call, r.composite && !r.retset));
         }
-        if (r.types.every(t => !POLYMORPHIC.has(t))) break;
+        if (argTypes.every(t => !POLYMORPHIC.has(t))) break;
       }
       // A SET-RETURNING row is the same call under a different question —
       // "does any EMITTED row hold a NULL" rather than "is the value NULL" —
@@ -742,6 +873,30 @@ describe("builtin scalar surface, witnessed or classified", () => {
         `Either it was promoted or witnessed — drop the entry — or ` +
         `PostgreSQL removed it, and the entry is a reason about a signature ` +
         `that no longer exists:\n  ${stale.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("the unprobed surface is exactly what is recorded, in both directions", () => {
+    // The other half of the work-list pin: a row nothing could evaluate is
+    // as unwitnessed as a row that evaluated and never answered NULL.
+    const recorded = new Set(Object.values(UNPROBED).flat());
+    const actual = new Set(
+      [...category.entries()].filter(([, c]) => c === "raised-everywhere").map(([k]) => k),
+    );
+    const unexplained = [...actual].filter(k => !recorded.has(k)).sort();
+    const stale = [...recorded].filter(k => !actual.has(k)).sort();
+    expect(
+      unexplained,
+      `Signature(s) PostgreSQL declined for every combination, with no ` +
+        `recorded reason. Widen the corpus so one combination reaches a ` +
+        `result, or add it to the UNPROBED group whose reason fits:\n  ` +
+        `${unexplained.join("\n  ")}`,
+    ).toEqual([]);
+    expect(
+      stale,
+      `UNPROBED records a signature that now evaluates — progress, and the ` +
+        `entry should go so the next reader is not told it cannot be ` +
+        `probed:\n  ${stale.join("\n  ")}`,
     ).toEqual([]);
   });
 

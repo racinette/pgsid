@@ -47,6 +47,7 @@ import {
   SRF_PROBE_FN_SQL,
   srfQuery,
   qualify,
+  variadicArgTypes,
 } from "../unit/query/probe-values.js";
 
 /**
@@ -178,11 +179,13 @@ interface Row {
 }
 
 const fnRows: Row[] = (
-  await pg.query<{ name: string; types: string[]; retset: boolean; ncols: number }>(
+  await pg.query<{ name: string; types: string[]; retset: boolean; ncols: number; variadic: string | null }>(
     `SELECT p.proname AS name,
             COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                         FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
             p.proretset AS retset,
+          CASE WHEN p.provariadic <> 0
+               THEN format_type(p.provariadic, null) END AS variadic,
             CASE WHEN p.proargmodes IS NULL THEN 1
                  ELSE greatest(1, (SELECT count(*) FROM unnest(p.proargmodes) m
                                     WHERE m IN ('o','b','t'))) END::int AS ncols
@@ -192,7 +195,15 @@ const fnRows: Row[] = (
         AND ${roleFilter}
       ORDER BY p.proname, 2;`,
   )
-).rows.map(r => ({ ...r, kind: "function" as const, prefix: false }));
+).rows.map(r => ({
+  // Same VARIADIC correction the surface suite carries: `provariadic` names
+  // the ELEMENT type, and passing the declared array positionally is a type
+  // error rather than a call.
+  ...r,
+  types: variadicArgTypes(r.types, r.variadic),
+  kind: "function" as const,
+  prefix: false,
+}));
 
 const opRows: Row[] = wantOperators
   ? (

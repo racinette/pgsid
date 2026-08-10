@@ -25,6 +25,7 @@ import {
   SRF_PROBE_FN_SQL,
   srfQuery,
   nullTestExpr,
+  variadicArgTypes,
 } from "./probe-values.js";
 
 /** One row under one table's claim; `prefix` marks a unary operator. */
@@ -175,11 +176,12 @@ describe("totality tables, probed by execution", () => {
     const fnNames = [...new Set([...nameTableNames, ...additionNames])];
 
     const fnRows = (
-      await pg.query<{ name: string; types: string[]; variadic: boolean; retset: boolean; ncols: number; composite: boolean }>(
+      await pg.query<{ name: string; types: string[]; variadic: string | null; retset: boolean; ncols: number; composite: boolean }>(
         `SELECT p.proname AS name,
                 COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                             FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
-                p.provariadic <> 0 AS variadic,
+                CASE WHEN p.provariadic <> 0
+                     THEN format_type(p.provariadic, null) END AS variadic,
                 p.proretset AS retset,
                 (rt.typtype = 'c' OR p.prorettype = 'record'::regtype) AS composite,
                 CASE WHEN p.proargmodes IS NULL THEN 1
@@ -201,14 +203,11 @@ describe("totality tables, probed by execution", () => {
           STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${r.name}(${r.types.join(",")})`) ||
           SWEPT_TOTAL_SIGNATURES.has(`${r.name}(${r.types.join(",")})`),
       )
-      .map(r =>
-        // A VARIADIC declaration carries ONE parameter of the element type, and
-        // several of these reject an odd argument count outright
-        // (`json_build_object` wants key/value pairs). Probing the declared
-        // arity alone left them raising on every combination, so the variadic
-        // tail is supplied twice.
-        r.variadic ? { ...r, types: [...r.types, r.types[r.types.length - 1]!] } : r,
-      );
+      // The variadic tail is supplied twice, as ELEMENTS — several of these
+      // reject an odd argument count outright (`json_build_object` wants
+      // key/value pairs), and probing the declared arity alone left them
+      // raising on every combination.
+      .map(r => ({ ...r, types: variadicArgTypes(r.types, r.variadic) }));
 
     const opRows = (
       await pg.query<{ name: string; left: string | null; right: string | null }>(

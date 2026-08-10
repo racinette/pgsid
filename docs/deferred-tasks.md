@@ -853,6 +853,42 @@ rather than from a table (`first_value`, `last_value` under the default
 frame; `nth_value` is witnessed — a frame shorter than N has no Nth row, and
 unlike `lag`/`lead` it has no DEFAULT argument to answer with).
 
+**THE UNPROBED SURFACE IS AUDITED AND PINNED (2026-08-09): 162 → 79.** The
+`raised-everywhere` column was the last place a nullable claim could sit
+with nobody having looked, and it is now closed the same way the work list
+was — every row grouped by the REASON PostgreSQL declined it, asserted in
+both directions, so a future function landing there fails until someone
+says why.
+
+Getting there closed three gaps and found one bug. **The bug: every VARIADIC
+row was probed with its declared ARRAY type passed positionally**, which is
+a type error rather than a call — `provariadic` names the ELEMENT type, and
+`json_extract_path(j, 'a', 'b')` is the call PostgreSQL wants. Nineteen rows
+had been probed in name only because of it. Fixing it produced four
+witnesses immediately: all four `*_extract_path*` rows are NULL for a
+missing path, which the walk's own exclusion comment had asserted since the
+beginning with nothing checking it. **The construction had to be written
+three times before it was written once** — the surface suite passed the
+array, the totality probe appended the array type a SECOND time (the same
+mistake spelled differently), and the sweep repeated the first. It lives in
+probe-values.ts now, beside `nullTestExpr`, for the reason that file exists.
+
+Three corpus values closed the rest of what was closeable: a real GUC name,
+a text-search parser name, and a macaddr8 with FF:FE in the middle (which is
+what `macaddr(macaddr8)` needs to narrow to six bytes). **What remains is
+seven reason groups, and only one is about the harness rather than
+PostgreSQL**: 27 `has_*_privilege` rows need a role, an object AND a
+privilege valid together, and capped sampling varies one argument at a time
+from a baseline — the same limit `MAX_COMBOS` documents, now hitting a
+family the cap cannot reach at any affordable size. The other six are
+PostgreSQL declining: an OID of an object the probe database does not have
+(20), a shape the probe cannot supply — a column definition list, a
+composite target, a valid modulus/remainder pair (12), the WASM build's own
+limits (libnuma for the XML exporters, no LATIN source for `to_ascii` — 6),
+a pseudo-type no literal constructs (5), an aggregate transition function
+called outside its aggregate (2), and two whose implementation PostgreSQL
+removed outright.
+
 **THE PRIVILEGE-NAME GAP CLOSED, AND THE PIN EARNED ITSELF ON ITS FIRST RUN
 (2026-08-09).** Two corpus values — a real role name and a real relation
 name — closed the last 52 of the `has_*_privilege` family, whose remaining
