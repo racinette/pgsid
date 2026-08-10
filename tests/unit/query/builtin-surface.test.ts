@@ -7,7 +7,8 @@ import {
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
-  NEVER_NULL_WINDOW_FNS,
+  NEVER_NULL_WINDOW_SIGNATURES,
+  STRICT_TOTAL_WINDOW_SIGNATURES,
 } from "../../../src/query/nullability-walk.js";
 import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../../../src/query/operators.js";
 import {
@@ -395,7 +396,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
       // never-null ranking set: any NULL fails. ntile's claim is
       // conditional on its argument, which these constructions supply
       // non-null — so it holds to "always" under them too.
-      if (NEVER_NULL_WINDOW_FNS.has(r.name) || r.name === "ntile") {
+      if (NEVER_NULL_WINDOW_SIGNATURES.has(key) || STRICT_TOTAL_WINDOW_SIGNATURES.has(key)) {
         claimOf.set(key, "always");
       }
       const args = r.types

@@ -1,5 +1,7 @@
 -- The window construction: lag on the partition's first row addresses a row
--- outside it — the reason lag is excluded from NEVER_NULL_WINDOW_FNS.
+-- outside it — the reason lag's one- and
+-- two-argument rows are excluded. The THREE-argument row takes a DEFAULT and
+-- IS claimed (STRICT_TOTAL_WINDOW_SIGNATURES).
 -- @signature anyelement
 -- @null  SELECT lag(x) OVER (ORDER BY x) FROM (VALUES (1)) t(x)
 -- @value SELECT lag(x) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) ORDER BY x OFFSET 1

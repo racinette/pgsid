@@ -30,7 +30,8 @@ import {
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
-  NEVER_NULL_WINDOW_FNS,
+  NEVER_NULL_WINDOW_SIGNATURES,
+  STRICT_TOTAL_WINDOW_SIGNATURES,
 } from "../query/nullability-walk.js";
 import { TOTAL_OPERATORS, STRICT_OPERATORS } from "../query/operators.js";
 
@@ -48,7 +49,8 @@ const CLAIMED_FUNCTION_NAMES = [...new Set([
   ...FIRST_ARG_BUILTINS,
   ...STRICT_TOTAL_BUILTINS,
   ...NON_NULL_OVER_NONEMPTY_AGGREGATES,
-  ...NEVER_NULL_WINDOW_FNS,
+  ...[...NEVER_NULL_WINDOW_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
+  ...[...STRICT_TOTAL_WINDOW_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
   // The WITHIN GROUP classes scope themselves — the capture's WHERE adds
   // every aggkind 'h'/'o' row, since those verdicts are class claims.
   // A SIGNATURE-keyed claim covers a name no table holds — `lower(text)`

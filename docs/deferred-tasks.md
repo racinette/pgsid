@@ -700,17 +700,40 @@ must be allowed to be EMPTY for a zero-argument function, and the greedy
 FOLLOWING directive, so `to_regprocedure` reported a syntax error from a
 file that read correctly. Surface: claimed 1079, no-null-found 1632.
 
-The next batch's queue is what these three skipped by triage, and the
-honest note on it is that the remainder is mostly internal: the 218
-operator rows want `operators.ts`'s name-keyed tables, which no batch
-touched. Two precision items were found and NOT taken, both because they
-need a mechanism rather than a verdict, and both are recorded here rather
-than acted on: the three-argument `lag`/`lead` are total whenever their
-DEFAULT argument is non-null, and `first_value`/`last_value` are total
-under the parser's default frame (the walk already computes
-`FRAMEOPTION_DEFAULTS`) — but `NEVER_NULL_WINDOW_FNS` is name-keyed and
-those names' other rows are witnessed, so both need a signature-keyed
-window table that does not exist.
+**THE WINDOW TABLE IS RE-KEYED TO SIGNATURES (2026-08-09)** — the decision
+this register recorded above ("ALL SEVEN plus the two operator sets,
+aggregates and window functions not excepted"), carried out for the window
+half. `NEVER_NULL_WINDOW_FNS` became `NEVER_NULL_WINDOW_SIGNATURES` (the
+five ranking rows, all zero-argument) and gained a sibling,
+`STRICT_TOTAL_WINDOW_SIGNATURES` — the window analogue of
+`STRICT_TOTAL_BUILTINS`, and the reason the re-key was needed at all:
+**`lag(price, 1, 0)` cannot be NULL** because the third argument is the
+DEFAULT PostgreSQL returns instead of the out-of-partition NULL, while
+`lag(price)` and `lag(price, 1)` can and are witnessed. One name, opposite
+verdicts, exactly the `lower`/`upper` shape one table over. `ntile` stopped
+being a hard-coded branch in the walk and became an ordinary row of the new
+table, which is what its claim always meant. The dispatch is
+`resolveBuiltinWindowTotality`, sharing its survivor selection with the
+scalar resolver through an extracted `selectBuiltinRows` so the two cannot
+fork — they ask different verdict tables about the SAME survivors. Measured
+against the engine, before and after: `lag(price, 1, 0)` and
+`lead(price, 1, 0)` moved nullable → notNull; `lag(price)`, `lag(price, 1)`,
+`nth_value(price, 2)` and a NULLABLE third argument all stayed nullable.
+
+One correction the measurement forced, worth keeping because it was
+asserted wrongly in this register a paragraph ago: `first_value`/
+`last_value` were ALREADY notNull under the parser's default frame — the
+walk has handled them at the `FRAMEOPTION_DEFAULTS` gate since the window
+slice, and reading the claim tables rather than running the walk is what
+produced the false claim that they were not. The curated-table suite gained
+the stronger assertion the re-key makes possible: each window key must be a
+real `prokind = 'w'` row, so a typo fails instead of silently claiming
+nothing.
+
+The next batch's queue is what the three promotion batches skipped by
+triage, and the honest note on it is that the remainder is mostly internal:
+the 218 operator rows want `operators.ts`'s name-keyed tables, the last
+half of the re-key nothing has touched.
 
 **The prerequisite is DISCHARGED (2026-08-09): pg_catalog signatures reach
 the snapshot.** `CatalogSnapshot.builtinFunctionSignatures` (153 claim-table

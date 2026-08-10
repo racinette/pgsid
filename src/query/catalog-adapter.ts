@@ -26,6 +26,8 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
+  NEVER_NULL_WINDOW_SIGNATURES,
+  STRICT_TOTAL_WINDOW_SIGNATURES,
 } from "./nullability-walk.js";
 
 // ---------------------------------------------------------------------------
@@ -1421,18 +1423,17 @@ export async function buildNullabilityCatalog(
    * the lattice weakens soundly — always ⇒ first-arg ⇒ strict-total, so
    * mixed survivors conclude the weakest claim they all imply.
    */
-  const resolveBuiltinScalarTotality = (
-    schema: string | undefined,
-    name: string,
+  /**
+   * The rows of one name that a call could resolve to: arity-admitted with
+   * the captured defaults, exact-matched on singleton argument sets, and
+   * otherwise eliminated per position by implicit coercibility. Shared by the
+   * scalar and window resolvers so the elimination cannot fork between them —
+   * the two ask different verdict tables about the SAME survivors.
+   */
+  const selectBuiltinRows = (
+    rows: readonly BuiltinFunctionSignature[],
     argTypes: readonly (readonly string[] | null)[],
-  ):
-    | { kind: "always"; returns: string[] }
-    | { kind: "first-arg"; returns: string[] }
-    | { kind: "strict-total"; returns: string[] }
-    | { kind: "nullable"; returns: string[] }
-    | { kind: "unknown" } => {
-    const rows = resolveBuiltinFunctionSignatures(schema, name).filter(r => r.kind === "f");
-    if (rows.length === 0) return { kind: "unknown" };
+  ): { exact: BuiltinFunctionSignature } | { survivors: BuiltinFunctionSignature[] } | null => {
     const argCount = argTypes.length;
     const sets = argTypes.map(s => (s === null ? null : s.map(normalizeTypeName)));
 
@@ -1441,17 +1442,7 @@ export async function buildNullabilityCatalog(
         ? argCount >= r.args.length - 1
         : argCount <= r.args.length && argCount >= r.args.length - r.numArgDefaults;
     const arityRows = rows.filter(admitsArity);
-    if (arityRows.length === 0) return { kind: "unknown" };
-
-    const verdictOf = (r: BuiltinFunctionSignature): "always" | "first-arg" | "strict-total" | null => {
-      if (ALWAYS_NOT_NULL_BUILTINS.has(r.name)) return "always";
-      if (FIRST_ARG_BUILTINS.has(r.name)) return "first-arg";
-      if (STRICT_TOTAL_BUILTINS.has(r.name)) return "strict-total";
-      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${r.name}(${r.args.join(",")})`)) {
-        return "strict-total";
-      }
-      return null;
-    };
+    if (arityRows.length === 0) return null;
 
     const singles = sets.map(s => (s !== null && s.length === 1 ? s[0]! : null));
     if (singles.length === argCount && singles.every(s => s !== null)) {
@@ -1461,12 +1452,7 @@ export async function buildNullabilityCatalog(
           r.args.length === argCount &&
           r.args.every((a, i) => a === singles[i]),
       );
-      if (exact) {
-        const v = verdictOf(exact);
-        return v === null
-          ? { kind: "nullable", returns: [exact.returns] }
-          : { kind: v, returns: [exact.returns] };
-      }
+      if (exact) return { exact };
     }
 
     // A variadic row's positions past the fixed prefix check the variadic
@@ -1483,7 +1469,69 @@ export async function buildNullabilityCatalog(
         return s.some(m => mayCoerceImplicitly(m, p));
       }),
     );
-    if (survivors.length === 0) return { kind: "unknown" };
+    return survivors.length === 0 ? null : { survivors };
+  };
+
+  /**
+   * The WINDOW half of the same dispatch (2026-08-09). Same survivors, a
+   * different pair of verdict tables: `NEVER_NULL_WINDOW_SIGNATURES` claims
+   * whatever the arguments, `STRICT_TOTAL_WINDOW_SIGNATURES` claims for
+   * non-null ones. The re-key is what lets `lag(price, 1, 0)` claim notNull
+   * while `lag(price)` keeps reading nullable — the same shape `lower(text)`
+   * gave the scalar side, one table over.
+   */
+  const resolveBuiltinWindowTotality = (
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (readonly string[] | null)[],
+  ): { kind: "always" | "strict-total" | "nullable" | "unknown" } => {
+    const rows = resolveBuiltinFunctionSignatures(schema, name).filter(r => r.kind === "w");
+    if (rows.length === 0) return { kind: "unknown" };
+    const sel = selectBuiltinRows(rows, argTypes);
+    if (sel === null) return { kind: "unknown" };
+    const verdictOf = (r: BuiltinFunctionSignature): "always" | "strict-total" | null => {
+      const key = `${r.name}(${r.args.join(",")})`;
+      if (NEVER_NULL_WINDOW_SIGNATURES.has(key)) return "always";
+      if (STRICT_TOTAL_WINDOW_SIGNATURES.has(key)) return "strict-total";
+      return null;
+    };
+    const judged = ("exact" in sel ? [sel.exact] : sel.survivors).map(verdictOf);
+    if (judged.some(v => v === null)) return { kind: "nullable" };
+    return { kind: judged.every(v => v === "always") ? "always" : "strict-total" };
+  };
+
+  const resolveBuiltinScalarTotality = (
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (readonly string[] | null)[],
+  ):
+    | { kind: "always"; returns: string[] }
+    | { kind: "first-arg"; returns: string[] }
+    | { kind: "strict-total"; returns: string[] }
+    | { kind: "nullable"; returns: string[] }
+    | { kind: "unknown" } => {
+    const rows = resolveBuiltinFunctionSignatures(schema, name).filter(r => r.kind === "f");
+    if (rows.length === 0) return { kind: "unknown" };
+    const sel = selectBuiltinRows(rows, argTypes);
+    if (sel === null) return { kind: "unknown" };
+
+    const verdictOf = (r: BuiltinFunctionSignature): "always" | "first-arg" | "strict-total" | null => {
+      if (ALWAYS_NOT_NULL_BUILTINS.has(r.name)) return "always";
+      if (FIRST_ARG_BUILTINS.has(r.name)) return "first-arg";
+      if (STRICT_TOTAL_BUILTINS.has(r.name)) return "strict-total";
+      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${r.name}(${r.args.join(",")})`)) {
+        return "strict-total";
+      }
+      return null;
+    };
+
+    if ("exact" in sel) {
+      const v = verdictOf(sel.exact);
+      return v === null
+        ? { kind: "nullable", returns: [sel.exact.returns] }
+        : { kind: v, returns: [sel.exact.returns] };
+    }
+    const survivors = sel.survivors;
     const returns = [...new Set(survivors.map(r => r.returns))];
     const verdicts = survivors.map(verdictOf);
     if (verdicts.some(v => v === null)) return { kind: "nullable", returns };
@@ -1531,6 +1579,7 @@ export async function buildNullabilityCatalog(
     resolveOperatorStrictness,
     resolveOperatorStrictnessSome,
     resolveBuiltinScalarTotality,
+    resolveBuiltinWindowTotality,
     resolveBuiltinAggregateRows,
     resolveUserFunctionTyped,
     resolveBuiltinFunctionSignatures,

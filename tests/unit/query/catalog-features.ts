@@ -493,7 +493,7 @@ export const FEATURES: Record<string, Feature> = {
   "user-window-function": {
     category: "conservative",
     unread: "isWindow",
-    why: "FunctionInfo.isWindow is captured; the walk's window dispatch is keyed on the curated builtin sets (NEVER_NULL_WINDOW_FNS and siblings), so a USER window function falls through to nullable",
+    why: "FunctionInfo.isWindow is captured; the walk's window dispatch is keyed on the curated builtin sets (NEVER_NULL_WINDOW_SIGNATURES and siblings), so a USER window function falls through to nullable",
     detect: s => s.functions.some(f => f.isWindow),
   },
   "procedure": {

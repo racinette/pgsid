@@ -255,7 +255,7 @@ probe as the evidence bar.
 - `variance(real)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (0::float4)) t(c0));`
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 
-## no-null-found (1632: functions 1408, operators 218, aggregates 1, windows 5)
+## no-null-found (1630: functions 1408, operators 218, aggregates 1, windows 3)
 
 - `!!(,tsquery)`
 - `##(line,lseg)`
@@ -1181,9 +1181,7 @@ probe as the evidence bar.
 - `jsonb_send(jsonb)`
 - `jsonpath_out(jsonpath)`
 - `jsonpath_send(jsonpath)`
-- `lag(anycompatible,integer,anycompatible)`
 - `last_value(anyelement)`
-- `lead(anycompatible,integer,anycompatible)`
 - `like(bytea,bytea)`
 - `like(name,text)`
 - `like(text,text)`

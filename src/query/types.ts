@@ -508,6 +508,19 @@ export interface NullabilityCatalog {
     | { kind: "unknown" };
 
   /**
+   * The same resolution over the `prokind = 'w'` rows, answering the two
+   * WINDOW verdict tables. "always" holds whatever the arguments (the
+   * ranking set); "strict-total" holds for non-null ones (`lag`/`lead` with
+   * a DEFAULT, `ntile` with a bucket count). Return types are not carried:
+   * nothing upstream reads a window call's type.
+   */
+  resolveBuiltinWindowTotality(
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (readonly string[] | null)[],
+  ): { kind: "always" | "strict-total" | "nullable" | "unknown" };
+
+  /**
    * The WITHIN GROUP dispatch's row facts, keyed on `pg_aggregate.aggkind`
    * from the capture — the CLASS claims the two retired name tables
    * mirrored: hypothetical-set is total by class, ordered-set follows the

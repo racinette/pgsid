@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import {
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
-  NEVER_NULL_WINDOW_FNS,
+  NEVER_NULL_WINDOW_SIGNATURES,
+  STRICT_TOTAL_WINDOW_SIGNATURES,
   ALWAYS_NOT_NULL_BUILTINS,
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
@@ -71,6 +72,8 @@ describe("curated name tables vs pg_catalog", () => {
   let strictBuiltins: Set<string>;
   /** The signature capture, for the assertions that hold IT to the catalog. */
   let capturedSignatures: BuiltinFunctionSignature[];
+  /** Every `prokind = 'w'` row, keyed the way the window tables key. */
+  let windowSignatures: Set<string>;
 
   beforeAll(async () => {
     pg = await PGlite.create();
@@ -97,6 +100,20 @@ describe("curated name tables vs pg_catalog", () => {
           signatures: r.n,
         },
       ]),
+    );
+
+    windowSignatures = new Set(
+      (
+        await pg.query<{ key: string }>(
+          `SELECT p.proname || '(' ||
+                  COALESCE((SELECT string_agg(format_type(t, null), ',' ORDER BY o)
+                              FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '')
+                  || ')' AS key
+             FROM pg_proc p
+             JOIN pg_namespace ns ON ns.oid = p.pronamespace
+            WHERE ns.nspname = 'pg_catalog' AND p.prokind = 'w';`,
+        )
+      ).rows.map(r => r.key),
     );
 
     byKind = new Map();
@@ -173,7 +190,6 @@ describe("curated name tables vs pg_catalog", () => {
   // pins live in snapshot.test.ts), the way AGGREGATE_NAMES did.
   const ALL: [string, ReadonlySet<string>][] = [
     ["NON_NULL_OVER_NONEMPTY_AGGREGATES", NON_NULL_OVER_NONEMPTY_AGGREGATES],
-    ["NEVER_NULL_WINDOW_FNS", NEVER_NULL_WINDOW_FNS],
     ["ALWAYS_NOT_NULL_BUILTINS", ALWAYS_NOT_NULL_BUILTINS],
     ["FIRST_ARG_BUILTINS", FIRST_ARG_BUILTINS],
     ["STRICT_TOTAL_BUILTINS", STRICT_TOTAL_BUILTINS],
@@ -224,19 +240,22 @@ describe("curated name tables vs pg_catalog", () => {
     ).toEqual([]);
   });
 
-  it("NEVER_NULL_WINDOW_FNS holds only window-callable functions", () => {
-    // Deliberately a SUBSET of prokind 'w' rather than equal to it: the table
-    // is "window functions that are never NULL", and `lag`, `lead`,
-    // `nth_value` and `ntile` can each be NULL while `first_value` and
-    // `last_value` depend on a frame the walk does not analyse. Only
-    // membership is a catalog question.
-    const wrong = [...NEVER_NULL_WINDOW_FNS]
-      .filter(n => fns.has(n) && !fns.get(n)!.kinds.has("w"))
-      .map(n => `${n} (prokind '${[...fns.get(n)!.kinds].join("")}')`)
+  it("every curated window SIGNATURE is a real prokind 'w' row", () => {
+    // Stronger than the membership check the NAME table got, and that is the
+    // point of the re-key (2026-08-09): a signature key names ONE pg_proc
+    // row, so a typo or a re-typed overload fails here instead of silently
+    // claiming nothing. Still deliberately a SUBSET of prokind 'w' —
+    // `nth_value` can be NULL however non-null its input, and `lag`/`lead`
+    // can for every row but the three-argument one.
+    const wrong = [...NEVER_NULL_WINDOW_SIGNATURES, ...STRICT_TOTAL_WINDOW_SIGNATURES]
+      .filter(key => !windowSignatures.has(key))
       .sort();
     expect(
       wrong,
-      `Classified as a window function, but pg_catalog disagrees:\n  ${wrong.join("\n  ")}`,
+      `Curated window signature(s) pg_catalog has no prokind 'w' row for. A ` +
+        `key is \`name(argtype,argtype)\` in format_type spelling, so an ` +
+        `argument type PostgreSQL renders differently reads as a missing row:` +
+        `\n  ${wrong.join("\n  ")}`,
     ).toEqual([]);
   });
 

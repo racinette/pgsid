@@ -8078,17 +8078,28 @@ class NullabilityEngine {
     // the aggregate question too.
     if (fc.over) {
       trace.addFact("windowFunction", "true");
-      if (NEVER_NULL_WINDOW_FNS.has(name)) {
-        trace.addFact("priority", "2b (ranking window function)");
-        trace.conclude(true, `${name}() assigns a position to every row → never NULL`);
-        return true;
-      }
-      // ntile(n) returns NULL when its bucket-count argument is NULL.
-      if (name === "ntile") {
-        trace.addFact("priority", "2b (ntile)");
-        const result = argResults.length > 0 && argResults.every(r => r);
-        trace.conclude(result, result ? "ntile with a non-null bucket count → never NULL" : "ntile with a nullable bucket count → nullable");
-        return result;
+      // Typed dispatch over the kind='w' rows, keyed by SIGNATURE — the
+      // re-key that lets `lag(x, 1, 0)` claim what `lag(x)` may not.
+      // Named notation breaks the positional lineup and skips it, exactly
+      // as on the scalar side.
+      const winArgs = fc.args ?? [];
+      if (!winArgs.some(a => "NamedArgExpr" in (a as Record<string, unknown>))) {
+        const winTypes = winArgs.map(a => this.operandTypeSet(a, scope, depth + 1));
+        const win = this.catalog.resolveBuiltinWindowTotality(schema, name, winTypes);
+        if (win.kind === "always") {
+          trace.addFact("priority", "2b (window row, never NULL, signature-narrowed)");
+          trace.conclude(true, `${name}() assigns a value to every row → never NULL`);
+          return true;
+        }
+        if (win.kind === "strict-total") {
+          trace.addFact("priority", "2b (window row, total over non-null args, signature-narrowed)");
+          trace.addFact("argsNotNull", `[${argResults.map(r => (r ? "T" : "F")).join(", ")}]`);
+          const result = argResults.length > 0 && argResults.every(r => r);
+          trace.conclude(result, result
+            ? `every surviving signature of ${name}() over is total: non-null arguments → non-null result`
+            : `${name}() over has a nullable argument → nullable`);
+          return result;
+        }
       }
       // Aggregates over the DEFAULT frame: RANGE UNBOUNDED PRECEDING TO
       // CURRENT ROW always contains the current row (measured), so the frame
@@ -9286,8 +9297,37 @@ export const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
   "array_agg", "string_agg", "json_agg", "jsonb_agg",
 ]);
 
-export const NEVER_NULL_WINDOW_FNS = new Set([
-  "row_number", "rank", "dense_rank", "percent_rank", "cume_dist",
+/**
+ * Window rows that assign a value to EVERY row of the partition, so no frame
+ * or ordering can make them NULL. Keyed by SIGNATURE (2026-08-09), completing
+ * the re-key the type-aware charter decided for all nine claim tables: the
+ * five ranking functions take no arguments, so their keys are bare, but
+ * `lag` and `lead` below are exactly the case a name cannot express.
+ */
+export const NEVER_NULL_WINDOW_SIGNATURES: ReadonlySet<string> = new Set([
+  "row_number()", "rank()", "dense_rank()", "percent_rank()", "cume_dist()",
+]);
+
+/**
+ * Window rows that are non-null for non-null arguments — the window analogue
+ * of STRICT_TOTAL_BUILTINS, and the reason the window table had to be
+ * re-keyed at all.
+ *
+ * `lag`/`lead` address a row outside the partition and answer NULL for it —
+ * that is what `tests/unit/functions/lag/first-row.sql` witnesses, and it is
+ * true of the one- and two-argument rows. The THREE-argument row takes a
+ * DEFAULT, which is what PostgreSQL returns instead of that NULL, so
+ * `lag(price, 1, 0)` over a NOT NULL column cannot be NULL (measured). Name
+ * keying could not tell the two apart and the whole name stayed out.
+ *
+ * `ntile` was a hard-coded special case in the walk and is now an ordinary
+ * row here: its claim was always "non-null when the bucket count is", which
+ * is precisely what this table means.
+ */
+export const STRICT_TOTAL_WINDOW_SIGNATURES: ReadonlySet<string> = new Set([
+  "lag(anycompatible,integer,anycompatible)",
+  "lead(anycompatible,integer,anycompatible)",
+  "ntile(integer)",
 ]);
 
 /**
