@@ -1,0 +1,7 @@
+-- nth_value addresses the Nth row of the FRAME, and a frame with fewer than N
+-- rows has no such row — NULL, however non-null the input. That is why it is
+-- absent from both window tables while `lag`/`lead` recovered their
+-- three-argument rows: nth_value has no DEFAULT argument to answer with.
+-- @signature anyelement, integer
+-- @null  SELECT nth_value(x, 2) OVER (ORDER BY x) FROM (VALUES (1)) t(x)
+-- @value SELECT nth_value(x, 1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) LIMIT 1

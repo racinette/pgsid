@@ -5,6 +5,7 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
+  SWEPT_TOTAL_SIGNATURES,
 } from "../../../src/query/nullability-walk.js";
 import {
   TOTAL_OPERATORS,
@@ -162,7 +163,8 @@ describe("totality tables, probed by execution", () => {
     // probed under the strict-total discipline — a NULL from `lower(text)`
     // fails the run exactly as one from a name-table member would.
     const additionNames = new Set(
-      [...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
+      [...STRICT_TOTAL_BUILTIN_SIGNATURES, ...SWEPT_TOTAL_SIGNATURES]
+        .map(k => k.slice(0, k.indexOf("("))),
     );
     const nameTableNames = new Set([
       ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
@@ -191,7 +193,8 @@ describe("totality tables, probed by execution", () => {
       .filter(
         r =>
           nameTableNames.has(r.name) ||
-          STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${r.name}(${r.types.join(",")})`),
+          STRICT_TOTAL_BUILTIN_SIGNATURES.has(`${r.name}(${r.types.join(",")})`) ||
+          SWEPT_TOTAL_SIGNATURES.has(`${r.name}(${r.types.join(",")})`),
       )
       .map(r =>
         // A VARIADIC declaration carries ONE parameter of the element type, and

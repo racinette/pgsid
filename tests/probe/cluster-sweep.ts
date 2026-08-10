@@ -232,6 +232,12 @@ const render = (r: Row, combo: string[]): string =>
     : `${qualify(r.name)}(${combo.join(", ")})`;
 
 const findings: string[] = [];
+/**
+ * The rows this run convicted: probed, evaluated, and never NULL. Printed by
+ * `--list-total` as the promotion list itself, so what lands in the claim
+ * table has the sweep as its provenance rather than a hand transcription.
+ */
+const convicted: string[] = [];
 const stagedThatMattered = new Set<string>();
 let totals = 0;
 let allRaised = 0;
@@ -310,9 +316,13 @@ for (const r of rows) {
     findings.push(`RAISE ${key} — every combination raised or emitted nothing`);
   } else {
     totals++;
+    convicted.push(key);
   }
 }
 
+if (process.argv.includes("--list-total")) {
+  console.log(convicted.sort().map(k => `  ${JSON.stringify(k)},`).join("\n"));
+}
 console.log(findings.join("\n"));
 console.log(
   `\n${rows.length} rows swept (${roleArg ? `role=${roleArg}` : `/${pattern.source}/`}` +

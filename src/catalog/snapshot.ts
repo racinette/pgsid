@@ -30,6 +30,7 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
+  SWEPT_TOTAL_SIGNATURES,
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_SIGNATURES,
   STRICT_TOTAL_WINDOW_SIGNATURES,
@@ -62,6 +63,8 @@ const CLAIMED_FUNCTION_NAMES = [...new Set([
   // after lower's removal — and its rows must be captured for the typed
   // dispatch to resolve against.
   ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
+  // The machine-swept rows scope themselves the same way.
+  ...[...SWEPT_TOTAL_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
 ])];
 const CLAIMED_OPERATOR_NAMES = [...new Set([
   ...TOTAL_OPERATORS,

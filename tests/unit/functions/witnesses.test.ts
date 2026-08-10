@@ -8,6 +8,7 @@ import {
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
+  SWEPT_TOTAL_SIGNATURES,
 } from "../../../src/query/nullability-walk.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 
@@ -173,8 +174,12 @@ describe("per-overload NULL witnesses", () => {
       if (nameTables.has(w.fn)) {
         offenders.push(`${w.fn}(${w.signature}) — the NAME is in a totality table`);
       }
-      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(sigKey(w.fn, w.signature))) {
+      const key = sigKey(w.fn, w.signature);
+      if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(key)) {
         offenders.push(`${w.fn}(${w.signature}) — claimed by the signature additions`);
+      }
+      if (SWEPT_TOTAL_SIGNATURES.has(key)) {
+        offenders.push(`${w.fn}(${w.signature}) — claimed by the cluster sweep`);
       }
     }
     expect(offenders).toEqual([]);
