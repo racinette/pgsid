@@ -121,6 +121,51 @@ const WORK_LIST: Record<string, string> = {
 };
 
 /**
+ * THE TYPES WITH NO GENERATOR, PINNED — why the corner corpus carries no
+ * literal for each, keyed by TYPE because that is where the reason lives: one
+ * missing type blocks every signature that takes it, and `internal` alone
+ * blocks 520.
+ *
+ * The third of the three pins, and the one that paid immediately. Writing
+ * these reasons is what forced the question nobody had asked — is a literal
+ * IMPOSSIBLE, or merely absent? — and the answer for nineteen types was
+ * "merely absent": `'{1,2}'::float8[]`, `'<a/>'::xml`, `'pg_class'::regclass`
+ * and `'{a}'::cstring[]` all run, and 102 signatures had been classified
+ * unprobeable behind them for no reason anybody could state. Those types have
+ * generators now; what is left is the list below, and every entry names which
+ * of the two it is.
+ *
+ * Both directions are asserted, so a type that acquires a generator must lose
+ * its entry — the reason would otherwise outlive the gap it explains.
+ */
+const NO_GENERATOR: Record<string, string> = {
+  // --- refused: PostgreSQL will not accept a value of the type from SQL ---
+  internal:
+    "PostgreSQL refuses a value of this type from SQL outright (\"cannot accept a value of type internal\"), so no literal exists at any effort. Aggregate transition functions, index AM support and selectivity estimators take it, and none of them is reachable from a query",
+  pg_node_tree: "an internal parse-tree rendering; the cast is refused",
+  gtsvector: "a GiST index entry for tsvector; the cast is refused",
+  pg_mcv_list: "extended statistics, most-common-values; the cast is refused",
+  pg_dependencies: "extended statistics, functional dependencies; the cast is refused",
+  pg_ndistinct: "extended statistics, n-distinct counts; the cast is refused",
+  pg_brin_bloom_summary: "a BRIN bloom summary; the cast is refused",
+  pg_brin_minmax_multi_summary: "a BRIN minmax-multi summary; the cast is refused",
+  pg_ddl_command: "an event-trigger DDL command; the cast is refused",
+  // --- pseudo-types: a return marker or a handler contract, never a value --
+  void: "a RESULT marker, not a value — nothing can be passed as one",
+  unknown: "the type of an unadorned literal before resolution; it never survives to be an argument",
+  trigger: "the return contract of a trigger function, not a value",
+  event_trigger: "the return contract of an event-trigger function",
+  fdw_handler: "the return contract of a foreign-data-wrapper handler",
+  index_am_handler: "the return contract of an index access-method handler",
+  table_am_handler: "the return contract of a table access-method handler",
+  language_handler: "the return contract of a procedural-language handler",
+  tsm_handler: "the return contract of a tablesample method handler",
+  // --- possible, and deliberately skipped ---------------------------------
+  cstring:
+    "NOT refused — `textin('abc'::cstring)` runs, measured. These are the type I/O entry points, one per type, and no query writes one; a generator would classify 186 rows of pure machinery. A DECISION rather than an impossibility, which is why it is written here rather than left to be re-derived",
+};
+
+/**
  * THE UNPROBED SURFACE, PINNED — every signature PostgreSQL declined for
  * EVERY combination the corpus can build, grouped by the reason it declined.
  *
@@ -136,8 +181,30 @@ const WORK_LIST: Record<string, string> = {
  * not a failure. That is why the assertion names the group.
  */
 const UNPROBED: Record<string, readonly string[]> = {
-  // an aggregate transition function, which rejects a call outside its aggregate
+  // an aggregate TRANSITION STATE, whose array has an internal shape the corpus cannot guess — float8_accum wants a three-element accumulator, not any float8[]
   "aggstate": [
+    "float4_accum(double precision[],real)",
+    "float8_accum(double precision[],double precision)",
+    "float8_avg(double precision[])",
+    "float8_combine(double precision[],double precision[])",
+    "float8_corr(double precision[])",
+    "float8_covar_pop(double precision[])",
+    "float8_covar_samp(double precision[])",
+    "float8_regr_accum(double precision[],double precision,double precision)",
+    "float8_regr_avgx(double precision[])",
+    "float8_regr_avgy(double precision[])",
+    "float8_regr_combine(double precision[],double precision[])",
+    "float8_regr_intercept(double precision[])",
+    "float8_regr_r2(double precision[])",
+    "float8_regr_slope(double precision[])",
+    "float8_regr_sxx(double precision[])",
+    "float8_regr_sxy(double precision[])",
+    "float8_regr_syy(double precision[])",
+    "float8_stddev_pop(double precision[])",
+    "float8_stddev_samp(double precision[])",
+    "float8_var_pop(double precision[])",
+    "float8_var_samp(double precision[])",
+    "int4_avg_combine(bigint[],bigint[])",
     "multirange_intersect_agg_transfn(anymultirange,anymultirange)",
     "range_intersect_agg_transfn(anyrange,anyrange)",
   ],
@@ -161,6 +228,7 @@ const UNPROBED: Record<string, readonly string[]> = {
     "pg_listening_channels()",
     "pg_prepared_statement()",
     "pg_sequence_parameters(oid)",
+    "pg_snapshot_xip(pg_snapshot)",
     "pg_split_walfile_name(text)",
     "pg_stat_get_progress_info(text)",
     "pg_stat_get_subscription(oid)",
@@ -226,6 +294,21 @@ const UNPROBED: Record<string, readonly string[]> = {
     "jsonb_to_record(jsonb)",
     "jsonb_to_recordset(jsonb)",
     "satisfies_hash_partition(oid,integer,integer,\"any\")",
+    "txid_snapshot_xip(txid_snapshot)",
+    "xmlvalidate(xml,text)",
+  ],
+  // a type MODIFIER list, valid only for the modifiers its own type accepts
+  "typmod": [
+    "bittypmodin(cstring[])",
+    "bpchartypmodin(cstring[])",
+    "intervaltypmodin(cstring[])",
+    "numerictypmodin(cstring[])",
+    "timestamptypmodin(cstring[])",
+    "timestamptztypmodin(cstring[])",
+    "timetypmodin(cstring[])",
+    "timetztypmodin(cstring[])",
+    "varbittypmodin(cstring[])",
+    "varchartypmodin(cstring[])",
   ],
   // the WASM build declines it for every input — libnuma for the XML exporters, and no LATIN source encoding for to_ascii
   "wasm": [
@@ -873,6 +956,31 @@ describe("builtin scalar surface, witnessed or classified", () => {
         `Either it was promoted or witnessed — drop the entry — or ` +
         `PostgreSQL removed it, and the entry is a reason about a signature ` +
         `that no longer exists:\n  ${stale.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("every type with no generator has a recorded reason, in both directions", () => {
+    // The third pin. A type absent from VALUES blocks every signature taking
+    // it, so the reason belongs to the TYPE — and the reason has to say which
+    // of two things it is, because "impossible" and "not worth it" ask
+    // completely different things of the next reader.
+    const blocking = new Set(
+      [...noGeneratorTypes.keys()].filter(t => !POLYMORPHIC.has(t) && !VALUES[t]),
+    );
+    const unexplained = [...blocking].filter(t => !(t in NO_GENERATOR)).sort();
+    const stale = Object.keys(NO_GENERATOR).filter(t => !blocking.has(t)).sort();
+    expect(
+      unexplained,
+      `Type(s) blocking a signature with no recorded reason. Try the literal ` +
+        `before writing one: nineteen types were assumed impossible and were ` +
+        `merely absent, and 102 signatures came back when somebody checked:\n  ` +
+        `${unexplained.join("\n  ")}`,
+    ).toEqual([]);
+    expect(
+      stale,
+      `NO_GENERATOR explains a type that no longer blocks anything — it ` +
+        `acquired a generator, or PostgreSQL stopped using it here:\n  ` +
+        `${stale.join("\n  ")}`,
     ).toEqual([]);
   });
 

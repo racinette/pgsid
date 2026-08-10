@@ -192,6 +192,32 @@ export const VALUES: Record<string, string[]> = {
   path: ["'[(0,0),(1,1)]'::path", "'((0,0),(1,1))'::path", "'[(0,0)]'::path"],
   circle: ["'<(0,0),1>'::circle", "'<(0,0),0>'::circle"],
   polygon: ["'((0,0),(1,1),(1,0))'::polygon", "'((0,0))'::polygon"],
+  // --- the types the no-generator PIN forced a decision about (2026-08-09).
+  //     Each is here because writing "no literal exists" next to it would
+  //     have been FALSE, which is the question that pin asks and nobody had
+  //     asked before. Between them they unblock ~90 signatures that had been
+  //     classified unprobeable for no reason anybody could state.
+  "double precision[]": ["'{}'::float8[]", "'{1,2}'::float8[]"],
+  "bigint[]": ["'{}'::int8[]", "'{1,2}'::int8[]"],
+  "cstring[]": ["'{}'::cstring[]", "'{a}'::cstring[]"],
+  '"char"[]': ["ARRAY['a'::\"char\"]"],
+  int2vector: ["'1 2'::int2vector"],
+  xml: ["''::xml", "'<a/>'::xml"],
+  // The reg* family names a live catalog object; an ambiguous name RAISES,
+  // so `regproc` and `regoper` take a symbol with exactly one entry.
+  regclass: ["'pg_class'::regclass"],
+  regtype: ["'integer'::regtype"],
+  regproc: ["'pg_backend_pid'::regproc"],
+  regprocedure: ["'upper(text)'::regprocedure"],
+  regoper: ["'||/'::regoper"],
+  regoperator: ["'+(integer,integer)'::regoperator"],
+  regnamespace: ["'pg_catalog'::regnamespace"],
+  regrole: ["'postgres'::regrole"],
+  regcollation: ["'\"C\"'::regcollation"],
+  regdictionary: ["'simple'::regdictionary"],
+  pg_snapshot: ["'1:1:'::pg_snapshot"],
+  txid_snapshot: ["'1:1:'::txid_snapshot"],
+
   aclitem: ["makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)"],
   "aclitem[]": ["ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)]"],
 };
@@ -209,12 +235,14 @@ export const POLYMORPHIC_FAMILIES: Record<string, string>[] = [
     anyarray: "ARRAY[1,2]", anycompatiblearray: "ARRAY[1,2]",
     '"any"': "1", anyenum: "'a'::probe_enum", anyrange: "'[1,2)'::int4range",
     anymultirange: "'{[1,2)}'::int4multirange", anycompatiblerange: "'[1,2)'::int4range",
+    anycompatiblemultirange: "'{[1,2)}'::int4multirange",
   },
   {
     anyelement: "'x'", anynonarray: "'x'", anycompatible: "'x'", anycompatiblenonarray: "'x'",
     anyarray: "'{}'::text[]", anycompatiblearray: "'{}'::text[]",
     '"any"': "'x'", anyenum: "'b'::probe_enum", anyrange: "'empty'::int4range",
     anymultirange: "'{}'::int4multirange", anycompatiblerange: "'empty'::int4range",
+    anycompatiblemultirange: "'{}'::int4multirange",
   },
   // A third family whose ARRAY holds a NULL ELEMENT (2026-08-09). The array
   // is still a non-null argument, so this is a totality question and not a
@@ -227,6 +255,7 @@ export const POLYMORPHIC_FAMILIES: Record<string, string>[] = [
     anyarray: "ARRAY[1,NULL]", anycompatiblearray: "ARRAY[1,NULL]",
     '"any"': "1", anyenum: "'a'::probe_enum", anyrange: "'[1,2)'::int4range",
     anymultirange: "'{[1,2)}'::int4multirange", anycompatiblerange: "'[1,2)'::int4range",
+    anycompatiblemultirange: "'{[1,2)}'::int4multirange",
   },
 ];
 
