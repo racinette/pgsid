@@ -623,6 +623,12 @@ does not, and closing that is a construction change, not a corpus one.
 Surface now: claimed 1060, no-null-found 1705, null-witnessed 240,
 raised-everywhere 161, no-generator 754, volatile 281.
 
+**SUPERSEDED (2026-08-09, same day) — the set-returning class IS probed,
+and the construction below was wrong about which position it needs.** Read
+the entry that follows for the trap it records, then the closure beneath it:
+the FROM-position measurement stands, and the conclusion drawn from it did
+not.
+
 **THE SET-RETURNING CLASS IS CLASSIFIED, NOT PROBED (2026-08-09), and the
 attempt to probe it is the entry's real content.** 71 rows were sitting in
 the work list on evidence the construction never took: `probe()` runs
@@ -699,6 +705,54 @@ must be allowed to be EMPTY for a zero-argument function, and the greedy
 `\s+` in the directive pattern crossed the newline and captured the
 FOLLOWING directive, so `to_regprocedure` reported a syntax error from a
 file that read correctly. Surface: claimed 1079, no-null-found 1632.
+
+**THE SET-RETURNING CLASS IS CLOSED (2026-08-09), and the entry above is
+kept because being wrong about it is the useful part.** The measurement
+that killed the row-wise probe was real and still is: a FROM-position
+function scan MATERIALISES in PGlite, so `SELECT * FROM
+generate_series(1::bigint, 9223372036854775807) LIMIT 100` allocates until
+the process dies, unbounded by `LIMIT` and uncancellable by
+`statement_timeout`. What was wrong was the conclusion — the position was
+never forced. **In the TARGET LIST the same call is a lazy `ProjectSet`,
+`LIMIT` stops it, and the whole question answers in ~2ms**:
+
+    SELECT count(*), bool_or(c0 IS NULL)
+      FROM (SELECT (pg_catalog.generate_series(1::bigint,
+                                               9223372036854775807::bigint))
+            LIMIT 100) s(c0);
+
+The prompt for looking again was the user's, and it is the better argument:
+the engine's default nullable IS a claim, so an unwitnessable nullable
+reading on a function that never returns NULL is exactly what the surface
+suite exists to flag — letting the prober's limitation decide the verdict
+is backwards. `srfprobe` and `srfQuery` now live beside `probe()` in
+probe-values.ts, shared by BOTH suites, so a promoted set-returning claim
+is held by execution like every other. The bound is recorded rather than
+implied: 100 emitted rows, and a NULL past it goes unseen. Record rows are
+projected `(call).*` and tested per COLUMN — `unnest(tsvector)`'s NULL
+positions sit beside a non-null lexeme and a whole-row `IS NULL` misses
+them. `empty` is its own verdict and counts as no evidence, exactly like a
+raise: `generate_series(1, 0)` must not pass for a probe.
+
+**24 promoted, 13 witnessed by the machine.** In: `generate_series` (all
+nine rows), `generate_subscripts`, `regexp_split_to_table`,
+`regexp_matches`, the json/jsonb key and element expanders, `jsonb_path_query`
+and its _tz twin, plus `string_to_table(text,text)` signature-keyed.
+Permanently out, and the split is the sharpest thing here: the `_text` json
+expanders turn a JSON null into a SQL NULL where their non-`_text` twins
+return it as a value, so `json_each` is claimed and `json_each_text` is
+witnessed — the machine found that pair itself once the corpus could reach
+it. `unnest` stays out on both its witnessed rows.
+
+Two corpus gaps closed to get there, each verified against the whole
+claimed surface first: a non-empty JSON array and a null-VALUED key (without
+them every json expander either raised — `json_array_elements` rejects a
+non-array — or never saw a JSON null), and a THIRD polymorphic family whose
+array holds a NULL ELEMENT. That last one closed a real inconsistency: a
+hand fixture witnessed `unnest(anyarray)` while the probe read the same
+signature as no-null-found, because every array in the corpus was
+NULL-free. The fixture and the classifier now agree, which is the state
+they should never have been out of.
 
 **THE WINDOW TABLE IS RE-KEYED TO SIGNATURES (2026-08-09)** — the decision
 this register recorded above ("ALL SEVEN plus the two operator sets,

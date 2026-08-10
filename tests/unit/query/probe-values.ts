@@ -68,8 +68,14 @@ export const VALUES: Record<string, string[]> = {
   bytea: ["''::bytea", "'\\x00'::bytea", "'abc'::bytea"],
   "integer[]": ["'{}'::int[]", "ARRAY[1,2]"],
   "text[]": ["'{}'::text[]", "ARRAY['a','b']"],
-  json: ["'null'::json", "'{}'::json", "'[]'::json", "'{\"a\":1}'::json"],
-  jsonb: ["'null'::jsonb", "'{}'::jsonb", "'[]'::jsonb", "'{\"a\":1}'::jsonb"],
+  // A NON-EMPTY array and a null-VALUED key joined the four originals
+  // (2026-08-09, from the set-returning probe): without them every json
+  // expander either raised (`json_array_elements` rejects a non-array, and
+  // `'[]'` emits nothing) or saw no JSON null — and a JSON null is exactly
+  // what separates `json_each_text` from `json_each`, the `_text` half
+  // turning it into a SQL NULL while the other returns it as a value.
+  json: ["'null'::json", "'{}'::json", "'[]'::json", "'{\"a\":1}'::json", "'[1,null]'::json", "'{\"a\":null}'::json"],
+  jsonb: ["'null'::jsonb", "'{}'::jsonb", "'[]'::jsonb", "'{\"a\":1}'::jsonb", "'[1,null]'::jsonb", "'{\"a\":null}'::jsonb"],
   record: ["ROW(1,2)"],
 
   // --- ranges: the EMPTY range removed lower/upper.
@@ -160,6 +166,18 @@ export const POLYMORPHIC_FAMILIES: Record<string, string>[] = [
     '"any"': "'x'", anyenum: "'b'::probe_enum", anyrange: "'empty'::int4range",
     anymultirange: "'{}'::int4multirange", anycompatiblerange: "'empty'::int4range",
   },
+  // A third family whose ARRAY holds a NULL ELEMENT (2026-08-09). The array
+  // is still a non-null argument, so this is a totality question and not a
+  // strictness one — and it is the only way to reach `unnest`'s NULL row,
+  // which a hand fixture had witnessed while the probe read the signature as
+  // no-null-found. The scalar members repeat family 1 so the family stays a
+  // legal instantiation for signatures mixing element and array parameters.
+  {
+    anyelement: "1", anynonarray: "1", anycompatible: "1", anycompatiblenonarray: "1",
+    anyarray: "ARRAY[1,NULL]", anycompatiblearray: "ARRAY[1,NULL]",
+    '"any"': "1", anyenum: "'a'::probe_enum", anyrange: "'[1,2)'::int4range",
+    anymultirange: "'{[1,2)}'::int4multirange", anycompatiblerange: "'[1,2)'::int4range",
+  },
 ];
 
 export const POLYMORPHIC = new Set(Object.keys(POLYMORPHIC_FAMILIES[0]!));
@@ -228,4 +246,65 @@ export const PROBE_FN_SQL = `
     RETURN CASE WHEN r THEN 'NULL' ELSE 'value' END;
   EXCEPTION WHEN OTHERS THEN RETURN 'error';
   END $probe$;`;
+
+/**
+ * How many emitted rows a set-returning probe inspects. A BOUND, recorded
+ * rather than assumed: a NULL past this row goes unseen, which is the price
+ * of asking the question at all.
+ *
+ * 100 because the corpus's set-returning inputs are small by construction —
+ * two-element arrays, one- and two-key json, series over the corpus's
+ * integers — with one exception that is exactly why the bound exists:
+ * `generate_series(1::bigint, 9223372036854775807)` emits more rows than
+ * exist time to count.
+ */
+export const SRF_ROW_LIMIT = 100;
+
+/**
+ * The set-returning probe, and the reason it is written THIS way.
+ *
+ * `probe()` above cannot answer a set: `EXECUTE … INTO` takes the FIRST
+ * emitted row and reads zero rows as a value, so `unnest(ARRAY[NULL,1])`
+ * witnesses and `unnest(ARRAY[1,NULL])` does not — the same function over the
+ * same elements, decided by sort order. It also RAISES on a multi-row result,
+ * and raising costs 2-3.5s over the corpus's large bounds because PostgreSQL
+ * runs the query out first.
+ *
+ * So the call goes in the TARGET LIST, not in FROM. That distinction is the
+ * whole mechanism and was measured the expensive way: a FROM-position
+ * function scan MATERIALISES in PGlite, so `LIMIT` does not bound it,
+ * `statement_timeout` does not cancel it, and the corpus's bigint bound
+ * exhausts the machine's memory — the WASM backend blocks the event loop, so
+ * nothing in JavaScript can intervene either. A target-list `ProjectSet` is
+ * lazy, `LIMIT` stops it, and the same expression answers in ~2ms.
+ *
+ * The caller passes a complete inner query (see `srfQuery`) rather than a
+ * bare expression, because the null test has to name each output column: a
+ * record-returning row's whole-row `IS NULL` is true only when EVERY field is
+ * null, which would miss `unnest(tsvector)`'s NULL positions beside a
+ * non-null lexeme.
+ */
+export const SRF_PROBE_FN_SQL = `
+  CREATE FUNCTION srfprobe(q text) RETURNS text LANGUAGE plpgsql AS $srf$
+  DECLARE n bigint; anynull boolean;
+  BEGIN
+    EXECUTE q INTO n, anynull;
+    IF n = 0 THEN RETURN 'empty'; END IF;
+    RETURN CASE WHEN anynull THEN 'NULL' ELSE 'value' END;
+  EXCEPTION WHEN OTHERS THEN RETURN 'error';
+  END $srf$;`;
+
+/**
+ * The inner query for one set-returning call: how many rows it emitted (up to
+ * the bound) and whether any of them holds a NULL in any output column.
+ * Order-independent, which is the property `probe()` lacks.
+ */
+export function srfQuery(call: string, ncols: number): string {
+  const cols = Array.from({ length: ncols }, (_, i) => `c${i}`);
+  const projection = ncols === 1 ? `(${call})` : `(${call}).*`;
+  return (
+    `SELECT count(*), bool_or(${cols.map(c => `${c} IS NULL`).join(" OR ")})` +
+    ` FROM (SELECT ${projection} LIMIT ${SRF_ROW_LIMIT}) s(${cols.join(", ")})`
+  );
+}
 
