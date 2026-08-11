@@ -1,0 +1,268 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+import { parseSql } from "../../../src/ast.js";
+import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
+import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { inferQueryContract, type QueryContract } from "../../../src/query/nullability-walk.js";
+import type { NullabilityCatalog } from "../../../src/query/types.js";
+
+// ---------------------------------------------------------------------------
+// The RED SUITE for subtree evaluation (docs/subtree-evaluation.md; the
+// CHECK-channel consumer is Mechanism E in docs/argument-nullability.md).
+//
+// Every `it.fails` case asserts the TARGET contract — what the engine must
+// claim once the named consumer lands — and passes today exactly because the
+// engine does not claim it yet. When a consumer is built, its cases start
+// failing under `it.fails`, which forces the flip to a plain `it` in the
+// same commit: the suite is green before, during and after, and each flip
+// is the acceptance test of the consumer that caused it.
+//
+// Every target was adjudicated against PostgreSQL before shipping
+// (2026-08-11): output targets by executing the query and finding no NULL
+// with the reason understood, param targets by binding NULL and watching the
+// raise (or the pass, for the must-not-claim controls). A target the oracle
+// would falsify must never sit here — this file claims what PostgreSQL does,
+// ahead of what the engine sees.
+//
+// The plain `it` blocks are the BOUNDARY GUARDS: behavior that must stay
+// exactly as it is after the mechanism lands. A guard that starts failing
+// means the mechanism crossed a line the design draws — most seriously the
+// bp control, where a claim would be unsound, not just eager.
+// ---------------------------------------------------------------------------
+
+let pg: PGlite;
+let catalog: NullabilityCatalog;
+
+const SCHEMA = `
+  CREATE TABLE t (id int NOT NULL, x int);
+  CREATE TABLE orders (id int NOT NULL, qty int NOT NULL);
+  CREATE TABLE subscription (plan text, seats int, overflow_contact text,
+    CONSTRAINT subscription_check1 CHECK (seats <= 1 OR overflow_contact IS NOT NULL));
+  CREATE TABLE priced (price int, discount int, note text,
+    CHECK (price - discount >= 0 OR note IS NOT NULL));
+  CREATE TABLE bpt_ne (c char(4), n text, CHECK (c <> 'a ' OR n IS NOT NULL));
+  CREATE TABLE bpt_eq (c char(4), n text, CHECK (c = 'a ' OR n IS NOT NULL));
+  CREATE TABLE nv (seats int, oc text);
+  ALTER TABLE nv ADD CONSTRAINT nv_check
+    CHECK (seats <= 1 OR oc IS NOT NULL) NOT VALID;
+  CREATE TABLE ne (seats int, oc text);
+  ALTER TABLE ne ADD CONSTRAINT ne_check
+    CHECK (seats <= 1 OR oc IS NOT NULL) NOT ENFORCED;
+`;
+
+beforeAll(async () => {
+  pg = new PGlite();
+  await pg.exec(SCHEMA);
+  const snapshot = await snapshotCatalog(pg);
+  catalog = await buildNullabilityCatalog(snapshot);
+}, 60_000);
+
+afterAll(async () => {
+  if (!pg.closed) await pg.close();
+});
+
+async function contract(sql: string): Promise<QueryContract> {
+  const parsed = await parseSql(sql);
+  return inferQueryContract(parsed.stmts![0]!.stmt!, catalog);
+}
+
+// --- Consumer 1: the statement map. ----------------------------------------
+// Closed subtrees of the statement evaluated through PostgreSQL; the walk
+// consults a node-identity map. Targets flip when the map consumer lands.
+
+describe("RED: statement map", () => {
+  it.fails("nested closed guards prune at two depths", async () => {
+    const c = await contract(
+      "SELECT CASE WHEN length(trim('  x  ')) = 1" +
+        " THEN CASE WHEN 2 + 2 = 4 THEN o.id ELSE NULL END" +
+        " ELSE NULL END AS c FROM orders o",
+    );
+    // Both guards are closed and TRUE; both NULL arms prune; c is o.id,
+    // which is NOT NULL.
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it.fails("a COALESCE chain resolves through folded NULLIF arms", async () => {
+    const c = await contract(
+      "SELECT COALESCE(NULLIF('a', 'a'), NULLIF('b', 'c'), s.plan) AS c FROM subscription s",
+    );
+    // NULLIF('a','a') evaluates NULL (skipped), NULLIF('b','c') evaluates
+    // 'b' (non-NULL): the chain lands on arm two whatever s.plan holds.
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it.fails("a guard-FALSE arm folds inside a set operation", async () => {
+    const c = await contract(
+      "SELECT CASE WHEN 1 > 2 THEN NULL ELSE 'val' END AS c UNION ALL SELECT 'other'",
+    );
+    // The first branch folds to 'val'; both branches notNull; the union is.
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it.fails("a folded claim propagates through a CTE reference", async () => {
+    const c = await contract(
+      "WITH flags AS (SELECT CASE WHEN 1 = 1 THEN 'on' ELSE NULL END AS flag)" +
+        " SELECT f.flag FROM flags f",
+    );
+    // The map hit happens inside the CTE body; the CTE's memoized analysis
+    // carries it to the outer reference. Exercises identity plumbing across
+    // the walk's subquery memoization.
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it("control: sum over a NOT NULL column with GROUP BY claims notNull today", async () => {
+    // The aggregate reasoning is already there; the red case below isolates
+    // exactly the folding gap, not an aggregate gap.
+    const c = await contract("SELECT sum(o.qty) AS s FROM orders o GROUP BY o.id");
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it.fails("a folded CASE feeds an aggregate its notNull operand", async () => {
+    const c = await contract(
+      "SELECT sum(CASE WHEN 'a' = 'b' THEN NULL ELSE o.qty END) AS s" +
+        " FROM orders o GROUP BY o.id",
+    );
+    // 'a' = 'b' evaluates FALSE; the operand folds to o.qty (NOT NULL); the
+    // control above shows the aggregate machinery finishes the job.
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+});
+
+// --- Consumer 2: the CHECK grounder (Mechanism E). --------------------------
+// Written values ground enforced CHECK bodies; closed parts evaluate;
+// residue analysis produces param claims. Targets flip when E lands.
+
+describe("RED: CHECK grounder", () => {
+  it.fails("the standing finding: a written literal beside the tested NULL", async () => {
+    const c = await contract(
+      "INSERT INTO subscription (plan, seats, overflow_contact) VALUES ('team', 5, $1)",
+    );
+    // Grounds to (5 <= 1 OR $1 IS NOT NULL) → FALSE OR residue → $1 notNull.
+    // This is subscription_check1, the discovery instrument's one standing
+    // conviction (~9 per 20,000, both seeds); it closes when this flips.
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it.fails("multi-row VALUES grounds per row and attributes per parameter", async () => {
+    const c = await contract(
+      "INSERT INTO subscription (plan, seats, overflow_contact)" +
+        " VALUES ('solo', 1, $1), ('team', 9, $2)",
+    );
+    // Row 1: 1 <= 1 grounds TRUE — $1 unconstrained (bound NULL, it passes:
+    // adjudicated). Row 2: 9 <= 1 grounds FALSE — $2 notNull.
+    expect(c.params[0]!.notNull).toBe(false);
+    expect(c.params[1]!.notNull).toBe(true);
+  });
+
+  it.fails("UPDATE grounds SET values; the WHERE parameter stays free", async () => {
+    const c = await contract(
+      "UPDATE subscription SET seats = 7, overflow_contact = $1 WHERE plan = $2",
+    );
+    expect(c.params[0]!.notNull).toBe(true);
+    expect(c.params[1]!.notNull).toBe(false);
+  });
+
+  it.fails("an arithmetic CHECK body evaluates, not just comparisons", async () => {
+    const c = await contract("INSERT INTO priced (price, discount, note) VALUES (5, 10, $1)");
+    // Grounds to (5 - 10 >= 0 OR $1 IS NOT NULL): the closed subtree is a
+    // computation — the shape the exact-atom trade could never cover.
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it.fails("bp: blank-padded comparison claims where text reasoning would miss", async () => {
+    const c = await contract("INSERT INTO bpt_ne (c, n) VALUES ('a', $1)");
+    // As char(4), 'a' <> 'a ' grounds FALSE (padding equates them) →
+    // residue → $1 notNull. Text-typed grounding would answer TRUE and miss
+    // the claim. Adjudicated: binding NULL raises.
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it.fails("a NOT VALID CHECK still claims — it gates new writes", async () => {
+    const c = await contract("INSERT INTO nv (seats, oc) VALUES (5, $1)");
+    // convalidated=false but conenforced=true (the snapshot's `enforced`):
+    // stored rows may violate it, NEW writes cannot — binding NULL raises
+    // (adjudicated). The grounder gates on enforcement, not validation.
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it.fails("a MERGE arm's INSERT grounds like any other write", async () => {
+    const c = await contract(
+      "MERGE INTO subscription s USING (VALUES (1)) v(k) ON s.seats = v.k" +
+        " WHEN NOT MATCHED THEN INSERT (plan, seats, overflow_contact) VALUES ('m', 6, $1)",
+    );
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+});
+
+// --- The recorded later: output-side CHECK entailment. -----------------------
+// Same core, different soundness argument (validated CHECKs are notFALSE
+// over stored rows; WHERE equalities supply groundings). Charted as a later
+// in docs/subtree-evaluation.md — this case may stay red past the first two
+// consumers, and that is expected.
+
+describe("RED: entailment later", () => {
+  it.fails("a WHERE equality grounds a validated CHECK for returned rows", async () => {
+    const c = await contract("SELECT overflow_contact AS c FROM subscription WHERE seats = 5");
+    // Returned rows satisfy seats = 5; the validated CHECK is notFALSE, so
+    // (FALSE OR overflow_contact IS NOT NULL) forces the null-test TRUE.
+    // The ordering shape the kernel's exact-atom trade cannot reach.
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+});
+
+// --- Boundary guards: green today, green after. ------------------------------
+
+describe("GUARD: lines the mechanism must not cross", () => {
+  it("bp control: the = direction must NOT claim — a claim here is unsound", async () => {
+    const c = await contract("INSERT INTO bpt_eq (c, n) VALUES ('a', $1)");
+    // As char(4), 'a' = 'a ' grounds TRUE: the CHECK passes and binding
+    // NULL passes (adjudicated). Text-typed grounding would answer FALSE
+    // and manufacture a rejection that never happens. If this guard fails,
+    // the grounder is comparing without the declared-type casts.
+    expect(c.params[0]!.notNull).toBe(false);
+  });
+
+  it("a NOT ENFORCED CHECK must NOT claim — it never gates", async () => {
+    const c = await contract("INSERT INTO ne (seats, oc) VALUES (5, $1)");
+    // Same body as the NOT VALID red case, conenforced=false: binding NULL
+    // sails through (adjudicated). A claim here would reject bindings
+    // PostgreSQL accepts.
+    expect(c.params[0]!.notNull).toBe(false);
+  });
+
+  it("a volatile guard is open — no claim from evaluating it", async () => {
+    const c = await contract(
+      "SELECT CASE WHEN random() < 2 THEN o.id ELSE NULL END AS c FROM orders o",
+    );
+    // random() < 2 is TRUE every time, and evaluating it proves nothing
+    // about the next execution: volatile → open → nullable stays.
+    expect(c.outputs[0]!.notNull).toBe(false);
+  });
+
+  it("a stable input function keeps a literal cast open ('now')", async () => {
+    const c = await contract(
+      "SELECT CASE WHEN 'now'::timestamptz > '2000-01-01 00:00:00+00'::timestamptz" +
+        " THEN o.id ELSE NULL END AS c FROM orders o",
+    );
+    // timestamptz_in is STABLE (measured): 'now' re-evaluates per call, so
+    // the guard is open however constant it looks. Nullable stays.
+    expect(c.outputs[0]!.notNull).toBe(false);
+  });
+
+  it("structural facts about open trees are refused", async () => {
+    const c = await contract("SELECT (ARRAY[t.id, t.id])[1] AS c FROM t");
+    // The in-range-ness of the subscript is structural, but the tree holds
+    // column refs: open. Structural reasoning is the walk's possible future
+    // business, never the evaluator's.
+    expect(c.outputs[0]!.notNull).toBe(false);
+  });
+
+  it("a closed ON condition does not touch join semantics", async () => {
+    const c = await contract(
+      "SELECT o2.qty AS q FROM orders o LEFT JOIN orders o2 ON TRUE",
+    );
+    // ON TRUE folds, but whether a left-joined row NULL-extends depends on
+    // the right side having rows — data, not expression. Nullable stays.
+    expect(c.outputs[0]!.notNull).toBe(false);
+  });
+});
