@@ -391,6 +391,23 @@ A query whose round trip is not identical is **discarded from finding analysis**
 run reports the rate and the classes, which are the raw material for upstream
 bug reports.
 
+**BUILT into the discovery instrument 2026-08-11, and the open question above
+is answered by measurement.** The run keeps the AST it built, canonicalises
+both trees — byte offsets stripped (`location`, and `A_ArrayExpr`'s
+`list_start`/`list_end`), keys sorted, nothing else — and a non-identical
+round trip lands in `ast-differed`, classified by the first differing path.
+The first 5,000 random queries produced 682 differences (13.6%) in exactly
+three classes, and the response in each case was to make the trees match
+rather than to allow for the difference: the parser flattens `a AND b AND c`
+into one three-arm `BoolExpr` where the generator nested two, so the generator
+now appends to an existing AND; `x::integer` reparses as `pg_catalog.int4`, so
+casts are built with the qualified name, which round-trips identically in both
+of the deparser's print forms (measured); and the bracket offsets joined
+`location` in the stripped set. After those three: **0 differences in 25,000
+queries across two seeds.** The same batch closed a standing rejection class —
+FOR UPDATE over a window target, a guard the clause decorator was missing —
+leaving `pg-raised` at 2%, all of it deleting a referenced row.
+
 **Every non-deparseable class is promoted to a static fixture**, so nothing is
 silently unreachable: one minimal fixture per class (not per instance, or the
 corpus fills with fifty JSON_TABLE variants) plus a `KNOWN_DEVIATIONS` entry.
@@ -878,12 +895,22 @@ or a null test. Everything here is a target-list or WHERE entry:
 strictness, totality, aggregate emptiness and the builtin tables for the first;
 correlated-subquery entailment for the second.
 
-### 9.2 FROM-item vocabulary
+### 9.2 FROM-item vocabulary — BUILT 2026-08-08
 
-The `FROM` clause is a left-deep chain of `RangeVar`s. The engine's model of
-"what rows does this produce" is thinnest here, and sweep-4's own reading was
-that **position, not age, is the discriminating variable** — five of its seven
-findings were FROM items.
+Everything in the table emits: derived tables, function items and multi-arm
+`ROWS FROM`, `LATERAL` over an earlier alias, `TABLESAMPLE` at a deliberately
+high fraction, alias column lists both full and partial, comma joins,
+qual-less joins, and non-key equality joins over any two same-typed columns —
+the route to the 18 features no key connects (§7). Measured over a 5,000-query
+run: function items are 10% of FROM entries, LATERAL 9% of join kinds, every
+form in the shape census. The alias column list convicted on its first run —
+the finding and its three-pass fix are recorded under §9.4, whose batch ran
+the corpus that tripped it.
+
+The section's premise, kept for the record: the `FROM` clause was a left-deep
+chain of `RangeVar`s, the engine's model of "what rows does this produce" is
+thinnest here, and sweep-4's own reading was that **position, not age, is the
+discriminating variable** — five of its seven findings were FROM items.
 
 | node | spelling | proven by |
 |---|---|---|
@@ -895,7 +922,18 @@ findings were FROM items.
 | — | `CROSS JOIN`, comma join, qual-less join | §5.1's table |
 | — | non-key join conditions | Step 0's residue |
 
-### 9.3 Statement vocabulary — DML
+### 9.3 Statement vocabulary — DML — BUILT 2026-08-08
+
+Everything in the table emits: INSERT with `ON CONFLICT` inferring a whole
+unique constraint (DO UPDATE, or DO NOTHING when there is nothing to set),
+UPDATE with the two-column `SET (a, b) = (SELECT …)` multi-assignment, DELETE,
+`DEFAULT` in a VALUES row, and MERGE with all three match kinds, per-arm
+conditions and `RETURNING merge_action()` — the straddling source and its
+measured arm rates are in this section's preamble. Written values draw from
+the columns' own seeded rows so statements execute rather than raise, and an
+INSERT copies a whole sampled row, which is what keeps composite keys,
+partition ranges and cross-column CHECKs satisfied by construction (§5.3's
+overlap problem, one layer over).
 
 `RETURNING` is the only observable (§5.3), and the write-rewrite hooks are only
 reachable through it. The schema now carries all three rewriters.
