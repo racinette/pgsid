@@ -82,9 +82,17 @@ adjudicates the ARGUMENT contract by binding: per-parameter NULL variants,
 joint rejection sets bound together, witness accounting, `param-violated`
 live at rank 3. It convicted twice on its first run: the MultiAssignRef
 attribution gap is FIXED and pinned (`param-multiassign-target.sql`), and
-**one finding is OPEN — a CHECK constraint rejecting a written NULL
-(`subscription_check1`), a catalog-visible channel mechanisms A–D do not
-cover. Model it or record it as a boundary: a DESIGN DECISION, §9.7.**
+the second conviction produced a decision. **QUEUED NEXT: MECHANISM E**
+(`docs/argument-nullability.md`, "Mechanism E" — chartered 2026-08-11, not
+built): a CHECK rejecting a written NULL is claimed by grounding the parsed
+CHECK body with the statement's literals, evaluating only fully-closed
+subtrees through PostgreSQL, reducing by three-valued algebra, and analyzing
+the residue with existing machinery. Start with the charter's pre-work: pin
+the substitution semantics against PGlite (casts, NULL-passes, `bp` as the
+must-not-claim control), and check whether the snapshot distinguishes
+NOT VALID from NOT ENFORCED — the input channel gates on enforcement. The
+standing finding (`subscription_check1`, ~9 per 20,000) closes when it
+lands and stays reported until then.
 The suite total dropped 3301 → 2879 honestly: builtin-null-rejection's old
 import of param-soundness.test.js was re-running its 428 tests in a second
 worker, and the shared constants moved to fixture-args.ts. §9's remaining
