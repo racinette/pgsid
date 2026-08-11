@@ -48,6 +48,9 @@ const SCHEMA = `
   CREATE TABLE ne (seats int, oc text);
   ALTER TABLE ne ADD CONSTRAINT ne_check
     CHECK (seats <= 1 OR oc IS NOT NULL) NOT ENFORCED;
+  CREATE TABLE tri (a int, CHECK (a > 5));
+  CREATE TABLE bcorr (a int, b boolean,
+    CHECK (CASE WHEN b THEN a < 5 ELSE a >= 5 END));
 `;
 
 beforeAll(async () => {
@@ -210,6 +213,35 @@ describe("RED: entailment later", () => {
   });
 });
 
+// --- Kernel atom-oracle rungs: awaiting their own charter. -------------------
+// docs/subtree-evaluation.md, "The kernel's atom oracle". Nothing here is
+// closed — these are KERNEL derivations (arm selection under a proven
+// guard, same-operand trichotomy, a notTRUE judgment consumed as guard
+// refutation). Expected to stay red past the three chartered consumers;
+// they flip when the atom-oracle rungs land.
+
+describe("RED: kernel atom oracle", () => {
+  it.fails("a CHECK refutes a CASE guard through same-operand trichotomy", async () => {
+    const c = await contract(
+      "SELECT CASE WHEN a <= 5 THEN NULL ELSE 5 END AS a2 FROM tri",
+    );
+    // CHECK (a > 5) is notFALSE per stored row, so a <= 5 is never TRUE
+    // and the NULL arm never fires. Oracle: 5 on every row — a NULL `a`
+    // included (guard UNKNOWN → ELSE), so this survives null-extension too.
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it.fails("WHERE evidence selects a CASE-shaped CHECK's arm", async () => {
+    const c = await contract(
+      "SELECT CASE WHEN a > 5 THEN NULL ELSE 5 END AS a1 FROM bcorr WHERE b IS TRUE",
+    );
+    // TRUE(b IS TRUE) selects the CHECK's THEN arm: notFALSE(a < 5), and
+    // trichotomy refutes a > 5 — the NULL arm never fires. Oracle: 5 on
+    // every emitted row.
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+});
+
 // --- Boundary guards: green today, green after. ------------------------------
 
 describe("GUARD: lines the mechanism must not cross", () => {
@@ -220,6 +252,16 @@ describe("GUARD: lines the mechanism must not cross", () => {
     // and manufacture a rejection that never happens. If this guard fails,
     // the grounder is comparing without the declared-type casts.
     expect(c.params[0]!.notNull).toBe(false);
+  });
+
+  it("arm selection must not overreach — the unconstrained guard stays nullable", async () => {
+    const c = await contract(
+      "SELECT CASE WHEN a <= 5 THEN NULL ELSE 5 END AS a2 FROM bcorr WHERE b IS TRUE",
+    );
+    // Under b IS TRUE the CHECK constrains a < 5, which leaves a <= 5
+    // freely TRUE: the oracle witnesses NULL at (a=3, b=true). A claim
+    // here would reject what PostgreSQL returns.
+    expect(c.outputs[0]!.notNull).toBe(false);
   });
 
   it("a NOT ENFORCED CHECK must NOT claim — it never gates", async () => {
