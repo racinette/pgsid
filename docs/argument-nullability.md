@@ -545,6 +545,12 @@ Agreed order of work, each stage giving the next something real to test:
 
 ## Mechanism E — CHECK-constraint rejection (chartered 2026-08-11, NOT BUILT)
 
+The evaluation capability this mechanism rides is chartered separately in
+`docs/subtree-evaluation.md` (2026-08-11) — the same core also serves the
+output side, and the red suite for both lives at
+`tests/unit/query/subtree-evaluation-red.test.ts`. This section remains the
+CHECK-channel consumer's design.
+
 The discovery instrument's standing conviction
 (`docs/catalog-driven-generation.md` §9.7): `INSERT INTO subscription (plan,
 seats, overflow_contact) VALUES ('team', 5, $1)` with NULL bound raises
@@ -584,12 +590,12 @@ UNKNOWN, which CHECK passes — so the shape also produces no false findings
 in the instrument's variants. A `NULL` evaluation result means the CHECK
 passes (measured, pinned in check-null-passes); claim only on FALSE.
 
-**Architecture (proposed shape, the open implementation decision).** The
-walk is synchronous and pure; evaluation needs a database. Tier 0's pattern
-transfers: two-phase — the walk emits the RESIDUE as a fact derived from
-AST + catalog alone, and the caller, who holds the database (the consumer
-PREPAREs already; every harness has PGlite), evaluates and discharges it
-into the contract. The walk stays testable in isolation.
+**Architecture (DECIDED 2026-08-11, superseding the two-phase proposal).**
+The contract/param entry points become async and accept an optional
+`evaluate` callback — run one SELECT, return its row — while the engine
+internals stay sync and consume evaluation ANSWERS as data, the way they
+consume `paramTypes`. No evaluator passed → no E claims, everything else
+identical. Full design and rationale: `docs/subtree-evaluation.md`.
 
 **Pre-work, measured before any code**, param-mechanism style:
 
@@ -597,12 +603,19 @@ into the contract. The walk stays testable in isolation.
   NULL-passes rule, a stable-vs-immutable body, multi-row VALUES (per row,
   existential), and `bp` as the correctness control — its char(4) blank
   padding makes `'a' = 'a '` TRUE, so evaluation must claim NOTHING where
-  token reasoning would wrongly claim.
+  token reasoning would wrongly claim. DONE (2026-08-11): all six pinned in
+  `param-mechanism.test.ts`, "Mechanism E" section — the bp control measured
+  exactly as predicted (text grounding says FALSE, the char(4) column admits
+  the row), and a STABLE body flipped its answer between evaluation and
+  enforcement via a GUC, which is the immutable-only gate made executable.
 - The input channel gates on ENFORCEMENT, not validation: NOT VALID still
   gates new writes, NOT ENFORCED does not — and the snapshot was measured
   treating `convalidated=false` as covering both (schema comment at the
-  `guest` negatives). Whether the catalog carries the distinction is the
-  first thing to check; if not, the adapter grows it.
+  `guest` negatives). CHECKED (2026-08-11): the snapshot did not carry the
+  distinction, `pg_constraint.conenforced` (PG18) does — the snapshot now
+  captures it as `enforced` (NOT VALID: true, and a violating new write
+  raises; NOT ENFORCED: false), pinned in `check-constraint-pins.test.ts`.
+  Stored-row reasoning keeps gating on `validated`; E gates on `enforced`.
 - UPDATE channels read OLD values for unwritten columns and INSERT reads
   defaults — both stay dynamic in the residue and drop claims; a
   literal-default substitution is a recorded later, not part of the first
@@ -611,8 +624,10 @@ into the contract. The walk stays testable in isolation.
 **Hazard, recorded:** claim production and adjudication both become
 PostgreSQL — common-mode in principle, though expression evaluation and
 constraint enforcement are different code paths, and the pinned fixture
-corpus is the standing hedge. The output-side kernel is untouched by all of
-this.
+corpus is the standing hedge. E-claims themselves never license output
+narrowing (never `bindRejected`); the output side gains its OWN consumers
+of the shared core — the statement map now, entailment later — chartered
+in `docs/subtree-evaluation.md`, each under its own soundness argument.
 
 ## Where things are
 

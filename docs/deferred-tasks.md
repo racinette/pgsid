@@ -82,17 +82,26 @@ adjudicates the ARGUMENT contract by binding: per-parameter NULL variants,
 joint rejection sets bound together, witness accounting, `param-violated`
 live at rank 3. It convicted twice on its first run: the MultiAssignRef
 attribution gap is FIXED and pinned (`param-multiassign-target.sql`), and
-the second conviction produced a decision. **QUEUED NEXT: MECHANISM E**
-(`docs/argument-nullability.md`, "Mechanism E" — chartered 2026-08-11, not
-built): a CHECK rejecting a written NULL is claimed by grounding the parsed
-CHECK body with the statement's literals, evaluating only fully-closed
-subtrees through PostgreSQL, reducing by three-valued algebra, and analyzing
-the residue with existing machinery. Start with the charter's pre-work: pin
-the substitution semantics against PGlite (casts, NULL-passes, `bp` as the
-must-not-claim control), and check whether the snapshot distinguishes
-NOT VALID from NOT ENFORCED — the input channel gates on enforcement. The
-standing finding (`subscription_check1`, ~9 per 20,000) closes when it
-lands and stays reported until then.
+the second conviction produced a decision. **QUEUED NEXT: SUBTREE
+EVALUATION** (`docs/subtree-evaluation.md`, chartered 2026-08-11 — grew out
+of Mechanism E when the capability turned out to serve both sides of the
+contract): closed subtrees evaluate through PostgreSQL, answers enter the
+sync engine as data; consumer 1 is the statement map (output claims from
+folded guards), consumer 2 is Mechanism E's CHECK grounder
+(`docs/argument-nullability.md` keeps that channel's design), the
+output-side entailment site is the recorded later. The pre-work is DONE
+(2026-08-11): substitution semantics pinned in `param-mechanism.test.ts`
+("Mechanism E" section), and the snapshot captures
+`pg_constraint.conenforced` as `enforced` (PG18 carries the distinction the
+old capture dropped), pinned in `check-constraint-pins.test.ts` with
+NOT VALID rejecting a violating new write. The RED SUITE exists and is
+green (`subtree-evaluation-red.test.ts`, 2026-08-11): thirteen
+oracle-verified `it.fails` targets that flip to plain `it` per consumer,
+six boundary guards that must never flip (the bp must-not-claim control
+and the NOT ENFORCED no-claim among them). Build order is the doc's rollout list: evaluator core with its
+pins, then the statement map, then the grounder — at which point the
+standing finding (`subscription_check1`, ~9 per 20,000) closes; verify with
+20,000-query runs at two seeds. It stays reported until then.
 The suite total dropped 3301 → 2879 honestly: builtin-null-rejection's old
 import of param-soundness.test.js was re-running its 428 tests in a second
 worker, and the shared constants moved to fixture-args.ts. §9's remaining
