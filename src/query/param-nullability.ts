@@ -876,6 +876,33 @@ function insertTargetColumns(
   return { schema: table.schema, table: table.name, columns };
 }
 
+/**
+ * The expression a multi-assignment routes into ONE target column: `SET
+ * (a, b) = (SELECT e1, e2)` and `SET (a, b) = ROW(e1, e2)` both parse as a
+ * MultiAssignRef per target, pointing into a shared source by position.
+ *
+ * Only the ALWAYS-EVALUATED shapes attribute — a row constructor, or a
+ * subselect with no FROM and no set operation, whose single row is
+ * constructed exactly once (the same footing the VALUES-row measurement
+ * gave mechanism B). A sourced subselect can return zero rows, and
+ * PostgreSQL then assigns NULLs the CONTROL binding also produces — nothing
+ * there is evidence about a parameter, so nothing is claimed.
+ */
+function multiAssignDefinition(val: Node): Node | null {
+  const mar = (val as { MultiAssignRef?: { source?: Node; colno?: number } }).MultiAssignRef;
+  if (!mar?.source || !mar.colno) return null;
+  const sub = (mar.source as { SubLink?: { subLinkType?: string; subselect?: Node } }).SubLink;
+  if (sub) {
+    if (sub.subLinkType !== "EXPR_SUBLINK" || !sub.subselect) return null;
+    const sel = (sub.subselect as { SelectStmt?: Record<string, unknown> }).SelectStmt;
+    if (!sel || sel["op"] !== "SETOP_NONE" || sel["fromClause"] || sel["valuesLists"]) return null;
+    const tl = (sel["targetList"] as Node[] | undefined) ?? [];
+    return (tl[mar.colno - 1] as { ResTarget?: { val?: Node } } | undefined)?.ResTarget?.val ?? null;
+  }
+  const row = (mar.source as { RowExpr?: { args?: Node[] } }).RowExpr;
+  return row?.args?.[mar.colno - 1] ?? null;
+}
+
 /** `SET col = $n` — UPDATE, ON CONFLICT DO UPDATE, and MERGE's update arm. */
 function checkSetClause(
   c: Collector,
@@ -889,6 +916,22 @@ function checkSetClause(
     if (!rt?.name || !rt.val) continue;
     const mechanism = columnRejection(c, schema, table, rt.name, "update");
     if (!mechanism) continue;
+    const def = multiAssignDefinition(rt.val);
+    if (def) {
+      // Through a multi-assignment the parameter is typed by its own use
+      // inside the source (a cast, usually), NOT by the target column — so
+      // even a NOT NULL domain column rejects at the runtime coercion of
+      // the assignment, never at Bind, and the verdict is downgraded to the
+      // execution-time mechanism that licenses no narrowing. This was the
+      // discovery instrument's first parameter conviction: the collector
+      // previously attributed nothing through MultiAssignRef, and binding
+      // NULL to a claimed-nullable parameter raised.
+      const m = mechanism === "domain" ? "constraint" : mechanism;
+      const num = paramNumberOf(def);
+      if (num !== null) reject(c, num, m);
+      else rejectFlow(c, def, ctx);
+      continue;
+    }
     const num = paramNumberOf(rt.val);
     if (num !== null) reject(c, num, mechanism);
     else rejectFlow(c, rt.val, ctx);
