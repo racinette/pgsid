@@ -22,9 +22,13 @@ import type { Node } from "libpg-query";
 // forbids value tracking): every leaf-level conclusion is syntactic identity
 // between an atom of the CHECK expression and an atom of the row-implied
 // evidence, or the pairing of an atom with its builtin negator. Literal
-// *distinctness* ('a' ≠ 'b') is deliberately underivable — nondeterministic
-// collations make differently-spelled strings equal — which is what keeps
-// the negative branches of a discriminated CHECK safely unprovable.
+// *distinctness* ('a' ≠ 'b') is derivable only under the collation gate
+// (`literalDistinctnessSound`: text-family whitelist + proven-deterministic
+// collation, resolved by the catalog) — under a nondeterministic collation
+// differently-spelled strings can be equal, and the refusal is what keeps
+// the negative branches of a discriminated CHECK safely unprovable there.
+// (An earlier revision banned distinctness wholesale; the gate replaced the
+// ban when `collationDeterministic` was captured.)
 //
 // Atoms are restricted to the fragment deterministic over the row, because a
 // CHECK was evaluated at WRITE time and the evidence holds at READ time:
