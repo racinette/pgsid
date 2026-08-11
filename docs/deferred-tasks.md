@@ -74,15 +74,22 @@ sequence in the probe database. Both are recorded in `UNPROBED` with those
 words.
 
 **The QUEUED item is elsewhere**: `docs/catalog-driven-generation.md`,
-chartered. STEP 0 DONE and §§9.1–9.4 ALL BUILT (2026-08-08) — the discovery
-instrument (`tests/probe/discovery.ts`) emits 41 node types over the
-application schema, DML and MERGE included. §5.4's round-trip guard is in it
-too (2026-08-11): `ast-differed` live, three round-trip classes made to
-match, then 0 in 25,000 queries across two seeds. What remains on the
-vocabulary is §9's "genuinely open" five, of which only `ParamRef` carries
-weight — and it needs a bind-time mechanism in the harness, so it is a
-design conversation before it is code. `docs/generated-surface.md` is
-FINISHED — all five of its items are built, item 4's schema axis included
+chartered. STEP 0 DONE, §§9.1–9.4 BUILT (2026-08-08), §5.4's round-trip
+guard in the instrument (2026-08-11: `ast-differed` live, 0 in 25,000 after
+three classes were made to match), and **ParamRef BUILT (2026-08-11, §9.7)**
+— the discovery instrument now places parameters at seventeen sites and
+adjudicates the ARGUMENT contract by binding: per-parameter NULL variants,
+joint rejection sets bound together, witness accounting, `param-violated`
+live at rank 3. It convicted twice on its first run: the MultiAssignRef
+attribution gap is FIXED and pinned (`param-multiassign-target.sql`), and
+**one finding is OPEN — a CHECK constraint rejecting a written NULL
+(`subscription_check1`), a catalog-visible channel mechanisms A–D do not
+cover. Model it or record it as a boundary: a DESIGN DECISION, §9.7.**
+The suite total dropped 3301 → 2879 honestly: builtin-null-rejection's old
+import of param-soundness.test.js was re-running its 428 tests in a second
+worker, and the shared constants moved to fixture-args.ts. §9's remaining
+open nodes are four, none carrying much weight. `docs/generated-surface.md`
+is FINISHED — all five of its items are built, item 4's schema axis included
 (2026-08-06), and the "four items in cost order" sentence further down this
 register predates that and describes the plan rather than the state. Read
 the documents' own headers, not this register's older prose, when the two

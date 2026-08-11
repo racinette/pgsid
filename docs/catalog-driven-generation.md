@@ -808,18 +808,15 @@ moved them. The honest split is:
 
 | | |
 |---|---|
-| emitted and observable | 41 |
+| emitted and observable | 42 (`ParamRef` joined 2026-08-11 — §9.7) |
 | unobservable (struct fields), emitted or not | 10 |
 | blocked by the deparser (§9.5) | 25 |
 | needs more than a query (§9.6) | 3 |
-| **genuinely open** | **5** |
+| **genuinely open** | **4** |
 
-**The five, and only the first carries weight:**
+**The open four, none carrying much weight** (the fifth, `ParamRef`, was the
+one that did — BUILT, §9.7):
 
-- **`ParamRef`** — `$1`, and with it the entire parameter contract: mechanisms
-  A–D, the rejection sets, bind-time behaviour. The ENUMERATED corpus covers
-  parameters (`generateParamPlacementQueries`); the discovery instrument does
-  not, so nothing exercises the contract over a varied catalog.
 - `A_Indirection` — `(x).field` on a composite column.
 - `NamedArgExpr` — `f(x => 1)`.
 - `XmlExpr` — `xmlelement(…)`.
@@ -1072,6 +1069,99 @@ loudly.
 |---|---|
 | `CurrentOfExpr` | `WHERE CURRENT OF cur` needs an open cursor. It deparses cleanly; the harness has no cursor to name |
 | `ColumnDef`, `DefElem` | DDL vocabulary — they reach the walk only through a `CREATE TABLE AS` or a function's `RETURNS TABLE`, not through a query the generator writes |
+
+### 9.7 ParamRef — BUILT 2026-08-11, and it convicted twice
+
+The full mechanism, not the emission-only slice: the generator places
+parameters and the harness ADJUDICATES the argument contract by binding, per
+the verification semantics of `docs/argument-nullability.md`.
+
+**Placement.** Seventeen sites, each deduction-safe by construction, values
+drawn from the pool the literals draw from so a parameterized predicate still
+matches rows. Per 5,000 queries: `where-cmp` 886, `insert-value` 263,
+`exists-cmp` 197 (a parameter inside a subquery, where a scope-boundary bug
+in the collector would live), `limit`/`offset` 230 (the placement where NULL
+is legal), `merge-source-key` 157 (value-flow attribution through a MERGE
+USING source), `cast-domain` 153 (mechanism A: `$n::nn_text` rejects at
+Bind), `cast-text` 152 (the nullable control), `cast-domain-flow` 134
+(mechanism C: `($n || '!')::nn_text`), `dml-where` 130, `merge-insert-value`
+90, `onconflict-set` 85, `insert-key` 61, `multiassign` 49, `coalesce-set` 46
+(`SET col = COALESCE($a, $b)` into a rejecting column — the JOINT rejection
+set, end to end), `update-set` 41, `merge-set` 32. 2,091 of 5,000 queries
+carry parameters.
+
+**Adjudication.** After a clean all-valid control, one variant per parameter
+(that one NULL, others valid) and one per claimed rejection set (all members
+NULL). A raise on a claimed-nullable parameter is the rank-3 finding — ANY
+raise, since either the engine missed a catalog-visible channel or the
+channel is opaque and triage decides, the `@param-opaque` fork run at scale.
+A `NULL_REJECTION`-matching raise on a claimed-notNull parameter is a
+witness; success is counted unwitnessed — a COUNT, never a gate (§4), since
+the claim is existential. Variant rows feed the same rank-1/rank-4 output
+oracle as control rows, because output claims are binding-independent — a
+narrowing defect that only shows under a NULL binding shows exactly there.
+A deduction failure classifies TOOL (`pg-rejected`), per the sequencing
+decision: never a fallback — and so does a bind-arity mismatch, its sibling.
+`NULL_REJECTION` and `DEDUCTION_FAILURE` moved to `fixture-args.ts` so a
+non-test consumer can import them; the builtin-null-rejection tie is
+unchanged. Steady state, 20,000 queries at each of two seeds: ~8,200
+parameterized queries, ~10,300 variants, ~3,200 notNull witnesses, every
+adjudicated joint set witnessed, zero tool defects.
+
+**Conviction 1 — CLOSED same day.** `UPDATE categories SET (parent_id, slug)
+= (SELECT $1::int, $2::text)`: the collector attributed nothing through
+`MultiAssignRef`, so $2 — assigned into a NOT NULL column — read as nullable
+and binding NULL raised (36 instances, one fingerprint). Fixed in
+`checkSetClause` via `multiAssignDefinition`: each target column resolves to
+its defining expression inside the source, for the ALWAYS-EVALUATED shapes
+only (`ROW(…)`, or a subselect with no FROM and no set operation — a sourced
+subselect can return zero rows, which assigns NULLs the control also
+produces). A domain column's verdict is downgraded to execution-time there:
+the parameter is typed by its own cast, not the target column, so nothing
+licenses narrowing. `param-multiassign-target.sql` pins it, mutation-tested
+to fail alone against the unfixed engine.
+
+**Conviction 2 — OPEN, and it is a design question.** `INSERT INTO
+subscription (plan, seats, overflow_contact) VALUES ('team', 5, $1)` with
+NULL bound raises `subscription_check1` — `CHECK (seats <= 1 OR
+overflow_contact IS NOT NULL)` (`fixtures/schema.sql:855`), with `seats = 5`
+written beside it as a literal. A CHECK whose predicate goes FALSE (not
+UNKNOWN) on a written NULL is a rejection channel mechanisms A–D do not
+cover. It is CATALOG-VISIBLE — unlike the plpgsql-body class the contract
+deliberately excludes — and the engine owns CHECK-entailment machinery on
+the output side, so a mechanism could be built; it is also data-dependent
+through the other written values, so the claim would need the entailment
+kernel, not a column flag. Undecided, deliberately: model the channel, or
+record it as a deliberate boundary the way user-function bodies are. Until
+decided, the instrument reports it as the one standing finding (4 instances
+per 5,000, one fingerprint).
+
+**The orphaned-allocation family, paid for three times before the tier
+closed it.** An allocated parameter whose node is dropped from the tree
+leaves the statement binding more than its text mentions — a bind-arity
+rejection, or "could not determine data type of parameter $1" when a LATER
+allocation leaves a numbering gap. Three paths produced it: the GROUP BY
+decorator REPLACES the target list (projection parameters now placed after
+decoration); `setOperation` strips LIMIT from both arms (the set-op roll
+happens first, and a to-be-wrapped query gets no limit parameter); and the
+INSERT builder assembled its ON CONFLICT SET expression before deciding
+whether to attach the clause (~160 per 20,000 at seed 7, hiding in
+`pg-raised`'s tail at other seeds — which is why the class is now tiered
+TOOL, where it cannot hide). Same family: a failed WHERE attempt rolls its
+allocations back before the retry.
+
+**The backend does not survive the traffic, and that is an operational
+fact, not a query.** At seed 7, ~28,000 executions in, one query raised
+54001 "stack depth limit exceeded"; the clearing ROLLBACK re-raised it, the
+swallow left the transaction aborted, the next BEGIN raised 25P02, and past
+the in-process recovery (`ProbeLoop.begin` retries through a clearing
+rollback) the next death was a SIGBUS no JavaScript catches. The same
+statement is clean on a fresh backend. So the run RECYCLES the PGlite
+instance every 5,000 queries, replaying the generated dataset verbatim —
+the one invariant the session promises is that every query sees the same
+rows, and determinism plus replay preserves it. `DISCOVERY_ECHO=1` prints
+each query before its run; the last line names a killer the process cannot
+report.
 
 ## 8. Where things are
 
