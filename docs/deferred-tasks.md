@@ -95,10 +95,11 @@ output-side entailment site is the recorded later. The pre-work is DONE
 `pg_constraint.conenforced` as `enforced` (PG18 carries the distinction the
 old capture dropped), pinned in `check-constraint-pins.test.ts` with
 NOT VALID rejecting a violating new write. The RED SUITE exists and is
-green (`subtree-evaluation-red.test.ts`, 2026-08-11): thirteen
-oracle-verified `it.fails` targets that flip to plain `it` per consumer,
-six boundary guards that must never flip (the bp must-not-claim control
-and the NOT ENFORCED no-claim among them). Build order is the doc's rollout list: evaluator core with its
+green (`subtree-evaluation-red.test.ts`, 2026-08-11): fifteen
+oracle-verified `it.fails` targets that flip to plain `it` per consumer —
+two of them kernel-directed, awaiting the atom-oracle charter — and seven
+boundary guards that must never flip (the bp must-not-claim control, the
+NOT ENFORCED no-claim, and the arm-selection overreach guard among them). Build order is the doc's rollout list: evaluator core with its
 pins, then the statement map, then the grounder — at which point the
 standing finding (`subscription_check1`, ~9 per 20,000) closes; verify with
 20,000-query runs at two seeds. It stays reported until then.
@@ -3983,6 +3984,15 @@ entirely, no rung implemented (2026-08). The generated
 `dml-returning-case-value-dependence` rule records the shape that motivated
 it.
 
+New information arrived 2026-08-11: the premise is dissolved by subtree
+evaluation (`docs/subtree-evaluation.md`) — closed trees are answered BY
+PostgreSQL through the `evaluate` callback, nothing is reimplemented,
+there is nothing to drift. The ban's actual object — an ENGINE-INTERNAL
+constant evaluator — stays banned; the ladder's rungs become charterable
+one at a time through the evaluator and the kernel's atom oracle. The
+`dml-returning-case-value-dependence` shape stays unclaimed until a
+consumer charters it.
+
 Boundary clarified by Wave 11c (2026-08): cross-literal ORDER reasoning
 is a rung of this ladder and stays out. Concluding FALSE(`qty > 0`) from
 FALSE(`qty > -20`) requires knowing -20 < 0 as a VALUE — a linear-order
@@ -3995,6 +4005,12 @@ atom-entailment oracle interface whose current implementation is exactly
 those three gates; an order-theory oracle could plug in behind it without
 touching the Boolean layer, if this entry is ever reopened with the new
 information it demands.
+
+That information exists as of 2026-08-11: cross-literal order facts are
+CLOSED TREES — `-20 < 0` is a one-row SELECT — so the plug-in oracle is
+the subtree evaluator itself (`docs/subtree-evaluation.md`, "The kernel's
+atom oracle", with the same-operand trichotomy rung recorded beside it).
+Reopening happens per rung, chartered and pinned, not wholesale.
 
 Boundary clarified by Wave 9 (2026-08): collation-gated literal
 DISTINCTNESS is not a rung of this ladder and its admission does not

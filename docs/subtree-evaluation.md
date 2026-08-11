@@ -112,6 +112,48 @@ is a finding about one of them. Retiring the literal fragment is a
 measured decision AFTER this consumer lands and the corpus shows it fully
 shadowed, not a decision made here.
 
+## The kernel's atom oracle (recorded 2026-08-11)
+
+Two measured shapes showed CHECK-derivable read-side claims that none of
+the three consumers reaches, because nothing in them is closed — they are
+KERNEL derivations (red cases: "kernel atom oracle" block in the suite):
+
+- `CHECK (a > 5)` forces `CASE WHEN a <= 5 THEN NULL ELSE 5 END` to 5 on
+  every row: notFALSE(`a > 5`) means `a <= 5` is never TRUE, and the NULL
+  arm never fires (oracle: 5 even for a NULL `a` — guard UNKNOWN → ELSE).
+- `CHECK (CASE WHEN b THEN a < 5 ELSE a >= 5 END)` under `WHERE b IS
+  TRUE` forces `CASE WHEN a > 5 THEN NULL ELSE 5 END` to 5: the evidence
+  selects the CHECK's arm, and trichotomy refutes the guard.
+
+The decomposition, four rungs, all propositional or catalog-structural:
+evidence shaping (`b IS TRUE` → TRUE(`b`)); arm selection under a proven
+guard (the kernel's generated-CASE arm machinery, extended to CASE-shaped
+CHECK facts); same-operand trichotomy (notFALSE(`a < 5`) ⊢
+notTRUE(`a > 5`) — NOT negator pairing; btree-opfamily exclusivity over
+identical operand tokens, no values consulted); and a fourth judgment,
+notTRUE, consumed as guard refutation — the same arm-pruning the
+statement map consumer builds, fed from the kernel instead of the map.
+
+**Relation to the register's "Decided against" entries.** The
+value-tracking ban's premise — "the engine contains a constant evaluator
+for PostgreSQL expressions that must match PostgreSQL exactly or produce
+unsound claims" — is DISSOLVED by this charter: closed trees are answered
+BY PostgreSQL, nothing is reimplemented, there is nothing to drift. What
+stays banned is the ban's actual object, an engine-internal evaluator.
+Wave 11c's module boundary — "an atom-entailment oracle interface whose
+current implementation is exactly those three gates" — is the designed
+integration seam, and its strengthening path is: (1) same-operand
+opfamily trichotomy, structural, no values; (2) cross-literal order
+facts through the subtree evaluator — `-20 < 0` is a closed tree, so the
+order-theory oracle Wave 11c said "could plug in behind it" is the
+evaluator itself. The Boolean layer stays complete and untouched; the
+kernel still never evaluates; only the atom oracle strengthens, behind
+the existing boundary, one chartered rung at a time.
+
+**Demand discipline unchanged**: no predtest.c pre-build. Rungs charter
+on conviction — the instrument's schema should gain a branch-correlated
+CHECK so the distribution can convict these shapes if they carry weight.
+
 ## Boundaries, each verified against a real candidate
 
 - NO QUERY CONTEXT, ever. `WHERE col = 5 AND f(col)` does not make
