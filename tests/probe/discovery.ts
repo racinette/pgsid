@@ -62,6 +62,7 @@ import { deparseSync } from "pgsql-deparser";
 import { parseSql } from "../../src/ast.js";
 import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 import type { CatalogSnapshot, TableInfo } from "../../src/catalog/types.js";
+import { DEDUCTION_FAILURE } from "../unit/query/fixture-args.js";
 import { generateFixtureData } from "../unit/query/fixture-data/generate.js";
 import { fixtureGeneratorRegistry } from "../unit/query/fixture-data/generators.js";
 import { makeRand, type Rand } from "../unit/query/fixture-data/random.js";
@@ -447,12 +448,43 @@ interface Built {
   /** The statement node the generator assembled — what §5.4's round-trip
    *  guard compares the reparsed tree against. */
   ast: Ast;
+  /**
+   * Control bindings, `$k` at index k-1, each with the SITE it occupies —
+   * the site names the placement class, which is what a param-violated
+   * fingerprint keys on. Values come from the same pool the literals draw
+   * from, so a parameterized predicate matches rows the way a literal one
+   * does. Empty when the statement carries no parameters.
+   */
+  params: { value: unknown; site: string }[];
   /** Aliases in the order they were joined, with the table each stands for. */
   used: { alias: string; table: string }[];
   kinds: string[];
   /** Stable description of the query's shape, literals and names erased. */
   shape: string;
 }
+
+/**
+ * The `$n` allocator one built statement owns. Numbering is dense in
+ * allocation order — PostgreSQL requires density, not textual order. A caller
+ * whose construction can FAIL after allocating (the WHERE retry) must roll
+ * the list back to its mark, or the statement binds more parameters than its
+ * text mentions and every variant misattributes from there.
+ */
+function makeParams(): {
+  list: { value: unknown; site: string }[];
+  ref: (value: unknown, site: string) => Ast;
+} {
+  const list: { value: unknown; site: string }[] = [];
+  return {
+    list,
+    ref: (value, site) => {
+      list.push({ value, site });
+      return { ParamRef: { number: list.length } };
+    },
+  };
+}
+
+type ParamRefFn = (value: unknown, site: string) => Ast;
 
 /** Sampled values per `schema.table.column`, for drawing predicate literals. */
 type ValuePool = Map<string, unknown[]>;
@@ -484,7 +516,7 @@ type RowPool = Map<string, Record<string, unknown>[]>;
  *     side), and getting that wrong is the classic unsoundness in this area,
  *     so both are generated deliberately rather than avoided.
  */
-function predicate(rand: Rand, used: Item[], pool: ValuePool): Ast | null {
+function predicate(rand: Rand, used: Item[], pool: ValuePool, pr?: ParamRefFn): Ast | null {
   const u = rand.pick(used);
   if (u.columns.length === 0) return null;
   const col = rand.pick(u.columns);
@@ -497,16 +529,22 @@ function predicate(rand: Rand, used: Item[], pool: ValuePool): Ast | null {
   // A function item has no catalog entry, so it contributes no literals.
   const values = (u.table ? pool.get(`${u.table}.${col.name}`) ?? [] : []).filter(v => v !== null);
   if (values.length === 0) return null;
-  const lit = literalFor(rand.pick(values));
-  if (!lit) return null;
-  if (form === 2) return op("=", ref, lit);
-  if (form === 3) return op("<>", ref, lit);
-  if (form === 4) return op(rand.pick([">", "<", ">=", "<="]), ref, lit);
-  return op("=", ref, lit);
+  const v = rand.pick(values);
+  let rhs = literalFor(v);
+  if (!rhs) return null;
+  // A parameter where a literal stood — same drawn value, so the predicate
+  // still matches rows; the comparison deduces the type. Binding NULL later
+  // is legal here (a strict comparison just returns nothing), which makes
+  // this the site where a WRONG notNull claim would be a false rejection.
+  if (pr && rand.chance(0.35)) rhs = pr(v, "where-cmp");
+  if (form === 2) return op("=", ref, rhs);
+  if (form === 3) return op("<>", ref, rhs);
+  if (form === 4) return op(rand.pick([">", "<", ">=", "<="]), ref, rhs);
+  return op("=", ref, rhs);
 }
 
-function whereClause(rand: Rand, used: Item[], pool: ValuePool): { node: Ast; shape: string } | null {
-  const one = (): Ast | null => predicate(rand, used, pool);
+function whereClause(rand: Rand, used: Item[], pool: ValuePool, pr?: ParamRefFn): { node: Ast; shape: string } | null {
+  const one = (): Ast | null => predicate(rand, used, pool, pr);
   const form = rand.int(0, 4);
   if (form === 0) {
     const p = one();
@@ -650,6 +688,7 @@ function buildQuery(
   const byId = new Map(snapshot.tables.map(t => [`${t.schema}.${t.name}`, t]));
   const colsOf = (t: TableInfo) =>
     t.columns.filter(c => c.generated !== "virtual").map(c => ({ name: c.name, type: c.typeName }));
+  const P = makeParams();
   const target_ = rand.int(2, 4);
   const startTable = byId.get(start)!;
   const first = relationItem(rand, startTable, "r0", colsOf(startTable));
@@ -854,6 +893,7 @@ function buildQuery(
     targetList.push(target(e.ast, `e${k}_${e.form}`));
   }
 
+
   // A scalar SubLink target — uncorrelated, so it always has a value and
   // cannot fail; its nullability is the aggregate-over-empty question.
   if (rand.chance(0.15)) {
@@ -903,13 +943,27 @@ function buildQuery(
     const t = rand.pick(appTables);
     const p = nonKeyPair(t);
     if (p) {
+      const corr = eq(colRef("ex", p.b), colRef(p.anchor.alias, p.a));
+      // Sometimes a parameter conjunct beside the correlation — a parameter
+      // INSIDE a subquery, where scope-boundary bugs in the collector would
+      // live. Drawn from the subquery table's own values, like any literal.
+      let inner: Ast = corr;
+      if (rand.chance(0.4)) {
+        const cands = colsOf(t)
+          .map(c => ({ c, vs: (pool.get(`${t.schema}.${t.name}.${c.name}`) ?? []).filter(x => x !== null && literalFor(x) !== null) }))
+          .filter(x => x.vs.length > 0);
+        if (cands.length) {
+          const pick = rand.pick(cands);
+          inner = boolExpr("AND_EXPR", [corr, eq(colRef("ex", pick.c.name), P.ref(rand.pick(pick.vs), "exists-cmp"))]);
+        }
+      }
       existsPred = {
         SubLink: {
           subLinkType: "EXISTS_SUBLINK",
           subselect: { SelectStmt: {
             targetList: [{ ResTarget: { val: intConst(1) } }],
             fromClause: [rangeVar(t.schema, t.name, "ex")],
-            whereClause: eq(colRef("ex", p.b), colRef(p.anchor.alias, p.a)),
+            whereClause: inner,
             limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } },
         },
       };
@@ -918,11 +972,16 @@ function buildQuery(
 
   // Retry: `whereClause` answers null when the column it picked has no
   // drawable literal, and one attempt made the real rate 54% against the 70%
-  // this line asks for — a bound the report was stating wrongly.
+  // this line asks for — a bound the report was stating wrongly. A FAILED
+  // attempt may have allocated a parameter before the failing step, and its
+  // node dies with the attempt — the allocation must die with it too, or the
+  // statement binds more parameters than its text mentions.
   let where: { node: Ast; shape: string } | null = null;
   if (rand.chance(0.7)) {
     for (let attempt = 0; attempt < 5 && !where; attempt++) {
-      where = whereClause(rand, used, pool);
+      const mark = P.list.length;
+      where = whereClause(rand, used, pool, P.ref);
+      if (!where) P.list.length = mark;
     }
   }
   // ANDed on the way the PARSER builds it: `a AND b AND c` is ONE flat
@@ -949,12 +1008,52 @@ function buildQuery(
     op: "SETOP_NONE",
   };
   // §9.4. FOR UPDATE is refused over the nullable side of an outer join, so
-  // the decorator is told whether every join here was INNER.
+  // the decorator is told whether every join here was INNER. The set-op roll
+  // happens FIRST because `setOperation` strips LIMIT off both arms — a limit
+  // PARAMETER would be stripped from the text while staying in the binding
+  // list, and the statement would bind more than it mentions.
   const allInner = kinds.every(k => k === "JOIN_INNER");
-  const dec = decorate(rand, sel, slots, allInner);
+  const willSetOp = rand.chance(0.08);
+  const dec = decorate(rand, sel, slots, allInner, willSetOp ? undefined : P.ref);
   sel = dec.sel;
   const clauseForms = [...dec.forms];
-  if (rand.chance(0.08)) {
+
+  // A projected parameter cast — §9's ParamRef, the one genuinely open node
+  // that carried weight. The cast types the parameter, so all three forms are
+  // deduction-safe, and each exercises a different mechanism of the argument
+  // contract: `$n::nn_text` is mechanism A (the NOT NULL domain types the
+  // parameter, NULL rejects at Bind, before any execution); `$n::text` is the
+  // nullable control; `($n || '!')::nn_text` is mechanism C (the parameter
+  // stays text-typed, and its VALUE — forced NULL through the strict
+  // concatenation — hits the runtime domain coercion per row evaluated). The
+  // value is a constant: a projected cast filters nothing, so drawing from
+  // the pool would buy no overlap.
+  //
+  // AFTER decoration, not before: the GROUP BY decorator REPLACES the target
+  // list, and a ParamRef discarded with it leaves its allocation behind — the
+  // statement then binds more parameters than its text mentions, which is
+  // the bind-arity rejection the first run produced 99 of. A parameter
+  // target under GROUP BY is legal (it references no column), so appending
+  // here is sound for every decoration.
+  if (rand.chance(0.12)) {
+    const tl = sel["targetList"] as Ast[];
+    const roll = rand.int(0, 2);
+    if (roll === 0) {
+      tl.push(target(typeCast(P.ref("px", "cast-domain"), "nn_text"), "p_dom"));
+      exprForms.push("param-domain");
+    } else if (roll === 1) {
+      tl.push(target(typeCast(P.ref("px", "cast-text"), "text"), "p_txt"));
+      exprForms.push("param-cast");
+    } else {
+      tl.push(target(
+        typeCast(
+          op("||", P.ref("px", "cast-domain-flow"), { A_Const: { sval: { sval: "!" } } }),
+          "nn_text"),
+        "p_flow"));
+      exprForms.push("param-flow");
+    }
+  }
+  if (willSetOp) {
     const so = setOperation(rand, sel);
     sel = so.sel;
     clauseForms.push(so.form);
@@ -968,6 +1067,7 @@ function buildQuery(
   return {
     sql,
     ast: stmt,
+    params: P.list,
     used: used.map(u => ({ alias: u.alias, table: u.table ?? "(function)" })),
     kinds,
     // Table identities matter here — the whole point is that the catalog
@@ -976,7 +1076,8 @@ function buildQuery(
     // for the same reason: a random literal must not mint a fresh shape.
     shape: `${used.map(u => u.table ?? "fn").join("+")}|${shapeParts.join(",")}|W:${where?.shape ?? "-"}` +
       `|E:${[...exprForms].sort().join(",") || "-"}` +
-      `|C:${[...clauseForms].sort().join(",") || "-"}`,
+      `|C:${[...clauseForms].sort().join(",") || "-"}` +
+      `|P:${[...new Set(P.list.map(p => p.site))].sort().join(",") || "-"}`,
   };
 }
 
@@ -1009,6 +1110,7 @@ function buildMerge(
   partitioned: Set<string>,
 ): Built | null {
   const tableId = `${t.schema}.${t.name}`;
+  const P = makeParams();
   // A single-column key to join on. A composite one would need a source of
   // matching arity, and the straddle would have to be built per column.
   const keyCon = t.constraints.find(
@@ -1034,7 +1136,15 @@ function buildMerge(
   const sourceKeys: Ast[] = [];
   for (const v of [...existing].slice(0, rand.int(1, 3))) {
     const lit = literalFor(v);
-    if (lit) sourceKeys.push(lit);
+    if (!lit) continue;
+    // A matched key sometimes arrives as a parameter. The cast types it — a
+    // bare parameter in a VALUES row has no context to deduce from — and the
+    // value then flows source → join condition → whichever arm acts on it,
+    // which is the attribution path `forcedNullParams` resolves through
+    // MERGE USING sources.
+    sourceKeys.push(castableType(keyInfo.typeName) && rand.chance(0.3)
+      ? typeCast(P.ref(v, "merge-source-key"), keyInfo.typeName)
+      : lit);
   }
   let straddles = false;
   if (!routed && rand.chance(0.8)) {
@@ -1073,7 +1183,7 @@ function buildMerge(
     if (settable.length === 0) return null;
     const c = rand.pick(settable);
     const v = writtenValue(rand, tableId, c, pool, false);
-    return v ? [{ ResTarget: { name: c.name, val: v } }] : null;
+    return v ? [{ ResTarget: { name: c.name, val: maybeParam(rand, v, P.ref, "merge-set", 0.3) } }] : null;
   };
 
   const arms: Ast[] = [];
@@ -1115,12 +1225,13 @@ function buildMerge(
       if (c.name === keyCol) continue;
       const required = c.notNull && !c.hasDefault && c.identity === null;
       if (!required && rand.chance(0.4)) continue;
-      const v = base[c.name] === null || base[c.name] === undefined
-        ? (c.notNull ? writtenValue(rand, tableId, c, pool, false) : nullConst())
-        : literalFor(base[c.name]);
+      const lit = literalFor(base[c.name]);
+      const v: WrittenValue | null = base[c.name] === null || base[c.name] === undefined
+        ? (c.notNull ? writtenValue(rand, tableId, c, pool, false) : { ast: nullConst(), value: null })
+        : (lit ? { ast: lit, value: base[c.name] } : null);
       if (!v) { if (required) return null; continue; }
       cols.push(c.name);
-      vals.push(v);
+      vals.push(maybeParam(rand, v, P.ref, "merge-insert-value", 0.25));
     }
     addArm("MERGE_WHEN_NOT_MATCHED_BY_TARGET", "CMD_INSERT", {
       targetList: cols.map(n => ({ ResTarget: { name: n } })),
@@ -1171,9 +1282,11 @@ function buildMerge(
   return {
     sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
     ast: stmt,
+    params: P.list,
     used: [{ alias: t.name, table: tableId }],
     kinds: [],
-    shape: `${tableId}|MERGE:${[...armForms].sort().join(",")}${straddles ? "+straddle" : ""}${ret ? "+RET" : ""}`,
+    shape: `${tableId}|MERGE:${[...armForms].sort().join(",")}${straddles ? "+straddle" : ""}${ret ? "+RET" : ""}` +
+      `|P:${[...new Set(P.list.map(p => p.site))].sort().join(",") || "-"}`,
   };
 }
 
@@ -1251,6 +1364,7 @@ function decorate(
   sel: Record<string, unknown>,
   slots: Slot[],
   allInner: boolean,
+  pr?: ParamRefFn,
 ): Decorated {
   const forms: string[] = [];
   let grouped = false;
@@ -1332,10 +1446,17 @@ function decorate(
   }
 
   // --- LIMIT / OFFSET ----------------------------------------------------
+  // Sometimes a parameter — the placement where NULL is LEGAL (`LIMIT NULL`
+  // means no limit), so the contract must stay nullable and a variant binding
+  // proves it executes.
   if (rand.chance(0.15)) {
-    sel["limitCount"] = intConst(rand.int(1, 20));
+    const n = rand.int(1, 20);
+    sel["limitCount"] = pr && rand.chance(0.3) ? pr(n, "limit") : intConst(n);
     sel["limitOption"] = "LIMIT_OPTION_COUNT";
-    if (rand.chance(0.4)) sel["limitOffset"] = intConst(rand.int(0, 3));
+    if (rand.chance(0.4)) {
+      const o = rand.int(0, 3);
+      sel["limitOffset"] = pr && rand.chance(0.3) ? pr(o, "offset") : intConst(o);
+    }
     forms.push("limit");
   }
 
@@ -1412,34 +1533,60 @@ function keyColumns(t: TableInfo): Set<string> {
 }
 
 /**
- * A value for one column. `fresh` means "must not already exist" — past the
- * end of the numeric range, or a string nothing carries.
+ * A value for one column, carrying both spellings: the literal node, and the
+ * raw value a call site may BIND instead — a parameter where a literal stood
+ * is the argument contract's whole entry point into DML. `fresh` means "must
+ * not already exist" — past the end of the numeric range, or a string nothing
+ * carries.
  */
+interface WrittenValue { ast: Ast; value: unknown }
+
 function writtenValue(
   rand: Rand, tableId: string, col: { name: string; typeName: string; notNull: boolean },
   pool: ValuePool, fresh: boolean,
-): Ast | null {
+): WrittenValue | null {
   const values = (pool.get(`${tableId}.${col.name}`) ?? []).filter(v => v !== null);
   if (fresh) {
     const nums = values.filter(v => typeof v === "number") as number[];
-    if (nums.length) return literalFor(Math.max(...nums) + rand.int(1000, 9000));
-    if (values.some(v => typeof v === "string")) return literalFor(`gen-${rand.int(1, 1e6)}`);
+    if (nums.length) {
+      const v = Math.max(...nums) + rand.int(1000, 9000);
+      return { ast: literalFor(v)!, value: v };
+    }
+    if (values.some(v => typeof v === "string")) {
+      const v = `gen-${rand.int(1, 1e6)}`;
+      return { ast: literalFor(v)!, value: v };
+    }
     return null;
   }
-  if (values.length === 0) return col.notNull ? null : nullConst();
+  if (values.length === 0) return col.notNull ? null : { ast: nullConst(), value: null };
   // A nullable column is sometimes written NULL on purpose: that is the value
   // whose claim the engine is making.
-  if (!col.notNull && rand.chance(0.2)) return nullConst();
-  return literalFor(rand.pick(values));
+  if (!col.notNull && rand.chance(0.2)) return { ast: nullConst(), value: null };
+  const v = rand.pick(values);
+  const ast = literalFor(v);
+  return ast ? { ast, value: v } : null;
 }
 
-/** `col = <a value the table actually holds>` — a WHERE that matches. */
-function matchingWhere(rand: Rand, t: TableInfo, tableId: string, pool: ValuePool): Ast | null {
+/**
+ * A written value as a literal or, sometimes, as a parameter. A NULL control
+ * value stays a literal — binding NULL as the CONTROL makes the variant
+ * indistinguishable from it, which buys nothing.
+ */
+function maybeParam(rand: Rand, v: WrittenValue, pr: ParamRefFn, site: string, chance: number): Ast {
+  return v.value !== null && rand.chance(chance) ? pr(v.value, site) : v.ast;
+}
+
+/** `col = <a value the table actually holds>` — a WHERE that matches. As a
+ *  parameter it exercises the DML RETURNING scope's narrowing paths; binding
+ *  NULL later just matches nothing, which is the legal-and-empty shape. */
+function matchingWhere(rand: Rand, t: TableInfo, tableId: string, pool: ValuePool, pr?: ParamRefFn): Ast | null {
   const options = t.columns.filter(c => (pool.get(`${tableId}.${c.name}`) ?? []).length > 0);
   if (options.length === 0) return null;
   const col = rand.pick(options);
-  const lit = literalFor(rand.pick(pool.get(`${tableId}.${col.name}`)!));
-  return lit ? op("=", colRef(t.name, col.name), lit) : null;
+  const v = rand.pick(pool.get(`${tableId}.${col.name}`)!);
+  const lit = literalFor(v);
+  if (!lit) return null;
+  return op("=", colRef(t.name, col.name), pr && rand.chance(0.3) ? pr(v, "dml-where") : lit);
 }
 
 function returningOf(rand: Rand, t: TableInfo): Ast | undefined {
@@ -1458,6 +1605,7 @@ const dmlRelation = (t: TableInfo): Ast =>
 
 function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, partitioned: Set<string>): Built | null {
   const tableId = `${t.schema}.${t.name}`;
+  const P = makeParams();
   const keys = keyColumns(t);
   // A key column that is ALSO a foreign key cannot be given a fresh value:
   // `order_gift_wrap.id` is its own primary key AND a reference to
@@ -1481,7 +1629,9 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
   const writable = writableColumns(t);
   if (writable.length === 0) return null;
   const ret = returningOf(rand, t);
-  const shapeOf = (kind: string) => `${tableId}|DML:${kind}${ret ? "+RET" : ""}`;
+  const shapeOf = (kind: string) =>
+    `${tableId}|DML:${kind}${ret ? "+RET" : ""}` +
+    `|P:${[...new Set(P.list.map(p => p.site))].sort().join(",") || "-"}`;
 
   const kind = rand.int(0, 4);
 
@@ -1500,17 +1650,23 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
       const required = c.notNull && !c.hasDefault && c.identity === null;
       if (!required && rand.chance(0.3)) continue;
       if (c.hasDefault && rand.chance(0.2)) { cols.push(c.name); vals.push(setToDefault()); continue; }
-      let v: Ast | null;
+      let v: WrittenValue | null;
+      let site = "insert-value";
       if (keys.has(c.name) && !routed && !fkCols.has(c.name)) {
         v = writtenValue(rand, tableId, c, pool, true);
+        site = "insert-key";
       } else if (base[c.name] === null || base[c.name] === undefined) {
-        v = c.notNull ? writtenValue(rand, tableId, c, pool, false) : nullConst();
+        v = c.notNull ? writtenValue(rand, tableId, c, pool, false) : { ast: nullConst(), value: null };
       } else {
-        v = literalFor(base[c.name]);
+        const lit = literalFor(base[c.name]);
+        v = lit ? { ast: lit, value: base[c.name] } : null;
       }
       if (!v) { if (required) return null; continue; }
       cols.push(c.name);
-      vals.push(v);
+      // A parameter in a VALUES position is typed by its target column, which
+      // is where mechanisms A and B live: a NOT NULL domain rejects at Bind,
+      // a plain NOT NULL constraint per row written.
+      vals.push(maybeParam(rand, v, P.ref, site, 0.3));
     }
     if (cols.length === 0) return null;
 
@@ -1518,15 +1674,20 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
     // key matches no index and PostgreSQL rejects the specification.
     const keyCon = t.constraints.find(c => c.type === "primaryKey" || c.type === "unique");
     const settable = writable.filter(x => !keys.has(x.name) && !entangled.has(x.name));
-    const conflictSets = settable.length
+    // A routed target always attaches ON CONFLICT, because its key is reused.
+    // Decided BEFORE the SET expression is built: building it first allocated
+    // an `onconflict-set` parameter that the unattached clause then dropped —
+    // the statement bound more than its text mentioned, ~160 bind-arity
+    // rejections per 20,000 at seed 7, hiding in pg-raised's tail at other
+    // seeds until the class was tiered TOOL.
+    const wantConflict = (kind === 1 || routed) && keyCon && keyCon.columns.length > 0;
+    const conflictSets = wantConflict && settable.length
       ? (() => {
           const c = rand.pick(settable);
           const v = writtenValue(rand, tableId, c, pool, false);
-          return v ? [{ ResTarget: { name: c.name, val: v } }] : [];
+          return v ? [{ ResTarget: { name: c.name, val: maybeParam(rand, v, P.ref, "onconflict-set", 0.3) } }] : [];
         })()
       : [];
-    // A routed target always attaches ON CONFLICT, because its key is reused.
-    const wantConflict = (kind === 1 || routed) && keyCon && keyCon.columns.length > 0;
     const onConflict = wantConflict
       ? {
           onConflictClause: {
@@ -1551,6 +1712,7 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
     return {
       sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
       ast: stmt,
+      params: P.list,
       used: [{ alias: t.name, table: tableId }], kinds: [],
       shape: shapeOf(wantConflict ? "insert-onconflict" : "insert"),
     };
@@ -1560,7 +1722,7 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
   if (kind === 2 || kind === 3) {
     const settable = writable.filter(c => !keys.has(c.name) && !entangled.has(c.name));
     if (settable.length === 0) return null;
-    const where = matchingWhere(rand, t, tableId, pool);
+    const where = matchingWhere(rand, t, tableId, pool, P.ref);
     if (!where) return null;
     let targetList: Ast[];
     let form = "update";
@@ -1575,9 +1737,14 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
       if (!va || !vb) return null;
       // Inside a subquery a bare literal types as TEXT rather than staying
       // unknown, so a numeric or domain column rejects it — the cast is what
-      // makes `SET (a, b) = (SELECT …)` assignable at all.
+      // makes `SET (a, b) = (SELECT …)` assignable at all. A parameter under
+      // the same cast rides the multi-assignment into its target column,
+      // which is value-flow attribution through a derived source.
       const source = { SubLink: { subLinkType: "EXPR_SUBLINK", subselect: { SelectStmt: {
-        targetList: [{ ResTarget: { val: typeCast(va, a.typeName) } }, { ResTarget: { val: typeCast(vb, b.typeName) } }],
+        targetList: [
+          { ResTarget: { val: typeCast(maybeParam(rand, va, P.ref, "multiassign", 0.3), a.typeName) } },
+          { ResTarget: { val: typeCast(maybeParam(rand, vb, P.ref, "multiassign", 0.3), b.typeName) } },
+        ],
         limitOption: "LIMIT_OPTION_DEFAULT", op: "SETOP_NONE" } } } };
       targetList = [
         { ResTarget: { name: a.name, val: { MultiAssignRef: { source, colno: 1, ncolumns: 2 } } } },
@@ -1588,7 +1755,22 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
       const c = rand.pick(settable);
       const v = writtenValue(rand, tableId, c, pool, false);
       if (!v) return null;
-      targetList = [{ ResTarget: { name: c.name, val: v } }];
+      let val: Ast = v.ast;
+      if (v.value !== null && rand.chance(0.35)) {
+        const v2 = c.notNull && rand.chance(0.4) ? writtenValue(rand, tableId, c, pool, false) : null;
+        if (v2 && v2.value !== null) {
+          // `SET col = COALESCE($a, $b)` into a rejecting column — the JOINT
+          // rejection set {a, b}: neither parameter alone raises (COALESCE
+          // absorbs one NULL), binding both together does. The end-to-end
+          // exercise of `paramRejectionSets`, and of the harness's
+          // all-members-NULL variant.
+          val = { CoalesceExpr: { args: [P.ref(v.value, "coalesce-set"), P.ref(v2.value, "coalesce-set")] } };
+          form = "update-coalesce-params";
+        } else {
+          val = P.ref(v.value, "update-set");
+        }
+      }
+      targetList = [{ ResTarget: { name: c.name, val } }];
     }
     const stmt = {
       UpdateStmt: {
@@ -1599,12 +1781,13 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
     return {
       sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
       ast: stmt,
+      params: P.list,
       used: [{ alias: t.name, table: tableId }], kinds: [], shape: shapeOf(form),
     };
   }
 
   // --- DELETE -------------------------------------------------------------
-  const where = matchingWhere(rand, t, tableId, pool);
+  const where = matchingWhere(rand, t, tableId, pool, P.ref);
   if (!where) return null;
   const stmt = {
     DeleteStmt: {
@@ -1615,6 +1798,7 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
   return {
     sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
     ast: stmt,
+    params: P.list,
     used: [{ alias: t.name, table: tableId }], kinds: [], shape: shapeOf("delete"),
   };
 }
@@ -1628,6 +1812,7 @@ type Bucket =
   | "generator-threw" | "deparse-threw" | "reparse-failed" | "ast-differed"
   | "pg-rejected" | "pg-raised"
   | "engine-refused" | "engine-crashed" | "shape-mismatch" | "notnull-violated"
+  | "param-violated"
   | "group-violated" | "parity-broke" | "agreed-rows" | "agreed-norows";
 
 const TIER: Record<Bucket, "TOOL" | "BUDGET" | "FINDING" | "EXPECTED" | "OK"> = {
@@ -1636,6 +1821,7 @@ const TIER: Record<Bucket, "TOOL" | "BUDGET" | "FINDING" | "EXPECTED" | "OK"> = 
   "pg-rejected": "TOOL", "pg-raised": "BUDGET",
   "engine-refused": "EXPECTED",
   "engine-crashed": "FINDING", "shape-mismatch": "FINDING", "notnull-violated": "FINDING",
+  "param-violated": "FINDING",
   "group-violated": "FINDING", "parity-broke": "FINDING",
   "agreed-rows": "OK", "agreed-norows": "OK",
 };
@@ -1704,9 +1890,21 @@ function firstDiff(a: unknown, b: unknown, path = "$"): string {
 
 function classify(r: ProbeResult): Bucket {
   if (r.error) return r.error.startsWith("UnsupportedNodeError") ? "engine-refused" : "engine-crashed";
-  if (r.pgError) return /syntax error|does not exist|ambiguous/i.test(r.pgError) ? "pg-rejected" : "pg-raised";
+  if (r.pgError) {
+    // A deduction failure means the generator emitted a parameter in a
+    // position PostgreSQL cannot type — a TOOL defect by decision
+    // (docs/argument-nullability.md sequencing step 3), never a fallback.
+    // A bind-arity mismatch is the sibling defect: an allocation whose node
+    // was dropped from the tree, so the statement binds more than its text
+    // mentions. Both are the generator's bugs, never budget.
+    if (DEDUCTION_FAILURE.test(r.pgError) || /bind message supplies/.test(r.pgError)) {
+      return "pg-rejected";
+    }
+    return /syntax error|does not exist|ambiguous/i.test(r.pgError) ? "pg-rejected" : "pg-raised";
+  }
   if (r.shape) return "shape-mismatch";
   if (r.violations.length) return "notnull-violated";
+  if (r.paramViolations.length) return "param-violated";
   if (r.groupViolations.length) return "group-violated";
   if (r.parity) return "parity-broke";
   return r.rows.length > 0 ? "agreed-rows" : "agreed-norows";
@@ -1775,6 +1973,21 @@ function fingerprint(bucket: Bucket, r: ProbeResult, built: Built): string {
       const star = /C:[^|]*\bstar\b/.test(built.shape) || /qualstar/.test(built.shape);
       return `${bucket}|${engine === pg ? "same-arity" : "arity-differs"}|from:${forms}|${star ? "star" : "no-star"}`;
     }
+    case "param-violated": {
+      // The SITE the parameter occupies plus the raise's normalised message —
+      // the placement class is the causal axis here, the way the traced
+      // reason is for a column claim. Never the parameter number or the
+      // query: one collector defect fires from one site class across many
+      // statements.
+      const nums = [...new Set(
+        r.paramViolations.map(v => /^\$(\d+)/.exec(v)?.[1]).filter((x): x is string => !!x),
+      )];
+      const sites = [...new Set(nums.map(n => built.params[Number(n) - 1]?.site ?? "?"))].sort();
+      const msgs = [...new Set(
+        r.paramViolations.map(v => normalise(v.replace(/^\$\d+ claimed nullable, binding NULL raised: /, ""))),
+      )].sort();
+      return `${bucket}|${sites.join(",") || "arity"}|${msgs.join(" + ")}`;
+    }
     case "parity-broke":
       return `${bucket}|${normalise(r.parity ?? "")}`;
     case "engine-crashed":
@@ -1790,13 +2003,26 @@ function fingerprint(bucket: Bucket, r: ProbeResult, built: Built): string {
 
 const COUNT = Number(process.argv[2] ?? 2000);
 const SEED = Number(process.argv[3] ?? 20260808);
+/**
+ * The WASM backend exhausts itself under sustained protocol traffic —
+ * measured at seed 7, ~28,000 executions in (the binding variants raised
+ * per-query traffic ~50%): one query raised 54001 "stack depth limit
+ * exceeded" with the clearing ROLLBACK re-raising it, and past the
+ * in-process recovery the next death was a SIGBUS no JavaScript catches.
+ * Not a poisonous statement — the same query is clean on a fresh backend —
+ * so the backend is recycled on a fixed cadence, the dataset replayed
+ * verbatim, and every query still sees the same rows.
+ */
+const RECYCLE_EVERY = 5000;
 
-const loop = await ProbeLoop.create();
+let loop = await ProbeLoop.create();
 const snapshot = await snapshotCatalog(loop.pg);
 // One dataset for the whole session: `run` wraps each query in
 // BEGIN/ROLLBACK, so anything seeded here survives every query and every
-// query sees the same rows.
-await loop.pg.exec(generateFixtureData(snapshot, { registry: fixtureGeneratorRegistry }).sql);
+// query sees the same rows. Generated ONCE and replayed verbatim on every
+// recycled backend, so the invariant survives recycling.
+const DATA_SQL = generateFixtureData(snapshot, { registry: fixtureGeneratorRegistry }).sql;
+await loop.pg.exec(DATA_SQL);
 
 // Values the seeded data actually holds, per column, for drawing predicate
 // literals from (§3). Sampled once — the dataset does not change, since every
@@ -1931,6 +2157,14 @@ const clauseUse = new Map<string, number>();
 // exercises one and never the others — so this is the measurement that says
 // whether the straddle worked, rather than whether the arm was emitted.
 const mergeActions = new Map<string, number>();
+// The argument contract's accounting. Witness numbers are COUNTS, never
+// gates (§4): notNull is existential, so an unwitnessed claim here means
+// this data state did not route a row into the rejecting site — reported,
+// like everything else, so a straddle that quietly stops working is visible.
+const paramSiteUse = new Map<string, number>();
+let paramQueries = 0, paramTotal = 0, variantRuns = 0;
+let pWitnessed = 0, pUnwitnessed = 0, pRaisedOther = 0, pNullable = 0;
+let setsSeen = 0, setsWitnessed = 0, setsUnwitnessed = 0, setsRaisedOther = 0;
 const samples: string[] = [];
 const SAMPLE = Number(process.env.DISCOVERY_SAMPLE ?? 0);
 let returnable = 0, returned = 0;
@@ -1938,6 +2172,11 @@ const curve: number[] = [];
 let lastMark = 0;
 
 for (let i = 0; i < COUNT; i++) {
+  if (i > 0 && i % RECYCLE_EVERY === 0) {
+    await loop.close();
+    loop = await ProbeLoop.create();
+    await loop.pg.exec(DATA_SQL);
+  }
   const id = `q${i}`;
   let built: Built | null;
   try {
@@ -2003,11 +2242,44 @@ for (let i = 0; i < COUNT; i++) {
     continue;
   }
 
-  const r = await loop.run({ id, sql: built.sql });
+  if (built.params.length) {
+    paramQueries++;
+    paramTotal += built.params.length;
+    for (const p of built.params) paramSiteUse.set(p.site, (paramSiteUse.get(p.site) ?? 0) + 1);
+  }
+
+  // The last line echoed before a hard crash names the killer — a WASM-level
+  // death (SIGBUS on a stack-depth blowout) survives no in-process recovery,
+  // so identification has to happen before the attempt.
+  if (process.env.DISCOVERY_ECHO) {
+    console.log(`[${id}] ${built.sql.replace(/\s+/g, " ")} :: ${JSON.stringify(built.params)}`);
+  }
+  const r = await loop.run({
+    id,
+    sql: built.sql,
+    ...(built.params.length ? { params: built.params.map(p => p.value) } : {}),
+  });
   const bucket = classify(r);
   counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
   returnable++;
   if (bucket === "agreed-rows") returned++;
+
+  // Witness accounting counts only ADJUDICATED claims — the same gate the
+  // harness runs variants under. A set on a query whose control raised was
+  // never bound, and counting it as "claimed" with no verdict column is a
+  // silent gap the totals would paper over.
+  const w = r.paramWitness;
+  if (!r.error && !r.pgError && built.params.length) {
+    variantRuns += r.params.length + r.paramRejectionSets.length;
+    pNullable += r.params.filter(p => !p.notNull).length;
+    setsSeen += r.paramRejectionSets.length;
+  }
+  pWitnessed += w.notNullWitnessed.length;
+  pUnwitnessed += w.notNullUnwitnessed.length;
+  pRaisedOther += w.notNullRaisedOther.length;
+  setsWitnessed += w.setsWitnessed.length;
+  setsUnwitnessed += w.setsUnwitnessed.length;
+  setsRaisedOther += w.setsRaisedOther.length;
 
   const actionAt = r.pgColumns.indexOf("r_action");
   if (actionAt >= 0) {
@@ -2019,14 +2291,17 @@ for (let i = 0; i < COUNT; i++) {
   if (bucket === "pg-rejected" || bucket === "pg-raised") {
     const key = (r.pgError ?? "").split("\n")[0]!.slice(0, 90);
     rejectionDetail.set(key, (rejectionDetail.get(key) ?? 0) + 1);
+    if (bucket === "pg-rejected" && process.env.DISCOVERY_SHOW_REJECTED) {
+      console.log(`\n--- pg-rejected\n${built.sql}\n=> ${r.pgError}\n`);
+    }
   }
   if (bucket === "engine-refused") {
     const key = (r.error ?? "").slice(0, 90);
     rejectionDetail.set(key, (rejectionDetail.get(key) ?? 0) + 1);
   }
   if (TIER[bucket] === "FINDING") {
-    const detail = r.violations.join("; ") || r.groupViolations.join("; ") ||
-      r.shape || r.parity || r.error || "";
+    const detail = r.violations.join("; ") || r.paramViolations.join("; ") ||
+      r.groupViolations.join("; ") || r.shape || r.parity || r.error || "";
     const key = fingerprint(bucket, r, built);
     const seen = findingKeys.get(key);
     if (seen) seen.instances++;
@@ -2071,6 +2346,8 @@ console.log(`         application tables only, partitions and inheritance childr
 console.log(`         0..3 flat expression targets plus scalar, EXISTS and quantified subqueries;`);
 console.log(`         §9.4's clause decorations, set operations and CTE wraps;`);
 console.log(`         ~25% DML with RETURNING — ON CONFLICT, multi-assignment, MERGE included;`);
+console.log(`         parameters at predicate, written-value, cast, subquery and LIMIT sites,`);
+console.log(`         each adjudicated by NULL-binding variants against the contract;`);
 console.log(`         single and composite keys;`);
 console.log(`         WHERE on ${pct(COUNT - (whereUse.get("-") ?? 0), COUNT).trim()} of queries (measured) — IS [NOT] NULL, and = <> < <= > >= against a literal`);
 console.log(`         drawn from the column's own seeded values, combined with AND, OR, NOT, AND(OR)`);
@@ -2099,6 +2376,20 @@ if (mergeActions.size) {
   const tot = [...mergeActions.values()].reduce((a, b) => a + b, 0);
   console.log(`  MERGE arms that produced a row: ` + [...mergeActions.entries()]
     .sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${pct(n, tot)}`).join("   "));
+}
+if (paramQueries > 0) {
+  console.log(`\nthe parameter contract, adjudicated by binding`);
+  console.log(`  ${paramQueries} queries carried ${paramTotal} parameters; ${variantRuns} NULL-binding variants ran`);
+  console.log(`  sites: ` + [...paramSiteUse.entries()].sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => `${k} ${n}`).join("   "));
+  console.log(`  notNull claims: ${pWitnessed} witnessed, ${pUnwitnessed} unwitnessed in this state` +
+    (pRaisedOther ? `, ${pRaisedOther} raised outside the enumerated rejection list` : "") +
+    `; nullable: ${pNullable}`);
+  if (setsSeen) {
+    console.log(`  joint rejection sets: ${setsSeen} claimed — ${setsWitnessed} witnessed, ` +
+      `${setsUnwitnessed} unwitnessed` +
+      (setsRaisedOther ? `, ${setsRaisedOther} raised outside the list` : ""));
+  }
 }
 console.log(`  WHERE shape: ` + [...whereUse.entries()].sort((a, b) => b[1] - a[1])
   .map(([k, n]) => `${k === "-" ? "(none)" : k} ${pct(n, COUNT)}`).join("   "));
