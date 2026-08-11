@@ -274,8 +274,23 @@ const SCALAR_BUILTINS: Record<string, { name: string; args: 1 }[]> = {
 /** `json` has no ordering operators, so GREATEST/LEAST over it raises. */
 const ORDERABLE = (t: string): boolean => t !== "json";
 
-const typeCast = (arg: Ast, typeName: string): Ast =>
-  ({ TypeCast: { arg, typeName: { names: typeName.split(".").map(str), typemod: -1 } } });
+/**
+ * The spelling the PARSER gives a grammar-keyword cast target: `x::integer`
+ * parses as `pg_catalog.int4`, so a cast built with the catalog's rendered
+ * name reads as a changed tree to the round-trip guard. Building the
+ * qualified name round-trips identically (measured — the deparser prints the
+ * keyword back and the parser restores the qualification). Non-keyword names
+ * (`text`, `date`, `uuid`, domains) parse as written and stay so.
+ */
+const CAST_SPELLING: Record<string, string> = {
+  integer: "pg_catalog.int4", bigint: "pg_catalog.int8", smallint: "pg_catalog.int2",
+  numeric: "pg_catalog.numeric", boolean: "pg_catalog.bool", real: "pg_catalog.float4",
+};
+
+const typeCast = (arg: Ast, typeName: string): Ast => {
+  const spelled = CAST_SPELLING[typeName] ?? typeName;
+  return { TypeCast: { arg, typeName: { names: spelled.split(".").map(str), typemod: -1 } } };
+};
 
 /**
  * Whether a rendered type name can be written as a cast target verbatim.
@@ -429,6 +444,9 @@ const JOIN_KINDS = ["JOIN_INNER", "JOIN_LEFT", "JOIN_RIGHT", "JOIN_FULL"] as con
 
 interface Built {
   sql: string;
+  /** The statement node the generator assembled — what §5.4's round-trip
+   *  guard compares the reparsed tree against. */
+  ast: Ast;
   /** Aliases in the order they were joined, with the table each stands for. */
   used: { alias: string; table: string }[];
   kinds: string[];
@@ -907,10 +925,19 @@ function buildQuery(
       where = whereClause(rand, used, pool);
     }
   }
+  // ANDed on the way the PARSER builds it: `a AND b AND c` is ONE flat
+  // BoolExpr, so appending to an existing AND keeps the round trip identical
+  // where wrapping it in a fresh AND reads as a changed tree.
+  const andWith = (base: Ast, extra: Ast): Ast => {
+    const b = base["BoolExpr"] as { boolop?: string; args?: Ast[] } | undefined;
+    return b?.boolop === "AND_EXPR" && b.args
+      ? boolExpr("AND_EXPR", [...b.args, extra])
+      : boolExpr("AND_EXPR", [base, extra]);
+  };
   for (const [node, tag] of [[existsPred, "EXISTS"], [quantified, "QUANT"]] as const) {
     if (!node) continue;
     where = where
-      ? { node: boolExpr("AND_EXPR", [where.node, node]), shape: `${where.shape}+${tag}` }
+      ? { node: andWith(where.node, node), shape: `${where.shape}+${tag}` }
       : { node, shape: tag };
   }
 
@@ -940,6 +967,7 @@ function buildQuery(
   const sql = deparseSync(stmt as Parameters<typeof deparseSync>[0]);
   return {
     sql,
+    ast: stmt,
     used: used.map(u => ({ alias: u.alias, table: u.table ?? "(function)" })),
     kinds,
     // Table identities matter here — the whole point is that the catalog
@@ -1142,6 +1170,7 @@ function buildMerge(
 
   return {
     sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
+    ast: stmt,
     used: [{ alias: t.name, table: tableId }],
     kinds: [],
     shape: `${tableId}|MERGE:${[...armForms].sort().join(",")}${straddles ? "+straddle" : ""}${ret ? "+RET" : ""}`,
@@ -1253,10 +1282,12 @@ function decorate(
   }
 
   // --- window functions, which cannot sit over a grouped target list -----
+  let windowed = false;
   if (!grouped && slots.length > 0 && rand.chance(0.18)) {
     const w = windowTarget(rand, slots, 0);
     if (w) {
       (sel["targetList"] as Ast[]).push(w);
+      windowed = true;
       forms.push("window");
     }
   }
@@ -1309,7 +1340,7 @@ function decorate(
   }
 
   // --- FOR UPDATE, which every clause above forbids ----------------------
-  if (allInner && !grouped && !sel["distinctClause"] && rand.chance(0.05)) {
+  if (allInner && !grouped && !windowed && !sel["distinctClause"] && rand.chance(0.05)) {
     sel["lockingClause"] = [{ LockingClause: { strength: rand.pick(["LCS_FORUPDATE", "LCS_FORSHARE"]), waitPolicy: "LockWaitBlock" } }];
     forms.push("forupdate");
   }
@@ -1519,6 +1550,7 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
     };
     return {
       sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
+      ast: stmt,
       used: [{ alias: t.name, table: tableId }], kinds: [],
       shape: shapeOf(wantConflict ? "insert-onconflict" : "insert"),
     };
@@ -1566,6 +1598,7 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
     };
     return {
       sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
+      ast: stmt,
       used: [{ alias: t.name, table: tableId }], kinds: [], shape: shapeOf(form),
     };
   }
@@ -1581,6 +1614,7 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
   };
   return {
     sql: deparseSync(stmt as Parameters<typeof deparseSync>[0]),
+    ast: stmt,
     used: [{ alias: t.name, table: tableId }], kinds: [], shape: shapeOf("delete"),
   };
 }
@@ -1591,18 +1625,82 @@ function buildDml(rand: Rand, t: TableInfo, pool: ValuePool, rowPool: RowPool, p
 // ---------------------------------------------------------------------------
 
 type Bucket =
-  | "generator-threw" | "deparse-threw" | "reparse-failed" | "pg-rejected" | "pg-raised"
+  | "generator-threw" | "deparse-threw" | "reparse-failed" | "ast-differed"
+  | "pg-rejected" | "pg-raised"
   | "engine-refused" | "engine-crashed" | "shape-mismatch" | "notnull-violated"
   | "group-violated" | "parity-broke" | "agreed-rows" | "agreed-norows";
 
 const TIER: Record<Bucket, "TOOL" | "BUDGET" | "FINDING" | "EXPECTED" | "OK"> = {
   "generator-threw": "TOOL", "deparse-threw": "TOOL", "reparse-failed": "TOOL",
+  "ast-differed": "TOOL",
   "pg-rejected": "TOOL", "pg-raised": "BUDGET",
   "engine-refused": "EXPECTED",
   "engine-crashed": "FINDING", "shape-mismatch": "FINDING", "notnull-violated": "FINDING",
   "group-violated": "FINDING", "parity-broke": "FINDING",
   "agreed-rows": "OK", "agreed-norows": "OK",
 };
+
+// ---------------------------------------------------------------------------
+// The round-trip guard — §5.4.
+//
+// Anything the deparser mangles or DROPS is a construct the run believes it
+// tested and did not: the text PostgreSQL and the engine both see simply lacks
+// it, so every downstream bucket agrees and nothing notices. `reparse-failed`
+// only catches the loud half. The quiet half is caught by comparing the tree
+// parsed back from the emitted SQL against the tree the generator built — a
+// query whose round trip is not identical is counted, classified and DISCARDED
+// from finding analysis, because we cannot claim the text tests what the AST
+// asked for.
+//
+// Byte offsets are stripped before comparing — `location` on most nodes, and
+// `list_start`/`list_end`, the bracket positions the parser stamps on
+// `A_ArrayExpr` — because the parser has a source text to point into and the
+// generator does not. Keys are sorted because the two sides build their
+// objects in different orders. Nothing else is normalised: §5.4's expectation
+// is that the trees match EXACTLY, and a harmless systematic difference,
+// when one appears, is made to match rather than allowed for — the first run
+// surfaced two (the parser flattens `a AND b AND c` into one three-arm
+// BoolExpr, and re-reads a keyword cast target as its `pg_catalog` name) and
+// both were fixed by making the GENERATOR build what the parser builds.
+// ---------------------------------------------------------------------------
+
+const OFFSET_KEYS = new Set(["location", "list_start", "list_end"]);
+
+function canonical(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (v && typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(v).sort()) {
+      if (OFFSET_KEYS.has(k)) continue;
+      out[k] = canonical((v as Record<string, unknown>)[k]);
+    }
+    return out;
+  }
+  return v;
+}
+
+/** The first path where two canonical trees disagree — the CLASS of a
+ *  round-trip difference, so the report groups by what changed rather than
+ *  listing every query it changed in. */
+function firstDiff(a: unknown, b: unknown, path = "$"): string {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return `${path}: ${a.length} items became ${b.length}`;
+    for (let i = 0; i < a.length; i++) {
+      if (JSON.stringify(a[i]) !== JSON.stringify(b[i])) return firstDiff(a[i], b[i], `${path}[${i}]`);
+    }
+    return path;
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const ao = a as Record<string, unknown>, bo = b as Record<string, unknown>;
+    for (const k of new Set([...Object.keys(ao), ...Object.keys(bo)])) {
+      if (!(k in ao)) return `${path}.${k}: only after reparse`;
+      if (!(k in bo)) return `${path}.${k}: dropped`;
+      if (JSON.stringify(ao[k]) !== JSON.stringify(bo[k])) return firstDiff(ao[k], bo[k], `${path}.${k}`);
+    }
+    return path;
+  }
+  return `${path}: ${JSON.stringify(a)} became ${JSON.stringify(b)}`;
+}
 
 function classify(r: ProbeResult): Bucket {
   if (r.error) return r.error.startsWith("UnsupportedNodeError") ? "engine-refused" : "engine-crashed";
@@ -1827,6 +1925,7 @@ const tableUse = new Map<string, number>();
 const kindUse = new Map<string, number>();
 const whereUse = new Map<string, number>();
 const exprUse = new Map<string, number>();
+const clauseUse = new Map<string, number>();
 // Which MERGE arm actually PRODUCED a row. §5.3's warning is that arms fire
 // only when the data makes them, and a source drawn from the target's keys
 // exercises one and never the others — so this is the measurement that says
@@ -1865,8 +1964,11 @@ for (let i = 0; i < COUNT; i++) {
     tableUse.set(u.table, (tableUse.get(u.table) ?? 0) + 1);
   }
   for (const k of built.kinds) kindUse.set(k, (kindUse.get(k) ?? 0) + 1);
-  for (const f of (built.shape.split("|E:")[1] ?? "").split(",")) {
+  for (const f of (built.shape.split("|E:")[1] ?? "").split("|C:")[0]!.split(",")) {
     if (f && f !== "-") exprUse.set(f, (exprUse.get(f) ?? 0) + 1);
+  }
+  for (const f of (built.shape.split("|C:")[1] ?? "").split(",")) {
+    if (f && f !== "-") clauseUse.set(f, (clauseUse.get(f) ?? 0) + 1);
   }
   const wf = (built.shape.split("|W:")[1] ?? "-").split("|E:")[0]!;
   whereUse.set(wf, (whereUse.get(wf) ?? 0) + 1);
@@ -1879,12 +1981,24 @@ for (let i = 0; i < COUNT; i++) {
   // misattribution, so the parse is done here where its failure is
   // unambiguous: the text did not survive the round trip, which is a TOOL
   // defect and nothing to do with the walk.
+  let reparsed;
   try {
-    await parseSql(built.sql);
+    reparsed = await parseSql(built.sql);
   } catch (e) {
     counts.set("reparse-failed", (counts.get("reparse-failed") ?? 0) + 1);
     const key = `deparse produced unparseable SQL: ${(e as Error).message.split("\n")[0]!.slice(0, 70)}`;
     if (process.env.DISCOVERY_SHOW_REPARSE) console.log(`\n--- reparse-failed\n${built.sql}\n`);
+    rejectionDetail.set(key, (rejectionDetail.get(key) ?? 0) + 1);
+    continue;
+  }
+  // §5.4 — a construct the deparser dropped QUIETLY still parses, so the
+  // reparse above cannot see it. The comparison can.
+  const before = canonical(built.ast);
+  const after = canonical(reparsed.stmts?.[0]?.stmt ?? {});
+  if (JSON.stringify(before) !== JSON.stringify(after)) {
+    counts.set("ast-differed", (counts.get("ast-differed") ?? 0) + 1);
+    const key = `round trip changed the tree at ${firstDiff(before, after).slice(0, 80)}`;
+    if (process.env.DISCOVERY_SHOW_REPARSE) console.log(`\n--- ast-differed\n${built.sql}\n${firstDiff(before, after)}\n`);
     rejectionDetail.set(key, (rejectionDetail.get(key) ?? 0) + 1);
     continue;
   }
@@ -1951,9 +2065,12 @@ if (curve.length > 1) {
   console.log(`    marginal yield: ${Math.round(last)}/1000 at the end against ` +
     `${curve[0]} at the start (${Math.round((last / curve[0]!) * 100)}%)`);
 }
-console.log(`  bound: 2..4 tables, left-deep, SELECT only, no subqueries, no set operations, no DML;`);
-console.log(`         application tables only, partitions and inheritance children included,`);
-console.log(`         0..3 flat expression targets per query; ~25% DML with RETURNING;`);
+console.log(`  bound: 2..4 FROM items, left-deep — tables, derived tables, function items, LATERAL,`);
+console.log(`         TABLESAMPLE, alias column lists, comma joins, qual-less and non-key joins;`);
+console.log(`         application tables only, partitions and inheritance children included;`);
+console.log(`         0..3 flat expression targets plus scalar, EXISTS and quantified subqueries;`);
+console.log(`         §9.4's clause decorations, set operations and CTE wraps;`);
+console.log(`         ~25% DML with RETURNING — ON CONFLICT, multi-assignment, MERGE included;`);
 console.log(`         single and composite keys;`);
 console.log(`         WHERE on ${pct(COUNT - (whereUse.get("-") ?? 0), COUNT).trim()} of queries (measured) — IS [NOT] NULL, and = <> < <= > >= against a literal`);
 console.log(`         drawn from the column's own seeded values, combined with AND, OR, NOT, AND(OR)`);
@@ -1975,6 +2092,8 @@ const totalKinds = [...kindUse.values()].reduce((a, b) => a + b, 0);
 console.log(`  join kinds:  ` + [...kindUse.entries()].sort((a, b) => b[1] - a[1])
   .map(([k, n]) => `${k.replace("JOIN_", "")} ${pct(n, totalKinds)}`).join("   "));
 console.log(`  expression targets: ` + ([...exprUse.entries()].sort((a, b) => b[1] - a[1])
+  .map(([k, n]) => `${k} ${pct(n, COUNT)}`).join("   ") || "(none)"));
+console.log(`  clause forms: ` + ([...clauseUse.entries()].sort((a, b) => b[1] - a[1])
   .map(([k, n]) => `${k} ${pct(n, COUNT)}`).join("   ") || "(none)"));
 if (mergeActions.size) {
   const tot = [...mergeActions.values()].reduce((a, b) => a + b, 0);
