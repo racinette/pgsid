@@ -74,12 +74,21 @@ sequence in the probe database. Both are recorded in `UNPROBED` with those
 words.
 
 **The QUEUED item is elsewhere**: `docs/catalog-driven-generation.md`,
-chartered with STEP 0 DONE (2026-08-08). `docs/generated-surface.md` is
+chartered. STEP 0 DONE and §§9.1–9.4 ALL BUILT (2026-08-08) — the discovery
+instrument (`tests/probe/discovery.ts`) emits 41 node types over the
+application schema, DML and MERGE included. §5.4's round-trip guard is in it
+too (2026-08-11): `ast-differed` live, three round-trip classes made to
+match, then 0 in 25,000 queries across two seeds. What remains on the
+vocabulary is §9's "genuinely open" five, of which only `ParamRef` carries
+weight — and it needs a bind-time mechanism in the harness, so it is a
+design conversation before it is code. `docs/generated-surface.md` is
 FINISHED — all five of its items are built, item 4's schema axis included
 (2026-08-06), and the "four items in cost order" sentence further down this
 register predates that and describes the plan rather than the state. Read
 the documents' own headers, not this register's older prose, when the two
-disagree.
+disagree — that rule has now paid for itself twice: a session opened on the
+claim that §9.2 and §9.3 were unbuilt, and both had been committed for three
+days.
 
 ---
 
