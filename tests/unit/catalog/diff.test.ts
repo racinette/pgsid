@@ -131,7 +131,8 @@ describe("diffCatalogs: tables", () => {
     const c1: ConstraintInfo = {
       name: "ck", type: "check", columns: [], foreignSchema: null,
       foreignTable: null, foreignColumns: null, definition: "CHECK (x > 0)",
-      validated: true, noInherit: false, deferrable: false, inheritedClone: false,
+      validated: true, enforced: true, noInherit: false, deferrable: false,
+      inheritedClone: false,
     };
     const c2: ConstraintInfo = { ...c1, definition: "CHECK (x > 5)" };
     const before = snapshot({ tables: [table("public", "t", [col({ name: "id" })], { constraints: [c1] })] });

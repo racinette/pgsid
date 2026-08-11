@@ -48,19 +48,30 @@ describe("CHECK-constraint pins", () => {
     const res = await pg.query<{ b: null }>(`SELECT b FROM pinned WHERE a = 1`);
     expect(res.rows).toEqual([{ b: null }]);
     await pg.exec(`DELETE FROM pinned WHERE a = 1`);
+    // The half that needs a violating value: NOT VALID still REJECTS a new
+    // write that fails it — enforcement is not validation. (pinned_lt goes
+    // NULL on the NULL `a` and passes; pinned_ne's b=5 satisfies it.)
+    await expect(
+      pg.exec(`INSERT INTO pinned (a, b) VALUES (NULL, 5)`),
+    ).rejects.toThrow(/violates check constraint "pinned_nv"/);
   });
 
-  it("convalidated=false covers BOTH NOT VALID and NOT ENFORCED — the one flag the engine gates on", () => {
-    // NOT VALID: existing rows were never scanned. NOT ENFORCED (PG18): rows
-    // are never checked at all. Both must arrive as validated=false, because
+  it("convalidated=false covers BOTH NOT VALID and NOT ENFORCED; conenforced tells them apart", () => {
+    // NOT VALID: existing rows were never scanned, but new writes are still
+    // gated (the raise above). NOT ENFORCED (PG18): rows are never checked
+    // at all. Both must arrive as validated=false, because
     // resolveCheckConstraints excludes exactly !validated — if either
     // rendering ever reported validated=true, the engine would consume a
-    // constraint stored rows can violate.
+    // constraint stored rows can violate. `enforced` carries the write-path
+    // distinction, which is the flag mechanism E's input channel gates on.
     const pinned = snapshot.tables.find(t => t.name === "pinned")!;
     const byName = new Map(pinned.constraints.map(c => [c.name, c]));
     expect(byName.get("pinned_lt")!.validated).toBe(true);
     expect(byName.get("pinned_nv")!.validated).toBe(false);
     expect(byName.get("pinned_ne")!.validated).toBe(false);
+    expect(byName.get("pinned_lt")!.enforced).toBe(true);
+    expect(byName.get("pinned_nv")!.enforced).toBe(true);
+    expect(byName.get("pinned_ne")!.enforced).toBe(false);
     expect(byName.get("pinned_nv")!.definition).toContain("NOT VALID");
     expect(byName.get("pinned_ne")!.definition).toContain("NOT ENFORCED");
   });
