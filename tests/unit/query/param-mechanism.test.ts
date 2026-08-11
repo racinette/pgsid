@@ -28,9 +28,11 @@ import { PGlite } from "@electric-sql/pglite";
 // type, so the domain constraint is never consulted and the parameter is
 // typed as the base type. A comparison position never rejects NULL.
 //
-// All queries here pass parameters through the real protocol Bind step —
-// mechanism A lives there, and a substituted NULL literal would exercise
-// constant coercion instead (a related but different code path).
+// The mechanism A–C pins pass parameters through the real protocol Bind
+// step — mechanism A lives there, and a substituted NULL literal would
+// exercise constant coercion instead (a related but different code path).
+// The mechanism E pins are the opposite on purpose: E grounds WRITTEN
+// literals, so its statements carry none.
 // ---------------------------------------------------------------------------
 
 const SCHEMA = `
@@ -40,6 +42,12 @@ const SCHEMA = `
   CREATE TABLE empty_t (x int);
   CREATE TABLE m (id int, e text NOT NULL DEFAULT 'x', n uname DEFAULT 'g');
   CREATE FUNCTION takes_dom(v uname) RETURNS text LANGUAGE sql AS 'SELECT v';
+  -- Mechanism E grounding pins (docs/argument-nullability.md, "Mechanism E"):
+  CREATE TABLE sub (seats int, oc text, CHECK (seats <= 1 OR oc IS NOT NULL));
+  CREATE TABLE bp_ctl (c char(4) CHECK (c = 'a '));
+  CREATE FUNCTION cur_max() RETURNS int LANGUAGE sql STABLE
+    AS 'SELECT current_setting(''app.max_n'')::int';
+  CREATE TABLE lim (n int CHECK (n <= cur_max()));
 `;
 
 const DOMAIN_ERROR = "does not allow null values";
@@ -305,5 +313,91 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(
       await errorOf("INSERT INTO gen_t (a, gen, b) VALUES ($1, DEFAULT, $2)", [3, "y"]),
     ).toBeNull();
+  });
+
+  // --- Mechanism E: CHECK rejection of a written NULL. ----------------------
+  //
+  // docs/argument-nullability.md, "Mechanism E": ground the parsed CHECK
+  // body with the statement's written literals, evaluate only fully-closed
+  // subtrees through PostgreSQL, reduce by three-valued algebra, analyze the
+  // residue. These pins hold the substitution semantics that make the
+  // evaluation step answer the same question enforcement asks.
+
+  it("a grounded CHECK body that evaluates FALSE is the write that raises", async () => {
+    // The subscription shape: seats = 5 written beside the tested NULL.
+    // Column refs replaced by the written values, each cast to the column's
+    // declared type, and the grounded body answers what the INSERT does.
+    // FALSE is the claim condition.
+    const g = await pg.query<{ g: boolean }>(
+      "SELECT (5::integer <= 1 OR NULL::text IS NOT NULL) AS g",
+    );
+    expect(g.rows[0]!.g).toBe(false);
+    expect(await errorOf("INSERT INTO sub VALUES (5, NULL)", [])).toContain(
+      "violates check constraint",
+    );
+  });
+
+  it("a grounded CHECK body that evaluates NULL passes — claim only on FALSE", async () => {
+    const g = await pg.query<{ g: boolean | null }>(
+      "SELECT (NULL::integer <= 1 OR NULL::text IS NOT NULL) AS g",
+    );
+    expect(g.rows[0]!.g).toBeNull();
+    expect(await errorOf("INSERT INTO sub VALUES (NULL, NULL)", [])).toBeNull();
+  });
+
+  it("bp control: substitution must cast to the COLUMN's type, or it answers a different question", async () => {
+    // char(4) blank-pads before comparing: 'a' = 'a ' is TRUE as bpchar and
+    // FALSE as text, so bp_ctl's CHECK (c = 'a ') ADMITS the written 'a'.
+    // A text-typed grounding would evaluate FALSE and claim a rejection
+    // that never happens; the cast to the declared type is what makes
+    // evaluation agree with enforcement.
+    const asText = await pg.query<{ g: boolean }>("SELECT ('a' = 'a ') AS g");
+    const asBp = await pg.query<{ g: boolean }>(
+      "SELECT ('a'::char(4) = 'a '::char(4)) AS g",
+    );
+    expect(asText.rows[0]!.g).toBe(false);
+    expect(asBp.rows[0]!.g).toBe(true);
+    expect(await errorOf("INSERT INTO bp_ctl VALUES ('a')", [])).toBeNull();
+  });
+
+  it("a STABLE body's analysis-time answer does not bind enforcement — evaluate immutable only", async () => {
+    // cur_max() reads a GUC: TRUE when evaluated under app.max_n=10, and
+    // the same write raises after the setting moves. Evaluation is
+    // therefore gated on provolatile='i' for every function and operator in
+    // a subtree; a stable one leaves the subtree unevaluated, no claim.
+    await pg.exec("SET app.max_n = '10'");
+    const before = await pg.query<{ g: boolean }>("SELECT (5 <= cur_max()) AS g");
+    expect(before.rows[0]!.g).toBe(true);
+    await pg.exec("SET app.max_n = '1'");
+    expect(await errorOf("INSERT INTO lim VALUES (5)", [])).toContain(
+      "violates check constraint",
+    );
+    const vol = await pg.query<{ provolatile: string }>(
+      "SELECT provolatile FROM pg_proc WHERE proname = 'cur_max'",
+    );
+    expect(vol.rows[0]!.provolatile).toBe("s");
+  });
+
+  it("multi-row VALUES: the CHECK fires per row, and one FALSE row rejects the whole statement", async () => {
+    // Per-row grounding, existential claim over rows: the first row passes,
+    // the second grounds FALSE, the statement raises and writes NOTHING —
+    // measured outside any explicit transaction.
+    let err: string | null = null;
+    try {
+      await pg.exec("INSERT INTO sub VALUES (0, NULL), (5, NULL)");
+    } catch (e) {
+      err = (e as Error).message;
+    }
+    expect(err).toContain("violates check constraint");
+    const n = await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM sub");
+    expect(n.rows[0]!.n).toBe(0);
+  });
+
+  it("closed subtrees batch: one SELECT evaluates every grounded subtree", async () => {
+    const r = await pg.query<{ e1: boolean; e2: boolean; e3: boolean }>(
+      "SELECT (5::integer <= 1) AS e1, (NULL::text IS NOT NULL) AS e2, " +
+        "('a'::char(4) = 'a '::char(4)) AS e3",
+    );
+    expect(r.rows[0]).toEqual({ e1: false, e2: false, e3: true });
   });
 });
