@@ -108,6 +108,16 @@ export interface ConstraintInfo {
    */
   validated: boolean;
   /**
+   * PG18 `pg_constraint.conenforced` — whether the constraint gates NEW
+   * writes, which `validated` alone cannot say: NOT VALID arrives as
+   * enforced=true/validated=false and REJECTS a violating insert, NOT
+   * ENFORCED as enforced=false and admits it (both measured, pinned in
+   * check-constraint-pins). Stored-row reasoning keeps gating on
+   * `validated`; mechanism E's input channel gates on this bit. Diff-
+   * included via the constraint list, like `validated`.
+   */
+  enforced: boolean;
+  /**
    * `pg_constraint.connoinherit`. A `CHECK … NO INHERIT` is never copied to
    * a child's pg_constraint (measured — every other CHECK divergence route
    * is refused by PostgreSQL), so it constrains the named relation's OWN

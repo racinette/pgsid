@@ -124,6 +124,7 @@ interface ConstraintRow {
   confkey: number[] | string | null;
   definition: string;
   validated: boolean;
+  enforced: boolean;
   noinherit: boolean;
   deferrable: boolean;
   /** `conparentid <> 0`: a row PostgreSQL cloned, not one the author wrote. */
@@ -685,6 +686,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
         : null,
       definition: con.definition,
       validated: con.validated,
+      enforced: con.enforced,
       noInherit: con.noinherit,
       deferrable: con.deferrable,
       inheritedClone: con.inherited_clone,
@@ -1134,6 +1136,7 @@ async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
             con.conkey, con.confkey,
             pg_get_constraintdef(con.oid) AS definition,
             con.convalidated AS validated,
+            con.conenforced AS enforced,
             con.connoinherit AS noinherit,
             con.condeferrable AS deferrable,
             con.conparentid <> 0 AS inherited_clone
