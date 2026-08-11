@@ -24,6 +24,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../src/ast.js";
 import { snapshotCatalog } from "../../src/catalog/snapshot.js";
+import { NULL_REJECTION } from "../unit/query/fixture-args.js";
 import { buildNullabilityCatalog } from "../../src/query/catalog-adapter.js";
 import {
   inferQueryContract,
@@ -70,6 +71,34 @@ export interface ProbeResult {
   error: string | null;
   pgError: string | null;
   groups: { columns: number[]; discriminants: number[] }[];
+  /** The contract's parameter claims, dense $1..$n. */
+  params: { number: number; notNull: boolean }[];
+  /** Minimal joint rejection sets of size ≥ 2. */
+  paramRejectionSets: number[][];
+  /**
+   * rank 3 — a parameter the contract left nullable whose NULL binding raised
+   * while the all-valid control succeeded. ANY raise counts, not only the
+   * enumerated null-rejections: either the engine missed a catalog-visible
+   * channel, or the channel is opaque (a trigger body, a plpgsql RAISE) and
+   * the triage decides which — the same fork `@param-opaque` records in the
+   * fixture corpus.
+   */
+  paramViolations: string[];
+  /**
+   * Witness accounting for the one-directional claims (§4: the instrument
+   * makes no coverage claim, so an unwitnessed notNull is a COUNT, never a
+   * finding). `raisedOther` is a raise the enumerated null-rejection list
+   * does not recognise — reported separately so it cannot inflate either
+   * side.
+   */
+  paramWitness: {
+    notNullWitnessed: number[];
+    notNullUnwitnessed: number[];
+    notNullRaisedOther: number[];
+    setsWitnessed: number[][];
+    setsUnwitnessed: number[][];
+    setsRaisedOther: number[][];
+  };
 }
 
 export class ProbeLoop {
@@ -106,6 +135,17 @@ export class ProbeLoop {
       error: null,
       pgError: null,
       groups: [],
+      params: [],
+      paramRejectionSets: [],
+      paramViolations: [],
+      paramWitness: {
+        notNullWitnessed: [],
+        notNullUnwitnessed: [],
+        notNullRaisedOther: [],
+        setsWitnessed: [],
+        setsUnwitnessed: [],
+        setsRaisedOther: [],
+      },
     };
 
     // --- tier 0: the statement's parameter types, from PREPARE -------------
@@ -140,6 +180,8 @@ export class ProbeLoop {
         columns: [...g.columns],
         discriminants: [...g.discriminants],
       }));
+      out.params = contract.params.map(p => ({ number: p.number, notNull: p.notNull }));
+      out.paramRejectionSets = contract.paramRejectionSets.map(s => [...s]);
       // Parity: the traced walk must reach the same columns and groups.
       const plain = inferNullability(stmt, this.catalog, { paramTypes });
       const traced = inferNullabilityTraced(stmt, this.catalog, undefined, { paramTypes });
@@ -166,8 +208,8 @@ export class ProbeLoop {
     }
 
     // --- PostgreSQL half ---------------------------------------------------
-    await this.pg.exec("BEGIN");
     try {
+      await this.begin();
       for (const s of probe.seed ?? []) await this.pg.exec(s);
       const res = await this.pg.query(probe.sql, probe.params ?? [], { rowMode: "array" });
       out.pgColumns = res.fields.map(f => f.name);
@@ -175,7 +217,7 @@ export class ProbeLoop {
     } catch (e) {
       out.pgError = (e as Error).message;
     } finally {
-      await this.pg.exec("ROLLBACK");
+      await this.pg.exec("ROLLBACK").catch(() => {});
     }
 
     if (out.error || out.pgError) return out;
@@ -188,36 +230,134 @@ export class ProbeLoop {
     ) {
       out.shape = `engine=[${engineNames.join(", ")}] pg=[${out.pgColumns.join(", ")}]`;
     }
+    this.checkRows(out, out.rows, "");
+
+    // --- the parameter contract, adjudicated by binding — rank 3 -----------
+    // The verification directions of docs/argument-nullability.md, run per
+    // statement instead of per fixture: the target parameter NULL, every
+    // other one holding its control value. Attribution needs the control —
+    // these variants only run when the all-valid binding succeeded above, so
+    // a raise here is evidence about the NULL and nothing else. Variant rows
+    // feed the same output oracle as control rows, because output claims are
+    // binding-independent — a WHERE-narrowing defect that only shows under a
+    // NULL binding shows exactly here.
+    if ((probe.params?.length ?? 0) > 0) {
+      if (out.params.length !== probe.params!.length) {
+        // The contract owes a dense $1..$n; the caller bound what it emitted.
+        out.paramViolations.push(
+          `contract lists ${out.params.length} parameters, statement binds ${probe.params!.length}`,
+        );
+        return out;
+      }
+      const bind = (nulls: Set<number>): unknown[] =>
+        probe.params!.map((v, i) => (nulls.has(i + 1) ? null : v));
+      for (const p of out.params) {
+        const r = await this.exec(probe, bind(new Set([p.number])));
+        if (r.error !== null) {
+          if (!p.notNull) {
+            out.paramViolations.push(
+              `$${p.number} claimed nullable, binding NULL raised: ${r.error}`,
+            );
+          } else if (NULL_REJECTION.test(r.error)) {
+            out.paramWitness.notNullWitnessed.push(p.number);
+          } else {
+            out.paramWitness.notNullRaisedOther.push(p.number);
+          }
+        } else {
+          if (p.notNull) out.paramWitness.notNullUnwitnessed.push(p.number);
+          this.checkRows(out, r.rows, `$${p.number}=NULL`);
+        }
+      }
+      // Joint sets, existential like notNull: every member NULL together,
+      // the rest valid. The members' individual runs above are what keep a
+      // witnessed set irreducible.
+      for (const set of out.paramRejectionSets) {
+        const r = await this.exec(probe, bind(new Set(set)));
+        if (r.error !== null) {
+          (NULL_REJECTION.test(r.error)
+            ? out.paramWitness.setsWitnessed
+            : out.paramWitness.setsRaisedOther
+          ).push(set);
+        } else {
+          out.paramWitness.setsUnwitnessed.push(set);
+          this.checkRows(out, r.rows, `$${set.join(",$")}=NULL`);
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * BEGIN, recovering from a session a prior raise left inside an aborted
+   * transaction. Measured with a 54001 stack-depth error: the raise
+   * re-fires on the very ROLLBACK that would clear it, the swallow leaves
+   * the transaction aborted, and the NEXT query's BEGIN then raises 25P02 —
+   * one poisonous query killing a 20,000-query run. A clearing ROLLBACK and
+   * one retry recover it; a second failure surfaces as the query's own
+   * error rather than a crash, because every caller runs this inside its
+   * catch.
+   */
+  private async begin(): Promise<void> {
+    try {
+      await this.pg.exec("BEGIN");
+    } catch {
+      await this.pg.exec("ROLLBACK").catch(() => {});
+      await this.pg.exec("BEGIN");
+    }
+  }
+
+  /** One rolled-back execution with the given bindings. */
+  private async exec(
+    probe: Probe,
+    params: unknown[],
+  ): Promise<{ rows: unknown[][]; error: string | null }> {
+    try {
+      await this.begin();
+      for (const s of probe.seed ?? []) await this.pg.exec(s);
+      const res = await this.pg.query(probe.sql, params, { rowMode: "array" });
+      return { rows: res.rows as unknown[][], error: null };
+    } catch (e) {
+      return { rows: [], error: (e as Error).message };
+    } finally {
+      await this.pg.exec("ROLLBACK").catch(() => {});
+    }
+  }
+
+  /**
+   * The row-level output oracle — rank 1, and rank 4's group contract as
+   * `nullability-soundness.test.ts` states it: the discriminants are NULL
+   * only together (that is the unit's absence), and on the absent arm EVERY
+   * member is NULL. Shared by the control run and the NULL-binding variants;
+   * `label` says which binding produced the row.
+   */
+  private checkRows(out: ProbeResult, rows: unknown[][], label: string): void {
+    const tag = label ? `[${label}] ` : "";
     const width = Math.min(out.engineColumns.length, out.pgColumns.length);
-    for (const row of out.rows) {
+    for (const row of rows) {
       for (let i = 0; i < width; i++) {
         if (out.engineColumns[i]!.notNull && row[i] === null) {
-          const msg = `col ${i} (${out.pgColumns[i]}) claimed notNull, row has NULL`;
+          const msg = `${tag}col ${i} (${out.pgColumns[i]}) claimed notNull, row has NULL`;
           if (!out.violations.includes(msg)) out.violations.push(msg);
         }
       }
     }
-    // The group contract, as `nullability-soundness.test.ts` states it: the
-    // discriminants are NULL only together (that is the unit's absence), and
-    // on the absent arm EVERY member is NULL.
     for (const g of out.groups) {
-      for (const row of out.rows) {
+      for (const row of rows) {
         const nullDiscs = g.discriminants.filter(d => row[d] === null);
         if (nullDiscs.length === 0) continue;
         const note = (m: string): void => {
           if (!out.groupViolations.includes(m)) out.groupViolations.push(m);
         };
         if (nullDiscs.length < g.discriminants.length) {
-          note(`group {${g.columns}}: discriminants disagree (NULL: ${nullDiscs})`);
+          note(`${tag}group {${g.columns}}: discriminants disagree (NULL: ${nullDiscs})`);
           continue;
         }
         const survivors = g.columns.filter(c => row[c] !== null);
         if (survivors.length) {
-          note(`group {${g.columns}}: absent arm but member(s) ${survivors} are non-NULL`);
+          note(`${tag}group {${g.columns}}: absent arm but member(s) ${survivors} are non-NULL`);
         }
       }
     }
-    return out;
   }
 
   async close(): Promise<void> {
@@ -235,19 +375,21 @@ export function report(r: ProbeResult, probe: Probe): string {
     ? "RANK1"
     : r.shape
       ? "RANK2"
-      : r.groupViolations.length
-        ? "RANK4"
-        : r.parity
-        ? "RANK5"
-        : r.error && !r.error.startsWith("UnsupportedNodeError")
-          ? "RANK6"
-          : r.error
-            ? "refused"
-            : r.pgError
-              ? "pg-error"
-              : r.rows.length === 0
-                ? "no-rows"
-                : "ok";
+      : r.paramViolations.length
+        ? "RANK3"
+        : r.groupViolations.length
+          ? "RANK4"
+          : r.parity
+          ? "RANK5"
+          : r.error && !r.error.startsWith("UnsupportedNodeError")
+            ? "RANK6"
+            : r.error
+              ? "refused"
+              : r.pgError
+                ? "pg-error"
+                : r.rows.length === 0
+                  ? "no-rows"
+                  : "ok";
   lines.push(`[${verdict}] ${r.id}${probe.note ? ` — ${probe.note}` : ""}`);
   lines.push(`    sql: ${probe.sql.replace(/\s+/g, " ").trim()}`);
   if (r.error) lines.push(`    engine: ${r.error}`);
@@ -260,7 +402,17 @@ export function report(r: ProbeResult, probe: Probe): string {
       `    rows(${r.rows.length}): ${r.rows.slice(0, 4).map(row => JSON.stringify(row)).join(" ")}`,
     );
   }
+  if (r.params.length) {
+    const w = r.paramWitness;
+    lines.push(
+      `    params: ${r.params.map(p => `$${p.number}${p.notNull ? "!" : "?"}`).join(" ")}` +
+      (r.paramRejectionSets.length ? `  sets: ${JSON.stringify(r.paramRejectionSets)}` : "") +
+      (w.notNullWitnessed.length ? `  witnessed: ${w.notNullWitnessed.map(n => `$${n}`).join(" ")}` : "") +
+      (w.notNullUnwitnessed.length ? `  unwitnessed: ${w.notNullUnwitnessed.map(n => `$${n}`).join(" ")}` : ""),
+    );
+  }
   for (const v of r.violations) lines.push(`    !! ${v}`);
+  for (const v of r.paramViolations) lines.push(`    !! ${v}`);
   for (const v of r.groupViolations) lines.push(`    !! ${v}`);
   if (r.shape) lines.push(`    !! shape: ${r.shape}`);
   if (r.parity) lines.push(`    !! parity: ${r.parity}`);
@@ -272,7 +424,7 @@ export async function runProbes(probes: Probe[], extraDdl: string[] = []): Promi
   let hits = 0;
   for (const p of probes) {
     const r = await loop.run(p);
-    if (r.violations.length || r.shape || r.parity || r.groupViolations.length) hits++;
+    if (r.violations.length || r.shape || r.parity || r.groupViolations.length || r.paramViolations.length) hits++;
     console.log(report(r, p));
     console.log("");
   }
