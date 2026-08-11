@@ -543,6 +543,77 @@ Agreed order of work, each stage giving the next something real to test:
    refilter classifications are recorded as live traps that flip with
    PostgreSQL's agreement if the ON/HAVING extensions land.
 
+## Mechanism E — CHECK-constraint rejection (chartered 2026-08-11, NOT BUILT)
+
+The discovery instrument's standing conviction
+(`docs/catalog-driven-generation.md` §9.7): `INSERT INTO subscription (plan,
+seats, overflow_contact) VALUES ('team', 5, $1)` with NULL bound raises
+`CHECK (seats <= 1 OR overflow_contact IS NOT NULL)` — a CHECK whose
+predicate goes FALSE (not UNKNOWN) on a written NULL is a rejection channel
+mechanisms A–D do not cover. Catalog-visible, unlike the plpgsql-body class,
+so a claim is owed where one is derivable.
+
+**The design, decided after measuring the alternative.** Mirroring operator
+semantics per type is the simulation category, ruled out; connecting the
+entailment kernel's exact-atom trade was measured over the schema's fifteen
+rejection-capable CHECKs and covers eleven — but not one of the ordering-
+shaped ones, which are exactly the two on instrument-reachable tables. The
+mechanism instead asks PostgreSQL, confined to the narrowest possible
+question:
+
+1. **Ground** — substitute the statement's written literals into the parsed
+   CHECK expression (the AST we hold, never `pg_get_constraintdef` text),
+   every substituted value AND the tested NULL cast to its column's declared
+   type — bare tokens would compare as text and answer a different question.
+2. **Evaluate closed subtrees only** — no parameters, no unwritten columns,
+   every function and operator immutable (`provolatile = 'i'`, a catalog
+   lookup) — via `SELECT`, batchable as one statement; each collapses to
+   TRUE/FALSE/NULL.
+3. **Reduce** by three-valued algebra (`FALSE OR x → x`, `FALSE AND x →
+   FALSE`, …) — the skeleton logic the kernel already owns.
+4. **Analyze the residue** with existing machinery: an `$n IS NOT NULL`
+   residue rejects exactly on NULL (`notNull`, execution-time — never
+   licenses narrowing); value flow through strict operators is
+   `forcedNullParams`.
+
+The boundaries FALL OUT instead of being ruled: an unwritten column
+surviving reduction → no claim (no blanket coverage rule — `FALSE AND col >
+0` still reduces); a parameter sibling surviving (`$2 <= 1 OR $1 IS NOT
+NULL`) → no claim, correctly, because binding $2 NULL makes its atom
+UNKNOWN, which CHECK passes — so the shape also produces no false findings
+in the instrument's variants. A `NULL` evaluation result means the CHECK
+passes (measured, pinned in check-null-passes); claim only on FALSE.
+
+**Architecture (proposed shape, the open implementation decision).** The
+walk is synchronous and pure; evaluation needs a database. Tier 0's pattern
+transfers: two-phase — the walk emits the RESIDUE as a fact derived from
+AST + catalog alone, and the caller, who holds the database (the consumer
+PREPAREs already; every harness has PGlite), evaluates and discharges it
+into the contract. The walk stays testable in isolation.
+
+**Pre-work, measured before any code**, param-mechanism style:
+
+- Pin the substitution semantics against PGlite: the cast requirement, the
+  NULL-passes rule, a stable-vs-immutable body, multi-row VALUES (per row,
+  existential), and `bp` as the correctness control — its char(4) blank
+  padding makes `'a' = 'a '` TRUE, so evaluation must claim NOTHING where
+  token reasoning would wrongly claim.
+- The input channel gates on ENFORCEMENT, not validation: NOT VALID still
+  gates new writes, NOT ENFORCED does not — and the snapshot was measured
+  treating `convalidated=false` as covering both (schema comment at the
+  `guest` negatives). Whether the catalog carries the distinction is the
+  first thing to check; if not, the adapter grows it.
+- UPDATE channels read OLD values for unwritten columns and INSERT reads
+  defaults — both stay dynamic in the residue and drop claims; a
+  literal-default substitution is a recorded later, not part of the first
+  build.
+
+**Hazard, recorded:** claim production and adjudication both become
+PostgreSQL — common-mode in principle, though expression evaluation and
+constraint enforcement are different code paths, and the pinned fixture
+corpus is the standing hedge. The output-side kernel is untouched by all of
+this.
+
 ## Where things are
 
 | | |

@@ -1121,20 +1121,21 @@ the parameter is typed by its own cast, not the target column, so nothing
 licenses narrowing. `param-multiassign-target.sql` pins it, mutation-tested
 to fail alone against the unfixed engine.
 
-**Conviction 2 — OPEN, and it is a design question.** `INSERT INTO
-subscription (plan, seats, overflow_contact) VALUES ('team', 5, $1)` with
-NULL bound raises `subscription_check1` — `CHECK (seats <= 1 OR
+**Conviction 2 — DECIDED 2026-08-11, mechanism chartered, NOT BUILT.**
+`INSERT INTO subscription (plan, seats, overflow_contact) VALUES ('team', 5,
+$1)` with NULL bound raises `subscription_check1` — `CHECK (seats <= 1 OR
 overflow_contact IS NOT NULL)` (`fixtures/schema.sql:855`), with `seats = 5`
 written beside it as a literal. A CHECK whose predicate goes FALSE (not
 UNKNOWN) on a written NULL is a rejection channel mechanisms A–D do not
-cover. It is CATALOG-VISIBLE — unlike the plpgsql-body class the contract
-deliberately excludes — and the engine owns CHECK-entailment machinery on
-the output side, so a mechanism could be built; it is also data-dependent
-through the other written values, so the claim would need the entailment
-kernel, not a column flag. Undecided, deliberately: model the channel, or
-record it as a deliberate boundary the way user-function bodies are. Until
-decided, the instrument reports it as the one standing finding (4 instances
-per 5,000, one fingerprint).
+cover. The decision: **mechanism E** — ground the parsed CHECK body with the
+statement's written literals, evaluate only fully-closed subtrees through
+PostgreSQL, reduce by three-valued algebra, analyze the residue with the
+existing null-test and strict-closure machinery. Chartered with its
+soundness rules, boundaries and measured pre-work in
+`docs/argument-nullability.md` ("Mechanism E"). The standing finding closes
+when it lands — the engine claims, the instrument witnesses — and stays
+reported honestly until then (~9 instances per 20,000, one fingerprint,
+both seeds).
 
 **The orphaned-allocation family, paid for three times before the tier
 closed it.** An allocated parameter whose node is dropped from the tree
