@@ -4,7 +4,7 @@ import { join, basename } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { bindParams, parseFixtureDirectives, type ParamClaim } from "./fixture-args.js";
+import { bindParams, parseFixtureDirectives, NULL_REJECTION, DEDUCTION_FAILURE, type ParamClaim } from "./fixture-args.js";
 import { hasStatements, loadDataStates, type DataState } from "./fixture-data/states.js";
 
 // ---------------------------------------------------------------------------
@@ -63,20 +63,10 @@ import { hasStatements, loadDataStates, type DataState } from "./fixture-data/st
 const FIXTURES_DIR = join(__dirname, "fixtures");
 const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
 
-/** The rejection messages: the two pinned in param-mechanism.test.ts, the
- *  window frame bound's own (mechanism B's fourth sibling — measured for
- *  ROWS/RANGE/GROUPS, both directions), and mechanism D's family.
- *
- *  Mechanism D has no single message because each builtin raises its own, and
- *  they are enumerated rather than matched loosely: a generic /cannot be null/
- *  would swallow unrelated failures and turn this oracle into a rubber stamp.
- *  `builtin-null-rejection.test.ts` asserts every message it derives is
- *  matched here, so the list cannot go stale behind a PostgreSQL upgrade. */
-export const NULL_REJECTION =
-  /does not allow null values|violates not-null constraint|frame (starting|ending) offset must not be null|dimension array or low bound array cannot be null|dimension values cannot be null|initial position must not be null|range constructor flags argument must not be null|null_value_treatment must be|path element at position \d+ is null/;
-/** Parse-analysis failures that mean "protocol binding cannot type this". */
-const DEDUCTION_FAILURE =
-  /could not determine data type|inconsistent types deduced|indeterminate datatype/;
+// NULL_REJECTION and DEDUCTION_FAILURE live in fixture-args.ts — moved so the
+// discovery instrument's binding oracle can import them without executing a
+// test file. Their documentation and the builtin-null-rejection tie moved with
+// them.
 
 interface ClaimEvidence {
   claim: ParamClaim;

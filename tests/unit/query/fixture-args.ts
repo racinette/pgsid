@@ -19,6 +19,25 @@
 // unknown type a fixture author means and resolves the same way.
 // ---------------------------------------------------------------------------
 
+/** The null-rejection messages: the two pinned in param-mechanism.test.ts, the
+ *  window frame bound's own (mechanism B's fourth sibling — measured for
+ *  ROWS/RANGE/GROUPS, both directions), and mechanism D's family.
+ *
+ *  Mechanism D has no single message because each builtin raises its own, and
+ *  they are enumerated rather than matched loosely: a generic /cannot be null/
+ *  would swallow unrelated failures and turn the oracles reading this into
+ *  rubber stamps. `builtin-null-rejection.test.ts` asserts every message it
+ *  derives is matched here, so the list cannot go stale behind a PostgreSQL
+ *  upgrade. Lives here rather than in param-soundness.test.ts (its original
+ *  home) so a non-test consumer — the discovery instrument's binding oracle —
+ *  can import it without executing a test file. */
+export const NULL_REJECTION =
+  /does not allow null values|violates not-null constraint|frame (starting|ending) offset must not be null|dimension array or low bound array cannot be null|dimension values cannot be null|initial position must not be null|range constructor flags argument must not be null|null_value_treatment must be|path element at position \d+ is null/;
+
+/** Parse-analysis failures that mean "protocol binding cannot type this". */
+export const DEDUCTION_FAILURE =
+  /could not determine data type|inconsistent types deduced|indeterminate datatype/;
+
 export interface FixtureBinding {
   /** Shown in failure messages, e.g. `args[1]`. */
   label: string;

@@ -4,7 +4,7 @@ import {
   BUILTIN_NULL_REJECTING_ARGS,
   BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS,
 } from "../../../src/query/param-nullability.js";
-import { NULL_REJECTION } from "./param-soundness.test.js";
+import { NULL_REJECTION } from "./fixture-args.js";
 
 // ---------------------------------------------------------------------------
 // Mechanism D's table, DERIVED by execution rather than checked.
@@ -246,9 +246,9 @@ describe("builtin NULL-rejecting argument positions", () => {
   });
 
   it("every derived rejection message is one the soundness oracle recognises", () => {
-    // The tie that keeps param-soundness.test.ts's NULL_REJECTION list from
-    // going stale. A claim mechanism D makes is only WITNESSED if that suite
-    // recognises the raise as a null-rejection; an unmatched message would
+    // The tie that keeps the shared NULL_REJECTION list (fixture-args.ts) from
+    // going stale. A claim mechanism D makes is only WITNESSED if the binding
+    // oracles recognise the raise as a null-rejection; an unmatched message would
     // silently turn a notNull claim into an unwitnessed one, which is a
     // different failure and a confusing one. So the messages travel with the
     // table they came from.
