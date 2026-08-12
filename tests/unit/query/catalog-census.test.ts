@@ -9,7 +9,11 @@ import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
 import { inferNullability } from "../../../src/query/nullability-walk.js";
 import { parseSql } from "../../../src/ast.js";
 import { spyOnCatalog, catalogMembers } from "./catalog-spy.js";
-import { DEP_CATALOG_ONLY, OVERLOAD_CATALOG_ONLY } from "../../../src/query/types.js";
+import {
+  DEP_CATALOG_ONLY,
+  EVALUATION_CATALOG_ONLY,
+  OVERLOAD_CATALOG_ONLY,
+} from "../../../src/query/types.js";
 import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 
 // ---------------------------------------------------------------------------
@@ -307,8 +311,10 @@ describe("catalog-feature census", () => {
     // list of excuses.
     const depOnly = new Set<string>(DEP_CATALOG_ONLY);
     const overloadOnly = new Set<string>(OVERLOAD_CATALOG_ONLY);
+    const evaluationOnly = new Set<string>(EVALUATION_CATALOG_ONLY);
     const cold = catalogMemberNames
-      .filter(m => !touched.has(m) && !depOnly.has(m) && !overloadOnly.has(m))
+      .filter(m => !touched.has(m) && !depOnly.has(m) && !overloadOnly.has(m)
+        && !evaluationOnly.has(m))
       .sort();
     expect(
       cold,
@@ -317,10 +323,12 @@ describe("catalog-feature census", () => {
         `at all — move it off NullabilityCatalog:\n  ${cold.join("\n  ")}`,
     ).toEqual([]);
 
-    const askedAnyway = [...depOnly, ...overloadOnly].filter(m => touched.has(m)).sort();
+    const askedAnyway = [...depOnly, ...overloadOnly, ...evaluationOnly]
+      .filter(m => touched.has(m))
+      .sort();
     expect(
       askedAnyway,
-      `Declared DepCatalog- or OverloadCatalog-only, but the walk asked them — ` +
+      `Declared DepCatalog-, OverloadCatalog- or SubtreeEvaluationCatalog-only, but the walk asked them — ` +
         `the member belongs on NullabilityCatalog now, with its exemption ` +
         `removed and a fixture reaching it:\n  ` +
         askedAnyway.join("\n  "),

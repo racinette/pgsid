@@ -7,6 +7,7 @@ import type {
   FunctionInfo,
   NullabilityCatalog,
   OverloadCatalog,
+  SubtreeEvaluationCatalog,
   OutputNullability,
   ResolvedTable,
   ResolvedFunction,
@@ -47,7 +48,7 @@ import {
 export async function buildNullabilityCatalog(
   snapshot: CatalogSnapshot,
   options?: { searchPath?: readonly string[] },
-): Promise<NullabilityCatalog & DepCatalog & OverloadCatalog> {
+): Promise<NullabilityCatalog & DepCatalog & OverloadCatalog & SubtreeEvaluationCatalog> {
   // The search path an UNQUALIFIED name resolves under — the contract the
   // interface has documented all along, now actually true (adversarial-2
   // finding 5: the adapter hardcoded "public", so under a real search path
@@ -826,6 +827,40 @@ export async function buildNullabilityCatalog(
 
   const builtinStrict = new Set(snapshot.builtinStrictFunctions ?? []);
   const isStrictBuiltin = (name: string): boolean => builtinStrict.has(name);
+
+  // -------------------------------------------------------------------------
+  // SubtreeEvaluationCatalog — the closure gate's three questions
+  // (docs/subtree-evaluation.md), each a capture lookup minus a user-name
+  // collision check. The subtraction is deliberately schema-blind: the
+  // evaluator never resolves names, so a user object of the same name in
+  // ANY schema opens the subtree, whatever the session's search path.
+  // -------------------------------------------------------------------------
+
+  const evalUserFunctionNames = new Set(snapshot.functions.map(f => f.name));
+  const evalUserOperatorNames = new Set(snapshot.operators.map(o => o.name));
+  // Every user TYPE name a cast could resolve to instead of the pg_catalog
+  // type: domains, enums, composites — and relations, whose rowtypes are
+  // types with the relation's name.
+  const evalUserTypeNames = new Set([
+    ...snapshot.domains.map(d => d.name),
+    ...snapshot.enums.map(e => e.name),
+    ...snapshot.compositeTypes.map(c => c.name),
+    ...snapshot.tables.map(t => t.name),
+    ...snapshot.views.map(v => v.name),
+    ...snapshot.materializedViews.map(v => v.name),
+    ...snapshot.sequences.map(s => s.name),
+  ]);
+  const immutableFnArities = snapshot.builtinImmutableFunctionArities ?? {};
+  const immutableOperators = new Set(snapshot.builtinImmutableOperators ?? []);
+  const immutableIoTypes = new Set(snapshot.builtinImmutableIoTypes ?? []);
+
+  const isImmutableFunction = (name: string, argCount: number): boolean =>
+    !evalUserFunctionNames.has(name) &&
+    (immutableFnArities[name] ?? []).includes(argCount);
+  const isImmutableOperator = (name: string): boolean =>
+    !evalUserOperatorNames.has(name) && immutableOperators.has(name);
+  const isImmutableIoType = (typeName: string): boolean =>
+    !evalUserTypeNames.has(typeName) && immutableIoTypes.has(typeName);
 
   // -------------------------------------------------------------------------
   // Coercibility — the elimination rule of docs/type-aware-overloads.md,
@@ -1654,6 +1689,9 @@ export async function buildNullabilityCatalog(
     resolveForeignKey,
     resolveForeignKeyTree,
     isStrictBuiltin,
+    isImmutableFunction,
+    isImmutableOperator,
+    isImmutableIoType,
     isBuiltinFunction,
     isPolymorphicBuiltin,
     resolvePolymorphicArraySignatures,
