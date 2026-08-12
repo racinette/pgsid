@@ -50,7 +50,7 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   },
   A_Expr: {
     category: "closed",
-    why: "operator kinds that resolve through the operator name the AST carries (OP/ANY/ALL/DISTINCT/NULLIF/IN/LIKE/ILIKE), gated by the immutable-operator capture; BETWEEN and SIMILAR carry no operator name and stay open",
+    why: "operator kinds that resolve through the operator name the AST carries (OP/ANY/ALL/DISTINCT/NULLIF/IN/LIKE/ILIKE), gated by the survivor consensus over the per-signature volatility capture; BETWEEN desugars through its >=/<= bound comparisons; SIMILAR resolves through a helper function and stays open",
   },
   BoolExpr: { category: "closed", why: "AND/OR/NOT over closed operands" },
   NullTest: { category: "closed", why: "IS [NOT] NULL of a closed operand" },
@@ -65,7 +65,7 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   A_ArrayExpr: { category: "closed", why: "closed elements, unification-guarded" },
   FuncCall: {
     category: "closed",
-    why: "plain scalar call admitted by the immutable-function capture at the call's arity; aggregate, window, VARIADIC-spread and ordered shapes are open",
+    why: "plain scalar call admitted by the survivor consensus at the call's arity; aggregate, window, VARIADIC-spread and ordered shapes are open",
   },
   CaseWhen: { category: "structural", why: "one CASE branch, consumed by CaseExpr" },
   List: { category: "structural", why: "IN-list wrapper inside A_Expr" },
@@ -319,15 +319,28 @@ describe("closure gates", () => {
     expect(await open("SELECT length(VARIADIC 'x') AS g").catch(() => true)).toBe(true);
   });
 
-  it("BETWEEN carries no operator name and stays open", async () => {
-    expect(await open("SELECT 5 BETWEEN 1 AND 9 AS g")).toBe(true);
+  it("one known operand types the unknown beside it", async () => {
+    // The landing rule's exact-match face, pinned in
+    // param-mechanism.test.ts: '3' assumes integer, int4pl is exact.
+    expect(await answers("SELECT 5 + '3' AS g")).toEqual([
+      { isNull: false, value: 8, type: "integer" },
+    ]);
   });
 
-  it("`||` is open: it is genuinely stable over reachable operands", async () => {
-    // textanycat(text, anynonarray) renders its argument with the
-    // argument type's OUTPUT function — the capture excludes the name and
-    // even 'a' || 'b' pays for it. Recorded precision, not a defect.
-    expect(await open("SELECT 'a' || 'b' AS g")).toBe(true);
+  it("composition crosses no I/O; collection does — the root gate", async () => {
+    // make_date is immutable over integers, so it CLOSES — but its date
+    // result renders through date_out (DateStyle), so it never answers
+    // alone. Under date_part, the lone row exact at the known date
+    // position is PostgreSQL's own selection ("a declared parameter types
+    // the literal"), and the double precision answer is immutable-I/O all
+    // the way out — no settings assumption anywhere.
+    expect(await open("SELECT make_date(2020, 1, 1) AS g")).toBe(true);
+    expect(await answers("SELECT date_part('day', make_date(2020, 1, 1)) AS g")).toEqual([
+      { isNull: false, value: 1, type: "double precision" },
+    ]);
+    expect(await answers("SELECT make_date(2020, 1, 1) = make_date(2020, 1, 1) AS g")).toEqual([
+      { isNull: false, value: true, type: "boolean" },
+    ]);
   });
 
   it("names of any kind are open — scope-blindness", async () => {
@@ -430,50 +443,50 @@ describe("evaluation protocol", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The acceptance frame for TYPED OPERAND TRACKING (chartered 2026-08-12,
-// docs/subtree-evaluation.md). Every `it.fails` target asserts what the
-// evaluator must answer once the survivor-level gate lands — a scope-free
-// type pass over the closed grammar, `unknown` first-class under the landing
+// The acceptance frame for TYPED OPERAND TRACKING (chartered and LANDED
+// 2026-08-12, docs/subtree-evaluation.md). The four targets below were
+// written as `it.fails` before the code existed and flipped to plain `it`
+// in the commit that landed the survivor-level gate — a scope-free type
+// pass over the closed grammar, `unknown` first-class under the landing
 // rules pinned in param-mechanism.test.ts, per-signature volatility, and
-// candidate elimination that may over-keep but never over-drop. Each target
-// passes today exactly because the name-level gate refuses it; when the rung
-// lands, its cases fail under `it.fails` and flip to plain `it` in the same
-// commit. Every oracle value below was adjudicated against PostgreSQL
-// (2026-08-12) before being written down.
+// candidate elimination that may over-keep but never over-drop. Every
+// oracle value was adjudicated against PostgreSQL (2026-08-12) before
+// being written down.
 //
 // The guards are the other direction: shapes NO gate refinement may ever
 // fold, because the session-dependence is in the very signature the
-// expression resolves to. The existing syntactic-guard pins above ("a bare
-// unknown literal beside a constructor is open") are this rung's transition
-// guards too: they must stay green when the pattern-match is replaced by
-// the general landing-type rule.
+// expression resolves to. The syntactic-guard pins above ("a bare unknown
+// literal beside a constructor is open") are this rung's transition
+// guards too: they stayed green while the pattern-match was replaced by
+// the general landing-type rule, and they stay.
 // ---------------------------------------------------------------------------
 
-describe("RED: typed operand tracking", () => {
-  it.fails("all-unknown || lands on text and folds through textcat", async () => {
+describe("typed operand tracking: the acceptance targets", () => {
+  it("all-unknown || lands on text and folds through textcat", async () => {
     expect(await answers("SELECT 'a' || 'b' AS g")).toEqual([
       { isNull: false, value: "ab", type: "text" },
     ]);
   });
 
-  it.fails("a known text operand types the unknown beside it", async () => {
-    // Today only the inner call folds (answers 'A'); the target is the
-    // WHOLE concatenation: upper's singleton return type meets the
-    // one-known landing rule, and text || text is textcat.
+  it("a known text operand types the unknown beside it", async () => {
+    // Under the name-level gate only the inner call folded (answering
+    // 'A'); the target is the WHOLE concatenation: upper's singleton
+    // return type meets the one-known landing rule, and text || text is
+    // textcat.
     expect(await answers("SELECT upper('a') || 'b' AS g")).toEqual([
       { isNull: false, value: "Ab", type: "text" },
     ]);
   });
 
-  it.fails("composition: a chained || folds whole", async () => {
+  it("composition: a chained || folds whole", async () => {
     expect(await answers("SELECT 'a' || 'b' || 'c' AS g")).toEqual([
       { isNull: false, value: "abc", type: "text" },
     ]);
   });
 
-  it.fails("BETWEEN folds through its bound comparisons", async () => {
+  it("BETWEEN folds through its bound comparisons", async () => {
     // The AST carries the word BETWEEN instead of an operator name; the
-    // desugar gates on <= and >=, which both hold verdicts already.
+    // desugar gates on <= and >=, which hold per-signature verdicts.
     expect(await answers("SELECT 5 BETWEEN 1 AND 9 AS g")).toEqual([
       { isNull: false, value: true, type: "boolean" },
     ]);
