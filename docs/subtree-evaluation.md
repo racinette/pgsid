@@ -1,4 +1,4 @@
-# Subtree evaluation (chartered 2026-08-11; EVALUATOR CORE BUILT 2026-08-11, TYPED OPERAND TRACKING and STATEMENT MAP BUILT 2026-08-12, grounder not)
+# Subtree evaluation (chartered 2026-08-11; EVALUATOR CORE BUILT 2026-08-11; TYPED OPERAND TRACKING, STATEMENT MAP and CHECK GROUNDER BUILT 2026-08-12; entailment stays the recorded later)
 
 Evaluate closed subtrees of expressions through PostgreSQL and hand the
 answers to the engine as data. One evaluator, two consumers now, one
@@ -364,6 +364,11 @@ Claims land in the existing vocabulary — `params[].notNull`,
 `rejectionSets` — and NEVER in `bindRejected`: evaluation claims are
 execution-time and must not license output narrowing.
 
+BUILT 2026-08-12: `src/query/check-grounder.ts`, its red block flipped
+with every guard green (the bp = direction, NOT ENFORCED, the volatile
+body among them). The as-built record lives with the mechanism's design
+— `docs/argument-nullability.md`, "Mechanism E", "As built".
+
 ## The recorded later — output-side CHECK entailment
 
 Same core, different soundness argument: a VALIDATED CHECK is notFALSE
@@ -466,4 +471,5 @@ seeds — verify with 20,000-query runs at two seeds when it flips).
 2. Statement map consumer — flip its red block. BUILT 2026-08-12 — see
    the consumer's "As built" above.
 3. CHECK grounder — flip its block; the standing finding goes to zero.
+   BUILT 2026-08-12 — see consumer 2 above.
 4. Entailment later, under its own soundness argument, when chartered.

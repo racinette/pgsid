@@ -1121,7 +1121,7 @@ the parameter is typed by its own cast, not the target column, so nothing
 licenses narrowing. `param-multiassign-target.sql` pins it, mutation-tested
 to fail alone against the unfixed engine.
 
-**Conviction 2 — DECIDED 2026-08-11, mechanism chartered, NOT BUILT.**
+**Conviction 2 — CLOSED 2026-08-12 (mechanism E built).**
 `INSERT INTO subscription (plan, seats, overflow_contact) VALUES ('team', 5,
 $1)` with NULL bound raises `subscription_check1` — `CHECK (seats <= 1 OR
 overflow_contact IS NOT NULL)` (`fixtures/schema.sql:855`), with `seats = 5`
@@ -1132,10 +1132,28 @@ statement's written literals, evaluate only fully-closed subtrees through
 PostgreSQL, reduce by three-valued algebra, analyze the residue with the
 existing null-test and strict-closure machinery. Chartered with its
 soundness rules, boundaries and measured pre-work in
-`docs/argument-nullability.md` ("Mechanism E"). The standing finding closes
-when it lands — the engine claims, the instrument witnesses — and stays
-reported honestly until then (~9 instances per 20,000, one fingerprint,
-both seeds).
+`docs/argument-nullability.md` ("Mechanism E"). BUILT 2026-08-12; closure
+verified with 20,000-query runs at seeds 20260808 and 7 — the
+literal-grounded fingerprint at 0 both.
+
+**Conviction 3 — CLOSED same day (2026-08-12).** The verification run
+itself convicted the sibling constraint: `('team', $1, 'beta-6')` raises
+`subscription_check`, whose body is a CASE — the grounded guard
+(`'team' = 'team'`) evaluates TRUE and selects the arm holding the tested
+NULL. CASE joined the grounder's reduction skeleton (evaluated guards
+select or drop arms; a missing ELSE annihilates), pinned in the red
+suite's grounder block. 6 instances at each seed before, 0 after.
+
+**The standing finding, current form (2026-08-12): the PARAM-SIBLING
+shape.** `($1, $2, 'x')` through the CASE guard and `('team', $1, $2)`
+through `$1 <= 1 OR $2 IS NOT NULL` — 2-3 instances per 20,000 at each
+seed. The rank-3 variant binds one parameter NULL while the sibling keeps
+its CONTROL value, and a control that fails its own atom witnesses the
+raise; deriving the claim needs satisfiability reasoning over the
+sibling's value space, which mechanism E's soundness rules exclude (the
+charter's contrary sentence is corrected in the Mechanism E section). The
+decision — charter that reasoning, or re-scope the variant adjudication —
+is OPEN in the register; the finding stays reported until it is made.
 
 **The orphaned-allocation family, paid for three times before the tier
 closed it.** An allocated parameter whose node is dropped from the tree
