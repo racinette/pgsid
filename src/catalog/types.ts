@@ -758,6 +758,56 @@ export interface CatalogSnapshot {
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
   builtinTypeNameAliases: Record<string, string>;
+  /**
+   * pg_catalog base types whose typinput AND typoutput are both IMMUTABLE,
+   * by `typname` (the spelling the grammar canonicalises a cast to). The
+   * subtree evaluator's closure gates all rest on this set: a value of any
+   * other type is session-state-dependent somewhere in its I/O — date_in
+   * reads DateStyle, timestamptz_in reads TimeZone, array_in is stable
+   * because its elements might (all pinned in param-mechanism.test.ts) —
+   * so nothing outside the set may be a closed cast's target, a closed
+   * call's argument or return, or a closed operator's operand. Array types
+   * are excluded wholesale (array_in), as are domains and enums
+   * (domain_in/enum_in are stable, and they are user types anyway).
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinImmutableIoTypes: string[];
+  /**
+   * `name → argument counts` for pg_catalog functions a closed subtree may
+   * invoke: at a listed arity, EVERY row the call could resolve to is a
+   * plain scalar function (prokind 'f', no proretset), IMMUTABLE, with
+   * immutable-I/O return and parameter types — measured 2026-08-11, the
+   * arity axis included because `length` is immutable at one argument and
+   * STABLE at two (`length(bytea, name)`).
+   *
+   * Rows are exempted from the verdict only when unreachable from a closed
+   * tree: a parameter whose type is a concrete non-array type outside the
+   * immutable-I/O set (no closed subtree produces such a value, and an
+   * unknown literal resolves to a string-category candidate or fails —
+   * PostgreSQL's resolution never silently crosses type categories), or a
+   * range-family polymorphic (`anyrange` and friends: no range type has
+   * immutable I/O — range_in is stable — and unknown cannot instantiate a
+   * polymorphic range, measured "could not determine polymorphic type").
+   * `isfinite`/`date_part` fall out via the first rule, `+`/`-`/`lower`
+   * survive the operator/function captures via the second.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinImmutableFunctionArities: Record<string, number[]>;
+  /**
+   * pg_catalog operator names a closed subtree may invoke: every REACHABLE
+   * row of the name has an immutable backing function and an immutable-I/O
+   * result type, under the same two unreachability exemptions as
+   * `builtinImmutableFunctionArities` (which is what lets `=` keep its
+   * verdict while carrying the STABLE `date = timestamptz` row: no closed
+   * subtree can present a date). Names failing on a reachable row stay out
+   * whole — `||` really is stable over reachable operands (`textanycat`),
+   * and there is no arity axis to save it by.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinImmutableOperators: string[];
 }
 
 // ---------------------------------------------------------------------------

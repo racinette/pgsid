@@ -198,6 +198,55 @@ export const OVERLOAD_CATALOG_ONLY = [
 ] as const satisfies readonly (keyof OverloadCatalog)[];
 
 /**
+ * The catalog face of the subtree evaluator (docs/subtree-evaluation.md) —
+ * the three questions its closure gate asks, each answered from the
+ * captures documented on `CatalogSnapshot.builtinImmutableIoTypes` and its
+ * two siblings. A SEPARATE face like `OverloadCatalog`, and for the same
+ * reason: the walk never asks these, so they must not sit where the
+ * catalog census demands walk-fixture coverage of every member.
+ *
+ * Each answer is already scope-blind-safe: a name ANY user schema also
+ * carries answers false, because the evaluator cannot know which object an
+ * unqualified reference resolves to and the user's could be volatile — or
+ * a shadowing domain whose input function is `domain_in` (STABLE).
+ */
+export interface SubtreeEvaluationCatalog {
+  /**
+   * May a call of `name` with `argCount` arguments sit inside a closed
+   * subtree? True when every pg_catalog row the call could resolve to at
+   * that arity is an immutable scalar function over immutable-I/O types,
+   * and no user function shares the name.
+   */
+  isImmutableFunction(name: string, argCount: number): boolean;
+  /**
+   * The operator-name reading of the same question, arity-blind because
+   * `pg_operator` gave it no arity axis to key on (see the capture doc for
+   * what that costs: `||` stays out whole).
+   */
+  isImmutableOperator(name: string): boolean;
+  /**
+   * May `typeName` (the grammar's canonical spelling — `int4`, `bpchar`)
+   * be a closed literal cast's target? True when the pg_catalog type's
+   * input and output functions are both immutable and no user type — of
+   * any kind, a relation rowtype included — shares the name.
+   */
+  isImmutableIoType(typeName: string): boolean;
+}
+
+/**
+ * Members of the adapter's product that belong to `SubtreeEvaluationCatalog`
+ * ALONE — same contract as `DEP_CATALOG_ONLY` and `OVERLOAD_CATALOG_ONLY`:
+ * the walk cannot call them, the censuses must not expect query coverage of
+ * them (the subtree evaluator's own census covers them instead), and
+ * `satisfies` keeps every name a real key.
+ */
+export const EVALUATION_CATALOG_ONLY = [
+  "isImmutableFunction",
+  "isImmutableOperator",
+  "isImmutableIoType",
+] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[];
+
+/**
  * The richer catalog the nullability walk needs, and ONLY what it needs: name
  * resolution (`resolveTable`, shared with `DepCatalog`) plus intrinsic column
  * nullability, function metadata for FuncCall dispatch, and domain metadata
