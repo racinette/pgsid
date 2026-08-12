@@ -2,6 +2,12 @@ import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
 import { checkConstraintsProveNotNull } from "./check-entailment.js";
+import {
+  evaluateClosedSubtrees,
+  type Evaluate,
+  type EvalResult,
+  type SubtreeEvaluationCatalog,
+} from "./subtree-evaluator.js";
 import { TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES, STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
@@ -38,12 +44,45 @@ export type { OutputPresenceGroup } from "./types.js";
 
 const MAX_DEPTH = 200;
 
-export function inferNullability(
+/**
+ * The walk's optional inputs. `paramTypes` is tier 0 (see the engine field's
+ * doc); `evaluate` switches on the STATEMENT MAP consumer
+ * (docs/subtree-evaluation.md, consumer 1): the statement's maximal closed
+ * subtrees run through PostgreSQL before the walk starts, and the walk
+ * consults the answers as data — the engine itself stays synchronous. No
+ * `evaluate` → no evaluation claims, everything else identical. Passing it
+ * requires a catalog built by the adapter, which carries the
+ * `SubtreeEvaluationCatalog` face beside the walk's own.
+ */
+export interface WalkOptions {
+  paramTypes?: readonly string[];
+  evaluate?: Evaluate;
+}
+
+/** The pre-walk evaluation round: one async step, answers in, sync walk. */
+async function statementEvaluation(
   stmt: Node,
   catalog: NullabilityCatalog,
-  options?: { paramTypes?: readonly string[] },
-): OutputNullability[] {
-  const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes);
+  evaluate: Evaluate | undefined,
+): Promise<Map<Node, EvalResult> | undefined> {
+  if (!evaluate) return undefined;
+  return evaluateClosedSubtrees(
+    stmt,
+    // Every adapter product carries the face (WalkOptions documents the
+    // requirement); a catalog without it belongs to a caller that never
+    // passes `evaluate`.
+    catalog as NullabilityCatalog & SubtreeEvaluationCatalog,
+    evaluate,
+  );
+}
+
+export async function inferNullability(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+  options?: WalkOptions,
+): Promise<OutputNullability[]> {
+  const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
+  const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes, evaluation);
   return engine.run(stmt);
 }
 
@@ -90,13 +129,14 @@ export interface QueryContract {
  * side alone is total, and available separately via
  * `collectParamNullability` for callers that handle refused statements.
  */
-export function inferQueryContract(
+export async function inferQueryContract(
   stmt: Node,
   catalog: NullabilityCatalog,
-  options?: { paramTypes?: readonly string[] },
-): QueryContract {
+  options?: WalkOptions,
+): Promise<QueryContract> {
   const facts = collectParamFacts(stmt, catalog);
-  const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes);
+  const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
+  const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes, evaluation);
   return {
     outputs: engine.run(stmt),
     params: facts.params,
@@ -128,13 +168,14 @@ export function inferPresenceGroups(
  * decision was reached — every fact considered, the decisive reason, and
  * sub-decisions for child expressions.
  */
-export function inferNullabilityTraced(
+export async function inferNullabilityTraced(
   stmt: Node,
   catalog: NullabilityCatalog,
   onUnhandled?: UnhandledNodeObserver,
-  options?: { paramTypes?: readonly string[] },
-): OutputNullabilityTraced[] {
-  const engine = new NullabilityEngine(catalog, true, onUnhandled, options?.paramTypes);
+  options?: WalkOptions,
+): Promise<OutputNullabilityTraced[]> {
+  const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
+  const engine = new NullabilityEngine(catalog, true, onUnhandled, options?.paramTypes, evaluation);
   return engine.runTraced(stmt);
 }
 
@@ -731,16 +772,31 @@ class NullabilityEngine {
    */
   private readonly paramTypes: readonly string[] | undefined;
 
+  /**
+   * The statement map (docs/subtree-evaluation.md, consumer 1): each maximal
+   * closed subtree's PostgreSQL answer, keyed by node identity over the
+   * statement's own AST — computed by the async entry point, consumed here
+   * as data. The consumption rule allows exactly two readings: `isNull`
+   * (a non-null answer claims the subtree notNull) and boolean truth (a
+   * guard's answer prunes CASE arms). Values never cross into typed
+   * contexts — that path belongs to the CHECK grounder's declared-type
+   * casts. Undefined when no `evaluate` was passed: no evaluation claims,
+   * everything else identical.
+   */
+  private readonly evaluation: ReadonlyMap<Node, EvalResult> | undefined;
+
   constructor(
     catalog: NullabilityCatalog,
     tracing = false,
     onUnhandled?: UnhandledNodeObserver,
     paramTypes?: readonly string[],
+    evaluation?: ReadonlyMap<Node, EvalResult>,
   ) {
     this.catalog = catalog;
     this.tracing = tracing;
     this.onUnhandled = onUnhandled;
     this.paramTypes = paramTypes;
+    this.evaluation = evaluation;
   }
 
   /** First key of a node object — its type tag. */
@@ -5133,6 +5189,23 @@ class NullabilityEngine {
       : this.catalog.resolveGenerationExprTree(t.schema, t.name, col);
   }
 
+  /**
+   * The statement map's boolean-truth reading of a searched-CASE guard:
+   * `true` when the guard evaluated TRUE, `false` when it can never fire
+   * the arm (evaluated FALSE or NULL — CASE treats both alike), undefined
+   * when the map has no answer or the answer is not a plain boolean. The
+   * only map reading besides `isNull`, per the consumption rule.
+   */
+  private evaluatedGuardTruth(expr: Node | undefined): boolean | undefined {
+    if (!expr) return undefined;
+    const answered = this.evaluation?.get(expr);
+    if (answered === undefined) return undefined;
+    if (answered.isNull) return false;
+    if (answered.value === true) return true;
+    if (answered.value === false) return false;
+    return undefined;
+  }
+
   // -------------------------------------------------------------------------
   // The core expression walker (leaf-first recursive)
   // -------------------------------------------------------------------------
@@ -5149,6 +5222,23 @@ class NullabilityEngine {
   ): boolean {
     this.checkDepth(depth);
     const node = expr as Record<string, unknown>;
+
+    // --- The statement map: a closed subtree's answer decides it whole ---
+    // Closure means no row, guard, parameter or session state can move the
+    // value, so the map hit is exact wherever the walk meets the node. Only
+    // `isNull` is read: non-null claims notNull, an evaluated NULL keeps
+    // today's word (nullable — now exactly true) without walking children.
+    const answered = this.evaluation?.get(expr);
+    if (answered !== undefined) {
+      trace.addFact("statementMap", answered.isNull ? "NULL" : "non-null");
+      trace.conclude(
+        !answered.isNull,
+        answered.isNull
+          ? "closed subtree evaluated to NULL"
+          : "closed subtree evaluated non-null",
+      );
+      return !answered.isNull;
+    }
 
     // --- Leaves ---
 
@@ -5337,37 +5427,60 @@ class NullabilityEngine {
         args?: Node[];
         defresult?: Node;
       };
-      // Without an ELSE branch, an unmatched CASE evaluates to NULL.
-      if (!ce.defresult) {
+      // The simple form `CASE x WHEN 1 THEN ...` compares values rather than
+      // evaluating predicates, so its WHEN expressions are not conditions and
+      // contribute no guards — and the statement map cannot prune its arms
+      // either (the comparisons are implicit, not AST nodes the map keys).
+      const simpleForm = !!ce.arg;
+      const whens = (ce.args ?? []).map(
+        arg =>
+          (arg as Record<string, unknown>)["CaseWhen"] as
+            | { expr?: Node; result?: Node }
+            | undefined,
+      );
+
+      // Statement-map arm pruning (docs/subtree-evaluation.md, consumer 1):
+      // boolean truth of an evaluated guard is the other reading the
+      // consumption rule allows. A guard answered FALSE or NULL never fires
+      // its arm; everything after a guard answered TRUE — later arms and the
+      // ELSE — never runs, which also rescues a missing ELSE.
+      const truths = whens.map(w =>
+        simpleForm ? undefined : this.evaluatedGuardTruth(w?.expr),
+      );
+      const firstTrue = truths.indexOf(true);
+
+      // Without an ELSE branch, an unmatched CASE evaluates to NULL — unless
+      // an evaluated guard proves some arm always matches.
+      if (!ce.defresult && firstTrue === -1) {
         trace.addFact("hasElse", "false");
         trace.conclude(false, "CASE without ELSE → NULL when no branch matches");
         return false;
       }
-      trace.addFact("hasElse", "true");
+      trace.addFact("hasElse", String(!!ce.defresult));
       // With an ELSE, exactly one branch always produces the value, so the
-      // result is non-null iff every branch result is non-null.
+      // result is non-null iff every branch result is non-null — every branch
+      // that can still fire, once the map has spoken.
       //
       // Each result is walked under the conditions that must hold for its
       // branch to run: branch i runs when every earlier condition was not TRUE
       // and its own condition was TRUE; the ELSE runs when no condition was
       // TRUE. Those guards let a nullable column read as non-null inside a
       // branch that tested it.
-      //
-      // The simple form `CASE x WHEN 1 THEN ...` compares values rather than
-      // evaluating predicates, so its WHEN expressions are not conditions and
-      // contribute no guards.
-      const simpleForm = !!ce.arg;
       trace.addFact("caseForm", simpleForm ? "simple (CASE x WHEN v)" : "searched (CASE WHEN cond)");
       const earlierConditions: Node[] = [];
 
       let i = 0;
-      for (const arg of ce.args ?? []) {
-        const when = (arg as Record<string, unknown>)["CaseWhen"] as
-          | { expr?: Node; result?: Node }
-          | undefined;
+      for (const when of whens) {
         if (!when?.result) {
           trace.conclude(false, "CASE branch with no result → nullable");
           return false;
+        }
+        if (truths[i] === false) {
+          // Never fires; its condition still "was not TRUE" for later arms.
+          trace.addFact(`WHEN[${i}]`, "guard evaluated not-TRUE → arm pruned");
+          if (when.expr) earlierConditions.push(when.expr);
+          i++;
+          continue;
         }
         const childTrace = trace.addChild(`WHEN[${i}] result`);
         const branchNotNull = this.withGuards(
@@ -5381,6 +5494,14 @@ class NullabilityEngine {
         if (!branchNotNull) {
           trace.conclude(false, `WHEN[${i}] result is nullable → CASE nullable`);
           return false;
+        }
+        if (i === firstTrue) {
+          trace.conclude(
+            true,
+            `WHEN[${i}] guard evaluated TRUE → later arms and ELSE never run; ` +
+              "every reachable branch non-null → CASE non-null",
+          );
+          return true;
         }
         if (when.expr) earlierConditions.push(when.expr);
         i++;
