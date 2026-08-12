@@ -231,6 +231,47 @@ export interface SubtreeEvaluationCatalog {
    * any kind, a relation rowtype included — shares the name.
    */
   isImmutableIoType(typeName: string): boolean;
+  /**
+   * The survivor-level operator gate of typed operand tracking
+   * (docs/subtree-evaluation.md, "Typed operand tracking"): given the
+   * operand TYPE SETS a closed tree threads bottom-up — `["unknown"]` for
+   * a bare literal, `leftTypes` null for a prefix operator — the
+   * survivors' result-type union when the fold verdict holds, else null.
+   * The landing rules pinned in param-mechanism.test.ts run before
+   * elimination; elimination may over-keep but never over-drops; the
+   * verdict is consensus over every survivor.
+   */
+  closedOperatorTypes(
+    name: string,
+    leftTypes: readonly string[] | null,
+    rightTypes: readonly string[],
+  ): string[] | null;
+  /** The function-call half of `closedOperatorTypes`, keyed by call arity
+   *  the way PostgreSQL's own resolution spans it (defaults, variadics). */
+  closedFunctionTypes(
+    name: string,
+    argTypes: readonly (readonly string[])[],
+  ): string[] | null;
+  /**
+   * The unification landing for a member list resolved to a common type
+   * (CASE results, COALESCE/GREATEST/LEAST, array elements): all-unknown
+   * lands on text; an unknown member beside known ones requires every
+   * known union member immutable-I/O (the landing runs its input
+   * function); the union threads on, or null when the landing fails.
+   */
+  closedCommonTypes(memberTypes: readonly (readonly string[])[]): string[] | null;
+  /** The closed cast gate with its landing: `isImmutableIoType` plus the
+   *  format_type rendering the type sets thread (`int4` → `integer`). */
+  closedCastTargetType(typeName: string): string | null;
+  /**
+   * May a value rendered as `typeName` (format spelling, the set-member
+   * form) cross to the driver session-independently? Immutable-I/O
+   * scalars and arrays over them. This is the ROOT gate: a subtree may be
+   * closed as a member on any base-kind type (`make_date(…)` composes
+   * under `date_part`), but collecting it hands its rendering to the
+   * consumer, and `date_out` reads DateStyle.
+   */
+  isImmutableIoRendering(typeName: string): boolean;
 }
 
 /**
@@ -244,6 +285,11 @@ export const EVALUATION_CATALOG_ONLY = [
   "isImmutableFunction",
   "isImmutableOperator",
   "isImmutableIoType",
+  "closedOperatorTypes",
+  "closedFunctionTypes",
+  "closedCommonTypes",
+  "closedCastTargetType",
+  "isImmutableIoRendering",
 ] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[];
 
 /**
