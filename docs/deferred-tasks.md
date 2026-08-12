@@ -99,9 +99,25 @@ green (`subtree-evaluation-red.test.ts`, 2026-08-11): fifteen
 oracle-verified `it.fails` targets that flip to plain `it` per consumer —
 two of them kernel-directed, awaiting the atom-oracle charter — and seven
 boundary guards that must never flip (the bp must-not-claim control, the
-NOT ENFORCED no-claim, and the arm-selection overreach guard among them). Build order is the doc's rollout list: evaluator core with its
-pins, then the statement map, then the grounder — at which point the
-standing finding (`subscription_check1`, ~9 per 20,000) closes; verify with
+NOT ENFORCED no-claim, and the arm-selection overreach guard among them).
+**Rollout step 1 — the EVALUATOR CORE — is BUILT (2026-08-11)**:
+`src/query/subtree-evaluator.ts`, the `SubtreeEvaluationCatalog` face on
+the adapter, three environment captures on the snapshot, pins in
+`subtree-evaluator.test.ts` (allowlist census, gates, protocol) and
+`param-mechanism.test.ts` (the PostgreSQL facts). The charter's "As built"
+section records what building it measured — the immutable-I/O type set
+gates everything, casts close on literals only, the function gate is
+(name, arity), and three syntactic guards close the unknown-literal
+cracks. Nothing flipped, correctly: no consumer is wired. **TYPED
+OPERAND TRACKING is CHARTERED (2026-08-12**, ruled: correctness carries
+its own weight, no instrument gate) with its acceptance frame IN PLACE:
+four adjudicated red targets and three never-fold guards in
+`subtree-evaluator.test.ts`, the unknown-literal landing rules and
+signature-fork facts pinned in `param-mechanism.test.ts`, design in the
+charter's "Typed operand tracking" section. It is ORTHOGONAL to the
+consumer order — it only widens what folds. Next per the rollout list:
+the statement map, then the grounder — at which point the standing
+finding (`subscription_check1`, ~9 per 20,000) closes; verify with
 20,000-query runs at two seeds. It stays reported until then.
 The suite total dropped 3301 → 2879 honestly: builtin-null-rejection's old
 import of param-soundness.test.js was re-running its 428 tests in a second
