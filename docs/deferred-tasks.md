@@ -139,10 +139,28 @@ evaluator, and the witness effect was the surveyed one exactly —
 `open_sum` flipped notNull, its `@unwitnessable` retired, nothing else
 moved. The fixture and soundness harnesses run map-live; both censuses
 run evaluator-off so fixture coverage of the symbolic paths holds. The
-charter's consumer-1 "As built" records the shape. Next per the rollout
-list: the grounder — at which point the standing finding
-(`subscription_check1`, ~9 per 20,000) closes; verify with
-20,000-query runs at two seeds. It stays reported until then.
+charter's consumer-1 "As built" records the shape. **The CHECK GROUNDER —
+rollout step 3, Mechanism E — is BUILT (2026-08-12)**:
+`src/query/check-grounder.ts`, claims merged into `collectParamFacts` as
+data, its seven red targets flipped with the bp and NOT ENFORCED guards
+green; as-built record in `docs/argument-nullability.md`. The STANDING
+FINDING IS CLOSED, verified with 20,000-query runs at seeds 20260808 and
+7: the literal-grounded fingerprint went 6+6 → 0, after the first run
+convicted the CASE-shaped sibling constraint (`subscription_check`) and
+CASE joined the reduction skeleton the same day (pinned, red-suite
+grounder block). What remains is a NEW, thinner standing finding — the
+PARAM-SIBLING shape (`($1, $2, 'x')` through the CASE guard;
+`('team', $1, $2)` through `$1 <= 1 OR $2 IS NOT NULL`), 2-3 instances
+per 20,000 at each seed, one fingerprint per constraint. The charter's
+"no false findings in the instrument's variants" sentence was FALSIFIED
+by this measurement (correction recorded in the Mechanism E section):
+the rank-3 variant keeps the sibling's control value, which witnesses
+the raise. Claiming it needs satisfiability reasoning over the sibling's
+value space — a soundness argument the mechanism deliberately does not
+carry — so the DECISION (charter that rung, or re-scope the variant
+adjudication) is OPEN and the finding stays reported until it is made.
+The probe harness and both fixture-facing suites now run with `evaluate`
+live; both censuses stay evaluator-off.
 The suite total dropped 3301 → 2879 honestly: builtin-null-rejection's old
 import of param-soundness.test.js was re-running its 428 tests in a second
 worker, and the shared constants moved to fixture-args.ts. §9's remaining

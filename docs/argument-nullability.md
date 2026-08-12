@@ -543,7 +543,7 @@ Agreed order of work, each stage giving the next something real to test:
    refilter classifications are recorded as live traps that flip with
    PostgreSQL's agreement if the ON/HAVING extensions land.
 
-## Mechanism E — CHECK-constraint rejection (chartered 2026-08-11, NOT BUILT)
+## Mechanism E — CHECK-constraint rejection (chartered 2026-08-11, BUILT 2026-08-12)
 
 The evaluation capability this mechanism rides is chartered separately in
 `docs/subtree-evaluation.md` (2026-08-11) — the same core also serves the
@@ -585,10 +585,21 @@ question:
 The boundaries FALL OUT instead of being ruled: an unwritten column
 surviving reduction → no claim (no blanket coverage rule — `FALSE AND col >
 0` still reduces); a parameter sibling surviving (`$2 <= 1 OR $1 IS NOT
-NULL`) → no claim, correctly, because binding $2 NULL makes its atom
-UNKNOWN, which CHECK passes — so the shape also produces no false findings
-in the instrument's variants. A `NULL` evaluation result means the CHECK
-passes (measured, pinned in check-null-passes); claim only on FALSE.
+NULL`) → no claim, because binding $2 NULL makes its atom UNKNOWN, which
+CHECK passes. A `NULL` evaluation result means the CHECK passes (measured,
+pinned in check-null-passes); claim only on FALSE.
+
+CORRECTED 2026-08-12, by measurement: this section originally added "so
+the shape also produces no false findings in the instrument's variants" —
+FALSE. The instrument's rank-3 variant binds ONE parameter NULL while the
+sibling keeps its control value, and a control value that fails its own
+atom ('team' in the guard, a seats value above 1) witnesses the raise —
+2-3 instances per 20,000 at each seed, the register's standing finding
+once the literal-grounded shape closed. Claiming it would need
+satisfiability reasoning over the sibling's value space ("some integer
+fails `$1 <= 1`"), a soundness argument this mechanism does not carry;
+whether to charter that or re-scope the instrument's variant adjudication
+is an OPEN DECISION, recorded in the register.
 
 **Architecture (DECIDED 2026-08-11, superseding the two-phase proposal).**
 The contract/param entry points become async and accept an optional
@@ -620,6 +631,40 @@ identical. Full design and rationale: `docs/subtree-evaluation.md`.
   defaults — both stay dynamic in the residue and drop claims; a
   literal-default substitution is a recorded later, not part of the first
   build.
+
+**As built (2026-08-12)** — `src/query/check-grounder.ts`, wired through
+`inferQueryContract`'s `evaluate` option like the statement map (one async
+pre-step, the collector consumes the claims as data —
+`MechanismEClaims`, merged before minimization so absorption is shared).
+What building it shaped, beyond the charter prose:
+
+- Steps 3 and 4 FUSED: one recursion computes FALSE-implicants of the
+  grounded body, consulting the evaluation answers at every node — a
+  closed answer IS the three-valued reduction, `x IS NOT NULL` maps to
+  the collector's NULL-implicant algebra (strict flow, COALESCE, casts),
+  AND unions, OR cross-unions. CASE joined the skeleton the same day, by
+  conviction (the instrument's first post-landing finding, q1725, both
+  seeds): an evaluated-TRUE guard selects its arm, evaluated-not-TRUE
+  guards drop theirs, everything after a TRUE guard never fires, and a
+  missing ELSE is the implicit NULL arm — never FALSE, so it annihilates
+  the cross-union. Pinned in the red suite's grounder block. The boundaries fall out as charted: any
+  atom a NULL binding can only push to UNKNOWN contributes nothing, and
+  cross-union annihilates a disjunct with no implicants — the
+  `$2 <= 1 OR $1 IS NOT NULL` shape and the unwritten-column shape are
+  the same rule. The empty implicant (the write always raises) is
+  dropped: true, but not a parameter fact.
+- The catalog face is `resolveEnforcedCheckConstraints` on the
+  evaluation face (census-exempt like its siblings): gated on `enforced`
+  alone, so NOT VALID is in and NOT ENFORCED is out, beside the walk's
+  validated-only lists.
+- The same rewrite hazard gates here as gates mechanism B — BEFORE ROW /
+  INSTEAD OF / DO INSTEAD on the (command, tree), the partitioned-UPDATE
+  command crossing included.
+- Declared-type casts are synthesized by parsing `SELECT NULL::<type>`
+  per distinct rendered column type (format_type spellings re-parse by
+  construction); a MultiAssignRef column and a sourced INSERT ... SELECT
+  ground nothing (the always-evaluated footing is VALUES rows and
+  FROM-less selects, mechanism B's own measurement).
 
 **Hazard, recorded:** claim production and adjudication both become
 PostgreSQL — common-mode in principle, though expression evaluation and
