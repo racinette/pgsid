@@ -174,7 +174,12 @@ export class ProbeLoop {
     try {
       const parsed = await parseSql(probe.sql);
       stmt = parsed.stmts![0]!.stmt!;
-      const contract = await inferQueryContract(stmt, this.catalog, { paramTypes });
+      // Both evaluation consumers run live (docs/subtree-evaluation.md):
+      // the instrument adjudicates the same claims the harnesses pin.
+      const contract = await inferQueryContract(stmt, this.catalog, {
+        paramTypes,
+        evaluate: async s => (await this.pg.query<Record<string, unknown>>(s)).rows[0],
+      });
       out.engineColumns = contract.outputs.map(o => ({ name: o.name, notNull: o.notNull }));
       out.groups = contract.outputPresenceGroups.map(g => ({
         columns: [...g.columns],

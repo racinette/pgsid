@@ -272,6 +272,19 @@ export interface SubtreeEvaluationCatalog {
    * consumer, and `date_out` reads DateStyle.
    */
   isImmutableIoRendering(typeName: string): boolean;
+  /**
+   * Pre-parsed expressions of the ENFORCED table CHECK constraints on
+   * `schema.table` — the CHECK grounder's input channel
+   * (docs/argument-nullability.md, Mechanism E), gated on
+   * `pg_constraint.conenforced` where the walk's `resolveCheckConstraints`
+   * gates on `convalidated`: NOT VALID still gates NEW writes and is HERE
+   * (not there); NOT ENFORCED gates nothing and is in neither (both
+   * measured, pinned in check-constraint-pins.test.ts). Lives on this face
+   * because the grounder is the evaluation channel's second consumer: the
+   * walk never calls it, and the fixture censuses must not demand walk
+   * coverage of it.
+   */
+  resolveEnforcedCheckConstraints(schema: string, table: string): Node[];
 }
 
 /**
@@ -290,6 +303,7 @@ export const EVALUATION_CATALOG_ONLY = [
   "closedCommonTypes",
   "closedCastTargetType",
   "isImmutableIoRendering",
+  "resolveEnforcedCheckConstraints",
 ] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[];
 
 /**
