@@ -37,7 +37,9 @@ const SCHEMA = `
   CREATE TABLE t (id int NOT NULL, x int);
   CREATE TABLE orders (id int NOT NULL, qty int NOT NULL);
   CREATE TABLE subscription (plan text, seats int, overflow_contact text,
-    CONSTRAINT subscription_check1 CHECK (seats <= 1 OR overflow_contact IS NOT NULL));
+    CONSTRAINT subscription_check1 CHECK (seats <= 1 OR overflow_contact IS NOT NULL),
+    CONSTRAINT subscription_check CHECK (
+      CASE WHEN plan = 'team' THEN seats IS NOT NULL AND seats > 1 ELSE true END));
   CREATE TABLE priced (price int, discount int, note text,
     CHECK (price - discount >= 0 OR note IS NOT NULL));
   CREATE TABLE bpt_ne (c char(4), n text, CHECK (c <> 'a ' OR n IS NOT NULL));
@@ -140,8 +142,8 @@ describe("statement map (flipped 2026-08-12 — rollout step 2 landed)", () => {
 // Written values ground enforced CHECK bodies; closed parts evaluate;
 // residue analysis produces param claims. Targets flip when E lands.
 
-describe("RED: CHECK grounder", () => {
-  it.fails("the standing finding: a written literal beside the tested NULL", async () => {
+describe("CHECK grounder (flipped 2026-08-12 — rollout step 3 landed)", () => {
+  it("the standing finding: a written literal beside the tested NULL", async () => {
     const c = await contract(
       "INSERT INTO subscription (plan, seats, overflow_contact) VALUES ('team', 5, $1)",
     );
@@ -151,7 +153,7 @@ describe("RED: CHECK grounder", () => {
     expect(c.params[0]!.notNull).toBe(true);
   });
 
-  it.fails("multi-row VALUES grounds per row and attributes per parameter", async () => {
+  it("multi-row VALUES grounds per row and attributes per parameter", async () => {
     const c = await contract(
       "INSERT INTO subscription (plan, seats, overflow_contact)" +
         " VALUES ('solo', 1, $1), ('team', 9, $2)",
@@ -162,7 +164,7 @@ describe("RED: CHECK grounder", () => {
     expect(c.params[1]!.notNull).toBe(true);
   });
 
-  it.fails("UPDATE grounds SET values; the WHERE parameter stays free", async () => {
+  it("UPDATE grounds SET values; the WHERE parameter stays free", async () => {
     const c = await contract(
       "UPDATE subscription SET seats = 7, overflow_contact = $1 WHERE plan = $2",
     );
@@ -170,14 +172,14 @@ describe("RED: CHECK grounder", () => {
     expect(c.params[1]!.notNull).toBe(false);
   });
 
-  it.fails("an arithmetic CHECK body evaluates, not just comparisons", async () => {
+  it("an arithmetic CHECK body evaluates, not just comparisons", async () => {
     const c = await contract("INSERT INTO priced (price, discount, note) VALUES (5, 10, $1)");
     // Grounds to (5 - 10 >= 0 OR $1 IS NOT NULL): the closed subtree is a
     // computation — the shape the exact-atom trade could never cover.
     expect(c.params[0]!.notNull).toBe(true);
   });
 
-  it.fails("bp: blank-padded comparison claims where text reasoning would miss", async () => {
+  it("bp: blank-padded comparison claims where text reasoning would miss", async () => {
     const c = await contract("INSERT INTO bpt_ne (c, n) VALUES ('a', $1)");
     // As char(4), 'a' <> 'a ' grounds FALSE (padding equates them) →
     // residue → $1 notNull. Text-typed grounding would answer TRUE and miss
@@ -185,7 +187,7 @@ describe("RED: CHECK grounder", () => {
     expect(c.params[0]!.notNull).toBe(true);
   });
 
-  it.fails("a NOT VALID CHECK still claims — it gates new writes", async () => {
+  it("a NOT VALID CHECK still claims — it gates new writes", async () => {
     const c = await contract("INSERT INTO nv (seats, oc) VALUES (5, $1)");
     // convalidated=false but conenforced=true (the snapshot's `enforced`):
     // stored rows may violate it, NEW writes cannot — binding NULL raises
@@ -193,7 +195,19 @@ describe("RED: CHECK grounder", () => {
     expect(c.params[0]!.notNull).toBe(true);
   });
 
-  it.fails("a MERGE arm's INSERT grounds like any other write", async () => {
+  it("a CASE-shaped CHECK grounds through its evaluated-TRUE arm", async () => {
+    // The instrument's first post-landing conviction (q1725, both seeds,
+    // 2026-08-12): the guard grounds 'team' = 'team' → TRUE, selecting the
+    // arm whose conjunct holds the tested NULL — `$1 IS NOT NULL AND $1 >
+    // 1` goes FALSE AND UNKNOWN → FALSE. Adjudicated: binding NULL raises
+    // subscription_check while subscription_check1 passes ('x' is written).
+    const c = await contract(
+      "INSERT INTO subscription (plan, seats, overflow_contact) VALUES ('team', $1, 'x')",
+    );
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it("a MERGE arm's INSERT grounds like any other write", async () => {
     const c = await contract(
       "MERGE INTO subscription s USING (VALUES (1)) v(k) ON s.seats = v.k" +
         " WHEN NOT MATCHED THEN INSERT (plan, seats, overflow_contact) VALUES ('m', 6, $1)",

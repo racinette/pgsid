@@ -254,12 +254,15 @@ function reject(
  * docs/argument-nullability.md. SINGLETONS are never dropped: the flat
  * contract's claims must not regress however wide an expression fans out.
  */
-type Implicants = number[][];
+export type Implicants = number[][];
 
 const MAX_IMPLICANT_SIZE = 4;
 const MAX_JOINT_IMPLICANTS = 8;
 
-function minimizeImplicants(sets: number[][]): Implicants {
+/** Exported for the CHECK grounder (src/query/check-grounder.ts), whose
+ *  FALSE-implicant algebra is this NULL-implicant algebra one level up:
+ *  same minimization, same bounds, same singleton guarantee. */
+export function minimizeImplicants(sets: number[][]): Implicants {
   const kept: number[][] = [];
   // The EMPTY implicant (a literal NULL somewhere in every branch) means
   // "unconditionally NULL" — it sorts first and absorbs everything else.
@@ -282,7 +285,7 @@ function minimizeImplicants(sets: number[][]): Implicants {
 }
 
 /** Implicants of "every input NULL": pairwise unions across the lists. */
-function crossUnion(lists: Implicants[]): Implicants {
+export function crossUnion(lists: Implicants[]): Implicants {
   if (lists.length === 0) return [];
   return lists.reduce((acc, next) => {
     if (acc.length === 0 || next.length === 0) return [];
@@ -293,7 +296,7 @@ function crossUnion(lists: Implicants[]): Implicants {
 }
 
 /** Implicants of "any input NULL": concatenation, minimized. */
-function unionLists(lists: Implicants[]): Implicants {
+export function unionLists(lists: Implicants[]): Implicants {
   return minimizeImplicants(lists.flat());
 }
 
@@ -1272,11 +1275,27 @@ export interface ParamFacts {
 }
 
 /**
+ * Mechanism E's claims, computed by the CHECK grounder and consumed here as
+ * DATA — the same one-async-step-then-sync shape as the statement map
+ * (docs/subtree-evaluation.md). Execution-time by construction: members
+ * land in `rejected`/`jointRejected` and NEVER in `bindRejected`, so an
+ * E-claim can never license output narrowing.
+ */
+export interface MechanismEClaims {
+  rejected: ReadonlySet<number>;
+  joint: readonly (readonly number[])[];
+}
+
+/**
  * Collect the parameter facts of one statement. Pure over `(AST, catalog)`
  * like the output walk, and total: statements the output walk refuses still
  * have a well-defined parameter contract.
  */
-export function collectParamFacts(stmt: Node, catalog: NullabilityCatalog): ParamFacts {
+export function collectParamFacts(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+  mechanismE?: MechanismEClaims,
+): ParamFacts {
   const c: Collector = {
     catalog,
     seen: new Set(),
@@ -1285,6 +1304,10 @@ export function collectParamFacts(stmt: Node, catalog: NullabilityCatalog): Para
     bindRejected: new Set(),
   };
   visit(c, stmt);
+  if (mechanismE) {
+    for (const num of mechanismE.rejected) c.rejected.add(num);
+    for (const set of mechanismE.joint) c.jointRejected.push([...set]);
+  }
   const max = Math.max(0, ...c.seen, ...c.rejected);
   const params: ParamNullability[] = [];
   for (let number = 1; number <= max; number++) {

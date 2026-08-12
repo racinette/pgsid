@@ -12,8 +12,14 @@ import { TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES, STRICT_OPERATORS } from "./ope
 import {
   collectParamFacts,
   forcedNullParams,
+  type MechanismEClaims,
   type ParamNullability,
 } from "./param-nullability.js";
+import {
+  evaluateGroundedChecks,
+  groundEnforcedChecks,
+  groundedCheckClaims,
+} from "./check-grounder.js";
 import type {
   ColumnOrigin,
   NullabilityCatalog,
@@ -134,8 +140,21 @@ export async function inferQueryContract(
   catalog: NullabilityCatalog,
   options?: WalkOptions,
 ): Promise<QueryContract> {
-  const facts = collectParamFacts(stmt, catalog);
   const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
+  // The CHECK grounder (Mechanism E, docs/argument-nullability.md): the
+  // same pre-walk async step over synthesized trees, answers consumed by
+  // the collector as data. Same catalog-face requirement as `evaluate`
+  // documents; no evaluator → no E claims, everything else identical.
+  let mechanismE: MechanismEClaims | undefined;
+  if (options?.evaluate) {
+    const grounderCatalog = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
+    const grounded = await groundEnforcedChecks(stmt, grounderCatalog);
+    if (grounded.length > 0) {
+      const answers = await evaluateGroundedChecks(grounded, grounderCatalog, options.evaluate);
+      mechanismE = groundedCheckClaims(grounded, answers, catalog);
+    }
+  }
+  const facts = collectParamFacts(stmt, catalog, mechanismE);
   const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes, evaluation);
   return {
     outputs: engine.run(stmt),

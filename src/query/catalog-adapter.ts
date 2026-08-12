@@ -262,11 +262,17 @@ export async function buildNullabilityCatalog(
   //     filtered by the PARSED node type, which is CONSTR_NOTNULL for them.
   const checkExprAsts = new Map<string, Node[]>();
   const checkExprTreeAsts = new Map<string, Node[]>();
+  // The ENFORCED list (Mechanism E's input channel) is gated on `enforced`
+  // alone: NOT VALID (validated=false, enforced=true) gates new writes and
+  // belongs here while contributing no stored-row fact above; NOT ENFORCED
+  // (enforced=false) belongs nowhere. Pinned in check-constraint-pins.test.ts.
+  const enforcedCheckAsts = new Map<string, Node[]>();
   for (const t of snapshot.tables) {
     const exprs: Node[] = [];
     const treeExprs: Node[] = [];
+    const enforcedExprs: Node[] = [];
     for (const con of t.constraints) {
-      if (con.type !== "check" || con.validated !== true) continue;
+      if (con.type !== "check" || (con.validated !== true && con.enforced !== true)) continue;
       try {
         const parsed = await parseSql(
           `ALTER TABLE _pgsid_check_host ADD CONSTRAINT _pgsid_check ${con.definition}`,
@@ -278,14 +284,17 @@ export async function buildNullabilityCatalog(
           | { Constraint?: { contype?: string; raw_expr?: Node } }
           | undefined)?.Constraint;
         if (constraint?.contype === "CONSTR_CHECK" && constraint.raw_expr) {
-          exprs.push(constraint.raw_expr);
-          // The tree reading: a NO INHERIT constraint is never copied to a
-          // child (measured), so once the relation HAS descendants no tree
-          // scan may read it — no child row ever satisfied it. Childless
-          // relations keep the full list; so do partitioned parents, where
-          // PostgreSQL refuses the construct outright.
-          if (!(con.noInherit && t.hasDescendants)) {
-            treeExprs.push(constraint.raw_expr);
+          if (con.enforced === true) enforcedExprs.push(constraint.raw_expr);
+          if (con.validated === true) {
+            exprs.push(constraint.raw_expr);
+            // The tree reading: a NO INHERIT constraint is never copied to a
+            // child (measured), so once the relation HAS descendants no tree
+            // scan may read it — no child row ever satisfied it. Childless
+            // relations keep the full list; so do partitioned parents, where
+            // PostgreSQL refuses the construct outright.
+            if (!(con.noInherit && t.hasDescendants)) {
+              treeExprs.push(constraint.raw_expr);
+            }
           }
         }
       } catch {
@@ -294,11 +303,14 @@ export async function buildNullabilityCatalog(
     }
     if (exprs.length > 0) checkExprAsts.set(`${t.schema}.${t.name}`, exprs);
     if (treeExprs.length > 0) checkExprTreeAsts.set(`${t.schema}.${t.name}`, treeExprs);
+    if (enforcedExprs.length > 0) enforcedCheckAsts.set(`${t.schema}.${t.name}`, enforcedExprs);
   }
   const resolveCheckConstraints = (schema: string, table: string): Node[] =>
     checkExprAsts.get(`${schema}.${table}`) ?? [];
   const resolveCheckConstraintsTree = (schema: string, table: string): Node[] =>
     checkExprTreeAsts.get(`${schema}.${table}`) ?? [];
+  const resolveEnforcedCheckConstraints = (schema: string, table: string): Node[] =>
+    enforcedCheckAsts.get(`${schema}.${table}`) ?? [];
 
   // ---------------------------------------------------------------------
   // Foreign keys a join may reason FROM.
@@ -1964,6 +1976,7 @@ export async function buildNullabilityCatalog(
     fnArgDefaultAsts,
     resolveCheckConstraints,
     resolveCheckConstraintsTree,
+    resolveEnforcedCheckConstraints,
     resolveForeignKey,
     resolveForeignKeyTree,
     isStrictBuiltin,
