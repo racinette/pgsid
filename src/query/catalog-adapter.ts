@@ -1,5 +1,9 @@
 import type { Node } from "libpg-query";
-import type { CatalogSnapshot } from "../catalog/types.js";
+import type {
+  BuiltinFunctionVolatility,
+  BuiltinOperatorVolatility,
+  CatalogSnapshot,
+} from "../catalog/types.js";
 import type {
   BuiltinFunctionSignature,
   BuiltinOperatorSignature,
@@ -899,9 +903,14 @@ export async function buildNullabilityCatalog(
 
   const builtinTypeKinds = snapshot.builtinTypeKinds ?? {};
   const implicitCasts = new Set<string>();
+  const implicitCastEdges = new Map<string, { binary: boolean; volatility: string | null }>();
   const binaryTargets = new Map<string, string[]>();
   for (const c of snapshot.builtinImplicitCasts ?? []) {
     implicitCasts.add(`${c.source}->${c.target}`);
+    implicitCastEdges.set(`${c.source}->${c.target}`, {
+      binary: c.binary,
+      volatility: c.volatility ?? null,
+    });
     if (c.binary) {
       const existing = binaryTargets.get(c.source);
       if (existing) existing.push(c.target);
@@ -1647,6 +1656,275 @@ export async function buildNullabilityCatalog(
       ? (builtinTableFunctions[name] ?? null)
       : null;
 
+  // -------------------------------------------------------------------------
+  // Typed operand tracking (docs/subtree-evaluation.md, "Typed operand
+  // tracking") — the survivor-level closure gate. The subtree evaluator
+  // threads type SETS bottom-up over the closed grammar and asks, per site,
+  // "may this fold?"; the answer is null (open) or the survivors'
+  // result-type union, which becomes the node's own set. `unknown` is
+  // first-class — always the singleton ["unknown"] — and the landing rules
+  // pinned in param-mechanism.test.ts run before elimination: all-unknown
+  // lands on text, one known operand types the other side for the
+  // exact-match step, a declared parameter types the literal, and every
+  // landing runs the landed type's INPUT function, so it must be
+  // immutable-I/O. Elimination may OVER-KEEP candidates but never
+  // over-drop (`mayCoerceImplicitly` is the reach test, reused as-is);
+  // the verdict is consensus over every survivor, so whichever row
+  // PostgreSQL actually resolves is covered by it.
+  // -------------------------------------------------------------------------
+
+  const fnVolatilities = new Map<string, BuiltinFunctionVolatility[]>();
+  for (const row of snapshot.builtinFunctionVolatilities ?? []) {
+    const existing = fnVolatilities.get(row.name);
+    if (existing) existing.push(row);
+    else fnVolatilities.set(row.name, [row]);
+  }
+  const opVolatilities = new Map<string, BuiltinOperatorVolatility[]>();
+  for (const row of snapshot.builtinOperatorVolatilities ?? []) {
+    const existing = opVolatilities.get(row.name);
+    if (existing) existing.push(row);
+    else opVolatilities.set(row.name, [row]);
+  }
+
+  /** The immutable-I/O set in format_type spelling: signature rows render
+   *  format names while the capture keys typname. */
+  const immutableIoRendered = new Set(
+    [...immutableIoTypes].map(t => typeAliases[t] ?? t),
+  );
+
+  const UNKNOWN_TYPE = "unknown";
+  const isUnknownOperand = (s: readonly string[]): boolean =>
+    s.length === 1 && s[0] === UNKNOWN_TYPE;
+  const singletonOf = (s: readonly string[]): string | null =>
+    s.length === 1 ? s[0]! : null;
+
+  /**
+   * Range-family polymorphics, dropped from every candidate pool: no range
+   * type has immutable I/O and unknown cannot instantiate one (both
+   * pinned), and the base-kind result rule below keeps every closed
+   * operand non-range — so no closed tree can reach such a row.
+   */
+  const RANGE_FAMILY_PARAMS = new Set([
+    "anyrange",
+    "anymultirange",
+    "anycompatiblerange",
+    "anycompatiblemultirange",
+  ]);
+
+  /** Result types stay in the base-kind world ('b' covers arrays): a
+   *  pseudo-typed result (a surviving polymorphic) names no concrete type
+   *  to thread, and refusing range/composite results is what keeps the
+   *  range-family drop's premise true. */
+  const isBaseKind = (t: string): boolean => builtinTypeKinds[t] === "b";
+
+  /**
+   * May a KNOWN operand rendered `from` cross to declared `to` without
+   * running session-dependent code? Same type: nothing runs. A pseudo-type
+   * parameter binds without a cast. Otherwise the implicit edge must be
+   * binary-coercible or carry an immutable cast function: text → regclass
+   * and the datetime → tz edges are STABLE (captured on the edge), and an
+   * I/O-conversion edge (no function, not binary) runs the endpoint types'
+   * I/O functions.
+   */
+  const cleanImplicitRoute = (from: string, to: string): boolean => {
+    if (from === to) return true;
+    if (builtinTypeKinds[to] === "p") return true;
+    if (from.endsWith("[]") && to.endsWith("[]")) {
+      return cleanImplicitRoute(from.slice(0, -2), to.slice(0, -2));
+    }
+    const edge = implicitCastEdges.get(`${from}->${to}`);
+    return edge !== undefined && (edge.binary || edge.volatility === "i");
+  };
+
+  interface SurvivorRow {
+    volatility: string;
+    returns: string;
+    /** Declared type at each operand position, in call order. */
+    params: string[];
+  }
+
+  /**
+   * The consensus verdict: null unless EVERY survivor is immutable with a
+   * base-kind result, every unknown operand lands on a concrete
+   * immutable-I/O parameter, and every known operand's implicit route to
+   * its parameter is clean. Returns the survivors' result-type union.
+   */
+  const survivorConsensus = (
+    rows: SurvivorRow[],
+    operands: readonly (readonly string[])[],
+  ): string[] | null => {
+    for (const row of rows) {
+      if (row.volatility !== "i") return null;
+      if (!isBaseKind(row.returns)) return null;
+      for (let i = 0; i < operands.length; i++) {
+        const param = row.params[i]!;
+        const operand = operands[i]!;
+        if (isUnknownOperand(operand)) {
+          if (!immutableIoRendered.has(param)) return null;
+        } else {
+          for (const member of operand) {
+            if (mayCoerceImplicitly(member, param) && !cleanImplicitRoute(member, param)) {
+              return null;
+            }
+          }
+        }
+      }
+    }
+    return [...new Set(rows.map(r => r.returns))];
+  };
+
+  const closedOperatorTypes = (
+    name: string,
+    leftTypes: readonly string[] | null,
+    rightTypes: readonly string[],
+  ): string[] | null => {
+    if (evalUserOperatorNames.has(name)) return null;
+    const unary = leftTypes === null;
+    const pool = (opVolatilities.get(name) ?? []).filter(
+      o =>
+        (unary ? o.leftType === null : o.leftType !== null && o.rightType !== null) &&
+        !RANGE_FAMILY_PARAMS.has(o.leftType ?? "") &&
+        !RANGE_FAMILY_PARAMS.has(o.rightType ?? ""),
+    );
+    if (pool.length === 0) return null;
+
+    const toSurvivor = (o: BuiltinOperatorVolatility): SurvivorRow => ({
+      volatility: o.volatility,
+      returns: o.returns,
+      params: unary ? [o.rightType!] : [o.leftType!, o.rightType!],
+    });
+    const operands = unary ? [rightTypes] : [leftTypes, rightTypes];
+
+    // Exact match is terminal in PostgreSQL's own resolution, entered
+    // under the pinned assumptions: all-unknown lands text ('a' || 'b' is
+    // textcat), one known operand types the other side (5 + '3' is
+    // int4pl). A failed exact check falls through with the unknowns
+    // UNRESOLVED — the assumption exists only at this step.
+    const lUnknown = !unary && isUnknownOperand(leftTypes);
+    const rUnknown = isUnknownOperand(rightTypes);
+    const assumedL = unary
+      ? null
+      : lUnknown
+        ? rUnknown
+          ? "text"
+          : singletonOf(rightTypes)
+        : singletonOf(leftTypes);
+    const assumedR = rUnknown
+      ? unary || lUnknown
+        ? "text"
+        : singletonOf(leftTypes!)
+      : singletonOf(rightTypes);
+    if (assumedR !== null && (unary || assumedL !== null)) {
+      const exact = pool.find(
+        o => o.rightType === assumedR && (unary || o.leftType === assumedL),
+      );
+      if (exact) return survivorConsensus([toSurvivor(exact)], operands);
+    }
+
+    const reaches = (s: readonly string[], param: string): boolean =>
+      isUnknownOperand(s) || s.some(m => mayCoerceImplicitly(m, param));
+    const survivors = pool.filter(
+      o => (unary || reaches(leftTypes, o.leftType!)) && reaches(rightTypes, o.rightType!),
+    );
+    if (survivors.length === 0) return null;
+    return survivorConsensus(survivors.map(toSurvivor), operands);
+  };
+
+  const closedFunctionTypes = (
+    name: string,
+    argTypes: readonly (readonly string[])[],
+  ): string[] | null => {
+    if (evalUserFunctionNames.has(name)) return null;
+    const k = argTypes.length;
+    const pool = (fnVolatilities.get(name) ?? []).filter(r => {
+      const maxArity = r.args.length;
+      const minArity =
+        r.variadic !== null
+          ? Math.max(maxArity - r.numArgDefaults - 1, 0)
+          : maxArity - r.numArgDefaults;
+      if (k < minArity || (r.variadic === null && k > maxArity)) return false;
+      return (
+        !r.args.some(a => RANGE_FAMILY_PARAMS.has(a)) &&
+        (r.variadic === null || !RANGE_FAMILY_PARAMS.has(r.variadic))
+      );
+    });
+    if (pool.length === 0) return null;
+
+    const paramAt = (r: BuiltinFunctionVolatility, i: number): string =>
+      r.variadic !== null && i >= r.args.length - 1 ? r.variadic : r.args[i]!;
+    // A plainly-spelled call can resolve to an aggregate (max(1)) or a
+    // set-returning row: the verdict refuses, never the pool — dropping
+    // the row PostgreSQL picks would break the never-over-drop rule.
+    const scalarRows = (rows: BuiltinFunctionVolatility[]): boolean =>
+      rows.every(r => r.kind === "f" && !r.returnsSet);
+    const toSurvivor = (r: BuiltinFunctionVolatility): SurvivorRow => ({
+      volatility: r.volatility,
+      returns: r.returns,
+      params: argTypes.map((_, i) => paramAt(r, i)),
+    });
+
+    // Landing rule 3, "a declared parameter types the literal": a LONE row
+    // exact at every known singleton position is PostgreSQL's own
+    // most-exact-matches selection — terminal by its resolution rules — so
+    // the verdict quantifies over it alone. This is what folds
+    // date_part('day', make_date(…)) beside the coercion-reachable stable
+    // timestamptz row.
+    const exactAtKnowns = pool.filter(r =>
+      argTypes.every(
+        (s, i) => isUnknownOperand(s) || (s.length === 1 && paramAt(r, i) === s[0]),
+      ),
+    );
+    if (exactAtKnowns.length === 1) {
+      if (!scalarRows(exactAtKnowns)) return null;
+      return survivorConsensus(exactAtKnowns.map(toSurvivor), argTypes);
+    }
+
+    const survivors = pool.filter(r =>
+      argTypes.every(
+        (s, i) =>
+          isUnknownOperand(s) || s.some(m => mayCoerceImplicitly(m, paramAt(r, i))),
+      ),
+    );
+    if (survivors.length === 0 || !scalarRows(survivors)) return null;
+    return survivorConsensus(survivors.map(toSurvivor), argTypes);
+  };
+
+  /**
+   * The unification landing for member lists PostgreSQL resolves to a
+   * common type (CASE results, COALESCE/GREATEST/LEAST arguments, array
+   * elements): all-unknown lands on text (pinned); a bare unknown member
+   * beside known ones lands on their common type — always one of the known
+   * members' types — so every member of the known union must be
+   * immutable-I/O for the landing's input function to be safe. Without an
+   * unknown member nothing lands and the union threads as-is (a
+   * cross-category list makes PREPARE raise, which contributes nothing).
+   */
+  const closedCommonTypes = (
+    memberTypes: readonly (readonly string[])[],
+  ): string[] | null => {
+    const known = memberTypes.filter(s => !isUnknownOperand(s));
+    if (known.length === 0) return ["text"];
+    const union = [...new Set(known.flat())];
+    if (known.length < memberTypes.length && !union.every(t => immutableIoRendered.has(t))) {
+      return null;
+    }
+    return union;
+  };
+
+  /** The closed cast gate with its landing type: the grammar-spelled
+   *  target, admitted and rendered, or null. */
+  const closedCastTargetType = (typeName: string): string | null =>
+    isImmutableIoType(typeName) ? normalizeTypeName(typeName) : null;
+
+  /** May a value RENDERED as `typeName` (format spelling) cross the wire
+   *  to the driver session-independently? Immutable-I/O scalars and arrays
+   *  over them; record is refused — a collected root's value crosses
+   *  typoutput, where date_out and friends read session state. */
+  const isImmutableIoRendering = (typeName: string): boolean =>
+    typeName.endsWith("[]")
+      ? immutableIoRendered.has(typeName.slice(0, -2))
+      : immutableIoRendered.has(typeName);
+
   return {
     resolveTable,
     resolveFunctions,
@@ -1692,6 +1970,11 @@ export async function buildNullabilityCatalog(
     isImmutableFunction,
     isImmutableOperator,
     isImmutableIoType,
+    closedOperatorTypes,
+    closedFunctionTypes,
+    closedCommonTypes,
+    closedCastTargetType,
+    isImmutableIoRendering,
     isBuiltinFunction,
     isPolymorphicBuiltin,
     resolvePolymorphicArraySignatures,
