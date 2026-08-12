@@ -1,4 +1,4 @@
-# Subtree evaluation (chartered 2026-08-11, NOT BUILT)
+# Subtree evaluation (chartered 2026-08-11; EVALUATOR CORE BUILT 2026-08-11, consumers not)
 
 Evaluate closed subtrees of expressions through PostgreSQL and hand the
 answers to the engine as data. One evaluator, two consumers now, one
@@ -52,6 +52,103 @@ type. When built, the contract/walk entry points become async with
 `evaluate` optional beside `paramTypes`; the engine internals stay sync and
 consume ANSWERS as data. No evaluator → no evaluation claims, everything
 else identical.
+
+### As built (2026-08-11) — the measured shape of the gates
+
+`src/query/subtree-evaluator.ts` (`collectClosedSubtrees`,
+`evaluateClosedSubtrees`), fed by the `SubtreeEvaluationCatalog` face on
+the adapter and three environment captures on the snapshot. Building it
+measured four things the charter prose above does not say, and each is now
+a gate:
+
+- Volatility of the CALL is not the closure question — the TYPES are. A
+  stable INPUT function makes even an immutable call session-dependent
+  (`date_part('day', '1/2/2020'::date)` is 2 under MDY and 1 under DMY,
+  pinned), and a stable OUTPUT function leaks through I/O coercions
+  (`to_timestamp(0)::text` moves with TimeZone while both halves look
+  clean). So one set governs everything: pg_catalog types with immutable
+  typinput AND typoutput (48 in PG 18.3; no datetime, money, xml, array,
+  record, domain or enum). Casts close on LITERAL arguments only; calls
+  and operators need every reachable signature immutable over that set.
+- The function gate is keyed `(name, arity)`: `length` is immutable at one
+  argument and STABLE at two (`length(bytea, name)`).
+- A signature is exempt from the verdict only when UNREACHABLE from a
+  closed tree: a concrete non-array operand type outside the set (nothing
+  closed produces one, and unknown-literal resolution cannot cross type
+  categories silently), or a range-family polymorphic (no range type has
+  immutable I/O; unknown cannot instantiate one — both measured). That is
+  how `=` keeps its verdict beside the stable `date = timestamptz` row and
+  `+`/`-` beside `anyrange` rows, while `||` stays open whole:
+  `textanycat(text, anynonarray)` is stable and genuinely reachable, so
+  even `'a' || 'b'` refuses.
+- Three syntactic guards close the cracks types cannot see: a bare unknown
+  literal beside an array/row constructor in any type-unifying position
+  (`ARRAY[1,2] = '{1,3}'` answers through array_in, provolatile 's'), a
+  bare unknown as a unary operand or as the ANY/ALL array side, and
+  BETWEEN/SIMILAR (their A_Expr carries no operator name to gate on). A
+  user object of a gated name — function, operator, or type, relation
+  rowtypes included — opens the builtin spelling, schema-blind.
+
+Bare literals are never collected as roots (their answer restates the
+AST); they stay closed as members. Protocol per statement: one PREPARE
+fixes the batch's types, one SELECT returns every value beside
+`result_types::text[]`, a raising batch retries each subtree in its own
+SELECT so only the raising ones contribute nothing, DEALLOCATE ends it.
+The pins: allowlist census, gates and protocol in
+`subtree-evaluator.test.ts`; the PostgreSQL facts (I/O volatilities, the
+DateStyle demonstration, the result_types round trip, the raise-after-
+PREPARE split) beside the Mechanism E pins in `param-mechanism.test.ts`.
+
+### Typed operand tracking (chartered 2026-08-12, NOT BUILT)
+
+Ruled 2026-08-12: correctness carries its own weight — no instrument
+conviction required. The name-level gates above answer a universally
+quantified question ("is EVERY signature under this name immutable, over
+every operand type a closed tree can produce?"), which cannot split a
+name into its signatures: one stable row opens `||` whole, and even
+`'a' || 'b'` — deterministically `textcat`, immutable — pays for
+`textanycat`. The rung replaces the name-level gate with a
+survivor-level one. Four pieces:
+
+1. A scope-free twin of the walk's `operandTypeSet` over the CLOSED
+   grammar (no columns, no params — the scope entanglement that keeps the
+   original inside the walk does not apply). Type sets thread bottom-up
+   as unions, exactly as the walk already does.
+2. `unknown` as a first-class member of the type model — today both the
+   walk and this rung's precedent collapse it into null ("constrains
+   nothing"), which is sound and discards PostgreSQL's landing rules.
+   The gate applies those rules (all-unknown → text; one known operand
+   types the other side; a declared parameter or target types the
+   literal; polymorphic and cross-category dead ends RAISE) before
+   elimination; the rules are pinned in `param-mechanism.test.ts`.
+   The landing itself runs the landed type's INPUT function, so the
+   immutable-I/O set gates every landing — which turns the syntactic
+   guards above (constructor-beside-unknown, unary-over-unknown, the
+   ANY/ALL array side) into derived consequences of one rule. Their pins
+   stay as transition guards: green before, during and after.
+3. Per-signature volatility captures over ALL of pg_catalog — the
+   existing signature captures cover the curated claim-table names and
+   carry `strict` but not `provolatile`.
+4. Elimination that may OVER-KEEP candidates but never over-drop
+   (`mayCoerceImplicitly` and the canonicalisation images are reusable
+   as-is): verdict is consensus — every survivor immutable, every
+   landing and result type immutable-I/O. Over-keeping only keeps a
+   name open, which is today's answer; this is what makes the rung
+   sound without replicating PostgreSQL's resolution exactly, and why
+   it does not re-enter the value-tracking ban's premise.
+
+The acceptance frame is IN PLACE (2026-08-12, every value adjudicated):
+"RED: typed operand tracking" in `subtree-evaluator.test.ts` — four
+`it.fails` targets (`'a' || 'b'` → 'ab'; `upper('a') || 'b'` → 'Ab',
+today only the inner call folds; chained `||`; BETWEEN through its
+bound comparisons) that flip in the commit that lands the gate — and
+three guards no refinement may ever fold: `'a' || 5` (textanycat,
+stable), `'at: ' || to_timestamp(0)` (measured moving with TimeZone),
+and `text @@ text`, whose all-unknown landing IS the stable row
+(ts_match_tt reads default_text_search_config) — the shape that proves
+signature-splitting has a floor. Orthogonal to the consumer rollout
+below: the rung only widens what folds, so it may land before or after
+any consumer.
 
 ## Consumer 1 — the statement map
 
@@ -183,7 +280,9 @@ seeds — verify with 20,000-query runs at two seeds when it flips).
 ## Rollout
 
 1. Evaluator core, standalone, with its pins (allowlist census, the
-   volatility-of-casts pin, batching, `result_types`).
+   volatility-of-casts pin, batching, `result_types`). BUILT 2026-08-11 —
+   see "As built" above; consumer-facing surface is
+   `evaluateClosedSubtrees(stmt, catalog, evaluate) → Map<Node, EvalResult>`.
 2. Statement map consumer — flip its red block.
 3. CHECK grounder — flip its block; the standing finding goes to zero.
 4. Entailment later, under its own soundness argument, when chartered.
