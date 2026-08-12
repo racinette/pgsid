@@ -50,8 +50,8 @@ describe("nullability-walk-traced", () => {
     for (const file of files) {
       const sql = readFileSync(join(fixturesDir, file), "utf8");
       const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
-      const plain = inferNullability(stmt, catalog);
-      const traced = inferNullabilityTraced(stmt, catalog);
+      const plain = await inferNullability(stmt, catalog);
+      const traced = await inferNullabilityTraced(stmt, catalog);
       const flat = (r: { name: string; notNull: boolean }[]): string =>
         r.map(c => `${c.name}:${c.notNull ? "notNull" : "nullable"}`).join(", ");
       if (flat(plain) !== flat(traced)) {
@@ -79,7 +79,7 @@ describe("nullability-walk-traced", () => {
   it("produces a trace tree explaining a simple column", async () => {
     const sql = "SELECT id AS id FROM products p";
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     expect(results.length).toBe(1);
     expect(results[0]!.notNull).toBe(true);
     const trace = results[0]!.trace!;
@@ -95,7 +95,7 @@ describe("nullability-walk-traced", () => {
       WHERE u.email IS NOT NULL
     `;
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     // u.email promoted by WHERE guarantee
     const emailTrace = results[1]!.trace!;
     expect(emailTrace.decision).toBe(true);
@@ -105,7 +105,7 @@ describe("nullability-walk-traced", () => {
   it("traces COALESCE with multiple args", async () => {
     const sql = "SELECT COALESCE(deleted_at, 'x') AS c1 FROM products p";
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     const trace = results[0]!.trace!;
     expect(trace.decision).toBe(true);
     expect(trace.children.length).toBe(2); // arg[0] + arg[1]
@@ -118,7 +118,7 @@ describe("nullability-walk-traced", () => {
   it("traces strict function with nullable arg", async () => {
     const sql = "SELECT lower_strict(deleted_at) AS c1 FROM products p";
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     const trace = results[0]!.trace!;
     expect(trace.decision).toBe(false);
     expect(trace.facts.some(f => f.name === "priority" && f.value.includes("strict"))).toBe(true);
@@ -129,7 +129,7 @@ describe("nullability-walk-traced", () => {
   it("traces NOT NULL domain function return", async () => {
     const sql = "SELECT always_text(deleted_at) AS c1 FROM products p";
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     const trace = results[0]!.trace!;
     expect(trace.decision).toBe(true);
     expect(trace.facts.some(f => f.name === "priority" && f.value === "1 (NOT NULL domain return)")).toBe(true);
@@ -139,7 +139,7 @@ describe("nullability-walk-traced", () => {
   it("traces scalar subquery with count(*)", async () => {
     const sql = "SELECT (SELECT count(*) FROM order_items oi) AS c1 FROM orders o";
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     const trace = results[0]!.trace!;
     expect(trace.decision).toBe(true);
     expect(trace.facts.some(f => f.name === "subLinkType" && f.value === "EXPR_SUBLINK")).toBe(true);
@@ -149,7 +149,7 @@ describe("nullability-walk-traced", () => {
   it("traces ParamRef as conservative nullable", async () => {
     const sql = "SELECT $1 AS c1 FROM products p";
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     const trace = results[0]!.trace!;
     expect(trace.decision).toBe(false);
     expect(trace.facts.some(f => f.name === "param" && f.value === "$1")).toBe(true);
@@ -162,7 +162,7 @@ describe("nullability-walk-traced", () => {
       SELECT x.id AS c1 FROM x
     `;
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     expect(results.length).toBe(1);
     expect(results[0]!.notNull).toBe(true);
     const trace = results[0]!.trace!;
@@ -173,7 +173,7 @@ describe("nullability-walk-traced", () => {
   it("traces TypeCast to NOT NULL domain", async () => {
     const sql = "SELECT NULL::nn_text AS c1 FROM products p";
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     const trace = results[0]!.trace!;
     expect(trace.decision).toBe(true);
     expect(trace.facts.some(f => f.name === "isNotNullDomain" && f.value === "true")).toBe(true);
@@ -190,7 +190,7 @@ describe("nullability-walk-traced", () => {
       SELECT id, name, depth FROM cat_tree UNION SELECT 0, 'root', 0
     `;
     const parsed = await parseSql(sql);
-    const results = inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
+    const results = await inferNullabilityTraced(parsed.stmts![0]!.stmt!, catalog);
     expect(results.length).toBe(3);
     expect(results[0]!.notNull).toBe(true);
     expect(results[1]!.notNull).toBe(true);

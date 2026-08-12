@@ -96,8 +96,14 @@ describe("nullability-walk", () => {
 
       const stmt = parsed.stmts![0]!.stmt!;
 
+      // The statement map runs live (docs/subtree-evaluation.md, consumer 1):
+      // fixture claims pin the walk WITH its chartered consumers, and the
+      // censuses keep exercising the symbolic paths evaluate short-circuits.
+      const evaluate = async (s: string) =>
+        (await pg.query<Record<string, unknown>>(s)).rows[0];
+
       if (TRACE) {
-        const traced = inferNullabilityTraced(stmt, catalog);
+        const traced = await inferNullabilityTraced(stmt, catalog, undefined, { evaluate });
         expect(traced.length).toBe(expectations.length);
         const traces: string[] = [];
         for (let i = 0; i < expectations.length; i++) {
@@ -122,7 +128,7 @@ describe("nullability-walk", () => {
         console.log(`${"═".repeat(70)}`);
         for (const t of traces) console.log(t);
       } else {
-        const results = inferNullability(stmt, catalog);
+        const results = await inferNullability(stmt, catalog, { evaluate });
         expect(results.length).toBe(expectations.length);
         for (let i = 0; i < expectations.length; i++) {
           const expected = expectations[i]!;

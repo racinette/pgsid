@@ -316,7 +316,7 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       record.drops = query.expectations.filter(ex => !ex.present(stmt)).map(ex => ex.label);
 
       try {
-        record.claimed = inferNullability(stmt, catalog);
+        record.claimed = await inferNullability(stmt, catalog);
         record.groupEvidence = inferPresenceGroups(stmt, catalog).map(g => ({
           columns: g.columns,
           discriminants: g.discriminants,

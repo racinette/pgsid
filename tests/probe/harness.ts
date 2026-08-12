@@ -174,7 +174,7 @@ export class ProbeLoop {
     try {
       const parsed = await parseSql(probe.sql);
       stmt = parsed.stmts![0]!.stmt!;
-      const contract = inferQueryContract(stmt, this.catalog, { paramTypes });
+      const contract = await inferQueryContract(stmt, this.catalog, { paramTypes });
       out.engineColumns = contract.outputs.map(o => ({ name: o.name, notNull: o.notNull }));
       out.groups = contract.outputPresenceGroups.map(g => ({
         columns: [...g.columns],
@@ -183,8 +183,8 @@ export class ProbeLoop {
       out.params = contract.params.map(p => ({ number: p.number, notNull: p.notNull }));
       out.paramRejectionSets = contract.paramRejectionSets.map(s => [...s]);
       // Parity: the traced walk must reach the same columns and groups.
-      const plain = inferNullability(stmt, this.catalog, { paramTypes });
-      const traced = inferNullabilityTraced(stmt, this.catalog, undefined, { paramTypes });
+      const plain = await inferNullability(stmt, this.catalog, { paramTypes });
+      const traced = await inferNullabilityTraced(stmt, this.catalog, undefined, { paramTypes });
       out.traced = traced.map(c => ({
         name: c.name,
         notNull: c.notNull,

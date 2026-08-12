@@ -237,11 +237,11 @@ async function catalogFor(variant: SchemaVariant | null): Promise<NullabilityCat
 }
 
 /** Every member `prepared` asks of `catalog`. */
-function reach(catalog: NullabilityCatalog, prepared: Prepared[]): Set<string> {
+async function reach(catalog: NullabilityCatalog, prepared: Prepared[]): Promise<Set<string>> {
   const spy = spyOnCatalog(catalog);
   for (const p of prepared) {
     try {
-      inferNullability(p.stmt, spy.catalog);
+      await inferNullability(p.stmt, spy.catalog);
     } catch {
       // A refusal still asked its questions on the way to refusing.
     }
@@ -280,12 +280,12 @@ describe("capability reach of the generated corpus", () => {
       bySource.set(source, set);
       for (const m of set) touched.add(m);
     };
-    record("base schema", reach(baseCatalog, prepared));
+    record("base schema", await reach(baseCatalog, prepared));
     // The variants add nothing today, measured — but they are the only route
     // to a capability that sits behind a non-trivial catalog ANSWER, so the
     // union is the honest measure of what the generated corpus reaches.
     for (const variant of SCHEMA_VARIANTS) {
-      record(variant.name, reach(await catalogFor(variant), prepared));
+      record(variant.name, await reach(await catalogFor(variant), prepared));
     }
   }, 600_000);
 
@@ -433,7 +433,7 @@ describe.runIf(process.env.CAPABILITY_WITNESSES)("which fixture reaches each cap
       if (!stmt) continue;
       const spy = spyOnCatalog(catalog);
       try {
-        inferNullability(stmt, spy.catalog);
+        await inferNullability(stmt, spy.catalog);
       } catch {
         /* a refusal still asked */
       }

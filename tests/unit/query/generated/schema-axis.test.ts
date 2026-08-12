@@ -175,7 +175,7 @@ async function runVariant(variant: SchemaVariant): Promise<VariantResult> {
     try {
       const parsed = await parseSql(sql);
       const stmt = parsed.stmts?.[0]?.stmt;
-      if (stmt) claimed = inferNullability(stmt, catalog);
+      if (stmt) claimed = await inferNullability(stmt, catalog);
     } catch (e) {
       if (e instanceof UnsupportedNodeError) result.refused++;
       else result.crashes.push({ schema: variant.name, state: "-", sql, detail: (e as Error).message });

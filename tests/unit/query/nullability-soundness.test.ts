@@ -142,7 +142,11 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     let prepareCounter = 0;
     for (const fixture of fixtures) {
       const parsed = await parseSql(fixture.sql);
-      const claimed = inferNullability(parsed.stmts![0]!.stmt!, catalog);
+      // Same analysis mode as the fixture suite: the statement map runs live,
+      // so the claims the oracle adjudicates are the claims the pins assert.
+      const claimed = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
+        evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
+      });
       const claimedGroups = inferPresenceGroups(parsed.stmts![0]!.stmt!, catalog);
 
       // Validity. PREPARE keeps `$n` as parameters — that is what they are —

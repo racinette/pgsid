@@ -83,7 +83,7 @@ describe("output column sequence matches PostgreSQL", () => {
 
   for (const sql of CASES) {
     it(sql, async () => {
-      const engine = inferNullability((await parseSql(sql)).stmts![0]!.stmt!, catalog).map(c => c.name);
+      const engine = (await inferNullability((await parseSql(sql)).stmts![0]!.stmt!, catalog)).map(c => c.name);
       const postgres = (await pg.query(sql, [], { rowMode: "array" })).fields.map(f => f.name);
       expect(engine, `column sequence differs from PostgreSQL`).toEqual(postgres);
     });

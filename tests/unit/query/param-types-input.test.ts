@@ -33,7 +33,7 @@ async function tracedFor(
   paramTypes?: readonly string[],
 ): Promise<{ notNull: boolean; trace: string }> {
   const parsed = await parseSql(sql);
-  const cols = inferNullabilityTraced(
+  const cols = await inferNullabilityTraced(
     parsed.stmts![0]!.stmt!,
     catalog,
     undefined,
@@ -75,7 +75,7 @@ describe("tier 0: parameter types as an input", () => {
   it("degrades untouched when the input is absent, short, or out of range", async () => {
     const parsed = await parseSql("SELECT $1 + $2 AS s");
     for (const paramTypes of [undefined, [], ["integer"]] as const) {
-      const cols = inferNullability(parsed.stmts![0]!.stmt!, catalog, { paramTypes });
+      const cols = await inferNullability(parsed.stmts![0]!.stmt!, catalog, { paramTypes });
       expect(cols.map(c => c.notNull)).toEqual([false]);
     }
   });
@@ -88,13 +88,13 @@ describe("tier 0: parameter types as an input", () => {
     // declines to attribute; the text shape keeps its strict reading
     // through the name rule, which is that consumer's safe over-report.
     const arr = await parseSql("INSERT INTO ct (arr) VALUES (ARRAY[1,2] || $1)");
-    const arrContract = inferQueryContract(arr.stmts![0]!.stmt!, catalog);
+    const arrContract = await inferQueryContract(arr.stmts![0]!.stmt!, catalog);
     expect(arrContract.params.map(p => p.notNull)).toEqual([false]);
     // PostgreSQL agrees: binding NULL succeeds.
     await pg.query("INSERT INTO ct (arr) VALUES (ARRAY[1,2] || $1)", [null]);
 
     const text = await parseSql("INSERT INTO ct (name) VALUES ('a' || $1)");
-    const textContract = inferQueryContract(text.stmts![0]!.stmt!, catalog);
+    const textContract = await inferQueryContract(text.stmts![0]!.stmt!, catalog);
     expect(textContract.params.map(p => p.notNull)).toEqual([true]);
     await expect(
       pg.query("INSERT INTO ct (name) VALUES ('a' || $1)", [null]),

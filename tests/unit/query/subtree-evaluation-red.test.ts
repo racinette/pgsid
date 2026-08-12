@@ -66,15 +66,20 @@ afterAll(async () => {
 
 async function contract(sql: string): Promise<QueryContract> {
   const parsed = await parseSql(sql);
-  return inferQueryContract(parsed.stmts![0]!.stmt!, catalog);
+  // The statement map is ON for the whole suite: red targets flip on the
+  // consumer that answers them, and every boundary guard holds with the
+  // evaluator live — which is the direction the guards exist to test.
+  return inferQueryContract(parsed.stmts![0]!.stmt!, catalog, {
+    evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
+  });
 }
 
 // --- Consumer 1: the statement map. ----------------------------------------
 // Closed subtrees of the statement evaluated through PostgreSQL; the walk
 // consults a node-identity map. Targets flip when the map consumer lands.
 
-describe("RED: statement map", () => {
-  it.fails("nested closed guards prune at two depths", async () => {
+describe("statement map (flipped 2026-08-12 — rollout step 2 landed)", () => {
+  it("nested closed guards prune at two depths", async () => {
     const c = await contract(
       "SELECT CASE WHEN length(trim('  x  ')) = 1" +
         " THEN CASE WHEN 2 + 2 = 4 THEN o.id ELSE NULL END" +
@@ -85,7 +90,7 @@ describe("RED: statement map", () => {
     expect(c.outputs[0]!.notNull).toBe(true);
   });
 
-  it.fails("a COALESCE chain resolves through folded NULLIF arms", async () => {
+  it("a COALESCE chain resolves through folded NULLIF arms", async () => {
     const c = await contract(
       "SELECT COALESCE(NULLIF('a', 'a'), NULLIF('b', 'c'), s.plan) AS c FROM subscription s",
     );
@@ -94,7 +99,7 @@ describe("RED: statement map", () => {
     expect(c.outputs[0]!.notNull).toBe(true);
   });
 
-  it.fails("a guard-FALSE arm folds inside a set operation", async () => {
+  it("a guard-FALSE arm folds inside a set operation", async () => {
     const c = await contract(
       "SELECT CASE WHEN 1 > 2 THEN NULL ELSE 'val' END AS c UNION ALL SELECT 'other'",
     );
@@ -102,7 +107,7 @@ describe("RED: statement map", () => {
     expect(c.outputs[0]!.notNull).toBe(true);
   });
 
-  it.fails("a folded claim propagates through a CTE reference", async () => {
+  it("a folded claim propagates through a CTE reference", async () => {
     const c = await contract(
       "WITH flags AS (SELECT CASE WHEN 1 = 1 THEN 'on' ELSE NULL END AS flag)" +
         " SELECT f.flag FROM flags f",
@@ -120,7 +125,7 @@ describe("RED: statement map", () => {
     expect(c.outputs[0]!.notNull).toBe(true);
   });
 
-  it.fails("a folded CASE feeds an aggregate its notNull operand", async () => {
+  it("a folded CASE feeds an aggregate its notNull operand", async () => {
     const c = await contract(
       "SELECT sum(CASE WHEN 'a' = 'b' THEN NULL ELSE o.qty END) AS s" +
         " FROM orders o GROUP BY o.id",

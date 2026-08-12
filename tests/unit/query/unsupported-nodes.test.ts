@@ -365,9 +365,9 @@ describe("unsupported nodes are refused, not guessed", () => {
         fromClause: [{ SomeFutureRangeKind: {} }],
       },
     } as never;
-    expect(() => inferNullability(stmt, catalog)).toThrow(UnsupportedNodeError);
+    await expect(inferNullability(stmt, catalog)).rejects.toThrow(UnsupportedNodeError);
     try {
-      inferNullability(stmt, catalog);
+      await inferNullability(stmt, catalog);
     } catch (e) {
       expect((e as UnsupportedNodeError).site).toBe("from-item");
       expect((e as UnsupportedNodeError).nodeType).toBe("SomeFutureRangeKind");

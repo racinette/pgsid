@@ -150,8 +150,8 @@ describe("argument nullability (engine vs @param annotations)", () => {
   it("inferQueryContract returns both halves from one call", async () => {
     const sql = readFileSync(join(FIXTURES_DIR, "param-multi-use.sql"), "utf8");
     const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
-    const contract = inferQueryContract(stmt, catalog);
-    expect(contract.outputs).toEqual(inferNullability(stmt, catalog));
+    const contract = await inferQueryContract(stmt, catalog);
+    expect(contract.outputs).toEqual(await inferNullability(stmt, catalog));
     expect(contract.params).toEqual(collectParamNullability(stmt, catalog));
     expect(contract.params).toEqual([{ number: 1, notNull: true }]);
   });
