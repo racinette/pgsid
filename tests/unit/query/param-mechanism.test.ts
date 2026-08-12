@@ -400,4 +400,161 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     );
     expect(r.rows[0]).toEqual({ e1: false, e2: false, e3: true });
   });
+
+  it("volatility gates CASTS, not just calls: the I/O functions carry it", async () => {
+    // docs/subtree-evaluation.md: `5::integer` folds and `'now'::timestamptz`
+    // never does, because a literal cast invokes the target type's INPUT
+    // function — and PostgreSQL declares the datetime family's I/O stable
+    // (DateStyle/TimeZone state), while the int/text/numeric family is
+    // immutable. array_in is stable too (elements could be dates), which is
+    // why no array type is ever a closed cast target. The evaluator's whole
+    // safe-type capture is this pg_proc column, so a PostgreSQL release that
+    // moves one of these rows must fail here, with the consequence named.
+    const vol = async (fn: string) => {
+      const r = await pg.query<{ v: string }>(
+        `SELECT provolatile AS v FROM pg_proc
+         WHERE proname = $1 AND pronamespace = 'pg_catalog'::regnamespace`,
+        [fn],
+      );
+      return r.rows[0]!.v;
+    };
+    expect(await vol("int4in")).toBe("i");
+    expect(await vol("textin")).toBe("i");
+    expect(await vol("numeric_in")).toBe("i");
+    expect(await vol("date_in")).toBe("s");
+    expect(await vol("timestamptz_in")).toBe("s");
+    expect(await vol("array_in")).toBe("s");
+  });
+
+  it("a stable INPUT function makes even an immutable call session-dependent", async () => {
+    // The parse-time face of the same gate: date_part(text, date) is
+    // IMMUTABLE, yet the answer moves with DateStyle, because coercing the
+    // written literal to date runs date_in under session state. Volatility
+    // of the call alone is therefore not the closure question — every type
+    // an expression touches must have immutable I/O, or the analysis-time
+    // answer does not bind other sessions.
+    await pg.exec("SET datestyle = 'ISO, MDY'");
+    const mdy = await pg.query<{ v: number }>(
+      "SELECT date_part('day', '1/2/2020'::date) AS v",
+    );
+    await pg.exec("SET datestyle = 'ISO, DMY'");
+    const dmy = await pg.query<{ v: number }>(
+      "SELECT date_part('day', '1/2/2020'::date) AS v",
+    );
+    await pg.exec("SET datestyle = DEFAULT");
+    expect(mdy.rows[0]!.v).toBe(2);
+    expect(dmy.rows[0]!.v).toBe(1);
+  });
+
+  it("'now' re-evaluates per statement — the cast is never a constant", async () => {
+    const a = await pg.query<{ v: string }>("SELECT 'now'::timestamptz::text AS v");
+    await new Promise(resolve => setTimeout(resolve, 5));
+    const b = await pg.query<{ v: string }>("SELECT 'now'::timestamptz::text AS v");
+    expect(a.rows[0]!.v).not.toBe(b.rows[0]!.v);
+  });
+
+  it("result_types answers in the same round trip as the values", async () => {
+    // The evaluator's protocol: PREPARE the batched SELECT (through the same
+    // single-statement query path its callback uses), then one SELECT
+    // returns every subtree's value AND the prepared statement's
+    // result_types (pg_prepared_statements, present since PG 17) as a
+    // text[] column beside them.
+    await pg.query("PREPARE eval_probe AS SELECT 2 + 2 AS e0, 'a'::char(4) AS e1, NULL::text AS e2");
+    const r = await pg.query<{ __types: string[]; e0: number; e1: string; e2: string | null }>(
+      "SELECT (SELECT result_types::text[] FROM pg_prepared_statements" +
+        " WHERE name = 'eval_probe') AS __types, __q.*" +
+        " FROM (SELECT 2 + 2 AS e0, 'a'::char(4) AS e1, NULL::text AS e2) AS __q",
+    );
+    expect(r.rows[0]).toEqual({
+      __types: ["integer", "character", "text"],
+      e0: 4,
+      e1: "a   ",
+      e2: null,
+    });
+    await pg.query("DEALLOCATE eval_probe");
+  });
+
+  it("a raising subtree still PREPAREs: types stay readable, values retry singly", async () => {
+    // `5 / 0` raises at evaluation, not at parse analysis — so the batch's
+    // PREPARE succeeds and result_types is already known when the value
+    // fetch fails. The evaluator's fallback re-runs each subtree in its own
+    // SELECT; the raising one contributes nothing and the rest still answer.
+    await pg.query("PREPARE eval_probe2 AS SELECT 5 / 0 AS e0, 2 + 2 AS e1");
+    const t = await pg.query<{ t: string[] }>(
+      "SELECT result_types::text[] AS t FROM pg_prepared_statements WHERE name = 'eval_probe2'",
+    );
+    expect(t.rows[0]!.t).toEqual(["integer", "integer"]);
+    expect(await errorOf("SELECT 5 / 0 AS e0, 2 + 2 AS e1", [])).toContain("division by zero");
+    const ok = await pg.query<{ v: number }>("SELECT 2 + 2 AS v");
+    expect(ok.rows[0]!.v).toBe(4);
+    await pg.query("DEALLOCATE eval_probe2");
+  });
+
+  // --- Unknown-literal landing rules (typed operand tracking rests here). ---
+  //
+  // docs/subtree-evaluation.md, "Typed operand tracking": a bare string
+  // literal is UNTYPED — pseudo-type unknown — and PostgreSQL assigns it a
+  // type at its first consumption site, by rules these pins hold. The rung's
+  // closure gate applies exactly these rules before candidate elimination,
+  // so a PostgreSQL release that moves one must fail here with the design
+  // consequence named.
+
+  it("a bare literal is unknown; the statement's OUTPUT coerces it to text", async () => {
+    const r = await pg.query<{ t: string }>("SELECT pg_typeof('a')::text AS t");
+    expect(r.rows[0]!.t).toBe("unknown");
+    await pg.query("PREPARE landing_out AS SELECT 'a'");
+    const rt = await pg.query<{ t: string[] }>(
+      "SELECT result_types::text[] AS t FROM pg_prepared_statements WHERE name = 'landing_out'",
+    );
+    expect(rt.rows[0]!.t).toEqual(["text"]);
+    await pg.query("DEALLOCATE landing_out");
+  });
+
+  it("all-unknown operands land on text; one known operand types the other side", async () => {
+    const r = await pg.query<{ both: string; one: string; unified: string }>(
+      "SELECT pg_typeof('a' || 'b')::text AS both, pg_typeof(5 + '3')::text AS one," +
+        " pg_typeof(COALESCE('a', 'b'))::text AS unified",
+    );
+    expect(r.rows[0]).toEqual({ both: "text", one: "integer", unified: "text" });
+  });
+
+  it("unknown never resolves silently where the rules run out", async () => {
+    // The two dead ends the gate may rely on: a polymorphic parameter
+    // cannot be instantiated from unknown, and cross-category unary
+    // candidates refuse rather than pick — both RAISE, so a statement that
+    // reaches them has no answers to be wrong about.
+    expect(await errorOf("SELECT array_ndims('{1,2}')", [])).toContain(
+      "could not determine polymorphic type",
+    );
+    expect(await errorOf("SELECT - '5'", [])).toContain("operator is not unique");
+  });
+
+  it("the signature forks the survivor gate splits by, as pg_proc declares them", async () => {
+    // One operator name, opposite volatilities: `'a' || 'b'` resolves
+    // textcat (immutable, foldable) while `'a' || 5` resolves textanycat
+    // (STABLE — it renders through the argument type's output function).
+    // A name-level gate cannot split these; the per-signature capture the
+    // rung adds keys on exactly this data. ts_match_tt is the guard's
+    // counterpart: `text @@ text` is stable ITSELF (default_text_search_config),
+    // so no gate refinement may ever fold it. length's bytea/name row is
+    // the same fact on the function side, already carried by the arity axis.
+    const vol = async (fn: string) => {
+      const r = await pg.query<{ v: string }>(
+        `SELECT provolatile AS v FROM pg_proc
+         WHERE proname = $1 AND pronamespace = 'pg_catalog'::regnamespace`,
+        [fn],
+      );
+      return r.rows[0]!.v;
+    };
+    expect(await vol("textcat")).toBe("i");
+    expect(await vol("textanycat")).toBe("s");
+    expect(await vol("anytextcat")).toBe("s");
+    expect(await vol("ts_match_tt")).toBe("s");
+    const lengthRows = await pg.query<{ args: string }>(
+      `SELECT pg_get_function_identity_arguments(oid) AS args FROM pg_proc
+       WHERE proname = 'length' AND pronamespace = 'pg_catalog'::regnamespace
+         AND provolatile <> 'i'`,
+    );
+    expect(lengthRows.rows.map(r => r.args)).toEqual(["bytea, name"]);
+  });
 });
