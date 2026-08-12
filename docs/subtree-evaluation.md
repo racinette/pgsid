@@ -137,6 +137,20 @@ survivor-level one. Four pieces:
    sound without replicating PostgreSQL's resolution exactly, and why
    it does not re-enter the value-tracking ban's premise.
 
+The gate this yields is a WHITELIST, and a MECHANICAL one — that is the
+implementation-shaping consequence of the deferral below. Everything
+admitting an expression is computed from pg_type/pg_proc flags (the
+immutable-I/O set, per-signature provolatile) plus rule tables pinned
+as tests (the landing rules, the range-family exemption): no list in
+this rung requires a human judgment about an individual function. The
+known settings-dependent edge cases need no handling AT ALL here —
+datetime literals fail on date_in's flag, `'now'` needs no special-case
+because its whole type family is already outside the set, GUC-stable
+signatures fail on their own flag. Hand-curated lists (a why-stable
+table splitting GUC-stable from clock-stable, the clock-reading special
+strings) become necessary exactly and only when the deferred expansion
+is picked up — which is what made it deferrable without a placeholder.
+
 The acceptance frame is IN PLACE (2026-08-12, every value adjudicated):
 "RED: typed operand tracking" in `subtree-evaluator.test.ts` — four
 `it.fails` targets (`'a' || 'b'` → 'ab'; `upper('a') || 'b'` → 'Ab',
@@ -149,6 +163,84 @@ and `text @@ text`, whose all-unknown landing IS the stable row
 signature-splitting has a floor. Orthogonal to the consumer rollout
 below: the rung only widens what folds, so it may land before or after
 any consumer.
+
+**The dependence model, corrected (2026-08-12).** `provolatile`
+conflates two dependences: SESSION state (GUCs, clock, locale,
+search_path) and CATALOG state (a domain's constraints, an enum's
+values, name→OID maps). PostgreSQL's flags must quantify over both —
+they answer for any future catalog. This engine's claims do not: they
+are conditioned on the analyzed snapshot, and catalog change is the
+system's re-analysis trigger, not a soundness hazard — migrations
+rebuild the snapshot, contracts recompute, dependency extraction
+rechecks what a changed object touched. The evaluator's real boundary
+is session state alone. The exclusions above, re-sorted under that
+light:
+
+- PRINCIPLED (session-state): the datetime/money/xml I/O boundaries,
+  GUC-stable signatures, the clock strings, `regclass` and friends
+  (search_path is session state), every VOLATILE row.
+- FIRST-WAVE SCOPE, foldable under the snapshot contract — the
+  widening rides this rung, by the same name-consensus shape as the
+  collision rule, so scope-blindness holds:
+  - domains over immutable-I/O bases, with each CHECK expression gated
+    through THIS closure gate recursively (the snapshot carries them
+    parsed);
+  - enums — values and sort order are snapshot-pinned, and their
+    comparison operators are immutable by PostgreSQL's own book;
+  - array literals over immutable-I/O element types — `array_in`'s
+    blanket-stable flag means "elements could be datetime", a question
+    the element gate answers better than the flag does.
+
+**Stated assumptions, recorded rather than gated (2026-08-12).**
+
+- `float8out` and `byteaout` are declared IMMUTABLE although rendering
+  knobs (extra_float_digits, bytea_output) move their text form.
+  Trusted per the answer-key principle — and independently, every
+  route where a rendered form could re-enter a computation is closed:
+  literal-only casts, the stable concatenation exclusions, and the
+  consumption rule (only `isNull` and boolean truth are read from the
+  map).
+- Text-comparison folds are pinned to the analyzed database's DEFAULT
+  COLLATION: `'a' < 'B'` answers oppositely under C and ICU en_US, and
+  PostgreSQL's "immutable" is per-database — a database's collation
+  cannot change under it. This extends the engine's standing
+  analysis-database ≡ execution-database assumption from schema to
+  collation. No gate; recorded.
+
+**Deferred (2026-08-12): settings-pinned datetime expansion.** Not
+rejected — the ruling was: build the simpler rung first, omit the edge
+cases that need a config contract, return to this once the main
+machinery is done. The proposal — pin DateStyle/IntervalStyle/TimeZone
+via an init-script contract and admit the datetime family into the
+immutable-I/O set — was measured now (PG 18.3) so the later decision
+starts from facts, and in its naive form it is strictly worse under the
+NAME-level gates:
+admitting the types makes datetime operands REACHABLE, which wakes the
+STABLE cross-type rows sleeping under the common operator names
+(`date = timestamptz`, `timestamptz + interval` — stable through
+TimeZone), and the name-consensus then kills `= <> < <= > >= + -`
+wholesale: operator names 71 → 63, four red-suite flip targets lost,
+none gained. The function side gains 158 (name, arity) pairs of which
+nearly all are internal spellings (`date_eq`, `timestamp_send`,
+hashes); `date_part` itself does NOT return — its stable
+`(text, timestamptz)` row shares name AND arity with the immutable
+`(text, date)` row, so only per-signature typing can split them. Three
+blockers stand even past the cascade: pg_proc records THAT a row is
+stable, not WHY — splitting GUC-stable from clock-stable (`now()` types
+like the admissible rows and must never fold) takes a curated table;
+the datetime INPUT functions read the clock through special strings
+(`'now'`, `'today'`), so pinned settings do not make them
+deterministic; and an init-script promise is unverifiable at analysis
+time. The sound part comes free from THIS rung instead: per-signature
+survivors fold `date_part('day', make_date(2020, 1, 1))` and
+`make_date(…) = make_date(…)` with no settings assumption — operand
+types eliminate the stable rows rather than name-poisoning. REVISIT
+TRIGGER: after this rung lands, re-run the expansion measurement; the
+residue still needing a settings assumption (datetime literals via
+`date_in`, rendering via `date_out`, the genuinely GUC-stable
+signatures) will then be small and enumerable, and that is the moment
+to decide — for or against — with the curated-table and init-script
+costs on the table.
 
 ## Consumer 1 — the statement map
 

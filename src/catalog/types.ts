@@ -770,6 +770,12 @@ export interface CatalogSnapshot {
    * are excluded wholesale (array_in), as are domains and enums
    * (domain_in/enum_in are stable, and they are user types anyway).
    *
+   * Note that those last exclusions inherit PostgreSQL's reason, which is
+   * not this engine's: provolatile also covers CATALOG-state dependence,
+   * which the snapshot contract neutralizes. docs/subtree-evaluation.md,
+   * "The dependence model, corrected", sorts principled exclusions from
+   * first-wave scope and records the widening path.
+   *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
   builtinImmutableIoTypes: string[];
