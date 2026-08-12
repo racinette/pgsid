@@ -128,9 +128,20 @@ stays OPEN. The first-wave widenings (domains over safe bases with
 CHECKs through the gate, enums, array literals over safe elements) were
 NOT taken with the core — recorded in the charter, they ride a later
 batch. The rung stays ORTHOGONAL to the
-consumer order — it only widens what folds. Next per the rollout list:
-the statement map, then the grounder — at which point the standing
-finding (`subscription_check1`, ~9 per 20,000) closes; verify with
+consumer order — it only widens what folds. **The STATEMENT MAP —
+rollout step 2 — is BUILT (2026-08-12)**: the walk's entry points are
+async with `evaluate` optional beside `paramTypes`, the engine consumes
+the map synchronously at exactly two sites (expression dispatch reads
+`isNull`; searched-CASE guards prune by boolean truth, a TRUE guard
+also rescuing a missing ELSE), its five red targets flipped in the
+landing commit with all seven boundary guards green under the live
+evaluator, and the witness effect was the surveyed one exactly —
+`open_sum` flipped notNull, its `@unwitnessable` retired, nothing else
+moved. The fixture and soundness harnesses run map-live; both censuses
+run evaluator-off so fixture coverage of the symbolic paths holds. The
+charter's consumer-1 "As built" records the shape. Next per the rollout
+list: the grounder — at which point the standing finding
+(`subscription_check1`, ~9 per 20,000) closes; verify with
 20,000-query runs at two seeds. It stays reported until then.
 The suite total dropped 3301 → 2879 honestly: builtin-null-rejection's old
 import of param-soundness.test.js was re-running its 428 tests in a second

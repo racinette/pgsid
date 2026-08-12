@@ -1,4 +1,4 @@
-# Subtree evaluation (chartered 2026-08-11; EVALUATOR CORE BUILT 2026-08-11, TYPED OPERAND TRACKING BUILT 2026-08-12, consumers not)
+# Subtree evaluation (chartered 2026-08-11; EVALUATOR CORE BUILT 2026-08-11, TYPED OPERAND TRACKING and STATEMENT MAP BUILT 2026-08-12, grounder not)
 
 Evaluate closed subtrees of expressions through PostgreSQL and hand the
 answers to the engine as data. One evaluator, two consumers now, one
@@ -321,6 +321,33 @@ to today's symbolic answer — sound, never wrong.
   typed comparison is blank-padding territory (`bp`), and that path goes
   through the grounder's declared-type casts.
 
+### As built (2026-08-12)
+
+The entry points (`inferNullability`, `inferQueryContract`, the traced
+twin) are async with `evaluate` optional beside `paramTypes`
+(`WalkOptions`); the map is computed in one pre-walk step and the engine
+stays synchronous. Exactly two consumption sites, one per allowed
+reading:
+
+- Expression dispatch, before every other branch: a map hit answers the
+  node whole — non-null claims notNull, an evaluated NULL keeps today's
+  word without walking children. Exact wherever the walk meets the node,
+  because closure means no row, guard or parameter can move the value.
+- Searched-CASE guards, by boolean truth: FALSE or NULL drops the arm,
+  everything after a TRUE guard — later arms and the ELSE — never runs,
+  which also rescues a missing ELSE. The simple form has no AST node for
+  its comparisons, so the map cannot prune it; a fully closed simple
+  CASE still answers at the dispatch site.
+
+The five red targets flipped in the landing commit and all seven
+boundary guards held with the evaluator live; the CTE target verified
+node identity through the walk's memoization unchanged. The fixture and
+soundness harnesses run map-live — the claims the pins assert are the
+claims the oracle adjudicates — while both censuses run evaluator-off,
+keeping fixture coverage of the symbolic paths a map hit short-circuits.
+The witness effect was the surveyed one exactly: `open_sum` flipped
+nullable→notNull, its `@unwitnessable` retired, nothing else moved.
+
 ## Consumer 2 — the CHECK grounder (Mechanism E)
 
 Design in `docs/argument-nullability.md`, "Mechanism E": ground enforced
@@ -422,7 +449,8 @@ CHECK so the distribution can convict these shapes if they carry weight.
 
 `operator-path-plus.sql` `open_sum` flips nullable→notNull and its
 `@unwitnessable` annotation retires — the one entry of the current census
-that closes (survey 2026-08-11); the census majority records data-shape
+that closes (survey 2026-08-11; HAPPENED as surveyed when the statement
+map landed, 2026-08-12); the census majority records data-shape
 reasons, which the boundaries above refuse by design. New statement-map
 claims land mostly on the literal-heavy generated corpus, where the oracle
 adjudicates automatically; the CHECK grounder closes the discovery
@@ -435,6 +463,7 @@ seeds — verify with 20,000-query runs at two seeds when it flips).
    volatility-of-casts pin, batching, `result_types`). BUILT 2026-08-11 —
    see "As built" above; consumer-facing surface is
    `evaluateClosedSubtrees(stmt, catalog, evaluate) → Map<Node, EvalResult>`.
-2. Statement map consumer — flip its red block.
+2. Statement map consumer — flip its red block. BUILT 2026-08-12 — see
+   the consumer's "As built" above.
 3. CHECK grounder — flip its block; the standing finding goes to zero.
 4. Entailment later, under its own soundness argument, when chartered.
