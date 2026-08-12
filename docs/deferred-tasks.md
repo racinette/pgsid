@@ -114,7 +114,14 @@ its own weight, no instrument gate) with its acceptance frame IN PLACE:
 four adjudicated red targets and three never-fold guards in
 `subtree-evaluator.test.ts`, the unknown-literal landing rules and
 signature-fork facts pinned in `param-mechanism.test.ts`, design in the
-charter's "Typed operand tracking" section. It is ORTHOGONAL to the
+charter's "Typed operand tracking" section — which also holds the
+measured DEFERRAL of settings-pinned datetime expansion (naive form
+strictly worse under name-level gates, operator names 71 → 63; revisit
+trigger: re-run the measurement after the rung lands and decide then),
+the dependence-model CORRECTION (session-state vs catalog-state:
+user-type and array-literal exclusions are first-wave scope, their
+widening rides the rung), and the two stated assumptions (rendering
+knobs, default collation). It is ORTHOGONAL to the
 consumer order — it only widens what folds. Next per the rollout list:
 the statement map, then the grounder — at which point the standing
 finding (`subscription_check1`, ~9 per 20,000) closes; verify with
