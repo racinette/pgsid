@@ -425,6 +425,8 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     builtinImmutableIoTypes: [],
     builtinImmutableFunctionArities: {},
     builtinImmutableOperators: [],
+    builtinFunctionVolatilities: [],
+    builtinOperatorVolatilities: [],
     builtinTableFunctions: {},
     builtinSetReturningFunctions: [],
     builtinAggregateFunctions: [],

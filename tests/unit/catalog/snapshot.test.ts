@@ -528,6 +528,76 @@ describe("snapshotCatalog: functions and procedures", () => {
     expect(s.builtinTypeNameAliases["text"]).toBeUndefined();
   });
 
+  it("captures per-signature volatility over ALL of pg_catalog", async () => {
+    // The typed-operand-tracking captures (docs/subtree-evaluation.md,
+    // "Typed operand tracking"): every value below measured 2026-08-12.
+    // The survivor gate splits NAMES into SIGNATURES, so each assertion is
+    // a fork no name-level capture can express.
+    const s = await snapshotCatalog(pg);
+
+    // Unscoped: all of pg_catalog rides along, not the curated claim names.
+    expect(s.builtinFunctionVolatilities.length).toBeGreaterThan(3000);
+    expect(s.builtinOperatorVolatilities.length).toBeGreaterThan(700);
+
+    // textcat immutable beside textanycat/anytextcat stable — the `||`
+    // fork the red targets flip on.
+    const concat = s.builtinOperatorVolatilities.filter(o => o.name === "||");
+    const byOperands = (l: string, r: string) =>
+      concat.find(o => o.leftType === l && o.rightType === r);
+    expect(byOperands("text", "text")).toMatchObject({ returns: "text", volatility: "i" });
+    expect(byOperands("text", "anynonarray")).toMatchObject({ volatility: "s" });
+    expect(byOperands("anynonarray", "text")).toMatchObject({ volatility: "s" });
+
+    // length: immutable at (text), STABLE at (bytea, name) — the row that
+    // forced the arity axis, now carried per signature.
+    const length = s.builtinFunctionVolatilities.filter(f => f.name === "length");
+    expect(length.find(f => f.args.join(",") === "text")).toMatchObject({
+      volatility: "i", kind: "f", returnsSet: false,
+    });
+    expect(length.find(f => f.args.join(",") === "bytea,name")).toMatchObject({
+      volatility: "s",
+    });
+
+    // date_part: (text, date) immutable SHARES name and arity with the
+    // stable (text, timestamptz) — the fork only per-signature typing can
+    // split (the deferral's measured example).
+    const dp = s.builtinFunctionVolatilities.filter(f => f.name === "date_part");
+    expect(dp.find(f => f.args.join(",") === "text,date")).toMatchObject({ volatility: "i" });
+    expect(dp.find(f => f.args.join(",") === "text,timestamp with time zone"))
+      .toMatchObject({ volatility: "s" });
+
+    // text @@ text is stable ITSELF (ts_match_tt reads
+    // default_text_search_config): the floor under signature-splitting.
+    expect(
+      s.builtinOperatorVolatilities.find(
+        o => o.name === "@@" && o.leftType === "text" && o.rightType === "text",
+      ),
+    ).toMatchObject({ volatility: "s" });
+
+    // A plainly-spelled call can resolve to an aggregate: every max row at
+    // one argument is kind 'a', which is what the verdict refuses on.
+    const max1 = s.builtinFunctionVolatilities.filter(
+      f => f.name === "max" && f.args.length === 1,
+    );
+    expect(max1.length).toBeGreaterThan(0);
+    for (const f of max1) expect(f.kind).toBe("a");
+
+    // Prefix rows survive, interval row included — the operand whose
+    // non-immutable-I/O landing is what refuses `- '5'`.
+    expect(s.builtinOperatorVolatilities.some(
+      o => o.name === "-" && o.leftType === null && o.rightType === "interval",
+    )).toBe(true);
+
+    // The coercion route carries volatility too: text → regclass runs a
+    // STABLE cast function (search_path), the numeric tower an immutable
+    // one, and a binary edge runs nothing.
+    const cast = (source: string, target: string) =>
+      s.builtinImplicitCasts.find(c => c.source === source && c.target === target);
+    expect(cast("text", "regclass")).toMatchObject({ binary: false, volatility: "s" });
+    expect(cast("bigint", "numeric")).toMatchObject({ binary: false, volatility: "i" });
+    expect(cast("character varying", "text")).toMatchObject({ binary: true, volatility: null });
+  });
+
   it("includes extension functions (plpgsql_check) but they are not validated", async () => {
     const s = await snapshotCatalog(pg);
     const extFns = s.functions.filter(f => f.name === "plpgsql_check_function_tb" || f.name === "plpgsql_check_function");
