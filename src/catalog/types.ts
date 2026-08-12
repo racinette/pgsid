@@ -276,6 +276,35 @@ export interface BuiltinSignature {
 }
 
 /**
+ * One pg_catalog function signature with the keys the subtree evaluator's
+ * survivor gate reads (docs/subtree-evaluation.md, "Typed operand
+ * tracking"): `provolatile` for the verdict; `prokind` and `proretset`
+ * because a plainly-spelled call can still resolve to an aggregate
+ * (`max(1)`) or a set-returning row; the variadic type and trailing-default
+ * count because arity matching must span the same calls PostgreSQL's own
+ * resolution would.
+ */
+export interface BuiltinFunctionVolatility extends BuiltinSignature {
+  volatility: "i" | "s" | "v";
+  kind: "f" | "a" | "w";
+  returnsSet: boolean;
+  /** The declared VARIADIC parameter's type, or null when not variadic. */
+  variadic: string | null;
+  /** `pg_proc.pronargdefaults` — trailing parameters carrying defaults. */
+  numArgDefaults: number;
+}
+
+/** One pg_catalog operator row with its backing function's `provolatile`;
+ *  `leftType` is null for prefix operators. */
+export interface BuiltinOperatorVolatility {
+  name: string;
+  leftType: string | null;
+  rightType: string | null;
+  returns: string;
+  volatility: "i" | "s" | "v";
+}
+
+/**
  * One pg_catalog signature for a name the curated claim tables cover,
  * carrying the resolution keys `docs/type-aware-overloads.md` measured
  * ("The three pre-refactor questions, ANSWERED"): per-signature strictness,
@@ -345,6 +374,19 @@ export interface ImplicitCastInfo {
    * there is no single canonical target.
    */
   binary: boolean;
+  /**
+   * `provolatile` of the cast's implementation function, or null when
+   * `castfunc = 0` (binary coercion runs nothing; an I/O-conversion cast
+   * runs the endpoint types' I/O functions instead, and its null here plus
+   * `binary: false` is what keeps it out of the clean-route set). Five
+   * implicit edges carry a STABLE function — text/varchar → regclass read
+   * the search path, date/time/timestamp → their tz forms read TimeZone
+   * (measured 2026-08-12) — which is why the subtree evaluator's survivor
+   * verdict checks the coercion route and not just the candidate rows: an
+   * operand crossing such an edge is session-dependent even when every
+   * surviving signature is immutable.
+   */
+  volatility: "i" | "s" | "v" | null;
 }
 
 /**
@@ -814,6 +856,26 @@ export interface CatalogSnapshot {
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
   builtinImmutableOperators: string[];
+  /**
+   * EVERY pg_catalog function signature (prokind 'f'/'a'/'w') with its
+   * `provolatile` — the per-signature capture typed operand tracking
+   * eliminates over (docs/subtree-evaluation.md, "Typed operand tracking").
+   * Unlike `builtinFunctionSignatures` it is not scoped to the curated
+   * claim tables, and it carries volatility where that capture carries
+   * strictness: the survivor gate asks "is every signature this call can
+   * still resolve to immutable?", which no name-level capture can answer —
+   * `length` is immutable at (text) and STABLE at (bytea, name), `textcat`
+   * is immutable under the same `||` that carries the stable `textanycat`.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinFunctionVolatilities: BuiltinFunctionVolatility[];
+  /**
+   * EVERY pg_catalog operator row with the `provolatile` of its backing
+   * function, prefix rows included — the operator half of
+   * `builtinFunctionVolatilities`. ENVIRONMENT like it.
+   */
+  builtinOperatorVolatilities: BuiltinOperatorVolatility[];
 }
 
 // ---------------------------------------------------------------------------

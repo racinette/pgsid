@@ -1,7 +1,9 @@
 import type { PGlite } from "@electric-sql/pglite";
 import type {
   BuiltinFunctionSignature,
+  BuiltinFunctionVolatility,
   BuiltinOperatorSignature,
+  BuiltinOperatorVolatility,
   BuiltinSignature,
   ImplicitCastInfo,
   BuiltinCast,
@@ -538,6 +540,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinImmutableIoTypes,
     builtinImmutableFunctionArities,
     builtinImmutableOperators,
+    builtinFunctionVolatilities,
+    builtinOperatorVolatilities,
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
@@ -575,6 +579,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinImmutableIoTypes(pg),
     queryBuiltinImmutableFunctionArities(pg),
     queryBuiltinImmutableOperators(pg),
+    queryBuiltinFunctionVolatilities(pg),
+    queryBuiltinOperatorVolatilities(pg),
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
@@ -980,6 +986,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinImmutableIoTypes,
     builtinImmutableFunctionArities,
     builtinImmutableOperators,
+    builtinFunctionVolatilities,
+    builtinOperatorVolatilities,
   };
 }
 
@@ -1546,15 +1554,27 @@ async function queryBuiltinOperatorSignatures(
  * (docs/type-aware-overloads.md, the elimination rule).
  */
 async function queryBuiltinImplicitCasts(pg: PGlite): Promise<ImplicitCastInfo[]> {
-  const res = await pg.query<{ source: string; target: string; binary: boolean }>(
+  const res = await pg.query<{
+    source: string;
+    target: string;
+    binary: boolean;
+    volatility: "i" | "s" | "v" | null;
+  }>(
     `SELECT format_type(c.castsource, null) AS source,
             format_type(c.casttarget, null) AS target,
-            c.castmethod = 'b' AS binary
+            c.castmethod = 'b' AS binary,
+            p.provolatile AS volatility
      FROM pg_cast c
+     LEFT JOIN pg_proc p ON p.oid = c.castfunc
      WHERE c.castcontext = 'i'
      ORDER BY 1, 2;`,
   );
-  return res.rows.map(r => ({ source: r.source, target: r.target, binary: r.binary }));
+  return res.rows.map(r => ({
+    source: r.source,
+    target: r.target,
+    binary: r.binary,
+    volatility: r.volatility,
+  }));
 }
 
 /**
@@ -1712,6 +1732,88 @@ async function queryBuiltinImmutableOperators(pg: PGlite): Promise<string[]> {
      ORDER BY o.oprname;`,
   );
   return res.rows.map(r => r.name);
+}
+
+/**
+ * EVERY pg_catalog function signature with its provolatile. See
+ * CatalogSnapshot.builtinFunctionVolatilities — the survivor gate of typed
+ * operand tracking eliminates over these rows, so the capture is
+ * deliberately unscoped: no curated list enters that rung.
+ */
+async function queryBuiltinFunctionVolatilities(
+  pg: PGlite,
+): Promise<BuiltinFunctionVolatility[]> {
+  const res = await pg.query<{
+    name: string;
+    args: string[] | null;
+    returns: string;
+    volatility: "i" | "s" | "v";
+    kind: "f" | "a" | "w";
+    returns_set: boolean;
+    variadic: string | null;
+    num_arg_defaults: number;
+  }>(
+    `SELECT p.proname AS name,
+            (SELECT array_agg(format_type(t, null) ORDER BY o)
+               FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, o)) AS args,
+            format_type(p.prorettype, null) AS returns,
+            p.provolatile AS volatility,
+            p.prokind AS kind,
+            p.proretset AS returns_set,
+            CASE WHEN p.provariadic <> 0
+                 THEN format_type(p.provariadic, null) END AS variadic,
+            p.pronargdefaults::int AS num_arg_defaults
+     FROM pg_proc p
+     WHERE p.pronamespace = 'pg_catalog'::regnamespace
+       AND p.prokind IN ('f', 'a', 'w')
+     ORDER BY p.proname, 2;`,
+  );
+  return res.rows.map(r => ({
+    name: r.name,
+    args: r.args ?? [],
+    returns: r.returns,
+    volatility: r.volatility,
+    kind: r.kind,
+    returnsSet: r.returns_set,
+    variadic: r.variadic,
+    numArgDefaults: r.num_arg_defaults,
+  }));
+}
+
+/**
+ * EVERY pg_catalog operator row with its backing function's provolatile.
+ * See CatalogSnapshot.builtinOperatorVolatilities; the pg_proc JOIN drops
+ * shell operators exactly as queryBuiltinOperatorSignatures does.
+ */
+async function queryBuiltinOperatorVolatilities(
+  pg: PGlite,
+): Promise<BuiltinOperatorVolatility[]> {
+  const res = await pg.query<{
+    name: string;
+    left_type: string | null;
+    right_type: string | null;
+    returns: string;
+    volatility: "i" | "s" | "v";
+  }>(
+    `SELECT o.oprname AS name,
+            CASE WHEN o.oprleft <> 0
+                 THEN format_type(o.oprleft, null) END AS left_type,
+            CASE WHEN o.oprright <> 0
+                 THEN format_type(o.oprright, null) END AS right_type,
+            format_type(o.oprresult, null) AS returns,
+            p.provolatile AS volatility
+     FROM pg_operator o
+     JOIN pg_proc p ON p.oid = o.oprcode
+     WHERE o.oprnamespace = 'pg_catalog'::regnamespace
+     ORDER BY o.oprname, 2, 3;`,
+  );
+  return res.rows.map(r => ({
+    name: r.name,
+    leftType: r.left_type,
+    rightType: r.right_type,
+    returns: r.returns,
+    volatility: r.volatility,
+  }));
 }
 
 /**
