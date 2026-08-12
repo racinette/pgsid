@@ -1,4 +1,4 @@
-# Subtree evaluation (chartered 2026-08-11; EVALUATOR CORE BUILT 2026-08-11, consumers not)
+# Subtree evaluation (chartered 2026-08-11; EVALUATOR CORE BUILT 2026-08-11, TYPED OPERAND TRACKING BUILT 2026-08-12, consumers not)
 
 Evaluate closed subtrees of expressions through PostgreSQL and hand the
 answers to the engine as data. One evaluator, two consumers now, one
@@ -99,7 +99,13 @@ The pins: allowlist census, gates and protocol in
 DateStyle demonstration, the result_types round trip, the raise-after-
 PREPARE split) beside the Mechanism E pins in `param-mechanism.test.ts`.
 
-### Typed operand tracking (chartered 2026-08-12, NOT BUILT)
+The name-level gates and the three syntactic guards this section
+describes were the mechanism until typed operand tracking (below)
+replaced them with per-signature survivors and the general landing rule;
+the measured facts stand, and the guard pins stayed green through the
+replacement.
+
+### Typed operand tracking (chartered 2026-08-12, BUILT 2026-08-12)
 
 Ruled 2026-08-12: correctness carries its own weight — no instrument
 conviction required. The name-level gates above answer a universally
@@ -164,6 +170,58 @@ signature-splitting has a floor. Orthogonal to the consumer rollout
 below: the rung only widens what folds, so it may land before or after
 any consumer.
 
+#### As built (2026-08-12)
+
+Landed in three batches: the captures
+(`builtinFunctionVolatilities` / `builtinOperatorVolatilities` — every
+pg_catalog f/a/w signature and operator row, 3,402 + 799, plus
+`provolatile` on the implicit-cast edges), the survivor gate on the
+catalog face (`closedOperatorTypes`, `closedFunctionTypes`,
+`closedCommonTypes`, `closedCastTargetType`, `isImmutableIoRendering`),
+and the evaluator's typed pass replacing the name-level and syntactic
+gates. The four red targets flipped in the gate's commit, the guards and
+every transition pin held. Building it measured four things the charter
+prose above does not say:
+
+- Five implicit-cast edges carry a STABLE cast function (text/varchar →
+  regclass, date/time/timestamp → their tz forms), so the verdict checks
+  COERCION ROUTES too: a known operand's implicit route to each
+  survivor's parameter must be binary-coercible or immutable. This is
+  what keeps a text operand from reaching a regclass parameter through
+  search_path.
+- "Every landing and result type immutable-I/O" splits at the root:
+  composition crosses no I/O (`make_date(…)` closes and composes under
+  `date_part`), but a COLLECTED root's value crosses typoutput — so
+  roots additionally need immutable-I/O RENDERINGS, arrays by element,
+  row constructors by their fields. `date_out` reading DateStyle is the
+  counterexample that forces the split.
+- Survivor result types stay base-kind (`pg_type.typtype = 'b'`): a
+  concrete range constructor (`int4range(1, 3)` is immutable over
+  integers) would otherwise close, hand a range operand to a parent, and
+  break the range-family exemption's premise.
+- "A declared parameter types the literal", mechanised: a LONE candidate
+  exact at every known singleton position is PostgreSQL's own
+  most-exact-matches selection — terminal by its documented resolution —
+  and the verdict quantifies over it alone. A plainly-spelled aggregate
+  (`max(1)`) refuses at the VERDICT on its rows' prokind, never by
+  dropping a row PostgreSQL would pick.
+
+**The datetime re-measurement (2026-08-12, the deferral's revisit
+trigger).** Under per-signature gates the name-poisoning that made the
+naive expansion strictly worse is gone by construction, and the rung
+already serves 204 immutable function signatures and 77 immutable
+operator rows touching the datetime family with NO settings assumption —
+they compose wherever immutable constructors produce the operands. The
+residue that still needs a settings contract: all six family INPUT
+functions are stable and four of six outputs (time and timetz render
+immutably), so literal admission and root rendering both wait on the
+init-script pin; and 90 stable function signatures + 27 stable operator
+rows would need the why-stable curated table — `date_part`,
+`date_trunc`, `extract` and the date↔timestamptz comparison family are
+GUC-stable, while `now`, `statement_timestamp` and six more zero-arg
+clock returners type exactly like them. The decision — for or against —
+stays open, with those counts as its cost table.
+
 **The dependence model, corrected (2026-08-12).** `provolatile`
 conflates two dependences: SESSION state (GUCs, clock, locale,
 search_path) and CATALOG state (a domain's constraints, an enum's
@@ -181,7 +239,8 @@ light:
   (search_path is session state), every VOLATILE row.
 - FIRST-WAVE SCOPE, foldable under the snapshot contract — the
   widening rides this rung, by the same name-consensus shape as the
-  collision rule, so scope-blindness holds:
+  collision rule, so scope-blindness holds (NOT TAKEN with the core,
+  2026-08-12: the gate landed alone; these ride a later batch):
   - domains over immutable-I/O bases, with each CHECK expression gated
     through THIS closure gate recursively (the snapshot carries them
     parsed);
@@ -240,7 +299,8 @@ residue still needing a settings assumption (datetime literals via
 `date_in`, rendering via `date_out`, the genuinely GUC-stable
 signatures) will then be small and enumerable, and that is the moment
 to decide — for or against — with the curated-table and init-script
-costs on the table.
+costs on the table. (RAN 2026-08-12 — the residue is in "As built"
+above; the decision remains open.)
 
 ## Consumer 1 — the statement map
 

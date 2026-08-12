@@ -109,19 +109,25 @@ section records what building it measured — the immutable-I/O type set
 gates everything, casts close on literals only, the function gate is
 (name, arity), and three syntactic guards close the unknown-literal
 cracks. Nothing flipped, correctly: no consumer is wired. **TYPED
-OPERAND TRACKING is CHARTERED (2026-08-12**, ruled: correctness carries
-its own weight, no instrument gate) with its acceptance frame IN PLACE:
-four adjudicated red targets and three never-fold guards in
-`subtree-evaluator.test.ts`, the unknown-literal landing rules and
-signature-fork facts pinned in `param-mechanism.test.ts`, design in the
-charter's "Typed operand tracking" section — which also holds the
-measured DEFERRAL of settings-pinned datetime expansion (naive form
-strictly worse under name-level gates, operator names 71 → 63; revisit
-trigger: re-run the measurement after the rung lands and decide then),
-the dependence-model CORRECTION (session-state vs catalog-state:
-user-type and array-literal exclusions are first-wave scope, their
-widening rides the rung), and the two stated assumptions (rendering
-knobs, default collation). It is ORTHOGONAL to the
+OPERAND TRACKING is BUILT (2026-08-12**, ruled: correctness carries its
+own weight, no instrument gate): the survivor-level gate replaced the
+name-level one in three batches — the unscoped per-signature volatility
+captures (all 3,402 pg_catalog function rows and 799 operator rows,
+with cast-function volatility on the implicit-cast edges), the survivor
+gate on the catalog face (`closedOperatorTypes` and siblings), the
+evaluator's typed pass — and the four red targets flipped in the gate's
+commit while the three never-fold guards and every syntactic transition
+pin held. The charter's "As built (2026-08-12)" records what building
+measured (the five STABLE implicit-cast edges and the coercion-route
+check they force, the root-vs-member split, base-kind results, the
+lone-exact landing rule) AND the datetime re-measurement the deferral's
+trigger asked for: 204 + 77 immutable datetime rows now served with no
+settings assumption, a 90 + 27 stable-row residue for the why-stable
+table, all six input functions still stable — the settings decision
+stays OPEN. The first-wave widenings (domains over safe bases with
+CHECKs through the gate, enums, array literals over safe elements) were
+NOT taken with the core — recorded in the charter, they ride a later
+batch. The rung stays ORTHOGONAL to the
 consumer order — it only widens what folds. Next per the rollout list:
 the statement map, then the grounder — at which point the standing
 finding (`subscription_check1`, ~9 per 20,000) closes; verify with
