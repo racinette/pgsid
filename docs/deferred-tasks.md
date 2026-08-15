@@ -157,8 +157,16 @@ by this measurement (correction recorded in the Mechanism E section):
 the rank-3 variant keeps the sibling's control value, which witnesses
 the raise. Claiming it needs satisfiability reasoning over the sibling's
 value space — a soundness argument the mechanism deliberately does not
-carry — so the DECISION (charter that rung, or re-scope the variant
-adjudication) is OPEN and the finding stays reported until it is made.
+carry. The DECISION was MADE (2026-08-12): re-scope the variant
+adjudication, ruled in docs/subtree-evaluation.md ("Value-conditional
+rejections") — the instrument now probes the ALL-NULL corner before
+convicting, files corner-passing raises under the EXPECTED bucket
+`value-conditional`, and keeps corner-raising ones conservatively.
+Measured at both verification seeds: the bucket took 0, and BOTH
+residual shapes are conservative keeps (their corners raise through an
+already-claimed sibling or the sibling constraint), so the thinner
+finding survives the probe by design and STAYS REPORTED; the bucket
+count and the charter's revisit trigger govern when to look again.
 The probe harness and both fixture-facing suites now run with `evaluate`
 live; both censuses stay evaluator-off.
 The suite total dropped 3301 → 2879 honestly: builtin-null-rejection's old
