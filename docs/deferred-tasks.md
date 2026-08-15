@@ -180,10 +180,25 @@ finds NOTHING in 20,000; seed 7 finds ONE instance — a MERGE insert arm
 whose discriminator claim is value-conditional on a param sibling,
 kept conservatively (its all-NULL corner raises through the primary
 key) — and the `value-conditional` bucket took its first live instance.
-The experiment's demand verdict itself: 1,225/20,000 queries reach the
+The experiment's demand verdict — 1,225/20,000 queries reach the
 tables, 97 carry CASE expressions there, ZERO carry comparison guards —
-the atom-oracle rungs stay uncharted (recorded in the charter's atom
-oracle section with the method).
+was then RE-READ (2026-08-12, ruled): the zero exposed the gate's
+circularity, not the shapes' irrelevance — the generator cannot emit a
+comparison guard by construction, so the distribution can only convict
+shapes someone first taught it. The DEMAND DISCIPLINE IS AMENDED:
+crafted fixtures convict beside the distribution, under the corpus's
+own gates (shape argued real in the fixture header, claims adjudicated,
+data states witnessing). Under the amended rule the two adjudicated red
+cases already convicted, and **the ATOM-ORACLE RUNGS are BUILT
+(2026-08-12)** — all four, purely propositional, no evaluator consulted:
+evidence shaping (IS TRUE/IS FALSE), notFALSE harvest, same-token
+trichotomy by an exclusivity table wider than the negator relation, and
+notTRUE consumed as searched-CASE guard refutation
+(`checkConstraintsRefuteGuard`, gated per entry on NULL-extension and
+wholesale on DML scopes). Both red cases flipped; the overreach guard
+held; conviction fixtures check-guard-trichotomy and
+check-guard-arm-selection pin the rungs with witnessed nullable
+controls. As-built in the charter's atom-oracle section.
 **The FIRST-WAVE WIDENINGS and the OUTPUT-SIDE ENTAILMENT consumer are
 BOTH BUILT (2026-08-12)** — every consumer the subtree-evaluation
 charter names now exists. Widenings: unique enums and domains fold
