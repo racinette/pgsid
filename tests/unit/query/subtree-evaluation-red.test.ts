@@ -64,6 +64,8 @@ const SCHEMA = `
   CREATE TABLE nm (n numeric, CHECK (n > 5.5));
   CREATE TABLE ne2 (z int, CHECK (z <> 5));
   CREATE TABLE stx (s text, CHECK (s > 'm'));
+  CREATE TABLE stxc (s text COLLATE "C", CHECK (s > 'm'));
+  CREATE TABLE stxeq (s text COLLATE "C", CHECK (s = 'alpha'));
   CREATE TABLE dtc (d date, CHECK (d > '2020-01-01'));
 `;
 
@@ -428,12 +430,37 @@ describe("interval exclusivity (flipped 2026-08-12 — the chartered rung landed
     )).toBe(false);
   });
 
-  it("GUARD: collatable order anchors stay refused", async () => {
-    // The claim would be TRUE for stored rows ('k' precedes 'm' in every
-    // deterministic collation here), but ordering text anchors needs
-    // collation IDENTITY, which is not captured — refused, nullable stays.
+  it("a DEFAULT-collated column's order anchors claim (flipped 2026-08-12)", async () => {
+    // Collation identity landed: stx's column carries pg_catalog."default",
+    // the very collation the analysis session evaluates under, so 'k' vs
+    // 'm' answers and (-inf,'k'] misses ('m',inf). Adjudicated: no
+    // conforming row fires the arm.
     expect(await notNullOf(
       "SELECT CASE WHEN c.s <= 'k' THEN NULL ELSE 5 END AS r FROM stx c",
+    )).toBe(true);
+  });
+
+  it("the equality arm still works under an explicit collation", async () => {
+    // COLLATE "C" is deterministic, so equality transfers even though
+    // order does not: the '=' question answers false, the anchor relation
+    // is `ne`, and point-vs-point excludes. Adjudicated: ('alpha') and
+    // NULL rows, no NULL reachable through the beta arm.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.s = 'beta' THEN NULL ELSE 5 END AS r FROM stxeq c",
+    )).toBe(true);
+    // The own point fires — the boundary the ne relation must not cross.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.s = 'alpha' THEN NULL ELSE 5 END AS r FROM stxeq c",
+    )).toBe(false);
+  });
+
+  it("GUARD: an explicitly-collated column's order stays refused", async () => {
+    // stxc says COLLATE "C" — deterministic, but not the session's
+    // collation, and order needs IDENTITY: the claim would be true here,
+    // and the engine must not take it from a session ordering 'k' and 'm'
+    // by different rules than the column does.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.s <= 'k' THEN NULL ELSE 5 END AS r FROM stxc c",
     )).toBe(false);
   });
 

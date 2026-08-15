@@ -303,6 +303,19 @@ export interface SubtreeEvaluationCatalog {
     column: string,
   ): boolean | null;
   /**
+   * Whether the column's collation IS the database default (null for
+   * non-collatable types) — the trichotomy's IDENTITY arm: a
+   * default-collated column's comparisons evaluate under the very
+   * collation the analysis session uses, so every canonical operator
+   * transfers, determinism regardless; an explicitly-collated column
+   * keeps the deterministic-equality-only arm.
+   */
+  resolveColumnCollationIsDefault(
+    schema: string,
+    table: string,
+    column: string,
+  ): boolean | null;
+  /**
    * The operator's btree strategy number (1 `<` … 5 `>`) by pg_catalog
    * consensus, or null — including null for any name a user operator
    * shadows (the standing collision rule). The interval-exclusivity
@@ -333,6 +346,7 @@ export const EVALUATION_CATALOG_ONLY = [
   "isImmutableIoRendering",
   "resolveEnforcedCheckConstraints",
   "resolveColumnCollationDeterministic",
+  "resolveColumnCollationIsDefault",
   "btreeStrategyOf",
   "isEqualityComplement",
 ] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[];

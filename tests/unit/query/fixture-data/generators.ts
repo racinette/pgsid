@@ -277,7 +277,9 @@ const columnSpecificGenerators: Record<
     ivf: { f: (_rand, ctx) => [5.5, "NaN", 7][ctx.row % 3]! },
     ivnm: { n: (_rand, ctx) => [6, 5.6, 12.25][ctx.row % 3]! },
     ivne: { z: (_rand, ctx) => [3, 7, 100][ctx.row % 3]! },
-    ivstx: { s: rand => rand.pick(["n", "peak", "z"]) },
+    ivstx: { s: (_rand, ctx) => ["n", "peak", "z"][ctx.row % 3]! },
+    ivstxc: { s: rand => rand.pick(["n", "peak", "z"]) },
+    ivstxeq: { s: () => "alpha" },
     ivdt: { d: rand => rand.pick(["2020-06-01", "2021-01-01", "2024-02-29"]) },
 
     // The application event log. Same range rule as every other partitioned
@@ -607,7 +609,11 @@ const nullPolicies: {
       ivf: { f: (_rand, ctx) => ctx.row % 4 === 3 },
       ivnm: { n: (_rand, ctx) => ctx.row % 4 === 3 },
       ivne: { z: (_rand, ctx) => ctx.row % 4 === 3 },
-      ivstx: { s: nullRate(0.25) },
+      ivstx: { s: (_rand, ctx) => ctx.row % 4 === 3 },
+      ivstxc: { s: nullRate(0.25) },
+      // Rows 0-2 keep the literal so the own-point guard's NULL is always
+      // witnessed; later rows may go NULL for the UNKNOWN-guard path.
+      ivstxeq: { s: (_rand, ctx) => ctx.row % 4 === 3 },
       ivdt: { d: nullRate(0.25) },
 
       // Each CHECK CASE ties a column's NULLness to the discriminator

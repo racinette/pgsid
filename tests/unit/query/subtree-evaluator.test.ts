@@ -141,6 +141,8 @@ const SCHEMA = `
   CREATE SCHEMA s2;
   CREATE TYPE color AS ENUM ('red', 'blue');
   CREATE TYPE s2.color AS ENUM ('blue', 'red');
+  CREATE DOMAIN ctext AS text COLLATE "C";
+  CREATE TABLE coll_probe (a text, b text COLLATE "C", c int, d ctext);
 `;
 
 beforeAll(async () => {
@@ -662,6 +664,22 @@ describe("catalog face: user names open builtin spellings", () => {
     expect(catalog.isEqualityComplement("=")).toBe(false);
     expect(shadowCatalog.btreeStrategyOf("=")).toBeNull();
     expect(shadowCatalog.isEqualityComplement("=")).toBe(false);
+  });
+
+  it("the collation lattice's capture: identity, explicit, non-collatable", () => {
+    // The IDENTITY arm rests on this face: a default-collated column's
+    // comparisons run under the session's own collation (all ops), an
+    // explicit COLLATE keeps deterministic-equality only, and integers
+    // read null — the safe arm only a captured column may claim.
+    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "a")).toBe(true);
+    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "b")).toBe(false);
+    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "c")).toBeNull();
+    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "ghost")).toBe(false);
+    // A DOMAIN's collation flows into pg_attribute (measured: the ctext
+    // column reads the domain's "C", not the default), so domain-collated
+    // columns take the explicit arm with no special case in the capture.
+    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "d")).toBe(false);
+    expect(catalog.resolveColumnCollationDeterministic("public", "coll_probe", "d")).toBe(true);
   });
 
   it("the arity axis: `length` is immutable at one argument, not at two", () => {

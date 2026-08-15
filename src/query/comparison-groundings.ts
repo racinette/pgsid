@@ -156,7 +156,12 @@ export async function collectComparisonQuestions(
     }
     for (const [column, checkLits] of anchorsByColumn) {
       const det = catalog.resolveColumnCollationDeterministic(t.schema, t.name, column);
-      if (det === false) continue;
+      const isDefault =
+        catalog.resolveColumnCollationIsDefault(t.schema, t.name, column) === true;
+      // Order questions on the identity arm too: a default-collated
+      // column's order evaluates under the session's own collation.
+      const orderOk = det === null || isDefault;
+      if (det === false && !isDefault) continue;
       const colType = catalog.resolveColumnTypeName(t.schema, t.name, column);
       if (colType === null) continue;
       const typeName = await typeNameAstOf(colType);
@@ -166,7 +171,7 @@ export async function collectComparisonQuestions(
         for (let j = i + 1; j < anchors.length; j++) {
           const p = anchors[i]!;
           const q = anchors[j]!;
-          if (det === null) {
+          if (orderOk) {
             put(colType, typeName, p, "<", q);
             put(colType, typeName, q, "<", p);
           }
@@ -178,12 +183,21 @@ export async function collectComparisonQuestions(
       for (const atom of scanLitComparisons(check)) {
         const evidenceLits = equalities.get(atom.column);
         if (!evidenceLits) continue;
-        // The collation trichotomy, mirrored from the kernel's gate (which
+        // The collation lattice, mirrored from the kernel's gate (which
         // remains the sound one — this mirror only saves evaluations):
-        // non-collatable → all ops; deterministic → equality only;
-        // nondeterministic or unknown → nothing.
+        // non-collatable or DEFAULT-collated → all ops; explicit
+        // deterministic → equality only; nondeterministic or unknown →
+        // nothing.
         const det = catalog.resolveColumnCollationDeterministic(t.schema, t.name, atom.column);
-        if (!(det === null || (det === true && (atom.op === "=" || atom.op === "<>")))) {
+        const isDefault =
+          catalog.resolveColumnCollationIsDefault(t.schema, t.name, atom.column) === true;
+        if (
+          !(
+            det === null ||
+            isDefault ||
+            (det === true && (atom.op === "=" || atom.op === "<>"))
+          )
+        ) {
           continue;
         }
         const colType = catalog.resolveColumnTypeName(t.schema, t.name, atom.column);

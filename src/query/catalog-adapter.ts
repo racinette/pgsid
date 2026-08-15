@@ -315,11 +315,16 @@ export async function buildNullabilityCatalog(
 
   // The comparison oracle's collation trichotomy, straight off the capture.
   const columnCollationDeterministic = new Map<string, boolean | null>();
+  const columnCollationIsDefault = new Map<string, boolean | null>();
   for (const t of snapshot.tables) {
     for (const c of t.columns) {
       columnCollationDeterministic.set(
         `${t.schema}.${t.name}.${c.name}`,
         c.collationDeterministic,
+      );
+      columnCollationIsDefault.set(
+        `${t.schema}.${t.name}.${c.name}`,
+        c.collationIsDefault ?? null,
       );
     }
   }
@@ -335,6 +340,18 @@ export async function buildNullabilityCatalog(
     const key = `${schema}.${table}.${column}`;
     return columnCollationDeterministic.has(key)
       ? (columnCollationDeterministic.get(key) ?? null)
+      : false;
+  };
+  const resolveColumnCollationIsDefault = (
+    schema: string,
+    table: string,
+    column: string,
+  ): boolean | null => {
+    // Same `has` discipline as the determinism face: null is the
+    // non-collatable arm, and an uncaptured column must read FALSE.
+    const key = `${schema}.${table}.${column}`;
+    return columnCollationIsDefault.has(key)
+      ? (columnCollationIsDefault.get(key) ?? null)
       : false;
   };
 
@@ -2036,6 +2053,7 @@ export async function buildNullabilityCatalog(
       isImmutableIoRendering,
       resolveEnforcedCheckConstraints,
       resolveColumnCollationDeterministic,
+      resolveColumnCollationIsDefault,
       btreeStrategyOf,
       isEqualityComplement,
     };
@@ -2213,6 +2231,7 @@ export async function buildNullabilityCatalog(
     resolveCheckConstraintsTree,
     resolveEnforcedCheckConstraints,
     resolveColumnCollationDeterministic,
+    resolveColumnCollationIsDefault,
     btreeStrategyOf,
     isEqualityComplement,
     resolveForeignKey,

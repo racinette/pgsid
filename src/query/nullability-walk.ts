@@ -901,7 +901,13 @@ class NullabilityEngine {
     const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>;
     if (typeof face.resolveColumnCollationDeterministic !== "function") return false;
     const det = face.resolveColumnCollationDeterministic(schema, table, column);
-    return det === null || (det === true && (op === "=" || op === "<>"));
+    if (det === null) return true;
+    // The IDENTITY arm: a default-collated column's comparisons run under
+    // the very collation the analysis session evaluates with, so every
+    // canonical op transfers — determinism regardless. Explicit COLLATE
+    // keeps the deterministic-equality-only arm.
+    if (face.resolveColumnCollationIsDefault?.(schema, table, column) === true) return true;
+    return det === true && (op === "=" || op === "<>");
   }
 
   /** The interval rung's shape supplies, absent on a face-less catalog. */
