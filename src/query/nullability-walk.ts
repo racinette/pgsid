@@ -3,6 +3,7 @@ import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
 import {
   checkConstraintsProveNotNull,
+  checkConstraintsRefuteGuard,
   comparisonKey,
   type Lit,
 } from "./check-entailment.js";
@@ -5294,6 +5295,80 @@ class NullabilityEngine {
   }
 
   /**
+   * The atom-oracle rungs' consumption (docs/subtree-evaluation.md, "The
+   * kernel's atom oracle"): can the scope's validated CHECKs plus the
+   * row-implied evidence prove this searched-CASE guard NEVER fires? Tried
+   * per base-table entry — the kernel matches facts by alias, so a wrong
+   * entry simply proves nothing. Refused wholesale for a DML scope (the
+   * OLD/NEW channel split is not built for guards) and per-entry for
+   * NULL-extendable entries, whose extended rows satisfy no CHECK — and on
+   * those rows a guard like `a IS NULL` IS true, so the refusal is
+   * load-bearing, not caution.
+   */
+  private guardRefutedByChecks(guard: Node, scope: Scope): boolean {
+    if (scope.dmlSetColumns) return false;
+    const core: Node[] = [
+      ...(scope.whereClause ? [scope.whereClause] : []),
+      ...(scope.havingClause ? [scope.havingClause] : []),
+      ...scope.impliedQuals,
+    ];
+    const evidence = [...core, ...this.kernelGuardPreds(scope)].map(pred => ({
+      pred,
+      applySetMask: false,
+    }));
+    for (const [alias, entry] of scope.aliases) {
+      if (!entry.table || entry.joinState === OPTIONAL) continue;
+      const checkExprs =
+        entry.scanInh === false
+          ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
+          : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name);
+      if (checkExprs.length === 0) continue;
+      const refuted = checkConstraintsRefuteGuard(
+        {
+          goal: { alias, column: "" },
+          checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, alias, entry)),
+          evidence,
+          isMasked: () => false,
+          resolveUnqualified: col => {
+            let owner: string | null = null;
+            for (const v of scope.visible) {
+              if (v.name !== col) continue;
+              if (!v.entry || owner) return null; // merged or ambiguous
+              owner = v.entry.alias;
+            }
+            return owner;
+          },
+          columnTypeName: (a, col) => {
+            const e = scope.aliases.get(a);
+            const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+            return e?.table && cat !== undefined
+              ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
+              : null;
+          },
+          comparisonEvaluable: (a, col, op) => {
+            const e = scope.aliases.get(a);
+            const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+            return e?.table && cat !== undefined
+              ? this.comparisonOpEvaluable(e.table.schema, e.table.name, cat, op)
+              : false;
+          },
+          evaluatedComparison: this.comparisonOracle(),
+          literalDistinctnessSound: (a, col) => {
+            const e = scope.aliases.get(a);
+            const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+            return e?.table && cat !== undefined
+              ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, cat)
+              : false;
+          },
+        },
+        guard,
+      );
+      if (refuted) return true;
+    }
+    return false;
+  }
+
+  /**
    * The statement map's boolean-truth reading of a searched-CASE guard:
    * `true` when the guard evaluated TRUE, `false` when it can never fire
    * the arm (evaluated FALSE or NULL — CASE treats both alike), undefined
@@ -5543,14 +5618,19 @@ class NullabilityEngine {
             | undefined,
       );
 
-      // Statement-map arm pruning (docs/subtree-evaluation.md, consumer 1):
-      // boolean truth of an evaluated guard is the other reading the
-      // consumption rule allows. A guard answered FALSE or NULL never fires
-      // its arm; everything after a guard answered TRUE — later arms and the
-      // ELSE — never runs, which also rescues a missing ELSE.
-      const truths = whens.map(w =>
-        simpleForm ? undefined : this.evaluatedGuardTruth(w?.expr),
-      );
+      // Arm pruning from two sources. Statement map (consumer 1): boolean
+      // truth of an evaluated guard — FALSE or NULL never fires its arm,
+      // everything after a TRUE guard (the ELSE included) never runs, which
+      // also rescues a missing ELSE. Atom oracle (the kernel rungs): a
+      // guard the CHECK facts refute — notFALSE(a > 5) forbids `a <= 5`
+      // ever being TRUE — prunes the same way, though it can only ever say
+      // "never fires", so it rescues nothing.
+      const truths = whens.map(w => {
+        if (simpleForm) return undefined;
+        const evaluated = this.evaluatedGuardTruth(w?.expr);
+        if (evaluated !== undefined) return evaluated;
+        return w?.expr && this.guardRefutedByChecks(w.expr, scope) ? false : undefined;
+      });
       const firstTrue = truths.indexOf(true);
 
       // Without an ELSE branch, an unmatched CASE evaluates to NULL — unless

@@ -275,15 +275,16 @@ describe("entailment (flipped 2026-08-12 — the recorded later landed)", () => 
   });
 });
 
-// --- Kernel atom-oracle rungs: awaiting their own charter. -------------------
+// --- Kernel atom-oracle rungs (BUILT 2026-08-12). ----------------------------
 // docs/subtree-evaluation.md, "The kernel's atom oracle". Nothing here is
-// closed — these are KERNEL derivations (arm selection under a proven
-// guard, same-operand trichotomy, a notTRUE judgment consumed as guard
-// refutation). Expected to stay red past the three chartered consumers;
-// they flip when the atom-oracle rungs land.
+// closed — these are KERNEL derivations (evidence shaping, notFALSE
+// harvest, same-token trichotomy, notTRUE consumed as guard refutation),
+// and both targets flip with NO evaluator passed. Convicted by crafted
+// fixtures under the amended demand discipline; the corpus counterparts
+// are check-guard-trichotomy.sql and check-guard-arm-selection.sql.
 
-describe("RED: kernel atom oracle", () => {
-  it.fails("a CHECK refutes a CASE guard through same-operand trichotomy", async () => {
+describe("kernel atom oracle (flipped 2026-08-12 — convicted by crafted fixtures)", () => {
+  it("a CHECK refutes a CASE guard through same-operand trichotomy", async () => {
     const c = await contract(
       "SELECT CASE WHEN a <= 5 THEN NULL ELSE 5 END AS a2 FROM tri",
     );
@@ -293,7 +294,7 @@ describe("RED: kernel atom oracle", () => {
     expect(c.outputs[0]!.notNull).toBe(true);
   });
 
-  it.fails("WHERE evidence selects a CASE-shaped CHECK's arm", async () => {
+  it("WHERE evidence selects a CASE-shaped CHECK's arm", async () => {
     const c = await contract(
       "SELECT CASE WHEN a > 5 THEN NULL ELSE 5 END AS a1 FROM bcorr WHERE b IS TRUE",
     );
