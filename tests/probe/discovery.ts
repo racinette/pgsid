@@ -1812,7 +1812,7 @@ type Bucket =
   | "generator-threw" | "deparse-threw" | "reparse-failed" | "ast-differed"
   | "pg-rejected" | "pg-raised"
   | "engine-refused" | "engine-crashed" | "shape-mismatch" | "notnull-violated"
-  | "param-violated"
+  | "param-violated" | "value-conditional"
   | "group-violated" | "parity-broke" | "agreed-rows" | "agreed-norows";
 
 const TIER: Record<Bucket, "TOOL" | "BUDGET" | "FINDING" | "EXPECTED" | "OK"> = {
@@ -1822,6 +1822,11 @@ const TIER: Record<Bucket, "TOOL" | "BUDGET" | "FINDING" | "EXPECTED" | "OK"> = 
   "engine-refused": "EXPECTED",
   "engine-crashed": "FINDING", "shape-mismatch": "FINDING", "notnull-violated": "FINDING",
   "param-violated": "FINDING",
+  // Adjudicated non-claimable, not a defect: the raise is conditioned on a
+  // sibling parameter's VALUE (the all-NULL corner passes — see
+  // ProbeResult.valueConditional). EXPECTED like engine-refused; the count
+  // is the revisit trigger for the value-conditional decision.
+  "value-conditional": "EXPECTED",
   "group-violated": "FINDING", "parity-broke": "FINDING",
   "agreed-rows": "OK", "agreed-norows": "OK",
 };
@@ -1905,6 +1910,7 @@ function classify(r: ProbeResult): Bucket {
   if (r.shape) return "shape-mismatch";
   if (r.violations.length) return "notnull-violated";
   if (r.paramViolations.length) return "param-violated";
+  if (r.valueConditional.length) return "value-conditional";
   if (r.groupViolations.length) return "group-violated";
   if (r.parity) return "parity-broke";
   return r.rows.length > 0 ? "agreed-rows" : "agreed-norows";
@@ -1985,6 +1991,21 @@ function fingerprint(bucket: Bucket, r: ProbeResult, built: Built): string {
       const sites = [...new Set(nums.map(n => built.params[Number(n) - 1]?.site ?? "?"))].sort();
       const msgs = [...new Set(
         r.paramViolations.map(v => normalise(v.replace(/^\$\d+ claimed nullable, binding NULL raised: /, ""))),
+      )].sort();
+      return `${bucket}|${sites.join(",") || "arity"}|${msgs.join(" + ")}`;
+    }
+    case "value-conditional": {
+      // Same causal axis as param-violated — the SITE class plus the raise's
+      // normalised message — so a growing bucket reads as one shape with a
+      // count, which is exactly what the revisit trigger needs.
+      const nums = [...new Set(
+        r.valueConditional.map(v => /^\$(\d+)/.exec(v)?.[1]).filter((x): x is string => !!x),
+      )];
+      const sites = [...new Set(nums.map(n => built.params[Number(n) - 1]?.site ?? "?"))].sort();
+      const msgs = [...new Set(
+        r.valueConditional.map(v =>
+          normalise(v.replace(/^\$\d+ raised beside sibling values, all-NULL passes: /, "")),
+        ),
       )].sort();
       return `${bucket}|${sites.join(",") || "arity"}|${msgs.join(" + ")}`;
     }
