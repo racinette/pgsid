@@ -218,7 +218,28 @@ boundary guards witnessed by planted rows (g=5 on the shared closed
 point, 5.5 inside (5,6], NaN satisfying `f > 5`), and the collation and
 datetime REFUSALS held as `@unwitnessable` records rather than silence.
 With random generation past this functionality's reach, the corpus is
-its standing adjudication. Suite 51 files / 3,023 + 1 skipped, ~74s.
+its standing adjudication.
+**COLLATION IDENTITY is CAPTURED (2026-08-12)** — the last mystery that
+was only an uncaptured fact: `collationIsDefault` on the column capture
+(attcollation against `pg_catalog."default"`), the IDENTITY arm added
+to the comparison gate (default-collated columns transfer every
+canonical op — same collation, same semantics; explicit COLLATE keeps
+deterministic-equality only), text order anchors now fold where the
+column is default-collated. The old refusal record flipped into
+`check-interval-text-default.sql` (claim + overlap guard) and the
+refusal moved to the COLLATE "C" twin, held by annotation as before.
+Verified: suite 51 files / 3,030 + 1 skipped, ~73s; 20,000-query
+instrument run with the arm live, 0 findings. Grounding completed after
+interrogation (2026-08-12): a DOMAIN's collation flows into
+pg_attribute (measured — the capture needs no special case; face pin on
+the ctext column), a collation change on either axis surfaces as a
+modified column entity (diff test, with the no-change control), and the
+equality arm under an explicit collation is pinned both ways — red
+suite and `check-interval-collated-equality.sql` (point exclusion
+claims via `ne`; the own point stays witnessed-nullable). Suite
+3,037 + 1 skipped. OPEN on this surface:
+only the datetime settings decision (discussion pending) and the
+value-conditional revisit triggers.
 **The FIRST-WAVE WIDENINGS and the OUTPUT-SIDE ENTAILMENT consumer are
 BOTH BUILT (2026-08-12)** — every consumer the subtree-evaluation
 charter names now exists. Widenings: unique enums and domains fold
