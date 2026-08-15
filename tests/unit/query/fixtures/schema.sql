@@ -779,6 +779,21 @@ CREATE TABLE bcorr (
   CHECK (CASE WHEN b THEN a < 5 ELSE a >= 5 END)
 );
 
+-- The interval-exclusivity shape families (docs/subtree-evaluation.md,
+-- "Interval exclusivity over btree strategies"), one table per shape the
+-- emptiness algebra distinguishes, with data whose BOUNDARY rows are the
+-- witnesses the guard columns need (g = 5 fires `g <= 5`; NaN satisfies
+-- `f > 5` under btree order). stx and dtc exist for the REFUSAL records:
+-- their claims would be true, and the collation and datetime gates must
+-- keep refusing them — held by @unwitnessable annotations, not silence.
+CREATE TABLE ivp (p int, CHECK (p = 5));
+CREATE TABLE ivge (g int, CHECK (g >= 5));
+CREATE TABLE ivf (f float8, CHECK (f > 5));
+CREATE TABLE ivnm (n numeric, CHECK (n > 5.5));
+CREATE TABLE ivne (z int, CHECK (z <> 5));
+CREATE TABLE ivstx (s text, CHECK (s > 'm'));
+CREATE TABLE ivdt (d date, CHECK (d > '2020-01-01'));
+
 -- ---------------------------------------------------------------------------
 -- Collation-gated distinctness (Wave 9).
 -- ---------------------------------------------------------------------------
