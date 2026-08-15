@@ -209,7 +209,16 @@ targets flipped with two same-token controls and seven boundary guards
 green; as-built in the charter's interval section. Soundness re-run
 MEASURED (20,000 queries, seed 20260808, rung live): 0 findings, 0
 instances — one value-conditional routed to its EXPECTED bucket, the
-known class. Suite 51 files / 2,993 + 1 skipped, ~71s.
+known class. GROUNDED IN THE CORPUS (2026-08-12): seven shape-family
+tables (`ivp`/`ivge`/`ivf`/`ivnm`/`ivne`/`ivstx`/`ivdt`) with
+boundary-DETERMINISTIC data (row-index rotation, not draws — a rate
+could erase the very row a guard witnesses with), seven fixture files:
+eleven notNull claims falsifiable against every data state, six
+boundary guards witnessed by planted rows (g=5 on the shared closed
+point, 5.5 inside (5,6], NaN satisfying `f > 5`), and the collation and
+datetime REFUSALS held as `@unwitnessable` records rather than silence.
+With random generation past this functionality's reach, the corpus is
+its standing adjudication. Suite 51 files / 3,023 + 1 skipped, ~74s.
 **The FIRST-WAVE WIDENINGS and the OUTPUT-SIDE ENTAILMENT consumer are
 BOTH BUILT (2026-08-12)** — every consumer the subtree-evaluation
 charter names now exists. Widenings: unique enums and domains fold
