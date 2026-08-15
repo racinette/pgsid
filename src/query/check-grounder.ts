@@ -411,12 +411,16 @@ function falseImplicants(
   if (tag === "CaseExpr") {
     // A CASE-shaped CHECK body (the instrument's first post-landing
     // conviction): the CASE is FALSE exactly when the arm that fires
-    // yields FALSE, so an implicant must force EVERY possibly-firing arm —
-    // an evaluated-not-TRUE guard removes its arm, everything after an
-    // evaluated-TRUE guard (the ELSE included) never fires, and a missing
-    // ELSE is the implicit NULL arm, which is never FALSE and so
-    // annihilates. The simple form's comparisons are not AST nodes;
-    // nothing to consult, no claim.
+    // yields FALSE, so an implicant must handle EVERY possibly-firing arm
+    // — by forcing its RESULT FALSE, or by forcing its GUARD not-TRUE so
+    // the arm never fires (the instrument's second conviction, 2026-08-12:
+    // `(2787, $1, 1)` into bcorr — binding the discriminator NULL routes
+    // to the ELSE arm the written value makes FALSE, so nullImplicants of
+    // the guard are arm-removal implicants). An evaluated-not-TRUE guard
+    // removes its arm outright, everything after an evaluated-TRUE guard
+    // (the ELSE included) never fires, and a missing ELSE is the implicit
+    // NULL arm, which is never FALSE and so annihilates. The simple form's
+    // comparisons are not AST nodes; nothing to consult, no claim.
     const f = (n as Fields)["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node };
     if (f.arg !== undefined) return [];
     const reachable: Implicants[] = [];
@@ -425,7 +429,17 @@ function falseImplicants(
       if (!when?.result) return [];
       const t = guardTruth(when.expr, answers);
       if (t === false) continue;
-      reachable.push(falseImplicants(when.result, answers, catalog));
+      // Not-TRUE by forcing: a guard driven NULL or FALSE by a NULL
+      // binding cannot select its arm — either route neutralizes it.
+      const notTrue = when.expr
+        ? unionLists([
+            nullImplicants(when.expr, answers, catalog),
+            falseImplicants(when.expr, answers, catalog),
+          ])
+        : [];
+      reachable.push(
+        unionLists([notTrue, falseImplicants(when.result, answers, catalog)]),
+      );
       if (t === true) return crossUnion(reachable);
     }
     reachable.push(f.defresult ? falseImplicants(f.defresult, answers, catalog) : []);

@@ -757,6 +757,28 @@ ALTER TABLE guest ADD CONSTRAINT guest_badge_claimed
 CREATE VIEW guest_directory AS
   SELECT id, status, arrived_at, room, note FROM guest;
 
+-- The kernel's atom-oracle demand experiment (docs/subtree-evaluation.md,
+-- "The kernel's atom oracle"; demand discipline: rungs charter on
+-- conviction). Two branch-correlated CHECK shapes, here so the discovery
+-- distribution can show whether CASE guards over their constrained columns
+-- arise often enough to carry weight. tri is same-operand trichotomy
+-- (notFALSE(a > 5) refutes `a <= 5` with no values consulted); bcorr is
+-- arm selection under WHERE evidence. A NULL `a` passes both CHECKs, so
+-- the data generator always has a conforming row.
+CREATE TABLE tri (
+  id integer PRIMARY KEY,
+  a  integer,
+  CHECK (a > 5)
+);
+-- Column order matters to the data generator: `b` precedes `a` so the
+-- value tier can pick an `a` that satisfies the arm `b` selected.
+CREATE TABLE bcorr (
+  id integer PRIMARY KEY,
+  b  boolean,
+  a  integer,
+  CHECK (CASE WHEN b THEN a < 5 ELSE a >= 5 END)
+);
+
 -- ---------------------------------------------------------------------------
 -- Collation-gated distinctness (Wave 9).
 -- ---------------------------------------------------------------------------

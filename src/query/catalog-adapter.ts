@@ -18,6 +18,7 @@ import type {
 } from "./types.js";
 import { parseSql } from "../ast.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
+import { collectClosedSubtrees } from "./subtree-evaluator.js";
 import {
   TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES,
   NON_TOTAL_OPERATOR_SIGNATURES,
@@ -311,6 +312,31 @@ export async function buildNullabilityCatalog(
     checkExprTreeAsts.get(`${schema}.${table}`) ?? [];
   const resolveEnforcedCheckConstraints = (schema: string, table: string): Node[] =>
     enforcedCheckAsts.get(`${schema}.${table}`) ?? [];
+
+  // The comparison oracle's collation trichotomy, straight off the capture.
+  const columnCollationDeterministic = new Map<string, boolean | null>();
+  for (const t of snapshot.tables) {
+    for (const c of t.columns) {
+      columnCollationDeterministic.set(
+        `${t.schema}.${t.name}.${c.name}`,
+        c.collationDeterministic,
+      );
+    }
+  }
+  const resolveColumnCollationDeterministic = (
+    schema: string,
+    table: string,
+    column: string,
+  ): boolean | null => {
+    // A column the capture never met reads FALSE (refuse), not null: null
+    // is the SAFE arm of the trichotomy (non-collatable) and only a
+    // captured column may claim it — which is why this is a `has` check,
+    // not a `??` (the stored null would coalesce into the refusal).
+    const key = `${schema}.${table}.${column}`;
+    return columnCollationDeterministic.has(key)
+      ? (columnCollationDeterministic.get(key) ?? null)
+      : false;
+  };
 
   // ---------------------------------------------------------------------
   // Foreign keys a join may reason FROM.
@@ -1925,17 +1951,217 @@ export async function buildNullabilityCatalog(
 
   /** The closed cast gate with its landing type: the grammar-spelled
    *  target, admitted and rendered, or null. */
+  // --- First-wave widenings (docs/subtree-evaluation.md, "The dependence
+  // model, corrected"): enums and domains fold under the snapshot contract.
+  // Their I/O is flagged stable for CATALOG-state reasons only — enum_in
+  // reads the value list, domain_in runs the CHECKs — and catalog change is
+  // this engine's re-analysis trigger, not a soundness hazard. Admission is
+  // by UNIQUENESS, not consensus: two same-named enums with opposite orders
+  // answer oppositely as search_path moves (measured 2026-08-12), so a bare
+  // name closes only when exactly one user type carries it and no
+  // pg_catalog spelling collides. Populated at build time below, after
+  // every face member exists; the maps are read at call time.
+  /** bare name → the type-set rendering a closed cast threads (the
+   *  canonical BASE for domains — operators resolve on it, measured —
+   *  and the qualified name for enums, the spelling `kindOfRendered`
+   *  classifies). */
+  const admissibleUserCasts = new Map<string, string>();
+  /** The `result_types` spellings of admissible user types (bare when the
+   *  session resolves them, qualified defensively) — the ROOT gate's side. */
+  const admissibleUserRenderings = new Set<string>();
+
   const closedCastTargetType = (typeName: string): string | null =>
-    isImmutableIoType(typeName) ? normalizeTypeName(typeName) : null;
+    isImmutableIoType(typeName)
+      ? normalizeTypeName(typeName)
+      : (admissibleUserCasts.get(typeName) ?? null);
 
   /** May a value RENDERED as `typeName` (format spelling) cross the wire
    *  to the driver session-independently? Immutable-I/O scalars and arrays
-   *  over them; record is refused — a collected root's value crosses
-   *  typoutput, where date_out and friends read session state. */
-  const isImmutableIoRendering = (typeName: string): boolean =>
-    typeName.endsWith("[]")
-      ? immutableIoRendered.has(typeName.slice(0, -2))
-      : immutableIoRendered.has(typeName);
+   *  over them — first-wave admissible user types included (their output
+   *  routes are the base's or the snapshot-pinned labels) — record is
+   *  refused: a collected root's value crosses typoutput, where date_out
+   *  and friends read session state. */
+  const isImmutableIoRendering = (typeName: string): boolean => {
+    const base = typeName.endsWith("[]") ? typeName.slice(0, -2) : typeName;
+    return immutableIoRendered.has(base) || admissibleUserRenderings.has(base);
+  };
+
+  // --- First-wave admission, computed here where every face member exists.
+  // Single pass, no fixpoint: a domain whose CHECK casts to a not-yet-
+  // admitted domain stays out, and over-keeping only keeps a cast open —
+  // today's answer. The unknown-literal LANDINGS stay strict on purpose
+  // (they read the builtin set directly): landing 'red' on an enum runs
+  // enum_in, and widening that is not first-wave scope.
+  {
+    const owners = new Map<string, number>();
+    const tally = (name: string): void => {
+      owners.set(name, (owners.get(name) ?? 0) + 1);
+    };
+    for (const e of snapshot.enums) tally(e.name);
+    for (const d of snapshot.domains) tally(d.name);
+    for (const c of snapshot.compositeTypes) tally(c.name);
+    for (const t of snapshot.tables) tally(t.name);
+    for (const v of snapshot.views) tally(v.name);
+    for (const v of snapshot.materializedViews) tally(v.name);
+    for (const s of snapshot.sequences) tally(s.name);
+    const unique = (name: string): boolean =>
+      owners.get(name) === 1 &&
+      builtinTypeKinds[name] === undefined &&
+      typeAliases[name] === undefined;
+
+    for (const e of snapshot.enums) {
+      if (!unique(e.name)) continue;
+      admissibleUserCasts.set(e.name, `${e.schema}.${e.name}`);
+      admissibleUserRenderings.add(e.name);
+      admissibleUserRenderings.add(`${e.schema}.${e.name}`);
+    }
+
+    // The closure face the domain round consults — enums already admitted,
+    // so an enum-comparing CHECK body closes here.
+    const face: SubtreeEvaluationCatalog = {
+      isImmutableFunction,
+      isImmutableOperator,
+      isImmutableIoType,
+      closedOperatorTypes,
+      closedFunctionTypes,
+      closedCommonTypes,
+      closedCastTargetType,
+      isImmutableIoRendering,
+      resolveEnforcedCheckConstraints,
+      resolveColumnCollationDeterministic,
+    };
+
+    /** The TypeName AST of a base rendering, harvested like the grounder's. */
+    const typeNameCache = new Map<string, unknown | null>();
+    const typeNameAstOf = async (rendered: string): Promise<unknown | null> => {
+      const hit = typeNameCache.get(rendered);
+      if (hit !== undefined) return hit;
+      let ast: unknown | null = null;
+      try {
+        const parsed = await parseSql(`SELECT NULL::${rendered}`);
+        const target = (
+          (parsed.stmts?.[0]?.stmt as Record<string, unknown> | undefined)?.[
+            "SelectStmt"
+          ] as { targetList?: { ResTarget?: { val?: Record<string, unknown> } }[] } | undefined
+        )?.targetList?.[0]?.ResTarget?.val;
+        ast = (target?.["TypeCast"] as { typeName?: unknown } | undefined)?.typeName ?? null;
+      } catch {
+        ast = null;
+      }
+      typeNameCache.set(rendered, ast);
+      return ast;
+    };
+
+    /** VALUE stands for a value of the BASE type: substitute a typed NULL
+     *  and let the ordinary closure gate answer the body. The parser
+     *  case-folds VALUE to a bare ColumnRef 'value' (measured) — and a
+     *  domain-over-domain constraint renders it PRE-CAST,
+     *  `(VALUE)::integer < 100` (measured), so directly under a cast the
+     *  stand-in is a bare NULL: the rendered cast supplies the typing, and
+     *  a cast-wrapped stand-in there would trip the computed-argument
+     *  refusal it deserves to trip. */
+    const substituteValue = (body: unknown, typeName: unknown): unknown => {
+      const isValueRef = (n: unknown): boolean => {
+        const fields = ((n as Record<string, unknown>)?.["ColumnRef"] as
+          | { fields?: unknown[] }
+          | undefined)?.fields;
+        return (
+          Array.isArray(fields) &&
+          fields.length === 1 &&
+          (fields[0] as { String?: { sval?: string } })?.String?.sval === "value"
+        );
+      };
+      const bareNull = (): unknown => ({ A_Const: { isnull: true, location: -1 } });
+      const standIn = (): unknown => ({
+        TypeCast: {
+          arg: bareNull(),
+          typeName: structuredClone(typeName),
+          location: -1,
+        },
+      });
+      const clone = structuredClone(body);
+      if (isValueRef(clone)) return standIn();
+      const walk = (n: unknown, castFields: boolean): void => {
+        if (Array.isArray(n)) {
+          n.forEach((child, i) => {
+            if (isValueRef(child)) n[i] = standIn();
+            else walk(child, false);
+          });
+          return;
+        }
+        if (!n || typeof n !== "object") return;
+        for (const [key, child] of Object.entries(n as Record<string, unknown>)) {
+          if (isValueRef(child)) {
+            (n as Record<string, unknown>)[key] =
+              castFields && key === "arg" ? bareNull() : standIn();
+          } else {
+            walk(child, key === "TypeCast");
+          }
+        }
+      };
+      walk(clone, false);
+      return clone;
+    };
+
+    /** Closed iff the NullTest wrapper is collected whole — the wrapper
+     *  makes a bare-literal body collectable too. */
+    const bodyClosed = (body: unknown): boolean => {
+      const wrapper = {
+        NullTest: { arg: body, nulltesttype: "IS_NULL", location: -1 },
+      } as unknown as Node;
+      const roots = collectClosedSubtrees(wrapper, face);
+      return roots.length === 1 && roots[0] === wrapper;
+    };
+
+    const domainByQualified = new Map<string, (typeof snapshot.domains)[number]>(
+      snapshot.domains.map(d => [`${d.schema}.${d.name}`, d]),
+    );
+    for (const d of snapshot.domains) {
+      if (!unique(d.name)) continue;
+      // The whole chain runs at cast time: nested domains contribute their
+      // own CHECKs, and the canonical base must render immutable-I/O.
+      const chainChecks: string[] = [];
+      let cur: (typeof snapshot.domains)[number] | undefined = d;
+      let base: string | null = null;
+      for (let hops = 0; hops < 32 && cur !== undefined; hops++) {
+        chainChecks.push(...cur.checks);
+        const next = domainByQualified.get(cur.baseTypeName);
+        if (next === undefined) {
+          base = cur.baseTypeName;
+          cur = undefined;
+        } else {
+          cur = next;
+        }
+      }
+      if (base === null || !immutableIoRendered.has(base)) continue;
+      const typeName = await typeNameAstOf(base);
+      if (typeName === null) continue;
+      let closed = true;
+      for (const check of chainChecks) {
+        let body: unknown | undefined;
+        try {
+          const parsed = await parseSql(
+            `ALTER DOMAIN _pgsid_dom ADD CONSTRAINT _pgsid_c ${check}`,
+          );
+          body = (
+            (parsed.stmts?.[0]?.stmt as Record<string, unknown> | undefined)?.[
+              "AlterDomainStmt"
+            ] as { def?: { Constraint?: { contype?: string; raw_expr?: unknown } } } | undefined
+          )?.def?.Constraint?.raw_expr;
+        } catch {
+          body = undefined;
+        }
+        if (body === undefined || !bodyClosed(substituteValue(body, typeName))) {
+          closed = false;
+          break;
+        }
+      }
+      if (!closed) continue;
+      admissibleUserCasts.set(d.name, base);
+      admissibleUserRenderings.add(d.name);
+      admissibleUserRenderings.add(`${d.schema}.${d.name}`);
+    }
+  }
 
   return {
     resolveTable,
@@ -1977,6 +2203,7 @@ export async function buildNullabilityCatalog(
     resolveCheckConstraints,
     resolveCheckConstraintsTree,
     resolveEnforcedCheckConstraints,
+    resolveColumnCollationDeterministic,
     resolveForeignKey,
     resolveForeignKeyTree,
     isStrictBuiltin,

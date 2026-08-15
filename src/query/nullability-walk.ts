@@ -1,7 +1,15 @@
 import type { Node } from "libpg-query";
 import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
-import { checkConstraintsProveNotNull } from "./check-entailment.js";
+import {
+  checkConstraintsProveNotNull,
+  comparisonKey,
+  type Lit,
+} from "./check-entailment.js";
+import {
+  collectComparisonQuestions,
+  evaluateComparisonQuestions,
+} from "./comparison-groundings.js";
 import {
   evaluateClosedSubtrees,
   type Evaluate,
@@ -82,13 +90,35 @@ async function statementEvaluation(
   );
 }
 
+/** The entailment consumer's pre-walk round (comparison-groundings.ts):
+ *  same shape as `statementEvaluation`, one async step, answers as data. */
+async function comparisonGroundings(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+  evaluate: Evaluate | undefined,
+): Promise<ReadonlyMap<string, boolean> | undefined> {
+  if (!evaluate) return undefined;
+  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
+  const questions = await collectComparisonQuestions(stmt, face);
+  if (questions.length === 0) return undefined;
+  return evaluateComparisonQuestions(questions, face, evaluate);
+}
+
 export async function inferNullability(
   stmt: Node,
   catalog: NullabilityCatalog,
   options?: WalkOptions,
 ): Promise<OutputNullability[]> {
   const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
-  const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes, evaluation);
+  const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
+  const engine = new NullabilityEngine(
+    catalog,
+    false,
+    undefined,
+    options?.paramTypes,
+    evaluation,
+    comparisons,
+  );
   return engine.run(stmt);
 }
 
@@ -155,7 +185,15 @@ export async function inferQueryContract(
     }
   }
   const facts = collectParamFacts(stmt, catalog, mechanismE);
-  const engine = new NullabilityEngine(catalog, false, undefined, options?.paramTypes, evaluation);
+  const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
+  const engine = new NullabilityEngine(
+    catalog,
+    false,
+    undefined,
+    options?.paramTypes,
+    evaluation,
+    comparisons,
+  );
   return {
     outputs: engine.run(stmt),
     params: facts.params,
@@ -194,7 +232,15 @@ export async function inferNullabilityTraced(
   options?: WalkOptions,
 ): Promise<OutputNullabilityTraced[]> {
   const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
-  const engine = new NullabilityEngine(catalog, true, onUnhandled, options?.paramTypes, evaluation);
+  const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
+  const engine = new NullabilityEngine(
+    catalog,
+    true,
+    onUnhandled,
+    options?.paramTypes,
+    evaluation,
+    comparisons,
+  );
   return engine.runTraced(stmt);
 }
 
@@ -804,18 +850,57 @@ class NullabilityEngine {
    */
   private readonly evaluation: ReadonlyMap<Node, EvalResult> | undefined;
 
+  /**
+   * The entailment consumer's answers (comparison-groundings.ts): the
+   * truth of `litA OP litB` at a declared column type, keyed by
+   * `comparisonKey`. Consumed only through the kernel's atom oracle;
+   * undefined without `evaluate`, and the kernel then answers exactly as
+   * before.
+   */
+  private readonly comparisons: ReadonlyMap<string, boolean> | undefined;
+
   constructor(
     catalog: NullabilityCatalog,
     tracing = false,
     onUnhandled?: UnhandledNodeObserver,
     paramTypes?: readonly string[],
     evaluation?: ReadonlyMap<Node, EvalResult>,
+    comparisons?: ReadonlyMap<string, boolean>,
   ) {
     this.catalog = catalog;
     this.tracing = tracing;
     this.onUnhandled = onUnhandled;
     this.paramTypes = paramTypes;
     this.evaluation = evaluation;
+    this.comparisons = comparisons;
+  }
+
+  /** The kernel-facing reading of `comparisons`, or undefined without it. */
+  private comparisonOracle():
+    | ((colType: string, a: Lit, op: string, b: Lit) => boolean | null)
+    | undefined {
+    const map = this.comparisons;
+    if (!map) return undefined;
+    return (colType, a, op, b) => map.get(comparisonKey(colType, a, op, b)) ?? null;
+  }
+
+  /**
+   * The oracle's collation trichotomy over a catalog column: non-collatable
+   * transfers every canonical op, a deterministic collation transfers
+   * equality only (byte-equality semantics shared with the analysis
+   * session's default), nondeterministic transfers nothing. Consults the
+   * evaluation face; a catalog without it answers false for everything.
+   */
+  private comparisonOpEvaluable(
+    schema: string,
+    table: string,
+    column: string,
+    op: string,
+  ): boolean {
+    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>;
+    if (typeof face.resolveColumnCollationDeterministic !== "function") return false;
+    const det = face.resolveColumnCollationDeterministic(schema, table, column);
+    return det === null || (det === true && (op === "=" || op === "<>"));
   }
 
   /** First key of a node object — its type tag. */
@@ -6572,6 +6657,7 @@ class NullabilityEngine {
               `CHECK entailment (${channel.label}): ${entry.table.schema}.${entry.table.name}`,
             );
             const proved = checkConstraintsProveNotNull({
+              evaluatedComparison: this.comparisonOracle(),
               // The shown name, not the catalog one: the CHECKs above were
               // renamed into this scope's vocabulary, and a goal in the other
               // vocabulary matches none of them.
@@ -6600,6 +6686,13 @@ class NullabilityEngine {
                 return e?.table && cat !== undefined
                   ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
                   : null;
+              },
+              comparisonEvaluable: (alias, col, op) => {
+                const e = scope.aliases.get(alias);
+                const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+                return e?.table && cat !== undefined
+                  ? this.comparisonOpEvaluable(e.table.schema, e.table.name, cat, op)
+                  : false;
               },
               literalDistinctnessSound: (alias, col) => {
                 const e = scope.aliases.get(alias);
@@ -6858,6 +6951,7 @@ class NullabilityEngine {
       ckTrace.addFact("presence", "required — the chain crosses an OPTIONAL slice");
     }
     const proved = checkConstraintsProveNotNull({
+      evaluatedComparison: this.comparisonOracle(),
       goal: { alias: entry.alias, column: goalOrigin.column },
       // NOT renamed through `entry`: these CHECKs belong to the BASE table the
       // origin points at, while `entry` is the view or CTE it was reached
@@ -6892,6 +6986,15 @@ class NullabilityEngine {
         return e?.table
           ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
           : null;
+      },
+      comparisonEvaluable: (alias, col, op) => {
+        if (alias === entry.alias) {
+          return this.comparisonOpEvaluable(goalOrigin.schema, goalOrigin.table, col, op);
+        }
+        const e = scope.aliases.get(alias);
+        return e?.table
+          ? this.comparisonOpEvaluable(e.table.schema, e.table.name, col, op)
+          : false;
       },
       literalDistinctnessSound: (alias, col) => {
         if (alias === entry.alias) {

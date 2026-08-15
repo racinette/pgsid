@@ -151,6 +151,29 @@ export interface CheckEntailmentInput {
    * CHECKs at all benefit from evidence-pinned presence.
    */
   goalNotNullGivenPresent?: boolean;
+  /**
+   * The evaluated-comparison oracle (docs/subtree-evaluation.md, the
+   * entailment consumer): the truth of `a OP b` with both literals read at
+   * `colType` — answered from a PRE-EVALUATED map of closed comparison
+   * trees, null when no answer exists (an unclosable type, a question the
+   * synthesis never met). Sound because a TRUE equality fact makes the
+   * row's value indistinguishable from the literal within the column
+   * type's btree family, where every canonical operator lives — so
+   * substituting it into a same-column atom answers the atom. This is
+   * Wave 11c's order-theory oracle, and it is the subtree evaluator.
+   */
+  evaluatedComparison?: (colType: string, a: Lit, op: string, b: Lit) => boolean | null;
+  /**
+   * The oracle's per-column collation gate: whether `op` over this column
+   * transfers to a default-collation evaluation. Non-collatable columns
+   * transfer every canonical op; a deterministic collation transfers
+   * equality only (byte-equality semantics); nondeterministic transfers
+   * nothing. REQUIRED for the oracle to answer — absent means closed,
+   * because the question keys are type-level while this hazard is
+   * column-level (the collation-gate fixture is the measured
+   * counterexample).
+   */
+  comparisonEvaluable?: (alias: string, column: string, op: string) => boolean;
   trace?: CheckEntailmentTrace;
 }
 
@@ -225,6 +248,133 @@ const TYPE_RENDERINGS: Record<string, string> = {
   timetz: "time with time zone",
   time: "time without time zone",
 };
+
+// ---------------------------------------------------------------------------
+// Shared literal surface — module-level so the comparison-grounding
+// synthesis (src/query/comparison-groundings.ts) extracts EXACTLY the
+// tokens the kernel will later ask about: the key built at synthesis time
+// and the key built at judgment time must agree, and sharing the extractor
+// is what makes drift impossible. Misalignment anywhere else only loses
+// questions (a map miss claims nothing).
+// ---------------------------------------------------------------------------
+
+/**
+ * The literal token of an A_Const, optionally wrapped in exactly one plain
+ * TypeCast. A cast with a typmod or array bounds is not a plain type
+ * annotation and refuses; so does NULL (no comparison over it is ever
+ * TRUE, and no CHECK atom containing it can be selected).
+ */
+export function litOf(expr: Node): Lit | null {
+  let node = expr as Record<string, unknown>;
+  let cast: TypeRef | null = null;
+  if ("TypeCast" in node) {
+    const tc = node["TypeCast"] as {
+      arg?: Node;
+      typeName?: { names?: Node[]; typmods?: Node[]; arrayBounds?: Node[] };
+    };
+    if (!tc.arg || !tc.typeName) return null;
+    if (tc.typeName.typmods?.length || tc.typeName.arrayBounds?.length) return null;
+    cast = typeRefOf(tc.typeName.names ?? []);
+    if (!cast) return null;
+    node = tc.arg as Record<string, unknown>;
+  }
+  if (!("A_Const" in node)) return null;
+  const ac = node["A_Const"] as Record<string, Record<string, unknown> | undefined> & {
+    isnull?: boolean;
+  };
+  if (ac.isnull) return null;
+  if (ac["ival"]) return { kind: "ival", value: (ac["ival"]["ival"] as number) ?? 0, cast };
+  if (ac["fval"]) return { kind: "fval", value: (ac["fval"]["fval"] as string) ?? "", cast };
+  if (ac["sval"]) return { kind: "sval", value: (ac["sval"]["sval"] as string) ?? "", cast };
+  if (ac["boolval"])
+    return { kind: "boolval", value: (ac["boolval"]["boolval"] as boolean) ?? false, cast };
+  if (ac["bsval"]) return { kind: "bsval", value: (ac["bsval"]["bsval"] as string) ?? "", cast };
+  return null;
+}
+
+/** Normalized cast target from a TypeName's names list. */
+function typeRefOf(names: Node[]): TypeRef | null {
+  const parts: string[] = [];
+  for (const n of names) {
+    const s = (n as { String?: { sval?: string } }).String?.sval;
+    if (s === undefined) return null;
+    parts.push(s);
+  }
+  if (parts[0] === "pg_catalog") parts.shift();
+  if (parts.length === 1) return { schema: null, name: TYPE_RENDERINGS[parts[0]!] ?? parts[0]! };
+  if (parts.length === 2) return { schema: parts[0]!, name: parts[1]! };
+  return null;
+}
+
+/** The bare canonical operator name, refusing schema-qualified spellings. */
+function bareOpName(name: Node[] | undefined): string | null {
+  if (name?.length !== 1) return null;
+  const s = (name[0] as { String?: { sval?: string } }).String?.sval;
+  if (!s) return null;
+  return CANONICAL_OPS[s] ?? null;
+}
+
+export type { Lit };
+
+/**
+ * The evaluated-comparison question key: the DECLARED COLUMN TYPE the
+ * literals are read at (full `format_type` rendering, typmod included —
+ * `character(4)` is the bp case) plus the two payloads and the canonical
+ * operator. Casts are deliberately absent: both callsites gate literals
+ * to column-typed effective readings before asking.
+ */
+export function comparisonKey(colType: string, a: Lit, op: string, b: Lit): string {
+  const tok = (l: Lit): string => `${l.kind}:${String(l.value)}`;
+  return `${colType}|${tok(a)}|${op}|${tok(b)}`;
+}
+
+/**
+ * Every column-vs-literal comparison in `expr`, scope-blind and
+ * orientation-normalized (literal-left flips the operator) — the
+ * synthesis side's scanner. The COLUMN is the reference's last name part;
+ * over-collection is free (unused questions cost one evaluation slot).
+ */
+export function scanLitComparisons(
+  expr: Node,
+): { column: string; op: string; lit: Lit }[] {
+  const out: { column: string; op: string; lit: Lit }[] = [];
+  const lastColumnName = (n: unknown): string | null => {
+    const fields = ((n as Record<string, unknown>)?.["ColumnRef"] as
+      | { fields?: Node[] }
+      | undefined)?.fields;
+    if (!Array.isArray(fields) || fields.length === 0) return null;
+    return (
+      (fields[fields.length - 1] as { String?: { sval?: string } })?.String?.sval ?? null
+    );
+  };
+  const visit = (n: unknown): void => {
+    if (Array.isArray(n)) {
+      for (const x of n) visit(x);
+      return;
+    }
+    if (!n || typeof n !== "object") return;
+    const ae = (n as Record<string, unknown>)["A_Expr"] as
+      | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+      | undefined;
+    if (ae && ae.kind === "AEXPR_OP" && ae.lexpr && ae.rexpr) {
+      const op = bareOpName(ae.name);
+      if (op) {
+        const lcol = lastColumnName(ae.lexpr);
+        const rcol = lastColumnName(ae.rexpr);
+        if (lcol && !rcol) {
+          const lit = litOf(ae.rexpr);
+          if (lit) out.push({ column: lcol, op, lit });
+        } else if (rcol && !lcol) {
+          const lit = litOf(ae.lexpr);
+          if (lit) out.push({ column: rcol, op: FLIPPED_OPS[op]!, lit });
+        }
+      }
+    }
+    for (const v of Object.values(n as Record<string, unknown>)) visit(v);
+  };
+  visit(expr);
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 // The kernel.
@@ -524,7 +674,7 @@ class EntailmentKernel {
     /** true = provably NOT the producing arm; false = might be. */
     const resultExcluded = (result: Node | undefined): boolean => {
       if (!result) return true; // no result → NULL → excluded by the TRUE equality
-      const r = this.litOf(result);
+      const r = litOf(result);
       if (r === null) {
         // Either a NULL literal (excluded) or a non-literal (inconclusive).
         return this.isNullLiteral(result);
@@ -643,7 +793,7 @@ class EntailmentKernel {
 
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
-      const op = this.bareOpName(ae.name);
+      const op = bareOpName(ae.name);
       if (!op || !ae.lexpr) return null;
       const items =
         ae.kind === "AEXPR_IN" && op === "="
@@ -689,7 +839,7 @@ class EntailmentKernel {
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
       if (ae.kind === "AEXPR_OP" && ae.lexpr && ae.rexpr) {
-        const op = this.bareOpName(ae.name);
+        const op = bareOpName(ae.name);
         if (!op) return [];
         const atom = this.comparisonAtom(op, ae.lexpr, ae.rexpr);
         return atom ? [atom] : [];
@@ -704,7 +854,7 @@ class EntailmentKernel {
         const hi = this.comparisonAtom("<=", ae.lexpr, bounds[1]!);
         return lo && hi ? [lo, hi] : [];
       }
-      if (ae.kind === "AEXPR_IN" && this.bareOpName(ae.name) === "=" && ae.lexpr) {
+      if (ae.kind === "AEXPR_IN" && bareOpName(ae.name) === "=" && ae.lexpr) {
         const items = (ae.rexpr as { List?: { items?: Node[] } } | undefined)?.List?.items;
         if (items?.length !== 1) return [];
         const atom = this.comparisonAtom("=", ae.lexpr, items[0]!);
@@ -740,12 +890,12 @@ class EntailmentKernel {
       return { t: "cmpCol", a: lcol, op: canonical, b: rcol };
     }
     if (lcol) {
-      const lit = this.litOf(rexpr);
+      const lit = litOf(rexpr);
       if (!lit || this.maskedKey(lcol)) return null;
       return { t: "cmpLit", col: lcol, op: canonical, lit };
     }
     if (rcol) {
-      const lit = this.litOf(lexpr);
+      const lit = litOf(lexpr);
       if (!lit || this.maskedKey(rcol)) return null;
       return { t: "cmpLit", col: rcol, op: FLIPPED_OPS[canonical]!, lit };
     }
@@ -777,7 +927,7 @@ class EntailmentKernel {
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
       if (ae.kind === "AEXPR_OP_ANY" && ae.lexpr) {
-        const op = this.bareOpName(ae.name);
+        const op = bareOpName(ae.name);
         const elements = (ae.rexpr as { A_ArrayExpr?: { elements?: Node[] } } | undefined)
           ?.A_ArrayExpr?.elements;
         if (!op || !elements) return false;
@@ -819,7 +969,7 @@ class EntailmentKernel {
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
       if (ae.kind === "AEXPR_OP_ANY" && ae.lexpr) {
-        const op = this.bareOpName(ae.name);
+        const op = bareOpName(ae.name);
         const elements = (ae.rexpr as { A_ArrayExpr?: { elements?: Node[] } } | undefined)
           ?.A_ArrayExpr?.elements;
         if (!op || !elements) return false;
@@ -885,6 +1035,7 @@ class EntailmentKernel {
     // operands, and the builtin negator relation does the rest.
     const negated = this.negateAtom(atom);
     if (negated && this.falseFacts.some(f => this.atomsMatch(negated, f))) return true;
+    if (atom.t === "cmpLit" && this.oracleAnswer(atom) === true) return true;
     // Distinctness: TRUE(col = 'a') makes `col <> 'b'` TRUE when 'a' and
     // 'b' are provably distinct values for this column.
     return (
@@ -904,6 +1055,7 @@ class EntailmentKernel {
     if (this.falseFacts.some(f => this.atomsMatch(atom, f))) return true;
     const negated = this.negateAtom(atom);
     if (negated && this.trueFacts.some(f => this.atomsMatch(negated, f))) return true;
+    if (atom.t === "cmpLit" && this.oracleAnswer(atom) === false) return true;
     // Distinctness: TRUE(col = 'a') falsifies `col = 'b'` for provably
     // distinct values — what lets a multi-WHEN CHECK CASE step past the
     // arms an earlier discriminator value rules out.
@@ -917,6 +1069,51 @@ class EntailmentKernel {
           f.op === "=" &&
           this.litsDistinct(atom.col, atom.lit, f.lit),
       )
+    );
+  }
+
+  /**
+   * The oracle consult: a TRUE equality fact on the atom's column, both
+   * literals effectively COLUMN-typed (bare, or cast to the column's own
+   * type — the litsMatch gate), the answer looked up at the column's FULL
+   * declared rendering (typmods included, the bp case). Generalizes the
+   * two distinctness rules to the whole comparison set through evaluation;
+   * inherits every evidence gate, because it consumes only the
+   * already-collected, already-masked TRUE facts.
+   */
+  private oracleAnswer(atom: Extract<Atom, { t: "cmpLit" }>): boolean | null {
+    const ask = this.input.evaluatedComparison;
+    if (!ask) return null;
+    if (!this.litColumnTyped(atom.col, atom.lit)) return null;
+    const dot = atom.col.indexOf(".");
+    const alias = atom.col.slice(0, dot);
+    const column = atom.col.slice(dot + 1);
+    // The collation gate — column-level, so it cannot live in the
+    // type-level question key. Closed by default.
+    if (!this.input.comparisonEvaluable?.(alias, column, atom.op)) return null;
+    const colType = this.input.columnTypeName(alias, column);
+    if (!colType) return null;
+    for (const f of this.trueFacts) {
+      if (f.t !== "cmpLit" || f.col !== atom.col || f.op !== "=") continue;
+      if (!this.litColumnTyped(atom.col, f.lit)) continue;
+      const answer = ask(colType, f.lit, atom.op, atom.lit);
+      if (answer !== null) {
+        this.input.trace?.addFact(
+          "evaluatedComparison",
+          `${atom.col} ${atom.op} <literal> decided ${answer} by the equality fact's literal`,
+        );
+        return answer;
+      }
+    }
+    return null;
+  }
+
+  /** Bare, or explicitly cast to the column's own type. */
+  private litColumnTyped(colKey: string, lit: Lit): boolean {
+    if (lit.cast === null) return true;
+    const colType = this.colTypeRef(colKey);
+    return (
+      colType !== null && lit.cast.name === colType.name && lit.cast.schema === colType.schema
     );
   }
 
@@ -1062,54 +1259,6 @@ class EntailmentKernel {
     return this.input.isMasked(key.slice(0, dot), key.slice(dot + 1));
   }
 
-  /**
-   * The literal token of an A_Const, optionally wrapped in exactly one plain
-   * TypeCast. A cast with a typmod or array bounds is not a plain type
-   * annotation and refuses; so does NULL (no comparison over it is ever
-   * TRUE, and no CHECK atom containing it can be selected).
-   */
-  private litOf(expr: Node): Lit | null {
-    let node = expr as Record<string, unknown>;
-    let cast: TypeRef | null = null;
-    if ("TypeCast" in node) {
-      const tc = node["TypeCast"] as {
-        arg?: Node;
-        typeName?: { names?: Node[]; typmods?: Node[]; arrayBounds?: Node[] };
-      };
-      if (!tc.arg || !tc.typeName) return null;
-      if (tc.typeName.typmods?.length || tc.typeName.arrayBounds?.length) return null;
-      cast = this.typeRefOf(tc.typeName.names ?? []);
-      if (!cast) return null;
-      node = tc.arg as Record<string, unknown>;
-    }
-    if (!("A_Const" in node)) return null;
-    const ac = node["A_Const"] as Record<string, Record<string, unknown> | undefined> & {
-      isnull?: boolean;
-    };
-    if (ac.isnull) return null;
-    if (ac["ival"]) return { kind: "ival", value: (ac["ival"]["ival"] as number) ?? 0, cast };
-    if (ac["fval"]) return { kind: "fval", value: (ac["fval"]["fval"] as string) ?? "", cast };
-    if (ac["sval"]) return { kind: "sval", value: (ac["sval"]["sval"] as string) ?? "", cast };
-    if (ac["boolval"])
-      return { kind: "boolval", value: (ac["boolval"]["boolval"] as boolean) ?? false, cast };
-    if (ac["bsval"]) return { kind: "bsval", value: (ac["bsval"]["bsval"] as string) ?? "", cast };
-    return null;
-  }
-
-  /** Normalized cast target from a TypeName's names list. */
-  private typeRefOf(names: Node[]): TypeRef | null {
-    const parts: string[] = [];
-    for (const n of names) {
-      const s = (n as { String?: { sval?: string } }).String?.sval;
-      if (s === undefined) return null;
-      parts.push(s);
-    }
-    if (parts[0] === "pg_catalog") parts.shift();
-    if (parts.length === 1) return { schema: null, name: TYPE_RENDERINGS[parts[0]!] ?? parts[0]! };
-    if (parts.length === 2) return { schema: parts[0]!, name: parts[1]! };
-    return null;
-  }
-
   /** The column's declared type as a TypeRef, from the format_type string. */
   private colTypeRef(colKey: string): TypeRef | null {
     const dot = colKey.indexOf(".");
@@ -1125,11 +1274,4 @@ class EntailmentKernel {
     return { schema: null, name: stripped };
   }
 
-  /** The bare operator name, refusing schema-qualified operators. */
-  private bareOpName(name: Node[] | undefined): string | null {
-    if (name?.length !== 1) return null;
-    const s = (name[0] as { String?: { sval?: string } }).String?.sval;
-    if (!s) return null;
-    return CANONICAL_OPS[s] ?? null;
-  }
 }
