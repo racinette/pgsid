@@ -666,6 +666,22 @@ What building it shaped, beyond the charter prose:
   ground nothing (the always-evaluated footing is VALUES rows and
   FROM-less selects, mechanism B's own measurement).
 
+**As built (2026-08-12).** `src/query/check-grounder.ts`, fed by a new
+enforced-gated capture face (`resolveEnforcedCheckConstraints` beside the
+validated-gated pair) and consumed by `collectParamFacts` as data
+(`MechanismEClaims` — `rejected`/`joint`, never `bindRejected`). The four
+steps as landed: grounding clones the catalog AST and substitutes written
+values cast to declared types (TypeName ASTs harvested by parsing
+`SELECT NULL::<type>`, cached); one evaluator-core call per statement
+covers every grounded body; reduction and residue analysis are one
+recursion — FALSE-implicants with the evaluation answers consulted at
+each node, `IS NOT NULL` handing off to the collector's forced-NULL
+implicant algebra, AND by union, OR by cross-union, so the boundaries
+fall out exactly as designed (a surviving column or parameter atom
+annihilates its disjunct's implicants). Mechanism B's rewrite-hazard
+gate applies unchanged. Seven red targets flipped in the landing
+commit; the bp control and NOT ENFORCED guards held.
+
 **Hazard, recorded:** claim production and adjudication both become
 PostgreSQL — common-mode in principle, though expression evaluation and
 constraint enforcement are different code paths, and the pinned fixture

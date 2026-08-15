@@ -364,6 +364,34 @@ Claims land in the existing vocabulary — `params[].notNull`,
 `rejectionSets` — and NEVER in `bindRejected`: evaluation claims are
 execution-time and must not license output narrowing.
 
+BUILT 2026-08-12 — the "As built" record lives with the mechanism's
+design in `docs/argument-nullability.md` ("Mechanism E"); its seven red
+targets flipped in the landing commit and both must-not-claim guards
+(bp equality, NOT ENFORCED) held.
+
+**Value-conditional rejections (ruled 2026-08-12).** A raise conditioned
+on a SIBLING parameter's value — `$1 <= 1 OR $2 IS NOT NULL` binding
+`(5, NULL)` — is adjudicated NON-CLAIMABLE: deriving it needs
+satisfiability over the sibling's domain (the engine modeling operator
+semantics, the banned category), and no claim in the contract's
+vocabulary can carry it — flat `notNull` over-forbids bindings the
+consumer's own choices make legal, and a rejection set says all-NULL
+raises, which this shape's all-NULL corner does not (the `$1` atom goes
+UNKNOWN and CHECK passes). The instrument routes these instead of
+convicting: when a nullable parameter's NULL binding raises, one extra
+execution at the ALL-NULL corner — the only binding pattern with no
+value freedom left — decides it. Passing there files the query under
+the EXPECTED bucket `value-conditional`, fingerprinted and counted per
+run; raising there keeps the finding, CONSERVATIVELY — the corner can
+raise through an already-claimed sibling (`plan`'s NOT NULL under
+`($1, $2, 'x')`) or a sibling constraint, and the instrument keeps
+rather than guesses, because no binding-corner can search the sibling's
+VALUE space (measured 2026-08-12: both residual `subscription` shapes
+are kept this way, so the thinner standing finding survives the probe
+by design and stays reported). REVISIT TRIGGER: the bucket growing past
+a few per 20,000, or the contract gaining value-conditional vocabulary
+some consumer can render.
+
 BUILT 2026-08-12: `src/query/check-grounder.ts`, its red block flipped
 with every guard green (the bp = direction, NOT ENFORCED, the volatile
 body among them). The as-built record lives with the mechanism's design
