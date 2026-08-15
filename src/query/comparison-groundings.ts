@@ -61,15 +61,22 @@ export async function collectComparisonQuestions(
   stmt: Node,
   catalog: NullabilityCatalog & SubtreeEvaluationCatalog,
 ): Promise<{ key: string; tree: Node }[]> {
-  // Evidence side: every equality over a bare-named column, anywhere.
+  // Evidence side: every column-vs-literal comparison anywhere in the
+  // statement — equalities feed the substitution questions, and EVERY
+  // anchor feeds the interval rung's order questions.
   const equalities = new Map<string, Lit[]>();
+  const statementLits = new Map<string, Lit[]>();
   for (const c of scanLitComparisons(stmt)) {
-    if (c.op !== "=") continue;
-    const list = equalities.get(c.column) ?? [];
-    list.push(c.lit);
-    equalities.set(c.column, list);
+    if (c.op === "=") {
+      const list = equalities.get(c.column) ?? [];
+      list.push(c.lit);
+      equalities.set(c.column, list);
+    }
+    const all = statementLits.get(c.column) ?? [];
+    all.push(c.lit);
+    statementLits.set(c.column, all);
   }
-  if (equalities.size === 0) return [];
+  if (statementLits.size === 0) return [];
 
   // Referenced tables: every RangeVar, resolved through the catalog.
   const tables = new Map<string, { schema: string; name: string }>();
@@ -111,11 +118,62 @@ export async function collectComparisonQuestions(
   };
 
   const questions = new Map<string, Node>();
+  const put = (colType: string, typeName: unknown, a: Lit, op: string, b: Lit): void => {
+    const key = comparisonKey(colType, a, op, b);
+    if (questions.has(key)) return;
+    questions.set(key, {
+      A_Expr: {
+        kind: "AEXPR_OP",
+        name: [{ String: { sval: op } }],
+        lexpr: {
+          TypeCast: { arg: litNode(a), typeName: structuredClone(typeName), location: -1 },
+        },
+        rexpr: {
+          TypeCast: { arg: litNode(b), typeName: structuredClone(typeName), location: -1 },
+        },
+        location: -1,
+      },
+    } as unknown as Node);
+  };
+
   for (const t of tables.values()) {
     const checks = [
       ...catalog.resolveCheckConstraints(t.schema, t.name),
       ...catalog.resolveCheckConstraintsTree(t.schema, t.name),
     ];
+    // The interval rung's ANCHOR-ORDER questions: per column, every pair
+    // drawn from the CHECKs' literals and the statement's, both directed
+    // `<`s and the `=` — the kernel derives lt/eq/gt/ne from whichever
+    // answer. Order questions only over non-collatable columns, equality
+    // wherever the trichotomy's equality arm allows.
+    const anchorsByColumn = new Map<string, Lit[]>();
+    for (const check of checks) {
+      for (const atom of scanLitComparisons(check)) {
+        const list = anchorsByColumn.get(atom.column) ?? [];
+        list.push(atom.lit);
+        anchorsByColumn.set(atom.column, list);
+      }
+    }
+    for (const [column, checkLits] of anchorsByColumn) {
+      const det = catalog.resolveColumnCollationDeterministic(t.schema, t.name, column);
+      if (det === false) continue;
+      const colType = catalog.resolveColumnTypeName(t.schema, t.name, column);
+      if (colType === null) continue;
+      const typeName = await typeNameAstOf(colType);
+      if (typeName === null) continue;
+      const anchors = [...checkLits, ...(statementLits.get(column) ?? [])];
+      for (let i = 0; i < anchors.length; i++) {
+        for (let j = i + 1; j < anchors.length; j++) {
+          const p = anchors[i]!;
+          const q = anchors[j]!;
+          if (det === null) {
+            put(colType, typeName, p, "<", q);
+            put(colType, typeName, q, "<", p);
+          }
+          put(colType, typeName, p, "=", q);
+        }
+      }
+    }
     for (const check of checks) {
       for (const atom of scanLitComparisons(check)) {
         const evidenceLits = equalities.get(atom.column);
@@ -133,29 +191,7 @@ export async function collectComparisonQuestions(
         const typeName = await typeNameAstOf(colType);
         if (typeName === null) continue;
         for (const evidenceLit of evidenceLits) {
-          const key = comparisonKey(colType, evidenceLit, atom.op, atom.lit);
-          if (questions.has(key)) continue;
-          questions.set(key, {
-            A_Expr: {
-              kind: "AEXPR_OP",
-              name: [{ String: { sval: atom.op } }],
-              lexpr: {
-                TypeCast: {
-                  arg: litNode(evidenceLit),
-                  typeName: structuredClone(typeName),
-                  location: -1,
-                },
-              },
-              rexpr: {
-                TypeCast: {
-                  arg: litNode(atom.lit),
-                  typeName: structuredClone(typeName),
-                  location: -1,
-                },
-              },
-              location: -1,
-            },
-          } as unknown as Node);
+          put(colType, typeName, evidenceLit, atom.op, atom.lit);
         }
       }
     }

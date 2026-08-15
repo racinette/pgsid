@@ -876,6 +876,31 @@ export interface CatalogSnapshot {
    * `builtinFunctionVolatilities`. ENVIRONMENT like it.
    */
   builtinOperatorVolatilities: BuiltinOperatorVolatility[];
+  /**
+   * pg_catalog operator name → its btree STRATEGY NUMBER (1 `<`, 2 `<=`,
+   * 3 `=`, 4 `>=`, 5 `>`), captured by CONSENSUS across every pg_catalog
+   * btree opfamily — a name with conflicting strategies is absent. The
+   * interval-exclusivity rung's shape source
+   * (docs/subtree-evaluation.md): the strategy IS the set shape (rays,
+   * the point), published by PostgreSQL for its own index machinery, so
+   * nothing here models an operator. `<>` is deliberately absent —
+   * PostgreSQL does not index inequality.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinBtreeStrategies: Record<string, number>;
+  /**
+   * pg_catalog operator names that are NEGATORS OF EQUALITY: every row of
+   * the name has an `oprnegate`, and every negator carrying a captured
+   * btree strategy has strategy 3. The complement-of-point shape (`<>`)
+   * comes from here, since inequality has no strategy of its own. The
+   * geometric `<>` rows negate `~=` (no btree strategy), which the filter
+   * tolerates because their operand types never produce evaluable anchor
+   * questions — the evaluator refuses `=` over point outright.
+   *
+   * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
+   */
+  builtinEqualityNegators: string[];
 }
 
 // ---------------------------------------------------------------------------

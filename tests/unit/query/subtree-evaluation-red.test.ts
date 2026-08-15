@@ -54,6 +54,17 @@ const SCHEMA = `
   CREATE TABLE bcorr (a int, b boolean,
     CHECK (CASE WHEN b THEN a < 5 ELSE a >= 5 END));
   CREATE TABLE dt (d date, x text, CHECK (d <= '2019-12-31' OR x IS NOT NULL));
+  -- Interval-exclusivity subjects (the chartered rung): one table per
+  -- shape family, anchors chosen so every boundary case below has a
+  -- conforming row (adjudication data: 6/7/100, 5, 5/6, 5.5/6/NaN, ...).
+  CREATE TABLE tri2 (a int, CHECK (a > 5));
+  CREATE TABLE pt (p int, CHECK (p = 5));
+  CREATE TABLE ge (g int, CHECK (g >= 5));
+  CREATE TABLE flo (f float8, CHECK (f > 5));
+  CREATE TABLE nm (n numeric, CHECK (n > 5.5));
+  CREATE TABLE ne2 (z int, CHECK (z <> 5));
+  CREATE TABLE stx (s text, CHECK (s > 'm'));
+  CREATE TABLE dtc (d date, CHECK (d > '2020-01-01'));
 `;
 
 beforeAll(async () => {
@@ -306,6 +317,134 @@ describe("kernel atom oracle (flipped 2026-08-12 — convicted by crafted fixtur
 });
 
 // --- Boundary guards: green today, green after. ------------------------------
+
+// --- Interval exclusivity over btree strategies (chartered 2026-08-12). -----
+// The generalization of same-token trichotomy to ORDERED ANCHORS: shapes
+// from pg_amop strategy numbers, anchor order from evaluated point
+// questions, emptiness-only conclusions. Every value below adjudicated
+// 2026-08-12 over boundary-heavy data (a NaN float row included — btree
+// sorts NaN above everything, measured `'NaN'::float8 > 5` TRUE, so the
+// float target survives it). Targets flip in the landing commit; the two
+// CONTROLS pass today (the same-token fast path) and pin that this rung's
+// delta is exactly the cross-anchor cases; the guards pin the boundary
+// exactness the algebra must not blur.
+
+describe("interval exclusivity (flipped 2026-08-12 — the chartered rung landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("disjoint rays with room between anchors", async () => {
+    // notFALSE(a > 5) refutes `a <= 3`: (5,inf) and (-inf,3] share nothing
+    // exactly because 3 <= 5 — the evaluated anchor fact.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.a <= 3 THEN NULL ELSE 5 END AS r FROM tri2 c",
+    )).toBe(true);
+  });
+
+  it("adjacent integer anchors, no room between", async () => {
+    // (5,inf) and (-inf,4]: disjoint because 4 <= 5 — the algebra needs no
+    // density knowledge, only the evaluated anchor order. (The same-anchor
+    // one-open case `a < 5` is the CONTROL below: token identity answers
+    // it today.)
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.a <= 4 THEN NULL ELSE 5 END AS r FROM tri2 c",
+    )).toBe(true);
+  });
+
+  it("a point outside a ray", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.a = 3 THEN NULL ELSE 5 END AS r FROM tri2 c",
+    )).toBe(true);
+  });
+
+  it("a point CHECK refutes rays that miss it, both directions", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.p > 7 THEN NULL ELSE 5 END AS r FROM pt c",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.p < 3 THEN NULL ELSE 5 END AS r FROM pt c",
+    )).toBe(true);
+  });
+
+  it("a float ray survives its NaN rows", async () => {
+    // The NaN row satisfies CHECK (f > 5) — btree order, not IEEE — and
+    // fails `f <= 3` with everything else; the anchor question answers
+    // under PostgreSQL's own order either way.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.f <= 3 THEN NULL ELSE 5 END AS r FROM flo c",
+    )).toBe(true);
+  });
+
+  it("numeric anchors of different literal kinds still order", async () => {
+    // 5 (ival) against 5.5 (fval), both read at numeric: the evaluated
+    // `5 <= 5.5` is what decides, not token shape.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.n <= 5 THEN NULL ELSE 5 END AS r FROM nm c",
+    )).toBe(true);
+  });
+
+  it("control: same-token exclusivity answers today, no anchors needed", async () => {
+    // `a < 5` beside CHECK (a > 5) and `g < 5` beside CHECK (g >= 5)
+    // share the literal token — the existing fast path, green before,
+    // during and after this rung.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.a < 5 THEN NULL ELSE 5 END AS r FROM tri c",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.g < 5 THEN NULL ELSE 5 END AS r FROM ge c",
+    )).toBe(true);
+  });
+
+  it("GUARD: overlapping rays claim nothing", async () => {
+    // (5,inf) and [3,inf) share everything above 5; (5,inf) and (-inf,6]
+    // share (5,6] — a=6 is a conforming row whose NULL arm fires
+    // (adjudicated, NULL witnessed both ways).
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.a >= 3 THEN NULL ELSE 5 END AS r FROM tri2 c",
+    )).toBe(false);
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.a <= 6 THEN NULL ELSE 5 END AS r FROM tri2 c",
+    )).toBe(false);
+  });
+
+  it("GUARD: closed rays touching at the anchor share the point", async () => {
+    // [5,inf) and (-inf,5] share exactly {5}, and g=5 is a conforming row
+    // — the off-by-one the emptiness table must not blur.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.g <= 5 THEN NULL ELSE 5 END AS r FROM ge c",
+    )).toBe(false);
+  });
+
+  it("GUARD: a point inside a closed ray claims nothing", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.p >= 5 THEN NULL ELSE 5 END AS r FROM pt c",
+    )).toBe(false);
+  });
+
+  it("GUARD: a complement excludes only its own point", async () => {
+    // CHECK (z <> 5) says nothing about z = 3 — 3 lives in the complement
+    // (adjudicated, NULL witnessed).
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.z = 3 THEN NULL ELSE 5 END AS r FROM ne2 c",
+    )).toBe(false);
+  });
+
+  it("GUARD: collatable order anchors stay refused", async () => {
+    // The claim would be TRUE for stored rows ('k' precedes 'm' in every
+    // deterministic collation here), but ordering text anchors needs
+    // collation IDENTITY, which is not captured — refused, nullable stays.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.s <= 'k' THEN NULL ELSE 5 END AS r FROM stx c",
+    )).toBe(false);
+  });
+
+  it("GUARD: datetime anchors stay refused", async () => {
+    // Also a true claim, also refused: date_in reads DateStyle, so the
+    // anchor question never closes.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.d <= '2019-06-01' THEN NULL ELSE 5 END AS r FROM dtc c",
+    )).toBe(false);
+  });
+});
 
 describe("GUARD: lines the mechanism must not cross", () => {
   it("bp control: the = direction must NOT claim — a claim here is unsound", async () => {

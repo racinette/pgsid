@@ -302,6 +302,17 @@ export interface SubtreeEvaluationCatalog {
     table: string,
     column: string,
   ): boolean | null;
+  /**
+   * The operator's btree strategy number (1 `<` … 5 `>`) by pg_catalog
+   * consensus, or null — including null for any name a user operator
+   * shadows (the standing collision rule). The interval-exclusivity
+   * rung's shape source; `<>` answers through `isEqualityComplement`
+   * instead.
+   */
+  btreeStrategyOf(op: string): number | null;
+  /** Whether every pg_catalog row of `op` negates equality — the
+   *  complement-of-point shape — under the same collision rule. */
+  isEqualityComplement(op: string): boolean;
 }
 
 /**
@@ -322,6 +333,8 @@ export const EVALUATION_CATALOG_ONLY = [
   "isImmutableIoRendering",
   "resolveEnforcedCheckConstraints",
   "resolveColumnCollationDeterministic",
+  "btreeStrategyOf",
+  "isEqualityComplement",
 ] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[];
 
 /**

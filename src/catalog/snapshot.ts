@@ -542,6 +542,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinImmutableOperators,
     builtinFunctionVolatilities,
     builtinOperatorVolatilities,
+    builtinBtreeStrategies,
+    builtinEqualityNegators,
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
@@ -581,6 +583,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinImmutableOperators(pg),
     queryBuiltinFunctionVolatilities(pg),
     queryBuiltinOperatorVolatilities(pg),
+    queryBuiltinBtreeStrategies(pg),
+    queryBuiltinEqualityNegators(pg),
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
@@ -988,6 +992,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinImmutableOperators,
     builtinFunctionVolatilities,
     builtinOperatorVolatilities,
+    builtinBtreeStrategies,
+    builtinEqualityNegators,
   };
 }
 
@@ -1814,6 +1820,60 @@ async function queryBuiltinOperatorVolatilities(
     returns: r.returns,
     volatility: r.volatility,
   }));
+}
+
+/**
+ * Btree strategy numbers by CONSENSUS. See
+ * CatalogSnapshot.builtinBtreeStrategies: the HAVING clause drops any name
+ * whose rows disagree across families, so a captured entry is the shape of
+ * EVERY btree row of that name.
+ */
+async function queryBuiltinBtreeStrategies(pg: PGlite): Promise<Record<string, number>> {
+  const res = await pg.query<{ name: string; strategy: number }>(
+    `SELECT o.oprname AS name, min(a.amopstrategy)::int AS strategy
+     FROM pg_amop a
+     JOIN pg_operator o ON o.oid = a.amopopr
+     JOIN pg_opfamily f ON f.oid = a.amopfamily
+     JOIN pg_am am ON am.oid = f.opfmethod
+     WHERE am.amname = 'btree'
+       AND o.oprnamespace = 'pg_catalog'::regnamespace
+     GROUP BY o.oprname
+     HAVING count(DISTINCT a.amopstrategy) = 1
+     ORDER BY 1;`,
+  );
+  const out: Record<string, number> = {};
+  for (const r of res.rows) out[r.name] = r.strategy;
+  return out;
+}
+
+/**
+ * Names whose every row negates equality. See
+ * CatalogSnapshot.builtinEqualityNegators: a negator with a btree strategy
+ * must have strategy 3; negators outside btree (`~=`) are tolerated because
+ * their operand types never produce evaluable anchors.
+ */
+async function queryBuiltinEqualityNegators(pg: PGlite): Promise<string[]> {
+  const res = await pg.query<{ name: string }>(
+    `WITH neg AS (
+       SELECT o.oprname AS name,
+              (SELECT min(a.amopstrategy)::int
+               FROM pg_amop a
+               JOIN pg_opfamily f ON f.oid = a.amopfamily
+               JOIN pg_am am ON am.oid = f.opfmethod
+               WHERE am.amname = 'btree' AND a.amopopr = n.oid) AS negstrat,
+              n.oid IS NOT NULL AS has_negator
+       FROM pg_operator o
+       LEFT JOIN pg_operator n ON n.oid = o.oprnegate
+       WHERE o.oprnamespace = 'pg_catalog'::regnamespace
+     )
+     SELECT name FROM neg
+     GROUP BY name
+     HAVING bool_and(has_negator)
+        AND bool_and(negstrat IS NULL OR negstrat = 3)
+        AND bool_or(negstrat = 3)
+     ORDER BY 1;`,
+  );
+  return res.rows.map(r => r.name);
 }
 
 /**

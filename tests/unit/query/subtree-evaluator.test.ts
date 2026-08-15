@@ -646,6 +646,24 @@ describe("catalog face: user names open builtin spellings", () => {
     expect(shadowCatalog.isImmutableIoType("int4")).toBe(false);
   });
 
+  it("the interval faces: strategies by consensus, complement by negator, shadowed names refused", () => {
+    // The five canonical shapes come straight off pg_amop; `<>` answers
+    // through the equality-negator capture; `||` has no btree membership
+    // and never will. The shadow catalog carries a user `=` operator, so
+    // the collision rule closes both faces for that name there.
+    expect(catalog.btreeStrategyOf("<")).toBe(1);
+    expect(catalog.btreeStrategyOf("<=")).toBe(2);
+    expect(catalog.btreeStrategyOf("=")).toBe(3);
+    expect(catalog.btreeStrategyOf(">=")).toBe(4);
+    expect(catalog.btreeStrategyOf(">")).toBe(5);
+    expect(catalog.btreeStrategyOf("<>")).toBeNull();
+    expect(catalog.btreeStrategyOf("||")).toBeNull();
+    expect(catalog.isEqualityComplement("<>")).toBe(true);
+    expect(catalog.isEqualityComplement("=")).toBe(false);
+    expect(shadowCatalog.btreeStrategyOf("=")).toBeNull();
+    expect(shadowCatalog.isEqualityComplement("=")).toBe(false);
+  });
+
   it("the arity axis: `length` is immutable at one argument, not at two", () => {
     // length(bytea, name) is STABLE — the row that forced (name, arity)
     // keys onto the capture.
