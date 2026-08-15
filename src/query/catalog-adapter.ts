@@ -896,6 +896,13 @@ export async function buildNullabilityCatalog(
   const immutableOperators = new Set(snapshot.builtinImmutableOperators ?? []);
   const immutableIoTypes = new Set(snapshot.builtinImmutableIoTypes ?? []);
 
+  const btreeStrategies = snapshot.builtinBtreeStrategies ?? {};
+  const equalityNegators = new Set(snapshot.builtinEqualityNegators ?? []);
+  const btreeStrategyOf = (op: string): number | null =>
+    evalUserOperatorNames.has(op) ? null : (btreeStrategies[op] ?? null);
+  const isEqualityComplement = (op: string): boolean =>
+    !evalUserOperatorNames.has(op) && equalityNegators.has(op);
+
   const isImmutableFunction = (name: string, argCount: number): boolean =>
     !evalUserFunctionNames.has(name) &&
     (immutableFnArities[name] ?? []).includes(argCount);
@@ -2029,6 +2036,8 @@ export async function buildNullabilityCatalog(
       isImmutableIoRendering,
       resolveEnforcedCheckConstraints,
       resolveColumnCollationDeterministic,
+      btreeStrategyOf,
+      isEqualityComplement,
     };
 
     /** The TypeName AST of a base rendering, harvested like the grounder's. */
@@ -2204,6 +2213,8 @@ export async function buildNullabilityCatalog(
     resolveCheckConstraintsTree,
     resolveEnforcedCheckConstraints,
     resolveColumnCollationDeterministic,
+    btreeStrategyOf,
+    isEqualityComplement,
     resolveForeignKey,
     resolveForeignKeyTree,
     isStrictBuiltin,

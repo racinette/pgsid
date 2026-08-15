@@ -550,6 +550,49 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(await vol("textanycat")).toBe("s");
     expect(await vol("anytextcat")).toBe("s");
     expect(await vol("ts_match_tt")).toBe("s");
+  });
+
+  it("btree strategy numbers are per-name consensus; inequality has none", async () => {
+    // The interval-exclusivity rung's shape source
+    // (docs/subtree-evaluation.md): the strategy number IS the set shape,
+    // and every pg_catalog btree family agrees per name — a release that
+    // splits one must fail here, because the capture would silently drop
+    // the name. `<>` carries no strategy anywhere (PostgreSQL does not
+    // index inequality); its complement shape rides oprnegate instead,
+    // where the geometric rows negate `~=` — an operator with NO btree
+    // row, which is why the equality-negator capture may tolerate it.
+    const strat = await pg.query<{ name: string; strategies: number[] }>(
+      `SELECT o.oprname AS name, array_agg(DISTINCT a.amopstrategy)::int[] AS strategies
+       FROM pg_amop a
+       JOIN pg_operator o ON o.oid = a.amopopr
+       JOIN pg_opfamily f ON f.oid = a.amopfamily
+       JOIN pg_am am ON am.oid = f.opfmethod
+       WHERE am.amname = 'btree' AND o.oprnamespace = 'pg_catalog'::regnamespace
+         AND o.oprname IN ('<', '<=', '=', '>=', '>', '<>')
+       GROUP BY o.oprname ORDER BY 1;`,
+    );
+    expect(Object.fromEntries(strat.rows.map(r => [r.name, r.strategies]))).toEqual({
+      "<": [1],
+      "<=": [2],
+      "=": [3],
+      ">": [5],
+      ">=": [4],
+    });
+    const neg = await pg.query<{ negator: string }>(
+      `SELECT DISTINCT n.oprname AS negator FROM pg_operator o
+       JOIN pg_operator n ON n.oid = o.oprnegate
+       WHERE o.oprname = '<>' AND o.oprnamespace = 'pg_catalog'::regnamespace
+       ORDER BY 1;`,
+    );
+    expect(neg.rows.map(r => r.negator)).toEqual(["=", "~="]);
+    const tildeBtree = await pg.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_amop a
+       JOIN pg_operator o ON o.oid = a.amopopr
+       JOIN pg_opfamily f ON f.oid = a.amopfamily
+       JOIN pg_am am ON am.oid = f.opfmethod
+       WHERE am.amname = 'btree' AND o.oprname = '~=';`,
+    );
+    expect(tildeBtree.rows[0]!.n).toBe(0);
     const lengthRows = await pg.query<{ args: string }>(
       `SELECT pg_get_function_identity_arguments(oid) AS args FROM pg_proc
        WHERE proname = 'length' AND pronamespace = 'pg_catalog'::regnamespace

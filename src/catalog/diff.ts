@@ -427,6 +427,8 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     builtinImmutableOperators: [],
     builtinFunctionVolatilities: [],
     builtinOperatorVolatilities: [],
+    builtinBtreeStrategies: {},
+    builtinEqualityNegators: [],
     builtinTableFunctions: {},
     builtinSetReturningFunctions: [],
     builtinAggregateFunctions: [],

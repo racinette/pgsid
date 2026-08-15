@@ -174,6 +174,16 @@ export interface CheckEntailmentInput {
    * counterexample).
    */
   comparisonEvaluable?: (alias: string, column: string, op: string) => boolean;
+  /**
+   * The interval rung's shape sources (docs/subtree-evaluation.md,
+   * "Interval exclusivity over btree strategies"): the operator's btree
+   * strategy number by pg_catalog consensus (1 `<` … 5 `>`), and whether
+   * it is a negator of equality (`<>`, the complement-of-point shape).
+   * Both walk-supplied from the evaluation face, both closed under the
+   * user-operator collision rule.
+   */
+  btreeStrategy?: (op: string) => number | null;
+  equalityComplement?: (op: string) => boolean;
   trace?: CheckEntailmentTrace;
 }
 
@@ -264,6 +274,53 @@ const EXCLUSIVE_OPS: Record<string, readonly string[]> = {
   ">=": ["<"],
   "<>": ["="],
 };
+
+/**
+ * The complement-of-point shape's synthetic number, beside the five btree
+ * strategies (1 `<`, 2 `<=`, 3 `=`, 4 `>=`, 5 `>`): `<>` has no strategy —
+ * PostgreSQL does not index inequality — and takes this one from the
+ * equality-negator capture instead.
+ */
+const COMPLEMENT_SHAPE = 6;
+
+/**
+ * Is `W ∩ Q` provably EMPTY? `sw`/`sq` are shapes (strategy numbers plus
+ * the complement), `rel` is how W's anchor compares to Q's. Every row of
+ * this table is domain-free — no density, no bounds, no inhabitants:
+ * "(-∞,4] misses (5,∞)" holds because 4 < 5, never because nothing sits
+ * between them. Rows that would need domain knowledge (complement vs
+ * complement, adjacent open rays over a discrete type) answer false, the
+ * over-keep direction.
+ */
+function shapesDisjoint(
+  sw: number,
+  rel: "lt" | "eq" | "gt" | "ne",
+  sq: number,
+): boolean {
+  const leftRay = (s: number): boolean => s === 1 || s === 2;
+  const rightRay = (s: number): boolean => s === 4 || s === 5;
+  // Point vs point: any known distinctness separates them.
+  if (sw === 3 && sq === 3) return rel !== "eq";
+  // A complement excludes exactly its own point.
+  if (sw === COMPLEMENT_SHAPE) return sq === 3 && rel === "eq";
+  if (sq === COMPLEMENT_SHAPE) return sw === 3 && rel === "eq";
+  // Point vs ray: the point must sit strictly outside.
+  if (sw === 3 && leftRay(sq)) return rel === "gt" || (rel === "eq" && sq === 1);
+  if (sw === 3 && rightRay(sq)) return rel === "lt" || (rel === "eq" && sq === 5);
+  if (leftRay(sw) && sq === 3) return rel === "lt" || (rel === "eq" && sw === 1);
+  if (rightRay(sw) && sq === 3) return rel === "gt" || (rel === "eq" && sw === 5);
+  // Opposed rays: disjoint when the left ray's anchor sits at or before
+  // the right ray's — touching anchors need an open endpoint on either
+  // side ("at or before" with both closed shares the anchor point).
+  if (leftRay(sw) && rightRay(sq)) {
+    return rel === "lt" || (rel === "eq" && !(sw === 2 && sq === 4));
+  }
+  if (rightRay(sw) && leftRay(sq)) {
+    return rel === "gt" || (rel === "eq" && !(sw === 4 && sq === 2));
+  }
+  // Same-direction rays always share a tail.
+  return false;
+}
 
 /**
  * Internal catalog names → the `format_type` rendering the snapshot stores.
@@ -1220,7 +1277,89 @@ class EntailmentKernel {
       f.col === atom.col &&
       exclusive.includes(f.op) &&
       this.litsMatch(atom.col, f.lit, atom.lit);
-    return this.trueFacts.some(witness) || this.notFalseFacts.some(witness);
+    if (this.trueFacts.some(witness) || this.notFalseFacts.some(witness)) return true;
+    return this.intervalRefuted(atom);
+  }
+
+  /**
+   * The interval-exclusivity judgment over ORDERED ANCHORS
+   * (docs/subtree-evaluation.md, "Interval exclusivity over btree
+   * strategies"): the witness fact's set and the atom's set share nothing,
+   * decided from the shapes PostgreSQL publishes and the evaluated anchor
+   * order. If the atom were TRUE the column would be non-null, the
+   * witness comparison would have EVALUATED, and notFALSE would force it
+   * TRUE — landing the value in an empty intersection. EMPTINESS is the
+   * only conclusion this may draw: nonemptiness needs a type's
+   * inhabitants, which is the wall the charter names.
+   */
+  private intervalRefuted(atom: Extract<Atom, { t: "cmpLit" }>): boolean {
+    const strat = this.input.btreeStrategy;
+    const compl = this.input.equalityComplement;
+    if (!strat || !compl || !this.input.evaluatedComparison) return false;
+    const shapeOf = (op: string): number | null =>
+      strat(op) ?? (compl(op) ? COMPLEMENT_SHAPE : null);
+    const sq = shapeOf(atom.op);
+    if (sq === null) return false;
+    if (!this.litColumnTyped(atom.col, atom.lit)) return false;
+    const dot = atom.col.indexOf(".");
+    const alias = atom.col.slice(0, dot);
+    const column = atom.col.slice(dot + 1);
+    const colType = this.input.columnTypeName(alias, column);
+    if (colType === null) return false;
+    const eqOk = this.input.comparisonEvaluable?.(alias, column, "=") ?? false;
+    const ltOk = this.input.comparisonEvaluable?.(alias, column, "<") ?? false;
+    for (const f of [...this.trueFacts, ...this.notFalseFacts]) {
+      if (f.t !== "cmpLit" || f.col !== atom.col) continue;
+      if (!this.litColumnTyped(atom.col, f.lit)) continue;
+      const sw = shapeOf(f.op);
+      if (sw === null) continue;
+      const rel = this.anchorRelation(colType, f.lit, atom.lit, eqOk, ltOk);
+      if (rel !== null && shapesDisjoint(sw, rel, sq)) {
+        this.input.trace?.addFact(
+          "intervalExclusivity",
+          `${atom.col} ${atom.op} <anchor> shares nothing with the ` +
+            `${f.op} fact's set (anchors ${rel}) → never TRUE`,
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * How the witness anchor relates to the question anchor: lt/eq/gt when
+   * order is derivable, `ne` when only inequality is (a deterministic
+   * collatable column answers `=` but never `<`), null when nothing is.
+   * Identical tokens are `eq` for free — token identity needs no session.
+   */
+  private anchorRelation(
+    colType: string,
+    w: Lit,
+    q: Lit,
+    eqOk: boolean,
+    ltOk: boolean,
+  ): "lt" | "eq" | "gt" | "ne" | null {
+    if (w.kind === q.kind && w.value === q.value) return "eq";
+    const ask = this.input.evaluatedComparison!;
+    if (eqOk) {
+      const e = ask(colType, w, "=", q);
+      if (e === true) return "eq";
+      if (e === false) {
+        if (!ltOk) return "ne";
+        const l = ask(colType, w, "<", q);
+        if (l === true) return "lt";
+        if (l === false) return "gt"; // not equal, not less: the order is total
+        return "ne";
+      }
+    }
+    if (ltOk) {
+      const l = ask(colType, w, "<", q);
+      if (l === true) return "lt";
+      const g = ask(colType, q, "<", w);
+      if (g === true) return "gt";
+      if (l === false && g === false) return "eq";
+    }
+    return null;
   }
 
   /**

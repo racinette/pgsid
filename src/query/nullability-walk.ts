@@ -904,6 +904,19 @@ class NullabilityEngine {
     return det === null || (det === true && (op === "=" || op === "<>"));
   }
 
+  /** The interval rung's shape supplies, absent on a face-less catalog. */
+  private btreeStrategySupply(): ((op: string) => number | null) | undefined {
+    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>;
+    const fn = face.btreeStrategyOf;
+    return typeof fn === "function" ? op => fn(op) : undefined;
+  }
+
+  private equalityComplementSupply(): ((op: string) => boolean) | undefined {
+    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>;
+    const fn = face.isEqualityComplement;
+    return typeof fn === "function" ? op => fn(op) : undefined;
+  }
+
   /** First key of a node object — its type tag. */
   private nodeTag(node: Record<string, unknown>): string {
     return Object.keys(node).find(k => /^[A-Z]/.test(k)) ?? "?";
@@ -5353,6 +5366,8 @@ class NullabilityEngine {
               : false;
           },
           evaluatedComparison: this.comparisonOracle(),
+          btreeStrategy: this.btreeStrategySupply(),
+          equalityComplement: this.equalityComplementSupply(),
           literalDistinctnessSound: (a, col) => {
             const e = scope.aliases.get(a);
             const cat = e ? this.entryCatalogColumn(e, col) : undefined;
@@ -6738,6 +6753,8 @@ class NullabilityEngine {
             );
             const proved = checkConstraintsProveNotNull({
               evaluatedComparison: this.comparisonOracle(),
+              btreeStrategy: this.btreeStrategySupply(),
+              equalityComplement: this.equalityComplementSupply(),
               // The shown name, not the catalog one: the CHECKs above were
               // renamed into this scope's vocabulary, and a goal in the other
               // vocabulary matches none of them.
@@ -7032,6 +7049,8 @@ class NullabilityEngine {
     }
     const proved = checkConstraintsProveNotNull({
       evaluatedComparison: this.comparisonOracle(),
+      btreeStrategy: this.btreeStrategySupply(),
+      equalityComplement: this.equalityComplementSupply(),
       goal: { alias: entry.alias, column: goalOrigin.column },
       // NOT renamed through `entry`: these CHECKs belong to the BASE table the
       // origin points at, while `entry` is the view or CTE it was reached
