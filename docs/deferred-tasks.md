@@ -169,6 +169,37 @@ finding survives the probe by design and STAYS REPORTED; the bucket
 count and the charter's revisit trigger govern when to look again.
 The probe harness and both fixture-facing suites now run with `evaluate`
 live; both censuses stay evaluator-off.
+RE-VERIFIED after the atom-oracle demand experiment landed `tri`/`bcorr`
+in the pool (2026-08-12, 20,000 × seeds 20260808/7): the experiment
+immediately convicted the grounder's CASE-DISCRIMINATOR gap (6+2
+instances — a NULLed discriminator routes to the arm the written value
+fails), fixed the same day by making a guard's null-implicants
+arm-removal implicants in the reduction, pinned with its must-not-claim
+control in the red-suite grounder block. After the fix: seed 20260808
+finds NOTHING in 20,000; seed 7 finds ONE instance — a MERGE insert arm
+whose discriminator claim is value-conditional on a param sibling,
+kept conservatively (its all-NULL corner raises through the primary
+key) — and the `value-conditional` bucket took its first live instance.
+The experiment's demand verdict itself: 1,225/20,000 queries reach the
+tables, 97 carry CASE expressions there, ZERO carry comparison guards —
+the atom-oracle rungs stay uncharted (recorded in the charter's atom
+oracle section with the method).
+**The FIRST-WAVE WIDENINGS and the OUTPUT-SIDE ENTAILMENT consumer are
+BOTH BUILT (2026-08-12)** — every consumer the subtree-evaluation
+charter names now exists. Widenings: unique enums and domains fold
+(uniqueness by measurement, not the charter's guessed name-consensus —
+same-named enums answer oppositely as search_path moves), domains
+thread their canonical base with the whole chain's CHECKs gated
+recursively, array casts gate per element; as-built in the charter's
+first-wave section. Entailment: the kernel's atom oracle consults
+pre-evaluated literal comparisons (`comparison-groundings.ts`) —
+`SELECT overflow_contact FROM subscription WHERE seats = 5` claims
+notNull; its first build was CONVICTED by the collation-gate fixture
+and now carries a per-column collation trichotomy (non-collatable: all
+ops; deterministic: equality only; nondeterministic: nothing); the
+numeric multi-WHEN negative flipped nullable→notNull with its
+`@unwitnessable` retired. As-built in the charter's entailment section.
+Suite 51 files / 2,963 + 1 skipped, ~74s.
 The suite total dropped 3301 → 2879 honestly: builtin-null-rejection's old
 import of param-soundness.test.js was re-running its 428 tests in a second
 worker, and the shared constants moved to fixture-args.ts. §9's remaining

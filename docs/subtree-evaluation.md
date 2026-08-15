@@ -1,4 +1,4 @@
-# Subtree evaluation (chartered 2026-08-11; EVALUATOR CORE BUILT 2026-08-11; TYPED OPERAND TRACKING, STATEMENT MAP and CHECK GROUNDER BUILT 2026-08-12; entailment stays the recorded later)
+# Subtree evaluation (chartered 2026-08-11; EVERY CHARTERED CONSUMER BUILT — evaluator core 2026-08-11; typed operand tracking, statement map, CHECK grounder, first-wave widenings and output-side entailment 2026-08-12)
 
 Evaluate closed subtrees of expressions through PostgreSQL and hand the
 answers to the engine as data. One evaluator, two consumers now, one
@@ -237,18 +237,35 @@ light:
 - PRINCIPLED (session-state): the datetime/money/xml I/O boundaries,
   GUC-stable signatures, the clock strings, `regclass` and friends
   (search_path is session state), every VOLATILE row.
-- FIRST-WAVE SCOPE, foldable under the snapshot contract — the
-  widening rides this rung, by the same name-consensus shape as the
-  collision rule, so scope-blindness holds (NOT TAKEN with the core,
-  2026-08-12: the gate landed alone; these ride a later batch):
-  - domains over immutable-I/O bases, with each CHECK expression gated
-    through THIS closure gate recursively (the snapshot carries them
-    parsed);
+- FIRST-WAVE SCOPE, foldable under the snapshot contract — BUILT
+  2026-08-12 ("first-wave widenings" block in subtree-evaluator.test.ts;
+  admission computed at adapter build, read by `closedCastTargetType`
+  and the root-rendering gate):
+  - domains over immutable-I/O bases, the WHOLE nesting chain's CHECKs
+    gated through THIS closure gate (VALUE substitutes as a typed NULL;
+    a domain-over-domain constraint renders VALUE pre-cast, measured,
+    so under a rendered cast the stand-in is bare). Admitted domains
+    thread their canonical BASE — operators resolve on it. A violating
+    cast raises at evaluation and contributes nothing.
   - enums — values and sort order are snapshot-pinned, and their
-    comparison operators are immutable by PostgreSQL's own book;
+    comparison operators are immutable by PostgreSQL's own book; they
+    thread their qualified rendering through the survivor machinery
+    unchanged (`anyenum` is pseudo, so the route is clean).
   - array literals over immutable-I/O element types — `array_in`'s
     blanket-stable flag means "elements could be datetime", a question
-    the element gate answers better than the flag does.
+    the element gate answers better than the flag does. Builtin
+    elements only.
+
+  What building it corrected and bounded: admission is by UNIQUENESS,
+  not the name-consensus the charter guessed — two same-named enums
+  with opposite label orders answer oppositely as search_path moves
+  (measured 2026-08-12), so a bare name closes only when exactly one
+  user type carries it and no pg_catalog spelling collides. One pass,
+  no fixpoint (a CHECK casting to a not-yet-admitted domain over-keeps,
+  which only keeps a cast open); the unknown-literal LANDINGS stay
+  strict (landing 'red' on an enum runs enum_in — not widened);
+  schema-QUALIFIED user casts stay open (uniqueness makes the
+  qualified spelling unnecessary for admissible types).
 
 **Stated assumptions, recorded rather than gated (2026-08-12).**
 
@@ -397,7 +414,7 @@ with every guard green (the bp = direction, NOT ENFORCED, the volatile
 body among them). The as-built record lives with the mechanism's design
 — `docs/argument-nullability.md`, "Mechanism E", "As built".
 
-## The recorded later — output-side CHECK entailment
+## The recorded later — output-side CHECK entailment (BUILT 2026-08-12)
 
 Same core, different soundness argument: a VALIDATED CHECK is notFALSE
 over stored rows, WHERE equalities supply groundings, and the residue
@@ -405,6 +422,41 @@ null-test forces notNull for returned rows — the ordering-shaped gap the
 entailment kernel's exact-atom trade cannot reach (eleven of fifteen
 covered, neither ordering shape). Its red case is in the suite, expected
 to stay red past the first two consumers.
+
+**As built (2026-08-12).** The seam is Wave 11c's designed one — the
+kernel's atom oracle, at `atomIsTrue`/`atomIsFalse`: a TRUE equality
+fact substitutes its literal into a same-column comparison atom, and the
+pre-evaluated answer decides the atom (`src/query/comparison-groundings.ts`
+synthesizes the questions before the walk — every statement equality
+crossed with every referenced table's CHECK atoms, both literals cast to
+the column's DECLARED type, one evaluator-core call, table-free keys —
+and the kernel looks answers up through a walk-supplied callback). The
+oracle consumes only already-collected, already-masked TRUE facts, so
+every evidence gate is inherited by construction; substitution is sound
+within the column type's btree family, where every canonical operator
+lives. It generalizes the kernel's two literal-distinctness rules to the
+whole comparison set; the kernel's own rules stay — they are the whole
+story when no `evaluate` is passed.
+
+What building it corrected: the questions evaluate under the ANALYSIS
+SESSION'S DEFAULT COLLATION, and the collation-gate fixture caught the
+first build claiming against a nondeterministically-collated column —
+so a per-column COLLATION TRICHOTOMY gates the oracle (new face member,
+`resolveColumnCollationDeterministic`): non-collatable transfers every
+canonical op; a deterministic collation transfers equality only
+(byte-equality semantics, shared with the deterministic analysis
+default — bp included, `character(4)` reading both literals padded);
+ORDER over collatable columns is refused outright, because it needs
+collation IDENTITY, which is not captured. The gate is kernel-side —
+the question keys are type-level, the hazard is column-level — with a
+synthesis-side mirror that only saves evaluations. Witness effects:
+`check-multiwhen-numeric-negative` flipped nullable→notNull and its
+`@unwitnessable` retired (`2 = 1` evaluates FALSE where token
+distinctness is rightly banned — 1 vs 1.0 would evaluate EQUAL);
+`check-distinctness-collation-gate` held, which is the fixture doing
+its job. Red: the flip target plus three adjudicated guards (an
+equality satisfying the comparison disjunct claims nothing; the bp
+direction claims; a datetime comparison is never evaluated).
 
 This consumer does NOT sunset the kernel (ruled 2026-08-11). Evidence
 with no grounding value — column-to-column atoms (`WHERE a < b` negator-
@@ -460,8 +512,21 @@ kernel still never evaluates; only the atom oracle strengthens, behind
 the existing boundary, one chartered rung at a time.
 
 **Demand discipline unchanged**: no predtest.c pre-build. Rungs charter
-on conviction — the instrument's schema should gain a branch-correlated
-CHECK so the distribution can convict these shapes if they carry weight.
+on conviction — and the conviction experiment RAN (2026-08-12): `tri`
+(`CHECK (a > 5)`) and `bcorr` (the branch-correlated CASE) joined the
+fixture schema, the data generators and the instrument's table pool.
+Measured over 20,000 queries at seed 20260808 (DISCOVERY_ECHO, counted
+by filter): 1,225 queries reach the tables, 97 carry CASE expressions
+over them, and ZERO carry a comparison guard — the distribution's CASE
+guards are IS-NOT-NULL-shaped, so the trichotomy and arm-selection
+shapes these rungs would serve do not arise. NOT CHARTERED; the red
+cases stay red, the tables stay (they feed grounder and entailment
+coverage), and a generator that starts emitting comparison guards is
+the event that would reopen the question. The experiment's side catch:
+it convicted the grounder's CASE-discriminator gap within 28 queries
+(a NULLed discriminator routes to the arm the written value fails),
+fixed and pinned the same day — the guard's null-implicants are
+arm-removal implicants in the reduction.
 
 ## Boundaries, each verified against a real candidate
 
