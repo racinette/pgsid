@@ -264,6 +264,22 @@ const columnSpecificGenerators: Record<
         ctx.current("b") === true ? rand.pick([1, 4]) : rand.pick([6, 9]),
     },
 
+    // The interval-exclusivity families: every value satisfies its CHECK,
+    // and the FIRST value of each pick is the boundary witness the guard
+    // fixtures need (g = 5 fires `g <= 5`; f = 'NaN' satisfies `f > 5`
+    // under btree order, measured). ivp's point column is always 5.
+    // Row-index rotation, not a draw: the FIRST value is each guard
+    // fixture's boundary witness (5.5 lands in (5,6]; g = 5 in [5,inf) ∩
+    // (-inf,5]; z = 3 in the complement; n = 6 in (5.5,6]) and must exist
+    // in every state, which a rate would leave to luck.
+    ivp: { p: () => 5 },
+    ivge: { g: (_rand, ctx) => [5, 6, 40][ctx.row % 3]! },
+    ivf: { f: (_rand, ctx) => [5.5, "NaN", 7][ctx.row % 3]! },
+    ivnm: { n: (_rand, ctx) => [6, 5.6, 12.25][ctx.row % 3]! },
+    ivne: { z: (_rand, ctx) => [3, 7, 100][ctx.row % 3]! },
+    ivstx: { s: rand => rand.pick(["n", "peak", "z"]) },
+    ivdt: { d: rand => rand.pick(["2020-06-01", "2021-01-01", "2024-02-29"]) },
+
     // The application event log. Same range rule as every other partitioned
     // pair here: `order_events` routes its rows and the two partitions are
     // seeded directly, and all three share one unique index, so the parent
@@ -580,6 +596,19 @@ const nullPolicies: {
       // NULLed `b` would reroute the row to the ELSE arm it may violate.
       tri: { a: nullRate(0.25) },
       bcorr: { b: () => false, a: nullRate(0.25) },
+
+      // The interval families: a NULL passes every one of these CHECKs
+      // and exercises the UNKNOWN-guard → ELSE path the claims survive.
+      // The rotated witness columns NULL by index so the boundary rows
+      // (0-2) always survive; a rate could erase the very row the guard
+      // fixtures witness with.
+      ivp: { p: nullRate(0.25) },
+      ivge: { g: (_rand, ctx) => ctx.row % 4 === 3 },
+      ivf: { f: (_rand, ctx) => ctx.row % 4 === 3 },
+      ivnm: { n: (_rand, ctx) => ctx.row % 4 === 3 },
+      ivne: { z: (_rand, ctx) => ctx.row % 4 === 3 },
+      ivstx: { s: nullRate(0.25) },
+      ivdt: { d: nullRate(0.25) },
 
       // Each CHECK CASE ties a column's NULLness to the discriminator
       // assigned earlier in the row, same pattern as guest.
