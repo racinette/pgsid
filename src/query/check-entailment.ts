@@ -186,6 +186,25 @@ export function checkConstraintsProveNotNull(input: CheckEntailmentInput): boole
   return kernel.run();
 }
 
+/**
+ * Whether the facts prove `guard` is NEVER TRUE for an emitted row — the
+ * atom-oracle rungs' consumption (docs/subtree-evaluation.md, "The kernel's
+ * atom oracle"): the walk prunes a CASE arm whose guard cannot fire, the
+ * same arm-pruning the statement map performs, fed from the kernel instead
+ * of an evaluation. notTRUE is deliberately the WEAK judgment: a NULL
+ * guard also never fires its arm, so trichotomy facts (notFALSE of an
+ * exclusive same-token comparison) suffice where FALSE would be
+ * underivable. `input.goal` is unused here; pass the guard's owning alias
+ * with an empty column.
+ */
+export function checkConstraintsRefuteGuard(
+  input: CheckEntailmentInput,
+  guard: Node,
+): boolean {
+  const kernel = new EntailmentKernel(input);
+  return kernel.runGuardRefutation(guard);
+}
+
 // ---------------------------------------------------------------------------
 // Atoms — the matchable fragment.
 // ---------------------------------------------------------------------------
@@ -227,6 +246,23 @@ const FLIPPED_OPS: Record<string, string> = {
  */
 const NEGATOR_OPS: Record<string, string> = {
   "=": "<>", "<>": "=", "<": ">=", ">=": "<", ">": "<=", "<=": ">",
+};
+
+/**
+ * Same-token EXCLUSIVE comparison pairs — no value satisfies both, by a
+ * total order's trichotomy (atom-oracle rung: notFALSE(col OP₁ x) forbids
+ * TRUE(col OP₂ x) for OP₂ exclusive with OP₁, because a TRUE OP₂ needs a
+ * non-null operand, which forces OP₁ to have EVALUATED — to FALSE).
+ * Strictly wider than the negator relation: `<` excludes `=` and `>` too,
+ * which is what lets notFALSE(a < 5) refute the guard `a > 5`.
+ */
+const EXCLUSIVE_OPS: Record<string, readonly string[]> = {
+  "<": ["=", ">", ">="],
+  ">": ["=", "<", "<="],
+  "=": ["<", ">", "<>"],
+  "<=": [">"],
+  ">=": ["<"],
+  "<>": ["="],
 };
 
 /**
@@ -385,6 +421,15 @@ class EntailmentKernel {
   private trueFacts: Atom[] = [];
   private falseFacts: Atom[] = [];
   /**
+   * notFALSE facts — the atom-oracle rungs (docs/subtree-evaluation.md,
+   * "The kernel's atom oracle"): comparison atoms on a CHECK's notFALSE
+   * spine, too weak to be TRUE (a strict comparison's notFALSE is
+   * TRUE-or-NULL) yet strong enough for TRICHOTOMY — an exclusive
+   * same-token comparison can never be TRUE beside one. Consumed only by
+   * `atomNotTrue`; never by the TRUE/FALSE matchers.
+   */
+  private notFalseFacts: Atom[] = [];
+  /**
    * TRUE OR-facts: one entry per TRUE disjunctive conjunct, holding each
    * arm's conjunct ATOMS (an arm may itself be a conjunction —
    * `(a AND b) OR c` stores [[a,b],[c]]). TRUE(a ∨ b) names no single arm,
@@ -407,12 +452,59 @@ class EntailmentKernel {
     this.input = input;
   }
 
-  run(): boolean {
+  /** Evidence collection — shared by both questions. */
+  private collectEvidence(): void {
     for (const src of this.input.evidence) {
       this.maskingActive = src.applySetMask;
       this.collectConjuncts(src.pred);
     }
     this.maskingActive = false;
+  }
+
+  /** The derivation fixpoint — shared by both questions. Each round lets
+   *  the generated equalities and every CHECK contribute FACTS; insertion
+   *  is deduplicated, the fact universe is the finite set of the CHECKs'
+   *  sub-atoms, and the round cap is insurance, not a reachable bound. */
+  private deriveFixpoint(): void {
+    for (let round = 0; round < 6; round++) {
+      const before =
+        this.trueFacts.length +
+        this.falseFacts.length +
+        this.orFacts.length +
+        this.notFalseFacts.length;
+      this.applyGeneratedEqualities();
+      for (const expr of this.input.checkExprs) this.harvestCheckFacts(expr);
+      if (
+        this.trueFacts.length +
+          this.falseFacts.length +
+          this.orFacts.length +
+          this.notFalseFacts.length ===
+        before
+      ) {
+        break;
+      }
+    }
+    this.input.trace?.addFact(
+      "facts",
+      `${this.trueFacts.length} TRUE atom(s), ${this.falseFacts.length} FALSE atom(s), ` +
+        `${this.orFacts.length} OR-fact(s), ${this.notFalseFacts.length} notFALSE atom(s) ` +
+        "after the derivation fixpoint",
+    );
+  }
+
+  /** notTRUE(guard) for every emitted row — see checkConstraintsRefuteGuard. */
+  runGuardRefutation(guard: Node): boolean {
+    this.collectEvidence();
+    this.deriveFixpoint();
+    const refuted = this.isNotTrue(guard);
+    if (refuted) {
+      this.input.trace?.addFact("guardRefuted", "the facts prove the guard is never TRUE");
+    }
+    return refuted;
+  }
+
+  run(): boolean {
+    this.collectEvidence();
     // Presence gate — evidence-only, before any derived fact exists.
     if (this.input.presenceColumns) {
       const present = this.input.presenceColumns.some(col => this.colKnownNonNull(col));
@@ -433,31 +525,8 @@ class EntailmentKernel {
         return true;
       }
     }
-    // The derivation fixpoint (Wave 11b): each round lets the generated
-    // equalities and every CHECK contribute FACTS — a notFALSE chain
-    // reaching a total NullTest is TRUE, whichever constraint it came from
-    // — and a fact one constraint derives can select arms or falsify
-    // disjuncts in ANOTHER (CHECK₁: assigned ⇒ combo; CHECK₂: combo ⇒
-    // opened_at). Fact insertion is deduplicated, the fact universe is the
-    // finite set of the CHECKs' sub-atoms, and the round cap is insurance,
-    // not a reachable bound.
-    for (let round = 0; round < 6; round++) {
-      const before =
-        this.trueFacts.length + this.falseFacts.length + this.orFacts.length;
-      this.applyGeneratedEqualities();
-      for (const expr of this.input.checkExprs) this.harvestCheckFacts(expr);
-      if (
-        this.trueFacts.length + this.falseFacts.length + this.orFacts.length ===
-        before
-      ) {
-        break;
-      }
-    }
-    this.input.trace?.addFact(
-      "facts",
-      `${this.trueFacts.length} TRUE atom(s), ${this.falseFacts.length} FALSE atom(s), ` +
-        `${this.orFacts.length} OR-fact(s) after the derivation fixpoint`,
-    );
+    // The derivation fixpoint (Wave 11b) — see deriveFixpoint.
+    this.deriveFixpoint();
     // One question at the end: do the facts pin the goal column? A CHECK's
     // own `goal IS NOT NULL` arrives here as a harvested fact (totality),
     // exactly like a generated-CASE arm's strict condition or a chained
@@ -532,7 +601,10 @@ class EntailmentKernel {
     // supplies the ordering: `seats IS NOT NULL AND seats > 1` pins seats
     // and promotes the comparison in whichever round both hold. A bare
     // boolean column rides the same rule (pinned ⇒ not NULL ⇒ TRUE).
+    // Unpinned, the spine still carries the WEAK fact (atom-oracle rung):
+    // notFALSE, which trichotomy consumes.
     for (const atom of this.atomsOf(expr)) {
+      this.addNotFalseFact(atom);
       if (this.atomOperandsPinned(atom)) this.addTrueFact(atom);
     }
   }
@@ -558,6 +630,10 @@ class EntailmentKernel {
 
   private addFalseFact(atom: Atom): void {
     if (!this.falseFacts.some(f => this.atomsMatch(atom, f))) this.falseFacts.push(atom);
+  }
+
+  private addNotFalseFact(atom: Atom): void {
+    if (!this.notFalseFacts.some(f => this.atomsMatch(atom, f))) this.notFalseFacts.push(atom);
   }
 
   /** Insert an OR-fact unless a structurally identical one exists. All fact
@@ -736,6 +812,19 @@ class EntailmentKernel {
 
   private collectConjuncts(pred: Node): void {
     const node = pred as Record<string, unknown>;
+    // Evidence shaping (atom-oracle rung 1): TRUE(col IS TRUE) ⇒ TRUE(col),
+    // TRUE(col IS FALSE) ⇒ FALSE(col) — a BooleanTest never evaluates NULL,
+    // so a WHERE conjunct of this shape pins the bare boolean outright.
+    // The other test kinds ("not true", "unknown") name no single truth.
+    const bt = node["BooleanTest"] as { arg?: Node; booltesttype?: string } | undefined;
+    if (bt?.arg) {
+      const col = this.columnKey(bt.arg);
+      if (col && !this.maskedKey(col)) {
+        if (bt.booltesttype === "IS_TRUE") this.addTrueFact({ t: "boolCol", col });
+        else if (bt.booltesttype === "IS_FALSE") this.addFalseFact({ t: "boolCol", col });
+      }
+      return;
+    }
     const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
     if (be?.boolop === "AND_EXPR") {
       for (const arg of be.args ?? []) this.collectConjuncts(arg);
@@ -1115,6 +1204,45 @@ class EntailmentKernel {
     return (
       colType !== null && lit.cast.name === colType.name && lit.cast.schema === colType.schema
     );
+  }
+
+  /**
+   * notTRUE(atom) — the trichotomy judgment: some TRUE or notFALSE fact
+   * over the IDENTICAL tokens carries an operator exclusive with the
+   * atom's. No values consulted; `litsMatch` holds the token identity and
+   * the effective-type agreement.
+   */
+  private atomNotTrue(atom: Atom): boolean {
+    if (atom.t !== "cmpLit") return false;
+    const exclusive = EXCLUSIVE_OPS[atom.op] ?? [];
+    const witness = (f: Atom): boolean =>
+      f.t === "cmpLit" &&
+      f.col === atom.col &&
+      exclusive.includes(f.op) &&
+      this.litsMatch(atom.col, f.lit, atom.lit);
+    return this.trueFacts.some(witness) || this.notFalseFacts.some(witness);
+  }
+
+  /**
+   * notTRUE(expr) — for every emitted row. The compound rules are the weak
+   * duals: an AND is not TRUE when SOME conjunct is not TRUE, an OR when
+   * EVERY disjunct is, NOT p when p is TRUE. Leaves answer through FALSE
+   * (stronger) or trichotomy; a conjunction-shaped atom list (BETWEEN's
+   * two bounds) needs only one refuted member.
+   */
+  private isNotTrue(expr: Node): boolean {
+    if (this.isFalse(expr)) return true;
+    const node = expr as Record<string, unknown>;
+    const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
+    if (be) {
+      const args = be.args ?? [];
+      if (be.boolop === "AND_EXPR") return args.some(a => this.isNotTrue(a));
+      if (be.boolop === "OR_EXPR") return args.length > 0 && args.every(a => this.isNotTrue(a));
+      if (be.boolop === "NOT_EXPR") return args.length === 1 && this.isTrue(args[0]!);
+      return false;
+    }
+    const atoms = this.atomsOf(expr);
+    return atoms.some(a => this.atomIsFalse(a) || this.atomNotTrue(a));
   }
 
   /** The atom whose TRUTH makes `atom` FALSE, or null when there is none. */
