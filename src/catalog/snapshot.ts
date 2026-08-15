@@ -112,6 +112,7 @@ interface ColumnRow {
   generated: string; // 'a' | 's' | ''
   identity: string;  // 'a' | 'd' | ''
   collation_deterministic: boolean | null;
+  collation_is_default: boolean | null;
 }
 
 interface ConstraintRow {
@@ -613,6 +614,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       generationDivergesInTree: false,
       identity: mapIdentity(c.identity),
       collationDeterministic: c.collation_deterministic,
+      collationIsDefault: c.collation_is_default,
     };
     const arr = columnsByRel.get(c.attrelid);
     if (arr) arr.push(ci);
@@ -1088,7 +1090,10 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
             pg_get_expr(ad.adbin, ad.adrelid) AS default_expr,
             a.attgenerated AS generated,
             a.attidentity AS identity,
-            co.collisdeterministic AS collation_deterministic
+            co.collisdeterministic AS collation_deterministic,
+            CASE WHEN a.attcollation = 0 THEN NULL
+                 ELSE a.attcollation = 'pg_catalog."default"'::regcollation
+            END AS collation_is_default
      FROM pg_attribute a
      JOIN pg_class c ON c.oid = a.attrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace

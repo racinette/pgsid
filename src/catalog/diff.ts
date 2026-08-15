@@ -76,6 +76,7 @@ function columnState(c: ColumnInfo): Omit<ColumnInfo, "typeOid"> {
     // A collation determinism flip changes what the nullability engine may
     // conclude (literal distinctness), so it is a comparable property.
     collationDeterministic: c.collationDeterministic,
+    collationIsDefault: c.collationIsDefault,
   };
 }
 

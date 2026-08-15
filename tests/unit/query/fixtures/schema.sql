@@ -792,6 +792,8 @@ CREATE TABLE ivf (f float8, CHECK (f > 5));
 CREATE TABLE ivnm (n numeric, CHECK (n > 5.5));
 CREATE TABLE ivne (z int, CHECK (z <> 5));
 CREATE TABLE ivstx (s text, CHECK (s > 'm'));
+CREATE TABLE ivstxc (s text COLLATE "C", CHECK (s > 'm'));
+CREATE TABLE ivstxeq (s text COLLATE "C", CHECK (s = 'alpha'));
 CREATE TABLE ivdt (d date, CHECK (d > '2020-01-01'));
 
 -- ---------------------------------------------------------------------------

@@ -77,6 +77,19 @@ export interface ColumnInfo {
    * not, which is why distinctness was banned before this was captured.
    */
   collationDeterministic: boolean | null;
+  /**
+   * Whether the column's collation IS `pg_catalog."default"` — the
+   * database's own; null for non-collatable types. The comparison
+   * oracle's IDENTITY arm (docs/subtree-evaluation.md): a synthesized
+   * question evaluates under the analysis session's default collation,
+   * so a default-collated column's answers transfer for EVERY canonical
+   * operator — same collation, same semantics, determinism not even
+   * required — while a column under an explicit COLLATE keeps the
+   * deterministic-equality-only arm. Rides the standing
+   * analysis-database ≡ execution-database assumption, which the charter
+   * already extends to collation.
+   */
+  collationIsDefault: boolean | null;
   /** Identity column: `attidentity` 'a'→always, 'd'→byDefault, ''→null. */
   identity: "always" | "byDefault" | null;
 }

@@ -33,6 +33,7 @@ function col(partial: Partial<ColumnInfo> & { name: string }): ColumnInfo {
     generationDivergesInTree: false,
     identity: null,
     collationDeterministic: null,
+    collationIsDefault: null,
     ...partial,
   };
 }
@@ -154,6 +155,37 @@ describe("diffCatalogs: columns", () => {
     expect(diff.modified.map(m => m.entityId)).toEqual(["public.users.id"]);
     expect(diff.added).toEqual([]);
     expect(diff.removed).toEqual([]);
+  });
+
+  it("collation change → column modified", () => {
+    // Both collation facts are comparable state: a determinism flip moves
+    // what literal distinctness may conclude, and an identity flip moves
+    // whether the comparison oracle may order the column's anchors
+    // (docs/subtree-evaluation.md) — either way the column's claims must
+    // recompute, so the diff must surface the column.
+    const before = snapshot({
+      tables: [table("public", "users", [
+        col({ name: "handle", typeName: "text", typeOid: 25,
+              collationDeterministic: true, collationIsDefault: true }),
+      ])],
+    });
+    const afterIdentity = snapshot({
+      tables: [table("public", "users", [
+        col({ name: "handle", typeName: "text", typeOid: 25,
+              collationDeterministic: true, collationIsDefault: false }),
+      ])],
+    });
+    const afterDeterminism = snapshot({
+      tables: [table("public", "users", [
+        col({ name: "handle", typeName: "text", typeOid: 25,
+              collationDeterministic: false, collationIsDefault: false }),
+      ])],
+    });
+    expect(diffCatalogs(before, afterIdentity).modified.map(m => m.entityId))
+      .toEqual(["public.users.handle"]);
+    expect(diffCatalogs(before, afterDeterminism).modified.map(m => m.entityId))
+      .toEqual(["public.users.handle"]);
+    expect(diffCatalogs(before, before).modified).toEqual([]);
   });
 
   it("NOT NULL change → column modified", () => {
