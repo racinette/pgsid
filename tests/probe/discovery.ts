@@ -2124,6 +2124,12 @@ const APPLICATION_TABLES = [
   "subscription", "tags", "warehouses", "warehouses_overflow",
   "payment_methods",
   "shipment_legs", "leg_scans",
+  // The atom-oracle demand experiment (schema.sql): keyless, so only the
+  // non-key/qual-less walker reaches them — which is the point: CASE
+  // guards over their constrained columns are the shapes the kernel rungs
+  // would claim, and this run measures whether the distribution produces
+  // them.
+  "tri", "bcorr",
 ];
 {
   const known = new Set(snapshot.tables.map(t => t.name));

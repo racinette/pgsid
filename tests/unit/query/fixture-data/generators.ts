@@ -250,6 +250,20 @@ const columnSpecificGenerators: Record<
         ctx.current("plan") === "team" ? rand.pick([2, 5]) : rand.pick([0, 1]),
     },
 
+    // The atom-oracle demand experiment (schema.sql): the framework does
+    // not read CHECKs, so the values must satisfy them. tri's a stays
+    // above 5; bcorr's b picks the CHECK's arm and a satisfies it.
+    tri: {
+      id: sequential,
+      a: rand => rand.pick([6, 8, 42]),
+    },
+    bcorr: {
+      id: sequential,
+      b: rand => rand.pick([true, false]),
+      a: (rand, ctx) =>
+        ctx.current("b") === true ? rand.pick([1, 4]) : rand.pick([6, 9]),
+    },
+
     // The application event log. Same range rule as every other partitioned
     // pair here: `order_events` routes its rows and the two partitions are
     // seeded directly, and all three share one unique index, so the parent
@@ -558,6 +572,14 @@ const nullPolicies: {
       // A NULL fraud_score is the generated verdict's fourth arm
       // (manual-check), which the ambiguous-verdict fixture witnesses with.
       txn: { fraud_score: nullRate(0.25) },
+
+      // The atom-oracle experiment: a NULL `a` passes both CHECKs (the
+      // guard goes UNKNOWN) and is the null-extension case the kernel red
+      // targets survive, so it stays in the sample. bcorr's `b` never goes
+      // NULL — the value tier picked `a` for the arm `b` selected, and a
+      // NULLed `b` would reroute the row to the ELSE arm it may violate.
+      tri: { a: nullRate(0.25) },
+      bcorr: { b: () => false, a: nullRate(0.25) },
 
       // Each CHECK CASE ties a column's NULLness to the discriminator
       // assigned earlier in the row, same pattern as guest.

@@ -285,6 +285,23 @@ export interface SubtreeEvaluationCatalog {
    * coverage of it.
    */
   resolveEnforcedCheckConstraints(schema: string, table: string): Node[];
+  /**
+   * `pg_collation.collisdeterministic` of the column's collation, null for
+   * a NON-COLLATABLE type. The evaluated-comparison oracle's gate
+   * (docs/subtree-evaluation.md, the entailment consumer): a synthesized
+   * question runs under the analysis session's DEFAULT collation, so a
+   * collatable column transfers only equality/inequality and only under a
+   * deterministic collation (byte-equality semantics, which every
+   * deterministic collation shares); ORDER comparisons would need
+   * collation IDENTITY, which is not captured, and a nondeterministic
+   * collation transfers nothing — the collation-gate fixture is the
+   * measured counterexample.
+   */
+  resolveColumnCollationDeterministic(
+    schema: string,
+    table: string,
+    column: string,
+  ): boolean | null;
 }
 
 /**
@@ -304,6 +321,7 @@ export const EVALUATION_CATALOG_ONLY = [
   "closedCastTargetType",
   "isImmutableIoRendering",
   "resolveEnforcedCheckConstraints",
+  "resolveColumnCollationDeterministic",
 ] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[];
 
 /**

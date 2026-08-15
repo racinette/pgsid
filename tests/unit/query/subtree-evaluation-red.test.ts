@@ -53,6 +53,7 @@ const SCHEMA = `
   CREATE TABLE tri (a int, CHECK (a > 5));
   CREATE TABLE bcorr (a int, b boolean,
     CHECK (CASE WHEN b THEN a < 5 ELSE a >= 5 END));
+  CREATE TABLE dt (d date, x text, CHECK (d <= '2019-12-31' OR x IS NOT NULL));
 `;
 
 beforeAll(async () => {
@@ -207,6 +208,23 @@ describe("CHECK grounder (flipped 2026-08-12 — rollout step 3 landed)", () => 
     expect(c.params[0]!.notNull).toBe(true);
   });
 
+  it("a NULLed discriminator routes to the arm the written value fails", async () => {
+    // The instrument's conviction after the experiment tables landed
+    // (2026-08-12, 6+2 instances): binding b NULL sends the CASE to its
+    // ELSE arm, where the written a=1 grounds `1 >= 5` FALSE — so the
+    // guard's null-implicants are arm-removal implicants. Adjudicated:
+    // (NULL, 1) raises, (true, 1) inserts.
+    const c = await contract("INSERT INTO bcorr (b, a) VALUES ($1, 1)");
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it("control: a written value satisfying the ELSE arm keeps the discriminator free", async () => {
+    // With a=6 the ELSE arm grounds TRUE, so a NULL b passes (adjudicated);
+    // a claim here would reject a binding PostgreSQL accepts.
+    const c = await contract("INSERT INTO bcorr (b, a) VALUES ($1, 6)");
+    expect(c.params[0]!.notNull).toBe(false);
+  });
+
   it("a MERGE arm's INSERT grounds like any other write", async () => {
     const c = await contract(
       "MERGE INTO subscription s USING (VALUES (1)) v(k) ON s.seats = v.k" +
@@ -222,13 +240,38 @@ describe("CHECK grounder (flipped 2026-08-12 — rollout step 3 landed)", () => 
 // in docs/subtree-evaluation.md — this case may stay red past the first two
 // consumers, and that is expected.
 
-describe("RED: entailment later", () => {
-  it.fails("a WHERE equality grounds a validated CHECK for returned rows", async () => {
+describe("entailment (flipped 2026-08-12 — the recorded later landed)", () => {
+  it("a WHERE equality grounds a validated CHECK for returned rows", async () => {
     const c = await contract("SELECT overflow_contact AS c FROM subscription WHERE seats = 5");
     // Returned rows satisfy seats = 5; the validated CHECK is notFALSE, so
     // (FALSE OR overflow_contact IS NOT NULL) forces the null-test TRUE.
     // The ordering shape the kernel's exact-atom trade cannot reach.
     expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it("GUARD: an equality satisfying the comparison disjunct claims nothing", async () => {
+    // seats = 1 makes `seats <= 1` TRUE — the CHECK is satisfied without
+    // the null-test, so overflow_contact stays free (adjudicated: a
+    // (1, NULL) row inserts).
+    const c = await contract("SELECT overflow_contact AS c FROM subscription WHERE seats = 1");
+    expect(c.outputs[0]!.notNull).toBe(false);
+  });
+
+  it("the bp direction: both literals read at character(4)", async () => {
+    // 'a' and 'a ' are EQUAL as char(4), so `c <> 'a '` is FALSE for the
+    // returned rows and n is forced — a text-typed reading would answer
+    // TRUE and miss the claim. Adjudicated: ('a', NULL) is refused, so no
+    // stored row can witness a NULL here.
+    const c = await contract("SELECT n AS c FROM bpt_ne WHERE c = 'a'");
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it("GUARD: a datetime column's comparison is never evaluated", async () => {
+    // The claim would be TRUE for stored rows, but date_in reads DateStyle
+    // — the closure gate refuses the question, and the engine stays at
+    // today's word rather than answer from session state.
+    const c = await contract("SELECT x AS c FROM dt WHERE d = '2020-01-01'");
+    expect(c.outputs[0]!.notNull).toBe(false);
   });
 });
 

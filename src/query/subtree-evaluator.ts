@@ -218,10 +218,20 @@ function typeSetVerdict(
         setof?: boolean;
       };
       if (t.pct_type === true || t.setof === true) return null;
-      if (Array.isArray(t.arrayBounds) && t.arrayBounds.length > 0) return null;
       if (!qualifierIsBuiltin(t.names)) return null;
       const name = lastName(t.names);
       if (name === null) return null;
+      if (Array.isArray(t.arrayBounds) && t.arrayBounds.length > 0) {
+        // First-wave widening: an array-typed literal cast closes when the
+        // ELEMENT type is a builtin with immutable I/O — array_in's blanket
+        // stable flag means "elements could be datetime", a question the
+        // element gate answers better than the flag does
+        // (docs/subtree-evaluation.md, first-wave scope). User-typed
+        // elements stay out with array_in's reason intact.
+        if (!catalog.isImmutableIoType(name)) return null;
+        const el = catalog.closedCastTargetType(name);
+        return el === null ? null : [`${el}[]`];
+      }
       const rendered = catalog.closedCastTargetType(name);
       return rendered === null ? null : [rendered];
     }

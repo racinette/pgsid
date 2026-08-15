@@ -70,6 +70,10 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   CaseWhen: { category: "structural", why: "one CASE branch, consumed by CaseExpr" },
   List: { category: "structural", why: "IN-list wrapper inside A_Expr" },
   String: { category: "structural", why: "operator/function name parts" },
+  Integer: {
+    category: "structural",
+    why: "an array bound inside a closed array cast's TypeName — type syntax, never a value (first-wave widening)",
+  },
 };
 
 /** Kinds the design names as open BY DESIGN, asserted never to appear
@@ -126,6 +130,17 @@ let evaluate: Evaluate;
 
 const SCHEMA = `
   CREATE TABLE orders (id int NOT NULL, qty int NOT NULL);
+  -- First-wave widening subjects (docs/subtree-evaluation.md): a unique
+  -- enum and unique domains fold; the duplicated enum, the datetime-based
+  -- domain and the GUC-reading CHECK are the guards.
+  CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
+  CREATE DOMAIN posint AS int CHECK (VALUE > 0);
+  CREATE DOMAIN nested AS posint CHECK (VALUE < 100);
+  CREATE DOMAIN dday AS date;
+  CREATE DOMAIN gated AS int CHECK (VALUE <= current_setting('app.mx')::int);
+  CREATE SCHEMA s2;
+  CREATE TYPE color AS ENUM ('red', 'blue');
+  CREATE TYPE s2.color AS ENUM ('blue', 'red');
 `;
 
 beforeAll(async () => {
@@ -279,8 +294,12 @@ describe("closure gates", () => {
     ]);
   });
 
-  it("array-typed cast targets are open (array_in is stable)", async () => {
-    expect(await open("SELECT '{}'::int4[] AS g")).toBe(true);
+  it("array-typed cast targets are gated per ELEMENT (first-wave widening)", async () => {
+    // array_in's blanket-stable flag stood for "elements could be
+    // datetime"; the element gate answers it per element, so int4[] closes
+    // (pinned in the widenings block) and date[] keeps the flag's reason.
+    expect(await open("SELECT '{2020-01-01}'::date[] AS g")).toBe(true);
+    expect(await open("SELECT '{}'::int4[] AS g")).toBe(false);
   });
 
   it("a bare unknown literal beside a constructor is open", async () => {
@@ -513,6 +532,83 @@ describe("GUARD: what no gate refinement may ever fold", () => {
     // default_text_search_config, so the all-unknown landing (text, text)
     // IS the stable row. The counterpart pin holds its pg_proc declaration.
     expect(await answers("SELECT 'fat cats ate rats' @@ 'fat' AS g")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// First-wave widenings (docs/subtree-evaluation.md, "The dependence model,
+// corrected"): enums, domains over immutable-I/O bases with closed CHECKs,
+// array literals over immutable-I/O elements — all foldable under the
+// snapshot contract, because their I/O reads CATALOG state only and catalog
+// change is the system's re-analysis trigger. Admission is by UNIQUENESS:
+// two same-named enums answer oppositely as search_path moves (measured),
+// so consensus is not enough. Every fold value below was adjudicated
+// against PGlite before being written down (2026-08-12).
+// ---------------------------------------------------------------------------
+
+describe("first-wave widenings", () => {
+  const open = async (sql: string) => (await subtreesOf(sql)).roots.length === 0;
+
+  it("a unique enum's cast and comparison fold", async () => {
+    expect(await answers("SELECT 'sad'::mood < 'happy'::mood AS g")).toEqual([
+      { isNull: false, value: true, type: "boolean" },
+    ]);
+    expect(await answers("SELECT 'ok'::mood AS g")).toEqual([
+      { isNull: false, value: "ok", type: "mood" },
+    ]);
+  });
+
+  it("a domain threads its canonical base; the chain's CHECKs gate it", async () => {
+    // posint threads as integer (operators resolve on the base — measured,
+    // pinned in param-mechanism.test.ts); nested runs BOTH chain CHECKs at
+    // cast time and still folds, its constraint rendering VALUE pre-cast.
+    expect(await answers("SELECT 5::posint <= 1 AS g")).toEqual([
+      { isNull: false, value: false, type: "boolean" },
+    ]);
+    expect(await answers("SELECT 5::nested <= 1 AS g")).toEqual([
+      { isNull: false, value: false, type: "boolean" },
+    ]);
+  });
+
+  it("a CHECK-violating cast raises at evaluation and contributes nothing", async () => {
+    expect(await answers("SELECT 500::nested <= 1 AS g")).toEqual([]);
+  });
+
+  it("an array-typed literal cast closes on its ELEMENT gate", async () => {
+    // array_in's blanket-stable flag means "elements could be datetime";
+    // the element gate answers per element. array_eq is immutable, so the
+    // whole comparison folds.
+    expect(await answers("SELECT '{1,3}'::int4[] = ARRAY[1,3] AS g")).toEqual([
+      { isNull: false, value: true, type: "boolean" },
+    ]);
+    expect(await open("SELECT '{2020-01-01}'::date[] AS g")).toBe(true);
+  });
+
+  it("GUARD: a GUC-reading domain CHECK keeps every cast open", async () => {
+    // gated's CHECK calls current_setting — not immutable, so the recursive
+    // gate refuses the domain wholesale; its analysis-time answer would not
+    // bind other sessions.
+    expect(await answers("SELECT 5::gated <= 9 AS g")).toEqual([]);
+  });
+
+  it("GUARD: a datetime-based domain stays out with its base", async () => {
+    expect(await answers("SELECT '2020-01-01'::dday AS g")).toEqual([]);
+  });
+
+  it("GUARD: a duplicated enum name stays open — uniqueness, not consensus", async () => {
+    // public.color and s2.color order their labels oppositely: the same
+    // spelling answers TRUE or FALSE as search_path moves (measured), so
+    // only a name exactly one user type carries may close.
+    expect(await answers("SELECT 'red'::color < 'blue'::color AS g")).toEqual([]);
+  });
+
+  it("capture shape: the face answers threading renderings", () => {
+    expect(catalog.closedCastTargetType("mood")).toBe("public.mood");
+    expect(catalog.closedCastTargetType("posint")).toBe("integer");
+    expect(catalog.closedCastTargetType("nested")).toBe("integer");
+    expect(catalog.closedCastTargetType("color")).toBeNull();
+    expect(catalog.closedCastTargetType("dday")).toBeNull();
+    expect(catalog.closedCastTargetType("gated")).toBeNull();
   });
 });
 
