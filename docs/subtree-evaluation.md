@@ -446,10 +446,18 @@ so a per-column COLLATION TRICHOTOMY gates the oracle (new face member,
 canonical op; a deterministic collation transfers equality only
 (byte-equality semantics, shared with the deterministic analysis
 default — bp included, `character(4)` reading both literals padded);
-ORDER over collatable columns is refused outright, because it needs
-collation IDENTITY, which is not captured. The gate is kernel-side —
-the question keys are type-level, the hazard is column-level — with a
-synthesis-side mirror that only saves evaluations. Witness effects:
+ORDER over collatable columns needed collation IDENTITY — CAPTURED
+2026-08-12 (`collationIsDefault`, `pg_attribute.attcollation` against
+`pg_catalog."default"`): a default-collated column's comparisons run
+under the very collation the analysis session evaluates with, so every
+canonical operator transfers there, determinism regardless; an
+explicitly-collated column keeps the deterministic-equality-only arm,
+and its refusal is the standing record
+(`check-interval-refusals.sql`, the COLLATE "C" twin beside the
+flipped default-collated claim in `check-interval-text-default.sql`).
+The gate is kernel-side — the question keys are type-level, the hazard
+is column-level — with a synthesis-side mirror that only saves
+evaluations. Witness effects:
 `check-multiwhen-numeric-negative` flipped nullable→notNull and its
 `@unwitnessable` retired (`2 = 1` evaluates FALSE where token
 distinctness is rightly banned — 1 vs 1.0 would evaluate EQUAL);
