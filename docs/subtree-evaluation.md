@@ -473,7 +473,7 @@ is a finding about one of them. Retiring the literal fragment is a
 measured decision AFTER this consumer lands and the corpus shows it fully
 shadowed, not a decision made here.
 
-## The kernel's atom oracle (recorded 2026-08-11)
+## The kernel's atom oracle (recorded 2026-08-11, BUILT 2026-08-12)
 
 Two measured shapes showed CHECK-derivable read-side claims that none of
 the three consumers reaches, because nothing in them is closed — they are
@@ -511,22 +511,55 @@ evaluator itself. The Boolean layer stays complete and untouched; the
 kernel still never evaluates; only the atom oracle strengthens, behind
 the existing boundary, one chartered rung at a time.
 
-**Demand discipline unchanged**: no predtest.c pre-build. Rungs charter
-on conviction — and the conviction experiment RAN (2026-08-12): `tri`
-(`CHECK (a > 5)`) and `bcorr` (the branch-correlated CASE) joined the
-fixture schema, the data generators and the instrument's table pool.
-Measured over 20,000 queries at seed 20260808 (DISCOVERY_ECHO, counted
-by filter): 1,225 queries reach the tables, 97 carry CASE expressions
-over them, and ZERO carry a comparison guard — the distribution's CASE
-guards are IS-NOT-NULL-shaped, so the trichotomy and arm-selection
-shapes these rungs would serve do not arise. NOT CHARTERED; the red
-cases stay red, the tables stay (they feed grounder and entailment
-coverage), and a generator that starts emitting comparison guards is
-the event that would reopen the question. The experiment's side catch:
-it convicted the grounder's CASE-discriminator gap within 28 queries
-(a NULLed discriminator routes to the arm the written value fails),
-fixed and pinned the same day — the guard's null-implicants are
-arm-removal implicants in the reduction.
+**Demand discipline, AMENDED (2026-08-12): crafted fixtures convict
+beside the generated distribution.** The distribution experiment ran
+first — `tri` and `bcorr` in the schema, generators and instrument
+pool; 20,000 queries at seed 20260808: 1,225 reach the tables, 97
+carry CASE expressions, ZERO carry comparison guards — and the zero
+exposed the gate's circularity rather than the shapes' irrelevance:
+the generator's CASE guards are IS-NOT-NULL-shaped BY CONSTRUCTION, so
+it could only ever convict shapes someone first taught it, at which
+point the vote is manufactured. The ruling: conviction by crafted
+fixture is first-class, under the corpus's own gates — the fixture's
+header argues the shape is one a person would write, every claim is
+adjudicated against PostgreSQL before it ships, and the data states
+keep the oracle checking it. The generated corpus keeps its distinct
+job: finding the shapes nobody thought to craft. Under the amended
+rule the two adjudicated red cases already convicted, and the RUNGS
+ARE BUILT — see "As built" below. (The distribution experiment still
+paid: it convicted the grounder's CASE-discriminator gap within 28
+queries — a NULLed discriminator routes to the arm the written value
+fails — fixed and pinned the same day.)
+
+**As built (2026-08-12).** All four rungs, in `check-entailment.ts`,
+purely propositional, no values consulted, no evaluator needed:
+
+- Evidence shaping: `b IS TRUE` shapes into TRUE(b) and `b IS FALSE`
+  into FALSE(b) at conjunct collection (a BooleanTest never evaluates
+  NULL).
+- notFALSE facts: comparison atoms on a CHECK's notFALSE spine — too
+  weak to harvest as TRUE — join a third fact list only trichotomy
+  consumes; arm selection reaches them because the harvest already
+  descends into a selected CASE arm.
+- Same-token trichotomy: an EXCLUSIVE_OPS table (wider than the negator
+  relation — `<` excludes `=` and `>` too) gives notTRUE(col OP₂ x)
+  from any TRUE or notFALSE fact (col OP₁ x) with OP₁ exclusive: a TRUE
+  OP₂ needs a non-null operand, which forces OP₁ to have evaluated — to
+  FALSE.
+- notTRUE consumed as guard refutation: `checkConstraintsRefuteGuard`
+  (shared evidence collection and fixpoint with the goal question) and
+  the walk's searched-CASE dispatch prunes a refuted arm exactly like a
+  map-answered FALSE guard — refutation can only ever say "never
+  fires", so it rescues no missing ELSE. Gated per entry on
+  NULL-extension (an extended row satisfies no CHECK, and `a IS NULL`
+  IS true there) and wholesale on DML scopes (the OLD/NEW channel split
+  is not built for guards).
+
+Both red cases flipped with no evaluator passed; the overreach guard
+held (`<` and `<=` are not exclusive, which is the table's honesty);
+the crafted conviction fixtures (`check-guard-trichotomy`,
+`check-guard-arm-selection`) pin both rungs with witnessed nullable
+controls across the data states.
 
 ## Boundaries, each verified against a real candidate
 
