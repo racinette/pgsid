@@ -85,6 +85,18 @@ export interface ProbeResult {
    */
   paramViolations: string[];
   /**
+   * NOT a finding — a raise the ALL-NULL corner refutes as a claimable
+   * fact: binding $n NULL raised beside sibling VALUES, and the same
+   * statement with EVERY parameter NULL passes. The all-NULL corner is the
+   * one binding pattern with no value freedom left, so its pass proves the
+   * rejection rides a sibling's VALUE ("$1 <= 1 OR $2 IS NOT NULL" is the
+   * measured shape) — a condition no flat notNull and no rejection set can
+   * carry, adjudicated 2026-08-12 (the value-conditional decision in
+   * docs/subtree-evaluation.md). Counted and fingerprinted per run; the
+   * bucket growing past a few per 20,000 is the revisit trigger.
+   */
+  valueConditional: string[];
+  /**
    * Witness accounting for the one-directional claims (§4: the instrument
    * makes no coverage claim, so an unwitnessed notNull is a COUNT, never a
    * finding). `raisedOther` is a raise the enumerated null-rejection list
@@ -138,6 +150,7 @@ export class ProbeLoop {
       params: [],
       paramRejectionSets: [],
       paramViolations: [],
+      valueConditional: [],
       paramWitness: {
         notNullWitnessed: [],
         notNullUnwitnessed: [],
@@ -176,10 +189,9 @@ export class ProbeLoop {
       stmt = parsed.stmts![0]!.stmt!;
       // Both evaluation consumers run live (docs/subtree-evaluation.md):
       // the instrument adjudicates the same claims the harnesses pin.
-      const contract = await inferQueryContract(stmt, this.catalog, {
-        paramTypes,
-        evaluate: async s => (await this.pg.query<Record<string, unknown>>(s)).rows[0],
-      });
+      const evaluate = async (s: string) =>
+        (await this.pg.query<Record<string, unknown>>(s)).rows[0];
+      const contract = await inferQueryContract(stmt, this.catalog, { paramTypes, evaluate });
       out.engineColumns = contract.outputs.map(o => ({ name: o.name, notNull: o.notNull }));
       out.groups = contract.outputPresenceGroups.map(g => ({
         columns: [...g.columns],
@@ -188,8 +200,11 @@ export class ProbeLoop {
       out.params = contract.params.map(p => ({ number: p.number, notNull: p.notNull }));
       out.paramRejectionSets = contract.paramRejectionSets.map(s => [...s]);
       // Parity: the traced walk must reach the same columns and groups.
-      const plain = await inferNullability(stmt, this.catalog, { paramTypes });
-      const traced = await inferNullabilityTraced(stmt, this.catalog, undefined, { paramTypes });
+      const plain = await inferNullability(stmt, this.catalog, { paramTypes, evaluate });
+      const traced = await inferNullabilityTraced(stmt, this.catalog, undefined, {
+        paramTypes,
+        evaluate,
+      });
       out.traced = traced.map(c => ({
         name: c.name,
         notNull: c.notNull,
@@ -256,12 +271,32 @@ export class ProbeLoop {
       }
       const bind = (nulls: Set<number>): unknown[] =>
         probe.params!.map((v, i) => (nulls.has(i + 1) ? null : v));
+      // The ALL-NULL corner, run at most once per statement: the one binding
+      // pattern with no value freedom left, so its answer routes a nullable
+      // raise — raising there too demands a pure-nullness claim (rank 3),
+      // passing there proves the rejection rides a sibling's VALUE, which no
+      // claim in the contract's vocabulary can carry (recorded, not a
+      // finding). With one parameter the per-param variant IS the corner.
+      let allNullRaises: boolean | null = null;
+      const allNullCorner = async (): Promise<boolean> => {
+        if (allNullRaises === null) {
+          const r = await this.exec(
+            probe,
+            bind(new Set(out.params.map(q => q.number))),
+          );
+          allNullRaises = r.error !== null;
+        }
+        return allNullRaises;
+      };
       for (const p of out.params) {
         const r = await this.exec(probe, bind(new Set([p.number])));
         if (r.error !== null) {
           if (!p.notNull) {
-            out.paramViolations.push(
-              `$${p.number} claimed nullable, binding NULL raised: ${r.error}`,
+            const demandable = out.params.length === 1 || (await allNullCorner());
+            (demandable ? out.paramViolations : out.valueConditional).push(
+              demandable
+                ? `$${p.number} claimed nullable, binding NULL raised: ${r.error}`
+                : `$${p.number} raised beside sibling values, all-NULL passes: ${r.error}`,
             );
           } else if (NULL_REJECTION.test(r.error)) {
             out.paramWitness.notNullWitnessed.push(p.number);
