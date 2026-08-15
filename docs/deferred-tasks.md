@@ -199,6 +199,17 @@ wholesale on DML scopes). Both red cases flipped; the overreach guard
 held; conviction fixtures check-guard-trichotomy and
 check-guard-arm-selection pin the rungs with witnessed nullable
 controls. As-built in the charter's atom-oracle section.
+**INTERVAL EXCLUSIVITY over btree strategies is BUILT (2026-08-12)**,
+chartered the same day under the AMENDED demand discipline (crafted
+fixtures convict beside the generated distribution — the distribution
+experiment's zero was a fact about the generator's grammar, not about
+demand): notFALSE(`a > 5`) now refutes `a <= 3` from pg_amop strategy
+shapes plus evaluated anchor order, EMPTINESS-only conclusions; six red
+targets flipped with two same-token controls and seven boundary guards
+green; as-built in the charter's interval section. Soundness re-run
+MEASURED (20,000 queries, seed 20260808, rung live): 0 findings, 0
+instances — one value-conditional routed to its EXPECTED bucket, the
+known class. Suite 51 files / 2,993 + 1 skipped, ~71s.
 **The FIRST-WAVE WIDENINGS and the OUTPUT-SIDE ENTAILMENT consumer are
 BOTH BUILT (2026-08-12)** — every consumer the subtree-evaluation
 charter names now exists. Widenings: unique enums and domains fold

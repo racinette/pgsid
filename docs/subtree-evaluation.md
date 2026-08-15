@@ -495,6 +495,84 @@ identical operand tokens, no values consulted); and a fourth judgment,
 notTRUE, consumed as guard refutation — the same arm-pruning the
 statement map consumer builds, fed from the kernel instead of the map.
 
+### Interval exclusivity over btree strategies (chartered 2026-08-12)
+
+Generalizes the same-token trichotomy to ORDERED ANCHORS: notFALSE
+(`a > 5`) refutes `a <= 3` because the two sets share nothing, and
+"share nothing" decomposes into facts PostgreSQL publishes — no operator
+is modeled anywhere:
+
+- The SHAPE of each comparison's set is catalog data: `pg_amop` records
+  every btree operator's STRATEGY NUMBER (1 `<`, 2 `<=`, 3 `=`, 4 `>=`,
+  5 `>`) — left rays open and closed, the point, right rays closed and
+  open. Captured by CONSENSUS across pg_catalog btree families (an
+  operator with conflicting strategies is refused; a user operator of
+  the name disqualifies it, the standing collision rule). `<>` has NO
+  strategy — PostgreSQL does not index inequality — and takes its shape
+  (complement-of-point) from `pg_operator.oprnegate` instead, a second
+  mechanical capture. The hand tables NEGATOR_OPS and EXCLUSIVE_OPS
+  retire into these captures: curated → captured, the project's
+  standing direction.
+- The ORDER between two anchors is a point question the evaluator
+  answers: per same-column anchor pair the synthesis adds `p < q`,
+  `q < p`, `p = q` beside the comparison questions it already batches.
+  The existing gates compose unchanged: immutable-I/O keeps datetime
+  anchors out, and the collation trichotomy limits collatable columns
+  to point/complement shapes (order anchors need collation identity,
+  not captured).
+- The algebra on top is interval bookkeeping whose ONE axiom is the
+  btree contract (a total consistent order per family) — PostgreSQL's
+  own documented invariant, the same one `predtest.c` and our negator
+  pairing already lean on. Same-token stays a fast path needing no
+  evaluation, so the no-evaluate mode keeps today's power exactly.
+
+THE DIRECTION WALL, which is what keeps this inside the ban: the
+algebra may conclude EMPTINESS ONLY — "these sets share nothing", the
+refuting direction, which can only prune claims. NONEMPTINESS is never
+concluded: deciding "this set has members" needs a type's inhabitants
+(`a < -2147483648` over int4 is empty), which is where reimplementation
+would re-enter. One direction open, one walled — the engine's standing
+over-keep asymmetry, applied to sets.
+
+Exotica resolve structurally: no btree membership (`||`, `@@`, `~~`,
+the geometric operators) → no shape → no claim; LIKE's prefix-range
+trick needs pattern semantics and stays out; equality-only types via
+hash families are a possible later rung, not a corner of this one.
+Cross-type comparisons inside one family work (the integer family
+spans int2/int4/int8; the anchor question evaluates whichever widths
+the literals carry).
+
+Acceptance frame: "RED: interval exclusivity" in the red suite — every
+target and guard adjudicated against PostgreSQL before writing, the
+guards pinning the boundary exactness the algebra must not blur
+(touching rays with one open endpoint refute; both closed share the
+point and must NOT; an overlapping ray must NOT; collatable and
+datetime anchors stay refused).
+
+**As built (2026-08-12).** Six red targets flipped, two same-token
+controls pinning that the delta is exactly the cross-anchor cases, all
+seven guards green; `check-interval-exclusivity.sql` carries the
+corpus witnesses over `tri`. The captures: `builtinBtreeStrategies`
+(HAVING-gated consensus — a strategy split drops the name) and
+`builtinEqualityNegators` (every row negated, any btree-carrying
+negator strategy 3, at least one actually so — the last clause is what
+keeps `=` itself out, its own negator carrying no strategy); the
+pg_amop facts pinned in param-mechanism.test.ts, `~=`'s
+btree-absence included. The kernel's `intervalRefuted` runs after the
+same-token fast path — which needs no captures and no evaluation, so
+the no-evaluate mode keeps today's power exactly — deriving the anchor
+relation lt/eq/gt/ne from the synthesized `<`/`=` questions (identical
+tokens are `eq` for free), gated per column by the collation
+trichotomy: non-collatable columns order, deterministic ones answer
+equality only (so text still gets point-vs-point exclusion), and the
+witness list spans TRUE and notFALSE facts alike — if the atom were
+TRUE the column would be non-null, the witness would have evaluated,
+and notFALSE would force it into the empty intersection. The hand
+tables NEGATOR_OPS and EXCLUSIVE_OPS did NOT retire (correcting this
+charter's guess): they are the no-evaluate mode's whole power and the
+same-token fast path, and the capture pins now hold their content
+consistent instead.
+
 **Relation to the register's "Decided against" entries.** The
 value-tracking ban's premise — "the engine contains a constant evaluator
 for PostgreSQL expressions that must match PostgreSQL exactly or produce
