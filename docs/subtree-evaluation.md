@@ -1064,6 +1064,24 @@ argument and measurement before code:
 - Set operations: UNION/INTERSECT/EXCEPT with both halves passing the
   same body gate, result columns unified through `closedCommonTypes`.
   ALL-vs-DISTINCT is a row-count question, not a closure one.
+  **BUILT 2026-08-16**, exactly as chartered. Pre-work (two pins,
+  param-mechanism "Closed sublinks"): all THREE operations resolve
+  their result type identically to `COALESCE` over seven operand pairs
+  — the rule `closedCommonTypes` already models — and what a
+  set-operation body can raise is enumerated (DISTINCT needs an
+  equality operator, `json` proving it, with the ALL twin as control;
+  arity must agree), each absorbed by the raising-subtree fallback.
+  One parse-shape fact shaped the code and is pinned beside the
+  protocol: `larg`/`rarg` hold BARE SelectStmt FIELDS, not tagged
+  nodes, so the body gate recurses on fields; a release that wrapped
+  them would silently refuse every set operation. Deduplication also
+  keeps `(SELECT 1 UNION SELECT 1)` single-row, which is what lets an
+  EXPR sublink take a two-arm body at all. Four red targets flipped
+  (UNION, INTERSECT, EXCEPT, and IN over a set-operation body) with
+  two guards green — a correlated ARM and a table in ONE arm each keep
+  the whole body open, both witnessed by data that fires the NULL a
+  claim would reject. Corpus: `closed-sublink.sql` grew the two
+  claims and the correlated-arm control.
 - LIMIT/OFFSET: closed count expressions. A syntactic LIMIT also
   BOUNDS an SRF body — pre-work decides whether LIMIT ≤ cap admits
   the body without the runtime pre-probe, and how LIMIT composes with

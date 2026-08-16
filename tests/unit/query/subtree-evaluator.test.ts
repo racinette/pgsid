@@ -540,6 +540,27 @@ describe("evaluation protocol", () => {
     expect(calls.some(c => c.includes("count(*)"))).toBe(false);
   });
 
+  it("a set-operation body stores its arms UNWRAPPED, and deparses back as written", async () => {
+    // The body-clause widening's parse-shape pin (docs/subtree-evaluation.md,
+    // "Body-clause widening"): `larg`/`rarg` hold BARE SelectStmt fields, not
+    // tagged nodes, which is why the body gate recurses on fields rather than
+    // on nodes. If a libpg_query release ever wrapped them, the gate would
+    // refuse every set operation — silently, and back to the pre-rung state.
+    const parsed = await parseSql("SELECT (SELECT 1 UNION ALL SELECT 2) AS a");
+    const body = (
+      (parsed.stmts![0]!.stmt as never as {
+        SelectStmt: { targetList: { ResTarget: { val: { SubLink: { subselect: unknown } } } }[] };
+      }).SelectStmt.targetList[0]!.ResTarget.val.SubLink.subselect as {
+        SelectStmt: Record<string, unknown>;
+      }
+    ).SelectStmt;
+    expect(Object.keys(body).sort()).toEqual(["all", "larg", "limitOption", "op", "rarg"]);
+    expect(body.op).toBe("SETOP_UNION");
+    expect(body.all).toBe(true);
+    expect(Object.keys(body.larg as object)).toContain("targetList");
+    expect(deparseSync(parsed as never)).toContain("UNION");
+  });
+
   it("the deparser renders every admitted sublink type as written", async () => {
     // The rung's pre-work pin: batching rests on the deparser rendering
     // sublinks as the scalar expressions they are.

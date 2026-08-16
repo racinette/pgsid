@@ -933,6 +933,59 @@ describe("closed sublinks (flipped 2026-08-16 — the rung landed)", () => {
   });
 });
 
+// --- Sublink body-clause widening: set operations (chartered 2026-08-16). ----
+// docs/subtree-evaluation.md, "Body-clause widening": the first wave's body
+// gate admits ONE shape, the bare projection, so `(SELECT 1 UNION SELECT 1)`
+// refuses on a clause that changes nothing about closure — both arms are
+// closed and the result is constant. The clause rides alone, per the
+// charter's one-at-a-time rule. Every value adjudicated 2026-08-16 over
+// orders' rows (1,1) and (2,5): the targets return no NULL, and each
+// guard's own data fires the NULL a claim would reject.
+
+describe("sublink set-operation bodies (flipped 2026-08-16 — the clause landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("a UNION body answers and the guard prunes", async () => {
+    // Two arms, one row after deduplication — the EXPR multi-row raise is
+    // not provoked (measured).
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 1 UNION SELECT 1) = 1 THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("INTERSECT and EXCEPT bodies answer the same way", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 1 INTERSECT SELECT 1) = 1 THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 1 EXCEPT SELECT 2) = 1 THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("an IN over a set-operation body answers through the same gate", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN 5 IN (SELECT 5 UNION SELECT 6) THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("GUARD: a correlated ARM keeps the whole body open", async () => {
+    // The no-query-context wall does not care which arm names the scope:
+    // the row with qty = 1 fires the NULL arm (adjudicated).
+    expect(await notNullOf(
+      "SELECT CASE WHEN 1 IN (SELECT o.qty UNION SELECT 9) THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+
+  it("GUARD: a table in one arm keeps the whole body open", async () => {
+    // A relation is context wherever it sits; every row fires the NULL arm
+    // (adjudicated), so a claim here rejects what PostgreSQL returns.
+    expect(await notNullOf(
+      "SELECT CASE WHEN 1 IN (SELECT 1 UNION SELECT o2.qty FROM orders o2)" +
+        " THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+});
+
 describe("GUARD: lines the mechanism must not cross", () => {
   it("bp control: the = direction must NOT claim — a claim here is unsound", async () => {
     const c = await contract("INSERT INTO bpt_eq (c, n) VALUES ('a', $1)");
