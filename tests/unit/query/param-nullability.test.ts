@@ -51,22 +51,32 @@ describe("argument nullability (engine vs @param annotations)", () => {
     await pg.exec("CREATE EXTENSION plpgsql_check;");
     await pg.exec(readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8"));
     catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
-    await pg.close();
 
+    // The evaluator runs LIVE here, the way the output-side fixture harnesses
+    // run the statement map: without it the CHECK grounder makes no claims at
+    // all ("no evaluator passed → no E claims"), so its fixtures and the
+    // write-side partition-bound ones could not be annotated against the
+    // engine. Measured before flipping it (2026-08-16): over the 42
+    // parameterized fixtures that existed then, evaluator-on and
+    // evaluator-off agree on every claim and every rejection set, so this
+    // widens what the corpus can hold without moving anything in it.
     for (const file of fixtureFiles) {
       const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
       const { paramClaims, rejectClaims } = parseFixtureDirectives(sql);
       const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
       if (!stmt) continue;
-      const facts = collectParamFacts(stmt, catalog);
+      const contract = await inferQueryContract(stmt, catalog, {
+        evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
+      });
       results.push({
         name: basename(file, ".sql"),
         claims: paramClaims,
         rejectClaims,
-        inferred: facts.params,
-        inferredSets: facts.rejectionSets,
+        inferred: contract.params,
+        inferredSets: contract.paramRejectionSets.map(s => [...s]),
       });
     }
+    await pg.close();
   }, 120_000);
 
   it("every parameter in the corpus is annotated, and no annotation is stale", () => {

@@ -4,7 +4,7 @@ import {
   BUILTIN_NULL_REJECTING_ARGS,
   BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS,
 } from "../../../src/query/param-nullability.js";
-import { NULL_REJECTION } from "./fixture-args.js";
+import { NULL_REJECTION, CONSTRAINT_REJECTION } from "./fixture-args.js";
 
 // ---------------------------------------------------------------------------
 // Mechanism D's table, DERIVED by execution rather than checked.
@@ -253,6 +253,24 @@ describe("builtin NULL-rejecting argument positions", () => {
     // different failure and a confusing one. So the messages travel with the
     // table they came from.
     expect([...messages].filter(m => !NULL_REJECTION.test(m)).sort()).toEqual([]);
+  });
+
+  it("the constraint class stays disjoint from this one — two meanings, two lists", () => {
+    // The widened witness class (docs/argument-nullability.md, "Witness
+    // classification for constraint-shaped raises") counts constraint
+    // violations as evidence about a NULL only beside a passing control.
+    // NULL_REJECTION means something stronger and unconditional — "only a
+    // NULL produces this" — which is exactly what the tie above rests on.
+    // Merging the two would let a raise caused by another value in the row
+    // witness a claim here, so they are asserted apart in both directions.
+    expect([...messages].filter(m => CONSTRAINT_REJECTION.test(m)).sort()).toEqual([]);
+    for (const m of [
+      'new row for relation "t" violates check constraint "t_check"',
+      'new row for relation "p1" violates partition constraint',
+    ]) {
+      expect(NULL_REJECTION.test(m), m).toBe(false);
+      expect(CONSTRAINT_REJECTION.test(m), m).toBe(true);
+    }
   });
 
   it("the probe reached enough of pg_catalog to mean something", () => {

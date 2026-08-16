@@ -460,7 +460,38 @@ and oracle before chartering), queued in this order, small first:**
    beside a succeeded all-valid control; NULL_REJECTION itself stays
    pure; grounder and write-side bound claims become
    corpus-witnessable, and their missing param fixtures land as the
-   rung's acceptance.
+   rung's acceptance. BUILT 2026-08-16, "As built" in the charter.
+   `CONSTRAINT_REJECTION` sits beside `NULL_REJECTION` in
+   fixture-args.ts, unmerged; param-soundness checks the control PER
+   STATE (and asserts the constraint-witnessed states are a subset of
+   the states whose control passed — the guard), the probe harness has
+   it structurally (its all-valid run returns before any variant when
+   it raised). Pre-work (two pins, param-mechanism "Witness
+   classification"): the identical message arrives whether the NULL
+   caused the rejection or another value in the row did, for both the
+   CHECK and the bound — which is why the control cannot be skipped.
+   A SECOND blocker the charter had not named turned up while
+   building: param-nullability inferred evaluator-OFF, and with no
+   evaluator the grounder claims nothing at all, so it now infers with
+   `evaluate` live like the output-side fixture harnesses — measured
+   first, evaluator-on and evaluator-off agree on every claim and
+   every rejection set over the 42 parameterized fixtures that existed
+   then. Acceptance: param-check-grounded.sql and
+   param-partition-bound-write.sql, both red on the witness bar before
+   the rung, both witnessed through the new class after it; the
+   separation from NULL_REJECTION is pinned both ways beside the
+   derived-message tie in builtin-null-rejection.test.ts. Suite 51
+   files / 3,162 + 1 skipped, ~74s. VERIFIED (2026-08-16,
+   20,000-query discovery runs): the chartered delta exactly — seed
+   20260808's 10 raised-outside-the-list entries and seed 7's 6 both
+   went to ZERO, moving into witnessed, with unwitnessed unchanged at
+   20260808; findings unchanged (seed 20260808 — 0 findings,
+   value-conditional 1 EXPECTED; seed 7 — the q2575 param-sibling
+   MERGE instance plus 1 value-conditional EXPECTED). Noted while
+   diffing runs: agreed-rows/agreed-norows drift by a few dozen
+   between identical invocations, because the generator's TABLESAMPLE
+   carries no REPEATABLE clause — the row counts are not reproducible
+   and never were; the buckets that matter are.
 3. ALWAYS-RAISES ("The always-raises statement fact",
    docs/argument-nullability.md) — the grounder's empty implicant
    surfaces as `QueryContract.alwaysRaises` for unconditionally

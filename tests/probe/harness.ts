@@ -24,7 +24,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../src/ast.js";
 import { snapshotCatalog } from "../../src/catalog/snapshot.js";
-import { NULL_REJECTION } from "../unit/query/fixture-args.js";
+import { NULL_REJECTION, CONSTRAINT_REJECTION } from "../unit/query/fixture-args.js";
 import { buildNullabilityCatalog } from "../../src/query/catalog-adapter.js";
 import {
   inferQueryContract,
@@ -33,6 +33,19 @@ import {
   inferPresenceGroups,
 } from "../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../src/query/types.js";
+
+/**
+ * What counts as "the NULL was rejected" here (docs/argument-nullability.md,
+ * "Witness classification for constraint-shaped raises"). The constraint
+ * class needs a succeeded all-valid control; in this harness that condition
+ * is STRUCTURAL rather than re-tested — the PostgreSQL half runs the
+ * all-valid binding first and `if (out.error || out.pgError) return out`
+ * leaves before any variant runs, so nothing below reaches a raise whose
+ * control also raised.
+ */
+const WITNESSING_RAISE = new RegExp(
+  `${NULL_REJECTION.source}|${CONSTRAINT_REJECTION.source}`,
+);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(HERE, "..", "unit", "query", "fixtures");
@@ -298,7 +311,7 @@ export class ProbeLoop {
                 ? `$${p.number} claimed nullable, binding NULL raised: ${r.error}`
                 : `$${p.number} raised beside sibling values, all-NULL passes: ${r.error}`,
             );
-          } else if (NULL_REJECTION.test(r.error)) {
+          } else if (WITNESSING_RAISE.test(r.error)) {
             out.paramWitness.notNullWitnessed.push(p.number);
           } else {
             out.paramWitness.notNullRaisedOther.push(p.number);
@@ -314,7 +327,7 @@ export class ProbeLoop {
       for (const set of out.paramRejectionSets) {
         const r = await this.exec(probe, bind(new Set(set)));
         if (r.error !== null) {
-          (NULL_REJECTION.test(r.error)
+          (WITNESSING_RAISE.test(r.error)
             ? out.paramWitness.setsWitnessed
             : out.paramWitness.setsRaisedOther
           ).push(set);
