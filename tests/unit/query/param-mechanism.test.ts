@@ -70,6 +70,9 @@ const SCHEMA = `
   -- classification for constraint-shaped raises"): two CHECKs, one the
   -- parameter can violate and one no binding can rescue.
   CREATE TABLE wcls (a int, n text, CHECK (a > 5), CHECK (n IS NOT NULL));
+  -- Always-raises pins (docs/argument-nullability.md, "The always-raises
+  -- statement fact"): a CHECK plus an arbiter to conflict against.
+  CREATE TABLE arc (id int PRIMARY KEY, a int, n text, CHECK (a > 5));
 `;
 
 const DOMAIN_ERROR = "does not allow null values";
@@ -1158,5 +1161,61 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(await errorOf("INSERT INTO pb_r1 (id, v) VALUES (500, $1)", [null])).toContain(
       "violates partition constraint",
     );
+  });
+
+  // --- The always-raises statement fact (docs/argument-nullability.md,
+  // section of the same name).
+  //
+  // The flag is claimed only where the write event is UNIVERSAL — a row
+  // every execution constructs. These pins draw that line: what ON CONFLICT
+  // does to an INSERT's own row, and what the row-matching shapes do when
+  // nothing matches.
+
+  it("ON CONFLICT checks the proposed row BEFORE the arbiter — an insert keeps its universal footing", async () => {
+    await pg.exec("INSERT INTO arc VALUES (1, 7, 'x')");
+    // Conflicting AND violating: DO NOTHING does not save it. So the CHECK
+    // is evaluated on the proposed row regardless of whether the row would
+    // have been skipped — an ON CONFLICT clause does not make the INSERT's
+    // own VALUES row conditional.
+    expect(await errorOf("INSERT INTO arc VALUES (1, 2, 'y') ON CONFLICT DO NOTHING", [])).toContain(
+      "violates check constraint",
+    );
+    expect(
+      await errorOf("INSERT INTO arc VALUES (1, 2, 'y') ON CONFLICT (id) DO UPDATE SET n = 'z'", []),
+    ).toContain("violates check constraint");
+    // The control: conflicting but VALID is silently skipped, so the raise
+    // above is the CHECK's and not the arbiter's.
+    expect(await errorOf("INSERT INTO arc VALUES (1, 9, 'y') ON CONFLICT DO NOTHING", [])).toBeNull();
+    await pg.exec("DELETE FROM arc");
+  });
+
+  it("the row-matching shapes raise only when a row matches — existential, and out of the flag", async () => {
+    await pg.exec("INSERT INTO arc VALUES (1, 7, 'x')");
+    // Each pair is the same violating assignment with and without a row to
+    // apply it to. A statement that succeeds over an empty match cannot
+    // carry a fact that says "every execution raises".
+    expect(await errorOf("UPDATE arc SET a = 2 WHERE id = 99", [])).toBeNull();
+    expect(await errorOf("UPDATE arc SET a = 2 WHERE id = 1", [])).toContain(
+      "violates check constraint",
+    );
+    const mergeInto = (src: string) =>
+      `MERGE INTO arc USING (${src}) s ON arc.id = s.k ` +
+      "WHEN NOT MATCHED THEN INSERT (id, a, n) VALUES (9, 2, 'z')";
+    expect(await errorOf(mergeInto("SELECT 1 AS k WHERE false"), [])).toBeNull();
+    expect(await errorOf(mergeInto("SELECT 9 AS k"), [])).toContain("violates check constraint");
+    expect(
+      await errorOf("INSERT INTO arc VALUES (2, 7, 'y') ON CONFLICT (id) DO UPDATE SET a = 2", []),
+    ).toBeNull();
+    expect(
+      await errorOf("INSERT INTO arc VALUES (1, 7, 'y') ON CONFLICT (id) DO UPDATE SET a = 2", []),
+    ).toContain("violates check constraint");
+    // The sourced INSERT ... SELECT is the same story: no source row, no
+    // write, no raise — which is why only VALUES rows and the FROM-less
+    // select are universal.
+    expect(await errorOf("INSERT INTO arc SELECT id, 2, 'd' FROM arc WHERE false", [])).toBeNull();
+    expect(await errorOf("INSERT INTO arc SELECT 6, 2, 'c'", [])).toContain(
+      "violates check constraint",
+    );
+    await pg.exec("DELETE FROM arc");
   });
 });
