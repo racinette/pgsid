@@ -1073,4 +1073,44 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
       expect(r.rows[0], rel).toEqual({ n, all_true: true });
     }
   });
+
+  // --- Guard-side IN (docs/subtree-evaluation.md, "Guard-side IN").
+  //
+  // The rung desugars a multi-element IN guard into the disjunction the
+  // kernel's OR rule already walks. These pins are the equivalence that
+  // licenses it — over the THREE-valued grid, not just the true/false
+  // corner — and the separation from NOT IN, which is a conjunction and
+  // would be refuted wrongly by the same rule.
+
+  it("IN is its disjunction and NOT IN its conjunction, over the three-valued grid", async () => {
+    // 12 combinations of a NULL-carrying operand and two NULL-carrying
+    // list elements, compared with IS NOT DISTINCT FROM so UNKNOWN counts
+    // as agreement. If either equivalence ever moved, the desugar in
+    // `isNotTrue` would be answering a different question than the guard.
+    const g = await pg.query<{ n: number; in_or: boolean; notin_and: boolean; in_any: boolean }>(`
+      SELECT count(*)::int AS n,
+             bool_and((x IN (a,b)) IS NOT DISTINCT FROM (x = a OR x = b)) AS in_or,
+             bool_and((x NOT IN (a,b)) IS NOT DISTINCT FROM (x <> a AND x <> b)) AS notin_and,
+             bool_and((x IN (a,b)) IS NOT DISTINCT FROM (x = ANY (ARRAY[a,b]))) AS in_any
+      FROM (VALUES ('a'),('q'),(NULL)) t1(x),
+           (VALUES ('q'),(NULL)) t2(a),
+           (VALUES ('r'),(NULL)) t3(b)
+    `);
+    expect(g.rows[0]).toEqual({ n: 12, in_or: true, notin_and: true, in_any: true });
+  });
+
+  it("the corners the rung's guards rest on: NOT IN holds where IN fails, and a NULL element yields UNKNOWN", async () => {
+    // `'a' NOT IN ('q','r')` is TRUE — so a guard the rule wrongly refuted
+    // would fire on every conforming row. A NULL in the list makes the
+    // whole membership UNKNOWN for a non-member, which is why the engine's
+    // refusal of that shape costs nothing a data state could witness.
+    const c = await pg.query<Record<string, boolean | null>>(`
+      SELECT 'a' IN ('q','r') AS a_in, 'a' NOT IN ('q','r') AS a_not_in,
+             'a' IN ('q', NULL) AS a_in_null, 'q' IN ('q', NULL) AS q_in_null,
+             (NULL::text) IN ('q','r') AS null_in
+    `);
+    expect(c.rows[0]).toEqual({
+      a_in: false, a_not_in: true, a_in_null: null, q_in_null: true, null_in: null,
+    });
+  });
 });
