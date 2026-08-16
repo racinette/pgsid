@@ -1116,6 +1116,41 @@ argument and measurement before code:
 - ORDER BY: meaningful only beside LIMIT, and a sort key's order is
   the collation wall for collatable types — a first widening refuses
   collatable sort keys outright (the `stxc` lesson).
+  **REPLACED BY ONE RULE, BUILT 2026-08-16** (decided with the user
+  after the first three clauses landed, because "which clause is
+  next" turned out to be the wrong question). The clause LIST was
+  arbitrary — what is not arbitrary is WHY a shape is refused, and
+  measuring the gate produced three reasons: SCOPE (any FROM, refused
+  forever), PLAN FREEDOM (a limit slicing a body whose surviving
+  order the planner chose), and UNBOUNDED WORK (an offset over an SRF
+  body). Everything else was refused only because nobody had written
+  the clause. So the rule: **a clause that changes WHICH ROWS a body
+  has is admitted, and joins the no-slice family unless the row order
+  is structural.** Under it, WHERE (with no FROM), ORDER BY and
+  DISTINCT all landed in one batch:
+  - WHERE keeps or drops the single Result row — the closed predicate
+    is gated like any expression, and slicing is unaffected because
+    a filter does not reorder.
+  - ORDER BY cannot move an admitted answer at all: membership is a
+    set question, EXISTS is existence, and an EXPR body still raises
+    above one row. Beside a LIMIT it WOULD decide the value, and
+    deciding it needs the sort key's collatability — a per-TYPE fact
+    (`pg_type.typcollation`) no capture holds, the collation captures
+    being per COLUMN. So the charter's collatable-key refusal becomes
+    the whole no-slice rule, and the capture is the recorded price of
+    lifting it.
+  - DISTINCT deduplicates and leaves the same planner-chosen order a
+    set operation leaves — 42 through HashAggregate, 3 through
+    Sort+Unique, measured for both — so it is admitted and barred
+    from slicing for the same reason.
+  - `DISTINCT ON` and `ORDER BY ... USING <op>` stay refused: the
+    first returns an unspecified row per group, the second names an
+    ordering operator no gate here checks.
+  Five red targets flipped with four guards green (limit-beside-
+  DISTINCT, limit-beside-ORDER BY, a correlated WHERE, and the two
+  refused spellings). `SortBy` joined the allowlist census as
+  structural. STILL REFUSED and unexplored, for the record: GROUP BY
+  (degenerate without a FROM) and WITH (a whole sub-statement).
 - VALUES bodies (`x IN (VALUES (1), (2))`): pre-work first — what the
   parser and deparser even do with the shape.
   **BUILT 2026-08-16**; the pre-work came back clean and made the gate

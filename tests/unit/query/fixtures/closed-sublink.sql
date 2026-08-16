@@ -40,6 +40,18 @@ SELECT
        THEN t.id ELSE NULL END AS values_membership,                   -- @notNull
   CASE WHEN t.id IN (VALUES (t.id))
        THEN NULL ELSE 5 END AS values_correlated_kept,                 -- @nullable
+  -- Fourth batch (landed 2026-08-16), one rule: a clause that changes
+  -- WHICH rows a body has is admitted, and bars a limit from slicing what
+  -- it leaves unless the order is structural. WHERE filters the single
+  -- Result row; ORDER BY cannot move a membership. Beside a limit, the
+  -- DISTINCT body's surviving row is a planner choice — it answers 1
+  -- today, so every row fires the NULL arm and witnesses the refusal.
+  CASE WHEN (SELECT 7 WHERE true) = 7
+       THEN t.id ELSE NULL END AS where_filtered,                      -- @notNull
+  CASE WHEN 1 IN (SELECT generate_series(1,3) ORDER BY 1)
+       THEN t.id ELSE NULL END AS ordered_membership,                  -- @notNull
+  CASE WHEN (SELECT DISTINCT generate_series(1,3) LIMIT 1) = 1
+       THEN NULL ELSE 5 END AS distinct_sliced_kept,                   -- @nullable
   CASE WHEN 5 IN (SELECT generate_series(1, 8))
        THEN t.id ELSE NULL END AS srf_probed,                          -- @notNull
   CASE WHEN EXISTS (SELECT generate_series(1, 10000000000))

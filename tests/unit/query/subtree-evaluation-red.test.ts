@@ -1096,6 +1096,85 @@ describe("sublink VALUES bodies (flipped 2026-08-16 — the clause landed)", () 
   });
 });
 
+// --- Sublink body-clause widening: the free clauses (decided 2026-08-16). ---
+// One rule, taken from what the measurements showed rather than from a
+// clause list: a clause that changes WHICH ROWS a body has is admitted,
+// and joins the no-slice family unless the row order is structural. WHERE
+// (with no FROM) filters the single Result row; ORDER BY cannot move an
+// admitted answer, since membership is a set question and an EXPR body
+// still raises above one row; DISTINCT deduplicates and leaves the same
+// planner-chosen order a set operation does — so neither ORDER BY nor
+// DISTINCT may sit beside a limit. DISTINCT ON and ORDER BY ... USING stay
+// refused: the first picks an unspecified row per group, the second names
+// an operator whose order semantics no gate here checks. Every value
+// adjudicated 2026-08-16 over orders' rows (1,1) and (2,5).
+
+describe("sublink free body clauses (flipped 2026-08-16 — the batch landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("a WHERE with no FROM keeps or drops the one row, and both answers fold", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 7 WHERE true) = 7 THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 7 WHERE false) IS NULL THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("DISTINCT and ORDER BY bodies answer", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN 1 IN (SELECT DISTINCT 1) THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN 1 IN (SELECT generate_series(1,3) ORDER BY 1)" +
+        " THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("an ORDER BY on the set operation itself answers too", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN 2 IN (SELECT 1 UNION SELECT 2 ORDER BY 1)" +
+        " THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("GUARD: neither DISTINCT nor ORDER BY may sit beside a limit", async () => {
+    // Both bodies answer 1 today and every row fires the NULL arm
+    // (adjudicated) — right by luck. DISTINCT's surviving order is a plan
+    // choice outright; ORDER BY's would need the sort key's collatability,
+    // which no capture holds.
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT DISTINCT generate_series(1,3) LIMIT 1) = 1" +
+        " THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT generate_series(1,3) ORDER BY 1 LIMIT 1) = 1" +
+        " THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+
+  it("GUARD: a correlated WHERE keeps the body open", async () => {
+    // The predicate is part of the body: naming the scope there is the
+    // same wall. The row with qty = 5 fires the NULL arm (adjudicated).
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 7 WHERE o.qty = 1) IS NULL THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+
+  it("GUARD: DISTINCT ON and ORDER BY ... USING stay refused", async () => {
+    // DISTINCT ON returns an unspecified row per group without an ORDER
+    // BY; USING names an ordering operator this gate does not check. Both
+    // memberships are TRUE and every row fires the NULL arm (adjudicated).
+    expect(await notNullOf(
+      "SELECT CASE WHEN 1 IN (SELECT DISTINCT ON (1) 1) THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+    expect(await notNullOf(
+      "SELECT CASE WHEN 1 IN (SELECT generate_series(1,3) ORDER BY 1 USING <)" +
+        " THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+});
+
 describe("GUARD: lines the mechanism must not cross", () => {
   it("bp control: the = direction must NOT claim — a claim here is unsound", async () => {
     const c = await contract("INSERT INTO bpt_eq (c, n) VALUES ('a', $1)");

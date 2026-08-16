@@ -75,11 +75,15 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   },
   SelectStmt: {
     category: "structural",
-    why: "a closed sublink's body, consumed by SubLink — the body gate refuses every clause beyond the bare projection",
+    why: "a closed sublink's body, consumed by SubLink — set operations, VALUES rows, LIMIT/OFFSET, WHERE, ORDER BY and DISTINCT after the body-clause widening; every other clause still refuses by unknown-field default, FROM of any kind included",
   },
   ResTarget: {
     category: "structural",
     why: "one body target, consumed by the sublink-body gate",
+  },
+  SortBy: {
+    category: "structural",
+    why: "one ORDER BY key of a closed body, consumed by the sublink-body gate — the key expression is gated closed like any other, and `USING <op>` is refused; the ordering itself can move no admitted answer, which is why a limit may not sit beside it",
   },
   CaseWhen: { category: "structural", why: "one CASE branch, consumed by CaseExpr" },
   List: { category: "structural", why: "IN-list wrapper inside A_Expr" },
