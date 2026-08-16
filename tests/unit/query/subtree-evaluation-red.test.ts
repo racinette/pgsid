@@ -88,6 +88,12 @@ const SCHEMA = `
     PARTITION BY RANGE (id);
   CREATE TABLE hn_0_lo PARTITION OF hn_0 FOR VALUES FROM (0) TO (100);
   CREATE TABLE hn_1 PARTITION OF hn FOR VALUES WITH (MODULUS 2, REMAINDER 1);
+  -- List-membership subjects (the chartered rung): a CHECK IN-list, its
+  -- integer twin, and an OR carrying a non-k arm; the list partitions
+  -- above (plst_ab, plst_n) are the bound-side subjects.
+  CREATE TABLE lme (k text, note text, CHECK (k IN ('a', 'b')));
+  CREATE TABLE lmei (n int, CHECK (n IN (1, 2)));
+  CREATE TABLE lmor (k text, v int, CHECK (k = 'a' OR k = 'b' OR v > 10));
 `;
 
 beforeAll(async () => {
@@ -601,12 +607,196 @@ describe("partition bounds (flipped 2026-08-16 — the chartered rung landed)", 
     expect(await notNullOf("SELECT t.id AS r FROM hn_1 t")).toBe(false);
   });
 
-  it("GUARD: the write side stays out of the first wave", async () => {
-    // PostgreSQL DOES raise here (binding NULL violates the partition
-    // constraint — pinned in param-mechanism), but the charter feeds
-    // scans only; the param claim waits for a chartered write-side rung.
+});
+
+// --- Write-side partition bounds (chartered 2026-08-16). ---------------------
+// docs/subtree-evaluation.md, "Write-side rung": the same gated bounds
+// (non-default range/list) feed the grounder's channel for DML naming the
+// partition directly. Enforcement pre-work pinned in param-mechanism
+// ("Write-side enforcement"): UPDATE, MERGE arms, ON CONFLICT and multi-row
+// VALUES all enforce the bound on the new row exactly as direct INSERT
+// does, and naming the PARENT enforces nothing — routing moves the row.
+// Every value below adjudicated 2026-08-16: targets by binding NULL and
+// watching the raise, guards by watching it pass.
+
+describe("write-side partition bounds (flipped 2026-08-16 — the write-side rung landed)", () => {
+  it("a direct-partition INSERT claims the key from the bound's prefix", async () => {
+    // The scan-side first wave's "write side stays out" guard, flipped into
+    // the rung's acceptance: binding NULL raises (pinned).
     const c = await contract("INSERT INTO prt_lo (id, note) VALUES ($1, 'x')");
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it("UPDATE on a direct-named partition claims its SET key", async () => {
+    // Existential like every UPDATE claim: when a row is processed, the
+    // NULL key cannot satisfy (id IS NOT NULL) and the new row raises.
+    const c = await contract("UPDATE prt_lo SET id = $1");
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it("a list partition's prefix claims through the write side likewise", async () => {
+    const c = await contract("INSERT INTO plst_ab (k, note) VALUES ($1, 'x')");
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it("a range partition under a HASH parent claims; the hash conjunct stays inert", async () => {
+    // The grounded satisfies_hash_partition conjunct contributes no
+    // implicants; the range conjuncts claim. Adjudicated: NULL raises.
+    const c = await contract("INSERT INTO hn_0_lo (id, v) VALUES ($1, 'x')");
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it("GUARD: naming the parent claims nothing — routing moves the row", async () => {
+    // The parent renders no bound, so there is no fact to ground: a NULL
+    // key routes to prt_def and inserts (adjudicated).
+    const c = await contract("INSERT INTO prt (id, note) VALUES ($1, 'x')");
     expect(c.params[0]!.notNull).toBe(false);
+  });
+
+  it("GUARD: a NULL-listing list partition claims nothing on the write side", async () => {
+    // ((k IS NULL) OR (k = 'z')) has no FALSE-implicant for a NULL k — the
+    // binding inserts (adjudicated).
+    const c = await contract("INSERT INTO plst_n (k, note) VALUES ($1, 'x')");
+    expect(c.params[0]!.notNull).toBe(false);
+  });
+
+  it("GUARD: a DEFAULT partition's bound stays refused on the write side", async () => {
+    // prt_def accepts the NULL key (adjudicated); its negated-union bound
+    // is refused by shape, so no claim can arise.
+    const c = await contract("INSERT INTO prt_def (id, note) VALUES ($1, 'x')");
+    expect(c.params[0]!.notNull).toBe(false);
+  });
+
+  it("GUARD: a hash partition's bound stays refused on the write side", async () => {
+    // NULL hashes into phsh_0 and inserts (adjudicated); the bound has no
+    // shape to ground.
+    const c = await contract("INSERT INTO phsh_0 (id) VALUES ($1)");
+    expect(c.params[0]!.notNull).toBe(false);
+  });
+});
+
+// --- List membership exclusion (chartered 2026-08-16). -----------------------
+// docs/subtree-evaluation.md, "List membership exclusion": an OR-fact —
+// TRUE from evidence or notFALSE from a CHECK's spine — refutes a guard
+// when EVERY disjunct carries a comparison over the guard's column whose
+// value set shares nothing with it, each arm answered by the existing
+// point/interval machinery under the per-column collation trichotomy.
+// Pays twice through the same code: CHECK IN-lists (rendered `= ANY`) and
+// list partition bounds. Every value adjudicated 2026-08-16 over
+// conforming rows: 'a'/'b' in lme and plst_ab, 1/2 in lmei, ('a',0) and
+// ('q',20) in lmor, NULL/'z' in plst_n.
+
+describe("list membership exclusion (flipped 2026-08-16 — the rung landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("a CHECK IN-list refutes an outside point — every member excludes it", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k = 'q' THEN NULL ELSE 5 END AS r FROM lme c",
+    )).toBe(true);
+  });
+
+  it("an integer IN-list refutes an outside point and an outside ray", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.n = 9 THEN NULL ELSE 5 END AS r FROM lmei c",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.n <= 0 THEN NULL ELSE 5 END AS r FROM lmei c",
+    )).toBe(true);
+  });
+
+  it("the list-partition twin refutes through the same code", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k = 'q' THEN NULL ELSE 5 END AS r FROM plst_ab c",
+    )).toBe(true);
+  });
+
+  it("GUARD: a guard naming a MEMBER still fires", async () => {
+    // Row ('a','x') fires the arm — NULL witnessed.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k = 'a' THEN NULL ELSE 5 END AS r FROM lme c",
+    )).toBe(false);
+  });
+
+  it("GUARD: an OR-fact with one non-refuting arm claims nothing", async () => {
+    // lmor's row ('q', 20) satisfies the CHECK through `v > 10` and FIRES
+    // the guard — a claim here rejects a NULL PostgreSQL returns.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k = 'q' THEN NULL ELSE 5 END AS r FROM lmor c",
+    )).toBe(false);
+  });
+
+  it("GUARD: the NULL-listing bound shape still claims nothing", async () => {
+    // ((k IS NULL) OR (k = 'z')): the IS NULL arm is outside the
+    // point/interval machinery, so the fact refuses wholesale — by
+    // design. No data state can witness a NULL here (the guard never
+    // fires over NULL-or-'z' rows); this pins engine conservatism only.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k = 'q' THEN NULL ELSE 5 END AS r FROM plst_n c",
+    )).toBe(false);
+  });
+});
+
+// --- Closed sublinks (chartered 2026-08-16). ---------------------------------
+// docs/subtree-evaluation.md, "Closed sublinks": a sublink whose body
+// references no tables, columns or parameters is a closed tree wearing
+// subquery syntax — it deparses as a scalar expression and batches through
+// the existing protocol unchanged; the consumers read it through the same
+// map identity they already use. Three tiers: table-free SRF-free bodies
+// unconditionally; target-list-SRF bodies behind the runtime cardinality
+// pre-probe (cap 1000, recorded — LIMIT keeps ProjectSet lazy, pinned);
+// FROM-position SRF bodies refused outright (trap 1's materializing
+// shape). EXISTS is pre-probe-exempt: the first row answers it, pinned at
+// 10^10. Every value adjudicated 2026-08-16 (rows (1,1) and (2,5)): the
+// targets return no NULL; each guard's data fires the NULL a claim would
+// reject.
+
+describe("closed sublinks (flipped 2026-08-16 — the rung landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("a closed EXPR sublink answers and the guard prunes", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 7) = 7 THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("an IN over a small generated series admits through the pre-probe", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN 5 IN (SELECT generate_series(1, 8)) THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("EXISTS early-exits over an unbounded lazy body — no pre-probe", async () => {
+    // 10^10 rows; the first answers. If this test ever hangs, the EXISTS
+    // exemption has leaked to a shape whose laziness was never measured.
+    expect(await notNullOf(
+      "SELECT CASE WHEN EXISTS (SELECT generate_series(1, 10000000000)) THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("GUARD: a correlated body stays open — the no-query-context wall", async () => {
+    // The body names o.qty; the row with qty = 1 fires the NULL arm
+    // (adjudicated). A claim here rejects what PostgreSQL returns.
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT o.qty) = 1 THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+
+  it("GUARD: a FROM-position SRF body stays open", async () => {
+    // Trap 1's materializing shape — the guard query itself would hang
+    // unbounded, so the shape is refused outright; here EXISTS is TRUE
+    // and every row fires the NULL arm (adjudicated).
+    expect(await notNullOf(
+      "SELECT CASE WHEN EXISTS (SELECT * FROM generate_series(1, 3)) THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+
+  it("GUARD: an over-cap SRF body stays open", async () => {
+    // 2000 > the recorded cap: the pre-probe refuses, no claim — though
+    // the membership is in fact TRUE and every row fires the NULL arm
+    // (adjudicated). Refusal must not be mistaken for FALSE.
+    expect(await notNullOf(
+      "SELECT CASE WHEN 5 IN (SELECT generate_series(1, 2000)) THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
   });
 });
 

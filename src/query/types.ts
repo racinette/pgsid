@@ -253,6 +253,20 @@ export interface SubtreeEvaluationCatalog {
     argTypes: readonly (readonly string[])[],
   ): string[] | null;
   /**
+   * The SET-RETURNING twin of `closedFunctionTypes` (the closed-sublinks
+   * rung, docs/subtree-evaluation.md): same pool, same landing rules,
+   * same consensus, but every survivor must be a plain function that
+   * RETURNS SET — the rows `closedFunctionTypes` refuses. The verdict is
+   * the ELEMENT type union (pg_proc.prorettype of a proretset row is the
+   * element). Only the sublink-body gate consults it: a set-returning
+   * call never closes as an expression, and the body's row count is the
+   * runtime pre-probe's question, not this one's.
+   */
+  closedSetFunctionTypes(
+    name: string,
+    argTypes: readonly (readonly string[])[],
+  ): string[] | null;
+  /**
    * The unification landing for a member list resolved to a common type
    * (CASE results, COALESCE/GREATEST/LEAST, array elements): all-unknown
    * lands on text; an unknown member beside known ones requires every
@@ -354,6 +368,7 @@ export const EVALUATION_CATALOG_ONLY = [
   "isImmutableIoType",
   "closedOperatorTypes",
   "closedFunctionTypes",
+  "closedSetFunctionTypes",
   "closedCommonTypes",
   "closedCastTargetType",
   "closedDatetimeCastTarget",

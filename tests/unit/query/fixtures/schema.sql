@@ -811,6 +811,17 @@ CREATE TABLE daily_metrics (day date, v integer) PARTITION BY RANGE (day);
 CREATE TABLE daily_metrics_q1 PARTITION OF daily_metrics FOR VALUES FROM ('2024-01-01') TO ('2024-04-01');
 CREATE TABLE daily_metrics_q2 PARTITION OF daily_metrics FOR VALUES FROM ('2024-04-01') TO ('2024-07-01');
 
+-- A courier ledger split by explicit region lists — the everyday LIST
+-- deployment, and the list-membership rung's argued-real ground
+-- (docs/subtree-evaluation.md, "List membership exclusion"): a direct
+-- scan of courier_north carries the bound's notNull prefix AND its
+-- membership, which excludes any point outside {north, east}.
+-- courier_south lists NULL — the claims-nothing twin: no prefix, and the
+-- IS NULL arm keeps the whole fact outside the point/interval machinery.
+CREATE TABLE courier_jobs (region text, ref integer) PARTITION BY LIST (region);
+CREATE TABLE courier_north PARTITION OF courier_jobs FOR VALUES IN ('north', 'east');
+CREATE TABLE courier_south PARTITION OF courier_jobs FOR VALUES IN (NULL, 'south');
+
 -- ---------------------------------------------------------------------------
 -- Collation-gated distinctness (Wave 9).
 -- ---------------------------------------------------------------------------

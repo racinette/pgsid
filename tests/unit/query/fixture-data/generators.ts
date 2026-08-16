@@ -297,6 +297,16 @@ const columnSpecificGenerators: Record<
     daily_metrics_q1: { day: (_rand, ctx) => ["2024-03-15", "2024-01-01", "2024-02-01"][ctx.row % 3]! },
     daily_metrics_q2: { day: (_rand, ctx) => ["2024-05-05", "2024-04-01", "2024-06-30"][ctx.row % 3]! },
 
+    // The list-partitioned family: the parent rotates over every listed
+    // value and routes; the partitions seed their own values directly.
+    // Row-index rotation, not draws — courier_north's FIRST row is the
+    // 'north' member that fires partition-bound-list.sql's member guard,
+    // and a rate could erase it. NULL reaches courier_south through its
+    // null policy's rotation, never through a value.
+    courier_jobs: { region: (_rand, ctx) => ["north", "east", "south"][ctx.row % 3]! },
+    courier_north: { region: (_rand, ctx) => ["north", "east"][ctx.row % 2]! },
+    courier_south: { region: () => "south" },
+
     // The application event log. Same range rule as every other partitioned
     // pair here: `order_events` routes its rows and the two partitions are
     // seeded directly, and all three share one unique index, so the parent
@@ -642,6 +652,15 @@ const nullPolicies: {
       daily_metrics: { day: () => false },
       daily_metrics_q1: { day: () => false },
       daily_metrics_q2: { day: () => false },
+
+      // The list family: NULL is LISTED in courier_south, so only its own
+      // rows may draw it — rotated by index so both the 'south' member row
+      // and the NULL witness exist in every state. The parent and north
+      // never draw NULL (north's routing would raise; the parent's NULL
+      // would land in courier_south, which seeds its own).
+      courier_jobs: { region: () => false },
+      courier_north: { region: () => false },
+      courier_south: { region: (_rand, ctx) => ctx.row % 2 === 1 },
 
       // Each CHECK CASE ties a column's NULLness to the discriminator
       // assigned earlier in the row, same pattern as guest.
