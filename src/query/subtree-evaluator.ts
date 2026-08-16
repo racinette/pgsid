@@ -499,12 +499,15 @@ interface SublinkBody {
  */
 const SUBLINK_BODY_FIELDS = new Set([
   "targetList", "op", "limitOption", "location", "limitCount", "limitOffset", "valuesLists",
+  "whereClause", "sortClause", "distinctClause",
 ]);
 
 /** The set-operation body's own fields: the operator, its ALL flag and the
  *  two arms. `targetList` is absent on a set-operation node — the arms
  *  carry the projections. */
-const SUBLINK_SETOP_FIELDS = new Set(["op", "all", "larg", "rarg", "limitOption", "location"]);
+const SUBLINK_SETOP_FIELDS = new Set([
+  "op", "all", "larg", "rarg", "limitOption", "location", "sortClause",
+]);
 
 const SET_OPERATIONS = new Set(["SETOP_UNION", "SETOP_INTERSECT", "SETOP_EXCEPT"]);
 
@@ -561,6 +564,7 @@ function closedSelectBody(
     // into a claim the next plan falsifies. An ARM's own LIMIT is fine and
     // rides the plain branch: one bare projection, one row.
     if (s.limitOption !== undefined && s.limitOption !== "LIMIT_OPTION_DEFAULT") return null;
+    if (!closedSortClause(s, catalog, memo)) return null;
     return { targetSets, hasSrf: left.hasSrf || right.hasSrf };
   }
   for (const [key, value] of Object.entries(s)) {
@@ -623,8 +627,55 @@ function closedSelectBody(
     if (set === null) return null;
     targetSets.push(set);
   }
+  // The free clauses (docs/subtree-evaluation.md, "Body-clause widening",
+  // fourth batch): each changes WHICH rows the body has, never which value
+  // a given row carries. WHERE is a closed predicate over the same rows;
+  // ORDER BY and DISTINCT are admitted but bar a limit from slicing what
+  // they leave — DISTINCT's surviving order is a planner choice (measured,
+  // the same 42-vs-3 as a set operation's) and ORDER BY's would need the
+  // sort key's collatability, which no capture holds.
+  if (s.whereClause !== undefined && typeSetOf(s.whereClause, catalog, memo) === null) return null;
+  if (!closedSortClause(s, catalog, memo)) return null;
+  if (!plainDistinctClause(s)) return null;
+  const sliced = s.sortClause !== undefined || s.distinctClause !== undefined;
+  if (sliced && (s.limitCount !== undefined || s.limitOffset !== undefined)) return null;
   if (!closedLimitClause(s, hasSrf, catalog, memo)) return null;
   return { targetSets, hasSrf };
+}
+
+/**
+ * Every ORDER BY key is a closed expression, and the ordering is one of
+ * the built-in directions. `USING <op>` is refused: it names an operator
+ * whose order semantics nothing here gates, and unlike the directions it
+ * is not a property of the type's own default order.
+ */
+function closedSortClause(
+  s: Record<string, unknown>,
+  catalog: SubtreeEvaluationCatalog,
+  memo: WeakMap<object, TypeSet | null>,
+): boolean {
+  if (s.sortClause === undefined) return true;
+  if (!Array.isArray(s.sortClause) || s.sortClause.length === 0) return false;
+  for (const key of s.sortClause) {
+    if (nodeTag(key) !== "SortBy") return false;
+    const sb = fieldsOf(key, "SortBy");
+    if (sb.useOp !== undefined || sb.sortby_dir === "SORTBY_USING") return false;
+    if (sb.node === undefined || typeSetOf(sb.node, catalog, memo) === null) return false;
+  }
+  return true;
+}
+
+/**
+ * `DISTINCT` over the whole row, which the parser spells as a one-entry
+ * list holding an empty node. `DISTINCT ON (...)` carries its expressions
+ * there instead and is REFUSED: without an ORDER BY it returns an
+ * unspecified row per group, which is a value the statement does not own.
+ */
+function plainDistinctClause(s: Record<string, unknown>): boolean {
+  if (s.distinctClause === undefined) return true;
+  if (!Array.isArray(s.distinctClause) || s.distinctClause.length !== 1) return false;
+  const only = s.distinctClause[0];
+  return typeof only === "object" && only !== null && Object.keys(only).length === 0;
 }
 
 /**

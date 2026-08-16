@@ -555,15 +555,29 @@ and oracle before chartering), queued in this order, small first:**
    20260808 — 0 findings, value-conditional 1 EXPECTED; seed 7 — the
    q2575 param-sibling MERGE instance plus 1 value-conditional
    EXPECTED. Zero new findings anywhere.
-   THE FOURTH CLAUSE, ORDER BY, IS OPEN and needs a decision, not
-   code: with the other three landed it buys nothing WITHOUT a limit
-   (order cannot change an EXISTS, a membership, or an EXPR body that
-   raises unless single-row), and BESIDE a limit it needs the
-   charter's collatable-sort-key refusal — which needs a per-TYPE
-   collatability fact (`pg_type.typcollation`) that no capture holds
-   today; the collation captures are per COLUMN. So the clause is a
-   new capture plus a face member, against demand the charter itself
-   records as unmeasured.
+   THE FOURTH BATCH REPLACED THE CHARTER'S CLAUSE LIST WITH ONE RULE
+   (decided 2026-08-16 with the user, BUILT the same day): measuring
+   what the gate still refused showed the list was arbitrary and the
+   REASONS were not — scope (any FROM, forever), plan freedom (a limit
+   slicing a body whose surviving order the planner chose), unbounded
+   work (an offset over an SRF). Everything else was refused only
+   because nobody had written the clause. The rule: a clause that
+   changes WHICH ROWS a body has is admitted, and joins the no-slice
+   family unless the row order is structural. WHERE (no FROM), ORDER
+   BY and DISTINCT landed together under it; DISTINCT ON and ORDER
+   BY ... USING stay refused with their reasons; five targets flipped,
+   four guards green, `SortBy` joined the allowlist census. ORDER BY
+   BESIDE A LIMIT is the one piece deliberately not taken: it would
+   decide the sliced value, and deciding it needs the sort key's
+   collatability — a per-TYPE fact (`pg_type.typcollation`) no capture
+   holds, the collation captures being per COLUMN. That capture is the
+   recorded price of lifting the no-slice rule, against demand the
+   charter itself calls unmeasured. Still refused and unexplored:
+   GROUP BY (degenerate without a FROM) and WITH (a whole
+   sub-statement). Suite 51 files / 3,206 + 1 skipped, ~71s. VERIFIED
+   (20,000-query runs, both seeds): seed 20260808 — 0 findings,
+   value-conditional 1 EXPECTED; seed 7 — the q2575 param-sibling
+   MERGE instance plus 1 value-conditional EXPECTED.
    ORIGINAL CHARTER: set-operation and LIMIT bodies first,
    one clause at a time, each with its own closure argument; ORDER BY
    refuses collatable sort keys; VALUES bodies need parser/deparser
