@@ -34,6 +34,25 @@
 export const NULL_REJECTION =
   /does not allow null values|violates not-null constraint|frame (starting|ending) offset must not be null|dimension array or low bound array cannot be null|dimension values cannot be null|initial position must not be null|range constructor flags argument must not be null|null_value_treatment must be|path element at position \d+ is null/;
 
+/**
+ * The SECOND witness class (docs/argument-nullability.md, "Witness
+ * classification for constraint-shaped raises"): the two messages a
+ * CONSTRAINT produces when it rejects a written row. Mechanism E's claims
+ * and the write-side partition-bound claims are refused this way, so
+ * without this class they had no witness any oracle would accept.
+ *
+ * Deliberately NOT merged into `NULL_REJECTION`, which means "a message
+ * only a NULL can produce" — a meaning `builtin-null-rejection.test.ts`
+ * ties to the derived builtin messages and which must not blur. These two
+ * say nothing about the binding on their own: the same text arrives when
+ * another value in the row violates the constraint (pinned in
+ * param-mechanism.test.ts, "Witness classification"). Every consumer must
+ * therefore count them only where the ALL-VALID CONTROL SUCCEEDED in the
+ * same data state, so the raise's only delta is the NULL.
+ */
+export const CONSTRAINT_REJECTION =
+  /violates check constraint|violates partition constraint/;
+
 /** Parse-analysis failures that mean "protocol binding cannot type this". */
 export const DEDUCTION_FAILURE =
   /could not determine data type|inconsistent types deduced|indeterminate datatype/;

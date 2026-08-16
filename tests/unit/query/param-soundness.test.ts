@@ -4,7 +4,7 @@ import { join, basename } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { bindParams, parseFixtureDirectives, NULL_REJECTION, DEDUCTION_FAILURE, type ParamClaim } from "./fixture-args.js";
+import { bindParams, parseFixtureDirectives, NULL_REJECTION, CONSTRAINT_REJECTION, DEDUCTION_FAILURE, type ParamClaim } from "./fixture-args.js";
 import { hasStatements, loadDataStates, type DataState } from "./fixture-data/states.js";
 
 // ---------------------------------------------------------------------------
@@ -68,10 +68,29 @@ const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
 // test file. Their documentation and the builtin-null-rejection tie moved with
 // them.
 
+/**
+ * Whether a raise witnesses "this NULL was rejected". A null-rejection
+ * message says so by itself; a constraint-shaped one says so only where the
+ * ALL-VALID control succeeded in the same state, since the identical text
+ * arrives when another value in the row is what the constraint refused
+ * (docs/argument-nullability.md, "Witness classification for
+ * constraint-shaped raises").
+ */
+function witnessesNull(error: string, controlOk: boolean): boolean {
+  return NULL_REJECTION.test(error) || (controlOk && CONSTRAINT_REJECTION.test(error));
+}
+
 interface ClaimEvidence {
   claim: ParamClaim;
   /** States where the NULL binding raised a null-rejection. */
   witnessed: string[];
+  /**
+   * States witnessed through the constraint class rather than a
+   * null-rejection message — kept apart so the census can report the
+   * widened class separately and so the control condition stays checkable:
+   * this list must be a subset of `controlOk`.
+   */
+  constraintWitnessed: string[];
   /** Raises in states where the control succeeded — evidence against `nullable`. */
   raises: { state: string; message: string }[];
 }
@@ -145,7 +164,12 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
         mode: null,
         controlOk: [],
         controlErrors: [],
-        evidence: paramClaims.map(claim => ({ claim, witnessed: [], raises: [] })),
+        evidence: paramClaims.map(claim => ({
+          claim,
+          witnessed: [],
+          constraintWitnessed: [],
+          raises: [],
+        })),
         jointEvidence: rejectClaims.map(members => ({ members, witnessed: [] })),
       });
     }
@@ -193,7 +217,10 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
           args[ev.claim.number - 1] = null;
           const { error } = await exec(run, args);
           if (error === null) continue;
-          if (NULL_REJECTION.test(error)) ev.witnessed.push(state.name);
+          if (witnessesNull(error, control.error === null)) {
+            ev.witnessed.push(state.name);
+            if (!NULL_REJECTION.test(error)) ev.constraintWitnessed.push(state.name);
+          }
           if (control.error === null) ev.raises.push({ state: state.name, message: error });
         }
 
@@ -201,7 +228,9 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
           const args = [...run.validArgs];
           for (const member of jev.members) args[member - 1] = null;
           const { error } = await exec(run, args);
-          if (error !== null && NULL_REJECTION.test(error)) jev.witnessed.push(state.name);
+          if (error !== null && witnessesNull(error, control.error === null)) {
+            jev.witnessed.push(state.name);
+          }
         }
       }
       await pg.close();
@@ -261,6 +290,19 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
         }
       }
 
+      // The widened class's own guard: a constraint-shaped raise counts only
+      // where the control succeeded in THAT state. Without it the class
+      // would witness a claim in a state where the row was refused for a
+      // reason the binding has nothing to do with.
+      for (const ev of run.evidence) {
+        expect(
+          ev.constraintWitnessed.filter(s => !run.controlOk.includes(s)),
+          `$${ev.claim.number} was witnessed by a constraint-shaped raise in a ` +
+            `state whose all-valid control ALSO raised — that raise is not ` +
+            `evidence about the NULL`,
+        ).toEqual([]);
+      }
+
       for (const jev of run.jointEvidence) {
         expect(
           jev.witnessed.length,
@@ -295,7 +337,8 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
     console.log(
       `\nargument soundness over ${runs.length} parameterized fixtures and ` +
         `${stateNames.length} data states (${stateNames.join(", ")}):\n` +
-        `  notNull claims:  ${notNull.length} — ${witnessed.length} witnessed by an observed null-rejection\n` +
+        `  notNull claims:  ${notNull.length} — ${witnessed.length} witnessed by an observed rejection, ` +
+        `${notNull.filter(e => e.constraintWitnessed.length > 0).length} of them through the constraint class (beside a passing control)\n` +
         `  nullable claims: ${claims.length - notNull.length} — ${falsified.length} falsified by a raise under a passing control\n` +
         `  of those, opaque: ${opaqueRaises.length} — raises OUTSIDE the contract, each with `+
         `\`@param-opaque\` and its raise observed\n` +

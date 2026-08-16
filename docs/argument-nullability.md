@@ -738,7 +738,7 @@ stands — enforced CHECKs and fed partition bounds over written
 values, rewrite gates intact — and must not grow toward a general
 will-this-fail analysis.
 
-## Witness classification for constraint-shaped raises (chartered 2026-08-16, NOT BUILT)
+## Witness classification for constraint-shaped raises (chartered 2026-08-16, BUILT 2026-08-16)
 
 The measured gap (post-landing review): the grounder's and the
 write-side bound rung's notNull claims raise `violates check
@@ -770,6 +770,46 @@ corpus-witnessable, and the missing param fixtures land WITH the
 rung as its acceptance. Guards: a class raise WITHOUT a succeeded
 control stays raised-other; every message outside the two keeps
 today's buckets.
+
+**As built (2026-08-16).** `CONSTRAINT_REJECTION` in `fixture-args.ts`,
+beside `NULL_REJECTION` and deliberately not merged with it. The two
+consumers take the control condition differently, which the pre-work
+settled: param-soundness evaluates it PER STATE (`witnessesNull(error,
+control.error === null)`, with the constraint-class states recorded
+separately so the suite can assert they are a subset of the states
+whose control passed — the guard, checkable rather than argued), while
+the probe harness has it STRUCTURALLY — its PostgreSQL half runs the
+all-valid binding first and returns before any variant when that
+raised, so no variant there can see a raise its control shared. Joint
+sets take the same widening in both. Pre-work (two pins,
+param-mechanism "Witness classification"): over one table, `(7, $1)`
+raises "violates check constraint" BECAUSE of the NULL while `(2, $1)`
+raises the identical text with the control raising beside it, and the
+partition bound behaves the same way — one message class, two causes,
+which is the whole reason the control may not be skipped. The
+separation is pinned in both directions in
+`builtin-null-rejection.test.ts` beside the derived-message tie: no
+derived builtin message matches the constraint class, and neither
+constraint message matches `NULL_REJECTION`.
+
+One thing the charter did not name blocked the fixtures too, measured
+while building: `param-nullability.test.ts` inferred with the
+evaluator OFF, and with no evaluator the grounder makes no claims at
+all — so a grounder-claimed parameter could not be annotated against
+the engine whatever the witness rules said. It now infers with
+`evaluate` live, the way the output-side fixture harnesses run the
+statement map; measured before flipping it, evaluator-on and
+evaluator-off agree on every claim and every rejection set over the 42
+parameterized fixtures that existed then, so the corpus moved not at
+all and only gained room. Acceptance: `param-check-grounded.sql`
+(Mechanism E — `seats <= 1 OR overflow_contact IS NOT NULL` grounded
+against a written 5) and `param-partition-bound-write.sql` (the
+write-side bound on `daily_metrics_q1`, whose key column is
+deliberately not declared NOT NULL), both red on the witness bar
+before the rung and both witnessed through the new class after it.
+`generated-soundness.test.ts` keeps its own narrower list untouched:
+its argument claims are at full witness coverage already, so nothing
+there was waiting on this.
 
 ## Where things are
 
