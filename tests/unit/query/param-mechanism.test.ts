@@ -1153,6 +1153,40 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(await first()).toBe(hashed);
   });
 
+  it("a VALUES body: no set-returning calls, equal row lengths, and COALESCE's unification", async () => {
+    // The widening's third clause, whose pre-work the charter made a gate:
+    // what the parser and deparser do with the shape. PostgreSQL forbids a
+    // set-returning call in VALUES outright, so a VALUES body can never be
+    // the pre-probe's business; unequal row lengths are refused before
+    // execution; and the column types unify by the same rule COALESCE uses,
+    // which is the one `closedCommonTypes` models.
+    expect(await errorOf("SELECT 1 IN (VALUES (generate_series(1,3)))", [])).toContain(
+      "set-returning functions are not allowed in VALUES",
+    );
+    expect(await errorOf("SELECT 1 IN (VALUES (1), (2,3))", [])).toContain(
+      "VALUES lists must all be the same length",
+    );
+    let probe = 0;
+    const resultType = async (sql: string): Promise<string> => {
+      const name = `values_probe_${probe++}`;
+      await pg.exec(`PREPARE ${name} AS ${sql}`);
+      const r = await pg.query<{ t: string }>(
+        `SELECT result_types::text AS t FROM pg_prepared_statements WHERE name = '${name}'`,
+      );
+      return r.rows[0]!.t;
+    };
+    expect(await resultType("SELECT * FROM (VALUES (1),(1.5)) q")).toBe(
+      await resultType("SELECT COALESCE(1, 1.5)"),
+    );
+    // Row order is the written order — a Values Scan has no deduplication
+    // to reorder it, which is why a LIMIT may slice it where a set
+    // operation's may not.
+    const first = await pg.query<{ column1: number }>(
+      "SELECT * FROM (VALUES (2),(1)) q LIMIT 1",
+    );
+    expect(first.rows[0]!.column1).toBe(2);
+  });
+
   it("an ANY/IN sublink early-exits on a MATCH; the no-match case is exhaustion", async () => {
     // The match answers immediately even at 10^10; answering FALSE is
     // information-theoretic exhaustion (linear, recorded — NOT executed
