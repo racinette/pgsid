@@ -747,6 +747,138 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(await partDef("pb_att")).toBeNull();
   });
 
+  // --- Write-side enforcement (the write-side rung's pre-work,
+  // docs/subtree-evaluation.md "Write-side rung"; the direct-INSERT case is
+  // pinned in the NULL-routing pins above). The grounder may feed a
+  // direct-named partition's bound for every DML shape it grounds: UPDATE,
+  // MERGE arms and ON CONFLICT enforce the bound on the new row exactly as
+  // direct INSERT does, per row on multi-row VALUES — and naming the PARENT
+  // enforces nothing, because routing moves the row instead.
+
+  it("UPDATE on a direct-named partition enforces the bound on the new row; the parent row-moves instead", async () => {
+    await pg.exec(`
+      CREATE TABLE pbw (id int, v text) PARTITION BY RANGE (id);
+      CREATE TABLE pbw_lo PARTITION OF pbw FOR VALUES FROM (0) TO (100);
+      CREATE TABLE pbw_hi PARTITION OF pbw FOR VALUES FROM (100) TO (200);
+      CREATE TABLE pbw_def PARTITION OF pbw DEFAULT;
+      CREATE UNIQUE INDEX pbw_lo_uq ON pbw_lo (id);
+      INSERT INTO pbw VALUES (10, 'a'), (150, 'b');
+    `);
+    expect(await errorOf("UPDATE pbw_lo SET id = 500 WHERE id = 10", [])).toContain(
+      "violates partition constraint",
+    );
+    expect(await errorOf("UPDATE pbw_lo SET id = $1 WHERE id = 10", [null])).toContain(
+      "violates partition constraint",
+    );
+    // An in-bound new row is taken (persists: errorOf rolls back).
+    const inBound = await pg.query<{ id: number }>(
+      "UPDATE pbw_lo SET id = 20 WHERE id = 10 RETURNING id",
+    );
+    expect(inBound.rows).toEqual([{ id: 20 }]);
+    // Naming the parent, the same new rows MOVE: into pbw_hi, NULL into
+    // DEFAULT — no raise anywhere, which is why parent writes need no gate.
+    const moved = await pg.query<{ part: string }>(
+      "UPDATE pbw SET id = 120 WHERE id = 20 RETURNING tableoid::regclass::text AS part",
+    );
+    expect(moved.rows.map(r => r.part)).toEqual(["pbw_hi"]);
+    const toNull = await pg.query<{ part: string }>(
+      "UPDATE pbw SET id = NULL WHERE id = 120 RETURNING tableoid::regclass::text AS part",
+    );
+    expect(toNull.rows.map(r => r.part)).toEqual(["pbw_def"]);
+  });
+
+  it("MERGE arms targeting a partition enforce the bound like their plain counterparts", async () => {
+    const mergeIns = (val: string) =>
+      `MERGE INTO pbw_lo t USING (VALUES (1)) s(x) ON t.id = 999` +
+      ` WHEN NOT MATCHED THEN INSERT (id, v) VALUES (${val}, 'm')`;
+    expect(await errorOf(mergeIns("$1"), [null])).toContain("violates partition constraint");
+    expect(await errorOf(mergeIns("500"), [])).toContain("violates partition constraint");
+    await pg.query(mergeIns("55")); // in-bound arm succeeds — and plants the matched row
+
+    const mergeUpd = (val: string) =>
+      `MERGE INTO pbw_lo t USING (VALUES (1)) s(x) ON t.id = 55` +
+      ` WHEN MATCHED THEN UPDATE SET id = ${val}`;
+    expect(await errorOf(mergeUpd("$1"), [null])).toContain("violates partition constraint");
+    expect(await errorOf(mergeUpd("500"), [])).toContain("violates partition constraint");
+  });
+
+  it("ON CONFLICT on a partition: the proposed row is bound-checked; the DO UPDATE arm raises only when the key would leave", async () => {
+    // The proposed INSERT row is checked before the arbiter ever looks.
+    expect(
+      await errorOf(
+        "INSERT INTO pbw_lo (id, v) VALUES ($1, 'x') ON CONFLICT (id) DO UPDATE SET v = 'y'",
+        [null],
+      ),
+    ).toContain("violates partition constraint");
+    // The update arm may move the key WITHIN the bound (persists: the MERGE
+    // pin planted 55)...
+    await pg.query(
+      "INSERT INTO pbw_lo (id, v) VALUES (55, 'x') ON CONFLICT (id) DO UPDATE SET id = 56",
+    );
+    // ...but a NULL or out-of-bound key raises when the arm runs — the row
+    // cannot leave its partition through ON CONFLICT.
+    expect(
+      await errorOf(
+        "INSERT INTO pbw_lo (id, v) VALUES (56, 'x') ON CONFLICT (id) DO UPDATE SET id = $1",
+        [null],
+      ),
+    ).toContain("invalid ON UPDATE specification");
+    expect(
+      await errorOf(
+        "INSERT INTO pbw_lo (id, v) VALUES (56, 'x') ON CONFLICT (id) DO UPDATE SET id = 500",
+        [],
+      ),
+    ).toContain("invalid ON UPDATE specification");
+    // No conflicting row → the arm never runs → no raise from its values:
+    // the arm's claims are existential, like every UPDATE claim.
+    expect(
+      await errorOf(
+        "INSERT INTO pbw_lo (id, v) VALUES (60, 'x') ON CONFLICT (id) DO UPDATE SET id = $1",
+        [null],
+      ),
+    ).toBeNull();
+  });
+
+  it("multi-row VALUES enforce the bound per row; one violating row rejects the whole statement", async () => {
+    // No BEGIN wrapper: the statement is its own transaction, so the zero
+    // count below is PostgreSQL's atomicity, not a harness rollback.
+    let error: string | null = null;
+    try {
+      await pg.query("INSERT INTO pbw_lo (id, v) VALUES (61, 'a'), ($1, 'b'), (62, 'c')", [null]);
+    } catch (e) {
+      error = (e as Error).message;
+    }
+    expect(error).toContain("violates partition constraint");
+    const kept = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM pbw_lo WHERE id IN (61, 62)",
+    );
+    expect(kept.rows[0]!.n).toBe(0);
+  });
+
+  it("an intermediate partition's own bound gates direct writes before routing — a DEFAULT child rescues nothing", async () => {
+    await pg.exec(`
+      CREATE TABLE pbn (id int, v text) PARTITION BY RANGE (id);
+      CREATE TABLE pbn_1 PARTITION OF pbn FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id);
+      CREATE TABLE pbn_1a PARTITION OF pbn_1 FOR VALUES FROM (0) TO (50);
+      CREATE TABLE pbn_1d PARTITION OF pbn_1 DEFAULT;
+    `);
+    expect(await errorOf("INSERT INTO pbn_1 (id, v) VALUES ($1, 'x')", [null])).toContain(
+      "violates partition constraint",
+    );
+    expect(await errorOf("INSERT INTO pbn_1 (id, v) VALUES (500, 'x')", [])).toContain(
+      "violates partition constraint",
+    );
+    // In-bound but outside every non-default child: the DEFAULT child takes
+    // it — the intermediate's own bound was the gate, not its children's.
+    const routed = await pg.query<{ part: string }>(
+      "INSERT INTO pbn_1 (id, v) VALUES (75, 'x') RETURNING tableoid::regclass::text AS part",
+    );
+    expect(routed.rows.map(r => r.part)).toEqual(["pbn_1d"]);
+    expect(await errorOf("UPDATE pbn_1 SET id = $1 WHERE id = 75", [null])).toContain(
+      "violates partition constraint",
+    );
+  });
+
   // --- Settings-independent datetime literals — design B's exhaustive sweep.
   //
   // docs/subtree-evaluation.md, "Settings-independent datetime literals": a
@@ -781,9 +913,10 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     // The admitted shapes: strict-ISO date and timestamp (T separator,
     // fractional seconds, omitted seconds, surrounding spaces, hour 24 and
     // a padded low year among the edges), and timestamptz WITH an explicit
-    // numeric offset. Non-padded '2020-1-2' is measured invariant too — a
-    // 4-digit leading year fixes the field roles — recorded for any future
-    // widening even though the first-wave regex stays padded-strict.
+    // numeric offset. Non-padded month/day is invariant — a 4-digit
+    // leading year fixes the field roles — and the widening landed
+    // (2026-08-16): one line per widened family below, mixed paddings
+    // included, since the regex language admits them all.
     const invariant: [label: string, expr: string][] = [
       ["date", "'2020-01-01'::date = make_date(2020,1,1)"],
       ["timestamp", "'2020-01-01 12:34:56'::timestamp = make_timestamp(2020,1,1,12,34,56)"],
@@ -798,6 +931,11 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
       ["tstz T-sep offset", "'2020-01-01T12:34:56+00'::timestamptz = make_timestamptz(2020,1,1,12,34,56,'UTC')"],
       ["surrounding spaces", "' 2020-01-01 '::date = make_date(2020,1,1)"],
       ["non-padded", "'2020-1-2'::date = make_date(2020,1,2)"],
+      ["non-padded ts", "'2020-1-2 12:34:56'::timestamp = make_timestamp(2020,1,2,12,34,56)"],
+      ["non-padded ts T-sep", "'2020-1-2T12:34'::timestamp = make_timestamp(2020,1,2,12,34,0)"],
+      ["non-padded tstz", "'2020-1-2 12:34:56+00'::timestamptz = make_timestamptz(2020,1,2,12,34,56,'UTC')"],
+      ["mixed padding day", "'2020-01-2'::date = make_date(2020,1,2)"],
+      ["mixed padding month", "'2020-1-02'::date = make_date(2020,1,2)"],
       ["padded low year", "'0020-01-02'::date = make_date(20,1,2)"],
       ["hour 24 rolls over", "'2020-01-01 24:00:00'::timestamp = make_timestamp(2020,1,2,0,0,0)"],
     ];
@@ -844,6 +982,70 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(bareUtc).not.toBe(bareNy);
     expect(fullUtc).toBe(fullNy);
     expect(fullUtc).toBe(bareUtc);
+  });
+
+  // --- Closed sublinks (docs/subtree-evaluation.md, "Closed sublinks").
+  //
+  // A sublink whose body references no tables, columns or parameters is a
+  // closed tree wearing subquery syntax. These pins hold the execution
+  // facts the rung's tiers rest on; the deparser-rendering pin lives in
+  // subtree-evaluator.test.ts beside the protocol.
+
+  it("a multi-row EXPR sublink raises — lazily, so the raise itself cannot exhaust", async () => {
+    // The raising-subtree fallback absorbs this: the erring subtree
+    // contributes nothing. Lazy: row two fires it, measured at 10^10.
+    expect(await errorOf("SELECT (SELECT x FROM (VALUES (1),(2)) t(x))", [])).toContain(
+      "more than one row returned by a subquery used as an expression",
+    );
+    expect(await errorOf("SELECT (SELECT generate_series(1, 10000000000))", [])).toContain(
+      "more than one row returned by a subquery used as an expression",
+    );
+    const one = await pg.query<{ r: number }>("SELECT (SELECT generate_series(1,1)) AS r");
+    expect(one.rows[0]).toEqual({ r: 1 });
+  });
+
+  it("EXISTS early-exits over an unbounded lazy body — no pre-probe needed", async () => {
+    // Exhausting 10^10 rows is ~27 minutes and allocation-until-death
+    // (recorded); the first row answers EXISTS and a zero-row series
+    // terminates immediately, so the question is bounded by construction.
+    const t = await pg.query<{ a: boolean; b: boolean }>(
+      "SELECT EXISTS (SELECT generate_series(1, 10000000000)) AS a," +
+        " EXISTS (SELECT generate_series(1, 0)) AS b",
+    );
+    expect(t.rows[0]).toEqual({ a: true, b: false });
+  });
+
+  it("EXISTS does not evaluate the body's target list", async () => {
+    const r = await pg.query<{ r: boolean }>("SELECT EXISTS (SELECT 1/0) AS r");
+    expect(r.rows[0]).toEqual({ r: true });
+  });
+
+  it("ProjectSet is lazy under LIMIT — the cardinality pre-probe's soundness", async () => {
+    // The pre-probe's own shape at 10^10 answers cap+1 without exhausting
+    // the series. Trap 1's counterpart is pinned as a PLAN shape, not an
+    // execution: FROM position plans a Function Scan, which PGlite
+    // MATERIALIZES — LIMIT does not bound it and no timer can cancel it —
+    // so the rung refuses those bodies outright and nothing here runs one.
+    const n = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM (SELECT generate_series(1, 10000000000) LIMIT 1001) q",
+    );
+    expect(n.rows[0]!.n).toBe(1001);
+    const tl = await pg.query<Record<string, string>>("EXPLAIN SELECT generate_series(1, 100)");
+    expect(String(Object.values(tl.rows[0]!)[0])).toContain("ProjectSet");
+    const fp = await pg.query<Record<string, string>>(
+      "EXPLAIN SELECT * FROM generate_series(1, 100)",
+    );
+    expect(String(Object.values(fp.rows[0]!)[0])).toContain("Function Scan");
+  });
+
+  it("an ANY/IN sublink early-exits on a MATCH; the no-match case is exhaustion", async () => {
+    // The match answers immediately even at 10^10; answering FALSE is
+    // information-theoretic exhaustion (linear, recorded — NOT executed
+    // here), which is why SRF bodies sit behind the cardinality pre-probe.
+    const m = await pg.query<{ r: boolean }>(
+      "SELECT 5 IN (SELECT generate_series(1, 10000000000)) AS r",
+    );
+    expect(m.rows[0]).toEqual({ r: true });
   });
 
   it("the bound holds TRUE per stored row, not merely notFALSE — the rendered shapes are total", async () => {
