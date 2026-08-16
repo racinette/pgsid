@@ -91,6 +91,15 @@ const SCHEMA = `
   -- List-membership subjects (the chartered rung): a CHECK IN-list, its
   -- integer twin, and an OR carrying a non-k arm; the list partitions
   -- above (plst_ab, plst_n) are the bound-side subjects.
+  -- Always-raises subjects (the chartered rung): two CHECKs, one violated
+  -- by a written literal; and the same shape behind a BEFORE ROW trigger
+  -- that rewrites the row into validity, where the flag must not fire.
+  CREATE TABLE t2 (a int, n text, CHECK (a > 5), CHECK (n IS NOT NULL));
+  CREATE TABLE hooked (a int, n text, CHECK (a > 5));
+  CREATE FUNCTION fix_a() RETURNS trigger LANGUAGE plpgsql
+    AS $$ BEGIN NEW.a := 9; RETURN NEW; END $$;
+  CREATE TRIGGER fix_a_t BEFORE INSERT ON hooked
+    FOR EACH ROW EXECUTE FUNCTION fix_a();
   CREATE TABLE lme (k text, note text, CHECK (k IN ('a', 'b')));
   CREATE TABLE lmei (n int, CHECK (n IN (1, 2)));
   CREATE TABLE lmor (k text, v int, CHECK (k = 'a' OR k = 'b' OR v > 10));
@@ -792,6 +801,71 @@ describe("guard-side IN (flipped 2026-08-16 — the rung landed)", () => {
     expect(await notNullOf(
       "SELECT CASE WHEN c.k IN ('q', NULL) THEN NULL ELSE 5 END AS r FROM lme c",
     )).toBe(false);
+  });
+});
+
+// --- The always-raises statement fact (chartered 2026-08-16). ----------------
+// docs/argument-nullability.md, "The always-raises statement fact": when a
+// grounded CHECK reduces to FALSE with no parameter left in it, the write
+// rejects on every execution — the empty implicant, which minimization
+// absorbs and the parameter contract then drops as vacuous. The rung
+// surfaces it as `QueryContract.alwaysRaises`, for UNIVERSAL write events
+// only: a VALUES row or a FROM-less INSERT ... SELECT is constructed by
+// every execution, while an UPDATE, a MERGE arm and an ON CONFLICT update
+// arm raise only when a row matches (pinned in param-mechanism). Every
+// case adjudicated 2026-08-16 by executing it with a valid binding and
+// with NULL: the targets raise under both, each guard raises under
+// neither.
+
+describe("always-raises (flipped 2026-08-16 — the rung landed)", () => {
+  it("a VALUES row whose CHECK grounds FALSE carries the flag", async () => {
+    const c = await contract("INSERT INTO t2 (a, n) VALUES (2, $1)");
+    expect(c.alwaysRaises).toBe(true);
+    // The absorbed claim stays absorbed — the flag is what explains the
+    // blank contract, and does not add a parameter fact.
+    expect(c.params[0]!.notNull).toBe(false);
+  });
+
+  it("ON CONFLICT does not make the insert's own row conditional", async () => {
+    // Measured: the proposed row's CHECK fires before the arbiter, so
+    // DO NOTHING does not rescue a violating row.
+    const c = await contract("INSERT INTO t2 (a, n) VALUES (2, $1) ON CONFLICT DO NOTHING");
+    expect(c.alwaysRaises).toBe(true);
+  });
+
+  it("the valid twin carries no flag and keeps its parameter claim", async () => {
+    const c = await contract("INSERT INTO t2 (a, n) VALUES (7, $1)");
+    expect(c.alwaysRaises).toBe(false);
+    expect(c.params[0]!.notNull).toBe(true);
+  });
+
+  it("GUARD: an UPDATE that matches no row must not claim", async () => {
+    // The assignment grounds FALSE, but the statement succeeds over an
+    // empty match (adjudicated) — an existential fact, not this one.
+    const c = await contract("UPDATE t2 SET a = 2, n = $1 WHERE a > 100");
+    expect(c.alwaysRaises).toBe(false);
+  });
+
+  it("GUARD: a MERGE insert arm must not claim", async () => {
+    const c = await contract(
+      "MERGE INTO t2 USING (SELECT 1 AS k WHERE false) s ON t2.a = s.k" +
+        " WHEN NOT MATCHED THEN INSERT (a, n) VALUES (2, $1)",
+    );
+    expect(c.alwaysRaises).toBe(false);
+  });
+
+  it("GUARD: an ON CONFLICT update arm must not claim", async () => {
+    const c = await contract(
+      "INSERT INTO t2 (a, n) VALUES (7, $1) ON CONFLICT (a) DO UPDATE SET a = 2",
+    );
+    expect(c.alwaysRaises).toBe(false);
+  });
+
+  it("GUARD: a BEFORE ROW trigger keeps the flag off — the row can be rewritten", async () => {
+    // fix_a() sets NEW.a := 9, so PostgreSQL accepts this insert under
+    // every binding (adjudicated). A flag here would be false, not eager.
+    const c = await contract("INSERT INTO hooked (a, n) VALUES (2, $1)");
+    expect(c.alwaysRaises).toBe(false);
   });
 });
 

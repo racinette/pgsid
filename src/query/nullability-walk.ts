@@ -157,6 +157,22 @@ export interface QueryContract {
    * field get exactly the flat per-column contract.
    */
   outputPresenceGroups: OutputPresenceGroup[];
+  /**
+   * The statement rejects on EVERY execution: an enforced CHECK grounds
+   * FALSE over values the statement writes unconditionally, with nothing
+   * left in the predicate that a binding could change
+   * (docs/argument-nullability.md, "The always-raises statement fact").
+   * Claimed only for UNIVERSAL write events — a VALUES row or a FROM-less
+   * `INSERT ... SELECT`, which every execution constructs; an UPDATE, a
+   * MERGE arm and an ON CONFLICT update arm raise only when a row matches,
+   * which is a weaker fact this flag does not carry. False is the
+   * no-information answer, as everywhere else in the contract: it does not
+   * promise the statement succeeds.
+   *
+   * Parameter claims under the flag are vacuous and stay absorbed — the
+   * flag is what explains a contract that would otherwise just be blank.
+   */
+  alwaysRaises: boolean;
 }
 
 /**
@@ -200,6 +216,7 @@ export async function inferQueryContract(
     params: facts.params,
     paramRejectionSets: facts.rejectionSets,
     outputPresenceGroups: engine.presenceGroups(),
+    alwaysRaises: mechanismE?.alwaysRaises ?? false,
   };
 }
 

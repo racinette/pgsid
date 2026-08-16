@@ -66,6 +66,9 @@ export type GrounderCatalog = NullabilityCatalog & SubtreeEvaluationCatalog;
 /** One enforced CHECK grounded with one written row's values. */
 export interface GroundedCheck {
   body: Node;
+  /** Whether the write event this came from happens on EVERY execution —
+   *  see `Write.universal`. Read only by the always-raises fact. */
+  universal: boolean;
 }
 
 // --- AST helpers (single-tag node objects, like the evaluator's) ------------
@@ -95,6 +98,20 @@ interface Write {
   schema: string;
   table: string;
   command: "insert" | "update";
+  /**
+   * Whether EVERY execution constructs this row: a VALUES row or a
+   * FROM-less `INSERT ... SELECT`. An UPDATE, a MERGE arm and an ON
+   * CONFLICT update arm write only when a row matches, and all three
+   * succeed over an empty match (pinned in param-mechanism.test.ts,
+   * "The always-raises statement fact"). An ON CONFLICT clause does NOT
+   * demote the insert's own row: the proposed row's CHECK is evaluated
+   * before the arbiter is consulted (pinned there too).
+   *
+   * Claims are unaffected either way — a claim is existential already, so
+   * "raises when a row matches" is exactly what it means. Only the
+   * always-raises fact reads this.
+   */
+  universal: boolean;
   /** column name → the expression the statement writes there, as written.
    *  DEFAULT (SetToDefault) never enters: it proves nothing. */
   written: Map<string, Node>;
@@ -114,6 +131,7 @@ function collectWrites(stmt: Node, catalog: GrounderCatalog): Write[] {
     relation: { schemaname?: string; relname?: string } | undefined,
     command: "insert" | "update",
     entries: Iterable<[string, Node | undefined]>,
+    universal = false,
   ): void => {
     if (!relation?.relname) return;
     const table = catalog.resolveTable(relation.schemaname, relation.relname);
@@ -139,7 +157,7 @@ function collectWrites(stmt: Node, catalog: GrounderCatalog): Write[] {
       if (!column || !value || isSetToDefault(value)) continue;
       written.set(column, value);
     }
-    writes.push({ schema: table.schema, table: table.name, command, written });
+    writes.push({ schema: table.schema, table: table.name, command, universal, written });
   };
 
   const insertColumns = (
@@ -187,7 +205,7 @@ function collectWrites(stmt: Node, catalog: GrounderCatalog): Write[] {
         const valuesLists = select["valuesLists"] as Node[] | undefined;
         for (const row of valuesLists ?? []) {
           const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
-          put(ins.relation, "insert", items.map((item, i) => [columns[i] ?? "", item]));
+          put(ins.relation, "insert", items.map((item, i) => [columns[i] ?? "", item]), true);
         }
         if (!valuesLists && select["op"] === "SETOP_NONE" && !select["fromClause"]) {
           // INSERT ... SELECT with no FROM constructs its one row exactly
@@ -201,6 +219,7 @@ function collectWrites(stmt: Node, catalog: GrounderCatalog): Write[] {
               columns[i] ?? "",
               (item as { ResTarget?: { val?: Node } }).ResTarget?.val,
             ]),
+            true,
           );
         }
       }
@@ -342,7 +361,7 @@ export async function groundEnforcedChecks(
       substitutions.set(column, { value, typeName });
     }
     for (const check of checks) {
-      grounded.push({ body: substitute(check, substitutions) });
+      grounded.push({ body: substitute(check, substitutions), universal: write.universal });
     }
   }
   return grounded;
@@ -479,8 +498,12 @@ function falseImplicants(
 /**
  * The claims of one statement's grounded CHECKs, from the evaluation
  * answers: singleton FALSE-implicants are notNull parameters, wider ones
- * joint rejection sets; the empty implicant (the write always raises) is a
- * true fact about the statement but not about any parameter, and drops.
+ * joint rejection sets; the empty implicant (this body is FALSE whatever
+ * is bound) is not a fact about any parameter and drops out of both — it
+ * surfaces instead as `alwaysRaises`, and only from a UNIVERSAL write
+ * event, since the same implicant off an UPDATE or a MERGE arm means
+ * "raises when a row matches" (docs/argument-nullability.md, "The
+ * always-raises statement fact").
  */
 export function groundedCheckClaims(
   checks: readonly GroundedCheck[],
@@ -488,12 +511,16 @@ export function groundedCheckClaims(
   catalog: NullabilityCatalog,
 ): MechanismEClaims {
   const all: Implicants = [];
+  let alwaysRaises = false;
   for (const check of checks) {
-    all.push(...falseImplicants(check.body, answers, catalog));
+    const implicants = falseImplicants(check.body, answers, catalog);
+    if (check.universal && implicants.some(s => s.length === 0)) alwaysRaises = true;
+    all.push(...implicants);
   }
   const minimized = minimizeImplicants(all);
   return {
     rejected: new Set(minimized.filter(s => s.length === 1).map(s => s[0]!)),
     joint: minimized.filter(s => s.length >= 2),
+    alwaysRaises,
   };
 }

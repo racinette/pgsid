@@ -110,6 +110,16 @@ export interface ProbeResult {
    */
   valueConditional: string[];
   /**
+   * The statement-level claim, falsified: the contract says this write
+   * rejects on EVERY execution (`QueryContract.alwaysRaises`,
+   * docs/argument-nullability.md) and the all-valid control wrote the row
+   * instead. Adjudicated by the control run the harness already makes —
+   * no extra execution, and the direction that would be expensive (proving
+   * a flagged statement never succeeds) is not the one a counterexample
+   * needs.
+   */
+  alwaysRaisesViolated: boolean;
+  /**
    * Witness accounting for the one-directional claims (§4: the instrument
    * makes no coverage claim, so an unwitnessed notNull is a COUNT, never a
    * finding). `raisedOther` is a raise the enumerated null-rejection list
@@ -164,6 +174,7 @@ export class ProbeLoop {
       paramRejectionSets: [],
       paramViolations: [],
       valueConditional: [],
+      alwaysRaisesViolated: false,
       paramWitness: {
         notNullWitnessed: [],
         notNullUnwitnessed: [],
@@ -197,6 +208,7 @@ export class ProbeLoop {
 
     // --- engine half -------------------------------------------------------
     let stmt;
+    let alwaysRaisesClaimed = false;
     try {
       const parsed = await parseSql(probe.sql);
       stmt = parsed.stmts![0]!.stmt!;
@@ -212,6 +224,7 @@ export class ProbeLoop {
       }));
       out.params = contract.params.map(p => ({ number: p.number, notNull: p.notNull }));
       out.paramRejectionSets = contract.paramRejectionSets.map(s => [...s]);
+      alwaysRaisesClaimed = contract.alwaysRaises;
       // Parity: the traced walk must reach the same columns and groups.
       const plain = await inferNullability(stmt, this.catalog, { paramTypes, evaluate });
       const traced = await inferNullabilityTraced(stmt, this.catalog, undefined, {
@@ -247,6 +260,10 @@ export class ProbeLoop {
       const res = await this.pg.query(probe.sql, probe.params ?? [], { rowMode: "array" });
       out.pgColumns = res.fields.map(f => f.name);
       out.rows = res.rows as unknown[][];
+      // The all-valid control just ran the statement to completion, which
+      // is the whole adjudication of `alwaysRaises`: a flagged statement
+      // that succeeds falsifies the claim outright.
+      if (alwaysRaisesClaimed) out.alwaysRaisesViolated = true;
     } catch (e) {
       out.pgError = (e as Error).message;
     } finally {

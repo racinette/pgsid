@@ -101,6 +101,8 @@ interface FixtureRun {
   claims: ParamClaim[];
   /** `-- @param-opaque N: reason` — a raise the contract does not claim. */
   opaque: Map<number, string>;
+  /** `-- @always-raises`: the control is expected to RAISE, not succeed. */
+  alwaysRaises: boolean;
   validArgs: unknown[];
   /** null until decided by the first control run. */
   mode: "protocol" | "literal" | null;
@@ -153,13 +155,15 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
       .filter(f => f.endsWith(".sql") && f !== "schema.sql")
       .sort()) {
       const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const { bindings, paramClaims, paramOpaque, rejectClaims } = parseFixtureDirectives(sql);
+      const { bindings, paramClaims, paramOpaque, rejectClaims, alwaysRaises } =
+        parseFixtureDirectives(sql);
       if (paramClaims.length === 0) continue;
       runs.push({
         name: basename(file, ".sql"),
         sql,
         claims: paramClaims,
         opaque: paramOpaque,
+        alwaysRaises,
         validArgs: validArgsFor(paramClaims, bindings.map(b => b.args)),
         mode: null,
         controlOk: [],
@@ -245,13 +249,33 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
       const run = runs.find(r => r.name === name);
       if (!run) return; // no parameters, nothing claimed
 
-      // A claim over a statement that never executes checks nothing.
-      expect(
-        run.controlOk.length,
-        `the all-valid control binding never succeeded, so no claim here is ` +
-          `checked against anything:\n  ` +
-          run.controlErrors.map(e => `[${e.state}] ${e.message}`).join("\n  "),
-      ).toBeGreaterThan(0);
+      if (run.alwaysRaises) {
+        // The inversion (docs/argument-nullability.md, "The always-raises
+        // statement fact"): this statement is claimed to reject on every
+        // execution, so a SUCCEEDING control would falsify the flag. The
+        // raise still has to be observed — an unraised @always-raises is a
+        // stale marker, the same bar @param-opaque and @no-rows set.
+        expect(
+          run.controlOk,
+          `fixture is marked @always-raises but the all-valid control ` +
+            `SUCCEEDED — the statement does not always raise, so the flag is ` +
+            `wrong`,
+        ).toEqual([]);
+        expect(
+          run.controlErrors.length,
+          `fixture is marked @always-raises but the control never raised ` +
+            `under any state (${stateNames.join(", ")}) — the flag has to be ` +
+            `observed, not asserted`,
+        ).toBeGreaterThan(0);
+      } else {
+        // A claim over a statement that never executes checks nothing.
+        expect(
+          run.controlOk.length,
+          `the all-valid control binding never succeeded, so no claim here is ` +
+            `checked against anything:\n  ` +
+            run.controlErrors.map(e => `[${e.state}] ${e.message}`).join("\n  "),
+        ).toBeGreaterThan(0);
+      }
 
       for (const ev of run.evidence) {
         if (ev.claim.notNull) {

@@ -74,6 +74,17 @@ export interface FixtureDirectives {
    */
   noRowsReason: string | null;
   /**
+   * `-- @always-raises`: the statement rejects on EVERY execution, whatever
+   * is bound — the engine's `QueryContract.alwaysRaises`, asserted here in
+   * both directions the way every other claim in the corpus is. It inverts
+   * one standing assumption: param-soundness normally REQUIRES the all-valid
+   * control to succeed, since a claim over a statement that never runs
+   * checks nothing. Under this flag the control is expected to raise, and
+   * the raise must be OBSERVED — the `@param-opaque` bar, so a stale flag
+   * fails instead of quietly excusing the fixture.
+   */
+  alwaysRaises: boolean;
+  /**
    * A substring every error such a fixture raises must contain.
    *
    * Returning no rows is not on its own evidence of anything: a false `WHERE`
@@ -155,6 +166,7 @@ export interface ParamClaim {
 
 const ARGS_RE = /^\s*--\s*@args\b(.*)$/;
 const NO_ROWS_RE = /^\s*--\s*@no-rows\b:?(.*)$/;
+const ALWAYS_RAISES_RE = /^\s*--\s*@always-raises\b:?(.*)$/;
 const RAISES_RE = /^\s*--\s*@raises\b:?(.*)$/;
 const PARAM_REJECT_RE = /^\s*--\s*@param-reject\b(.*)$/;
 const PARAM_RE = /^\s*--\s*@param\b(?!-)(.*)$/;
@@ -180,6 +192,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   const paramOpaque = new Map<number, string>();
   let noRowsReason: string | null = null;
   let raisesPattern: string | null = null;
+  let alwaysRaises = false;
 
   // The column index whose reason is still open, or null. Only the line
   // immediately following an @unwitnessable line (or one of its own
@@ -348,6 +361,11 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
       continue;
     }
 
+    if (ALWAYS_RAISES_RE.test(line)) {
+      alwaysRaises = true;
+      continue;
+    }
+
     const raisesMatch = RAISES_RE.exec(line);
     if (raisesMatch) {
       const pattern = raisesMatch[1]!.trim();
@@ -372,6 +390,19 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   }
   if (raisesPattern && !noRowsReason) {
     throw new Error("@raises is only meaningful on a fixture marked @no-rows");
+  }
+
+  // `@always-raises` is the statement-level claim (QueryContract.alwaysRaises,
+  // docs/argument-nullability.md): every execution rejects, whatever is bound.
+  // It therefore implies the two above — a statement that always raises never
+  // returns a row, and the refusal has to be OBSERVED rather than asserted,
+  // which is what @raises checks.
+  if (alwaysRaises && !noRowsReason) {
+    throw new Error(
+      "@always-raises must be accompanied by `-- @no-rows: <why>` and " +
+        "`-- @raises: <expected error text>`: the flag says every execution " +
+        "rejects, so the refusal is what the suites must see happen.",
+    );
   }
 
   // A reject set's members are by definition the CONDITIONALLY required
@@ -409,6 +440,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
     bindings,
     noRowsReason,
     raisesPattern,
+    alwaysRaises,
     paramClaims,
     paramOpaque,
     rejectClaims,

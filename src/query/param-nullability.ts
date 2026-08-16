@@ -1284,6 +1284,10 @@ export interface ParamFacts {
 export interface MechanismEClaims {
   rejected: ReadonlySet<number>;
   joint: readonly (readonly number[])[];
+  /** A universal write event's grounded CHECK is FALSE outright — the
+   *  statement rejects on every execution. Carried through to
+   *  `QueryContract.alwaysRaises`; no parameter fact rides on it. */
+  alwaysRaises: boolean;
 }
 
 /**
