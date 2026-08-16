@@ -66,6 +66,10 @@ const SCHEMA = `
   CREATE TABLE pb_nest (id int) PARTITION BY RANGE (id);
   CREATE TABLE pb_nest1 PARTITION OF pb_nest FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id);
   CREATE TABLE pb_nest1a PARTITION OF pb_nest1 FOR VALUES FROM (0) TO (50);
+  -- Witness-classification pins (docs/argument-nullability.md, "Witness
+  -- classification for constraint-shaped raises"): two CHECKs, one the
+  -- parameter can violate and one no binding can rescue.
+  CREATE TABLE wcls (a int, n text, CHECK (a > 5), CHECK (n IS NOT NULL));
 `;
 
 const DOMAIN_ERROR = "does not allow null values";
@@ -1112,5 +1116,47 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(c.rows[0]).toEqual({
       a_in: false, a_not_in: true, a_in_null: null, q_in_null: true, null_in: null,
     });
+  });
+
+  // --- Witness classification for constraint-shaped raises
+  // (docs/argument-nullability.md, section of the same name).
+  //
+  // A grounder or partition-bound claim is refused by a CONSTRAINT, so the
+  // raise names the constraint rather than the NULL. These pins are why the
+  // widened witness class may not read the message alone: the SAME message
+  // arrives whether the NULL caused the rejection or something else in the
+  // row did, and only the all-valid control tells them apart.
+
+  it("a CHECK the parameter violates and one it cannot rescue raise the same message", async () => {
+    // (7, $1): the row is valid but for the NULL — the control succeeds and
+    // the raise is about the binding. (2, $1): `a > 5` is already FALSE, so
+    // the control raises too and the NULL is not what rejected the row.
+    // Both messages read "violates check constraint".
+    expect(await errorOf("INSERT INTO wcls (a, n) VALUES (7, $1)", ["x"])).toBeNull();
+    expect(await errorOf("INSERT INTO wcls (a, n) VALUES (7, $1)", [null])).toContain(
+      "violates check constraint",
+    );
+    expect(await errorOf("INSERT INTO wcls (a, n) VALUES (2, $1)", ["x"])).toContain(
+      "violates check constraint",
+    );
+    expect(await errorOf("INSERT INTO wcls (a, n) VALUES (2, $1)", [null])).toContain(
+      "violates check constraint",
+    );
+  });
+
+  it("the partition bound behaves the same way — the message names the bound, not the binding", async () => {
+    // A NULL key is unroutable and a direct insert rejects it; an
+    // out-of-range key rejects for its own reason, with the control raising
+    // beside it. One message class, two causes.
+    expect(await errorOf("INSERT INTO pb_r1 (id, v) VALUES ($1, 'x')", [5])).toBeNull();
+    expect(await errorOf("INSERT INTO pb_r1 (id, v) VALUES ($1, 'x')", [null])).toContain(
+      "violates partition constraint",
+    );
+    expect(await errorOf("INSERT INTO pb_r1 (id, v) VALUES (500, $1)", ["x"])).toContain(
+      "violates partition constraint",
+    );
+    expect(await errorOf("INSERT INTO pb_r1 (id, v) VALUES (500, $1)", [null])).toContain(
+      "violates partition constraint",
+    );
   });
 });
