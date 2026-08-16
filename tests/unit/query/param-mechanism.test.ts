@@ -1045,6 +1045,54 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(String(Object.values(fp.rows[0]!)[0])).toContain("Function Scan");
   });
 
+  it("a set operation resolves its result type exactly as COALESCE does — the unifier the gate already owns", async () => {
+    // The body-clause widening's first clause (docs/subtree-evaluation.md,
+    // "Body-clause widening"): UNION/INTERSECT/EXCEPT unify their arms by
+    // the same "select a common type" rule the CASE/COALESCE gate models
+    // with `closedCommonTypes`. If a version ever moved one of the three
+    // off that rule, the widened gate would be predicting the wrong type.
+    let probe = 0;
+    const resultType = async (sql: string): Promise<string> => {
+      const name = `setop_probe_${probe++}`;
+      await pg.exec(`PREPARE ${name} AS ${sql}`);
+      const r = await pg.query<{ t: string }>(
+        `SELECT result_types::text AS t FROM pg_prepared_statements WHERE name = '${name}'`,
+      );
+      return r.rows[0]!.t;
+    };
+    for (const [a, b] of [
+      ["1", "2"], ["1", "1.5"], ["'a'", "'b'"], ["1", "NULL"],
+      ["1::int", "2::bigint"], ["'x'::text", "'y'::varchar"], ["1::float4", "2::float8"],
+    ] as const) {
+      const coalesce = await resultType(`SELECT COALESCE(${a}, ${b})`);
+      for (const op of ["UNION", "INTERSECT", "EXCEPT"]) {
+        expect(await resultType(`SELECT ${a} ${op} SELECT ${b}`), `${a} ${op} ${b}`).toBe(coalesce);
+      }
+    }
+  });
+
+  it("what a set-operation body can raise: DISTINCT needs equality, and arity must agree", async () => {
+    // Both land in the raising-subtree fallback rather than in a wrong
+    // answer — the erring subtree contributes nothing. The ALL twin is the
+    // control: deduplication is what demands the equality operator, so the
+    // raise is a property of the operation and not of the values.
+    expect(await errorOf("SELECT '{}'::json UNION SELECT '{}'::json", [])).toContain(
+      "could not identify an equality operator for type json",
+    );
+    expect(await errorOf("SELECT '{}'::json UNION ALL SELECT '{}'::json", [])).toBeNull();
+    expect(await errorOf("SELECT 1, 2 UNION SELECT 3", [])).toContain(
+      "each UNION query must have the same number of columns",
+    );
+    // And the row-count story is unchanged by the clause: an EXPR sublink
+    // over a two-row body raises, while UNION's own deduplication can make
+    // a two-arm body single-row.
+    expect(await errorOf("SELECT (SELECT 1 UNION ALL SELECT 2)", [])).toContain(
+      "more than one row returned by a subquery used as an expression",
+    );
+    const one = await pg.query<{ a: number }>("SELECT (SELECT 1 UNION SELECT 1) AS a");
+    expect(one.rows[0]).toEqual({ a: 1 });
+  });
+
   it("an ANY/IN sublink early-exits on a MATCH; the no-match case is exhaustion", async () => {
     // The match answers immediately even at 10^10; answering FALSE is
     // information-theoretic exhaustion (linear, recorded — NOT executed

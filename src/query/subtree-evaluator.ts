@@ -488,14 +488,23 @@ interface SublinkBody {
 }
 
 /**
- * The non-contextual sublink body of the first wave: a bare projection —
- * `SELECT <closed exprs>` with nothing else. Any FROM refuses (a relation
- * is context; a function scan is trap 1's materializing shape, refused
- * whatever the name); every other clause — WHERE, grouping, sorts, limits,
- * VALUES lists, set operations, WITH — is outside the wave, so an unknown
- * field present on the body refuses conservatively rather than by list.
+ * The non-contextual sublink body: a bare projection — `SELECT <closed
+ * exprs>` with nothing else — or a SET OPERATION over two such bodies
+ * (docs/subtree-evaluation.md, "Body-clause widening", first clause). Any
+ * FROM refuses (a relation is context; a function scan is trap 1's
+ * materializing shape, refused whatever the name); every other clause —
+ * WHERE, grouping, sorts, limits, VALUES lists, WITH — is outside the wave,
+ * so an unknown field present on the body refuses conservatively rather
+ * than by list.
  */
 const SUBLINK_BODY_FIELDS = new Set(["targetList", "op", "limitOption", "location"]);
+
+/** The set-operation body's own fields: the operator, its ALL flag and the
+ *  two arms. `targetList` is absent on a set-operation node — the arms
+ *  carry the projections. */
+const SUBLINK_SETOP_FIELDS = new Set(["op", "all", "larg", "rarg", "limitOption", "location"]);
+
+const SET_OPERATIONS = new Set(["SETOP_UNION", "SETOP_INTERSECT", "SETOP_EXCEPT"]);
 
 function closedSublinkBody(
   subselect: unknown,
@@ -503,7 +512,47 @@ function closedSublinkBody(
   memo: WeakMap<object, TypeSet | null>,
 ): SublinkBody | null {
   if (nodeTag(subselect) !== "SelectStmt") return null;
-  const s = fieldsOf(subselect, "SelectStmt");
+  return closedSelectBody(fieldsOf(subselect, "SelectStmt"), catalog, memo);
+}
+
+/**
+ * One body node's fields. A set operation's ARMS arrive UNWRAPPED — the
+ * parser stores a bare SelectStmt object in `larg`/`rarg`, not a tagged
+ * node (measured) — so the recursion takes fields, not nodes.
+ */
+function closedSelectBody(
+  s: Record<string, unknown>,
+  catalog: SubtreeEvaluationCatalog,
+  memo: WeakMap<object, TypeSet | null>,
+): SublinkBody | null {
+  if (typeof s.op === "string" && SET_OPERATIONS.has(s.op)) {
+    // Both arms pass the same gate, arities must agree, and the result
+    // columns unify through `closedCommonTypes` — measured to be exactly
+    // how PostgreSQL types all three operations, the same rule CASE and
+    // COALESCE already use here. ALL-vs-DISTINCT is a row-count question,
+    // not a closure one, so `all` rides either way; DISTINCT's equality
+    // requirement can raise, which the raising-subtree fallback absorbs.
+    for (const [key, value] of Object.entries(s)) {
+      if (SUBLINK_SETOP_FIELDS.has(key)) continue;
+      if (value === undefined || value === null || value === false) continue;
+      if (Array.isArray(value) && value.length === 0) continue;
+      return null;
+    }
+    if (s.limitOption !== undefined && s.limitOption !== "LIMIT_OPTION_DEFAULT") return null;
+    if (typeof s.larg !== "object" || s.larg === null) return null;
+    if (typeof s.rarg !== "object" || s.rarg === null) return null;
+    const left = closedSelectBody(s.larg as Record<string, unknown>, catalog, memo);
+    const right = closedSelectBody(s.rarg as Record<string, unknown>, catalog, memo);
+    if (left === null || right === null) return null;
+    if (left.targetSets.length !== right.targetSets.length) return null;
+    const targetSets: TypeSet[] = [];
+    for (let i = 0; i < left.targetSets.length; i++) {
+      const unified = catalog.closedCommonTypes([left.targetSets[i]!, right.targetSets[i]!]);
+      if (unified === null) return null;
+      targetSets.push(unified);
+    }
+    return { targetSets, hasSrf: left.hasSrf || right.hasSrf };
+  }
   for (const [key, value] of Object.entries(s)) {
     if (SUBLINK_BODY_FIELDS.has(key)) continue;
     if (value === undefined || value === null || value === false) continue;

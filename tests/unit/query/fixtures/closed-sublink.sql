@@ -9,8 +9,20 @@
 -- witness that refusing must not be mistaken for FALSE — and the
 -- correlated body is the no-query-context wall itself, TRUE per row over
 -- the NOT NULL key.
+--
+-- Body-clause widening, first clause (landed 2026-08-16): a SET OPERATION
+-- over two closed arms is closed too — UNION's deduplication is what keeps
+-- the EXPR body single-row here. Its guard is the wall again, one level
+-- deeper: a correlated ARM keeps the whole body open, and t.id is in the
+-- membership on every row, so the NULL arm fires and witnesses it.
 SELECT
   CASE WHEN (SELECT 7) = 7 THEN t.id ELSE NULL END AS closed_expr,     -- @notNull
+  CASE WHEN (SELECT 1 UNION SELECT 1) = 1
+       THEN t.id ELSE NULL END AS setop_expr,                          -- @notNull
+  CASE WHEN 5 IN (SELECT 5 UNION SELECT 6)
+       THEN t.id ELSE NULL END AS setop_membership,                    -- @notNull
+  CASE WHEN t.id IN (SELECT t.id UNION SELECT 9)
+       THEN NULL ELSE 5 END AS setop_correlated_kept,                  -- @nullable
   CASE WHEN 5 IN (SELECT generate_series(1, 8))
        THEN t.id ELSE NULL END AS srf_probed,                          -- @notNull
   CASE WHEN EXISTS (SELECT generate_series(1, 10000000000))
