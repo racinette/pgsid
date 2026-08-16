@@ -278,10 +278,31 @@ describe("closure gates", () => {
     expect(await open("SELECT concat('a', 'b') AS g")).toBe(true); // stable
   });
 
-  it("a stable input function keeps the literal cast open", async () => {
+  it("a stable input function keeps the literal cast open — unless the shape gate answers", async () => {
+    // Design B (docs/subtree-evaluation.md, "Settings-independent datetime
+    // literals"): 'now' and the interval fail the value-shape test and stay
+    // fully open; '2020-01-01'::date CLOSES as a member (the swept ISO
+    // shape) but never collects alone — date_out reads DateStyle, and the
+    // rendering gate is untouched. The comparison shows the member side:
+    // both casts close, the boolean answers, no datetime crosses the wire.
     expect(await open("SELECT 'now'::timestamptz AS g")).toBe(true);
-    expect(await open("SELECT '2020-01-01'::date AS g")).toBe(true);
     expect(await open("SELECT interval '1 day' AS g")).toBe(true);
+    expect(await open("SELECT '2020-01-01'::date AS g")).toBe(true);
+    expect(await answers("SELECT '2020-01-01'::date < '2020-06-01'::date AS g")).toEqual([
+      { isNull: false, value: true, type: "boolean" },
+    ]);
+    // The ambiguous form fails by shape, exactly as 'now' does; a typmod
+    // spelling is outside the swept language and stays open too.
+    expect(await open("SELECT '1/2/2020'::date < '2020-06-01'::date AS g")).toBe(true);
+    expect(await open("SELECT '2020-01-01 12:34:56'::timestamp(0) < '2021-01-01'::timestamp AS g")).toBe(true);
+    // timestamptz closes ONLY with an explicit numeric offset: the
+    // offset-less spelling reads TimeZone (measured, param-mechanism).
+    expect(await answers(
+      "SELECT '2020-01-01T12:34:56+00'::timestamptz < '2021-01-01 00:00:00+00'::timestamptz AS g",
+    )).toEqual([{ isNull: false, value: true, type: "boolean" }]);
+    expect(await open(
+      "SELECT '2020-01-01 12:34:56'::timestamptz < '2021-01-01 00:00:00+00'::timestamptz AS g",
+    )).toBe(true);
   });
 
   it("a computed cast argument is open even to an immutable-I/O target", async () => {

@@ -302,6 +302,40 @@ export async function buildNullabilityCatalog(
         // Unparseable definition → the constraint contributes no facts.
       }
     }
+    // Partition bounds enter HERE, at validated-CHECK grade, scan-side only
+    // (docs/subtree-evaluation.md, "Partition-bound facts"): routing,
+    // direct-insert rejection and ATTACH validation enforce the bound on
+    // every stored row of the relation's subtree (pinned in
+    // param-mechanism), so both scan faces take it — the tree face too,
+    // because a partitioned partition's own bound holds for every leaf row
+    // under it (a nested leaf renders the whole ancestor conjunction,
+    // measured). NOT the enforced list: the first wave feeds scans only,
+    // and the write side waits for its own charter. Refused by shape:
+    // DEFAULT partitions (negated-union bounds) and hash bounds (a
+    // satisfies_hash_partition call over a database-local OID).
+    if (
+      t.partitionBound &&
+      !t.partitionBound.isDefault &&
+      (t.partitionBound.strategy === "range" || t.partitionBound.strategy === "list")
+    ) {
+      try {
+        const parsed = await parseSql(
+          `ALTER TABLE _pgsid_check_host ADD CONSTRAINT _pgsid_check CHECK ${t.partitionBound.definition}`,
+        );
+        const alter = (parsed.stmts?.[0]?.stmt as Record<string, unknown> | undefined)?.[
+          "AlterTableStmt"
+        ] as { cmds?: { AlterTableCmd?: { def?: Node } }[] } | undefined;
+        const constraint = (alter?.cmds?.[0]?.AlterTableCmd?.def as
+          | { Constraint?: { contype?: string; raw_expr?: Node } }
+          | undefined)?.Constraint;
+        if (constraint?.contype === "CONSTR_CHECK" && constraint.raw_expr) {
+          exprs.push(constraint.raw_expr);
+          treeExprs.push(constraint.raw_expr);
+        }
+      } catch {
+        // Unparseable rendering → no fact, the safe direction.
+      }
+    }
     if (exprs.length > 0) checkExprAsts.set(`${t.schema}.${t.name}`, exprs);
     if (treeExprs.length > 0) checkExprTreeAsts.set(`${t.schema}.${t.name}`, treeExprs);
     if (enforcedExprs.length > 0) enforcedCheckAsts.set(`${t.schema}.${t.name}`, enforcedExprs);
@@ -1999,6 +2033,27 @@ export async function buildNullabilityCatalog(
       ? normalizeTypeName(typeName)
       : (admissibleUserCasts.get(typeName) ?? null);
 
+  /** Design B's family gate: the three names whose casts the evaluator may
+   *  admit by value SHAPE (docs/subtree-evaluation.md, "Settings-
+   *  independent datetime literals"). Family from the ALIAS-normalized
+   *  rendering, so `timestamptz` and `timestamp with time zone` answer
+   *  alike; a user type shadowing the spelling disqualifies it. */
+  const closedDatetimeCastTarget = (
+    typeName: string,
+  ): { family: "date" | "timestamp" | "timestamptz"; rendered: string } | null => {
+    if (evalUserTypeNames.has(typeName)) return null;
+    const rendered = normalizeTypeName(typeName);
+    const family =
+      rendered === "date"
+        ? ("date" as const)
+        : rendered === "timestamp without time zone"
+          ? ("timestamp" as const)
+          : rendered === "timestamp with time zone"
+            ? ("timestamptz" as const)
+            : null;
+    return family === null ? null : { family, rendered };
+  };
+
   /** May a value RENDERED as `typeName` (format spelling) cross the wire
    *  to the driver session-independently? Immutable-I/O scalars and arrays
    *  over them — first-wave admissible user types included (their output
@@ -2050,6 +2105,7 @@ export async function buildNullabilityCatalog(
       closedFunctionTypes,
       closedCommonTypes,
       closedCastTargetType,
+      closedDatetimeCastTarget,
       isImmutableIoRendering,
       resolveEnforcedCheckConstraints,
       resolveColumnCollationDeterministic,
@@ -2244,6 +2300,7 @@ export async function buildNullabilityCatalog(
     closedFunctionTypes,
     closedCommonTypes,
     closedCastTargetType,
+    closedDatetimeCastTarget,
     isImmutableIoRendering,
     isBuiltinFunction,
     isPolymorphicBuiltin,

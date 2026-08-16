@@ -67,6 +67,27 @@ const SCHEMA = `
   CREATE TABLE stxc (s text COLLATE "C", CHECK (s > 'm'));
   CREATE TABLE stxeq (s text COLLATE "C", CHECK (s = 'alpha'));
   CREATE TABLE dtc (d date, CHECK (d > '2020-01-01'));
+  -- Partition-bound subjects (the chartered rung): an integer-range family
+  -- with a DEFAULT partition, a list family with a NULL-listing partition,
+  -- a hash family. The bound is the ONLY fact anywhere here — no column is
+  -- declared NOT NULL and no CHECK exists.
+  CREATE TABLE prt (id int, note text) PARTITION BY RANGE (id);
+  CREATE TABLE prt_lo PARTITION OF prt FOR VALUES FROM (0) TO (100);
+  CREATE TABLE prt_hi PARTITION OF prt FOR VALUES FROM (100) TO (200);
+  CREATE TABLE prt_def PARTITION OF prt DEFAULT;
+  CREATE TABLE plst (k text, note text) PARTITION BY LIST (k);
+  CREATE TABLE plst_ab PARTITION OF plst FOR VALUES IN ('a', 'b');
+  CREATE TABLE plst_n PARTITION OF plst FOR VALUES IN (NULL, 'z');
+  CREATE TABLE phsh (id int) PARTITION BY HASH (id);
+  CREATE TABLE phsh_0 PARTITION OF phsh FOR VALUES WITH (MODULUS 2, REMAINDER 0);
+  CREATE TABLE phsh_1 PARTITION OF phsh FOR VALUES WITH (MODULUS 2, REMAINDER 1);
+  -- A range partition UNDER a hash parent: the leaf's rendered bound
+  -- carries the ancestor's satisfies_hash_partition conjunct in front.
+  CREATE TABLE hn (id int, v text) PARTITION BY HASH (id);
+  CREATE TABLE hn_0 PARTITION OF hn FOR VALUES WITH (MODULUS 2, REMAINDER 0)
+    PARTITION BY RANGE (id);
+  CREATE TABLE hn_0_lo PARTITION OF hn_0 FOR VALUES FROM (0) TO (100);
+  CREATE TABLE hn_1 PARTITION OF hn FOR VALUES WITH (MODULUS 2, REMAINDER 1);
 `;
 
 beforeAll(async () => {
@@ -279,11 +300,22 @@ describe("entailment (flipped 2026-08-12 — the recorded later landed)", () => 
     expect(c.outputs[0]!.notNull).toBe(true);
   });
 
-  it("GUARD: a datetime column's comparison is never evaluated", async () => {
-    // The claim would be TRUE for stored rows, but date_in reads DateStyle
-    // — the closure gate refuses the question, and the engine stays at
-    // today's word rather than answer from session state.
+  it("a strict-ISO datetime equality grounds (flipped 2026-08-16 — design B landed)", async () => {
+    // Formerly the datetime refusal guard. The value-SHAPE gate admits
+    // '2020-01-01': its spelling fixes every field's role, pinned invariant
+    // under the exhaustive DateStyle sweep — so the grounding closes,
+    // (FALSE OR x IS NOT NULL) forces the null-test, and the claim the old
+    // guard called true is now taken. The ambiguous-form refusal moved to
+    // the '1/2/2020' guard below.
     const c = await contract("SELECT x AS c FROM dt WHERE d = '2020-01-01'");
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+
+  it("GUARD: an ambiguous-form datetime literal still refuses", async () => {
+    // '1/2/2020' reads Jan 2 under MDY, Feb 1 under DMY, raises under YMD
+    // (measured): the shape test fails and no grounding closes, however
+    // true the claim happens to be under the analysis session's setting.
+    const c = await contract("SELECT x AS c FROM dt WHERE d = '1/2/2020'");
     expect(c.outputs[0]!.notNull).toBe(false);
   });
 });
@@ -464,12 +496,117 @@ describe("interval exclusivity (flipped 2026-08-12 — the chartered rung landed
     )).toBe(false);
   });
 
-  it("GUARD: datetime anchors stay refused", async () => {
-    // Also a true claim, also refused: date_in reads DateStyle, so the
-    // anchor question never closes.
+  it("ISO datetime anchors order (flipped 2026-08-16 — design B landed)", async () => {
+    // Formerly the datetime refusal guard. Both anchors pass the shape
+    // test, the anchor question closes ('2019-06-01' < '2020-01-01' under
+    // every DateStyle — the sweep is the pin), and (-inf, 2019-06-01]
+    // misses (2020-01-01, inf). The refusal lives on in the ambiguous
+    // form: '1/2/2020' fails the shape test and its anchor never orders.
     expect(await notNullOf(
       "SELECT CASE WHEN c.d <= '2019-06-01' THEN NULL ELSE 5 END AS r FROM dtc c",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.d <= '1/2/2020' THEN NULL ELSE 5 END AS r FROM dtc c",
     )).toBe(false);
+  });
+});
+
+// --- Partition-bound facts (chartered 2026-08-12). ---------------------------
+// docs/subtree-evaluation.md, "Partition-bound facts": a non-default
+// partition's rendered bound (pg_get_partition_constraintdef) enters the
+// kernel as a validated-CHECK-grade fact on DIRECT scans of the partition.
+// Every target was adjudicated 2026-08-16 over routed boundary data
+// (0/99 in prt_lo, 100/150/199 in prt_hi, NULL and 500 in prt_def; 'a'/'b'
+// in plst_ab, NULL/'z' in plst_n; NULL hashes into phsh_0), and each
+// target's conclusion was verified reachable through the EXISTING CHECK
+// machinery by running the rendered bound as a plain CHECK body — feeding
+// is the whole build. List point exclusion (`k = 'q'` against
+// `= ANY ('{a,b}')`) is NOT among the targets: the subset rule draws no
+// such conclusion from a CHECK today, and this rung adds no machinery.
+
+describe("partition bounds (flipped 2026-08-16 — the chartered rung landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("a range bound refutes a guard's interval on a direct partition scan", async () => {
+    // TRUE-per-row (id IS NOT NULL AND id >= 0 AND id < 100) refutes
+    // id >= 150: (-inf,100) and [150,inf) share nothing. Oracle: rows 0 and
+    // 99, the arm never fires.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.id >= 150 THEN NULL ELSE 5 END AS r FROM prt_lo c",
+    )).toBe(true);
+  });
+
+  it("a direct range-partition scan gets the key's notNull from the bound's prefix", async () => {
+    expect(await notNullOf("SELECT c.id AS r FROM prt_lo c")).toBe(true);
+  });
+
+  it("a direct list-partition scan gets the key's notNull likewise", async () => {
+    // ((k IS NOT NULL) AND (k = ANY (ARRAY['a','b']))) — the prefix claims;
+    // the ANY arrives as an OR-fact for whatever the subset rule consumes.
+    expect(await notNullOf("SELECT c.k AS r FROM plst_ab c")).toBe(true);
+  });
+
+  it("GUARD: bounds never leak to a parent scan", async () => {
+    // A tree scan reads every partition; only the union holds, and the
+    // union says nothing. NULL witnessed: the routed NULL row in prt_def,
+    // and rows 150/199/500 fire the interval arm.
+    expect(await notNullOf("SELECT c.id AS r FROM prt c")).toBe(false);
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.id >= 150 THEN NULL ELSE 5 END AS r FROM prt c",
+    )).toBe(false);
+  });
+
+  it("GUARD: a DEFAULT partition's negated-union bound is refused", async () => {
+    // prt_def holds the routed NULL row — its bound must claim nothing.
+    expect(await notNullOf("SELECT c.id AS r FROM prt_def c")).toBe(false);
+  });
+
+  it("GUARD: a NULL-listing list partition's key stays nullable", async () => {
+    // ((k IS NULL) OR (k = 'z')) has no notNull to give — and plst_n holds
+    // the routed NULL. A claim here means the feed ignored the bound's
+    // shape and pattern-matched on \"list partition\".
+    expect(await notNullOf("SELECT c.k AS r FROM plst_n c")).toBe(false);
+  });
+
+  it("GUARD: a hash partition's bound is refused", async () => {
+    // satisfies_hash_partition over a database-local OID — no shape, and
+    // phsh_0 holds the routed NULL (measured: NULL hashes to remainder 0).
+    expect(await notNullOf("SELECT c.id AS r FROM phsh_0 c")).toBe(false);
+  });
+
+  it("GUARD: an overlapping guard claims nothing from the bound", async () => {
+    // (-inf,100) and [50,inf) share [50,100); row 99 fires the arm. The
+    // boundary exactness the interval machinery keeps for CHECKs must
+    // survive the bound channel unchanged.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.id >= 50 THEN NULL ELSE 5 END AS r FROM prt_lo c",
+    )).toBe(false);
+  });
+
+  it("a range partition under a HASH parent feeds; the hash conjunct is inert", async () => {
+    // Measured 2026-08-16: hn_0_lo renders (satisfies_hash_partition(…)
+    // AND (id IS NOT NULL) AND (id >= 0) AND (id < 100)) and its immediate
+    // strategy reads 'r', so the gate takes it. The range conjuncts claim;
+    // the opaque hash conjunct decomposes to nothing — a true fact with no
+    // shape, sound to carry. Adjudicated over routed rows {2, 50}: no arm
+    // fires for the claims, id = 50 fires the overlap arm, and the
+    // mid-level hash partition still claims nothing.
+    expect(await notNullOf("SELECT t.id AS r FROM hn_0_lo t")).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN t.id >= 150 THEN NULL ELSE 5 END AS r FROM hn_0_lo t",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN t.id >= 50 THEN NULL ELSE 5 END AS r FROM hn_0_lo t",
+    )).toBe(false);
+    expect(await notNullOf("SELECT t.id AS r FROM hn_1 t")).toBe(false);
+  });
+
+  it("GUARD: the write side stays out of the first wave", async () => {
+    // PostgreSQL DOES raise here (binding NULL violates the partition
+    // constraint — pinned in param-mechanism), but the charter feeds
+    // scans only; the param claim waits for a chartered write-side rung.
+    const c = await contract("INSERT INTO prt_lo (id, note) VALUES ($1, 'x')");
+    expect(c.params[0]!.notNull).toBe(false);
   });
 });
 

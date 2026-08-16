@@ -783,9 +783,12 @@ CREATE TABLE bcorr (
 -- "Interval exclusivity over btree strategies"), one table per shape the
 -- emptiness algebra distinguishes, with data whose BOUNDARY rows are the
 -- witnesses the guard columns need (g = 5 fires `g <= 5`; NaN satisfies
--- `f > 5` under btree order). stx and dtc exist for the REFUSAL records:
--- their claims would be true, and the collation and datetime gates must
--- keep refusing them — held by @unwitnessable annotations, not silence.
+-- `f > 5` under btree order). stx exists for the REFUSAL record: its
+-- claim would be true, and the collation gate must keep refusing it —
+-- held by an @unwitnessable annotation, not silence. ivdt's record
+-- FLIPPED when design B landed (2026-08-16): its ISO anchors order
+-- (check-interval-datetime.sql) and the refusal lives on in the
+-- ambiguous-form column there.
 CREATE TABLE ivp (p int, CHECK (p = 5));
 CREATE TABLE ivge (g int, CHECK (g >= 5));
 CREATE TABLE ivf (f float8, CHECK (f > 5));
@@ -795,6 +798,18 @@ CREATE TABLE ivstx (s text, CHECK (s > 'm'));
 CREATE TABLE ivstxc (s text COLLATE "C", CHECK (s > 'm'));
 CREATE TABLE ivstxeq (s text COLLATE "C", CHECK (s = 'alpha'));
 CREATE TABLE ivdt (d date, CHECK (d > '2020-01-01'));
+
+-- A metrics log partitioned by DATE range — the single most common
+-- real-world source of constant-date constraints, and the argued-real
+-- ground where the partition-bound and datetime rungs compose
+-- (docs/subtree-evaluation.md, both charters): the bound renders its
+-- anchors as ISO-shaped date casts, the value-shape gate admits them,
+-- and a direct partition scan orders date anchors. `day` is deliberately
+-- NOT declared NOT NULL: its notNull on direct scans is the bound's own
+-- claim, which the integer families' declared keys could not witness.
+CREATE TABLE daily_metrics (day date, v integer) PARTITION BY RANGE (day);
+CREATE TABLE daily_metrics_q1 PARTITION OF daily_metrics FOR VALUES FROM ('2024-01-01') TO ('2024-04-01');
+CREATE TABLE daily_metrics_q2 PARTITION OF daily_metrics FOR VALUES FROM ('2024-04-01') TO ('2024-07-01');
 
 -- ---------------------------------------------------------------------------
 -- Collation-gated distinctness (Wave 9).

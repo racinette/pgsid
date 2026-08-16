@@ -42,7 +42,11 @@ function table(
   schema: string,
   name: string,
   columns: ColumnInfo[],
-  extra: { constraints?: ConstraintInfo[]; storageParams?: Record<string, string> } = {},
+  extra: {
+    constraints?: ConstraintInfo[];
+    storageParams?: Record<string, string>;
+    partitionBound?: TableInfo["partitionBound"];
+  } = {},
 ): TableInfo {
   return {
     schema,
@@ -54,6 +58,7 @@ function table(
     writeRewritesTree: { beforeRow: [], insteadOf: [], insteadRules: [] },
     hasDescendants: false,
     relkind: "r",
+    partitionBound: extra.partitionBound ?? null,
   };
 }
 
@@ -140,6 +145,25 @@ describe("diffCatalogs: tables", () => {
     const after = snapshot({ tables: [table("public", "t", [col({ name: "id" })], { constraints: [c2] })] });
     const diff = diffCatalogs(before, after);
     expect(diff.modified.map(m => m.entityId)).toEqual(["public.t"]);
+  });
+
+  it("partition bound change → table modified; unchanged bound → no diff", () => {
+    // ATTACH at a different bound (DETACH + re-ATTACH renders a new
+    // definition) must invalidate queries scanning the partition — the
+    // bound is a fact the nullability engine reads like a validated CHECK.
+    const b1: TableInfo["partitionBound"] = {
+      strategy: "range", isDefault: false,
+      definition: "((id IS NOT NULL) AND (id >= 0) AND (id < 100))",
+    };
+    const b2: TableInfo["partitionBound"] = {
+      ...b1, definition: "((id IS NOT NULL) AND (id >= 0) AND (id < 200))",
+    };
+    const at = (bound: TableInfo["partitionBound"]) =>
+      snapshot({ tables: [table("public", "t", [col({ name: "id" })], { partitionBound: bound })] });
+    expect(diffCatalogs(at(b1), at(b2)).modified.map(m => m.entityId)).toEqual(["public.t"]);
+    expect(diffCatalogs(at(b1), at({ ...b1 })).modified).toEqual([]);
+    // DETACH clears the bound — also a modification.
+    expect(diffCatalogs(at(b1), at(null)).modified.map(m => m.entityId)).toEqual(["public.t"]);
   });
 });
 

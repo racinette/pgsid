@@ -20,6 +20,7 @@ import type {
   FunctionInfo,
   ArgMode,
   IndexInfo,
+  PartitionBoundInfo,
   SchemaInfo,
   SequenceInfo,
   TableInfo,
@@ -548,6 +549,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     inheritsRows,
     triggerRows,
     rewriteRuleRows,
+    partitionBoundRows,
   ] = await Promise.all([
     queryTypeNames(pg),
     queryTables(pg),
@@ -589,6 +591,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryInherits(pg),
     queryTriggers(pg),
     queryRewriteRules(pg),
+    queryPartitionBounds(pg),
   ]);
 
   // Global type-name map (oid → format_type name) for resolving arg OIDs.
@@ -785,6 +788,23 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   };
 
   // --- Tables. ---
+  const PART_STRATEGIES: Record<string, PartitionBoundInfo["strategy"]> = {
+    r: "range",
+    l: "list",
+    h: "hash",
+  };
+  const partitionBoundByRel = new Map<number, PartitionBoundInfo>();
+  for (const b of partitionBoundRows) {
+    const strategy = PART_STRATEGIES[b.strategy];
+    // An unknown strategy or a NULL rendering contributes no capture — an
+    // uncaptured bound is refused downstream, the safe direction.
+    if (!strategy || b.definition === null) continue;
+    partitionBoundByRel.set(b.oid, {
+      strategy,
+      isDefault: b.is_default,
+      definition: b.definition,
+    });
+  }
   const tables: TableInfo[] = tableRows.map(t => ({
     schema: t.schema,
     name: t.name,
@@ -795,6 +815,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     writeRewrites: writeRewritesFor(t.oid),
     writeRewritesTree: writeRewritesTreeFor(t.oid),
     hasDescendants: childrenOf.has(t.oid),
+    partitionBound: partitionBoundByRel.get(t.oid) ?? null,
   })).sort(bySchemaName);
 
   // For views/matviews we need their column lists. The view-definition
@@ -1069,6 +1090,36 @@ async function queryTables(pg: PGlite): Promise<TableRow[]> {
      JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relkind IN ('r', 'p', 'f') AND ${USER_NS}
      ORDER BY n.nspname, c.relname;`,
+  );
+  return res.rows;
+}
+
+interface PartitionBoundRow {
+  oid: number;
+  strategy: string;
+  is_default: boolean;
+  definition: string | null;
+}
+
+/**
+ * One row per PARTITION (relispartition): how its immediate parent
+ * partitions, whether it is the parent's DEFAULT partition
+ * (pg_partitioned_table.partdefid), and the bound as the boolean
+ * expression PostgreSQL enforces. Captured for every strategy; the
+ * adapter gates which become facts. pg_get_partition_constraintdef
+ * returns NULL only for non-partitions (measured), so a NULL definition
+ * here just drops the row.
+ */
+async function queryPartitionBounds(pg: PGlite): Promise<PartitionBoundRow[]> {
+  const res = await pg.query<PartitionBoundRow>(
+    `SELECT c.oid, pt.partstrat AS strategy,
+            c.oid = pt.partdefid AS is_default,
+            pg_get_partition_constraintdef(c.oid) AS definition
+     FROM pg_class c
+     JOIN pg_namespace n ON n.oid = c.relnamespace
+     JOIN pg_inherits i ON i.inhrelid = c.oid
+     JOIN pg_partitioned_table pt ON pt.partrelid = i.inhparent
+     WHERE c.relispartition AND c.relkind IN ('r', 'p', 'f') AND ${USER_NS};`,
   );
   return res.rows;
 }

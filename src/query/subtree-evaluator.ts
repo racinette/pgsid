@@ -114,6 +114,32 @@ type TypeSet = string[];
 
 const isUnknownSet = (s: TypeSet): boolean => s.length === 1 && s[0] === UNKNOWN_TYPE;
 
+// --- Design B: the value-SHAPE gate over datetime literals -------------------
+//
+// docs/subtree-evaluation.md, "Settings-independent datetime literals": the
+// datetime input functions read DateStyle/TimeZone, so their casts fail the
+// immutable-I/O gate — but a spelling that fixes every FIELD'S ROLE parses
+// identically under each of the finitely many DateStyle values, and that
+// invariance is pinned EXHAUSTIVELY (param-mechanism, the order/style
+// product), not assumed. Strict ISO: 4-digit year (two-digit-leading forms
+// are order-dependent — measured), padded month/day, 'T' or space
+// separator, optional seconds/fraction, optional surrounding spaces;
+// timestamptz REQUIRES an explicit numeric offset (the offset-less
+// spelling reads TimeZone — measured). Everything else fails by shape:
+// '1/2/2020' answers three ways across the sweep, and 'now', 'today',
+// named zones, intervals (IntervalStyle) need no curated list to die.
+// INPUT side only: `isImmutableIoRendering` is untouched, so a closed
+// datetime never collects as a root — it composes as a member, where the
+// claims live (anchors, groundings, guards).
+const DATE_BODY = String.raw`\d{4}-\d{2}-\d{2}`;
+const TIME_BODY = String.raw`[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?`;
+const OFFSET_BODY = String.raw`[+-]\d{2}(?::\d{2})?`;
+const DATETIME_SHAPES: Record<"date" | "timestamp" | "timestamptz", RegExp> = {
+  date: new RegExp(`^ *${DATE_BODY} *$`),
+  timestamp: new RegExp(`^ *${DATE_BODY}(?:${TIME_BODY})? *$`),
+  timestamptz: new RegExp(`^ *${DATE_BODY}${TIME_BODY}${OFFSET_BODY} *$`),
+};
+
 /** A_Expr kinds that resolve through the operator name the AST carries
  *  (`~~` for LIKE, `=` for IN/NULLIF/DISTINCT). SIMILAR resolves through a
  *  helper function and stays open. */
@@ -214,6 +240,7 @@ function typeSetVerdict(
       const t = (f.typeName ?? {}) as {
         names?: unknown;
         arrayBounds?: unknown[];
+        typmods?: unknown[];
         pct_type?: boolean;
         setof?: boolean;
       };
@@ -233,7 +260,19 @@ function typeSetVerdict(
         return el === null ? null : [`${el}[]`];
       }
       const rendered = catalog.closedCastTargetType(name);
-      return rendered === null ? null : [rendered];
+      if (rendered !== null) return [rendered];
+      // Design B: the immutable-I/O gate refused the target, but a
+      // date/timestamp/timestamptz cast over a STRING literal in a swept
+      // shape carries no settings dependence (the regexes above; the
+      // sweep is the pin). No typmod — the admitted spellings are exactly
+      // the measured ones. A non-string literal, NULL included, keeps
+      // today's refusal.
+      const dt = catalog.closedDatetimeCastTarget(name);
+      if (dt === null) return null;
+      if (Array.isArray(t.typmods) && t.typmods.length > 0) return null;
+      const sval = (fieldsOf(f.arg, "A_Const") as { sval?: { sval?: string } }).sval?.sval;
+      if (typeof sval !== "string") return null;
+      return DATETIME_SHAPES[dt.family].test(sval) ? [dt.rendered] : null;
     }
 
     case "A_Expr": {

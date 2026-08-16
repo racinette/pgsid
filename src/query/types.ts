@@ -264,6 +264,19 @@ export interface SubtreeEvaluationCatalog {
    *  format_type rendering the type sets thread (`int4` → `integer`). */
   closedCastTargetType(typeName: string): string | null;
   /**
+   * Design B's family gate (docs/subtree-evaluation.md, "Settings-
+   * independent datetime literals"): when `typeName` (grammar spelling)
+   * is date / timestamp / timestamptz — whose INPUT is stable, so
+   * `closedCastTargetType` refuses them — the family for the evaluator's
+   * value-SHAPE regex plus the format rendering the type sets thread.
+   * Null for every other name, a user type shadowing the spelling
+   * included (the standing collision rule). The shape gate itself lives
+   * in the evaluator; this face answers only what the catalog knows.
+   */
+  closedDatetimeCastTarget(
+    typeName: string,
+  ): { family: "date" | "timestamp" | "timestamptz"; rendered: string } | null;
+  /**
    * May a value rendered as `typeName` (format spelling, the set-member
    * form) cross to the driver session-independently? Immutable-I/O
    * scalars and arrays over them. This is the ROOT gate: a subtree may be
@@ -343,6 +356,7 @@ export const EVALUATION_CATALOG_ONLY = [
   "closedFunctionTypes",
   "closedCommonTypes",
   "closedCastTargetType",
+  "closedDatetimeCastTarget",
   "isImmutableIoRendering",
   "resolveEnforcedCheckConstraints",
   "resolveColumnCollationDeterministic",

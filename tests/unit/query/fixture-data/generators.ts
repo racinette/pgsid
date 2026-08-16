@@ -280,7 +280,22 @@ const columnSpecificGenerators: Record<
     ivstx: { s: (_rand, ctx) => ["n", "peak", "z"][ctx.row % 3]! },
     ivstxc: { s: rand => rand.pick(["n", "peak", "z"]) },
     ivstxeq: { s: () => "alpha" },
-    ivdt: { d: rand => rand.pick(["2020-06-01", "2021-01-01", "2024-02-29"]) },
+    // ivdt rotates since design B flipped its refusal record: the FIRST
+    // value (2020-01-02, the day after the CHECK's anchor) witnesses both
+    // nullable guards in check-interval-datetime.sql — the overlap into
+    // (2020-01-01, 2020-03-01] and the session's Jan-2 reading of the
+    // ambiguous '1/2/2020'.
+    ivdt: { d: (_rand, ctx) => ["2020-01-02", "2020-06-01", "2024-02-29"][ctx.row % 3]! },
+
+    // The date-partitioned pair: same range rule as part_p — a value
+    // outside every partition has no home and the INSERT raises — and
+    // `day` may never draw NULL (no DEFAULT partition takes it). q1's
+    // FIRST value (2024-03-15) witnesses partition-bound-datetime.sql's
+    // two nullable guards (>= 2024-02-01, and the session's Mar-1 reading
+    // of '3/1/2024'); 2024-01-01 is the closed lower boundary row.
+    daily_metrics: { day: (_rand, ctx) => ["2024-02-10", "2024-05-20"][ctx.row % 2]! },
+    daily_metrics_q1: { day: (_rand, ctx) => ["2024-03-15", "2024-01-01", "2024-02-01"][ctx.row % 3]! },
+    daily_metrics_q2: { day: (_rand, ctx) => ["2024-05-05", "2024-04-01", "2024-06-30"][ctx.row % 3]! },
 
     // The application event log. Same range rule as every other partitioned
     // pair here: `order_events` routes its rows and the two partitions are
@@ -349,8 +364,12 @@ const columnSpecificGenerators: Record<
     part_1: { id: rand => rand.int(0, 99) },
     // The sub-partitioned branch draws from ITS range, the way mv_2 does —
     // seeding a partition directly means the value has to land inside it.
+    // part_2a rotates by row index, not a draw: the FIRST value is the
+    // partition-bound fixture's overlap witness (120 fires `id >= 120`)
+    // and must exist in every data state, beside the closed lower
+    // boundary (100) and the top row (149).
     part_2: { id: rand => rand.int(100, 149) },
-    part_2a: { id: rand => rand.int(100, 149) },
+    part_2a: { id: (_rand, ctx) => [120, 100, 149][ctx.row % 3]! },
 
     // The sweep-4 partitioned pair, and the range rule has two more jobs here
     // than it does for part_p.
@@ -615,6 +634,14 @@ const nullPolicies: {
       // witnessed; later rows may go NULL for the UNKNOWN-guard path.
       ivstxeq: { s: (_rand, ctx) => ctx.row % 4 === 3 },
       ivdt: { d: nullRate(0.25) },
+
+      // The date-partitioned family: `day` may NEVER go NULL — no DEFAULT
+      // partition takes a NULL key, so tuple routing raises on the insert
+      // itself (pinned in param-mechanism). Its notNull claim is witnessed
+      // by the bound, not by absence of data.
+      daily_metrics: { day: () => false },
+      daily_metrics_q1: { day: () => false },
+      daily_metrics_q2: { day: () => false },
 
       // Each CHECK CASE ties a column's NULLness to the discriminator
       // assigned earlier in the row, same pattern as guest.
