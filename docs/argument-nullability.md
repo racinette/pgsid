@@ -652,7 +652,8 @@ What building it shaped, beyond the charter prose:
   cross-union annihilates a disjunct with no implicants — the
   `$2 <= 1 OR $1 IS NOT NULL` shape and the unwritten-column shape are
   the same rule. The empty implicant (the write always raises) is
-  dropped: true, but not a parameter fact.
+  dropped: true, but not a parameter fact — chartered as its own
+  surface below ("The always-raises statement fact", 2026-08-16).
 - The catalog face is `resolveEnforcedCheckConstraints` on the
   evaluation face (census-exempt like its siblings): gated on `enforced`
   alone, so NOT VALID is in and NOT ENFORCED is out, beside the walk's
@@ -689,6 +690,86 @@ corpus is the standing hedge. E-claims themselves never license output
 narrowing (never `bindRejected`); the output side gains its OWN consumers
 of the shared core — the statement map now, entailment later — chartered
 in `docs/subtree-evaluation.md`, each under its own soundness argument.
+
+## The always-raises statement fact (chartered 2026-08-16, NOT BUILT)
+
+The measured gap (post-landing review, adjudicated live): over
+`t2 (a int, n text, CHECK (a > 5), CHECK (n IS NOT NULL))`,
+`INSERT INTO t2 (a, n) VALUES (7, $1)` claims `$1` notNull, while
+`INSERT INTO t2 (a, n) VALUES (2, $1)` claims NOTHING — the a-CHECK
+grounds `2 > 5` FALSE, its empty implicant subsumes every other
+implicant in minimization, and the statement PostgreSQL rejects on
+every execution carries the emptiest contract of all. The fact is
+computed at analysis time and discarded ("true, but not a parameter
+fact" — the fused-reduction bullet above).
+
+The rung: surface it as a statement-level field on `QueryContract` —
+`alwaysRaises: boolean` — claimed only where the quantifier is
+UNIVERSAL: write events that unconditionally process a row, which is
+the grounder's always-evaluated footing already (VALUES rows and the
+FROM-less INSERT ... SELECT). An UPDATE, MERGE arm or ON CONFLICT arm
+grounding FALSE is the weaker, existential fact — "raises when a row
+matches" — and stays OUT of the first wave, recorded here. A consumer
+that renders types may map the flag to `never`; the engine's
+vocabulary stays claims-only. Absorbed param claims stay absorbed:
+under the flag they are vacuous, and the flag explains their absence
+where today the contract just goes blank.
+
+PRE-WORK, measured before code: whether ON CONFLICT DO NOTHING
+evaluates the proposed row's plain CHECK before the arbiter looks
+(measured yes for partition bounds, undecided for CHECKs — decides
+whether OC-carrying inserts count as unconditional); where
+minimization absorbs the empty implicant (the behavior is measured,
+the code path is not read). Already pinned: one FALSE row rejects the
+whole multi-row statement.
+
+Acceptance frame: red target — the `(2, $1)` contract carries the
+flag; guards — the zero-matched-row shapes claim nothing (UPDATE,
+MERGE arm, ON CONFLICT update arm), and the rewrite-hazard gate keeps
+a hooked table from claiming (a BEFORE ROW trigger can rewrite the
+row into validity). The fixture corpus inverts one assumption: the
+soundness suites REQUIRE the all-valid control to succeed, so the
+annotation (`@always-raises`) must flip that expectation and the
+raise must be OBSERVED — the `@param-opaque` bar. The discovery
+instrument adjudicates for free: its control run executes every
+statement, so a success beside the claim is a finding with no new
+machinery. BOUNDARY: the flag fires only where the grounder already
+stands — enforced CHECKs and fed partition bounds over written
+values, rewrite gates intact — and must not grow toward a general
+will-this-fail analysis.
+
+## Witness classification for constraint-shaped raises (chartered 2026-08-16, NOT BUILT)
+
+The measured gap (post-landing review): the grounder's and the
+write-side bound rung's notNull claims raise `violates check
+constraint` / `violates partition constraint`, and neither message
+matches `NULL_REJECTION` (fixture-args.ts) — the enumerated list
+holds messages only a NULL itself can produce. A correct,
+raise-confirmed claim therefore files under the instrument's neutral
+raised-outside bucket ("10 raised outside the enumerated rejection
+list" in the 2026-08-16 verification runs) and can never be a CORPUS
+witness: a param fixture over these mechanisms would fail
+param-soundness's witness bar, which is why the write-side rung
+shipped fixture-less.
+
+The rung: a SECOND message class — exactly the two
+constraint-violation messages — counted as a notNull witness only
+under a CONTROL condition: the all-valid binding succeeded in the
+same data state, so the raise's only delta is the NULL (the
+principle param-soundness already states for nullable accounting: a
+failure the control shares is not evidence about NULL).
+`NULL_REJECTION` itself stays exactly as it is — "a message only a
+NULL produces" is load-bearing for builtin-null-rejection's tie and
+must not blur. Consumers: param-soundness's witness push (which
+today counts NULL_REJECTION matches without consulting the control —
+the widened class MUST consult it) and the probe harness's
+paramWitness accounting (a raised-other entry in the class moves to
+witnessed under the same condition; pre-work names the harness's
+control). Payoff: Mechanism E and write-side bound claims become
+corpus-witnessable, and the missing param fixtures land WITH the
+rung as its acceptance. Guards: a class raise WITHOUT a succeeded
+control stays raised-other; every message outside the two keeps
+today's buckets.
 
 ## Where things are
 

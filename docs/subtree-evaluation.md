@@ -638,6 +638,29 @@ Corpus: `check-membership-exclusion.sql` rides guest's own
 by `@unwitnessable` annotation — no data state can fire an arm the
 bound excludes.
 
+**Guard-side IN (chartered 2026-08-16, NOT BUILT).** The measured gap
+(post-landing review, adjudicated live): over `lme` — `CHECK (k IN
+('a','b'))` — the guard `k IN ('q','r')` stays nullable while its OR
+spelling `k = 'q' OR k = 'r'` claims notNull, and the oracle returns
+no NULL either way. The conclusion is spelling-dependent: `isNotTrue`
+walks a BoolExpr OR arm by arm, but a multi-element IN guard
+atomizes to nothing — `atomsOf` skips it by design on the FACT side,
+where a disjunction asserts no single atom; on the GUARD side the
+disjunction IS the question. The rung: in `isNotTrue`'s leaf case,
+desugar a multi-element IN (and its `= ANY` array-literal rendering)
+through `disjunctArms` — the guard is notTRUE when EVERY arm carries
+some refuted-or-notTRUE atom, the same weak-dual rule the OR branch
+already applies; the arms answer through the existing point/interval
+judgments and the OR-fact rule, no new machinery. Guards: `NOT IN`
+(AEXPR_IN carrying `<>`) is a conjunction, not a disjunction — it
+must NOT ride this rule; a guard listing one non-excluded member
+(`k IN ('a','q')`) stays unrefuted; a NULL in the guard's list
+leaves its arm atomless and refuses the whole desugar (litOf's
+standing NULL refusal). Acceptance frame: red target — the IN
+spelling reaching the OR spelling's conclusion over the CHECK table
+and the list-partition twin; the three guards beside it, each
+adjudicated.
+
 ### Partition-bound facts (chartered 2026-08-12, BUILT 2026-08-16)
 
 A partition's bound is a validated-CHECK-grade fact the capture never
@@ -1004,6 +1027,31 @@ would reject (the over-cap membership is in fact TRUE; refusal must
 not read as FALSE). Corpus: `closed-sublink.sql` over
 order_events_early carries all three tiers beside both refusals,
 witnessed per data state.
+
+**Body-clause widening (chartered 2026-08-16, NOT BUILT).** Two
+shapes the first wave refuses while the oracle holds them constant
+(post-landing review, adjudicated live): `(SELECT 1 UNION SELECT 1)
+= 1` — a set operation over two closed halves — and `(SELECT
+generate_series(1,5) LIMIT 1) = 1` — a closed LIMIT over an SRF
+projection; both guards claim nothing today and neither ever fires.
+The widening is PER CLAUSE, one at a time, each with its own closure
+argument and measurement before code:
+
+- Set operations: UNION/INTERSECT/EXCEPT with both halves passing the
+  same body gate, result columns unified through `closedCommonTypes`.
+  ALL-vs-DISTINCT is a row-count question, not a closure one.
+- LIMIT/OFFSET: closed count expressions. A syntactic LIMIT also
+  BOUNDS an SRF body — pre-work decides whether LIMIT ≤ cap admits
+  the body without the runtime pre-probe, and how LIMIT composes with
+  the EXPR multi-row raise.
+- ORDER BY: meaningful only beside LIMIT, and a sort key's order is
+  the collation wall for collatable types — a first widening refuses
+  collatable sort keys outright (the `stxc` lesson).
+- VALUES bodies (`x IN (VALUES (1), (2))`): pre-work first — what the
+  parser and deparser even do with the shape.
+
+Demand is unmeasured (every verification run stayed clean without
+these); the clauses ride one at a time, never as a batch.
 
 ## Boundaries, each verified against a real candidate
 
