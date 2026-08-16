@@ -48,6 +48,24 @@ const SCHEMA = `
   CREATE FUNCTION cur_max() RETURNS int LANGUAGE sql STABLE
     AS 'SELECT current_setting(''app.max_n'')::int';
   CREATE TABLE lim (n int CHECK (n <= cur_max()));
+  -- Partition-bound pins (docs/subtree-evaluation.md, "Partition-bound facts"):
+  CREATE TABLE pb_r (id int, v text) PARTITION BY RANGE (id);
+  CREATE TABLE pb_r1 PARTITION OF pb_r FOR VALUES FROM (0) TO (100);
+  CREATE TABLE pb_rmax PARTITION OF pb_r FOR VALUES FROM (100) TO (MAXVALUE);
+  CREATE TABLE pb_rmin PARTITION OF pb_r FOR VALUES FROM (MINVALUE) TO (0);
+  CREATE TABLE pb_rd PARTITION OF pb_r DEFAULT;
+  CREATE TABLE pb_l (k text) PARTITION BY LIST (k);
+  CREATE TABLE pb_l1 PARTITION OF pb_l FOR VALUES IN ('a', 'b');
+  CREATE TABLE pb_ln PARTITION OF pb_l FOR VALUES IN (NULL, 'z');
+  CREATE TABLE pb_ld PARTITION OF pb_l DEFAULT;
+  CREATE TABLE pb_h (id int) PARTITION BY HASH (id);
+  CREATE TABLE pb_h0 PARTITION OF pb_h FOR VALUES WITH (MODULUS 2, REMAINDER 0);
+  CREATE TABLE pb_h1 PARTITION OF pb_h FOR VALUES WITH (MODULUS 2, REMAINDER 1);
+  CREATE TABLE pb_mr (a int, b int) PARTITION BY RANGE (a, b);
+  CREATE TABLE pb_mr1 PARTITION OF pb_mr FOR VALUES FROM (0, 0) TO (10, 10);
+  CREATE TABLE pb_nest (id int) PARTITION BY RANGE (id);
+  CREATE TABLE pb_nest1 PARTITION OF pb_nest FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id);
+  CREATE TABLE pb_nest1a PARTITION OF pb_nest1 FOR VALUES FROM (0) TO (50);
 `;
 
 const DOMAIN_ERROR = "does not allow null values";
@@ -599,5 +617,258 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
          AND provolatile <> 'i'`,
     );
     expect(lengthRows.rows.map(r => r.args)).toEqual(["bytea, name"]);
+  });
+
+  // --- Partition bounds (docs/subtree-evaluation.md, "Partition-bound facts").
+  //
+  // A partition's bound is enforced on every stored row — by tuple routing,
+  // by direct-insert rejection, and by ATTACH validation — so a DIRECT scan
+  // of a partition may feed `pg_get_partition_constraintdef` to the kernel
+  // as a validated-CHECK-grade fact. These pins hold the renderings the
+  // capture parses and the enforcement facts the soundness argument rests
+  // on; a release that moves one must fail here with the consequence named.
+
+  const partDef = async (rel: string) => {
+    const r = await pg.query<{ d: string | null }>(
+      `SELECT pg_get_partition_constraintdef('${rel}'::regclass) AS d`,
+    );
+    return r.rows[0]!.d;
+  };
+
+  it("range bounds render with every key column's IS NOT NULL in front", async () => {
+    // The prefix is what hands a direct partition scan the key's notNull for
+    // free, and the comparison conjuncts arrive pre-rendered for the
+    // interval machinery. MINVALUE/MAXVALUE drop their arm, never the prefix.
+    expect(await partDef("pb_r1")).toBe("((id IS NOT NULL) AND (id >= 0) AND (id < 100))");
+    expect(await partDef("pb_rmax")).toBe("((id IS NOT NULL) AND (id >= 100))");
+    expect(await partDef("pb_rmin")).toBe("((id IS NOT NULL) AND (id < 0))");
+    // Multi-column: one prefix per key column, then lexicographic arms.
+    expect(await partDef("pb_mr1")).toBe(
+      "((a IS NOT NULL) AND (b IS NOT NULL) AND ((a > 0) OR ((a = 0) AND (b >= 0))) AND ((a < 10) OR ((a = 10) AND (b < 10))))",
+    );
+  });
+
+  it("list bounds render as = ANY; a NULL-listing bound trades the prefix for an IS NULL disjunct", async () => {
+    expect(await partDef("pb_l1")).toBe(
+      "((k IS NOT NULL) AND (k = ANY (ARRAY['a'::text, 'b'::text])))",
+    );
+    // NULL in the value list: no IS NOT NULL, and the remaining single value
+    // collapses to bare equality — the parser must take both spellings.
+    expect(await partDef("pb_ln")).toBe("((k IS NULL) OR (k = 'z'::text))");
+  });
+
+  it("DEFAULT partitions render the negated union of their siblings — the refused shape", async () => {
+    expect(await partDef("pb_rd")).toBe(
+      "(NOT ((id IS NOT NULL) AND ((id < 0) OR ((id >= 0) AND (id < 100)) OR (id >= 100))))",
+    );
+    expect(await partDef("pb_ld")).toBe(
+      "(NOT ((k IS NULL) OR (k = ANY (ARRAY['a'::text, 'b'::text, 'z'::text]))))",
+    );
+  });
+
+  it("hash bounds render as a satisfies_hash_partition call over the parent's OID", async () => {
+    // No interval or list shape, and the rendering embeds a database-local
+    // OID — the refusal is structural, not a first-wave economy.
+    const oid = (
+      await pg.query<{ o: string }>("SELECT 'pb_h'::regclass::oid::text AS o")
+    ).rows[0]!.o;
+    expect(await partDef("pb_h0")).toBe(`satisfies_hash_partition('${oid}'::oid, 2, 0, id)`);
+  });
+
+  it("a nested leaf renders its whole ancestor conjunction; roots render NULL", async () => {
+    // One def carries every level's facts (duplicated, harmlessly), so a
+    // direct leaf scan needs no tree walk. A partitioned ROOT has no bound —
+    // the capture keys on relispartition, not relkind.
+    expect(await partDef("pb_nest1a")).toBe(
+      "((id IS NOT NULL) AND (id >= 0) AND (id < 100) AND (id IS NOT NULL) AND (id >= 0) AND (id < 50))",
+    );
+    expect(await partDef("pb_nest1")).toBe("((id IS NOT NULL) AND (id >= 0) AND (id < 100))");
+    expect(await partDef("pb_r")).toBeNull();
+    expect(await partDef("pb_nest")).toBeNull();
+  });
+
+  it("NULL routing: range NULL keys go to DEFAULT; a non-default range partition never holds one", async () => {
+    // These inserts persist; the TRUE-strength pin below reads them.
+    const routed = await pg.query<{ id: number | null; part: string }>(
+      "INSERT INTO pb_r VALUES (0,'a'), (99,'b'), (100,'c'), (-5,'d'), (NULL,'e') RETURNING id, tableoid::regclass::text AS part",
+    );
+    expect(routed.rows.map(r => r.part)).toEqual(["pb_r1", "pb_r1", "pb_rmax", "pb_rmin", "pb_rd"]);
+    // Direct insert enforces the bound — FALSE for a NULL key.
+    expect(await errorOf("INSERT INTO pb_r1 VALUES (NULL, 'x')", [])).toContain(
+      "violates partition constraint",
+    );
+    // Without a DEFAULT, an unroutable key raises before any write; NULL in
+    // ANY range key column is unroutable to a non-default partition.
+    expect(await errorOf("INSERT INTO pb_mr VALUES (5, NULL)", [])).toContain(
+      "no partition of relation",
+    );
+  });
+
+  it("NULL routing: list NULL keys reach the NULL-listing partition; hash routes NULL like a value", async () => {
+    // A NON-default list partition can hold NULL — its bound stays TRUE
+    // through the IS NULL disjunct, so the fact survives. Hash partitions
+    // hold NULL keys behind a shapeless bound, which the refusal covers.
+    const list = await pg.query<{ part: string }>(
+      "INSERT INTO pb_l VALUES ('a'), (NULL), ('z'), ('q') RETURNING tableoid::regclass::text AS part",
+    );
+    expect(list.rows.map(r => r.part)).toEqual(["pb_l1", "pb_ln", "pb_ln", "pb_ld"]);
+    const hash = await pg.query<{ part: string }>(
+      "INSERT INTO pb_h VALUES (1), (2), (3), (NULL) RETURNING tableoid::regclass::text AS part",
+    );
+    expect(hash.rows.map(r => r.part)).toEqual(["pb_h0", "pb_h0", "pb_h1", "pb_h0"]);
+  });
+
+  it("ATTACH validates every existing row against the bound; DETACH clears it", async () => {
+    // The fact's soundness on attached partitions rests on this validation.
+    // Its own parent: pb_r's partitions already cover the whole line, and
+    // an overlapping bound is refused before validation would run.
+    await pg.exec(`
+      CREATE TABLE pb_ar (id int, v text) PARTITION BY RANGE (id);
+      CREATE TABLE pb_att (id int, v text);
+      INSERT INTO pb_att VALUES (500, 'x');
+    `);
+    expect(
+      await errorOf("ALTER TABLE pb_ar ATTACH PARTITION pb_att FOR VALUES FROM (200) TO (300)", []),
+    ).toContain('partition constraint of relation "pb_att" is violated by some row');
+    await pg.exec("DELETE FROM pb_att; INSERT INTO pb_att VALUES (250, 'ok');");
+    await pg.exec("ALTER TABLE pb_ar ATTACH PARTITION pb_att FOR VALUES FROM (200) TO (300);");
+    expect(await partDef("pb_att")).toBe(
+      "((id IS NOT NULL) AND (id >= 200) AND (id < 300))",
+    );
+    expect(await errorOf("INSERT INTO pb_att VALUES (500, 'y')", [])).toContain(
+      "violates partition constraint",
+    );
+    // DETACH removes the bound with the membership: no stale fact survives.
+    await pg.exec("ALTER TABLE pb_ar DETACH PARTITION pb_att;");
+    const r = await pg.query<{ no_bound: boolean; relispartition: boolean }>(
+      "SELECT relpartbound IS NULL AS no_bound, relispartition FROM pg_class WHERE relname = 'pb_att'",
+    );
+    expect(r.rows[0]).toEqual({ no_bound: true, relispartition: false });
+    expect(await partDef("pb_att")).toBeNull();
+  });
+
+  // --- Settings-independent datetime literals — design B's exhaustive sweep.
+  //
+  // docs/subtree-evaluation.md, "Settings-independent datetime literals": a
+  // literal whose ISO spelling fixes every field's ROLE parses identically
+  // under each of the finitely many DateStyle values, so the shape gate
+  // needs no settings assumption — and the invariance is MEASURED here over
+  // the full order/style product, not argued. Values compare via make_date/
+  // make_timestamp/make_timestamptz so output rendering cannot confound the
+  // input question. A release that moves one of these must fail here: the
+  // gate's soundness IS this sweep.
+
+  const DATESTYLES = ["ISO", "Postgres", "SQL", "German"].flatMap(style =>
+    ["MDY", "DMY", "YMD"].map(order => `${style}, ${order}`),
+  );
+
+  const underEveryDateStyle = async (expr: string): Promise<Set<string>> => {
+    const seen = new Set<string>();
+    for (const ds of DATESTYLES) {
+      await pg.exec(`SET datestyle = '${ds}'`);
+      try {
+        const r = await pg.query<{ v: unknown }>(`SELECT (${expr}) AS v`);
+        seen.add(String(r.rows[0]!.v));
+      } catch (e) {
+        seen.add(`ERROR:${((e as Error).message.split("\n")[0] ?? "").includes("out of range") ? "range" : "other"}`);
+      }
+    }
+    await pg.exec("SET datestyle = DEFAULT");
+    return seen;
+  };
+
+  it("every admitted shape parses to the SAME value under all 12 DateStyle settings", async () => {
+    // The admitted shapes: strict-ISO date and timestamp (T separator,
+    // fractional seconds, omitted seconds, surrounding spaces, hour 24 and
+    // a padded low year among the edges), and timestamptz WITH an explicit
+    // numeric offset. Non-padded '2020-1-2' is measured invariant too — a
+    // 4-digit leading year fixes the field roles — recorded for any future
+    // widening even though the first-wave regex stays padded-strict.
+    const invariant: [label: string, expr: string][] = [
+      ["date", "'2020-01-01'::date = make_date(2020,1,1)"],
+      ["timestamp", "'2020-01-01 12:34:56'::timestamp = make_timestamp(2020,1,1,12,34,56)"],
+      ["ts fraction", "'2020-01-01 12:34:56.789'::timestamp = make_timestamp(2020,1,1,12,34,56.789)"],
+      ["ts T-separator", "'2020-01-01T12:34:56'::timestamp = make_timestamp(2020,1,1,12,34,56)"],
+      ["ts no seconds", "'2020-01-01 12:34'::timestamp = make_timestamp(2020,1,1,12,34,0)"],
+      ["ts date-only", "'2020-01-01'::timestamp = make_timestamp(2020,1,1,0,0,0)"],
+      ["ts surrounding spaces", "' 2020-01-01 12:34:56 '::timestamp = make_timestamp(2020,1,1,12,34,56)"],
+      ["tstz surrounding spaces", "' 2020-01-01 12:34:56+00 '::timestamptz = make_timestamptz(2020,1,1,12,34,56,'UTC')"],
+      ["tstz offset hh:mm", "'2020-01-01 12:34:56+05:30'::timestamptz = make_timestamptz(2020,1,1,12,34,56,'+05:30')"],
+      ["tstz offset hh", "'2020-01-01 12:34:56+00'::timestamptz = make_timestamptz(2020,1,1,12,34,56,'UTC')"],
+      ["tstz T-sep offset", "'2020-01-01T12:34:56+00'::timestamptz = make_timestamptz(2020,1,1,12,34,56,'UTC')"],
+      ["surrounding spaces", "' 2020-01-01 '::date = make_date(2020,1,1)"],
+      ["non-padded", "'2020-1-2'::date = make_date(2020,1,2)"],
+      ["padded low year", "'0020-01-02'::date = make_date(20,1,2)"],
+      ["hour 24 rolls over", "'2020-01-01 24:00:00'::timestamp = make_timestamp(2020,1,2,0,0,0)"],
+    ];
+    for (const [label, expr] of invariant) {
+      expect(await underEveryDateStyle(expr), label).toEqual(new Set(["true"]));
+    }
+  });
+
+  it("the ambiguous form '1/2/2020' answers THREE ways across the sweep — the refusal reason", async () => {
+    // Jan 2 under MDY, Feb 1 under DMY, out-of-range under YMD: the exact
+    // control the new refusal record holds. Field roles come from the GUC,
+    // so no analysis-time answer binds other sessions.
+    expect(await underEveryDateStyle("to_char('1/2/2020'::date, 'YYYY-MM-DD')")).toEqual(
+      new Set(["2020-01-02", "2020-02-01", "ERROR:range"]),
+    );
+  });
+
+  it("two-digit-leading forms are order-dependent — the shape test requires a 4-digit year", async () => {
+    expect(await underEveryDateStyle("to_char('20-01-02'::date, 'YYYY-MM-DD')")).toEqual(
+      new Set(["ERROR:range", "2002-01-20", "2020-01-02"]),
+    );
+    expect(await underEveryDateStyle("to_char('99-01-02'::date, 'YYYY-MM-DD')")).toEqual(
+      new Set(["ERROR:range", "1999-01-02"]),
+    );
+  });
+
+  it("an offset-less timestamptz moves with TimeZone; an explicit offset pins the instant", async () => {
+    // The reason design B admits timestamptz ONLY with a numeric offset:
+    // the offset-less spelling reads the TimeZone GUC — a second settings
+    // axis the DateStyle sweep does not even see.
+    const epoch = async (lit: string) => {
+      const r = await pg.query<{ v: string }>(
+        `SELECT extract(epoch from ${lit})::text AS v`,
+      );
+      return r.rows[0]!.v;
+    };
+    await pg.exec("SET timezone = 'UTC'");
+    const bareUtc = await epoch("'2020-01-01 12:34:56'::timestamptz");
+    const fullUtc = await epoch("'2020-01-01 12:34:56+00'::timestamptz");
+    await pg.exec("SET timezone = 'America/New_York'");
+    const bareNy = await epoch("'2020-01-01 12:34:56'::timestamptz");
+    const fullNy = await epoch("'2020-01-01 12:34:56+00'::timestamptz");
+    await pg.exec("SET timezone = DEFAULT");
+    expect(bareUtc).not.toBe(bareNy);
+    expect(fullUtc).toBe(fullNy);
+    expect(fullUtc).toBe(bareUtc);
+  });
+
+  it("the bound holds TRUE per stored row, not merely notFALSE — the rendered shapes are total", async () => {
+    // A CHECK admits a NULL evaluation; a partition bound cannot produce
+    // one: every rendered shape guards its comparisons with IS NOT NULL (or
+    // IS NULL as a disjunct), so over any key value it evaluates TRUE or
+    // FALSE. Enforcement rejects FALSE, so stored rows satisfy the bound
+    // TRUE — the kernel may feed range bounds as TRUE facts.
+    const nullKey = await pg.query<{ r: boolean; l: boolean; ln: boolean }>(
+      `SELECT (${await partDef("pb_r1")}) IS FALSE AS r,
+              (${await partDef("pb_l1")}) IS FALSE AS l,
+              (${await partDef("pb_ln")}) IS TRUE AS ln
+       FROM (SELECT NULL::int AS id, NULL::text AS k) s`,
+    );
+    expect(nullKey.rows[0]).toEqual({ r: true, l: true, ln: true });
+    // Over the rows the routing pins planted (boundary rows included:
+    // 0 and 99 in pb_r1, the closed 100 in pb_rmax, NULL in pb_rd/pb_ln).
+    for (const [rel, n] of [
+      ["pb_r1", 2], ["pb_rmax", 1], ["pb_rmin", 1], ["pb_rd", 1],
+      ["pb_l1", 1], ["pb_ln", 2], ["pb_ld", 1], ["pb_h0", 3], ["pb_h1", 1],
+    ] as const) {
+      const r = await pg.query<{ n: number; all_true: boolean }>(
+        `SELECT count(*)::int AS n, bool_and(${await partDef(rel)}) AS all_true FROM ${rel}`,
+      );
+      expect(r.rows[0], rel).toEqual({ n, all_true: true });
+    }
   });
 });
