@@ -429,6 +429,33 @@ the BUCKET COUNT is the only revisit trigger. NOT queued, deliberately:
 the instrument-reach items (CurrentOfExpr and §9.6's DDL nodes, the 57
 io-syntax and 9 no-such-object builtin rows) — no claim is wrong
 anywhere in them; they stay recorded where they are.
+**A SECOND WAVE OF FOUR RUNGS WAS CHARTERED (2026-08-16, from the
+post-landing review — every example adjudicated live against engine
+and oracle before chartering), queued in this order, small first:**
+1. GUARD-SIDE IN ("Guard-side IN" in docs/subtree-evaluation.md's
+   list-membership section) — a multi-element IN guard desugars
+   through disjunctArms so the IN and OR spellings reach the same
+   refutation; NOT IN must not ride; a NULL in the guard's list
+   refuses the desugar.
+2. WITNESS CLASSIFICATION ("Witness classification for
+   constraint-shaped raises", docs/argument-nullability.md) — the two
+   constraint-violation messages count as notNull witnesses only
+   beside a succeeded all-valid control; NULL_REJECTION itself stays
+   pure; grounder and write-side bound claims become
+   corpus-witnessable, and their missing param fixtures land as the
+   rung's acceptance.
+3. ALWAYS-RAISES ("The always-raises statement fact",
+   docs/argument-nullability.md) — the grounder's empty implicant
+   surfaces as `QueryContract.alwaysRaises` for unconditionally
+   written rows only (VALUES rows, FROM-less INSERT ... SELECT);
+   pre-work: ON CONFLICT DO NOTHING's CHECK-before-arbiter timing;
+   the fixture suites' control expectation inverts under an
+   `@always-raises` annotation.
+4. SUBLINK BODY WIDENING ("Body-clause widening" in the
+   closed-sublinks section) — set-operation and LIMIT bodies first,
+   one clause at a time, each with its own closure argument; ORDER BY
+   refuses collatable sort keys; VALUES bodies need parser/deparser
+   pre-work.
 **The FIRST-WAVE WIDENINGS and the OUTPUT-SIDE ENTAILMENT consumer are
 BOTH BUILT (2026-08-12)** — every consumer the subtree-evaluation
 charter names now exists. Widenings: unique enums and domains fold
