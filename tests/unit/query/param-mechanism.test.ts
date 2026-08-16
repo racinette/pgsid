@@ -1093,6 +1093,48 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(one.rows[0]).toEqual({ a: 1 });
   });
 
+  it("LIMIT composes with the multi-row raise, and the pre-probe already bounds a LIMITed SRF body", async () => {
+    // The widening's second clause. The charter asks whether a syntactic
+    // LIMIT ≤ cap should admit an SRF body WITHOUT the runtime pre-probe:
+    // the answer measured here is that it need not — the probe answers a
+    // LIMIT 1 body over a 10^10 series immediately, so a static bound would
+    // be a second mechanism computing what one round trip already gives.
+    const capped = await pg.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM (SELECT generate_series(1, 10000000000) LIMIT 1) q LIMIT 1001",
+    );
+    expect(capped.rows[0]!.n).toBe(1);
+    // Composition with the EXPR raise is the plain one: LIMIT decides the
+    // row count the sublink is judged on.
+    const one = await pg.query<{ a: number }>("SELECT (SELECT generate_series(1,5) LIMIT 1) AS a");
+    expect(one.rows[0]).toEqual({ a: 1 });
+    expect(await errorOf("SELECT (SELECT generate_series(1,5) LIMIT 2)", [])).toContain(
+      "more than one row returned by a subquery used as an expression",
+    );
+  });
+
+  it("OFFSET is the hazard the clause has to gate: the pre-probe pays for every skipped row", async () => {
+    // LIMIT bounds what the probe RETURNS; OFFSET does not bound what it
+    // must WALK. Over a lazy SRF the cost is linear in the offset — 100k,
+    // 1M and 10M rows here, each an order of magnitude apart in time — so
+    // an offset nothing bounds statically would hang the probe exactly the
+    // way trap 1's FROM-position scan hangs. Measured, hence the gate: an
+    // SRF-carrying body with an OFFSET is refused.
+    const timed = async (offset: number): Promise<number> => {
+      const t = Date.now();
+      await pg.query(
+        `SELECT count(*) AS n FROM (SELECT generate_series(1, 10000000000) LIMIT 1 OFFSET ${offset}) q LIMIT 1001`,
+      );
+      return Date.now() - t;
+    };
+    const small = await timed(100_000);
+    const large = await timed(10_000_000);
+    expect(large).toBeGreaterThan(small);
+    // And the shape a bare projection has: one row, so OFFSET past it is
+    // an empty result rather than a cost.
+    const skipped = await pg.query<{ a: number | null }>("SELECT (SELECT 1 OFFSET 1) AS a");
+    expect(skipped.rows[0]).toEqual({ a: null });
+  });
+
   it("an ANY/IN sublink early-exits on a MATCH; the no-match case is exhaustion", async () => {
     // The match answers immediately even at 10^10; answering FALSE is
     // information-theoretic exhaustion (linear, recorded — NOT executed
