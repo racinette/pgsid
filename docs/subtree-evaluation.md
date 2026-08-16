@@ -1086,6 +1086,33 @@ argument and measurement before code:
   BOUNDS an SRF body — pre-work decides whether LIMIT ≤ cap admits
   the body without the runtime pre-probe, and how LIMIT composes with
   the EXPR multi-row raise.
+  **BUILT 2026-08-16**, with one gate the charter's sketch did not
+  have. The pre-work's own question answered NO: the runtime pre-probe
+  already bounds a LIMITed SRF body (a `LIMIT 1` body over a 10^10
+  series counts immediately), so a static LIMIT ≤ cap rule would be a
+  second mechanism computing what one round trip already gives.
+  Composition with the EXPR raise is the plain one — LIMIT decides the
+  row count the sublink is judged on. What the pre-work DID buy is two
+  refusals:
+  - OFFSET on an SRF-carrying body. LIMIT bounds what the probe
+    RETURNS; OFFSET bounds nothing it must WALK, and the cost is
+    linear in the offset (measured across 10^5/10^6/10^7 rows).
+    Nothing bounds an offset statically without interpreting the
+    SRF's arguments — the banned category — so the shape stays out.
+  - LIMIT or OFFSET on a SET OPERATION. Found while building: without
+    ORDER BY the row a LIMIT takes is whatever the deduplication
+    produced, and THAT is a planner decision — the same body answers
+    42 through HashAggregate and 3 through Sort+Unique (measured and
+    pinned). Folding it would bake one plan's answer into a claim the
+    next plan falsifies. A plain body has one row and a target-list
+    SRF yields in the function's own order through ProjectSet, which
+    no plan reorders; the set operation has no such guarantee.
+  Four red targets flipped (the LIMITed SRF EXPR body, LIMIT and
+  OFFSET on a plain projection, a membership over a LIMITed series)
+  with three guards green — the SRF-with-OFFSET body, the
+  set-operation LIMIT, and a correlated LIMIT count, each witnessed by
+  data that fires the NULL a claim would reject. Corpus:
+  `closed-sublink.sql` grew the bounded claim and the OFFSET refusal.
 - ORDER BY: meaningful only beside LIMIT, and a sort key's order is
   the collation wall for collatable types — a first widening refuses
   collatable sort keys outright (the `stxc` lesson).

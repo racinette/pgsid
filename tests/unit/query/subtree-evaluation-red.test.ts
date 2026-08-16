@@ -986,6 +986,73 @@ describe("sublink set-operation bodies (flipped 2026-08-16 — the clause landed
   });
 });
 
+// --- Sublink body-clause widening: LIMIT/OFFSET (chartered 2026-08-16). ------
+// The widening's second clause, riding alone after the set operations.
+// LIMIT and OFFSET are closed count expressions; what makes the clause its
+// own decision is the SRF interaction — a LIMIT bounds what the runtime
+// pre-probe returns (so the probe still answers, measured), while an OFFSET
+// bounds nothing it must WALK, and the cost is linear in the offset. The
+// gate refuses an OFFSET on an SRF-carrying body for exactly that reason.
+// Every value adjudicated 2026-08-16 over orders' rows (1,1) and (2,5).
+
+describe("sublink LIMIT/OFFSET bodies (flipped 2026-08-16 — the clause landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("a LIMIT makes an SRF body single-row, and the EXPR sublink answers", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT generate_series(1,5) LIMIT 1) = 1" +
+        " THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("LIMIT and OFFSET on a plain projection answer too", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 7 LIMIT 1) = 7 THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+    // One row in, one row skipped, no row out: the sublink is NULL.
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 7 OFFSET 1) IS NULL THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("a membership test over a LIMITed SRF body answers through the pre-probe", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN 2 IN (SELECT generate_series(1,8) LIMIT 3)" +
+        " THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("GUARD: an OFFSET over an SRF body stays open — the probe would walk it", async () => {
+    // Nothing bounds the skipped rows statically, so the shape is refused
+    // whatever the offset's size. The membership is in fact TRUE and every
+    // row fires the NULL arm (adjudicated): refusal must not read as FALSE.
+    expect(await notNullOf(
+      "SELECT CASE WHEN 4 IN (SELECT generate_series(1,8) LIMIT 1 OFFSET 3)" +
+        " THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+
+  it("GUARD: a LIMIT on a SET OPERATION stays open — the row is a plan choice", async () => {
+    // Measured while building the clause: the same set-operation body
+    // answers 42 under HashAggregate and 3 under Sort+Unique, so no value
+    // here belongs to the statement. `(SELECT 2 UNION SELECT 1 LIMIT 1)`
+    // does return 1 today and every row fires the NULL arm (adjudicated) —
+    // a claim would be right by luck and wrong by plan.
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 2 UNION SELECT 1 LIMIT 1) = 1" +
+        " THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+
+  it("GUARD: a correlated LIMIT count keeps the body open", async () => {
+    // The count is part of the body: naming the scope there is the same
+    // wall. Both rows fire the NULL arm (adjudicated).
+    expect(await notNullOf(
+      "SELECT CASE WHEN (SELECT 7 LIMIT o.qty) = 7 THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+});
+
 describe("GUARD: lines the mechanism must not cross", () => {
   it("bp control: the = direction must NOT claim — a claim here is unsound", async () => {
     const c = await contract("INSERT INTO bpt_eq (c, n) VALUES ('a', $1)");

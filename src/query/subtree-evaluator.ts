@@ -497,7 +497,9 @@ interface SublinkBody {
  * so an unknown field present on the body refuses conservatively rather
  * than by list.
  */
-const SUBLINK_BODY_FIELDS = new Set(["targetList", "op", "limitOption", "location"]);
+const SUBLINK_BODY_FIELDS = new Set([
+  "targetList", "op", "limitOption", "location", "limitCount", "limitOffset",
+]);
 
 /** The set-operation body's own fields: the operator, its ALL flag and the
  *  two arms. `targetList` is absent on a set-operation node — the arms
@@ -538,7 +540,6 @@ function closedSelectBody(
       if (Array.isArray(value) && value.length === 0) continue;
       return null;
     }
-    if (s.limitOption !== undefined && s.limitOption !== "LIMIT_OPTION_DEFAULT") return null;
     if (typeof s.larg !== "object" || s.larg === null) return null;
     if (typeof s.rarg !== "object" || s.rarg === null) return null;
     const left = closedSelectBody(s.larg as Record<string, unknown>, catalog, memo);
@@ -551,6 +552,15 @@ function closedSelectBody(
       if (unified === null) return null;
       targetSets.push(unified);
     }
+    // A LIMIT on the set operation ITSELF is refused (its fields are absent
+    // from SUBLINK_SETOP_FIELDS, so the loop above already declined it):
+    // which row a LIMIT takes from a set operation is a PLAN choice, not a
+    // value of the statement — the same body answers 42 under
+    // HashAggregate and 3 under Sort+Unique (measured, pinned in
+    // param-mechanism.test.ts). Folding it would bake one plan's answer
+    // into a claim the next plan falsifies. An ARM's own LIMIT is fine and
+    // rides the plain branch: one bare projection, one row.
+    if (s.limitOption !== undefined && s.limitOption !== "LIMIT_OPTION_DEFAULT") return null;
     return { targetSets, hasSrf: left.hasSrf || right.hasSrf };
   }
   for (const [key, value] of Object.entries(s)) {
@@ -560,7 +570,6 @@ function closedSelectBody(
     return null;
   }
   if (s.op !== undefined && s.op !== "SETOP_NONE") return null;
-  if (s.limitOption !== undefined && s.limitOption !== "LIMIT_OPTION_DEFAULT") return null;
   const targets = Array.isArray(s.targetList) ? s.targetList : [];
   if (targets.length === 0) return null;
   const targetSets: TypeSet[] = [];
@@ -582,7 +591,47 @@ function closedSelectBody(
     if (set === null) return null;
     targetSets.push(set);
   }
+  if (!closedLimitClause(s, hasSrf, catalog, memo)) return null;
   return { targetSets, hasSrf };
+}
+
+/**
+ * The LIMIT/OFFSET clause (docs/subtree-evaluation.md, "Body-clause
+ * widening", second clause): both counts are ordinary closed expressions —
+ * `LIMIT ALL` is a NULL literal, which closes like any other — and
+ * `WITH TIES` is refused, since the count then bounds nothing (it needs an
+ * ORDER BY, itself outside the wave, so the shape is unreachable today and
+ * the refusal is the standing one).
+ *
+ * It reaches only the PLAIN branch. A body whose rows come from a bare
+ * projection has one row, and a target-list SRF yields in the function's
+ * own order through ProjectSet, which no plan reorders; a SET OPERATION
+ * has no such guarantee and is refused above.
+ *
+ * OFFSET on an SRF-carrying body is REFUSED. LIMIT bounds what the runtime
+ * cardinality pre-probe RETURNS, so the probe still answers a LIMITed
+ * series immediately (measured); OFFSET bounds nothing it must WALK, and
+ * the probe pays for every skipped row — linear, measured across three
+ * orders of magnitude in param-mechanism.test.ts. Nothing bounds an offset
+ * statically without interpreting the SRF's arguments, the banned
+ * category, so the shape stays out.
+ */
+function closedLimitClause(
+  s: Record<string, unknown>,
+  hasSrf: boolean,
+  catalog: SubtreeEvaluationCatalog,
+  memo: WeakMap<object, TypeSet | null>,
+): boolean {
+  const option = s.limitOption;
+  if (option !== undefined && option !== "LIMIT_OPTION_DEFAULT" && option !== "LIMIT_OPTION_COUNT") {
+    return false;
+  }
+  if (s.limitOffset !== undefined && s.limitOffset !== null && hasSrf) return false;
+  for (const bound of [s.limitCount, s.limitOffset]) {
+    if (bound === undefined || bound === null) continue;
+    if (typeSetOf(bound, catalog, memo) === null) return false;
+  }
+  return true;
 }
 
 /** The element-type set of a closed top-level set-returning call, null for

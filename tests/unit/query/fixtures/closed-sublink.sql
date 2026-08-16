@@ -23,6 +23,15 @@ SELECT
        THEN t.id ELSE NULL END AS setop_membership,                    -- @notNull
   CASE WHEN t.id IN (SELECT t.id UNION SELECT 9)
        THEN NULL ELSE 5 END AS setop_correlated_kept,                  -- @nullable
+  -- Second clause (landed 2026-08-16): a LIMIT bounds what the runtime
+  -- pre-probe returns, so a LIMITed SRF body answers; an OFFSET bounds
+  -- nothing the probe must walk, so an SRF body carrying one is refused —
+  -- and refused is not FALSE: the membership below is TRUE, so the NULL
+  -- arm fires on every row and witnesses the refusal.
+  CASE WHEN (SELECT generate_series(1,5) LIMIT 1) = 1
+       THEN t.id ELSE NULL END AS limit_bounded_srf,                   -- @notNull
+  CASE WHEN 4 IN (SELECT generate_series(1,8) LIMIT 1 OFFSET 3)
+       THEN NULL ELSE 5 END AS srf_offset_kept,                        -- @nullable
   CASE WHEN 5 IN (SELECT generate_series(1, 8))
        THEN t.id ELSE NULL END AS srf_probed,                          -- @notNull
   CASE WHEN EXISTS (SELECT generate_series(1, 10000000000))

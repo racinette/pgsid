@@ -1135,6 +1135,24 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(skipped.rows[0]).toEqual({ a: null });
   });
 
+  it("which row a LIMIT takes from a SET OPERATION is a plan choice, not a value", async () => {
+    // Found while building the LIMIT clause. Without ORDER BY, the rows a
+    // set operation emits are in whatever order its deduplication produced,
+    // and that is a planner decision: the SAME body answers 42 through
+    // HashAggregate and 3 through Sort+Unique. An evaluator that folded it
+    // would bake one plan's answer into a claim the next plan falsifies, so
+    // the widening admits LIMIT/OFFSET on plain bodies only.
+    const body = [17, 3, 29, 8, 42, 11, 5, 23].map(v => `SELECT ${v}`).join(" UNION ");
+    const first = async (): Promise<number> =>
+      (await pg.query<{ x: number }>(`SELECT x FROM (${body}) q(x) LIMIT 1`)).rows[0]!.x;
+    const hashed = await first();
+    await pg.exec("SET enable_hashagg = off");
+    const sorted = await first();
+    await pg.exec("SET enable_hashagg = on");
+    expect(hashed).not.toBe(sorted);
+    expect(await first()).toBe(hashed);
+  });
+
   it("an ANY/IN sublink early-exits on a MATCH; the no-match case is exhaustion", async () => {
     // The match answers immediately even at 10^10; answering FALSE is
     // information-theoretic exhaustion (linear, recorded — NOT executed
