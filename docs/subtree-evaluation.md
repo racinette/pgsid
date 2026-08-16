@@ -638,7 +638,7 @@ Corpus: `check-membership-exclusion.sql` rides guest's own
 by `@unwitnessable` annotation — no data state can fire an arm the
 bound excludes.
 
-**Guard-side IN (chartered 2026-08-16, NOT BUILT).** The measured gap
+**Guard-side IN (chartered 2026-08-16, BUILT 2026-08-16).** The measured gap
 (post-landing review, adjudicated live): over `lme` — `CHECK (k IN
 ('a','b'))` — the guard `k IN ('q','r')` stays nullable while its OR
 spelling `k = 'q' OR k = 'r'` claims notNull, and the oracle returns
@@ -660,6 +660,30 @@ standing NULL refusal). Acceptance frame: red target — the IN
 spelling reaching the OR spelling's conclusion over the CHECK table
 and the list-partition twin; the three guards beside it, each
 adjudicated.
+
+**As built (2026-08-16).** The charter held with nothing to correct:
+`isNotTrue`'s leaf case keeps its atom pass and then tries
+`disjunctArms`, refuting when every arm carries some FALSE-or-notTRUE
+atom. On a leaf the OR branch has already returned, so only the A_Expr
+half of `disjunctArms` is reachable — and all three guards are its
+existing refusals, not new gates: `NOT IN` fails the `AEXPR_IN` +
+`=` test (`<>` never reaches the item list), a list carrying NULL
+yields no atom for that arm and returns null wholesale, and a member
+arm simply is not refuted. `= ANY (ARRAY[...])` rides the same branch.
+Pre-work (param-mechanism, "Guard-side IN"): the disjunction and
+conjunction equivalences hold over the whole three-valued grid — 12
+combinations with NULLs in the operand and both elements — and the
+corners the guards rest on are pinned (`'a' NOT IN ('q','r')` is TRUE,
+so an unsound refutation there would fire on every conforming row; a
+NULL element makes a non-member's membership UNKNOWN, which is why
+refusing that shape costs no witnessable claim). Acceptance as
+chartered plus the rendering: three red targets flipped (`lme`, its
+`= ANY` spelling, the `plst_ab` twin) with the NOT IN, member and
+NULL-element guards green. Corpus: `check-membership-exclusion.sql`
+and `partition-bound-list.sql` each gained the IN-spelled claim beside
+their existing `=` one and a NOT IN control witnessed in every data
+state (every guest status is a member; every courier_north region is
+'north' or 'east', so the conjunction is TRUE on every row).
 
 ### Partition-bound facts (chartered 2026-08-12, BUILT 2026-08-16)
 
