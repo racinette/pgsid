@@ -196,6 +196,23 @@ export interface WriteRewriteInfo {
   insteadRules: string[];
 }
 
+/**
+ * A partition's bound, rendered as the boolean expression PostgreSQL
+ * enforces (`pg_get_partition_constraintdef`) — which for a nested
+ * partition carries the whole ancestor conjunction (measured). Captured
+ * raw for EVERY partition; the adapter gates which strategies become
+ * facts (docs/subtree-evaluation.md, "Partition-bound facts"). `strategy`
+ * is how the IMMEDIATE parent partitions — a range partition under a hash
+ * grandparent reads "range", and its definition carries the ancestor's
+ * conjunct, which decomposes to nothing and stays sound.
+ */
+export interface PartitionBoundInfo {
+  strategy: "range" | "list" | "hash";
+  /** DEFAULT partition: its bound is the negated union of its siblings'. */
+  isDefault: boolean;
+  definition: string;
+}
+
 export interface TableInfo {
   schema: string;
   name: string;
@@ -236,6 +253,16 @@ export interface TableInfo {
    * child can also flip.
    */
   hasDescendants: boolean;
+  /**
+   * Set when `relispartition` — routing, direct-insert rejection and
+   * ATTACH validation enforce the bound on every stored row of the
+   * relation's subtree, so a scan naming the relation may read it like a
+   * validated CHECK (measured, pinned in param-mechanism). Null for
+   * non-partitions; a partitioned ROOT renders no bound, which is what
+   * keeps bound facts off parent scans. Diff-comparable: ATTACH at a
+   * different bound changes what a scan may conclude, DETACH clears it.
+   */
+  partitionBound: PartitionBoundInfo | null;
 }
 
 // ---------------------------------------------------------------------------

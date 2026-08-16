@@ -91,6 +91,7 @@ function tableState(t: TableInfo): {
   writeRewritesTree: TableInfo["writeRewritesTree"];
   hasDescendants: boolean;
   relkind: TableInfo["relkind"];
+  partitionBound: TableInfo["partitionBound"];
 } {
   return {
     schema: t.schema,
@@ -115,6 +116,9 @@ function tableState(t: TableInfo): {
     // may claim.
     writeRewrites: t.writeRewrites,
     writeRewritesTree: t.writeRewritesTree,
+    // ATTACH at a different bound changes what a direct scan may conclude,
+    // and DETACH clears the fact — both must surface as a modification.
+    partitionBound: t.partitionBound,
   };
 }
 
