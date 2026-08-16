@@ -237,9 +237,137 @@ modified column entity (diff test, with the no-change control), and the
 equality arm under an explicit collation is pinned both ways — red
 suite and `check-interval-collated-equality.sql` (point exclusion
 claims via `ne`; the own point stays witnessed-nullable). Suite
-3,037 + 1 skipped. OPEN on this surface:
-only the datetime settings decision (discussion pending) and the
-value-conditional revisit triggers.
+3,037 + 1 skipped.
+**THE DATETIME DECISION IS MADE (2026-08-12) and its two chartered
+rungs are BOTH BUILT (2026-08-16)** (both in docs/subtree-evaluation.md,
+each with an "As built" section; entries below record the batches):
+1. **PARTITION-BOUND FACTS** ("Partition-bound facts" section): capture
+   `relpartbound` via `pg_get_partition_constraintdef`, feed non-default
+   range/list bounds to the kernel as validated-CHECK-grade facts on
+   DIRECT partition scans. Pays immediately on integer-range partitions
+   through the live interval machinery, and its date-partitioned
+   fixtures are the second rung's argued-real testing ground. The
+   charter lists the pre-work measurements (bound renderings per
+   strategy, the IS NOT NULL prefix, NULL routing, ATTACH validation,
+   TRUE-vs-notFALSE strength) — measure and pin them FIRST, then the
+   red frame, then the build. BUILT (2026-08-16): the snapshot captures
+   every partition's bound raw (strategy, isDefault, rendered
+   definition; `partitionBound` on the table capture, diff-comparable
+   with the DETACH-clears control pinned); the ADAPTER gates — range
+   and list, non-default — and parses the rendering through the same
+   ALTER-wrapper as CHECK definitions into BOTH scan faces, never the
+   enforced list, so the write side and the grounder stay out by
+   construction; parent scans are refused structurally (a partitioned
+   root renders no bound, so there is no fact to leak). All three red
+   targets flipped in the landing commit, all six guards held. Corpus
+   grounding same commit: partition-bound-interval (five claims over
+   order_events_early, overlap witness id=50 deterministic),
+   partition-bound-parent (the leak witnessed nullable via late rows),
+   partition-bound-nested (part_2a's ancestor conjunction claims;
+   its generator now rotates [120, 100, 149] by row index so the
+   overlap witness exists in every state). The fixture schema has no
+   list/hash/DEFAULT partitions, so those shapes stay red-suite-held.
+   Suite 51 files / 3,071 + 1 skipped, ~72s. VERIFIED (2026-08-16,
+   20,000-query discovery runs, rung live): seed 20260808 — 0 findings,
+   0 instances; seed 7 — exactly the recorded standing state and
+   nothing else (the one param-sibling MERGE instance through
+   bcorr_check, kept conservatively by design, plus the
+   value-conditional bucket's 1 EXPECTED instance). The rung introduced
+   zero new findings at both seeds.
+   PRE-WORK MEASURED AND PINNED (2026-08-16,
+   nine pins, param-mechanism.test.ts "Partition bounds" section): range
+   bounds carry EVERY key column's IS NOT NULL (the notNull claim is
+   confirmed free); list bounds render `= ANY` with the prefix, or an
+   IS NULL disjunct when NULL is listed (single value collapses to bare
+   `=` — the parser takes both); DEFAULT renders the negated sibling
+   union and hash renders `satisfies_hash_partition` over a
+   database-local OID (both refusals structural); a nested leaf renders
+   its whole ancestor conjunction, roots/detached render NULL; ATTACH
+   validates every row; and the bound holds TRUE per stored row, not
+   notFALSE — the rendered shapes are total, so range facts enter at
+   TRUE strength. RED FRAME WRITTEN (2026-08-16, red suite "partition
+   bounds" block): three targets — the interval refutation and the
+   range/list key notNull, each verified reachable through the EXISTING
+   CHECK machinery by running the rendered bound as a plain CHECK body,
+   so feeding is the whole build — and six guards (parent leak, DEFAULT,
+   NULL-listing list, hash, overlap exactness, write-side scope). List
+   point exclusion is NOT a target: the subset rule draws no such
+   conclusion from a CHECK today, and the rung adds no machinery.
+2. **DESIGN B — settings-independent datetime literals** ("Settings-
+   independent datetime literals" section): the value-SHAPE gate over
+   ISO spellings, invariance pinned by an EXHAUSTIVE DateStyle sweep,
+   input side only, `'now'` dying by shape. Its acceptance flips the
+   `ivdt`/`dtc` refusal records. PRE-WORK MEASURED AND PINNED
+   (2026-08-16, four pins beside the partition-bound section): every
+   admitted shape — strict ISO date/timestamp with T-separator,
+   fraction, omitted-seconds, surrounding-spaces, hour-24 and padded-
+   low-year edges, timestamptz with explicit numeric offset — parses
+   to the SAME value under all 12 DateStyle settings (values compared
+   via make_date/make_timestamp so rendering cannot confound);
+   '1/2/2020' answers THREE ways (Jan 2 / Feb 1 / out-of-range);
+   two-digit-leading years are order-dependent, so the shape test
+   requires a 4-digit year; offset-less timestamptz moves with
+   TimeZone while the explicit offset pins the instant. Non-padded
+   '2020-1-2' measured invariant and recorded for a future widening;
+   the first-wave regex stays padded-strict. BUILT (2026-08-16): three
+   regexes in the evaluator's TypeCast arm behind a new narrow face
+   (`closedDatetimeCastTarget` — family + rendering, alias-normalized,
+   user-shadowing disqualifies), consulted only after the immutable-I/O
+   gate refuses; string literals only, typmods and NULL literals
+   refused; one gate site covers folds, groundings and anchors alike;
+   the rendering gate untouched, so no datetime ever collects as a
+   root. Acceptance as chartered plus one: the dtc anchor guard AND the
+   entailment dt guard flipped (same refusal, two channels), each
+   keeping an ambiguous-form '1/2/2020' control beside it;
+   check-interval-datetime.sql carries ivdt's flipped record with the
+   ambiguous refusal WITNESSED by the generator's 2020-01-02 row
+   (stronger than annotation; the collation twin's annotation stays);
+   partition-bound-datetime.sql over the NEW date-range daily_metrics
+   family is the composed ground — the bound renders ISO-shaped ::date
+   anchors, the shape gate admits them, date anchors order on a direct
+   partition scan, and `day` (deliberately not declared NOT NULL)
+   carries the bound's own notNull claim in the corpus. Suite 51 files
+   / 3,086 + 1 skipped, ~72s. VERIFIED (2026-08-16, 20,000-query
+   discovery runs, gate live): seed 20260808 — 0 findings, the
+   value-conditional bucket's 1 EXPECTED instance (the known class);
+   seed 7 — exactly the recorded standing state (the param-sibling
+   MERGE instance, same query q2575, kept conservatively by design,
+   plus 1 value-conditional EXPECTED). Zero new findings at both seeds.
+DESIGN C — the full settings contract — is CLOSED by ruling, not
+deferred (the charter records why: unverifiable trust model, curated
+lists, silent breakage); the general session-settings rule is stated
+there too (explicit caller input where unavoidable, refusal where
+avoidable).
+**THE REMAINING ENGINE GAPS WERE TRIAGED (2026-08-16, every example
+adjudicated live) and FOUR RUNGS ARE CHARTERED in
+docs/subtree-evaluation.md, queued in this order** (small first; the
+first three plus verification fit one session, the fourth is most of
+its own):
+1. WRITE-SIDE PARTITION BOUNDS ("Write-side rung" in the
+   partition-bound section) — feed the gated bounds to the grounder on
+   direct-partition DML; the scope guard flips. Pre-work: UPDATE,
+   MERGE and ON CONFLICT enforcement measurements (the INSERT case is
+   already pinned).
+2. LIST MEMBERSHIP EXCLUSION ("List membership exclusion" section) —
+   an OR-fact refutes a guard when every disjunct does; pays for CHECK
+   IN-lists and list partition bounds through the same code.
+3. NON-PADDED DATETIME WIDENING ("Non-padded widening" in design B) —
+   `\d{1,2}` month/day; the invariance pin already exists; two-digit
+   years stay refused.
+4. CLOSED SUBLINKS ("Closed sublinks" section) — non-contextual
+   bodies evaluate; target-list-SRF bodies behind the runtime
+   cardinality pre-probe (cap 1000, recorded; measured 0ms over a
+   10^10 series); FROM-position SRF bodies refused by name (trap 1);
+   correlated bodies refused forever (the no-query-context wall).
+ALSO RULED (2026-08-16): the PARAM-SIBLING standing finding is CLOSED
+— the value-conditional ruling's vocabulary trigger is retired, since
+no mainstream type system renders a value-range discriminant
+(TypeScript has neither numeric-range nor negation types); the shape
+is documented behavior, the instrument keeps reporting instances, and
+the BUCKET COUNT is the only revisit trigger. NOT queued, deliberately:
+the instrument-reach items (CurrentOfExpr and §9.6's DDL nodes, the 57
+io-syntax and 9 no-such-object builtin rows) — no claim is wrong
+anywhere in them; they stay recorded where they are.
 **The FIRST-WAVE WIDENINGS and the OUTPUT-SIDE ENTAILMENT consumer are
 BOTH BUILT (2026-08-12)** — every consumer the subtree-evaluation
 charter names now exists. Widenings: unique enums and domains fold
