@@ -32,6 +32,14 @@ SELECT
        THEN t.id ELSE NULL END AS limit_bounded_srf,                   -- @notNull
   CASE WHEN 4 IN (SELECT generate_series(1,8) LIMIT 1 OFFSET 3)
        THEN NULL ELSE 5 END AS srf_offset_kept,                        -- @nullable
+  -- Third clause (landed 2026-08-16): a VALUES body is a list of closed
+  -- rows — PostgreSQL forbids set-returning calls there, so no pre-probe
+  -- is involved. Its control is the wall once more: an element naming the
+  -- scope keeps the body open, and t.id is in the list on every row.
+  CASE WHEN 2 IN (VALUES (1),(2))
+       THEN t.id ELSE NULL END AS values_membership,                   -- @notNull
+  CASE WHEN t.id IN (VALUES (t.id))
+       THEN NULL ELSE 5 END AS values_correlated_kept,                 -- @nullable
   CASE WHEN 5 IN (SELECT generate_series(1, 8))
        THEN t.id ELSE NULL END AS srf_probed,                          -- @notNull
   CASE WHEN EXISTS (SELECT generate_series(1, 10000000000))

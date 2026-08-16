@@ -498,7 +498,7 @@ interface SublinkBody {
  * than by list.
  */
 const SUBLINK_BODY_FIELDS = new Set([
-  "targetList", "op", "limitOption", "location", "limitCount", "limitOffset",
+  "targetList", "op", "limitOption", "location", "limitCount", "limitOffset", "valuesLists",
 ]);
 
 /** The set-operation body's own fields: the operator, its ALL flag and the
@@ -570,6 +570,38 @@ function closedSelectBody(
     return null;
   }
   if (s.op !== undefined && s.op !== "SETOP_NONE") return null;
+  if (Array.isArray(s.valuesLists)) {
+    // A VALUES body (the widening's third clause). PostgreSQL forbids
+    // set-returning calls here, so the pre-probe never applies; row lengths
+    // must agree and the columns unify by position through the same rule
+    // COALESCE uses — all three measured and pinned. A Values Scan keeps
+    // the written order with no deduplication to reorder it, so a LIMIT may
+    // slice it, unlike a set operation's.
+    const rows: TypeSet[][] = [];
+    for (const row of s.valuesLists) {
+      if (nodeTag(row) !== "List") return null;
+      const items = fieldsOf(row, "List").items;
+      if (!Array.isArray(items) || items.length === 0) return null;
+      const sets: TypeSet[] = [];
+      for (const item of items) {
+        const set = typeSetOf(item, catalog, memo);
+        if (set === null) return null;
+        sets.push(set);
+      }
+      rows.push(sets);
+    }
+    if (rows.length === 0) return null;
+    const width = rows[0]!.length;
+    if (rows.some(r => r.length !== width)) return null;
+    const targetSets: TypeSet[] = [];
+    for (let i = 0; i < width; i++) {
+      const unified = catalog.closedCommonTypes(rows.map(r => r[i]!));
+      if (unified === null) return null;
+      targetSets.push(unified);
+    }
+    if (!closedLimitClause(s, false, catalog, memo)) return null;
+    return { targetSets, hasSrf: false };
+  }
   const targets = Array.isArray(s.targetList) ? s.targetList : [];
   if (targets.length === 0) return null;
   const targetSets: TypeSet[] = [];

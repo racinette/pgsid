@@ -1053,6 +1053,49 @@ describe("sublink LIMIT/OFFSET bodies (flipped 2026-08-16 — the clause landed)
   });
 });
 
+// --- Sublink body-clause widening: VALUES bodies (chartered 2026-08-16). ----
+// The widening's third clause, gated on the parser/deparser pre-work the
+// charter asked for and now pinned: PostgreSQL forbids set-returning calls
+// in VALUES, requires equal row lengths, unifies the columns the way
+// COALESCE does, and keeps the written row order (a Values Scan has no
+// deduplication to reorder). Every value adjudicated 2026-08-16 over
+// orders' rows (1,1) and (2,5).
+
+describe("sublink VALUES bodies (flipped 2026-08-16 — the clause landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("a membership test over a VALUES body answers", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN 2 IN (VALUES (1),(2)) THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("a single-row VALUES body answers as an EXPR sublink, and a LIMIT may slice it", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN (VALUES (7)) = 7 THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+    expect(await notNullOf(
+      "SELECT CASE WHEN (VALUES (7),(8) LIMIT 1) = 7 THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(true);
+  });
+
+  it("GUARD: a correlated element keeps the body open", async () => {
+    // The row with qty = 1 fires the NULL arm (adjudicated).
+    expect(await notNullOf(
+      "SELECT CASE WHEN 1 IN (VALUES (o.qty)) THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+
+  it("GUARD: a volatile element keeps the body open", async () => {
+    // `random()` is not a constant of the statement whatever syntax wraps
+    // it; every row fires the NULL arm (adjudicated), and a claim would be
+    // rejecting values PostgreSQL returns.
+    expect(await notNullOf(
+      "SELECT CASE WHEN 1 > (VALUES (random())) THEN NULL ELSE 5 END AS c FROM orders o",
+    )).toBe(false);
+  });
+});
+
 describe("GUARD: lines the mechanism must not cross", () => {
   it("bp control: the = direction must NOT claim — a claim here is unsound", async () => {
     const c = await contract("INSERT INTO bpt_eq (c, n) VALUES ('a', $1)");
