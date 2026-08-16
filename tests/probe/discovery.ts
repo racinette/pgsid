@@ -1812,7 +1812,7 @@ type Bucket =
   | "generator-threw" | "deparse-threw" | "reparse-failed" | "ast-differed"
   | "pg-rejected" | "pg-raised"
   | "engine-refused" | "engine-crashed" | "shape-mismatch" | "notnull-violated"
-  | "param-violated" | "value-conditional"
+  | "param-violated" | "value-conditional" | "always-raises-violated"
   | "group-violated" | "parity-broke" | "agreed-rows" | "agreed-norows";
 
 const TIER: Record<Bucket, "TOOL" | "BUDGET" | "FINDING" | "EXPECTED" | "OK"> = {
@@ -1827,6 +1827,12 @@ const TIER: Record<Bucket, "TOOL" | "BUDGET" | "FINDING" | "EXPECTED" | "OK"> = 
   // ProbeResult.valueConditional). EXPECTED like engine-refused; the count
   // is the revisit trigger for the value-conditional decision.
   "value-conditional": "EXPECTED",
+  // The statement-level claim, falsified: the contract says this write
+  // rejects on EVERY execution (docs/argument-nullability.md, "The
+  // always-raises statement fact") and the control run wrote the row. Its
+  // own bucket because the claim is about the statement — the column and
+  // parameter buckets would both name it wrongly.
+  "always-raises-violated": "FINDING",
   "group-violated": "FINDING", "parity-broke": "FINDING",
   "agreed-rows": "OK", "agreed-norows": "OK",
 };
@@ -1908,6 +1914,7 @@ function classify(r: ProbeResult): Bucket {
     return /syntax error|does not exist|ambiguous/i.test(r.pgError) ? "pg-rejected" : "pg-raised";
   }
   if (r.shape) return "shape-mismatch";
+  if (r.alwaysRaisesViolated) return "always-raises-violated";
   if (r.violations.length) return "notnull-violated";
   if (r.paramViolations.length) return "param-violated";
   if (r.valueConditional.length) return "value-conditional";
@@ -2009,6 +2016,13 @@ function fingerprint(bucket: Bucket, r: ProbeResult, built: Built): string {
       )].sort();
       return `${bucket}|${sites.join(",") || "arity"}|${msgs.join(" + ")}`;
     }
+    case "always-raises-violated":
+      // The WRITE SHAPE the flag came off — `DML:insert`,
+      // `DML:insert-onconflict` — which is the causal axis here: the
+      // universality rule is per shape, so two shapes getting it wrong are
+      // two defects and one shape over three tables is one. Table names
+      // stay out, as everywhere else in this function.
+      return `${bucket}|${/DML:[a-z-]+/.exec(built.shape)?.[0] ?? "no-dml-shape"}`;
     case "parity-broke":
       return `${bucket}|${normalise(r.parity ?? "")}`;
     case "engine-crashed":

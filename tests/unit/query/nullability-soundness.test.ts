@@ -82,6 +82,7 @@ interface Fixture {
   bindings: FixtureBinding[];
   noRowsReason: string | null;
   raisesPattern: string | null;
+  alwaysRaises: boolean;
   unwitnessable: Map<number, string>;
 }
 
@@ -119,8 +120,9 @@ const fixtures: Fixture[] = fixtureFiles.map(file => {
   const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
   const name = basename(file, ".sql");
   try {
-    const { bindings, noRowsReason, raisesPattern, unwitnessable } = parseFixtureDirectives(sql);
-    return { name, sql, bindings, noRowsReason, raisesPattern, unwitnessable };
+    const { bindings, noRowsReason, raisesPattern, alwaysRaises, unwitnessable } =
+      parseFixtureDirectives(sql);
+    return { name, sql, bindings, noRowsReason, raisesPattern, alwaysRaises, unwitnessable };
   } catch (e) {
     throw new Error(`${file}: ${(e as Error).message}`);
   }
@@ -276,13 +278,33 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       const r = results.get(fixture.name)!;
 
       expect(r.planError, `PostgreSQL rejected this fixture: ${r.planError}`).toBeNull();
-      expect(r.shapeError, `could not determine output shape: ${r.shapeError}`).toBeNull();
-      expect(
-        r.claimed.map(c => c.name),
-        `output shape differs from PostgreSQL\n` +
-          `  engine (${r.claimed.length}): ${r.claimed.map(c => c.name).join(", ")}\n` +
-          `  pg     (${r.pgColumns.length}): ${r.pgColumns.join(", ")}`,
-      ).toEqual(r.pgColumns);
+      if (fixture.alwaysRaises) {
+        // The shape step EXECUTES against an empty database, which works for
+        // every other @no-rows fixture because with no rows the raising
+        // expression is never evaluated. An @always-raises statement writes a
+        // row unconditionally, so it raises there too — a second observation
+        // of the flag rather than a gap. Such a fixture therefore declares no
+        // output columns: under the flag no row is ever returned, so an
+        // output claim could never be checked against anything.
+        expect(
+          r.shapeError,
+          `fixture is marked @always-raises but describing it succeeded — the ` +
+            `statement does not always raise`,
+        ).not.toBeNull();
+        expect(
+          r.claimed.map(c => c.name),
+          `an @always-raises fixture must claim no output columns: it never ` +
+            `returns a row, so nothing here could be adjudicated`,
+        ).toEqual([]);
+      } else {
+        expect(r.shapeError, `could not determine output shape: ${r.shapeError}`).toBeNull();
+        expect(
+          r.claimed.map(c => c.name),
+          `output shape differs from PostgreSQL\n` +
+            `  engine (${r.claimed.length}): ${r.claimed.map(c => c.name).join(", ")}\n` +
+            `  pg     (${r.pgColumns.length}): ${r.pgColumns.join(", ")}`,
+        ).toEqual(r.pgColumns);
+      }
 
       expect(r.violations, `\n${r.violations.join("\n")}\n`).toEqual([]);
 

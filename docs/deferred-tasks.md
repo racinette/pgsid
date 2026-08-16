@@ -498,7 +498,40 @@ and oracle before chartering), queued in this order, small first:**
    written rows only (VALUES rows, FROM-less INSERT ... SELECT);
    pre-work: ON CONFLICT DO NOTHING's CHECK-before-arbiter timing;
    the fixture suites' control expectation inverts under an
-   `@always-raises` annotation.
+   `@always-raises` annotation. BUILT 2026-08-16, "As built" in the
+   charter. Universality is decided where WRITES are collected, not
+   where implicants are: `Write`/`GroundedCheck` carry a `universal`
+   flag and only an empty implicant off a universal check sets the
+   fact; claims are untouched, and the rewrite gate needed no work
+   (a hooked table produces no Write at all). Pre-work (two pins,
+   param-mechanism): ON CONFLICT checks the proposed row BEFORE the
+   arbiter — DO NOTHING does not rescue a violating row, while a
+   conflicting VALID row is skipped — so OC-carrying inserts stay
+   universal; and UPDATE, MERGE arms, the OC update arm and the
+   sourced INSERT ... SELECT all succeed over an empty match. The
+   absorption path read as expected (`[]` sorts first in
+   `minimizeImplicants` and its superset test swallows the rest; the
+   length-1/length-≥2 filters are where the fact was dropped). Three
+   red targets flipped, four guards green — the BEFORE ROW trigger
+   one oracle-adjudicated, since the trigger rewrites the row into
+   validity and PostgreSQL accepts it under every binding. TWO suites
+   inverted, not one: param-soundness's control must now RAISE and be
+   seen to, and nullability-soundness determines a fixture's output
+   shape by EXECUTING it — which an unconditional write cannot
+   survive — so under the flag that failure is the expected
+   observation and the fixture must claim no output columns. Corpus:
+   param-always-raises.sql. The instrument adjudicates it in its own
+   bucket, `always-raises-violated` (DECIDED 2026-08-16 with the
+   user: the existing violation lists are column- and
+   parameter-shaped and would have named a statement-level claim
+   wrongly), fingerprinted on the write shape, costing no execution —
+   the control run already runs the statement. Wiring verified by
+   forcing the flag on: the bucket classifies, fingerprints per DML
+   shape and reports. Suite 51 files / 3,177 + 1 skipped, ~74s.
+   VERIFIED (2026-08-16, 20,000-query discovery runs): zero
+   always-raises-violated instances at both seeds; seed 20260808 — 0
+   findings, value-conditional 1 EXPECTED; seed 7 — the q2575
+   param-sibling MERGE instance plus 1 value-conditional EXPECTED.
 4. SUBLINK BODY WIDENING ("Body-clause widening" in the
    closed-sublinks section) — set-operation and LIMIT bodies first,
    one clause at a time, each with its own closure argument; ORDER BY

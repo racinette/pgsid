@@ -691,7 +691,7 @@ narrowing (never `bindRejected`); the output side gains its OWN consumers
 of the shared core — the statement map now, entailment later — chartered
 in `docs/subtree-evaluation.md`, each under its own soundness argument.
 
-## The always-raises statement fact (chartered 2026-08-16, NOT BUILT)
+## The always-raises statement fact (chartered 2026-08-16, BUILT 2026-08-16)
 
 The measured gap (post-landing review, adjudicated live): over
 `t2 (a int, n text, CHECK (a > 5), CHECK (n IS NOT NULL))`,
@@ -737,6 +737,64 @@ machinery. BOUNDARY: the flag fires only where the grounder already
 stands — enforced CHECKs and fed partition bounds over written
 values, rewrite gates intact — and must not grow toward a general
 will-this-fail analysis.
+
+**As built (2026-08-16).** The universality question is answered where
+the write events are collected, not where the implicants are: `Write`
+and `GroundedCheck` carry a `universal` flag, set only by a VALUES row
+and the FROM-less `INSERT ... SELECT`, and `groundedCheckClaims` reads
+it per check — an empty implicant off a universal check sets
+`alwaysRaises`, off any other check it changes nothing. Claims are
+untouched either way, since a claim is existential already. The
+rewrite gate needed no work: a hooked (command, table) produces no
+Write at all, so there is no grounded check to flag.
+
+PRE-WORK, both measured (param-mechanism, "The always-raises statement
+fact"). ON CONFLICT: the proposed row's CHECK is evaluated BEFORE the
+arbiter is consulted — a conflicting row that violates the CHECK
+raises under DO NOTHING, while a conflicting VALID row is silently
+skipped — so an ON CONFLICT clause does not demote the insert's own
+row, and OC-carrying inserts stay universal. The absorption path read
+as expected: `minimizeImplicants` sorts by length, so `[]` sorts first
+and its superset test swallows everything after it; `groundedCheckClaims`
+then filters for length 1 and length ≥ 2, which is exactly where the
+fact was being discarded. Beside it, the existential shapes measured
+uniformly: UPDATE, MERGE arm, ON CONFLICT update arm and the sourced
+`INSERT ... SELECT` all SUCCEED over an empty match with the same
+violating assignment that raises when a row matches.
+
+Acceptance: three red targets flipped (the `(2, $1)` VALUES row, its
+ON CONFLICT DO NOTHING twin, and the valid `(7, $1)` control keeping
+its parameter claim with no flag) and four guards green — UPDATE,
+MERGE arm, ON CONFLICT update arm, and a BEFORE ROW trigger that
+rewrites the row into validity, that last one oracle-adjudicated
+rather than conservatism-only (PostgreSQL accepts the insert under
+every binding, so a flag there would be false).
+
+The annotation cost two suites their standing assumption, not one.
+`@always-raises` implies `@no-rows` + `@raises` (parse-time, so the
+refusal is always observed) and inverts param-soundness's control
+expectation: the all-valid control must RAISE, and must be seen to.
+nullability-soundness needed the same inversion for a reason the
+charter had not named — it determines a fixture's output shape by
+EXECUTING against an empty database, which works for every other
+`@no-rows` fixture because with no rows the raising expression is
+never evaluated, while an unconditional write raises there too. Under
+the flag that failure is the expected observation, and such a fixture
+must claim no output columns at all: no row is ever returned, so an
+output claim could never be checked. Corpus:
+`param-always-raises.sql`. The engine's flag is annotated in both
+directions in param-nullability, like every other claim.
+
+The discovery instrument adjudicates it in the direction a
+counterexample needs: `always-raises-violated`, its own bucket
+(decided 2026-08-16 — the existing lists are column- and
+parameter-shaped and would have named a statement-level claim
+wrongly), fingerprinted on the write shape (`DML:insert`,
+`DML:insert-onconflict`) so two shapes getting it wrong read as two
+defects and one shape over three tables reads as one. It costs no
+execution: the control run already ran the statement, and a flagged
+statement that returns instead of raising falsifies the claim on the
+spot.
 
 ## Witness classification for constraint-shaped raises (chartered 2026-08-16, BUILT 2026-08-16)
 

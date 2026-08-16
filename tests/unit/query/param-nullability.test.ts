@@ -6,7 +6,7 @@ import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { collectParamFacts, collectParamNullability } from "../../../src/query/param-nullability.js";
+import { collectParamNullability } from "../../../src/query/param-nullability.js";
 import { inferQueryContract, inferNullability } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 import { parseFixtureDirectives, type ParamClaim } from "./fixture-args.js";
@@ -40,6 +40,9 @@ interface FixtureParams {
   rejectClaims: number[][];
   inferred: { number: number; notNull: boolean }[];
   inferredSets: number[][];
+  /** `-- @always-raises` present, and what the engine says. */
+  alwaysRaisesClaimed: boolean;
+  alwaysRaisesInferred: boolean;
 }
 
 const results: FixtureParams[] = [];
@@ -62,7 +65,7 @@ describe("argument nullability (engine vs @param annotations)", () => {
     // widens what the corpus can hold without moving anything in it.
     for (const file of fixtureFiles) {
       const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const { paramClaims, rejectClaims } = parseFixtureDirectives(sql);
+      const { paramClaims, rejectClaims, alwaysRaises } = parseFixtureDirectives(sql);
       const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
       if (!stmt) continue;
       const contract = await inferQueryContract(stmt, catalog, {
@@ -74,6 +77,8 @@ describe("argument nullability (engine vs @param annotations)", () => {
         rejectClaims,
         inferred: contract.params,
         inferredSets: contract.paramRejectionSets.map(s => [...s]),
+        alwaysRaisesClaimed: alwaysRaises,
+        alwaysRaisesInferred: contract.alwaysRaises,
       });
     }
     await pg.close();
@@ -104,6 +109,24 @@ describe("argument nullability (engine vs @param annotations)", () => {
       stale,
       `@param annotations for parameters the statement does not contain:\n  ` +
         stale.join("\n  "),
+    ).toEqual([]);
+  });
+
+  // The statement-level flag carries the same bar as everything else in the
+  // contract, both directions: an engine claim nobody annotated is a claim
+  // nobody reviewed, and an annotation the engine dropped is stale
+  // bookkeeping. Its executable half — the control must actually raise —
+  // lives in param-soundness.test.ts.
+  it("every always-raises statement is annotated, and no @always-raises is stale", () => {
+    const missing = results.filter(r => r.alwaysRaisesInferred && !r.alwaysRaisesClaimed);
+    const stale = results.filter(r => r.alwaysRaisesClaimed && !r.alwaysRaisesInferred);
+    expect(
+      missing.map(r => r.name),
+      `Statements the engine flags \`alwaysRaises\` with no \`-- @always-raises\` line`,
+    ).toEqual([]);
+    expect(
+      stale.map(r => r.name),
+      `@always-raises annotations the engine does not claim`,
     ).toEqual([]);
   });
 
