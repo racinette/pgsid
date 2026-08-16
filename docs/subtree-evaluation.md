@@ -1118,6 +1118,22 @@ argument and measurement before code:
   collatable sort keys outright (the `stxc` lesson).
 - VALUES bodies (`x IN (VALUES (1), (2))`): pre-work first — what the
   parser and deparser even do with the shape.
+  **BUILT 2026-08-16**; the pre-work came back clean and made the gate
+  smaller than expected. `valuesLists` is a plain array of `List` nodes
+  and the deparser round-trips it, so nothing structural was in the
+  way; PostgreSQL FORBIDS set-returning calls in VALUES, which takes
+  the whole pre-probe question off the table (`hasSrf` is false by
+  construction); row lengths must agree and are refused before
+  execution; and the columns unify by position exactly as COALESCE
+  unifies. A Values Scan keeps the written row order with no
+  deduplication to reorder it, so a LIMIT may slice a VALUES body
+  where it may not slice a set operation — the distinction the
+  previous clause established. Three red targets flipped (membership
+  over a VALUES body, a single-row body as an EXPR sublink, a LIMITed
+  two-row body) with two guards green: a correlated element and a
+  VOLATILE element, both witnessed by data that fires the NULL a claim
+  would reject. Corpus: `closed-sublink.sql` carries the membership
+  claim and the correlated control.
 
 Demand is unmeasured (every verification run stayed clean without
 these); the clauses ride one at a time, never as a batch.
