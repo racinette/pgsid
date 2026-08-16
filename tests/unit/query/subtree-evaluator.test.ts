@@ -6,9 +6,11 @@ import type { Node } from "libpg-query";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { deparseSync } from "pgsql-deparser";
 import {
   collectClosedSubtrees,
   evaluateClosedSubtrees,
+  SUBLINK_SRF_ROW_CAP,
   type Evaluate,
   type SubtreeEvaluationCatalog,
 } from "../../../src/query/subtree-evaluator.js";
@@ -65,7 +67,19 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   A_ArrayExpr: { category: "closed", why: "closed elements, unification-guarded" },
   FuncCall: {
     category: "closed",
-    why: "plain scalar call admitted by the survivor consensus at the call's arity; aggregate, window, VARIADIC-spread and ordered shapes are open",
+    why: "plain scalar call admitted by the survivor consensus at the call's arity; aggregate, window, VARIADIC-spread and ordered shapes are open — plus the sublink-body exception: a TOP-LEVEL set-returning call closes through closedSetFunctionTypes behind the runtime cardinality pre-probe",
+  },
+  SubLink: {
+    category: "closed",
+    why: "EXPR/ANY/ALL/EXISTS over a NON-CONTEXTUAL body — a bare projection of closed expressions, no FROM of any kind (a relation is context, a function scan is trap 1's materializing shape); the closed-sublinks rung, 2026-08-16",
+  },
+  SelectStmt: {
+    category: "structural",
+    why: "a closed sublink's body, consumed by SubLink — the body gate refuses every clause beyond the bare projection",
+  },
+  ResTarget: {
+    category: "structural",
+    why: "one body target, consumed by the sublink-body gate",
   },
   CaseWhen: { category: "structural", why: "one CASE branch, consumed by CaseExpr" },
   List: { category: "structural", why: "IN-list wrapper inside A_Expr" },
@@ -83,7 +97,6 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
 const OPEN_BY_DESIGN = [
   "ColumnRef", // any name of any kind opens the subtree
   "ParamRef",
-  "SubLink", // even a table-free (SELECT 7) — recorded later in the charter
   "SQLValueFunction", // CURRENT_DATE is session state
   "CollateClause", // collation choice is the walk's business, never folded
   "GroupingFunc",
@@ -388,8 +401,23 @@ describe("closure gates", () => {
   it("names of any kind are open — scope-blindness", async () => {
     expect(await open("SELECT o.id + 0 AS g FROM orders o")).toBe(true);
     expect(await open("SELECT $1::int AS g")).toBe(true);
-    expect(await open("SELECT (SELECT 7) AS g")).toBe(true);
+    // The table-free (SELECT 7) FLIPPED closed when the sublinks rung
+    // landed (2026-08-16); the CORRELATED form is what scope-blindness
+    // keeps open — the body names a column, whatever it resolves to.
+    expect(await open("SELECT (SELECT o.id) AS g FROM orders o")).toBe(true);
     expect(await open("SELECT current_schema AS g")).toBe(true);
+  });
+
+  it("a table-free sublink closes and answers — the closed-sublinks rung", async () => {
+    expect(await answers("SELECT (SELECT 7) = 7 AS g")).toEqual([
+      { isNull: false, value: true, type: "boolean" },
+    ]);
+    expect(await answers("SELECT 5 IN (SELECT generate_series(1, 8)) AS g")).toEqual([
+      { isNull: false, value: true, type: "boolean" },
+    ]);
+    expect(await answers("SELECT EXISTS (SELECT 1) AS g")).toEqual([
+      { isNull: false, value: true, type: "boolean" },
+    ]);
   });
 });
 
@@ -481,6 +509,51 @@ describe("evaluation protocol", () => {
     expect(
       await answers("SELECT CASE WHEN 1 > 2 THEN NULL ELSE 'val' END AS c UNION ALL SELECT 'other'"),
     ).toEqual([{ isNull: false, value: "val", type: "text" }]);
+  });
+
+  // --- Closed sublinks: the pre-probe protocol (the rung's tier 2) ----------
+
+  it("an SRF sublink body pre-probes its cardinality before joining the batch", async () => {
+    const { stmt } = await subtreesOf("SELECT 5 IN (SELECT generate_series(1, 8)) AS g");
+    const { evaluate: counted, calls } = countingEvaluate();
+    const map = await evaluateClosedSubtrees(stmt, catalog, counted);
+    expect([...map.values()]).toEqual([{ isNull: false, value: true, type: "boolean" }]);
+    expect(calls[0]).toMatch(/^SELECT count\(\*\) AS e0 FROM \(SELECT/);
+    expect(calls[0]).toContain(`LIMIT ${SUBLINK_SRF_ROW_CAP + 1}`);
+  });
+
+  it("an over-cap SRF body drops its subtree — refusal, never FALSE", async () => {
+    // The cap is the rung's explicit recorded bound.
+    expect(SUBLINK_SRF_ROW_CAP).toBe(1000);
+    const { stmt } = await subtreesOf("SELECT 5 IN (SELECT generate_series(1, 2000)) AS g");
+    const map = await evaluateClosedSubtrees(stmt, catalog, evaluate);
+    expect(map.size).toBe(0);
+  });
+
+  it("EXISTS bodies skip the pre-probe — the first row answers, pinned at 10^10", async () => {
+    const { stmt } = await subtreesOf(
+      "SELECT EXISTS (SELECT generate_series(1, 10000000000)) AS g",
+    );
+    const { evaluate: counted, calls } = countingEvaluate();
+    const map = await evaluateClosedSubtrees(stmt, catalog, counted);
+    expect([...map.values()]).toEqual([{ isNull: false, value: true, type: "boolean" }]);
+    expect(calls.some(c => c.includes("count(*)"))).toBe(false);
+  });
+
+  it("the deparser renders every admitted sublink type as written", async () => {
+    // The rung's pre-work pin: batching rests on the deparser rendering
+    // sublinks as the scalar expressions they are.
+    const renderings: [sql: string, rendered: string][] = [
+      ["SELECT (SELECT 7) = 7 AS r", "((SELECT 7)) = 7 AS r"],
+      ["SELECT 5 IN (SELECT 6) AS r", "5 IN (SELECT 6) AS r"],
+      ["SELECT 5 = ANY (SELECT 6) AS r", "5 = ANY (SELECT 6) AS r"],
+      ["SELECT 5 < ALL (SELECT 6) AS r", "5 < ALL (SELECT 6) AS r"],
+      ["SELECT EXISTS (SELECT 1) AS r", "EXISTS (SELECT 1) AS r"],
+    ];
+    for (const [sql, rendered] of renderings) {
+      const parsed = await parseSql(sql);
+      expect(deparseSync(parsed as never), sql).toContain(rendered);
+    }
   });
 });
 

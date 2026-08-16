@@ -302,15 +302,19 @@ export async function buildNullabilityCatalog(
         // Unparseable definition → the constraint contributes no facts.
       }
     }
-    // Partition bounds enter HERE, at validated-CHECK grade, scan-side only
+    // Partition bounds enter HERE, at validated-CHECK grade
     // (docs/subtree-evaluation.md, "Partition-bound facts"): routing,
     // direct-insert rejection and ATTACH validation enforce the bound on
     // every stored row of the relation's subtree (pinned in
     // param-mechanism), so both scan faces take it — the tree face too,
     // because a partitioned partition's own bound holds for every leaf row
     // under it (a nested leaf renders the whole ancestor conjunction,
-    // measured). NOT the enforced list: the first wave feeds scans only,
-    // and the write side waits for its own charter. Refused by shape:
+    // measured). The ENFORCED list takes it too (the write-side rung,
+    // landed 2026-08-16): DML naming the partition directly enforces the
+    // bound on every new row — UPDATE, MERGE arms, ON CONFLICT and
+    // multi-row VALUES pinned beside the INSERT case — and writes naming
+    // the PARENT ground nothing, because a partitioned root renders no
+    // bound and routing moves the row instead. Refused by shape:
     // DEFAULT partitions (negated-union bounds) and hash bounds (a
     // satisfies_hash_partition call over a database-local OID).
     if (
@@ -331,6 +335,7 @@ export async function buildNullabilityCatalog(
         if (constraint?.contype === "CONSTR_CHECK" && constraint.raw_expr) {
           exprs.push(constraint.raw_expr);
           treeExprs.push(constraint.raw_expr);
+          enforcedExprs.push(constraint.raw_expr);
         }
       } catch {
         // Unparseable rendering → no fact, the safe direction.
@@ -1926,9 +1931,10 @@ export async function buildNullabilityCatalog(
     return survivorConsensus(survivors.map(toSurvivor), operands);
   };
 
-  const closedFunctionTypes = (
+  const closedFunctionTypesOfKind = (
     name: string,
     argTypes: readonly (readonly string[])[],
+    wantSet: boolean,
   ): string[] | null => {
     if (evalUserFunctionNames.has(name)) return null;
     const k = argTypes.length;
@@ -1948,11 +1954,14 @@ export async function buildNullabilityCatalog(
 
     const paramAt = (r: BuiltinFunctionVolatility, i: number): string =>
       r.variadic !== null && i >= r.args.length - 1 ? r.variadic : r.args[i]!;
-    // A plainly-spelled call can resolve to an aggregate (max(1)) or a
-    // set-returning row: the verdict refuses, never the pool — dropping
-    // the row PostgreSQL picks would break the never-over-drop rule.
-    const scalarRows = (rows: BuiltinFunctionVolatility[]): boolean =>
-      rows.every(r => r.kind === "f" && !r.returnsSet);
+    // A plainly-spelled call can resolve to an aggregate (max(1)) or — for
+    // the expression gate — a set-returning row: the verdict refuses,
+    // never the pool — dropping the row PostgreSQL picks would break the
+    // never-over-drop rule. The sublink-body gate asks the mirror
+    // question, where every survivor must RETURN SET (its `returns` is
+    // then the element type).
+    const kindRows = (rows: BuiltinFunctionVolatility[]): boolean =>
+      rows.every(r => r.kind === "f" && r.returnsSet === wantSet);
     const toSurvivor = (r: BuiltinFunctionVolatility): SurvivorRow => ({
       volatility: r.volatility,
       returns: r.returns,
@@ -1971,7 +1980,7 @@ export async function buildNullabilityCatalog(
       ),
     );
     if (exactAtKnowns.length === 1) {
-      if (!scalarRows(exactAtKnowns)) return null;
+      if (!kindRows(exactAtKnowns)) return null;
       return survivorConsensus(exactAtKnowns.map(toSurvivor), argTypes);
     }
 
@@ -1981,9 +1990,19 @@ export async function buildNullabilityCatalog(
           isUnknownOperand(s) || s.some(m => mayCoerceImplicitly(m, paramAt(r, i))),
       ),
     );
-    if (survivors.length === 0 || !scalarRows(survivors)) return null;
+    if (survivors.length === 0 || !kindRows(survivors)) return null;
     return survivorConsensus(survivors.map(toSurvivor), argTypes);
   };
+
+  const closedFunctionTypes = (
+    name: string,
+    argTypes: readonly (readonly string[])[],
+  ): string[] | null => closedFunctionTypesOfKind(name, argTypes, false);
+
+  const closedSetFunctionTypes = (
+    name: string,
+    argTypes: readonly (readonly string[])[],
+  ): string[] | null => closedFunctionTypesOfKind(name, argTypes, true);
 
   /**
    * The unification landing for member lists PostgreSQL resolves to a
@@ -2103,6 +2122,7 @@ export async function buildNullabilityCatalog(
       isImmutableIoType,
       closedOperatorTypes,
       closedFunctionTypes,
+      closedSetFunctionTypes,
       closedCommonTypes,
       closedCastTargetType,
       closedDatetimeCastTarget,
@@ -2298,6 +2318,7 @@ export async function buildNullabilityCatalog(
     isImmutableIoType,
     closedOperatorTypes,
     closedFunctionTypes,
+    closedSetFunctionTypes,
     closedCommonTypes,
     closedCastTargetType,
     closedDatetimeCastTarget,

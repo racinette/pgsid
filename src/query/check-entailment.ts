@@ -463,6 +463,25 @@ export function scanLitComparisons(
         }
       }
     }
+    // IN-lists and their rendered `= ANY (ARRAY[...])` form: one entry per
+    // element — the list-membership rung's arms ask exactly these
+    // point/order questions, so the synthesis must emit them.
+    if (ae && ae.lexpr && ae.rexpr) {
+      const op = bareOpName(ae.name);
+      const col = op ? lastColumnName(ae.lexpr) : null;
+      if (op && col) {
+        const items =
+          ae.kind === "AEXPR_IN" && op === "="
+            ? (ae.rexpr as { List?: { items?: Node[] } }).List?.items
+            : ae.kind === "AEXPR_OP_ANY"
+              ? (ae.rexpr as { A_ArrayExpr?: { elements?: Node[] } }).A_ArrayExpr?.elements
+              : undefined;
+        for (const item of items ?? []) {
+          const lit = litOf(item);
+          if (lit) out.push({ column: col, op, lit });
+        }
+      }
+    }
     for (const v of Object.values(n as Record<string, unknown>)) visit(v);
   };
   visit(expr);
@@ -497,6 +516,17 @@ class EntailmentKernel {
    */
   private orFacts: Atom[][][] = [];
   /**
+   * notFALSE OR-facts (the list-membership rung, docs/subtree-evaluation.md
+   * "List membership exclusion"): disjunctive conjuncts on a CHECK's
+   * notFALSE spine — `k IN ('a','b')` rendered `= ANY (ARRAY[...])`, a
+   * list partition bound — held as arms exactly like `orFacts` but at
+   * notFALSE strength: too weak for the subset rule (the OR may be
+   * UNKNOWN over a stored row), strong enough for guard refutation,
+   * where the argument runs through evaluation (see `orFactRefuted`).
+   * Consumed ONLY there.
+   */
+  private notFalseOrFacts: Atom[][][] = [];
+  /**
    * Whether the SET mask applies to atoms being built RIGHT NOW. On only
    * while collecting a masked evidence source — never for CHECK-side
    * atomization: a CHECK sub-predicate over a written column is not
@@ -528,6 +558,7 @@ class EntailmentKernel {
         this.trueFacts.length +
         this.falseFacts.length +
         this.orFacts.length +
+        this.notFalseOrFacts.length +
         this.notFalseFacts.length;
       this.applyGeneratedEqualities();
       for (const expr of this.input.checkExprs) this.harvestCheckFacts(expr);
@@ -535,6 +566,7 @@ class EntailmentKernel {
         this.trueFacts.length +
           this.falseFacts.length +
           this.orFacts.length +
+          this.notFalseOrFacts.length +
           this.notFalseFacts.length ===
         before
       ) {
@@ -544,7 +576,8 @@ class EntailmentKernel {
     this.input.trace?.addFact(
       "facts",
       `${this.trueFacts.length} TRUE atom(s), ${this.falseFacts.length} FALSE atom(s), ` +
-        `${this.orFacts.length} OR-fact(s), ${this.notFalseFacts.length} notFALSE atom(s) ` +
+        `${this.orFacts.length} OR-fact(s), ${this.notFalseOrFacts.length} notFALSE ` +
+        `OR-fact(s), ${this.notFalseFacts.length} notFALSE atom(s) ` +
         "after the derivation fixpoint",
     );
   }
@@ -630,6 +663,13 @@ class EntailmentKernel {
       if (be.boolop === "OR_EXPR") {
         const live = args.filter(a => !this.isFalse(a));
         if (live.length === 1) this.harvestCheckFacts(live[0]!);
+        else {
+          // The list-membership rung: the disjunction joins the notFALSE
+          // OR-facts, arms as written (liveness already has its stronger
+          // single-survivor descent above).
+          const arms = this.disjunctArms(expr);
+          if (arms && arms.length > 1) this.addNotFalseOrFact(arms);
+        }
         return;
       }
       return;
@@ -660,7 +700,15 @@ class EntailmentKernel {
     // boolean column rides the same rule (pinned ⇒ not NULL ⇒ TRUE).
     // Unpinned, the spine still carries the WEAK fact (atom-oracle rung):
     // notFALSE, which trichotomy consumes.
-    for (const atom of this.atomsOf(expr)) {
+    const atoms = this.atomsOf(expr);
+    if (atoms.length === 0) {
+      // A multi-element IN / `= ANY` conjunct asserts no single atom; it
+      // joins the notFALSE OR-facts instead (the list-membership rung).
+      const arms = this.disjunctArms(expr);
+      if (arms && arms.length > 1) this.addNotFalseOrFact(arms);
+      return;
+    }
+    for (const atom of atoms) {
       this.addNotFalseFact(atom);
       if (this.atomOperandsPinned(atom)) this.addTrueFact(atom);
     }
@@ -698,13 +746,23 @@ class EntailmentKernel {
    *  generated equalities, the harvest — can safely re-run each fixpoint
    *  round and convergence is detectable by count. */
   private addOrFact(arms: Atom[][]): void {
-    const same = (a: Atom[][], b: Atom[][]): boolean =>
+    if (!this.orFacts.some(f => this.orFactsSame(f, arms))) this.orFacts.push(arms);
+  }
+
+  private addNotFalseOrFact(arms: Atom[][]): void {
+    if (!this.notFalseOrFacts.some(f => this.orFactsSame(f, arms))) {
+      this.notFalseOrFacts.push(arms);
+    }
+  }
+
+  private orFactsSame(a: Atom[][], b: Atom[][]): boolean {
+    return (
       a.length === b.length &&
       a.every(
         (arm, i) =>
           arm.length === b[i]!.length && arm.every((x, j) => this.atomsMatch(x, b[i]![j]!)),
-      );
-    if (!this.orFacts.some(f => same(f, arms))) this.orFacts.push(arms);
+      )
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -1278,7 +1336,43 @@ class EntailmentKernel {
       exclusive.includes(f.op) &&
       this.litsMatch(atom.col, f.lit, atom.lit);
     if (this.trueFacts.some(witness) || this.notFalseFacts.some(witness)) return true;
-    return this.intervalRefuted(atom);
+    if (this.intervalRefuted(atom)) return true;
+    return this.orFactRefuted(atom);
+  }
+
+  /**
+   * List membership exclusion (docs/subtree-evaluation.md, "List
+   * membership exclusion"): an OR-fact refutes an atom when EVERY arm
+   * carries a comparison over the atom's column whose value set provably
+   * shares nothing with it — same-token exclusivity or the interval
+   * judgment, per arm, under the same per-column gates. Sound at notFALSE
+   * strength: were the atom TRUE its column would be non-null, each arm's
+   * refuting comparison would have EVALUATED — to FALSE, the sets being
+   * disjoint — a conjunction with a FALSE member is FALSE, and an
+   * all-FALSE OR contradicts notFALSE. (A TRUE OR-fact is stronger and
+   * concludes directly: whichever arm held, its refuting comparison held
+   * beside the atom, in an empty intersection.) An arm without such a
+   * comparison refuses the whole fact, conservatively — the NULL-listing
+   * bound's IS NULL arm is the standing example.
+   */
+  private orFactRefuted(atom: Extract<Atom, { t: "cmpLit" }>): boolean {
+    if (this.orFacts.length === 0 && this.notFalseOrFacts.length === 0) return false;
+    const exclusive = EXCLUSIVE_OPS[atom.op] ?? [];
+    const refutes = (w: Atom): boolean =>
+      w.t === "cmpLit" &&
+      w.col === atom.col &&
+      ((exclusive.includes(w.op) && this.litsMatch(atom.col, w.lit, atom.lit)) ||
+        this.cmpDisjointRel(w, atom) !== null);
+    for (const fact of [...this.orFacts, ...this.notFalseOrFacts]) {
+      if (fact.length > 0 && fact.every(arm => arm.some(refutes))) {
+        this.input.trace?.addFact(
+          "listMembershipExclusion",
+          `${atom.col} ${atom.op} <literal> is excluded by every arm of an OR-fact → never TRUE`,
+        );
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -1293,28 +1387,10 @@ class EntailmentKernel {
    * inhabitants, which is the wall the charter names.
    */
   private intervalRefuted(atom: Extract<Atom, { t: "cmpLit" }>): boolean {
-    const strat = this.input.btreeStrategy;
-    const compl = this.input.equalityComplement;
-    if (!strat || !compl || !this.input.evaluatedComparison) return false;
-    const shapeOf = (op: string): number | null =>
-      strat(op) ?? (compl(op) ? COMPLEMENT_SHAPE : null);
-    const sq = shapeOf(atom.op);
-    if (sq === null) return false;
-    if (!this.litColumnTyped(atom.col, atom.lit)) return false;
-    const dot = atom.col.indexOf(".");
-    const alias = atom.col.slice(0, dot);
-    const column = atom.col.slice(dot + 1);
-    const colType = this.input.columnTypeName(alias, column);
-    if (colType === null) return false;
-    const eqOk = this.input.comparisonEvaluable?.(alias, column, "=") ?? false;
-    const ltOk = this.input.comparisonEvaluable?.(alias, column, "<") ?? false;
     for (const f of [...this.trueFacts, ...this.notFalseFacts]) {
       if (f.t !== "cmpLit" || f.col !== atom.col) continue;
-      if (!this.litColumnTyped(atom.col, f.lit)) continue;
-      const sw = shapeOf(f.op);
-      if (sw === null) continue;
-      const rel = this.anchorRelation(colType, f.lit, atom.lit, eqOk, ltOk);
-      if (rel !== null && shapesDisjoint(sw, rel, sq)) {
+      const rel = this.cmpDisjointRel(f, atom);
+      if (rel !== null) {
         this.input.trace?.addFact(
           "intervalExclusivity",
           `${atom.col} ${atom.op} <anchor> shares nothing with the ` +
@@ -1324,6 +1400,37 @@ class EntailmentKernel {
       }
     }
     return false;
+  }
+
+  /**
+   * The per-witness core of the interval judgment, shared with the
+   * OR-fact rule: the anchor relation when witness `w`'s set and question
+   * `q`'s set are provably disjoint, null otherwise. Same-column callers
+   * only; every gate — captures present, column-typed literals, the
+   * collation trichotomy through `comparisonEvaluable` — applies here.
+   */
+  private cmpDisjointRel(
+    w: Extract<Atom, { t: "cmpLit" }>,
+    q: Extract<Atom, { t: "cmpLit" }>,
+  ): "lt" | "eq" | "gt" | "ne" | null {
+    const strat = this.input.btreeStrategy;
+    const compl = this.input.equalityComplement;
+    if (!strat || !compl || !this.input.evaluatedComparison) return null;
+    const shapeOf = (op: string): number | null =>
+      strat(op) ?? (compl(op) ? COMPLEMENT_SHAPE : null);
+    const sq = shapeOf(q.op);
+    const sw = shapeOf(w.op);
+    if (sq === null || sw === null) return null;
+    if (!this.litColumnTyped(q.col, q.lit) || !this.litColumnTyped(q.col, w.lit)) return null;
+    const dot = q.col.indexOf(".");
+    const alias = q.col.slice(0, dot);
+    const column = q.col.slice(dot + 1);
+    const colType = this.input.columnTypeName(alias, column);
+    if (colType === null) return null;
+    const eqOk = this.input.comparisonEvaluable?.(alias, column, "=") ?? false;
+    const ltOk = this.input.comparisonEvaluable?.(alias, column, "<") ?? false;
+    const rel = this.anchorRelation(colType, w.lit, q.lit, eqOk, ltOk);
+    return rel !== null && shapesDisjoint(sw, rel, sq) ? rel : null;
   }
 
   /**

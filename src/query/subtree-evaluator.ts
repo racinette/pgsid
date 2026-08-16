@@ -122,16 +122,18 @@ const isUnknownSet = (s: TypeSet): boolean => s.length === 1 && s[0] === UNKNOWN
 // identically under each of the finitely many DateStyle values, and that
 // invariance is pinned EXHAUSTIVELY (param-mechanism, the order/style
 // product), not assumed. Strict ISO: 4-digit year (two-digit-leading forms
-// are order-dependent — measured), padded month/day, 'T' or space
-// separator, optional seconds/fraction, optional surrounding spaces;
-// timestamptz REQUIRES an explicit numeric offset (the offset-less
+// are order-dependent — measured), 1-2 digit month/day (the non-padded
+// widening, 2026-08-16: a 4-digit leading year fixes every field's role,
+// so '2020-1-2' and the mixed paddings are swept invariant too), 'T' or
+// space separator, optional seconds/fraction, optional surrounding
+// spaces; timestamptz REQUIRES an explicit numeric offset (the offset-less
 // spelling reads TimeZone — measured). Everything else fails by shape:
 // '1/2/2020' answers three ways across the sweep, and 'now', 'today',
 // named zones, intervals (IntervalStyle) need no curated list to die.
 // INPUT side only: `isImmutableIoRendering` is untouched, so a closed
 // datetime never collects as a root — it composes as a member, where the
 // claims live (anchors, groundings, guards).
-const DATE_BODY = String.raw`\d{4}-\d{2}-\d{2}`;
+const DATE_BODY = String.raw`\d{4}-\d{1,2}-\d{1,2}`;
 const TIME_BODY = String.raw`[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?`;
 const OFFSET_BODY = String.raw`[+-]\d{2}(?::\d{2})?`;
 const DATETIME_SHAPES: Record<"date" | "timestamp" | "timestamptz", RegExp> = {
@@ -429,11 +431,143 @@ function typeSetVerdict(
       return catalog.closedFunctionTypes(name, sets);
     }
 
+    case "SubLink": {
+      // Closed sublinks (docs/subtree-evaluation.md, "Closed sublinks"): a
+      // body referencing no tables, columns or parameters is a closed tree
+      // wearing subquery syntax — it deparses as a scalar expression and
+      // batches through the existing protocol unchanged. A multi-row EXPR
+      // body raises ("more than one row"), which the raising-subtree
+      // fallback absorbs — measured lazy, the raise fires at row two even
+      // over a 10^10 series. Contextual bodies stay refused forever under
+      // the no-query-context wall: an open member anywhere refuses here.
+      const linkType = String(f.subLinkType ?? "");
+      const body = closedSublinkBody(f.subselect, catalog, memo);
+      if (body === null) return null;
+      if (linkType === "EXPR_SUBLINK") {
+        return body.targetSets.length === 1 ? body.targetSets[0]! : null;
+      }
+      if (linkType === "EXISTS_SUBLINK") return ["boolean"];
+      if (linkType === "ANY_SUBLINK" || linkType === "ALL_SUBLINK") {
+        // `x IN (...)` carries no operName and means `=`; a spelled
+        // operator resolves through the same closed-operator gate as any
+        // comparison, between the test expression and the body's column.
+        if (f.testexpr === undefined || body.targetSets.length !== 1) return null;
+        const testSet = setOf(f.testexpr);
+        if (testSet === null) return null;
+        let op = "=";
+        if (f.operName !== undefined) {
+          if (!qualifierIsBuiltin(f.operName)) return null;
+          const named = lastName(f.operName);
+          if (named === null) return null;
+          op = named;
+        }
+        return catalog.closedOperatorTypes(op, testSet, body.targetSets[0]!) === null
+          ? null
+          : ["boolean"];
+      }
+      // ARRAY, MULTIEXPR, ROWCOMPARE, CTE sublinks — outside the first wave.
+      return null;
+    }
+
     default:
-      // Open by default: ColumnRef, ParamRef, SubLink, SQLValueFunction,
+      // Open by default: ColumnRef, ParamRef, SQLValueFunction,
       // CollateClause, every node kind this gate has never met.
       return null;
   }
+}
+
+// --- Closed sublink bodies ---------------------------------------------------
+
+interface SublinkBody {
+  /** One TypeSet per body target column. */
+  targetSets: TypeSet[];
+  /** A top-level set-returning call sits in the target list — tier 2,
+   *  admitted only behind the runtime cardinality pre-probe (EXISTS
+   *  excepted: it early-exits at the first row, measured at 10^10). */
+  hasSrf: boolean;
+}
+
+/**
+ * The non-contextual sublink body of the first wave: a bare projection —
+ * `SELECT <closed exprs>` with nothing else. Any FROM refuses (a relation
+ * is context; a function scan is trap 1's materializing shape, refused
+ * whatever the name); every other clause — WHERE, grouping, sorts, limits,
+ * VALUES lists, set operations, WITH — is outside the wave, so an unknown
+ * field present on the body refuses conservatively rather than by list.
+ */
+const SUBLINK_BODY_FIELDS = new Set(["targetList", "op", "limitOption", "location"]);
+
+function closedSublinkBody(
+  subselect: unknown,
+  catalog: SubtreeEvaluationCatalog,
+  memo: WeakMap<object, TypeSet | null>,
+): SublinkBody | null {
+  if (nodeTag(subselect) !== "SelectStmt") return null;
+  const s = fieldsOf(subselect, "SelectStmt");
+  for (const [key, value] of Object.entries(s)) {
+    if (SUBLINK_BODY_FIELDS.has(key)) continue;
+    if (value === undefined || value === null || value === false) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    return null;
+  }
+  if (s.op !== undefined && s.op !== "SETOP_NONE") return null;
+  if (s.limitOption !== undefined && s.limitOption !== "LIMIT_OPTION_DEFAULT") return null;
+  const targets = Array.isArray(s.targetList) ? s.targetList : [];
+  if (targets.length === 0) return null;
+  const targetSets: TypeSet[] = [];
+  let hasSrf = false;
+  for (const t of targets) {
+    if (nodeTag(t) !== "ResTarget") return null;
+    const tf = fieldsOf(t, "ResTarget");
+    if (Array.isArray(tf.indirection) && tf.indirection.length > 0) return null;
+    if (tf.val === undefined) return null;
+    // PostgreSQL admits set-returning calls only at the target list's TOP
+    // level, so this position check covers every SRF a valid body holds.
+    const srfSet = topLevelSrfTypes(tf.val, catalog, memo);
+    if (srfSet !== null) {
+      hasSrf = true;
+      targetSets.push(srfSet);
+      continue;
+    }
+    const set = typeSetOf(tf.val, catalog, memo);
+    if (set === null) return null;
+    targetSets.push(set);
+  }
+  return { targetSets, hasSrf };
+}
+
+/** The element-type set of a closed top-level set-returning call, null for
+ *  anything else — the same markers, collision rule and survivor consensus
+ *  as the scalar FuncCall gate, through `closedSetFunctionTypes`. */
+function topLevelSrfTypes(
+  val: unknown,
+  catalog: SubtreeEvaluationCatalog,
+  memo: WeakMap<object, TypeSet | null>,
+): TypeSet | null {
+  if (nodeTag(val) !== "FuncCall") return null;
+  const f = fieldsOf(val, "FuncCall");
+  if (
+    f.over !== undefined ||
+    f.agg_star === true ||
+    f.agg_distinct === true ||
+    f.agg_within_group === true ||
+    f.agg_filter !== undefined ||
+    f.func_variadic === true ||
+    (Array.isArray(f.agg_order) && f.agg_order.length > 0)
+  ) {
+    return null;
+  }
+  if (!qualifierIsBuiltin(f.funcname)) return null;
+  const name = lastName(f.funcname);
+  if (name === null) return null;
+  const args = Array.isArray(f.args) ? f.args : [];
+  const sets: TypeSet[] = [];
+  for (const a of args) {
+    const s = typeSetOf(a, catalog, memo);
+    if (s === null) return null;
+    sets.push(s);
+  }
+  return catalog.closedSetFunctionTypes(name, sets);
 }
 
 /**
@@ -542,13 +676,83 @@ function deparseSelect(subtrees: Node[]): string {
 let prepareCounter = 0;
 
 /**
+ * The closed-sublinks rung's explicit recorded bound: a body whose
+ * top-level set-returning call yields more rows than this is refused — no
+ * claim. A static bound would need SRF argument semantics (the banned
+ * category); the runtime pre-probe asks PostgreSQL instead, and LIMIT
+ * keeps ProjectSet lazy (pinned: cap+1 over a 10^10 series answers in
+ * milliseconds).
+ */
+export const SUBLINK_SRF_ROW_CAP = 1000;
+
+/** Whether every non-EXISTS SRF-carrying sublink body under `subtree`
+ *  passes the cardinality pre-probe. EXISTS is exempt: the first row
+ *  answers it, measured at 10^10. A raising or unrenderable probe admits
+ *  nothing — the conservative direction. */
+async function srfBodiesWithinCap(
+  subtree: Node,
+  catalog: SubtreeEvaluationCatalog,
+  evaluate: Evaluate,
+): Promise<boolean> {
+  const memo = new WeakMap<object, TypeSet | null>();
+  const bodies: unknown[] = [];
+  const visit = (n: unknown): void => {
+    if (Array.isArray(n)) {
+      for (const x of n) visit(x);
+      return;
+    }
+    if (!n || typeof n !== "object") return;
+    const tag = nodeTag(n);
+    if (tag === "SubLink") {
+      const f = fieldsOf(n, tag);
+      if (String(f.subLinkType ?? "") !== "EXISTS_SUBLINK") {
+        const body = closedSublinkBody(f.subselect, catalog, memo);
+        if (body?.hasSrf) bodies.push(f.subselect);
+      }
+    }
+    const fields = tag ? fieldsOf(n, tag) : (n as Fields);
+    for (const [key, value] of Object.entries(fields)) {
+      if (key === "typeName") continue;
+      visit(value);
+    }
+  };
+  visit(subtree);
+  for (const body of bodies) {
+    const capped = structuredClone(fieldsOf(body, "SelectStmt")) as Fields;
+    capped["limitCount"] = {
+      A_Const: { ival: { ival: SUBLINK_SRF_ROW_CAP + 1 }, location: -1 },
+    };
+    capped["limitOption"] = "LIMIT_OPTION_COUNT";
+    let sql: string;
+    try {
+      sql = deparseSync({
+        version: 0,
+        stmts: [{ stmt: { SelectStmt: capped }, stmt_len: 0 }],
+      } as never);
+    } catch {
+      return false;
+    }
+    try {
+      const row = await evaluate(`SELECT count(*) AS e0 FROM (${sql}) AS __pgsid_probe`);
+      const count = Number(row?.["e0"]);
+      if (!Number.isFinite(count) || count > SUBLINK_SRF_ROW_CAP) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Evaluate every maximal closed subtree under `root` and return the answers
  * keyed by NODE IDENTITY over the caller's own AST. One PREPARE fixes the
  * batch's result types; one SELECT returns every value beside those types
  * (`pg_prepared_statements.result_types`, measured present, PG 18.3); a
  * raising batch falls back to one SELECT per subtree so only the raising
  * subtrees contribute nothing. An empty map — no closed subtrees, a failed
- * PREPARE — costs the caller nothing but today's symbolic answer.
+ * PREPARE — costs the caller nothing but today's symbolic answer. A subtree
+ * holding an SRF-carrying sublink body joins the batch only after the
+ * cardinality pre-probe (tier 2 of the closed-sublinks rung).
  */
 export async function evaluateClosedSubtrees(
   root: Node,
@@ -556,7 +760,12 @@ export async function evaluateClosedSubtrees(
   evaluate: Evaluate,
 ): Promise<Map<Node, EvalResult>> {
   const results = new Map<Node, EvalResult>();
-  const subtrees = collectClosedSubtrees(root, catalog);
+  const collected = collectClosedSubtrees(root, catalog);
+  if (collected.length === 0) return results;
+  const subtrees: Node[] = [];
+  for (const subtree of collected) {
+    if (await srfBodiesWithinCap(subtree, catalog, evaluate)) subtrees.push(subtree);
+  }
   if (subtrees.length === 0) return results;
 
   let sel: string;
