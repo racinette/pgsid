@@ -736,6 +736,65 @@ describe("list membership exclusion (flipped 2026-08-16 — the rung landed)", (
   });
 });
 
+// --- Guard-side IN (chartered 2026-08-16). -----------------------------------
+// docs/subtree-evaluation.md, "Guard-side IN": the refutation above is
+// spelling-dependent — `k = 'q' OR k = 'r'` walks arm by arm through the OR
+// rule while `k IN ('q','r')` atomizes to nothing, so the same question
+// answers two ways. The rung desugars a multi-element IN (and its `= ANY`
+// rendering) through the same arms in `isNotTrue`'s leaf case. Measured
+// 2026-08-16 over conforming rows ('a'/'b' in lme and plst_ab): every
+// target returns no NULL, and each guard's own data fires the NULL a claim
+// would reject — except the NULL-listing one, which pins conservatism.
+
+describe("guard-side IN (flipped 2026-08-16 — the rung landed)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  it("an IN guard reaches the OR spelling's conclusion", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k IN ('q','r') THEN NULL ELSE 5 END AS r FROM lme c",
+    )).toBe(true);
+  });
+
+  it("the `= ANY` rendering of the same guard refutes too", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k = ANY (ARRAY['q','r']) THEN NULL ELSE 5 END AS r FROM lme c",
+    )).toBe(true);
+  });
+
+  it("the list-partition twin refutes an IN guard through the same code", async () => {
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k IN ('q','r') THEN NULL ELSE 5 END AS r FROM plst_ab c",
+    )).toBe(true);
+  });
+
+  it("GUARD: NOT IN is a conjunction and must not ride the rule", async () => {
+    // `'a' NOT IN ('q','r')` is TRUE (measured): every lme row fires the
+    // arm. Desugaring it as a disjunction would refute a guard that always
+    // holds — the unsound direction, not merely the eager one.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k NOT IN ('q','r') THEN NULL ELSE 5 END AS r FROM lme c",
+    )).toBe(false);
+  });
+
+  it("GUARD: a list naming one MEMBER stays unrefuted", async () => {
+    // 'a' is in the CHECK's list, so that arm can fire — row ('a','x')
+    // witnesses the NULL.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k IN ('a','q') THEN NULL ELSE 5 END AS r FROM lme c",
+    )).toBe(false);
+  });
+
+  it("GUARD: a NULL in the guard's list refuses the whole desugar", async () => {
+    // The NULL arm carries no atom (litOf's standing refusal), so the
+    // desugar declines. No data state can witness a NULL here — over 'a'
+    // and 'b' the guard evaluates NULL and never fires — so this pins
+    // engine conservatism only.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.k IN ('q', NULL) THEN NULL ELSE 5 END AS r FROM lme c",
+    )).toBe(false);
+  });
+});
+
 // --- Closed sublinks (chartered 2026-08-16). ---------------------------------
 // docs/subtree-evaluation.md, "Closed sublinks": a sublink whose body
 // references no tables, columns or parameters is a closed tree wearing

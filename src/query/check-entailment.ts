@@ -1475,6 +1475,15 @@ class EntailmentKernel {
    * EVERY disjunct is, NOT p when p is TRUE. Leaves answer through FALSE
    * (stronger) or trichotomy; a conjunction-shaped atom list (BETWEEN's
    * two bounds) needs only one refuted member.
+   *
+   * Guard-side IN (docs/subtree-evaluation.md, "Guard-side IN"): a
+   * multi-element IN — and its `= ANY (ARRAY[...])` rendering — is a
+   * disjunction wearing leaf syntax, so it takes the OR rule through
+   * `disjunctArms` rather than atomizing to nothing. `atomsOf` skips these
+   * shapes because on the FACT side a disjunction asserts no single atom;
+   * on the GUARD side the disjunction IS the question. `NOT IN` is a
+   * conjunction and `disjunctArms` refuses it (AEXPR_IN carrying `<>`), as
+   * it refuses a list with a NULL in it — that arm carries no atom.
    */
   private isNotTrue(expr: Node): boolean {
     if (this.isFalse(expr)) return true;
@@ -1487,8 +1496,11 @@ class EntailmentKernel {
       if (be.boolop === "NOT_EXPR") return args.length === 1 && this.isTrue(args[0]!);
       return false;
     }
+    const refutedAtom = (a: Atom): boolean => this.atomIsFalse(a) || this.atomNotTrue(a);
     const atoms = this.atomsOf(expr);
-    return atoms.some(a => this.atomIsFalse(a) || this.atomNotTrue(a));
+    if (atoms.some(refutedAtom)) return true;
+    const arms = this.disjunctArms(expr);
+    return !!arms && arms.length > 0 && arms.every(arm => arm.some(refutedAtom));
   }
 
   /** The atom whose TRUTH makes `atom` FALSE, or null when there is none. */

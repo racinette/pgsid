@@ -436,7 +436,24 @@ and oracle before chartering), queued in this order, small first:**
    list-membership section) — a multi-element IN guard desugars
    through disjunctArms so the IN and OR spellings reach the same
    refutation; NOT IN must not ride; a NULL in the guard's list
-   refuses the desugar.
+   refuses the desugar. BUILT 2026-08-16, "As built" in the charter.
+   The charter needed no correction: the leaf case tries
+   `disjunctArms` after its atom pass, and all three guards are that
+   helper's EXISTING refusals rather than new gates. Pre-work (four
+   pins, param-mechanism "Guard-side IN"): both equivalences hold over
+   the whole three-valued grid, `'a' NOT IN ('q','r')` is TRUE (so an
+   unsound refutation would fire on every conforming row), and a NULL
+   element makes a non-member's membership UNKNOWN — the refused shape
+   costs no witnessable claim. Three red targets flipped (the CHECK
+   table, its `= ANY` spelling, the list-partition twin) with the NOT
+   IN, member and NULL-element guards green; corpus:
+   check-membership-exclusion.sql and partition-bound-list.sql each
+   gained the IN-spelled claim and a NOT IN control witnessed in every
+   data state. Suite 51 files / 3,149 + 1 skipped, ~73s. VERIFIED
+   (2026-08-16, 20,000-query discovery runs, rung live): seed 20260808
+   — 0 findings, value-conditional 1 EXPECTED; seed 7 — the recorded
+   standing state only (the q2575 param-sibling MERGE instance plus 1
+   value-conditional EXPECTED). Zero new findings at both seeds.
 2. WITNESS CLASSIFICATION ("Witness classification for
    constraint-shaped raises", docs/argument-nullability.md) — the two
    constraint-violation messages count as notNull witnesses only
