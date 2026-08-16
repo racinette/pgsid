@@ -409,6 +409,17 @@ by design and stays reported). REVISIT TRIGGER: the bucket growing past
 a few per 20,000, or the contract gaining value-conditional vocabulary
 some consumer can render.
 
+CLOSED BY RULING (2026-08-16): the vocabulary trigger is RETIRED. The
+claim's discriminant is a value-range predicate (`seats <= 1`), and no
+mainstream type system can carry that split — TypeScript has neither
+numeric-range nor negation types, so the union arm `{seats > 1; oc:
+string}` is unwritable, and even boolean-discriminant shapes (`bcorr`)
+condition their arms on ranges. A claim the consumer cannot render is
+diagnostics with no type, which this contract does not trade in. The
+shape is therefore documented behavior, not a standing finding: the
+instrument keeps reporting instances (the honest conservative word) and
+the BUCKET-COUNT trigger stays as the only revisit condition.
+
 BUILT 2026-08-12: `src/query/check-grounder.ts`, its red block flipped
 with every guard green (the bp = direction, NOT ENFORCED, the volatile
 body among them). The as-built record lives with the mechanism's design
@@ -581,6 +592,205 @@ charter's guess): they are the no-evaluate mode's whole power and the
 same-token fast path, and the capture pins now hold their content
 consistent instead.
 
+### List membership exclusion (chartered 2026-08-16, NOT BUILT)
+
+The measured gap (2026-08-16, the CHECK-twin probe): `CHECK (k IN
+('a', 'b'))` — and its rendered form `= ANY (ARRAY[...])`, which is
+also every list partition bound — does not refute `k = 'q'` today.
+The conjunct harvest already turns these into OR-facts; what is
+missing is one conclusion: an OR-fact refutes a guard when EVERY
+disjunct refutes it, each arm answered by the point/interval machinery
+that already exists, under the same per-column collation trichotomy.
+No new captures, no evaluation beyond the anchor questions the arms
+already ask. Pays twice: CHECK IN-lists and list partition bounds
+(`plst_ab`-shaped scans) through the same code. Acceptance frame: red
+targets over a CHECK IN table and the list-partition twin; guards — a
+guard naming a MEMBER still fires (`k = 'a'`), the NULL-listing bound
+shape (`(k IS NULL) OR ...`) still claims nothing, and an OR-fact with
+one non-refuting arm claims nothing.
+
+### Partition-bound facts (chartered 2026-08-12, BUILT 2026-08-16)
+
+A partition's bound is a validated-CHECK-grade fact the capture never
+sees: it lives in `relpartbound`, not `pg_constraint`, and
+`pg_get_partition_constraintdef` renders it as an expression. Every
+stored row of a non-default partition satisfies its bound — enforced by
+routing and by ATTACH validation — so a DIRECT scan of a partition may
+feed the bound to the kernel exactly as it feeds a validated CHECK.
+Range bounds are INTERVAL facts, and interval exclusivity is live:
+integer-range partitions (the fixture schema's `order_events` family is
+one) yield cross-anchor refutations with no new machinery. The demand
+rationale, recorded: date-range partitioning is the single most common
+real-world source of constant-date constraints, which makes this rung
+the organic testing ground for the datetime design below.
+
+PRE-WORK, measured before any code (param-mechanism style, each a pin):
+
+- What `pg_get_partition_constraintdef` renders per strategy — range,
+  list, hash — and whether a range bound carries the partition key's
+  `IS NOT NULL` in front (if so, direct partition scans get the key's
+  notNull FREE).
+- NULL routing per strategy: which partition takes a NULL key, whether
+  a non-default range partition can ever hold one, and what the DEFAULT
+  partition's rendered bound looks like (expected: the negated union of
+  its siblings').
+- ATTACH PARTITION validation: that an attached partition's rows were
+  checked against the bound (the fact's soundness rests on it).
+- Whether the bound holds TRUE per stored row or only notFALSE — the
+  kernel's fact strength depends on the answer.
+
+FIRST-WAVE SCOPE: range and list bounds of NON-DEFAULT partitions, fed
+on direct scans of the partition relation only. Refused: DEFAULT
+partitions (negated-union bounds), hash bounds (no interval or list
+shape), and any bound fact on a scan of the PARENT (a tree scan reads
+every partition; only the union holds, and the union says nothing).
+List bounds arrive as IN-shaped facts the kernel's OR machinery already
+consumes — take them if the rendering cooperates, else record.
+
+Acceptance frame to write FIRST, adjudicated: a red block over an
+integer-range partitioned family — a bound-vs-guard interval refutation
+on a direct partition scan, the partition-key notNull claim (if the
+IS NOT NULL measurement confirms), a parent-scan guard proving bounds
+never leak upward, and a DEFAULT-partition guard proving its bound is
+refused. Corpus grounding in the same commit: fixture files over the
+fixture schema's own partitions, boundary rows planted.
+
+**As built (2026-08-16).** The pre-work answered every open question in
+the fact's favor (pins: param-mechanism "Partition bounds"): range
+bounds carry EVERY key column's IS NOT NULL, so the notNull claim is
+free; the rendered shapes are total — never NULL over any key value —
+so the bound holds TRUE per stored row, stronger than a CHECK's
+notFALSE (fed at validated-CHECK grade regardless; nothing needed
+more); ATTACH validates every row; a nested partition renders its whole
+ancestor conjunction, so a direct scan of any bound-carrying relation
+— leaf or intermediate — reads facts for its entire subtree with no
+tree walk. The capture is raw and ungated (`partitionBound` on the
+table capture: strategy, isDefault, definition; diff-comparable, DETACH
+clears it); the ADAPTER gates — non-default range and list — and
+parses the rendering through the same ALTER-wrapper as CHECK
+definitions into both scan faces, never the enforced list: the write
+side stays out by construction, and a red-suite guard pins that scope
+(PostgreSQL raises on the direct-partition NULL insert; the engine
+does not claim it until a write-side rung is chartered). Parent-scan
+refusal is structural, not a check: a partitioned root renders no
+bound, so there is no fact to leak. Each red target's conclusion was
+verified reachable through the EXISTING machinery before the frame was
+written, by running the rendered bound as a plain CHECK body — feeding
+was the whole build. What that measurement also showed, recorded: list
+point exclusion (`k = 'q'` against `= ANY ('{a,b}')`) is NOT concluded
+by today's subset rule even from a plain CHECK, so list bounds arrive
+(the prefix claims notNull) but exclude no points; if that conclusion
+is ever wanted it is OR-machinery work, not bound work (chartered —
+"List membership exclusion" below). Hash bounds are doubly refused: no
+shape, and the rendering embeds a database-local OID.
+
+**Write-side rung (chartered 2026-08-16, NOT BUILT).** `INSERT INTO
+prt_lo (id) VALUES ($1)` binding NULL raises `violates partition
+constraint` (pinned), and the engine claims nothing — the first wave
+fed scans only, and a red-suite guard pins that scope. The rung: feed
+the same gated bounds (non-default range/list) into the GROUNDER's
+channel — `resolveEnforcedCheckConstraints`'s partition arm — for DML
+naming the partition directly. Writes naming the PARENT need no gate:
+the grounder grounds the target relation's own constraints, and the
+parent carries no bound. PRE-WORK, measured before code (the insert
+case is already pinned; these are not): UPDATE on a direct-named
+partition whose new row leaves the bound; MERGE arms and ON CONFLICT
+targeting a partition; whether NOT-NULL-grade grounding through the
+bound behaves per row on multi-row VALUES the way CHECKs do.
+Acceptance: the "write side stays out" guard FLIPS into a claim, with
+a parent-naming control beside it.
+
+### Settings-independent datetime literals — design B (chartered 2026-08-12, BUILT 2026-08-16)
+
+RULING, recorded with it (2026-08-12): the full settings contract —
+design C, pinning DateStyle/IntervalStyle/TimeZone by init-script
+promise — is CLOSED, not deferred. Its trust model is unverifiable and
+silently breakable (`SET datestyle` anywhere invalidates every claim
+with no signal), and it would carry the gate's first hand-curated
+lists. Reopening requires a consumer that OWNS its sessions end to end,
+and starts from a fresh argument. The general rule, stated once: a
+session setting enters the engine only as an EXPLICIT caller-declared
+input, and only where analysis is impossible without it — `searchPath`
+and `paramTypes` pass that bar (nothing resolves without them; the
+hazard is loud and structural, the wrong-database class); the datetime
+GUCs fail it (avoidable, and their mismatch corrupts values quietly).
+
+Design B is the settings-INDEPENDENT middle the original deferral never
+priced: a literal whose spelling is invariant under EVERY DateStyle
+needs no settings assumption at all. `'2020-01-01'` parses identically
+under each of the finitely many DateStyle values, so the invariance is
+measurable EXHAUSTIVELY and pinned as a sweep, not assumed. The gate is
+a value-SHAPE rule (precedent: the walk already reads fval digits to
+split bigint from numeric):
+
+- `date` and `timestamp` literals in strict ISO shape — admitted;
+- `timestamptz` only WITH an explicit numeric offset — admitted;
+- everything else — `'1/2/2020'`, offset-less timestamptz, intervals
+  (IntervalStyle), and the clock strings, which FAIL THE SHAPE TEST
+  automatically (`'now'` needs no curated list) — refused.
+
+INPUT side only: the immutable-I/O rendering gate is untouched, so no
+datetime value ever crosses to the driver and no datetime root is ever
+collected; literals close as members and casts, where the claims live
+(anchors, groundings, guards). The GUC-stable function rows stay out
+with C.
+
+PRE-WORK: the exhaustive sweep — every DateStyle value (the
+order/style product) × every admitted shape × a refused-shape control,
+pinned in param-mechanism.test.ts; and the shape regexes adjudicated
+against PostgreSQL's own parser behavior, including the edge spellings
+(two-digit years, trailing spaces, `T` separators).
+
+Acceptance: the `ivdt` refusal record in
+`check-interval-refusals.sql` flips (its ISO anchors order) and the
+red-suite `dtc` guard flips likewise; date-partitioned fixtures from
+the partition-bound rung become the argued-real corpus ground; a NEW
+refusal record holds an ambiguous-form literal (`'1/2/2020'`) exactly
+as the COLLATE "C" twin holds the collation arm.
+
+**As built (2026-08-16).** The sweep ran FIRST and answered wider than
+the charter guessed (param-mechanism, the sweep pins): every admitted
+shape — T-separator, fractional and omitted seconds, date-only
+timestamp, surrounding spaces, hour 24, padded low years, even
+non-padded `'2020-1-2'` — is invariant across the full 12-value
+order/style product, because a 4-digit leading year fixes every field's
+role; `'1/2/2020'` answers THREE ways (Jan 2 / Feb 1 / out-of-range
+under YMD); two-digit-leading years are order-dependent, which is why
+the shape test requires 4 digits; the offset-less timestamptz moves
+with TimeZone while an explicit numeric offset pins the instant. The
+gate is three regexes in the evaluator beside a new narrow face,
+`closedDatetimeCastTarget` (family + rendering for the three names,
+alias-normalized, user-shadowing disqualifies — the standing collision
+rule): the TypeCast arm consults it only AFTER `closedCastTargetType`
+refuses, admits STRING literals matching the family's regex, and
+refuses typmods (outside the swept language) and NULL literals (not a
+spelling; kept out deliberately). One gate site covers everything —
+statement-map folds, groundings, anchor questions all funnel through
+the same TypeCast closure — and the rendering gate is untouched, so a
+closed datetime composes as a member and never collects as a root. The
+first-wave regex stays padded-strict; the measured non-padded
+invariance is recorded above for any future widening. Acceptance
+landed exactly as chartered plus one: the `dtc` anchor guard and the
+entailment `dt` guard both flipped (the second was the same refusal
+through the grounding channel); `check-interval-datetime.sql` carries
+ivdt's flipped record with the ambiguous form as a WITNESSED nullable
+(the generator's 2020-01-02 row fires the session's Jan-2 reading —
+stronger than the collation twin's annotation, which stays for the
+genuinely unwitnessable arm); and `partition-bound-datetime.sql` over
+the new date-range `daily_metrics` family is the composed ground the
+charter's demand rationale promised — the bound renders ISO-shaped
+`::date` anchors, the shape gate admits them, and date anchors order
+on a direct partition scan. `'now'`, `'today'`, intervals and named
+zones die by shape with no curated list anywhere.
+
+**Non-padded widening (chartered 2026-08-16, NOT BUILT).** `'2020-1-2'`
+is already MEASURED invariant across the full sweep (a 4-digit leading
+year fixes the field roles — the pin exists), so the widening is
+`\d{1,2}` for month/day in the three regexes and nothing else.
+Two-digit YEARS stay refused — that measurement went the other way.
+Acceptance: a sweep-pin line per widened family and a fixture claim
+carrying a non-padded anchor beside the existing padded ones.
+
 **Relation to the register's "Decided against" entries.** The
 value-tracking ban's premise — "the engine contains a constant evaluator
 for PostgreSQL expressions that must match PostgreSQL exactly or produce
@@ -647,6 +857,53 @@ the crafted conviction fixtures (`check-guard-trichotomy`,
 `check-guard-arm-selection`) pin both rungs with witnessed nullable
 controls across the data states.
 
+### Closed sublinks (chartered 2026-08-16, NOT BUILT — build after the smaller rungs)
+
+A sublink whose body references no tables, columns or parameters is a
+closed tree wearing subquery syntax: `(SELECT 7) = 7` is semantically
+constant, deparses as a scalar expression, and batches through the
+existing protocol unchanged. The classification is the evaluator's own
+closure question extended to a STATEMENT body — non-contextual (every
+part closed, no FROM over relations) versus contextual (anything
+naming scope), and contextual stays refused FOREVER under the
+no-query-context wall; that boundary is not this rung's business.
+
+First-wave scope, three tiers:
+
+- EXPR, ANY/IN and EXISTS sublinks over table-free, SRF-free bodies —
+  admitted unconditionally. A multi-row EXPR body raises ("more than
+  one row"), which the raising-subtree protocol already absorbs.
+- Bodies with a TARGET-LIST set-returning call — admitted behind a
+  RUNTIME cardinality pre-probe: `SELECT count(*) FROM (<body> LIMIT
+  cap+1) q` first; `cap+1` rows → refuse, no claim. Cap 1000, an
+  explicit recorded bound. The probe is sound because target-list
+  ProjectSet is LAZY under LIMIT (trap 1's own workaround, measured
+  again 2026-08-16: the capped count over a 10^10 series answers in
+  0ms). A static bound is impossible without interpreting SRF argument
+  semantics — the banned category; the probe asks PostgreSQL instead.
+- FROM-position SRF bodies — REFUSED by name. Trap 1 is exactly that
+  LIMIT does not bound a FROM-position function scan in PGlite; the
+  guard query itself would hang.
+
+The cost measurements that shaped this (2026-08-16): `x IN (SELECT
+generate_series(...))` early-exits on a MATCH (0ms even at 10^10) but
+answering FALSE is information-theoretic exhaustion — measured linear,
+~160ns/row, with the subplan's Materialize node buffering as it goes;
+the 10^10 no-match case is ~27 minutes AND allocation-until-death.
+Data-dependent, so no static analysis bounds it; only the pre-probe
+does.
+
+PRE-WORK, each a pin: the EXPR multi-row raise; EXISTS early-exit over
+an unbounded lazy body (safe or not — decides whether EXISTS needs the
+pre-probe too); the ProjectSet-LIMIT laziness the pre-probe's
+soundness rests on, pinned beside trap 1's FROM-position counterpart;
+what the deparser renders for each sublink type. Acceptance frame: red
+targets — the `(SELECT 7) = 7` guard prune, an IN over a small
+generated series through the pre-probe; guards — a correlated body
+stays open, a FROM-position SRF body stays open, an over-cap body
+stays open, and the statement-map/grounding consumers take sublink
+answers only through the same map identity they already use.
+
 ## Boundaries, each verified against a real candidate
 
 - NO QUERY CONTEXT, ever. `WHERE col = 5 AND f(col)` does not make
@@ -655,11 +912,9 @@ controls across the data states.
 - Structural facts over open trees are refused:
   `array_length(ARRAY[p.id, p.id], 1)` is always 2, but the tree holds
   names — that is (possible, future) symbolic business, not evaluation.
-- Set-returning shapes are out of the first build even over literals:
-  `generate_series(1, 3)`, `json_each` and JSON_TABLE over literal
-  documents produce row sets, not scalar answers. Recorded later.
-- Table-free SubLinks (`(SELECT 7)`) are semantically constant and still
-  excluded first; recorded later.
+- Set-returning shapes and table-free SubLinks were excluded from the
+  first build and are now CHARTERED — "Closed sublinks" above; the
+  contextual/correlated form stays refused under the first bullet.
 - Session state (`CURRENT_SCHEMA`) and function-body reasoning stay out.
 
 ## Witness effects when consumers land
