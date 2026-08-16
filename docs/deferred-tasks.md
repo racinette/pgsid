@@ -339,26 +339,87 @@ lists, silent breakage); the general session-settings rule is stated
 there too (explicit caller input where unavoidable, refusal where
 avoidable).
 **THE REMAINING ENGINE GAPS WERE TRIAGED (2026-08-16, every example
-adjudicated live) and FOUR RUNGS ARE CHARTERED in
-docs/subtree-evaluation.md, queued in this order** (small first; the
-first three plus verification fit one session, the fourth is most of
-its own):
+adjudicated live), FOUR RUNGS WERE CHARTERED in
+docs/subtree-evaluation.md, and ALL FOUR ARE BUILT AND VERIFIED
+(2026-08-16, one session — each rung's own 20,000-query runs at both
+seeds, zero new findings anywhere)**:
 1. WRITE-SIDE PARTITION BOUNDS ("Write-side rung" in the
    partition-bound section) — feed the gated bounds to the grounder on
    direct-partition DML; the scope guard flips. Pre-work: UPDATE,
    MERGE and ON CONFLICT enforcement measurements (the INSERT case is
-   already pinned).
+   already pinned). BUILT 2026-08-16, "As built" in the charter. The
+   pre-work answered uniformly (five pins, param-mechanism "Write-side
+   enforcement"): UPDATE, MERGE arms and ON CONFLICT all enforce the
+   bound on a direct-named partition's new row, per row on multi-row
+   VALUES; the parent row-moves instead of raising, and an
+   intermediate's own bound gates before routing. The build is one
+   line — the gated bound joins the ENFORCED list — and the scope
+   guard flipped into four write-side targets (INSERT, UPDATE, list
+   prefix, hash-nested range) with the parent-naming control and
+   NULL-listing/DEFAULT/hash guards beside them. No corpus fixtures:
+   the param-side fixture suites run evaluator-off by design, the
+   Mechanism E pattern. Suite 51 files / 3,099 + 1 skipped, ~73s (the
+   3,086 recorded below was a miscount; the pre-rung baseline measured
+   3,087). VERIFIED (2026-08-16, 20,000-query discovery runs, feed
+   live): seed 20260808 — 0 findings, value-conditional 1 EXPECTED
+   (the known class); seed 7 — exactly the recorded standing state
+   (the param-sibling MERGE instance, same query q2575, kept
+   conservatively by design, plus 1 value-conditional EXPECTED). Zero
+   new findings at both seeds.
 2. LIST MEMBERSHIP EXCLUSION ("List membership exclusion" section) —
    an OR-fact refutes a guard when every disjunct does; pays for CHECK
-   IN-lists and list partition bounds through the same code.
+   IN-lists and list partition bounds through the same code. BUILT
+   2026-08-16, "As built" in the charter. The charter's premise needed
+   one correction: the harvest made OR-facts from TRUE evidence only,
+   so CHECK-spine disjuncts now join a notFALSE OR-fact list consumed
+   solely by the new conclusion (the subset rule keeps TRUE), and
+   `scanLitComparisons` now emits the IN/`= ANY` element questions the
+   arms ask. Three red targets flipped, three guards held; corpus:
+   check-membership-exclusion.sql over guest's own IN-list, the new
+   courier_jobs list family grounding partition-bound-list.sql and the
+   NULL-listing claims-nothing twin (refusal by @unwitnessable
+   annotation). Suite 51 files / 3,120 + 1 skipped, ~70s. VERIFIED
+   (2026-08-16, 20,000-query discovery runs, rung live): seed 20260808
+   — 0 findings, value-conditional 1 EXPECTED; seed 7 — the recorded
+   standing state only (the q2575 param-sibling MERGE instance plus 1
+   value-conditional EXPECTED). Zero new findings at both seeds.
 3. NON-PADDED DATETIME WIDENING ("Non-padded widening" in design B) —
    `\d{1,2}` month/day; the invariance pin already exists; two-digit
-   years stay refused.
+   years stay refused. BUILT 2026-08-16, "As built" in the charter:
+   one DATE_BODY edit, sweep pins per widened family with the mixed
+   paddings the regex language admits (all measured invariant before
+   the edit), and check-interval-datetime.sql's non-padded '2019-6-1'
+   anchor ordering against the padded CHECK anchor. Suite unchanged at
+   3,120 + 1 skipped. VERIFIED (2026-08-16, 20,000-query discovery
+   runs, widened gate live): seed 20260808 — 0 findings,
+   value-conditional 1 EXPECTED; seed 7 — the recorded standing state
+   only (q2575 plus 1 value-conditional EXPECTED). Zero new findings
+   at both seeds.
 4. CLOSED SUBLINKS ("Closed sublinks" section) — non-contextual
    bodies evaluate; target-list-SRF bodies behind the runtime
    cardinality pre-probe (cap 1000, recorded; measured 0ms over a
    10^10 series); FROM-position SRF bodies refused by name (trap 1);
    correlated bodies refused forever (the no-query-context wall).
+   BUILT 2026-08-16, "As built" in the charter. The pre-work widened
+   the answer: EXISTS needs no pre-probe (first row answers, pinned at
+   10^10) and the EXPR multi-row raise is itself lazy, so no admitted
+   shape can exhaust. The build: typeSetVerdict learned SubLink over a
+   bare-projection body gate (every other clause refuses by
+   unknown-field default, FROM of any kind included), tier 2 through
+   the new face member closedSetFunctionTypes (the set-returning twin
+   over the SAME capture — no new capture) and the runtime pre-probe
+   in evaluateClosedSubtrees; consumers unchanged, the same map
+   identity. Census reclassified SubLink closed; the old
+   (SELECT 7)-stays-open pin flipped to the correlated form. Three red
+   targets flipped against a stashed-build red run; correlated,
+   FROM-position and over-cap guards green, each with a witnessed NULL
+   a claim would reject. Corpus: closed-sublink.sql over
+   order_events_early, all three tiers beside both refusals. Suite 51
+   files / 3,141 + 1 skipped, ~72s. VERIFIED (2026-08-16,
+   20,000-query discovery runs, rung live): seed 20260808 — 0
+   findings, value-conditional 1 EXPECTED; seed 7 — the recorded
+   standing state only (q2575 plus 1 value-conditional EXPECTED). Zero
+   new findings at both seeds.
 ALSO RULED (2026-08-16): the PARAM-SIBLING standing finding is CLOSED
 — the value-conditional ruling's vocabulary trigger is retired, since
 no mainstream type system renders a value-range discriminant

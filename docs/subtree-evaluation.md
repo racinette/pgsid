@@ -592,7 +592,7 @@ charter's guess): they are the no-evaluate mode's whole power and the
 same-token fast path, and the capture pins now hold their content
 consistent instead.
 
-### List membership exclusion (chartered 2026-08-16, NOT BUILT)
+### List membership exclusion (chartered 2026-08-16, BUILT 2026-08-16)
 
 The measured gap (2026-08-16, the CHECK-twin probe): `CHECK (k IN
 ('a', 'b'))` — and its rendered form `= ANY (ARRAY[...])`, which is
@@ -608,6 +608,35 @@ targets over a CHECK IN table and the list-partition twin; guards — a
 guard naming a MEMBER still fires (`k = 'a'`), the NULL-listing bound
 shape (`(k IS NULL) OR ...`) still claims nothing, and an OR-fact with
 one non-refuting arm claims nothing.
+
+**As built (2026-08-16).** One correction to the charter's premise,
+measured while building: the conjunct harvest turned only TRUE
+evidence into OR-facts — a CHECK's spine dropped its disjunctive
+conjuncts entirely. They now join a SECOND list, notFALSE OR-facts,
+consumed by the new conclusion alone (the subset rule keeps the TRUE
+list: notFALSE licenses no arm-implication upward). The conclusion —
+`orFactRefuted`, after the same-token and interval judgments in
+`atomNotTrue` — takes an OR-fact from either list and refutes the atom
+when every arm carries a same-column comparison whose set is provably
+disjoint (same-token exclusivity, or the interval core factored out of
+`intervalRefuted` as `cmpDisjointRel`, every gate intact). Soundness at
+notFALSE strength runs through evaluation: were the atom TRUE, its
+column would be non-null, each arm's refuting comparison would have
+evaluated — to FALSE, being disjoint — an arm with a FALSE conjunct is
+FALSE, and an all-FALSE OR contradicts notFALSE. The synthesis side
+had the matching gap: `scanLitComparisons` skipped `IN`/`= ANY`
+shapes, so the anchor questions the arms ask were never emitted; it
+now yields one entry per element. Acceptance as chartered: three red
+targets flipped (CHECK IN text, integer IN point-and-ray, the
+plst_ab twin) with the member, non-refuting-arm (`k = 'a' OR k = 'b'
+OR v > 10` satisfied through `v`) and NULL-listing guards green.
+Corpus: `check-membership-exclusion.sql` rides guest's own
+`status IN (...)` constraint; the new `courier_jobs` list family
+(row-rotated, NULL only in the NULL-listing partition) grounds
+`partition-bound-list.sql` and the claims-nothing twin
+`partition-bound-list-null.sql`, whose outside-guard refusal is held
+by `@unwitnessable` annotation — no data state can fire an arm the
+bound excludes.
 
 ### Partition-bound facts (chartered 2026-08-12, BUILT 2026-08-16)
 
@@ -684,8 +713,8 @@ is ever wanted it is OR-machinery work, not bound work (chartered —
 "List membership exclusion" below). Hash bounds are doubly refused: no
 shape, and the rendering embeds a database-local OID.
 
-**Write-side rung (chartered 2026-08-16, NOT BUILT).** `INSERT INTO
-prt_lo (id) VALUES ($1)` binding NULL raises `violates partition
+**Write-side rung (chartered 2026-08-16, BUILT 2026-08-16).** `INSERT
+INTO prt_lo (id) VALUES ($1)` binding NULL raises `violates partition
 constraint` (pinned), and the engine claims nothing — the first wave
 fed scans only, and a red-suite guard pins that scope. The rung: feed
 the same gated bounds (non-default range/list) into the GROUNDER's
@@ -699,6 +728,31 @@ targeting a partition; whether NOT-NULL-grade grounding through the
 bound behaves per row on multi-row VALUES the way CHECKs do.
 Acceptance: the "write side stays out" guard FLIPS into a claim, with
 a parent-naming control beside it.
+
+**As built (2026-08-16).** The pre-work answered uniformly (pins:
+param-mechanism "Write-side enforcement"): UPDATE, both MERGE arms and
+ON CONFLICT enforce the bound on a direct-named partition's new row
+exactly as direct INSERT does, per row on multi-row VALUES with the
+whole statement rejected; naming the PARENT raises nowhere — routing
+moves the row, NULL to DEFAULT — and an intermediate partition's own
+bound gates direct writes before routing, so a DEFAULT child rescues
+nothing. One wrinkle, pinned: ON CONFLICT's update arm may move the
+key WITHIN the bound and raises only when the new key would leave
+(`invalid ON UPDATE specification`), while the proposed insert row is
+bound-checked before the arbiter looks; the arm's claims stay
+existential like every UPDATE claim (no conflict, no raise). The
+build is one line: the gated bound joins the ENFORCED list beside the
+two scan faces, and the grounder's existing collection does the rest —
+parent writes ground nothing because a partitioned root renders no
+bound. Acceptance landed as chartered plus two: the scan wave's guard
+flipped into the INSERT claim with the parent-naming control beside
+it, and UPDATE, list-prefix and hash-nested-range targets flipped
+through the same feed; guards pin NULL-listing, DEFAULT and hash as
+write-side claims-nothing. No corpus fixtures, the Mechanism E
+pattern: the param-side fixture suites run evaluator-off by design,
+so the claims are held by the red suite and adjudicated live by the
+instrument (partition raises join the notNullRaisedOther accounting,
+outside the enumerated null-rejection list).
 
 ### Settings-independent datetime literals — design B (chartered 2026-08-12, BUILT 2026-08-16)
 
@@ -783,13 +837,24 @@ charter's demand rationale promised — the bound renders ISO-shaped
 on a direct partition scan. `'now'`, `'today'`, intervals and named
 zones die by shape with no curated list anywhere.
 
-**Non-padded widening (chartered 2026-08-16, NOT BUILT).** `'2020-1-2'`
-is already MEASURED invariant across the full sweep (a 4-digit leading
-year fixes the field roles — the pin exists), so the widening is
-`\d{1,2}` for month/day in the three regexes and nothing else.
-Two-digit YEARS stay refused — that measurement went the other way.
-Acceptance: a sweep-pin line per widened family and a fixture claim
-carrying a non-padded anchor beside the existing padded ones.
+**Non-padded widening (chartered 2026-08-16, BUILT 2026-08-16).**
+`'2020-1-2'` is already MEASURED invariant across the full sweep (a
+4-digit leading year fixes the field roles — the pin exists), so the
+widening is `\d{1,2}` for month/day in the three regexes and nothing
+else. Two-digit YEARS stay refused — that measurement went the other
+way. Acceptance: a sweep-pin line per widened family and a fixture
+claim carrying a non-padded anchor beside the existing padded ones.
+
+**As built (2026-08-16).** One edit — `DATE_BODY` takes `\d{1,2}`
+month/day; the time and offset bodies stay padded, and the 4-digit
+year keeps two-digit forms refused by shape. The widened regex
+language admits MIXED paddings too ('2020-01-2', '2020-1-02'), so the
+sweep pins cover them beside one non-padded line per family (date,
+timestamp with and without T-separator, timestamptz with offset) —
+all invariant across the 12-value product, measured before the edit.
+`check-interval-datetime.sql` carries the fixture acceptance: a
+non-padded '2019-6-1' anchor orders against ivdt's padded CHECK
+anchor beside the existing ISO claims.
 
 **Relation to the register's "Decided against" entries.** The
 value-tracking ban's premise — "the engine contains a constant evaluator
@@ -857,7 +922,7 @@ the crafted conviction fixtures (`check-guard-trichotomy`,
 `check-guard-arm-selection`) pin both rungs with witnessed nullable
 controls across the data states.
 
-### Closed sublinks (chartered 2026-08-16, NOT BUILT — build after the smaller rungs)
+### Closed sublinks (chartered 2026-08-16, BUILT 2026-08-16)
 
 A sublink whose body references no tables, columns or parameters is a
 closed tree wearing subquery syntax: `(SELECT 7) = 7` is semantically
@@ -904,6 +969,42 @@ stays open, a FROM-position SRF body stays open, an over-cap body
 stays open, and the statement-map/grounding consumers take sublink
 answers only through the same map identity they already use.
 
+**As built (2026-08-16).** The pre-work answered generously
+(param-mechanism "Closed sublinks"; the deparser pin beside the
+protocol pins): EXISTS early-exits at the first row even over a 10^10
+series — it needs NO pre-probe — and the EXPR multi-row raise is
+itself lazy (row two fires it at 10^10), so no admitted shape can
+exhaust; the pre-probe's capped count answers 1001 in milliseconds at
+10^10; EXISTS does not evaluate the body's target list; the plan-shape
+pin holds trap 1's line without executing it (target list plans
+ProjectSet, FROM position plans the materializing Function Scan). The
+build: `typeSetVerdict` learned SubLink — EXPR takes the body's single
+target set, EXISTS is boolean, ANY/ALL resolve testexpr-vs-column
+through the closed-operator gate (bare `IN` means `=`) — over a body
+gate that admits ONE shape, the bare projection: every clause beyond
+targetList refuses by unknown-field default (FROM of any kind included:
+a relation is context, a function scan is trap 1; VALUES lists and set
+operations recorded as outside the wave). Tier 2 rides a new face
+member, `closedSetFunctionTypes` — the set-returning twin of the
+scalar gate over the SAME per-signature capture, no new capture, its
+verdict the element type — admitted only at a body target's top level
+(PostgreSQL's own SRF position rule) and only through the runtime
+cardinality pre-probe in `evaluateClosedSubtrees` (cap 1000 recorded
+as `SUBLINK_SRF_ROW_CAP`; an over-cap or raising probe drops the whole
+subtree). Everything downstream was already true: the deparser renders
+sublinks as scalar expressions, the batch protocol carries them, the
+consumers read the same map identity — no walk or grounder change.
+The allowlist census reclassified SubLink closed (SelectStmt/ResTarget
+structural) and the old `(SELECT 7)`-stays-open pin flipped into the
+correlated form. Acceptance as chartered plus one: three red targets
+(the EXPR prune, the pre-probed IN, the unbounded EXISTS) flipped
+against a stashed-build red run, with the correlated, FROM-position
+and over-cap guards green — each guard's data fires the NULL a claim
+would reject (the over-cap membership is in fact TRUE; refusal must
+not read as FALSE). Corpus: `closed-sublink.sql` over
+order_events_early carries all three tiers beside both refusals,
+witnessed per data state.
+
 ## Boundaries, each verified against a real candidate
 
 - NO QUERY CONTEXT, ever. `WHERE col = 5 AND f(col)` does not make
@@ -913,7 +1014,7 @@ answers only through the same map identity they already use.
   `array_length(ARRAY[p.id, p.id], 1)` is always 2, but the tree holds
   names — that is (possible, future) symbolic business, not evaluation.
 - Set-returning shapes and table-free SubLinks were excluded from the
-  first build and are now CHARTERED — "Closed sublinks" above; the
+  first build and are now BUILT — "Closed sublinks" above; the
   contextual/correlated form stays refused under the first bullet.
 - Session state (`CURRENT_SCHEMA`) and function-body reasoning stay out.
 
