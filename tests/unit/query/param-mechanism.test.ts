@@ -1187,6 +1187,42 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(first.rows[0]!.column1).toBe(2);
   });
 
+  it("the free clauses: WHERE filters the one Result row, ORDER BY cannot move an answer, DISTINCT's order is a plan choice", async () => {
+    // The widening's fourth batch, under one rule (decided 2026-08-16 with
+    // the user): a clause that changes WHICH rows a body has is admitted,
+    // and joins the no-slice family unless the row order is structural.
+    // These three measurements are that rule's whole footing.
+    //
+    // WHERE with no FROM keeps or drops the single Result row, so an EXPR
+    // sublink over it is the value or NULL — no new row-count story.
+    const filtered = await pg.query<{ off: number | null; on: number | null }>(
+      "SELECT (SELECT 7 WHERE false) AS off, (SELECT 7 WHERE true) AS on",
+    );
+    expect(filtered.rows[0]).toEqual({ off: null, on: 7 });
+    // ORDER BY cannot change what an admitted sublink answers: membership
+    // is a set question, and an EXPR body still raises above one row.
+    const ordered = await pg.query<{ a: boolean; b: boolean }>(
+      "SELECT 1 IN (SELECT generate_series(1,3) ORDER BY 1) AS a," +
+        " 1 IN (SELECT generate_series(1,3)) AS b",
+    );
+    expect(ordered.rows[0]).toEqual({ a: true, b: true });
+    expect(await errorOf("SELECT (SELECT generate_series(1,3) ORDER BY 1)", [])).toContain(
+      "more than one row returned by a subquery used as an expression",
+    );
+    // DISTINCT deduplicates, and the order it leaves behind is the same
+    // planner choice a set operation's is — 42 through HashAggregate, 3
+    // through Sort+Unique. Hence the no-slice half of the rule.
+    const body = [17, 3, 29, 8, 42, 11, 5, 23].map(v => `(${v})`).join(",");
+    const first = async (): Promise<number> =>
+      (await pg.query<{ x: number }>(`SELECT DISTINCT x FROM (VALUES ${body}) q(x) LIMIT 1`))
+        .rows[0]!.x;
+    const hashed = await first();
+    await pg.exec("SET enable_hashagg = off");
+    const sorted = await first();
+    await pg.exec("SET enable_hashagg = on");
+    expect(hashed).not.toBe(sorted);
+  });
+
   it("an ANY/IN sublink early-exits on a MATCH; the no-match case is exhaustion", async () => {
     // The match answers immediately even at 10^10; answering FALSE is
     // information-theoretic exhaustion (linear, recorded — NOT executed
