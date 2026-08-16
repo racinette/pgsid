@@ -532,8 +532,39 @@ and oracle before chartering), queued in this order, small first:**
    always-raises-violated instances at both seeds; seed 20260808 — 0
    findings, value-conditional 1 EXPECTED; seed 7 — the q2575
    param-sibling MERGE instance plus 1 value-conditional EXPECTED.
-4. SUBLINK BODY WIDENING ("Body-clause widening" in the
-   closed-sublinks section) — set-operation and LIMIT bodies first,
+4. THREE OF ITS FOUR CLAUSES ARE BUILT (2026-08-16), each its own
+   batch with its own pre-work, red frame, corpus line and pair of
+   20,000-query runs — the charter's one-at-a-time rule taken
+   literally. SET OPERATIONS: all three operations type their result
+   exactly as COALESCE does (measured over seven operand pairs), the
+   arms arrive UNWRAPPED in `larg`/`rarg` (pinned — a release that
+   wrapped them would silently refuse every set operation), four
+   targets flipped, correlated-arm and table-in-one-arm guards green.
+   LIMIT/OFFSET: the pre-work's own question answered NO — the runtime
+   pre-probe already bounds a LIMITed SRF body, so a static rule would
+   be a second mechanism — and bought two refusals instead, one of
+   them found while building: OFFSET on an SRF body (the probe walks
+   every skipped row, linear, measured), and LIMIT or OFFSET on a SET
+   OPERATION, because the row a limit takes from a deduplicating body
+   is a PLANNER choice — the same body answers 42 under HashAggregate
+   and 3 under Sort+Unique (measured, pinned, with its own red-suite
+   guard). VALUES: the pre-work came back clean and made the gate
+   smaller — set-returning calls are forbidden there, so the pre-probe
+   question does not arise. Suite 51 files / 3,199 + 1 skipped, ~73s.
+   VERIFIED after each clause (20,000-query runs, both seeds): seed
+   20260808 — 0 findings, value-conditional 1 EXPECTED; seed 7 — the
+   q2575 param-sibling MERGE instance plus 1 value-conditional
+   EXPECTED. Zero new findings anywhere.
+   THE FOURTH CLAUSE, ORDER BY, IS OPEN and needs a decision, not
+   code: with the other three landed it buys nothing WITHOUT a limit
+   (order cannot change an EXISTS, a membership, or an EXPR body that
+   raises unless single-row), and BESIDE a limit it needs the
+   charter's collatable-sort-key refusal — which needs a per-TYPE
+   collatability fact (`pg_type.typcollation`) that no capture holds
+   today; the collation captures are per COLUMN. So the clause is a
+   new capture plus a face member, against demand the charter itself
+   records as unmeasured.
+   ORIGINAL CHARTER: set-operation and LIMIT bodies first,
    one clause at a time, each with its own closure argument; ORDER BY
    refuses collatable sort keys; VALUES bodies need parser/deparser
    pre-work.
