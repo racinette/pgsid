@@ -593,7 +593,7 @@ and oracle before chartering), queued in this order, small first:**
    as the over-refusal control), at the contract (both bodies would
    have claimed notNull), and in `closed-sublink.sql` witnessed by
    rows.
-   THE TWO QUESTIONS ARE CLOSED, not deferred — charter section
+   THE QUESTIONS ARE CLOSED, not deferred — charter section
    "Closed for good", with the measurements. GROUP BY: the recorded
    reason ("degenerate without a FROM") is false — GROUPING SETS and
    CUBE return TWO rows from no FROM, HAVING returns none — and the
@@ -605,16 +605,30 @@ and oracle before chartering), queued in this order, small first:**
    defined by. Measured beside it: a CTE inside a sublink reads the
    outer query's columns, so it is a correlation site, not an island.
    NEITHER SHOULD BE RE-OPENED.
-   ORDER BY BESIDE A LIMIT: still not taken, but the recorded PRICE
-   was wrong and is corrected in the charter. It was written as a
-   per-TYPE `pg_type.typcollation` capture; measurement says a closed
-   body can carry only `pg_catalog."default"` or (via `name`) `"C"`,
+   ORDER BY BESIDE A LIMIT IS CLOSED TOO (2026-08-17, decided with the
+   user), after two corrections that are both recorded because the
+   first was published. The price was written as a per-TYPE
+   `pg_type.typcollation` capture; measurement retired that — a closed
+   body can carry only `pg_catalog."default"` or, via `name`, `"C"`,
    neither of them session state, which is the argument the entailment
-   kernel already ships. No capture is owed. What is owed: ONE
-   measurement on the local PG 18 (can a database's default collation
-   be NONDETERMINISTIC?) and a total-order condition on the sort key.
-   Demand stays unmeasured, so the trigger is demand, not price.
-   Suite 51 files / 3,209 + 1 skipped, ~71s. VERIFIED (2026-08-17,
+   kernel already ships. But the REAL obstacle is not collation and no
+   capture lifts it: `VALUES (1.0),(1.00) ORDER BY column1 LIMIT 1`
+   answers 1.0 and the same body written the other way answers 1.00,
+   because `1.0 = 1.00` holds under numeric's btree opclass while the
+   renderings differ. A sort orders the key's EQUIVALENCE CLASS, not
+   the value — so ORDER BY fails the one-rule test's "unless the row
+   order is structural" on the rule's own terms, and the rule needs no
+   exception. Pinned in param-mechanism ("an ORDER BY orders the KEY's
+   class"), numeric and float8 both in the closed 48. Building it
+   anyway would be MECHANICAL, not structural — a tie probe as a
+   sibling of `srfBodiesWithinCap`, appending the output's rendering to
+   the sort keys in both directions and admitting on agreement — but it
+   costs one more mechanism and a round trip per sliced body, for
+   plain-SRF and VALUES bodies only, against demand every verification
+   run measures at zero. Refusing is the sound side; the trade was
+   DECLINED. DO NOT RE-OPEN AS CHEAP: the sizing is the reason it was
+   declined, not an argument for taking it.
+   Suite 51 files / 3,210 + 1 skipped, ~74s. VERIFIED (2026-08-17,
    20,000-query discovery runs): seed 20260808 — 0 findings,
    value-conditional 1 EXPECTED; seed 7 — the q2575 param-sibling
    MERGE instance plus 1 value-conditional EXPECTED. The standing

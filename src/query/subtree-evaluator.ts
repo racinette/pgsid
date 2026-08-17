@@ -586,9 +586,13 @@ function closedSelectBody(
   // a given row carries. WHERE is a closed predicate over the same rows;
   // ORDER BY and DISTINCT are admitted but bar a limit from slicing what
   // they leave — DISTINCT's surviving order is a planner choice (measured,
-  // the same 42-vs-3 as a set operation's) and ORDER BY's would need the
-  // sort key's collatability, whose price is re-measured in the document's
-  // "Body-clause widening" section.
+  // the same 42-vs-3 as a set operation's) and a SORT orders the key's
+  // EQUIVALENCE CLASS rather than the value, so it leaves the sliced row
+  // undetermined too: `VALUES (1.0),(1.00) ORDER BY column1 LIMIT 1`
+  // answers 1.0 where the same rows written the other way answer 1.00,
+  // `1.0 = 1.00` holding under numeric's opclass while the renderings
+  // differ. Both bars are permanent — docs/subtree-evaluation.md,
+  // "Closed for good".
   //
   // They are gated HERE, above the branch, because every body shape can
   // carry them: a VALUES body takes an ORDER BY too (measured — WHERE and
