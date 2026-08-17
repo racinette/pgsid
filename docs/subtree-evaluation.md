@@ -1133,12 +1133,41 @@ argument and measurement before code:
     a filter does not reorder.
   - ORDER BY cannot move an admitted answer at all: membership is a
     set question, EXISTS is existence, and an EXPR body still raises
-    above one row. Beside a LIMIT it WOULD decide the value, and
-    deciding it needs the sort key's collatability — a per-TYPE fact
-    (`pg_type.typcollation`) no capture holds, the collation captures
-    being per COLUMN. So the charter's collatable-key refusal becomes
-    the whole no-slice rule, and the capture is the recorded price of
-    lifting it.
+    above one row. Beside a LIMIT it WOULD decide the value, so the
+    charter's collatable-key refusal becomes the whole no-slice rule.
+    **The PRICE of lifting it was misrecorded, and is corrected here
+    (2026-08-17).** It was written down as a per-TYPE capture
+    (`pg_type.typcollation`, the collation captures being per COLUMN).
+    Measuring what a CLOSED body can carry says otherwise: a bare
+    unknown literal has no collation at all, `'a'::text` carries
+    `pg_catalog."default"`, and the one member of the immutable-I/O
+    set with a collation of its own is `name`, which carries `"C"` and
+    propagates it through `||`, CASE, COALESCE and `substr`. The other
+    nine collatable members of the 48 (`text`, `varchar`, `bpchar`,
+    six internal statistics types) carry `"default"`. There is no
+    third possibility, because the two ways to name another collation
+    are already refused: a spelled `COLLATE` is a `CollateClause` and
+    a column is a `ColumnRef`, both open by default. And neither
+    `"default"` nor `"C"` is SESSION state — PG 18.3 has no
+    `lc_collate` parameter to set, and `"default"` is the database's
+    own `datcollate`, fixed at CREATE DATABASE. That is the argument
+    the entailment kernel already ships for order questions on
+    default-collated columns (`comparison-groundings.ts`, the
+    collation lattice), so no capture is owed. Two things ARE owed
+    before the bar comes down:
+    - ONE measurement, not a capture: can a database's default
+      collation be NONDETERMINISTIC? If it can, two distinct strings
+      tie under ORDER BY and the survivor is a plan choice again.
+      PGlite refuses `CREATE DATABASE … LC_COLLATE` for template
+      reasons, so this wants the local PG 18. UNMEASURED — the bar
+      must not come down until it is answered.
+    - A total-order condition on the KEY. On a VALUES body ORDER BY
+      takes arbitrary expressions (`ORDER BY now()` parses and runs),
+      and a constant key is a no-op sort whose output order nothing
+      guarantees — PostgreSQL's sort is not stable. The key has to be
+      the single output column or its ordinal.
+    Demand stays what the register calls it: unmeasured. This
+    corrects the price, not the case for paying it.
   - DISTINCT deduplicates and leaves the same planner-chosen order a
     set operation leaves — 42 through HashAggregate, 3 through
     Sort+Unique, measured for both — so it is admitted and barred
@@ -1149,8 +1178,10 @@ argument and measurement before code:
   Five red targets flipped with four guards green (limit-beside-
   DISTINCT, limit-beside-ORDER BY, a correlated WHERE, and the two
   refused spellings). `SortBy` joined the allowlist census as
-  structural. STILL REFUSED and unexplored, for the record: GROUP BY
-  (degenerate without a FROM) and WITH (a whole sub-statement).
+  structural. This batch also left a hole in the VALUES branch —
+  "A field admitted by the loop but read by no gate", below — and
+  left GROUP BY and WITH open as questions, both now CLOSED under
+  "Closed for good".
 - VALUES bodies (`x IN (VALUES (1), (2))`): pre-work first — what the
   parser and deparser even do with the shape.
   **BUILT 2026-08-16**; the pre-work came back clean and made the gate
@@ -1172,6 +1203,80 @@ argument and measurement before code:
 
 Demand is unmeasured (every verification run stayed clean without
 these); the clauses ride one at a time, never as a batch.
+
+**A field admitted by the loop but read by no gate (found and fixed
+2026-08-17).** The free-clause batch put `whereClause`, `sortClause`
+and `distinctClause` into `SUBLINK_BODY_FIELDS` — the set the
+unknown-field loop consults — but wired the gates that JUSTIFY them
+into the plain branch only, below the point where the VALUES branch
+returns. WHERE and DISTINCT are syntax errors on a VALUES body, so
+nothing was exposed through those; a sort is not, and `VALUES … ORDER
+BY <key> LIMIT 1` was admitted with the key never read. What folded:
+`ORDER BY random()` gave a DIFFERENT constant on each of ten analyses
+of one statement (3 2 2 3 2 7 2 3 5 7), so the claim moved with the
+analysis rather than with the statement; `ORDER BY 1 USING >` folded
+2, the spelling refused on every other branch; `ORDER BY now()`
+folded; and `ORDER BY (SELECT c FROM coll_probe LIMIT 1)` folded — a
+sort key reading a TABLE, inside the one component whose safety
+argument is that it never reaches scope.
+
+The fix is structural rather than a fourth copy of the checks: the
+three clause gates and the no-slice bar moved ABOVE the branch, so
+every body shape pays them and no future branch can return past them.
+The rule it leaves, which is the general form of the defect: **a field
+in `SUBLINK_BODY_FIELDS` must have a gate that READS it on every path.
+Listing a field is admission, and admission without inspection is not
+a gate.** Guards: `subtree-evaluator.test.ts` pins all six shapes open
+at the gate and keeps the unsorted `VALUES … LIMIT 1` fold as the
+over-refusal control; the red suite pins the contract (both bodies
+would have claimed notNull); `closed-sublink.sql` carries the
+`USING >` refusal witnessed by rows.
+
+### Closed for good: GROUP BY and WITH bodies
+
+The free-clause batch left both "still refused and unexplored".
+Examined 2026-08-17 and CLOSED — not deferred, not costed for later.
+Neither is a clause the one-rule test admits, and neither reason
+expires.
+
+**GROUP BY — closed because the value is zero and the cost is not.**
+The recorded reason, "degenerate without a FROM", is FALSE, and the
+true one is worse for the clause. With no FROM there is one input row,
+but grouping does not therefore leave one output row: measured,
+`SELECT 7 GROUP BY GROUPING SETS ((), ())` returns TWO rows and
+`SELECT 7 GROUP BY CUBE (1)` returns two — enough to make an EXPR body
+raise — while `SELECT (SELECT 7 GROUP BY 1 HAVING false)` returns
+NONE, which makes it NULL. Grouping sets, CUBE/ROLLUP and HAVING all
+arrive through the same two fields (`groupClause`, `havingClause`), so
+"admit GROUP BY" is three admissions needing three separate arguments.
+Against that cost: the shape that would PAY is `SELECT max(x) FROM t`,
+which needs a FROM and is refused forever under the first boundary,
+and what is left over buys nothing — `(SELECT 7 GROUP BY 1)` is the
+same 7. Zero value, non-zero cost, and no path to value that does not
+cross the scope wall.
+
+**WITH — closed because consuming a CTE means resolving a NAME.** The
+CTE's own body is not the obstacle: it would pass through
+`closedSelectBody` like any other and die honestly on the first
+`ColumnRef`. The obstacle is the outer body that USES it. `SELECT *
+FROM c` is a `ColumnRef` carrying `A_Star`; `SELECT c.x FROM c` is a
+`ColumnRef` carrying fields. There is no third spelling — a CTE is
+consumed by naming its columns — so admitting WITH means admitting
+ColumnRef and expanding names out of a CTE's target list. That is the
+one line this evaluator is defined by: *it never resolves a name, it
+only detects one*, which is what makes joins, aliases, correlation and
+LATERAL somebody else's problem BY CONSTRUCTION rather than by a list
+of handled cases. It is not a trade worth making for `(WITH c AS
+(SELECT 7) SELECT * FROM c)`.
+
+One further measurement, against the framing that a CTE is a sealed
+sub-statement — "a small scope of its own". It is not: `SELECT (WITH c
+AS (SELECT t.x) SELECT * FROM c) FROM (SELECT 1 AS x) t` returns 1, so
+a CTE inside a sublink reads the OUTER query's columns. Closure
+catches that today (the reference is a ColumnRef and refuses), but it
+means a CTE is a correlation SITE, not an island, and any future
+argument for admitting one starts from a worse position than the
+framing that opened this question.
 
 ## Boundaries, each verified against a real candidate
 

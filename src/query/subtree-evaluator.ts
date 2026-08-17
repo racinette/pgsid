@@ -489,13 +489,20 @@ interface SublinkBody {
 
 /**
  * The non-contextual sublink body: a bare projection — `SELECT <closed
- * exprs>` with nothing else — or a SET OPERATION over two such bodies
- * (docs/subtree-evaluation.md, "Body-clause widening", first clause). Any
- * FROM refuses (a relation is context; a function scan is trap 1's
- * materializing shape, refused whatever the name); every other clause —
- * WHERE, grouping, sorts, limits, VALUES lists, WITH — is outside the wave,
- * so an unknown field present on the body refuses conservatively rather
- * than by list.
+ * exprs>` — a VALUES list, or a SET OPERATION over two such bodies, each
+ * free to carry the row-changing clauses (docs/subtree-evaluation.md,
+ * "Body-clause widening"). Any FROM refuses (a relation is context; a
+ * function scan is trap 1's materializing shape, refused whatever the
+ * name), and GROUPING and WITH are refused permanently with their reasons
+ * in that document's "Closed for good" section. An unknown field present
+ * on the body refuses conservatively rather than by list.
+ *
+ * A field listed here is admitted only where a gate below inspects it. The
+ * two must move together: `sortClause` entered this list while the branch
+ * that reads a VALUES body still returned above `closedSortClause`, and an
+ * uninspected key is no gate at all — `VALUES (1),…,(8) ORDER BY random()
+ * LIMIT 1` folded a different constant on each analysis (measured, fixed
+ * 2026-08-17, guarded below). The clause gates now sit ABOVE the branch.
  */
 const SUBLINK_BODY_FIELDS = new Set([
   "targetList", "op", "limitOption", "location", "limitCount", "limitOffset", "valuesLists",
@@ -574,13 +581,33 @@ function closedSelectBody(
     return null;
   }
   if (s.op !== undefined && s.op !== "SETOP_NONE") return null;
+  // The free clauses (docs/subtree-evaluation.md, "Body-clause widening",
+  // fourth batch): each changes WHICH rows the body has, never which value
+  // a given row carries. WHERE is a closed predicate over the same rows;
+  // ORDER BY and DISTINCT are admitted but bar a limit from slicing what
+  // they leave — DISTINCT's surviving order is a planner choice (measured,
+  // the same 42-vs-3 as a set operation's) and ORDER BY's would need the
+  // sort key's collatability, whose price is re-measured in the document's
+  // "Body-clause widening" section.
+  //
+  // They are gated HERE, above the branch, because every body shape can
+  // carry them: a VALUES body takes an ORDER BY too (measured — WHERE and
+  // DISTINCT are syntax errors there, a sort is not). The VALUES branch
+  // once returned above these lines and admitted keys nothing had read:
+  // `random()`, `now()`, `USING >`, even a key reading a TABLE.
+  if (s.whereClause !== undefined && typeSetOf(s.whereClause, catalog, memo) === null) return null;
+  if (!closedSortClause(s, catalog, memo)) return null;
+  if (!plainDistinctClause(s)) return null;
+  const sliced = s.sortClause !== undefined || s.distinctClause !== undefined;
+  if (sliced && (s.limitCount !== undefined || s.limitOffset !== undefined)) return null;
   if (Array.isArray(s.valuesLists)) {
     // A VALUES body (the widening's third clause). PostgreSQL forbids
     // set-returning calls here, so the pre-probe never applies; row lengths
     // must agree and the columns unify by position through the same rule
     // COALESCE uses — all three measured and pinned. A Values Scan keeps
     // the written order with no deduplication to reorder it, so a LIMIT may
-    // slice it, unlike a set operation's.
+    // slice the written rows, unlike a set operation's. A sort makes the
+    // body `sliced` like any other, so `ORDER BY … LIMIT` refuses above.
     const rows: TypeSet[][] = [];
     for (const row of s.valuesLists) {
       if (nodeTag(row) !== "List") return null;
@@ -627,18 +654,6 @@ function closedSelectBody(
     if (set === null) return null;
     targetSets.push(set);
   }
-  // The free clauses (docs/subtree-evaluation.md, "Body-clause widening",
-  // fourth batch): each changes WHICH rows the body has, never which value
-  // a given row carries. WHERE is a closed predicate over the same rows;
-  // ORDER BY and DISTINCT are admitted but bar a limit from slicing what
-  // they leave — DISTINCT's surviving order is a planner choice (measured,
-  // the same 42-vs-3 as a set operation's) and ORDER BY's would need the
-  // sort key's collatability, which no capture holds.
-  if (s.whereClause !== undefined && typeSetOf(s.whereClause, catalog, memo) === null) return null;
-  if (!closedSortClause(s, catalog, memo)) return null;
-  if (!plainDistinctClause(s)) return null;
-  const sliced = s.sortClause !== undefined || s.distinctClause !== undefined;
-  if (sliced && (s.limitCount !== undefined || s.limitOffset !== undefined)) return null;
   if (!closedLimitClause(s, hasSrf, catalog, memo)) return null;
   return { targetSets, hasSrf };
 }
