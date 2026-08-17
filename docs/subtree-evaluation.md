@@ -1135,39 +1135,9 @@ argument and measurement before code:
     set question, EXISTS is existence, and an EXPR body still raises
     above one row. Beside a LIMIT it WOULD decide the value, so the
     charter's collatable-key refusal becomes the whole no-slice rule.
-    **The PRICE of lifting it was misrecorded, and is corrected here
-    (2026-08-17).** It was written down as a per-TYPE capture
-    (`pg_type.typcollation`, the collation captures being per COLUMN).
-    Measuring what a CLOSED body can carry says otherwise: a bare
-    unknown literal has no collation at all, `'a'::text` carries
-    `pg_catalog."default"`, and the one member of the immutable-I/O
-    set with a collation of its own is `name`, which carries `"C"` and
-    propagates it through `||`, CASE, COALESCE and `substr`. The other
-    nine collatable members of the 48 (`text`, `varchar`, `bpchar`,
-    six internal statistics types) carry `"default"`. There is no
-    third possibility, because the two ways to name another collation
-    are already refused: a spelled `COLLATE` is a `CollateClause` and
-    a column is a `ColumnRef`, both open by default. And neither
-    `"default"` nor `"C"` is SESSION state — PG 18.3 has no
-    `lc_collate` parameter to set, and `"default"` is the database's
-    own `datcollate`, fixed at CREATE DATABASE. That is the argument
-    the entailment kernel already ships for order questions on
-    default-collated columns (`comparison-groundings.ts`, the
-    collation lattice), so no capture is owed. Two things ARE owed
-    before the bar comes down:
-    - ONE measurement, not a capture: can a database's default
-      collation be NONDETERMINISTIC? If it can, two distinct strings
-      tie under ORDER BY and the survivor is a plan choice again.
-      PGlite refuses `CREATE DATABASE … LC_COLLATE` for template
-      reasons, so this wants the local PG 18. UNMEASURED — the bar
-      must not come down until it is answered.
-    - A total-order condition on the KEY. On a VALUES body ORDER BY
-      takes arbitrary expressions (`ORDER BY now()` parses and runs),
-      and a constant key is a no-op sort whose output order nothing
-      guarantees — PostgreSQL's sort is not stable. The key has to be
-      the single output column or its ordinal.
-    Demand stays what the register calls it: unmeasured. This
-    corrects the price, not the case for paying it.
+    The reason recorded here at first was the sort key's collatability
+    and a `pg_type.typcollation` capture to decide it; both were wrong,
+    and the shape is now CLOSED FOR GOOD below rather than priced.
   - DISTINCT deduplicates and leaves the same planner-chosen order a
     set operation leaves — 42 through HashAggregate, 3 through
     Sort+Unique, measured for both — so it is admitted and barred
@@ -1232,12 +1202,76 @@ over-refusal control; the red suite pins the contract (both bodies
 would have claimed notNull); `closed-sublink.sql` carries the
 `USING >` refusal witnessed by rows.
 
-### Closed for good: GROUP BY and WITH bodies
+### Closed for good: ORDER BY beside a LIMIT, GROUP BY, WITH
 
-The free-clause batch left both "still refused and unexplored".
-Examined 2026-08-17 and CLOSED — not deferred, not costed for later.
-Neither is a clause the one-rule test admits, and neither reason
-expires.
+The free-clause batch left one shape priced-but-unbuilt and two
+"still refused and unexplored". Examined 2026-08-17 and all three
+CLOSED — not deferred, not costed for later. None is a clause the
+one-rule test admits, and no reason below expires.
+
+**ORDER BY beside a LIMIT — closed because a sort orders the KEY's
+equivalence class, not the VALUE.** This one took two corrections to
+reach, and both are recorded because the first was published.
+
+The refusal was originally written as a collation problem needing a
+per-TYPE capture (`pg_type.typcollation`, the collation captures being
+per COLUMN). That was wrong, and measurement retired it: a bare
+unknown literal carries no collation at all, `'a'::text` carries
+`pg_catalog."default"`, and the one member of the immutable-I/O set
+with a collation of its own is `name`, which carries `"C"` and
+propagates it through `||`, CASE, COALESCE and `substr`; the other
+nine collatable members of the 48 (`text`, `varchar`, `bpchar`, six
+internal statistics types) carry `"default"`. There is no third
+possibility, because both ways to name another collation are already
+refused — a spelled `COLLATE` is a `CollateClause`, a column is a
+`ColumnRef`, both open by default. Neither `"default"` nor `"C"` is
+SESSION state: PG 18.3 has no `lc_collate` parameter to set, and
+`"default"` is the database's own `datcollate`, fixed at CREATE
+DATABASE. That is precisely the argument the entailment kernel already
+ships for order questions on default-collated columns
+(`comparison-groundings.ts`, the collation lattice). No capture was
+ever owed.
+
+The REAL obstacle is not collation and is not liftable by a capture at
+all (pinned, param-mechanism "an ORDER BY orders the KEY's class"):
+
+    VALUES (1.0),(1.00) ORDER BY column1 LIMIT 1  ->  1.0
+    VALUES (1.00),(1.0) ORDER BY column1 LIMIT 1  ->  1.00
+
+The same sorted body, two surviving values. `1.0 = 1.00` holds under
+numeric's btree opclass while their typoutput renderings differ, so a
+sort makes the order total on the key's EQUIVALENCE CLASS and leaves
+the value inside that class undetermined — decided, here, by written
+order alone. `numeric`, `float4` and `float8` all sit in the closed
+48, and float8 carries the same hazard as `0.0 = -0.0` rendering `0`
+and `-0`. So ORDER BY genuinely fails the one-rule test's "unless the
+row order is structural": the order it establishes is not an order on
+what the sublink answers. The rule needs no exception written for it —
+it was always the rule's own verdict, reached for the wrong reason.
+
+A set operation cannot be rescued by an ORDER BY either, for a second
+reason measured beside the first: the deduplication picks the survivor
+BEFORE the sort sees it (`1.00 UNION 1.0` answers 1.00 and `1.0 UNION
+1.00` answers 1.0), and the tiebreaker below is not even spellable
+there — `invalid UNION/INTERSECT/EXCEPT ORDER BY clause`.
+
+What building it would have cost, recorded so the question is not
+re-opened as cheap. It is MECHANICAL, not structural: no capture, no
+walk change, no protocol change: a tie probe is a sibling of
+`srfBodiesWithinCap` — clone the body's fields, deparse, one probe
+query, refuse the subtree on a bad answer. The probe would append the
+output's RENDERING to the sort keys in both directions and admit only
+on agreement, which is exact for `LIMIT 1` (if a tie group's
+text-least and text-greatest render alike, every member does):
+measured, the numeric pair disagrees (`1.0` vs `1.00`) while
+`VALUES (2),(1)` agrees. But it cannot edit the sort clause in place —
+a set operation rejects the tiebreaker outright and
+`SELECT generate_series(1,3) AS g ORDER BY g, g::text` fails with
+`column "g" does not exist` — so it must wrap the body, and it spends
+a round trip per sliced body. That is one more mechanism and one more
+round trip, bought for plain-SRF and VALUES bodies only, against
+demand that every verification run has measured at zero. Refusing is
+the sound side; the trade was declined 2026-08-17 with the user.
 
 **GROUP BY — closed because the value is zero and the cost is not.**
 The recorded reason, "degenerate without a FROM", is FALSE, and the

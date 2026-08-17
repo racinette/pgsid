@@ -1160,8 +1160,12 @@ describe("sublink free body clauses (flipped 2026-08-16 — the batch landed)", 
   it("GUARD: neither DISTINCT nor ORDER BY may sit beside a limit", async () => {
     // Both bodies answer 1 today and every row fires the NULL arm
     // (adjudicated) — right by luck. DISTINCT's surviving order is a plan
-    // choice outright; ORDER BY's would need the sort key's collatability,
-    // which no capture holds.
+    // choice outright; a SORT's order is total on the key's equivalence
+    // class and not on the value, so it leaves the sliced row undetermined
+    // too — `VALUES (1.0),(1.00) ORDER BY column1 LIMIT 1` answers 1.0 and
+    // the same rows written the other way answer 1.00. Both bars are
+    // PERMANENT as of 2026-08-17 (docs/subtree-evaluation.md, "Closed for
+    // good"); this guard never flips.
     expect(await notNullOf(
       "SELECT CASE WHEN (SELECT DISTINCT generate_series(1,3) LIMIT 1) = 1" +
         " THEN NULL ELSE 5 END AS c FROM orders o",

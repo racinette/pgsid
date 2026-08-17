@@ -1223,6 +1223,53 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(hashed).not.toBe(sorted);
   });
 
+  it("an ORDER BY orders the KEY's class, not the VALUE — which closes the sliced-sort question", async () => {
+    // Why ORDER BY beside a LIMIT is refused FOREVER rather than deferred
+    // (measured 2026-08-17; docs/subtree-evaluation.md, "Closed for good").
+    // The reason first recorded was collation, and collation turned out not
+    // to be the obstacle — a closed body can carry only the database's own
+    // `"default"` or, through `name`, `"C"`, neither of them session state.
+    // THIS is the obstacle: a sort key's btree equality does not imply
+    // identical output, so a sorted body still leaves the sliced row
+    // undetermined, and the same sorted body answers differently by written
+    // order alone.
+    const sliced = async (rows: string): Promise<string> =>
+      (await pg.query<{ v: string }>(`SELECT (VALUES ${rows} ORDER BY column1 LIMIT 1)::text AS v`))
+        .rows[0]!.v;
+    expect(await sliced("(1.0),(1.00)")).toBe("1.0");
+    expect(await sliced("(1.00),(1.0)")).toBe("1.00");
+    // Both survivors are the SAME value by the sort's own comparison; they
+    // differ only in what typoutput renders. numeric and float8 both carry
+    // the hazard and both sit in the closed immutable-I/O set.
+    const eq = await pg.query<{ n: boolean; f: boolean; z: string }>(
+      "SELECT 1.0 = 1.00 AS n, 0.0::float8 = -0.0::float8 AS f, (-0.0::float8)::text AS z",
+    );
+    expect(eq.rows[0]).toEqual({ n: true, f: true, z: "-0" });
+    // A tiebreaker on the RENDERING would decide it — which is what a tie
+    // probe would have to build, and the measure of what admitting the
+    // clause costs. The two extremes disagree exactly when the tie bites.
+    const broken = async (dir: string): Promise<string> =>
+      (
+        await pg.query<{ v: string }>(
+          `SELECT (VALUES (1.0),(1.00) ORDER BY column1, column1::text ${dir} LIMIT 1)::text AS v`,
+        )
+      ).rows[0]!.v;
+    expect(await broken("ASC")).toBe("1.0");
+    expect(await broken("DESC")).toBe("1.00");
+    // And an ORDER BY cannot rescue a SET OPERATION's limit at all: the
+    // deduplication picks the survivor BEFORE the sort sees it, so the
+    // written order decides the value there too. The tiebreaker is not even
+    // spellable on a set operation.
+    const united = async (a: string, b: string): Promise<string> =>
+      (await pg.query<{ v: string }>(`SELECT (SELECT ${a} UNION SELECT ${b} ORDER BY 1 LIMIT 1)::text AS v`))
+        .rows[0]!.v;
+    expect(await united("1.00", "1.0")).toBe("1.00");
+    expect(await united("1.0", "1.00")).toBe("1.0");
+    expect(await errorOf("SELECT (SELECT 1.00 UNION SELECT 1.0 ORDER BY 1, 1::text LIMIT 1)", [])).toContain(
+      "invalid UNION/INTERSECT/EXCEPT ORDER BY clause",
+    );
+  });
+
   it("an ANY/IN sublink early-exits on a MATCH; the no-match case is exhaustion", async () => {
     // The match answers immediately even at 10^10; answering FALSE is
     // information-theoretic exhaustion (linear, recorded — NOT executed
