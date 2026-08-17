@@ -52,6 +52,14 @@ SELECT
        THEN t.id ELSE NULL END AS ordered_membership,                  -- @notNull
   CASE WHEN (SELECT DISTINCT generate_series(1,3) LIMIT 1) = 1
        THEN NULL ELSE 5 END AS distinct_sliced_kept,                   -- @nullable
+  -- The same bar on a VALUES body, and the sort key READ (fixed
+  -- 2026-08-17): the branch that reads a VALUES list used to return above
+  -- the clause gates, so an ORDER BY key nothing had inspected let a limit
+  -- slice the rows anyway. `USING >` is the deterministic witness of that
+  -- hole — it is refused everywhere else — and the sliced body answers 2,
+  -- so the NULL arm fires on every row and witnesses the refusal.
+  CASE WHEN (VALUES (2),(1) ORDER BY 1 USING > LIMIT 1) = 2
+       THEN NULL ELSE 5 END AS values_sorted_slice_kept,               -- @nullable
   CASE WHEN 5 IN (SELECT generate_series(1, 8))
        THEN t.id ELSE NULL END AS srf_probed,                          -- @notNull
   CASE WHEN EXISTS (SELECT generate_series(1, 10000000000))

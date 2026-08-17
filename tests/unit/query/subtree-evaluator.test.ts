@@ -634,6 +634,8 @@ describe("typed operand tracking: the acceptance targets", () => {
 });
 
 describe("GUARD: what no gate refinement may ever fold", () => {
+  const open = async (sql: string) => (await subtreesOf(sql)).roots.length === 0;
+
   it("'a' || 5 stays open: it resolves textanycat, which is STABLE", async () => {
     // The mixed shape renders 5 through session-dependent output
     // machinery. If this ever folds, the survivor gate is consulting the
@@ -653,6 +655,42 @@ describe("GUARD: what no gate refinement may ever fold", () => {
     // default_text_search_config, so the all-unknown landing (text, text)
     // IS the stable row. The counterpart pin holds its pg_proc declaration.
     expect(await answers("SELECT 'fat cats ate rats' @@ 'fat' AS g")).toEqual([]);
+  });
+
+  it("a sublink body's ORDER BY key is READ, on every body shape", async () => {
+    // The regression this pins (found and fixed 2026-08-17): `sortClause`
+    // joined SUBLINK_BODY_FIELDS with the free-clause batch, while the
+    // VALUES branch still returned above `closedSortClause`. A field
+    // admitted by the unknown-field loop but read by no gate is not gated
+    // at all, and the shapes below all folded — a volatile key, a stable
+    // one, an ordering operator nothing checks, and a key reading a TABLE
+    // inside the one component whose safety argument is that it never
+    // reaches scope. `VALUES (1),…,(8) ORDER BY random() LIMIT 1` folded a
+    // DIFFERENT constant on each of ten analyses (3 2 2 3 2 7 2 3 5 7).
+    for (const body of [
+      "VALUES (2),(1) ORDER BY random() LIMIT 1",
+      "VALUES (2),(1) ORDER BY now() LIMIT 1",
+      "VALUES (2),(1) ORDER BY 1 USING > LIMIT 1",
+      "VALUES (2),(1) ORDER BY (SELECT c FROM coll_probe LIMIT 1) LIMIT 1",
+      "SELECT 2 ORDER BY random()",
+      "SELECT 2 UNION SELECT 1 ORDER BY random()",
+    ]) {
+      expect(await open(`SELECT (${body}) AS g`)).toBe(true);
+    }
+  });
+
+  it("the no-slice bar reaches a VALUES body too", async () => {
+    // A sort makes any body `sliced`, so no limit may take a row from what
+    // it leaves — the same bar the plain branch has carried since the free
+    // clauses landed. Without the sort the written order stands and the
+    // limit is fine (a Values Scan has no deduplication to reorder it),
+    // which is the control that keeps this from over-refusing.
+    expect(await open("SELECT (VALUES (2),(1) ORDER BY 1 LIMIT 1) AS g")).toBe(true);
+    expect(await open("SELECT (VALUES (2),(1) ORDER BY 1 OFFSET 1) AS g")).toBe(true);
+    expect(await answers("SELECT (VALUES (2),(1) LIMIT 1) AS g")).toEqual([
+      { isNull: false, value: 2, type: "integer" },
+    ]);
+    expect(await answers("SELECT (VALUES (2),(1) ORDER BY 1) AS g")).toEqual([]);
   });
 });
 

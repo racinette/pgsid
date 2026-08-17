@@ -568,20 +568,58 @@ and oracle before chartering), queued in this order, small first:**
    BY ... USING stay refused with their reasons; five targets flipped,
    four guards green, `SortBy` joined the allowlist census. ORDER BY
    BESIDE A LIMIT is the one piece deliberately not taken: it would
-   decide the sliced value, and deciding it needs the sort key's
-   collatability — a per-TYPE fact (`pg_type.typcollation`) no capture
-   holds, the collation captures being per COLUMN. That capture is the
-   recorded price of lifting the no-slice rule, against demand the
-   charter itself calls unmeasured. Still refused and unexplored:
-   GROUP BY (degenerate without a FROM) and WITH (a whole
-   sub-statement). Suite 51 files / 3,206 + 1 skipped, ~71s. VERIFIED
-   (20,000-query runs, both seeds): seed 20260808 — 0 findings,
-   value-conditional 1 EXPECTED; seed 7 — the q2575 param-sibling
-   MERGE instance plus 1 value-conditional EXPECTED.
+   decide the sliced value. Suite 51 files / 3,206 + 1 skipped, ~71s.
+   VERIFIED (20,000-query runs, both seeds): seed 20260808 — 0
+   findings, value-conditional 1 EXPECTED; seed 7 — the q2575
+   param-sibling MERGE instance plus 1 value-conditional EXPECTED.
    ORIGINAL CHARTER: set-operation and LIMIT bodies first,
    one clause at a time, each with its own closure argument; ORDER BY
    refuses collatable sort keys; VALUES bodies need parser/deparser
    pre-work.
+   THE FOURTH BATCH LEFT A HOLE AND TWO QUESTIONS; ALL THREE ARE
+   SETTLED (2026-08-17). The hole was a SOUNDNESS defect, found by
+   reading the gate after the batch: `sortClause` joined
+   `SUBLINK_BODY_FIELDS` — the set the unknown-field loop consults —
+   while the branch that reads a VALUES body still returned ABOVE the
+   gate that inspects sort keys, so `VALUES … ORDER BY <key> LIMIT 1`
+   folded with the key never read. `ORDER BY random()` gave a
+   different constant on each of ten analyses of ONE statement
+   (3 2 2 3 2 7 2 3 5 7); `USING >`, `now()` and a key reading a TABLE
+   all folded too. Fixed structurally — the three clause gates and the
+   no-slice bar moved above the branch, so no future branch can return
+   past them — with the general rule written down in the charter: a
+   listed field must have a gate that READS it on every path. Guards
+   at the gate (six shapes, plus the unsorted `VALUES … LIMIT 1` fold
+   as the over-refusal control), at the contract (both bodies would
+   have claimed notNull), and in `closed-sublink.sql` witnessed by
+   rows.
+   THE TWO QUESTIONS ARE CLOSED, not deferred — charter section
+   "Closed for good", with the measurements. GROUP BY: the recorded
+   reason ("degenerate without a FROM") is false — GROUPING SETS and
+   CUBE return TWO rows from no FROM, HAVING returns none — and the
+   true reason is worse for the clause, since it is three admissions
+   (`groupClause` sets, CUBE/ROLLUP, `havingClause`) buying nothing,
+   the paying shape needing a FROM. WITH: consuming a CTE means
+   `SELECT * FROM c` or `SELECT c.x FROM c`, both ColumnRef, so
+   admitting it means resolving a NAME — the one line the evaluator is
+   defined by. Measured beside it: a CTE inside a sublink reads the
+   outer query's columns, so it is a correlation site, not an island.
+   NEITHER SHOULD BE RE-OPENED.
+   ORDER BY BESIDE A LIMIT: still not taken, but the recorded PRICE
+   was wrong and is corrected in the charter. It was written as a
+   per-TYPE `pg_type.typcollation` capture; measurement says a closed
+   body can carry only `pg_catalog."default"` or (via `name`) `"C"`,
+   neither of them session state, which is the argument the entailment
+   kernel already ships. No capture is owed. What is owed: ONE
+   measurement on the local PG 18 (can a database's default collation
+   be NONDETERMINISTIC?) and a total-order condition on the sort key.
+   Demand stays unmeasured, so the trigger is demand, not price.
+   Suite 51 files / 3,209 + 1 skipped, ~71s. VERIFIED (2026-08-17,
+   20,000-query discovery runs): seed 20260808 — 0 findings,
+   value-conditional 1 EXPECTED; seed 7 — the q2575 param-sibling
+   MERGE instance plus 1 value-conditional EXPECTED. The standing
+   state exactly; a narrowing fix could only have moved claims out of
+   the corpus, and none moved.
 **The FIRST-WAVE WIDENINGS and the OUTPUT-SIDE ENTAILMENT consumer are
 BOTH BUILT (2026-08-12)** — every consumer the subtree-evaluation
 charter names now exists. Widenings: unique enums and domains fold

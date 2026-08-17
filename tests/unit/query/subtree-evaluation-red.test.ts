@@ -1094,6 +1094,25 @@ describe("sublink VALUES bodies (flipped 2026-08-16 — the clause landed)", () 
       "SELECT CASE WHEN 1 > (VALUES (random())) THEN NULL ELSE 5 END AS c FROM orders o",
     )).toBe(false);
   });
+
+  it("GUARD: a volatile SORT KEY keeps it open too, and a sort bars the slice", async () => {
+    // Found and fixed 2026-08-17. A VALUES body takes an ORDER BY (WHERE
+    // and DISTINCT are syntax errors there, a sort is not), and this
+    // branch used to return above the clause gates — so the key was
+    // admitted unread and the limit sliced what it left. Both bodies
+    // answer 2 today and the claim would have been notNull, right by luck
+    // for the second and not even that for the first: ten analyses of the
+    // random body folded 3 2 2 3 2 7 2 3 5 7, so the claim moved with the
+    // analysis and no row of `orders` was involved in deciding it.
+    expect(await notNullOf(
+      "SELECT CASE WHEN (VALUES (2),(1) ORDER BY random() LIMIT 1) = 2" +
+        " THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(false);
+    expect(await notNullOf(
+      "SELECT CASE WHEN (VALUES (2),(1) ORDER BY 1 USING > LIMIT 1) = 2" +
+        " THEN o.id ELSE NULL END AS c FROM orders o",
+    )).toBe(false);
+  });
 });
 
 // --- Sublink body-clause widening: the free clauses (decided 2026-08-16). ---
