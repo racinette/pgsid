@@ -446,9 +446,14 @@ carries information — a strict-qual reduction the fixpoint missed; and an
 engine-stronger entry whose settlement evidence is a plain strict qual would
 be the soundness smell.
 
-Measurement (2026-08-19, 450 fixtures): 430 agree, 20 engine-stronger — all
-twenty classified (13 FK/CHECK, 6 MERGE, 1 INTERSECT-arm refilter) —
-0 planner-stronger, nothing unexplainable, suspect class empty.
+Measurement (2026-08-19, 454 fixtures, participation closure landed): 434
+agree, 18 engine-stronger — all classified (FK/CHECK, MERGE, an
+INTERSECT-arm refilter) — 2 planner-stronger, both declared
+(`@planner-reduces`: the join-removal and SRF-blind-spot pins), nothing
+unexplainable, suspect class empty. The two FK composition fixtures moved
+from engine-stronger to agree when the closure landed: their key chains
+settle SIDES while both FULL JOINs keep a genuinely extending side, an
+advantage a join-granular count cannot see.
 
 The bar holds both directions through the fixtures themselves, the
 `@unwitnessable` discipline. An engine-stronger fixture declares
@@ -456,14 +461,16 @@ The bar holds both directions through the fixtures themselves, the
 the evidence the planner lacks — a key, a CHECK, a cross-branch refilter,
 or MERGE's no-JoinExpr matching). A planner-stronger fixture declares
 `-- @planner-reduces N: reason`, and its reason must be an INVESTIGATED
-cause — one of the classifier verdicts in `explain-instrument.ts`: the
-slice-local participation imprecision (whose fixtures,
-`explain-slice-local-flat.sql` and `explain-slice-local-inner-qual.sql`,
-are the closure's tripwires — the annotations go stale and fail the moment
-it lands), uniqueness-based join removal (`explain-join-removal.sql`,
-permanently out of scope), and the SRF unit-channel blind spot
+cause — one of the classifier verdicts in `explain-instrument.ts`:
+uniqueness-based join removal (`explain-join-removal.sql`, permanently out
+of scope) and the SRF unit-channel blind spot
 (`explain-srf-refilter-blindspot.sql`, the instrument's gap, not the
-engine's). The suite fails an undeclared divergence in either direction, a
+engine's). The slice-local participation imprecision was the third cause;
+its tripwire fixtures fired when the fixpoint's participation closure
+landed (2026-08-19) and flipped to positive pins —
+`explain-slice-local-flat.sql` and `explain-slice-local-inner-qual.sql`
+now agree with the planner and carry the presence groups the closure
+recovered. The suite fails an undeclared divergence in either direction, a
 drifted count, and an annotation on an agreeing fixture.
 
 The GENERATED corpus runs the same comparison without an annotation channel

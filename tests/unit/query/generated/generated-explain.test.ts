@@ -77,8 +77,16 @@ let skipped = { rejected: 0, refused: 0, crashed: 0 };
  * deliberately on any change, in either direction.
  */
 const CAUSE_PINS: Record<DivergenceCause, number> = {
-  "slice-local-strict-qual": 436,
-  "join-removal": 138,
+  // 436 before the participation closure landed in the fixpoint; the
+  // classifier stays armed so a regression re-opens the class by name.
+  "slice-local-strict-qual": 0,
+  // 138 before the closure: those queries' walks now settle the same joins
+  // the planner removes, so the divergence itself is gone. A PURE removal
+  // (unique unreferenced side, no settling qual) would still classify here
+  // and is pinned in the hand corpus (explain-join-removal.sql).
+  "join-removal": 0,
+  // The instrument's own gap, not the engine's: an outer-joined SRF has no
+  // ColumnOrigin.units channel for the refilter subtraction.
   "srf-unit-blindspot": 3,
 };
 

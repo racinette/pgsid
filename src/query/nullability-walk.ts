@@ -1874,6 +1874,88 @@ class NullabilityEngine {
           changed = true;
         }
       }
+
+      // The participation closure. A join's qual holds on every row where
+      // its arm PARTICIPATES — global presence is not required for that,
+      // and demanding it was the walk's one measured divergence from
+      // reduce_outer_joins (436 generated cases, one cause; the pinned
+      // fixtures are explain-slice-local-flat.sql and
+      // explain-slice-local-inner-qual.sql).
+      //
+      // Let J be a join with qual Q, and A an arm J does NOT preserve — an
+      // INNER join drops both arms' rows on qual failure, a LEFT its
+      // right's, a RIGHT its left's. A FULL join preserves both, so on its
+      // own it contributes nothing — but a FULL join whose OTHER side is
+      // proven present behaves as LEFT/RIGHT: the failing arm row's only
+      // emission path is extending that other side, and "present" means
+      // exactly that no emitted row has it extended (a WHERE that filters
+      // the extension away, a key that forbids it). The planner's
+      // two-step — FULL→LEFT from the strict WHERE, then the arm's nested
+      // join reduced by the qual — falls out of the same reading. Let N be
+      // an outer join wholly inside A with optional unit G. If Q is strict
+      // for some alias that G's extension nulls (G is in the alias's unit
+      // chain), then a G-extended row makes Q not TRUE and J drops it:
+      // G's own extension NEVER reaches the output. Rows where A is
+      // absent altogether are J's (or an ancestor's) extension — a
+      // different unit, tracked by its own group.
+      //
+      // So G DISSOLVES into its enclosing unit: every member's chain drops
+      // G, members whose innermost unit was G inherit the next one out,
+      // and a member whose chain empties is genuinely present — at top
+      // level the closure degenerates to the ordinary promotion the
+      // fixpoint already made through the implied-qual route. Dissolution
+      // is what keeps every reader coherent at once: co-membership
+      // promotion, presence groups (a settled inner join merges its side
+      // into the arm's unit), origins (ColumnOrigin.units), and the join
+      // audit's settledOf all read the same chains.
+      //
+      // The measured counterexample that shaped the incomingRequired rule
+      // (tags/product_tags RIGHT products FULL product_tags) stays out by
+      // construction: its INNER join's single-alias arms nest no outer
+      // join, and its RIGHT join's left arm contains only an INNER one —
+      // nothing dissolves, and no qual is implied that today is not.
+      for (const j of scope.joins) {
+        if (!j.quals) continue;
+        // An arm is non-preserved exactly when a row of it failing Q has no
+        // way into the output. Two paths exist: the join DROPS it (an
+        // INNER drops both arms' failures, a LEFT its right's, a RIGHT its
+        // left's), or the join EMITS it by extending the other side — and
+        // that path is gone once the other side's extension unit is DEAD:
+        // dissolved by an enclosing qual (no chain carries it), or a
+        // member proven present (never extended in any emitted row). A
+        // join type that cannot extend the other side at all is the
+        // trivial case of dead, covered by the jointype disjuncts. Chains
+        // persist across fixpoint iterations, so one round's dissolution
+        // arms the next: t LEFT (u RIGHT (v RIGHT ck)) settles outside-in,
+        // each join behaving as INNER once its own extension dies.
+        const unitDead = (g: number | undefined): boolean =>
+          g !== undefined &&
+          ![...scope.aliases.values()].some(e => e.unitChain.includes(g));
+        const leftExtDead =
+          unitDead(j.leftOptionalGroup) || j.leftAliases.some(a => present.has(a));
+        const rightExtDead =
+          unitDead(j.rightOptionalGroup) || j.rightAliases.some(a => present.has(a));
+        const arms: string[][] = [];
+        if (j.jointype === "JOIN_INNER" || j.jointype === "JOIN_RIGHT" || rightExtDead)
+          arms.push(j.leftAliases);
+        if (j.jointype === "JOIN_INNER" || j.jointype === "JOIN_LEFT" || leftExtDead)
+          arms.push(j.rightAliases);
+        for (const arm of arms) {
+          for (const n of scope.joins) {
+            if (n === j || !this.joinWithin(n, arm)) continue;
+            for (const side of ["left", "right"] as const) {
+              const g = side === "left" ? n.leftOptionalGroup : n.rightOptionalGroup;
+              if (g === undefined) continue;
+              const killed = [...scope.aliases.values()].some(
+                e => e.unitChain.includes(g) && this.whereImpliesAliasNotNull(j.quals!, e.alias),
+              );
+              if (!killed) continue;
+              this.dissolveUnit(scope, g, present);
+              changed = true;
+            }
+          }
+        }
+      }
     }
 
     // Test-side readout (WalkOptions.joinAudit): the fixpoint's verdict per
@@ -1916,6 +1998,31 @@ class NullabilityEngine {
         }
         if (j.node) this.joinAuditSeen.set(j.node, audit);
         this.joinAuditSink.push(audit);
+      }
+    }
+  }
+
+  /**
+   * Dissolve one null-extension unit: its extension is proven to never
+   * reach the output (the participation closure), so every member's chain
+   * drops it, an innermost membership falls back to the next enclosing
+   * unit, and a member left with no enclosing unit is genuinely present.
+   * Idempotent — a second call finds no chain carrying the group.
+   */
+  private dissolveUnit(scope: Scope, group: number, present: Set<string>): void {
+    for (const entry of scope.aliases.values()) {
+      if (!entry.unitChain.includes(group)) continue;
+      // REASSIGN, never splice: sibling entries of one join side share the
+      // chain ARRAY (walkFromItem threads it through), and an in-place
+      // mutation dissolves the unit for whichever entry the loop visits
+      // first while stranding the rest with a stale nullGroup.
+      entry.unitChain = entry.unitChain.filter(g => g !== group);
+      if (entry.nullGroup !== group) continue;
+      if (entry.unitChain.length > 0) {
+        entry.nullGroup = entry.unitChain[entry.unitChain.length - 1]!;
+      } else if (entry.joinState === OPTIONAL) {
+        entry.joinState = REQUIRED;
+        present.add(entry.alias);
       }
     }
   }
