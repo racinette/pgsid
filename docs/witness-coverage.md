@@ -451,14 +451,30 @@ twenty classified (13 FK/CHECK, 6 MERGE, 1 INTERSECT-arm refilter) —
 0 planner-stronger, nothing unexplainable, suspect class empty.
 
 The bar holds both directions through the fixtures themselves, the
-`@unwitnessable` discipline: an engine-stronger fixture declares
+`@unwitnessable` discipline. An engine-stronger fixture declares
 `-- @planner-keeps N: reason` (N = plan minus surviving, the reason naming
 the evidence the planner lacks — a key, a CHECK, a cross-branch refilter,
-or MERGE's no-JoinExpr matching), and the suite fails an undeclared
-divergence until the reasoning is written, a declared count that drifted,
-and any planner-stronger fixture at all — the walk missing a reduction the
-planner makes from the same strict-qual theory is the one shape that must
-be investigated, never excused.
+or MERGE's no-JoinExpr matching). A planner-stronger fixture declares
+`-- @planner-reduces N: reason`, and its reason must be an INVESTIGATED
+cause — one of the classifier verdicts in `explain-instrument.ts`: the
+slice-local participation imprecision (whose fixtures,
+`explain-slice-local-flat.sql` and `explain-slice-local-inner-qual.sql`,
+are the closure's tripwires — the annotations go stale and fail the moment
+it lands), uniqueness-based join removal (`explain-join-removal.sql`,
+permanently out of scope), and the SRF unit-channel blind spot
+(`explain-srf-refilter-blindspot.sql`, the instrument's gap, not the
+engine's). The suite fails an undeclared divergence in either direction, a
+drifted count, and an annotation on an agreeing fixture.
+
+The GENERATED corpus runs the same comparison without an annotation channel
+(`generated/generated-explain.test.ts`): agreement is measured, and every
+planner-stronger divergence must CLASSIFY — `explain-instrument.ts` goes
+into the query and attributes it to a known cause with a recorded verdict
+(known imprecision, out-of-scope uniqueness removal, instrument blind
+spot), the per-cause census is pinned both directions, and an unexplained
+divergence fails naming the query. The census and each cause's status live
+in the deferred-tasks register (section 4): "the planner did better" is
+never a bare count — it is either understood or a failure.
 
 ## Where things are
 
