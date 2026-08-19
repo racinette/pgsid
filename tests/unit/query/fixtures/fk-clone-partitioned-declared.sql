@@ -10,6 +10,10 @@
 -- PRECISION recovery rather than a soundness fix, and because it is the
 -- direction a regression would take first: a capture that over-filters loses
 -- this claim silently while the unsound sibling stays green.
+--
+-- @planner-keeps 1: the join settles by foreign-key entailment over the
+--   declared key onto the partitioned tree; the planner does not reason
+--   from keys.
 SELECT
   p.id AS pid,   -- @notNull   (the declared key over the whole tree)
   p.k            -- @nullable

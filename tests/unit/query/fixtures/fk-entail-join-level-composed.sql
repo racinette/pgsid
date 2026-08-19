@@ -14,6 +14,10 @@
 -- What the composition does NOT prove is anything about the columns of the
 -- side this join DOES extend: a customer with no orders produces a row with
 -- `o.id` and `oi.id` both NULL, which dense and uniform return.
+--
+-- @planner-keeps 1: the composition settles the second FULL JOIN's
+--   customers side by the key chain; the planner reasons from no keys and
+--   keeps both FULL JOINs, while the first genuinely extends.
 SELECT
   c.id    AS cid,        -- @notNull
   o.id    AS oid,        -- @nullable

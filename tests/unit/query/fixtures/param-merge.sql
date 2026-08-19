@@ -17,6 +17,9 @@
 --
 -- `act` is notNull because every returned row came from an arm and
 -- merge_action() names it; PostgreSQL allows the call nowhere else.
+--
+-- @planner-keeps 1: EXPLAIN plans the NOT MATCHED search as an outer join
+--   over the source; it is no JoinExpr, so the join audit has no record.
 MERGE INTO ck USING (VALUES (1), (740)) s(sid) ON ck.id = s.sid
 WHEN MATCHED THEN UPDATE SET val = $1
 WHEN NOT MATCHED THEN INSERT (id, name) VALUES (s.sid, $2)

@@ -5,6 +5,10 @@
 -- notNull here — and the left branch's group is dropped rather than
 -- emitted with an uninhabitable absent arm. The stale direction fires if
 -- the engine ever claims a group here.
+--
+-- @planner-keeps 1: the INTERSECT refilters the left branch's LEFT JOIN —
+--   the inner-joined right admits no all-NULL pairing — a cross-branch
+--   fact the planner never reads into a branch's plan.
 SELECT
   o.id      AS oid,   -- @notNull
   s.id      AS sid,   -- @notNull

@@ -9,6 +9,10 @@
 -- The gate is therefore on the referenced relation being PARTITIONED, not on
 -- `ONLY` appearing. Written as the latter it would look like the same fix and
 -- would cost this claim, plus every `ONLY` join over an ordinary table.
+--
+-- @planner-keeps 1: the join settles by foreign-key entailment with the
+--   referenced inheritance parent scanned ONLY — exactly where the match
+--   lives; the planner does not reason from keys.
 SELECT
   p.id AS pid   -- @notNull   (ONLY an inheritance parent is where the match lives)
 FROM sw4_iref r

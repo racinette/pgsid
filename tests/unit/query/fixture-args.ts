@@ -156,6 +156,20 @@ export interface FixtureDirectives {
    * suite enforces that pairing, mirroring @param-reject's.
    */
   nullGroupClaims: { columns: number[]; discriminants: number[] }[];
+  /**
+   * The EXPLAIN oracle's declared divergence, from `-- @planner-keeps N:
+   * reason`: EXPLAIN's plan carries N more surviving outer joins than the
+   * walk reports, and the reason says why the walk is entitled to the
+   * difference — evidence the planner does not reason from (a foreign key,
+   * a CHECK constraint, a cross-branch refilter), or MERGE's target/source
+   * matching, which is no JoinExpr and outside the join audit entirely.
+   * explain-oracle.test.ts enforces it in both directions, the
+   * @unwitnessable discipline: a divergence without an annotation fails
+   * until the reasoning is written, and an annotation whose count no longer
+   * matches fails as stale. A reason continues onto following comment lines
+   * indented two or more spaces past the `--`.
+   */
+  plannerKeeps: { count: number; reason: string } | null;
 }
 
 export interface ParamClaim {
@@ -182,6 +196,7 @@ const UNWITNESSABLE_CONT_RE = /^\s*--\s{2,}(\S.*)$/;
 // substrings `@notNull` / `@nullable` anywhere in a line; `@null-group`
 // contains neither, which is a load-bearing property of the spelling.
 const NULL_GROUP_RE = /^\s*--\s*@null-group\b(.*)$/;
+const PLANNER_KEEPS_RE = /^\s*--\s*@planner-keeps\b:?(.*)$/;
 
 export function parseFixtureDirectives(content: string): FixtureDirectives {
   const bindings: FixtureBinding[] = [];
@@ -193,11 +208,14 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   let noRowsReason: string | null = null;
   let raisesPattern: string | null = null;
   let alwaysRaises = false;
+  let plannerKeeps: { count: number; reason: string } | null = null;
 
   // The column index whose reason is still open, or null. Only the line
   // immediately following an @unwitnessable line (or one of its own
-  // continuations) can continue it.
+  // continuations) can continue it. `@planner-keeps` reasons continue by the
+  // same rule, tracked separately.
   let openReason: number | null = null;
+  let plannerKeepsOpen = false;
 
   for (const line of content.split("\n")) {
     if (openReason !== null) {
@@ -216,6 +234,38 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
         continue;
       }
       openReason = null;
+    }
+    if (plannerKeepsOpen) {
+      const cont = UNWITNESSABLE_CONT_RE.exec(line);
+      if (cont) {
+        if (/@(notNull|nullable)\b/.test(cont[1]!)) {
+          throw new Error(
+            `@planner-keeps reason contains a per-column marker, which would ` +
+              `be counted as a claim: ${cont[1]!.trim()}`,
+          );
+        }
+        plannerKeeps = { count: plannerKeeps!.count, reason: `${plannerKeeps!.reason} ${cont[1]!.trim()}` };
+        continue;
+      }
+      plannerKeepsOpen = false;
+    }
+
+    const plannerKeepsMatch = PLANNER_KEEPS_RE.exec(line);
+    if (plannerKeepsMatch) {
+      const m = /^(\d+)\s*:\s*(.+)$/.exec(plannerKeepsMatch[1]!.trim());
+      const count = m ? Number(m[1]) : NaN;
+      if (!m || !Number.isInteger(count) || count < 1) {
+        throw new Error(
+          `@planner-keeps must be \`-- @planner-keeps <count>: <reason>\` with a ` +
+            `positive surviving-join count, got: ${plannerKeepsMatch[1]!.trim()}`,
+        );
+      }
+      if (plannerKeeps) {
+        throw new Error(`duplicate @planner-keeps annotation`);
+      }
+      plannerKeeps = { count, reason: m[2]!.trim() };
+      plannerKeepsOpen = true;
+      continue;
     }
 
     const nullGroupMatch = NULL_GROUP_RE.exec(line);
@@ -446,6 +496,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
     rejectClaims,
     nullGroupClaims,
     unwitnessable,
+    plannerKeeps,
   };
 }
 

@@ -1048,6 +1048,39 @@ export interface OutputPresenceGroup {
   discriminants: number[];
 }
 
+/**
+ * A TEST-SIDE readout of the presence fixpoint's verdict on one outer join,
+ * snapshotted where `resolveJoinImplications` concludes: for each side the
+ * join made optional, whether every direct member of the null group it
+ * assigned was promoted to REQUIRED. `leftSettled`/`rightSettled` are present
+ * exactly for the sides the join type extends (LEFT → right, RIGHT → left,
+ * FULL → both); a join with an unsettled side can still NULL-extend rows.
+ *
+ * Consumed by the EXPLAIN oracle (`tests/unit/query/explain-oracle.test.ts`),
+ * which compares surviving joins against the planner's — see
+ * `docs/witness-coverage.md`, "The EXPLAIN oracle". Deliberately excluded:
+ * branch-guard promotions (scoped to a CASE arm, no statement-level meaning)
+ * and leaf-time re-derivations (same evidence the fixpoint already consumed).
+ * This is a diagnostic surface, not part of the consumer contract.
+ */
+export interface JoinAudit {
+  jointype: string;
+  leftSettled?: boolean;
+  rightSettled?: boolean;
+  /**
+   * The null-group ids this join assigned to the sides it made optional —
+   * the FIRST analysis's ids, the same id space `ColumnOrigin.units` uses.
+   * They let a reader attribute an output claim to a join: a column proved
+   * notNull whose origin crosses unit U certifies U's absent arm never
+   * reaches the output (a NULL-extended slice has every pass-through NULL),
+   * however far from the join the proving evidence sits. That is the
+   * statement-level survival question a scope-local `leftSettled`/
+   * `rightSettled` cannot answer alone.
+   */
+  leftGroup?: number;
+  rightGroup?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Nullability trace tree — explains why a column is nullable or non-null.
 // ---------------------------------------------------------------------------

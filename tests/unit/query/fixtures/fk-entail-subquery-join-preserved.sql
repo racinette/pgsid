@@ -15,6 +15,12 @@
 -- customer it names may have been dropped for having no address. Preservation
 -- is the only thing left holding the claim up, and it holds: the order is
 -- still there, with NULLs beside it.
+--
+-- @planner-keeps 1: the second subquery's LEFT JOIN settles by the key
+--   while the planner keeps it — c.name is referenced, so join removal
+--   cannot delete it, and the planner reasons from no keys. The first
+--   subquery's join the planner REMOVES by uniqueness where the walk
+--   settles it by the key: those two proofs agree in the count.
 SELECT
   oi.id  AS oiid,   -- @notNull
   (

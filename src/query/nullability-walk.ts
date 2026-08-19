@@ -35,6 +35,7 @@ import type {
   OutputNullability,
   OutputNullabilityTraced,
   OutputPresenceGroup,
+  JoinAudit,
   ResolvedTable,
   TraceNode,
 } from "./types.js";
@@ -72,6 +73,13 @@ const MAX_DEPTH = 200;
 export interface WalkOptions {
   paramTypes?: readonly string[];
   evaluate?: Evaluate;
+  /**
+   * Test-side sink for the presence fixpoint's per-join verdicts (see
+   * `JoinAudit` in types.ts). When present, every analyzed scope appends one
+   * record per outer join as `resolveJoinImplications` concludes. Read by the
+   * EXPLAIN oracle; absent in production use, and never affects the walk.
+   */
+  joinAudit?: JoinAudit[];
 }
 
 /** The pre-walk evaluation round: one async step, answers in, sync walk. */
@@ -120,6 +128,7 @@ export async function inferNullability(
     evaluation,
     comparisons,
   );
+  if (options?.joinAudit) engine.joinAuditSink = options.joinAudit;
   return engine.run(stmt);
 }
 
@@ -539,6 +548,14 @@ interface JoinPredicate {
    */
   leftOptionalGroup?: number;
   rightOptionalGroup?: number;
+  /**
+   * The JoinExpr AST node this predicate was built from — the join's stable
+   * identity across fixpoint re-runs and scope rebuilds (DML channels,
+   * set-operation branch re-analysis allocate fresh JoinPredicates and fresh
+   * group ids for the same syntactic join). Only the joinAudit readout keys
+   * on it; the walk itself never reads it.
+   */
+  node?: object;
 }
 
 /**
@@ -747,6 +764,14 @@ interface FnBodyContext {
 // ---------------------------------------------------------------------------
 
 class NullabilityEngine {
+  /**
+   * Test-side sink for per-join fixpoint verdicts (`WalkOptions.joinAudit`).
+   * Written once per analyzed scope at the end of `resolveJoinImplications`;
+   * null in production use. Never read by the walk itself.
+   */
+  joinAuditSink: JoinAudit[] | null = null;
+  /** Audit dedup: one record per syntactic join, keyed on its JoinExpr node. */
+  private joinAuditSeen = new WeakMap<object, JoinAudit>();
   /** Per-scope memoization: AST node → results (keyed by object identity). */
   private scopeCache = new WeakMap<object, OutputNullability[]>();
   /**
@@ -1850,6 +1875,49 @@ class NullabilityEngine {
         }
       }
     }
+
+    // Test-side readout (WalkOptions.joinAudit): the fixpoint's verdict per
+    // outer join, exactly as it concludes. A side is settled when every
+    // direct member of the null group this join assigned was promoted to
+    // REQUIRED — deeper-nested groups keep their own joins' records. Pure
+    // observation; nothing below reads it.
+    //
+    // One record per SYNTACTIC join: the fixpoint re-runs (DML channels) and
+    // scope rebuilds (set-operation branch re-analysis) revisit the same
+    // JoinExpr, so records dedup on it. A repeat only refreshes settledness
+    // — promotion is monotone, OPTIONAL → REQUIRED — while the group ids
+    // stay the FIRST analysis's, the ones the memoized results' origins
+    // reference.
+    if (this.joinAuditSink) {
+      const settledOf = (group: number): boolean => {
+        for (const entry of scope.aliases.values()) {
+          if (entry.nullGroup === group && entry.joinState === OPTIONAL) return false;
+        }
+        return true;
+      };
+      for (const j of scope.joins) {
+        if (j.leftOptionalGroup === undefined && j.rightOptionalGroup === undefined) continue;
+        const prior = j.node ? this.joinAuditSeen.get(j.node) : undefined;
+        if (prior) {
+          if (prior.leftSettled === false && j.leftOptionalGroup !== undefined)
+            prior.leftSettled = settledOf(j.leftOptionalGroup);
+          if (prior.rightSettled === false && j.rightOptionalGroup !== undefined)
+            prior.rightSettled = settledOf(j.rightOptionalGroup);
+          continue;
+        }
+        const audit: JoinAudit = { jointype: j.jointype };
+        if (j.leftOptionalGroup !== undefined) {
+          audit.leftSettled = settledOf(j.leftOptionalGroup);
+          audit.leftGroup = j.leftOptionalGroup;
+        }
+        if (j.rightOptionalGroup !== undefined) {
+          audit.rightSettled = settledOf(j.rightOptionalGroup);
+          audit.rightGroup = j.rightOptionalGroup;
+        }
+        if (j.node) this.joinAuditSeen.set(j.node, audit);
+        this.joinAuditSink.push(audit);
+      }
+    }
   }
 
   /**
@@ -2507,6 +2575,7 @@ class NullabilityEngine {
         recorded = true;
         scope.joins.push({
           jointype: join.jointype ?? "JOIN_INNER",
+          node: join,
           quals,
           leftAliases: keys.slice(aliasesBefore, aliasesAfterLeft),
           rightAliases: keys.slice(aliasesAfterLeft),

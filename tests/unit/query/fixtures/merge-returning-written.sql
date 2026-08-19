@@ -5,6 +5,10 @@
 -- name is notNull whichever arm produced the row. The source groups by
 -- t.id because MERGE refuses a source acting on a target row twice and
 -- fuzzed states can duplicate t.id.
+--
+-- @planner-keeps 1: EXPLAIN plans the NOT MATCHED search as an outer join
+--   over the source; it is no JoinExpr, so the join audit has no record —
+--   MERGE's arm-aware modelling holds the claims instead.
 MERGE INTO ck
 USING (SELECT t.id AS sid FROM t GROUP BY t.id) s ON ck.id = s.sid
 WHEN MATCHED THEN UPDATE SET name = 'upd'

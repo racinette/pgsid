@@ -8,6 +8,8 @@
 -- @args [746, null]
 -- @param 1 notNull
 -- @param 2 nullable
+-- @planner-keeps 1: EXPLAIN plans the NOT MATCHED search as an outer join
+--   over the source; it is no JoinExpr, so the join audit has no record.
 MERGE INTO ck USING (VALUES ($1::int, $2)) s(sid, snm) ON ck.id = s.sid
 WHEN MATCHED THEN UPDATE SET val = COALESCE(s.snm, 'd')
 WHEN NOT MATCHED THEN INSERT (id, name) VALUES (s.sid, s.snm)

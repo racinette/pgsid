@@ -22,6 +22,9 @@
 -- Witnessed under the `generated` state, where every one of the 9 `sw4_r` rows
 -- finds its match; the four static states seed neither table and return
 -- nothing.
+--
+-- @planner-keeps 1: the USING-synthesized key equality drives foreign-key
+--   entailment; the planner does not reason from keys.
 SELECT
   r.rid AS rid,   -- @notNull  (the preserved side)
   c.id  AS cid,   -- @notNull  (the key entails the match, through USING)
