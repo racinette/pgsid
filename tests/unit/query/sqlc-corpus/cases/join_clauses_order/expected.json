@@ -1,0 +1,96 @@
+{
+ "queries": [
+  {
+   "name": "TestLeftInner",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": true
+    },
+    {
+     "name": "b",
+     "notNull": false
+    },
+    {
+     "name": "c",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "TestInnerLeft",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": true
+    },
+    {
+     "name": "b",
+     "notNull": true
+    },
+    {
+     "name": "c",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "TestLeftInnerLeftInner",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": true
+    },
+    {
+     "name": "b",
+     "notNull": false
+    },
+    {
+     "name": "c",
+     "notNull": true
+    },
+    {
+     "name": "d",
+     "notNull": false
+    },
+    {
+     "name": "e",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "TestInnerLeftInnerLeft",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": true
+    },
+    {
+     "name": "b",
+     "notNull": true
+    },
+    {
+     "name": "c",
+     "notNull": false
+    },
+    {
+     "name": "d",
+     "notNull": true
+    },
+    {
+     "name": "e",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

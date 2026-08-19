@@ -1,0 +1,19 @@
+{
+ "queries": [
+  {
+   "name": "SumBaz",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    },
+    {
+     "name": "quantity",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

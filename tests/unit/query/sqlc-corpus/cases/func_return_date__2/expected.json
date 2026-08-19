@@ -1,0 +1,10 @@
+{
+ "queries": [
+  {
+   "name": "GetDate",
+   "cmd": "one",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

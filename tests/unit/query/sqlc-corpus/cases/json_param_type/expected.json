@@ -1,0 +1,21 @@
+{
+ "queries": [
+  {
+   "name": "FindByAddress",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "metadata",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

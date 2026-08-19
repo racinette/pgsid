@@ -1,0 +1,94 @@
+{
+ "queries": [
+  {
+   "name": "CoalesceString",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "login",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CoalesceNumeric",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "login",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CoalesceStringColumns",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    },
+    {
+     "name": "bat",
+     "notNull": true
+    },
+    {
+     "name": "bar",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CoalesceNumericColumns",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "baz",
+     "notNull": false
+    },
+    {
+     "name": "qux",
+     "notNull": true
+    },
+    {
+     "name": "baz",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CoalesceStringNull",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    },
+    {
+     "name": "bar",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CoalesceNumericNull",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "baz",
+     "notNull": false
+    },
+    {
+     "name": "baz",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,12 @@
+{
+ "queries": [
+  {
+   "name": "UpdateArticles",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

@@ -218,15 +218,19 @@ export interface TableInfo {
   name: string;
   /**
    * `pg_class.relkind` within the captured set: 'r' plain, 'p' partitioned,
-   * 'f' foreign. The nullability engine needs 'p' specifically: an UPDATE
-   * through a partitioned parent can MOVE a row across partitions, which
-   * PostgreSQL performs as DELETE + INSERT and which fires the DESTINATION
-   * partition's BEFORE INSERT triggers on the new row (measured) — a
-   * command crossing plain inheritance never makes, since it does not
-   * route. Diff-comparable: the kind cannot change in place, so a flip is
-   * a drop-and-recreate the diff should surface.
+   * 'f' foreign, 'S' sequence. The nullability engine needs 'p'
+   * specifically: an UPDATE through a partitioned parent can MOVE a row
+   * across partitions, which PostgreSQL performs as DELETE + INSERT and
+   * which fires the DESTINATION partition's BEFORE INSERT triggers on the
+   * new row (measured) — a command crossing plain inheritance never makes,
+   * since it does not route. Sequences are captured because they are legal
+   * FROM items — one guaranteed row of three NOT NULL columns
+   * (`last_value`, `log_cnt`, `is_called`, ordinary `pg_attribute` rows,
+   * measured) — and a query over one deserves claims, not a refusal (found
+   * by the sqlc borrowed corpus). Diff-comparable: the kind cannot change
+   * in place, so a flip is a drop-and-recreate the diff should surface.
    */
-  relkind: "r" | "p" | "f";
+  relkind: "r" | "p" | "f" | "S";
   columns: ColumnInfo[];
   constraints: ConstraintInfo[];
   /** Storage parameters from `reloptions`, parsed into a map (e.g. fillfactor). */

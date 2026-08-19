@@ -1,0 +1,268 @@
+{
+ "queries": [
+  {
+   "name": "Abs",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "abs",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Cbrt",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "cbrt",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Ceil",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "ceil",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Ceiling",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "ceiling",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Degrees",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "degrees",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Div",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "div",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Exp",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "exp",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Floor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "floor",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Ln",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "ln",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Log",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "log",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Logs",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "log",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Mod",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "mod",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Pi",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "pi",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Power",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "power",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Radians",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "radians",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Round",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "round",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Rounds",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "round",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Scale",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "scale",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Sign",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "sign",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Sqrt",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "sqrt",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Trunc",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "trunc",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Truncs",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "trunc",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "WidthBucketNumerics",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "width_bucket",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "WidthBucketTimestamps",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "width_bucket",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

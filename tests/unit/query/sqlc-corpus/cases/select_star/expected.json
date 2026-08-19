@@ -1,0 +1,38 @@
+{
+ "queries": [
+  {
+   "name": "GetAll",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    },
+    {
+     "name": "age",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetIDAll",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

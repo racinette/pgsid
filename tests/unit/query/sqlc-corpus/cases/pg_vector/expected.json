@@ -1,0 +1,29 @@
+{
+ "queries": [
+  {
+   "name": "InsertVector",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "NearestNeighbor",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "embedding",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

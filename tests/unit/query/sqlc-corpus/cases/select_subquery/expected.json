@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:6:16: column reference \"a\" is ambiguous\nexit status 1"
+}

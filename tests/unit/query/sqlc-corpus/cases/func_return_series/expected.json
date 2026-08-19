@@ -1,0 +1,18 @@
+{
+ "queries": [
+  {
+   "name": "GenerateSeries",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

@@ -1,0 +1,10 @@
+{
+ "queries": [
+  {
+   "name": "GetBars",
+   "cmd": "many",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

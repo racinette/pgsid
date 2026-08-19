@@ -1,0 +1,14 @@
+{
+ "queries": [
+  {
+   "name": "UpdateJoin",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true,
+    true
+   ]
+  }
+ ]
+}

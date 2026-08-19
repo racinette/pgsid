@@ -1,0 +1,32 @@
+{
+ "queries": [
+  {
+   "name": "List",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    },
+    {
+     "name": "baz",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Find",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

@@ -1,0 +1,13 @@
+{
+ "queries": [
+  {
+   "name": "StageUserData",
+   "cmd": "copyfrom",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

@@ -1,0 +1,27 @@
+{
+ "queries": [
+  {
+   "name": "BadQuery",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

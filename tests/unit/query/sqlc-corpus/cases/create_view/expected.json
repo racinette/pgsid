@@ -1,0 +1,32 @@
+{
+ "queries": [
+  {
+   "name": "GetFirst",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "val",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetSecond",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "val",
+     "notNull": true
+    },
+    {
+     "name": "val2",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

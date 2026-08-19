@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:22:5: table alias \"s\" does not exist\nexit status 1"
+}

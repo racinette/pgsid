@@ -1,0 +1,21 @@
+{
+ "queries": [
+  {
+   "name": "ResetTaskRun",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "this_run",
+     "notNull": true
+    },
+    {
+     "name": "last_run",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

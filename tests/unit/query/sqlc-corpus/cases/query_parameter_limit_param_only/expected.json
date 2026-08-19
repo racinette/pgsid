@@ -1,0 +1,22 @@
+{
+ "queries": [
+  {
+   "name": "MarkNoticeDone",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    false,
+    true
+   ]
+  },
+  {
+   "name": "CreateNotice",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

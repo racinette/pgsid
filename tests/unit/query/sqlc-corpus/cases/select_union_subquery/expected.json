@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "TestSubqueryUnion",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

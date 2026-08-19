@@ -1,0 +1,13 @@
+{
+ "queries": [
+  {
+   "name": "UpdateSetMultiple",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

@@ -1,0 +1,27 @@
+{
+ "queries": [
+  {
+   "name": "GetAll",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    },
+    {
+     "name": "date_of_birth",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

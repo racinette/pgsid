@@ -1,0 +1,17 @@
+{
+ "queries": [
+  {
+   "name": "GetTotalEarned",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "total_earned",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

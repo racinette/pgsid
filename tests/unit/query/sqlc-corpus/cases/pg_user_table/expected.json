@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "User",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,64 @@
+{
+ "queries": [
+  {
+   "name": "GetAuthorIDByID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "GetAuthorByID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "GetUser",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "sub",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "SetDefaultName",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

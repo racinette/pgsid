@@ -1,0 +1,22 @@
+{
+ "queries": [
+  {
+   "name": "UpsertAuthor",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "UpsertAuthorNamed",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    false
+   ]
+  }
+ ]
+}

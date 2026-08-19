@@ -1,0 +1,39 @@
+{
+ "queries": [
+  {
+   "name": "GetDictTree",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "code",
+     "notNull": false
+    },
+    {
+     "name": "parent_code",
+     "notNull": true
+    },
+    {
+     "name": "label",
+     "notNull": true
+    },
+    {
+     "name": "value",
+     "notNull": false
+    },
+    {
+     "name": "path",
+     "notNull": false
+    },
+    {
+     "name": "depth",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

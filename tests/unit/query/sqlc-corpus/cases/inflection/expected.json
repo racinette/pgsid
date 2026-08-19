@@ -1,0 +1,59 @@
+{
+ "queries": [
+  {
+   "name": "ListCampuses",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "ListStudents",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "ListMetadata",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "ListCalories",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetProductMetadata",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

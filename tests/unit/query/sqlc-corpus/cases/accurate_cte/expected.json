@@ -1,0 +1,38 @@
+{
+ "queries": [
+  {
+   "name": "ListExpensiveProducts",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "price",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetProductStats",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "total",
+     "notNull": true
+    },
+    {
+     "name": "avg_price",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

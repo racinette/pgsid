@@ -1,0 +1,112 @@
+{
+ "queries": [
+  {
+   "name": "query_return_full_table",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "value",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "query_param_enum_table",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "other",
+     "notNull": true
+    },
+    {
+     "name": "value",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "query_param_struct_enum_table",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "query_return_enum_table",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "value",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "query_return_struct_enum_table",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "value",
+     "notNull": false
+    },
+    {
+     "name": "another",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "query_sqlc_embed_table",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "query_sqlc_embed_table",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "query_enum_array_table",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "value",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

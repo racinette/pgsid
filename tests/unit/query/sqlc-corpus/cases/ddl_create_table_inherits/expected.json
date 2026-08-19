@@ -1,0 +1,61 @@
+{
+ "queries": [
+  {
+   "name": "GetAllParties",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "party_id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetAllPeople",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "party_id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetAllOrganisations",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "party_id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "legal_name",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,13 @@
+{
+ "queries": [
+  {
+   "name": "CreateAuthors",
+   "cmd": "batchexec",
+   "columns": [],
+   "params": [
+    true,
+    false
+   ]
+  }
+ ]
+}

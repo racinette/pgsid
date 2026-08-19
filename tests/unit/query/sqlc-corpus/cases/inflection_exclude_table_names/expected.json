@@ -1,0 +1,55 @@
+{
+ "queries": [
+  {
+   "name": "DeleteBarByID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "DeleteMyDataByID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "DeleteExclusionByID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

@@ -1,0 +1,37 @@
+{
+ "queries": [
+  {
+   "name": "LoadFoo",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "other_id",
+     "notNull": true
+    },
+    {
+     "name": "age",
+     "notNull": false
+    },
+    {
+     "name": "balance",
+     "notNull": false
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    },
+    {
+     "name": "about",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

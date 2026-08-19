@@ -1,0 +1,17 @@
+{
+ "queries": [
+  {
+   "name": "GetRestrictedId",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "restricted_id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

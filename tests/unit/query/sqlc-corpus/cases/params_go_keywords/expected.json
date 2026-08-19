@@ -1,0 +1,628 @@
+{
+ "queries": [
+  {
+   "name": "KeywordBreak",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordDefault",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordFunc",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordInterface",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordSelect",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordCase",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordDefer",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordGo",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordMap",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordStruct",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordChan",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordElse",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordGoto",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordPackage",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordSwitch",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordConst",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordFallthrough",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordIf",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordRange",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordType",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordContinue",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordFor",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordImport",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordReturn",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordVar",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "KeywordQ",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "SelectBreak",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "break",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectDefault",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "default",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectFunc",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "func",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectInterface",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "interface",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectSelect",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "select",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectCase",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "case",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectDefer",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "defer",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectGo",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "go",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectMap",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "map",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectStruct",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "struct",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectChan",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "chan",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectElse",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "else",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectGoto",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "goto",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectPackage",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "package",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectSwitch",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "switch",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectConst",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "const",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectFallthrough",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "fallthrough",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectIf",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "if",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectRange",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "range",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectType",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "type",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectContinue",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "continue",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectFor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "for",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectImport",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "import",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectReturn",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "return",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectVar",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "var",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectQ",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "q",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

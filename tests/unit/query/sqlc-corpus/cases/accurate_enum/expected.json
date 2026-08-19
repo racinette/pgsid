@@ -1,0 +1,66 @@
+{
+ "queries": [
+  {
+   "name": "ListTasks",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "title",
+     "notNull": true
+    },
+    {
+     "name": "status",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetTasksByStatus",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "title",
+     "notNull": true
+    },
+    {
+     "name": "status",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "CreateTask",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "title",
+     "notNull": true
+    },
+    {
+     "name": "status",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

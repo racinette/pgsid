@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "CountAlertReportBy",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "datetime",
+     "notNull": true
+    },
+    {
+     "name": "count",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    false,
+    false
+   ]
+  }
+ ]
+}

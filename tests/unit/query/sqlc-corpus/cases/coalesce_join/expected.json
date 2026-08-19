@@ -1,0 +1,19 @@
+{
+ "queries": [
+  {
+   "name": "GetBar",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "bar_id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

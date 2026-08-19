@@ -1,0 +1,12 @@
+{
+ "queries": [
+  {
+   "name": "DeleteBarByID",
+   "cmd": "execresult",
+   "columns": [],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

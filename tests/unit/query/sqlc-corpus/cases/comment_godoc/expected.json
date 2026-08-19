@@ -1,0 +1,44 @@
+{
+ "queries": [
+  {
+   "name": "ManyFoo",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "OneFoo",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "ExecFoo",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  },
+  {
+   "name": "ExecRowFoo",
+   "cmd": "execrows",
+   "columns": [],
+   "params": []
+  },
+  {
+   "name": "ExecResultFoo",
+   "cmd": "execresult",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

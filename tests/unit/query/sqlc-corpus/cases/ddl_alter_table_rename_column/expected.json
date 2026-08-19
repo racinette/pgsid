@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "Placeholder",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

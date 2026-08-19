@@ -1,0 +1,34 @@
+{
+ "queries": [
+  {
+   "name": "WithAs",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "x",
+     "notNull": true
+    },
+    {
+     "name": "y",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "WithoutAs",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "x",
+     "notNull": true
+    },
+    {
+     "name": "y",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

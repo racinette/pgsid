@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "ListFoo",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "qualified_name",
+     "notNull": false
+    },
+    {
+     "name": "name_query",
+     "notNull": false
+    },
+    {
+     "name": "fts_name_query",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

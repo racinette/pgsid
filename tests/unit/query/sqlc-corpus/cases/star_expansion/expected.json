@@ -1,0 +1,50 @@
+{
+ "queries": [
+  {
+   "name": "StarExpansion",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": false
+    },
+    {
+     "name": "b",
+     "notNull": false
+    },
+    {
+     "name": "a",
+     "notNull": false
+    },
+    {
+     "name": "b",
+     "notNull": false
+    },
+    {
+     "name": "a",
+     "notNull": false
+    },
+    {
+     "name": "b",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "StarQuotedExpansion",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": false
+    },
+    {
+     "name": "b",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+{
+ "queries": [
+  {
+   "name": "FooByAandB",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": false
+    },
+    {
+     "name": "b",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false,
+    false
+   ]
+  }
+ ]
+}

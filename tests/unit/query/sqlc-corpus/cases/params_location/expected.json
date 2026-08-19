@@ -1,0 +1,158 @@
+{
+ "queries": [
+  {
+   "name": "ListUsersByID",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "ListUserOrders",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": false
+    },
+    {
+     "name": "first_name",
+     "notNull": false
+    },
+    {
+     "name": "price",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "GetUserByID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "ListUsersByFamily",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "ListUsersWithLimit",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "LimitSQLCArg",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "InsertNewUser",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "ListUserParenExpr",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    },
+    {
+     "name": "age",
+     "notNull": true
+    },
+    {
+     "name": "job_status",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "AuthorPages",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "author",
+     "notNull": true
+    },
+    {
+     "name": "num_books",
+     "notNull": true
+    },
+    {
+     "name": "total_pages",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

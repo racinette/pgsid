@@ -1,0 +1,22 @@
+{
+ "queries": [
+  {
+   "name": "GetTransaction",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "jsonb_extract_path",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_agg",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

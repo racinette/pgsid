@@ -1,0 +1,30 @@
+{
+ "queries": [
+  {
+   "name": "FuncParamIdent",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "name",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "FuncParamString",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "name",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

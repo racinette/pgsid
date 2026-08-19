@@ -1,0 +1,70 @@
+{
+ "queries": [
+  {
+   "name": "LoadFoo",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "other_id",
+     "notNull": true
+    },
+    {
+     "name": "age",
+     "notNull": false
+    },
+    {
+     "name": "balance",
+     "notNull": false
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    },
+    {
+     "name": "about",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "LoadFooWithAliases",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "aliased_id",
+     "notNull": true
+    },
+    {
+     "name": "aliased_other_id",
+     "notNull": true
+    },
+    {
+     "name": "aliased_age",
+     "notNull": false
+    },
+    {
+     "name": "aliased_balance",
+     "notNull": false
+    },
+    {
+     "name": "aliased_bio",
+     "notNull": false
+    },
+    {
+     "name": "aliased_about",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

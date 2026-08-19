@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "GetAll",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "CamelCase",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "GetFooBar",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "name",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "UpdateFooBar",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

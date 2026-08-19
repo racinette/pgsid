@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:4:9: column \"val\" does not exist\nexit status 1"
+}

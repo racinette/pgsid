@@ -1,0 +1,26 @@
+{
+ "queries": [
+  {
+   "name": "CountStarLower",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "count",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CountStarUpper",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "count",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

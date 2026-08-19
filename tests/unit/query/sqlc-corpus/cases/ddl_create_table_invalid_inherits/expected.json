@@ -1,0 +1,3 @@
+{
+ "error": "# package \nschema.sql:1:1: column \"name\" has a type conflict\nexit status 1"
+}

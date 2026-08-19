@@ -1,0 +1,34 @@
+{
+ "queries": [
+  {
+   "name": "JoinBar",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "info",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "JoinBarAlias",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "info",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

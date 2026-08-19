@@ -1,0 +1,30 @@
+{
+ "queries": [
+  {
+   "name": "Time2ByTime",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "time2",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "Uuid2ByUuid",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "uuid2",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

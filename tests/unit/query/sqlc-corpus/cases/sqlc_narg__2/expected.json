@@ -1,0 +1,56 @@
+{
+ "queries": [
+  {
+   "name": "IdentOnNonNullable",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "IdentOnNullable",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "maybe_bar",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "StringOnNonNullable",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "StringOnNullable",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "maybe_bar",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

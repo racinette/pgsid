@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "GetFirst",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "val",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

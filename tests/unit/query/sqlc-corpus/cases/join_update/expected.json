@@ -1,0 +1,10 @@
+{
+ "queries": [
+  {
+   "name": "Percentile",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

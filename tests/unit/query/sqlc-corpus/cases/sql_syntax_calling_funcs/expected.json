@@ -1,0 +1,70 @@
+{
+ "queries": [
+  {
+   "name": "PositionalNotation",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "concat_lower_or_upper",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "PositionalNoDefaault",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "concat_lower_or_upper",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "NamedNotation",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "concat_lower_or_upper",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "NamedAnyOrder",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "concat_lower_or_upper",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "NamedOtherOrder",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "concat_lower_or_upper",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "MixedNotation",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "concat_lower_or_upper",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

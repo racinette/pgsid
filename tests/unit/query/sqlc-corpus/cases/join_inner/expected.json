@@ -1,0 +1,30 @@
+{
+ "queries": [
+  {
+   "name": "SelectAllJoinedAlias",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "SelectAllJoined",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

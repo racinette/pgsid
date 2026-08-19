@@ -1,0 +1,31 @@
+{
+ "queries": [
+  {
+   "name": "ListAuthors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "author_id",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}
