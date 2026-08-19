@@ -80,6 +80,12 @@ export interface WalkOptions {
    * EXPLAIN oracle; absent in production use, and never affects the walk.
    */
   joinAudit?: JoinAudit[];
+  /**
+   * Test-side flag: attach `unitCrossings` to bare pass-through claims (see
+   * `OutputNullability.unitCrossings`). Read by the EXPLAIN oracle; off in
+   * production, where claims never carry the field.
+   */
+  collectUnitCrossings?: boolean;
 }
 
 /** The pre-walk evaluation round: one async step, answers in, sync walk. */
@@ -129,6 +135,7 @@ export async function inferNullability(
     comparisons,
   );
   if (options?.joinAudit) engine.joinAuditSink = options.joinAudit;
+  if (options?.collectUnitCrossings) engine.collectUnitCrossings = true;
   return engine.run(stmt);
 }
 
@@ -475,6 +482,19 @@ interface RelationEntry {
 }
 
 /**
+ * What resolving a bare pass-through's provenance yields: the entailment
+ * origins (table-anchored; absent where the chain crosses something no
+ * catalog names), per-branch settledness, and the diagnostic `crossings`
+ * channel (`OutputNullability.unitCrossings`) — units without the anchor,
+ * present only under `WalkOptions.collectUnitCrossings`.
+ */
+interface OriginResolution {
+  origins?: (ColumnOrigin | null)[];
+  settled?: boolean[];
+  crossings?: { depth: number; unit: number }[];
+}
+
+/**
  * One column visible in a scope.
  *
  * Either produced by a single relation, or merged from both sides of a
@@ -770,6 +790,8 @@ class NullabilityEngine {
    * null in production use. Never read by the walk itself.
    */
   joinAuditSink: JoinAudit[] | null = null;
+  /** Test-side flag (`WalkOptions.collectUnitCrossings`); see types.ts. */
+  collectUnitCrossings = false;
   /** Audit dedup: one record per syntactic join, keyed on its JoinExpr node. */
   private joinAuditSeen = new WeakMap<object, JoinAudit>();
   /** Per-scope memoization: AST node → results (keyed by object identity). */
@@ -1644,8 +1666,9 @@ class NullabilityEngine {
           ? {
               name: name ?? this.inferName(val),
               notNull,
-              origins: og.origins,
+              ...(og.origins ? { origins: og.origins } : {}),
               ...(og.settled ? { originNotNull: og.settled } : {}),
+              ...(og.crossings ? { unitCrossings: og.crossings } : {}),
             }
           : { name: name ?? this.inferName(val), notNull },
       );
@@ -3508,8 +3531,9 @@ class NullabilityEngine {
           ? {
               name: name ?? this.inferName(val),
               notNull,
-              origins: og.origins,
+              ...(og.origins ? { origins: og.origins } : {}),
               ...(og.settled ? { originNotNull: og.settled } : {}),
+              ...(og.crossings ? { unitCrossings: og.crossings } : {}),
             }
           : { name: name ?? this.inferName(val), notNull },
       );
@@ -3763,11 +3787,21 @@ class NullabilityEngine {
           ];
         }
       }
+      // The diagnostic crossings channel: INTERSECT/EXCEPT rows are left
+      // rows (left crossings pass through); a UNION claim proven notNull
+      // held on EVERY branch's rows, so each branch's crossings are killed
+      // within that branch's rows — the concatenation is the sound combine,
+      // no slot alignment needed (the consumer collects unit ids).
+      const crossings =
+        op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT"
+          ? l?.unitCrossings
+          : [...(l?.unitCrossings ?? []), ...(r?.unitCrossings ?? [])];
       results.push({
         name: l?.name ?? r?.name ?? "",
         notNull: combineSetOpColumn(l?.notNull ?? false, r?.notNull ?? false, op),
         ...(origins ? { origins } : {}),
         ...(originNotNull ? { originNotNull } : {}),
+        ...(crossings && crossings.length > 0 ? { unitCrossings: crossings } : {}),
       });
     }
     return results;
@@ -4027,8 +4061,9 @@ class NullabilityEngine {
         ? {
             name: colName,
             notNull,
-            origins: og.origins,
+            ...(og.origins ? { origins: og.origins } : {}),
             ...(og.settled ? { originNotNull: og.settled } : {}),
+            ...(og.crossings ? { unitCrossings: og.crossings } : {}),
           }
         : { name: colName, notNull };
     };
@@ -4187,7 +4222,7 @@ class NullabilityEngine {
     depth: number,
     /** Positional resolution from star expansion — see computeColumnNullabilityTraced. */
     ordinal?: number,
-  ): { origins: (ColumnOrigin | null)[]; settled?: boolean[] } | undefined {
+  ): OriginResolution | undefined {
     if (entry.joinState === NOT_FOUND) return undefined;
     const optionalHere = entry.joinState === OPTIONAL;
     // This reference's own null-extension crossings, all at depth 0 (the
@@ -4197,10 +4232,19 @@ class NullabilityEngine {
     // through as NULL, and the inner per-branch settledness rides along —
     // a bare re-export changes neither.
     const hereUnits = entry.unitChain.map(unit => ({ depth: 0, unit }));
-    const lift = (
-      inner: OutputNullability | undefined,
-    ): { origins: (ColumnOrigin | null)[]; settled?: boolean[] } | undefined => {
-      if (!inner?.origins) return undefined;
+    const lift = (inner: OutputNullability | undefined): OriginResolution | undefined => {
+      // The diagnostic crossings channel composes like origins' units but
+      // needs no table anchor, so it survives where origins die — a
+      // set-returning function's pass-through (the flag's whole purpose).
+      const crossings = this.collectUnitCrossings
+        ? [
+            ...hereUnits,
+            ...(inner?.unitCrossings ?? []).map(c => ({ depth: c.depth + 1, unit: c.unit })),
+          ]
+        : [];
+      if (!inner?.origins) {
+        return crossings.length > 0 ? { crossings } : undefined;
+      }
       const origins = inner.origins.map(o => {
         if (!o) return null;
         const units = [
@@ -4214,7 +4258,11 @@ class NullabilityEngine {
           ...(units.length > 0 ? { units } : {}),
         };
       });
-      return { origins, ...(inner.originNotNull ? { settled: inner.originNotNull } : {}) };
+      return {
+        origins,
+        ...(inner.originNotNull ? { settled: inner.originNotNull } : {}),
+        ...(crossings.length > 0 ? { crossings } : {}),
+      };
     };
 
     if (entry.kind === "table" && entry.table) {
@@ -4234,6 +4282,7 @@ class NullabilityEngine {
             ...(hereUnits.length > 0 ? { units: hereUnits } : {}),
           },
         ],
+        ...(this.collectUnitCrossings && hereUnits.length > 0 ? { crossings: hereUnits } : {}),
       };
     }
 
@@ -4260,6 +4309,10 @@ class NullabilityEngine {
       return lift(inner);
     }
 
+    // Every remaining kind — table functions above all — still CROSSES its
+    // units: the entry's own chain is the whole story, and the diagnostic
+    // channel is precisely for the kinds origins cannot anchor.
+    if (this.collectUnitCrossings && hereUnits.length > 0) return { crossings: hereUnits };
     return undefined;
   }
 

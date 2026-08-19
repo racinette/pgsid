@@ -145,6 +145,7 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
       const claims = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
         evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
         joinAudit,
+        collectUnitCrossings: true,
       });
       const audited = joinAudit.length;
       const surviving = survivingOuterJoins(joinAudit, claims);

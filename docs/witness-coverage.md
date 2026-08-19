@@ -446,14 +446,19 @@ carries information — a strict-qual reduction the fixpoint missed; and an
 engine-stronger entry whose settlement evidence is a plain strict qual would
 be the soundness smell.
 
-Measurement (2026-08-19, 454 fixtures, participation closure landed): 434
-agree, 18 engine-stronger — all classified (FK/CHECK, MERGE, an
-INTERSECT-arm refilter) — 2 planner-stronger, both declared
-(`@planner-reduces`: the join-removal and SRF-blind-spot pins), nothing
-unexplainable, suspect class empty. The two FK composition fixtures moved
-from engine-stronger to agree when the closure landed: their key chains
-settle SIDES while both FULL JOINs keep a genuinely extending side, an
-advantage a join-granular count cannot see.
+Measurement (2026-08-19, 454 fixtures; participation closure and
+unitCrossings channel landed): 435 agree, 18 engine-stronger — all
+classified (FK/CHECK, MERGE, an INTERSECT-arm refilter) — 1
+planner-stronger, declared (`@planner-reduces`: the join-removal pin, the
+one divergence that is a row-count fact rather than a nullability fact),
+nothing unexplainable, suspect class empty. The two FK composition
+fixtures moved from engine-stronger to agree when the closure landed:
+their key chains settle SIDES while both FULL JOINs keep a genuinely
+extending side, an advantage a join-granular count cannot see. The SRF
+refilter fixture agreed once the instrument could attribute it: claims
+under `WalkOptions.collectUnitCrossings` carry the units their production
+chain crosses — the anchor-less counterpart of origins' units, which is
+what a set-returning function's pass-through needed.
 
 The bar holds both directions through the fixtures themselves, the
 `@unwitnessable` discipline. An engine-stronger fixture declares
@@ -461,17 +466,18 @@ The bar holds both directions through the fixtures themselves, the
 the evidence the planner lacks — a key, a CHECK, a cross-branch refilter,
 or MERGE's no-JoinExpr matching). A planner-stronger fixture declares
 `-- @planner-reduces N: reason`, and its reason must be an INVESTIGATED
-cause — one of the classifier verdicts in `explain-instrument.ts`:
-uniqueness-based join removal (`explain-join-removal.sql`, permanently out
-of scope) and the SRF unit-channel blind spot
-(`explain-srf-refilter-blindspot.sql`, the instrument's gap, not the
-engine's). The slice-local participation imprecision was the third cause;
-its tripwire fixtures fired when the fixpoint's participation closure
-landed (2026-08-19) and flipped to positive pins —
+cause — one of the classifier verdicts in `explain-instrument.ts`. Only
+one remains live: uniqueness-based join removal
+(`explain-join-removal.sql`, permanently out of scope — a row-count fact,
+not a nullability fact). The other two closed on 2026-08-19 and their
+fixtures flipped to positive pins: the slice-local participation
+imprecision (the fixpoint's participation closure;
 `explain-slice-local-flat.sql` and `explain-slice-local-inner-qual.sql`
 now agree with the planner and carry the presence groups the closure
-recovered. The suite fails an undeclared divergence in either direction, a
-drifted count, and an annotation on an agreeing fixture.
+recovered) and the SRF unit-channel blind spot (the `unitCrossings`
+diagnostic channel; `explain-srf-refilter-blindspot.sql` now attributes
+its refilter). The suite fails an undeclared divergence in either
+direction, a drifted count, and an annotation on an agreeing fixture.
 
 The GENERATED corpus runs the same comparison without an annotation channel
 (`generated/generated-explain.test.ts`): agreement is measured, and every

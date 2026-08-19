@@ -4527,14 +4527,24 @@ cross-branch refilters at scale), 577 planner-stronger, all explained:
   closure settles the same joins those queries' quals already killed; a
   PURE removal with no settling qual remains possible and stays pinned as
   `explain-join-removal.sql`.
-- **3 srf-unit-blindspot** — an outer-joined set-returning function has no
-  base table, hence no `ColumnOrigin.units` entry, so the instrument
-  cannot subtract a cross-scope refilter the engine's claims already make.
-  An instrument channel, not an engine gap. Pinned as
-  `explain-srf-refilter-blindspot.sql`.
+- **srf-unit-blindspot — CLOSED 2026-08-19 (was 3, now 0).** An
+  outer-joined set-returning function has no base table, hence no
+  `ColumnOrigin.units` entry, so the instrument could not subtract a
+  cross-scope refilter the engine's claims already made. Closed by the
+  `unitCrossings` diagnostic channel: under `WalkOptions.collectUnitCrossings`
+  (the oracle's flag; never in production output) a bare pass-through claim
+  carries the units its production chain crosses, composed by `originOf`'s
+  lift without the table anchor origins require, passing through
+  set-operation combines by branch concatenation (a UNION claim proven
+  notNull held on every branch's rows). Origins stay untouched — they exist
+  to name what CHECKs and keys are stated over, and an anchor-less origin
+  would have been an invented object. Pinned as
+  `explain-srf-refilter-blindspot.sql`, now a positive pin.
 
-**Remaining trigger:** the srf unit-id channel (instrument-side, small,
-independent) — take it up if the SRF class ever grows past its pin of 3.
+**No remaining trigger.** planner-stronger is EXTINCT on both corpora
+(hand: 1 declared join-removal pin; generated: 0 across all classes), and
+every classifier stays armed with a pinned count of 0 so any regression
+re-opens its class by name.
 
 ---
 

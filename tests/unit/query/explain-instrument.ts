@@ -70,11 +70,13 @@ export function countPlanOuterJoins(node: unknown): number {
 //     fact, not a nullability fact, and the engine will never model it.
 //     Detected from the plan itself — the relation's scan node is gone.
 //
-//   srf-unit-blindspot — INSTRUMENT LIMITATION. An outer-joined
-//     set-returning function has no base table, so its unit never appears in
-//     `ColumnOrigin.units` and a cross-scope refilter of it cannot be
-//     subtracted — the engine's claims agree with the planner, but the
-//     instrument cannot see it.
+//   srf-unit-blindspot — CLOSED (was an instrument limitation). An
+//     outer-joined set-returning function has no base table, so its unit
+//     never appears in `ColumnOrigin.units`; the `unitCrossings` diagnostic
+//     channel (WalkOptions.collectUnitCrossings) now carries the units of
+//     anchor-less pass-throughs, and the subtraction sees them. The
+//     classifier stays armed with a pinned count of 0 so a regression
+//     re-opens the class by name.
 
 export type DivergenceCause = "slice-local-strict-qual" | "join-removal" | "srf-unit-blindspot";
 
@@ -214,10 +216,15 @@ export function survivingOuterJoins(
   joinAudit: readonly JoinAudit[],
   claims: readonly OutputNullability[],
 ): number {
+  // Attribution reads the diagnostic crossings channel first (present when
+  // the analysis ran with `collectUnitCrossings`, and the only channel that
+  // covers a set-returning function's pass-through), with origins' units as
+  // the anchor-carrying subset behind it.
   const refiltered = new Set<number>();
   for (const c of claims) {
-    if (!c.notNull || !c.origins) continue;
-    for (const o of c.origins) {
+    if (!c.notNull) continue;
+    for (const u of c.unitCrossings ?? []) refiltered.add(u.unit);
+    for (const o of c.origins ?? []) {
       for (const u of o?.units ?? []) refiltered.add(u.unit);
     }
   }

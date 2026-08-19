@@ -1021,6 +1021,18 @@ export interface OutputNullability {
    * set-operation combines and carried through bare re-export.
    */
   originNotNull?: boolean[];
+  /**
+   * TEST-SIDE diagnostic, present only under
+   * `WalkOptions.collectUnitCrossings` (the EXPLAIN oracle's flag; never in
+   * production output). The null-extension units this column's bare
+   * production chain crosses, in `ColumnOrigin.units`' id space and depth
+   * convention — but INDEPENDENT of the table anchor origins require: a
+   * set-returning function's pass-through has crossings and no origin,
+   * which is exactly the gap this channel closes (the oracle's refilter
+   * subtraction attributes a notNull claim to the units it kills, and an
+   * SRF unit was otherwise unattributable).
+   */
+  unitCrossings?: { depth: number; unit: number }[];
 }
 
 /**

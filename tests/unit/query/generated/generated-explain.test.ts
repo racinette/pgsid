@@ -85,9 +85,10 @@ const CAUSE_PINS: Record<DivergenceCause, number> = {
   // (unique unreferenced side, no settling qual) would still classify here
   // and is pinned in the hand corpus (explain-join-removal.sql).
   "join-removal": 0,
-  // The instrument's own gap, not the engine's: an outer-joined SRF has no
-  // ColumnOrigin.units channel for the refilter subtraction.
-  "srf-unit-blindspot": 3,
+  // 3 before the unitCrossings channel closed the instrument's gap
+  // (claims now carry crossings for anchor-less pass-throughs — SRFs, and
+  // through set-operation branches); the classifier stays armed.
+  "srf-unit-blindspot": 0,
 };
 
 describe("generated-query EXPLAIN oracle (planner vs the walk)", () => {
@@ -119,7 +120,10 @@ describe("generated-query EXPLAIN oracle (planner vs the walk)", () => {
       let surviving: number;
       let audited: number;
       try {
-        const claims = await inferNullability(stmt, catalog, { joinAudit });
+        const claims = await inferNullability(stmt, catalog, {
+          joinAudit,
+          collectUnitCrossings: true,
+        });
         audited = joinAudit.length;
         surviving = survivingOuterJoins(joinAudit, claims);
       } catch (e) {
