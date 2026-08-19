@@ -1,22 +1,17 @@
--- The SRF unit-channel blind spot — the divergence where the ENGINE and the
--- planner agree and the INSTRUMENT cannot see it (3 generated cases;
--- deferred-tasks §4).
+-- The SRF refilter, attributed — the positive pin for the unitCrossings
+-- channel (was the instrument's last blind spot; deferred-tasks §4).
 --
 -- The outer WHERE proves `uem` non-null, which refilters exactly the rows
 -- where the LATERAL function's absent arm produced them — the planner
--- reduces the inner LEFT accordingly, and the walk proves the same thing at
--- the claim level: `uem` is notNull. But the oracle's refilter subtraction
--- attributes claims to join units through `ColumnOrigin.units`, and a
--- set-returning function has no base table — no origin, no unit id, nothing
--- to subtract. The divergence is the instrument's, not the engine's, which
--- is why the claims below are the strong ones and only the join accounting
--- disagrees.
---
--- @planner-reduces 1: the outer IS NOT NULL refilters the LATERAL
---   function's absent arm; the walk proves it at the claim level (uem is
---   notNull) but the instrument has no unit-id channel for function-scan
---   entries, so the subtraction cannot see it (the srf-unit-blindspot
---   verdict — an instrument limitation, not an engine gap).
+-- reduces the inner LEFT accordingly, and the walk proves the same thing
+-- at the claim level: `uem` is notNull. Attribution needs a units channel
+-- from claim to join, and origins cannot carry it here — an origin is
+-- table-anchored (it exists to name what CHECKs and keys are stated over)
+-- and a set-returning function has no table. The diagnostic
+-- `unitCrossings` channel is that attribution without the anchor: the
+-- claim carries the units its production chain crosses, the oracle
+-- subtracts them, and this fixture agrees with the planner — no declared
+-- divergence, which is the point.
 SELECT
   s.tid,   -- @notNull
   s.uem    -- @notNull
