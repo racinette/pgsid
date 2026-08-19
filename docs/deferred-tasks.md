@@ -4490,14 +4490,44 @@ Twenty fixtures carry annotations: thirteen FK/CHECK entailments, six
 MERGE matching joins (no `JoinExpr`, invisible to the audit), one
 INTERSECT-arm refilter.
 
-What remains deferred is the axis's EXTENSION: pointing the oracle at the
-generated corpus, where the generator already runs every query through
-PGlite and one added EXPLAIN reaches shapes nobody hand-wrote — with no
-annotation channel there, agreement would be measured, not declared.
-**Trigger:** the same as the generator's own — combinations are where
-compositional reasoning breaks; or any adversarial finding against the
-presence fixpoint, for which the audit localizes the divergent join
-immediately.
+The generated-corpus extension is built (2026-08-19):
+`generated/generated-explain.test.ts`, agreement measured rather than
+declared, and every planner-stronger divergence CLASSIFIED by
+`explain-instrument.ts` — an unexplained one fails naming the query, and the
+census is pinned both directions. First census, 14,964 queries: 13,047
+agree, 1,340 engine-stronger (reported, unasserted — keys, CHECKs,
+cross-branch refilters at scale), 577 planner-stronger, all explained:
+
+- **436 slice-local-strict-qual** — the one measured imprecision class
+  against the planner, a single root cause: the fixpoint implies a join's
+  qual only from GLOBAL presence, but inside an enclosing extension nothing
+  is globally present, while PARTICIPATION suffices — a qual held on every
+  row where its arm participates settles the outer joins nested in that
+  arm (`(t LEFT u) RIGHT v ON v.u_id = u.id`: the u-extension never
+  survives; the qual-bearing join may itself be INNER). This is
+  reduce_outer_joins' pass-local-quals-down discipline
+  (prepjointree.c:3431). Soundness unaffected — the columns stay nullable
+  via the enclosing extension. **The closure candidate:** implement
+  participation-scoped qual implication in the fixpoint; the pinned count
+  is its executable bar, and reaching 0 is its done-condition. Pinned in
+  the hand corpus as `explain-slice-local-flat.sql` and
+  `explain-slice-local-inner-qual.sql` (one per qual-owner form), whose
+  `@planner-reduces` annotations go stale and fail the moment the closure
+  lands.
+- **138 join-removal** — remove_useless_joins deleted a unique,
+  unreferenced side: a row-count fact, not a nullability fact, permanently
+  out of scope and detected from the plan itself (the scan node is gone).
+  These were false leads in the raw count. Pinned as
+  `explain-join-removal.sql`.
+- **3 srf-unit-blindspot** — an outer-joined set-returning function has no
+  base table, hence no `ColumnOrigin.units` entry, so the instrument
+  cannot subtract a cross-scope refilter the engine's claims already make.
+  An instrument channel, not an engine gap. Pinned as
+  `explain-srf-refilter-blindspot.sql`.
+
+**Trigger for the closure:** met — it is a measured, pinned imprecision
+with a mechanical bar; take it up when precision work is next scheduled.
+The srf unit-id channel is smaller and independent.
 
 ---
 

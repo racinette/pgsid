@@ -170,6 +170,20 @@ export interface FixtureDirectives {
    * indented two or more spaces past the `--`.
    */
   plannerKeeps: { count: number; reason: string } | null;
+  /**
+   * The mirror direction, from `-- @planner-reduces N: reason`: EXPLAIN's
+   * plan carries N FEWER surviving outer joins than the walk reports, and
+   * the reason states the INVESTIGATED cause — one of the classifier's
+   * verdicts (explain-instrument.ts): the slice-local participation
+   * imprecision (deferred-tasks §4, closure pending — these annotations go
+   * stale and fail the moment the closure lands, which is the point),
+   * uniqueness-based join removal (permanently out of scope), or the SRF
+   * unit-channel blind spot (the engine agrees; the instrument cannot see
+   * it). A planner-stronger divergence without this annotation fails: it is
+   * the one reading of "the planner did better" that must never sit
+   * unexamined. Same continuation rule as @planner-keeps.
+   */
+  plannerReduces: { count: number; reason: string } | null;
 }
 
 export interface ParamClaim {
@@ -197,6 +211,7 @@ const UNWITNESSABLE_CONT_RE = /^\s*--\s{2,}(\S.*)$/;
 // contains neither, which is a load-bearing property of the spelling.
 const NULL_GROUP_RE = /^\s*--\s*@null-group\b(.*)$/;
 const PLANNER_KEEPS_RE = /^\s*--\s*@planner-keeps\b:?(.*)$/;
+const PLANNER_REDUCES_RE = /^\s*--\s*@planner-reduces\b:?(.*)$/;
 
 export function parseFixtureDirectives(content: string): FixtureDirectives {
   const bindings: FixtureBinding[] = [];
@@ -209,13 +224,15 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   let raisesPattern: string | null = null;
   let alwaysRaises = false;
   let plannerKeeps: { count: number; reason: string } | null = null;
+  let plannerReduces: { count: number; reason: string } | null = null;
 
   // The column index whose reason is still open, or null. Only the line
   // immediately following an @unwitnessable line (or one of its own
-  // continuations) can continue it. `@planner-keeps` reasons continue by the
-  // same rule, tracked separately.
+  // continuations) can continue it. `@planner-keeps` / `@planner-reduces`
+  // reasons continue by the same rule, tracked separately.
   let openReason: number | null = null;
   let plannerKeepsOpen = false;
+  let plannerReducesOpen = false;
 
   for (const line of content.split("\n")) {
     if (openReason !== null) {
@@ -248,6 +265,41 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
         continue;
       }
       plannerKeepsOpen = false;
+    }
+    if (plannerReducesOpen) {
+      const cont = UNWITNESSABLE_CONT_RE.exec(line);
+      if (cont) {
+        if (/@(notNull|nullable)\b/.test(cont[1]!)) {
+          throw new Error(
+            `@planner-reduces reason contains a per-column marker, which would ` +
+              `be counted as a claim: ${cont[1]!.trim()}`,
+          );
+        }
+        plannerReduces = {
+          count: plannerReduces!.count,
+          reason: `${plannerReduces!.reason} ${cont[1]!.trim()}`,
+        };
+        continue;
+      }
+      plannerReducesOpen = false;
+    }
+
+    const plannerReducesMatch = PLANNER_REDUCES_RE.exec(line);
+    if (plannerReducesMatch) {
+      const m = /^(\d+)\s*:\s*(.+)$/.exec(plannerReducesMatch[1]!.trim());
+      const count = m ? Number(m[1]) : NaN;
+      if (!m || !Number.isInteger(count) || count < 1) {
+        throw new Error(
+          `@planner-reduces must be \`-- @planner-reduces <count>: <reason>\` with a ` +
+            `positive surviving-join count, got: ${plannerReducesMatch[1]!.trim()}`,
+        );
+      }
+      if (plannerReduces) {
+        throw new Error(`duplicate @planner-reduces annotation`);
+      }
+      plannerReduces = { count, reason: m[2]!.trim() };
+      plannerReducesOpen = true;
+      continue;
     }
 
     const plannerKeepsMatch = PLANNER_KEEPS_RE.exec(line);
@@ -497,6 +549,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
     nullGroupClaims,
     unwitnessable,
     plannerKeeps,
+    plannerReduces,
   };
 }
 

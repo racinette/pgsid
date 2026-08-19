@@ -9,6 +9,7 @@ import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
 import { inferNullability } from "../../../src/query/nullability-walk.js";
 import type { JoinAudit, NullabilityCatalog } from "../../../src/query/types.js";
 import { parseFixtureDirectives, DEDUCTION_FAILURE } from "./fixture-args.js";
+import { countPlanOuterJoins, countRawOuterJoins, survivingOuterJoins } from "./explain-instrument.js";
 
 // ---------------------------------------------------------------------------
 // The EXPLAIN oracle.
@@ -55,13 +56,16 @@ import { parseFixtureDirectives, DEDUCTION_FAILURE } from "./fixture-args.js";
 // reduce_outer_joins never will, because the planner does not make those
 // inferences at all.
 //
-// Both directions are held, the @unwitnessable discipline: an
-// engine-stronger fixture DECLARES its divergence — `-- @planner-keeps N:
-// reason`, N = plan minus surviving, the reason naming the evidence the
-// planner lacks — and the suite fails a divergence without an annotation
-// (write the reasoning), an annotation whose N drifted (stale), and any
-// planner-stronger fixture at all (the walk missed a reduction the planner
-// makes from the same strict-qual theory: investigate before excusing).
+// Both directions are held, the @unwitnessable discipline: a divergent
+// fixture DECLARES its divergence. Engine-stronger: `-- @planner-keeps N:
+// reason`, the reason naming the evidence the planner lacks.
+// Planner-stronger: `-- @planner-reduces N: reason`, the reason an
+// INVESTIGATED cause — one of the classifier verdicts in
+// explain-instrument.ts (the slice-local participation imprecision, whose
+// annotations go stale and fail the moment the fixpoint closure lands;
+// uniqueness-based join removal, permanently out of scope; the SRF
+// unit-channel blind spot). The suite fails an undeclared divergence, a
+// drifted count, and an annotation on an agreeing fixture.
 //
 // Plans are taken against the empty schema. Join reduction does not read
 // statistics, so data states would only perturb join ORDER, which the counts
@@ -89,13 +93,14 @@ interface Fixture {
   sql: string;
   raisesPattern: string | null;
   plannerKeeps: { count: number; reason: string } | null;
+  plannerReduces: { count: number; reason: string } | null;
 }
 
 const fixtures: Fixture[] = fixtureFiles.map(file => {
   const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
   const name = basename(file, ".sql");
-  const { raisesPattern, plannerKeeps } = parseFixtureDirectives(sql);
-  return { name, sql, raisesPattern, plannerKeeps };
+  const { raisesPattern, plannerKeeps, plannerReduces } = parseFixtureDirectives(sql);
+  return { name, sql, raisesPattern, plannerKeeps, plannerReduces };
 });
 
 type OracleClass =
@@ -117,30 +122,6 @@ interface OracleResult {
   plan: number | null;
   cls: OracleClass;
   error: string | null;
-}
-
-const RAW_OUTER = new Set(["JOIN_LEFT", "JOIN_RIGHT", "JOIN_FULL"]);
-const PLAN_OUTER = new Set(["Left", "Right", "Full"]);
-
-/** Outer JoinExpr nodes anywhere in the raw AST — subqueries and CTEs included. */
-function countRawOuterJoins(node: unknown): number {
-  if (Array.isArray(node)) return node.reduce((n: number, c) => n + countRawOuterJoins(c), 0);
-  if (node === null || typeof node !== "object") return 0;
-  const rec = node as Record<string, unknown>;
-  const join = rec["JoinExpr"] as Record<string, unknown> | undefined;
-  let n = join && RAW_OUTER.has(join["jointype"] as string) ? 1 : 0;
-  for (const v of Object.values(rec)) n += countRawOuterJoins(v);
-  return n;
-}
-
-/** Outer-join plan nodes anywhere in the EXPLAIN JSON — subplans and CTEs included. */
-function countPlanOuterJoins(node: unknown): number {
-  if (Array.isArray(node)) return node.reduce((n: number, c) => n + countPlanOuterJoins(c), 0);
-  if (node === null || typeof node !== "object") return 0;
-  const rec = node as Record<string, unknown>;
-  let n = typeof rec["Join Type"] === "string" && PLAN_OUTER.has(rec["Join Type"]) ? 1 : 0;
-  for (const v of Object.values(rec)) n += countPlanOuterJoins(v);
-  return n;
 }
 
 const results: OracleResult[] = [];
@@ -166,27 +147,7 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
         joinAudit,
       });
       const audited = joinAudit.length;
-
-      // Statement-level survival. The audit's settled flags are scope-local;
-      // the planner's verdict is statement-global (it flattens scopes, so an
-      // outer WHERE reduces an inner join). The engine states the same
-      // global fact through its CLAIMS: a column proved notNull whose origin
-      // crosses unit U means U's absent arm never reaches the output — a
-      // NULL-extended slice has every pass-through NULL. So a side counts as
-      // surviving only when it is locally unsettled AND no claim refilters
-      // its unit.
-      const refiltered = new Set<number>();
-      for (const c of claims) {
-        if (!c.notNull || !c.origins) continue;
-        for (const o of c.origins) {
-          for (const u of o?.units ?? []) refiltered.add(u.unit);
-        }
-      }
-      const surviving = joinAudit.filter(
-        a =>
-          (a.leftSettled === false && !refiltered.has(a.leftGroup!)) ||
-          (a.rightSettled === false && !refiltered.has(a.rightGroup!)),
-      ).length;
+      const surviving = survivingOuterJoins(joinAudit, claims);
 
       const options = /\$\d/.test(fixture.sql) ? "FORMAT JSON, GENERIC_PLAN" : "FORMAT JSON";
       await pg.exec("BEGIN;");
@@ -224,29 +185,36 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
       }
 
       // The both-directions bar. `delta` is what EXPLAIN keeps beyond the
-      // walk; the fixture's @planner-keeps must state exactly that, with the
-      // reasoning, or exactly nothing.
-      const declared = fixture.plannerKeeps?.count ?? 0;
+      // walk (negative: what it settles beyond the walk); the fixture's
+      // @planner-keeps / @planner-reduces must state exactly that, with the
+      // reasoning, or exactly nothing. A planner-stronger divergence needs
+      // an INVESTIGATED reason — one of the classifier's verdicts
+      // (explain-instrument.ts) — never a bare excuse.
+      const declared =
+        (fixture.plannerKeeps?.count ?? 0) - (fixture.plannerReduces?.count ?? 0);
       if (plan === null) {
-        if (fixture.plannerKeeps) {
+        if (fixture.plannerKeeps || fixture.plannerReduces) {
           keepViolations.push(
-            `${fixture.name}: @planner-keeps declared but the statement does not plan — stale`,
+            `${fixture.name}: planner divergence declared but the statement does not plan — stale`,
           );
         }
       } else {
         const delta = plan - surviving;
-        if (delta < 0) {
+        if (delta !== declared) {
+          const stated =
+            fixture.plannerKeeps || fixture.plannerReduces
+              ? `declares net ${declared}`
+              : `declares nothing`;
+          const direction =
+            delta > 0
+              ? `EXPLAIN keeps ${delta} outer join(s) the walk settles — @planner-keeps`
+              : delta < 0
+                ? `the planner settles or removes ${-delta} join(s) the walk still counts — ` +
+                  `@planner-reduces, with the investigated cause`
+                : `planner and walk agree`;
           keepViolations.push(
-            `${fixture.name}: planner-stronger (surviving=${surviving} plan=${plan}) — the ` +
-              `planner settled or removed a join the walk still counts; investigate before excusing`,
-          );
-        } else if (delta !== declared) {
-          keepViolations.push(
-            fixture.plannerKeeps
-              ? `${fixture.name}: @planner-keeps ${declared} is stale — plan=${plan} ` +
-                  `surviving=${surviving} keeps ${delta}`
-              : `${fixture.name}: EXPLAIN keeps ${delta} outer join(s) the walk settles ` +
-                  `(plan=${plan} surviving=${surviving}) with no @planner-keeps — write the reasoning`,
+            `${fixture.name}: plan=${plan} surviving=${surviving} (${direction}), but the ` +
+              `fixture ${stated}`,
           );
         }
       }
