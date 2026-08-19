@@ -12,9 +12,11 @@
 -- `o.id` and `oi.id` are NULL wherever the outer join extends its own left
 -- side, which dense and uniform return.
 --
--- @planner-keeps 1: the swapped composition settles the outer join's
---   customers side by the same key chain; the planner reasons from no keys
---   and keeps both FULL JOINs.
+-- No planner divergence declared: the swapped composition settles the
+-- customers SIDE by the same key chain, but both FULL JOINs keep a
+-- genuinely extending side, so the join-level counts agree with the
+-- planner — the walk's side-level advantage is invisible to a
+-- join-granular count.
 SELECT
   c.id    AS cid,        -- @notNull
   o.id    AS oid,        -- @nullable

@@ -4498,26 +4498,34 @@ census is pinned both directions. First census, 14,964 queries: 13,047
 agree, 1,340 engine-stronger (reported, unasserted — keys, CHECKs,
 cross-branch refilters at scale), 577 planner-stronger, all explained:
 
-- **436 slice-local-strict-qual** — the one measured imprecision class
-  against the planner, a single root cause: the fixpoint implies a join's
-  qual only from GLOBAL presence, but inside an enclosing extension nothing
-  is globally present, while PARTICIPATION suffices — a qual held on every
-  row where its arm participates settles the outer joins nested in that
-  arm (`(t LEFT u) RIGHT v ON v.u_id = u.id`: the u-extension never
-  survives; the qual-bearing join may itself be INNER). This is
-  reduce_outer_joins' pass-local-quals-down discipline
-  (prepjointree.c:3431). Soundness unaffected — the columns stay nullable
-  via the enclosing extension. **The closure candidate:** implement
-  participation-scoped qual implication in the fixpoint; the pinned count
-  is its executable bar, and reaching 0 is its done-condition. Pinned in
-  the hand corpus as `explain-slice-local-flat.sql` and
-  `explain-slice-local-inner-qual.sql` (one per qual-owner form), whose
-  `@planner-reduces` annotations go stale and fail the moment the closure
-  lands.
-- **138 join-removal** — remove_useless_joins deleted a unique,
-  unreferenced side: a row-count fact, not a nullability fact, permanently
-  out of scope and detected from the plan itself (the scan node is gone).
-  These were false leads in the raw count. Pinned as
+- **slice-local-strict-qual — CLOSED 2026-08-19 (was 436, now 0).** The
+  participation closure is built into the fixpoint
+  (`resolveJoinImplications`; spec in `docs/nullability-walk.md`, "The
+  participation closure"). The landed rule, one level more general than
+  the candidate: an ARM of a join is non-preserved when a failing row is
+  DROPPED by the join type or its only other path — emission by extending
+  the opposite side — is DEAD (that unit dissolved, or a member proven
+  present); a strict qual over an alias then DISSOLVES any nested unit
+  whose extension nulls it, chains shrinking outside-in so each join's
+  death arms the next (`t LEFT (u RIGHT (v RIGHT ck))` settles fully).
+  Dissolution — remove the unit from every chain, innermost memberships
+  falling back outward, empty chain meaning genuine presence — is what
+  keeps co-membership, presence groups, origins, and the audit coherent
+  through one operation. The tripwires worked as designed: both
+  `@planner-reduces` annotations went stale and flipped to positive pins
+  now carrying recovered presence groups; the two FK composition fixtures'
+  `@planner-keeps` also went stale (their key chains settle SIDES while
+  both FULL JOINs keep a genuinely extending side — agreement at join
+  granularity, the walk still stronger at side granularity). One
+  implementation finding, caught by the audit before landing: sibling
+  entries of a join side SHARE the unitChain array, so dissolution must
+  reassign a filtered copy, never splice in place.
+- **join-removal — 0 in the census (was 138 as first classified).**
+  remove_useless_joins deletes a unique, unreferenced side: a row-count
+  fact, not a nullability fact, permanently out of scope and detected from
+  the plan itself (the scan node is gone). The 138 vanished because the
+  closure settles the same joins those queries' quals already killed; a
+  PURE removal with no settling qual remains possible and stays pinned as
   `explain-join-removal.sql`.
 - **3 srf-unit-blindspot** — an outer-joined set-returning function has no
   base table, hence no `ColumnOrigin.units` entry, so the instrument
@@ -4525,9 +4533,8 @@ cross-branch refilters at scale), 577 planner-stronger, all explained:
   An instrument channel, not an engine gap. Pinned as
   `explain-srf-refilter-blindspot.sql`.
 
-**Trigger for the closure:** met — it is a measured, pinned imprecision
-with a mechanical bar; take it up when precision work is next scheduled.
-The srf unit-id channel is smaller and independent.
+**Remaining trigger:** the srf unit-id channel (instrument-side, small,
+independent) — take it up if the SRF class ever grows past its pin of 3.
 
 ---
 

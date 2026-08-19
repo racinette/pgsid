@@ -15,9 +15,12 @@
 -- side this join DOES extend: a customer with no orders produces a row with
 -- `o.id` and `oi.id` both NULL, which dense and uniform return.
 --
--- @planner-keeps 1: the composition settles the second FULL JOIN's
---   customers side by the key chain; the planner reasons from no keys and
---   keeps both FULL JOINs, while the first genuinely extends.
+-- No planner divergence declared: the key chain settles SIDES, not whole
+-- joins. Both FULL JOINs keep one genuinely extending side (an order with
+-- no items, a customer with no orders), so the join-level counts agree
+-- with the planner — the walk's advantage lives at the side level, where
+-- it types `c.id` notNull from keys the planner does not read, which a
+-- join-granular count cannot see.
 SELECT
   c.id    AS cid,        -- @notNull
   o.id    AS oid,        -- @nullable

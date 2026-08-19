@@ -1,27 +1,21 @@
--- The slice-local participation imprecision, flat form — found by the
--- generated EXPLAIN oracle (436 cases, one root cause; deferred-tasks §4).
+-- The participation closure, flat form — the positive pin. Found as an
+-- imprecision by the generated EXPLAIN oracle (436 cases, one cause),
+-- closed in the fixpoint (deferred-tasks §4).
 --
 -- The RIGHT JOIN's strict qual `v.u_id = u.id` references `u`, which the
--- LEFT JOIN nested in its left arm extends. A u-extended row makes the qual
--- NULL, and the RIGHT JOIN drops unmatched left rows — so the LEFT's
--- extension never survives to the output, and the planner reduces it to
--- INNER. The fixpoint cannot: it implies a qual only from GLOBAL presence,
--- and under the RIGHT JOIN's own extension nothing is globally present.
--- PARTICIPATION would suffice — the qual held on every row where the left
--- arm participates, which is exactly where the nested extension could
--- matter.
+-- LEFT JOIN nested in its left arm extends. A u-extended row makes the
+-- qual NULL — never TRUE — and a RIGHT JOIN drops unmatched left rows, so
+-- the LEFT's own extension never reaches the output. The closure dissolves
+-- u's unit into the arm's: `u` rides with `t` now, NULL exactly when the
+-- RIGHT JOIN null-extends the whole left arm. The planner concludes the
+-- same by reduce_outer_joins (the plan keeps one outer join, and so does
+-- the walk — no @planner-reduces here anymore, which is the point).
 --
--- Soundness is unaffected either way: every claimed-nullable column here is
--- genuinely nullable via the RIGHT JOIN's extension (a v row matching no u
--- returns t.id and u.email NULL together). The imprecision is join
--- accounting alone, which is why it lives as a @planner-reduces annotation
--- and not as a wrong claim. When the participation closure lands, the
--- annotation goes stale and fails — that is its purpose.
---
--- @planner-reduces 1: the RIGHT JOIN's strict qual settles the LEFT nested
---   in its participating arm; the fixpoint gates qual implication on global
---   presence where participation suffices (the slice-local imprecision,
---   deferred-tasks §4 — this annotation is the closure's tripwire).
+-- The contract-surface gain is the GROUP: before the closure `t` and `u`
+-- sat in separate single-member units and no group was emitted; now tid
+-- and uem go NULL together exactly when the arm is absent — a v row
+-- matching no u — and both are discriminants (NOT NULL given presence).
+-- @null-group 0*,1*
 SELECT
   t.id     AS tid,   -- @nullable
   u.email  AS uem,   -- @nullable
