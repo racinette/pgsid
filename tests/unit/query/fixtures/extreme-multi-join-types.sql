@@ -3,6 +3,11 @@
 -- columns from earlier joins. WHERE promotes two aliases (o and c) but
 -- leaves two optional (oi/p, s). The per-alias promotion means
 -- c.id is notNull (promoted via c.email IS NOT NULL), not just c.email.
+--
+-- @planner-keeps 1: the planner's strict-qual reduction matches the two
+--   WHERE promotions, but the LEFT JOIN to products settles only by
+--   foreign-key entailment composed with oi's proven presence — keys the
+--   planner does not reason from.
 SELECT
   o.id           AS order_id,       -- @notNull
   oi.id          AS item_id,        -- @notNull

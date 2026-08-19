@@ -17,6 +17,10 @@
 -- fall back to a clone only when there is none". This fixture is the fallback
 -- arm; its sibling is the arm where a declared key exists and the clones are
 -- ignored.
+--
+-- @planner-keeps 1: the join settles by foreign-key entailment over the
+--   partition's own clone of the key; the planner does not reason from
+--   keys.
 SELECT
   t.id AS tid   -- @notNull   (the partition's own copy of the key)
 FROM sw4_rs1 s

@@ -7,6 +7,10 @@
 -- optional side never null-extends. This claim carried an @unwitnessable
 -- reason until the engine read foreign keys — twice, in fact: the first
 -- reason blamed the CROSS JOIN, which has nothing to do with it.
+--
+-- @planner-keeps 1: that same key is why EXPLAIN diverges — the walk
+--   settles the LEFT JOIN by foreign-key entailment, and the planner does
+--   not reason from keys.
 SELECT
   o.id    AS order_id,    -- @notNull
   oi.id   AS item_id,     -- @notNull

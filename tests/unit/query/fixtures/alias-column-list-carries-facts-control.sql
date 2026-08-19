@@ -4,6 +4,10 @@
 -- Without it the pinned fixture proves only that the engine says notNull for
 -- those columns, not that the RENAME is what it survives — a version of the
 -- engine that guessed notNull for everything would pass one and fail this.
+--
+-- @planner-keeps 1: the LEFT JOIN settles by foreign-key entailment
+--   (orders.customer_id, NOT NULL onto customers), and the planner does
+--   not reason from keys.
 SELECT
   s1.qty AS flag_col,             -- @notNull
   s1.discontinued_at AS check_col,  -- @notNull

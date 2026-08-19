@@ -18,6 +18,9 @@
 -- Kept from the fourth sweep's section-F probes, which found no defect: there
 -- is no shape in which a MERGE emits a row no arm produced.
 -- @null-group 2*,3*
+-- @planner-keeps 1: EXPLAIN plans MERGE's matching as an outer join; it
+--   is no JoinExpr, so the join audit has no record — the BY SOURCE arm's
+--   optionality lives on the scope, arm-aware.
 MERGE INTO tags t
 USING (SELECT p.id AS id, p.sku AS sku FROM products p) s
 ON t.id = s.id

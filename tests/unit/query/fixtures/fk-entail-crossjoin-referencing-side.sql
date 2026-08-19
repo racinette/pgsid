@@ -15,6 +15,9 @@
 -- state, so the claim is falsifiable rather than vacuous. The emptying
 -- version is the point of the sibling fixtures, and it belongs on the other
 -- side of the join.
+--
+-- @planner-keeps 1: the join settles by foreign-key entailment across the
+--   cross-joined referencing side; the planner does not reason from keys.
 SELECT
   c.id AS cid   -- @notNull  (the key holds for every order, repeated or not)
 FROM (orders o CROSS JOIN products p)

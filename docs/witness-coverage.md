@@ -408,6 +408,58 @@ asserts and what its ids happen to match are not the same thing.
 **Inside a `@no-rows` fixture (2 claims).** Nothing in a statement that never
 returns a row can be witnessed.
 
+## The EXPLAIN oracle (observatory)
+
+`tests/unit/query/explain-oracle.test.ts` compares the corpus against the one
+static reasoner PostgreSQL exposes through public API. The planner's prep
+phase runs `reduce_outer_joins`: an outer join whose optional side a strict
+qual above it would reject is converted to a plain join — PostgreSQL's own
+implementation of WHERE promotion, logic-based rather than cost-based, and
+visible in every plan as the node's `Join Type`. The oracle runs
+`EXPLAIN (FORMAT JSON)` (with `GENERIC_PLAN` for parameterized fixtures, the
+same unbound-`$n` treatment PREPARE gives them) against the empty schema and
+counts surviving outer-join plan nodes against the walk's own verdicts.
+
+The engine side is `WalkOptions.joinAudit`: one record per syntactic outer
+join (deduped on the `JoinExpr` node — fixpoint re-runs and set-operation
+branch rebuilds revisit the same join), each extended side marked settled or
+surviving by the presence fixpoint, plus the side's null-group id. The
+settled flags are scope-local while the planner is statement-global (it
+flattens scopes, so an outer WHERE reduces an inner join), so the oracle
+reconciles units through the claims: a column proved notNull whose origin
+crosses unit U certifies U's absent arm never reaches the output, and such a
+unit does not count as surviving. Counts, not identities — the planner
+reorders joins, commutes a LEFT into a "Right" hash join, and pulls sublinks
+into Semi/Anti joins that correspond to no FROM-clause join. Classes:
+`agree`, `planner-stronger` (the plan has fewer surviving outer joins than
+the walk), `engine-stronger` (the walk has fewer than the plan).
+
+The interpretation is asymmetric, and the asymmetry is the instrument's
+honesty condition: the planner acting is evidence, the planner declining
+proves nothing. The walk is deliberately stronger — CHECK entailment,
+foreign-key entailment, and cross-scope refilters promote where
+`reduce_outer_joins` never will, because the planner does not make those
+inferences. So `engine-stronger` is expected and must merely *classify*
+(FK, CHECK, origin/refilter, or MERGE's target/source join, which is no
+`JoinExpr` and invisible to the audit); `planner-stronger` is the class that
+carries information — a strict-qual reduction the fixpoint missed; and an
+engine-stronger entry whose settlement evidence is a plain strict qual would
+be the soundness smell.
+
+Measurement (2026-08-19, 450 fixtures): 430 agree, 20 engine-stronger — all
+twenty classified (13 FK/CHECK, 6 MERGE, 1 INTERSECT-arm refilter) —
+0 planner-stronger, nothing unexplainable, suspect class empty.
+
+The bar holds both directions through the fixtures themselves, the
+`@unwitnessable` discipline: an engine-stronger fixture declares
+`-- @planner-keeps N: reason` (N = plan minus surviving, the reason naming
+the evidence the planner lacks — a key, a CHECK, a cross-branch refilter,
+or MERGE's no-JoinExpr matching), and the suite fails an undeclared
+divergence until the reasoning is written, a declared count that drifted,
+and any planner-stronger fixture at all — the walk missing a reduction the
+planner makes from the same strict-qual theory is the one shape that must
+be investigated, never excused.
+
 ## Where things are
 
 | | |
@@ -424,6 +476,7 @@ returns a row can be witnessed.
 | Presence-group pure-function edges | `tests/unit/query/presence-groups.test.ts` (star expansion, `UPDATE … FROM`, the floors) |
 | Annotation-based suite | `tests/unit/query/nullability-walk.test.ts` |
 | Executable suite (validity, shape, soundness, liveness, coverage) | `tests/unit/query/nullability-soundness.test.ts` |
+| EXPLAIN oracle (planner join reduction, observatory) | `tests/unit/query/explain-oracle.test.ts` |
 | AST node coverage | `tests/unit/query/node-census.test.ts`, `grammar-sampler.ts` |
 | Column order vs PostgreSQL | `tests/unit/query/column-sequence.test.ts` |
 | Generating queries to extend this corpus | `docs/query-generator.md` |

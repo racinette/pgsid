@@ -11,6 +11,10 @@
 -- unit, so its bare RETURNING columns form a presence group (dense's
 -- orphan tag 99 witnesses the absent arm).
 -- @null-group 2*,3*
+-- @planner-keeps 1: EXPLAIN plans MERGE's target/source matching as an
+--   outer join; it is no JoinExpr, so the join audit has no record — the
+--   walk carries the source's optionality (the BY SOURCE arm) on the scope
+--   itself.
 MERGE INTO tags t
 USING (SELECT p.id AS id, p.sku AS sku FROM products p) s
 ON t.id = s.id

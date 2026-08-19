@@ -24,6 +24,10 @@
 --
 -- The controls are the same claims without a rename, in
 -- `alias-column-list-carries-facts-control.sql`.
+--
+-- @planner-keeps 1: the LEFT JOIN settles by foreign-key entailment —
+--   s3.k0 is the rename of customers.id, keyed by orders.customer_id
+--   NOT NULL — and the planner does not reason from keys.
 SELECT
   s1.k0 AS flag_col,        -- @notNull
   s1.k1 AS check_col,       -- @notNull

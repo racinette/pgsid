@@ -4459,6 +4459,46 @@ is real: our corpus provably exercises sqlc's enumerated holes, so running
 `sqlc analyze` over the fixtures would mostly find bugs in *sqlc* — a
 possible upstream contribution someday, not verification of this engine.
 
+**The EXPLAIN oracle — built as an observatory (2026-08-19), ratchet
+deferred.** The differential oracle that works is the one that compares
+against PostgreSQL itself rather than a reimplementation: the planner's
+`reduce_outer_joins` is WHERE promotion, run by the engine that defines
+correctness, and its verdict is public API — surviving outer joins are
+visible in `EXPLAIN (FORMAT JSON)` as plan-node `Join Type`s.
+`tests/unit/query/explain-oracle.test.ts` counts them against the raw AST's
+outer `JoinExpr`s per fixture; `docs/witness-coverage.md` ("The EXPLAIN
+oracle") records the mechanics, the count-not-identity design, and the
+interpretation asymmetry (the planner acting is evidence; the planner
+declining proves nothing, because CHECK and FK entailment promote where the
+planner cannot).
+
+The export is built (2026-08-19): `WalkOptions.joinAudit` — one record per
+syntactic outer join, deduped on the `JoinExpr` node across fixpoint re-runs
+and set-operation rebuilds, settled flags per extended side, null-group ids
+in the same id space as `ColumnOrigin.units` so the oracle attributes output
+claims to joins (a notNull column whose origin crosses a unit refilters that
+unit's absent arm — the statement-level survival a scope-local flag cannot
+state). Reconciled measurement: 430 agree, 20 engine-stronger all classified
+(13 FK/CHECK, 6 MERGE, 1 INTERSECT-arm refilter), 0 planner-stronger, no
+strict-qual-settled join the planner declined.
+
+The BAR is set (2026-08-19), fixture-side rather than test-side: each
+engine-stronger fixture declares `-- @planner-keeps N: reason` (parsed in
+`fixture-args.ts`, enforced both directions by the oracle — undeclared
+divergence, stale count, and any `planner-stronger` fixture all fail).
+Twenty fixtures carry annotations: thirteen FK/CHECK entailments, six
+MERGE matching joins (no `JoinExpr`, invisible to the audit), one
+INTERSECT-arm refilter.
+
+What remains deferred is the axis's EXTENSION: pointing the oracle at the
+generated corpus, where the generator already runs every query through
+PGlite and one added EXPLAIN reaches shapes nobody hand-wrote — with no
+annotation channel there, agreement would be measured, not declared.
+**Trigger:** the same as the generator's own — combinations are where
+compositional reasoning breaks; or any adversarial finding against the
+presence fixpoint, for which the audit localizes the divergent join
+immediately.
+
 ---
 
 ## 5. Semantic re-founding — standing TODO, parallel-track

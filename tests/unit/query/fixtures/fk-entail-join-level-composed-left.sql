@@ -11,6 +11,10 @@
 --
 -- `o.id` and `oi.id` are NULL wherever the outer join extends its own left
 -- side, which dense and uniform return.
+--
+-- @planner-keeps 1: the swapped composition settles the outer join's
+--   customers side by the same key chain; the planner reasons from no keys
+--   and keeps both FULL JOINs.
 SELECT
   c.id    AS cid,        -- @notNull
   o.id    AS oid,        -- @nullable
