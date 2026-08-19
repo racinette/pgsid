@@ -1,0 +1,298 @@
+{
+ "queries": [
+  {
+   "name": "GetMayors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "user_id",
+     "notNull": true
+    },
+    {
+     "name": "full_name",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetMayorsOptional",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "user_id",
+     "notNull": true
+    },
+    {
+     "name": "full_name",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "AllAuthors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    },
+    {
+     "name": "id",
+     "notNull": false
+    },
+    {
+     "name": "name",
+     "notNull": false
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "AllAuthorsAliases",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    },
+    {
+     "name": "id",
+     "notNull": false
+    },
+    {
+     "name": "name",
+     "notNull": false
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "AllAuthorsAliases2",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    },
+    {
+     "name": "id",
+     "notNull": false
+    },
+    {
+     "name": "name",
+     "notNull": false
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "AllSuperAuthors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    },
+    {
+     "name": "super_id",
+     "notNull": false
+    },
+    {
+     "name": "super_name",
+     "notNull": false
+    },
+    {
+     "name": "super_parent_id",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "AllSuperAuthorsAliases",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    },
+    {
+     "name": "super_id",
+     "notNull": false
+    },
+    {
+     "name": "super_name",
+     "notNull": false
+    },
+    {
+     "name": "super_parent_id",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "AllSuperAuthorsAliases2",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "parent_id",
+     "notNull": false
+    },
+    {
+     "name": "super_id",
+     "notNull": false
+    },
+    {
+     "name": "super_name",
+     "notNull": false
+    },
+    {
+     "name": "super_parent_id",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetSuggestedUsersByID",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "user_id",
+     "notNull": true
+    },
+    {
+     "name": "user_nickname",
+     "notNull": true
+    },
+    {
+     "name": "user_email",
+     "notNull": true
+    },
+    {
+     "name": "user_display_name",
+     "notNull": true
+    },
+    {
+     "name": "user_password",
+     "notNull": false
+    },
+    {
+     "name": "user_google_id",
+     "notNull": false
+    },
+    {
+     "name": "user_apple_id",
+     "notNull": false
+    },
+    {
+     "name": "user_bio",
+     "notNull": true
+    },
+    {
+     "name": "user_created_at",
+     "notNull": true
+    },
+    {
+     "name": "user_avatar_id",
+     "notNull": false
+    },
+    {
+     "name": "media_id",
+     "notNull": false
+    },
+    {
+     "name": "media_created_at",
+     "notNull": false
+    },
+    {
+     "name": "media_hash",
+     "notNull": false
+    },
+    {
+     "name": "media_directory",
+     "notNull": false
+    },
+    {
+     "name": "media_author_id",
+     "notNull": false
+    },
+    {
+     "name": "media_width",
+     "notNull": false
+    },
+    {
+     "name": "media_height",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

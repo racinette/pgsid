@@ -1,0 +1,43 @@
+{
+ "queries": [
+  {
+   "name": "AdvisoryLockOne",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "pg_advisory_lock",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "AdvisoryUnlock",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "pg_advisory_unlock",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "AdvisoryLockExecResult",
+   "cmd": "execresult",
+   "columns": [
+    {
+     "name": "pg_advisory_lock",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

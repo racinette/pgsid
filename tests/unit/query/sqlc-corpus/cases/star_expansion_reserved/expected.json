@@ -1,0 +1,19 @@
+{
+ "queries": [
+  {
+   "name": "StarExpansionReserved",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "group",
+     "notNull": false
+    },
+    {
+     "name": "key",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

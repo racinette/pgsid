@@ -1,0 +1,27 @@
+{
+ "queries": [
+  {
+   "name": "StarExpansionJoin",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": false
+    },
+    {
+     "name": "b",
+     "notNull": false
+    },
+    {
+     "name": "c",
+     "notNull": false
+    },
+    {
+     "name": "d",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

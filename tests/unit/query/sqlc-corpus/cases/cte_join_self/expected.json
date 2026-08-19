@@ -1,0 +1,19 @@
+{
+ "queries": [
+  {
+   "name": "ListItems",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id1",
+     "notNull": true
+    },
+    {
+     "name": "id2",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

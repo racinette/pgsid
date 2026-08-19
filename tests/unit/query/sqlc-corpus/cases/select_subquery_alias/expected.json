@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:10:7: table alias \"amounts\" does not exist\nexit status 1"
+}

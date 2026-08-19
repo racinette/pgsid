@@ -1,0 +1,96 @@
+{
+ "queries": [
+  {
+   "name": "InsertUserAndReturnID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "InsertUserAndReturnUser",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "name",
+     "notNull": false
+    },
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "UpdateUserAndReturnID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false,
+    false
+   ]
+  },
+  {
+   "name": "UpdateUserAndReturnUser",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "name",
+     "notNull": false
+    },
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false,
+    false
+   ]
+  },
+  {
+   "name": "DeleteUserAndReturnID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "DeleteUserAndReturnUser",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "name",
+     "notNull": false
+    },
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "SelectColumnCast",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:1:1: function \"sqlc.argh\" does not exist\nquery.sql:5:45: expected 1 parameter to sqlc.arg; got 2\nquery.sql:8:45: expected 1 parameter to sqlc.arg; got 0\nquery.sql:11:45: expected parameter to sqlc.arg to be string or reference; got *ast.FuncCall\nquery.sql:14:45: expected paramet"
+}

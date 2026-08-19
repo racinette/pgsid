@@ -1,0 +1,18 @@
+{
+ "queries": [
+  {
+   "name": "SchemaScopedCreate",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

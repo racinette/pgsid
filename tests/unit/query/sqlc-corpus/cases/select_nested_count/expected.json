@@ -1,0 +1,27 @@
+{
+ "queries": [
+  {
+   "name": "GetAuthorsWithBooksCount",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    },
+    {
+     "name": "books_count",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

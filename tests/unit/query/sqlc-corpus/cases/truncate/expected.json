@@ -1,0 +1,10 @@
+{
+ "queries": [
+  {
+   "name": "Truncate",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

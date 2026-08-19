@@ -1,0 +1,110 @@
+{
+ "queries": [
+  {
+   "name": "ListAuthors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GetAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "CreateAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "UpdateAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    false,
+    true
+   ]
+  },
+  {
+   "name": "DeleteAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

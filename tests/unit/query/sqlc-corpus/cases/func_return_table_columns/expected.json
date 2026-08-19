@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:2:8: column \"id\" does not exist\nexit status 1"
+}

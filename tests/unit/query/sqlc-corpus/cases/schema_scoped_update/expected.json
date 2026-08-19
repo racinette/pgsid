@@ -1,0 +1,13 @@
+{
+ "queries": [
+  {
+   "name": "SchemaScopedUpdate",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

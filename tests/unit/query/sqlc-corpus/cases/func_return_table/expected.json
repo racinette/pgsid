@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "Foo",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "register_account",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "GetPlanItems",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "plan_id",
+     "notNull": true
+    },
+    {
+     "name": "item_id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    false,
+    true
+   ]
+  }
+ ]
+}

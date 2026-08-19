@@ -1,0 +1,81 @@
+{
+ "queries": [
+  {
+   "name": "GreaterThan",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "LessThan",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "GreaterThanOrEqual",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "LessThanOrEqual",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "NotEqual",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "AlsoNotEqual",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Equal",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

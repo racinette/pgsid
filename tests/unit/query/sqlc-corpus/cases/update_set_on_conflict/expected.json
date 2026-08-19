@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:4:15: column \"name_typo\" of relation \"servers\" does not exist\nquery.sql:8:13: column \"code_typo\" of relation \"servers\" does not exist\nquery.sql:14:22: column \"name_typo\" of relation \"EXCLUDED\" does not exist\nquery.sql:17:1: ON CONFLICT DO UPDATE requires inference specification"
+}

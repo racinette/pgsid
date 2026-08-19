@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "Percentile",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "percentile_disc",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

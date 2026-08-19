@@ -1,0 +1,27 @@
+{
+ "queries": [
+  {
+   "name": "SelectFoo",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": true
+    },
+    {
+     "name": "b",
+     "notNull": true
+    },
+    {
+     "name": "c",
+     "notNull": false
+    },
+    {
+     "name": "d",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

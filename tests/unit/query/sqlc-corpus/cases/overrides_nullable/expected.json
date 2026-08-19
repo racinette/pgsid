@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "ListFoo",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    },
+    {
+     "name": "bam",
+     "notNull": false
+    },
+    {
+     "name": "baz",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "SomeQuery",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

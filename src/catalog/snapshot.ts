@@ -1088,7 +1088,7 @@ async function queryTables(pg: PGlite): Promise<TableRow[]> {
     `SELECT c.oid, n.nspname AS schema, c.relname AS name, c.relkind, c.reloptions
      FROM pg_class c
      JOIN pg_namespace n ON n.oid = c.relnamespace
-     WHERE c.relkind IN ('r', 'p', 'f') AND ${USER_NS}
+     WHERE c.relkind IN ('r', 'p', 'f', 'S') AND ${USER_NS}
      ORDER BY n.nspname, c.relname;`,
   );
   return res.rows;
@@ -1150,7 +1150,7 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
      JOIN pg_namespace n ON n.oid = c.relnamespace
      LEFT JOIN pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
      LEFT JOIN pg_collation co ON co.oid = a.attcollation
-     WHERE c.relkind IN ('r', 'p', 'f', 'v', 'm')
+     WHERE c.relkind IN ('r', 'p', 'f', 'v', 'm', 'S')
        AND ${USER_NS}
        AND a.attnum > 0 AND NOT a.attisdropped
      ORDER BY a.attrelid, a.attnum;`,

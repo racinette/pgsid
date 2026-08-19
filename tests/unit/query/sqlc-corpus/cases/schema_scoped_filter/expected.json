@@ -1,0 +1,17 @@
+{
+ "queries": [
+  {
+   "name": "SchemaScopedFilter",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

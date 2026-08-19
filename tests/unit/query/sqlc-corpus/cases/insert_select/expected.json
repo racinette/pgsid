@@ -1,0 +1,13 @@
+{
+ "queries": [
+  {
+   "name": "InsertSelect",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

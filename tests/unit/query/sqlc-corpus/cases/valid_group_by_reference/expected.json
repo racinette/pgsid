@@ -1,0 +1,61 @@
+{
+ "queries": [
+  {
+   "name": "ListAuthors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "ListAuthorsIdenticalAlias",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "ListMetrics",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bucket",
+     "notNull": true
+    },
+    {
+     "name": "city_name",
+     "notNull": false
+    },
+    {
+     "name": "avg",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

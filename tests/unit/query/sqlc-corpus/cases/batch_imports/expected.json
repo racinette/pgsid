@@ -1,0 +1,44 @@
+{
+ "queries": [
+  {
+   "name": "InsertValues",
+   "cmd": "batchone",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false,
+    false
+   ]
+  },
+  {
+   "name": "GetValues",
+   "cmd": "batchmany",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": false
+    },
+    {
+     "name": "b",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "UpdateValues",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    false,
+    false
+   ]
+  }
+ ]
+}

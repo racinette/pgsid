@@ -1,0 +1,74 @@
+{
+ "queries": [
+  {
+   "name": "GetAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "ListAuthors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CreateAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "DeleteAuthor",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

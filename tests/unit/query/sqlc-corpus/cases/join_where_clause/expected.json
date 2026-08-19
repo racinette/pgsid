@@ -1,0 +1,45 @@
+{
+ "queries": [
+  {
+   "name": "JoinWhereClause",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "barid",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "JoinParamWhereClause",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "barid",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  },
+  {
+   "name": "JoinNoConstraints",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "barid",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

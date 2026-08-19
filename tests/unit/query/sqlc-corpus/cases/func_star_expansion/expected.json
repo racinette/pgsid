@@ -1,0 +1,41 @@
+{
+ "queries": [
+  {
+   "name": "TestFuncGetTime",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "test_func_get_time",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "TestFuncSelectString",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "test_func_select_string",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "TestFuncSelectBlog",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "test_func_select_blog",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

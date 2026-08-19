@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "AllRanked",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "ranked",
+     "notNull": true
+    },
+    {
+     "name": "rank_by_effect_size",
+     "notNull": true
+    },
+    {
+     "name": "rank_by_abs_percent_change",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

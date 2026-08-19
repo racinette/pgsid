@@ -1,0 +1,12 @@
+{
+ "queries": [
+  {
+   "name": "DeleteFrom",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

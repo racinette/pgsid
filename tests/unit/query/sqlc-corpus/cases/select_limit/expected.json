@@ -1,0 +1,31 @@
+{
+ "queries": [
+  {
+   "name": "FooLimit",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "FooLimitOffset",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "a",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

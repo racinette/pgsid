@@ -1,0 +1,26 @@
+{
+ "queries": [
+  {
+   "name": "SchemaScopedList",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SchemaScopedColList",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

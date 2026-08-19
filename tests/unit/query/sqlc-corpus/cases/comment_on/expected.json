@@ -1,0 +1,26 @@
+{
+ "queries": [
+  {
+   "name": "ListBar",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "baz",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "ListBat",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "baz",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

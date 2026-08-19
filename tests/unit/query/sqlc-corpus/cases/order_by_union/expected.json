@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "ListAuthorsUnion",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "foo",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

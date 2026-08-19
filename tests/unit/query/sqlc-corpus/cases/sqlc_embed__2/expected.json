@@ -1,0 +1,120 @@
+{
+ "queries": [
+  {
+   "name": "Only",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "users",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "WithAlias",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "users",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "WithSubquery",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "users",
+     "notNull": false
+    },
+    {
+     "name": "total_count",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "WithAsterisk",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "users",
+     "notNull": false
+    },
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "age",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Duplicate",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "users",
+     "notNull": false
+    },
+    {
+     "name": "users",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "Join",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "users",
+     "notNull": false
+    },
+    {
+     "name": "posts",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "WithSchema",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "users",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "WithCrossSchema",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "users",
+     "notNull": false
+    },
+    {
+     "name": "users",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "GetDate",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "now",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

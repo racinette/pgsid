@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "GetValues",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "index",
+     "notNull": true
+    },
+    {
+     "name": "value",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

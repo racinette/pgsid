@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "F",
+   "cmd": "exec",
+   "columns": [
+    {
+     "name": "doesntexist",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

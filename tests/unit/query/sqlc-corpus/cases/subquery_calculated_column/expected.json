@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "SubqueryCalcColumn",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "sum",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

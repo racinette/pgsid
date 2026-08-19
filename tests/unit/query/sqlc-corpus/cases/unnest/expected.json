@@ -1,0 +1,42 @@
+{
+ "queries": [
+  {
+   "name": "CreateMemories",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "vampire_id",
+     "notNull": true
+    },
+    {
+     "name": "created_at",
+     "notNull": true
+    },
+    {
+     "name": "updated_at",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "GetVampireIDs",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "vampires_id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

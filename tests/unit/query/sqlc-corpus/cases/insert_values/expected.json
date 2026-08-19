@@ -1,0 +1,24 @@
+{
+ "queries": [
+  {
+   "name": "InsertValues",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    false,
+    false
+   ]
+  },
+  {
+   "name": "InsertMultipleValues",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    false,
+    false,
+    false,
+    false
+   ]
+  }
+ ]
+}

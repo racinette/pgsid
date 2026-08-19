@@ -1,0 +1,158 @@
+{
+ "queries": [
+  {
+   "name": "GetAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    },
+    {
+     "name": "country_code",
+     "notNull": true
+    },
+    {
+     "name": "titles",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  },
+  {
+   "name": "ListAuthors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    },
+    {
+     "name": "country_code",
+     "notNull": true
+    },
+    {
+     "name": "titles",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CreateAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    },
+    {
+     "name": "country_code",
+     "notNull": true
+    },
+    {
+     "name": "titles",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    false,
+    true,
+    false
+   ]
+  },
+  {
+   "name": "DeleteAuthor",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "DeleteAuthors",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  },
+  {
+   "name": "CreateAuthorOnlyTitles",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    },
+    {
+     "name": "country_code",
+     "notNull": true
+    },
+    {
+     "name": "titles",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "AddNewClient",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

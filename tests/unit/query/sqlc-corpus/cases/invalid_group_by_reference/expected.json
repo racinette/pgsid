@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:4:10: column reference \"invalid_reference\" not found\nexit status 1"
+}

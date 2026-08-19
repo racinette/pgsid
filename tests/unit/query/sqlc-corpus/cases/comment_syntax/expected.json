@@ -1,0 +1,26 @@
+{
+ "queries": [
+  {
+   "name": "DoubleDash",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SlashStar",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "bar",
+     "notNull": false
+    }
+   ],
+   "params": []
+  }
+ ]
+}

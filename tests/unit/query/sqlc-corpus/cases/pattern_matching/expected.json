@@ -1,0 +1,17 @@
+{
+ "queries": [
+  {
+   "name": "PetsByName",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  }
+ ]
+}

@@ -1,0 +1,10 @@
+{
+ "queries": [
+  {
+   "name": "Refresh",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

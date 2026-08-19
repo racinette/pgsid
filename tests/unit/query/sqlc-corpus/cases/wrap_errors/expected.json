@@ -1,0 +1,98 @@
+{
+ "queries": [
+  {
+   "name": "GetAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "ListAuthors",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "CreateAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": true
+    },
+    {
+     "name": "bio",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "DeleteAuthorExec",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "DeleteAuthorExecRows",
+   "cmd": "execrows",
+   "columns": [],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "DeleteAuthorExecLastID",
+   "cmd": "execlastid",
+   "columns": [],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "DeleteAuthorExecResult",
+   "cmd": "execresult",
+   "columns": [],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

@@ -1,0 +1,38 @@
+{
+ "queries": [
+  {
+   "name": "FindByID",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "FindByIDAndName",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

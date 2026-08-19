@@ -1,0 +1,37 @@
+{
+ "queries": [
+  {
+   "name": "CallInsertData",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  },
+  {
+   "name": "CallInsertDataNoArgs",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  },
+  {
+   "name": "CallInsertDataNamed",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  },
+  {
+   "name": "CallInsertDataSqlcArgs",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true
+   ]
+  }
+ ]
+}

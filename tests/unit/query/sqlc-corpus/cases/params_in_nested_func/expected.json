@@ -1,0 +1,22 @@
+{
+ "queries": [
+  {
+   "name": "GetGroups",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "groupid",
+     "notNull": true
+    },
+    {
+     "name": "groupname",
+     "notNull": true
+    }
+   ],
+   "params": [
+    false,
+    false
+   ]
+  }
+ ]
+}

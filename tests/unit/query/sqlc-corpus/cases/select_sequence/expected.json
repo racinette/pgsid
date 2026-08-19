@@ -1,0 +1,3 @@
+{
+ "error": "# package \nquery.sql:1:1: relation \"my_sequence\" does not exist\nexit status 1"
+}

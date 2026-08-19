@@ -1,0 +1,19 @@
+{
+ "queries": [
+  {
+   "name": "TwoJoins",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "bar_id",
+     "notNull": true
+    },
+    {
+     "name": "baz_id",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

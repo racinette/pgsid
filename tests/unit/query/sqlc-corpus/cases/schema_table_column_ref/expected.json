@@ -1,0 +1,49 @@
+{
+ "queries": [
+  {
+   "name": "GetTotalSlackQueries",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "count",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true,
+    true
+   ]
+  },
+  {
+   "name": "GetTotalSlackQueriesResolved",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "count",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true,
+    true
+   ]
+  },
+  {
+   "name": "GetTotalSlackQueriesRequestsCreated",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "count",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true,
+    true
+   ]
+  }
+ ]
+}

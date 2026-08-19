@@ -1,0 +1,112 @@
+{
+ "queries": [
+  {
+   "name": "SelectJSONBuildObject",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "json_build_object",
+     "notNull": true
+    },
+    {
+     "name": "json_build_object",
+     "notNull": true
+    },
+    {
+     "name": "json_build_object",
+     "notNull": true
+    },
+    {
+     "name": "json_build_object",
+     "notNull": true
+    },
+    {
+     "name": "json_build_object",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectJSONBuildArray",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "json_build_array",
+     "notNull": true
+    },
+    {
+     "name": "json_build_array",
+     "notNull": true
+    },
+    {
+     "name": "json_build_array",
+     "notNull": true
+    },
+    {
+     "name": "json_build_array",
+     "notNull": true
+    },
+    {
+     "name": "json_build_array",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectJSONBBuildObject",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "jsonb_build_object",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_build_object",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_build_object",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_build_object",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_build_object",
+     "notNull": true
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "SelectJSONBBuildArray",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "jsonb_build_array",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_build_array",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_build_array",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_build_array",
+     "notNull": true
+    },
+    {
+     "name": "jsonb_build_array",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

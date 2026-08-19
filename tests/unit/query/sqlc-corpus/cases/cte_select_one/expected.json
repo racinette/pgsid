@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "TestRecursive",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "foo",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

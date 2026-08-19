@@ -1,0 +1,66 @@
+{
+ "queries": [
+  {
+   "name": "GetAll",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    },
+    {
+     "name": "age",
+     "notNull": true
+    },
+    {
+     "name": "shoe_size",
+     "notNull": true
+    },
+    {
+     "name": "shirt_size",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "NewUser",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    false,
+    true,
+    true,
+    false
+   ]
+  },
+  {
+   "name": "UpdateSizes",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    true,
+    false
+   ]
+  },
+  {
+   "name": "DeleteBySize",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    false
+   ]
+  }
+ ]
+}

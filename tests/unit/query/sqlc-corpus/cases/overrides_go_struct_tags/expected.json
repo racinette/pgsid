@@ -1,0 +1,15 @@
+{
+ "queries": [
+  {
+   "name": "Test",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

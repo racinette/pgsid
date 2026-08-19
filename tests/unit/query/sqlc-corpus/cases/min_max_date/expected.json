@@ -1,0 +1,25 @@
+{
+ "queries": [
+  {
+   "name": "ActivityStats",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "numofactivities",
+     "notNull": true
+    },
+    {
+     "name": "mindate",
+     "notNull": true
+    },
+    {
+     "name": "maxdate",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

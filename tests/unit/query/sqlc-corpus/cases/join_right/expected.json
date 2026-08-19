@@ -1,0 +1,25 @@
+{
+ "queries": [
+  {
+   "name": "RightJoin",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": false
+    },
+    {
+     "name": "bar_id",
+     "notNull": false
+    },
+    {
+     "name": "id",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

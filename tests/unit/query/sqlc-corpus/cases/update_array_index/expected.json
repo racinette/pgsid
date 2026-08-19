@@ -1,0 +1,23 @@
+{
+ "queries": [
+  {
+   "name": "UpdateAuthor",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "names",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true,
+    true,
+    true
+   ]
+  }
+ ]
+}

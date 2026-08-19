@@ -1,0 +1,12 @@
+{
+ "queries": [
+  {
+   "name": "AliasBar",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

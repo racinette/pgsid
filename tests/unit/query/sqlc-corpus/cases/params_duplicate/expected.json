@@ -1,0 +1,43 @@
+{
+ "queries": [
+  {
+   "name": "SelectUserByID",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "SelectUserByName",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "SelectUserQuestion",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

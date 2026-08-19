@@ -1,0 +1,27 @@
+{
+ "queries": [
+  {
+   "name": "InsertValues",
+   "cmd": "copyfrom",
+   "columns": [],
+   "params": [
+    false,
+    false
+   ]
+  },
+  {
+   "name": "InsertSingleValue",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    false
+   ]
+  },
+  {
+   "name": "DeleteValues",
+   "cmd": "execresult",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

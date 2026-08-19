@@ -1,0 +1,67 @@
+{
+ "queries": [
+  {
+   "name": "GetUserByID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "id",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    }
+   ],
+   "params": [
+    true
+   ]
+  },
+  {
+   "name": "ListUsers",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "first_name",
+     "notNull": true
+    },
+    {
+     "name": "last_name",
+     "notNull": false
+    }
+   ],
+   "params": []
+  },
+  {
+   "name": "InsertNewUser",
+   "cmd": "exec",
+   "columns": [],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "InsertNewUserWithResult",
+   "cmd": "execresult",
+   "columns": [],
+   "params": [
+    true,
+    false
+   ]
+  },
+  {
+   "name": "DeleteUsersByName",
+   "cmd": "execrows",
+   "columns": [],
+   "params": [
+    true,
+    false
+   ]
+  }
+ ]
+}

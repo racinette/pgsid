@@ -1,0 +1,19 @@
+{
+ "queries": [
+  {
+   "name": "GetNextID",
+   "cmd": "one",
+   "columns": [
+    {
+     "name": "pk",
+     "notNull": true
+    },
+    {
+     "name": "pk",
+     "notNull": true
+    }
+   ],
+   "params": []
+  }
+ ]
+}

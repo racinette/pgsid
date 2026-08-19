@@ -1,0 +1,17 @@
+{
+ "queries": [
+  {
+   "name": "ColdCities",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "city",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}

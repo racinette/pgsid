@@ -185,6 +185,10 @@ class Generation {
   run(): GeneratedData {
     this.checkRegistry();
     for (const table of this.snapshot.tables) {
+      // Sequences are captured for the walk (legal FROM items, three NOT
+      // NULL columns) but hold no insertable data — their single row is the
+      // engine's, not ours.
+      if (table.relkind === "S") continue;
       this.ensure(table.schema, table.name);
     }
     const statements: string[] = [];

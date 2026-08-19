@@ -1,0 +1,22 @@
+{
+ "queries": [
+  {
+   "name": "NotifyTest",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  },
+  {
+   "name": "NotifyWithMessage",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  },
+  {
+   "name": "ListenTest",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

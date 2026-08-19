@@ -1,0 +1,10 @@
+{
+ "queries": [
+  {
+   "name": "DoStuff",
+   "cmd": "exec",
+   "columns": [],
+   "params": []
+  }
+ ]
+}

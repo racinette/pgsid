@@ -1,0 +1,17 @@
+{
+ "queries": [
+  {
+   "name": "MultiFrom",
+   "cmd": "many",
+   "columns": [
+    {
+     "name": "email",
+     "notNull": true
+    }
+   ],
+   "params": [
+    true
+   ]
+  }
+ ]
+}
