@@ -1223,6 +1223,17 @@ and reading that needs the SUBQUERY's scope — the same inner-scope problem
 the census's 1332 unprobeable readings have, and the same one a delegated
 probe would have to solve. It belongs with that work, not this one.
 
+**What is left is chartered, not deferred: see
+`docs/type-resolution-delegation.md` (2026-08-20).** The residue after the
+member-list work is 76 distinct expressions — 63 columns of a DERIVED
+relation in five buckets, 10 scalar subqueries, 2 all-unknown arrays that
+must STAY null, and one expression inside a function body. Typing them
+symbolically is five separate pieces of work; the charter takes the other
+route and asks PostgreSQL, through a zero-row probe whose RowDescription
+carries the resolved types. That document is written to be handed to a
+fresh session and carries the measurements, the safety rule and the
+boundaries. This entry stays as the record of how the residue was reached.
+
 **THE NEXT BARE-NAME GATE: `btreeStrategyOf` and `isEqualityComplement`
 (found the same day, by trying to put that pollution in the shared
 schema).** Both are keyed on `evalUserOperatorNames` by NAME —
