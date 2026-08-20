@@ -4,6 +4,7 @@ import { join, basename } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
+import { refuseSearchPathFixture } from "./fixture-catalog.js";
 import { bindParams, parseFixtureDirectives, NULL_REJECTION, CONSTRAINT_REJECTION, DEDUCTION_FAILURE, type ParamClaim } from "./fixture-args.js";
 import { hasStatements, loadDataStates, type DataState } from "./fixture-data/states.js";
 
@@ -155,9 +156,10 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
       .filter(f => f.endsWith(".sql") && f !== "schema.sql")
       .sort()) {
       const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const { bindings, paramClaims, paramOpaque, rejectClaims, alwaysRaises } =
+      const { bindings, paramClaims, paramOpaque, rejectClaims, alwaysRaises, searchPath } =
         parseFixtureDirectives(sql);
       if (paramClaims.length === 0) continue;
+      refuseSearchPathFixture(file, searchPath, "param-soundness");
       runs.push({
         name: basename(file, ".sql"),
         sql,

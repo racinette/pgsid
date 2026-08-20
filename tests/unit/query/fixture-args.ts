@@ -184,6 +184,30 @@ export interface FixtureDirectives {
    * unexamined. Same continuation rule as @planner-keeps.
    */
   plannerReduces: { count: number; reason: string } | null;
+  /**
+   * `-- @search-path public, pg_catalog`: the SESSION search path this
+   * fixture is analysed and executed under, or null for the corpus default
+   * (`["public"]`, with pg_catalog implicitly first).
+   *
+   * The axis exists because type-name resolution DEPENDS on it and nothing
+   * else in the corpus can express that. pg_catalog is searched first unless
+   * the path names it explicitly, so a relation called `date` shadows the
+   * builtin type only under a path like the one above — measured 2026-08-20,
+   * where `'2020-01-01'::date` then raises "malformed record literal"
+   * because PostgreSQL is parsing the literal as the table's rowtype. The
+   * engine's `evalUserTypeShadows` reads the same rule; this directive is
+   * what lets a FIXTURE stand on the other side of it.
+   *
+   * EXPLICIT rather than swept: a randomised path axis would re-analyse
+   * every fixture under every ordering, which is expensive and — worse —
+   * silent about which fixture is asserting what. A fixture that cares about
+   * the path says so.
+   *
+   * Consumers must not ignore it: honour it or refuse the fixture. A
+   * directive that four of six suites quietly drop is worse than none, so
+   * `assertSearchPathHonoured` exists to make dropping it loud.
+   */
+  searchPath: string[] | null;
 }
 
 export interface ParamClaim {
@@ -210,6 +234,7 @@ const UNWITNESSABLE_CONT_RE = /^\s*--\s{2,}(\S.*)$/;
 // substrings `@notNull` / `@nullable` anywhere in a line; `@null-group`
 // contains neither, which is a load-bearing property of the spelling.
 const NULL_GROUP_RE = /^\s*--\s*@null-group\b(.*)$/;
+const SEARCH_PATH_RE = /^\s*--\s*@search-path\b:?(.*)$/;
 const PLANNER_KEEPS_RE = /^\s*--\s*@planner-keeps\b:?(.*)$/;
 const PLANNER_REDUCES_RE = /^\s*--\s*@planner-reduces\b:?(.*)$/;
 
@@ -223,6 +248,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
   let noRowsReason: string | null = null;
   let raisesPattern: string | null = null;
   let alwaysRaises = false;
+  let searchPath: string[] | null = null;
   let plannerKeeps: { count: number; reason: string } | null = null;
   let plannerReduces: { count: number; reason: string } | null = null;
 
@@ -299,6 +325,33 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
       }
       plannerReduces = { count, reason: m[2]!.trim() };
       plannerReducesOpen = true;
+      continue;
+    }
+
+    const searchPathMatch = SEARCH_PATH_RE.exec(line);
+    if (searchPathMatch) {
+      const schemas = searchPathMatch[1]!
+        .split(",")
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      if (schemas.length === 0) {
+        throw new Error(
+          "@search-path must be `-- @search-path <schema>[, <schema>...]`, " +
+            `got: ${searchPathMatch[1]!.trim()}`,
+        );
+      }
+      // Bare identifiers only. The value is interpolated into `SET
+      // search_path` and into the engine's option, and a fixture is not the
+      // place to discover that quoting rules differ between the two.
+      for (const schema of schemas) {
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schema)) {
+          throw new Error(
+            `@search-path schema names are bare identifiers; got: ${schema}`,
+          );
+        }
+      }
+      if (searchPath) throw new Error("duplicate @search-path directive");
+      searchPath = schemas;
       continue;
     }
 
@@ -550,6 +603,7 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
     unwitnessable,
     plannerKeeps,
     plannerReduces,
+    searchPath,
   };
 }
 

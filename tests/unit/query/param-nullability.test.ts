@@ -5,7 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { catalogCache, withSearchPath } from "./fixture-catalog.js";
 import { collectParamNullability } from "../../../src/query/param-nullability.js";
 import { inferQueryContract, inferNullability } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
@@ -53,7 +53,8 @@ describe("argument nullability (engine vs @param annotations)", () => {
     const pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
     await pg.exec(readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8"));
-    catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
+    const catalogFor = catalogCache(await snapshotCatalog(pg));
+    catalog = await catalogFor(null);
 
     // The evaluator runs LIVE here, the way the output-side fixture harnesses
     // run the statement map: without it the CHECK grounder makes no claims at
@@ -65,12 +66,18 @@ describe("argument nullability (engine vs @param annotations)", () => {
     // widens what the corpus can hold without moving anything in it.
     for (const file of fixtureFiles) {
       const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const { paramClaims, rejectClaims, alwaysRaises } = parseFixtureDirectives(sql);
+      const { paramClaims, rejectClaims, alwaysRaises, searchPath } =
+        parseFixtureDirectives(sql);
       const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
       if (!stmt) continue;
-      const contract = await inferQueryContract(stmt, catalog, {
-        evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
-      });
+      // `-- @search-path`: the contract is read on the fixture's own catalog,
+      // with the SESSION held on the same path — the evaluator runs live here.
+      const fixtureCatalog = await catalogFor(searchPath);
+      const contract = await withSearchPath(pg, searchPath, () =>
+        inferQueryContract(stmt, fixtureCatalog, {
+          evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
+        }),
+      );
       results.push({
         name: basename(file, ".sql"),
         claims: paramClaims,
