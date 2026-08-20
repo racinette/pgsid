@@ -141,16 +141,58 @@ export const UNION_CASES: Record<string, UnionCase[]> = {
     { sql: "SELECT (m.d + m.iv) < m.ts AS v FROM m", expect: { "m.d + m.iv": ["timestamp without time zone"] } },
   ],
 
-  // The kinds that never type. Each has a well-defined result type in
-  // PostgreSQL and a resolution rule the catalog already implements
-  // (`closedCommonTypes`, used by the subtree evaluator for exactly these
-  // nodes) — `operandTypeSet` simply never asks. Pinned as null so the day
-  // one of them starts answering is a visible diff, not a silent one.
-  "the untyped kinds": [
-    { sql: "SELECT abs((CASE WHEN m.i > 0 THEN m.i ELSE m.j END)) AS v FROM m", expect: { "CASE WHEN m.i > 0 THEN m.i ELSE m.j END": null } },
-    { sql: "SELECT abs(COALESCE(m.i, m.j)) AS v FROM m", expect: { "COALESCE(m.i, m.j)": null } },
+  // MEMBER-LIST nodes: a CASE's branches, COALESCE/GREATEST/LEAST's
+  // arguments, an array's elements. PostgreSQL unifies them to one common
+  // type; the walk answers the UNION of the known members, which contains
+  // it — `CASE … THEN m.i ELSE m.n END` is `numeric` there and
+  // `[integer, numeric]` here.
+  //
+  // Two rules the measurement forced (2026-08-20):
+  //
+  //   * ALL-UNKNOWN members answer null, not `text`. Standalone,
+  //     `COALESCE('a','b')` is text — but inside `m.d = COALESCE('a','b')`
+  //     PostgreSQL makes it a date, and a node whose type comes from
+  //     OUTSIDE it cannot be typed from inside. Answering text would
+  //     eliminate the date overload. This is why `closedCommonTypes` could
+  //     not simply be reused: its landing lands on text.
+  //
+  //   * ARRAYS DO NOT NEST. `ARRAY[m.arr, m.arr]` is `text[]`, not
+  //     `text[][]` — an element that is already an array contributes
+  //     itself.
+  "member-list nodes": [
+    { sql: "SELECT abs((CASE WHEN m.i > 0 THEN m.i ELSE m.j END)) AS v FROM m", expect: { "CASE WHEN m.i > 0 THEN m.i ELSE m.j END": ["integer"] } },
+    { sql: "SELECT abs((CASE WHEN m.i > 0 THEN m.i ELSE m.n END)) AS v FROM m", expect: { "CASE WHEN m.i > 0 THEN m.i ELSE m.n END": ["integer", "numeric"] } },
+    // No ELSE: the branch types still decide, and the missing branch is a
+    // NULLABILITY fact, not a typing one.
+    { sql: "SELECT abs((CASE WHEN m.i > 0 THEN m.i END)) AS v FROM m", expect: { "CASE WHEN m.i > 0 THEN m.i END": ["integer"] } },
+    { sql: "SELECT abs(COALESCE(m.i, m.j)) AS v FROM m", expect: { "COALESCE(m.i, m.j)": ["integer"] } },
+    { sql: "SELECT abs(COALESCE(m.i, m.n)) AS v FROM m", expect: { "COALESCE(m.i, m.n)": ["integer", "numeric"] } },
+    // An unknown member beside a known one contributes nothing and costs
+    // nothing — the known members still type the node.
+    { sql: "SELECT length(COALESCE(m.t, 'x')) AS v FROM m", expect: { "COALESCE(m.t, 'x')": ["text"] } },
+    // ... but ALL-unknown stays null. The guard.
+    { sql: "SELECT length(COALESCE('a', 'b')) AS v FROM m", expect: { "COALESCE('a', 'b')": null } },
+    { sql: "SELECT abs(GREATEST(m.i, m.n)) AS v FROM m", expect: { "GREATEST(m.i, m.n)": ["integer", "numeric"] } },
+    { sql: "SELECT array_length(ARRAY[m.t, m.t], 1) AS v FROM m", expect: { "ARRAY[m.t, m.t]": ["text[]"] } },
+    { sql: "SELECT array_length(ARRAY[m.i, m.n], 1) AS v FROM m", expect: { "ARRAY[m.i, m.n]": ["integer[]", "numeric[]"] } },
+    { sql: "SELECT array_length(ARRAY[m.arr, m.arr], 1) AS v FROM m", expect: { "ARRAY[m.arr, m.arr]": ["text[]"] } },
+    { sql: "SELECT array_length(ARRAY['a', 'b'], 1) AS v FROM m", expect: { "ARRAY['a', 'b']": null } },
+  ],
+
+  // A ROW is an anonymous composite whatever its members, so it types
+  // without unifying anything. Wrapped in a CALL rather than a NullTest:
+  // `IS NOT NULL` asks for no operand types at all, which is worth knowing
+  // and is why this case reads through `row_to_json`.
+  "row expressions": [
+    { sql: "SELECT row_to_json(ROW(m.i, m.t)) AS v FROM m", expect: { "ROW(m.i, m.t)": ["record"] } },
+  ],
+
+  // NOT in 4a. A scalar subquery's type is its single output column's, and
+  // reading that needs the SUBQUERY's scope — the same inner-scope problem
+  // the census's unprobeable readings have. Pinned null so the day it starts
+  // answering is a visible diff.
+  "still untyped": [
     { sql: "SELECT abs((SELECT max(m2.i) FROM m m2)) AS v FROM m", expect: { "(SELECT max(m2.i) FROM m AS m2)": null } },
-    { sql: "SELECT array_length(ARRAY[m.t, m.t], 1) AS v FROM m", expect: { "ARRAY[m.t, m.t]": null } },
   ],
 };
 

@@ -1192,6 +1192,37 @@ composite used to cost EVERY LEFT JOIN promotion, and now costs none
 (`bare-name-gates-red.test.ts`, "predicate gate", measured against the
 pre-threading engine).
 
+**MEMBER-LIST NODES TYPE (2026-08-20).** `CaseExpr`, `CoalesceExpr`,
+`MinMaxExpr`, `A_ArrayExpr` and `RowExpr` answered null at every reading;
+they now answer the UNION of their known members (a ROW is `record`
+outright). PostgreSQL unifies a member list to ONE common type by its
+resolution rules — `CASE … THEN int ELSE numeric END` is `numeric` — and
+the union contains it without reimplementing them, which is all the
+elimination downstream ever needed.
+
+`closedCommonTypes` looked like the rule to reuse and is NOT: it lands an
+all-unknown list on `text` and demands immutable-I/O of the known members
+when an unknown one is present. Both are correct for the EVALUATOR, which
+has to run the input function, and both are wrong for typing —
+`COALESCE(m.ts, 'x')` is plainly `timestamptz` however DateStyle-dependent
+its output is. The all-unknown landing is the more dangerous of the two: a
+node whose members are all unknown takes its type from OUTSIDE
+(`m.d = COALESCE('a','b')` is a date), so answering `text` would eliminate
+the overload PostgreSQL actually picks. Answering null is the only sound
+option, and it is pinned as a case.
+
+Real gap 319 → 311 readings, with 5 corpus expressions and 12 suite cases
+witnessed. The first census reported this as 530 → 529 and looked like
+nothing: the metric was counting bare string literals — `unknown` in
+PostgreSQL too, and not a gap — beside the nodes genuinely untyped, and
+typing a node ADDS readings for its members. The census now separates them,
+which is what makes the number mean anything.
+
+SubLink stayed out. A scalar subquery's type is its single output column's,
+and reading that needs the SUBQUERY's scope — the same inner-scope problem
+the census's 1332 unprobeable readings have, and the same one a delegated
+probe would have to solve. It belongs with that work, not this one.
+
 **THE NEXT BARE-NAME GATE: `btreeStrategyOf` and `isEqualityComplement`
 (found the same day, by trying to put that pollution in the shared
 schema).** Both are keyed on `evalUserOperatorNames` by NAME —

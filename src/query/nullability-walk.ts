@@ -5159,6 +5159,65 @@ class NullabilityEngine {
       );
       return narrowed.kind === "unknown" ? null : narrowed.returns;
     }
+    // MEMBER-LIST nodes — a CASE's branches, COALESCE/GREATEST/LEAST's
+    // arguments, an array's elements. PostgreSQL unifies them to ONE common
+    // type by its resolution rules; this answers the union of the known
+    // members, which contains that type without reimplementing the rules —
+    // `CASE … THEN int ELSE numeric END` is `numeric` there and
+    // `[integer, numeric]` here, and the elimination downstream is the same
+    // superset question it always was.
+    //
+    // `closedCommonTypes` is the neighbouring rule and is NOT reusable here.
+    // It lands an all-unknown list on `text` and demands immutable-I/O of
+    // the known members when an unknown one is present — both correct for
+    // the evaluator, which must RUN the input function, and both wrong for
+    // typing: `COALESCE(m.ts, 'x')` is plainly `timestamptz` however
+    // DateStyle-dependent its output is.
+    const memberLists: (Node[] | undefined)[] = [
+      (() => {
+        const ce = rec["CaseExpr"] as
+          | { args?: { CaseWhen?: { result?: Node } }[]; defresult?: Node }
+          | undefined;
+        if (!ce) return undefined;
+        const branches = (ce.args ?? [])
+          .map(a => a.CaseWhen?.result)
+          .filter((n): n is Node => n !== undefined);
+        return ce.defresult ? [...branches, ce.defresult] : branches;
+      })(),
+      (rec["CoalesceExpr"] as { args?: Node[] } | undefined)?.args,
+      (rec["MinMaxExpr"] as { args?: Node[] } | undefined)?.args,
+    ];
+    for (const members of memberLists) {
+      if (members === undefined) continue;
+      const known = members
+        .map(mem => this.operandTypeSet(mem, scope, depth + 1))
+        .filter((s): s is string[] => s !== null);
+      // ALL members unknown means the type comes from OUTSIDE this node —
+      // `m.d = COALESCE('a','b')` makes it a date — and a node typed from
+      // outside cannot be typed from inside. `text` would be a guess, and
+      // guessing here eliminates the overload PostgreSQL actually picks.
+      if (known.length === 0) return null;
+      return [...new Set(known.flat())].sort();
+    }
+
+    // An array literal carries its ELEMENT union, one dimension up. Arrays
+    // do NOT nest in PostgreSQL: `ARRAY[text[], text[]]` is `text[]`, so an
+    // element that is already an array contributes itself (measured).
+    const arr = rec["A_ArrayExpr"] as { elements?: Node[] } | undefined;
+    if (arr) {
+      const known = (arr.elements ?? [])
+        .map(el => this.operandTypeSet(el, scope, depth + 1))
+        .filter((s): s is string[] => s !== null);
+      if (known.length === 0) return null;
+      return [
+        ...new Set(known.flat().map(t => (t.endsWith("[]") ? t : `${t}[]`))),
+      ].sort();
+    }
+
+    // A ROW is an anonymous composite whatever its members are, so it types
+    // without unifying anything.
+    if ("RowExpr" in rec) return ["record"];
+
     // A function result carries its union too — the resolved user
     // function's declared scalar return, or the builtin survivors' union.
     // Aggregate, window, set-returning, variadic-array and named-notation
