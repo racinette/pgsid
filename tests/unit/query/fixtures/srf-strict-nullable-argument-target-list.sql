@@ -1,0 +1,34 @@
+-- A STRICT set-returning function's totality does not depend on its arguments
+-- being non-null: in the TARGET LIST, a nullable argument subtracts ROWS, not
+-- values.
+--
+-- `generate_series` is strict and total over non-null arguments. Bind either
+-- parameter NULL and it returns NO ROWS at all — not one row holding NULL — so
+-- there is nothing left to carry a NULL in this column whatever is bound, and
+-- the totality verdict stands. The second `@args` line below is that corner,
+-- run on every pass: it produces zero rows, which is what makes the `@notNull`
+-- claim true rather than merely untested.
+--
+-- The engine held the fact one code path away and did not consult it.
+-- `callCanShortCircuit` excludes `returnsSet` for exactly this reason, and says
+-- so: "a set-returning one yields no rows at all … a claim about columns of
+-- rows that do not exist cannot be contradicted." The builtin dispatch's
+-- `strict-total` branches applied the SCALAR premise — every argument non-null
+-- — to a call where argument nullness cannot reach the output.
+--
+-- Strictness is the load-bearing half of the rule: a NON-strict SRF handed
+-- NULL runs its body and may emit rows with NULLs in them.
+--
+-- rowsfrom-pad-strict-srf.sql is the neighbouring shape that must NOT move:
+-- inside a `ROWS FROM`, a longer arm supplies the rows the strict SRF did not
+-- and the PADDING makes its columns nullable. That is a different rule, and the
+-- two fixtures together are what keep it separate from this one.
+--
+-- Recorded in docs/sqlc-disagreements.md as the imprecision behind
+-- `pg_generate_series/GenerateSeries`, and closed 2026-08-20.
+-- @args ["2020-01-01", "2020-01-02"]
+-- @args [null, null]
+-- @param 1 nullable
+-- @param 2 nullable
+SELECT generate_series($1::timestamp, $2::timestamp, '10 hours')
+-- @notNull   (generate_series)

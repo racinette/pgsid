@@ -1,0 +1,16 @@
+-- Arithmetic over a NULLABLE operand, re-exported through a subquery.
+--
+-- Every builtin arithmetic operator is strict, so one NULL operand makes the
+-- result NULL, and a subquery that only renames it neither adds the guarantee
+-- nor removes it. a-expr.sql pins the other half of the same branch — `id + 1`
+-- over a NOT NULL column is non-null — and both halves are needed, because the
+-- operator is exactly where a TYPE-driven reading goes wrong: a `+` whose
+-- result type is known says nothing about whether the result exists.
+--
+-- The divergence docs/sqlc-disagreements.md records for
+-- `subquery_calculated_column/SubqueryCalcColumn`. Measured on the pinned sqlc
+-- v1.31.1: `SELECT a + b AS s FROM foo` is NOT NULL in its IR with both
+-- columns nullable, while `SELECT * FROM (SELECT a AS x FROM foo) AS f` is
+-- correctly nullable — so the subquery is not the cause and the operator is.
+SELECT s FROM (SELECT v.amount + v.id AS s FROM v) f
+-- @nullable   (s: v.amount is nullable and `+` is strict)

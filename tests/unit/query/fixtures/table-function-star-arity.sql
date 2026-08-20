@@ -1,0 +1,22 @@
+-- Star expansion over a `RETURNS TABLE (…)` function: the ARITY, asserted by
+-- the one oracle that can settle it — PostgreSQL's own RowDescription.
+--
+-- table-function-return-types.sql reaches the same function's columns BY NAME,
+-- which proves they resolve; it cannot prove that `*` expands to them, because
+-- its target list is explicit. This fixture's target list is the star, so the
+-- shape assertion is the claim: three columns, in the declared order.
+--
+-- The declared types give `label` its domain NOT NULL and the body —
+-- `SELECT oi.id, oi.id::text, oi.quantity` — gives the other two theirs
+-- positionally, which is why all three come out non-null.
+--
+-- The divergence docs/sqlc-disagreements.md records for
+-- `func_star_expansion/TestFuncSelectBlog`, the register's one shape skew.
+-- Measured on the pinned sqlc v1.31.1: a `RETURNS TABLE` function collapses to
+-- ONE column named after the function, while `OUT` parameters and
+-- `RETURNS SETOF <table>` both expand correctly — so it is specific to the
+-- TABLE spelling, whose parameters carry a mode the OUT-argument reader skips.
+SELECT * FROM order_lines(1)
+-- @notNull    (line_id)
+-- @notNull    (label)
+-- @notNull    (qty)

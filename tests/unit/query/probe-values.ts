@@ -213,7 +213,10 @@ export const VALUES: Record<string, string[]> = {
   xml: ["''::xml", "'<a/>'::xml"],
   // The reg* family names a live catalog object; an ambiguous name RAISES,
   // so `regproc` and `regoper` take a symbol with exactly one entry.
-  regclass: ["'pg_class'::regclass"],
+  // A relation AND a sequence: the sequence functions take `regclass` and
+  // raise "is not a sequence" for anything else, so a relation-only vocabulary
+  // left every one of their signatures unevaluated — a claim nothing tested.
+  regclass: ["'pg_class'::regclass", "'probe_seq'::regclass"],
   regtype: ["'integer'::regtype"],
   regproc: ["'pg_backend_pid'::regproc"],
   regprocedure: ["'upper(text)'::regprocedure"],
@@ -327,6 +330,22 @@ export function combinations(valueLists: string[][]): { combos: string[][]; capp
  * Per-expression error isolation: one call per expression inside ONE
  * statement, an exception never aborting the batch.
  */
+/**
+ * Objects the probes need in order to REACH a result, as opposed to a raise.
+ *
+ * The sequence exists because `nextval`/`currval`/`setval` take a `regclass`
+ * and refuse anything that is not a sequence, and `lastval()` refuses until
+ * the session has called `nextval` at least once — so without both the
+ * sequence and the priming call, all five signatures raise for every input and
+ * their totality claims are asserted by nothing. Recording them UNEVALUABLE
+ * would have been the dishonest alternative: PostgreSQL answers them fine, it
+ * just needs a sequence to answer about.
+ */
+export const PROBE_OBJECTS_SQL = `
+  CREATE SEQUENCE probe_seq;
+  SELECT nextval('probe_seq');
+`;
+
 export const PROBE_FN_SQL = `
   CREATE FUNCTION probe(expr text) RETURNS text LANGUAGE plpgsql AS $probe$
   DECLARE r boolean;

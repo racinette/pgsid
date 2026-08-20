@@ -16,14 +16,63 @@ is made to verify what it claims to verify is in `docs/witness-coverage.md`.
 
 ## What to do next
 
+**CLOSED — the function overload merge (2026-08-20).** The function side had
+no merged candidate set, and that was a LIVE RANK 1: a user function
+shadowing a builtin was invisible to the walk, so the curated totality table
+answered for a call PostgreSQL ran against the user's body. `length(text)`
+ahead of pg_catalog returned NULL for a non-null input while the walk claimed
+notNull. The evaluator had the same absence pointing the other way — a
+bare-name gate, so an unrelated user `scale(boolean)` stopped `scale(8.41)`
+folding.
+
+Fixed by merging path-visible user rows into the scalar pool, eliminating by
+argument type and taking consensus over the survivors — the shape the OPERATOR
+side has had since 2026-08-09. The evaluator's refusal is now decided by
+SURVIVAL rather than by name, with a `noExecution` rule that keeps a surviving
+user row from being run during analysis. Threading the declared parameter type
+into LANGUAGE sql body scope came with it, and fixed a latent bug on the way:
+a body's `$n` was reading the STATEMENT's `paramTypes`.
+
+Design `docs/function-overload-merge.md`; four targets flipped in the landing
+commit in `tests/unit/query/overload-merge-red.test.ts`, which also guards the
+one priced cost (a BARE literal beside a colliding user name keeps every
+candidate — the preferred-type rule is a declared non-goal). It closed six
+sqlc register entries: `minerSqlcStronger` 25 → 19.
+
 **THE BUILTIN SURFACE IS CLOSED (2026-08-09). Read this before touching it.**
 
 All 4201 pg_catalog signatures — functions, operators, aggregates, window
 functions — are held by execution, witnessed, or pinned with a reason:
-claimed 2916, null-witnessed 293, no-null-found 9, raised-everywhere 152,
-no-generator 550, volatile 281. The promotion queue that opened this work at
+claimed 2921, null-witnessed 293, no-null-found 9, raised-everywhere 152,
+no-generator 550, volatile 276. The promotion queue that opened this work at
 1832 is at 9, and those nine are pinned individually. Nothing on this
 surface can change without a suite failing.
+
+**Except the volatile bucket, which was never swept — OPEN (2026-08-20).**
+"Closed" reads stronger than it is: 276 signatures sit in `volatile`, and that
+bucket is EXCLUDED FROM EXECUTION on `provolatile = 'v'` rather than claimed
+or witnessed. The totality capture filters `p.provolatile = 'i'` too, so
+nothing automated has ever proposed a volatile name for promotion. Volatility
+is a statement about repeat calls, not about whether a result exists.
+
+The trigger was finding one by accident. `nextval` is strict, volatile, and
+TOTAL — it raises or returns a bigint, never NULL — and it had no verdict
+anywhere, so `SELECT nextval('s')` read nullable. It was not the sweep that
+found it; it was a borrowed corpus (`docs/sqlc-disagreements.md`,
+`nextval/GetNextID`). Claiming the four sequence functions moved five
+signatures `volatile` → `claimed`, which is the measurement of how the bucket
+behaves and the demonstration that claiming a volatile name is supported —
+`builtin-surface.test.ts` says so itself ("Claimed volatile names stay probed
+via the claimed path").
+
+Obvious remaining candidates, total by construction and volatile by nature:
+`gen_random_uuid`, `uuid_generate_v4`, `txid_current`, `pg_backend_pid`. Do
+NOT promote them by inspection — `random` is the counterexample that says a
+sweep is needed: it was REMOVED from `ALWAYS_NOT_NULL_BUILTINS` because PG17's
+`random(min, max)` overloads are strict and `random(NULL, NULL)` is NULL. The
+work is a probe over the 276 with values that reach a result, the way
+`PROBE_OBJECTS_SQL` had to supply a sequence before the sequence functions
+could be evaluated at all.
 
 **Three pins hold it**, all in `builtin-surface.test.ts`, all asserted in
 BOTH directions: `WORK_LIST` (the nine, each with why it cannot be promoted
@@ -4545,6 +4594,48 @@ cross-branch refilters at scale), 577 planner-stronger, all explained:
 (hand: 1 declared join-removal pin; generated: 0 across all classes), and
 every classifier stays armed with a pinned count of 0 so any regression
 re-opens its class by name.
+
+**The sqlc disagreement register — ADJUDICATED AND EXECUTABLE
+(2026-08-20).** All 40 per-column disagreements between sqlc's IR and the
+walk are settled, and settled BY DATA that re-runs. Census: ticket-ready
+16, pgsid unsoundness 0, pgsid-imprecision 10, conservatism-expected 14,
+unresolved 0.
+
+The shape it landed in matters more than the numbers. The truth is now
+per case, beside the vendored files — `cases/<case>/data.sql` (the state
+sqlc does not ship) and `cases/<case>/adjudication.json` (the conclusion
+it supports, with `adjudicatedAgainst` naming the sqlc release the
+reasoning was done against). `docs/sqlc-disagreements.md` is GENERATED
+from them and is no longer a source of truth; regenerating is safe, which
+it was not before. `sqlc-corpus.test.ts` re-derives every verdict from
+rows on every run and pins the disagreements and their verdicts BY NAME
+(`DISAGREEMENTS` / `ADJUDICATED` in `sqlc-corpus.ts`), so a compensating
+swap can no longer hide behind a count. Four drift checks fail loudly: a
+conclusion drawn against another release, a state with no conclusion, a
+disagreement with no entry, an entry whose disagreement is gone.
+
+**What is now open from it.** Five upstream drafts
+(`sqlc-corpus/tickets/T1–T5.md`), written and NOT filed. Nothing else — all
+TEN pgsid imprecisions closed 2026-08-20, each with a fixture that graduated
+from recording the imprecision to asserting the fix: six to the function
+overload merge (`body-builtin-parameter-type.sql`), two to admitting the
+sequence functions to `STRICT_TOTAL_BUILTINS`
+(`builtin-sequence-nextval.sql`), one to excluding `returnsSet` from the
+strict-total branch (`srf-strict-nullable-argument-target-list.sql`), and one
+that was never an engine defect: this corpus was calling the walk without the
+subtree evaluator both fixture suites pass, which was the whole of
+`builtins/Scale`. The census is 30 entries, 16 ticket-ready and 14 expected
+conservatism, with no imprecision and no unsoundness on either side.
+
+**PostgreSQL regression suite as a borrowed corpus — recorded, not
+scheduled.** `postgres-pglite/src/test/regress/sql` (232 files, PostgreSQL
+License) is the most adversarial SQL corpus in existence but is stateful
+scripts, not schema/query pairs: using it means treating each file as a
+continuous migration and intercepting the SELECTs/DMLs against
+accumulated state. Query shapes are mostly simplistic — the prize is
+SYNTAX coverage (every construct PostgreSQL has), i.e. refusal-census and
+shape-oracle reach, not nullability depth. Trigger: wanting the
+unsupported-node surface swept by the engine's own authors' corpus.
 
 ---
 
