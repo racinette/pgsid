@@ -888,6 +888,8 @@ export async function buildNullabilityCatalog(
   const resolveOperatorMetadata = (
     schema: string | undefined,
     name: string,
+    leftTypes?: readonly string[] | null,
+    rightTypes?: readonly string[] | null,
   ): { strict: boolean; functionSchema?: string; functionName?: string } | null => {
     // Bare names gather PATH-VISIBLE candidates only (Q1, measured: the
     // path is a visibility filter), deduped by signature with the earliest
@@ -913,11 +915,40 @@ export async function buildNullabilityCatalog(
       candidates = merged;
     }
     if (!candidates || candidates.length === 0) return null;
+    // ELIMINATION by a readable operand position (2026-08-20, witnessed).
+    // `resolveOperatorTotality` already eliminates, but it reports "unknown"
+    // when nothing survives — which happens for every symbol OUTSIDE the
+    // curated capture, since `builtinOperatorSignatures` only holds
+    // TOTAL_OPERATORS ∪ STRICT_OPERATORS rows and there is no builtin row
+    // left to answer with. The caller then fell back to this bare-name
+    // lookup and dispatched the very candidate the operand types had just
+    // ruled out: a user `->(boolean, boolean)` took `jsonb -> 'id'`, its
+    // body read `$1 AND $2` over two non-null operands, and the walk claimed
+    // notNull for an expression PostgreSQL answers NULL for (a missing key).
+    //
+    // A null set constrains nothing — the never-over-drop rule — so an
+    // untypeable operand keeps every candidate and the consensus below
+    // decides. Dropping to EMPTY answers `null`, which reads as "no user
+    // operator here" and cedes to the allowlist path: conservative, and the
+    // honest report when our own coercion table cannot see the route.
+    const survives = (o: (typeof candidates)[number]): boolean => {
+      const reaches = (set: readonly string[] | null | undefined, param: string | null): boolean =>
+        set === null ||
+        set === undefined ||
+        param === null ||
+        set.some(member => mayCoerceImplicitly(normalizeTypeName(member), param));
+      return reaches(leftTypes, o.leftType) && reaches(rightTypes, o.rightType);
+    };
+    const narrowed =
+      leftTypes === undefined && rightTypes === undefined
+        ? candidates
+        : candidates.filter(survives);
+    if (narrowed.length === 0) return null;
     // Strictness by consensus (holds whichever overload PostgreSQL picks);
     // the backing function only when the pick is determined.
-    const strict = candidates.every(o => o.strict);
-    if (candidates.length === 1) {
-      const o = candidates[0]!;
+    const strict = narrowed.every(o => o.strict);
+    if (narrowed.length === 1) {
+      const o = narrowed[0]!;
       return { strict, functionSchema: o.functionSchema, functionName: o.functionName };
     }
     return { strict };
@@ -928,26 +959,66 @@ export async function buildNullabilityCatalog(
 
   // -------------------------------------------------------------------------
   // SubtreeEvaluationCatalog — the closure gate's three questions
-  // (docs/subtree-evaluation.md), each a capture lookup minus a user-name
-  // collision check. The subtraction is deliberately schema-blind: the
-  // evaluator never resolves names, so a user object of the same name in
-  // ANY schema opens the subtree, whatever the session's search path.
+  // (docs/subtree-evaluation.md). Each began as a capture lookup minus a
+  // bare-name collision check, on the argument that the evaluator resolves
+  // no names, so any user object sharing the name must open the subtree.
+  //
+  // Two of the three were retired by measurement (2026-08-20). FUNCTIONS and
+  // OPERATORS answer by SURVIVAL: the user rows join the pool and a candidate
+  // the operand types eliminate costs the builtin nothing
+  // (docs/function-overload-merge.md). TYPES have no operands to eliminate
+  // with, so they answer by PATH — pg_catalog is searched first unless the
+  // path names it, which is what `evalUserTypeShadows` reads. What remains
+  // schema-blind is `evalUserFunctionNames`, and only where it still gates
+  // `isImmutableFunction`.
   // -------------------------------------------------------------------------
 
   const evalUserFunctionNames = new Set(snapshot.functions.map(f => f.name));
   const evalUserOperatorNames = new Set(snapshot.operators.map(o => o.name));
   // Every user TYPE name a cast could resolve to instead of the pg_catalog
   // type: domains, enums, composites — and relations, whose rowtypes are
-  // types with the relation's name.
-  const evalUserTypeNames = new Set([
-    ...snapshot.domains.map(d => d.name),
-    ...snapshot.enums.map(e => e.name),
-    ...snapshot.compositeTypes.map(c => c.name),
-    ...snapshot.tables.map(t => t.name),
-    ...snapshot.views.map(v => v.name),
-    ...snapshot.materializedViews.map(v => v.name),
-    ...snapshot.sequences.map(s => s.name),
-  ]);
+  // types with the relation's name. Kept with its SCHEMA, because whether the
+  // name shadows is a search-path question (below).
+  const evalUserTypeSchemas = new Map<string, string[]>();
+  for (const o of [
+    ...snapshot.domains,
+    ...snapshot.enums,
+    ...snapshot.compositeTypes,
+    ...snapshot.tables,
+    ...snapshot.views,
+    ...snapshot.materializedViews,
+    ...snapshot.sequences,
+  ]) {
+    const existing = evalUserTypeSchemas.get(o.name);
+    if (existing) {
+      if (!existing.includes(o.schema)) existing.push(o.schema);
+    } else evalUserTypeSchemas.set(o.name, [o.schema]);
+  }
+
+  // pg_catalog is searched FIRST unless the path names it explicitly —
+  // measured 2026-08-20 against a `public."date"` table: under
+  // `search_path = public` a bare `date` is pg_catalog's, and under
+  // `search_path = public, pg_catalog` it is the table's rowtype (there
+  // `'2020-01-01'::date` raises "malformed record literal", which is the
+  // shadow being real rather than theoretical). The gate used to assume the
+  // user type always wins, so one table named `line` or `date` or `interval`
+  // — ordinary names in an ordinary schema — cost every datetime and
+  // immutable-I/O fold in the query.
+  //
+  // This makes the engine's `searchPath` option MEAN something for types.
+  // A caller that under-reports the session path gets the builtin's reading
+  // where the session would take the user's — the same contract every other
+  // path-visible resolution here already runs on, not a new hazard.
+  const pgCatalogPathIndex = searchPath.indexOf("pg_catalog");
+  const evalUserTypeShadows = (typeName: string): boolean => {
+    if (pgCatalogPathIndex < 0) return false;
+    const schemas = evalUserTypeSchemas.get(typeName);
+    if (schemas === undefined) return false;
+    return schemas.some(s => {
+      const i = searchPath.indexOf(s);
+      return i >= 0 && i < pgCatalogPathIndex;
+    });
+  };
   const immutableFnArities = snapshot.builtinImmutableFunctionArities ?? {};
   const immutableOperators = new Set(snapshot.builtinImmutableOperators ?? []);
   const immutableIoTypes = new Set(snapshot.builtinImmutableIoTypes ?? []);
@@ -965,7 +1036,7 @@ export async function buildNullabilityCatalog(
   const isImmutableOperator = (name: string): boolean =>
     !evalUserOperatorNames.has(name) && immutableOperators.has(name);
   const isImmutableIoType = (typeName: string): boolean =>
-    !evalUserTypeNames.has(typeName) && immutableIoTypes.has(typeName);
+    !evalUserTypeShadows(typeName) && immutableIoTypes.has(typeName);
 
   // -------------------------------------------------------------------------
   // Coercibility — the elimination rule of docs/type-aware-overloads.md,
@@ -1752,6 +1823,19 @@ export async function buildNullabilityCatalog(
     return out;
   };
 
+  /** User operator rows projected into the evaluator's pool shape — the
+   *  operator twin of `userVolatilityRows`. Whole-snapshot, matching the
+   *  gate it replaces: the evaluator resolves no names, so an off-path row
+   *  may only ever add conservatism. */
+  const userOperatorVolatilityRows = (name: string): BuiltinOperatorVolatility[] =>
+    (opByName.get(name) ?? []).map(o => ({
+      name,
+      leftType: o.leftType === null ? null : normalizeTypeName(o.leftType),
+      rightType: o.rightType === null ? null : normalizeTypeName(o.rightType),
+      returns: normalizeTypeName(o.resultType),
+      volatility: o.volatility,
+    }));
+
   const userScalarSignatures = (
     schema: string | undefined,
     name: string,
@@ -1961,14 +2045,27 @@ export async function buildNullabilityCatalog(
     leftTypes: readonly string[] | null,
     rightTypes: readonly string[],
   ): string[] | null => {
-    if (evalUserOperatorNames.has(name)) return null;
+    // The user half of the pool — the operator twin of the function merge
+    // (docs/function-overload-merge.md). This replaces a bare-name refusal,
+    // `evalUserOperatorNames.has(name)`, which opened every subtree using a
+    // SYMBOL any user operator anywhere happened to share, whatever its
+    // operand types: a `boolean || boolean` on a scheduling schema stopped
+    // `'a' || 'b'` from folding.
+    //
+    // A surviving user row is judged like any other. `survivorConsensus`
+    // demands `volatility === "i"`, which is why `OperatorInfo` carries the
+    // backing function's provolatile: an IMMUTABLE user operator folds and a
+    // STABLE or VOLATILE one does not. Schema-blind for the same reason the
+    // function side is — including a user row can only make the answer more
+    // conservative, never less.
     const unary = leftTypes === null;
-    const pool = (opVolatilities.get(name) ?? []).filter(
-      o =>
-        (unary ? o.leftType === null : o.leftType !== null && o.rightType !== null) &&
-        !RANGE_FAMILY_PARAMS.has(o.leftType ?? "") &&
-        !RANGE_FAMILY_PARAMS.has(o.rightType ?? ""),
-    );
+    const pool = [...(opVolatilities.get(name) ?? []), ...userOperatorVolatilityRows(name)]
+      .filter(
+        o =>
+          (unary ? o.leftType === null : o.leftType !== null && o.rightType !== null) &&
+          !RANGE_FAMILY_PARAMS.has(o.leftType ?? "") &&
+          !RANGE_FAMILY_PARAMS.has(o.rightType ?? ""),
+      );
     if (pool.length === 0) return null;
 
     const toSurvivor = (o: BuiltinOperatorVolatility): SurvivorRow => ({
@@ -2160,7 +2257,7 @@ export async function buildNullabilityCatalog(
   const closedDatetimeCastTarget = (
     typeName: string,
   ): { family: "date" | "timestamp" | "timestamptz"; rendered: string } | null => {
-    if (evalUserTypeNames.has(typeName)) return null;
+    if (evalUserTypeShadows(typeName)) return null;
     const rendered = normalizeTypeName(typeName);
     const family =
       rendered === "date"

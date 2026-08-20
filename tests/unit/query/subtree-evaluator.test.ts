@@ -776,6 +776,7 @@ describe("first-wave widenings", () => {
 describe("catalog face: user names open builtin spellings", () => {
   let shadowPg: PGlite;
   let shadowCatalog: SubtreeEvaluationCatalog;
+  let latePathCatalog: SubtreeEvaluationCatalog;
 
   beforeAll(async () => {
     shadowPg = new PGlite();
@@ -786,23 +787,35 @@ describe("catalog face: user names open builtin spellings", () => {
       CREATE OPERATOR = (LEFTARG = point, RIGHTARG = point,
         FUNCTION = point_eq);
     `);
-    shadowCatalog = await buildNullabilityCatalog(await snapshotCatalog(shadowPg));
+    const snapshot = await snapshotCatalog(shadowPg);
+    shadowCatalog = await buildNullabilityCatalog(snapshot);
+    latePathCatalog = await buildNullabilityCatalog(snapshot, {
+      searchPath: ["public", "pg_catalog"],
+    });
   }, 60_000);
 
   afterAll(async () => {
     if (!shadowPg.closed) await shadowPg.close();
   });
 
-  it("a user function, operator or type name disqualifies the builtin", () => {
-    // Scope-blind means unresolvable: the evaluator cannot know whether
+  it("a user function or operator name disqualifies the builtin; a type name answers by PATH", () => {
+    // Scope-blind means unresolvable: these two faces cannot know whether
     // `length` is pg_catalog's — so any user object of the name, in any
     // schema, answers false. The unshadowed catalog says true for all three.
     expect(catalog.isImmutableFunction("length", 1)).toBe(true);
     expect(catalog.isImmutableOperator("=")).toBe(true);
-    expect(catalog.isImmutableIoType("int4")).toBe(true);
     expect(shadowCatalog.isImmutableFunction("length", 1)).toBe(false);
     expect(shadowCatalog.isImmutableOperator("=")).toBe(false);
-    expect(shadowCatalog.isImmutableIoType("int4")).toBe(false);
+
+    // TYPES are not scope-blind, and pinning them as if they were was wrong
+    // (corrected 2026-08-20). pg_catalog is searched FIRST unless the path
+    // names it: with `CREATE DOMAIN int4 AS text` in public and
+    // `search_path = public`, PostgreSQL answers `'12'::int4` as INTEGER —
+    // measured. The domain only wins the spelling when the path puts
+    // pg_catalog after public, and there the face cedes.
+    expect(catalog.isImmutableIoType("int4")).toBe(true);
+    expect(shadowCatalog.isImmutableIoType("int4")).toBe(true);
+    expect(latePathCatalog.isImmutableIoType("int4")).toBe(false);
   });
 
   it("the interval faces: strategies by consensus, complement by negator, shadowed names refused", () => {

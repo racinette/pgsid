@@ -355,10 +355,74 @@ PostgreSQL is both cheaper and exact.
   bites where an argument is open. Is there a cheaper property than totality
   worth reading from `plpgsql_check` for those, or is conservative the end of
   it?
-- `evalUserOperatorNames` and `evalUserTypeNames` are still bare-name gates —
-  only the FUNCTION one was merged. The operator case is the same shape and
-  should follow. The type case is the least obvious: those names guard
-  immutable-I/O RENDERINGS, so a user domain over text is safe by inheritance
-  while a user composite or enum brings its own I/O functions, and the
-  IMMUTABLE convention covers them only if those are immutable — to be
-  verified, not assumed.
+## The other two gates — CLOSED 2026-08-20, and they did not close alike
+
+`evalUserOperatorNames` and `evalUserTypeNames` were the open items above. Both
+are gone; the guess that the operator case was "the same shape" was right and
+the guess about the type case was wrong in an interesting way.
+
+The measurement was the same one that started this document: append
+name-only-colliding user objects to `fixtures/schema.sql` and run the corpus.
+Colliding OPERATORS (`||`, `+`, `->` on two booleans) moved eight fixtures;
+relations named after pg_catalog TYPES (`date`, `jsonb`, `numeric`, `line`)
+moved three. Everything below is pinned in `bare-name-gates-red.test.ts`.
+
+**The operator gate hid an UNSOUNDNESS, not just imprecision.** Two of the
+eight went the wrong way: `extreme-jsonb-operators`.json_access and
+`expression-node-coverage`.json_get flipped from nullable to NOTNULL. The walk
+had read the operand types, `resolveOperatorTotality` had eliminated the user
+`->(boolean, boolean)` correctly — and then reported `unknown`, because with
+the user row eliminated there was no builtin row left to answer with. `->` is
+not a curated name, so `builtinOperatorSignatures` holds nothing for it. The
+caller read `unknown` as "nothing was known", fell through to the bare-name
+lookup, and dispatched the very row the operand types had just ruled out.
+`bool_pair`'s body is `$1 AND $2`, both operands were non-null, and the walk
+claimed notNull for `'{}'::jsonb -> 'id'` — which is NULL.
+
+The fix is that the operand type sets now travel WITH the name:
+`resolveOperatorMetadata` takes them and drops candidates that cannot accept
+them, and eliminating every candidate answers `null` — "no user operator here"
+— rather than dispatching one. A null set still constrains nothing, so an
+untypeable operand keeps every candidate and nothing is over-dropped.
+
+**The evaluator's operator gate then closed like the function one.**
+`closedOperatorTypes` merges path-visible user rows into the pool and lets
+`survivorConsensus` judge them, which is why `OperatorInfo` grew the backing
+function's `provolatile`: an IMMUTABLE user operator folds, a STABLE or
+VOLATILE one does not. `'a' || 'b'` folds again next to a `boolean || boolean`.
+
+**Types answer by PATH, because they have no operands to eliminate with.** The
+old gate assumed a user type of the name always wins the spelling. It does not:
+pg_catalog is searched FIRST unless the search path names it explicitly.
+Measured against a `public."date"` table — under `search_path = public` a bare
+`date` is pg_catalog's; under `search_path = public, pg_catalog` it is the
+table's rowtype, and `'2020-01-01'::date` then raises *malformed record
+literal*, which is the shadow being real rather than theoretical. So
+`evalUserTypeShadows` reads the path, and the engine's `searchPath` option
+finally means something for types. `numeric` is the instructive one: its
+spelling is fixed by PostgreSQL's grammar, so it stays pg_catalog's under
+BOTH paths.
+
+The type shadows live in `fixtures/schema.sql` for the reason `scale(boolean)`
+does. The colliding OPERATORS do not, and that asymmetry is the honest part:
+six of the eight moved fixtures were the name-rule fallback ceding to a user
+`||` or `+` over operands nothing types (`$1 || 'x'`, `a.total + b.total`).
+That conservatism is correct and its retirement condition is recorded in
+`catalog-adapter.ts` — type the operand sources first. Elimination can rescue a
+typed function argument; there is nothing to rescue an untypeable operand with,
+so the collision would cost six real claims to exercise a rule the red suite
+already holds.
+
+## Open questions
+
+- A user row whose language the walk cannot analyse (`plpgsql`, C) makes every
+  mixed survivor set nullable SYMBOLICALLY — but if the call is closed and the
+  function is IMMUTABLE the evaluator now folds it anyway, so the question only
+  bites where an argument is open. Is there a cheaper property than totality
+  worth reading from `plpgsql_check` for those, or is conservative the end of
+  it?
+- `isImmutableFunction` and `isImmutableOperator` are still bare-name, and are
+  the last of the three. Neither is reached by the evaluator today — the closed
+  gates it actually calls are `closedFunctionTypes`, `closedOperatorTypes` and
+  `isImmutableIoType` — so they are pinned face members with no live caller.
+  Delete or merge, but not both.
