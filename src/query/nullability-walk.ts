@@ -777,6 +777,16 @@ interface FnBodyContext {
   argResults: boolean[];
   /** Set of function keys currently being analyzed (cycle detection). */
   analyzing: Set<string>;
+  /**
+   * The DECLARED type of each positional parameter, from the function's own
+   * signature. Inside a body, `$n` names the function's parameter and not the
+   * statement's, so this is the only correct source for its type — and it is
+   * what lets a builtin CALL in the body narrow its signature, which is the
+   * difference between `SELECT $1 || ' ' || $2` (the operator path decides
+   * without types) and `SELECT UPPER($1)` (the dispatch needs one).
+   * docs/function-overload-merge.md, "The second site the types never reach".
+   */
+  argTypes: (string | undefined)[];
 }
 
 // ---------------------------------------------------------------------------
@@ -5092,7 +5102,14 @@ class NullabilityEngine {
     }
     const pr = rec["ParamRef"] as { number?: number } | undefined;
     if (pr) {
-      const t = pr.number !== undefined ? this.paramTypes?.[pr.number - 1] : undefined;
+      if (pr.number === undefined) return null;
+      // Inside a LANGUAGE sql body `$n` is the FUNCTION's parameter. Reading
+      // `paramTypes` there would type it from an unrelated statement binding
+      // that happens to share the position, so the body context shadows it
+      // outright rather than falling back to it.
+      const t = this.fnCtx
+        ? this.fnCtx.argTypes[pr.number - 1]
+        : this.paramTypes?.[pr.number - 1];
       return t !== undefined ? [t] : null;
     }
     const ae = rec["A_Expr"] as AExpr | undefined;
@@ -8903,10 +8920,13 @@ class NullabilityEngine {
           if (resolved.kind === "strict-total") {
             trace.addFact("priority", "6b (built-in, total over non-null args, signature-narrowed)");
             trace.addFact("argsNotNull", `[${argResults.map(r => (r ? "T" : "F")).join(", ")}]`);
-            const result = argResults.every(r => r);
-            trace.conclude(result, result
-              ? `every surviving signature of ${name}() is total: non-null arguments → non-null result`
-              : `${name}() has a nullable argument → nullable`);
+            const srf = this.strictSrfIgnoresArgumentNullness(schema, name);
+            const result = argResults.every(r => r) || srf;
+            trace.conclude(result, !result
+              ? `${name}() has a nullable argument → nullable`
+              : srf && !argResults.every(r => r)
+                ? `${name}() is a strict SRF: a nullable argument subtracts ROWS, not values`
+                : `every surviving signature of ${name}() is total: non-null arguments → non-null result`);
             return result;
           }
           trace.addFact("priority", "6b (built-in, signature-narrowed)");
@@ -8930,10 +8950,13 @@ class NullabilityEngine {
       if (STRICT_TOTAL_BUILTINS.has(name)) {
         trace.addFact("priority", "6b (built-in, total over non-null args)");
         trace.addFact("argsNotNull", `[${argResults.map(r => (r ? "T" : "F")).join(", ")}]`);
-        const result = argResults.every(r => r);
-        trace.conclude(result, result
-          ? `${name}() is total: non-null arguments → non-null result`
-          : `${name}() has a nullable argument → nullable`);
+        const srf = this.strictSrfIgnoresArgumentNullness(schema, name);
+        const result = argResults.every(r => r) || srf;
+        trace.conclude(result, !result
+          ? `${name}() has a nullable argument → nullable`
+          : srf && !argResults.every(r => r)
+            ? `${name}() is a strict SRF: a nullable argument subtracts ROWS, not values`
+            : `${name}() is total: non-null arguments → non-null result`);
         return result;
       }
     }
@@ -9098,7 +9121,9 @@ class NullabilityEngine {
   private walkDefaultExpr(expr: Node, depth: number, trace: ITrace): boolean {
     const prevCtx = this.fnCtx;
     const prevParamNames = this.fnParamNames;
-    this.fnCtx = prevCtx ? { argResults: [], analyzing: prevCtx.analyzing } : null;
+    this.fnCtx = prevCtx
+      ? { argResults: [], analyzing: prevCtx.analyzing, argTypes: prevCtx.argTypes }
+      : null;
     this.fnParamNames = null;
     try {
       return this.walkExprTraced(expr, this.emptyScope(null), depth + 1, trace);
@@ -9148,6 +9173,38 @@ class NullabilityEngine {
    * Aggregates are excluded too: `proisstrict` on an aggregate is a property
    * of its transition function, not of the call.
    */
+  /**
+   * A STRICT SET-RETURNING builtin's totality does not depend on its arguments
+   * being non-null, because a NULL argument makes it produce NO ROWS rather
+   * than a row holding NULL — so there is nothing left to carry a NULL, and
+   * the totality verdict stands whatever the arguments are.
+   *
+   * `callCanShortCircuit` below already records exactly this and excludes
+   * `returnsSet` for it ("a claim about columns of rows that do not exist
+   * cannot be contradicted"). The totality branches did not consult it, and
+   * applied the SCALAR premise — every argument non-null — to a call where
+   * argument nullness cannot reach the output. That is the imprecision
+   * docs/sqlc-disagreements.md records for `pg_generate_series/GenerateSeries`.
+   *
+   * Strictness is the load-bearing half: a NON-strict SRF handed NULL runs its
+   * body and may emit rows with NULLs in them.
+   *
+   * `ROWS FROM` is the neighbouring shape that must NOT move — there a longer
+   * arm supplies rows the strict SRF did not and the PADDING makes its columns
+   * nullable, which is a different rule applied elsewhere
+   * (rowsfrom-pad-strict-srf.sql pins it).
+   */
+  private strictSrfIgnoresArgumentNullness(
+    schema: string | undefined,
+    name: string,
+  ): boolean {
+    return (
+      (schema === undefined || schema === "pg_catalog") &&
+      this.catalog.isSetReturningBuiltin(name) &&
+      this.catalog.isStrictBuiltin(name)
+    );
+  }
+
   private callCanShortCircuit(meta: FunctionInfo, bound: boolean[]): boolean {
     if (!meta.strict || meta.isAggregate || meta.returnsSet) return false;
     return !this.allArgumentsNonNull(meta, bound);
@@ -9228,6 +9285,11 @@ class NullabilityEngine {
     this.fnCtx = {
       argResults,
       analyzing: new Set(prevCtx?.analyzing ?? []).add(fnKey),
+      // Input parameters only: a SQL body numbers `$n` over the INPUTS,
+      // so an interleaved OUT parameter must not shift the positions.
+      argTypes: meta.args
+        .filter(a => a.mode === "in" || a.mode === "inout")
+        .map(a => a.typeName),
     };
     this.fnParamNames = meta.args.map(a => a.name);
     try {
@@ -9405,6 +9467,11 @@ class NullabilityEngine {
     this.fnCtx = {
       argResults: [],
       analyzing: new Set(prevCtx?.analyzing ?? []).add(fnKey),
+      // Input parameters only: a SQL body numbers `$n` over the INPUTS,
+      // so an interleaved OUT parameter must not shift the positions.
+      argTypes: meta.args
+        .filter(a => a.mode === "in" || a.mode === "inout")
+        .map(a => a.typeName),
     };
     this.fnParamNames = meta.args.map(a => a.name);
     try {
@@ -10079,6 +10146,17 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   "json_array_length", "row_to_json", "jsonb_strip_nulls", "jsonb_pretty",
   // Misc
   "num_nulls", "num_nonnulls", "pg_typeof",
+  // Sequences (2026-08-20, docs/sqlc-disagreements.md `nextval/GetNextID`).
+  // VOLATILE by nature — the side effect is the point — which is why they are
+  // outside the immutable-only totality capture and had no verdict at all.
+  // Volatility is not totality: each either RAISES (a sequence that does not
+  // exist, `currval` before `nextval` in the session, a value past the type's
+  // range) or returns a bigint, and a raise is not a NULL — the same admission
+  // criterion the rest of this table is held to. STRICT and measured NULL on a
+  // NULL argument (`nextval(NULL::regclass)`), so strict-total is the correct
+  // set and `ALWAYS_NOT_NULL_BUILTINS` would be wrong. `lastval` takes no
+  // arguments, so the strict premise is vacuous and it belongs here too.
+  "nextval", "currval", "setval", "lastval",
   // Wave-4 batch, each measured 2026-08-01 with adversarial non-null inputs
   // (no-match regexps, empty arrays, missing jsonb paths — jsonb_set on a
   // scalar target RAISES, which counts: an error is not a NULL).

@@ -498,18 +498,41 @@ schema/query pairs. The JUDGE is PostgreSQL, exactly as for the generated
 corpus — PREPARE gates validity, the shape oracle compares column lists
 against a real execution, the EXPLAIN census holds planner-stronger at
 zero, and refusals, crashes, and every tally are pinned both directions in
-`sqlc-corpus.test.ts`. Soundness is deliberately not asserted: sqlc ships
-no data, and a zero-row execution asserts nothing.
+`sqlc-corpus.test.ts`.
+
+Soundness WAS deliberately not asserted, on the reasoning that sqlc ships
+no data and a zero-row execution asserts nothing. The first half was
+always true and the second does not follow from it: the data can be ours.
+For the 28 cases the disagreement register argues about, `data.sql` sits
+beside the vendored files — a state constructed to BREAK the disputed
+claim — and the suite executes each query under it and under the bindings
+in `adjudication.json`. A column the walk calls notNull coming back NULL
+is an unsoundness there exactly as it is in the fixture corpus, and it
+fails the same way. The other 225 cases still assert only shape and
+validity; a case with no state executes nothing, because inventing a
+binding for a query nobody reasoned about manufactures rows with no
+argument behind them.
 
 sqlc's own expectations ride along as `expected.json` per case — its IR's
 per-column `not_null`, extracted by `tests/probe/sqlc-extract-expected.ts`
 running the pinned sqlc release with the built-in json codegen (never
 parsed out of generated Go, never blurred by type overrides). They are a
-lead source, not a judge: `tests/probe/sqlc-register.ts` emits
-`docs/sqlc-disagreements.md`, one entry per disagreeing column with an
-adjudication protocol at the top — each entry settled only by a
-counterexample with data, either convicting sqlc (the ticket pile) or
-correcting the walk (a fixture and a fix). The first sweep of this corpus
+lead source, not a judge. All disagreements are adjudicated
+(2026-08-20): 30 entries — 16 ticket-ready, 14 expected conservatism, and
+**no pgsid imprecisions and no pgsid unsoundness**. It began at 40 entries
+with 10 imprecisions, and all ten closed the same day: six to the function
+overload merge (`docs/function-overload-merge.md`), two to admitting the
+sequence functions to `STRICT_TOTAL_BUILTINS`, one to excluding `returnsSet`
+from the strict-total branch, and one that was never an engine defect at all
+— this corpus was calling the walk without the subtree evaluator both
+fixture suites pass. That is the register working as intended: an imprecision
+with a named fix is a worklist item, not a verdict. The conclusions live per case in
+`adjudication.json` and `docs/sqlc-disagreements.md` is GENERATED from
+them by `tests/probe/sqlc-register.ts`, so regenerating cannot destroy
+them; the suite pins each disagreement and each verdict BY NAME, so a
+compensating swap cannot hide behind a count, and a conclusion drawn
+against a superseded sqlc release fails on `adjudicatedAgainst`. The
+first sweep of this corpus
 also closed a real gap: a sequence is a legal FROM item with three NOT
 NULL columns, and the snapshot now captures relkind 'S' so the walk claims
 it instead of refusing.

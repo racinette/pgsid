@@ -510,6 +510,17 @@ const columnSpecificGenerators: Record<
       iv: rand =>
         rand.chance(0.5) ? rand.pick(["infinity", "-infinity"]) : rand.pick(["3 days", "2 hours", "1 mon"]),
     },
+
+    // A NOT NULL array whose ELEMENTS are not: the constraint binds the array
+    // and says nothing about what is in it, so every row carries one NULL
+    // element beside a present one. `text[]` has no type-tier generator, and
+    // the NULL is placed by position rather than by chance — the unnest
+    // expansion's element claim has exactly this to witness it, and a rate
+    // would leave it to luck at this table's row count.
+    arr_nn: {
+      id: sequential,
+      vals: (rand, ctx) => `{${rand.pick(WORDS)}-${ctx.row},NULL}`,
+    },
   },
 };
 
@@ -615,6 +626,15 @@ const nullPolicies: {
       ni2_c: {
         note: (rand, ctx) => (ctx.current("status") === "open" ? rand.chance(0.7) : rand.chance(0.3)),
       },
+
+      // The sqlc-register shapes. Each of these columns is nullable for a
+      // reason the register CONVICTED sqlc over, so the NULL is placed by row
+      // index rather than by chance: the witness is the whole point of the
+      // fixture and a rate would leave it to luck at these row counts. The
+      // parent of the INHERITS pair is the only one of the two that CAN hold
+      // the NULL — `cnn_c` redeclares the column NOT NULL.
+      ctas_dst: { val: (_rand, ctx) => ctx.row % 2 === 0 },
+      cnn_p: { legal_name: (_rand, ctx) => ctx.row % 2 === 0 },
 
       // A NULL fraud_score is the generated verdict's fourth arm
       // (manual-check), which the ambiguous-verdict fixture witnesses with.

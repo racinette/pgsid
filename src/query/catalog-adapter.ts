@@ -1596,13 +1596,20 @@ export async function buildNullabilityCatalog(
 
     const singles = sets.map(s => (s !== null && s.length === 1 ? s[0]! : null));
     if (singles.length === argCount && singles.every(s => s !== null)) {
-      const exact = arityRows.find(
+      const exacts = arityRows.filter(
         r =>
           r.variadic === null &&
           r.args.length === argCount &&
           r.args.every((a, i) => a === singles[i]),
       );
-      if (exact) return { exact };
+      if (exacts.length === 1) return { exact: exacts[0]! };
+      // Two rows share a signature exactly when a user function collides with
+      // a pg_catalog one at the SAME argument types. Which one runs is decided
+      // by search-path POSITION, which this selection deliberately does not
+      // model — and does not need to: consensus over both is sound whichever
+      // wins, and needs no position. (docs/function-overload-merge.md,
+      // "Selection".)
+      if (exacts.length > 1) return { survivors: exacts };
     }
 
     // A variadic row's positions past the fixed prefix check the variadic
@@ -1702,6 +1709,73 @@ export async function buildNullabilityCatalog(
     return "total";
   };
 
+  /**
+   * User functions for `name`, projected into the signature shape the
+   * selection reads, so ONE pool can hold pg_catalog rows and user rows
+   * together (docs/function-overload-merge.md, "One pool").
+   *
+   * This is what `resolvableCandidates` could not do and had to compensate
+   * for by dropping the user half wholesale: with no builtin signatures to
+   * merge against, no consensus over the user's half was sound. The
+   * signatures landed 2026-08-09, so the compensation is no longer the only
+   * sound answer — and it was never a safe one, because dropping the user
+   * half lets a curated totality table answer for a call PostgreSQL runs
+   * against a user body.
+   *
+   * Aggregates, window functions and procedures are excluded here for the
+   * same reason the builtin pool filters on `kind === "f"`: they resolve by
+   * rules of their own.
+   */
+  /**
+   * The same projection as `userScalarSignatures`, into the shape the SUBTREE
+   * EVALUATOR's pool reads — volatility rather than totality, because the
+   * evaluator's question is whether a value is stable, not whether it exists.
+   * `returns` is the declared rendering and is never consumed for a user row:
+   * a surviving one refuses the fold before consensus reads it.
+   */
+  const userVolatilityRows = (name: string): BuiltinFunctionVolatility[] => {
+    const out: BuiltinFunctionVolatility[] = [];
+    for (const f of functionCandidates(undefined, name)) {
+      const inputs = f.args.filter(a => a.mode === "in" || a.mode === "inout");
+      const variadic = f.args.find(a => a.mode === "variadic");
+      out.push({
+        name,
+        args: inputs.map(a => normalizeTypeName(a.typeName)),
+        returns: f.returnType,
+        volatility: f.volatile === "immutable" ? "i" : f.volatile === "stable" ? "s" : "v",
+        kind: f.isAggregate ? "a" : f.isWindow ? "w" : "f",
+        returnsSet: f.returnsSet,
+        variadic: variadic ? normalizeTypeName(variadic.typeName) : null,
+        numArgDefaults: inputs.filter(a => a.hasDefault).length,
+      });
+    }
+    return out;
+  };
+
+  const userScalarSignatures = (
+    schema: string | undefined,
+    name: string,
+  ): BuiltinFunctionSignature[] => {
+    const out: BuiltinFunctionSignature[] = [];
+    for (const f of functionCandidates(schema, name)) {
+      if (f.isAggregate || f.isWindow || f.isProcedure) continue;
+      const inputs = f.args.filter(a => a.mode === "in" || a.mode === "inout");
+      const variadic = f.args.find(a => a.mode === "variadic");
+      out.push({
+        name,
+        args: inputs.map(a => normalizeTypeName(a.typeName)),
+        returns: f.returnType,
+        strict: f.strict,
+        kind: "f",
+        aggKind: null,
+        numDirectArgs: null,
+        variadic: variadic ? normalizeTypeName(variadic.typeName) : null,
+        numArgDefaults: inputs.filter(a => a.hasDefault).length,
+      });
+    }
+    return out;
+  };
+
   const resolveBuiltinScalarTotality = (
     schema: string | undefined,
     name: string,
@@ -1712,12 +1786,20 @@ export async function buildNullabilityCatalog(
     | { kind: "strict-total"; returns: string[] }
     | { kind: "nullable"; returns: string[] }
     | { kind: "unknown" } => {
-    const rows = resolveBuiltinFunctionSignatures(schema, name).filter(r => r.kind === "f");
-    if (rows.length === 0) return { kind: "unknown" };
-    const sel = selectBuiltinRows(rows, argTypes);
+    const builtinRows = resolveBuiltinFunctionSignatures(schema, name).filter(r => r.kind === "f");
+    const userRows = userScalarSignatures(schema, name);
+    if (builtinRows.length === 0 && userRows.length === 0) return { kind: "unknown" };
+    const userRowSet = new Set<BuiltinFunctionSignature>(userRows);
+    const sel = selectBuiltinRows([...builtinRows, ...userRows], argTypes);
     if (sel === null) return { kind: "unknown" };
 
     const verdictOf = (r: BuiltinFunctionSignature): "always" | "first-arg" | "strict-total" | null => {
+      // A surviving USER row carries no curated verdict, and the curated
+      // tables describe pg_catalog's implementations only — reading one for a
+      // user row is exactly the confusion this merge exists to end. Its own
+      // totality is the walk's question (body analysis at priority 5), not
+      // the catalog's, so here it is simply unproven.
+      if (userRowSet.has(r)) return null;
       if (ALWAYS_NOT_NULL_BUILTINS.has(r.name)) return "always";
       if (FIRST_ARG_BUILTINS.has(r.name)) return "first-arg";
       if (STRICT_TOTAL_BUILTINS.has(r.name)) return "strict-total";
@@ -1936,9 +2018,27 @@ export async function buildNullabilityCatalog(
     argTypes: readonly (readonly string[])[],
     wantSet: boolean,
   ): string[] | null => {
-    if (evalUserFunctionNames.has(name)) return null;
+    // The user half of the pool (docs/function-overload-merge.md). This
+    // replaces a bare-name refusal — `evalUserFunctionNames.has(name)` — which
+    // opened every subtree using a name any user function anywhere happened to
+    // share, whatever its arity or argument types.
+    //
+    // A surviving user row is now judged like any other: `survivorConsensus`
+    // demands `volatility === "i"`, a base-kind return and immutable-I/O
+    // parameters, so an IMMUTABLE user function folds and a volatile one does
+    // not. Ruled 2026-08-20: `IMMUTABLE` is taken at its word. PostgreSQL does
+    // not enforce it either — its own planner constant-folds immutable calls
+    // with constant arguments — so trusting the label is the same convention
+    // the database runs on, not a new one. A function that RAISES is already
+    // ordinary here: the batch retries subtrees individually and drops the
+    // raisers.
+    //
+    // Schema-blind on purpose. A `pg_catalog.`-qualified call cannot resolve
+    // to a user row, but the gate does not see the qualifier; including the
+    // user rows there can only make the answer MORE conservative, never less.
+    const userRows = userVolatilityRows(name);
     const k = argTypes.length;
-    const pool = (fnVolatilities.get(name) ?? []).filter(r => {
+    const pool = [...(fnVolatilities.get(name) ?? []), ...userRows].filter(r => {
       const maxArity = r.args.length;
       const minArity =
         r.variadic !== null

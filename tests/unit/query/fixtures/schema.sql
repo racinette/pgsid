@@ -1506,3 +1506,66 @@ CREATE FUNCTION sw4_dom_echo(x text) RETURNS nn_text
 -- this rejects NULL, and no static analysis can see that it does.
 CREATE FUNCTION sw4_raiser(x text) RETURNS text LANGUAGE plpgsql AS
   $$ BEGIN IF x IS NULL THEN RAISE 'nope'; END IF; RETURN x; END $$;
+
+-- ---------------------------------------------------------------------------
+-- The sqlc-register shapes (docs/sqlc-disagreements.md, adjudicated
+-- 2026-08-20). Each object below exists to make one register entry's
+-- PostgreSQL truth EXECUTABLE here rather than prose there — the register
+-- records what was observed, these hold it to it.
+-- ---------------------------------------------------------------------------
+
+-- `CREATE TABLE … AS SELECT` copies column names and TYPES and nothing else:
+-- the source's NOT NULL does not travel (measured). `LIKE` is the contrast
+-- that must keep working — not-null constraints ARE copied there, always,
+-- without INCLUDING CONSTRAINTS. Register: `create_table_as/GetFirst`.
+CREATE TABLE ctas_src (val text NOT NULL, note text);
+CREATE TABLE ctas_dst AS SELECT * FROM ctas_src;
+CREATE TABLE like_dst (LIKE ctas_src);
+
+-- INHERITS in the direction inherit-attnotnull-divergence.sql does not carry:
+-- the CHILD declares NOT NULL on an inherited column and the PARENT does not.
+-- The constraint merge runs parent → child only, so a tree scan of the parent
+-- stays nullable and a parent-stored NULL comes back through it. Register:
+-- `ddl_create_table_inherits/GetAllOrganisations`.
+CREATE TABLE cnn_p (id integer NOT NULL, legal_name text);
+CREATE TABLE cnn_c (legal_name text NOT NULL) INHERITS (cnn_p);
+
+-- NOT NULL on an ARRAY column binds the array, never its ELEMENTS: a NULL
+-- element satisfies the constraint and reaches an unnest expansion as a NULL.
+-- Register: `unnest_with_ordinality/GetValues`.
+CREATE TABLE arr_nn (id integer NOT NULL, vals text[] NOT NULL);
+
+-- A sequence, for the totality of the sequence functions: `nextval` is
+-- VOLATILE, so it is outside the immutable-only totality capture, and it is
+-- not on the curated always-non-null name list either — yet it raises or
+-- returns a bigint and never answers NULL. Register: `nextval/GetNextID`.
+CREATE SEQUENCE seq_probe;
+
+-- A LANGUAGE sql body that applies a BUILTIN to its own parameter. `cat1`'s
+-- shape (an operator over the parameters) narrows and claims notNull; a
+-- FUNCTION call over the same parameter does not, because the body
+-- parameter's declared type never reaches the signature dispatch — which is
+-- what costs `upper`/`lower` the totality they have over a typed column.
+-- Register: the six `sql_syntax_calling_funcs` entries.
+CREATE FUNCTION body_upper(x text) RETURNS text
+  LANGUAGE sql IMMUTABLE STRICT AS $$ SELECT UPPER($1) $$;
+CREATE FUNCTION body_concat(a text, b text) RETURNS text
+  LANGUAGE sql IMMUTABLE STRICT AS $$ SELECT $1 || ' ' || $2 $$;
+
+-- User functions colliding with a builtin BY NAME ONLY — different argument
+-- types, so PostgreSQL eliminates them and runs the builtin under any search
+-- path. The identical-signature shadows above (min_scale, to_number,
+-- json_each) pin the precedence question; these pin the ELIMINATION one, which
+-- is the half the function overload merge turns on
+-- (docs/function-overload-merge.md): a name-only collision must cost the
+-- builtin nothing where the argument types are known, and the merged pool is
+-- what makes that true rather than the bare-name gate that used to open every
+-- subtree using the name.
+--
+-- They sit in the SHARED schema on purpose. Every fixture that calls `scale`
+-- or `length` now resolves against a polluted name, so the elimination is
+-- exercised by the whole corpus instead of by one case that agrees with it.
+CREATE FUNCTION public.scale(x boolean) RETURNS integer
+  LANGUAGE sql IMMUTABLE AS $$ SELECT 1 $$;
+CREATE FUNCTION public.length(x boolean) RETURNS integer
+  LANGUAGE sql IMMUTABLE AS $$ SELECT 1 $$;

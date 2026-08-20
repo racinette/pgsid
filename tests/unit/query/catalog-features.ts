@@ -491,15 +491,15 @@ export const FEATURES: Record<string, Feature> = {
     detect: s => s.functions.some(f => f.isAggregate && f.aggInitVal === null),
   },
   "user-window-function": {
-    category: "conservative",
-    unread: "isWindow",
-    why: "FunctionInfo.isWindow is captured; the walk's window dispatch is keyed on the curated builtin sets (NEVER_NULL_WINDOW_SIGNATURES and siblings), so a USER window function falls through to nullable",
+    category: "gated",
+    reads: "resolveBuiltinScalarTotality",
+    why: "read only to KEEP IT OUT of the merged scalar pool (docs/function-overload-merge.md): a user window row must not be projected as kind 'f' and answer for a scalar call. The window dispatch itself is still keyed on the curated builtin sets (NEVER_NULL_WINDOW_SIGNATURES and siblings), so a USER window function still falls through to nullable — the gate is what makes that fall-through honest rather than a mislabelled row",
     detect: s => s.functions.some(f => f.isWindow),
   },
   "procedure": {
-    category: "conservative",
-    unread: "isProcedure",
-    why: "FunctionInfo.isProcedure is captured and no branch reads it; a CALL is not a query the walk analyses",
+    category: "gated",
+    reads: "resolveBuiltinScalarTotality",
+    why: "read only to KEEP IT OUT of the merged scalar pool, for the same reason as the window flag. A CALL is still not a query the walk analyses; nothing concludes from a procedure beyond excluding it",
     detect: s => s.functions.some(f => f.isProcedure),
   },
   "security-definer-function": {

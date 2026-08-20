@@ -651,6 +651,20 @@ always agree, so it is cheap in practice.
    half), CASE/COALESCE (declined). Still on bare names: the STRICTNESS
    sites (`promotionOperatorIsStrict`, mechanism C's operator test), unary
    operators, and everything function-shaped.
+
+   **The FUNCTION half LANDED 2026-08-20: `docs/function-overload-merge.md`.**
+   It was never only a precision item — leaving the function side on bare
+   names was a LIVE RANK 1. A user
+   `length(text)` ahead of pg_catalog on the path returns NULL for a non-null
+   input and the walk claims notNull, because `resolvableCandidates` drops
+   every user candidate for a name pg_catalog also carries and the curated
+   totality table then answers for a call it does not describe. Measured, and
+   the mirror of the operator blind spot this section's first bullet records.
+   The subtree evaluator has the same absence in the opposite direction: its
+   `evalUserFunctionNames` gate is a bare-name set, so an unrelated user
+   `scale(boolean)` stopped `scale(8.41)` folding; its gate is now decided by
+   SURVIVAL instead. The four targets flipped to plain `it` in the landing
+   commit and stay in `tests/unit/query/overload-merge-red.test.ts`.
 4. **The tables, re-keyed to SIGNATURES — all seven, plus the two operator
    sets. Decided 2026-08-09: aggregates and window functions are NOT
    exceptions.** This is the real cost: the three scalar tables AND

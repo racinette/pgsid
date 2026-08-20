@@ -23,6 +23,7 @@ import {
   combinations,
   qualify,
   SRF_PROBE_FN_SQL,
+  PROBE_OBJECTS_SQL,
   srfQuery,
   nullTestExpr,
   variadicArgTypes,
@@ -160,6 +161,7 @@ describe("totality tables, probed by execution", () => {
       EXCEPTION WHEN OTHERS THEN RETURN 'error';
       END $$;`);
     await pg.exec(SRF_PROBE_FN_SQL);
+    await pg.exec(PROBE_OBJECTS_SQL);
 
     const tableOf = (n: string): Signature["table"] =>
       ALWAYS_NOT_NULL_BUILTINS.has(n) ? "alwaysNotNull" : FIRST_ARG_BUILTINS.has(n) ? "firstArg" : "strictTotal";
