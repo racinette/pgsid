@@ -6,7 +6,7 @@ import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import type { CatalogSnapshot } from "../../../src/catalog/types.js";
 import { FEATURES, type Category, type CensusEnv } from "./catalog-features.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullability } from "../../../src/query/nullability-walk.js";
+import { inferNullability, inferQueryContract } from "../../../src/query/nullability-walk.js";
 import { parseSql } from "../../../src/ast.js";
 import { spyOnCatalog, catalogMembers } from "./catalog-spy.js";
 import {
@@ -197,6 +197,7 @@ describe("catalog-feature census", () => {
   const observedValues = new Map<string, Set<string>>();
   /** Catalog members the corpus actually asked (see catalog-spy.ts). */
   let touched: Set<string>;
+  let evaluationTouched: Set<string>;
   let catalogMemberNames: string[];
 
   beforeAll(async () => {
@@ -240,7 +241,34 @@ describe("catalog-feature census", () => {
         // A refusal still asked its questions on the way to refusing.
       }
     }
-  }, 120_000);
+
+    // The SECOND pass, with the evaluator ON. The run above deliberately has
+    // no `evaluate`, which makes every `SubtreeEvaluationCatalog` member
+    // unreachable BY CONSTRUCTION — so the cold-member check could never
+    // flag one, and `askedAnyway` could never fire for one either. That is
+    // how `isImmutableFunction` and `isImmutableOperator` sat dead behind
+    // their exemption until 2026-08-20: the list's comment claimed "the
+    // subtree evaluator's own census covers them instead", and no such
+    // census existed. This is it.
+    //
+    // BOTH entry points, because they reach different consumers: mechanism E
+    // rides the CONTRACT path and `resolveEnforcedCheckConstraints` is
+    // reached through nothing else — measured, 12 of 13 without it.
+    const evalSpy = spyOnCatalog(await buildNullabilityCatalog(snapshot));
+    const evaluate = async (sql: string) =>
+      (await pg.query<Record<string, unknown>>(sql)).rows[0];
+    for (const sql of corpus) {
+      const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
+      if (!stmt) continue;
+      try {
+        await inferNullability(stmt, evalSpy.catalog, { evaluate });
+        await inferQueryContract(stmt, evalSpy.catalog, { evaluate });
+      } catch {
+        // As above: a refusal still asked its questions.
+      }
+    }
+    evaluationTouched = evalSpy.touched;
+  }, 300_000);
 
   afterAll(async () => {
     // The gap list is this suite's product, not a by-product: every `absent`
@@ -332,6 +360,20 @@ describe("catalog-feature census", () => {
         `the member belongs on NullabilityCatalog now, with its exemption ` +
         `removed and a fixture reaching it:\n  ` +
         askedAnyway.join("\n  "),
+    ).toEqual([]);
+
+    // ... and the exemption is a PROMISE, not a pass. Every member excused
+    // above must be reached by the evaluator-on pass, or it is dead code
+    // hiding behind the excuse — which is exactly what two of them were.
+    const deadBehindTheExemption = [...evaluationOnly]
+      .filter(m => !evaluationTouched.has(m))
+      .sort();
+    expect(
+      deadBehindTheExemption,
+      `On EVALUATION_CATALOG_ONLY, and not reached even with the evaluator ` +
+        `on. The exemption says the evaluator covers these; for these it does ` +
+        `not. Either a corpus statement should reach it, or the member is ` +
+        `dead and should go:\n  ${deadBehindTheExemption.join("\n  ")}`,
     ).toEqual([]);
   });
 
