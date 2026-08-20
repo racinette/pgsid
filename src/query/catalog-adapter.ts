@@ -973,7 +973,6 @@ export async function buildNullabilityCatalog(
   // `isImmutableFunction`.
   // -------------------------------------------------------------------------
 
-  const evalUserFunctionNames = new Set(snapshot.functions.map(f => f.name));
   const evalUserOperatorNames = new Set(snapshot.operators.map(o => o.name));
   // Every user TYPE name a cast could resolve to instead of the pg_catalog
   // type: domains, enums, composites — and relations, whose rowtypes are
@@ -1019,8 +1018,6 @@ export async function buildNullabilityCatalog(
       return i >= 0 && i < pgCatalogPathIndex;
     });
   };
-  const immutableFnArities = snapshot.builtinImmutableFunctionArities ?? {};
-  const immutableOperators = new Set(snapshot.builtinImmutableOperators ?? []);
   const immutableIoTypes = new Set(snapshot.builtinImmutableIoTypes ?? []);
 
   const btreeStrategies = snapshot.builtinBtreeStrategies ?? {};
@@ -1030,11 +1027,16 @@ export async function buildNullabilityCatalog(
   const isEqualityComplement = (op: string): boolean =>
     !evalUserOperatorNames.has(op) && equalityNegators.has(op);
 
-  const isImmutableFunction = (name: string, argCount: number): boolean =>
-    !evalUserFunctionNames.has(name) &&
-    (immutableFnArities[name] ?? []).includes(argCount);
-  const isImmutableOperator = (name: string): boolean =>
-    !evalUserOperatorNames.has(name) && immutableOperators.has(name);
+  // `isImmutableFunction` and `isImmutableOperator` lived here and were
+  // DELETED 2026-08-20 as dead code. They asked the closure gate's question
+  // by bare NAME; the evaluator ended up asking it by SIGNATURE instead,
+  // through `closedFunctionTypes` and `closedOperatorTypes`, and these two
+  // were never rewired to anything. Their exemption from the cold-member
+  // census (`EVALUATION_CATALOG_ONLY`) is what kept them invisible.
+  //
+  // `isImmutableIoType` is the surviving sibling and is NOT dead — the
+  // evaluator calls it for an array-element cast. It answers by PATH now,
+  // not by name (see `evalUserTypeShadows`).
   const isImmutableIoType = (typeName: string): boolean =>
     !evalUserTypeShadows(typeName) && immutableIoTypes.has(typeName);
 
@@ -2314,8 +2316,6 @@ export async function buildNullabilityCatalog(
     // The closure face the domain round consults — enums already admitted,
     // so an enum-comparing CHECK body closes here.
     const face: SubtreeEvaluationCatalog = {
-      isImmutableFunction,
-      isImmutableOperator,
       isImmutableIoType,
       closedOperatorTypes,
       closedFunctionTypes,
@@ -2510,8 +2510,6 @@ export async function buildNullabilityCatalog(
     resolveForeignKey,
     resolveForeignKeyTree,
     isStrictBuiltin,
-    isImmutableFunction,
-    isImmutableOperator,
     isImmutableIoType,
     closedOperatorTypes,
     closedFunctionTypes,

@@ -212,19 +212,6 @@ export const OVERLOAD_CATALOG_ONLY = [
  */
 export interface SubtreeEvaluationCatalog {
   /**
-   * May a call of `name` with `argCount` arguments sit inside a closed
-   * subtree? True when every pg_catalog row the call could resolve to at
-   * that arity is an immutable scalar function over immutable-I/O types,
-   * and no user function shares the name.
-   */
-  isImmutableFunction(name: string, argCount: number): boolean;
-  /**
-   * The operator-name reading of the same question, arity-blind because
-   * `pg_operator` gave it no arity axis to key on (see the capture doc for
-   * what that costs: `||` stays out whole).
-   */
-  isImmutableOperator(name: string): boolean;
-  /**
    * May `typeName` (the grammar's canonical spelling — `int4`, `bpchar`)
    * be a closed literal cast's target? True when the pg_catalog type's
    * input and output functions are both immutable and no user type — of
@@ -363,8 +350,6 @@ export interface SubtreeEvaluationCatalog {
  * `satisfies` keeps every name a real key.
  */
 export const EVALUATION_CATALOG_ONLY = [
-  "isImmutableFunction",
-  "isImmutableOperator",
   "isImmutableIoType",
   "closedOperatorTypes",
   "closedFunctionTypes",
