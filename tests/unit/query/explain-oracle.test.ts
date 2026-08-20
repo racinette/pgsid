@@ -5,9 +5,9 @@ import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { catalogCache } from "./fixture-catalog.js";
 import { inferNullability } from "../../../src/query/nullability-walk.js";
-import type { JoinAudit, NullabilityCatalog } from "../../../src/query/types.js";
+import type { JoinAudit } from "../../../src/query/types.js";
 import { parseFixtureDirectives, DEDUCTION_FAILURE } from "./fixture-args.js";
 import { countPlanOuterJoins, countRawOuterJoins, survivingOuterJoins } from "./explain-instrument.js";
 
@@ -94,13 +94,15 @@ interface Fixture {
   raisesPattern: string | null;
   plannerKeeps: { count: number; reason: string } | null;
   plannerReduces: { count: number; reason: string } | null;
+  searchPath: string[] | null;
 }
 
 const fixtures: Fixture[] = fixtureFiles.map(file => {
   const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
   const name = basename(file, ".sql");
-  const { raisesPattern, plannerKeeps, plannerReduces } = parseFixtureDirectives(sql);
-  return { name, sql, raisesPattern, plannerKeeps, plannerReduces };
+  const { raisesPattern, plannerKeeps, plannerReduces, searchPath } =
+    parseFixtureDirectives(sql);
+  return { name, sql, raisesPattern, plannerKeeps, plannerReduces, searchPath };
 });
 
 type OracleClass =
@@ -134,9 +136,16 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
     await pg.exec("CREATE EXTENSION plpgsql_check;");
     await pg.exec(SCHEMA_SQL);
     const snapshot = await snapshotCatalog(pg);
-    const catalog: NullabilityCatalog = await buildNullabilityCatalog(snapshot);
+    const catalogFor = catalogCache(snapshot);
 
     for (const fixture of fixtures) {
+      // `-- @search-path`: the walk's catalog AND the session EXPLAIN runs
+      // under must be the fixture's, or the planner is being compared
+      // against claims made about a different resolution.
+      const catalog = await catalogFor(fixture.searchPath);
+      if (fixture.searchPath) {
+        await pg.exec(`SET search_path = ${fixture.searchPath.join(", ")};`);
+      }
       const parsed = await parseSql(fixture.sql);
       const syntactic = countRawOuterJoins(parsed.stmts);
 
@@ -220,6 +229,7 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
         }
       }
       results.push({ name: fixture.name, syntactic, audited, surviving, plan, cls, error });
+      if (fixture.searchPath) await pg.exec("SET search_path = public;");
     }
     await pg.close();
   }, 180_000);

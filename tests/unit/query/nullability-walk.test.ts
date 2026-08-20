@@ -5,14 +5,13 @@ import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { catalogCache, withSearchPath, type CatalogFor } from "./fixture-catalog.js";
 import {
   inferNullability,
   inferNullabilityTraced,
   inferPresenceGroups,
 } from "../../../src/query/nullability-walk.js";
 import { formatColumnTrace } from "../../../src/query/trace-printer.js";
-import type { NullabilityCatalog } from "../../../src/query/types.js";
 import { parseFixtureDirectives } from "./fixture-args.js";
 
 // ---------------------------------------------------------------------------
@@ -69,14 +68,14 @@ function parseFixture(content: string): { sql: string; expectations: boolean[] }
 
 describe("nullability-walk", () => {
   let pg: PGlite;
-  let catalog: NullabilityCatalog;
+  let catalogFor: CatalogFor;
 
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
     await pg.exec("CREATE EXTENSION plpgsql_check;");
     await pg.exec(SCHEMA_SQL);
     const snapshot = await snapshotCatalog(pg);
-    catalog = await buildNullabilityCatalog(snapshot);
+    catalogFor = catalogCache(snapshot);
   });
 
   afterAll(async () => {
@@ -90,6 +89,12 @@ describe("nullability-walk", () => {
     it(testName, async () => {
       const content = readFileSync(filePath, "utf8");
       const { sql, expectations } = parseFixture(content);
+      // `-- @search-path` (fixture-args.ts): the catalog is built on the
+      // fixture's own path, and the SESSION is put on it too — the statement
+      // map executes closed subtrees, and those must resolve names the way
+      // the analysis assumed.
+      const { searchPath, nullGroupClaims } = parseFixtureDirectives(content);
+      const catalog = await catalogFor(searchPath);
 
       const parsed = await parseSql(sql);
       expect(parsed.stmts?.length ?? 0).toBeGreaterThan(0);
@@ -101,6 +106,10 @@ describe("nullability-walk", () => {
       // censuses keep exercising the symbolic paths evaluate short-circuits.
       const evaluate = async (s: string) =>
         (await pg.query<Record<string, unknown>>(s)).rows[0];
+
+      // Everything below runs under the fixture's path, so an evaluated
+      // subtree resolves names exactly as the claim assumed.
+      return withSearchPath(pg, searchPath, async () => {
 
       if (TRACE) {
         const traced = await inferNullabilityTraced(stmt, catalog, undefined, { evaluate });
@@ -145,7 +154,6 @@ describe("nullability-walk", () => {
       // an undocumented claim ("you improved — annotate it"); an annotated
       // group the engine no longer claims is stale and must come off.
       // Discriminant sets must match exactly — they are half the claim.
-      const { nullGroupClaims } = parseFixtureDirectives(content);
       const groups = inferPresenceGroups(stmt, catalog);
       const render = (g: { columns: number[]; discriminants: number[] }) =>
         g.columns.map(c => (g.discriminants.includes(c) ? `${c}*` : `${c}`)).join(",");
@@ -172,6 +180,7 @@ describe("nullability-walk", () => {
           ).toBe(false);
         }
       }
+      });
     });
   }
 

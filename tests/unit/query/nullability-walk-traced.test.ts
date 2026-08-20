@@ -5,7 +5,8 @@ import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { parseFixtureDirectives } from "./fixture-args.js";
+import { catalogCache, type CatalogFor } from "./fixture-catalog.js";
 import {
   inferNullability,
   inferNullabilityTraced,
@@ -16,6 +17,7 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 describe("nullability-walk-traced", () => {
   let pg: PGlite;
   let catalog: NullabilityCatalog;
+  let catalogFor: CatalogFor;
 
   beforeAll(async () => {
     pg = await PGlite.create({ extensions: { plpgsql_check } });
@@ -25,7 +27,8 @@ describe("nullability-walk-traced", () => {
     );
     await pg.exec(schemaSql);
     const snapshot = await snapshotCatalog(pg);
-    catalog = await buildNullabilityCatalog(snapshot);
+    catalogFor = catalogCache(snapshot);
+    catalog = await catalogFor(null);
   });
 
   afterAll(async () => {
@@ -49,9 +52,12 @@ describe("nullability-walk-traced", () => {
     const disagreements: string[] = [];
     for (const file of files) {
       const sql = readFileSync(join(fixturesDir, file), "utf8");
+      // `-- @search-path`: parity is a per-fixture property, so each side of
+      // it must be read on the fixture's OWN catalog.
+      const fixtureCatalog = await catalogFor(parseFixtureDirectives(sql).searchPath);
       const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
-      const plain = await inferNullability(stmt, catalog);
-      const traced = await inferNullabilityTraced(stmt, catalog);
+      const plain = await inferNullability(stmt, fixtureCatalog);
+      const traced = await inferNullabilityTraced(stmt, fixtureCatalog);
       const flat = (r: { name: string; notNull: boolean }[]): string =>
         r.map(c => `${c.name}:${c.notNull ? "notNull" : "nullable"}`).join(", ");
       if (flat(plain) !== flat(traced)) {

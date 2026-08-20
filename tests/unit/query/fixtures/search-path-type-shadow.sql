@@ -1,0 +1,49 @@
+-- The SHADOWING side of the type gate, which no fixture could reach before
+-- `-- @search-path` existed (2026-08-20).
+--
+-- pg_catalog is searched FIRST for type names unless the path names it
+-- explicitly. The shared schema declares relations called `date`, `jsonb`,
+-- `numeric` and `line` (see its tail), and under the corpus default path
+-- every one of those spellings still resolves to the builtin — which is what
+-- the rest of the corpus exercises implicitly on every run. Under the path
+-- below the ROWTYPES win, and `evalUserTypeShadows` reads the same rule
+-- PostgreSQL does, so the engine must cede whatever it was deriving from
+-- `date` being pg_catalog's date.
+--
+-- The measurement behind it: under this path `'2020-01-01'::date` RAISES
+-- "malformed record literal" — PostgreSQL is parsing the literal as the
+-- `date` table's rowtype. The shadow is not theoretical, which is exactly
+-- why nothing may be claimed across it.
+--
+-- The first column is the DISCRIMINATING one, and it is the reason this
+-- fixture is not merely a plumbing check. `check-interval-datetime.sql`
+-- makes the same claim on the same table under the default path and reads
+-- NON-NULL: the CHECK says `d > '2020-01-01'`, so the `<= '2019-06-01'` arm
+-- is unreachable and the CASE cannot take its NULL branch. That derivation
+-- needs `date` to BE pg_catalog's date — the engine reaches it through
+-- `closedDatetimeCastTarget`, which refuses a shadowed spelling. So the same
+-- expression is NULLABLE here.
+--
+-- (Those two words are spelled out rather than written as markers: the
+-- per-column parser matches the bare directive substrings ANYWHERE in a
+-- line, so naming them in prose silently adds phantom columns.)
+--
+-- PostgreSQL executes it under both paths, which is what makes the pair
+-- meaningful: the column's type and the CHECK were resolved at DDL time, and
+-- the unknown literal is coerced by the comparison rather than by a
+-- type-name lookup. Nothing about the STATEMENT changes; only what the
+-- engine is allowed to know about it does.
+--
+-- `bare-name-gates-red.test.ts` holds both sides against the oracle
+-- directly. This is the corpus's side of the same fact.
+-- @search-path public, pg_catalog
+-- @unwitnessable 0: no row can reach the NULL branch — the CHECK is
+--   `d > '2020-01-01'` and the arm tests `d <= '2019-06-01'`. That is the
+--   POINT: the column is nullable because the engine is barred from proving
+--   the arm unreachable under this path, not because a NULL exists. The same
+--   expression is claimed non-null in check-interval-datetime.sql, and the
+--   data that witnesses nothing here witnesses nothing there either.
+SELECT
+  CASE WHEN d.d <= '2019-06-01' THEN NULL ELSE 5 END AS shadowed_gap,  -- @nullable
+  d.d                                                AS raw            -- @nullable
+FROM ivdt d

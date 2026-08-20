@@ -5,10 +5,9 @@ import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { catalogCache } from "./fixture-catalog.js";
 import { inferNullability, inferPresenceGroups } from "../../../src/query/nullability-walk.js";
 import type {
-  NullabilityCatalog,
   OutputNullability,
   OutputPresenceGroup,
 } from "../../../src/query/types.js";
@@ -84,6 +83,10 @@ interface Fixture {
   raisesPattern: string | null;
   alwaysRaises: boolean;
   unwitnessable: Map<number, string>;
+  /** `-- @search-path`: analysed AND executed under this path (null = the
+   *  corpus default). Both halves matter — a claim made under one path and
+   *  adjudicated under another is adjudicating a different statement. */
+  searchPath: string[] | null;
 }
 
 /** What execution observed about one presence group, across every run. */
@@ -120,13 +123,25 @@ const fixtures: Fixture[] = fixtureFiles.map(file => {
   const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
   const name = basename(file, ".sql");
   try {
-    const { bindings, noRowsReason, raisesPattern, alwaysRaises, unwitnessable } =
+    const { bindings, noRowsReason, raisesPattern, alwaysRaises, unwitnessable, searchPath } =
       parseFixtureDirectives(sql);
-    return { name, sql, bindings, noRowsReason, raisesPattern, alwaysRaises, unwitnessable };
+    return {
+      name, sql, bindings, noRowsReason, raisesPattern, alwaysRaises, unwitnessable, searchPath,
+    };
   } catch (e) {
     throw new Error(`${file}: ${(e as Error).message}`);
   }
 });
+
+/** The fixture's path for the duration of its adjudication. Paired calls
+ *  rather than a wrapper: the analysis phase spans a PREPARE, a shape probe
+ *  and a rollback, and the data-state phase spans every binding. */
+async function pushSearchPath(pg: PGlite, searchPath: string[] | null): Promise<void> {
+  if (searchPath) await pg.exec(`SET search_path = ${searchPath.join(", ")};`);
+}
+async function popSearchPath(pg: PGlite, searchPath: string[] | null): Promise<void> {
+  if (searchPath) await pg.exec("SET search_path = public;");
+}
 
 const results = new Map<string, FixtureResult>();
 let dataStates: DataState[] = [];
@@ -138,12 +153,19 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     await pg.exec("CREATE EXTENSION plpgsql_check;");
     await pg.exec(SCHEMA_SQL);
     const snapshot = await snapshotCatalog(pg);
-    const catalog: NullabilityCatalog = await buildNullabilityCatalog(snapshot);
+    const catalogFor = catalogCache(snapshot);
     dataStates = loadDataStates(snapshot);
 
     let prepareCounter = 0;
     for (const fixture of fixtures) {
       const parsed = await parseSql(fixture.sql);
+      // `-- @search-path` (fixture-args.ts): the catalog is built on the
+      // fixture's path and the SESSION is held on it for the whole
+      // adjudication — analysis, PREPARE, shape and every data state. A
+      // claim made under one path and witnessed under another is not a
+      // witness, and type-name resolution is exactly what the axis moves.
+      const catalog = await catalogFor(fixture.searchPath);
+      await pushSearchPath(pg, fixture.searchPath);
       // Same analysis mode as the fixture suite: the statement map runs live,
       // so the claims the oracle adjudicates are the claims the pins assert.
       const claimed = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
@@ -192,6 +214,7 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         errors: [],
         sawRows: false,
       });
+      await popSearchPath(pg, fixture.searchPath);
     }
     await pg.close();
 
@@ -204,6 +227,7 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
 
       for (const fixture of fixtures) {
         const result = results.get(fixture.name)!;
+        await pushSearchPath(statePg, fixture.searchPath);
         for (const binding of fixture.bindings) {
           const where = `${state.name}/${binding.label}`;
           await statePg.exec("BEGIN;");
@@ -268,6 +292,7 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
             await statePg.exec("ROLLBACK;");
           }
         }
+        await popSearchPath(statePg, fixture.searchPath);
       }
       await statePg.close();
     }
