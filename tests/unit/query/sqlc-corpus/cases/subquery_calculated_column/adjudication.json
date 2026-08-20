@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "Both columns plain nullable int; + is strict and the renaming subquery changes nothing.",
+  "entries": {
+    "SubqueryCalcColumn#0 (sum)": {
+      "disposition": "ticket-ready",
+      "ticket": "T2",
+      "note": "Row [null]. No parameter, no aggregate, no cast. Measured on v1.31.1, the subquery is not the cause: `SELECT a + b AS s FROM foo` is NOT NULL on its own while `SELECT * FROM (SELECT a AS x FROM foo) AS f` is correctly nullable."
+    }
+  }
+}

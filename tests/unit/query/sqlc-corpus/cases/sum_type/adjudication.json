@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "Empty orders: SUM over zero rows is NULL, quantity decimal NOT NULL notwithstanding.",
+  "entries": {
+    "SumOrder#0 (sum)": {
+      "disposition": "ticket-ready",
+      "ticket": "T1",
+      "note": "Row [null] with no data at all."
+    }
+  }
+}

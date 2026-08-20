@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "The parent declares no constraint; the NOT NULL belongs to the child llc, and INHERITS merges parent to child only.",
+  "entries": {
+    "GetAllOrganisations#2 (legal_name)": {
+      "disposition": "ticket-ready",
+      "ticket": "T4",
+      "note": "The row comes back NULL. Deleting `llc` from the schema makes sqlc report the column nullable, which isolates the direction: the constraint flows child -> parent there."
+    }
+  }
+}

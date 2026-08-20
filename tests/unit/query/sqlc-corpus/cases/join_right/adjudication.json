@@ -1,0 +1,24 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "bar id 2 has no partner (the null-extended row) and foo id 10 holds a NULL bar_id. Both bindings run, so the surviving arm and the removed one are each observed.",
+  "args": {
+    "RightJoin": [
+      [
+        10
+      ],
+      [
+        11
+      ]
+    ]
+  },
+  "entries": {
+    "RightJoin#0 (id)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: WHERE promotion on the non-preserved side of an outer join."
+    },
+    "RightJoin#1 (bar_id)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: promotion from the strict ON qual (`b.id = f.bar_id`) once WHERE has removed the null-extended arm. A surviving row's bar_id equals a non-null b.id."
+    }
+  }
+}

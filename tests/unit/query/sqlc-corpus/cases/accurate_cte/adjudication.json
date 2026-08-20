@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "No rows at all. An ungrouped aggregate still emits its one row, and AVG over zero inputs is NULL however NOT NULL the aggregated column is.",
+  "entries": {
+    "GetProductStats#1 (avg_price)": {
+      "disposition": "ticket-ready",
+      "ticket": "T1",
+      "note": "AVG over an empty table returns NULL through the CTE. `products.price` is NUMERIC NOT NULL and that never reaches the aggregate's result."
+    }
+  }
+}

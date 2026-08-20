@@ -1,0 +1,17 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A nullable enum column with a NULL row present, which the equality filters out.",
+  "args": {
+    "query_param_enum_table": [
+      [
+        "h"
+      ]
+    ]
+  },
+  "entries": {
+    "query_param_enum_table#2 (value)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: WHERE promotion — equality on an enum column is strict like any other."
+    }
+  }
+}

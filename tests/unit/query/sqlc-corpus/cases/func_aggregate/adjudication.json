@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "Empty authors: an ordered-set aggregate over zero rows is NULL, and authors.name being text NOT NULL never reaches the result.",
+  "entries": {
+    "Percentile#0 (percentile_disc)": {
+      "disposition": "ticket-ready",
+      "ticket": "T1",
+      "note": "NULL over the empty table; `['a']` with one author. Ordered-set aggregates follow the same empty-input rule as the plain ones."
+    }
+  }
+}

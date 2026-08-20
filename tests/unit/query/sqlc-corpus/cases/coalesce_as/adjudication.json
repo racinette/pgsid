@@ -1,0 +1,10 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A group whose every baz is NULL, so sum(baz) is NULL and only the COALESCE default carries the column.",
+  "entries": {
+    "SumBaz#1 (quantity)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: its COALESCE non-null-default reasoning does not fire through an aggregate argument. Measured on v1.31.1 — `coalesce(baz, 0)` is NOT NULL there, `coalesce(sum(baz), 0)` is nullable."
+    }
+  }
+}

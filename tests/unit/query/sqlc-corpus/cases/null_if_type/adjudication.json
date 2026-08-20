@@ -1,0 +1,18 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A NOT NULL column and a non-NULL parameter that equals one of its values.",
+  "args": {
+    "GetRestrictedId": [
+      [
+        1
+      ]
+    ]
+  },
+  "entries": {
+    "GetRestrictedId#0 (restricted_id)": {
+      "disposition": "ticket-ready",
+      "ticket": "T2",
+      "note": "Rows [null] and [2]. The cleanest repro in the register — no NULL in the state, no NULL in the binding, and a NULL result. sqlc types it `bool` as well, because PostgreSQL's raw parse tree renders NULLIF as an A_Expr named `=`."
+    }
+  }
+}

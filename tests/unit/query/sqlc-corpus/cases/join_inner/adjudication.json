@@ -1,0 +1,26 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A NULL events.ID and a NULL last_handled_id, so both operands of the strict join qual get their turn.",
+  "args": {
+    "SelectAllJoined": [
+      [
+        "h"
+      ]
+    ],
+    "SelectAllJoinedAlias": [
+      [
+        "h"
+      ]
+    ]
+  },
+  "entries": {
+    "SelectAllJoined#0 (id)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: promotion from a strict JOIN qual, not just from WHERE. `NULL > anything` is NULL, so the inner join drops the NULL-ID row."
+    },
+    "SelectAllJoinedAlias#0 (id)": {
+      "disposition": "conservatism-expected",
+      "note": "Same rule as the unaliased spelling; the alias changes nothing."
+    }
+  }
+}

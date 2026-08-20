@@ -1,0 +1,21 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "No table is involved; the query's only input is $1, bound both non-null and NULL.",
+  "args": {
+    "Demo": [
+      [
+        "x"
+      ],
+      [
+        null
+      ]
+    ]
+  },
+  "entries": {
+    "Demo#0 (col1)": {
+      "disposition": "ticket-ready",
+      "ticket": "T2",
+      "note": "NULL only under a NULL binding, which sqlc's own IR declares out of contract (`params: [true]`). Recorded rather than hidden: the claim is produced by the TypeCast branch T2 describes, and T2's convicting repros need no parameter."
+    }
+  }
+}

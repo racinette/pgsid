@@ -1,0 +1,16 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "The NULL row is present; the WHERE equality is what removes it.",
+  "args": {
+    "GetSecond": [
+      [1],
+      [null]
+    ]
+  },
+  "entries": {
+    "GetSecond#1 (val2)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: WHERE promotion. `val2 = $1` is strict, so any surviving row has a non-null val2. `$1 = NULL` returns zero rows."
+    }
+  }
+}
