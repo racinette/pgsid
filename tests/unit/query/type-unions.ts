@@ -22,6 +22,12 @@ export interface Reading {
   /** Every set read for this expression text, in walk order. A single
    *  expression can be read more than once — see the consistency test. */
   sets: (string[] | null)[];
+  /** The AST node kind (`A_Expr`, `A_Const`, `CoalesceExpr`, …). The census
+   *  needs it to separate a node it CANNOT type from a leaf that is
+   *  correctly untypeable — a bare string literal is `unknown` in
+   *  PostgreSQL too, and counting it as a gap made the census read as if
+   *  nothing had improved. */
+  kind: string;
 }
 
 /** Deparse one expression node back to SQL. */
@@ -53,9 +59,10 @@ export async function readingsFor(
   for (const rec of audit) {
     const key = exprSql(rec.expr);
     if (key === null) continue;
+    const kind = Object.keys(rec.expr as object)[0] ?? "?";
     const existing = out.get(key);
     if (existing) existing.sets.push(rec.set);
-    else out.set(key, { sets: [rec.set] });
+    else out.set(key, { sets: [rec.set], kind });
   }
   return out;
 }

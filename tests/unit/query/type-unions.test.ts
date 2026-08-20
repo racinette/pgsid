@@ -105,6 +105,7 @@ describe("type unions", () => {
 
       let readings = 0;
       let noClaim = 0;
+      let correctlyUnknown = 0;
       let singleton = 0;
       let wide = 0;
       let polymorphic = 0;
@@ -125,7 +126,15 @@ describe("type unions", () => {
           for (const set of rec.sets) {
             readings++;
             if (set === null) {
-              noClaim++;
+              // A bare literal is `unknown` in PostgreSQL too, and its type
+              // comes from whatever consumes it — not a gap. Counting those
+              // beside the nodes that genuinely cannot be typed made the
+              // census misleading: wiring the member-list nodes typed five
+              // real expressions and moved the total by ONE, because typing
+              // a node means READING its members and an unknown member is a
+              // new, correct, null reading.
+              if (rec.kind === "A_Const") correctlyUnknown++;
+              else noClaim++;
               continue;
             }
             if (set.length === 1) singleton++;
@@ -155,6 +164,7 @@ describe("type unions", () => {
           "",
           "type-union census over the fixture corpus",
           `  readings:              ${readings}`,
+          `    unknown literal:     ${correctlyUnknown}  (correct — not a gap)`,
           `    no claim (null):     ${noClaim}`,
           `    singleton:           ${singleton}`,
           `    multi-member:        ${wide}`,
