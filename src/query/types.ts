@@ -345,9 +345,20 @@ export interface SubtreeEvaluationCatalog {
 /**
  * Members of the adapter's product that belong to `SubtreeEvaluationCatalog`
  * ALONE — same contract as `DEP_CATALOG_ONLY` and `OVERLOAD_CATALOG_ONLY`:
- * the walk cannot call them, the censuses must not expect query coverage of
- * them (the subtree evaluator's own census covers them instead), and
- * `satisfies` keeps every name a real key.
+ * the walk's evaluator-OFF census cannot reach them, so it must not expect
+ * query coverage of them, and `satisfies` keeps every name a real key.
+ *
+ * The exemption is a PROMISE, not a pass (corrected 2026-08-20). It used to
+ * say the coverage happened in "the subtree evaluator's own census", and no
+ * such census existed: both spy-based censuses run the walk WITHOUT an
+ * evaluator, which makes every member here unreachable by construction — so
+ * neither the cold-member check nor `askedAnyway` could ever fire for one.
+ * `isImmutableFunction` and `isImmutableOperator` sat dead behind that for
+ * as long as it took someone to read a doc bullet.
+ *
+ * `catalog-census.test.ts` now runs a SECOND pass with the evaluator on and
+ * asserts every name here is reached. Adding a member to this list without a
+ * corpus statement that exercises it now fails.
  */
 export const EVALUATION_CATALOG_ONLY = [
   "isImmutableIoType",
