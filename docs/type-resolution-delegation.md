@@ -245,6 +245,27 @@ tests that will fight an "improvement":
   purpose: pinned counts would make every precision improvement a maintenance
   chore. Keep it that way. The CONTAINMENT invariant is the thing that must
   never regress.
+- **The fixture search-path axis.** A fixture may declare
+  `-- @search-path public, pg_catalog`, and all six suites that read fixtures
+  honour it — per-path catalogs via `tests/unit/query/fixture-catalog.ts`,
+  and the session set to match wherever the fixture is executed. If you add a
+  suite that reads fixtures, honour it or call `refuseSearchPathFixture`; a
+  directive some suites drop silently is worse than none.
+
+## Two things that will bite if you do not know them
+
+- **The catalog census has a second pass, with the evaluator ON.** If this
+  work adds a member to `SubtreeEvaluationCatalog` (or to
+  `EVALUATION_CATALOG_ONLY`), a corpus statement must REACH it or
+  `catalog-census.test.ts` fails by name. That check was added 2026-08-20
+  after two members were found dead behind the exemption, and it is
+  deliberately hard to satisfy vacuously. A new callback type — which is
+  what `ResolveColumnTypes` should be — is not a face member and is not
+  subject to it.
+- **The per-column fixture parser matches `@notNull` and `@nullable` as bare
+  substrings ANYWHERE in a line.** Writing either word in a fixture's header
+  prose silently adds a phantom column and the fixture fails with an
+  arity mismatch. Spell them out in prose.
 
 ## The red suite
 
@@ -288,7 +309,7 @@ bucket before committing to a design that assumes it.
   14964 generated queries per run. More precise types produce MORE notNull
   claims, and that direction can only be proven, never assumed. Watch that
   count move and watch violations stay at zero.
-- `tests/unit/query/sqlc-corpus.test.ts` runs separately and takes ~100s.
+- `tests/unit/query/sqlc-corpus.test.ts` runs separately and takes ~30s.
 
 ## House constraints
 
