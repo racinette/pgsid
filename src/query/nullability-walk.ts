@@ -36,6 +36,7 @@ import type {
   OutputNullabilityTraced,
   OutputPresenceGroup,
   JoinAudit,
+  TypeSetAudit,
   ResolvedTable,
   TraceNode,
 } from "./types.js";
@@ -86,6 +87,14 @@ export interface WalkOptions {
    * production, where claims never carry the field.
    */
   collectUnitCrossings?: boolean;
+  /**
+   * Test-side sink for every operand TYPE SET the walk reads (see
+   * `TypeSetAudit` in types.ts). Read by the type-union oracle, which asks
+   * PostgreSQL what each recorded expression really resolves to and holds
+   * the containment invariant. Absent in production, and never affects the
+   * walk.
+   */
+  typeSetAudit?: TypeSetAudit[];
 }
 
 /** The pre-walk evaluation round: one async step, answers in, sync walk. */
@@ -136,6 +145,7 @@ export async function inferNullability(
   );
   if (options?.joinAudit) engine.joinAuditSink = options.joinAudit;
   if (options?.collectUnitCrossings) engine.collectUnitCrossings = true;
+  if (options?.typeSetAudit) engine.typeSetAuditSink = options.typeSetAudit;
   return engine.run(stmt);
 }
 
@@ -802,6 +812,12 @@ class NullabilityEngine {
   joinAuditSink: JoinAudit[] | null = null;
   /** Test-side flag (`WalkOptions.collectUnitCrossings`); see types.ts. */
   collectUnitCrossings = false;
+  /**
+   * Test-side sink for operand type-set readings (`WalkOptions.typeSetAudit`).
+   * Appended by `operandTypeSet` at every nesting level; null in production
+   * use. Never read by the walk itself.
+   */
+  typeSetAuditSink: TypeSetAudit[] | null = null;
   /** Audit dedup: one record per syntactic join, keyed on its JoinExpr node. */
   private joinAuditSeen = new WeakMap<object, JoinAudit>();
   /** Per-scope memoization: AST node → results (keyed by object identity). */
@@ -5082,7 +5098,16 @@ class NullabilityEngine {
    * `(a + b) + (c + d)` compose — exactly, when each union is a singleton.
    * Everything else falls to `renderedTypeOfExpr` (columns, casts).
    */
+  /** The reading, plus the audit tap. Wrapping rather than threading a
+   *  record into every return keeps the readings and what the audit sees
+   *  the same thing by construction. */
   private operandTypeSet(expr: Node, scope: Scope | null, depth: number): string[] | null {
+    const set = this.operandTypeSetOf(expr, scope, depth);
+    if (this.typeSetAuditSink) this.typeSetAuditSink.push({ expr, set });
+    return set;
+  }
+
+  private operandTypeSetOf(expr: Node, scope: Scope | null, depth: number): string[] | null {
     this.checkDepth(depth);
     const rec = expr as Record<string, unknown>;
     const ac = rec["A_Const"] as
@@ -6339,6 +6364,13 @@ class NullabilityEngine {
         const op = opNames[opNames.length - 1] ?? "";
         trace.addFact("operator", opNames.join("."));
 
+        // Read ONCE, per side. Three branches below want these — the typed
+        // narrowing, the prefix form, and the bare-name fallback that now
+        // eliminates with them — and each operand is a subtree, so reading
+        // per branch would walk `a || b || c` twice at every level.
+        const lset = ae.lexpr ? this.operandTypeSet(ae.lexpr, scope, depth + 1) : null;
+        const rset = ae.rexpr ? this.operandTypeSet(ae.rexpr, scope, depth + 1) : null;
+
         // Type-aware narrowing first (docs/type-aware-overloads.md, the
         // operator slice): where the operand types are readable, the
         // candidate set — path-visible user operators MERGED with the
@@ -6348,8 +6380,7 @@ class NullabilityEngine {
         // recorded holes then apply only to the untypeable residue.
         if (ae.lexpr && ae.rexpr) {
           const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined;
-          const lt = this.operandTypeSet(ae.lexpr, scope, depth + 1);
-          const rt = this.operandTypeSet(ae.rexpr, scope, depth + 1);
+          const [lt, rt] = [lset, rset];
           const narrowed = this.catalog.resolveOperatorTotality(opSchema2, op, lt, rt);
           if (narrowed.kind !== "unknown") {
             trace.addFact(
@@ -6401,7 +6432,7 @@ class NullabilityEngine {
         // The PREFIX form, same machinery over the leftType-null rows.
         if (!ae.lexpr && ae.rexpr) {
           const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined;
-          const at = this.operandTypeSet(ae.rexpr, scope, depth + 1);
+          const at = rset;
           const narrowed = this.catalog.resolveUnaryOperatorTotality(opSchema2, op, at);
           if (narrowed.kind !== "unknown") {
             trace.addFact("operandTypes", at?.join("|") ?? "unknown");
@@ -6455,8 +6486,16 @@ class NullabilityEngine {
           // NOT NULL domain return, LANGUAGE sql body inlining, the strict
           // policy — with the operands as arguments. `x === y` resolves to
           // lenient_eq, whose body is analysed like any sql function's.
+          //
+          // The operand sets go WITH the name (2026-08-20): reaching here
+          // means the typed narrowing found nothing to answer with, not that
+          // nothing was known. A readable operand still eliminates — a user
+          // `->(boolean, boolean)` cannot be what `jsonb -> 'id'` resolves
+          // to — and dispatching an eliminated row analyses the wrong body
+          // and claims notNull for an expression that answers NULL
+          // (`bare-name-gates-red.test.ts`).
           const opSchema = qualified ? opNames[opNames.length - 2] : undefined;
-          const custom = this.catalog.resolveOperatorMetadata(opSchema, op);
+          const custom = this.catalog.resolveOperatorMetadata(opSchema, op, lset, rset);
           if (custom?.functionSchema && custom.functionName) {
             trace.addFact(
               "customOperator",

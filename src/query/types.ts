@@ -591,12 +591,22 @@ export interface NullabilityCatalog {
   /**
    * Custom operator metadata (for A_Expr dispatch), by the proven
    * single-candidate policy: exactly one user operator with this name (and
-   * schema, when the reference is qualified) or null — operand types are
-   * not available to the walk, so with overloads guessing is never correct.
-   * Builtin operator names are NOT here; they keep the curated
-   * curated operator sets and their documented shadowing blind spot.
+   * schema, when the reference is qualified) or null. Builtin operator names
+   * are NOT here; they keep the curated operator sets and their documented
+   * shadowing blind spot.
+   *
+   * The operand type SETS narrow the candidates when given, by the
+   * elimination rule of docs/type-aware-overloads.md — omitted or null
+   * constrains nothing, and eliminating every candidate answers null rather
+   * than dispatching one the operands rule out. Callers that only want
+   * STRICTNESS may omit them; the A_Expr dispatch must not.
    */
-  resolveOperatorMetadata(schema: string | undefined, name: string): OperatorMetadata | null;
+  resolveOperatorMetadata(
+    schema: string | undefined,
+    name: string,
+    leftTypes?: readonly string[] | null,
+    rightTypes?: readonly string[] | null,
+  ): OperatorMetadata | null;
 
   /**
    * Type-aware totality for a BINARY operator expression. Each operand is a
@@ -1091,6 +1101,27 @@ export interface JoinAudit {
    */
   leftGroup?: number;
   rightGroup?: number;
+}
+
+/**
+ * One reading of an expression's TYPE SET — what the walk believes an
+ * operand could be, which is what every elimination downstream is decided
+ * on (docs/type-aware-overloads.md). `null` is "no claim", always sound.
+ *
+ * The set is a UNION over surviving candidates, so its governing invariant
+ * is containment, not equality: whatever type PostgreSQL actually resolves
+ * the expression to must be IN it. A set that omits the real type is how a
+ * wrong elimination happens — the failure mode that reached production once
+ * already, on the operator side (see `bare-name-gates-red.test.ts`).
+ *
+ * Recorded per `operandTypeSet` call, so the audit sees the reading the walk
+ * really used, at every nesting level, rather than a re-derivation.
+ */
+export interface TypeSetAudit {
+  /** The expression node, for deparsing back to SQL an oracle can run. */
+  expr: unknown;
+  /** The walk's reading: the survivor union, or null for no claim. */
+  set: string[] | null;
 }
 
 // ---------------------------------------------------------------------------

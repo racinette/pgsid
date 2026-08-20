@@ -626,6 +626,12 @@ export interface OperatorInfo {
    * operator carries upward as its return-type union member.
    */
   resultType: string;
+  /**
+   * pg_proc.provolatile of the backing function. The subtree evaluator's
+   * survivor consensus admits `i` and refuses `s`/`v`, exactly as it does
+   * for a user FUNCTION row (docs/function-overload-merge.md).
+   */
+  volatility: "i" | "s" | "v";
 }
 
 export interface CatalogSnapshot {

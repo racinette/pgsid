@@ -1160,6 +1160,40 @@ to is those two typing sources, the mechanism-C ParamRef threading, and
 named-notation dispatch — each a precision extension of landed machinery,
 none a soundness question.
 
+**THE PREDICATE SIDE READS NO TYPES AT ALL (found 2026-08-20, by the
+type-union suite's measurement).** `promotionOperatorIsStrict` declares
+`scope: Scope | null = null`, and BOTH of its call sites —
+`predicateProvesNonNull`'s `AEXPR_OP` arm and `exprStrictlyForces`'s —
+pass three arguments. So `renderedTypeOfExpr` returns on its first line
+(`if (!("ColumnRef" in rec) || !scope) return null`) and every column
+reference in a WHERE or JOIN predicate reads UNTYPED. Base tables and CTEs
+alike: `a.quantity` in the target list reads `[integer]` while
+`a.order_id` in `ON a.order_id < b.order_id` reads null, in the same
+statement, over the same table. That asymmetry is what
+`type-unions.test.ts`'s consistency test is red on.
+
+Precision, not soundness — with nothing known the strictness accessor
+answers false and the promotion does not happen. The fix is threading
+`scope` through `predicateProvesNonNull` → `exprStrictlyForces`, and it
+wants the generated soundness sweep watching it: giving the promotion gate
+real types produces MORE notNull claims, which is the direction that has to
+be proven. A scope is already in hand at the outer caller (line ~7857 uses
+it for `columnMatches`); it is captured in a closure and never threaded.
+
+**The fallback's price is not two claims, it is two PLUS whatever the
+schema names (measured 2026-08-20).** The two above are what it costs on a
+schema with no user operator on a curated symbol. Add one — a `boolean ||
+boolean`, an ordinary thing for a schema to have — and the same fallback
+cedes six fixtures: `$1 || 'x'` in three parameter fixtures,
+`a.total + b.total`, the default-argument body arithmetic, and
+`param-overload-arity`'s `$1 || '!'`. Every one is an untypeable operand
+beside a typed literal, so the retirement condition does not change; what
+changes is the payoff, which now scales with the user's schema rather than
+sitting at two. Recorded, not scheduled. The measurement lives in
+`bare-name-gates-red.test.ts`'s header, and it is also the reason the
+colliding operators are NOT in `fixtures/schema.sql` — six real claims is
+too much to pay to exercise a rule the red suite already holds.
+
 **A review question then found — and closed — the charter's item 5 gap
 (2026-08-09):** "user overloads come free" had been true of consensus
 only; typed SELECTION among ordinary user overloads was never wired.

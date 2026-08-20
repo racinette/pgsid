@@ -1569,3 +1569,22 @@ CREATE FUNCTION public.scale(x boolean) RETURNS integer
   LANGUAGE sql IMMUTABLE AS $$ SELECT 1 $$;
 CREATE FUNCTION public.length(x boolean) RETURNS integer
   LANGUAGE sql IMMUTABLE AS $$ SELECT 1 $$;
+
+-- Relations named after pg_catalog TYPES — the type half of the bare-name
+-- gate work (bare-name-gates-red.test.ts, 2026-08-20). `line` for order
+-- lines and `date` for a calendar are ordinary names for ordinary tables,
+-- and each one used to cost the whole query every datetime and
+-- immutable-I/O fold: the gate assumed a user type of that name always wins
+-- the spelling. It does not. pg_catalog is searched FIRST unless the search
+-- path names it explicitly, so under this corpus's path the builtin wins
+-- every one of these — measured, and `bare-name-gates-red.test.ts` holds
+-- both sides of it, including the `search_path = public, pg_catalog` case
+-- where the rowtypes really do win and the engine cedes.
+--
+-- They sit in the SHARED schema for the reason `scale(boolean)` does: the
+-- rule is then exercised by every fixture that casts or reads a date,
+-- rather than by the one case that agrees with it.
+CREATE TABLE "date" (x integer);
+CREATE TABLE "jsonb" (x integer);
+CREATE TABLE "numeric" (x integer);
+CREATE TABLE "line" (x integer);
