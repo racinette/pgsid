@@ -540,8 +540,6 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinTypeKinds,
     builtinTypeNameAliases,
     builtinImmutableIoTypes,
-    builtinImmutableFunctionArities,
-    builtinImmutableOperators,
     builtinFunctionVolatilities,
     builtinOperatorVolatilities,
     builtinBtreeStrategies,
@@ -582,8 +580,6 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinTypeKinds(pg),
     queryBuiltinTypeNameAliases(pg),
     queryBuiltinImmutableIoTypes(pg),
-    queryBuiltinImmutableFunctionArities(pg),
-    queryBuiltinImmutableOperators(pg),
     queryBuiltinFunctionVolatilities(pg),
     queryBuiltinOperatorVolatilities(pg),
     queryBuiltinBtreeStrategies(pg),
@@ -1012,8 +1008,6 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinTypeKinds,
     builtinTypeNameAliases,
     builtinImmutableIoTypes,
-    builtinImmutableFunctionArities,
-    builtinImmutableOperators,
     builtinFunctionVolatilities,
     builtinOperatorVolatilities,
     builtinBtreeStrategies,
@@ -1703,13 +1697,17 @@ async function queryBuiltinTypeNameAliases(pg: PGlite): Promise<Record<string, s
 
 /**
  * The immutable-I/O type set and the reachability exemption, shared by the
- * three subtree-evaluator captures below. See
- * CatalogSnapshot.builtinImmutableIoTypes for what the set means and
- * builtinImmutableFunctionArities for why a row with an operand outside it
- * may be EXEMPT rather than disqualifying: no closed subtree can produce
- * such a value, and PostgreSQL's unknown-literal resolution cannot select
- * it either. All measured 2026-08-11; the I/O volatilities themselves are
- * pinned in param-mechanism.test.ts.
+ * subtree-evaluator captures below. See
+ * CatalogSnapshot.builtinImmutableIoTypes for what the set means. Measured
+ * 2026-08-11; the I/O volatilities themselves are pinned in
+ * param-mechanism.test.ts.
+ *
+ * Two sibling captures — `builtinImmutableFunctionArities` and
+ * `builtinImmutableOperators` — were removed 2026-08-20 along with the
+ * `UNREACHABLE_TYPE` helper they shared. They fed `isImmutableFunction` and
+ * `isImmutableOperator`, which the evaluator stopped consulting once it
+ * asked the closure question by SIGNATURE (`closedFunctionTypes`,
+ * `closedOperatorTypes`) instead of by bare name.
  */
 const IMMUTABLE_IO_TYPES = `
   SELECT t.oid FROM pg_type t
@@ -1717,18 +1715,6 @@ const IMMUTABLE_IO_TYPES = `
   JOIN pg_proc po ON po.oid = t.typoutput
   WHERE pi.provolatile = 'i' AND po.provolatile = 'i'
     AND t.typnamespace = 'pg_catalog'::regnamespace`;
-
-/** A type an operand/parameter can carry that closed subtrees cannot reach. */
-const UNREACHABLE_TYPE = (col: string) => `
-  ${col} <> 0 AND EXISTS (
-    SELECT 1 FROM pg_type ty WHERE ty.oid = ${col} AND (
-      (ty.oid NOT IN (SELECT oid FROM immutable_io)
-       AND NOT (ty.typelem <> 0 AND ty.typlen = -1)
-       AND ty.typtype <> 'p')
-      OR ty.typname IN ('anyrange', 'anymultirange',
-                        'anycompatiblerange', 'anycompatiblemultirange')
-    )
-  )`;
 
 async function queryBuiltinImmutableIoTypes(pg: PGlite): Promise<string[]> {
   const res = await pg.query<{ name: string }>(
@@ -1742,60 +1728,7 @@ async function queryBuiltinImmutableIoTypes(pg: PGlite): Promise<string[]> {
   return res.rows.map(r => r.name);
 }
 
-async function queryBuiltinImmutableFunctionArities(
-  pg: PGlite,
-): Promise<Record<string, number[]>> {
-  // A row matches argument count k when k lands in its callable span:
-  // defaulted trailing parameters widen it downward, a variadic parameter
-  // widens it upward (and can itself be omitted). The verdict quantifies
-  // over every matching row, exempting only the unreachable ones.
-  const res = await pg.query<{ name: string; k: number }>(
-    `WITH immutable_io AS (${IMMUTABLE_IO_TYPES}),
-     rows_ AS (
-       SELECT p.proname,
-              p.pronargs::int AS maxa,
-              CASE WHEN p.provariadic <> 0
-                   THEN greatest(p.pronargs - p.pronargdefaults - 1, 0)
-                   ELSE p.pronargs - p.pronargdefaults END::int AS mina,
-              p.provariadic <> 0 AS variadic,
-              p.prokind = 'f' AND NOT p.proretset AND p.provolatile = 'i'
-                AND p.prorettype IN (SELECT oid FROM immutable_io) AS good
-       FROM pg_proc p
-       WHERE p.pronamespace = 'pg_catalog'::regnamespace
-         AND NOT EXISTS (
-           SELECT 1 FROM unnest(p.proargtypes) a(t)
-           WHERE ${UNREACHABLE_TYPE("a.t")}
-         )
-     )
-     SELECT r.proname AS name, k.k::int AS k
-     FROM rows_ r
-     JOIN generate_series(0, 8) k(k)
-       ON k.k >= r.mina AND (r.variadic OR k.k <= r.maxa)
-     GROUP BY r.proname, k.k
-     HAVING bool_and(r.good)
-     ORDER BY r.proname, k.k;`,
-  );
-  const out: Record<string, number[]> = {};
-  for (const r of res.rows) (out[r.name] ??= []).push(r.k);
-  return out;
-}
 
-async function queryBuiltinImmutableOperators(pg: PGlite): Promise<string[]> {
-  const res = await pg.query<{ name: string }>(
-    `WITH immutable_io AS (${IMMUTABLE_IO_TYPES})
-     SELECT o.oprname AS name
-     FROM pg_operator o
-     JOIN pg_proc p ON p.oid = o.oprcode
-     WHERE o.oprnamespace = 'pg_catalog'::regnamespace
-       AND NOT (${UNREACHABLE_TYPE("o.oprleft")})
-       AND NOT (${UNREACHABLE_TYPE("o.oprright")})
-     GROUP BY o.oprname
-     HAVING bool_and(p.provolatile = 'i'
-                     AND o.oprresult IN (SELECT oid FROM immutable_io))
-     ORDER BY o.oprname;`,
-  );
-  return res.rows.map(r => r.name);
-}
 
 /**
  * EVERY pg_catalog function signature with its provolatile. See

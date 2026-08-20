@@ -428,8 +428,6 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     schemas: [],
     builtinStrictFunctions: [],
     builtinImmutableIoTypes: [],
-    builtinImmutableFunctionArities: {},
-    builtinImmutableOperators: [],
     builtinFunctionVolatilities: [],
     builtinOperatorVolatilities: [],
     builtinBtreeStrategies: {},

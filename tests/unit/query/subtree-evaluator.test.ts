@@ -798,14 +798,14 @@ describe("catalog face: user names open builtin spellings", () => {
     if (!shadowPg.closed) await shadowPg.close();
   });
 
-  it("a user function or operator name disqualifies the builtin; a type name answers by PATH", () => {
-    // Scope-blind means unresolvable: these two faces cannot know whether
-    // `length` is pg_catalog's — so any user object of the name, in any
-    // schema, answers false. The unshadowed catalog says true for all three.
-    expect(catalog.isImmutableFunction("length", 1)).toBe(true);
-    expect(catalog.isImmutableOperator("=")).toBe(true);
-    expect(shadowCatalog.isImmutableFunction("length", 1)).toBe(false);
-    expect(shadowCatalog.isImmutableOperator("=")).toBe(false);
+  it("a user type name does NOT disqualify the builtin — it answers by PATH", () => {
+    // This test used to assert the same thing for `isImmutableFunction` and
+    // `isImmutableOperator`. Both were deleted 2026-08-20 as dead code: they
+    // asked the closure gate's question by bare NAME, the evaluator ended up
+    // asking it by SIGNATURE through `closedFunctionTypes` /
+    // `closedOperatorTypes`, and nothing was ever rewired to them.
+    // `isImmutableIoType` is the surviving sibling and IS live — the
+    // evaluator calls it for an array-element cast.
 
     // TYPES are not scope-blind, and pinning them as if they were was wrong
     // (corrected 2026-08-20). pg_catalog is searched FIRST unless the path
@@ -852,10 +852,4 @@ describe("catalog face: user names open builtin spellings", () => {
     expect(catalog.resolveColumnCollationDeterministic("public", "coll_probe", "d")).toBe(true);
   });
 
-  it("the arity axis: `length` is immutable at one argument, not at two", () => {
-    // length(bytea, name) is STABLE — the row that forced (name, arity)
-    // keys onto the capture.
-    expect(catalog.isImmutableFunction("length", 1)).toBe(true);
-    expect(catalog.isImmutableFunction("length", 2)).toBe(false);
-  });
 });

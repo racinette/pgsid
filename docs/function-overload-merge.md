@@ -421,8 +421,26 @@ already holds.
   bites where an argument is open. Is there a cheaper property than totality
   worth reading from `plpgsql_check` for those, or is conservative the end of
   it?
-- `isImmutableFunction` and `isImmutableOperator` are still bare-name, and are
-  the last of the three. Neither is reached by the evaluator today — the closed
-  gates it actually calls are `closedFunctionTypes`, `closedOperatorTypes` and
-  `isImmutableIoType` — so they are pinned face members with no live caller.
-  Delete or merge, but not both.
+- ~~`isImmutableFunction` and `isImmutableOperator` are still bare-name~~ —
+  **DELETED 2026-08-20.** Neither had a live caller: the closed gates the
+  evaluator actually calls are `closedFunctionTypes`, `closedOperatorTypes`
+  and `isImmutableIoType`, and these two were never rewired when the closure
+  question moved from bare NAME to SIGNATURE. Merging them would have been
+  precision built for a consumer that does not exist; deleting removed the
+  last bare-name gates of their kind along with the trap they set for the
+  next reader, whose tests still asserted the superseded rule.
+
+  What kept them invisible is worth recording: they sat on
+  `EVALUATION_CATALOG_ONLY`, which exempts members from the cold-member
+  census on the grounds that "the subtree evaluator's own census covers them
+  instead" — and for these two, nothing did. An exemption list is a place
+  dead code can hide.
+
+  The deletion reached further than the accessors. Their captures —
+  `builtinImmutableFunctionArities` and `builtinImmutableOperators`, plus the
+  `UNREACHABLE_TYPE` helper they shared — had no other consumer, and the
+  arity capture was expensive: a `generate_series(0,8)` join over all of
+  pg_proc with a correlated `NOT EXISTS` over `unnest(proargtypes)`, run once
+  per snapshot. Dropping both cut `sqlc-corpus.test.ts` from ~102s to ~28s,
+  measured three times. Nobody was looking for that; it was the price of a
+  capture nothing read.
