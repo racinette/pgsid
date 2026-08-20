@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "CREATE TABLE AS copies names and types only, so a NULL inserts cleanly into a column the source declared NOT NULL.",
+  "entries": {
+    "GetFirst#0 (val)": {
+      "disposition": "ticket-ready",
+      "ticket": "T3",
+      "note": "The row comes back NULL. PostgreSQL's catalog records `second_table.val` with attnotnull false; only the flag differs from the source."
+    }
+  }
+}

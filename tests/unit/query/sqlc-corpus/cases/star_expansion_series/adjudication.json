@@ -1,0 +1,30 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "One matching row and one NULL eventdate, over a one-minute window so the NULL-$1 binding stays cheap.",
+  "args": {
+    "CountAlertReportBy": [
+      [
+        "hour",
+        "2020-01-01",
+        "2020-01-01 00:01"
+      ],
+      [
+        null,
+        "2020-01-01",
+        "2020-01-01 00:01"
+      ],
+      [
+        "hour",
+        null,
+        "2020-01-01 00:01"
+      ]
+    ]
+  },
+  "entries": {
+    "CountAlertReportBy#0 (datetime)": {
+      "disposition": "ticket-ready",
+      "ticket": "T2",
+      "note": "`ts` comes from generate_series on the PRESERVED side of the RIGHT OUTER JOIN and is never NULL, so the only route to a NULL is DATE_TRUNC(NULL, ts). The $2/$3 corners — which sqlc's own IR declares nullable — return zero rows and cannot witness. So the witness binds NULL to $1, the one parameter sqlc declares NOT NULL; the claim itself is T2's TypeCast branch."
+    }
+  }
+}

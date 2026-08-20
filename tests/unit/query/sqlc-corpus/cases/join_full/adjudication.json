@@ -1,0 +1,17 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A foo row matching no bar — the row a FULL JOIN null-extends on the foo side.",
+  "args": {
+    "FullJoin": [
+      [
+        10
+      ]
+    ]
+  },
+  "entries": {
+    "FullJoin#0 (id)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: WHERE promotion killing the null-extended arm of a FULL JOIN. Observed [10, null, null] — the NULLs are the two columns both engines call nullable."
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "The schema is empty; the query's only input is $1, bound both non-null and NULL.",
+  "args": {
+    "AdvisoryLockOne": [
+      [
+        1
+      ],
+      [
+        null
+      ]
+    ],
+    "AdvisoryUnlock": [
+      [
+        1
+      ],
+      [
+        null
+      ]
+    ]
+  },
+  "entries": {
+    "AdvisoryLockOne#0 (pg_advisory_lock)": {
+      "disposition": "ticket-ready",
+      "ticket": "T1",
+      "note": "`$1 = 1` returns the void value (non-NULL); `$1 = NULL` returns NULL. The witness binds NULL to a parameter sqlc's IR declares NOT NULL — recorded, and the claim is the same `!fun.ReturnTypeNullable` line the aggregate entries convict with no parameter at all."
+    },
+    "AdvisoryUnlock#0 (pg_advisory_unlock)": {
+      "disposition": "ticket-ready",
+      "ticket": "T1",
+      "note": "`$1 = 1` returns true; `$1 = NULL` returns NULL. Same parameter caveat as AdvisoryLockOne."
+    }
+  }
+}

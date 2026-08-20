@@ -1,0 +1,22 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "All partial-NULL combinations, so each conjunct has a row it alone removes.",
+  "args": {
+    "FooByAandB": [
+      [
+        "x",
+        "y"
+      ]
+    ]
+  },
+  "entries": {
+    "FooByAandB#0 (a)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: WHERE promotion."
+    },
+    "FooByAandB#1 (b)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: WHERE promotion. The ('x', NULL) row exists to break this column and does not survive the second conjunct."
+    }
+  }
+}

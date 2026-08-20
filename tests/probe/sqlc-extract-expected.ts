@@ -14,8 +14,11 @@
 // invalid cases) gets `{"error": ...}` instead — counted by the suite, so a
 // refresh that changes the refusal set moves a pin.
 //
-// Requires a Go toolchain; the sqlc version is pinned by SQLC_VERSION below
-// and must move together with the vendored corpus (see PROVENANCE.md).
+// Requires a Go toolchain; the sqlc version is `SQLC_VERSION` in
+// tests/unit/query/sqlc-corpus.ts — one source of truth, because each case's
+// adjudication.json records the version its conclusions were drawn against
+// and the suite fails when the two part. Bumping it must move together with
+// the vendored corpus (see PROVENANCE.md).
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync, copyFileSync } from "node:fs";
@@ -23,7 +26,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SQLC_VERSION = "v1.31.1";
+import { SQLC_VERSION } from "../unit/query/sqlc-corpus.js";
+
 const CASES = join(dirname(fileURLToPath(import.meta.url)), "..", "unit", "query", "sqlc-corpus", "cases");
 
 interface ExpectedColumn { name: string; notNull: boolean }

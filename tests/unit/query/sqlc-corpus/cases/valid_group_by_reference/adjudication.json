@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A non-empty group inside the time window whose every temp_c is NULL; AVG skips NULL inputs.",
+  "entries": {
+    "ListMetrics#2 (avg)": {
+      "disposition": "ticket-ready",
+      "ticket": "T1",
+      "note": "The strongest of the aggregate family: `temp_c` is declared NULLABLE in the schema, so sqlc's NOT NULL is not even argument-driven."
+    }
+  }
+}

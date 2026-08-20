@@ -1,0 +1,10 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "Both recursion arms reached, nullable columns NULL where the schema allows, and no code='' row so the anchor's COALESCE default is what lands in the path.",
+  "entries": {
+    "GetDictTree#5 (path)": {
+      "disposition": "conservatism-expected",
+      "note": "The rules sqlc lacks: an ARRAY[...] constructor is never NULL (NULL ELEMENTS do not make a NULL array), and `||` is total over non-null operands — carried across the recursive fixpoint."
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A NOT NULL array column holding a NULL element — the constraint binds the array, not its contents.",
+  "entries": {
+    "GetValues#2 (value)": {
+      "disposition": "ticket-ready",
+      "ticket": "T2",
+      "note": "Rows [1,1,'a'] and [1,2,null]. Measured on v1.31.1, the cast is the cause and not WITH ORDINALITY: the element is correctly nullable until `::text` is applied, at which point it flips to NOT NULL."
+    }
+  }
+}

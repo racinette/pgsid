@@ -1,0 +1,23 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A row the predicate does not select. COUNT answers 0 and is non-null; MIN and MAX answer NULL over the empty selection.",
+  "args": {
+    "ActivityStats": [
+      [
+        99
+      ]
+    ]
+  },
+  "entries": {
+    "ActivityStats#1 (mindate)": {
+      "disposition": "ticket-ready",
+      "ticket": "T1",
+      "note": "Observed [0, null, null]. `event_time` is TIMESTAMPTZ NOT NULL and that does not reach MIN's result."
+    },
+    "ActivityStats#2 (maxdate)": {
+      "disposition": "ticket-ready",
+      "ticket": "T1",
+      "note": "Same row. Column 0 (COUNT) is 0 and non-null — COUNT is the one aggregate sqlc gets right, and the walk agrees."
+    }
+  }
+}

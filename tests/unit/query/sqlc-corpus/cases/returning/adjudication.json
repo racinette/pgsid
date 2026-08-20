@@ -1,0 +1,17 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "A NULL-named user present to be deleted, which the equality never matches.",
+  "args": {
+    "DeleteUserAndReturnUser": [
+      [
+        "bob"
+      ]
+    ]
+  },
+  "entries": {
+    "DeleteUserAndReturnUser#0 (name)": {
+      "disposition": "conservatism-expected",
+      "note": "The rule sqlc lacks: WHERE promotion carried into RETURNING."
+    }
+  }
+}

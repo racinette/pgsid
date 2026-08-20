@@ -1,0 +1,11 @@
+{
+  "adjudicatedAgainst": "v1.31.1",
+  "why": "No data state: the disagreement is arity, which PostgreSQL settles by RowDescription without executing the body.",
+  "entries": {
+    "TestFuncSelectBlog": {
+      "disposition": "ticket-ready",
+      "ticket": "T5",
+      "note": "sqlc's IR carries one column named after the function; PostgreSQL's prepared-statement result_types carries four (integer, text, timestamp, timestamp), and EXPLAIN VERBOSE lists id, name, created_at, updated_at. Specific to RETURNS TABLE — OUT parameters and RETURNS SETOF <table> both expand correctly on v1.31.1."
+    }
+  }
+}

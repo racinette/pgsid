@@ -15,7 +15,14 @@ import {
   countPlanOuterJoins,
   survivingOuterJoins,
 } from "./explain-instrument.js";
-import { loadSqlcCases, sqlcExpectedNullability, SQLC_MACRO_RE } from "./sqlc-corpus.js";
+import {
+  loadSqlcCases,
+  sqlcExpectedNullability,
+  SQLC_MACRO_RE,
+  SQLC_VERSION,
+  DISAGREEMENTS,
+  ADJUDICATED,
+} from "./sqlc-corpus.js";
 
 // ---------------------------------------------------------------------------
 // The sqlc borrowed corpus, judged by PostgreSQL. See
@@ -77,14 +84,31 @@ const PINS = {
   // below).
   explainFailed: 1,
   plannerStronger: 0,
-  // The miner census. sqlc agrees on 502 columns; claims it holds weaker
-  // (walk proves notNull) on 14; claims it holds STRONGER on 25 — the
-  // adjudicator's worklist (tests/probe/sqlc-register.ts), where each entry
-  // is either sqlc unsoundness (ticket, counterexample as repro) or a pgsid
-  // defect (fixture + fix), decided by data, never by priors.
-  minerAgree: 502,
+  // The miner census. sqlc agrees on 512 columns; claims it holds weaker
+  // (walk proves notNull) on 14; claims it holds STRONGER on 15 — the
+  // adjudicator's worklist, where each entry is either sqlc unsoundness
+  // (ticket, counterexample as repro) or a pgsid defect (fixture + fix),
+  // decided by data, never by priors.
+  //
+  // Moved twice on 2026-08-20, 502/25 → 508/19 → 512/15, and the arithmetic
+  // is the check that nothing else moved with them:
+  //
+  //   -6  the function overload merge (docs/function-overload-merge.md)
+  //       threaded a body parameter's declared type into the signature
+  //       dispatch, so `concat_lower_or_upper(…)` narrows `UPPER($1)` — the
+  //       six `sql_syntax_calling_funcs` entries;
+  //   -2  `nextval`/`currval`/`setval`/`lastval` admitted to
+  //       STRICT_TOTAL_BUILTINS: volatile, but a raise is not a NULL;
+  //   -1  the strict-SRF `returnsSet` exclusion — a nullable argument to
+  //       `generate_series` subtracts ROWS, not values;
+  //   -1  the subtree evaluator wired into THIS harness. `builtins/Scale` was
+  //       never an engine disagreement; the walk folded `scale(8.41)` all
+  //       along and the harness was asking without `evaluate`.
+  //
+  // The register carries no `pgsid-imprecision` entries after this.
+  minerAgree: 512,
   minerPgsidStronger: 14,
-  minerSqlcStronger: 25,
+  minerSqlcStronger: 15,
   // No row shape (:exec family), sqlc-refused cases, queries missing from
   // the IR.
   minerUndecodable: 117,
@@ -101,10 +125,52 @@ const hardViolations: string[] = [];
 const refusalKeys = new Map<string, number>();
 const explainFailKeys = new Map<string, number>();
 
+/**
+ * Every disagreeing column, BY NAME. The census above counts them; this says
+ * WHICH — the identity `expect(tally).toEqual(PINS)` cannot carry, because two
+ * compensating moves (one entry settled, one new one appearing) leave every
+ * count where it was. Keyed `case/query#column (name)`, which is also how
+ * docs/sqlc-disagreements.md heads its entries, so the pin and the register
+ * are greppable to each other.
+ */
+const disagreements = new Map<string, string>();
+/**
+ * The same keys, re-derived FROM ROWS under each case's own `data.sql`:
+ * `sqlc-convicted` when a column sqlc calls NOT NULL came back NULL,
+ * `attempted` when the state built to produce that NULL did not, `no-rows`
+ * when nothing executed. A NULL in a column the WALK calls notNull is not a
+ * verdict at all — it is an unsoundness, and it lands in hardViolations where
+ * no pin can absorb it.
+ */
+const adjudicated = new Map<string, string>();
+/** Statements a data state made raise — never silently dropped. */
+const adjudicationErrors: string[] = [];
+/**
+ * Structural problems in OUR half of a case directory: a conclusion drawn
+ * against a different sqlc release, an entry key naming a column that no
+ * longer disagrees, a disagreement with no conclusion. Each is a way the
+ * per-case files and the corpus can part without any claim being wrong, which
+ * is exactly the drift the layout exists to make loud.
+ */
+const adjudicationDrift: string[] = [];
+
 describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
   beforeAll(async () => {
     const cases = loadSqlcCases();
     tally.cases = cases.length;
+    for (const c of cases) {
+      // A conclusion is only about the release it was drawn against.
+      if (c.adjudication && c.adjudication.adjudicatedAgainst !== SQLC_VERSION) {
+        adjudicationDrift.push(
+          `${c.name}: adjudicated against ${c.adjudication.adjudicatedAgainst}, ` +
+            `corpus is ${SQLC_VERSION} — re-run the state and re-read the conclusion`,
+        );
+      }
+      // data.sql without a conclusion is a state nobody drew anything from.
+      if (c.data && !c.adjudication) {
+        adjudicationDrift.push(`${c.name}: data.sql with no adjudication.json`);
+      }
+    }
     const pg = await PGlite.create({
       extensions: { uuid_ossp, pgcrypto, ltree, pg_trgm, citext },
     });
@@ -120,6 +186,20 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
         tally.schemaFailed++;
         await pg.exec("ROLLBACK;");
         continue;
+      }
+
+      // The half sqlc does not ship: `data.sql` beside the vendored files.
+      // Applied once per case, inside the case's own transaction, so every
+      // query below sees it and the ROLLBACK at the end takes it away again.
+      const caseData = c.adjudication;
+      /** Entry keys this run actually reached, for the stale-conclusion check. */
+      const usedEntries = new Set<string>();
+      if (c.data) {
+        try {
+          await pg.exec(c.data);
+        } catch (e) {
+          hardViolations.push(`${c.name}: data.sql failed: ${(e as Error).message}`);
+        }
       }
 
       for (const q of c.queries) {
@@ -157,6 +237,23 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
           claims = await inferNullability(stmt, catalog, {
             joinAudit,
             collectUnitCrossings: true,
+            // The subtree evaluator, wired as both fixture suites wire it.
+            // Without it no closed subtree is ever folded, and the register
+            // then records a DISAGREEMENT that is an artefact of how this
+            // harness asks — `builtins/Scale` was exactly that, and asking the
+            // walk the question with one hand tied is not a measurement of the
+            // walk. Each evaluation runs inside its own savepoint: a raising
+            // subtree is ordinary (`5 / 0` is closed), and without the rollback
+            // its error would leave the case's transaction aborted and take
+            // every query after it down with it.
+            evaluate: async (s: string) => {
+              await pg.exec("SAVEPOINT ev;");
+              try {
+                return (await pg.query<Record<string, unknown>>(s)).rows[0];
+              } finally {
+                await pg.exec("ROLLBACK TO SAVEPOINT ev;");
+              }
+            },
           });
           tally.analyzed++;
         } catch (e) {
@@ -228,18 +325,125 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
 
         // The miner census (full register: tests/probe/sqlc-register.ts).
         const expected = sqlcExpectedNullability(c, q);
+        const disagreeing: number[] = [];
         if (typeof expected === "string") {
           tally.minerUndecodable++;
         } else if (expected.length !== claims.length) {
           tally.minerShapeSkew++;
+          disagreements.set(
+            `${c.name}/${q.name}`,
+            `shape-skew: sqlc ${expected.length}, walk ${claims.length}`,
+          );
+          // An arity skew is settled by the shape oracle above, which already
+          // compared the walk's column list to a real execution's — there is
+          // no column to look for a NULL in, so the conclusion stands alone.
+          usedEntries.add(q.name);
+          const skew = c.adjudication?.entries[q.name];
+          if (!skew) {
+            adjudicationDrift.push(`${c.name}: no adjudication.json entry for "${q.name}"`);
+          }
+          adjudicated.set(
+            `${c.name}/${q.name}`,
+            `shape-skew · ${skew?.disposition ?? "UNADJUDICATED"}` +
+              (skew?.ticket ? ` (${skew.ticket})` : ""),
+          );
         } else {
           for (let i = 0; i < expected.length; i++) {
             const s = expected[i]!.notNull;
             const p = claims[i]!.notNull;
-            if (s === p) tally.minerAgree++;
-            else if (p && !s) tally.minerPgsidStronger++;
+            if (s === p) {
+              tally.minerAgree++;
+              continue;
+            }
+            if (p && !s) tally.minerPgsidStronger++;
             else tally.minerSqlcStronger++;
+            disagreeing.push(i);
+            disagreements.set(
+              `${c.name}/${q.name}#${i} (${expected[i]!.column})`,
+              p && !s ? "pgsid-stronger" : "sqlc-stronger",
+            );
           }
+        }
+
+        // --- adjudication, from rows -------------------------------------
+        //
+        // Only cases carrying a data state execute. The corpus holds 379
+        // analyzed queries and inventing a binding for one nobody reasoned
+        // about would manufacture rows with no argument behind them — the
+        // opposite of what this layer is for.
+        if (!caseData || typeof expected === "string") continue;
+        const bindings = caseData.args?.[q.name] ?? (/\$\d/.test(bare) ? null : [[]]);
+        if (!bindings) continue;
+
+        const sawNull = new Set<number>();
+        let rowsSeen = 0;
+        for (const args of bindings) {
+          await pg.exec("SAVEPOINT adj;");
+          try {
+            const res = await pg.query(bare, args as unknown[], { rowMode: "array" });
+            rowsSeen += res.rows.length;
+            for (const row of res.rows as unknown[][]) {
+              row.forEach((v, i) => {
+                if (v === null) sawNull.add(i);
+              });
+            }
+          } catch (e) {
+            adjudicationErrors.push(
+              `${c.name}/${q.name} [${JSON.stringify(args)}]: ${(e as Error).message}`,
+            );
+          } finally {
+            await pg.exec("ROLLBACK TO SAVEPOINT adj;");
+          }
+        }
+
+        // The soundness assertion this suite could not make before: over
+        // EVERY column, not only the disputed ones. A claim the walk makes and
+        // PostgreSQL contradicts is a bug wherever it appears.
+        for (let i = 0; i < claims.length; i++) {
+          if (claims[i]!.notNull && sawNull.has(i)) {
+            hardViolations.push(
+              `PGSID UNSOUNDNESS ${c.name}/${q.name}#${i} (${claims[i]!.name}): ` +
+                `claimed notNull, a row under the recorded state has NULL`,
+            );
+          }
+        }
+
+        for (const i of disagreeing) {
+          const local = `${q.name}#${i} (${expected[i]!.column})`;
+          const verdict = sawNull.has(i)
+            ? claims[i]!.notNull
+              ? "pgsid-convicted"
+              : "sqlc-convicted"
+            : rowsSeen === 0
+              ? "no-rows"
+              : "attempted";
+          // The verdict is what the rows say; the disposition is what it MEANT,
+          // and the pair is what the register prints. A disagreement with no
+          // conclusion beside it is unfinished work, not a passing test.
+          usedEntries.add(local);
+          const entry = caseData.entries[local];
+          if (!entry) {
+            adjudicationDrift.push(
+              `${c.name}: no adjudication.json entry for "${local}"`,
+            );
+          }
+          adjudicated.set(
+            `${c.name}/${local}`,
+            `${verdict} · ${entry?.disposition ?? "UNADJUDICATED"}` +
+              (entry?.ticket ? ` (${entry.ticket})` : ""),
+          );
+        }
+      }
+
+      // The reverse orphan, and the one that matters most on a sqlc bump: a
+      // conclusion whose disagreement no longer exists. Silence here would
+      // read as "still true" when what actually happened is that sqlc changed
+      // its mind and nobody re-read the entry.
+      for (const key of Object.keys(caseData?.entries ?? {})) {
+        if (!usedEntries.has(key)) {
+          adjudicationDrift.push(
+            `${c.name}: adjudication.json entry "${key}" no longer disagrees — re-read it`,
+          );
         }
       }
       await pg.exec("ROLLBACK;");
@@ -262,11 +466,33 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
     ]);
   });
 
+  it("every disagreement is pinned by name", () => {
+    expect(Object.fromEntries([...disagreements].sort())).toEqual(DISAGREEMENTS);
+  });
+
+  it("every disagreement's verdict and disposition are pinned by name", () => {
+    expect(Object.fromEntries([...adjudicated].sort())).toEqual(ADJUDICATED);
+  });
+
+  it("our half of every case is current", () => {
+    // Four ways the per-case files and the corpus can part without any claim
+    // being wrong: a conclusion drawn against another sqlc release, a state
+    // with no conclusion, a disagreement with no entry, an entry whose
+    // disagreement is gone. Each is the drift a count-only pin absorbed.
+    expect(adjudicationDrift).toEqual([]);
+  });
+
+  it("no data state raises", () => {
+    expect(adjudicationErrors).toEqual([]);
+  });
+
   it("corpus report", () => {
     // eslint-disable-next-line no-console
     console.log(
       `sqlc corpus: ${JSON.stringify(tally)}\n  refusals: ${JSON.stringify([...refusalKeys])}` +
-        `\n  explain-fail: ${JSON.stringify([...explainFailKeys])}`,
+        `\n  explain-fail: ${JSON.stringify([...explainFailKeys])}` +
+        `\n  disagreements: ${JSON.stringify(Object.fromEntries([...disagreements].sort()), null, 1)}` +
+        `\n  adjudicated: ${JSON.stringify(Object.fromEntries([...adjudicated].sort()), null, 1)}`,
     );
   });
 });
