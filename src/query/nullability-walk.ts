@@ -1911,7 +1911,7 @@ class NullabilityEngine {
         if (present.has(alias)) continue;
         const proven =
           [...wherePreds, ...scope.impliedQuals].some(p =>
-            this.whereImpliesAliasNotNull(p, alias),
+            this.whereImpliesAliasNotNull(p, alias, scope),
           ) ||
           [...scope.aliases.values()].some(
             other => other.alias !== alias && other.nullGroup === entry.nullGroup &&
@@ -1996,7 +1996,7 @@ class NullabilityEngine {
               const g = side === "left" ? n.leftOptionalGroup : n.rightOptionalGroup;
               if (g === undefined) continue;
               const killed = [...scope.aliases.values()].some(
-                e => e.unitChain.includes(g) && this.whereImpliesAliasNotNull(j.quals!, e.alias),
+                e => e.unitChain.includes(g) && this.whereImpliesAliasNotNull(j.quals!, e.alias, scope),
               );
               if (!killed) continue;
               this.dissolveUnit(scope, g, present);
@@ -5779,7 +5779,7 @@ class NullabilityEngine {
         ...(scope.rowsImplyWhere ? scope.impliedQuals : []),
         ...(scope.havingClause ? [scope.havingClause] : []),
       ];
-      if (narrowingPreds.some(p => this.whereImpliesParamNotNull(p, num))) {
+      if (narrowingPreds.some(p => this.whereImpliesParamNotNull(p, num, scope))) {
         trace.addFact("param", `$${num}`);
         trace.addFact("whereGuarantee", "a must-be-TRUE conjunct requires it non-null");
         trace.conclude(
@@ -7643,7 +7643,7 @@ class NullabilityEngine {
   private guardsPromoteAlias(alias: string, scope: Scope): boolean {
     for (const g of this.guards) {
       if (g.scope !== scope) continue;
-      if (g.taken && this.whereImpliesAliasNotNull(g.predicate, alias)) return true;
+      if (g.taken && this.whereImpliesAliasNotNull(g.predicate, alias, scope)) return true;
       if (!g.taken && this.falsityPromotesAlias(g.predicate, alias)) return true;
     }
     return false;
@@ -7679,8 +7679,10 @@ class NullabilityEngine {
       if (nt.nulltesttype === "IS_NULL" && nt.arg) {
         // `expr IS NULL` being FALSE means expr is non-null; if expr is NULL
         // whenever the column is, the contrapositive gives the column.
-        return this.exprStrictlyForces(nt.arg, leaf =>
-          this.columnMatches(leaf, alias, colName, scope),
+        return this.exprStrictlyForces(
+          nt.arg,
+          leaf => this.columnMatches(leaf, alias, colName, scope),
+          scope,
         );
       }
       return false;
@@ -7751,7 +7753,7 @@ class NullabilityEngine {
    */
   private checkWhereAliasPromoted(alias: string, scope: Scope): boolean {
     if (!scope.whereClause) return false;
-    return this.whereImpliesAliasNotNull(scope.whereClause, alias);
+    return this.whereImpliesAliasNotNull(scope.whereClause, alias, scope);
   }
 
   /**
@@ -7761,9 +7763,15 @@ class NullabilityEngine {
    * ColumnRefs (alias.col) are matched — unqualified columns can't be
    * attributed to an alias without knowing all columns.
    */
-  private whereImpliesAliasNotNull(whereClause: Node, alias: string): boolean {
-    return this.predicateProvesNonNull(whereClause, n =>
-      this.exprStrictlyForces(n, leaf => this.columnRefMatchesAlias(leaf, alias)),
+  private whereImpliesAliasNotNull(
+    whereClause: Node,
+    alias: string,
+    scope: Scope | null = null,
+  ): boolean {
+    return this.predicateProvesNonNull(
+      whereClause,
+      n => this.exprStrictlyForces(n, leaf => this.columnRefMatchesAlias(leaf, alias), scope),
+      scope,
     );
   }
 
@@ -7841,9 +7849,15 @@ class NullabilityEngine {
    * inherited from one referencing context must not leak into another — the
    * same rule that stops branch guards at statement boundaries.
    */
-  private whereImpliesParamNotNull(clause: Node, num: number): boolean {
-    return this.predicateProvesNonNull(clause, n =>
-      forcedNullParams(n, this.catalog).has(num),
+  private whereImpliesParamNotNull(
+    clause: Node,
+    num: number,
+    scope: Scope | null = null,
+  ): boolean {
+    return this.predicateProvesNonNull(
+      clause,
+      n => forcedNullParams(n, this.catalog).has(num),
+      scope,
     );
   }
 
@@ -7853,8 +7867,11 @@ class NullabilityEngine {
     colName: string,
     scope: Scope,
   ): boolean {
-    return this.predicateProvesNonNull(whereClause, n =>
-      this.exprStrictlyForces(n, leaf => this.columnMatches(leaf, alias, colName, scope)),
+    return this.predicateProvesNonNull(
+      whereClause,
+      n =>
+        this.exprStrictlyForces(n, leaf => this.columnMatches(leaf, alias, colName, scope), scope),
+      scope,
     );
   }
 
@@ -7881,17 +7898,21 @@ class NullabilityEngine {
    *     (NOT BETWEEN is a different kind and deliberately absent — it can be
    *     TRUE with a NULL bound).
    */
-  private predicateProvesNonNull(pred: Node, forces: (expr: Node) => boolean): boolean {
+  private predicateProvesNonNull(
+    pred: Node,
+    forces: (expr: Node) => boolean,
+    scope: Scope | null = null,
+  ): boolean {
     const node = pred as Record<string, unknown>;
 
     if ("BoolExpr" in node) {
       const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
       const args = be.args ?? [];
       if (be.boolop === "AND_EXPR") {
-        return args.some(arg => this.predicateProvesNonNull(arg, forces));
+        return args.some(arg => this.predicateProvesNonNull(arg, forces, scope));
       }
       if (be.boolop === "OR_EXPR") {
-        return args.length > 0 && args.every(arg => this.predicateProvesNonNull(arg, forces));
+        return args.length > 0 && args.every(arg => this.predicateProvesNonNull(arg, forces, scope));
       }
       return false;
     }
@@ -7913,7 +7934,7 @@ class NullabilityEngine {
       switch (ae.kind) {
         case "AEXPR_OP":
           return (
-            this.promotionOperatorIsStrict(ae.name, ae.lexpr, ae.rexpr) &&
+            this.promotionOperatorIsStrict(ae.name, ae.lexpr, ae.rexpr, scope) &&
             (forced(ae.lexpr) || forced(ae.rexpr))
           );
         case "AEXPR_OP_ANY":
@@ -7952,33 +7973,37 @@ class NullabilityEngine {
    * window function reads OTHER rows. Anything unrecognised forces nothing,
    * keeping the conclusion conservative.
    */
-  private exprStrictlyForces(expr: Node, leaf: (columnRef: Node) => boolean): boolean {
+  private exprStrictlyForces(
+    expr: Node,
+    leaf: (columnRef: Node) => boolean,
+    scope: Scope | null = null,
+  ): boolean {
     const node = expr as Record<string, unknown>;
 
     if ("ColumnRef" in node) return leaf(expr);
 
     if ("TypeCast" in node) {
       const arg = (node["TypeCast"] as { arg?: Node }).arg;
-      return !!arg && this.exprStrictlyForces(arg, leaf);
+      return !!arg && this.exprStrictlyForces(arg, leaf, scope);
     }
 
     if ("A_Expr" in node) {
       const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
       if (ae.kind === "AEXPR_OP") {
         return (
-          this.promotionOperatorIsStrict(ae.name, ae.lexpr, ae.rexpr) &&
-          [ae.lexpr, ae.rexpr].some(o => !!o && this.exprStrictlyForces(o, leaf))
+          this.promotionOperatorIsStrict(ae.name, ae.lexpr, ae.rexpr, scope) &&
+          [ae.lexpr, ae.rexpr].some(o => !!o && this.exprStrictlyForces(o, leaf, scope))
         );
       }
       if (ae.kind === "AEXPR_NULLIF") {
-        return !!ae.lexpr && this.exprStrictlyForces(ae.lexpr, leaf);
+        return !!ae.lexpr && this.exprStrictlyForces(ae.lexpr, leaf, scope);
       }
       return false;
     }
 
     if ("CoalesceExpr" in node) {
       const args = (node["CoalesceExpr"] as { args?: Node[] }).args ?? [];
-      return args.length > 0 && args.every(a => this.exprStrictlyForces(a, leaf));
+      return args.length > 0 && args.every(a => this.exprStrictlyForces(a, leaf, scope));
     }
 
     if ("FuncCall" in node) {
@@ -8011,7 +8036,7 @@ class NullabilityEngine {
             : (schema === undefined || schema === "pg_catalog") &&
               this.catalog.isStrictBuiltin(name);
       }
-      return strict && args.some(a => this.exprStrictlyForces(a, leaf));
+      return strict && args.some(a => this.exprStrictlyForces(a, leaf, scope));
     }
 
     return false;

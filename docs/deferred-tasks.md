@@ -1173,12 +1173,38 @@ statement, over the same table. That asymmetry is what
 `type-unions.test.ts`'s consistency test is red on.
 
 Precision, not soundness — with nothing known the strictness accessor
-answers false and the promotion does not happen. The fix is threading
-`scope` through `predicateProvesNonNull` → `exprStrictlyForces`, and it
-wants the generated soundness sweep watching it: giving the promotion gate
-real types produces MORE notNull claims, which is the direction that has to
-be proven. A scope is already in hand at the outer caller (line ~7857 uses
-it for `columnMatches`); it is captured in a closure and never threaded.
+answers false and the promotion does not happen.
+
+**FIXED 2026-08-20** by threading `scope` through `predicateProvesNonNull`
+and `exprStrictlyForces`; every entry point already held one, captured in a
+closure and never passed down. The census moved hard: no-claim readings
+2024 → 530, singletons 699 → 2286, multi-member unions 115 → 22, zero
+containment violations either side. `generated-soundness` was watched
+across it — 14964 queries, 24089 notNull claims, 0 violations — because
+giving the promotion gate real types is the direction that can only be
+proven, never assumed.
+
+No corpus claim moved, and that is the point rather than a
+disappointment: the claims were already right, they were resting on
+nobody having defined a `=`. The capability gain shows only against a
+polluted schema, where it is decisive — a user `=` over an unrelated
+composite used to cost EVERY LEFT JOIN promotion, and now costs none
+(`bare-name-gates-red.test.ts`, "predicate gate", measured against the
+pre-threading engine).
+
+**THE NEXT BARE-NAME GATE: `btreeStrategyOf` and `isEqualityComplement`
+(found the same day, by trying to put that pollution in the shared
+schema).** Both are keyed on `evalUserOperatorNames` by NAME —
+`btreeStrategyOf(op)` returns null and `isEqualityComplement(op)` false for
+any symbol a user operator carries. Adding `=` and `<` over a composite to
+`fixtures/schema.sql` cost NINE fixtures in the CHECK-interval machinery
+(`check-interval-*`, `check-membership-exclusion`, `partition-bound-*`),
+all in the safe direction. Unlike the operator and function gates these
+accessors take a name and NO operand types, so elimination is not available
+without widening their signatures — which is the piece of design work this
+entry defers. The pollution stays local to the red suite until then, for
+the same reason the colliding `||`/`+` do: nine real claims is too much to
+pay to exercise a rule a scenario test already holds.
 
 **The fallback's price is not two claims, it is two PLUS whatever the
 schema names (measured 2026-08-20).** The two above are what it costs on a

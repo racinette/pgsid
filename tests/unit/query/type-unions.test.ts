@@ -203,18 +203,17 @@ describe("type unions", () => {
   // -------------------------------------------------------------------------
 
   describe("consistency", () => {
-    it.fails("one expression gets one reading, wherever it is read", async () => {
-      // A column read in the target list types; the SAME column read in a
-      // JOIN or WHERE predicate does not. `promotionOperatorIsStrict`
-      // declares `scope: Scope | null = null` and both of its call sites
-      // pass three arguments, so `renderedTypeOfExpr` returns on its first
-      // line and every predicate operand reads untyped — base tables and
-      // CTEs alike, which is how the cause was isolated.
+    it("one expression gets one reading, wherever it is read", async () => {
+      // Written RED. A column read in the target list typed; the SAME column
+      // read in a JOIN or WHERE predicate did not, because
+      // `promotionOperatorIsStrict` declared `scope: Scope | null = null` and
+      // neither call site passed it — so `renderedTypeOfExpr` returned on its
+      // first line and every predicate operand read untyped, base tables and
+      // CTEs alike. That asymmetry is what this test caught.
       //
-      // Precision, not soundness: with nothing known the strictness
-      // accessor answers false and the promotion simply does not happen.
-      // Graduates when the scope is threaded through
-      // `predicateProvesNonNull` → `exprStrictlyForces`.
+      // Green since the scope was threaded through `predicateProvesNonNull`
+      // and `exprStrictlyForces` (2026-08-20). Every entry point already held
+      // a scope; it was captured in a closure and never passed down.
       for (const { sql, expr } of CONSISTENCY_CASES) {
         const readings = await readingsFor(sql, catalog);
         const rec = readings.get(expr);

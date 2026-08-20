@@ -134,6 +134,27 @@ beforeAll(async () => {
      CREATE OPERATOR public.~~~~ (leftarg = text, rightarg = text, function = public.tnull);`,
   );
 
+  // A user `=` and `<` over a COMPOSITE pair — the two most load-bearing
+  // comparison symbols there are, polluted. Nothing here can accept an
+  // integer, so PostgreSQL eliminates both and runs the builtin.
+  //
+  // These stay LOCAL rather than joining the shared schema, and the reason is
+  // measured: adding them there cost NINE fixtures in the CHECK-interval
+  // machinery, because `btreeStrategyOf` and `isEqualityComplement` are still
+  // bare-name gates keyed on `evalUserOperatorNames`. Those two take an
+  // operator NAME and no operand types, so they cannot eliminate — the next
+  // gate to close, recorded in docs/deferred-tasks.md.
+  scenarios.cmpCollide = await build(
+    `CREATE TYPE cmp_pair AS (a integer, b integer);
+     CREATE FUNCTION cmp_pair_eq(x cmp_pair, y cmp_pair) RETURNS boolean
+       LANGUAGE sql IMMUTABLE AS $$ SELECT $1 IS NOT DISTINCT FROM $2 $$;
+     CREATE OPERATOR public.= (leftarg = cmp_pair, rightarg = cmp_pair, function = cmp_pair_eq);
+     CREATE OPERATOR public.< (leftarg = cmp_pair, rightarg = cmp_pair, function = cmp_pair_eq);
+     CREATE TABLE lft (id integer NOT NULL, v integer NOT NULL);
+     CREATE TABLE rgt (id integer NOT NULL, v integer NOT NULL);
+     INSERT INTO lft VALUES (1, 10); INSERT INTO rgt VALUES (1, 10);`,
+  );
+
   // Relations shadowing pg_catalog type names under the DEFAULT path, where
   // pg_catalog is implicitly searched first and the builtin type wins every
   // one of these spellings.
@@ -179,6 +200,34 @@ describe("operator gate — targets", () => {
     const s = scenarios.collide!;
     expect(await oracle(s, "SELECT 'a' || 'b' AS v")).toBe("ab");
     expect(await claim(s, "SELECT 'a' || 'b' AS v")).toBe(true);
+  });
+});
+
+describe("predicate gate — targets", () => {
+  // --- Defect 4: precision, on the PREDICATE side. `promotionOperatorIsStrict`
+  // declared `scope: Scope | null = null` and neither call site passed it, so
+  // `renderedTypeOfExpr` returned on its first line and every operand in a
+  // WHERE or JOIN predicate read untyped. With nothing known the gate falls
+  // back to the bare-name rule, which refuses a curated symbol any user
+  // operator carries — so one `=` over an unrelated composite cost every
+  // LEFT JOIN promotion in the schema.
+  //
+  // Green since the scope was threaded (2026-08-20). Verified against the
+  // pre-threading engine, where both claims below read nullable.
+
+  it("a LEFT JOIN promotion survives a polluted `=`", async () => {
+    const s = scenarios.cmpCollide!;
+    const sql = "SELECT r.v AS v FROM lft l LEFT JOIN rgt r ON l.id = r.id WHERE r.v = l.v";
+    // PostgreSQL's own answer: the conjunct discards every NULL-extended row,
+    // so nothing NULL can come back through `r.v`.
+    expect(await oracle(s, sql)).not.toBeNull();
+    expect(await claim(s, sql)).toBe(true);
+  });
+
+  it("and a polluted `<`", async () => {
+    const s = scenarios.cmpCollide!;
+    const sql = "SELECT r.v AS v FROM lft l LEFT JOIN rgt r ON l.id = r.id WHERE r.v < l.v + 1";
+    expect(await claim(s, sql)).toBe(true);
   });
 });
 
