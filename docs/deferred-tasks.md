@@ -43,7 +43,7 @@ sqlc register entries: `minerSqlcStronger` 25 → 19.
 
 All 4201 pg_catalog signatures — functions, operators, aggregates, window
 functions — are held by execution, witnessed, or pinned with a reason:
-claimed 3140, null-witnessed 358, no-null-found 18, raised-everywhere 123,
+claimed 3149, null-witnessed 364, no-null-found 18, raised-everywhere 108,
 no-generator 562. The promotion queue that opened this work at 1832 is at 18,
 and those eighteen are pinned individually. Nothing on this surface can change
 without a suite failing.
@@ -126,12 +126,68 @@ input functions are in that class and are claimed. The audit's other rule is
 unchanged and now has five entries: a null route the source shows but only a
 CONCURRENT DROP reaches is held, not claimed.
 
+**Then the rows no SELECT can reach were reached (2026-08-21, same day).**
+Fifteen more, by three mechanisms plus one that turned out not to be needed.
+**Unprobed went 123 → 108**, four rows became witnesses and eleven reached a
+value. `runOutOfBandProbes()` in `probe-values.ts` is all of it:
+
+- **A SECOND PGlite instance** (`createSideProbeDb`), holding neither a
+  prepared transaction nor a session origin — the two objects the main
+  instance needs for unrelated rows, each of which BLOCKS a family. It answers
+  the logical-slot create and its three copy spellings, and the two session
+  origin rows.
+- **EVENT TRIGGERS.** The verdict for the four `pg_event_trigger_*` rows is
+  computed INSIDE a trigger body, by the same `probe()`/`srfprobe()` the batch
+  calls, and carried out in a table. One trigger at a time, created and
+  dropped around its own firing DDL — a standing `ddl_command_end` trigger
+  fires for the next probe's own bookkeeping and logs a verdict about the
+  harness.
+- **One statement outside `probe()`.** `pg_export_snapshot()` was pinned under
+  a group naming the harness, and the pin was right: an EXCEPTION block is a
+  subtransaction, and PostgreSQL will not export a snapshot from one.
+- **`EXPR_PROBES` needed no mechanism at all.** The `coldeflist` group said "no
+  expression can carry a column definition list", which is false: a scalar
+  SUBQUERY over that FROM clause is an ordinary expression. `(SELECT s.b FROM
+  json_to_record('{"a":1}'::json) AS s(a int, b text))` witnesses a NULL, and
+  all four json/jsonb record populators are witnessed now — the only group of
+  the four that matters to a real query.
+
+**THE GATE LEARNED THE MECHANISMS, so the eleven are decided rather than
+deferred: 9 claimed, 2 witnessed.** `totality-probe.test.ts` calls the same
+`runOutOfBandProbes()` the classifier does and attributes the verdicts to its
+claimed signatures — the two probes share these mechanisms exactly as they
+share the corpus. Without that, none of the nine could be claimed: a claim
+table entry is a standing promise that the gate re-executes the row every run.
+
+The source audit is what split the eleven, after the probe said all eleven
+returned a value. Nine return unconditionally with every other exit an
+`ereport(ERROR)` — `PG_RETURN_VOID` for the origin pair, `PG_RETURN_OID` and
+`PG_RETURN_INT32` for the table-rewrite pair, `pstrdup` for the snapshot
+export, `memset(nulls, 0, sizeof(nulls))` before `heap_form_tuple` for the
+slot rows. The other two are set-returning and `event_trigger.c` fills
+`nulls[]` on named branches, so both are **witnessed** instead: a GRANT takes
+`pg_event_trigger_ddl_commands()` down the `SCT_Grant` branch, which nulls
+five columns at once, and `DROP SCHEMA` leaves `pg_event_trigger_dropped_
+objects().schema_name` null for an object that has no schema. The probe could
+not have told those two from the other nine — a `CREATE TABLE` firing fills
+every column — which is the whole reason the second stage exists.
+
+**Tightening the gate was part of the price.** Its coverage assertion read
+`mine.length > 0 && evaluated === 0`, so a row with NO combinations reported
+nothing — and a REFUSED row contributes none, which is exactly what
+`pg_create_logical_replication_slot` is. The claim would have rested on a
+mechanism that could break silently. Empty now counts as unevaluated, with its
+own message.
+
 **Three pins hold it**, all in `builtin-surface.test.ts`, all asserted in
 BOTH directions: `WORK_LIST` (the eighteen, each with why it cannot be
-promoted or witnessed), `UNPROBED` (123 rows in seventeen groups, each
-naming the measured reason), `NO_GENERATOR` (17 types, each marked REFUSED
-or DELIBERATELY SKIPPED). A signature a future PostgreSQL adds fails one of
-them until somebody decides about it.
+promoted or witnessed), `UNPROBED` (108 rows in thirteen groups, each naming
+the measured reason), `NO_GENERATOR` (17 types, each marked REFUSED or
+DELIBERATELY SKIPPED). A fourth holds the mechanisms themselves: every
+out-of-band key must still reach a result, so a broken instance or a trigger
+that stops firing says so instead of quietly returning its rows to the
+unprobed list. A signature a future PostgreSQL adds fails one of them until
+somebody decides about it.
 
 **The loop, when a pin fails.** Run from `pgsid/`:
 
@@ -148,7 +204,7 @@ curated table (hand-argued); a NULL goes into
 control. The gate is `totality-probe.test.ts`, ~10s, which executes every
 claimed row.
 
-**Ten traps, each paid for once. Do not rediscover them.**
+**Twelve traps, each paid for once. Do not rediscover them.**
 
 1. **PGlite MATERIALISES a FROM-position function scan.** `SELECT * FROM
    generate_series(1::bigint, 9223372036854775807) LIMIT 100` allocates until
@@ -197,15 +253,35 @@ claimed row.
    and the prepared transaction — added so `pg_prepared_xact()` would
    return rows — never finishes. The call hangs forever, uninterruptibly,
    and nothing about either object predicts the other.
+11. **A zero-row answer can be a DEAD BACKEND rather than an empty set.**
+   Reading a slot through `pgoutput` — the only output plugin in this build —
+   does not raise: it takes the backend down, and every statement after it on
+   that connection returns zero rows while looking like it succeeded.
+   `pg_replication_slots` reads empty, then `pg_current_wal_lsn()` finally
+   admits `ERRORDATA_STACK_SIZE exceeded`. It was first read as a clean empty
+   set, and because the four readers ran FIRST in the side script, the two
+   origin rows after them reported `error` — a verdict about a corpse. In a
+   scripted probe, put anything that can kill the connection last, or refuse
+   it. These four are refused: pgoutput's options are one corpus value away,
+   and reaching them costs the whole run rather than one verdict.
+12. **An absolute in a pinned reason is a claim, not a fact.** The
+   `coldeflist` group read "no expression can carry a column definition list"
+   and stood for months; a scalar subquery over the FROM clause is an
+   expression and carries one fine. Four rows, including the two json record
+   populators that actually appear in queries. When a pin says *cannot*, that
+   is the sentence to re-test — `NO_GENERATOR` cost 102 signatures to the same
+   habit.
 
-**What is open on this surface: nothing that a CREATE reaches.** Both
-entries that used to sit here are closed — the `io-syntax` group is gone
-(one cstring literal per type's input syntax), and so is `no-such-object`
-(the probe database has a foreign-data wrapper, a foreign server and a
-sequence). What remains in `UNPROBED` needs something no SQL statement in
-one session can produce: a standby, an event-trigger context, binary-upgrade
-mode, a second session for a multixact, a pseudo-type value PostgreSQL
-refuses outright. Each group says which.
+**What is open on this surface: nothing that any mechanism here reaches.**
+Everything a CREATE, a trigger, a second instance or a statement outside
+`probe()` can produce is claimed or witnessed. Six groups are gone since the
+pins were written: `io-syntax` (one cstring literal per type's input syntax),
+`no-such-object` (a foreign-data wrapper, a foreign server, a sequence),
+`coldeflist` (a scalar subquery), `event-trigger`, `session-origin` and
+`probe-subtransaction`. What remains in `UNPROBED` needs something no session
+can produce: a standby, binary-upgrade mode, a second session for a multixact,
+a textual output plugin this build does not ship, a pseudo-type value
+PostgreSQL refuses outright. Each group says which.
 
 **The QUEUED item is elsewhere**: `docs/catalog-driven-generation.md`,
 chartered. STEP 0 DONE, §§9.1–9.4 BUILT (2026-08-08), §5.4's round-trip

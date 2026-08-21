@@ -28,6 +28,9 @@ import {
   nullTestExpr,
   variadicArgTypes,
   COHERENT_CALLS,
+  EXPR_PROBES,
+  runOutOfBandProbes,
+  OUT_OF_BAND_KEYS,
 } from "./probe-values.js";
 
 // ---------------------------------------------------------------------------
@@ -243,13 +246,6 @@ const UNPROBED: Record<string, readonly string[]> = {
     "pg_stop_making_pinned_objects()",
     "plpgsql_call_handler()",
   ],
-  // needs a COLUMN DEFINITION LIST - "could not determine row type for result" - which is FROM-clause syntax. The probe builds expressions, and no expression can carry one
-  "coldeflist": [
-    "json_to_record(json)",
-    "json_to_recordset(json)",
-    "jsonb_to_record(jsonb)",
-    "jsonb_to_recordset(jsonb)",
-  ],
   // takes its collation from the CALL site rather than from the oid it is passed, and an oid argument is not collatable - so there is no spelling that gives it one: "could not determine which collation to use"
   "collation-context": [
     "btvarstrequalimage(oid)",
@@ -271,25 +267,14 @@ const UNPROBED: Record<string, readonly string[]> = {
     "pg_stat_get_subscription(oid)",
     "pg_stat_get_wal_senders()",
   ],
-  // callable only from inside an EVENT TRIGGER of the matching kind, and each says which: ddl_command_end, sql_drop, table_rewrite
-  "event-trigger": [
-    "pg_event_trigger_ddl_commands()",
-    "pg_event_trigger_dropped_objects()",
-    "pg_event_trigger_table_rewrite_oid()",
-    "pg_event_trigger_table_rewrite_reason()",
-  ],
   // needs an object no SQL statement can create here: a multixact needs two concurrent sessions, a log directory needs a collector that has written, a WAL summary needs the summarizer to have run
   "live-object": [
     "pg_get_multixact_members(xid)",
     "pg_ls_logdir()",
     "pg_wal_summary_contents(bigint,pg_lsn,pg_lsn)",
   ],
-  // decoding through a logical slot. Creating or copying one waits for every in-progress transaction to reach a consistent snapshot, and the probe database holds a PREPARED transaction that never finishes; reading changes through pgoutput needs a replication connection and aborts the statement below the level plpgsql can trap, returning no row at all rather than raising
+  // READING a slot, which needs an output plugin whose result a SELECT can consume. The only plugin in this build is pgoutput, which writes to a replication connection's stream: with no walsender behind it the call does not raise and does not answer empty, it takes the BACKEND DOWN - every later statement returns zero rows and pg_current_wal_lsn() then reports ERRORDATA_STACK_SIZE exceeded. test_decoding is contrib, and the PGlite dist ships none. The four are REFUSED as well as unprobed, since a corpus value spelling pgoutput's options would turn a run into a dead one
   "logical-decoding": [
-    "pg_copy_logical_replication_slot(name,name)",
-    "pg_copy_logical_replication_slot(name,name,boolean)",
-    "pg_copy_logical_replication_slot(name,name,boolean,name)",
-    "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)",
     "pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])",
     "pg_logical_slot_get_changes(name,pg_lsn,integer,text[])",
     "pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])",
@@ -327,10 +312,6 @@ const UNPROBED: Record<string, readonly string[]> = {
     "aclremove(aclitem[],aclitem)",
     "xmlvalidate(xml,text)",
   ],
-  // the probe own EXCEPTION handler is a SUBTRANSACTION, and PostgreSQL refuses to export a snapshot from one. The only row whose reason is the harness rather than the database: the same call answers fine outside probe()
-  "probe-subtransaction": [
-    "pg_export_snapshot()",
-  ],
   // a PSEUDO-TYPE argument or result: PostgreSQL refuses one outright — "cannot accept a value of type anyelement", "cannot display a value of type any" — so no literal at any effort reaches these, and the reason is the type rather than the corpus
   "pseudotype": [
     "any_in(cstring)",
@@ -359,11 +340,6 @@ const UNPROBED: Record<string, readonly string[]> = {
     "table_am_handler_in(cstring)",
     "trigger_in(cstring)",
     "tsm_handler_in(cstring)",
-  ],
-  // a session can have exactly ONE replication origin. PROBE_OBJECTS_SQL configures it so three other rows evaluate, which makes setting it again raise and clearing it a call the probe must not make - a verdict for either would only record which of them the batch ran first
-  "session-origin": [
-    "pg_replication_origin_session_reset()",
-    "pg_replication_origin_session_setup(text)",
   ],
   // a trigger function, which checks its calling context first and raises for anything else - "was not called by trigger manager". There is no call from a query, which is why the walk never meets one
   "trigger-manager": [
@@ -531,6 +507,13 @@ describe("builtin scalar surface, witnessed or classified", () => {
       // elements. probe-values.ts records why the call must sit in the
       // TARGET LIST for that to be affordable.
       if (r.retset) for (const e of mine) srfNcols.set(e, r.ncols);
+      // Verbatim expressions come AFTER the set-returning tagging on purpose.
+      // They are scalar subqueries over a FROM-clause column definition list —
+      // `json_to_recordset` is a set-returning row whose EXPR_PROBES spelling
+      // returns one value — so tagging them by their signature's `proretset`
+      // would route a scalar through `srfprobe`, whose inner query wants two
+      // columns and gets one.
+      for (const e of EXPR_PROBES[key] ?? []) mine.push(e);
       // A refusal with no bounded call to replace it leaves the row with no
       // expressions at all. It is UNPROBED — the reason is the probe's rather
       // than PostgreSQL's, which the group's own wording carries — and saying
@@ -857,6 +840,36 @@ describe("builtin scalar surface, witnessed or classified", () => {
       await evalBatch(allExprs.slice(i, i + 2_000));
     }
 
+    // The probes the batch cannot make, merged as ordinary verdicts: a
+    // snapshot export a subtransaction forbids, ten rows the main instance's
+    // own prepared transaction and session origin block, and four whose only
+    // caller is the event trigger manager (probe-values.ts records each).
+    //
+    // A key here may have NO entry in `exprsBySig` — a row refused with no
+    // bounded call was categorised `raised-everywhere` above and skipped the
+    // map entirely. Adding one now puts it back in the loop below, which
+    // re-categorises it from the verdict rather than from the refusal.
+    //
+    // The expression may also be one the batch ALREADY ran and recorded an
+    // error for: the four event-trigger rows take no arguments, so the call
+    // the batch generates and the call the trigger body makes are the same
+    // string. The out-of-band verdict replaces it, which is the right way
+    // round — the batch ran that call where it cannot succeed, and this ran
+    // the same call where it can.
+    // A CLAIMED key is skipped, and skipping it is the point rather than an
+    // optimisation. Nine of these rows were promoted on these very verdicts,
+    // and a claimed row is the GATE's jurisdiction — this suite never
+    // evaluates one. Merging anyway put them back in the loop below, which
+    // re-categorised them out of `claimed` and failed the work-list pin with
+    // nine rows that were not on any work list.
+    for (const { key, expr, verdict } of await runOutOfBandProbes(pg)) {
+      if (category.get(key) === "claimed") continue;
+      const mine = exprsBySig.get(key);
+      if (!mine) exprsBySig.set(key, [expr]);
+      else if (!mine.includes(expr)) mine.push(expr);
+      verdicts.set(expr, verdict);
+    }
+
     for (const [key, mine] of exprsBySig) {
       // The claim regime: a claimed aggregate or window row is judged
       // against its OWN conditions — an "always" claim fails on any NULL,
@@ -991,18 +1004,61 @@ describe("builtin scalar surface, witnessed or classified", () => {
     // REFUSED_CALLS drops a row's GENERATED combinations, which would leave it
     // with no expressions at all and no category — the classification would
     // shrink and the count assertion above would be the only thing that
-    // noticed. So a refusal owes one of two things: a COHERENT_CALLS entry
-    // that reaches a result, or an UNPROBED entry saying the probe declines
-    // this row and why. Refusing quietly is the case this forbids.
+    // noticed. So a refusal owes one of THREE things: a COHERENT_CALLS entry
+    // that reaches a result, an out-of-band mechanism that probes the row
+    // somewhere the refusal does not apply, or an UNPROBED entry saying the
+    // probe declines this row and why. Refusing quietly is the case this
+    // forbids.
+    //
+    // The third arrived with the side instance and is not a loosening: two
+    // rows are refused BECAUSE they belong there — creating a logical slot
+    // hangs on this instance's prepared transaction, and clearing the session
+    // origin destroys what three other rows are measured against. The refusal
+    // is what routes them, so it is accounted for by the route.
     const recorded = new Set(Object.values(UNPROBED).flat());
     const unaccounted = Object.keys(REFUSED_CALLS)
-      .filter(k => !(COHERENT_CALLS[k] ?? []).length && !recorded.has(k))
+      .filter(
+        k =>
+          !(COHERENT_CALLS[k] ?? []).length &&
+          !OUT_OF_BAND_KEYS.has(k) &&
+          !recorded.has(k),
+      )
       .sort();
     expect(
       unaccounted,
-      `REFUSED_CALLS refuses a signature's generated combinations with neither ` +
-        `a COHERENT_CALLS entry to probe it by nor an UNPROBED entry saying so:` +
-        `\n  ${unaccounted.join("\n  ")}`,
+      `REFUSED_CALLS refuses a signature's generated combinations with none of ` +
+        `the three accountings: no COHERENT_CALLS entry to probe it by, no ` +
+        `out-of-band mechanism that reaches it, and no UNPROBED entry saying ` +
+        `so:\n  ${unaccounted.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("every out-of-band mechanism still reaches its rows", () => {
+    // The mechanisms are the only thing standing between these rows and the
+    // unprobed list, and each is a live moving part: a second PGlite instance,
+    // an event trigger created and fired, a scalar subquery over a column
+    // definition list, a statement run outside `probe()`. If one silently
+    // stops working, every row it carries falls back to `raised-everywhere`
+    // and the UNPROBED pin fails — correctly, but pointing at the wrong table
+    // and reading as "PostgreSQL declines this" when the truth is "the harness
+    // broke". This says which it is.
+    //
+    // `claimed` counts: nine of these rows were promoted on the mechanisms'
+    // own evidence, and this suite never evaluates a claimed row. The hold
+    // moved rather than lapsed — totality-probe.test.ts runs the same
+    // mechanisms and fails its "actually evaluated" assertion if one stops
+    // reaching them.
+    const stalled = [...OUT_OF_BAND_KEYS, ...Object.keys(EXPR_PROBES)]
+      .filter(k => {
+        const c = category.get(k);
+        return c !== "claimed" && c !== "null-witnessed" && c !== "no-null-found";
+      })
+      .sort();
+    expect(
+      stalled,
+      `An out-of-band probe reached no result. Its row is unprobed again, and ` +
+        `the mechanism is what to look at first — probe-values.ts records what ` +
+        `each one needs and what breaks it:\n  ${stalled.join("\n  ")}`,
     ).toEqual([]);
   });
 

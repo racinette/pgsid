@@ -587,19 +587,36 @@ export const REFUSED_CALLS: Record<string, string> = {
   // a setting nothing reads and `is_local = true`.
   "set_config(text,text,boolean)":
     "sets a SESSION GUC that outlives the call — search_path among the corpus's own values, which hides the probe's enum type from every later expression in the statement",
-  // The third reason, and the only refusal with no bounded call to put in its
-  // place: creating a LOGICAL slot waits for every in-progress transaction to
-  // finish before it can reach a consistent snapshot, and this probe database
-  // holds a PREPARED transaction — which never finishes. Two of its own
-  // objects, each added for an unrelated row, and neither one predicts the
-  // other. A temporary slot waits the same way, so the row is recorded
-  // unprobed rather than probed by something narrower.
+  // The third reason: creating a LOGICAL slot waits for every in-progress
+  // transaction to finish before it can reach a consistent snapshot, and this
+  // probe database holds a PREPARED transaction — which never finishes. Two of
+  // its own objects, each added for an unrelated row, and neither one predicts
+  // the other. A temporary slot waits the same way, so there is no bounded
+  // spelling to put here; the row is probed in the SIDE instance instead
+  // (SIDE_DB_SCRIPT), which holds neither object.
   "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)":
-    "waits forever for the probe database's prepared transaction to finish; a logical slot needs a consistent snapshot and there is no bounded spelling",
+    "waits forever for the probe database's prepared transaction to finish; probed in the side instance instead",
+  // The fourth reason, and the worst consequence of the four: READING a slot
+  // through pgoutput kills the backend outright rather than raising. It
+  // survives today only because no corpus value spells the plugin's required
+  // options — the generated calls stop at "option proto_version missing" — and
+  // that is a corpus edit away from being a dead run instead of a verdict.
+  // SIDE_DB_SCRIPT records the full measurement and why no plugin in this
+  // build can answer these.
+  "pg_logical_slot_get_changes(name,pg_lsn,integer,text[])":
+    "reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build",
+  "pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])":
+    "reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build",
+  "pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])":
+    "reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build",
+  "pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])":
+    "reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build",
   // Clears the session replication origin PROBE_OBJECTS_SQL configures, which
-  // three other rows need — the set_config shape again, one family over.
+  // three other rows need — the set_config shape again, one family over. Its
+  // own verdict comes from the SIDE instance, which configures no origin until
+  // the two origin rows ask it to.
   "pg_replication_origin_session_reset()":
-    "clears the session replication origin the probe database configures, which three other rows are evaluated against",
+    "clears the session replication origin the probe database configures, which three other rows are evaluated against; probed in the side instance instead",
   // DROPS the probe database's replication slots. The `name` corpus carries
   // their names — that is what made the slot family probeable at all — so
   // its generated combinations delete the objects `pg_replication_slot_advance`
@@ -1000,6 +1017,437 @@ export async function createProbeDb(): Promise<PGlite> {
   // PREPARE TRANSACTION is what ends this one.
   for (const sql of PROBE_STANDALONE_SQL) await db.query(sql);
   return db;
+}
+
+/**
+ * Complete EXPRESSIONS supplied verbatim for one signature, for the rows whose
+ * call SHAPE the builder cannot spell.
+ *
+ * COHERENT_CALLS supplies ARGUMENTS and the builder still writes the call as
+ * `name(args)`. These four need something else entirely: a record-returning
+ * json function refuses to be an expression at all — "could not determine row
+ * type for result" — because its result type comes from a COLUMN DEFINITION
+ * LIST, which is FROM-clause syntax. They were pinned unprobed for exactly
+ * that, under a `coldeflist` group saying no expression can carry one.
+ *
+ * The group was wrong, and cheaply: a scalar SUBQUERY over that FROM clause IS
+ * an ordinary expression, so no new probe path is needed. `(SELECT s.b FROM
+ * json_to_record('{"a":1}'::json) AS s(a int, b text))` sits in a target list
+ * like anything else and answers NULL for a key the json does not carry.
+ *
+ * The FROM-position materialisation trap `srfQuery` exists to avoid does not
+ * bite here: the input is a LITERAL of one or two elements, so the scan is
+ * bounded by the literal rather than by a corpus value. `OFFSET 1` is what
+ * reaches the second row of a recordset without the subquery raising on a
+ * multi-row result.
+ */
+export const EXPR_PROBES: Record<string, readonly string[]> = {
+  "json_to_record(json)": [
+    `(SELECT s.b FROM pg_catalog.json_to_record('{"a":1,"b":"x"}'::json) AS s(a int, b text))`,
+    `(SELECT s.b FROM pg_catalog.json_to_record('{"a":1}'::json) AS s(a int, b text))`,
+  ],
+  "json_to_recordset(json)": [
+    `(SELECT s.b FROM pg_catalog.json_to_recordset('[{"a":1,"b":"x"}]'::json) AS s(a int, b text))`,
+    `(SELECT s.b FROM pg_catalog.json_to_recordset('[{"a":1,"b":"x"},{"a":2}]'::json) AS s(a int, b text) OFFSET 1)`,
+  ],
+  "jsonb_to_record(jsonb)": [
+    `(SELECT s.b FROM pg_catalog.jsonb_to_record('{"a":1,"b":"x"}'::jsonb) AS s(a int, b text))`,
+    `(SELECT s.b FROM pg_catalog.jsonb_to_record('{"a":1}'::jsonb) AS s(a int, b text))`,
+  ],
+  "jsonb_to_recordset(jsonb)": [
+    `(SELECT s.b FROM pg_catalog.jsonb_to_recordset('[{"a":1,"b":"x"}]'::jsonb) AS s(a int, b text))`,
+    `(SELECT s.b FROM pg_catalog.jsonb_to_recordset('[{"a":1,"b":"x"},{"a":2}]'::jsonb) AS s(a int, b text) OFFSET 1)`,
+  ],
+};
+
+/**
+ * Expressions that must NOT go through `probe()`, and the one reason there is.
+ *
+ * `probe()` catches per-expression errors in a plpgsql EXCEPTION block, and an
+ * EXCEPTION block is a SUBTRANSACTION. PostgreSQL refuses to export a snapshot
+ * from one — "cannot export a snapshot from a subtransaction" — so the row was
+ * pinned unprobed under a group naming the harness rather than the database.
+ * It was the only such row, and the pin was right about the cause: run the same
+ * call as a statement of its own and it answers.
+ *
+ * The price is one round trip per expression and no error isolation from the
+ * batch, which is why this table is a list rather than a mode. The recorded
+ * expression carries an SQL comment so the work list says which path produced
+ * the verdict — the bare call is ALSO probed by the batch, where it errors, and
+ * two identical strings would collapse into one entry.
+ */
+export const DIRECT_PROBES: Record<string, readonly string[]> = {
+  "pg_export_snapshot()": ["pg_catalog.pg_export_snapshot() /* no subtransaction */"],
+};
+
+/**
+ * A SECOND probe instance, and the two groups that need one.
+ *
+ * The main probe database holds a PREPARED transaction (so `pg_prepared_xact()`
+ * is non-empty) and a configured session replication ORIGIN (so three origin
+ * rows evaluate). Both were added for unrelated rows, and each BLOCKS a family:
+ *
+ *   - creating or copying a logical slot waits for every in-progress
+ *     transaction to reach a consistent snapshot, and a prepared transaction
+ *     never reaches one. The wait is uninterruptible in WASM, so this is not a
+ *     slow probe but a hung run — it cost a session once.
+ *   - a session has exactly ONE replication origin, so the row that SETS one
+ *     raises and the row that CLEARS one destroys what the three configured
+ *     rows are measured against.
+ *
+ * Neither is a fact about the functions, so neither belongs in a verdict. A
+ * second instance without those two objects answers all ten, and its own setup
+ * is deliberately thin: a table, a publication for the decoding readers to
+ * decode, a table to rewrite, and a log the event triggers write to.
+ */
+export const SIDE_PROBE_CONF: readonly string[] = [
+  "wal_level = logical",
+  "max_replication_slots = 100",
+];
+
+export const SIDE_PROBE_OBJECTS_SQL = `
+  CREATE TABLE side_rw(x int);
+  INSERT INTO side_rw VALUES (1);
+  CREATE TABLE side_log(e text, v text);
+  -- A grantee and a schema, each of which exists to make one event-trigger
+  -- row answer NULL rather than merely answer. See EVENT_TRIGGER_PROBES.
+  CREATE ROLE side_role NOLOGIN;
+  CREATE SCHEMA side_schema;
+`;
+
+export async function createSideProbeDb(): Promise<PGlite> {
+  const db = await PGlite.create({ postgresqlconf: [...SIDE_PROBE_CONF] });
+  await db.exec(PROBE_FN_SQL);
+  await db.exec(SRF_PROBE_FN_SQL);
+  await db.exec(SIDE_PROBE_OBJECTS_SQL);
+  return db;
+}
+
+/** One step of the side instance's script: an object to make, or a row to probe. */
+export type SideStep =
+  | { readonly setup: string }
+  | {
+      readonly key: string;
+      readonly expr: string;
+      /** A composite result needs `nullTestExpr`; see that function for why. */
+      readonly composite?: boolean;
+      /** Output-column count for a SET-RETURNING row, absent for a scalar one. */
+      readonly ncols?: number;
+    };
+
+/**
+ * The side instance's script, in ORDER — and the order is the mechanism, not a
+ * convenience. A slot must exist before it can be copied, changes must be
+ * written AFTER a slot is created for the slot to see them, and the origin row
+ * that clears the session's origin must run after the one that sets it.
+ *
+ * Each reader gets a slot of its own because `_get_` CONSUMES what it reads:
+ * sharing one would make the second reader's verdict depend on which ran first,
+ * the same defect `pg_drop_replication_slot` was refused for.
+ */
+export const SIDE_DB_SCRIPT: readonly SideStep[] = [
+  {
+    key: "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)",
+    expr: "pg_catalog.pg_create_logical_replication_slot('side_l1', 'pgoutput', false, false, false)",
+    composite: true,
+  },
+  {
+    key: "pg_copy_logical_replication_slot(name,name)",
+    expr: "pg_catalog.pg_copy_logical_replication_slot('side_l1', 'side_c1')",
+    composite: true,
+  },
+  {
+    key: "pg_copy_logical_replication_slot(name,name,boolean)",
+    expr: "pg_catalog.pg_copy_logical_replication_slot('side_l1', 'side_c2', true)",
+    composite: true,
+  },
+  {
+    key: "pg_copy_logical_replication_slot(name,name,boolean,name)",
+    expr: "pg_catalog.pg_copy_logical_replication_slot('side_l1', 'side_c3', true, 'pgoutput')",
+    composite: true,
+  },
+  // The four READERS are not here, and the reason is measured rather than
+  // reasoned: a slot READ through pgoutput does not raise and does not return
+  // an empty set — it takes the BACKEND DOWN. Every statement after it on that
+  // connection answers zero rows, `pg_replication_slots` included, and
+  // `pg_current_wal_lsn()` then reports ERRORDATA_STACK_SIZE exceeded.
+  //
+  // A first attempt read that zero-row answer as an empty set and put the
+  // readers first in this script, which silently un-probed the two origin rows
+  // below: they reported `error` because the connection was already gone, not
+  // because PostgreSQL declined them. Their real verdict is `value`.
+  //
+  // pgoutput writes to a REPLICATION connection's stream, and there is no
+  // walsender behind a SELECT. The plugin that produces SQL-readable output is
+  // `test_decoding`, which is contrib rather than core and is absent from the
+  // PGlite build (checked: it exists in the pglite source tree, not in the
+  // published dist). So the four readers stay unprobed, and their generated
+  // combinations are refused so a future corpus value cannot reach the fatal
+  // path by accident — an option name away is too close for something that
+  // costs the whole run.
+  { setup: "SELECT pg_catalog.pg_replication_origin_create('side_origin')" },
+  {
+    key: "pg_replication_origin_session_setup(text)",
+    expr: "pg_catalog.pg_replication_origin_session_setup('side_origin')",
+  },
+  {
+    key: "pg_replication_origin_session_reset()",
+    expr: "pg_catalog.pg_replication_origin_session_reset()",
+  },
+];
+
+/**
+ * The EVENT TRIGGER rows, and the only shape that reaches them.
+ *
+ * Each of these four checks its calling context and raises for a plain SELECT —
+ * "not fired by event trigger manager" — so the verdict has to be computed
+ * INSIDE a trigger body and carried out in a table. That is what `side_log` is
+ * for: the trigger function calls the same `probe()`/`srfprobe()` the batch
+ * calls, over the same inner query, and inserts the answer.
+ *
+ * One trigger at a time, created and dropped around its own firing DDL. A
+ * standing `ddl_command_end` trigger would also fire for the CREATE and DROP of
+ * the NEXT probe's trigger, and every row it logged then would be a verdict
+ * about the harness's own bookkeeping.
+ *
+ * The DDL is chosen from the C source, not for convenience. Two of the four
+ * rows are set-returning and `event_trigger.c` fills `nulls[]` on named
+ * branches, so the firing statement decides whether the row can WITNESS or
+ * only evaluate:
+ *
+ *   - `pg_event_trigger_ddl_commands()` takes the `SCT_Grant` branch for a
+ *     GRANT or REVOKE, which sets classid, objid, objsubid, schema and
+ *     identity NULL in one row. A `CREATE TABLE` takes the ordinary branch and
+ *     fills all nine columns.
+ *   - `pg_event_trigger_dropped_objects()` leaves `schema_name` NULL for an
+ *     object that HAS no schema. Dropping a table gives 'public' for both the
+ *     table and its composite type; dropping a SCHEMA gives NULL.
+ *
+ * So each of those two is fired twice, and the pair is the evidence: the
+ * ordinary DDL shows the row evaluates, the chosen one shows it answers NULL.
+ * The recorded expression carries the firing statement as an SQL comment,
+ * which is what keeps two firings of the same call from collapsing into one
+ * verdict — and what makes the work-list line say which DDL produced it.
+ */
+export const EVENT_TRIGGER_PROBES: readonly {
+  readonly when: string;
+  readonly fire: string;
+  readonly probes: readonly { readonly key: string; readonly call: string }[];
+}[] = [
+  {
+    when: "ddl_command_end",
+    fire: "CREATE TABLE side_et(x int)",
+    probes: [
+      { key: "pg_event_trigger_ddl_commands()", call: "pg_catalog.pg_event_trigger_ddl_commands()" },
+    ],
+  },
+  {
+    when: "sql_drop",
+    fire: "DROP TABLE side_et",
+    probes: [
+      { key: "pg_event_trigger_dropped_objects()", call: "pg_catalog.pg_event_trigger_dropped_objects()" },
+    ],
+  },
+  {
+    // int to bigint changes the stored width, which is what makes this a
+    // REWRITE rather than a catalog update — `ALTER COLUMN … TYPE text` would
+    // not fire the trigger at all.
+    when: "table_rewrite",
+    fire: "ALTER TABLE side_rw ALTER COLUMN x TYPE bigint",
+    probes: [
+      { key: "pg_event_trigger_table_rewrite_oid()", call: "pg_catalog.pg_event_trigger_table_rewrite_oid()" },
+      { key: "pg_event_trigger_table_rewrite_reason()", call: "pg_catalog.pg_event_trigger_table_rewrite_reason()" },
+    ],
+  },
+  // The two firings chosen from `event_trigger.c` for their NULL branches.
+  {
+    when: "ddl_command_end",
+    fire: "GRANT SELECT ON side_rw TO side_role",
+    probes: [
+      { key: "pg_event_trigger_ddl_commands()", call: "pg_catalog.pg_event_trigger_ddl_commands()" },
+    ],
+  },
+  {
+    when: "sql_drop",
+    fire: "DROP SCHEMA side_schema",
+    probes: [
+      { key: "pg_event_trigger_dropped_objects()", call: "pg_catalog.pg_event_trigger_dropped_objects()" },
+    ],
+  },
+];
+
+/**
+ * Every signature some out-of-band mechanism probes, derived from the three
+ * tables rather than listed a fourth time.
+ *
+ * A refusal owes an accounting — a bounded call that reaches a result, or a
+ * record saying the probe declines the row — and being probed somewhere else
+ * is a third answer the pin did not have. Two rows are refused precisely
+ * BECAUSE the side instance is where they can be asked.
+ */
+export const OUT_OF_BAND_KEYS: ReadonlySet<string> = new Set([
+  ...Object.keys(DIRECT_PROBES),
+  ...SIDE_DB_SCRIPT.flatMap(s => ("setup" in s ? [] : [s.key])),
+  ...EVENT_TRIGGER_PROBES.flatMap(g => g.probes.map(p => p.key)),
+]);
+
+/** One out-of-band verdict, in the shape the classifier merges. */
+export interface OutOfBandVerdict {
+  readonly key: string;
+  readonly expr: string;
+  readonly verdict: string;
+}
+
+/**
+ * Run one expression and read its verdict WITHOUT `probe()` — the caller's
+ * connection, one statement, the error caught in JavaScript.
+ *
+ * Same three answers the plpgsql probes give, decided the same way: an
+ * emitted-nothing set is `empty` rather than a value, and a composite is cast
+ * before the NULL test.
+ */
+async function directVerdict(
+  db: PGlite,
+  expr: string,
+  ncols?: number,
+  composite?: boolean,
+): Promise<string> {
+  try {
+    if (ncols !== undefined) {
+      const r = await db.query<{ count: string | number; bool_or: boolean | null }>(
+        srfQuery(expr, ncols),
+      );
+      if (Number(r.rows[0]?.count ?? 0) === 0) return "empty";
+      return r.rows[0]?.bool_or ? "NULL" : "value";
+    }
+    const r = await db.query<{ v: boolean | null }>(
+      `SELECT (${nullTestExpr(expr, composite ?? false)}) IS NULL AS v`,
+    );
+    return r.rows[0]?.v ? "NULL" : "value";
+  } catch {
+    return "error";
+  }
+}
+
+/**
+ * Every probe the classifying batch cannot make, run and reported as verdicts
+ * the batch's own merge understands.
+ *
+ * Three mechanisms, one per reason the batch is the wrong place: a snapshot
+ * export that a subtransaction forbids, a family the main instance's own
+ * objects block, and four rows whose only caller is the event trigger manager.
+ * The fourth reason — a call shape with no expression spelling — needed no
+ * mechanism in the end and lives in `EXPR_PROBES` as ordinary expressions.
+ *
+ * A verdict here is evidence of exactly the same weight as a batch verdict.
+ * What differs is where the call ran, and nothing about where a call runs
+ * changes whether its result was NULL.
+ */
+export async function runOutOfBandProbes(pg: PGlite): Promise<OutOfBandVerdict[]> {
+  const out: OutOfBandVerdict[] = [];
+
+  for (const [key, exprs] of Object.entries(DIRECT_PROBES)) {
+    for (const expr of exprs) {
+      out.push({ key, expr, verdict: await directVerdict(pg, expr) });
+    }
+  }
+
+  const side = await createSideProbeDb();
+  try {
+    // The event triggers first: their firing DDL is the noisiest thing in the
+    // script, and doing it before any slot exists keeps it out of what the
+    // decoding readers decode.
+    const ncols = await srfColumnCounts(
+      side,
+      EVENT_TRIGGER_PROBES.flatMap(g => g.probes.map(p => p.key)),
+    );
+    // The recorded expression names its firing DDL in an SQL comment, so the
+    // two firings of a row that is probed twice stay two verdicts rather than
+    // one overwriting the other. It is still the call that runs — a comment
+    // inside the expression is inert, and it travels into the trigger body's
+    // inner query with it.
+    const firedExpr = (call: string, fire: string): string => `${call} /* fired by: ${fire} */`;
+    for (const group of EVENT_TRIGGER_PROBES) {
+      const body = group.probes
+        .map(p => {
+          const n = ncols.get(p.key);
+          const expr = firedExpr(p.call, group.fire);
+          const inner = n === undefined ? expr : srfQuery(expr, n);
+          const fn = n === undefined ? "probe" : "srfprobe";
+          return `INSERT INTO side_log VALUES ($e$${expr}$e$, ${fn}($q$${inner}$q$));`;
+        })
+        .join("\n        ");
+      await side.exec(`
+        CREATE FUNCTION side_et_fn() RETURNS event_trigger LANGUAGE plpgsql AS $et$
+        BEGIN
+        ${body}
+        END $et$;
+        CREATE EVENT TRIGGER side_et ON ${group.when} EXECUTE FUNCTION side_et_fn();
+      `);
+      try {
+        await side.exec(group.fire);
+      } catch {
+        // The firing DDL itself failed; every probe of the group stays
+        // unlogged and is reported as an error below.
+      }
+      await side.exec(`DROP EVENT TRIGGER side_et; DROP FUNCTION side_et_fn();`);
+      const logged = new Map(
+        (await side.query<{ e: string; v: string }>(`SELECT e, v FROM side_log`)).rows.map(
+          r => [r.e, r.v] as const,
+        ),
+      );
+      await side.exec(`DELETE FROM side_log;`);
+      for (const p of group.probes) {
+        const expr = firedExpr(p.call, group.fire);
+        out.push({ key: p.key, expr, verdict: logged.get(expr) ?? "error" });
+      }
+    }
+
+    for (const step of SIDE_DB_SCRIPT) {
+      if ("setup" in step) {
+        try {
+          await side.query(step.setup);
+        } catch {
+          // A setup statement that fails leaves the rows depending on it to
+          // report their own error; it is not itself a verdict about anything.
+        }
+        continue;
+      }
+      out.push({
+        key: step.key,
+        expr: step.expr,
+        verdict: await directVerdict(side, step.expr, step.ncols, step.composite),
+      });
+    }
+  } finally {
+    if (!side.closed) await side.close();
+  }
+  return out;
+}
+
+/**
+ * Output-column count per signature key, for the set-returning rows among a
+ * given set — the same expression the two suites compute it with, asked of the
+ * catalog rather than written down. A scalar row is absent from the result.
+ */
+async function srfColumnCounts(db: PGlite, keys: string[]): Promise<Map<string, number>> {
+  const names = [...new Set(keys.map(k => k.slice(0, k.indexOf("("))))];
+  const rows = (
+    await db.query<{ key: string; ncols: number }>(
+      `SELECT p.proname || '(' ||
+              COALESCE((SELECT string_agg(format_type(t, null), ',' ORDER BY o)
+                          FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '') || ')' AS key,
+              CASE WHEN p.proargmodes IS NULL THEN 1
+                   ELSE greatest(1, (SELECT count(*) FROM unnest(p.proargmodes) m
+                                      WHERE m IN ('o','b','t'))) END::int AS ncols
+         FROM pg_proc p
+         JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
+          AND p.proretset AND p.proname = ANY($1);`,
+      [names],
+    )
+  ).rows;
+  return new Map(rows.filter(r => keys.includes(r.key)).map(r => [r.key, r.ncols] as const));
 }
 
 /**

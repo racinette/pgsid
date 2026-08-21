@@ -28,6 +28,7 @@ import {
   nullTestExpr,
   variadicArgTypes,
   COHERENT_CALLS,
+  runOutOfBandProbes,
 } from "./probe-values.js";
 
 /** One row under one table's claim; `prefix` marks a unary operator. */
@@ -354,6 +355,31 @@ describe("totality tables, probed by execution", () => {
     );
     for (const r of res.rows) verdicts.set(r.e, r.v);
 
+    // The claims this suite cannot make from one instance through `probe()`.
+    //
+    // Nine claimed rows are unreachable from the batch above and each is
+    // unreachable for a reason that is about the CALL rather than the
+    // function: `pg_export_snapshot()` needs a statement with no
+    // subtransaction around it, the slot and origin rows need an instance
+    // holding neither a prepared transaction nor a session origin, and the
+    // two table-rewrite rows are only ever called by the event trigger
+    // manager. probe-values.ts holds all three mechanisms; this suite and the
+    // classifying one share them, exactly as they share the corpus.
+    //
+    // Without this the nine could not be claimed at all. A claim table entry
+    // is a standing promise that this suite RE-EXECUTES the row every run,
+    // and a promoted row whose every combination raises is caught by the
+    // "actually evaluated" assertion below — correctly, since a claim nothing
+    // executes is a claim nothing checks.
+    for (const { key, expr, verdict } of await runOutOfBandProbes(pg)) {
+      const sig = signatures.find(s => s.key === key);
+      if (sig === undefined) continue;
+      const mine = perSignature.get(sig);
+      if (mine === undefined) perSignature.set(sig, [expr]);
+      else if (!mine.includes(expr)) mine.push(expr);
+      verdicts.set(expr, verdict);
+    }
+
     for (const [sig, mine] of perSignature) {
       let evaluated = 0;
       for (const e of mine) {
@@ -368,9 +394,25 @@ describe("totality tables, probed by execution", () => {
         }
       }
       const key = `${sig.name}(${sig.types.join(", ")})`;
-      if (mine.length > 0 && evaluated === 0) {
+      // NO combinations counts as unevaluated, which it did not until a
+      // claimed row depended on it. A REFUSED row contributes none — the
+      // refusal drops them — so `pg_create_logical_replication_slot` is held
+      // by its out-of-band verdict ALONE, and under the old `mine.length > 0`
+      // guard a broken mechanism would have left it with an empty list and
+      // passed in silence. That is the shape of hole this assertion exists to
+      // forbid, and the claim was one line away from sitting in it.
+      //
+      // Safe to tighten because the other route to an empty list — every
+      // parameter type missing a generator — is reported by its own assertion
+      // below, which is at zero.
+      if (evaluated === 0) {
         if (key in UNEVALUABLE) exemptAndRaising.add(key);
-        else allRaised.push(`${key} — ${mine.length} combinations, all raised`);
+        else if (mine.length === 0) {
+          allRaised.push(
+            `${key} — NO combinations at all: refused with no coherent call ` +
+              `and no out-of-band mechanism reaching it`,
+          );
+        } else allRaised.push(`${key} — ${mine.length} combinations, all raised`);
       } else if (key in UNEVALUABLE) {
         exemptButEvaluated.push(`${key} — ${UNEVALUABLE[key]}`);
       }
