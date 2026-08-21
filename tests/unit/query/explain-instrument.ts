@@ -54,8 +54,12 @@ export function countPlanOuterJoins(node: unknown): number {
 // recorded verdict, so the report reads "N divergences, all explained" and an
 // unexplained one fails loudly. The causes:
 //
-//   slice-local-strict-qual — KNOWN IMPRECISION (a closure candidate; see the
-//     deferred-tasks register). An outer join's own strict qual references
+//   slice-local-strict-qual — CLOSED 2026-08-19 (was 436 in the first
+//     census, now 0; the pinned count below is the guard). The participation
+//     closure is built into the fixpoint — `resolveJoinImplications`, spec in
+//     docs/nullability-walk.md under "The participation closure". The class
+//     stays armed so a regression re-opens it by name. What it WAS, and what
+//     a re-opening would mean: an outer join's own strict qual references
 //     the optional side of an outer join nested in an arm it governs:
 //     `(t LEFT u) RIGHT v ON v.u_id = u.id` — a u-extended row fails the
 //     strict qual and the RIGHT join drops it, so the LEFT's extension never

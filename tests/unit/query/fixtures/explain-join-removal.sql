@@ -1,6 +1,8 @@
 -- Uniqueness-based join removal — the divergence class that is NOT a
 -- nullability fact, pinned so the distinction stays visible in the hand
--- corpus (the generated census carries 138 of these; deferred-tasks §4).
+-- corpus. Permanently out of scope, and why is on `DivergenceCause` in
+-- explain-instrument.ts; the generated census is now 0 (the participation
+-- closure settles the same joins those queries' quals already killed).
 --
 -- `ck.id` is a PRIMARY KEY, the join equates it, and nothing references
 -- `ck`'s columns — so remove_useless_joins deletes the join outright: it

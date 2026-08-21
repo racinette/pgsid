@@ -60,10 +60,12 @@ So the corpus is not your safety net here. Hand-built probes are.
 
 ## Attack surface catalog
 
-The closure entries at the top of section 2 of `docs/deferred-tasks.md`, dated
-2026-08-07, are your primary reading — six of them, each carrying the
-soundness argument someone made under fix-phase pressure. Attack the argument,
-not the code.
+The six closure entries dated 2026-08-07 were your primary reading — each
+carrying the soundness argument someone made under fix-phase pressure. They
+lived in `docs/deferred-tasks.md` until the register was cut back to decisions
+and open items (2026-08-21); read them with `git log -p docs/deferred-tasks.md`,
+and read the fixtures that pin each fix, which are the part that still runs.
+Attack the argument, not the code.
 
 ### A. The strict short-circuit
 

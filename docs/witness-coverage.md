@@ -485,9 +485,10 @@ planner-stronger divergence must CLASSIFY — `explain-instrument.ts` goes
 into the query and attributes it to a known cause with a recorded verdict
 (known imprecision, out-of-scope uniqueness removal, instrument blind
 spot), the per-cause census is pinned both directions, and an unexplained
-divergence fails naming the query. The census and each cause's status live
-in the deferred-tasks register (section 4): "the planner did better" is
-never a bare count — it is either understood or a failure.
+divergence fails naming the query. Each cause and its status is documented on
+`DivergenceCause` in `explain-instrument.ts`, and the census is pinned in
+`generated/generated-explain.test.ts`: "the planner did better" is never a
+bare count — it is either understood or a failure.
 
 ## Borrowed corpora
 
