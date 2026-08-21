@@ -46,14 +46,11 @@
 // all-raised, or no-generator. Nothing here promotes anything — the verdict
 // is evidence for a human, the same discovery/coverage split the register
 // mandates for the work list itself.
-import { PGlite } from "@electric-sql/pglite";
 import {
   VALUES,
   POLYMORPHIC,
   POLYMORPHIC_FAMILIES,
-  PROBE_FN_SQL,
-  SRF_PROBE_FN_SQL,
-  PROBE_OBJECTS_SQL,
+  createProbeDb,
   REFUSED_CALLS,
   srfQuery,
   qualify,
@@ -153,17 +150,7 @@ const roleFilter =
           ...ROLE_ORDER.slice(0, ROLE_ORDER.indexOf(roleArg)).map(r => `NOT ${ROLE_SQL[r]!}`),
         ].join(" AND ");
 
-let pg = await PGlite.create();
-const setup = async (db: PGlite): Promise<void> => {
-  await db.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
-  await db.exec(PROBE_FN_SQL);
-  await db.exec(SRF_PROBE_FN_SQL);
-  // The objects the corpus NAMES. Without them `'probe_seq'::regclass` raises
-  // inside probe() and every row taking a regclass is swept against half the
-  // vocabulary it was written for — silently, since a raise is not a finding.
-  await db.exec(PROBE_OBJECTS_SQL);
-};
-await setup(pg);
+let pg = await createProbeDb();
 
 /**
  * A poisoned backend answers plain SELECTs and lies (the register's
@@ -183,8 +170,7 @@ const ensureAlive = async (): Promise<void> => {
   } catch {
     /* already dead */
   }
-  pg = await PGlite.create();
-  await setup(pg);
+  pg = await createProbeDb();
 };
 
 interface Row {
