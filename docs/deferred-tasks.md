@@ -2640,10 +2640,23 @@ the same prerequisite that charter does. None of it blocks a consumer.
    measurement.
 
 What that document deliberately does NOT own is stated at its top:
-`docs/type-aware-overloads.md` has every one-name-many-signatures defect —
-including `path + path`, the only live unsoundness in normal operation — and
+`docs/type-aware-overloads.md` has every one-name-many-signatures defect, and
 `docs/consumer-design.md` has everything whose missing piece is project
 configuration or a call site.
+
+This sentence used to end "— including `path + path`, the only live
+unsoundness in normal operation —" and that **stopped being true when the
+operator narrowing landed (2026-08-09)**, which is more than a year of
+reading time in which the register named a defect the engine did not have.
+Re-measured 2026-08-21 across six shapes — direct columns, a CTE, a derived
+table, two function results, a parameter, and cast literals — and the walk
+reads `a + b` NULLABLE in every one while PostgreSQL answers NULL. `+` is
+still name-claimed in `TOTAL_OPERATORS` with the hole recorded in
+`PARTIAL_OVERLOADS`, and that record is still earned in the sense the gate
+asserts (the probe still reproduces the NULL); what changed is that the
+narrowing resolves the operand types and consults the per-signature verdict
+BEFORE the name claim is ever consulted. The table's excuse survives; the
+consequence it was excusing does not. Trap 12, one document over.
 
 ---
 
