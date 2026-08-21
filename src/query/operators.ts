@@ -68,7 +68,7 @@ export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   // Pattern matching: LIKE / ILIKE / regex, and their negations.
   "~~", "!~~", "~~*", "!~~*", "~", "!~", "~*", "!~*",
   // -------------------------------------------------------------------------
-  // The operator batch (2026-08-09, docs/builtin-surface-worklist.md — the
+  // The operator batch (2026-08-09, docs/builtin-surface-classification.md — the
   // last half of the re-key's surface). Every row of each symbol below was
   // unwitnessed across the corner corpus AND convicted by hand on the classes
   // the corpus reaches for it: an array holding a NULL ELEMENT, the empty

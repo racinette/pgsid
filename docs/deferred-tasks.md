@@ -59,7 +59,7 @@ suite no longer has a `volatile` category at all), so those rows classify by
 execution like every other row.
 
 Where the 276 went: **134 claimed, 29 witnessed, 97 unprobed with grouped
-reasons, 12 no-generator, 4 held** — the four are in `WORK_LIST`, each
+reasons, 12 no-generator, 4 held** — the four are in `SETTLED_ELSEWHERE`, each
 because its `PG_RETURN_NULL` is live in a state no query can vary
 (`current_query`, `pg_database_size` twice, `pg_get_loaded_modules`). The
 promotions are one block in `SWEPT_TOTAL_SIGNATURES`. **`random()` reads
@@ -180,8 +180,8 @@ mechanism that could break silently. Empty now counts as unevaluated, with its
 own message.
 
 **Three pins hold it**, all in `builtin-surface.test.ts`, all asserted in
-BOTH directions: `WORK_LIST` (the eighteen, each with why it cannot be
-promoted or witnessed), `UNPROBED` (108 rows in thirteen groups, each naming
+BOTH directions: `SETTLED_ELSEWHERE` (the eighteen, each naming where its
+disposition lives), `UNPROBED` (108 rows in thirteen groups, each naming
 the measured reason), `NO_GENERATOR` (17 types, each marked REFUSED or
 DELIBERATELY SKIPPED). A fourth holds the mechanisms themselves: every
 out-of-band key must still reach a result, so a broken instance or a trigger
@@ -189,13 +189,33 @@ that stops firing says so instead of quietly returning its rows to the
 unprobed list. A signature a future PostgreSQL adds fails one of them until
 somebody decides about it.
 
+**`WORK_LIST` was renamed `SETTLED_ELSEWHERE` (2026-08-21), because it stopped
+being a work list and the name kept saying it was.** It opened at 1832 rows,
+every one a real promotion candidate. It is at eighteen and NONE of them is;
+"promote or find the input class" was instructing a reader to work a queue
+that no longer exists. Four dispositions are in there, and only the first two
+ever looked like work:
+
+| | n | where the decision lives |
+|---|---:|---|
+| witnessed by hand | 7 | `tests/unit/functions/` — the NULL route is session or transaction state the probe cannot vary, or sits past the combination cap |
+| claimed by the walk | 2 | `first_value`/`last_value` are notNull under the default-frame gate, which no claim table names |
+| correctly nullable | 7 | a live `PG_RETURN_NULL` in the C source that no single session reaches — an unset `debug_query_string`, a concurrent DROP. Promoting one would be a WRONG notNull |
+| excluded by the register | 2 | the encoding-conversion pair poisons the backend and may not be probed here at all |
+
+The document it writes was renamed with it — `docs/builtin-surface-classification.md`,
+`BUILTIN_SURFACE_CLASSIFICATION=<path>` — since it is a snapshot of all four
+categories and every one of them is now pinned. Trap 12 is this same lesson
+one table over: a pin whose wording stops being true keeps being read as
+though it were.
+
 **The loop, when a pin fails.** Run from `pgsid/`:
 
     pnpm exec vitest run tests/unit/query/builtin-surface.test.ts      # ~30s
     pnpm exec tsx tests/probe/cluster-sweep.ts --role=oprcode          # convict
     pnpm exec tsx tests/probe/cluster-sweep.ts '^has_' --list-total    # or by name
     pnpm exec tsx tests/probe/cluster-sweep.ts --volatile --list-total # the other cut
-    BUILTIN_SURFACE_WORKLIST=docs/builtin-surface-worklist.md \
+    BUILTIN_SURFACE_CLASSIFICATION=docs/builtin-surface-classification.md \
       pnpm exec vitest run tests/unit/query/builtin-surface.test.ts    # regenerate
 
 A convicted row goes into `SWEPT_TOTAL_SIGNATURES` (machine-swept) or a
@@ -1482,8 +1502,8 @@ jurisdiction), null-witnessed 154 (15 operator witnesses, `->` on a
 missing jsonb key the positive control), no-null-found 1826 (218 operator
 rows join the work list), the shell-operator drop per the 1a sweep's
 measurement. **The work list is a durable handoff**:
-`docs/builtin-surface-worklist.md`, written by the suite itself
-(`BUILTIN_SURFACE_WORKLIST=docs/builtin-surface-worklist.md` on the run,
+`docs/builtin-surface-classification.md`, written by the suite itself
+(`BUILTIN_SURFACE_CLASSIFICATION=docs/builtin-surface-classification.md` on the run,
 regeneration command in the file's header) — every category listed in
 full, null-witnessed entries with their runnable witnesses, ready for a
 session to work the no-null-found promotions signature by signature. **Aggregates and window functions JOINED the discipline (2026-08-09), with
@@ -1889,7 +1909,7 @@ enforces it either way.
 
 Surface after: claimed 2852, no-null-found 9, null-witnessed 293,
 raised-everywhere 114, no-generator 652, volatile 281. **All four unclaimed
-categories now carry a pin with reasons** (`WORK_LIST`, `UNPROBED`,
+categories now carry a pin with reasons** (`SETTLED_ELSEWHERE`, `UNPROBED`,
 `NO_GENERATOR`; `volatile` is the catalog's own marker and self-explaining),
 so nothing on this surface can change silently.
 
@@ -2001,7 +2021,7 @@ unclaimed, lands in `no-null-found`, and the run PASSES with the queue
 quietly larger. Nobody would learn until they regenerated the work-list
 document by hand.
 
-`node-census.test.ts`'s pattern closes it: `WORK_LIST` names the nine
+`node-census.test.ts`'s pattern closes it: `SETTLED_ELSEWHERE` names the nine
 remaining signatures WITH the reason each is still there, asserted in BOTH
 directions. Deliberately not a count — a ratchet lets a regression hide
 behind an unrelated improvement, which this project rejects everywhere else

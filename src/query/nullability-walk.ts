@@ -10289,7 +10289,7 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   "array_fill", "array_positions", "trim_array",
   "jsonb_set", "jsonb_insert",
   // ---------------------------------------------------------------------
-  // The work-list batch (2026-08-09, docs/builtin-surface-worklist.md). Each
+  // The work-list batch (2026-08-09, docs/builtin-surface-classification.md). Each
   // name below had EVERY one of its pg_catalog rows in `no-null-found` —
   // claimed nullable with no witness across the corner corpus — and each was
   // then convicted individually on input classes the corpus does not carry.
@@ -11352,7 +11352,7 @@ export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
   // in one server state is not the same as a function with no NULL to find.
   // That reading is what kept eight rows out: four whose `PG_RETURN_NULL` is
   // live in a state no query can reach (recorded in the surface suite's
-  // WORK_LIST) and four whose NULL the probe DATABASE was hiding — a
+  // SETTLED_ELSEWHERE) and four whose NULL the probe DATABASE was hiding — a
   // regclass naming a dropped relation and an un-called sequence joined
   // probe-values.ts, and six signatures moved to witnessed instead.
   //

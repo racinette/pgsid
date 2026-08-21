@@ -77,7 +77,8 @@ SELECT
   -- `pg_sleep(0)` held this position and is claimed now (the volatile sweep,
   -- 2026-08-21). `current_query` is the replacement because it is a builtin
   -- the sweep deliberately did NOT promote: its `PG_RETURN_NULL` fires when
-  -- the statement has no source text, and builtin-surface.test.ts's WORK_LIST
+  -- the statement has no source text, and builtin-surface.test.ts's
+  -- SETTLED_ELSEWHERE
   -- carries that reason — so the fallback control cannot quietly become a
   -- claimed row again without something failing first.
   current_query()                         AS unknown_builtin, -- @nullable
