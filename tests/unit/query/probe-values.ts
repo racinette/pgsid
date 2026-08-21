@@ -207,16 +207,39 @@ export const VALUES: Record<string, string[]> = {
   cstring: ["'abc'::cstring", "'42'::cstring", "''::cstring"],
   "double precision[]": ["'{}'::float8[]", "'{1,2}'::float8[]"],
   "bigint[]": ["'{}'::int8[]", "'{1,2}'::int8[]"],
+  "oid[]": ["'{}'::oid[]", "'{1,2}'::oid[]"],
   "cstring[]": ["'{}'::cstring[]", "'{a}'::cstring[]"],
   '"char"[]': ["ARRAY['a'::\"char\"]"],
   int2vector: ["'1 2'::int2vector"],
   xml: ["''::xml", "'<a/>'::xml"],
+  // A refcursor value is a PORTAL NAME, so the literal is trivial and the
+  // open cursor is the hard part — `PROBE_OBJECTS_SQL` declares one WITH
+  // HOLD so it outlives the declaring transaction. `cursor_to_xml` and
+  // `cursor_to_xmlschema` are the only two signatures that take one, and
+  // both were classified no-generator until this asked the pin's own
+  // question: impossible, or merely absent?
+  refcursor: ["'probe_cursor'::refcursor", "'abc'::refcursor"],
   // The reg* family names a live catalog object; an ambiguous name RAISES,
   // so `regproc` and `regoper` take a symbol with exactly one entry.
   // A relation AND a sequence: the sequence functions take `regclass` and
   // raise "is not a sequence" for anything else, so a relation-only vocabulary
   // left every one of their signatures unevaluated — a claim nothing tested.
-  regclass: ["'pg_class'::regclass", "'probe_seq'::regclass"],
+  //
+  // The two corners joined them with the volatile sweep (2026-08-21), and
+  // both were hiding a NULL behind a vocabulary of objects that all EXIST
+  // and are all in use. A regclass whose relation is GONE is what
+  // `pg_relation_size`, `pg_table_size`, `pg_indexes_size` and
+  // `pg_total_relation_size` answer NULL for — `try_relation_open` returns
+  // nothing and each has a `PG_RETURN_NULL` for it — and a regclass names a
+  // dropped OID without raising, so this is an ordinary input rather than a
+  // race. An UN-CALLED sequence is the same shape one layer down:
+  // `pg_sequence_last_value` is NULL until `nextval` has run, and
+  // `PROBE_OBJECTS_SQL` primes `probe_seq` for `currval`/`lastval` — so the
+  // object that makes five signatures evaluable was hiding a sixth's witness.
+  regclass: [
+    "'pg_class'::regclass", "'probe_seq'::regclass",
+    "'probe_seq_unused'::regclass", "999999::oid::regclass",
+  ],
   regtype: ["'integer'::regtype"],
   regproc: ["'pg_backend_pid'::regproc"],
   regprocedure: ["'upper(text)'::regprocedure"],
@@ -340,11 +363,61 @@ export function combinations(valueLists: string[][]): { combos: string[][]; capp
  * their totality claims are asserted by nothing. Recording them UNEVALUABLE
  * would have been the dishonest alternative: PostgreSQL answers them fine, it
  * just needs a sequence to answer about.
+ *
+ * The SECOND sequence is deliberately not primed, and it is here because the
+ * first one's priming turned out to hide a witness: `pg_sequence_last_value`
+ * is NULL for a sequence `nextval` has never run on, and with one primed
+ * sequence in the vocabulary it read total. Supplying an object to reach a
+ * result and supplying one to reach a NULL are the same job.
+ *
+ * The LARGE OBJECT and the file it exports are the volatile bucket's demand
+ * (2026-08-21), and both need a separate statement rather than a nested call:
+ * `lo_export(lo_from_bytea(...), …)` raises "large object does not exist"
+ * because the export cannot see a row its own command inserted. Its OID is
+ * 16000 rather than 0 or 1 for a reason — those two ARE in the corpus, so
+ * `lo_unlink(1::oid)` would delete the object the export and `lo_get` rows
+ * are probed against, and which of them ran first would decide their verdict.
  */
 export const PROBE_OBJECTS_SQL = `
   CREATE SEQUENCE probe_seq;
   SELECT nextval('probe_seq');
+  CREATE SEQUENCE probe_seq_unused;
+  DECLARE probe_cursor CURSOR WITH HOLD FOR SELECT 1 AS a;
+  SELECT lo_from_bytea(16000, 'probe'::bytea);
+  SELECT lo_export(16000, 'probe_lo');
 `;
+
+/**
+ * Signatures whose GENERATED combinations must not be run, and why.
+ *
+ * The corpus carries the infinities because they are what break a totality
+ * claim, and for these three rows an infinity is not an input class but a
+ * call that never comes back: `pg_sleep('Infinity'::float8)` sleeps until
+ * something kills the process. `statement_timeout` cannot stop it and no JS
+ * timer can fire while the WASM backend holds the event loop — the same shape
+ * as the FROM-position function scan `srfQuery` exists to avoid, and that one
+ * is recorded because it exhausted a developer machine twice. The finite
+ * members are refused with them: `'1 day'::interval` is a legal sleep too.
+ *
+ * A refusal is about the CALL the corpus builds, not about the function, so
+ * each of these has a `COHERENT_CALLS` entry supplying a bounded sleep — the
+ * row is probed by that call and convicts or witnesses like any other.
+ */
+export const REFUSED_CALLS: Record<string, string> = {
+  "pg_sleep(double precision)": "the corpus carries 'Infinity'::float8, and the sleep is uninterruptible in WASM",
+  "pg_sleep_for(interval)": "the corpus carries 'infinity'::interval and '1 day'",
+  "pg_sleep_until(timestamp with time zone)": "the corpus carries 'infinity'::timestamptz",
+  // The second reason a call is refused: it changes what the probes AFTER it
+  // can see. `set_config('search_path', 'abc', false)` is a legal call the
+  // corpus builds from two of its own text values, `is_local = false` makes
+  // it outlive the call, and the whole surface runs in one statement — so
+  // `'a'::probe_enum` stopped resolving and twenty-four enum signatures went
+  // from claimed-and-held to probed-in-name-only, in silence. The coherent
+  // call keeps the mechanism (a GUC is set and its new value returned) with
+  // a setting nothing reads and `is_local = true`.
+  "set_config(text,text,boolean)":
+    "sets a SESSION GUC that outlives the call — search_path among the corpus's own values, which hides the probe's enum type from every later expression in the statement",
+};
 
 export const PROBE_FN_SQL = `
   CREATE FUNCTION probe(expr text) RETURNS text LANGUAGE plpgsql AS $probe$
@@ -354,6 +427,10 @@ export const PROBE_FN_SQL = `
     RETURN CASE WHEN r THEN 'NULL' ELSE 'value' END;
   EXCEPTION WHEN OTHERS THEN RETURN 'error';
   END $probe$;`;
+
+/** A large object created by the call itself, and a descriptor open on one. */
+const LO_NEW = "pg_catalog.lo_create(0::oid)";
+const LO_FD = `pg_catalog.lo_open(${LO_NEW}, 393216)`;
 
 /**
  * Argument lists known to be valid TOGETHER, appended to the generated
@@ -408,10 +485,102 @@ export const COHERENT_CALLS: Record<string, readonly (readonly string[])[]> = {
   "has_tablespace_privilege(name,text,text)": [["'postgres'::name", "'pg_default'", "'CREATE'"]],
   "has_tablespace_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'pg_default'", "'CREATE'"]],
   "has_tablespace_privilege(text,text)": [["'pg_default'", "'CREATE'"]],
-  // No entry for the foreign-data-wrapper, foreign-server or sequence
-  // privileges: a fresh PGlite has none of those objects, so the blocker is
-  // the DATABASE rather than the corpus, and they are pinned under the
-  // live-object reason instead.
+  // The SEQUENCE privileges (2026-08-21). They were pinned unprobeable
+  // because "a fresh PGlite has no sequence" — true when it was written, and
+  // false as soon as `PROBE_OBJECTS_SQL` reached the classifying suite. The
+  // foreign-data-wrapper and foreign-server rows keep that reason; these
+  // three lost it.
+  "has_sequence_privilege(name,text,text)": [["'postgres'::name", "'probe_seq'", "'USAGE'"]],
+  "has_sequence_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'probe_seq'", "'USAGE'"]],
+  "has_sequence_privilege(text,text)": [["'probe_seq'", "'USAGE'"]],
+  // A large-object DESCRIPTOR, opened inside the call. These five raise for
+  // any integer the corpus carries, and the descriptor `lo_open` returns is
+  // only valid inside the transaction that opened it — so the argument has
+  // to be the open itself rather than a number. Without it their verdicts
+  // depended on where each name SORTED in the batch: `lo_tell` came after
+  // `lo_open` and evaluated, `lo_close` came before it and did not.
+  // The rest of the large-object family, on the same principle: an OID or a
+  // file the call can be sure of. `lo_export` and `lo_get` take the object
+  // PROBE_OBJECTS_SQL made, because neither can see one created by its own
+  // command; the others create their own. Without these the family's verdicts
+  // came from whichever row happened to run first — `lo_create(1::oid)` made
+  // OID 1 exist and `lo_open(1::oid, …)` then worked, in the classifier's
+  // name-ordered batch and not in the totality probe's unordered one.
+  "lo_export(oid,text)": [["16000::oid", "'probe_export'"]],
+  "lo_get(oid)": [["16000::oid"]],
+  "lo_get(oid,bigint,integer)": [["16000::oid", "0::bigint", "1"]],
+  "lo_import(text)": [["'probe_lo'"]],
+  "lo_import(text,oid)": [["'probe_lo'", "0::oid"]],
+  "lo_open(oid,integer)": [[LO_NEW, "393216"]],
+  "lo_put(oid,bigint,bytea)": [[LO_NEW, "0::bigint", "'abc'::bytea"]],
+  "lo_unlink(oid)": [[LO_NEW]],
+  // The server-side file readers, against the file the large object exported.
+  // They convicted before this entry existed because `lo_export(0::oid,'abc')`
+  // had written a file called `abc` earlier in the same statement — a
+  // promotion resting on alphabetical order, which the totality probe (whose
+  // fetch has no ORDER BY) did not reproduce.
+  "pg_read_binary_file(text)": [["'probe_lo'"]],
+  "pg_read_binary_file(text,bigint,bigint)": [["'probe_lo'", "0::bigint", "1::bigint"]],
+  "pg_read_file(text)": [["'probe_lo'"]],
+  "pg_read_file(text,bigint,bigint)": [["'probe_lo'", "0::bigint", "1::bigint"]],
+  "pg_stat_file(text)": [["'probe_lo'"]],
+  // A slot created by the call itself. The same order accident: `pg_create_*`
+  // sorts before `pg_drop_*` and left one lying around.
+  "pg_drop_replication_slot(name)": [
+    ["(pg_catalog.pg_create_physical_replication_slot('probe_slot'::name, false, false)).slot_name"],
+  ],
+  // The refused row's bounded call: a GUC nothing reads, set LOCALLY.
+  "set_config(text,text,boolean)": [["'application_name'", "'probe'", "true"]],
+  "lo_close(integer)": [[LO_FD]],
+  "lo_lseek(integer,integer,integer)": [[LO_FD, "0", "0"]],
+  "lo_lseek64(integer,bigint,integer)": [[LO_FD, "0::bigint", "0"]],
+  "lo_tell(integer)": [[LO_FD]],
+  "lo_tell64(integer)": [[LO_FD]],
+  "lo_truncate(integer,integer)": [[LO_FD, "0"]],
+  "lo_truncate64(integer,bigint)": [[LO_FD, "0::bigint"]],
+  "loread(integer,integer)": [[LO_FD, "1"]],
+  "lowrite(integer,bytea)": [[LO_FD, "'abc'::bytea"]],
+  // A statistics KIND, a reset TARGET and a log FORMAT — each a small closed
+  // vocabulary its function raises for anything outside, the same shape as
+  // the privilege words above. `pg_current_logfile` is the one that answers
+  // rather than convicting: with no logging collector running there is no
+  // file, and it returns NULL exactly as its no-argument sibling does.
+  "pg_stat_have_stats(text,oid,bigint)": [
+    ["'relation'", "'pg_class'::regclass::oid", "0::bigint"],
+  ],
+  "pg_stat_reset_shared(text)": [["'bgwriter'"]],
+  "pg_current_logfile(text)": [["'stderr'"]],
+  // A QUERY, which is what these three take rather than a string: `ts_stat`
+  // wants one returning a single tsvector column and `ts_rewrite` one
+  // returning two tsqueries. The corpus's `'SELECT'` is a legal query and
+  // reaches neither shape.
+  "ts_stat(text)": [["'SELECT ''a b''::tsvector'"]],
+  "ts_stat(text,text)": [["'SELECT ''a:1A b:2B''::tsvector'", "'A'"]],
+  "ts_rewrite(tsquery,text)": [
+    ["'a'::tsquery", "'SELECT ''a''::tsquery, ''b''::tsquery'"],
+  ],
+  // A directory that EXISTS. `pg_ls_dir` raises for one that does not, and
+  // every corpus text is a name rather than a path; `base` is in every data
+  // directory PostgreSQL has ever laid out. The three-argument spelling
+  // needed it more, not less: `missing_ok` turns the raise into an EMPTY
+  // set, which is no more evidence of totality than the raise was.
+  "pg_ls_dir(text)": [["'base'"]],
+  "pg_ls_dir(text,boolean,boolean)": [["'base'", "false", "false"]],
+  // A schema and a relation in it. These take the object by NAME in two
+  // parts, so one text list cannot be both — the `has_column_privilege`
+  // shape again.
+  "pg_clear_relation_stats(text,text)": [["'pg_catalog'", "'pg_class'"]],
+  "pg_clear_attribute_stats(text,text,text,boolean)": [
+    ["'pg_catalog'", "'pg_class'", "'relname'", "false"],
+  ],
+  // No entry for the foreign-data-wrapper or foreign-server privileges: a
+  // fresh PGlite has neither object, so the blocker is the DATABASE rather
+  // than the corpus, and they stay pinned under the no-such-object reason.
+  // The BOUNDED sleeps, which is the whole probed universe for those three
+  // rows — every generated combination is refused above.
+  "pg_sleep(double precision)": [["0::float8"]],
+  "pg_sleep_for(interval)": [["'0'::interval"]],
+  "pg_sleep_until(timestamp with time zone)": [["'2020-01-01Z'::timestamptz"]],
 };
 
 /**

@@ -43,49 +43,69 @@ sqlc register entries: `minerSqlcStronger` 25 → 19.
 
 All 4201 pg_catalog signatures — functions, operators, aggregates, window
 functions — are held by execution, witnessed, or pinned with a reason:
-claimed 2921, null-witnessed 293, no-null-found 9, raised-everywhere 152,
-no-generator 550, volatile 276. The promotion queue that opened this work at
-1832 is at 9, and those nine are pinned individually. Nothing on this
-surface can change without a suite failing.
+claimed 3055, null-witnessed 323, no-null-found 15, raised-everywhere 246,
+no-generator 562. The promotion queue that opened this work at 1832 is at 15,
+and those fifteen are pinned individually. Nothing on this surface can change
+without a suite failing.
 
-**Except the volatile bucket, which was never swept — OPEN (2026-08-20).**
-"Closed" reads stronger than it is: 276 signatures sit in `volatile`, and that
-bucket is EXCLUDED FROM EXECUTION on `provolatile = 'v'` rather than claimed
-or witnessed. The totality capture filters `p.provolatile = 'i'` too, so
-nothing automated has ever proposed a volatile name for promotion. Volatility
-is a statement about repeat calls, not about whether a result exists.
+**The volatile bucket is SWEPT and the category is GONE (2026-08-21).** It
+was the one exclusion left: 276 signatures skipped on `provolatile = 'v'`
+rather than claimed or witnessed, so nothing automated could ever propose a
+volatile name. Volatility is about repeat calls, not about whether a result
+exists — `nextval` is strict, volatile and total, and read nullable until a
+borrowed corpus found it by accident. The gate is removed from all three
+probes (`cluster-sweep.ts` gained `--volatile` as a cut, and the classifying
+suite no longer has a `volatile` category at all), so those rows classify by
+execution like every other row.
 
-The trigger was finding one by accident. `nextval` is strict, volatile, and
-TOTAL — it raises or returns a bigint, never NULL — and it had no verdict
-anywhere, so `SELECT nextval('s')` read nullable. It was not the sweep that
-found it; it was a borrowed corpus (`docs/sqlc-disagreements.md`,
-`nextval/GetNextID`). Claiming the four sequence functions moved five
-signatures `volatile` → `claimed`, which is the measurement of how the bucket
-behaves and the demonstration that claiming a volatile name is supported —
-`builtin-surface.test.ts` says so itself ("Claimed volatile names stay probed
-via the claimed path").
+Where the 276 went: **134 claimed, 29 witnessed, 97 unprobed with grouped
+reasons, 12 no-generator, 4 held** — the four are in `WORK_LIST`, each
+because its `PG_RETURN_NULL` is live in a state no query can vary
+(`current_query`, `pg_database_size` twice, `pg_get_loaded_modules`). The
+promotions are one block in `SWEPT_TOTAL_SIGNATURES`. **`random()` reads
+notNull again**, which is what the sweep was for: the NAME left
+`ALWAYS_NOT_NULL_BUILTINS` because PG17's two-argument overloads are strict,
+and signature keying says what the name could not. Its fixture
+`@unwitnessable` record is retired.
 
-Obvious remaining candidates, total by construction and volatile by nature:
-`gen_random_uuid`, `uuid_generate_v4`, `txid_current`, `pg_backend_pid`. Do
-NOT promote them by inspection — `random` is the counterexample that says a
-sweep is needed: it was REMOVED from `ALWAYS_NOT_NULL_BUILTINS` because PG17's
-`random(min, max)` overloads are strict and `random(NULL, NULL)` is NULL. The
-work is a probe over the 276 with values that reach a result, the way
-`PROBE_OBJECTS_SQL` had to supply a sequence before the sequence functions
-could be evaluated at all.
+**The probe database grew, and every addition was a demand.**
+`PROBE_OBJECTS_SQL` now supplies an un-called sequence, a held cursor and a
+large object exported to a file; `probe-values.ts` gained a regclass naming
+a relation that does NOT exist, plus `refcursor` and `oid[]` generators. It
+also gained `REFUSED_CALLS` — three sleeps whose generated calls never
+return, and `set_config`, whose generated call sets `search_path` for the
+rest of the statement.
+
+**Four things the sweep found that were not the sweep.** Each is a defect
+that existed before it and would have kept existing:
+
+1. **Three claimed rows were wrong.** `pg_relation_filenode`,
+   `pg_relation_filepath` and `pg_relation_is_publishable` answer NULL for a
+   regclass whose relation is gone. They were swept when every regclass in
+   the corpus named something that existed; the missing-relation value
+   falsified all three the same run, and they are out. Five more rows became
+   witnesses for the same reason.
+2. **`set_config` un-probed 24 enum signatures in silence** — trap 6 below.
+3. **Verdicts depended on alphabetical order** — trap 7 below.
+4. **A witness rested on chunk arithmetic.**
+   `pg_current_xact_id_if_assigned()` is NULL until the transaction writes;
+   the probe's own large-object writes decided it, per 2000-expression
+   chunk. The classifier now assigns an xid per batch and both spellings are
+   witnessed by hand in `tests/unit/functions/`.
 
 **Three pins hold it**, all in `builtin-surface.test.ts`, all asserted in
-BOTH directions: `WORK_LIST` (the nine, each with why it cannot be promoted
-or witnessed), `UNPROBED` (152 rows grouped by why PostgreSQL declined
-them), `NO_GENERATOR` (17 types, each marked REFUSED or DELIBERATELY
-SKIPPED). A signature a future PostgreSQL adds fails one of them until
-somebody decides about it.
+BOTH directions: `WORK_LIST` (the fifteen, each with why it cannot be
+promoted or witnessed), `UNPROBED` (246 rows grouped by why PostgreSQL
+declined them), `NO_GENERATOR` (17 types, each marked REFUSED or
+DELIBERATELY SKIPPED). A signature a future PostgreSQL adds fails one of
+them until somebody decides about it.
 
 **The loop, when a pin fails.** Run from `pgsid/`:
 
     pnpm exec vitest run tests/unit/query/builtin-surface.test.ts      # ~30s
     pnpm exec tsx tests/probe/cluster-sweep.ts --role=oprcode          # convict
     pnpm exec tsx tests/probe/cluster-sweep.ts '^has_' --list-total    # or by name
+    pnpm exec tsx tests/probe/cluster-sweep.ts --volatile --list-total # the other cut
     BUILTIN_SURFACE_WORKLIST=docs/builtin-surface-worklist.md \
       pnpm exec vitest run tests/unit/query/builtin-surface.test.ts    # regenerate
 
@@ -95,7 +115,7 @@ curated table (hand-argued); a NULL goes into
 control. The gate is `totality-probe.test.ts`, ~10s, which executes every
 claimed row.
 
-**Five traps, each paid for once. Do not rediscover them.**
+**Seven traps, each paid for once. Do not rediscover them.**
 
 1. **PGlite MATERIALISES a FROM-position function scan.** `SELECT * FROM
    generate_series(1::bigint, 9223372036854775807) LIMIT 100` allocates until
@@ -115,12 +135,27 @@ claimed row.
 5. **Arguments that must be valid together go in `COHERENT_CALLS`**, not
    into a bigger `MAX_COMBOS`. The cap was raised three times for one
    signature before the table existed.
+6. **A call that changes SESSION state changes every later probe.** The
+   whole surface runs in one statement, so `set_config('search_path',
+   'abc', false)` — built from two of the corpus's own text values — hid
+   the probe's enum type from 24 signatures, which then read
+   probed-in-name-only and PASSED. `REFUSED_CALLS` is where such a call
+   goes, with a `COHERENT_CALLS` entry keeping the row probed.
+7. **A verdict must not depend on where its name SORTS.** The classifier
+   orders by `proname` and the gate's fetch does not, so
+   `pg_read_file('abc')` convicted in one and raised in the other —
+   `lo_export(0::oid,'abc')` had written that file earlier in the batch,
+   and `lo_create(1::oid)` had made the object `lo_open(1::oid,…)` found.
+   A row that needs an object gets one from `PROBE_OBJECTS_SQL` or creates
+   it inside its own `COHERENT_CALLS` entry.
 
 **What is open on this surface — both optional, neither blocking.** 57
-`io-syntax` rows close with more `cstring` shapes; 9 `no-such-object` rows
-close only by creating a foreign-data wrapper, a foreign server and a
-sequence in the probe database. Both are recorded in `UNPROBED` with those
-words.
+`io-syntax` rows close with more `cstring` shapes; 6 `no-such-object` rows
+close only by creating a foreign-data wrapper and a foreign server in the
+probe database. Both are recorded in `UNPROBED` with those words. (That
+list said "and a sequence" until 2026-08-21, when `PROBE_OBJECTS_SQL`
+reached the classifying suite and the three sequence-privilege rows closed
+on the spot.)
 
 **The QUEUED item is elsewhere**: `docs/catalog-driven-generation.md`,
 chartered. STEP 0 DONE, §§9.1–9.4 BUILT (2026-08-08), §5.4's round-trip

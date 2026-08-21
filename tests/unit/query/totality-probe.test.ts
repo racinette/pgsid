@@ -24,6 +24,7 @@ import {
   qualify,
   SRF_PROBE_FN_SQL,
   PROBE_OBJECTS_SQL,
+  REFUSED_CALLS,
   srfQuery,
   nullTestExpr,
   variadicArgTypes,
@@ -278,6 +279,7 @@ describe("totality tables, probed by execution", () => {
       const families = sig.types.some(t => POLYMORPHIC.has(t)) ? POLYMORPHIC_FAMILIES : [{}];
       const mine: string[] = [];
       let generatorMissing = false;
+      const key = `${sig.name}(${sig.types.join(",")})`;
 
       // "Never NULL whatever the arguments" includes NULL arguments, and that
       // is one expression per signature rather than one per combination.
@@ -285,7 +287,11 @@ describe("totality tables, probed by execution", () => {
         mine.push(`${qualify(sig.name)}(${sig.types.map(t => `NULL::${t}`).join(", ")})`);
       }
 
-      for (const family of families) {
+      // A refused row is held by its COHERENT_CALLS entry alone. The claim
+      // tables reach the volatile surface now, and `pg_sleep`'s corner corpus
+      // holds `'Infinity'::float8` — a call that never comes back, which the
+      // gating suite must not make any more than the classifying one.
+      for (const family of key in REFUSED_CALLS ? [] : families) {
         const lists = sig.types.map(t => (t in family ? [family[t]!] : VALUES[t]));
         if (lists.some(l => l === undefined)) {
           generatorMissing = true;
@@ -314,7 +320,7 @@ describe("totality tables, probed by execution", () => {
           mine.push(nullTestExpr(expr, !!sig.composite && sig.ncols === undefined));
         }
       }
-      for (const c of COHERENT_CALLS[`${sig.name}(${sig.types.join(",")})`] ?? []) {
+      for (const c of COHERENT_CALLS[key] ?? []) {
         mine.push(nullTestExpr(`${qualify(sig.name)}(${c.join(", ")})`,
           !!sig.composite && sig.ncols === undefined));
       }

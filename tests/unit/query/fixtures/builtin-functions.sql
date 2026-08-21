@@ -1,6 +1,6 @@
 -- @unwitnessable 10: date_part of a FINITE timestamp is never NULL; the exclusion exists for the infinite inputs (adversarial-2 finding 11), and orders.placed_at seeds none — builtin-extract-infinity.sql witnesses that class
 -- @unwitnessable 23: CURRENT_SCHEMA is NULL only when the search path resolves to no schema, which no data state can arrange
--- @unwitnessable 24: pg_sleep returns void and never NULL, but sits outside the curated builtin tables (known imprecision)
+-- @unwitnessable 24: current_query() is NULL only when the statement has no source text, which no data state can arrange
 -- pg_catalog built-ins.
 --
 -- The catalog snapshot covers user schemas only, so built-ins arrive with no
@@ -19,15 +19,15 @@ SELECT
   -- PG17 added `random(min, max)` overloads for integer, bigint and numeric
   -- which are STRICT, so `random(NULL, NULL)` is NULL while the table claimed
   -- "never NULL whatever the arguments". Name-level dispatch cannot separate
-  -- them from the total zero-argument form, and unlike `+` and `||` — kept as
-  -- recorded holes because their falsifying operands are exotic — this one's
-  -- falsifying input is ordinary integers, so removal was right and the
-  -- zero-argument call pays for it.
-  -- @unwitnessable 2: random() itself is total, so no data state can produce
-  -- a NULL here — the claim is dropped for the NAME, on account of the
-  -- two-argument overloads, and recovering it needs the argument types
-  -- (docs/type-aware-overloads.md).
-  random()                                AS rnd,             -- @nullable
+  -- them from the total zero-argument form.
+  --
+  -- RECOVERED 2026-08-21 by the volatile sweep, and this is the row that
+  -- sweep existed for: `random` is VOLATILE, the whole family sat in a
+  -- bucket excluded from execution on that marker alone, and all five rows
+  -- probe total for non-null arguments. Signature keying says what the name
+  -- could not — the two-argument overloads keep their strictness and this
+  -- call keeps its claim. Its `@unwitnessable` record is retired with it.
+  random()                                AS rnd,             -- @notNull
   gen_random_uuid()                       AS uuid,            -- @notNull
 
   -- Total over non-null arguments.
@@ -74,7 +74,13 @@ SELECT
   CURRENT_SCHEMA                          AS schema_name,     -- @nullable
 
   -- Not in any table and not in the catalog → still conservatively nullable.
-  pg_sleep(0)                             AS unknown_builtin, -- @nullable
+  -- `pg_sleep(0)` held this position and is claimed now (the volatile sweep,
+  -- 2026-08-21). `current_query` is the replacement because it is a builtin
+  -- the sweep deliberately did NOT promote: its `PG_RETURN_NULL` fires when
+  -- the statement has no source text, and builtin-surface.test.ts's WORK_LIST
+  -- carries that reason — so the fallback control cannot quietly become a
+  -- claimed row again without something failing first.
+  current_query()                         AS unknown_builtin, -- @nullable
 
   -- A user-defined function shadowing a built-in name keeps its own metadata:
   -- lower_strict is STRICT, so a nullable argument makes it nullable.
