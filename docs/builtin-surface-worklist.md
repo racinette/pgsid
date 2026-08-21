@@ -13,7 +13,7 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (358: functions 268, operators 19, aggregates 67, windows 4)
+## null-witnessed (364: functions 274, operators 19, aggregates 67, windows 4)
 
 - `##(line,lseg)` — witness: `SELECT '{1,0,0}'::line OPERATOR(pg_catalog.##) '[(0,0),(0,0)]'::lseg;`
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
@@ -135,6 +135,8 @@ probe as the evidence bar.
 - `json_object_agg_unique_strict("any","any")` — witness: `SELECT (SELECT pg_catalog.json_object_agg_unique_strict(c0, c1) FROM (VALUES (1, 1)) t(c0, c1) WHERE false);`
 - `json_object_field(json,text)` — witness: `SELECT pg_catalog.json_object_field('null'::json, 'abc');`
 - `json_object_field_text(json,text)` — witness: `SELECT pg_catalog.json_object_field_text('null'::json, 'abc');`
+- `json_to_record(json)` — witness: `SELECT (SELECT s.b FROM pg_catalog.json_to_record('{"a":1}'::json) AS s(a int, b text));`
+- `json_to_recordset(json)` — witness: `SELECT (SELECT s.b FROM pg_catalog.json_to_recordset('[{"a":1,"b":"x"},{"a":2}]'::json) AS s(a int, b text) OFFSET 1);`
 - `jsonb_agg_strict(anyelement)` — witness: `SELECT (SELECT pg_catalog.jsonb_agg_strict(c0) FROM (VALUES (1)) t(c0) WHERE false);`
 - `jsonb_array_element(jsonb,integer)` — witness: `SELECT pg_catalog.jsonb_array_element('null'::jsonb, 1);`
 - `jsonb_array_element_text(jsonb,integer)` — witness: `SELECT pg_catalog.jsonb_array_element_text('null'::jsonb, 1);`
@@ -156,6 +158,8 @@ probe as the evidence bar.
 - `jsonb_path_match_tz(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_match_tz('null'::jsonb, '$'::jsonpath, '{}'::jsonb, true);`
 - `jsonb_path_query_first(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_query_first('null'::jsonb, '$.a'::jsonpath, '{}'::jsonb, true);`
 - `jsonb_path_query_first_tz(jsonb,jsonpath,jsonb,boolean)` — witness: `SELECT pg_catalog.jsonb_path_query_first_tz('null'::jsonb, '$.a'::jsonpath, '{}'::jsonb, true);`
+- `jsonb_to_record(jsonb)` — witness: `SELECT (SELECT s.b FROM pg_catalog.jsonb_to_record('{"a":1}'::jsonb) AS s(a int, b text));`
+- `jsonb_to_recordset(jsonb)` — witness: `SELECT (SELECT s.b FROM pg_catalog.jsonb_to_recordset('[{"a":1,"b":"x"},{"a":2}]'::jsonb) AS s(a int, b text) OFFSET 1);`
 - `lag(anyelement)` — witness: `SELECT (SELECT pg_catalog.lag(1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) LIMIT 1);`
 - `lag(anyelement,integer)` — witness: `SELECT (SELECT pg_catalog.lag(1, 1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) LIMIT 1);`
 - `lead(anyelement)` — witness: `SELECT (SELECT pg_catalog.lead(1) OVER (ORDER BY x) FROM (VALUES (1),(2)) t(x) ORDER BY x DESC LIMIT 1);`
@@ -182,6 +186,8 @@ probe as the evidence bar.
 - `pg_database_collation_actual_version(oid)` — witness: `SELECT pg_catalog.pg_database_collation_actual_version(1::oid);`
 - `pg_describe_object(oid,oid,integer)` — witness: `SELECT pg_catalog.pg_describe_object(0::oid, 0::oid, 1);`
 - `pg_encoding_max_length(integer)` — witness: `SELECT pg_catalog.pg_encoding_max_length((-1));`
+- `pg_event_trigger_ddl_commands()` — witness: `SELECT pg_catalog.pg_event_trigger_ddl_commands() /* fired by: GRANT SELECT ON side_rw TO side_role */;`
+- `pg_event_trigger_dropped_objects()` — witness: `SELECT pg_catalog.pg_event_trigger_dropped_objects() /* fired by: DROP SCHEMA side_schema */;`
 - `pg_filenode_relation(oid,oid)` — witness: `SELECT pg_catalog.pg_filenode_relation(0::oid, 0::oid);`
 - `pg_function_is_visible(oid)` — witness: `SELECT pg_catalog.pg_function_is_visible(0::oid);`
 - `pg_get_acl(oid,oid,integer)` — witness: `SELECT pg_catalog.pg_get_acl(0::oid, 0::oid, 1);`
@@ -395,7 +401,7 @@ probe as the evidence bar.
 - `regexp_substr(text,text,integer,integer,text,integer)`
 - `txid_current_if_assigned()`
 
-## raised-everywhere (123: functions 123, operators 0, aggregates 0, windows 0)
+## raised-everywhere (108: functions 108, operators 0, aggregates 0, windows 0)
 
 - `RI_FKey_cascade_del()` — e.g. `pg_catalog."RI_FKey_cascade_del"()` raises
 - `RI_FKey_cascade_upd()` — e.g. `pg_catalog."RI_FKey_cascade_upd"()` raises
@@ -456,24 +462,11 @@ probe as the evidence bar.
 - `index_am_handler_in(cstring)` — e.g. `pg_catalog.index_am_handler_in('abc'::cstring)` raises
 - `int4_avg_combine(bigint[],bigint[])` — e.g. `pg_catalog.int4_avg_combine('{}'::int8[], '{}'::int8[])` raises
 - `internal_in(cstring)` — e.g. `pg_catalog.internal_in('abc'::cstring)` raises
-- `json_to_record(json)` — e.g. `(pg_catalog.json_to_record('null'::json))::text` raises
-- `json_to_recordset(json)` — e.g. `pg_catalog.json_to_recordset('null'::json)` raises
-- `jsonb_to_record(jsonb)` — e.g. `(pg_catalog.jsonb_to_record('null'::jsonb))::text` raises
-- `jsonb_to_recordset(jsonb)` — e.g. `pg_catalog.jsonb_to_recordset('null'::jsonb)` raises
 - `language_handler_in(cstring)` — e.g. `pg_catalog.language_handler_in('abc'::cstring)` raises
 - `multirange_intersect_agg_transfn(anymultirange,anymultirange)` — e.g. `pg_catalog.multirange_intersect_agg_transfn('{[1,2)}'::int4multirange, '{[1,2)}'::int4multirange)` raises
 - `pg_available_wal_summaries()` — e.g. `pg_catalog.pg_available_wal_summaries()` raises
-- `pg_copy_logical_replication_slot(name,name)` — e.g. `(pg_catalog.pg_copy_logical_replication_slot(''::name, ''::name))::text` raises
-- `pg_copy_logical_replication_slot(name,name,boolean)` — e.g. `(pg_catalog.pg_copy_logical_replication_slot(''::name, ''::name, true))::text` raises
-- `pg_copy_logical_replication_slot(name,name,boolean,name)` — e.g. `(pg_catalog.pg_copy_logical_replication_slot(''::name, ''::name, true, ''::name))::text` raises
-- `pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)` — e.g. `` raises
 - `pg_ddl_command_in(cstring)` — e.g. `pg_catalog.pg_ddl_command_in('abc'::cstring)` raises
 - `pg_dependencies_in(cstring)` — e.g. `pg_catalog.pg_dependencies_in('abc'::cstring)` raises
-- `pg_event_trigger_ddl_commands()` — e.g. `pg_catalog.pg_event_trigger_ddl_commands()` raises
-- `pg_event_trigger_dropped_objects()` — e.g. `pg_catalog.pg_event_trigger_dropped_objects()` raises
-- `pg_event_trigger_table_rewrite_oid()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_oid()` raises
-- `pg_event_trigger_table_rewrite_reason()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_reason()` raises
-- `pg_export_snapshot()` — e.g. `pg_catalog.pg_export_snapshot()` raises
 - `pg_extension_config_dump(regclass,text)` — e.g. `pg_catalog.pg_extension_config_dump('pg_class'::regclass, 'abc')` raises
 - `pg_extension_update_paths(name)` — e.g. `pg_catalog.pg_extension_update_paths(''::name)` raises
 - `pg_get_aios()` — e.g. `pg_catalog.pg_get_aios()` raises
@@ -482,10 +475,10 @@ probe as the evidence bar.
 - `pg_get_wal_replay_pause_state()` — e.g. `pg_catalog.pg_get_wal_replay_pause_state()` raises
 - `pg_ident_file_mappings()` — e.g. `pg_catalog.pg_ident_file_mappings()` raises
 - `pg_is_wal_replay_paused()` — e.g. `pg_catalog.pg_is_wal_replay_paused()` raises
-- `pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])` — e.g. `pg_catalog.pg_logical_slot_get_binary_changes(''::name, '0/0'::pg_lsn, 1, 'abc', 'abc')` raises
-- `pg_logical_slot_get_changes(name,pg_lsn,integer,text[])` — e.g. `pg_catalog.pg_logical_slot_get_changes(''::name, '0/0'::pg_lsn, 1, 'abc', 'abc')` raises
-- `pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])` — e.g. `pg_catalog.pg_logical_slot_peek_binary_changes(''::name, '0/0'::pg_lsn, 1, 'abc', 'abc')` raises
-- `pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])` — e.g. `pg_catalog.pg_logical_slot_peek_changes(''::name, '0/0'::pg_lsn, 1, 'abc', 'abc')` raises
+- `pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])` — e.g. `` raises
+- `pg_logical_slot_get_changes(name,pg_lsn,integer,text[])` — e.g. `` raises
+- `pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])` — e.g. `` raises
+- `pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])` — e.g. `` raises
 - `pg_ls_archive_statusdir()` — e.g. `pg_catalog.pg_ls_archive_statusdir()` raises
 - `pg_ls_logdir()` — e.g. `pg_catalog.pg_ls_logdir()` raises
 - `pg_ls_logicalmapdir()` — e.g. `pg_catalog.pg_ls_logicalmapdir()` raises
@@ -497,8 +490,6 @@ probe as the evidence bar.
 - `pg_ndistinct_in(cstring)` — e.g. `pg_catalog.pg_ndistinct_in('abc'::cstring)` raises
 - `pg_node_tree_in(cstring)` — e.g. `pg_catalog.pg_node_tree_in('abc'::cstring)` raises
 - `pg_promote(boolean,integer)` — e.g. `pg_catalog.pg_promote(true, 1)` raises
-- `pg_replication_origin_session_reset()` — e.g. `` raises
-- `pg_replication_origin_session_setup(text)` — e.g. `pg_catalog.pg_replication_origin_session_setup('abc')` raises
 - `pg_stat_get_backend_io(integer)` — e.g. `pg_catalog.pg_stat_get_backend_io(1)` raises
 - `pg_stat_get_progress_info(text)` — e.g. `pg_catalog.pg_stat_get_progress_info('abc')` raises
 - `pg_stat_get_subscription(oid)` — e.g. `pg_catalog.pg_stat_get_subscription(0::oid)` raises

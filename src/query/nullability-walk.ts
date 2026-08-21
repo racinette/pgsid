@@ -11545,6 +11545,41 @@ export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
   "schema_to_xmlschema(name,boolean,boolean,text)", "to_ascii(text,integer)",
   "to_ascii(text,name)", "ts_parse(oid,text)", "ts_token_type(oid)",
   "txid_snapshot_xip(txid_snapshot)",
+  // -----------------------------------------------------------------------
+  // PAST THE SELECT (2026-08-21). Nine rows that no expression in an ordinary
+  // probe statement can reach at all — not because the corpus lacks a value,
+  // but because the CALL needs a context a batched `SELECT` does not have: a
+  // statement with no subtransaction around it, an instance holding neither a
+  // prepared transaction nor a session origin, or an event trigger firing.
+  // `runOutOfBandProbes()` in tests/unit/query/probe-values.ts is the three
+  // mechanisms, and BOTH probes use it — the classifying suite to categorise
+  // these rows and totality-probe.test.ts to hold them, which is what makes
+  // them claimable rather than merely measured.
+  //
+  // Audited in the source as the rest were. Every one returns unconditionally
+  // and every other exit from its body is an `ereport(ERROR)`:
+  // `PG_RETURN_VOID` for the two origin rows, `PG_RETURN_OID` and
+  // `PG_RETURN_INT32` for the table-rewrite pair, `pstrdup` for the snapshot
+  // export, and `memset(nulls, 0, sizeof(nulls))` before `heap_form_tuple`
+  // for the slot rows. The slot claim is about the RECORD, which is the
+  // granularity these tables work at — `copy_replication_slot` does leave the
+  // lsn FIELD null for an unset confirmed_flush, and a field of a composite
+  // result is nullable in the walk regardless.
+  //
+  // Their two set-returning siblings are NOT here and are witnessed instead:
+  // `pg_event_trigger_ddl_commands()` nulls five columns on the `SCT_Grant`
+  // branch, and `pg_event_trigger_dropped_objects()` nulls `schema_name` for
+  // an object that has no schema. The source is what said which four of the
+  // six were promotable, after the probe said all six returned a value.
+  "pg_copy_logical_replication_slot(name,name)",
+  "pg_copy_logical_replication_slot(name,name,boolean)",
+  "pg_copy_logical_replication_slot(name,name,boolean,name)",
+  "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)",
+  "pg_event_trigger_table_rewrite_oid()",
+  "pg_event_trigger_table_rewrite_reason()",
+  "pg_export_snapshot()",
+  "pg_replication_origin_session_reset()",
+  "pg_replication_origin_session_setup(text)",
 ]);
 
 /**
