@@ -10627,14 +10627,18 @@ export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
   // types, cstring and float8/int8 arrays. Their unprobeability had no
   // reason anybody could state, which is what the pin asks for.
   "anycompatiblemultirange_out(anycompatiblemultirange)",
+  // `int8_avg(bigint[])` and `int2int4_sum(bigint[])` were HERE and are gone
+  // (2026-08-21). Both take an aggregate TRANSITION STATE of (count, sum)
+  // and answer NULL when the count is zero — an average over nothing. The
+  // sweep that claimed them ran against an arbitrary bigint[], which is not
+  // a state at all; a zeroed accumulator joined probe-values.ts with the
+  // aggstate group and falsified them the same run.
   "int2_avg_accum(bigint[],smallint)",
   "int2_avg_accum_inv(bigint[],smallint)",
-  "int2int4_sum(bigint[])",
   "int2vectorout(int2vector)",
   "int2vectorsend(int2vector)",
   "int4_avg_accum(bigint[],integer)",
   "int4_avg_accum_inv(bigint[],integer)",
-  "int8_avg(bigint[])",
   "pg_basetype(regtype)",
   "pg_column_is_updatable(regclass,smallint,boolean)",
   // `pg_relation_filenode`, `pg_relation_filepath` and
@@ -10709,22 +10713,22 @@ export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
   "nummultirange(numrange[])", "datemultirange(daterange[])",
   "tsmultirange(tsrange[])", "tstzmultirange(tstzrange[])",
   "jsonb_delete(jsonb,text[])",
+  // The eight `has_*_privilege(name, oid, text)` rows were HERE and are gone
+  // (2026-08-21). They answer NULL for an object that does not exist, and
+  // every probe that ever ran them asked as the role PGlite runs as — a
+  // SUPERUSER, whose privilege check short-circuits to true before the
+  // object is looked up at all. The probe database has a non-superuser
+  // `probe_role` now and the corpus an OID naming nothing; with either
+  // grantee all eight are falsified, and the sibling spellings survive
+  // because a missing object named by TEXT raises instead.
   "has_any_column_privilege(name,text,text)",
   "has_any_column_privilege(oid,text,text)",
   "has_any_column_privilege(text,text)",
-  "has_database_privilege(name,oid,text)",
-  "has_foreign_data_wrapper_privilege(name,oid,text)",
-  "has_function_privilege(name,oid,text)",
   "has_function_privilege(name,text,text)",
-  "has_language_privilege(name,oid,text)",
   "has_parameter_privilege(name,text,text)",
-  "has_schema_privilege(name,oid,text)",
-  "has_server_privilege(name,oid,text)",
   "has_table_privilege(name,text,text)",
   "has_table_privilege(oid,text,text)",
   "has_table_privilege(text,text)",
-  "has_tablespace_privilege(name,oid,text)",
-  "has_type_privilege(name,oid,text)",
   "has_type_privilege(name,text,text)",
   "has_type_privilege(oid,text,text)",
   "pg_has_role(name,name,text)",
@@ -11464,6 +11468,83 @@ export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
   // because the corpus's texts are names — `ts_stat` wants a query yielding
   // one tsvector column and `ts_rewrite` one yielding two tsqueries.
   "ts_rewrite(tsquery,text)", "ts_stat(text)", "ts_stat(text,text)",
+  // -----------------------------------------------------------------------
+  // REACHING THE UNPROBED SURFACE (2026-08-21). The volatile sweep left 246
+  // rows that PostgreSQL had declined for every call the corpus could build,
+  // and "the corpus cannot build one" turned out to be the reason for most
+  // of them rather than a fact about the function. The probe database grew a
+  // schema — indexes of each kind, a partitioned pair, a publication, a
+  // collation, a foreign-data wrapper and server, a non-superuser role, a
+  // domain, a composite type, replication slots and origins, a prepared
+  // statement and a prepared transaction — and PGlite's `postgresqlconf`
+  // option turned on the four settings whole families refuse without.
+  // Unprobed went 246 to 124; these are what convicted.
+  //
+  // Audited against the PostgreSQL source PGlite builds from, as before, and
+  // that audit is what separates two groups the probe cannot tell apart: a
+  // `PG_RETURN_NULL` guarded by an `escontext` is the PG16 SOFT-ERROR path,
+  // reachable only through `pg_input_is_valid`, and a direct call raises
+  // there instead. Every input function below is in that class.
+  // -----------------------------------------------------------------------
+  // Type INPUT and TYPMOD entry points, reachable once the cstring corpus
+  // carried one literal per type's syntax and the probe database had a
+  // domain and a composite for the two that take a target type.
+  "aclitemin(cstring)", "array_in(cstring,oid,integer)", "bittypmodin(cstring[])",
+  "boolin(cstring)", "box_in(cstring)", "bpchartypmodin(cstring[])",
+  "circle_in(cstring)", "date_in(cstring)", "domain_in(cstring,oid,integer)",
+  "enum_in(cstring,oid)", "inet_in(cstring)", "intervaltypmodin(cstring[])",
+  "line_in(cstring)", "lseg_in(cstring)", "macaddr8_in(cstring)",
+  "macaddr_in(cstring)", "multirange_in(cstring,oid,integer)",
+  "numerictypmodin(cstring[])", "path_in(cstring)", "pg_lsn_in(cstring)",
+  "pg_snapshot_in(cstring)", "point_in(cstring)", "poly_in(cstring)",
+  "range_in(cstring,oid,integer)", "record_in(cstring,oid,integer)", "tidin(cstring)",
+  "time_in(cstring,oid,integer)", "timestamp_in(cstring,oid,integer)",
+  "timestamptypmodin(cstring[])", "timestamptz_in(cstring,oid,integer)",
+  "timestamptztypmodin(cstring[])", "timetypmodin(cstring[])",
+  "timetz_in(cstring,oid,integer)", "timetztypmodin(cstring[])",
+  "txid_snapshot_in(cstring)", "uuid_in(cstring)", "varbittypmodin(cstring[])",
+  "varchartypmodin(cstring[])",
+  // Aggregate TRANSITION functions, over a correctly shaped accumulator.
+  // Their `avg`/`sum` finalisers are NOT here: a zero count is NULL, which
+  // the same corpus value falsified two standing claims with.
+  "float4_accum(double precision[],real)",
+  "float8_accum(double precision[],double precision)",
+  "float8_combine(double precision[],double precision[])",
+  "float8_regr_accum(double precision[],double precision,double precision)",
+  "float8_regr_combine(double precision[],double precision[])",
+  // What the probe database's own objects unblocked, and the four settings.
+  "amvalidate(oid)", "brin_desummarize_range(regclass,bigint)",
+  "brin_summarize_new_values(regclass)", "brin_summarize_range(regclass,bigint)",
+  "fmgr_c_validator(oid)", "fmgr_internal_validator(oid)", "fmgr_sql_validator(oid)",
+  "gin_clean_pending_list(regclass)",
+  "has_foreign_data_wrapper_privilege(name,text,text)",
+  "has_foreign_data_wrapper_privilege(oid,text,text)",
+  "has_foreign_data_wrapper_privilege(text,text)",
+  "has_server_privilege(name,text,text)", "has_server_privilege(oid,text,text)",
+  "has_server_privilege(text,text)", "json_populate_record(anyelement,json,boolean)",
+  "json_populate_recordset(anyelement,json,boolean)",
+  "jsonb_populate_record(anyelement,jsonb)",
+  "jsonb_populate_record_valid(anyelement,jsonb)",
+  "jsonb_populate_recordset(anyelement,jsonb)",
+  "pg_copy_physical_replication_slot(name,name)",
+  "pg_copy_physical_replication_slot(name,name,boolean)",
+  "pg_get_object_address(text,text[],text[])", "pg_identify_object(oid,oid,integer)",
+  "pg_identify_object_as_address(oid,oid,integer)", "pg_last_committed_xact()",
+  "pg_listening_channels()", "pg_ls_replslotdir(text)",
+  "pg_nextoid(regclass,name,regclass)", "pg_partition_ancestors(regclass)",
+  "pg_prepared_xact()", "pg_replication_origin_advance(text,pg_lsn)",
+  "pg_replication_origin_xact_setup(pg_lsn,timestamp with time zone)",
+  "pg_replication_slot_advance(name,pg_lsn)", "pg_restore_attribute_stats(\"any\")",
+  "pg_restore_relation_stats(\"any\")", "pg_sequence_parameters(oid)",
+  "pg_snapshot_xip(pg_snapshot)", "pg_split_walfile_name(text)",
+  "pg_stat_reset_replication_slot(text)", "pg_tablespace_databases(oid)",
+  "pg_timezone_abbrevs_zone()", "pg_xact_commit_timestamp_origin(xid)",
+  "plpgsql_validator(oid)", "satisfies_hash_partition(oid,integer,integer,\"any\")",
+  "schema_to_xml(name,boolean,boolean,text)",
+  "schema_to_xml_and_xmlschema(name,boolean,boolean,text)",
+  "schema_to_xmlschema(name,boolean,boolean,text)", "to_ascii(text,integer)",
+  "to_ascii(text,name)", "ts_parse(oid,text)", "ts_token_type(oid)",
+  "txid_snapshot_xip(txid_snapshot)",
 ]);
 
 /**

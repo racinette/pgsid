@@ -22,9 +22,7 @@ import {
   POLYMORPHIC,
   combinations,
   qualify,
-  PROBE_FN_SQL,
-  SRF_PROBE_FN_SQL,
-  PROBE_OBJECTS_SQL,
+  createProbeDb,
   REFUSED_CALLS,
   srfQuery,
   nullTestExpr,
@@ -144,6 +142,18 @@ const WORK_LIST: Record<string, string> = {
     "NULL when the database's directory is gone — a concurrent DROP DATABASE, which the probe cannot race; a missing OID raises instead",
   "pg_get_loaded_modules()":
     "the module_name and version columns are NULL for a module that declares neither; every module PGlite loads declares both",
+  // RACE-ONLY null routes (2026-08-21, from reaching the unprobed surface).
+  // Each has a live `PG_RETURN_NULL` that fires when the object is gone
+  // between the catalog lookup and the read — a concurrent DROP, which one
+  // session cannot arrange. Held on the same rule as `pg_database_size`
+  // above: a null route the source shows is a null route, and a probe that
+  // cannot race one is not evidence against it.
+  "pg_tablespace_size(name)":
+    "NULL when the tablespace directory is gone — a concurrent DROP TABLESPACE, which the probe cannot race; a missing OID raises instead",
+  "pg_tablespace_size(oid)":
+    "NULL when the tablespace directory is gone — a concurrent DROP TABLESPACE, which the probe cannot race; a missing OID raises instead",
+  "pg_show_replication_origin_status()":
+    "its external_id column is NULL when the origin is dropped between the snapshot and the name lookup, which one session cannot arrange",
 };
 
 /**
@@ -205,94 +215,7 @@ const NO_GENERATOR: Record<string, string> = {
  * not a failure. That is why the assertion names the group.
  */
 const UNPROBED: Record<string, readonly string[]> = {
-  // an aggregate TRANSITION STATE, whose array has an internal shape the corpus cannot guess — float8_accum wants a three-element accumulator, not any float8[]
-  "aggstate": [
-    "float4_accum(double precision[],real)",
-    "float8_accum(double precision[],double precision)",
-    "float8_avg(double precision[])",
-    "float8_combine(double precision[],double precision[])",
-    "float8_corr(double precision[])",
-    "float8_covar_pop(double precision[])",
-    "float8_covar_samp(double precision[])",
-    "float8_regr_accum(double precision[],double precision,double precision)",
-    "float8_regr_avgx(double precision[])",
-    "float8_regr_avgy(double precision[])",
-    "float8_regr_combine(double precision[],double precision[])",
-    "float8_regr_intercept(double precision[])",
-    "float8_regr_r2(double precision[])",
-    "float8_regr_slope(double precision[])",
-    "float8_regr_sxx(double precision[])",
-    "float8_regr_sxy(double precision[])",
-    "float8_regr_syy(double precision[])",
-    "float8_stddev_pop(double precision[])",
-    "float8_stddev_samp(double precision[])",
-    "float8_var_pop(double precision[])",
-    "float8_var_samp(double precision[])",
-    "int4_avg_combine(bigint[],bigint[])",
-    "multirange_intersect_agg_transfn(anymultirange,anymultirange)",
-    "range_intersect_agg_transfn(anyrange,anyrange)",
-  ],
-  // an input function whose type's INPUT SYNTAX none of the corpus's cstrings matches — 'abc', '42' and '' parse as many types and not as these. Closeable by more cstring shapes, unlike most groups here
-  "io-syntax": [
-    "aclitemin(cstring)",
-    "any_in(cstring)",
-    "anyarray_in(cstring)",
-    "anycompatible_in(cstring)",
-    "anycompatiblearray_in(cstring)",
-    "anycompatiblemultirange_in(cstring,oid,integer)",
-    "anycompatiblenonarray_in(cstring)",
-    "anycompatiblerange_in(cstring,oid,integer)",
-    "anyelement_in(cstring)",
-    "anyenum_in(cstring)",
-    "anymultirange_in(cstring,oid,integer)",
-    "anynonarray_in(cstring)",
-    "anyrange_in(cstring,oid,integer)",
-    "array_in(cstring,oid,integer)",
-    "boolin(cstring)",
-    "box_in(cstring)",
-    "brin_bloom_summary_in(cstring)",
-    "brin_minmax_multi_summary_in(cstring)",
-    "circle_in(cstring)",
-    "date_in(cstring)",
-    "domain_in(cstring,oid,integer)",
-    "enum_in(cstring,oid)",
-    "event_trigger_in(cstring)",
-    "fdw_handler_in(cstring)",
-    "gtsvectorin(cstring)",
-    "index_am_handler_in(cstring)",
-    "inet_in(cstring)",
-    "internal_in(cstring)",
-    "language_handler_in(cstring)",
-    "line_in(cstring)",
-    "lseg_in(cstring)",
-    "macaddr8_in(cstring)",
-    "macaddr_in(cstring)",
-    "multirange_in(cstring,oid,integer)",
-    "path_in(cstring)",
-    "pg_ddl_command_in(cstring)",
-    "pg_dependencies_in(cstring)",
-    "pg_lsn_in(cstring)",
-    "pg_mcv_list_in(cstring)",
-    "pg_ndistinct_in(cstring)",
-    "pg_node_tree_in(cstring)",
-    "pg_snapshot_in(cstring)",
-    "point_in(cstring)",
-    "poly_in(cstring)",
-    "range_in(cstring,oid,integer)",
-    "record_in(cstring,oid,integer)",
-    "shell_in(cstring)",
-    "table_am_handler_in(cstring)",
-    "tidin(cstring)",
-    "time_in(cstring,oid,integer)",
-    "timestamp_in(cstring,oid,integer)",
-    "timestamptz_in(cstring,oid,integer)",
-    "timetz_in(cstring,oid,integer)",
-    "trigger_in(cstring)",
-    "tsm_handler_in(cstring)",
-    "txid_snapshot_in(cstring)",
-    "uuid_in(cstring)",
-  ],
-  // refuses unless the server is in BINARY UPGRADE MODE, which pg_upgrade sets on the command line and no session can reach: "function can only be called when server is in binary upgrade mode", for every one of them, whatever the arguments
+  // refuses unless the server is in BINARY UPGRADE MODE, which pg_upgrade sets on the command line and no session can reach: "function can only be called when server is in binary upgrade mode", whatever the arguments
   "binary-upgrade": [
     "binary_upgrade_add_sub_rel_state(text,oid,\"char\",pg_lsn)",
     "binary_upgrade_create_empty_extension(text,text,boolean,text,oid[],text[],text[])",
@@ -314,21 +237,27 @@ const UNPROBED: Record<string, readonly string[]> = {
     "binary_upgrade_set_next_toast_relfilenode(oid)",
     "binary_upgrade_set_record_init_privs(boolean)",
   ],
-  // only its own caller may call it: an extension's CREATE EXTENSION script, the executor's language dispatch, initdb. Each says so and raises for a plain SELECT
+  // only its own caller may call it: an extension CREATE EXTENSION script, the executor language dispatch, initdb. Each says so and raises for a plain SELECT
   "call-context": [
     "pg_extension_config_dump(regclass,text)",
     "pg_stop_making_pinned_objects()",
     "plpgsql_call_handler()",
   ],
-  // needs `track_commit_timestamp` on, which is a postmaster setting rather than an input — "could not get commit timestamp data"
-  "commit-timestamps": [
-    "pg_last_committed_xact()",
-    "pg_xact_commit_timestamp(xid)",
-    "pg_xact_commit_timestamp_origin(xid)",
+  // needs a COLUMN DEFINITION LIST - "could not determine row type for result" - which is FROM-clause syntax. The probe builds expressions, and no expression can carry one
+  "coldeflist": [
+    "json_to_record(json)",
+    "json_to_recordset(json)",
+    "jsonb_to_record(jsonb)",
+    "jsonb_to_recordset(jsonb)",
   ],
-  // set-returning and EMPTY for every combination, which is no more evidence of totality than a raise: the probe database has no asynchronous IO in flight, no prepared transaction, no partitioned relation, no archive or logical-decoding directory, and no second backend
+  // takes its collation from the CALL site rather than from the oid it is passed, and an oid argument is not collatable - so there is no spelling that gives it one: "could not determine which collation to use"
+  "collation-context": [
+    "btvarstrequalimage(oid)",
+  ],
+  // set-returning and EMPTY for every combination, which is no more evidence of totality than a raise. The probe database has no asynchronous IO in flight, no walsender, no subscription, no temporary file, no command in progress, no ident mapping and no WAL summary - and each of those is a fact about a RUNNING server rather than about an input
   "empty-set": [
     "pg_available_wal_summaries()",
+    "pg_extension_update_paths(name)",
     "pg_get_aios()",
     "pg_ident_file_mappings()",
     "pg_ls_archive_statusdir()",
@@ -336,85 +265,54 @@ const UNPROBED: Record<string, readonly string[]> = {
     "pg_ls_logicalsnapdir()",
     "pg_ls_summariesdir()",
     "pg_ls_tmpdir()",
-    "pg_partition_ancestors(regclass)",
-    "pg_partition_tree(regclass)",
-    "pg_prepared_xact()",
-    "pg_show_replication_origin_status()",
+    "pg_ls_tmpdir(oid)",
     "pg_stat_get_backend_io(integer)",
+    "pg_stat_get_progress_info(text)",
+    "pg_stat_get_subscription(oid)",
+    "pg_stat_get_wal_senders()",
   ],
-  // needs an OID or name of an object the probe database does not have — an index, a collation, a tablespace, a replication slot or origin, a multixact, a WAL summary file, a plpgsql function. PROBE_OBJECTS_SQL supplies what a SQL statement can create; the rest of these need a server configured for them
-  "live-object": [
-    "amvalidate(oid)",
-    "brin_desummarize_range(regclass,bigint)",
-    "brin_summarize_new_values(regclass)",
-    "brin_summarize_range(regclass,bigint)",
-    "btvarstrequalimage(oid)",
-    "fmgr_c_validator(oid)",
-    "fmgr_internal_validator(oid)",
-    "fmgr_sql_validator(oid)",
-    "gin_clean_pending_list(regclass)",
-    "pg_collation_actual_version(oid)",
-    "pg_copy_physical_replication_slot(name,name)",
-    "pg_copy_physical_replication_slot(name,name,boolean)",
+  // callable only from inside an EVENT TRIGGER of the matching kind, and each says which: ddl_command_end, sql_drop, table_rewrite
+  "event-trigger": [
     "pg_event_trigger_ddl_commands()",
     "pg_event_trigger_dropped_objects()",
     "pg_event_trigger_table_rewrite_oid()",
     "pg_event_trigger_table_rewrite_reason()",
-    "pg_extension_update_paths(name)",
+  ],
+  // needs an object no SQL statement can create here: a multixact needs two concurrent sessions, a log directory needs a collector that has written, a WAL summary needs the summarizer to have run
+  "live-object": [
     "pg_get_multixact_members(xid)",
-    "pg_get_object_address(text,text[],text[])",
-    "pg_get_publication_tables(text[])",
-    "pg_get_replication_slots()",
-    "pg_get_serial_sequence(text,text)",
-    "pg_identify_object(oid,oid,integer)",
-    "pg_identify_object_as_address(oid,oid,integer)",
-    "pg_listening_channels()",
     "pg_ls_logdir()",
-    "pg_ls_replslotdir(text)",
-    "pg_ls_tmpdir(oid)",
-    "pg_nextoid(regclass,name,regclass)",
-    "pg_prepared_statement()",
-    "pg_replication_origin_advance(text,pg_lsn)",
-    "pg_replication_origin_progress(text,boolean)",
-    "pg_replication_origin_session_progress(boolean)",
-    "pg_replication_origin_session_reset()",
-    "pg_replication_origin_session_setup(text)",
-    "pg_replication_origin_xact_setup(pg_lsn,timestamp with time zone)",
-    "pg_replication_slot_advance(name,pg_lsn)",
-    "pg_sequence_parameters(oid)",
-    "pg_snapshot_xip(pg_snapshot)",
-    "pg_split_walfile_name(text)",
-    "pg_stat_get_progress_info(text)",
-    "pg_stat_get_subscription(oid)",
-    "pg_stat_get_wal_senders()",
-    "pg_stat_reset_replication_slot(text)",
-    "pg_tablespace_databases(oid)",
-    "pg_tablespace_size(name)",
-    "pg_tablespace_size(oid)",
-    "pg_timezone_abbrevs_zone()",
     "pg_wal_summary_contents(bigint,pg_lsn,pg_lsn)",
-    "plpgsql_validator(oid)",
-    "ts_parse(oid,text)",
-    "ts_token_type(oid)",
   ],
-  // a fresh PGlite has no foreign-data wrapper and no foreign server, so the blocker is the DATABASE rather than the corpus: a coherent call cannot name an object that does not exist. The three SEQUENCE rows were here too and are gone (2026-08-21) — PROBE_OBJECTS_SQL creates a sequence and now reaches this suite, so their reason had stopped being true
-  "no-such-object": [
-    "has_foreign_data_wrapper_privilege(name,text,text)",
-    "has_foreign_data_wrapper_privilege(oid,text,text)",
-    "has_foreign_data_wrapper_privilege(text,text)",
-    "has_server_privilege(name,text,text)",
-    "has_server_privilege(oid,text,text)",
-    "has_server_privilege(text,text)",
+  // decoding through a logical slot. Creating or copying one waits for every in-progress transaction to reach a consistent snapshot, and the probe database holds a PREPARED transaction that never finishes; reading changes through pgoutput needs a replication connection and aborts the statement below the level plpgsql can trap, returning no row at all rather than raising
+  "logical-decoding": [
+    "pg_copy_logical_replication_slot(name,name)",
+    "pg_copy_logical_replication_slot(name,name,boolean)",
+    "pg_copy_logical_replication_slot(name,name,boolean,name)",
+    "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)",
+    "pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])",
+    "pg_logical_slot_get_changes(name,pg_lsn,integer,text[])",
+    "pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])",
+    "pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])",
   ],
-  // a pseudo-type argument no SQL literal can construct
-  "pseudotype": [
-    "any_out(\"any\")",
-    "anycompatible_out(anycompatible)",
-    "anycompatiblenonarray_out(anycompatiblenonarray)",
-    "anyelement_out(anyelement)",
-    "anynonarray_out(anynonarray)",
+  // an internal representation with no external form the parser will build: extended statistics, a GiST tsvector entry, a BRIN summary, a parse-tree rendering. PostgreSQL declares the input function and refuses the cast that would feed it
+  "no-external-form": [
+    "brin_bloom_summary_in(cstring)",
+    "brin_minmax_multi_summary_in(cstring)",
+    "gtsvectorin(cstring)",
+    "pg_ddl_command_in(cstring)",
+    "pg_dependencies_in(cstring)",
+    "pg_mcv_list_in(cstring)",
+    "pg_ndistinct_in(cstring)",
+    "pg_node_tree_in(cstring)",
   ],
-  // the probe database is a PRIMARY that is not replaying, so these refuse on the server's role rather than on their arguments: "recovery is not in progress", "replication slots can only be synchronized to a standby server"
+  // an aggregate TRANSITION or COMBINE function, which checks it was called by the aggregate machinery: "called in non-aggregate context". Its siblings that do not check are claimed
+  "non-aggregate-context": [
+    "int4_avg_combine(bigint[],bigint[])",
+    "multirange_intersect_agg_transfn(anymultirange,anymultirange)",
+    "range_intersect_agg_transfn(anyrange,anyrange)",
+  ],
+  // the probe database is a PRIMARY that is not replaying, so these refuse on the server role rather than on their arguments: "recovery is not in progress", "replication slots can only be synchronized to a standby server"
   "not-a-standby": [
     "pg_get_wal_replay_pause_state()",
     "pg_is_wal_replay_paused()",
@@ -423,33 +321,51 @@ const UNPROBED: Record<string, readonly string[]> = {
     "pg_wal_replay_pause()",
     "pg_wal_replay_resume()",
   ],
-  // the probe's own EXCEPTION handler is a SUBTRANSACTION, and PostgreSQL refuses to export a snapshot from one. The only row whose reason is the harness rather than the database: the same call answers fine outside probe()
+  // DECLARED and not implemented - two whose implementation PostgreSQL removed and one it never wrote. They are the clearest reason a raise cannot count as a pass: these can never be probed, and saying so is the only honest coverage claim available
+  "not-implemented": [
+    "aclinsert(aclitem[],aclitem)",
+    "aclremove(aclitem[],aclitem)",
+    "xmlvalidate(xml,text)",
+  ],
+  // the probe own EXCEPTION handler is a SUBTRANSACTION, and PostgreSQL refuses to export a snapshot from one. The only row whose reason is the harness rather than the database: the same call answers fine outside probe()
   "probe-subtransaction": [
     "pg_export_snapshot()",
   ],
-  // PostgreSQL removed the implementation and the declaration raises for every input
-  "removed": [
-    "aclinsert(aclitem[],aclitem)",
-    "aclremove(aclitem[],aclitem)",
+  // a PSEUDO-TYPE argument or result: PostgreSQL refuses one outright — "cannot accept a value of type anyelement", "cannot display a value of type any" — so no literal at any effort reaches these, and the reason is the type rather than the corpus
+  "pseudotype": [
+    "any_in(cstring)",
+    "any_out(\"any\")",
+    "anyarray_in(cstring)",
+    "anycompatible_in(cstring)",
+    "anycompatible_out(anycompatible)",
+    "anycompatiblearray_in(cstring)",
+    "anycompatiblemultirange_in(cstring,oid,integer)",
+    "anycompatiblenonarray_in(cstring)",
+    "anycompatiblenonarray_out(anycompatiblenonarray)",
+    "anycompatiblerange_in(cstring,oid,integer)",
+    "anyelement_in(cstring)",
+    "anyelement_out(anyelement)",
+    "anyenum_in(cstring)",
+    "anymultirange_in(cstring,oid,integer)",
+    "anynonarray_in(cstring)",
+    "anynonarray_out(anynonarray)",
+    "anyrange_in(cstring,oid,integer)",
+    "event_trigger_in(cstring)",
+    "fdw_handler_in(cstring)",
+    "index_am_handler_in(cstring)",
+    "internal_in(cstring)",
+    "language_handler_in(cstring)",
+    "shell_in(cstring)",
+    "table_am_handler_in(cstring)",
+    "trigger_in(cstring)",
+    "tsm_handler_in(cstring)",
   ],
-  // needs a shape the probe cannot supply — a column definition list, a composite target, or a valid modulus/remainder pair
-  "shape": [
-    "json_populate_record(anyelement,json,boolean)",
-    "json_populate_recordset(anyelement,json,boolean)",
-    "json_to_record(json)",
-    "json_to_recordset(json)",
-    "jsonb_populate_record(anyelement,jsonb)",
-    "jsonb_populate_record_valid(anyelement,jsonb)",
-    "jsonb_populate_recordset(anyelement,jsonb)",
-    "jsonb_to_record(jsonb)",
-    "jsonb_to_recordset(jsonb)",
-    "pg_restore_attribute_stats(\"any\")",
-    "pg_restore_relation_stats(\"any\")",
-    "satisfies_hash_partition(oid,integer,integer,\"any\")",
-    "txid_snapshot_xip(txid_snapshot)",
-    "xmlvalidate(xml,text)",
+  // a session can have exactly ONE replication origin. PROBE_OBJECTS_SQL configures it so three other rows evaluate, which makes setting it again raise and clearing it a call the probe must not make - a verdict for either would only record which of them the batch ran first
+  "session-origin": [
+    "pg_replication_origin_session_reset()",
+    "pg_replication_origin_session_setup(text)",
   ],
-  // a trigger function, which checks its calling context first and raises for anything else — "was not called by trigger manager". There is no call from a query, which is why the walk never meets one
+  // a trigger function, which checks its calling context first and raises for anything else - "was not called by trigger manager". There is no call from a query, which is why the walk never meets one
   "trigger-manager": [
     "RI_FKey_cascade_del()",
     "RI_FKey_cascade_upd()",
@@ -468,39 +384,10 @@ const UNPROBED: Record<string, readonly string[]> = {
     "tsvector_update_trigger_column()",
     "unique_key_recheck()",
   ],
-  // logical decoding, which refuses below `wal_level = logical` — a postmaster setting rather than an input, and PGlite ships at `replica`
-  "wal-level": [
-    "pg_copy_logical_replication_slot(name,name)",
-    "pg_copy_logical_replication_slot(name,name,boolean)",
-    "pg_copy_logical_replication_slot(name,name,boolean,name)",
-    "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)",
-    "pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])",
-    "pg_logical_slot_get_changes(name,pg_lsn,integer,text[])",
-    "pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])",
-    "pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])",
-  ],
-  // a type MODIFIER list, valid only for the modifiers its own type accepts
-  "typmod": [
-    "bittypmodin(cstring[])",
-    "bpchartypmodin(cstring[])",
-    "intervaltypmodin(cstring[])",
-    "numerictypmodin(cstring[])",
-    "timestamptypmodin(cstring[])",
-    "timestamptztypmodin(cstring[])",
-    "timetypmodin(cstring[])",
-    "timetztypmodin(cstring[])",
-    "varbittypmodin(cstring[])",
-    "varchartypmodin(cstring[])",
-  ],
-  // the WASM build declines it for every input — libnuma for the XML exporters, and no LATIN source encoding for to_ascii
+  // the WASM build declines it - libnuma for the NUMA allocation view, and no ASCII conversion from the UTF8 database encoding for the one-argument to_ascii. Its two- and three-argument spellings take the source encoding explicitly and are claimed
   "wasm": [
     "pg_get_shmem_allocations_numa()",
-    "schema_to_xml(name,boolean,boolean,text)",
-    "schema_to_xml_and_xmlschema(name,boolean,boolean,text)",
-    "schema_to_xmlschema(name,boolean,boolean,text)",
     "to_ascii(text)",
-    "to_ascii(text,integer)",
-    "to_ascii(text,name)",
   ],
 };
 
@@ -547,11 +434,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
   let totalRows = 0;
 
   beforeAll(async () => {
-    pg = await PGlite.create();
-    await pg.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
-    await pg.exec(PROBE_FN_SQL);
-    await pg.exec(SRF_PROBE_FN_SQL);
-    await pg.exec(PROBE_OBJECTS_SQL);
+    pg = await createProbeDb();
 
     const rows = (
       await pg.query<SurfaceRow>(
@@ -648,6 +531,14 @@ describe("builtin scalar surface, witnessed or classified", () => {
       // elements. probe-values.ts records why the call must sit in the
       // TARGET LIST for that to be affordable.
       if (r.retset) for (const e of mine) srfNcols.set(e, r.ncols);
+      // A refusal with no bounded call to replace it leaves the row with no
+      // expressions at all. It is UNPROBED — the reason is the probe's rather
+      // than PostgreSQL's, which the group's own wording carries — and saying
+      // so is what keeps it out of the silent gap between the categories.
+      if (mine.length === 0 && key in REFUSED_CALLS) {
+        category.set(key, "raised-everywhere");
+        continue;
+      }
       exprsBySig.set(key, [...new Set(mine)]);
     }
 
@@ -895,11 +786,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
       } catch {
         // already dead
       }
-      pg = await PGlite.create();
-      await pg.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
-      await pg.exec(PROBE_FN_SQL);
-      await pg.exec(SRF_PROBE_FN_SQL);
-      await pg.exec(PROBE_OBJECTS_SQL);
+      pg = await createProbeDb();
     };
     // The probe an expression needs: a set-returning call answers a
     // different question, over its own output columns, through srfprobe.
@@ -1100,20 +987,22 @@ describe("builtin scalar surface, witnessed or classified", () => {
     expect(decided).toBeGreaterThan(500);
   });
 
-  it("every refused signature still has a call to be probed by", () => {
+  it("every refused signature is either probed by a bounded call or recorded unprobed", () => {
     // REFUSED_CALLS drops a row's GENERATED combinations, which would leave it
     // with no expressions at all and no category — the classification would
-    // shrink by three and the count assertion above would be the only thing
-    // that noticed. The refusal is about the calls the corpus builds, so each
-    // entry owes a bounded call that reaches a result.
-    const missing = Object.keys(REFUSED_CALLS)
-      .filter(k => !(COHERENT_CALLS[k] ?? []).length)
+    // shrink and the count assertion above would be the only thing that
+    // noticed. So a refusal owes one of two things: a COHERENT_CALLS entry
+    // that reaches a result, or an UNPROBED entry saying the probe declines
+    // this row and why. Refusing quietly is the case this forbids.
+    const recorded = new Set(Object.values(UNPROBED).flat());
+    const unaccounted = Object.keys(REFUSED_CALLS)
+      .filter(k => !(COHERENT_CALLS[k] ?? []).length && !recorded.has(k))
       .sort();
     expect(
-      missing,
-      `REFUSED_CALLS refuses a signature's generated combinations with no ` +
-        `COHERENT_CALLS entry to probe it by, so the row is silently unclassified ` +
-        `rather than explicitly unprobed:\n  ${missing.join("\n  ")}`,
+      unaccounted,
+      `REFUSED_CALLS refuses a signature's generated combinations with neither ` +
+        `a COHERENT_CALLS entry to probe it by nor an UNPROBED entry saying so:` +
+        `\n  ${unaccounted.join("\n  ")}`,
     ).toEqual([]);
   });
 

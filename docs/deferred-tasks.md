@@ -43,9 +43,9 @@ sqlc register entries: `minerSqlcStronger` 25 → 19.
 
 All 4201 pg_catalog signatures — functions, operators, aggregates, window
 functions — are held by execution, witnessed, or pinned with a reason:
-claimed 3055, null-witnessed 323, no-null-found 15, raised-everywhere 246,
-no-generator 562. The promotion queue that opened this work at 1832 is at 15,
-and those fifteen are pinned individually. Nothing on this surface can change
+claimed 3140, null-witnessed 358, no-null-found 18, raised-everywhere 123,
+no-generator 562. The promotion queue that opened this work at 1832 is at 18,
+and those eighteen are pinned individually. Nothing on this surface can change
 without a suite failing.
 
 **The volatile bucket is SWEPT and the category is GONE (2026-08-21).** It
@@ -93,11 +93,44 @@ that existed before it and would have kept existing:
    chunk. The classifier now assigns an xid per batch and both spellings are
    witnessed by hand in `tests/unit/functions/`.
 
+**Then the UNPROBED surface was reached (2026-08-21, same day).** 246 rows
+had been recorded as "PostgreSQL declined every call the corpus could
+build", and for most of them that was a fact about the CORPUS. **Unprobed
+went 246 → 123**, 95 rows were promoted and 35 more became witnesses.
+
+Two things did it. The probe database became a SCHEMA — indexes of each
+kind, a range- and a hash-partitioned pair, a publication, a serial column,
+a collation, a foreign-data wrapper and server, a NON-SUPERUSER role, a
+domain, a composite type, replication slots and origins, a prepared
+statement and a prepared transaction — and PGlite's `postgresqlconf` option
+turned on the four settings whole families refuse without (`wal_level`,
+`track_commit_timestamp`, `max_prepared_transactions`, `summarize_wal`).
+`createProbeDb()` builds it, and all five creation sites go through it: the
+two suites, the sweep, and the two rebuild paths, which had already drifted
+once. The corpus grew with it — one cstring literal per type's input syntax,
+correctly shaped aggregate accumulators, typmod lists, an OID naming
+nothing, an xid with no commit timestamp.
+
+**Ten more standing claims were falsified**, and the first eight are one
+finding: `has_*_privilege(name, oid, text)` answers NULL for an object that
+does not exist, and every probe that had ever run them asked as the role
+PGlite runs as — a SUPERUSER, whose privilege check short-circuits to true
+before the object is looked up at all. One `CREATE ROLE` exposed all eight.
+The other two are `int8_avg` and `int2int4_sum`, NULL over a zero-count
+accumulator, which only a correctly shaped transition state reaches.
+
+**The source audit gained a distinction it needed.** A `PG_RETURN_NULL`
+guarded by an `escontext` is the PG16 SOFT-ERROR path, reachable only
+through `pg_input_is_valid`; a direct call raises there instead. Seventeen
+input functions are in that class and are claimed. The audit's other rule is
+unchanged and now has five entries: a null route the source shows but only a
+CONCURRENT DROP reaches is held, not claimed.
+
 **Three pins hold it**, all in `builtin-surface.test.ts`, all asserted in
-BOTH directions: `WORK_LIST` (the fifteen, each with why it cannot be
-promoted or witnessed), `UNPROBED` (246 rows grouped by why PostgreSQL
-declined them), `NO_GENERATOR` (17 types, each marked REFUSED or
-DELIBERATELY SKIPPED). A signature a future PostgreSQL adds fails one of
+BOTH directions: `WORK_LIST` (the eighteen, each with why it cannot be
+promoted or witnessed), `UNPROBED` (123 rows in seventeen groups, each
+naming the measured reason), `NO_GENERATOR` (17 types, each marked REFUSED
+or DELIBERATELY SKIPPED). A signature a future PostgreSQL adds fails one of
 them until somebody decides about it.
 
 **The loop, when a pin fails.** Run from `pgsid/`:
@@ -115,7 +148,7 @@ curated table (hand-argued); a NULL goes into
 control. The gate is `totality-probe.test.ts`, ~10s, which executes every
 claimed row.
 
-**Seven traps, each paid for once. Do not rediscover them.**
+**Ten traps, each paid for once. Do not rediscover them.**
 
 1. **PGlite MATERIALISES a FROM-position function scan.** `SELECT * FROM
    generate_series(1::bigint, 9223372036854775807) LIMIT 100` allocates until
@@ -148,14 +181,31 @@ claimed row.
    and `lo_create(1::oid)` had made the object `lo_open(1::oid,…)` found.
    A row that needs an object gets one from `PROBE_OBJECTS_SQL` or creates
    it inside its own `COHERENT_CALLS` entry.
+8. **A call can DESTROY what other rows are probed against.**
+   `pg_drop_replication_slot`'s generated combinations delete the probe
+   database's own slots, because their names are in the `name` corpus —
+   which is what made the slot family probeable in the first place. Four
+   rows then failed on a missing object. `REFUSED_CALLS` again, with a
+   coherent call that creates a slot of its own to drop.
+9. **The two probes must key `COHERENT_CALLS` the same way.** The gate built
+   its key from VARIADIC-expanded types and the classifier from declared
+   ones, so `pg_restore_relation_stats("any","any")` never matched
+   `("any")` and five coherent calls silently did not apply. The gate now
+   carries the declared key on the signature.
+10. **Two probe objects can interact.** Creating a logical replication slot
+   waits for every in-progress transaction to reach a consistent snapshot,
+   and the prepared transaction — added so `pg_prepared_xact()` would
+   return rows — never finishes. The call hangs forever, uninterruptibly,
+   and nothing about either object predicts the other.
 
-**What is open on this surface — both optional, neither blocking.** 57
-`io-syntax` rows close with more `cstring` shapes; 6 `no-such-object` rows
-close only by creating a foreign-data wrapper and a foreign server in the
-probe database. Both are recorded in `UNPROBED` with those words. (That
-list said "and a sequence" until 2026-08-21, when `PROBE_OBJECTS_SQL`
-reached the classifying suite and the three sequence-privilege rows closed
-on the spot.)
+**What is open on this surface: nothing that a CREATE reaches.** Both
+entries that used to sit here are closed — the `io-syntax` group is gone
+(one cstring literal per type's input syntax), and so is `no-such-object`
+(the probe database has a foreign-data wrapper, a foreign server and a
+sequence). What remains in `UNPROBED` needs something no SQL statement in
+one session can produce: a standby, an event-trigger context, binary-upgrade
+mode, a second session for a multixact, a pseudo-type value PostgreSQL
+refuses outright. Each group says which.
 
 **The QUEUED item is elsewhere**: `docs/catalog-driven-generation.md`,
 chartered. STEP 0 DONE, §§9.1–9.4 BUILT (2026-08-08), §5.4's round-trip

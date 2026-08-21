@@ -22,8 +22,7 @@ import {
   MAX_COMBOS,
   combinations,
   qualify,
-  SRF_PROBE_FN_SQL,
-  PROBE_OBJECTS_SQL,
+  createProbeDb,
   REFUSED_CALLS,
   srfQuery,
   nullTestExpr,
@@ -48,6 +47,15 @@ interface Signature {
   ncols?: number;
   /** A COMPOSITE result needs `nullTestExpr`; see probe-values.ts for why. */
   composite?: boolean;
+  /**
+   * The key `COHERENT_CALLS` and the claim tables use: `name(declared,args)`.
+   * Carried rather than recomputed from `types`, because `types` has already
+   * had the VARIADIC tail expanded into elements — so recomputing it here
+   * produced `pg_restore_relation_stats("any","any")` while probe-values.ts
+   * and the classifying suite both say `("any")`, and five coherent calls
+   * silently did not apply.
+   */
+  key: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -151,18 +159,7 @@ describe("totality tables, probed by execution", () => {
   let stats = { signatures: 0, probes: 0, evaluated: 0, raised: 0, capped: 0, skipped: 0 };
 
   beforeAll(async () => {
-    pg = await PGlite.create();
-    await pg.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
-    await pg.exec(`
-      CREATE FUNCTION probe(expr text) RETURNS text LANGUAGE plpgsql AS $$
-      DECLARE r boolean;
-      BEGIN
-        EXECUTE 'SELECT (' || expr || ') IS NULL' INTO r;
-        RETURN CASE WHEN r THEN 'NULL' ELSE 'value' END;
-      EXCEPTION WHEN OTHERS THEN RETURN 'error';
-      END $$;`);
-    await pg.exec(SRF_PROBE_FN_SQL);
-    await pg.exec(PROBE_OBJECTS_SQL);
+    pg = await createProbeDb();
 
     const tableOf = (n: string): Signature["table"] =>
       ALWAYS_NOT_NULL_BUILTINS.has(n) ? "alwaysNotNull" : FIRST_ARG_BUILTINS.has(n) ? "firstArg" : "strictTotal";
@@ -211,7 +208,11 @@ describe("totality tables, probed by execution", () => {
       // reject an odd argument count outright (`json_build_object` wants
       // key/value pairs), and probing the declared arity alone left them
       // raising on every combination.
-      .map(r => ({ ...r, types: variadicArgTypes(r.types, r.variadic) }));
+      .map(r => ({
+        ...r,
+        key: `${r.name}(${r.types.join(",")})`,
+        types: variadicArgTypes(r.types, r.variadic),
+      }));
 
     const opRows = (
       await pg.query<{ name: string; left: string | null; right: string | null }>(
@@ -257,6 +258,7 @@ describe("totality tables, probed by execution", () => {
         table: tableOf(r.name),
         name: r.name,
         types: r.types,
+        key: r.key,
         composite: r.composite,
         ...(r.retset ? { ncols: r.ncols } : {}),
       })),
@@ -264,6 +266,7 @@ describe("totality tables, probed by execution", () => {
         table: "operator" as const,
         name: r.name,
         types: [r.left, r.right].filter((t): t is string => t !== null),
+        key: `${r.name}(${r.left ?? ""},${r.right ?? ""})`,
         prefix: r.left === null,
       })),
     ];
@@ -279,7 +282,7 @@ describe("totality tables, probed by execution", () => {
       const families = sig.types.some(t => POLYMORPHIC.has(t)) ? POLYMORPHIC_FAMILIES : [{}];
       const mine: string[] = [];
       let generatorMissing = false;
-      const key = `${sig.name}(${sig.types.join(",")})`;
+      const key = sig.key;
 
       // "Never NULL whatever the arguments" includes NULL arguments, and that
       // is one expression per signature rather than one per combination.

@@ -1,3 +1,5 @@
+import { PGlite } from "@electric-sql/pglite";
+
 // ---------------------------------------------------------------------------
 // The probe VALUE CORPUS, shared by totality-probe.test.ts (the claimed
 // surface, gating) and builtin-surface.test.ts (the full surface,
@@ -67,7 +69,16 @@ export const VALUES: Record<string, string[]> = {
   // answering plain SELECTs while lying (the register's poison finding). A
   // role name cannot be mistaken for an encoding, which is why this one is
   // safe and `'LATIN1'` would not be.
-  name: ["''::name", "'abc'::name", "'postgres'::name"],
+  // The replication SLOT, ORIGIN and PUBLICATION names joined 2026-08-21:
+  // the slot and origin families take their object as a `name` and raise for
+  // one that does not exist, which is what left them unprobed. None of the
+  // three can be mistaken for an encoding, which is the only bar this list
+  // has (see the note above).
+  name: [
+    "''::name", "'abc'::name", "'postgres'::name", "'public'::name",
+    "'probe_role'::name",
+    "'probe_slot'::name", "'probe_lslot'::name", "'probe_origin'::name",
+  ],
 
   // --- numbers: NaN and the infinities (scale/min_scale, and every float).
   smallint: ["1::smallint", "0::smallint", "(-1)::smallint", "32767::smallint"],
@@ -157,8 +168,14 @@ export const VALUES: Record<string, string[]> = {
   // requires to narrow to six bytes — it raises for any other eight.
   macaddr8: ["'08:00:2b:01:02:03:04:05'::macaddr8", "'08:00:2b:ff:fe:01:02:03'::macaddr8"],
   uuid: ["'00000000-0000-0000-0000-000000000000'::uuid"],
-  oid: ["0::oid", "1::oid"],
-  xid: ["'0'::xid"],
+  // 999999 names NOTHING, which is a corner in its own right: the privilege
+  // family answers NULL for an object that is not there while raising for a
+  // malformed one, and the two are only told apart by trying both.
+  oid: ["0::oid", "1::oid", "999999::oid"],
+  // A transaction id with no COMMIT TIMESTAMP recorded, which is what
+  // pg_xact_commit_timestamp answers NULL for once track_commit_timestamp is
+  // on. Xid 0 raises instead, so one value could not reach the distinction.
+  xid: ["'0'::xid", "'3'::xid"],
   xid8: ["'0'::xid8"],
   cid: ["'0'::cid"],
   tid: ["'(0,1)'::tid"],
@@ -204,11 +221,46 @@ export const VALUES: Record<string, string[]> = {
   // is a legal call. The values are one that parses as most types and one
   // that parses as few, since an I/O function RAISES on input it cannot read
   // and a raise is not a NULL.
-  cstring: ["'abc'::cstring", "'42'::cstring", "''::cstring"],
-  "double precision[]": ["'{}'::float8[]", "'{1,2}'::float8[]"],
-  "bigint[]": ["'{}'::int8[]", "'{1,2}'::int8[]"],
+  // One literal per TYPE whose input function takes a cstring (2026-08-21).
+  // `'abc'`, `'42'` and `''` parse as a handful of types and as none of these,
+  // which is what left 57 rows in the io-syntax group; an input function
+  // RAISES on text it cannot read, so a vocabulary that misses a type's
+  // syntax probes that type's row in name only. Growing this list rather
+  // than writing 57 coherent calls, because a cstring good for `date_in` is
+  // good in any cstring position — which is the shape a per-type corpus is
+  // for.
+  cstring: [
+    "'abc'::cstring", "'42'::cstring", "''::cstring",
+    "'t'::cstring", "'2020-01-01'::cstring", "'2020-01-01Z'::cstring",
+    "'00:00'::cstring", "'00:00+00'::cstring",
+    "'(0,0)'::cstring", "'(0,1)'::cstring", "'(1,2)'::cstring",
+    "'((0,0),(1,1))'::cstring", "'((0,0),(1,1),(1,0))'::cstring",
+    "'[(0,0),(1,1)]'::cstring", "'<(0,0),1>'::cstring", "'{1,1,0}'::cstring",
+    "'127.0.0.1'::cstring", "'08:00:2b:01:02:03'::cstring",
+    "'08:00:2b:01:02:03:04:05'::cstring", "'0/0'::cstring",
+    "'00000000-0000-0000-0000-000000000000'::cstring", "'1:1:'::cstring",
+    "'postgres=r/postgres'::cstring", "'{1,2}'::cstring",
+    "'[1,2)'::cstring", "'{[1,2)}'::cstring",
+  ],
+  // The three- and six-element members are aggregate TRANSITION STATES, not
+  // arrays of numbers: `float8_accum` wants (N, sum, sumX2) and
+  // `float8_regr_accum` wants six, and every one of the twenty-four rows in
+  // the aggstate group raised because the corpus could only offer it an
+  // arbitrary float8[]. A populated state sits beside a zeroed one because
+  // `float8_corr` divides by N.
+  "double precision[]": [
+    "'{}'::float8[]", "'{1,2}'::float8[]",
+    "'{0,0,0}'::float8[]", "'{2,3,0}'::float8[]",
+    "'{0,0,0,0,0,0}'::float8[]", "'{2,1,1,1,1,1}'::float8[]",
+  ],
+  // The two-element members are the int accumulators' (count, sum) state.
+  "bigint[]": ["'{}'::int8[]", "'{1,2}'::int8[]", "'{0,0}'::int8[]", "'{2,4}'::int8[]"],
   "oid[]": ["'{}'::oid[]", "'{1,2}'::oid[]"],
-  "cstring[]": ["'{}'::cstring[]", "'{a}'::cstring[]"],
+  // A type MODIFIER list, which is what the ten `*typmodin` rows take: one
+  // number for a length or precision, two for numeric's precision and scale.
+  "cstring[]": [
+    "'{}'::cstring[]", "'{a}'::cstring[]", "'{8}'::cstring[]", "'{10,2}'::cstring[]",
+  ],
   '"char"[]': ["ARRAY['a'::\"char\"]"],
   int2vector: ["'1 2'::int2vector"],
   xml: ["''::xml", "'<a/>'::xml"],
@@ -236,9 +288,16 @@ export const VALUES: Record<string, string[]> = {
   // `pg_sequence_last_value` is NULL until `nextval` has run, and
   // `PROBE_OBJECTS_SQL` primes `probe_seq` for `currval`/`lastval` — so the
   // object that makes five signatures evaluable was hiding a sixth's witness.
+  // The index, partition and plain-relation members joined with the probe
+  // schema: `brin_summarize_new_values` and its siblings raise "is not an
+  // index" for anything else, and `pg_partition_tree` returns NO ROWS for a
+  // relation that is neither a partition nor partitioned — which reads
+  // exactly like a raise and is just as far from a verdict.
   regclass: [
     "'pg_class'::regclass", "'probe_seq'::regclass",
     "'probe_seq_unused'::regclass", "999999::oid::regclass",
+    "'probe_rel'::regclass", "'probe_brin'::regclass", "'probe_gin'::regclass",
+    "'probe_part'::regclass", "'probe_part1'::regclass",
   ],
   regtype: ["'integer'::regtype"],
   regproc: ["'pg_backend_pid'::regproc"],
@@ -249,8 +308,11 @@ export const VALUES: Record<string, string[]> = {
   regrole: ["'postgres'::regrole"],
   regcollation: ["'\"C\"'::regcollation"],
   regdictionary: ["'simple'::regdictionary"],
-  pg_snapshot: ["'1:1:'::pg_snapshot"],
-  txid_snapshot: ["'1:1:'::txid_snapshot"],
+  // The second member has IN-PROGRESS xids, which is the only thing
+  // `pg_snapshot_xip`/`txid_snapshot_xip` emit — over the empty one they
+  // return no rows, and no row is not a value.
+  pg_snapshot: ["'1:1:'::pg_snapshot", "'1:3:1,2'::pg_snapshot"],
+  txid_snapshot: ["'1:1:'::txid_snapshot", "'1:3:1,2'::txid_snapshot"],
 
   aclitem: ["makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)"],
   "aclitem[]": ["ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)]"],
@@ -385,7 +447,115 @@ export const PROBE_OBJECTS_SQL = `
   DECLARE probe_cursor CURSOR WITH HOLD FOR SELECT 1 AS a;
   SELECT lo_from_bytea(16000, 'probe'::bytea);
   SELECT lo_export(16000, 'probe_lo');
+
+  -- A relation with an index of each kind the maintenance functions take,
+  -- a partitioned pair, a publication and a serial column.
+  CREATE TABLE probe_rel(i int PRIMARY KEY, t tsvector, s text);
+  INSERT INTO probe_rel VALUES (1, 'a b'::tsvector, 'x'), (2, 'c'::tsvector, 'y');
+  CREATE INDEX probe_brin ON probe_rel USING brin (i);
+  CREATE INDEX probe_gin ON probe_rel USING gin (t);
+  CREATE TABLE probe_part(i int) PARTITION BY RANGE (i);
+  CREATE TABLE probe_part1 PARTITION OF probe_part FOR VALUES FROM (0) TO (10);
+  CREATE PUBLICATION probe_pub FOR TABLE probe_rel;
+  CREATE TABLE probe_serial(id serial);
+
+  -- A HASH-partitioned pair, which is what satisfies_hash_partition needs
+  -- and no range partition can stand in for.
+  CREATE TABLE probe_hash(i int) PARTITION BY HASH (i);
+  CREATE TABLE probe_hash1 PARTITION OF probe_hash FOR VALUES WITH (MODULUS 2, REMAINDER 0);
+
+  -- A DOMAIN and a COMPOSITE type: domain_in and record_in take the
+  -- target type's OID and refuse a base type or record itself, and the
+  -- json/jsonb record populators need a composite to populate.
+  CREATE DOMAIN probe_dom AS int;
+  CREATE TYPE probe_comp AS (a int, b text);
+
+  -- A NON-SUPERUSER role. Every probe of the has_*_privilege family had
+  -- used the role PGlite runs as, and a superuser short-circuits to true
+  -- before the object is looked up at all -- which hid the NULL those
+  -- functions answer for an object that does not exist. The grantee is the
+  -- argument that decides whether the rest of the call is even reached.
+  CREATE ROLE probe_role NOLOGIN;
+
+  -- A collation, a foreign-data wrapper and a foreign server: the three
+  -- objects the no-such-object group was pinned on.
+  CREATE COLLATION probe_coll (provider = libc, locale = 'C');
+  CREATE FOREIGN DATA WRAPPER probe_fdw;
+  CREATE SERVER probe_srv FOREIGN DATA WRAPPER probe_fdw;
+
+  -- One function per procedural language, for the language validators.
+  CREATE FUNCTION probe_plpgsql() RETURNS int LANGUAGE plpgsql AS $x$ BEGIN RETURN 1; END $x$;
+  CREATE FUNCTION probe_sql() RETURNS int LANGUAGE sql AS $x$ SELECT 1 $x$;
+
+  -- Replication: a physical slot and an origin. The LOGICAL slot cannot go
+  -- here — see PROBE_STANDALONE_SQL.
+  SELECT pg_create_physical_replication_slot('probe_slot', true, false);
+  SELECT pg_replication_origin_create('probe_origin');
+  -- A SECOND origin, because the session claims the first: advancing an
+  -- origin that is active for this backend raises "already active for PID".
+  SELECT pg_replication_origin_create('probe_origin2');
+
+  -- The session's replication ORIGIN. It lives here rather than in a probe
+  -- of its own because a session can have exactly one: with it configured,
+  -- pg_replication_origin_session_progress, _xact_setup and
+  -- pg_show_replication_origin_status all evaluate, and the two rows that
+  -- SET and CLEAR it are recorded unprobed instead — a verdict for those
+  -- would only say which of them the batch happened to run first.
+  SELECT pg_replication_origin_session_setup('probe_origin');
+
+  -- A listening channel and a prepared statement.
+  LISTEN probe_channel;
+  PREPARE probe_stmt AS SELECT 1;
+  -- A prepared statement with NO result types, which is the only thing
+  -- pg_prepared_statement() reports a null column for.
+  PREPARE probe_dml AS INSERT INTO probe_rel VALUES (3, 'd'::tsvector, 'z');
 `;
+
+/**
+ * Objects that cannot be made inside the block above, run one statement at a
+ * time. `exec` puts its whole string in ONE transaction, and both of these
+ * refuse that: a logical slot cannot be created in a transaction that has
+ * written, and PREPARE TRANSACTION is what ends the one it is in.
+ *
+ * The prepared transaction gets its own table on purpose. Its locks outlive
+ * the setup by construction — that is the point, since `pg_prepared_xact()`
+ * is empty without one — so they must not sit on anything else the probe
+ * touches. Sharing `probe_rel` would have deadlocked the run:
+ * `brin_summarize_new_values` wants ShareUpdateExclusive on an index of a
+ * table this transaction holds RowExclusive on, and the probe has no timeout
+ * that would notice.
+ */
+export const PROBE_STANDALONE_SQL: readonly string[] = [
+  `SELECT pg_create_logical_replication_slot('probe_lslot', 'pgoutput', false, false, false)`,
+  `CREATE TABLE probe_prepared(i int)`,
+  `BEGIN`,
+  `INSERT INTO probe_prepared VALUES (1)`,
+  `PREPARE TRANSACTION 'probe_gid'`,
+];
+
+/**
+ * postgresql.conf lines every probe instance starts with.
+ *
+ * Four groups of signatures refuse on the SERVER's configuration rather than
+ * on their arguments, and each was pinned unprobeable for it until PGlite's
+ * `postgresqlconf` option turned out to reach all four: logical decoding
+ * needs `wal_level`, `pg_xact_commit_timestamp` and friends need
+ * `track_commit_timestamp`, `pg_prepared_xact()` needs a non-zero
+ * `max_prepared_transactions`, and the WAL summary readers need
+ * `summarize_wal`. A setting is not an input, so nothing here weakens what a
+ * verdict means — it only decides whether PostgreSQL will answer at all.
+ */
+export const PROBE_CONF: readonly string[] = [
+  "wal_level = logical",
+  "track_commit_timestamp = on",
+  "max_prepared_transactions = 4",
+  "summarize_wal = on",
+  // The slot COPY rows create a slot per combination that succeeds, and the
+  // default cap of ten is reached part way through them — after which every
+  // later slot row fails on the cap rather than on itself, which reads as a
+  // verdict and is not one.
+  "max_replication_slots = 100",
+];
 
 /**
  * Signatures whose GENERATED combinations must not be run, and why.
@@ -417,6 +587,26 @@ export const REFUSED_CALLS: Record<string, string> = {
   // a setting nothing reads and `is_local = true`.
   "set_config(text,text,boolean)":
     "sets a SESSION GUC that outlives the call — search_path among the corpus's own values, which hides the probe's enum type from every later expression in the statement",
+  // The third reason, and the only refusal with no bounded call to put in its
+  // place: creating a LOGICAL slot waits for every in-progress transaction to
+  // finish before it can reach a consistent snapshot, and this probe database
+  // holds a PREPARED transaction — which never finishes. Two of its own
+  // objects, each added for an unrelated row, and neither one predicts the
+  // other. A temporary slot waits the same way, so the row is recorded
+  // unprobed rather than probed by something narrower.
+  "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)":
+    "waits forever for the probe database's prepared transaction to finish; a logical slot needs a consistent snapshot and there is no bounded spelling",
+  // Clears the session replication origin PROBE_OBJECTS_SQL configures, which
+  // three other rows need — the set_config shape again, one family over.
+  "pg_replication_origin_session_reset()":
+    "clears the session replication origin the probe database configures, which three other rows are evaluated against",
+  // DROPS the probe database's replication slots. The `name` corpus carries
+  // their names — that is what made the slot family probeable at all — so
+  // its generated combinations delete the objects `pg_replication_slot_advance`
+  // and the copy rows are evaluated against, and which ran first decided
+  // their verdict. Its coherent call creates a slot of its own to drop.
+  "pg_drop_replication_slot(name)":
+    "drops the probe database's own replication slots, which four other rows are evaluated against",
 };
 
 export const PROBE_FN_SQL = `
@@ -477,6 +667,15 @@ export const COHERENT_CALLS: Record<string, readonly (readonly string[])[]> = {
   "has_database_privilege(text,text)": [["current_database()", "'CONNECT'"]],
   "has_function_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'upper(text)'", "'EXECUTE'"]],
   "has_language_privilege(name,text,text)": [["'postgres'::name", "'sql'", "'USAGE'"]],
+  // Five more (name,text,text) spellings, which the name corpus's growth
+  // pushed past the combination cap: above it the sampler varies ONE
+  // argument from a baseline, and these need the role, the object and the
+  // privilege valid at once. Trap 5 — a coherent call, not a bigger cap.
+  "has_any_column_privilege(name,text,text)": [["'postgres'::name", "'pg_class'", "'SELECT'"]],
+  "has_function_privilege(name,text,text)": [["'postgres'::name", "'upper(text)'", "'EXECUTE'"]],
+  "has_parameter_privilege(name,text,text)": [["'postgres'::name", "'search_path'", "'SET'"]],
+  "has_table_privilege(name,text,text)": [["'postgres'::name", "'pg_class'", "'SELECT'"]],
+  "has_type_privilege(name,text,text)": [["'postgres'::name", "'integer'", "'USAGE'"]],
   "has_language_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'sql'", "'USAGE'"]],
   "has_language_privilege(text,text)": [["'sql'", "'USAGE'"]],
   "has_schema_privilege(name,text,text)": [["'postgres'::name", "'pg_catalog'", "'USAGE'"]],
@@ -527,7 +726,13 @@ export const COHERENT_CALLS: Record<string, readonly (readonly string[])[]> = {
   // A slot created by the call itself. The same order accident: `pg_create_*`
   // sorts before `pg_drop_*` and left one lying around.
   "pg_drop_replication_slot(name)": [
-    ["(pg_catalog.pg_create_physical_replication_slot('probe_slot'::name, false, false)).slot_name"],
+    ["(pg_catalog.pg_create_physical_replication_slot('probe_drop'::name, false, false)).slot_name"],
+  ],
+  // A slot name that is FREE. Every name the corpus carries is one the probe
+  // database already made, and creating a slot that exists raises — so once
+  // the DROP row stopped clearing them, this row had nothing left to create.
+  "pg_create_physical_replication_slot(name,boolean,boolean)": [
+    ["'probe_create'::name", "true", "false"],
   ],
   // The refused row's bounded call: a GUC nothing reads, set LOCALLY.
   "set_config(text,text,boolean)": [["'application_name'", "'probe'", "true"]],
@@ -573,9 +778,151 @@ export const COHERENT_CALLS: Record<string, readonly (readonly string[])[]> = {
   "pg_clear_attribute_stats(text,text,text,boolean)": [
     ["'pg_catalog'", "'pg_class'", "'relname'", "false"],
   ],
-  // No entry for the foreign-data-wrapper or foreign-server privileges: a
-  // fresh PGlite has neither object, so the blocker is the DATABASE rather
-  // than the corpus, and they stay pinned under the no-such-object reason.
+  // The FOREIGN-DATA-WRAPPER and FOREIGN-SERVER privileges (2026-08-21).
+  // Both objects exist in the probe database now, closing the last of the
+  // no-such-object group.
+  "has_foreign_data_wrapper_privilege(name,text,text)": [["'postgres'::name", "'probe_fdw'", "'USAGE'"]],
+  "has_foreign_data_wrapper_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'probe_fdw'", "'USAGE'"]],
+  "has_foreign_data_wrapper_privilege(text,text)": [["'probe_fdw'", "'USAGE'"]],
+  "has_server_privilege(name,text,text)": [["'postgres'::name", "'probe_srv'", "'USAGE'"]],
+  "has_server_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'probe_srv'", "'USAGE'"]],
+  "has_server_privilege(text,text)": [["'probe_srv'", "'USAGE'"]],
+  // The I/O entry points that take a TARGET TYPE's oid beside the string.
+  // The cstring corpus can carry the syntax but not the type: `array_in`
+  // wants an element type, `domain_in` a domain, `record_in` a composite,
+  // and the two the probe database had to grow a `probe_dom`/`probe_comp`
+  // for cannot be spelled with a base type at all.
+  "array_in(cstring,oid,integer)": [["'{1,2}'::cstring", "'int4'::regtype::oid", "(-1)"]],
+  "domain_in(cstring,oid,integer)": [["'1'::cstring", "'probe_dom'::regtype::oid", "(-1)"]],
+  "record_in(cstring,oid,integer)": [["'(1,abc)'::cstring", "'probe_comp'::regtype::oid", "(-1)"]],
+  "range_in(cstring,oid,integer)": [["'[1,2)'::cstring", "'int4range'::regtype::oid", "(-1)"]],
+  "multirange_in(cstring,oid,integer)": [["'{[1,2)}'::cstring", "'int4multirange'::regtype::oid", "(-1)"]],
+  "enum_in(cstring,oid)": [["'a'::cstring", "'probe_enum'::regtype::oid"]],
+  // A composite TARGET, which is what these populate into. The polymorphic
+  // families instantiate `anyelement` as an integer, and an integer has no
+  // fields to fill.
+  "json_populate_record(anyelement,json,boolean)": [["NULL::probe_comp", "'{\"a\":1}'::json", "false"]],
+  "json_populate_recordset(anyelement,json,boolean)": [["NULL::probe_comp", "'[{\"a\":1}]'::json", "false"]],
+  "jsonb_populate_record(anyelement,jsonb)": [["NULL::probe_comp", "'{\"a\":1}'::jsonb"]],
+  "jsonb_populate_record_valid(anyelement,jsonb)": [["NULL::probe_comp", "'{\"a\":1}'::jsonb"]],
+  "jsonb_populate_recordset(anyelement,jsonb)": [["NULL::probe_comp", "'[{\"a\":1}]'::jsonb"]],
+  // A real modulus/remainder pair against a HASH-partitioned parent.
+  "satisfies_hash_partition(oid,integer,integer,\"any\")": [
+    ["'probe_hash'::regclass::oid", "2", "0", "1"],
+  ],
+  // Objects identified by OID where the corpus can only offer 0 and 1, and
+  // where the KIND of object is the whole question — an opclass, a
+  // collation, a function of a particular language, a sequence.
+  "amvalidate(oid)": [["(SELECT oid FROM pg_opclass WHERE opcname = 'int4_ops' LIMIT 1)"]],
+  "pg_collation_actual_version(oid)": [["'probe_coll'::regcollation::oid"]],
+  "fmgr_sql_validator(oid)": [["'probe_sql()'::regprocedure::oid"]],
+  "fmgr_internal_validator(oid)": [["'upper(text)'::regprocedure::oid"]],
+  "fmgr_c_validator(oid)": [["'plpgsql_call_handler()'::regprocedure::oid"]],
+  "plpgsql_validator(oid)": [["'probe_plpgsql()'::regprocedure::oid"]],
+  "pg_sequence_parameters(oid)": [["'probe_seq'::regclass::oid"]],
+  "pg_nextoid(regclass,name,regclass)": [
+    ["'pg_class'::regclass", "'oid'::name", "'pg_class_oid_index'::regclass"],
+  ],
+  // A committed transaction's id, which only `track_commit_timestamp` makes
+  // answerable and only a real xid reaches — the corpus's xid is 0.
+  "pg_xact_commit_timestamp(xid)": [["(SELECT xmin FROM probe_rel LIMIT 1)"]],
+  "pg_xact_commit_timestamp_origin(xid)": [["(SELECT xmin FROM probe_rel LIMIT 1)"]],
+  // A relation and one of its columns, in two parts.
+  // Both sides: a column that HAS an owned sequence and one that does not —
+  // the second is NULL, and no corpus of relation names finds it by chance.
+  "pg_get_serial_sequence(text,text)": [["'probe_serial'", "'id'"], ["'probe_rel'", "'i'"]],
+  // An object ADDRESS: a catalog oid, an object oid in it, and a sub-id.
+  "pg_identify_object(oid,oid,integer)": [
+    ["'pg_class'::regclass::oid", "'probe_rel'::regclass::oid", "0"],
+  ],
+  "pg_identify_object_as_address(oid,oid,integer)": [
+    ["'pg_class'::regclass::oid", "'probe_rel'::regclass::oid", "0"],
+  ],
+  "pg_get_object_address(text,text[],text[])": [
+    ["'table'", "ARRAY['probe_rel']", "ARRAY[]::text[]"],
+  ],
+  // The last has_column_privilege spelling, which takes the relation by OID
+  // and the column by name — no per-type choice can be both.
+  // Both corners. A SUPERUSER grantee short-circuits to true before the
+  // object is looked up, so the first call reaches a value and only the
+  // second reaches the NULL a missing relation gives — and past the
+  // combination cap the sampler can vary one argument at a time, never four.
+  "has_column_privilege(name,oid,text,text)": [
+    ["'postgres'::name", "'probe_rel'::regclass::oid", "'i'", "'SELECT'"],
+    ["'probe_role'::name", "999999::oid", "'i'", "'SELECT'"],
+  ],
+  "has_column_privilege(name,oid,smallint,text)": [
+    ["'postgres'::name", "'probe_rel'::regclass::oid", "1::smallint", "'SELECT'"],
+    ["'probe_role'::name", "999999::oid", "1::smallint", "'SELECT'"],
+  ],
+  // Copying a replication slot needs an existing source and a name that is
+  // FREE, and the corpus can only offer names that already exist. Each
+  // spelling gets its own destination for the same reason.
+  "pg_copy_physical_replication_slot(name,name)": [["'probe_slot'::name", "'probe_copy1'::name"]],
+  "pg_copy_physical_replication_slot(name,name,boolean)": [
+    ["'probe_slot'::name", "'probe_copy2'::name", "false"],
+  ],
+  "pg_copy_logical_replication_slot(name,name)": [["'probe_lslot'::name", "'probe_copy3'::name"]],
+  "pg_copy_logical_replication_slot(name,name,boolean)": [
+    ["'probe_lslot'::name", "'probe_copy4'::name", "false"],
+  ],
+  "pg_copy_logical_replication_slot(name,name,boolean,name)": [
+    ["'probe_lslot'::name", "'probe_copy5'::name", "false", "'pgoutput'::name"],
+  ],
+  // A replication ORIGIN by name. These take `text` rather than `name`, so
+  // the corpus entry that unblocked the slot family does not reach them.
+  "pg_replication_origin_advance(text,pg_lsn)": [["'probe_origin2'", "'0/1'::pg_lsn"]],
+  // A slot by name and a target the server will accept: advancing past the
+  // current WAL position raises, and the corpus's pg_lsn values are 0/0 and
+  // the maximum. The RESET row takes its slot as `text`, where the corpus
+  // carries no slot name at all — only `name` gained one.
+  "pg_replication_slot_advance(name,pg_lsn)": [
+    ["'probe_slot'::name", "pg_catalog.pg_current_wal_lsn()"],
+  ],
+  "pg_stat_reset_replication_slot(text)": [["'probe_slot'"]],
+  "pg_replication_origin_progress(text,boolean)": [["'probe_origin'", "false"]],
+  // A real WAL file name, which only the server can spell.
+  "pg_split_walfile_name(text)": [
+    ["pg_catalog.pg_walfile_name(pg_catalog.pg_current_wal_lsn())"],
+  ],
+  // The default TABLESPACE, by name and by OID. Creating one needs a
+  // directory the WASM filesystem has no way to make, but pg_default is
+  // there in every cluster.
+  "pg_tablespace_size(name)": [["'pg_default'::name"]],
+  "pg_tablespace_size(oid)": [["1663::oid"]],
+  "pg_tablespace_databases(oid)": [["1663::oid"]],
+  // A text-search PARSER's oid, which is a different kind of object from
+  // anything the oid corpus carries.
+  "ts_parse(oid,text)": [["(SELECT oid FROM pg_ts_parser LIMIT 1)", "'abc'"]],
+  "ts_token_type(oid)": [["(SELECT oid FROM pg_ts_parser LIMIT 1)"]],
+  // An explicit source ENCODING, which is the whole point of the two- and
+  // three-argument spellings: the one-argument form reads the DATABASE
+  // encoding and PGlite's is UTF8, which `to_ascii` refuses.
+  "to_ascii(text,integer)": [["'abc'", "8"]],
+  // The NAME spelling takes the encoding as a name, and this is the ONE
+  // place an encoding name may be written: `probe-values.ts` bars them from
+  // the `name` CORPUS because `convert_to(text,name)` reads whatever is
+  // there as one and a real conversion poisons the backend. A coherent call
+  // reaches `to_ascii` and nothing else.
+  "to_ascii(text,name)": [["'abc'", "'LATIN1'::name"]],
+  // Statistics restored as VARIADIC name/value pairs, which no per-type
+  // choice can build — the first element must be a known key and the second
+  // its value, alternating.
+  "pg_restore_relation_stats(\"any\")": [[
+    "VARIADIC ARRAY['schemaname','public','relname','probe_rel'," +
+      "'relpages','1','reltuples','2','relallvisible','0','version','180000']",
+  ]],
+  // Written as loose arguments rather than a VARIADIC array, because
+  // `inherited` must arrive as a real boolean and an array makes every
+  // element text — "argument \"inherited\" must not be null" is what that
+  // looks like from the outside.
+  "pg_restore_attribute_stats(\"any\")": [[
+    "'schemaname'", "'public'", "'relname'", "'probe_rel'",
+    "'attname'", "'i'", "'inherited'", "false", "'version'", "180000",
+  ]],
+  // A publication name. The row is VARIADIC over text, so the call takes
+  // the element rather than the array its signature is keyed by.
+  "pg_get_publication_tables(text[])": [["'probe_pub'"]],
   // The BOUNDED sleeps, which is the whole probed universe for those three
   // rows — every generated combination is refused above.
   "pg_sleep(double precision)": [["0::float8"]],
@@ -631,6 +978,29 @@ export const nullTestExpr = (call: string, composite: boolean): string =>
  * exist time to count.
  */
 export const SRF_ROW_LIMIT = 100;
+
+/**
+ * A probe instance, complete: the configuration, the enum type, both probe
+ * functions, every object and the prepared transaction.
+ *
+ * One factory because there are FIVE creation sites — two suites, the sweep,
+ * and the two rebuild paths a poisoned backend takes — and they had already
+ * drifted once: `PROBE_OBJECTS_SQL` existed for a year and the classifying
+ * suite never ran it, so `'probe_seq'::regclass` raised there while the
+ * gating suite answered. Same argument as the corpus itself: what the probes
+ * are probing AGAINST cannot fork either.
+ */
+export async function createProbeDb(): Promise<PGlite> {
+  const db = await PGlite.create({ postgresqlconf: [...PROBE_CONF] });
+  await db.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
+  await db.exec(PROBE_FN_SQL);
+  await db.exec(SRF_PROBE_FN_SQL);
+  await db.exec(PROBE_OBJECTS_SQL);
+  // Separate statements: `exec` runs its whole string in one transaction, and
+  // PREPARE TRANSACTION is what ends this one.
+  for (const sql of PROBE_STANDALONE_SQL) await db.query(sql);
+  return db;
+}
 
 /**
  * The set-returning probe, and the reason it is written THIS way.
