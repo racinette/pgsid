@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
@@ -751,6 +751,17 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     label: string;
     /** Why no data can witness this claim — the triage result, recorded. */
     why: string;
+    /**
+     * Where `why` blames the CORPUS's row geometry rather than an engine
+     * behaviour: the note saying so, and no blame file. A geometry reason has
+     * no statement that isolates it — the fact it rests on is "these
+     * structures produce no such row", which is not a thing one query can
+     * exhibit.
+     *
+     * Every other rule blames a MECHANISM, and a mechanism can be executed:
+     * see the blame-file gate below.
+     */
+    geometry?: string;
     matches: (axes: GeneratedQuery["axes"], column: string) => boolean;
   }
 
@@ -840,6 +851,12 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         "null-extend jointly ((t INNER u) RIGHT/FULL v), or the u-absent row " +
         "is discarded by a strict join qual referencing u's columns. Sound " +
         "engine conservatism about the CASE branch, unreachable by any data.",
+      geometry:
+        "the fact is 'no row in these structures has t present and u absent', " +
+        "which no single statement exhibits — the witness geometry of a " +
+        "structure set is not a query's property. The structure set itself is " +
+        "the record, and CASE_DARK_STRUCTURES is enumerated rather than " +
+        "matched by pattern for that reason.",
       matches: (axes, column) =>
         axes.projection === "case-nullif" &&
         column === "a_case" &&
@@ -876,15 +893,18 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         axes.wrapper.endsWith("refilter"),
     },
     {
-      label: "variadic-refused-while-its-operands-are-present",
+      label: "variadic-body-inlines-to-a-nullif",
       why:
-        "gfn_var is VARIADIC, so resolveFunctionCandidates refuses to " +
-        "arity-filter against it and the call is conservatively nullable — " +
-        "which is the whole point of having it. Its body returns NULL only " +
-        "when EVERY argument is NULL, because array_to_string ignores them; " +
-        "in single(inner) and single(right) the u side is always present " +
-        "carrying a NOT NULL email, so no data can produce that. Every other " +
-        "structure witnesses it.",
+        "gfn_var resolves to a single catalog candidate, so the call takes " +
+        "priority 5 — body recursion — and the body is " +
+        "`nullif(array_to_string(xs, ','), '')`, nullable by construction. " +
+        "VARIADIC costs nothing here: the candidate refusal this rule used to " +
+        "blame lives on the consensus branch, which a resolved call never " +
+        "enters (measured, and pinned by the blame file). What no data can " +
+        "produce is the NULL itself — array_to_string ignores NULL arguments, " +
+        "so the nullif fires only when EVERY argument is NULL, and in the " +
+        "U_NEVER_ABSENT structures the u side is always present carrying a " +
+        "NOT NULL email. Every other structure witnesses it.",
       matches: (axes, column) =>
         axes.projection === "fn-call" && column === "a_fv" && U_NEVER_ABSENT.has(axes.structure),
     },
@@ -902,25 +922,31 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         axes.projection === "fn-agg-window" && column === "a_fa" && U_NEVER_ABSENT.has(axes.structure),
     },
     {
-      label: "upper-lost-its-totality",
+      label: "body-parameter-by-name-is-untyped",
       why:
-        "gfn_io's body is `SELECT upper(a)`, and `upper` left " +
-        "STRICT_TOTAL_BUILTINS when the curated-table audit found its " +
-        "`(anyrange)` overload returns NULL for an empty range — name-level " +
-        "dispatch cannot separate that from the total `(text)` form. So the " +
-        "body reads nullable however non-null its argument, and no data can " +
-        "witness it: `upper` of a non-null text is always non-null. This is " +
-        "the precision cost docs/type-aware-overloads.md exists to recover, " +
-        "now measured under generation rather than argued.",
+        "gfn_io's body is `SELECT upper(a)`, and `upper` needs its SIGNATURE " +
+        "narrowed to the total `(text)` row — it left STRICT_TOTAL_BUILTINS " +
+        "because its `(anyrange)` overload is NULL for an empty range. Typed " +
+        "dispatch does that narrowing and DOES reach bodies, through `$n` " +
+        "(body-builtin-parameter-type.sql). It does not reach a parameter " +
+        "referenced by NAME: renderedTypeOfExpr resolves a ColumnRef only " +
+        "through scope relations, and a body with no FROM has an empty scope. " +
+        "So the type is unknown, the walk falls through to the name-level " +
+        "tables, and no data can witness the result: `upper` of a non-null " +
+        "text is always non-null. The blame file pins both halves of that " +
+        "asymmetry; closing it closes this bucket.",
       matches: (axes, column) => axes.projection === "fn-call" && column === "a_fi",
     },
     {
-      label: "merge-source-needs-by-source-arm",
+      label: "merge-source-row-carries-an-unbound-parameter",
       why:
-        "the engine treats the MERGE source as optional unconditionally " +
-        "(sound: NOT MATCHED BY SOURCE null-extends it), but a statement " +
-        "without that arm returns every row with its source present — " +
-        "merge-bysource is the kind that witnesses the NULL.",
+        "not source optionality: with no NOT MATCHED BY SOURCE arm the " +
+        "source's joinState is REQUIRED, and the blame file executes that " +
+        "(a literal source column reads notNull there). r_snm is nullable " +
+        "because it IS `$1`, and no data witnesses it because the source row " +
+        "lands in ck.val's NOT NULL constraint — binding NULL raises instead " +
+        "of returning a row, which the param suite counts as a rejection and " +
+        "the witness channel cannot count as anything.",
       matches: (axes, column) =>
         axes.wrapper.startsWith("merge-") &&
         axes.wrapper !== "merge-bysource" &&
@@ -938,6 +964,60 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       matches: (axes, column) => axes.wrapper === "insert-values" && column === "r_ce",
     },
   ];
+
+  // -------------------------------------------------------------------------
+  // Blame files: the reasons above, executable.
+  //
+  // The gate below this one checks OUTCOMES — a claim is witnessed or a rule
+  // covers it. That cannot see a rule whose REASON has expired, because an
+  // expired reason leaves the outcome exactly where it was: the claim stays
+  // unwitnessed, the rule keeps matching, the suite stays green, and the
+  // recorded cause is a description of a world that ended. Three of the eight
+  // rules here were in that state when the discipline was introduced (2026-08-22)
+  // — two blaming mechanisms the walk had since grown past, one blaming a
+  // behaviour measurement showed it never had.
+  //
+  // So a reason that blames a MECHANISM names one, and the mechanism is
+  // pinned by an ordinary annotated fixture: `<label>.blame.sql`, which the
+  // hand corpus's own suites run, execute against PGlite and hold to the
+  // deparser — no runner of its own. The filename is DERIVED from the label
+  // rather than declared, which is why two labels changed above: a label that
+  // states a cause has to change when the cause does, and renaming it orphans
+  // the old file loudly.
+  //
+  // A reason that blames the corpus's row GEOMETRY carries `geometry` instead
+  // and no file, because no single statement exhibits "these structures
+  // produce no such row".
+  // -------------------------------------------------------------------------
+  it("every unwitnessable reason is executable or declares itself geometric", () => {
+    const missing: string[] = [];
+    for (const rule of UNWITNESSABLE) {
+      if (rule.geometry) continue;
+      const file = join(__dirname, "..", "fixtures", `${rule.label}.blame.sql`);
+      if (!existsSync(file)) missing.push(`${rule.label} → ${rule.label}.blame.sql`);
+    }
+    expect(
+      missing,
+      `Unwitnessable rules blaming a mechanism with no blame file. Write the ` +
+        `fixture that pins the mechanism — or, if the reason rests on the ` +
+        `corpus's row geometry rather than an engine behaviour, set ` +
+        `\`geometry\` and say why no statement isolates it:\n  ${missing.join("\n  ")}\n`,
+    ).toEqual([]);
+
+    // The other direction: a blame file nobody blames. A rule that closes
+    // takes its reason with it, and a file left behind goes on asserting a
+    // mechanism no reason depends on — which reads as coverage and is not.
+    const labels = new Set(UNWITNESSABLE.map(r => r.label));
+    const orphans = readdirSync(join(__dirname, "..", "fixtures"))
+      .filter(f => f.endsWith(".blame.sql"))
+      .map(f => f.slice(0, -".blame.sql".length))
+      .filter(l => !labels.has(l));
+    expect(
+      orphans,
+      `Blame files no rule names. Delete them with the rule that closed, or ` +
+        `restore the rule they belong to:\n  ${orphans.join("\n  ")}\n`,
+    ).toEqual([]);
+  });
 
   it("every unwitnessed nullable output claim is witnessed or classified", () => {
     const unclassified: string[] = [];

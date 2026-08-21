@@ -1296,10 +1296,12 @@ $$;
 -- witnessed by a real one.
 -- ====================================================================
 
--- VARIADIC: resolveFunctionCandidates refuses to arity-filter against one,
--- so the call is conservatively nullable. `nullif(..., '')` is what makes
--- that claim witnessable — array_to_string ignores NULLs and would
--- otherwise return '' forever.
+-- VARIADIC. The candidate refusal this comment used to blame is not on this
+-- path: a single catalog candidate resolves, so the call inlines the body
+-- (measured, variadic-body-inlines-to-a-nullif.blame.sql). What makes the
+-- call nullable is `nullif(..., '')`, which is also what makes the claim
+-- witnessable — array_to_string ignores NULLs and would otherwise return ''
+-- forever.
 CREATE FUNCTION gfn_var(VARIADIC xs text[]) RETURNS text
   LANGUAGE sql AS $$ SELECT nullif(array_to_string(xs, ','), '') $$;
 
@@ -1541,12 +1543,12 @@ CREATE TABLE arr_nn (id integer NOT NULL, vals text[] NOT NULL);
 -- returns a bigint and never answers NULL. Register: `nextval/GetNextID`.
 CREATE SEQUENCE seq_probe;
 
--- A LANGUAGE sql body that applies a BUILTIN to its own parameter. `cat1`'s
--- shape (an operator over the parameters) narrows and claims notNull; a
--- FUNCTION call over the same parameter does not, because the body
--- parameter's declared type never reaches the signature dispatch — which is
--- what costs `upper`/`lower` the totality they have over a typed column.
--- Register: the six `sql_syntax_calling_funcs` entries.
+-- A LANGUAGE sql body that applies a BUILTIN to its own parameter. Both
+-- claim notNull now: `cat1`'s shape (an operator over the parameters) always
+-- did, and the FUNCTION call joined it when the body context began carrying
+-- declared argument types for `$n` to read (body-builtin-parameter-type.sql).
+-- The asymmetry that remains is by NAME, not by `$n` — see
+-- body-parameter-by-name-is-untyped.blame.sql.
 CREATE FUNCTION body_upper(x text) RETURNS text
   LANGUAGE sql IMMUTABLE STRICT AS $$ SELECT UPPER($1) $$;
 CREATE FUNCTION body_concat(a text, b text) RETURNS text

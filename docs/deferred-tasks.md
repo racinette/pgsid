@@ -186,11 +186,41 @@ function, aggregate or window call over a join:
 | 28/526 | `proj=plain \| col=a_tb` |
 | 1/1, 1/6 | `proj=case \| col=r_ce`, `proj=plain \| col=r_snm` |
 
-Triaging a bucket means deciding which of the two it is. The instrument was
-built for exactly that call.
+**The triage is done and gated** — this item said otherwise until 2026-08-22,
+which is what the blame-file discipline was built to stop. Every one of the 906
+is classified by an `UNWITNESSABLE` rule in `generated-soundness.test.ts`, and
+two gates hold it: an unclassified claim fails, and a rule matching nothing
+fails as stale. What each bucket's verdict names is now executable as a
+`<label>.blame.sql` fixture beside the hand corpus (or, where the reason rests
+on row geometry rather than an engine behaviour, a `geometry` note saying no
+statement isolates it).
 
-The parameter side has the same smell and no triage at all: **2724 nullable
-argument claims, 0 ever falsified.**
+Writing those seven blame files found **three of eight reasons rotten** — the
+claim unchanged, the recorded cause expired, both gates green throughout:
+
+| rule | blamed | measured |
+|---|---|---|
+| `body-parameter-by-name-is-untyped` (a_fi) | name-level dispatch can't narrow `upper` | typed dispatch narrows it and reaches `$n` bodies; it does not reach a parameter by NAME |
+| `variadic-body-inlines-to-a-nullif` (a_fv) | `resolveFunctionCandidates` refuses VARIADIC | a resolved call never enters the consensus branch; the body's `nullif` is the cause |
+| `merge-source-row-carries-an-unbound-parameter` (r_snm) | the MERGE source is optional unconditionally | `joinState = REQUIRED` with no BY SOURCE arm; the cause is `$1` |
+
+So the open precision work is the two engine buckets whose reasons survived
+contact: **a_fi (240)**, one lookup — `renderedTypeOfExpr` resolves a ColumnRef
+only through scope relations, so a body's named parameter has no type — and
+**a_fa (300)**, a user aggregate's sfunc being opaque to
+`NON_NULL_OVER_NONEMPTY_AGGREGATES`. The remaining 366 are recorded as
+permanent.
+
+Not the parameter side, which this item also misread. **2724 nullable argument
+claims, 0 falsified** is 2724 confirmations, not a residue: for an argument,
+`nullable` means "NULL is a safe binding", and a run that binds NULL without
+raising *is* the witness. The direction that needs witnessing is the
+over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
+witnessed by an actual null-rejection.
+
+The **98 `@unwitnessable` reasons in the hand corpus** carry the same rot risk
+and are not yet wired to blame files. That is the obvious next pass and it is
+not done.
 
 ### 4. Known imprecision residue
 
