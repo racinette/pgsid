@@ -34,8 +34,9 @@ The quarantine directory is retired: every fixture graduated into
 the fixture schema, and the DO INSTEAD rule and unresolvable-relation
 refusals pinned in `unsupported-nodes.test.ts`. The closure entries — with
 what each fix measured and what it deliberately costs — are in
-`docs/deferred-tasks.md` section 2; section 5's three imprecisions are
-registered there too. This document remains the sweep's report, unmodified
+`git log -p docs/deferred-tasks.md` (the register was cut back to decisions
+and open items on 2026-08-21); the imprecision residue that is still open is
+in its "Known imprecision residue" table. This document remains the sweep's report, unmodified
 below this line.
 
 ---

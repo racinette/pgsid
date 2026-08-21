@@ -385,8 +385,8 @@ relation with a different column list. The recorded dependency has to be
 "searched app_s (ABSENT), found public.t", so that CREATING `app_s.t`
 invalidates. The same holds for functions, where a new better-matching
 overload appearing earlier in the path changes what the consensus rule
-concludes (`docs/deferred-tasks.md`, section 2's function-resolution
-closure, records why the plural `resolveFunctions` cannot close this half).
+concludes (`docs/deferred-tasks.md`, open item 2, records why the plural
+`resolveFunctions` cannot close this half).
 
 Note that "assume nullable when the symbol is missing" — the engine's rule
 for every unknown symbol that feeds a FLAG — does not help here: nothing

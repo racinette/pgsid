@@ -94,7 +94,8 @@ shapes. The register carries all of them with what remains open beside.
 Suite: 2257 tests, 37 files, 335 fixtures; the generated corpus's 8980
 queries moved by nothing — which is itself the finding behind
 `docs/generated-surface.md`. The per-fix closure entries are in
-`docs/deferred-tasks.md` section 2. This document remains the sweep's
+`git log -p docs/deferred-tasks.md` (the register was cut back to decisions
+and open items on 2026-08-21). This document remains the sweep's
 report, unmodified below this line.
 
 ---

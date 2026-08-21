@@ -1,5 +1,6 @@
 -- The SRF refilter, attributed — the positive pin for the unitCrossings
--- channel (was the instrument's last blind spot; deferred-tasks §4).
+-- channel (was the instrument's last blind spot; `DivergenceCause` in
+-- explain-instrument.ts carries the class and its pinned count of 0).
 --
 -- The outer WHERE proves `uem` non-null, which refilters exactly the rows
 -- where the LATERAL function's absent arm produced them — the planner

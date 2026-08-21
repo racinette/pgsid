@@ -175,8 +175,9 @@ export interface FixtureDirectives {
    * plan carries N FEWER surviving outer joins than the walk reports, and
    * the reason states the INVESTIGATED cause — one of the classifier's
    * verdicts (explain-instrument.ts): the slice-local participation
-   * imprecision (deferred-tasks §4, closure pending — these annotations go
-   * stale and fail the moment the closure lands, which is the point),
+   * imprecision (CLOSED 2026-08-19 by the participation closure — these
+   * annotations went stale and failed the moment it landed, which was the
+   * point; the class stays armed at a pinned count of 0),
    * uniqueness-based join removal (permanently out of scope), or the SRF
    * unit-channel blind spot (the engine agrees; the instrument cannot see
    * it). A planner-stronger divergence without this annotation fails: it is

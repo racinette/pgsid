@@ -120,7 +120,8 @@ column against PostgreSQL's three, with no search path involved at all.
 Both are fixed — unqualified lookups merge candidates across the path
 (deduped by `argTypes`, hiding measured as first-in-path in both
 directions), and the FROM site takes shape consensus or refuses. The
-closure entry is at the top of `docs/deferred-tasks.md` section 2; the pins
+closure entry lived in `docs/deferred-tasks.md` until the register was cut
+back to decisions and open items (2026-08-21) — `git log -p` has it; the pins
 are `search-path.test.ts` and `unsupported-nodes.test.ts`.
 
 The two residues that probe recorded were closed the same day and are

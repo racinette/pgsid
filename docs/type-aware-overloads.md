@@ -793,7 +793,7 @@ fixture, the probe's value generator never has to be complete.
 | Snapshot, where `pg_cast` would land | `src/catalog/snapshot.ts`, `src/catalog/types.ts` |
 | Fixture suite design and its discipline | `docs/witness-coverage.md` |
 | Suite blind spots, the sibling item | `docs/generated-surface.md` |
-| The audit that triggered this, and its limits | `docs/deferred-tasks.md` section 2 |
+| Why the C source scanner is gone and must not be rebuilt | `docs/deferred-tasks.md`, "Decided against" |
 | The `lower`/`upper` falsification, pinned | `tests/unit/query/fixtures/builtin-range-lower-upper.sql` |
 
 Run from `pgsid/` with `npx vitest run`; installs use `pnpm`.

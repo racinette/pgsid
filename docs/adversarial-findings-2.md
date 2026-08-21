@@ -55,7 +55,8 @@ constructor now expands). Fix 9(b) — where the search path comes from — is
 recorded for the consumer design, and finding 9's wide reachability
 question sits beside the claim semantics in
 `docs/argument-nullability.md`, deliberately open. The closure entries are
-in `docs/deferred-tasks.md` section 2. This document remains the sweep's
+in `git log -p docs/deferred-tasks.md` (the register was cut back to
+decisions and open items on 2026-08-21). This document remains the sweep's
 report, unmodified below this line.
 
 ---

@@ -612,7 +612,8 @@ Four things the earlier build measured, worth keeping:
   by substituting declared defaults into the argument vector — `a_fd` is
   notNull across the corpus and the rule is gone. Pursuing it found the
   strict short-circuit family; `docs/nullability-walk.md` section 4 has the
-  rule and `docs/deferred-tasks.md` the closure entry.
+  rule; `git log -p docs/deferred-tasks.md` has the closure entry, written
+  before the register was cut back to decisions and open items (2026-08-21).
 - **`upper`'s lost totality, now observed rather than argued.** `gfn_io`'s body
   is `SELECT upper(a)`, and `upper` left `STRICT_TOTAL_BUILTINS` over the
   empty-range finding, so the body reads nullable however non-null its
@@ -939,8 +940,8 @@ Two additions specific to this work:
   finding 6 settled: unqualified lookups gather from every schema in the path,
   pg_catalog searched implicitly and first.
 - **The stop condition for SWEEPS is already decided**
-  (`docs/deferred-tasks.md`, "What to do next"): stop chartering them
-  against code age. This document is the answer to "then what" for the
+  (`docs/deferred-tasks.md`, "Decided against"): stop chartering them
+  against code age — the discriminating variable is POSITION, not age. This document is the answer to "then what" for the
   suite; it does not reopen that question.
 
 ## Where things are
