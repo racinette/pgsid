@@ -235,6 +235,15 @@ refactor rather than beside it: the fix is to seed the body scope's parameter
 types from the function's declared argument types, which the merged pool now
 has to hand for exactly the row that was selected.
 
+> **BOTH SPELLINGS CLOSED.** `$n` landed with the body context's `argTypes`
+> (`body-builtin-parameter-type.sql`). The parameter's NAME landed 2026-08-22
+> (`body-builtin-parameter-by-name.sql`) — `renderedTypeOfExpr` reads a
+> ColumnRef's type through scope relations only, and a body with no FROM has an
+> empty scope, so `SELECT upper(a)` stayed untyped for as long as
+> `SELECT UPPER($1)` had been fixed. Worth 240 claims in the generated corpus.
+> The name reading is a FALLBACK behind the scope reading, deliberately: a
+> visible column of the same name wins, measured against PostgreSQL.
+
 ## What must change
 
 1. **Snapshot** — nothing. `builtinFunctionSignatures` is captured and read.

@@ -922,22 +922,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         axes.projection === "fn-agg-window" && column === "a_fa" && U_NEVER_ABSENT.has(axes.structure),
     },
     {
-      label: "body-parameter-by-name-is-untyped",
-      why:
-        "gfn_io's body is `SELECT upper(a)`, and `upper` needs its SIGNATURE " +
-        "narrowed to the total `(text)` row — it left STRICT_TOTAL_BUILTINS " +
-        "because its `(anyrange)` overload is NULL for an empty range. Typed " +
-        "dispatch does that narrowing and DOES reach bodies, through `$n` " +
-        "(body-builtin-parameter-type.sql). It does not reach a parameter " +
-        "referenced by NAME: renderedTypeOfExpr resolves a ColumnRef only " +
-        "through scope relations, and a body with no FROM has an empty scope. " +
-        "So the type is unknown, the walk falls through to the name-level " +
-        "tables, and no data can witness the result: `upper` of a non-null " +
-        "text is always non-null. The blame file pins both halves of that " +
-        "asymmetry; closing it closes this bucket.",
-      matches: (axes, column) => axes.projection === "fn-call" && column === "a_fi",
-    },
-    {
       label: "merge-source-row-carries-an-unbound-parameter",
       why:
         "not source optionality: with no NOT MATCHED BY SOURCE arm the " +

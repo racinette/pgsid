@@ -797,6 +797,15 @@ interface FnBodyContext {
    * docs/function-overload-merge.md, "The second site the types never reach".
    */
   argTypes: (string | undefined)[];
+  /**
+   * The NAMES of those same positional parameters, so a body that references
+   * one by name reaches `argTypes` the way `$n` does. Input parameters only,
+   * and that is the whole point of keeping it here rather than reusing
+   * `fnParamNames`: that list spans every mode, so an interleaved OUT
+   * parameter shifts its indices out of line with `argTypes` and
+   * `argResults`, both of which are input-positional.
+   */
+  argNames: (string | undefined)[];
 }
 
 // ---------------------------------------------------------------------------
@@ -5248,7 +5257,46 @@ class NullabilityEngine {
       return resolved.kind === "unknown" ? null : resolved.returns;
     }
     const rendered = this.renderedTypeOfExpr(expr, scope);
-    return rendered === null ? null : [rendered];
+    if (rendered !== null) return [rendered];
+    return this.bodyParameterTypeByName(expr, scope);
+  }
+
+  /**
+   * A LANGUAGE sql body's parameter referenced by NAME, typed from the
+   * function's own signature — the counterpart of the `ParamRef` reading
+   * above, and the last resort rather than the first.
+   *
+   * `SELECT upper(a)` and `SELECT upper($1)` are one body written two ways,
+   * and until 2026-08-22 only the second narrowed. `renderedTypeOfExpr` reads
+   * a ColumnRef's type through SCOPE RELATIONS, and a body with no FROM has an
+   * empty scope, so the name came back untyped and every builtin call over it
+   * fell through to the name-level tables — which is what cost `gfn_io`'s
+   * `upper(a)` the totality `upper(text)` has (measured under generation as
+   * 240 unwitnessed claims before this closed).
+   *
+   * Reached only where the scope reading found nothing, and that ordering is
+   * the precedence rule, not an implementation detail: a visible column WINS
+   * over a parameter of the same name — measured against PostgreSQL, both
+   * qualified and unqualified. Nullability's own reading
+   * (`resolveColumnRefTraced`) takes the parameter FIRST, which is the
+   * opposite order; two probes failed to turn that into an unsound claim, but
+   * it is not this site's job to add a second way to be wrong about it.
+   */
+  private bodyParameterTypeByName(expr: Node, scope: Scope | null): string[] | null {
+    if (!this.fnCtx) return null;
+    const cr = (expr as Record<string, unknown>)["ColumnRef"] as ColumnRef | undefined;
+    if (!cr) return null;
+    const parts = (cr.fields ?? []).map(f => this.stringVal(f));
+    if (parts.length !== 1) return null;
+    const name = parts[0]!;
+    // Belt to the ordering's braces: a scope entry that IS visible under this
+    // name but whose type the reading could not follow (a subquery re-export
+    // it refuses, say) also arrives here, and typing THAT from the parameter
+    // would be the shadowing mistake by another route.
+    if (scope?.visible.some(v => v.name === name)) return null;
+    const i = this.fnCtx.argNames.indexOf(name);
+    const t = i >= 0 ? this.fnCtx.argTypes[i] : undefined;
+    return t !== undefined ? [t] : null;
   }
 
   private renderedTypeOfExpr(expr: Node, scope: Scope | null): string | null {
@@ -9245,7 +9293,10 @@ class NullabilityEngine {
     const prevCtx = this.fnCtx;
     const prevParamNames = this.fnParamNames;
     this.fnCtx = prevCtx
-      ? { argResults: [], analyzing: prevCtx.analyzing, argTypes: prevCtx.argTypes }
+      ? // No names: a default expression is evaluated in no function context,
+        // which is why `fnParamNames` goes null just below. `argTypes` stays
+        // only because `$n` there is already refused by the empty argResults.
+        { argResults: [], analyzing: prevCtx.analyzing, argTypes: prevCtx.argTypes, argNames: [] }
       : null;
     this.fnParamNames = null;
     try {
@@ -9413,6 +9464,9 @@ class NullabilityEngine {
       argTypes: meta.args
         .filter(a => a.mode === "in" || a.mode === "inout")
         .map(a => a.typeName),
+      argNames: meta.args
+        .filter(a => a.mode === "in" || a.mode === "inout")
+        .map(a => a.name),
     };
     this.fnParamNames = meta.args.map(a => a.name);
     try {
@@ -9595,6 +9649,9 @@ class NullabilityEngine {
       argTypes: meta.args
         .filter(a => a.mode === "in" || a.mode === "inout")
         .map(a => a.typeName),
+      argNames: meta.args
+        .filter(a => a.mode === "in" || a.mode === "inout")
+        .map(a => a.name),
     };
     this.fnParamNames = meta.args.map(a => a.name);
     try {

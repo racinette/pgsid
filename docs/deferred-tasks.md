@@ -161,7 +161,7 @@ waits on it.
 
 **Trigger.** Whenever someone wants to spend the time upstream.
 
-### 3. The precision residue — 906 unwitnessed nullable claims
+### 3. The precision residue — 666 unwitnessed nullable claims
 
 The generated soundness instrument measures this and prints it under
 `WITNESS_REPORT=1`:
@@ -170,46 +170,47 @@ The generated soundness instrument measures this and prints it under
 WITNESS_REPORT=1 pnpm exec vitest run tests/unit/query/generated/generated-soundness.test.ts
 ```
 
-Across 14,964 queries, 32,659 nullable output claims are made and **31,753 are
-witnessed (97%)**. The 906 that are not are places the engine says "could be
+Across 14,964 queries, 32,419 nullable output claims are made and **31,753 are
+witnessed (98%)**. The 666 that are not are places the engine says "could be
 null" where nothing in the corpus can show it — either engine imprecision (the
-claim can flip to notNull) or a structural property of the shape. Seven
-buckets; **780 of the 906 sit in three of them**, all the same shape — a
-function, aggregate or window call over a join:
+claim can flip to notNull) or a structural property of the shape. Six buckets:
 
-| unwitnessed | bucket |
-|---:|---|
-| 300/738 | `proj=fn-agg-window \| col=a_fa` |
-| 240/738 | `proj=fn-call \| col=a_fv` |
-| 240/738 | `proj=fn-call \| col=a_fi` |
-| 96/498 | `proj=case-nullif \| col=a_case` |
-| 28/526 | `proj=plain \| col=a_tb` |
-| 1/1, 1/6 | `proj=case \| col=r_ce`, `proj=plain \| col=r_snm` |
+| unwitnessed | bucket | disposition |
+|---:|---|---|
+| 300/738 | `proj=fn-agg-window \| col=a_fa` | **open** — a user aggregate's sfunc is opaque to `NON_NULL_OVER_NONEMPTY_AGGREGATES`, which is a curated set of builtins |
+| 240/738 | `proj=fn-call \| col=a_fv` | permanent — the body is a `nullif`, nullable by construction so the claim has a witness elsewhere |
+| 96/498 | `proj=case-nullif \| col=a_case` | permanent — row geometry, `geometry` note |
+| 28/526 | `proj=plain \| col=a_tb` | permanent — every unnest field reads nullable |
+| 1/1 | `proj=case \| col=r_ce` | permanent — written-value tracking carries non-nullness, not value |
+| 1/6 | `proj=plain \| col=r_snm` | permanent — the source row carries an unbound `$1` |
 
 **The triage is done and gated** — this item said otherwise until 2026-08-22,
-which is what the blame-file discipline was built to stop. Every one of the 906
-is classified by an `UNWITNESSABLE` rule in `generated-soundness.test.ts`, and
-two gates hold it: an unclassified claim fails, and a rule matching nothing
-fails as stale. What each bucket's verdict names is now executable as a
-`<label>.blame.sql` fixture beside the hand corpus (or, where the reason rests
-on row geometry rather than an engine behaviour, a `geometry` note saying no
-statement isolates it).
+which is what the blame-file discipline was built to stop. Every one is
+classified by an `UNWITNESSABLE` rule in `generated-soundness.test.ts`, and
+three gates hold it: an unclassified claim fails, a rule matching nothing fails
+as stale, and a rule blaming a MECHANISM must name a `<label>.blame.sql`
+fixture that executes it (or carry a `geometry` note saying no statement
+isolates its reason).
 
-Writing those seven blame files found **three of eight reasons rotten** — the
-claim unchanged, the recorded cause expired, both gates green throughout:
+That third gate is the one the first two cannot substitute for: an expired
+REASON leaves the outcome exactly where it was, so the claim stays unwitnessed,
+the rule keeps matching, and the suite stays green over a cause that has been
+false for weeks. Writing the seven blame files found **three of eight reasons
+rotten**:
 
 | rule | blamed | measured |
 |---|---|---|
-| `body-parameter-by-name-is-untyped` (a_fi) | name-level dispatch can't narrow `upper` | typed dispatch narrows it and reaches `$n` bodies; it does not reach a parameter by NAME |
-| `variadic-body-inlines-to-a-nullif` (a_fv) | `resolveFunctionCandidates` refuses VARIADIC | a resolved call never enters the consensus branch; the body's `nullif` is the cause |
-| `merge-source-row-carries-an-unbound-parameter` (r_snm) | the MERGE source is optional unconditionally | `joinState = REQUIRED` with no BY SOURCE arm; the cause is `$1` |
+| a_fi | name-level dispatch can't narrow `upper` | typed dispatch narrows it and reaches `$n` bodies; it did not reach a parameter by NAME — **closed, see below** |
+| a_fv | `resolveFunctionCandidates` refuses VARIADIC | a resolved call never enters the consensus branch; the body's `nullif` is the cause, so lifting the refusal would move nothing |
+| r_snm | the MERGE source is optional unconditionally | `joinState = REQUIRED` with no BY SOURCE arm; the cause is `$1` |
 
-So the open precision work is the two engine buckets whose reasons survived
-contact: **a_fi (240)**, one lookup — `renderedTypeOfExpr` resolves a ColumnRef
-only through scope relations, so a body's named parameter has no type — and
-**a_fa (300)**, a user aggregate's sfunc being opaque to
-`NON_NULL_OVER_NONEMPTY_AGGREGATES`. The remaining 366 are recorded as
-permanent.
+**a_fi closed 2026-08-22** (`body-builtin-parameter-by-name.sql`): a body's
+parameter referenced by NAME now carries its declared type into signature
+dispatch, the way `$n` already did. 240 claims flipped to notNull, all executed
+against PostgreSQL, none falsified. The rule and its blame file retired.
+
+So the one open precision bucket is **a_fa (300)**. The other 366 are recorded
+as permanent, each with an executable reason.
 
 Not the parameter side, which this item also misread. **2724 nullable argument
 claims, 0 falsified** is 2724 confirmations, not a residue: for an argument,
