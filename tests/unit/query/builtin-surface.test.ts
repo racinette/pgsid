@@ -69,12 +69,12 @@ import {
 //   null-witnessed   — a corner combination returned NULL. The machine
 //                      found the witness; the signature may NEVER acquire a
 //                      totality claim (asserted below against the tables).
-//   no-null-found    — every evaluated combination returned a value. THE
-//                      WORK LIST: the engine claims these can be NULL and
-//                      cannot witness it, so each is a graduation candidate
-//                      — promote it (name table or signature addition, where
-//                      the totality probe takes over) or find the missing
-//                      input class. Promotion stays HUMAN, the discovery/
+//   no-null-found    — every evaluated combination returned a value. The
+//                      engine reads these nullable and this suite cannot
+//                      witness it, so the disposition lives somewhere else:
+//                      a hand-written fixture, the walk's frame gate, a
+//                      source audit, or the register. SETTLED_ELSEWHERE says
+//                      which, per row. Promotion stays HUMAN, the discovery/
 //                      coverage split the register mandates.
 //
 // The corpus is `probe-values.ts`, one copy with the totality probe — the
@@ -83,24 +83,44 @@ import {
 // ---------------------------------------------------------------------------
 
 /**
- * THE WORK LIST, PINNED — every signature the engine still reads as nullable
- * with no witness, and the reason it is still there.
+ * SETTLED ELSEWHERE, PINNED — every signature the engine reads as nullable
+ * that this suite evaluated without finding a NULL, and where its disposition
+ * actually lives.
+ *
+ * It was called WORK_LIST while it was one. It opened at 1832 and every entry
+ * was a genuine promotion candidate; it is at eighteen now and NONE of them
+ * is. The name outlived the fact, which is the failure mode trap 12 records —
+ * a pin whose wording stops being true keeps being read as if it were. Four
+ * dispositions are in here, and only the first two ever looked like work:
+ *
+ *   1. WITNESSED BY HAND in tests/unit/functions/, because the NULL route is
+ *      session or transaction state the probe cannot vary, or sits past the
+ *      combination cap. Seven rows. These are witnessed; this suite just
+ *      cannot see it.
+ *   2. CLAIMED BY THE WALK rather than by a table — `first_value` and
+ *      `last_value` are notNull under the default-frame gate, which no claim
+ *      table names. Two rows.
+ *   3. CORRECTLY NULLABLE, with a live `PG_RETURN_NULL` read out of the C
+ *      source that no single session can reach: an unset debug_query_string,
+ *      a concurrent DROP. Seven rows, and promoting one would be a WRONG
+ *      notNull. There is nothing to fix here and never will be.
+ *   4. EXCLUDED BY THE REGISTER — the two encoding-conversion rows poison the
+ *      backend and may not be probed at all.
  *
  * `node-census.test.ts`'s pattern, applied to the builtin surface, and added
  * for the gap that pattern exists to close: without it a PostgreSQL upgrade
- * that adds a function lands it in `no-null-found` and the suite PASSES, so
- * the queue grows back from nine and nobody learns until somebody
- * regenerates the work-list document by hand. Deliberately NOT a count: a
- * ratchet lets a regression hide behind an unrelated improvement, which is
+ * that adds a function lands it in `no-null-found` and the suite PASSES, so a
+ * real candidate hides among eighteen settled ones. Deliberately NOT a count:
+ * a ratchet lets a regression hide behind an unrelated improvement, which is
  * the failure mode this project rejects everywhere else. Asserted in BOTH
- * directions, so a row that stops being on the list fails too — its reason
- * has become a claim about PostgreSQL that nothing checks.
+ * directions, so a row that stops being on the list fails too — its reason has
+ * become a claim about PostgreSQL that nothing checks.
  *
- * An entry here is a decision, not a TODO. Adding one means writing down why
- * the signature cannot be promoted or witnessed; if that reason is "nobody
- * has looked yet", the honest move is to look.
+ * An entry here is a decision, not a TODO. Adding one means writing down where
+ * the disposition lives; if the answer is "nobody has looked yet", the honest
+ * move is to look, and the row does not belong here until somebody has.
  */
-const WORK_LIST: Record<string, string> = {
+const SETTLED_ELSEWHERE: Record<string, string> = {
   // The encoding-conversion family POISONS the PGlite backend — a real
   // conversion attempt returns a zero-row "success" and leaves the instance
   // answering plain SELECTs while lying. Permanently excluded by the
@@ -791,7 +811,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
     // and adding fifteen unrelated expressions elsewhere flipped it. Its NULL
     // is transaction state rather than input, the class this probe is
     // structurally blind to, and it is witnessed by hand in
-    // tests/unit/functions/ with a WORK_LIST entry saying so — the
+    // tests/unit/functions/ with a SETTLED_ELSEWHERE entry saying so — the
     // `current_schema()` shape exactly. Forcing the assignment makes the
     // classification say the same thing every run.
     const evalBatch = async (batch: string[]): Promise<void> => {
@@ -860,8 +880,8 @@ describe("builtin scalar surface, witnessed or classified", () => {
     // optimisation. Nine of these rows were promoted on these very verdicts,
     // and a claimed row is the GATE's jurisdiction — this suite never
     // evaluates one. Merging anyway put them back in the loop below, which
-    // re-categorised them out of `claimed` and failed the work-list pin with
-    // nine rows that were not on any work list.
+    // re-categorised them out of `claimed` and failed the SETTLED_ELSEWHERE
+    // pin with nine rows that had nowhere else to be settled.
     for (const { key, expr, verdict } of await runOutOfBandProbes(pg)) {
       if (category.get(key) === "claimed") continue;
       const mine = exprsBySig.get(key);
@@ -924,8 +944,9 @@ describe("builtin scalar surface, witnessed or classified", () => {
       `\nbuiltin surface: ${totalRows} scalar + operator signatures — ` +
         [...counts.entries()].sort().map(([c, n]) => `${c}: ${n}`).join(", ") +
         `${capped ? ` (${capped} signatures sampled past the combo cap)` : ""}.` +
-        `\n  no-null-found is the WORK LIST: claimed nullable, no witness found — ` +
-        `promote or find the input class. BUILTIN_SURFACE_REPORT=1 prints it.`,
+        `\n  no-null-found: read nullable, no witness found HERE — every one is ` +
+        `settled elsewhere and SETTLED_ELSEWHERE says where. ` +
+        `BUILTIN_SURFACE_REPORT=1 prints them.`,
     );
     if (process.env["BUILTIN_SURFACE_REPORT"]) {
       console.log(`\nno-null-found (${noNullFound.length}):\n  ${noNullFound.join("\n  ")}`);
@@ -935,12 +956,12 @@ describe("builtin scalar surface, witnessed or classified", () => {
             .map(([t, n]) => `${t} (${n})`).join("\n  "),
       );
     }
-    // The durable handoff, for a session working the lists rather than a
-    // human reading a console: BUILTIN_SURFACE_WORKLIST=<path> writes the
-    // full classification as markdown. Same run, same data — the file is a
+    // The durable handoff, for a session reading the surface rather than a
+    // human reading a console: BUILTIN_SURFACE_CLASSIFICATION=<path> writes
+    // the full classification as markdown. Same run, same data — the file is a
     // snapshot whose provenance and regeneration command it states itself.
-    const worklistPath = process.env["BUILTIN_SURFACE_WORKLIST"];
-    if (worklistPath) {
+    const snapshotPath = process.env["BUILTIN_SURFACE_CLASSIFICATION"];
+    if (snapshotPath) {
       const byCat = (cat: string): string[] =>
         [...category.entries()].filter(([, c]) => c === cat).map(([k]) => k).sort();
       const split = (keys: string[]): string =>
@@ -948,20 +969,22 @@ describe("builtin scalar surface, witnessed or classified", () => {
           .map(kind => `${kind}s ${keys.filter(k => sigKind.get(k) === kind).length}`)
           .join(", ");
       const lines: string[] = [
-        `# Builtin surface work list`,
+        `# Builtin surface classification`,
         ``,
         `Generated by builtin-surface.test.ts (regenerate:`,
-        `\`BUILTIN_SURFACE_WORKLIST=docs/builtin-surface-worklist.md pnpm exec vitest run tests/unit/query/builtin-surface.test.ts\`).`,
-        `A snapshot of the classification, for working the lists; the SUITE is`,
-        `the source of truth and re-derives it every run.`,
+        `\`BUILTIN_SURFACE_CLASSIFICATION=docs/builtin-surface-classification.md pnpm exec vitest run tests/unit/query/builtin-surface.test.ts\`).`,
+        `A snapshot for reading the surface; the SUITE is the source of truth`,
+        `and re-derives it every run.`,
         ``,
-        `Every entry below is a signature the engine reads as nullable. A`,
-        `null-witnessed entry has its witness — promote nothing there. A`,
-        `no-null-found entry is claimed nullable with NO witness found across`,
-        `the corner corpus: either promote it into the claim tables (the`,
-        `totality probe then holds it to execution) or find the input class`,
-        `the corpus is missing. Promotion is human, per signature, with the`,
-        `probe as the evidence bar.`,
+        `Every entry below is a signature the engine reads as nullable, and`,
+        `every one of them is decided — this file is a record, not a queue.`,
+        `A null-witnessed entry carries its witness; promote nothing there. A`,
+        `no-null-found entry evaluated without ever answering NULL, and its`,
+        `disposition lives outside this suite — see SETTLED_ELSEWHERE in`,
+        `builtin-surface.test.ts, which names one of four per row. A`,
+        `raised-everywhere entry is pinned in UNPROBED with the measured reason`,
+        `PostgreSQL declined every call. Promotion is human, per signature,`,
+        `with the probe as the evidence bar and the totality probe as the hold.`,
         ``,
       ];
       for (const cat of [
@@ -980,8 +1003,8 @@ describe("builtin scalar surface, witnessed or classified", () => {
         }
         lines.push(``);
       }
-      writeFileSync(worklistPath, lines.join("\n"));
-      console.log(`worklist written to ${worklistPath}`);
+      writeFileSync(snapshotPath, lines.join("\n"));
+      console.log(`classification written to ${snapshotPath}`);
     }
   });
 
@@ -992,8 +1015,8 @@ describe("builtin scalar surface, witnessed or classified", () => {
     // the rows did not stop being executed, they moved into `claimed`, where
     // the totality probe executes them instead of this suite. So the count
     // that matters is every row some suite decides by RUNNING it — claimed,
-    // witnessed, or on the work list — against the ones no execution reaches
-    // (no-generator, volatile, raised-everywhere).
+    // witnessed, or no-null-found — against the ones no execution reaches
+    // (no-generator, raised-everywhere).
     const decided = [...category.values()].filter(
       c => c === "claimed" || c === "null-witnessed" || c === "no-null-found",
     ).length;
@@ -1086,27 +1109,28 @@ describe("builtin scalar surface, witnessed or classified", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("the work list is exactly what is recorded, in both directions", () => {
+  it("the settled-elsewhere set is exactly what is recorded, in both directions", () => {
     // The drift guard the classification lacked. A signature PostgreSQL adds
     // in a future release arrives unclaimed and lands here, and without this
-    // the run would pass with the queue quietly larger.
+    // the run would pass with a real candidate hidden among the settled ones.
     const actual = new Set(noNullFound);
-    const unexplained = [...actual].filter(k => !(k in WORK_LIST)).sort();
-    const stale = Object.keys(WORK_LIST).filter(k => !actual.has(k)).sort();
+    const unexplained = [...actual].filter(k => !(k in SETTLED_ELSEWHERE)).sort();
+    const stale = Object.keys(SETTLED_ELSEWHERE).filter(k => !actual.has(k)).sort();
     expect(
       unexplained,
       `Signature(s) the engine reads as nullable with no witness and no ` +
-        `recorded reason. Either promote them (probe first — ` +
-        `tests/probe/cluster-sweep.ts sweeps by catalog role), witness them ` +
-        `in tests/unit/functions/, or add an entry to WORK_LIST saying why ` +
-        `neither is possible:\n  ${unexplained.join("\n  ")}`,
+        `recorded disposition — the one thing this suite calls actual work. ` +
+        `Either promote them (probe first — tests/probe/cluster-sweep.ts ` +
+        `sweeps by catalog role), witness them in tests/unit/functions/, or ` +
+        `add an entry to SETTLED_ELSEWHERE saying where the decision lives ` +
+        `and why it is not here:\n  ${unexplained.join("\n  ")}`,
     ).toEqual([]);
     expect(
       stale,
-      `WORK_LIST records a signature that is no longer on the work list. ` +
-        `Either it was promoted or witnessed — drop the entry — or ` +
-        `PostgreSQL removed it, and the entry is a reason about a signature ` +
-        `that no longer exists:\n  ${stale.join("\n  ")}`,
+      `SETTLED_ELSEWHERE records a signature this suite no longer classifies ` +
+        `no-null-found. Either it was promoted or witnessed — drop the entry ` +
+        `— or PostgreSQL removed it, and the entry is a disposition for a ` +
+        `signature that no longer exists:\n  ${stale.join("\n  ")}`,
     ).toEqual([]);
   });
 
