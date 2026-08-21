@@ -170,48 +170,55 @@ is permanent and how to re-measure it:
 WITNESS_REPORT=1 pnpm exec vitest run tests/unit/query/generated/generated-soundness.test.ts
 ```
 
-Across 14,964 queries, 32,419 nullable output claims and **32,053 witnessed
-(99%)**. The 366 that are not are each classified, and every classification is
-either executable or declares itself geometric:
+Across 14,964 queries, 32,419 nullable output claims and **32,293 witnessed**.
+The 126 that are not are each classified, and every classification is either
+executable as a `<label>.blame.sql` fixture or declares itself geometric. Four
+buckets, and they fail to be witnessed for four different reasons:
 
-| unwitnessed | bucket | why it is permanent |
+| unwitnessed | bucket | why no data reaches the NULL |
 |---:|---|---|
-| 240/738 | `proj=fn-call \| col=a_fv` | the body is a `nullif`, nullable by construction — the NULL needs every argument NULL, which the U_NEVER_ABSENT structures cannot produce |
-| 96/498 | `proj=case-nullif \| col=a_case` | row geometry: no row in those structures has t present and u absent. `geometry` note, no file |
-| 28/526 | `proj=plain \| col=a_tb` | every unnest field reads nullable whatever the element expression put there |
-| 1/1 | `proj=case \| col=r_ce` | written-value tracking carries non-nullness, not value |
-| 1/6 | `proj=plain \| col=r_snm` | the source row carries an unbound `$1`, and the corpus's shape lands it in a NOT NULL column, so binding NULL raises instead of returning a row |
+| 96/498 | `proj=case-nullif \| col=a_case` | **the join shape forbids the row.** a_case is NULL only where t is present and u NULL-extended; in these twelve structures t and u null-extend jointly, or a later strict qual on u's columns discards the u-absent row |
+| 28/526 | `proj=plain \| col=a_tb` | **the query's own filter removes its witness.** The refilter wrappers pin `a_tc IS NOT NULL`, and a_tc is non-null exactly on the rows where the SRF or unnest produced a value — the same rows where a_tb is non-null too |
+| 1/6 | `proj=plain \| col=r_snm` | **the witness is a raise, not a row.** `$1` lands in `ck.val`'s NOT NULL constraint, so binding NULL raises; the param suite counts that as a rejection and the witness channel cannot count it as anything |
+| 1/1 | `proj=case \| col=r_ce` | **the engine tracks nullability, not values.** `active` was written as the literal `true`, so PostgreSQL never runs the ELSE branch; written-value tracking deliberately carries only non-nullness |
+
+Only the last is engine imprecision in the sense that a better engine would flip
+the claim, and closing it means tracking VALUES — a different project.
 
 Three gates hold this, in `generated-soundness.test.ts`: an unclassified claim
 fails, a rule matching nothing fails as stale, and a rule blaming a MECHANISM
-must name a `<label>.blame.sql` fixture that executes it. The third is the one
-the first two cannot substitute for — an expired REASON leaves the outcome
-where it was, so the claim stays unwitnessed, the rule keeps matching, and the
-suite stays green over a cause that has been false for weeks.
+must name a blame fixture that executes it. The third is the one the first two
+cannot substitute for — an expired REASON leaves the outcome where it was, so
+the claim stays unwitnessed, the rule keeps matching, and the suite stays green
+over a cause that has been false for weeks.
 
-**Writing those blame files found four of eight reasons wrong**, and the two
-kinds are worth separating:
+**Writing the blame files found five of eight reasons wrong**, in two species:
 
 | rule | the reason said | measured |
 |---|---|---|
 | a_fi | name-level dispatch can't narrow `upper` | typed dispatch narrows it and reaches `$n` bodies; it did not reach a parameter by NAME — **expired mechanism** |
-| a_fv | `resolveFunctionCandidates` refuses VARIADIC | a resolved call never enters the consensus branch; the body's `nullif` is the cause, so lifting the refusal would move nothing — **expired mechanism** |
+| a_fv | `resolveFunctionCandidates` refuses VARIADIC | a resolved call never enters the consensus branch; the body's `nullif` is the cause — **expired mechanism** |
 | r_snm | the MERGE source is optional unconditionally | `joinState = REQUIRED` with no BY SOURCE arm; the cause is `$1` — **behaviour the engine never had** |
-| a_fa | a user aggregate's sfunc is opaque, so the walk cannot prove it non-null | `gfn_sfunc` folds `''` to NULL, so the aggregate IS nullable over non-empty input and the claim was simply correct — **filed unwitnessable when it was merely unwitnessed** |
+| a_fa | a user aggregate's sfunc is opaque, so the walk cannot prove it non-null | `gfn_sfunc` folds `''` to NULL, so the aggregate IS nullable over non-empty input — **filed unwitnessable when it was merely unwitnessed** |
+| a_fv | the nullif "fires only when EVERY argument is NULL" | `array_to_string` SKIPS NULLs, so a NULL beside an empty string joins to `''` and folds — **same mistake, same blind spot** |
 
-That last kind is the one an outcome gate can never reach: a reason that
-mistakes a data gap for engine imprecision points every future reader at a
-mechanism that would not have helped.
+The last two are the species an outcome gate can never reach: a reason that
+mistakes a data gap for engine imprecision sends every future reader at a
+mechanism that would not have helped. Both rested on the same false premise —
+**that a NOT NULL text column rules out the degenerate value**. It does not
+rule out `''`.
 
-**Both closed 2026-08-22, by different means:**
+**Three buckets closed 2026-08-22**, only one of them by changing the engine:
 
 - **a_fi (240)** — an engine fix (`body-builtin-parameter-by-name.sql`): a
   body's parameter referenced by NAME now carries its declared type into
-  signature dispatch, the way `$n` already did. 240 claims flipped to notNull,
-  all executed against PostgreSQL, none falsified.
-- **a_fa (300)** — four rows of data, no engine change. The witness needs a
-  GROUP BY key whose whole group is empty strings, and it needs a `v` partner
-  or every three-table nest drops the group (measured: 300 → 120 → 0).
+  signature dispatch, the way `$n` already did. All 240 flipped to notNull,
+  executed against PostgreSQL, none falsified.
+- **a_fa (300)** and **a_fv (240)** — four rows of data, no engine change. One
+  `t` key with a NULL name, an empty-string `u` partner, an empty-string `gm`
+  partner, and a `v` partner so the three-table nests keep the group. Measured:
+  a_fa 300 → 120 → 0 as the partners went in; a_fv 240 → 0 the moment the
+  name went NULL.
 
 Not the parameter side, which this item also misread. **2724 nullable argument
 claims, 0 falsified** is 2724 confirmations, not a residue: for an argument,

@@ -141,20 +141,27 @@ INSERT INTO v (id, u_id, amount) VALUES (4, 4, NULL);
 -- u.5 carries that combination without disturbing u.3's purpose.
 INSERT INTO u (id, t_id, email, val, status) VALUES (5, 97, 'u5@b.c', NULL, NULL);
 INSERT INTO v (id, u_id, amount) VALUES (6, 5, 3.5);
--- The EMPTY-STRING group, and the only thing that witnesses a_fa.
+-- The EMPTY-STRING group: the NULL that a NOT NULL column can still produce,
+-- and the only thing that witnesses a_fa and a_fv. Both had been filed
+-- UNWITNESSABLE on the same mistaken premise — that a NOT NULL text column
+-- rules out the degenerate value — and both fell to these four rows.
 --
--- gfn_noinit's transition function folds '' to NULL (nullif over the
--- concatenation), so the aggregate is NULL over a NON-EMPTY group whose every
--- value is '' — which is a different NULL from the zero-row one GROUP BY makes
--- unreachable, and the one the claim actually rests on. a_fa groups by t.id, so
--- the witness needs a key whose whole group is empty strings: t.5 has exactly
--- one u partner and one gm partner, both empty.
+--   a_fa  gfn_noinit's transition folds '' to NULL (a nullif over the
+--         concatenation), so the aggregate is NULL over a NON-EMPTY group
+--         whose every value is '' — a different NULL from the zero-row one
+--         GROUP BY makes unreachable. It groups by t.id, so the witness needs
+--         a key whose WHOLE group is empty strings.
+--   a_fv  gfn_var's body is nullif(array_to_string(xs, ','), ''), and
+--         array_to_string SKIPS NULLs rather than propagating them — so a NULL
+--         textA beside an empty textB joins to '' and folds. Hence t.5's NULL
+--         name: with a name here the join would be 'fa5,' and nothing would
+--         witness it.
 --
 -- Both partners are needed and neither substitutes: the u side carries textB
 -- for single/only/nest/lateral-cross/srf-cross (gfn_urows returns SETOF u, so
 -- it inherits the row), and gm.safe_label — coalesce(b,'anon'), so '' survives
 -- as '' — carries it for gm(inner) and gm(right).
-INSERT INTO t (id, name, val, active) VALUES (5, 'fa5', 'fa5', true);
+INSERT INTO t (id, name, val, active) VALUES (5, NULL, 'fa5', true);
 INSERT INTO u (id, t_id, email, val, status) VALUES (7, 5, '', 'fa5', 'active');
 INSERT INTO gm (a, b) VALUES (5, '');
 -- and a v partner, or the group survives only the two-table structures: every
@@ -807,56 +814,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
   ]);
 
   /**
-   * Structures in which the `u` side is never absent from a returned row, so
-   * a claim whose only witness is an ABSENT u cannot be witnessed there.
-   *
-   * Enumerated rather than computed, following CASE_DARK_STRUCTURES above and
-   * for the same reason: the property is not one rule. Three different things
-   * produce it — the join that attaches `u` is INNER (only matched rows
-   * survive) or RIGHT (every u row survives and `t` extends instead); a LATER
-   * join is INNER and its strict qual on `u`'s columns discards the extended
-   * rows; or the extension is joint, so no row has `u` absent while the other
-   * slots are present. A predicate broad enough to cover all three would also
-   * excuse structures that SHOULD witness, and would do it silently.
-   *
-   * 24 of the axis's structures. Collected by measurement, not by reasoning.
-   */
-  const U_NEVER_ABSENT = new Set([
-    "gm(inner)",
-    "gm(right)",
-    "lateral-cross",
-    // The ONLY spelling of single(inner)/single(right). Neither `t` nor `u`
-    // has children under the base schema, so these scan exactly the same rows
-    // through the non-tree catalog accessors — which is the whole point of
-    // the structure, and it means they inherit `single`'s witness geometry
-    // exactly.
-    "only(inner)",
-    "only(right)",
-    "nest-left(full,inner)",
-    "nest-left(full,right)",
-    "nest-left(inner,inner)",
-    "nest-left(inner,left)",
-    "nest-left(left,inner)",
-    "nest-left(right,full)",
-    "nest-left(right,inner)",
-    "nest-left(right,left)",
-    "nest-left(right,right)",
-    "nest-right(inner,full)",
-    "nest-right(inner,inner)",
-    "nest-right(inner,left)",
-    "nest-right(inner,right)",
-    "nest-right(right,full)",
-    "nest-right(right,inner)",
-    "nest-right(right,left)",
-    "nest-right(right,right)",
-    "single(inner)",
-    "single(right)",
-    // A cross-joined table function does not NULL-extend: a call returning
-    // no rows removes the row outright, so `g` is present wherever a row is.
-    "srf-cross",
-  ]);
-
-  /**
    * The two unnest structures, enumerated rather than matched by prefix for
    * the reason the sets above are: a pattern would quietly cover a third one
    * nobody has measured.
@@ -912,22 +869,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         UNNEST_STRUCTURES.has(axes.structure) &&
         column === "a_tb" &&
         axes.wrapper.endsWith("refilter"),
-    },
-    {
-      label: "variadic-body-inlines-to-a-nullif",
-      why:
-        "gfn_var resolves to a single catalog candidate, so the call takes " +
-        "priority 5 — body recursion — and the body is " +
-        "`nullif(array_to_string(xs, ','), '')`, nullable by construction. " +
-        "VARIADIC costs nothing here: the candidate refusal this rule used to " +
-        "blame lives on the consensus branch, which a resolved call never " +
-        "enters (measured, and pinned by the blame file). What no data can " +
-        "produce is the NULL itself — array_to_string ignores NULL arguments, " +
-        "so the nullif fires only when EVERY argument is NULL, and in the " +
-        "U_NEVER_ABSENT structures the u side is always present carrying a " +
-        "NOT NULL email. Every other structure witnesses it.",
-      matches: (axes, column) =>
-        axes.projection === "fn-call" && column === "a_fv" && U_NEVER_ABSENT.has(axes.structure),
     },
     {
       label: "merge-source-row-carries-an-unbound-parameter",
