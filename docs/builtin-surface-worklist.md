@@ -13,7 +13,7 @@ totality probe then holds it to execution) or find the input class
 the corpus is missing. Promotion is human, per signature, with the
 probe as the evidence bar.
 
-## null-witnessed (293: functions 203, operators 19, aggregates 67, windows 4)
+## null-witnessed (323: functions 233, operators 19, aggregates 67, windows 4)
 
 - `##(line,lseg)` — witness: `SELECT '{1,0,0}'::line OPERATOR(pg_catalog.##) '[(0,0),(0,0)]'::lseg;`
 - `##(lseg,lseg)` — witness: `SELECT '[(0,0),(1,1)]'::lseg OPERATOR(pg_catalog.##) '[(0,0),(1,1)]'::lseg;`
@@ -150,12 +150,15 @@ probe as the evidence bar.
 - `pg_column_compression("any")` — witness: `SELECT pg_catalog.pg_column_compression(1);`
 - `pg_column_toast_chunk_id("any")` — witness: `SELECT pg_catalog.pg_column_toast_chunk_id(1);`
 - `pg_conversion_is_visible(oid)` — witness: `SELECT pg_catalog.pg_conversion_is_visible(0::oid);`
-- `pg_current_xact_id_if_assigned()` — witness: `SELECT pg_catalog.pg_current_xact_id_if_assigned();`
+- `pg_current_logfile()` — witness: `SELECT pg_catalog.pg_current_logfile();`
+- `pg_current_logfile(text)` — witness: `SELECT pg_catalog.pg_current_logfile('stderr');`
+- `pg_database_collation_actual_version(oid)` — witness: `SELECT pg_catalog.pg_database_collation_actual_version(1::oid);`
 - `pg_describe_object(oid,oid,integer)` — witness: `SELECT pg_catalog.pg_describe_object(0::oid, 0::oid, 1);`
 - `pg_encoding_max_length(integer)` — witness: `SELECT pg_catalog.pg_encoding_max_length((-1));`
 - `pg_filenode_relation(oid,oid)` — witness: `SELECT pg_catalog.pg_filenode_relation(0::oid, 0::oid);`
 - `pg_function_is_visible(oid)` — witness: `SELECT pg_catalog.pg_function_is_visible(0::oid);`
 - `pg_get_acl(oid,oid,integer)` — witness: `SELECT pg_catalog.pg_get_acl(0::oid, 0::oid, 1);`
+- `pg_get_backend_memory_contexts()` — witness: `SELECT pg_catalog.pg_get_backend_memory_contexts();`
 - `pg_get_constraintdef(oid)` — witness: `SELECT pg_catalog.pg_get_constraintdef(0::oid);`
 - `pg_get_constraintdef(oid,boolean)` — witness: `SELECT pg_catalog.pg_get_constraintdef(0::oid, true);`
 - `pg_get_function_arg_default(oid,integer)` — witness: `SELECT pg_catalog.pg_get_function_arg_default(0::oid, 1);`
@@ -171,6 +174,7 @@ probe as the evidence bar.
 - `pg_get_replica_identity_index(regclass)` — witness: `SELECT pg_catalog.pg_get_replica_identity_index('pg_class'::regclass);`
 - `pg_get_ruledef(oid)` — witness: `SELECT pg_catalog.pg_get_ruledef(0::oid);`
 - `pg_get_ruledef(oid,boolean)` — witness: `SELECT pg_catalog.pg_get_ruledef(0::oid, true);`
+- `pg_get_shmem_allocations()` — witness: `SELECT pg_catalog.pg_get_shmem_allocations();`
 - `pg_get_statisticsobjdef(oid)` — witness: `SELECT pg_catalog.pg_get_statisticsobjdef(0::oid);`
 - `pg_get_statisticsobjdef_columns(oid)` — witness: `SELECT pg_catalog.pg_get_statisticsobjdef_columns(0::oid);`
 - `pg_get_statisticsobjdef_expressions(oid)` — witness: `SELECT pg_catalog.pg_get_statisticsobjdef_expressions(0::oid);`
@@ -181,18 +185,36 @@ probe as the evidence bar.
 - `pg_get_viewdef(oid,integer)` — witness: `SELECT pg_catalog.pg_get_viewdef(0::oid, 1);`
 - `pg_get_viewdef(text)` — witness: `SELECT pg_catalog.pg_get_viewdef('pg_class');`
 - `pg_get_viewdef(text,boolean)` — witness: `SELECT pg_catalog.pg_get_viewdef('pg_class', true);`
+- `pg_hba_file_rules()` — witness: `SELECT pg_catalog.pg_hba_file_rules();`
 - `pg_index_column_has_property(regclass,integer,text)` — witness: `SELECT pg_catalog.pg_index_column_has_property('pg_class'::regclass, 1, 'abc');`
 - `pg_index_has_property(regclass,text)` — witness: `SELECT pg_catalog.pg_index_has_property('pg_class'::regclass, 'abc');`
 - `pg_indexam_has_property(oid,text)` — witness: `SELECT pg_catalog.pg_indexam_has_property(0::oid, 'abc');`
 - `pg_indexam_progress_phasename(oid,bigint)` — witness: `SELECT pg_catalog.pg_indexam_progress_phasename(0::oid, 1::bigint);`
+- `pg_indexes_size(regclass)` — witness: `SELECT pg_catalog.pg_indexes_size(999999::oid::regclass);`
+- `pg_last_wal_receive_lsn()` — witness: `SELECT pg_catalog.pg_last_wal_receive_lsn();`
+- `pg_last_wal_replay_lsn()` — witness: `SELECT pg_catalog.pg_last_wal_replay_lsn();`
+- `pg_last_xact_replay_timestamp()` — witness: `SELECT pg_catalog.pg_last_xact_replay_timestamp();`
+- `pg_lock_status()` — witness: `SELECT pg_catalog.pg_lock_status();`
 - `pg_opclass_is_visible(oid)` — witness: `SELECT pg_catalog.pg_opclass_is_visible(0::oid);`
 - `pg_operator_is_visible(oid)` — witness: `SELECT pg_catalog.pg_operator_is_visible(0::oid);`
 - `pg_opfamily_is_visible(oid)` — witness: `SELECT pg_catalog.pg_opfamily_is_visible(0::oid);`
 - `pg_options_to_table(text[])` — witness: `SELECT pg_catalog.pg_options_to_table(ARRAY['a','b']);`
 - `pg_partition_root(regclass)` — witness: `SELECT pg_catalog.pg_partition_root('pg_class'::regclass);`
+- `pg_read_binary_file(text,bigint,bigint,boolean)` — witness: `SELECT pg_catalog.pg_read_binary_file('abc', 1::bigint, 1::bigint, true);`
+- `pg_read_binary_file(text,boolean)` — witness: `SELECT pg_catalog.pg_read_binary_file('abc', true);`
+- `pg_read_file(text,bigint,bigint,boolean)` — witness: `SELECT pg_catalog.pg_read_file('abc', 1::bigint, 1::bigint, true);`
+- `pg_read_file(text,boolean)` — witness: `SELECT pg_catalog.pg_read_file('abc', true);`
+- `pg_relation_filenode(regclass)` — witness: `SELECT pg_catalog.pg_relation_filenode(999999::oid::regclass);`
+- `pg_relation_filepath(regclass)` — witness: `SELECT pg_catalog.pg_relation_filepath(999999::oid::regclass);`
+- `pg_relation_is_publishable(regclass)` — witness: `SELECT pg_catalog.pg_relation_is_publishable(999999::oid::regclass);`
+- `pg_relation_size(regclass)` — witness: `SELECT pg_catalog.pg_relation_size(999999::oid::regclass);`
+- `pg_relation_size(regclass,text)` — witness: `SELECT pg_catalog.pg_relation_size(999999::oid::regclass, 'abc');`
 - `pg_replication_origin_oid(text)` — witness: `SELECT pg_catalog.pg_replication_origin_oid('abc');`
+- `pg_sequence_last_value(regclass)` — witness: `SELECT pg_catalog.pg_sequence_last_value('probe_seq_unused'::regclass);`
 - `pg_settings_get_flags(text)` — witness: `SELECT pg_catalog.pg_settings_get_flags('abc');`
+- `pg_show_all_file_settings()` — witness: `SELECT pg_catalog.pg_show_all_file_settings();`
 - `pg_show_all_settings()` — witness: `SELECT pg_catalog.pg_show_all_settings();`
+- `pg_stat_file(text,boolean)` — witness: `SELECT (pg_catalog.pg_stat_file('abc', true))::text;`
 - `pg_stat_get_activity(integer)` — witness: `SELECT pg_catalog.pg_stat_get_activity((-1));`
 - `pg_stat_get_backend_activity_start(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_activity_start(1);`
 - `pg_stat_get_backend_client_addr(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_client_addr(1);`
@@ -203,12 +225,14 @@ probe as the evidence bar.
 - `pg_stat_get_backend_userid(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_userid(1);`
 - `pg_stat_get_backend_wait_event(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_wait_event(0);`
 - `pg_stat_get_backend_wait_event_type(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_wait_event_type(0);`
+- `pg_stat_get_backend_wal(integer)` — witness: `SELECT (pg_catalog.pg_stat_get_backend_wal(1))::text;`
 - `pg_stat_get_backend_xact_start(integer)` — witness: `SELECT pg_catalog.pg_stat_get_backend_xact_start(1);`
 - `pg_stat_get_db_checksum_last_failure(oid)` — witness: `SELECT pg_catalog.pg_stat_get_db_checksum_last_failure(0::oid);`
 - `pg_stat_get_db_stat_reset_time(oid)` — witness: `SELECT pg_catalog.pg_stat_get_db_stat_reset_time(0::oid);`
 - `pg_stat_get_function_calls(oid)` — witness: `SELECT pg_catalog.pg_stat_get_function_calls(0::oid);`
 - `pg_stat_get_function_self_time(oid)` — witness: `SELECT pg_catalog.pg_stat_get_function_self_time(0::oid);`
 - `pg_stat_get_function_total_time(oid)` — witness: `SELECT pg_catalog.pg_stat_get_function_total_time(0::oid);`
+- `pg_stat_get_io()` — witness: `SELECT pg_catalog.pg_stat_get_io();`
 - `pg_stat_get_last_analyze_time(oid)` — witness: `SELECT pg_catalog.pg_stat_get_last_analyze_time(0::oid);`
 - `pg_stat_get_last_autoanalyze_time(oid)` — witness: `SELECT pg_catalog.pg_stat_get_last_autoanalyze_time(0::oid);`
 - `pg_stat_get_last_autovacuum_time(oid)` — witness: `SELECT pg_catalog.pg_stat_get_last_autovacuum_time(0::oid);`
@@ -216,13 +240,19 @@ probe as the evidence bar.
 - `pg_stat_get_lastscan(oid)` — witness: `SELECT pg_catalog.pg_stat_get_lastscan(0::oid);`
 - `pg_stat_get_snapshot_timestamp()` — witness: `SELECT pg_catalog.pg_stat_get_snapshot_timestamp();`
 - `pg_stat_get_wal_receiver()` — witness: `SELECT (pg_catalog.pg_stat_get_wal_receiver())::text;`
+- `pg_stat_get_xact_function_calls(oid)` — witness: `SELECT pg_catalog.pg_stat_get_xact_function_calls(0::oid);`
+- `pg_stat_get_xact_function_self_time(oid)` — witness: `SELECT pg_catalog.pg_stat_get_xact_function_self_time(0::oid);`
+- `pg_stat_get_xact_function_total_time(oid)` — witness: `SELECT pg_catalog.pg_stat_get_xact_function_total_time(0::oid);`
 - `pg_statistics_obj_is_visible(oid)` — witness: `SELECT pg_catalog.pg_statistics_obj_is_visible(0::oid);`
 - `pg_table_is_visible(oid)` — witness: `SELECT pg_catalog.pg_table_is_visible(0::oid);`
+- `pg_table_size(regclass)` — witness: `SELECT pg_catalog.pg_table_size(999999::oid::regclass);`
+- `pg_total_relation_size(regclass)` — witness: `SELECT pg_catalog.pg_total_relation_size(999999::oid::regclass);`
 - `pg_ts_config_is_visible(oid)` — witness: `SELECT pg_catalog.pg_ts_config_is_visible(0::oid);`
 - `pg_ts_dict_is_visible(oid)` — witness: `SELECT pg_catalog.pg_ts_dict_is_visible(0::oid);`
 - `pg_ts_parser_is_visible(oid)` — witness: `SELECT pg_catalog.pg_ts_parser_is_visible(0::oid);`
 - `pg_ts_template_is_visible(oid)` — witness: `SELECT pg_catalog.pg_ts_template_is_visible(0::oid);`
 - `pg_type_is_visible(oid)` — witness: `SELECT pg_catalog.pg_type_is_visible(0::oid);`
+- `pg_xact_status(xid8)` — witness: `SELECT pg_catalog.pg_xact_status('0'::xid8);`
 - `range_agg(anymultirange)` — witness: `SELECT (SELECT pg_catalog.range_agg(c0) FROM (VALUES ('{[1,2)}'::int4multirange)) t(c0) WHERE false);`
 - `range_agg(anyrange)` — witness: `SELECT (SELECT pg_catalog.range_agg(c0) FROM (VALUES ('[1,2)'::int4range)) t(c0) WHERE false);`
 - `range_intersect_agg(anymultirange)` — witness: `SELECT (SELECT pg_catalog.range_intersect_agg(c0) FROM (VALUES ('{[1,2)}'::int4multirange)) t(c0) WHERE false);`
@@ -282,7 +312,7 @@ probe as the evidence bar.
 - `to_regtypemod(text)` — witness: `SELECT pg_catalog.to_regtypemod('abc');`
 - `ts_debug(regconfig,text)` — witness: `SELECT pg_catalog.ts_debug('english'::regconfig, '  ');`
 - `ts_debug(text)` — witness: `SELECT pg_catalog.ts_debug('  ');`
-- `txid_current_if_assigned()` — witness: `SELECT pg_catalog.txid_current_if_assigned();`
+- `txid_status(bigint)` — witness: `SELECT pg_catalog.txid_status(0::bigint);`
 - `unnest(anyarray)` — witness: `SELECT pg_catalog.unnest(ARRAY[1,NULL]);`
 - `unnest(tsvector)` — witness: `SELECT pg_catalog.unnest('a b'::tsvector);`
 - `upper(anymultirange)` — witness: `SELECT pg_catalog.upper('{}'::int4multirange);`
@@ -309,23 +339,42 @@ probe as the evidence bar.
 - `variance(smallint)` — witness: `SELECT (SELECT pg_catalog.variance(c0) FROM (VALUES (1::smallint)) t(c0));`
 - `xmlagg(xml)` — witness: `SELECT (SELECT pg_catalog.xmlagg(c0) FROM (VALUES (''::xml)) t(c0) WHERE false);`
 
-## no-null-found (9: functions 6, operators 0, aggregates 0, windows 3)
+## no-null-found (15: functions 12, operators 0, aggregates 0, windows 3)
 
 - `convert_from(bytea,name)`
 - `convert_to(text,name)`
+- `current_query()`
 - `current_schema()`
 - `first_value(anyelement)`
 - `last_value(anyelement)`
 - `nth_value(anyelement,integer)`
+- `pg_current_xact_id_if_assigned()`
+- `pg_database_size(name)`
+- `pg_database_size(oid)`
+- `pg_get_loaded_modules()`
 - `regexp_match(text,text,text)`
 - `regexp_substr(text,text,integer,integer,text)`
 - `regexp_substr(text,text,integer,integer,text,integer)`
+- `txid_current_if_assigned()`
 
-## raised-everywhere (152: functions 152, operators 0, aggregates 0, windows 0)
+## raised-everywhere (246: functions 246, operators 0, aggregates 0, windows 0)
 
+- `RI_FKey_cascade_del()` — e.g. `pg_catalog."RI_FKey_cascade_del"()` raises
+- `RI_FKey_cascade_upd()` — e.g. `pg_catalog."RI_FKey_cascade_upd"()` raises
+- `RI_FKey_check_ins()` — e.g. `pg_catalog."RI_FKey_check_ins"()` raises
+- `RI_FKey_check_upd()` — e.g. `pg_catalog."RI_FKey_check_upd"()` raises
+- `RI_FKey_noaction_del()` — e.g. `pg_catalog."RI_FKey_noaction_del"()` raises
+- `RI_FKey_noaction_upd()` — e.g. `pg_catalog."RI_FKey_noaction_upd"()` raises
+- `RI_FKey_restrict_del()` — e.g. `pg_catalog."RI_FKey_restrict_del"()` raises
+- `RI_FKey_restrict_upd()` — e.g. `pg_catalog."RI_FKey_restrict_upd"()` raises
+- `RI_FKey_setdefault_del()` — e.g. `pg_catalog."RI_FKey_setdefault_del"()` raises
+- `RI_FKey_setdefault_upd()` — e.g. `pg_catalog."RI_FKey_setdefault_upd"()` raises
+- `RI_FKey_setnull_del()` — e.g. `pg_catalog."RI_FKey_setnull_del"()` raises
+- `RI_FKey_setnull_upd()` — e.g. `pg_catalog."RI_FKey_setnull_upd"()` raises
 - `aclinsert(aclitem[],aclitem)` — e.g. `pg_catalog.aclinsert(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
 - `aclitemin(cstring)` — e.g. `pg_catalog.aclitemin('abc'::cstring)` raises
 - `aclremove(aclitem[],aclitem)` — e.g. `pg_catalog.aclremove(ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)], makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true))` raises
+- `amvalidate(oid)` — e.g. `pg_catalog.amvalidate(0::oid)` raises
 - `any_in(cstring)` — e.g. `pg_catalog.any_in('abc'::cstring)` raises
 - `any_out("any")` — e.g. `pg_catalog.any_out(1)` raises
 - `anyarray_in(cstring)` — e.g. `pg_catalog.anyarray_in('abc'::cstring)` raises
@@ -344,12 +393,34 @@ probe as the evidence bar.
 - `anynonarray_out(anynonarray)` — e.g. `pg_catalog.anynonarray_out(1)` raises
 - `anyrange_in(cstring,oid,integer)` — e.g. `pg_catalog.anyrange_in('abc'::cstring, 0::oid, 1)` raises
 - `array_in(cstring,oid,integer)` — e.g. `pg_catalog.array_in('abc'::cstring, 0::oid, 1)` raises
+- `binary_upgrade_add_sub_rel_state(text,oid,"char",pg_lsn)` — e.g. `pg_catalog.binary_upgrade_add_sub_rel_state('abc', 0::oid, 'a'::"char", '0/0'::pg_lsn)` raises
+- `binary_upgrade_create_empty_extension(text,text,boolean,text,oid[],text[],text[])` — e.g. `pg_catalog.binary_upgrade_create_empty_extension('abc', 'abc', true, 'abc', '{}'::oid[], '{}'::text[], '{}'::text[])` raises
+- `binary_upgrade_logical_slot_has_caught_up(name)` — e.g. `pg_catalog.binary_upgrade_logical_slot_has_caught_up(''::name)` raises
+- `binary_upgrade_replorigin_advance(text,pg_lsn)` — e.g. `pg_catalog.binary_upgrade_replorigin_advance('abc', '0/0'::pg_lsn)` raises
+- `binary_upgrade_set_missing_value(oid,text,text)` — e.g. `pg_catalog.binary_upgrade_set_missing_value(0::oid, 'abc', 'abc')` raises
+- `binary_upgrade_set_next_array_pg_type_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_array_pg_type_oid(0::oid)` raises
+- `binary_upgrade_set_next_heap_pg_class_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_heap_pg_class_oid(0::oid)` raises
+- `binary_upgrade_set_next_heap_relfilenode(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_heap_relfilenode(0::oid)` raises
+- `binary_upgrade_set_next_index_pg_class_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_index_pg_class_oid(0::oid)` raises
+- `binary_upgrade_set_next_index_relfilenode(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_index_relfilenode(0::oid)` raises
+- `binary_upgrade_set_next_multirange_array_pg_type_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_multirange_array_pg_type_oid(0::oid)` raises
+- `binary_upgrade_set_next_multirange_pg_type_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_multirange_pg_type_oid(0::oid)` raises
+- `binary_upgrade_set_next_pg_authid_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_pg_authid_oid(0::oid)` raises
+- `binary_upgrade_set_next_pg_enum_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_pg_enum_oid(0::oid)` raises
+- `binary_upgrade_set_next_pg_tablespace_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_pg_tablespace_oid(0::oid)` raises
+- `binary_upgrade_set_next_pg_type_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_pg_type_oid(0::oid)` raises
+- `binary_upgrade_set_next_toast_pg_class_oid(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_toast_pg_class_oid(0::oid)` raises
+- `binary_upgrade_set_next_toast_relfilenode(oid)` — e.g. `pg_catalog.binary_upgrade_set_next_toast_relfilenode(0::oid)` raises
+- `binary_upgrade_set_record_init_privs(boolean)` — e.g. `pg_catalog.binary_upgrade_set_record_init_privs(true)` raises
 - `bittypmodin(cstring[])` — e.g. `pg_catalog.bittypmodin('{}'::cstring[])` raises
 - `boolin(cstring)` — e.g. `pg_catalog.boolin('abc'::cstring)` raises
 - `box_in(cstring)` — e.g. `pg_catalog.box_in('abc'::cstring)` raises
 - `bpchartypmodin(cstring[])` — e.g. `pg_catalog.bpchartypmodin('{}'::cstring[])` raises
 - `brin_bloom_summary_in(cstring)` — e.g. `pg_catalog.brin_bloom_summary_in('abc'::cstring)` raises
+- `brin_desummarize_range(regclass,bigint)` — e.g. `pg_catalog.brin_desummarize_range('pg_class'::regclass, 1::bigint)` raises
 - `brin_minmax_multi_summary_in(cstring)` — e.g. `pg_catalog.brin_minmax_multi_summary_in('abc'::cstring)` raises
+- `brin_summarize_new_values(regclass)` — e.g. `pg_catalog.brin_summarize_new_values('pg_class'::regclass)` raises
+- `brin_summarize_range(regclass,bigint)` — e.g. `pg_catalog.brin_summarize_range('pg_class'::regclass, 1::bigint)` raises
 - `btvarstrequalimage(oid)` — e.g. `pg_catalog.btvarstrequalimage(0::oid)` raises
 - `circle_in(cstring)` — e.g. `pg_catalog.circle_in('abc'::cstring)` raises
 - `date_in(cstring)` — e.g. `pg_catalog.date_in('abc'::cstring)` raises
@@ -381,13 +452,11 @@ probe as the evidence bar.
 - `fmgr_c_validator(oid)` — e.g. `pg_catalog.fmgr_c_validator(0::oid)` raises
 - `fmgr_internal_validator(oid)` — e.g. `pg_catalog.fmgr_internal_validator(0::oid)` raises
 - `fmgr_sql_validator(oid)` — e.g. `pg_catalog.fmgr_sql_validator(0::oid)` raises
+- `gin_clean_pending_list(regclass)` — e.g. `pg_catalog.gin_clean_pending_list('pg_class'::regclass)` raises
 - `gtsvectorin(cstring)` — e.g. `pg_catalog.gtsvectorin('abc'::cstring)` raises
 - `has_foreign_data_wrapper_privilege(name,text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(''::name, 'abc', 'abc')` raises
 - `has_foreign_data_wrapper_privilege(oid,text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege(0::oid, 'abc', 'abc')` raises
 - `has_foreign_data_wrapper_privilege(text,text)` — e.g. `pg_catalog.has_foreign_data_wrapper_privilege('abc', 'abc')` raises
-- `has_sequence_privilege(name,text,text)` — e.g. `pg_catalog.has_sequence_privilege(''::name, 'abc', 'abc')` raises
-- `has_sequence_privilege(oid,text,text)` — e.g. `pg_catalog.has_sequence_privilege(0::oid, 'abc', 'abc')` raises
-- `has_sequence_privilege(text,text)` — e.g. `pg_catalog.has_sequence_privilege('abc', 'abc')` raises
 - `has_server_privilege(name,text,text)` — e.g. `pg_catalog.has_server_privilege(''::name, 'abc', 'abc')` raises
 - `has_server_privilege(oid,text,text)` — e.g. `pg_catalog.has_server_privilege(0::oid, 'abc', 'abc')` raises
 - `has_server_privilege(text,text)` — e.g. `pg_catalog.has_server_privilege('abc', 'abc')` raises
@@ -414,34 +483,91 @@ probe as the evidence bar.
 - `multirange_intersect_agg_transfn(anymultirange,anymultirange)` — e.g. `pg_catalog.multirange_intersect_agg_transfn('{[1,2)}'::int4multirange, '{[1,2)}'::int4multirange)` raises
 - `numerictypmodin(cstring[])` — e.g. `pg_catalog.numerictypmodin('{}'::cstring[])` raises
 - `path_in(cstring)` — e.g. `pg_catalog.path_in('abc'::cstring)` raises
+- `pg_available_wal_summaries()` — e.g. `pg_catalog.pg_available_wal_summaries()` raises
+- `pg_collation_actual_version(oid)` — e.g. `pg_catalog.pg_collation_actual_version(0::oid)` raises
+- `pg_copy_logical_replication_slot(name,name)` — e.g. `(pg_catalog.pg_copy_logical_replication_slot(''::name, ''::name))::text` raises
+- `pg_copy_logical_replication_slot(name,name,boolean)` — e.g. `(pg_catalog.pg_copy_logical_replication_slot(''::name, ''::name, true))::text` raises
+- `pg_copy_logical_replication_slot(name,name,boolean,name)` — e.g. `(pg_catalog.pg_copy_logical_replication_slot(''::name, ''::name, true, ''::name))::text` raises
+- `pg_copy_physical_replication_slot(name,name)` — e.g. `(pg_catalog.pg_copy_physical_replication_slot(''::name, ''::name))::text` raises
+- `pg_copy_physical_replication_slot(name,name,boolean)` — e.g. `(pg_catalog.pg_copy_physical_replication_slot(''::name, ''::name, true))::text` raises
+- `pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)` — e.g. `(pg_catalog.pg_create_logical_replication_slot(''::name, ''::name, true, true, true))::text` raises
 - `pg_ddl_command_in(cstring)` — e.g. `pg_catalog.pg_ddl_command_in('abc'::cstring)` raises
 - `pg_dependencies_in(cstring)` — e.g. `pg_catalog.pg_dependencies_in('abc'::cstring)` raises
 - `pg_event_trigger_ddl_commands()` — e.g. `pg_catalog.pg_event_trigger_ddl_commands()` raises
 - `pg_event_trigger_dropped_objects()` — e.g. `pg_catalog.pg_event_trigger_dropped_objects()` raises
 - `pg_event_trigger_table_rewrite_oid()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_oid()` raises
 - `pg_event_trigger_table_rewrite_reason()` — e.g. `pg_catalog.pg_event_trigger_table_rewrite_reason()` raises
+- `pg_export_snapshot()` — e.g. `pg_catalog.pg_export_snapshot()` raises
+- `pg_extension_config_dump(regclass,text)` — e.g. `pg_catalog.pg_extension_config_dump('pg_class'::regclass, 'abc')` raises
 - `pg_extension_update_paths(name)` — e.g. `pg_catalog.pg_extension_update_paths(''::name)` raises
+- `pg_get_aios()` — e.g. `pg_catalog.pg_get_aios()` raises
+- `pg_get_multixact_members(xid)` — e.g. `pg_catalog.pg_get_multixact_members('0'::xid)` raises
 - `pg_get_object_address(text,text[],text[])` — e.g. `(pg_catalog.pg_get_object_address('abc', '{}'::text[], '{}'::text[]))::text` raises
 - `pg_get_publication_tables(text[])` — e.g. `pg_catalog.pg_get_publication_tables('abc', 'abc')` raises
 - `pg_get_replication_slots()` — e.g. `pg_catalog.pg_get_replication_slots()` raises
 - `pg_get_serial_sequence(text,text)` — e.g. `pg_catalog.pg_get_serial_sequence('abc', 'abc')` raises
+- `pg_get_shmem_allocations_numa()` — e.g. `pg_catalog.pg_get_shmem_allocations_numa()` raises
+- `pg_get_wal_replay_pause_state()` — e.g. `pg_catalog.pg_get_wal_replay_pause_state()` raises
+- `pg_ident_file_mappings()` — e.g. `pg_catalog.pg_ident_file_mappings()` raises
 - `pg_identify_object(oid,oid,integer)` — e.g. `(pg_catalog.pg_identify_object(0::oid, 0::oid, 1))::text` raises
 - `pg_identify_object_as_address(oid,oid,integer)` — e.g. `(pg_catalog.pg_identify_object_as_address(0::oid, 0::oid, 1))::text` raises
+- `pg_is_wal_replay_paused()` — e.g. `pg_catalog.pg_is_wal_replay_paused()` raises
+- `pg_last_committed_xact()` — e.g. `(pg_catalog.pg_last_committed_xact())::text` raises
 - `pg_listening_channels()` — e.g. `pg_catalog.pg_listening_channels()` raises
+- `pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])` — e.g. `pg_catalog.pg_logical_slot_get_binary_changes(''::name, '0/0'::pg_lsn, 1, 'abc', 'abc')` raises
+- `pg_logical_slot_get_changes(name,pg_lsn,integer,text[])` — e.g. `pg_catalog.pg_logical_slot_get_changes(''::name, '0/0'::pg_lsn, 1, 'abc', 'abc')` raises
+- `pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])` — e.g. `pg_catalog.pg_logical_slot_peek_binary_changes(''::name, '0/0'::pg_lsn, 1, 'abc', 'abc')` raises
+- `pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])` — e.g. `pg_catalog.pg_logical_slot_peek_changes(''::name, '0/0'::pg_lsn, 1, 'abc', 'abc')` raises
+- `pg_ls_archive_statusdir()` — e.g. `pg_catalog.pg_ls_archive_statusdir()` raises
+- `pg_ls_logdir()` — e.g. `pg_catalog.pg_ls_logdir()` raises
+- `pg_ls_logicalmapdir()` — e.g. `pg_catalog.pg_ls_logicalmapdir()` raises
+- `pg_ls_logicalsnapdir()` — e.g. `pg_catalog.pg_ls_logicalsnapdir()` raises
+- `pg_ls_replslotdir(text)` — e.g. `pg_catalog.pg_ls_replslotdir('abc')` raises
+- `pg_ls_summariesdir()` — e.g. `pg_catalog.pg_ls_summariesdir()` raises
+- `pg_ls_tmpdir()` — e.g. `pg_catalog.pg_ls_tmpdir()` raises
+- `pg_ls_tmpdir(oid)` — e.g. `pg_catalog.pg_ls_tmpdir(0::oid)` raises
 - `pg_lsn_in(cstring)` — e.g. `pg_catalog.pg_lsn_in('abc'::cstring)` raises
 - `pg_mcv_list_in(cstring)` — e.g. `pg_catalog.pg_mcv_list_in('abc'::cstring)` raises
 - `pg_ndistinct_in(cstring)` — e.g. `pg_catalog.pg_ndistinct_in('abc'::cstring)` raises
+- `pg_nextoid(regclass,name,regclass)` — e.g. `pg_catalog.pg_nextoid('pg_class'::regclass, ''::name, 'pg_class'::regclass)` raises
 - `pg_node_tree_in(cstring)` — e.g. `pg_catalog.pg_node_tree_in('abc'::cstring)` raises
+- `pg_partition_ancestors(regclass)` — e.g. `pg_catalog.pg_partition_ancestors('pg_class'::regclass)` raises
+- `pg_partition_tree(regclass)` — e.g. `pg_catalog.pg_partition_tree('pg_class'::regclass)` raises
 - `pg_prepared_statement()` — e.g. `pg_catalog.pg_prepared_statement()` raises
+- `pg_prepared_xact()` — e.g. `pg_catalog.pg_prepared_xact()` raises
+- `pg_promote(boolean,integer)` — e.g. `pg_catalog.pg_promote(true, 1)` raises
+- `pg_replication_origin_advance(text,pg_lsn)` — e.g. `pg_catalog.pg_replication_origin_advance('abc', '0/0'::pg_lsn)` raises
+- `pg_replication_origin_progress(text,boolean)` — e.g. `pg_catalog.pg_replication_origin_progress('abc', true)` raises
+- `pg_replication_origin_session_progress(boolean)` — e.g. `pg_catalog.pg_replication_origin_session_progress(true)` raises
+- `pg_replication_origin_session_reset()` — e.g. `pg_catalog.pg_replication_origin_session_reset()` raises
+- `pg_replication_origin_session_setup(text)` — e.g. `pg_catalog.pg_replication_origin_session_setup('abc')` raises
+- `pg_replication_origin_xact_setup(pg_lsn,timestamp with time zone)` — e.g. `pg_catalog.pg_replication_origin_xact_setup('0/0'::pg_lsn, '2020-01-01Z'::timestamptz)` raises
+- `pg_replication_slot_advance(name,pg_lsn)` — e.g. `(pg_catalog.pg_replication_slot_advance(''::name, '0/0'::pg_lsn))::text` raises
+- `pg_restore_attribute_stats("any")` — e.g. `pg_catalog.pg_restore_attribute_stats(1, 1)` raises
+- `pg_restore_relation_stats("any")` — e.g. `pg_catalog.pg_restore_relation_stats(1, 1)` raises
 - `pg_sequence_parameters(oid)` — e.g. `(pg_catalog.pg_sequence_parameters(0::oid))::text` raises
+- `pg_show_replication_origin_status()` — e.g. `pg_catalog.pg_show_replication_origin_status()` raises
 - `pg_snapshot_in(cstring)` — e.g. `pg_catalog.pg_snapshot_in('abc'::cstring)` raises
 - `pg_snapshot_xip(pg_snapshot)` — e.g. `pg_catalog.pg_snapshot_xip('1:1:'::pg_snapshot)` raises
 - `pg_split_walfile_name(text)` — e.g. `(pg_catalog.pg_split_walfile_name('abc'))::text` raises
+- `pg_stat_get_backend_io(integer)` — e.g. `pg_catalog.pg_stat_get_backend_io(1)` raises
 - `pg_stat_get_progress_info(text)` — e.g. `pg_catalog.pg_stat_get_progress_info('abc')` raises
 - `pg_stat_get_subscription(oid)` — e.g. `pg_catalog.pg_stat_get_subscription(0::oid)` raises
 - `pg_stat_get_wal_senders()` — e.g. `pg_catalog.pg_stat_get_wal_senders()` raises
+- `pg_stat_reset_replication_slot(text)` — e.g. `pg_catalog.pg_stat_reset_replication_slot('abc')` raises
+- `pg_stop_making_pinned_objects()` — e.g. `pg_catalog.pg_stop_making_pinned_objects()` raises
+- `pg_sync_replication_slots()` — e.g. `pg_catalog.pg_sync_replication_slots()` raises
 - `pg_tablespace_databases(oid)` — e.g. `pg_catalog.pg_tablespace_databases(0::oid)` raises
+- `pg_tablespace_size(name)` — e.g. `pg_catalog.pg_tablespace_size(''::name)` raises
+- `pg_tablespace_size(oid)` — e.g. `pg_catalog.pg_tablespace_size(0::oid)` raises
 - `pg_timezone_abbrevs_zone()` — e.g. `pg_catalog.pg_timezone_abbrevs_zone()` raises
+- `pg_wal_replay_pause()` — e.g. `pg_catalog.pg_wal_replay_pause()` raises
+- `pg_wal_replay_resume()` — e.g. `pg_catalog.pg_wal_replay_resume()` raises
+- `pg_wal_summary_contents(bigint,pg_lsn,pg_lsn)` — e.g. `pg_catalog.pg_wal_summary_contents(1::bigint, '0/0'::pg_lsn, '0/0'::pg_lsn)` raises
+- `pg_xact_commit_timestamp(xid)` — e.g. `pg_catalog.pg_xact_commit_timestamp('0'::xid)` raises
+- `pg_xact_commit_timestamp_origin(xid)` — e.g. `(pg_catalog.pg_xact_commit_timestamp_origin('0'::xid))::text` raises
+- `plpgsql_call_handler()` — e.g. `pg_catalog.plpgsql_call_handler()` raises
+- `plpgsql_validator(oid)` — e.g. `pg_catalog.plpgsql_validator(0::oid)` raises
 - `point_in(cstring)` — e.g. `pg_catalog.point_in('abc'::cstring)` raises
 - `poly_in(cstring)` — e.g. `pg_catalog.poly_in('abc'::cstring)` raises
 - `range_in(cstring,oid,integer)` — e.g. `pg_catalog.range_in('abc'::cstring, 0::oid, 1)` raises
@@ -452,6 +578,7 @@ probe as the evidence bar.
 - `schema_to_xml_and_xmlschema(name,boolean,boolean,text)` — e.g. `pg_catalog.schema_to_xml_and_xmlschema(''::name, true, true, 'abc')` raises
 - `schema_to_xmlschema(name,boolean,boolean,text)` — e.g. `pg_catalog.schema_to_xmlschema(''::name, true, true, 'abc')` raises
 - `shell_in(cstring)` — e.g. `pg_catalog.shell_in('abc'::cstring)` raises
+- `suppress_redundant_updates_trigger()` — e.g. `pg_catalog.suppress_redundant_updates_trigger()` raises
 - `table_am_handler_in(cstring)` — e.g. `pg_catalog.table_am_handler_in('abc'::cstring)` raises
 - `tidin(cstring)` — e.g. `pg_catalog.tidin('abc'::cstring)` raises
 - `time_in(cstring,oid,integer)` — e.g. `pg_catalog.time_in('abc'::cstring, 0::oid, 1)` raises
@@ -469,14 +596,17 @@ probe as the evidence bar.
 - `ts_parse(oid,text)` — e.g. `pg_catalog.ts_parse(0::oid, 'abc')` raises
 - `ts_token_type(oid)` — e.g. `pg_catalog.ts_token_type(0::oid)` raises
 - `tsm_handler_in(cstring)` — e.g. `pg_catalog.tsm_handler_in('abc'::cstring)` raises
+- `tsvector_update_trigger()` — e.g. `pg_catalog.tsvector_update_trigger()` raises
+- `tsvector_update_trigger_column()` — e.g. `pg_catalog.tsvector_update_trigger_column()` raises
 - `txid_snapshot_in(cstring)` — e.g. `pg_catalog.txid_snapshot_in('abc'::cstring)` raises
 - `txid_snapshot_xip(txid_snapshot)` — e.g. `pg_catalog.txid_snapshot_xip('1:1:'::txid_snapshot)` raises
+- `unique_key_recheck()` — e.g. `pg_catalog.unique_key_recheck()` raises
 - `uuid_in(cstring)` — e.g. `pg_catalog.uuid_in('abc'::cstring)` raises
 - `varbittypmodin(cstring[])` — e.g. `pg_catalog.varbittypmodin('{}'::cstring[])` raises
 - `varchartypmodin(cstring[])` — e.g. `pg_catalog.varchartypmodin('{}'::cstring[])` raises
 - `xmlvalidate(xml,text)` — e.g. `pg_catalog.xmlvalidate(''::xml, 'abc')` raises
 
-## no-generator (550: functions 550, operators 0, aggregates 0, windows 0)
+## no-generator (562: functions 562, operators 0, aggregates 0, windows 0)
 
 - `anyarray_recv(internal)`
 - `anycompatiblearray_recv(internal)`
@@ -501,6 +631,7 @@ probe as the evidence bar.
 - `array_unnest_support(internal)`
 - `arraycontjoinsel(internal,oid,internal,smallint,internal)`
 - `arraycontsel(internal,oid,internal,integer)`
+- `bernoulli(internal)`
 - `big5_to_euc_tw(integer,integer,cstring,internal,integer,boolean)`
 - `big5_to_mic(integer,integer,cstring,internal,integer,boolean)`
 - `big5_to_utf8(integer,integer,cstring,internal,integer,boolean)`
@@ -554,11 +685,13 @@ probe as the evidence bar.
 - `brin_minmax_multi_union(internal,internal,internal)`
 - `brin_minmax_opcinfo(internal)`
 - `brin_minmax_union(internal,internal,internal)`
+- `brinhandler(internal)`
 - `btboolskipsupport(internal)`
 - `btbpchar_pattern_sortsupport(internal)`
 - `btcharskipsupport(internal)`
 - `btfloat4sortsupport(internal)`
 - `btfloat8sortsupport(internal)`
+- `bthandler(internal)`
 - `btint2skipsupport(internal)`
 - `btint2sortsupport(internal)`
 - `btint4skipsupport(internal)`
@@ -592,6 +725,8 @@ probe as the evidence bar.
 - `domain_recv(internal,oid,integer)`
 - `dsimple_init(internal)`
 - `dsimple_lexize(internal,internal,internal,internal)`
+- `dsnowball_init(internal)`
+- `dsnowball_lexize(internal,internal,internal,internal)`
 - `dsynonym_init(internal)`
 - `dsynonym_lexize(internal,internal,internal,internal)`
 - `elem_contained_by_range_support(internal)`
@@ -642,6 +777,7 @@ probe as the evidence bar.
 - `ginarrayextract(anyarray,internal)`
 - `ginarrayextract(anyarray,internal,internal)`
 - `ginarraytriconsistent(internal,smallint,anyarray,integer,internal,internal,internal)`
+- `ginhandler(internal)`
 - `ginqueryarrayextract(anyarray,internal,smallint,internal,internal,internal,internal)`
 - `gist_box_consistent(internal,box,smallint,oid,internal)`
 - `gist_box_distance(internal,box,smallint,oid,internal)`
@@ -660,6 +796,7 @@ probe as the evidence bar.
 - `gist_poly_compress(internal)`
 - `gist_poly_consistent(internal,polygon,smallint,oid,internal)`
 - `gist_poly_distance(internal,polygon,smallint,oid,internal)`
+- `gisthandler(internal)`
 - `gtsquery_compress(internal)`
 - `gtsquery_consistent(internal,internal,integer,oid,internal)`
 - `gtsquery_consistent(internal,tsquery,smallint,oid,internal)`
@@ -677,8 +814,10 @@ probe as the evidence bar.
 - `gtsvector_same(gtsvector,gtsvector,internal)`
 - `gtsvector_union(internal,internal)`
 - `gtsvectorout(gtsvector)`
+- `hashhandler(internal)`
 - `hashvarlena(internal)`
 - `hashvarlenaextended(internal,bigint)`
+- `heap_tableam_handler(internal)`
 - `iclikejoinsel(internal,oid,internal,smallint,internal)`
 - `iclikesel(internal,oid,internal,integer)`
 - `icnlikejoinsel(internal,oid,internal,smallint,internal)`
@@ -866,6 +1005,7 @@ probe as the evidence bar.
 - `pg_node_tree_recv(internal)`
 - `pg_node_tree_send(pg_node_tree)`
 - `pg_snapshot_recv(internal)`
+- `plpgsql_inline_handler(internal)`
 - `point_recv(internal)`
 - `poly_recv(internal)`
 - `positionjoinsel(internal,oid,internal,smallint,internal)`
@@ -946,11 +1086,13 @@ probe as the evidence bar.
 - `spg_text_inner_consistent(internal,internal)`
 - `spg_text_leaf_consistent(internal,internal)`
 - `spg_text_picksplit(internal,internal)`
+- `spghandler(internal)`
 - `string_agg_combine(internal,internal)`
 - `string_agg_deserialize(bytea,internal)`
 - `string_agg_finalfn(internal)`
 - `string_agg_serialize(internal)`
 - `string_agg_transfn(internal,text,text)`
+- `system(internal)`
 - `table_am_handler_out(table_am_handler)`
 - `text_starts_with_support(internal)`
 - `texticlike_support(internal)`
@@ -1028,287 +1170,3 @@ probe as the evidence bar.
 - `xid8recv(internal)`
 - `xidrecv(internal)`
 - `xml_recv(internal)`
-
-## volatile (281: functions 281, operators 0, aggregates 0, windows 0)
-
-- `RI_FKey_cascade_del()`
-- `RI_FKey_cascade_upd()`
-- `RI_FKey_check_ins()`
-- `RI_FKey_check_upd()`
-- `RI_FKey_noaction_del()`
-- `RI_FKey_noaction_upd()`
-- `RI_FKey_restrict_del()`
-- `RI_FKey_restrict_upd()`
-- `RI_FKey_setdefault_del()`
-- `RI_FKey_setdefault_upd()`
-- `RI_FKey_setnull_del()`
-- `RI_FKey_setnull_upd()`
-- `amvalidate(oid)`
-- `array_sample(anyarray,integer)`
-- `array_shuffle(anyarray)`
-- `bernoulli(internal)`
-- `binary_upgrade_add_sub_rel_state(text,oid,"char",pg_lsn)`
-- `binary_upgrade_create_empty_extension(text,text,boolean,text,oid[],text[],text[])`
-- `binary_upgrade_logical_slot_has_caught_up(name)`
-- `binary_upgrade_replorigin_advance(text,pg_lsn)`
-- `binary_upgrade_set_missing_value(oid,text,text)`
-- `binary_upgrade_set_next_array_pg_type_oid(oid)`
-- `binary_upgrade_set_next_heap_pg_class_oid(oid)`
-- `binary_upgrade_set_next_heap_relfilenode(oid)`
-- `binary_upgrade_set_next_index_pg_class_oid(oid)`
-- `binary_upgrade_set_next_index_relfilenode(oid)`
-- `binary_upgrade_set_next_multirange_array_pg_type_oid(oid)`
-- `binary_upgrade_set_next_multirange_pg_type_oid(oid)`
-- `binary_upgrade_set_next_pg_authid_oid(oid)`
-- `binary_upgrade_set_next_pg_enum_oid(oid)`
-- `binary_upgrade_set_next_pg_tablespace_oid(oid)`
-- `binary_upgrade_set_next_pg_type_oid(oid)`
-- `binary_upgrade_set_next_toast_pg_class_oid(oid)`
-- `binary_upgrade_set_next_toast_relfilenode(oid)`
-- `binary_upgrade_set_record_init_privs(boolean)`
-- `brin_desummarize_range(regclass,bigint)`
-- `brin_summarize_new_values(regclass)`
-- `brin_summarize_range(regclass,bigint)`
-- `brinhandler(internal)`
-- `bthandler(internal)`
-- `current_query()`
-- `currtid2(text,tid)`
-- `currval(regclass)`
-- `cursor_to_xml(refcursor,integer,boolean,boolean,text)`
-- `cursor_to_xmlschema(refcursor,boolean,boolean,text)`
-- `dsnowball_init(internal)`
-- `dsnowball_lexize(internal,internal,internal,internal)`
-- `gin_clean_pending_list(regclass)`
-- `ginhandler(internal)`
-- `gisthandler(internal)`
-- `hashhandler(internal)`
-- `heap_tableam_handler(internal)`
-- `lastval()`
-- `lo_close(integer)`
-- `lo_creat(integer)`
-- `lo_create(oid)`
-- `lo_export(oid,text)`
-- `lo_from_bytea(oid,bytea)`
-- `lo_get(oid)`
-- `lo_get(oid,bigint,integer)`
-- `lo_import(text)`
-- `lo_import(text,oid)`
-- `lo_lseek(integer,integer,integer)`
-- `lo_lseek64(integer,bigint,integer)`
-- `lo_open(oid,integer)`
-- `lo_put(oid,bigint,bytea)`
-- `lo_tell(integer)`
-- `lo_tell64(integer)`
-- `lo_truncate(integer,integer)`
-- `lo_truncate64(integer,bigint)`
-- `lo_unlink(oid)`
-- `loread(integer,integer)`
-- `lowrite(integer,bytea)`
-- `nextval(regclass)`
-- `pg_advisory_lock(bigint)`
-- `pg_advisory_lock(integer,integer)`
-- `pg_advisory_lock_shared(bigint)`
-- `pg_advisory_lock_shared(integer,integer)`
-- `pg_advisory_unlock(bigint)`
-- `pg_advisory_unlock(integer,integer)`
-- `pg_advisory_unlock_all()`
-- `pg_advisory_unlock_shared(bigint)`
-- `pg_advisory_unlock_shared(integer,integer)`
-- `pg_advisory_xact_lock(bigint)`
-- `pg_advisory_xact_lock(integer,integer)`
-- `pg_advisory_xact_lock_shared(bigint)`
-- `pg_advisory_xact_lock_shared(integer,integer)`
-- `pg_available_wal_summaries()`
-- `pg_backup_start(text,boolean)`
-- `pg_backup_stop(boolean)`
-- `pg_blocking_pids(integer)`
-- `pg_cancel_backend(integer)`
-- `pg_clear_attribute_stats(text,text,text,boolean)`
-- `pg_clear_relation_stats(text,text)`
-- `pg_collation_actual_version(oid)`
-- `pg_control_checkpoint()`
-- `pg_control_init()`
-- `pg_control_recovery()`
-- `pg_control_system()`
-- `pg_copy_logical_replication_slot(name,name)`
-- `pg_copy_logical_replication_slot(name,name,boolean)`
-- `pg_copy_logical_replication_slot(name,name,boolean,name)`
-- `pg_copy_physical_replication_slot(name,name)`
-- `pg_copy_physical_replication_slot(name,name,boolean)`
-- `pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)`
-- `pg_create_physical_replication_slot(name,boolean,boolean)`
-- `pg_create_restore_point(text)`
-- `pg_current_logfile()`
-- `pg_current_logfile(text)`
-- `pg_current_wal_flush_lsn()`
-- `pg_current_wal_insert_lsn()`
-- `pg_current_wal_lsn()`
-- `pg_database_collation_actual_version(oid)`
-- `pg_database_size(name)`
-- `pg_database_size(oid)`
-- `pg_drop_replication_slot(name)`
-- `pg_export_snapshot()`
-- `pg_extension_config_dump(regclass,text)`
-- `pg_get_aios()`
-- `pg_get_backend_memory_contexts()`
-- `pg_get_loaded_modules()`
-- `pg_get_multixact_members(xid)`
-- `pg_get_sequence_data(regclass)`
-- `pg_get_shmem_allocations()`
-- `pg_get_shmem_allocations_numa()`
-- `pg_get_wait_events()`
-- `pg_get_wal_replay_pause_state()`
-- `pg_get_wal_resource_managers()`
-- `pg_get_wal_summarizer_state()`
-- `pg_hba_file_rules()`
-- `pg_ident_file_mappings()`
-- `pg_import_system_collations(regnamespace)`
-- `pg_indexes_size(regclass)`
-- `pg_is_in_recovery()`
-- `pg_is_wal_replay_paused()`
-- `pg_isolation_test_session_is_blocked(integer,integer[])`
-- `pg_jit_available()`
-- `pg_last_committed_xact()`
-- `pg_last_wal_receive_lsn()`
-- `pg_last_wal_replay_lsn()`
-- `pg_last_xact_replay_timestamp()`
-- `pg_lock_status()`
-- `pg_log_backend_memory_contexts(integer)`
-- `pg_log_standby_snapshot()`
-- `pg_logical_emit_message(boolean,text,bytea,boolean)`
-- `pg_logical_emit_message(boolean,text,text,boolean)`
-- `pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])`
-- `pg_logical_slot_get_changes(name,pg_lsn,integer,text[])`
-- `pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])`
-- `pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])`
-- `pg_ls_archive_statusdir()`
-- `pg_ls_dir(text)`
-- `pg_ls_dir(text,boolean,boolean)`
-- `pg_ls_logdir()`
-- `pg_ls_logicalmapdir()`
-- `pg_ls_logicalsnapdir()`
-- `pg_ls_replslotdir(text)`
-- `pg_ls_summariesdir()`
-- `pg_ls_tmpdir()`
-- `pg_ls_tmpdir(oid)`
-- `pg_ls_waldir()`
-- `pg_nextoid(regclass,name,regclass)`
-- `pg_notification_queue_usage()`
-- `pg_notify(text,text)`
-- `pg_partition_ancestors(regclass)`
-- `pg_partition_tree(regclass)`
-- `pg_prepared_xact()`
-- `pg_promote(boolean,integer)`
-- `pg_read_binary_file(text)`
-- `pg_read_binary_file(text,bigint,bigint)`
-- `pg_read_binary_file(text,bigint,bigint,boolean)`
-- `pg_read_binary_file(text,boolean)`
-- `pg_read_file(text)`
-- `pg_read_file(text,bigint,bigint)`
-- `pg_read_file(text,bigint,bigint,boolean)`
-- `pg_read_file(text,boolean)`
-- `pg_relation_size(regclass)`
-- `pg_relation_size(regclass,text)`
-- `pg_reload_conf()`
-- `pg_replication_origin_advance(text,pg_lsn)`
-- `pg_replication_origin_create(text)`
-- `pg_replication_origin_drop(text)`
-- `pg_replication_origin_progress(text,boolean)`
-- `pg_replication_origin_session_is_setup()`
-- `pg_replication_origin_session_progress(boolean)`
-- `pg_replication_origin_session_reset()`
-- `pg_replication_origin_session_setup(text)`
-- `pg_replication_origin_xact_reset()`
-- `pg_replication_origin_xact_setup(pg_lsn,timestamp with time zone)`
-- `pg_replication_slot_advance(name,pg_lsn)`
-- `pg_restore_attribute_stats("any")`
-- `pg_restore_relation_stats("any")`
-- `pg_rotate_logfile()`
-- `pg_safe_snapshot_blocking_pids(integer)`
-- `pg_sequence_last_value(regclass)`
-- `pg_show_all_file_settings()`
-- `pg_show_replication_origin_status()`
-- `pg_sleep(double precision)`
-- `pg_sleep_for(interval)`
-- `pg_sleep_until(timestamp with time zone)`
-- `pg_stat_clear_snapshot()`
-- `pg_stat_file(text)`
-- `pg_stat_file(text,boolean)`
-- `pg_stat_force_next_flush()`
-- `pg_stat_get_backend_io(integer)`
-- `pg_stat_get_backend_wal(integer)`
-- `pg_stat_get_io()`
-- `pg_stat_get_recovery_prefetch()`
-- `pg_stat_get_xact_blocks_fetched(oid)`
-- `pg_stat_get_xact_blocks_hit(oid)`
-- `pg_stat_get_xact_function_calls(oid)`
-- `pg_stat_get_xact_function_self_time(oid)`
-- `pg_stat_get_xact_function_total_time(oid)`
-- `pg_stat_get_xact_numscans(oid)`
-- `pg_stat_get_xact_tuples_deleted(oid)`
-- `pg_stat_get_xact_tuples_fetched(oid)`
-- `pg_stat_get_xact_tuples_hot_updated(oid)`
-- `pg_stat_get_xact_tuples_inserted(oid)`
-- `pg_stat_get_xact_tuples_newpage_updated(oid)`
-- `pg_stat_get_xact_tuples_returned(oid)`
-- `pg_stat_get_xact_tuples_updated(oid)`
-- `pg_stat_have_stats(text,oid,bigint)`
-- `pg_stat_reset()`
-- `pg_stat_reset_backend_stats(integer)`
-- `pg_stat_reset_replication_slot(text)`
-- `pg_stat_reset_shared(text)`
-- `pg_stat_reset_single_function_counters(oid)`
-- `pg_stat_reset_single_table_counters(oid)`
-- `pg_stat_reset_slru(text)`
-- `pg_stat_reset_subscription_stats(oid)`
-- `pg_stop_making_pinned_objects()`
-- `pg_switch_wal()`
-- `pg_sync_replication_slots()`
-- `pg_table_size(regclass)`
-- `pg_tablespace_size(name)`
-- `pg_tablespace_size(oid)`
-- `pg_terminate_backend(integer,bigint)`
-- `pg_total_relation_size(regclass)`
-- `pg_try_advisory_lock(bigint)`
-- `pg_try_advisory_lock(integer,integer)`
-- `pg_try_advisory_lock_shared(bigint)`
-- `pg_try_advisory_lock_shared(integer,integer)`
-- `pg_try_advisory_xact_lock(bigint)`
-- `pg_try_advisory_xact_lock(integer,integer)`
-- `pg_try_advisory_xact_lock_shared(bigint)`
-- `pg_try_advisory_xact_lock_shared(integer,integer)`
-- `pg_wal_replay_pause()`
-- `pg_wal_replay_resume()`
-- `pg_wal_summary_contents(bigint,pg_lsn,pg_lsn)`
-- `pg_xact_commit_timestamp(xid)`
-- `pg_xact_commit_timestamp_origin(xid)`
-- `pg_xact_status(xid8)`
-- `plpgsql_call_handler()`
-- `plpgsql_inline_handler(internal)`
-- `plpgsql_validator(oid)`
-- `query_to_xml(text,boolean,boolean,text)`
-- `query_to_xml_and_xmlschema(text,boolean,boolean,text)`
-- `query_to_xmlschema(text,boolean,boolean,text)`
-- `random()`
-- `random(bigint,bigint)`
-- `random(integer,integer)`
-- `random(numeric,numeric)`
-- `random_normal(double precision,double precision)`
-- `set_config(text,text,boolean)`
-- `setseed(double precision)`
-- `setval(regclass,bigint)`
-- `setval(regclass,bigint,boolean)`
-- `spghandler(internal)`
-- `suppress_redundant_updates_trigger()`
-- `system(internal)`
-- `timeofday()`
-- `ts_rewrite(tsquery,text)`
-- `ts_stat(text)`
-- `ts_stat(text,text)`
-- `tsvector_update_trigger()`
-- `tsvector_update_trigger_column()`
-- `txid_status(bigint)`
-- `unique_key_recheck()`
-- `uuidv4()`
-- `uuidv7()`
-- `uuidv7(interval)`

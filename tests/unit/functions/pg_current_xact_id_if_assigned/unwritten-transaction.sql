@@ -1,0 +1,22 @@
+-- A zero-argument function whose NULL route is TRANSACTION state: it answers
+-- NULL until something in the current transaction has written, because that
+-- is when PostgreSQL assigns an xid at all. A read-only statement — which is
+-- what almost every application query is — never assigns one.
+--
+-- It sat in the surface probe's null-witnessed column by ACCIDENT. That probe
+-- evaluates thousands of expressions per statement, the large-object rows
+-- among them write, and whether this expression fell before or after a write
+-- depended on where a 2000-wide chunk boundary landed; adding fifteen
+-- unrelated expressions elsewhere flipped it. The probe now assigns an xid
+-- before every batch so its answer is the same every run, and the NULL lives
+-- here — the split `current_schema()` already has.
+--
+-- The control puts the assignment in the FROM clause, which is what orders it
+-- before the target list. A scalar function SCAN rather than a subquery,
+-- because the planner flattens `(SELECT pg_current_xact_id() AS a) x` into the
+-- outer target list and then evaluates left to right: with the tested call
+-- first the control read NULL, which is the failure this note exists to stop
+-- somebody rediscovering.
+-- @signature
+-- @null  SELECT pg_current_xact_id_if_assigned()
+-- @value SELECT pg_current_xact_id_if_assigned() FROM pg_catalog.pg_current_xact_id() AS x(a)

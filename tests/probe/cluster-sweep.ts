@@ -27,10 +27,18 @@
 // `pg_cast.castfunc`, `pg_type.typoutput`, `pg_aggregate.aggtransfn`. It says
 // what PostgreSQL USES the function for, which is what shares a mechanism.
 //
+// VOLATILE rows are in scope, and were not until 2026-08-21: both catalog
+// queries carried `p.provolatile <> 'v'`, so the sweep could not propose a
+// volatile name however it was cut. Volatility says a repeat call may answer
+// differently; it says nothing about whether a result exists, which is the
+// only question here. `--volatile` cuts to exactly those rows, and it is the
+// same kind of cut as a role — a catalog fact, not a spelling.
+//
 // Run:
 //   pnpm exec tsx tests/probe/cluster-sweep.ts --role=oprcode
 //   pnpm exec tsx tests/probe/cluster-sweep.ts '^(int2|int4|int8)'
 //   pnpm exec tsx tests/probe/cluster-sweep.ts . --operators
+//   pnpm exec tsx tests/probe/cluster-sweep.ts --volatile --list-total
 //
 // Roles: amproc, oprcode, cast, typio, aggsupport, rangesupport, standalone.
 //
@@ -45,6 +53,8 @@ import {
   POLYMORPHIC_FAMILIES,
   PROBE_FN_SQL,
   SRF_PROBE_FN_SQL,
+  PROBE_OBJECTS_SQL,
+  REFUSED_CALLS,
   srfQuery,
   qualify,
   variadicArgTypes,
@@ -104,6 +114,9 @@ const ROW_COMBO_CAP = 2_000;
 const roleArg = process.argv.find(a => a.startsWith("--role="))?.slice("--role=".length);
 const pattern = new RegExp(process.argv[2]?.startsWith("--") ? "." : (process.argv[2] ?? "."));
 const wantOperators = process.argv.includes("--operators");
+/** Cut to the volatile rows alone; see the volatility note in the header. */
+const volatileOnly = process.argv.includes("--volatile");
+const volatileFilter = volatileOnly ? "p.provolatile = 'v'" : "true";
 
 /**
  * The catalog join behind each role. A function can serve several — a btree
@@ -145,6 +158,10 @@ const setup = async (db: PGlite): Promise<void> => {
   await db.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
   await db.exec(PROBE_FN_SQL);
   await db.exec(SRF_PROBE_FN_SQL);
+  // The objects the corpus NAMES. Without them `'probe_seq'::regclass` raises
+  // inside probe() and every row taking a regclass is swept against half the
+  // vocabulary it was written for — silently, since a raise is not a finding.
+  await db.exec(PROBE_OBJECTS_SQL);
 };
 await setup(pg);
 
@@ -192,8 +209,8 @@ const fnRows: Row[] = (
                                     WHERE m IN ('o','b','t'))) END::int AS ncols
        FROM pg_proc p
        JOIN pg_namespace n ON n.oid = p.pronamespace
-      WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f' AND p.provolatile <> 'v'
-        AND ${roleFilter}
+      WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
+        AND ${volatileFilter} AND ${roleFilter}
       ORDER BY p.proname, 2;`,
   )
 ).rows.map(r => ({
@@ -215,7 +232,7 @@ const opRows: Row[] = wantOperators
            FROM pg_operator o
            JOIN pg_namespace n ON n.oid = o.oprnamespace
            JOIN pg_proc p ON p.oid = o.oprcode
-          WHERE n.nspname = 'pg_catalog' AND p.provolatile <> 'v'
+          WHERE n.nspname = 'pg_catalog' AND ${volatileFilter}
           ORDER BY o.oprname, 2, 3;`,
       )
     ).rows.map(r => ({
@@ -260,8 +277,11 @@ for (const r of rows) {
   /** expression -> whether it uses a value the corpus does not carry. */
   const exprs = new Map<string, boolean>();
   let missingGenerator = false;
+  const sig = `${r.name}(${r.types.join(",")})`;
 
-  for (const family of families) {
+  // A refused row is probed by its COHERENT_CALLS entry alone; the generated
+  // cross product holds a call that never returns (see probe-values.ts).
+  for (const family of sig in REFUSED_CALLS ? [] : families) {
     const lists = r.types.map(t => valuesFor(t, family));
     if (lists.some(l => l.corpus.length === 0 && l.staged.length === 0)) {
       missingGenerator = true;
@@ -283,7 +303,7 @@ for (const r of rows) {
     if (r.types.every(t => !POLYMORPHIC.has(t))) break;
   }
 
-  const key = `${r.name}(${r.types.join(",")})`;
+  const key = sig;
   // Calls whose arguments must be valid TOGETHER; see probe-values.ts.
   for (const c of COHERENT_CALLS[key] ?? []) exprs.set(render(r, [...c]), false);
   if (exprs.size === 0) {
@@ -340,7 +360,7 @@ if (process.argv.includes("--list-total")) {
 console.log(findings.join("\n"));
 console.log(
   `\n${rows.length} rows swept (${roleArg ? `role=${roleArg}` : `/${pattern.source}/`}` +
-    `${wantOperators ? " +operators" : ""}): ` +
+    `${volatileOnly ? " volatile-only" : ""}${wantOperators ? " +operators" : ""}): ` +
     `${totals} total, ${findings.length - allRaised} NULL-capable, ${allRaised} all-raised, ` +
     `${noGenerator} no-generator.`,
 );

@@ -10564,6 +10564,13 @@ export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
   "has_schema_privilege(name,text,text)",
   "has_schema_privilege(oid,text,text)",
   "has_schema_privilege(text,text)",
+  // The SEQUENCE rows joined them 2026-08-21. They were pinned unprobeable
+  // because a fresh PGlite has no sequence, and `PROBE_OBJECTS_SQL` — which
+  // creates one — did not reach the classifying suite until the volatile
+  // sweep took it there.
+  "has_sequence_privilege(name,text,text)",
+  "has_sequence_privilege(oid,text,text)",
+  "has_sequence_privilege(text,text)",
   "has_tablespace_privilege(name,text,text)",
   "has_tablespace_privilege(oid,text,text)",
   "has_tablespace_privilege(text,text)",
@@ -10630,9 +10637,15 @@ export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
   "int8_avg(bigint[])",
   "pg_basetype(regtype)",
   "pg_column_is_updatable(regclass,smallint,boolean)",
-  "pg_relation_filenode(regclass)",
-  "pg_relation_filepath(regclass)",
-  "pg_relation_is_publishable(regclass)",
+  // `pg_relation_filenode`, `pg_relation_filepath` and
+  // `pg_relation_is_publishable` were HERE and are gone (2026-08-21). They
+  // answer NULL for a regclass whose relation does not exist — `try_relation_open`
+  // returns nothing and each has a `PG_RETURN_NULL` for it — and the sweep
+  // that convicted them ran against a regclass vocabulary in which every
+  // object existed. A missing-relation regclass joined probe-values.ts with
+  // the volatile bucket and the totality probe falsified all three the same
+  // run. The two rows left below survive it: they answer `false` and `0`
+  // where these answer NULL.
   "pg_relation_is_updatable(regclass,boolean)",
   "pg_snapshot_out(pg_snapshot)",
   "pg_snapshot_send(pg_snapshot)",
@@ -11320,6 +11333,137 @@ export const SWEPT_TOTAL_SIGNATURES: ReadonlySet<string> = new Set([
   "xid8lt(xid8,xid8)", "xid8ne(xid8,xid8)", "xid8out(xid8)", "xid8send(xid8)",
   "xideq(xid,xid)", "xideqint4(xid,integer)", "xidneq(xid,xid)", "xidneqint4(xid,integer)",
   "xidout(xid)", "xidsend(xid)",
+  // -----------------------------------------------------------------------
+  // THE VOLATILE BUCKET (2026-08-21). 276 pg_catalog signatures were excluded
+  // from execution on `provolatile = 'v'` and had no verdict from anything —
+  // not claimed, not witnessed, just skipped. Volatility says a repeat call
+  // may answer differently; it says nothing about whether a result exists,
+  // and `nextval` proved the difference by being strict, volatile and total
+  // while reading nullable. The gate is gone from all three probes and these
+  // rows classify by execution like the rest of the surface.
+  //
+  // Every row here was convicted by tests/probe/cluster-sweep.ts --volatile
+  // and then by builtin-surface.test.ts, and each was read against the
+  // PostgreSQL source PGlite builds from, because a probe that finds no NULL
+  // in one server state is not the same as a function with no NULL to find.
+  // That reading is what kept eight rows out: four whose `PG_RETURN_NULL` is
+  // live in a state no query can reach (recorded in the surface suite's
+  // WORK_LIST) and four whose NULL the probe DATABASE was hiding — a
+  // regclass naming a dropped relation and an un-called sequence joined
+  // probe-values.ts, and six signatures moved to witnessed instead.
+  //
+  // A COMPOSITE row's claim is about the row VALUE. `pg_control_system()`
+  // never returns a NULL record; its FIELDS stay nullable either way, since
+  // a function's composite result carries no constraints
+  // (`resolveTableFunctionColumns`).
+  // -----------------------------------------------------------------------
+  // Randomness and generated identifiers. `random` is why the sweep was
+  // needed at all: the NAME left ALWAYS_NOT_NULL_BUILTINS because PG17's
+  // two-argument overloads are strict, so `random(NULL, NULL)` is NULL —
+  // and the rows themselves are total for non-null arguments, which is what
+  // signature keying can say and a name cannot.
+  "array_sample(anyarray,integer)", "array_shuffle(anyarray)", "random()",
+  "random(bigint,bigint)", "random(integer,integer)", "random(numeric,numeric)",
+  "random_normal(double precision,double precision)", "setseed(double precision)",
+  "timeofday()", "uuidv4()", "uuidv7()", "uuidv7(interval)",
+  // Large objects. Every one raises on a descriptor or OID that is not
+  // there — "large object 0 does not exist", "invalid large-object
+  // descriptor" — and a raise is not a NULL. The nine that take a
+  // DESCRIPTOR are probed through a `COHERENT_CALLS` entry that opens one
+  // inline, because a descriptor lives only inside the transaction that
+  // opened it and no integer the corpus carries is ever a valid one.
+  "lo_close(integer)", "lo_creat(integer)", "lo_create(oid)", "lo_export(oid,text)",
+  "lo_from_bytea(oid,bytea)", "lo_get(oid)", "lo_get(oid,bigint,integer)",
+  "lo_import(text)", "lo_import(text,oid)", "lo_lseek(integer,integer,integer)",
+  "lo_lseek64(integer,bigint,integer)", "lo_open(oid,integer)",
+  "lo_put(oid,bigint,bytea)", "lo_tell(integer)", "lo_tell64(integer)",
+  "lo_truncate(integer,integer)", "lo_truncate64(integer,bigint)", "lo_unlink(oid)",
+  "loread(integer,integer)", "lowrite(integer,bytea)",
+  // Advisory locks: void for the waiting spellings, boolean for the `try`
+  // and `unlock` ones. An unlock that held nothing warns and answers false.
+  "pg_advisory_lock(bigint)", "pg_advisory_lock(integer,integer)",
+  "pg_advisory_lock_shared(bigint)", "pg_advisory_lock_shared(integer,integer)",
+  "pg_advisory_unlock(bigint)", "pg_advisory_unlock(integer,integer)",
+  "pg_advisory_unlock_all()", "pg_advisory_unlock_shared(bigint)",
+  "pg_advisory_unlock_shared(integer,integer)", "pg_advisory_xact_lock(bigint)",
+  "pg_advisory_xact_lock(integer,integer)", "pg_advisory_xact_lock_shared(bigint)",
+  "pg_advisory_xact_lock_shared(integer,integer)", "pg_try_advisory_lock(bigint)",
+  "pg_try_advisory_lock(integer,integer)", "pg_try_advisory_lock_shared(bigint)",
+  "pg_try_advisory_lock_shared(integer,integer)", "pg_try_advisory_xact_lock(bigint)",
+  "pg_try_advisory_xact_lock(integer,integer)",
+  "pg_try_advisory_xact_lock_shared(bigint)",
+  "pg_try_advisory_xact_lock_shared(integer,integer)",
+  // Statistics. The per-transaction table counters answer 0 for a relation
+  // with no entry rather than NULL — their macro says `result = 0` where
+  // `find_tabstat_entry` returns nothing. Their FUNCTION-stat siblings do
+  // the opposite and are witnessed, which is why the name carries no claim.
+  "pg_stat_clear_snapshot()", "pg_stat_force_next_flush()",
+  "pg_stat_get_xact_blocks_fetched(oid)", "pg_stat_get_xact_blocks_hit(oid)",
+  "pg_stat_get_xact_numscans(oid)", "pg_stat_get_xact_tuples_deleted(oid)",
+  "pg_stat_get_xact_tuples_fetched(oid)", "pg_stat_get_xact_tuples_hot_updated(oid)",
+  "pg_stat_get_xact_tuples_inserted(oid)",
+  "pg_stat_get_xact_tuples_newpage_updated(oid)",
+  "pg_stat_get_xact_tuples_returned(oid)", "pg_stat_get_xact_tuples_updated(oid)",
+  "pg_stat_have_stats(text,oid,bigint)",
+  "pg_stat_reset()", "pg_stat_reset_backend_stats(integer)",
+  "pg_stat_reset_shared(text)",
+  "pg_stat_reset_single_function_counters(oid)",
+  "pg_stat_reset_single_table_counters(oid)", "pg_stat_reset_slru(text)",
+  "pg_stat_reset_subscription_stats(oid)",
+  // WAL, backup and replication. Each answers an LSN, a void or a composite,
+  // and refuses out of context by raising — `pg_switch_wal()` and the
+  // `pg_current_wal_*` trio raise during recovery, `pg_wal_replay_pause()`
+  // raises outside it and is unprobed for exactly that reason.
+  "pg_backup_start(text,boolean)", "pg_backup_stop(boolean)",
+  "pg_create_physical_replication_slot(name,boolean,boolean)",
+  "pg_create_restore_point(text)", "pg_current_wal_flush_lsn()",
+  "pg_current_wal_insert_lsn()", "pg_current_wal_lsn()",
+  "pg_drop_replication_slot(name)", "pg_get_wal_resource_managers()",
+  "pg_get_wal_summarizer_state()", "pg_is_in_recovery()", "pg_log_standby_snapshot()",
+  "pg_logical_emit_message(boolean,text,bytea,boolean)",
+  "pg_logical_emit_message(boolean,text,text,boolean)", "pg_ls_waldir()",
+  "pg_replication_origin_create(text)", "pg_replication_origin_drop(text)",
+  "pg_replication_origin_session_is_setup()", "pg_replication_origin_xact_reset()",
+  "pg_switch_wal()",
+  // Signals, notifications and settings. `set_config` is the one that is
+  // ordinary application SQL: it is NON-STRICT and raises rather than
+  // answering NULL for a NULL name, and returns the new value as text.
+  "pg_cancel_backend(integer)", "pg_log_backend_memory_contexts(integer)",
+  "pg_notify(text,text)", "pg_reload_conf()", "pg_rotate_logfile()",
+  "pg_terminate_backend(integer,bigint)", "set_config(text,text,boolean)",
+  // Server-side files, the spellings WITHOUT `missing_ok`. Their
+  // `missing_ok` twins return NULL for a file that is not there and are
+  // witnessed; these pass the flag as false and raise instead.
+  "pg_clear_attribute_stats(text,text,text,boolean)",
+  "pg_clear_relation_stats(text,text)",
+  "pg_ls_dir(text)", "pg_ls_dir(text,boolean,boolean)", "pg_read_binary_file(text)",
+  "pg_read_binary_file(text,bigint,bigint)",
+  "pg_read_file(text)", "pg_read_file(text,bigint,bigint)", "pg_stat_file(text)",
+  // The sleeps, whose claim is a `void` and whose probed universe is the
+  // BOUNDED call in COHERENT_CALLS. `REFUSED_CALLS` drops their generated
+  // combinations: the corner corpus carries the infinities, and
+  // `pg_sleep('Infinity')` does not come back.
+  "pg_sleep(double precision)", "pg_sleep_for(interval)",
+  "pg_sleep_until(timestamp with time zone)",
+  // What none of those groups claims. `pg_get_sequence_data` is the pair to
+  // the witness one line down in the corpus: for a missing sequence it
+  // returns a record whose FIELDS are both null, which is a value and not a
+  // NULL, while `pg_sequence_last_value` returns the NULL itself.
+  "cursor_to_xml(refcursor,integer,boolean,boolean,text)",
+  "cursor_to_xmlschema(refcursor,boolean,boolean,text)",
+  "currtid2(text,tid)", "pg_blocking_pids(integer)", "pg_control_checkpoint()",
+  "pg_control_init()", "pg_control_recovery()", "pg_control_system()",
+  "pg_get_sequence_data(regclass)", "pg_get_wait_events()",
+  "pg_import_system_collations(regnamespace)",
+  "pg_isolation_test_session_is_blocked(integer,integer[])", "pg_jit_available()",
+  "pg_notification_queue_usage()", "pg_safe_snapshot_blocking_pids(integer)",
+  "pg_stat_get_recovery_prefetch()", "query_to_xml(text,boolean,boolean,text)",
+  "query_to_xml_and_xmlschema(text,boolean,boolean,text)",
+  "query_to_xmlschema(text,boolean,boolean,text)",
+  // The three that take a QUERY rather than a string, and were unprobed
+  // because the corpus's texts are names — `ts_stat` wants a query yielding
+  // one tsvector column and `ts_rewrite` one yielding two tsqueries.
+  "ts_rewrite(tsquery,text)", "ts_stat(text)", "ts_stat(text,text)",
 ]);
 
 /**

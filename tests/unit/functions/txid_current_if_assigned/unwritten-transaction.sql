@@ -1,0 +1,11 @@
+-- The pre-PG13 spelling of `pg_current_xact_id_if_assigned`, backed by the
+-- same C function and NULL for the same reason: no xid is assigned until
+-- something in the transaction has written. Witnessed separately because the
+-- claim tables and the surface probe are keyed by SIGNATURE, and these are two
+-- pg_proc rows — a witness for one says nothing about the other.
+--
+-- See pg_current_xact_id_if_assigned/unwritten-transaction.sql for why the
+-- control needs a function SCAN rather than a subquery.
+-- @signature
+-- @null  SELECT txid_current_if_assigned()
+-- @value SELECT txid_current_if_assigned() FROM pg_catalog.pg_current_xact_id() AS x(a)

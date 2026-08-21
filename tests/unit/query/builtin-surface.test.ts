@@ -24,6 +24,8 @@ import {
   qualify,
   PROBE_FN_SQL,
   SRF_PROBE_FN_SQL,
+  PROBE_OBJECTS_SQL,
+  REFUSED_CALLS,
   srfQuery,
   nullTestExpr,
   variadicArgTypes,
@@ -44,13 +46,18 @@ import {
 //
 //   claimed          — a totality table or signature addition covers it; the
 //                      totality probe holds the claim to execution.
-//   volatile         — excluded from execution on the catalog's own
-//                      side-effect marker (`provolatile = 'v'`: setval,
-//                      pg_terminate_backend live here). Claimed volatile
-//                      names stay probed via the claimed path, whose curated
-//                      list is known-safe.
 //   no-generator     — a parameter type the shared corpus has no values for
 //                      (internal, cstring, reg* …). Explicit, not silent.
+//
+// A `volatile` category sat between those two until 2026-08-21, excluding 276
+// signatures from execution on the catalog's own `provolatile = 'v'`. It is
+// gone, and its removal is the point: volatility says a repeat call may answer
+// differently, which is not the question here — `nextval` is volatile, strict
+// and TOTAL, and sat unwitnessed in that bucket until a borrowed corpus found
+// it by accident. Those rows now classify by execution like every other row,
+// against a probe database `PROBE_OBJECTS_SQL` gives the objects to answer
+// about. `REFUSED_CALLS` names the three whose GENERATED calls must not be
+// made and supplies bounded ones instead; nothing else is exempt.
 //
 // SET-RETURNING rows are probed too, under the question their shape asks —
 // does ANY emitted row hold a NULL in ANY output column — via `srfprobe`
@@ -105,6 +112,10 @@ const WORK_LIST: Record<string, string> = {
   // varies ONE argument from a baseline while these need two at once (a
   // non-matching pattern AND a valid flags string).
   "current_schema()": "witnessed in tests/unit/functions; its NULL route is search_path state",
+  "pg_current_xact_id_if_assigned()":
+    "witnessed in tests/unit/functions; its NULL route is transaction state — no xid until something writes, and the probe assigns one per batch so the verdict stops depending on chunk boundaries",
+  "txid_current_if_assigned()":
+    "witnessed in tests/unit/functions; the pre-PG13 spelling of the row above, same C function and same transaction-state NULL",
   "regexp_match(text,text,text)": "witnessed in tests/unit/functions; past the combination cap",
   "regexp_substr(text,text,integer,integer,text)":
     "witnessed in tests/unit/functions; past the combination cap",
@@ -119,6 +130,20 @@ const WORK_LIST: Record<string, string> = {
   "first_value(anyelement)": "claimed by the walk's default-frame gate, not by a table",
   "last_value(anyelement)": "claimed by the walk's default-frame gate, not by a table",
   "nth_value(anyelement,integer)": "witnessed in tests/unit/functions; a short frame has no Nth row",
+  // The volatile sweep's residue (2026-08-21). Each of these was convicted
+  // by the probe and REFUSED promotion on the PostgreSQL source PGlite
+  // builds from: the `PG_RETURN_NULL` is live, and the state that reaches it
+  // is not an input the probe can vary. This is the `current_schema()` shape
+  // one bucket over, and it is why the sweep read the source at all — 118
+  // rows were promoted on the probe's evidence and these four were not.
+  "current_query()":
+    "NULL when `debug_query_string` is unset (a background worker, a portal with no source text); the probe always runs inside a statement",
+  "pg_database_size(name)":
+    "NULL when the database's directory is gone — a concurrent DROP DATABASE, which the probe cannot race; a missing OID raises instead",
+  "pg_database_size(oid)":
+    "NULL when the database's directory is gone — a concurrent DROP DATABASE, which the probe cannot race; a missing OID raises instead",
+  "pg_get_loaded_modules()":
+    "the module_name and version columns are NULL for a module that declares neither; every module PGlite loads declares both",
 };
 
 /**
@@ -267,17 +292,76 @@ const UNPROBED: Record<string, readonly string[]> = {
     "txid_snapshot_in(cstring)",
     "uuid_in(cstring)",
   ],
-  // needs an OID or name of an object that exists in the probe database, which holds only the probe enum
+  // refuses unless the server is in BINARY UPGRADE MODE, which pg_upgrade sets on the command line and no session can reach: "function can only be called when server is in binary upgrade mode", for every one of them, whatever the arguments
+  "binary-upgrade": [
+    "binary_upgrade_add_sub_rel_state(text,oid,\"char\",pg_lsn)",
+    "binary_upgrade_create_empty_extension(text,text,boolean,text,oid[],text[],text[])",
+    "binary_upgrade_logical_slot_has_caught_up(name)",
+    "binary_upgrade_replorigin_advance(text,pg_lsn)",
+    "binary_upgrade_set_missing_value(oid,text,text)",
+    "binary_upgrade_set_next_array_pg_type_oid(oid)",
+    "binary_upgrade_set_next_heap_pg_class_oid(oid)",
+    "binary_upgrade_set_next_heap_relfilenode(oid)",
+    "binary_upgrade_set_next_index_pg_class_oid(oid)",
+    "binary_upgrade_set_next_index_relfilenode(oid)",
+    "binary_upgrade_set_next_multirange_array_pg_type_oid(oid)",
+    "binary_upgrade_set_next_multirange_pg_type_oid(oid)",
+    "binary_upgrade_set_next_pg_authid_oid(oid)",
+    "binary_upgrade_set_next_pg_enum_oid(oid)",
+    "binary_upgrade_set_next_pg_tablespace_oid(oid)",
+    "binary_upgrade_set_next_pg_type_oid(oid)",
+    "binary_upgrade_set_next_toast_pg_class_oid(oid)",
+    "binary_upgrade_set_next_toast_relfilenode(oid)",
+    "binary_upgrade_set_record_init_privs(boolean)",
+  ],
+  // only its own caller may call it: an extension's CREATE EXTENSION script, the executor's language dispatch, initdb. Each says so and raises for a plain SELECT
+  "call-context": [
+    "pg_extension_config_dump(regclass,text)",
+    "pg_stop_making_pinned_objects()",
+    "plpgsql_call_handler()",
+  ],
+  // needs `track_commit_timestamp` on, which is a postmaster setting rather than an input — "could not get commit timestamp data"
+  "commit-timestamps": [
+    "pg_last_committed_xact()",
+    "pg_xact_commit_timestamp(xid)",
+    "pg_xact_commit_timestamp_origin(xid)",
+  ],
+  // set-returning and EMPTY for every combination, which is no more evidence of totality than a raise: the probe database has no asynchronous IO in flight, no prepared transaction, no partitioned relation, no archive or logical-decoding directory, and no second backend
+  "empty-set": [
+    "pg_available_wal_summaries()",
+    "pg_get_aios()",
+    "pg_ident_file_mappings()",
+    "pg_ls_archive_statusdir()",
+    "pg_ls_logicalmapdir()",
+    "pg_ls_logicalsnapdir()",
+    "pg_ls_summariesdir()",
+    "pg_ls_tmpdir()",
+    "pg_partition_ancestors(regclass)",
+    "pg_partition_tree(regclass)",
+    "pg_prepared_xact()",
+    "pg_show_replication_origin_status()",
+    "pg_stat_get_backend_io(integer)",
+  ],
+  // needs an OID or name of an object the probe database does not have — an index, a collation, a tablespace, a replication slot or origin, a multixact, a WAL summary file, a plpgsql function. PROBE_OBJECTS_SQL supplies what a SQL statement can create; the rest of these need a server configured for them
   "live-object": [
+    "amvalidate(oid)",
+    "brin_desummarize_range(regclass,bigint)",
+    "brin_summarize_new_values(regclass)",
+    "brin_summarize_range(regclass,bigint)",
     "btvarstrequalimage(oid)",
     "fmgr_c_validator(oid)",
     "fmgr_internal_validator(oid)",
     "fmgr_sql_validator(oid)",
+    "gin_clean_pending_list(regclass)",
+    "pg_collation_actual_version(oid)",
+    "pg_copy_physical_replication_slot(name,name)",
+    "pg_copy_physical_replication_slot(name,name,boolean)",
     "pg_event_trigger_ddl_commands()",
     "pg_event_trigger_dropped_objects()",
     "pg_event_trigger_table_rewrite_oid()",
     "pg_event_trigger_table_rewrite_reason()",
     "pg_extension_update_paths(name)",
+    "pg_get_multixact_members(xid)",
     "pg_get_object_address(text,text[],text[])",
     "pg_get_publication_tables(text[])",
     "pg_get_replication_slots()",
@@ -285,26 +369,39 @@ const UNPROBED: Record<string, readonly string[]> = {
     "pg_identify_object(oid,oid,integer)",
     "pg_identify_object_as_address(oid,oid,integer)",
     "pg_listening_channels()",
+    "pg_ls_logdir()",
+    "pg_ls_replslotdir(text)",
+    "pg_ls_tmpdir(oid)",
+    "pg_nextoid(regclass,name,regclass)",
     "pg_prepared_statement()",
+    "pg_replication_origin_advance(text,pg_lsn)",
+    "pg_replication_origin_progress(text,boolean)",
+    "pg_replication_origin_session_progress(boolean)",
+    "pg_replication_origin_session_reset()",
+    "pg_replication_origin_session_setup(text)",
+    "pg_replication_origin_xact_setup(pg_lsn,timestamp with time zone)",
+    "pg_replication_slot_advance(name,pg_lsn)",
     "pg_sequence_parameters(oid)",
     "pg_snapshot_xip(pg_snapshot)",
     "pg_split_walfile_name(text)",
     "pg_stat_get_progress_info(text)",
     "pg_stat_get_subscription(oid)",
     "pg_stat_get_wal_senders()",
+    "pg_stat_reset_replication_slot(text)",
     "pg_tablespace_databases(oid)",
+    "pg_tablespace_size(name)",
+    "pg_tablespace_size(oid)",
     "pg_timezone_abbrevs_zone()",
+    "pg_wal_summary_contents(bigint,pg_lsn,pg_lsn)",
+    "plpgsql_validator(oid)",
     "ts_parse(oid,text)",
     "ts_token_type(oid)",
   ],
-  // a fresh PGlite has no foreign-data wrapper, foreign server or sequence, so the blocker is the DATABASE rather than the corpus: a coherent call cannot name an object that does not exist
+  // a fresh PGlite has no foreign-data wrapper and no foreign server, so the blocker is the DATABASE rather than the corpus: a coherent call cannot name an object that does not exist. The three SEQUENCE rows were here too and are gone (2026-08-21) — PROBE_OBJECTS_SQL creates a sequence and now reaches this suite, so their reason had stopped being true
   "no-such-object": [
     "has_foreign_data_wrapper_privilege(name,text,text)",
     "has_foreign_data_wrapper_privilege(oid,text,text)",
     "has_foreign_data_wrapper_privilege(text,text)",
-    "has_sequence_privilege(name,text,text)",
-    "has_sequence_privilege(oid,text,text)",
-    "has_sequence_privilege(text,text)",
     "has_server_privilege(name,text,text)",
     "has_server_privilege(oid,text,text)",
     "has_server_privilege(text,text)",
@@ -316,6 +413,19 @@ const UNPROBED: Record<string, readonly string[]> = {
     "anycompatiblenonarray_out(anycompatiblenonarray)",
     "anyelement_out(anyelement)",
     "anynonarray_out(anynonarray)",
+  ],
+  // the probe database is a PRIMARY that is not replaying, so these refuse on the server's role rather than on their arguments: "recovery is not in progress", "replication slots can only be synchronized to a standby server"
+  "not-a-standby": [
+    "pg_get_wal_replay_pause_state()",
+    "pg_is_wal_replay_paused()",
+    "pg_promote(boolean,integer)",
+    "pg_sync_replication_slots()",
+    "pg_wal_replay_pause()",
+    "pg_wal_replay_resume()",
+  ],
+  // the probe's own EXCEPTION handler is a SUBTRANSACTION, and PostgreSQL refuses to export a snapshot from one. The only row whose reason is the harness rather than the database: the same call answers fine outside probe()
+  "probe-subtransaction": [
+    "pg_export_snapshot()",
   ],
   // PostgreSQL removed the implementation and the declaration raises for every input
   "removed": [
@@ -333,9 +443,41 @@ const UNPROBED: Record<string, readonly string[]> = {
     "jsonb_populate_recordset(anyelement,jsonb)",
     "jsonb_to_record(jsonb)",
     "jsonb_to_recordset(jsonb)",
+    "pg_restore_attribute_stats(\"any\")",
+    "pg_restore_relation_stats(\"any\")",
     "satisfies_hash_partition(oid,integer,integer,\"any\")",
     "txid_snapshot_xip(txid_snapshot)",
     "xmlvalidate(xml,text)",
+  ],
+  // a trigger function, which checks its calling context first and raises for anything else — "was not called by trigger manager". There is no call from a query, which is why the walk never meets one
+  "trigger-manager": [
+    "RI_FKey_cascade_del()",
+    "RI_FKey_cascade_upd()",
+    "RI_FKey_check_ins()",
+    "RI_FKey_check_upd()",
+    "RI_FKey_noaction_del()",
+    "RI_FKey_noaction_upd()",
+    "RI_FKey_restrict_del()",
+    "RI_FKey_restrict_upd()",
+    "RI_FKey_setdefault_del()",
+    "RI_FKey_setdefault_upd()",
+    "RI_FKey_setnull_del()",
+    "RI_FKey_setnull_upd()",
+    "suppress_redundant_updates_trigger()",
+    "tsvector_update_trigger()",
+    "tsvector_update_trigger_column()",
+    "unique_key_recheck()",
+  ],
+  // logical decoding, which refuses below `wal_level = logical` — a postmaster setting rather than an input, and PGlite ships at `replica`
+  "wal-level": [
+    "pg_copy_logical_replication_slot(name,name)",
+    "pg_copy_logical_replication_slot(name,name,boolean)",
+    "pg_copy_logical_replication_slot(name,name,boolean,name)",
+    "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)",
+    "pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])",
+    "pg_logical_slot_get_changes(name,pg_lsn,integer,text[])",
+    "pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])",
+    "pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])",
   ],
   // a type MODIFIER list, valid only for the modifiers its own type accepts
   "typmod": [
@@ -352,6 +494,7 @@ const UNPROBED: Record<string, readonly string[]> = {
   ],
   // the WASM build declines it for every input — libnuma for the XML exporters, and no LATIN source encoding for to_ascii
   "wasm": [
+    "pg_get_shmem_allocations_numa()",
     "schema_to_xml(name,boolean,boolean,text)",
     "schema_to_xml_and_xmlschema(name,boolean,boolean,text)",
     "schema_to_xmlschema(name,boolean,boolean,text)",
@@ -364,7 +507,6 @@ const UNPROBED: Record<string, readonly string[]> = {
 interface SurfaceRow {
   name: string;
   types: string[];
-  volatile: boolean;
   retset: boolean;
   ncols: number;
   composite: boolean;
@@ -409,13 +551,13 @@ describe("builtin scalar surface, witnessed or classified", () => {
     await pg.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
     await pg.exec(PROBE_FN_SQL);
     await pg.exec(SRF_PROBE_FN_SQL);
+    await pg.exec(PROBE_OBJECTS_SQL);
 
     const rows = (
       await pg.query<SurfaceRow>(
         `SELECT p.proname AS name,
                 COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                             FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
-                p.provolatile = 'v' AS volatile,
                 p.proretset AS retset,
                 CASE WHEN p.proargmodes IS NULL THEN 1
                      ELSE greatest(1, (SELECT count(*) FROM unnest(p.proargmodes) m
@@ -455,10 +597,6 @@ describe("builtin scalar surface, witnessed or classified", () => {
         category.set(key, "claimed");
         continue;
       }
-      if (r.volatile) {
-        category.set(key, "volatile");
-        continue;
-      }
       const probeTypes =
         r.variadic === null ? r.types : [...r.types.slice(0, -1), r.variadic];
       const missing = probeTypes.filter(t => !POLYMORPHIC.has(t) && !VALUES[t]);
@@ -475,7 +613,10 @@ describe("builtin scalar surface, witnessed or classified", () => {
       // element type; two of them stand for "some".
       const argTypes = variadicArgTypes(r.types, r.variadic);
       const mine: string[] = [];
-      for (const family of POLYMORPHIC_FAMILIES) {
+      // A refused row is probed by its COHERENT_CALLS entry alone: the corpus
+      // carries the infinities, and for `pg_sleep` an infinity is a call that
+      // never comes back rather than an input class (probe-values.ts).
+      for (const family of key in REFUSED_CALLS ? [] : POLYMORPHIC_FAMILIES) {
         const lists = argTypes.map(t => (t in family ? [family[t]!] : VALUES[t]!));
         const { combos, capped: wasCapped } = combinations(lists);
         if (wasCapped) capped++;
@@ -517,11 +658,10 @@ describe("builtin scalar surface, witnessed or classified", () => {
     // with no witness. The JOIN on pg_proc is the shell-operator drop the
     // register's 1a sweep measured sound; pg_catalog ships none.
     const opRows = (
-      await pg.query<{ name: string; left: string | null; right: string | null; volatile: boolean }>(
+      await pg.query<{ name: string; left: string | null; right: string | null }>(
         `SELECT o.oprname AS name,
                 CASE WHEN o.oprleft = 0 THEN NULL ELSE format_type(o.oprleft, null) END AS left,
-                CASE WHEN o.oprright = 0 THEN NULL ELSE format_type(o.oprright, null) END AS right,
-                p.provolatile = 'v' AS volatile
+                CASE WHEN o.oprright = 0 THEN NULL ELSE format_type(o.oprright, null) END AS right
            FROM pg_operator o
            JOIN pg_namespace n ON n.oid = o.oprnamespace
            JOIN pg_proc p ON p.oid = o.oprcode
@@ -537,10 +677,6 @@ describe("builtin scalar surface, witnessed or classified", () => {
       const types = [r.left, r.right].filter((t): t is string => t !== null);
       if (claimedOps.has(r.name) || TOTAL_OPERATOR_SIGNATURES.has(key)) {
         category.set(key, "claimed");
-        continue;
-      }
-      if (r.volatile) {
-        category.set(key, "volatile");
         continue;
       }
       const missing = types.filter(t => !POLYMORPHIC.has(t) && !VALUES[t]);
@@ -581,14 +717,12 @@ describe("builtin scalar surface, witnessed or classified", () => {
       await pg.query<{
         name: string;
         types: string[];
-        volatile: boolean;
         aggkind: string;
         ndirect: number;
       }>(
         `SELECT p.proname AS name,
                 COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                             FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
-                p.provolatile = 'v' AS volatile,
                 a.aggkind, a.aggnumdirectargs::int AS ndirect
            FROM pg_proc p
            JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -598,11 +732,10 @@ describe("builtin scalar surface, witnessed or classified", () => {
       )
     ).rows;
     const winRows = (
-      await pg.query<{ name: string; types: string[]; volatile: boolean }>(
+      await pg.query<{ name: string; types: string[] }>(
         `SELECT p.proname AS name,
                 COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
-                            FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
-                p.provolatile = 'v' AS volatile
+                            FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types
            FROM pg_proc p
            JOIN pg_namespace n ON n.oid = p.pronamespace
           WHERE n.nspname = 'pg_catalog' AND p.prokind = 'w'
@@ -622,10 +755,6 @@ describe("builtin scalar surface, witnessed or classified", () => {
     for (const r of aggRows) {
       const key = `${r.name}(${r.types.join(",")})`;
       sigKind.set(key, "aggregate");
-      if (r.volatile) {
-        category.set(key, "volatile");
-        continue;
-      }
       if (r.types.some(t => !POLYMORPHIC.has(t) && !VALUES[t] && t !== '"any"')) {
         category.set(key, "no-generator");
         continue;
@@ -713,10 +842,6 @@ describe("builtin scalar surface, witnessed or classified", () => {
     for (const r of winRows) {
       const key = `${r.name}(${r.types.join(",")})`;
       sigKind.set(key, "window");
-      if (r.volatile) {
-        category.set(key, "volatile");
-        continue;
-      }
       if (r.types.some(t => !POLYMORPHIC.has(t) && !VALUES[t] && t !== '"any"')) {
         category.set(key, "no-generator");
         continue;
@@ -774,6 +899,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
       await pg.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
       await pg.exec(PROBE_FN_SQL);
       await pg.exec(SRF_PROBE_FN_SQL);
+      await pg.exec(PROBE_OBJECTS_SQL);
     };
     // The probe an expression needs: a set-returning call answers a
     // different question, over its own output columns, through srfprobe.
@@ -782,11 +908,28 @@ describe("builtin scalar surface, witnessed or classified", () => {
       return n === undefined ? e : srfQuery(e, n);
     };
     const fnFor = (e: string): string => (srfNcols.has(e) ? "srfprobe" : "probe");
+    // `pg_current_xact_id()` in the FROM clause, so a transaction id is
+    // ASSIGNED before any probe in the statement runs — and `xid` is selected
+    // because an unreferenced subquery column is optimised away and the call
+    // never happens (measured).
+    //
+    // Without it the batch's own WRITES decide the answer for the one row
+    // that reads this state. `pg_current_xact_id_if_assigned()` is NULL until
+    // something in the transaction has written, the large-object probes write,
+    // and every expression runs in a 2000-wide chunk — so whether that row
+    // witnessed depended on where a chunk boundary fell relative to `lo_open`,
+    // and adding fifteen unrelated expressions elsewhere flipped it. Its NULL
+    // is transaction state rather than input, the class this probe is
+    // structurally blind to, and it is witnessed by hand in
+    // tests/unit/functions/ with a WORK_LIST entry saying so — the
+    // `current_schema()` shape exactly. Forcing the assignment makes the
+    // classification say the same thing every run.
     const evalBatch = async (batch: string[]): Promise<void> => {
       try {
         const res = await pg.query<{ e: string; v: string }>(
-          `SELECT e, CASE WHEN srf THEN srfprobe(q) ELSE probe(q) END AS v
-             FROM unnest($1::text[], $2::text[], $3::bool[]) AS z(e, q, srf);`,
+          `SELECT z.e, x.xid, CASE WHEN z.srf THEN srfprobe(z.q) ELSE probe(z.q) END AS v
+             FROM pg_catalog.pg_current_xact_id() AS x(xid),
+                  unnest($1::text[], $2::text[], $3::bool[]) AS z(e, q, srf);`,
           [batch, batch.map(argFor), batch.map(e => srfNcols.has(e))],
         );
         // A poisoned backend can "succeed" with a SHORT or empty result —
@@ -804,7 +947,9 @@ describe("builtin scalar surface, witnessed or classified", () => {
             for (let attempt = 0; attempt < 2 && v === null; attempt++) {
               try {
                 const r = await pg.query<{ v: string }>(
-                  `SELECT ${fnFor(e)}($1) AS v`, [argFor(e)],
+                  `SELECT x.xid, ${fnFor(e)}($1) AS v
+                     FROM pg_catalog.pg_current_xact_id() AS x(xid)`,
+                  [argFor(e)],
                 );
                 v = r.rows[0]?.v ?? null;
                 if (v === null) await ensureAlive();
@@ -920,8 +1065,7 @@ describe("builtin scalar surface, witnessed or classified", () => {
         ``,
       ];
       for (const cat of [
-        "null-witnessed", "no-null-found", "raised-everywhere",
-        "no-generator", "volatile",
+        "null-witnessed", "no-null-found", "raised-everywhere", "no-generator",
       ]) {
         const keys = byCat(cat);
         lines.push(`## ${cat} (${keys.length}: ${split(keys)})`, ``);
@@ -954,6 +1098,23 @@ describe("builtin scalar surface, witnessed or classified", () => {
       c => c === "claimed" || c === "null-witnessed" || c === "no-null-found",
     ).length;
     expect(decided).toBeGreaterThan(500);
+  });
+
+  it("every refused signature still has a call to be probed by", () => {
+    // REFUSED_CALLS drops a row's GENERATED combinations, which would leave it
+    // with no expressions at all and no category — the classification would
+    // shrink by three and the count assertion above would be the only thing
+    // that noticed. The refusal is about the calls the corpus builds, so each
+    // entry owes a bounded call that reaches a result.
+    const missing = Object.keys(REFUSED_CALLS)
+      .filter(k => !(COHERENT_CALLS[k] ?? []).length)
+      .sort();
+    expect(
+      missing,
+      `REFUSED_CALLS refuses a signature's generated combinations with no ` +
+        `COHERENT_CALLS entry to probe it by, so the row is silently unclassified ` +
+        `rather than explicitly unprobed:\n  ${missing.join("\n  ")}`,
+    ).toEqual([]);
   });
 
   it("every claimed aggregate and window row survives its own claim's conditions", () => {
