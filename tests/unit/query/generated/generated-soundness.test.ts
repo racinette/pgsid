@@ -141,6 +141,27 @@ INSERT INTO v (id, u_id, amount) VALUES (4, 4, NULL);
 -- u.5 carries that combination without disturbing u.3's purpose.
 INSERT INTO u (id, t_id, email, val, status) VALUES (5, 97, 'u5@b.c', NULL, NULL);
 INSERT INTO v (id, u_id, amount) VALUES (6, 5, 3.5);
+-- The EMPTY-STRING group, and the only thing that witnesses a_fa.
+--
+-- gfn_noinit's transition function folds '' to NULL (nullif over the
+-- concatenation), so the aggregate is NULL over a NON-EMPTY group whose every
+-- value is '' — which is a different NULL from the zero-row one GROUP BY makes
+-- unreachable, and the one the claim actually rests on. a_fa groups by t.id, so
+-- the witness needs a key whose whole group is empty strings: t.5 has exactly
+-- one u partner and one gm partner, both empty.
+--
+-- Both partners are needed and neither substitutes: the u side carries textB
+-- for single/only/nest/lateral-cross/srf-cross (gfn_urows returns SETOF u, so
+-- it inherits the row), and gm.safe_label — coalesce(b,'anon'), so '' survives
+-- as '' — carries it for gm(inner) and gm(right).
+INSERT INTO t (id, name, val, active) VALUES (5, 'fa5', 'fa5', true);
+INSERT INTO u (id, t_id, email, val, status) VALUES (7, 5, '', 'fa5', 'active');
+INSERT INTO gm (a, b) VALUES (5, '');
+-- and a v partner, or the group survives only the two-table structures: every
+-- nest whose later join on v is INNER (or RIGHT, where v drives) drops a
+-- u without one, taking the whole group with it. Measured: 300 unwitnessed
+-- without this row, 120 with only the pair above, 0 with all four.
+INSERT INTO v (id, u_id, amount) VALUES (9, 7, 4.5);
 -- A ck row no MERGE source reaches (sources draw sids from t, whose ids stay
 -- small): the NOT MATCHED BY SOURCE arm fires for it, null-extending the
 -- source columns in RETURNING — the only way s.* is ever witnessed NULL.
@@ -907,19 +928,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         "NOT NULL email. Every other structure witnesses it.",
       matches: (axes, column) =>
         axes.projection === "fn-call" && column === "a_fv" && U_NEVER_ABSENT.has(axes.structure),
-    },
-    {
-      label: "user-aggregate-transition-function-is-opaque",
-      why:
-        "gfn_noinit has no INITCOND, so it is NULL over zero input rows — but " +
-        "GROUP BY yields no empty group, and the walk cannot know that THIS " +
-        "transition function never returns NULL over non-empty input " +
-        "(NON_NULL_OVER_NONEMPTY_AGGREGATES is a curated set of BUILTINS; a " +
-        "user aggregate's sfunc is opaque to it). In single(inner) and " +
-        "single(right) the aggregated column is always present and non-null, " +
-        "so nothing witnesses the claim there.",
-      matches: (axes, column) =>
-        axes.projection === "fn-agg-window" && column === "a_fa" && U_NEVER_ABSENT.has(axes.structure),
     },
     {
       label: "merge-source-row-carries-an-unbound-parameter",
