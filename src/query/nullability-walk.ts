@@ -4414,10 +4414,43 @@ class NullabilityEngine {
         const name = this.funcName(fc);
         const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
         if (meta) {
-          return this.columnsForReturnType(meta.returnType, name).map(c => ({
+          const declared = this.columnsForReturnType(meta.returnType, name).map(c => ({
             name: c.name,
             notNull: false,
           }));
+          // The BODY is what can put a constraint back, exactly as it does
+          // for the same call in FROM position — `(get_order_items(1)).*`
+          // and `SELECT * FROM get_order_items(1)` expand the same rows, and
+          // only the second read the body. Five claims in
+          // composite-star-shape.sql recorded that as "a row type carries no
+          // constraints, but the fields are real order_items rows", which is
+          // the body reading described and then not asked for.
+          //
+          // SET-RETURNING only, and the distinction is the soundness
+          // argument: a set-returning call contributes ONE OUTPUT ROW PER
+          // BODY ROW, so an empty body contributes no row at all and there is
+          // nothing to expand. A SCALAR composite call yields exactly one
+          // value, and a body returning ZERO rows makes it NULL — measured,
+          // `RETURNS oi AS $$ SELECT id, q FROM oi LIMIT 1 $$` over an empty
+          // table comes back as one row of NULLs.
+          //
+          // A scalar call whose body GUARANTEES its row is sound too, and
+          // `guaranteesSingleRow` is the gate for it — the same one the
+          // scalar body inliner applies, with the schema's `one_pair` on one
+          // side and `first_item` on the other. It was written, measured, and
+          // REMOVED: no scalar function in the corpus both yields a readable
+          // body shape and lacks the guarantee, so the permissive direction
+          // of that gate has no counterexample and nothing can catch it going
+          // wrong. An ungated widening reads as coverage and is not. The gap
+          // is recorded in the register, with the shape a future control
+          // would need.
+          //
+          // The declared flags stay stripped either way. A NULL composite
+          // expands to a NULL in every field, NOT NULL domain fields
+          // included (measured), so the return TYPE can never speak here —
+          // only the body, which refuses whenever it cannot match the shape
+          // column for column.
+          return meta.returnsSet ? this.refineColumnsFromBody(declared, meta, depth) : declared;
         }
       }
       // `(ROW(a, b)).*` — the arity is countable at parse time and

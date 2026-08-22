@@ -1,19 +1,28 @@
 -- `(expr).*` in the target list is an expansion in disguise: PostgreSQL
 -- emits one column per field of the expression's composite type, and the
 -- engine once treated the A_Indirection at the expression site — one
--- entry, one column, four columns short. The FuncCall arm resolves the
--- declared return type's field list, with EVERY field forced nullable: a
--- NULL composite expands to a NULL in every field, domain types included
--- (measured), so nothing survives this position.
--- @unwitnessable 0: a row type carries no constraints, but the fields are
---   real order_items rows and PostgreSQL never emits NULL in them.
--- @unwitnessable 1: same — real rows of a NOT NULL column.
--- @unwitnessable 2: same.
--- @unwitnessable 3: same.
--- @unwitnessable 4: same.
+-- entry, one column, four columns short.
+--
+-- The FuncCall arm resolves the declared return type's field list with every
+-- field forced nullable — a NULL composite expands to a NULL in every field,
+-- NOT NULL domain fields included (measured), so the return TYPE can never
+-- speak here. What CAN speak is the BODY, and until 2026-08-22 nobody asked
+-- it: `SELECT * FROM get_order_items(1)` read all five columns notNull off
+-- the same body while this statement read all five nullable. Five
+-- `@unwitnessable` lines recorded that as "a row type carries no
+-- constraints, but the fields are real order_items rows", which is the body
+-- reading described and then not requested.
+--
+-- SETOF only, and that is the soundness argument rather than caution: a
+-- set-returning call contributes ONE OUTPUT ROW PER BODY ROW, so an empty
+-- body contributes nothing and there is no NULL composite to expand. A
+-- SCALAR composite function returns NULL when its body yields no rows —
+-- measured, `RETURNS oi AS $$ SELECT id, q FROM oi LIMIT 1 $$` over an empty
+-- table comes back as one row of NULLs — and the body's per-column flags say
+-- nothing about that. composite-star-body-shapes.sql holds both sides.
 SELECT (get_order_items(1)).* FROM t
--- @nullable   (id)
--- @nullable   (order_id)
--- @nullable   (product_id)
--- @nullable   (quantity)
--- @nullable   (unit_price)
+-- @notNull    (id: the body is a scan of order_items, whose id is NOT NULL)
+-- @notNull    (order_id)
+-- @notNull    (product_id)
+-- @notNull    (quantity)
+-- @notNull    (unit_price)
