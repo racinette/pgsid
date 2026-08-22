@@ -16,6 +16,6 @@ RETURNING
   id                            AS id,             -- @notNull
   order_id                      AS order_id,       -- @notNull
   carrier                       AS carrier,        -- @notNull
-  tracking_no                   AS tracking_no,    -- @nullable
+  tracking_no                   AS tracking_no,    -- @alwaysNull  written NULL
   COALESCE(tracking_no, 'N/A')  AS safe_tracking,  -- @notNull
   shipped_at                    AS shipped_at      -- @nullable
