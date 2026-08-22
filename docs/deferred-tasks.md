@@ -255,6 +255,42 @@ gate would have caught the seven dead ones**: the staleness check fires when a
 RULE matches nothing, and this rule still matches 60 claims. A structure set is
 a second place a reason can rot, finer-grained than the rule.
 
+**a_case then closed entirely — 60 → 0 — and the rule is deleted.** The three
+guard rungs each copied one fixpoint rule; what none of them could copy is the
+rule that is not a predicate test but the fixpoint's own LOOP — presence
+activates a join, the join's qual becomes an implied qual, the qual proves
+another relation present, that activates the next join. So `guardedPresence`
+runs `resolveJoinImplications` itself with the branch guards appended to the
+WHERE conjuncts, inside `withSpeculativeScope`, which snapshots the four
+places the fixpoint writes (`joinState`/`nullGroup`/`unitChain` per entry,
+`incomingRequired` per join, the append-only `impliedQuals`) and restores them
+before the answer is returned. The join audit is suppressed during a
+speculative run: settledness means "for every emitted row", and a branch
+verdict is not that.
+
+The not-taken channel came with it. A guard that is not TRUE is FALSE *or
+NULL*, so it is no predicate — but `IS NULL` is total, and `guardPredicates`
+flips its polarity into `IS NOT NULL`, a real conjunct the fixpoint consumes.
+Without the flip an ELSE arm reads nullable where the identical THEN arm reads
+notNull.
+
+Measured: notNull 24373 → 24433 (**exactly +60**, the size of the bucket —
+which is also the restore canary, since a leak would widen queries with no
+CASE in them), unwitnessed nullable 82 → 22, presence groups unchanged at 2558,
+0 violations over 14964 executed queries. `case-needs-t-without-u` matched
+nothing afterwards and the staleness check forced its deletion.
+
+`promotion-guarded-fixpoint.sql` pins it. Mutations verified: disabling the
+rung drops all four notNull columns while the two older rungs survive;
+dropping the polarity flip drops `else_arm` alone with `taken_arm` as its
+control; `no_route` is the over-promotion control and stays nullable.
+**One route claim did not survive mutation** and is recorded in the fixture
+and in `guardedPresence`: the five structures looked like they split into an
+activation half and a participation-closure half, because `dissolveUnit` fires
+first in the `t k (u k v)` nestings and that is what a trace shows. Suppressing
+dissolution under speculation changes no verdict in any of the 32 nestings.
+The trace showed which rule won a race, not which rule was load-bearing.
+
 **Mutation-tested afterwards, which found a third.** Each of the day's three
 engine changes was disabled in turn and the suite run. All three were caught —
 by a SINGLE gate, "every unwitnessed nullable output claim is witnessed or
@@ -338,9 +374,11 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **98 `@unwitnessable` reasons in the hand corpus** carry the same rot risk
+The **100 `@unwitnessable` reasons in the hand corpus** carry the same rot risk
 and are not yet wired to blame files. That is the obvious next pass and it is
-not done.
+not done. (Was 101; one came off when `guardedPresence` landed and the claim it
+excused turned notNull. The suite's own readout counts CLAIMS, not annotation
+lines, and reads 95 — an annotation may name several columns.)
 
 ### 4. Known imprecision residue
 

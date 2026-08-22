@@ -878,6 +878,15 @@ class NullabilityEngine {
   private instanceCounter = 0;
   /** Branch guards currently in effect (see the Guard type). */
   private guards: Guard[] = [];
+  /**
+   * Whether a speculative presence fixpoint is running right now
+   * (`withSpeculativeScope`). Two readers: the join audit skips recording a
+   * branch-local verdict, and `guardedPresence` refuses to nest — the
+   * fixpoint's own helpers can reach back into the walk, and a second
+   * speculation layered on the first would restore into already-widened
+   * state rather than the real one.
+   */
+  private speculating = false;
   /** Current function body context (null when analyzing query-level ASTs). */
   private fnCtx: FnBodyContext | null = null;
   /** Current function parameter names (for resolving named ColumnRefs in body). */
@@ -1909,8 +1918,15 @@ class NullabilityEngine {
    * and the implied quals are stored for the column and parameter guarantee
    * checks — which is what makes a strict qual over a NULL-extended side
    * finally cancel the extension instead of being ignored.
+   *
+   * `extraPreds` are conjuncts that hold somewhere NARROWER than the whole
+   * scope — a CASE branch's guard, whose promotions are valid only inside
+   * that branch. They enter exactly where a WHERE conjunct does, and the
+   * caller (`guardedPresence`) is what keeps the resulting state from
+   * escaping the branch: it runs this under `withSpeculativeScope`, which
+   * restores every mutation once the answer is read.
    */
-  private resolveJoinImplications(scope: Scope): void {
+  private resolveJoinImplications(scope: Scope, extraPreds: Node[] = []): void {
     if (scope.joins.length === 0 && scope.impliedQuals.length === 0) return;
     const present = new Set<string>();
     for (const [alias, entry] of scope.aliases) {
@@ -1919,6 +1935,7 @@ class NullabilityEngine {
     const wherePreds: Node[] = [
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
+      ...extraPreds,
     ];
     const pending = [...scope.joins];
 
@@ -2134,7 +2151,12 @@ class NullabilityEngine {
     // — promotion is monotone, OPTIONAL → REQUIRED — while the group ids
     // stay the FIRST analysis's, the ones the memoized results' origins
     // reference.
-    if (this.joinAuditSink) {
+    //
+    // A SPECULATIVE run is not a verdict — its promotions hold inside one
+    // CASE branch, and settledness means "for every emitted row". Recording
+    // it would leak the branch's reading into a global claim, and the
+    // dedup's monotone refresh would make the leak permanent.
+    if (this.joinAuditSink && !this.speculating) {
       const settledOf = (group: number): boolean => {
         for (const entry of scope.aliases.values()) {
           if (entry.nullGroup === group && entry.joinState === OPTIONAL) return false;
@@ -7471,6 +7493,16 @@ class NullabilityEngine {
       }
     }
 
+    // The guard channel's last rung, and the only one that is not a copy of a
+    // fixpoint rule: run the fixpoint itself with the branch guards as extra
+    // conjuncts, speculatively. The three rungs above stay because they are
+    // cheap and answer most cases without building a snapshot.
+    if (joinState === OPTIONAL && this.guardedPresence(scope).has(entry.alias)) {
+      joinState = REQUIRED;
+      trace.addFact("guardedFixpointPromoted", "true (branch guards prove the row exists)");
+      trace.addFact("joinStateAfterPromotion", joinStateName(joinState));
+    }
+
     // For views: analyze the stored definition and map its output columns onto
     // the view's column list by position. The catalog's attnotnull is useless
     // here — PostgreSQL reports false for every view column.
@@ -8488,6 +8520,150 @@ class NullabilityEngine {
       if (this.guardsPromoteAlias(other.alias, scope)) return other.alias;
     }
     return null;
+  }
+
+  /**
+   * The aliases the live branch guards prove PRESENT — the guard channel's
+   * answer to the question the presence fixpoint answers for the WHERE.
+   *
+   * The three rungs above this one (`guardsImplyNotNull`,
+   * `guardsPromoteAlias`, `findNullGroupPromoter`) are hand-copies of three
+   * of the fixpoint's rules, one rule each. What no copy of that kind could
+   * reach is the rule that is not a predicate test at all but the fixpoint's
+   * own loop: presence ACTIVATES a join, the join's qual becomes an implied
+   * qual of the scope, that qual proves another relation present, and that
+   * activates the next join. In `(t k u) k v` with the guard `t.active`, it
+   * is what carries `t` present to `u.t_id = t.id` to `u` present to
+   * `u.email` notNull.
+   *
+   * Measured on the generated corpus's `CASE WHEN t.active THEN u.email ELSE
+   * 'e' END`: `WHERE t.active` reads notNull on every one of the twelve
+   * structures that once left it nullable, and the identical predicate as a
+   * branch guard read nullable on five. Same predicate, same aliases; only
+   * the position differed.
+   *
+   * Copying THAT is not a fourth rung — it is the activation table for four
+   * join types, its interaction with `incomingRequired`, and the iteration
+   * to a fixed point. And it would still leave foreign-key entailment,
+   * `incomingRequired` propagation and the participation closure reachable
+   * from a WHERE and not from a branch. So the guard runs the fixpoint
+   * rather than paraphrasing it.
+   *
+   * An earlier draft of this comment claimed those five split into TWO
+   * routes, the `t k (u k v)` half reached by the participation closure's
+   * `dissolveUnit` instead of by activation. That was a misread of a trace:
+   * dissolution does fire first there, so it is what the log shows, but
+   * suppressing it under speculation changes no verdict in any of the 32
+   * nestings — activation reaches the same aliases a beat later. The claim
+   * is recorded because it was measurable and wrong, and because the
+   * mutation that disproved it (`if (this.speculating) continue` at the
+   * `dissolveUnit` call, with the loop's `changed = true` skipped too, or
+   * the fixpoint never converges) is the one to repeat before believing any
+   * future route story.
+   *
+   * Sound for the same reason the rungs above are: a taken guard holds on
+   * every row that reaches the branch, and the promotion is consulted only
+   * while that branch is being walked — the guard stack is live exactly
+   * there. What makes it safe is `withSpeculativeScope`: the fixpoint
+   * mutates the scope, and every mutation is undone before the answer is
+   * returned, so nothing outside the branch ever sees the widened state.
+   */
+  private guardedPresence(scope: Scope): Set<string> {
+    // No nesting: the fixpoint's helpers can reach back into the walk, and a
+    // speculation started inside one would restore into widened state.
+    if (this.speculating) return new Set();
+    const preds = this.guardPredicates(scope);
+    if (preds.length === 0) return new Set();
+    return this.withSpeculativeScope(scope, () => {
+      this.resolveJoinImplications(scope, preds);
+      const promoted = new Set<string>();
+      for (const [alias, entry] of scope.aliases) {
+        if (entry.joinState === REQUIRED) promoted.add(alias);
+      }
+      return promoted;
+    });
+  }
+
+  /**
+   * The live guards for `scope`, as conjuncts the fixpoint can consume.
+   *
+   * A TAKEN guard's predicate held, so it goes in unchanged — same evidence
+   * as a WHERE conjunct, one branch narrower.
+   *
+   * A NOT-TAKEN guard is "not TRUE", which is not a predicate at all: a
+   * branch is skipped when its condition is FALSE *or* NULL, so `a > 5`
+   * failing says nothing (see `falsityImpliesNotNull`). The one shape that
+   * does say something is the one that cannot be NULL — `X IS NULL` is TRUE
+   * or FALSE and never NULL, so reaching the ELSE proves it was FALSE, i.e.
+   * `X IS NOT NULL`. Flipping the polarity turns that into a real conjunct
+   * and gives the ELSE channel the fixpoint's full reach rather than the
+   * narrow reading `falsityPromotesAlias` has. An OR of such tests is
+   * likewise total, and an OR that is not TRUE has NO true disjunct, so
+   * every disjunct's flip holds — they are conjuncts, not a disjunction.
+   */
+  private guardPredicates(scope: Scope): Node[] {
+    const preds: Node[] = [];
+    const addFalsified = (predicate: Node): void => {
+      const node = predicate as Record<string, unknown>;
+      if ("NullTest" in node) {
+        const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
+        if (nt.nulltesttype === "IS_NULL" && nt.arg) {
+          preds.push({ NullTest: { arg: nt.arg, nulltesttype: "IS_NOT_NULL" } } as Node);
+        }
+        return;
+      }
+      if ("BoolExpr" in node) {
+        const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
+        if (be.boolop === "OR_EXPR") for (const arg of be.args ?? []) addFalsified(arg);
+      }
+    };
+    for (const g of this.guards) {
+      if (g.scope !== scope) continue;
+      if (g.taken) preds.push(g.predicate);
+      else addFalsified(g.predicate);
+    }
+    return preds;
+  }
+
+  /**
+   * Run `fn` with the scope's presence state restorable, and restore it.
+   *
+   * The presence fixpoint writes to four places, and all four are undone
+   * here: `joinState`, `nullGroup` and `unitChain` per entry,
+   * `incomingRequired` per join, and the append-only `scope.impliedQuals`.
+   *
+   * `unitChain` is snapshotted BY REFERENCE deliberately. Sibling entries of
+   * one join side share the chain ARRAY (`walkFromItem` threads it through),
+   * and `dissolveUnit` reassigns rather than splices precisely so that a
+   * dissolution for one member does not strand the rest — the same property
+   * makes restoring the reference exact. If dissolution is ever changed to
+   * mutate in place, this restore silently stops working and the corpus's
+   * no-guards canary (identical counts with the rung present) is what would
+   * catch it.
+   */
+  private withSpeculativeScope<T>(scope: Scope, fn: () => T): T {
+    const entries = [...scope.aliases.values()].map(e => ({
+      entry: e,
+      joinState: e.joinState,
+      nullGroup: e.nullGroup,
+      unitChain: e.unitChain,
+    }));
+    const joins = scope.joins.map(j => ({ join: j, incomingRequired: j.incomingRequired }));
+    const impliedCount = scope.impliedQuals.length;
+    const wasSpeculating = this.speculating;
+    this.speculating = true;
+    try {
+      return fn();
+    } finally {
+      this.speculating = wasSpeculating;
+      for (const s of entries) {
+        s.entry.joinState = s.joinState;
+        s.entry.nullGroup = s.nullGroup;
+        s.entry.unitChain = s.unitChain;
+      }
+      for (const s of joins) s.join.incomingRequired = s.incomingRequired;
+      scope.impliedQuals.length = impliedCount;
+    }
   }
 
   /**

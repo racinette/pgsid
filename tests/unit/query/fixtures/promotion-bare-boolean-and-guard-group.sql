@@ -24,20 +24,16 @@
 -- ColumnRef gap also lived in the WHERE channel, `WHERE t.active`; it is
 -- not pinned here because a statement-wide WHERE would promote `t` for
 -- every column and mask the very rung the other two are testing.)
--- `cross_unit` is the control: t and u sit in DIFFERENT
--- null-extension units under (t RIGHT u) RIGHT v, the guard channel has no
--- cross-unit promotion, and it must stay nullable. If it ever flips, that
--- is the open item closing and this comment is what to read first.
--- @unwitnessable 2: a_case is NULL only where t is present with active TRUE
---   and u NULL-extended, and (t RIGHT u) RIGHT v produces no such row — the
---   inner RIGHT preserves u, so a u-absent row extends the whole composite
---   and takes the ELSE arm. The claim is engine imprecision, not truth: the
---   WHERE channel reads notNull on this exact shape, which is the measured
---   evidence that only the guard channel's cross-unit hop is missing. See
---   the register's item 3.
+-- `cross_unit` was this fixture's open control: t and u sit in DIFFERENT
+-- null-extension units under (t RIGHT u) RIGHT v, and the guard channel had
+-- no cross-unit promotion, so it read nullable while `WHERE t.active` on the
+-- identical shape read notNull. It closed on 2026-08-22 — `guardedPresence`
+-- runs the presence fixpoint itself under the branch guards instead of
+-- copying its rules one at a time. It stays here as the transition's record;
+-- the mechanism is pinned by promotion-guarded-fixpoint.sql.
 SELECT
   CASE WHEN t.active THEN u.email ELSE 'e' END AS both_rungs,  -- @notNull
   CASE WHEN u.id > 0 THEN u.email ELSE 'e' END AS guard_only,  -- @notNull
-  CASE WHEN t2.active THEN u2.email ELSE 'e' END AS cross_unit -- @nullable
+  CASE WHEN t2.active THEN u2.email ELSE 'e' END AS cross_unit -- @notNull
 FROM (t JOIN u ON u.t_id = t.id) RIGHT JOIN v ON v.u_id = u.id
 CROSS JOIN ((t AS t2 RIGHT JOIN u AS u2 ON u2.t_id = t2.id) RIGHT JOIN v AS v2 ON v2.u_id = u2.id)
