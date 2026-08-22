@@ -1275,6 +1275,70 @@ class NullabilityEngine {
   }
 
   /**
+   * A STRICT set-returning function in FROM filters its own arguments: a
+   * NULL argument means PostgreSQL never calls it, the call yields ZERO
+   * ROWS, and an inner join drops the row that supplied the NULL. So every
+   * row the scope emits had every argument non-null — the same shape as a
+   * WHERE conjunct, and recorded as one so every existing consumer picks it
+   * up unchanged (column guarantees, alias promotion, the presence fixpoint,
+   * parameter narrowing, and their `rowsImplyWhere` gating with them).
+   *
+   * `FROM h, unnest(h.pairs) p` is the shape this closes, and the projected
+   * `h.pairs` is what it settles: the walk called it nullable from the
+   * catalog while no returned row could carry the NULL. Seven fixtures
+   * recorded that as unwitnessable.
+   *
+   * Four gates, three of them measured counterexamples rather than caution:
+   *
+   *   NOT OPTIONAL — `h LEFT JOIN LATERAL unnest(h.pairs) p ON true` keeps
+   *     the row with `pairs` NULL and the function's columns extended.
+   *   ONE ARM — `ROWS FROM (unnest(h.a), unnest(h.b))` pads the arm that
+   *     returned nothing, so the other arm's rows survive with `a` NULL.
+   *   NOT THE ZIP FORM — `unnest(h.a, h.b)` is one call over several arrays
+   *     and pads the same way, for the same reason.
+   *   STRICT and SET-RETURNING — a strict SCALAR function in FROM returns
+   *     ONE row of NULL rather than none (`FROM h, upper(h.x) s` keeps
+   *     every h), and a non-strict SRF is called with the NULL and may
+   *     return whatever it likes (measured: a `LANGUAGE sql` SETOF function
+   *     without STRICT returns its row). Strictness is enforced by the
+   *     executor, so `sql` and `plpgsql` bodies behave alike — both
+   *     measured.
+   */
+  private recordStrictSrfImplications(
+    rf: RangeFunction,
+    joinState: JoinState,
+    scope: Scope,
+  ): void {
+    if (joinState === OPTIONAL) return;
+    const arms = rf.functions ?? [];
+    if (arms.length !== 1) return;
+    const list = (arms[0] as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
+    const fc = (list?.items?.[0] as Record<string, unknown> | undefined)?.["FuncCall"] as
+      | FuncCall
+      | undefined;
+    const args = fc?.args ?? [];
+    if (!fc || args.length === 0) return;
+    const name = this.funcName(fc);
+    if (name === "unnest" && args.length > 1) return;
+    const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
+    const strictSrf = meta
+      ? meta.strict && meta.returnsSet && !meta.isAggregate
+      : // A pg_catalog name the user catalog does not carry. Both faces
+        // quantify over the name's overloads, so neither can be satisfied by
+        // an overload PostgreSQL would not pick — `isStrictBuiltin` demands
+        // every overload strict, and no pg_catalog name mixes set-returning
+        // with scalar overloads (measured, and gated in builtin-surface).
+        this.catalog.isStrictBuiltin(name) && this.catalog.isSetReturningBuiltin(name);
+    if (!strictSrf) return;
+
+    for (const arg of args) {
+      scope.impliedQuals.push({
+        NullTest: { arg, nulltesttype: "IS_NOT_NULL" },
+      } as unknown as Node);
+    }
+  }
+
+  /**
    * An expression with its CASTS removed. Sound wherever the question is
    * presence rather than value: a cast of NULL is NULL and a cast of a
    * non-null value is non-null, whatever the conversion does to it.
@@ -3045,6 +3109,7 @@ class NullabilityEngine {
         instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, fnEntry);
+      this.recordStrictSrfImplications(rf, joinState, scope);
       return this.visibleColumnsOf(fnEntry, scope, depth);
     } else if ("RangeTableFunc" in node) {
       // XMLTABLE(... COLUMNS a int PATH '...', n FOR ORDINALITY)

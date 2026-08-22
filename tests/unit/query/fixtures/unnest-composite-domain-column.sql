@@ -7,12 +7,10 @@
 -- The array columns themselves stay nullable — the generated state seeds
 -- three elements per array (one whole, one with an empty qty, one with an
 -- empty sku) and NULLs a quarter of the two it does not unnest here.
--- @unwitnessable 3: unnesting a NULL array produces no rows, so the column
---   being unnested is never observed NULL through this join.
 SELECT * FROM pair_holder h, unnest(h.dompairs)
 -- @notNull    (id)
 -- @nullable   (pairs)
 -- @nullable   (dpairs)
--- @nullable   (dompairs)
+-- @notNull    (dompairs: the unnested column, filtered by the strict SRF)
 -- @nullable   (sku)
 -- @nullable   (qty)

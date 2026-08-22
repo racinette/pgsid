@@ -14,7 +14,7 @@
 SELECT * FROM pair_holder h, unnest(h.dpairs), u
 -- @notNull    (h.id)
 -- @nullable   (pairs)
--- @nullable   (dpairs)
+-- @notNull    (dpairs: the unnested column, filtered by the strict SRF)
 -- @nullable   (dompairs)
 -- @nullable   (sku)
 -- @nullable   (qty)
@@ -23,5 +23,3 @@ SELECT * FROM pair_holder h, unnest(h.dpairs), u
 -- @notNull    (email)
 -- @nullable   (u.val)
 -- @nullable   (status)
--- @unwitnessable 2: unnesting a NULL array produces no rows, so the column
---   being unnested is never observed NULL through this join.

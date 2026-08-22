@@ -642,6 +642,36 @@ describe("snapshotCatalog: views and materialized views", () => {
   });
 });
 
+describe("snapshotCatalog: the set-returning capture's quantifier", () => {
+  let pg: PGlite;
+  beforeAll(async () => {
+    pg = await PGlite.create({ extensions: { plpgsql_check } });
+    await pg.exec("CREATE EXTENSION plpgsql_check;");
+  });
+  afterAll(async () => { if (!pg.closed) await pg.close(); });
+
+  // `builtinSetReturningFunctions` captures a name when ANY overload returns
+  // a set (`bool_or`), and `recordStrictSrfImplications` in the walk reads it
+  // as though it meant EVERY overload — which is sound only while no
+  // pg_catalog name mixes the two. That is measured, not assumed, and this is
+  // where it is measured: the walk's rule is that a NULL argument yields zero
+  // rows, and a SCALAR overload handed NULL yields one row of NULL instead.
+  //
+  // If a future PostgreSQL adds a mixed name this fails, and the fix is to
+  // give the walk its own `bool_and` face rather than to relax the test.
+  it("no pg_catalog function name mixes set-returning and scalar overloads", async () => {
+    const res = await pg.query<{ name: string }>(
+      `SELECT p.proname AS name
+       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
+       GROUP BY p.proname
+       HAVING bool_or(p.proretset) AND bool_or(NOT p.proretset)
+       ORDER BY 1`,
+    );
+    expect(res.rows.map(r => r.name)).toEqual([]);
+  });
+});
+
 describe("snapshotCatalog: enums, domains, composite types, sequences", () => {
   let pg: PGlite;
   beforeAll(async () => {
