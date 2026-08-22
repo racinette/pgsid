@@ -3,6 +3,7 @@ import type { FunctionInfo } from "../catalog/types.js";
 import { splitQualifiedName } from "../catalog/qualified-name.js";
 import {
   checkConstraintsProveNotNull,
+  checkConstraintsProveNull,
   checkConstraintsRefuteGuard,
   comparisonKey,
   type Lit,
@@ -1558,8 +1559,14 @@ class NullabilityEngine {
           }
           const trace = this.newTrace("Root");
           const notNull = this.walkExprTraced(val, scope, depth + 1, trace);
+          const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope);
           producers.push(this.originTarget(val, sel, scope, originMode));
-          results.push({ name: name ?? this.inferName(val), notNull, trace: trace.node });
+          results.push({
+            name: name ?? this.inferName(val),
+            notNull,
+            ...(alwaysNull ? { alwaysNull: true } : {}),
+            trace: trace.node,
+          });
         }
         const groups = this.computePresenceGroups(producers, results, scope, depth);
         this.groupCache.set(sel, groups);
@@ -1774,6 +1781,9 @@ class NullabilityEngine {
       }
 
       const notNull = this.walkExpr(val, scope, depth + 1);
+      // Only ever asked of a column the walk left nullable: the two are
+      // mutually exclusive, and a proven non-null needs no mirror.
+      const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope);
       const bare = this.originTarget(val, stmt, scope, originMode);
       producers.push(bare);
       const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
@@ -1782,11 +1792,12 @@ class NullabilityEngine {
           ? {
               name: name ?? this.inferName(val),
               notNull,
+              ...(alwaysNull ? { alwaysNull: true } : {}),
               ...(og.origins ? { origins: og.origins } : {}),
               ...(og.settled ? { originNotNull: og.settled } : {}),
               ...(og.crossings ? { unitCrossings: og.crossings } : {}),
             }
-          : { name: name ?? this.inferName(val), notNull },
+          : { name: name ?? this.inferName(val), notNull, ...(alwaysNull ? { alwaysNull: true } : {}) },
       );
     }
 
@@ -5890,6 +5901,126 @@ class NullabilityEngine {
   // -------------------------------------------------------------------------
   // The core expression walker (leaf-first recursive)
   // -------------------------------------------------------------------------
+
+  // -------------------------------------------------------------------------
+  // The mirror question: proving an output NULL on every row
+  // -------------------------------------------------------------------------
+
+  /**
+   * Whether EVERY row this scope emits has `expr` NULL.
+   *
+   * Deliberately NOT a third value threaded through `walkExpr`. The walk is
+   * two-valued end to end and rewriting it would touch every branch, for a
+   * fact far shallower than non-nullness — always-null has a handful of
+   * sources where not-null has dozens. So this is one conservative question
+   * asked beside the walk, defaulting to false: a shape it does not
+   * recognise costs nothing but the answer that was already being given.
+   *
+   * Two sources, the second subsuming more than it looks:
+   *   - a NULL literal, through any cast chain;
+   *   - anything STRICT over a column the evidence pins NULL. That is
+   *     `exprStrictlyForces` — "expr is NULL whenever this leaf is" — run
+   *     against leaves that are ALWAYS NULL, which makes the conclusion
+   *     unconditional. The bare column ref is its own degenerate case, and
+   *     the closure's existing care comes along: COALESCE requires EVERY
+   *     branch to force, so `COALESCE(dead, 'x')` is correctly not
+   *     always-null, while NULLIF's left operand is.
+   *
+   * The verification story is the inverse of the nullable side's, and much
+   * stronger: a wrong `alwaysNull` is falsified by ANY non-NULL value, so
+   * every returned row tests it. No witness has to be constructed.
+   */
+  private alwaysNullExpr(expr: Node, scope: Scope): boolean {
+    if (this.isNullLiteral(expr)) return true;
+    return this.exprStrictlyForces(expr, leaf => this.columnIsAlwaysNull(leaf, scope), scope);
+  }
+
+  /**
+   * `format_type` of an alias-qualified column, in THIS scope's vocabulary.
+   * The same body two older kernel call sites inline; factored here rather
+   * than reached across to, so no existing behaviour moves.
+   */
+  private kernelColumnTypeName(alias: string, col: string, scope: Scope): string | null {
+    const e = scope.aliases.get(alias);
+    const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+    return e?.table && cat !== undefined
+      ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
+      : null;
+  }
+
+  /** Companion to `kernelColumnTypeName` — the collation-gated relaxation. */
+  private kernelLiteralDistinctnessSound(alias: string, col: string, scope: Scope): boolean {
+    const e = scope.aliases.get(alias);
+    const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+    return e?.table && cat !== undefined
+      ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, cat)
+      : false;
+  }
+
+  /** A bare NULL constant, through any number of casts. */
+  private isNullLiteral(expr: Node): boolean {
+    const node = expr as Record<string, unknown>;
+    if ("A_Const" in node) return (node["A_Const"] as { isnull?: boolean }).isnull === true;
+    if ("TypeCast" in node) {
+      const arg = (node["TypeCast"] as { arg?: Node }).arg;
+      return arg !== undefined && this.isNullLiteral(arg);
+    }
+    return false;
+  }
+
+  /**
+   * Whether the CHECK constraints and row-implied evidence prove this leaf
+   * column NULL on every emitted row — `checkConstraintsProveNull`, the
+   * kernel's mirror goal over the same fact set.
+   *
+   * `WHERE col IS NULL` needs no separate rung: evidence NullTests are
+   * harvested as facts, so the syntactic case and the derived one
+   * (`CHECK (CASE WHEN status = 'paid' THEN amount IS NOT NULL ELSE amount
+   * IS NULL END)` under `WHERE status <> 'paid'`) come out of the same call.
+   *
+   * REQUIRED entries only, for now. An OPTIONAL one is if anything MORE
+   * likely to be null — an absent row nulls it outright — but the two ways
+   * of being null compose, and the kernel's presence gate is built to prove
+   * the opposite thing. Left conservative rather than argued.
+   */
+  private columnIsAlwaysNull(leaf: Node, scope: Scope): boolean {
+    const target = this.resolveBareColumnTarget(leaf, scope);
+    if (!target) return false;
+    const { entry, column } = target;
+    if (entry.kind !== "table" || !entry.table || entry.joinState === OPTIONAL) return false;
+    const checkExprs =
+      entry.scanInh === false
+        ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
+        : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name);
+    const evidence = [
+      ...(scope.whereClause ? [scope.whereClause] : []),
+      ...(scope.havingClause ? [scope.havingClause] : []),
+      ...scope.impliedQuals,
+      ...this.kernelGuardPreds(scope),
+    ].map(pred => ({ pred, applySetMask: false }));
+    if (evidence.length === 0) return false;
+    return checkConstraintsProveNull({
+      evaluatedComparison: this.comparisonOracle(),
+      btreeStrategy: this.btreeStrategySupply(),
+      equalityComplement: this.equalityComplementSupply(),
+      goal: { alias: entry.alias, column },
+      checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias, entry)),
+      evidence,
+      isMasked: () => false,
+      resolveUnqualified: col => {
+        let owner: string | null = null;
+        for (const v of scope.visible) {
+          if (v.name !== col) continue;
+          if (!v.entry || owner) return null;
+          owner = v.entry.alias;
+        }
+        return owner;
+      },
+      columnTypeName: (alias, col) => this.kernelColumnTypeName(alias, col, scope),
+      literalDistinctnessSound: (alias, col) =>
+        this.kernelLiteralDistinctnessSound(alias, col, scope),
+    });
+  }
 
   private walkExpr(expr: Node, scope: Scope, depth: number): boolean {
     return this.walkExprTraced(expr, scope, depth, NOOP);

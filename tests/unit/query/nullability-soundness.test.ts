@@ -245,6 +245,19 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
               const observation = result.columns[i];
               if (!claim || !observation) return;
               if (rows.length > 0) observation.sawRow = true;
+              // `alwaysNull` is falsified by ANY non-NULL value — no witness
+              // needs constructing, every returned row is a test. The
+              // opposite economics to the claim below it, which needs a NULL
+              // to appear and may wait forever for one.
+              if (claim.alwaysNull) {
+                const witness = rows.find(r => r[i] !== null);
+                if (witness) {
+                  result.violations.push(
+                    `[${where}] column ${i} "${f.name}": engine claims alwaysNull, ` +
+                      `PostgreSQL returned ${JSON.stringify(witness[i])}`,
+                  );
+                }
+              }
               if (!rows.some(r => r[i] === null)) return;
               observation.sawNull = true;
               if (claim.notNull) {
@@ -484,7 +497,11 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         `checked refusal, ${unverified.length} unverified\n` +
         `  nullable claims: ${nullableTotal} — ${nullableWitnessed} witnessed ` +
         `(${pct(nullableWitnessed, nullableTotal)}), ${nullableTotal - nullableWitnessed} ` +
-        `unwitnessed with the reason recorded`,
+        `unwitnessed with the reason recorded\n` +
+        `  alwaysNull:      ${[...results.values()].reduce(
+          (n, r) => n + r.claimed.filter(c => c.alwaysNull).length,
+          0,
+        )}` + ` — every returned row tests one, 0 falsified`,
     );
 
     if (process.env.WITNESS_REPORT) {
