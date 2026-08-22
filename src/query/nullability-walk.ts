@@ -402,6 +402,20 @@ function joinStateName(s: JoinState): string {
 }
 
 // ---------------------------------------------------------------------------
+// How many rows a lockstep participant emits — `ROWS FROM` arms and
+// target-list SRFs, which expand together and NULL-pad the shorter ones. Only
+// what is proved: `UNBOUNDED_ROWS` is the answer for everything the walk
+// cannot count, and it both fails to survive and pads everyone else.
+// ---------------------------------------------------------------------------
+
+interface RowBounds {
+  min: number;
+  max: number;
+}
+
+const UNBOUNDED_ROWS: RowBounds = { min: 0, max: Infinity };
+
+// ---------------------------------------------------------------------------
 // Address book entry for a relation in a scope.
 // ---------------------------------------------------------------------------
 
@@ -464,6 +478,13 @@ interface RelationEntry {
   rangeFunction?: RangeFunction;
   /** Memoized column list for a table function — see resolveTableFunctionColumns. */
   functionColumns?: { name: string; notNull: boolean }[];
+  /**
+   * Output positions belonging to a `ROWS FROM` arm the lockstep padding
+   * reaches. Filled beside `functionColumns`, and read by the presence
+   * grouping: a padded arm's columns go NULL while the ITEM is present, so
+   * they are not members of the item's presence unit.
+   */
+  paddedFunctionColumns?: Set<number>;
   /** Join nullability state. */
   joinState: JoinState;
   /**
@@ -1101,17 +1122,31 @@ class NullabilityEngine {
    * gives six rows with three NULLs, not the cycled LCM this comment used
    * to claim — adversarial-3 finding 1's aside). The padding is
    * manufactured by the projection, so
-   * no per-call reasoning survives it: every SRF-carrying entry drops to
-   * nullable. Null when fewer than two SRFs — a single SRF has nothing to
-   * pad against and keeps its precision.
+   * no per-call reasoning survives it — EXCEPT on an entry the padding cannot
+   * reach, which is one whose own row count covers every other entry's
+   * maximum (`unpaddedParticipants`). Null when fewer than two SRFs — a
+   * single SRF has nothing to pad against and keeps its precision.
+   *
+   * An entry carrying NO set-returning call REPEATS rather than pads
+   * (measured) and takes no part in the comparison at all: it is neither
+   * padded nor a source of rows anyone else is padded against.
    */
-  private srfPaddedTargets(targetList: Node[]): boolean[] | null {
-    const counts = targetList.map(t => {
+  private srfPaddedTargets(targetList: Node[], depth: number): boolean[] | null {
+    const calls = targetList.map(t => {
       const val = this.unwrapResTarget(t).val;
-      return val ? this.countSetReturningCalls(val) : 0;
+      return val ? this.setReturningCallsIn(val) : [];
     });
-    const total = counts.reduce((a, b) => a + b, 0);
-    return total >= 2 ? counts.map(c => c > 0) : null;
+    const total = calls.reduce((a, c) => a + c.length, 0);
+    if (total < 2) return null;
+    // Two SRFs in ONE entry (`f(generate_series(...))`) expand against each
+    // other inside it, and no bound here describes the result — unknown, which
+    // pads the entry and every other entry alike, the answer this rule gave
+    // everywhere before there were bounds at all.
+    const bounds = calls.map(c =>
+      c.length === 0 ? null : c.length === 1 ? this.armRowBounds(c[0]!, depth) : UNBOUNDED_ROWS,
+    );
+    const unpadded = this.unpaddedParticipants(bounds);
+    return calls.map((c, i) => c.length > 0 && !unpadded[i]);
   }
 
   /**
@@ -1119,24 +1154,160 @@ class NullabilityEngine {
    * SRF inside a subquery expands in that query's own projection and takes
    * no part in this list's lockstep.
    */
-  private countSetReturningCalls(node: Node): number {
+  private setReturningCallsIn(node: Node): FuncCall[] {
     const rec = node as Record<string, unknown>;
-    if ("SubLink" in rec) return 0;
-    let count = 0;
+    if ("SubLink" in rec) return [];
+    const found: FuncCall[] = [];
     if ("FuncCall" in rec) {
       const fc = rec["FuncCall"] as FuncCall;
-      if (!fc.over && this.isSetReturningCall(fc)) count++;
+      if (!fc.over && this.isSetReturningCall(fc)) found.push(fc);
     }
     for (const value of Object.values(rec)) {
       if (Array.isArray(value)) {
         for (const v of value) {
-          if (v && typeof v === "object") count += this.countSetReturningCalls(v as Node);
+          if (v && typeof v === "object") found.push(...this.setReturningCallsIn(v as Node));
         }
       } else if (value && typeof value === "object") {
-        count += this.countSetReturningCalls(value as Node);
+        found.push(...this.setReturningCallsIn(value as Node));
       }
     }
-    return count;
+    return found;
+  }
+
+  /**
+   * Which lockstep participants the padding CANNOT reach.
+   *
+   * The expansion runs to the LONGEST participant's row count and pads every
+   * shorter one after it has returned, so a participant is never padded when
+   * its own row count is at least every other one's maximum. `null` marks a
+   * non-participant — it neither pads nor is padded, and is left out of the
+   * comparison in both directions.
+   *
+   * A lone participant falls out of the same arithmetic rather than needing
+   * its own rule: with no others, the maximum to cover is zero.
+   */
+  private unpaddedParticipants(bounds: (RowBounds | null)[]): boolean[] {
+    return bounds.map((b, i) => {
+      if (!b) return true;
+      let othersMax = 0;
+      for (let j = 0; j < bounds.length; j++) {
+        const other = bounds[j];
+        if (j !== i && other) othersMax = Math.max(othersMax, other.max);
+      }
+      return b.min >= othersMax;
+    });
+  }
+
+  /**
+   * How many rows one lockstep participant emits — a `ROWS FROM` arm, or a
+   * target-list entry's set-returning call. Only what can be PROVED: the
+   * default is "none guaranteed, no ceiling", which pads everything, as the
+   * rule did uniformly before.
+   *
+   * Three readings, and the asymmetry between them is the whole point — a
+   * participant survives on its MINIMUM and pads others on their MAXIMUM.
+   *
+   *   - A call that returns ONE VALUE contributes exactly ONE ROW. That
+   *     includes a strict function handed NULL, which still emits its row,
+   *     of NULLs (measured — it is why the strict short-circuit exists).
+   *   - `generate_series` over constant integer bounds emits exactly
+   *     `hi - lo + 1` rows, and NONE when the range runs backwards. Both
+   *     halves are needed: the count is this rule's only source of a minimum
+   *     above one.
+   *   - A SETOF function whose body provably yields a single row emits AT
+   *     MOST one — and possibly none, because a STRICT one handed NULL never
+   *     runs its body at all. `guaranteesSingleRow` is the same predicate the
+   *     scalar-sublink path uses, asked of the body rather than the subquery.
+   */
+  private armRowBounds(fc: FuncCall, depth: number): RowBounds {
+    if (!this.isSetReturningCall(fc)) return { min: 1, max: 1 };
+
+    const name = this.funcName(fc);
+    const schema = this.funcSchema(fc);
+    const meta = this.catalog.resolveFunctionMetadata(schema, name);
+    if (meta) {
+      if (!this.sqlBodyGuaranteesSingleRow(meta, depth)) return UNBOUNDED_ROWS;
+      // The body runs on every call unless STRICTNESS can stop it, and it can
+      // only stop it through an argument — so a strict call with arguments is
+      // the one shape whose minimum stays zero. Nothing here reads the
+      // arguments themselves; a strict call whose arguments are all provably
+      // non-null does run, and would raise the minimum to one, but no bound in
+      // this rule needs it yet.
+      const canBeSkipped = meta.strict && meta.args.length > 0;
+      return { min: canBeSkipped ? 0 : 1, max: 1 };
+    }
+    // No user metadata: an OVERLOADED user name, or a builtin.
+    //
+    // An overloaded name is answered by CONSENSUS over its candidates — the
+    // same quantifier the shape and flag rules take, and for the same reason:
+    // whichever overload PostgreSQL picks, a bound every candidate satisfies
+    // holds. It is a question the body map could not be asked until it was
+    // keyed by SIGNATURE (2026-08-22); under the name key an overloaded name's
+    // bodies collided, and one candidate's body would have answered for all of
+    // them. srf-padding-overloaded-user-fn.sql is the claim, and
+    // body-shape-overload-collision.sql the neighbouring shape that must not
+    // move — consensus over the candidates is not the same permission as
+    // reading ONE candidate's body for its flags.
+    const candidates = this.catalog.resolveFunctionShapes(schema, name);
+    if (candidates.length > 0) {
+      if (!candidates.every(c => this.sqlBodyGuaranteesSingleRow(c, depth))) return UNBOUNDED_ROWS;
+      const canBeSkipped = candidates.some(c => c.strict && c.args.length > 0);
+      return { min: canBeSkipped ? 0 : 1, max: 1 };
+    }
+    // The series count is a pg_catalog fact and must not be read off a name
+    // the user catalog claims — the same precedence
+    // `resolveBuiltinFunctionShape` sits behind one branch over, which the
+    // empty candidate list above has already established.
+    const series = this.constantSeriesLength(fc, name, schema);
+    return series === null ? UNBOUNDED_ROWS : { min: series, max: series };
+  }
+
+  /**
+   * `generate_series(lo, hi)` over constant integers — the two-argument form
+   * only, whose step is 1. A three-argument call carries its own step and a
+   * backwards one is legal, so the count is not this expression; the other
+   * overloads (numeric, timestamp) are not integer arithmetic at all.
+   */
+  private constantSeriesLength(
+    fc: FuncCall,
+    name: string,
+    schema: string | undefined,
+  ): number | null {
+    if (name !== "generate_series") return null;
+    if (schema !== undefined && schema !== "pg_catalog") return null;
+    const args = fc.args ?? [];
+    if (args.length !== 2) return null;
+    const lo = this.constantIntegerValue(args[0]!);
+    const hi = this.constantIntegerValue(args[1]!);
+    if (lo === null || hi === null) return null;
+    return Math.max(0, hi - lo + 1);
+  }
+
+  /**
+   * An `A_Const` integer literal's value. Zero renders as an EMPTY `ival`
+   * object rather than `{ival: 0}` (the parser's own encoding), so presence of
+   * the key is the test and the value defaults to zero.
+   */
+  private constantIntegerValue(node: Node): number | null {
+    const ac = (node as Record<string, unknown>)["A_Const"] as
+      | { ival?: { ival?: number }; isnull?: boolean }
+      | undefined;
+    if (!ac || ac.isnull || !("ival" in ac)) return null;
+    return ac.ival?.ival ?? 0;
+  }
+
+  /**
+   * Whether a `LANGUAGE sql` function's body provably yields exactly one row.
+   * Shape only — no target analysis, so no recursion into the body's own
+   * expressions and no `fnCtx` to establish.
+   */
+  private sqlBodyGuaranteesSingleRow(meta: FunctionInfo, depth: number): boolean {
+    if (meta.language !== "sql" || meta.isAggregate) return false;
+    this.checkDepth(depth);
+    const bodyAst = this.catalog.fnBodyAsts.get(`${meta.schema}.${meta.name}(${meta.argTypes})`);
+    const node = bodyAst as Record<string, unknown> | undefined;
+    if (!node || !("SelectStmt" in node)) return false;
+    return this.guaranteesSingleRow(node["SelectStmt"] as SelectStmt);
   }
 
   /**
@@ -1232,10 +1403,19 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): { entry: RelationEntry; column: string; ordinal?: number } | null {
-    if (!p || p.entry.kind !== "function" || p.entry.joinState === OPTIONAL) return p;
+    if (!p || p.entry.kind !== "function") return p;
     const index =
       p.ordinal ??
       this.resolveTableFunctionColumns(p.entry, scope, depth).findIndex(c => c.name === p.column);
+    // A PADDED `ROWS FROM` arm's columns go NULL while the ITEM is present, so
+    // they are no part of the item's presence unit — the same break the
+    // OPTIONAL condition below guards against, arriving one clause in rather
+    // than through the join. rowsfrom-pad-presence-group.sql is where it
+    // showed: once a longer arm keeps its flags the arm becomes a
+    // DISCRIMINANT, and a unit spanning both arms then reads "present" on the
+    // very rows the padding has emptied.
+    if (index >= 0 && p.entry.paddedFunctionColumns?.has(index)) return null;
+    if (p.entry.joinState === OPTIONAL) return p;
     if (index < 0) return p;
     const exprs = this.unnestColumnExpressions(p.entry, index, scope, depth);
     if (!exprs || exprs.length === 0) return p;
@@ -1712,7 +1892,7 @@ class NullabilityEngine {
         const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
         const results: OutputNullabilityTraced[] = [];
         const tracedTargets = sel.targetList ?? [];
-        const srfPadded = this.srfPaddedTargets(tracedTargets);
+        const srfPadded = this.srfPaddedTargets(tracedTargets, depth);
         for (const [targetIndex, target] of tracedTargets.entries()) {
           const rt = this.unwrapResTarget(target);
           const val = rt.val;
@@ -1932,7 +2112,7 @@ class NullabilityEngine {
     const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
     const results: OutputNullability[] = [];
     const targetList = stmt.targetList ?? [];
-    const srfPadded = this.srfPaddedTargets(targetList);
+    const srfPadded = this.srfPaddedTargets(targetList, depth);
     for (const [targetIndex, target] of targetList.entries()) {
       const rt = this.unwrapResTarget(target);
       const val = rt.val;
@@ -4833,23 +5013,47 @@ class NullabilityEngine {
 
     const rf = entry.rangeFunction;
     const cols: { name: string; notNull: boolean }[] = [];
-    // ONE predicate, asked by three rules that all mean "this FROM item has a
-    // lone arm". It used to be two, and they disagreed: the naming rule
-    // excluded `ROWS FROM` and the body rule did not (sweep-4 finding 6).
-    //
-    //   - NAMING. A lone function returning a SCALAR takes the relation alias
-    //     as its column name, `ROWS FROM` or not — measured across the
-    //     spelling space, including `WITH ORDINALITY`. Two arms take the
-    //     function names whatever the alias says, and a composite arm keeps
-    //     its own field names either way.
-    //   - THE BODY READING and THE DECLARED READING. Two or more functions in
-    //     one `ROWS FROM` expand in lockstep to the LONGEST one's row count,
-    //     and every shorter one's columns are NULL-padded after it has
-    //     returned (measured). The same shape as the target list's SRF padding
-    //     rule. One function has no partner to be padded against.
+    // NAMING. A lone function returning a SCALAR takes the relation alias as
+    // its column name, `ROWS FROM` or not — measured across the spelling
+    // space, including `WITH ORDINALITY`. Two arms take the function names
+    // whatever the alias says, and a composite arm keeps its own field names
+    // either way. This predicate once served the PADDING rules too, and the
+    // two have come apart: arm count is what names a column, and row count is
+    // what pads one.
     const loneArm = (rf?.functions?.length ?? 0) === 1;
 
-    for (const fnItem of rf?.functions ?? []) {
+    // THE BODY READING and THE DECLARED READING. Two or more functions in one
+    // `ROWS FROM` expand in lockstep to the LONGEST one's row count, and every
+    // shorter one's columns are NULL-padded after it has returned (measured).
+    // The same shape as the target list's SRF padding rule — and asked through
+    // the same bounds, so "the longest arm is never padded" is a claim the two
+    // clauses now share rather than a fact only their comments knew. A lone
+    // arm falls out of it with no others to cover.
+    const armCalls = (rf?.functions ?? []).map(fnItem => {
+      const items = (fnItem as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
+      return (items?.items?.[0] as Record<string, unknown> | undefined)?.["FuncCall"] as
+        | FuncCall
+        | undefined;
+    });
+    const unpadded = this.unpaddedParticipants(
+      armCalls.map(c => (c ? this.armRowBounds(c, depth) : null)),
+    );
+
+    // Which OUTPUT positions the padding reaches. Recorded by closing each arm
+    // out at the start of the next — the arm body has too many early exits for
+    // a tail, and every route that appends columns has to be covered, the two
+    // that push straight past the clearance included.
+    const paddedColumns = new Set<number>();
+    let armStart = 0;
+    let armSurvives = true;
+    const closeArm = (): void => {
+      if (!armSurvives) for (let k = armStart; k < cols.length; k++) paddedColumns.add(k);
+      armStart = cols.length;
+      armSurvives = true;
+    };
+
+    for (const [armIndex, fnItem] of (rf?.functions ?? []).entries()) {
+      closeArm();
       // Each entry is a List whose first item is the FuncCall and whose
       // second, when present, is the item's column definition list (the
       // ROWS FROM spelling; the lone-function spelling parks it on the
@@ -4864,15 +5068,20 @@ class NullabilityEngine {
       // each rule. The two routes that push directly below have nothing to
       // clear — they carry no flags at all.
       //
-      // THE PADDING (sweep-4 finding 1). Beside a longer arm this item's
+      // THE PADDING (sweep-4 finding 1). Beside a LONGER arm this item's
       // columns are NULL on every row after it has returned, so no reading of
-      // it survives: not the body reading, which `loneArm` already gated, and
-      // not the DECLARED one — a NOT NULL domain return, or a NOT NULL domain
-      // among the OUT/TABLE parameters — which was pushed unclipped on all
-      // three arms. This is also why the clearance sits BEFORE the presence
-      // groups are assembled: a surviving flag makes the column a group
-      // DISCRIMINANT, and the group then says "the unit is absent" on rows
-      // where a longer arm is still producing values.
+      // it survives: not the body reading, and not the DECLARED one — a NOT
+      // NULL domain return, or a NOT NULL domain among the OUT/TABLE
+      // parameters — which was pushed unclipped on all three arms. This is
+      // also why the clearance sits BEFORE the presence groups are assembled:
+      // a surviving flag makes the column a group DISCRIMINANT, and the group
+      // then says "the unit is absent" on rows where a longer arm is still
+      // producing values.
+      //
+      // "Longer" was read as "not alone" until 2026-08-22, which is the same
+      // answer only when nothing can be counted. `unpadded` counts what it can
+      // (`armRowBounds`), and an arm that covers every other arm's maximum
+      // keeps its flags — rowsfrom-pad-longest-arm.sql.
       //
       // THE STRICT SHORT-CIRCUIT. A strict function handed a NULL argument
       // returns one row of all NULLs (measured), which is exactly the row this
@@ -4882,8 +5091,10 @@ class NullabilityEngine {
       // the long arm supplying them and the padding the NULLs. The exclusion
       // stays: the padding covers that shape for a reason of its own, and a
       // strict SRF can never BE the longest arm, since it returns no rows.
+      const survives = unpadded[armIndex] ?? false;
+      armSurvives = survives;
       const push = (itemCols: { name: string; notNull: boolean }[]): void => {
-        const padded = loneArm ? itemCols : itemCols.map(c => ({ name: c.name, notNull: false }));
+        const padded = survives ? itemCols : itemCols.map(c => ({ name: c.name, notNull: false }));
         cols.push(...this.clearShortCircuitedColumns(padded, fc, scope));
       };
 
@@ -5006,25 +5217,52 @@ class NullabilityEngine {
         // named output columns are captured by the snapshot (their
         // `pg_get_function_result` says only `SETOF record`), so the shape
         // is known after all: json_each contributes `key` and `value`, not
-        // one column called `json_each`. Everything else — generate_series
-        // and the other scalar SRFs — keeps the single conservatively
-        // nullable column, which is what PostgreSQL emits for them.
+        // one column called `json_each`.
         const builtinShape = this.catalog.resolveBuiltinFunctionShape(this.funcSchema(fc), name);
         if (builtinShape) {
           push(this.columnsForReturnType(builtinShape, scalarName));
           continue;
         }
-        cols.push({ name: scalarName, notNull: false });
+        // Everything else — generate_series and the other scalar SRFs —
+        // contributes ONE column, and its values are the CALL's values:
+        // `SELECT generate_series(1, 2)` and `SELECT z FROM generate_series(1,
+        // 2) z` emit the same rows. So the expression reading applies here
+        // verbatim, and until 2026-08-22 this site did not ask for it — the
+        // same call read notNull in the target list
+        // (srf-strict-nullable-argument-target-list.sql: a strict SRF's
+        // nullable argument subtracts ROWS, not values) and nullable one
+        // clause over, off nothing but position.
+        //
+        // The reading DISCRIMINATES, which is what makes it more than a
+        // widening: builtin-from-position-value.sql puts the two answers on
+        // one line, `string_to_table('a,b,c', ',', 'b')` beside
+        // generate_series — non-strict, and its null_string argument makes row
+        // two a real SQL NULL, witnessed rather than argued.
+        //
+        // Arguments are walked in `scope` because a LATERAL item's may name
+        // outer aliases; a non-LATERAL item cannot reference anything at all,
+        // so the scope is immaterial there. A null scope keeps the old answer.
+        // Through `push`, because this is a claim like any other and the
+        // padding has to be able to clear it.
+        push([
+          { name: scalarName, notNull: scope ? this.walkExpr(callNode as Node, scope, depth) : false },
+        ]);
         continue;
       }
       // The declared shape is the column list; the body is what can put a
-      // constraint back on it. Only here, at the SINGLE-candidate site — the
-      // consensus loop above runs over candidates that share one `fnBodyAsts`
-      // key, so reading a body there would hand every overload the same one.
+      // constraint back on it. Only here, at the SINGLE-candidate site: the
+      // consensus loop above must hold whichever overload runs, and one
+      // candidate's body proves nothing about the others. (The bodies are
+      // individually READABLE now — the map is keyed by signature — which is
+      // what lets the padding bound ask them ALL and take the weakest answer.
+      // A flag is not a question consensus can answer that way.)
       const declared = this.functionOutputColumns(meta, scalarName);
       push(loneArm ? this.refineColumnsFromBody(declared, meta, 0) : declared);
     }
+    closeArm();
 
+    // The counter belongs to the `ROWS FROM` as a whole, not to any one arm,
+    // so the padding does not reach it — rowsfrom-pad-with-ordinality.sql.
     if (rf?.ordinality) {
       cols.push({ name: "ordinality", notNull: true });
     }
@@ -5034,6 +5272,7 @@ class NullabilityEngine {
     const named = cols.map((c, i) => ({ name: aliases[i] ?? c.name, notNull: c.notNull }));
 
     entry.functionColumns = named;
+    entry.paddedFunctionColumns = paddedColumns;
     return named;
   }
 
@@ -10750,7 +10989,7 @@ class NullabilityEngine {
   ): boolean {
     this.checkDepth(depth);
 
-    const fnKey = `${meta.schema}.${meta.name}`;
+    const fnKey = `${meta.schema}.${meta.name}(${meta.argTypes})`;
     trace.addFact("fnKey", fnKey);
 
     // Cycle detection.
@@ -10908,11 +11147,14 @@ class NullabilityEngine {
    * (priority 5), which reads the same bodies for SCALAR returns and takes
    * column 0. The bounds are that inliner's, plus the ones a row return adds:
    *
-   *   - `LANGUAGE sql` only, single candidate only. `fnBodyAsts` is keyed by
-   *     `schema.name` with no argument types, so an overloaded name's entries
-   *     COLLIDE there; the caller reaches this only through
-   *     `resolveFunctionMetadata`, whose single-candidate shortcut is what
-   *     makes the key unambiguous.
+   *   - `LANGUAGE sql` only, single candidate only. The caller reaches this
+   *     only through `resolveFunctionMetadata`, whose single-candidate
+   *     shortcut refuses any overloaded name. That shortcut used to be what
+   *     made the body map's key unambiguous as well — the key was
+   *     `schema.name` and an overloaded name's entries collided; since
+   *     2026-08-22 the key is the full signature, so the single-candidate
+   *     bound here is about which BODY may speak for a call, not about which
+   *     body the map can find.
    *   - A SELECT or VALUES body only. A set operation contributes an empty
    *     target list here and a DML body is not read at all, so both fall to
    *     no upgrade.
@@ -10943,7 +11185,7 @@ class NullabilityEngine {
     if (meta.language !== "sql" || meta.isAggregate) return null;
     this.checkDepth(depth);
 
-    const fnKey = `${meta.schema}.${meta.name}`;
+    const fnKey = `${meta.schema}.${meta.name}(${meta.argTypes})`;
     if (this.fnCtx?.analyzing.has(fnKey)) return null;
     const bodyAst = this.catalog.fnBodyAsts.get(fnKey);
     if (!bodyAst) return null;

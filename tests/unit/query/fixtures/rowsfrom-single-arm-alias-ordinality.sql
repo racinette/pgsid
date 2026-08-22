@@ -5,9 +5,10 @@
 -- plausibly differ and does not: PostgreSQL answers `[z, ordinality]`. The
 -- counter belongs to the `ROWS FROM` as a whole and is present on every row,
 -- which is why it is notNull here and stays notNull under padding too.
--- @unwitnessable 0: a builtin SRF's column is uniformly conservative, and
---   generate_series over a constant range emits no NULL in any state — the
---   same conservatism srf-target-list-padding.sql records for the longer arm
+-- `z` was recorded here as "a builtin SRF's column is uniformly conservative",
+-- which described the walk rather than PostgreSQL: the same call read notNull
+-- in the target list all along. A lone arm has no padding partner, so the
+-- expression reading survives intact — builtin-from-position-value.sql.
 SELECT * FROM ROWS FROM (generate_series(1, 2)) WITH ORDINALITY AS z
--- @nullable  (z: a builtin SRF's conservative column, renamed by the alias)
+-- @notNull   (z: generate_series' own value, renamed by the alias)
 -- @notNull   (ordinality: generated for every row the item emits)

@@ -13,6 +13,9 @@
 SELECT
   one_sku() AS s,                                     -- @nullable
   jsonb_path_query_tz('[1,2,3]'::jsonb, '$[*]') AS j  -- @nullable
--- @unwitnessable 1: jsonb_path_query_tz is the LONGER call, so the padding
---   never reaches it — the nullable is the padding rule's uniform
---   conservatism, as in srf-target-list-padding.sql
+-- @unwitnessable 1: the padding IS per-arm as of 2026-08-22, and this call
+--   still has no bound — counting `'$[*]'` over `'[1,2,3]'` means evaluating
+--   a jsonpath, which is not arithmetic on constants the way
+--   `generate_series(1, 3)` is. `one_sku()` beside it has a ceiling of one,
+--   so the comparison fails on this side only. The route is a closed-subtree
+--   evaluation of the call's CARDINALITY, which nothing asks for yet

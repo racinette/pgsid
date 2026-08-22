@@ -122,8 +122,9 @@ CREATE TABLE gm (
 -- Overload-consensus subjects (Wave 5): names whose arity-compatible
 -- candidates AGREE on the asked property, so the conclusion holds whichever
 -- overload PostgreSQL resolves — the counterpart of over_fn below, whose
--- candidates disagree and keep refusing. plpgsql throughout: fnBodyAsts is
--- keyed by name alone, and sql-bodied overloads would collide there.
+-- candidates disagree and keep refusing. plpgsql throughout, which was once
+-- required (fnBodyAsts collided on the name) and is now only what keeps these
+-- subjects about CONSENSUS rather than about body reading.
 CREATE FUNCTION clean2(x text) RETURNS text
   LANGUAGE plpgsql STRICT
   AS $$ BEGIN RETURN x; END $$;
@@ -171,8 +172,8 @@ CREATE FUNCTION pick(a text) RETURNS text
 -- Deliberately overloaded: resolveFunctionMetadata must refuse to pick one,
 -- keeping both the output analysis (the text overload returns a NOT NULL
 -- domain) and the argument analysis conservative for calls to this name.
--- plpgsql rather than sql so the overloads never collide in fnBodyAsts,
--- which is keyed by name alone.
+-- plpgsql rather than sql, which once mattered because the overloads would
+-- have collided in fnBodyAsts and now only keeps the subject narrow.
 CREATE FUNCTION over_fn(x text) RETURNS nn_text
   LANGUAGE plpgsql
   AS $$ BEGIN RETURN 'o'; END $$;
@@ -1177,6 +1178,24 @@ CREATE FUNCTION ov_sku(x integer) RETURNS SETOF non_empty_text LANGUAGE sql AS $
 CREATE FUNCTION ov_sku(x text) RETURNS SETOF non_empty_text LANGUAGE sql AS $$
   SELECT 'ov2'::non_empty_text $$;
 
+-- The overloaded pair whose bodies DISAGREE about row count, which is what
+-- makes the body map's signature key load-bearing rather than merely tidier
+-- (2026-08-22). The trap is loaded: the INTEGER overload is the one the
+-- collided name key kept (measured — the snapshot lists this name's rows text
+-- first, so integer is written last and wins the Map), and it is the one that
+-- yields a single row, while srf-padding-overload-body-split.sql calls the
+-- TEXT overload and scans products. The same construction as ov_pair one
+-- section down, aimed at the padding bound rather than at the column flags.
+--
+-- Which body a collision would have kept is an ORDERING fact and nothing
+-- pins it, so this pair proves the key change bites TODAY and not that it
+-- keeps biting. The one-entry-per-signature assertion in catalog-census
+-- is the part that does not depend on the order.
+CREATE FUNCTION ov_rows(x integer) RETURNS SETOF non_empty_text LANGUAGE sql AS $$
+  SELECT 'one'::non_empty_text $$;
+CREATE FUNCTION ov_rows(x text) RETURNS SETOF non_empty_text LANGUAGE sql AS $$
+  SELECT p.sku::non_empty_text FROM products p $$;
+
 -- User functions whose signatures are IDENTICAL to pg_catalog functions
 -- (adversarial-3 finding 6). PostgreSQL searches pg_catalog implicitly and
 -- FIRST unless the path names it, so under the default path these are
@@ -1228,13 +1247,20 @@ CREATE FUNCTION first_item(p_order_id integer) RETURNS order_items
 CREATE FUNCTION one_pair() RETURNS sku_pair
   LANGUAGE sql AS $$ SELECT 'a'::text, 1 $$;
 
--- (b) SINGLE CANDIDATE: fnBodyAsts is keyed by `schema.name` with no argument
--- types, so an overloaded name's bodies COLLIDE there and whichever one the
--- map holds would speak for the other. The shapes agree, so the consensus rule
--- answers the column list without resolving the overload — and the flags must
--- stay conservative. The bodies are ordered so that reading one would be
--- WRONG: the call below takes the integer overload, which emits NULLs, while
--- the text overload defined after it is what the shared key holds.
+-- (b) SINGLE CANDIDATE: an overloaded name's bodies each prove something
+-- about their OWN signature and nothing about the others', so the flags must
+-- stay conservative until the overload is resolved. The shapes agree, so the
+-- consensus rule answers the column list without resolving it. The bodies are
+-- ordered so that reading the wrong one would be WRONG: the call below takes
+-- the integer overload, which emits NULLs, while the text overload defined
+-- after it emits values.
+--
+-- Until 2026-08-22 this was also a MAP-KEY trap — fnBodyAsts was keyed by
+-- `schema.name`, so the two bodies shared one entry. The key is the full
+-- signature now and the collision is gone; what still refuses the read is
+-- resolveFunctionMetadata's single-candidate shortcut, which is the reason
+-- that was always doing the work. ov_rows above is the trap built for the
+-- key itself.
 CREATE FUNCTION ov_pair(x integer) RETURNS SETOF sku_pair
   LANGUAGE sql AS $$ SELECT NULL::text, NULL::integer $$;
 CREATE FUNCTION ov_pair(x text) RETURNS SETOF sku_pair

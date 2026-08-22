@@ -20,9 +20,19 @@
 -- Clearing them removes the group rather than correcting it, and the absence
 -- is the assertion: engine-claimed groups are checked against `@null-group`
 -- annotations in both directions.
--- @unwitnessable 3: generate_series is the LONGER arm and is never padded,
---   and the LATERAL runs per order row, so it is non-null wherever a row
---   exists at all
+-- The per-arm clip (2026-08-22) put this fixture's assertion under real
+-- pressure and it held, from the other side: `generate_series` now KEEPS its
+-- flags, which makes it a discriminant, and a unit spanning both arms would
+-- then read "the unit is present" on the very rows the padding has emptied —
+-- the same contract violation, discriminant swapped. A padded arm's columns
+-- are no part of the item's presence unit, so `a` and `b` leave the unit and
+-- the group is still absent. That absence is still the assertion.
+-- @unwitnessable 3: the arm is no longer padded — what leaves this column
+--   nullable is the LEFT JOIN, whose extension nulls the whole item. It never
+--   fires: `generate_series(1, 3)` guarantees the LATERAL three rows, so the
+--   item is never empty and never extended. That is the SAME minimum the
+--   padding bound already computes, asked of the join state instead — the
+--   route is a REQUIRED promotion for an item whose arms guarantee a row
 SELECT
   o.id,               -- @notNull
   x.a,                -- @nullable

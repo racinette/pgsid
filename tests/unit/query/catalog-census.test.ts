@@ -501,4 +501,41 @@ describe("catalog-feature census", () => {
         `a member of the column's domain at all — delete it:\n  ${unobserved.join("\n  ")}`,
     ).toEqual([]);
   });
+
+  // The body map's KEY, asserted structurally.
+  //
+  // `fnBodyAsts` is keyed by full signature, and not for tidiness: under
+  // `schema.name` an overloaded name's SQL bodies COLLIDED, and whichever the
+  // snapshot listed last answered for all of them. What kept that from being
+  // read was resolveFunctionMetadata's single-candidate shortcut — an
+  // invariant, not a check — and the padding bound's consensus is the first
+  // consumer that asks every candidate.
+  //
+  // srf-padding-overload-body-split.sql catches the collision through a claim,
+  // and only for the ordering that happens to hold today: which body a
+  // collision would keep is nothing more than the order the rows came back in.
+  // This is the half that does not depend on it.
+  it("holds one body AST per sql-bodied SIGNATURE, not per name", async () => {
+    const catalog = await buildNullabilityCatalog(snapshot);
+    const byName = new Map<string, CatalogSnapshot["functions"]>();
+    for (const f of snapshot.functions) {
+      if (f.language !== "sql" || f.isAggregate) continue;
+      const key = `${f.schema}.${f.name}`;
+      byName.set(key, [...(byName.get(key) ?? []), f]);
+    }
+    const overloaded = [...byName.values()].filter(fs => fs.length > 1).flat();
+    // Vacuous over a schema with no sql-bodied overload at all, so say so
+    // rather than pass.
+    expect(overloaded.length).toBeGreaterThan(0);
+    const unanswered = overloaded
+      .map(f => `${f.schema}.${f.name}(${f.argTypes})`)
+      .filter(sig => !catalog.fnBodyAsts.has(sig))
+      .sort();
+    expect(
+      unanswered,
+      `an overloaded sql body the map cannot answer for on its OWN signature ` +
+        `— the key has collapsed back to the name, and one overload is ` +
+        `speaking for another:\n  ${unanswered.join("\n  ")}`,
+    ).toEqual([]);
+  });
 });
