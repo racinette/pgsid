@@ -18,10 +18,12 @@ import {
   type EvalResult,
   type SubtreeEvaluationCatalog,
 } from "./subtree-evaluator.js";
+import { writtenGuardTruths } from "./written-value-guards.js";
 import { TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES, STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
   forcedNullParams,
+  returningRejectedParams,
   type MechanismEClaims,
   type ParamNullability,
 } from "./param-nullability.js";
@@ -105,14 +107,20 @@ async function statementEvaluation(
   evaluate: Evaluate | undefined,
 ): Promise<Map<Node, EvalResult> | undefined> {
   if (!evaluate) return undefined;
-  return evaluateClosedSubtrees(
-    stmt,
-    // Every adapter product carries the face (WalkOptions documents the
-    // requirement); a catalog without it belongs to a caller that never
-    // passes `evaluate`.
-    catalog as NullabilityCatalog & SubtreeEvaluationCatalog,
-    evaluate,
-  );
+  // Every adapter product carries the face (WalkOptions documents the
+  // requirement); a catalog without it belongs to a caller that never
+  // passes `evaluate`.
+  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
+  const map = await evaluateClosedSubtrees(stmt, face, evaluate);
+  // Written-value guards (written-value-guards.ts) answer the same question
+  // for trees the scope-blind collector must call open — a RETURNING CASE
+  // guard over a column the statement WROTE as a constant. Keyed by the
+  // original guard node, so they merge here and `evaluatedGuardTruth` reads
+  // one map without knowing which pass filled the entry.
+  for (const [node, result] of await writtenGuardTruths(stmt, face, evaluate)) {
+    if (!map.has(node)) map.set(node, result);
+  }
+  return map;
 }
 
 /** The entailment consumer's pre-walk round (comparison-groundings.ts):
@@ -745,6 +753,19 @@ interface Scope {
    * in neither map far more often than it is in either.
    */
   dmlWrittenNullColumns?: { alias: string; columns: ReadonlyMap<string, boolean> };
+  /**
+   * Parameters whose NULL binding raises on every path that can return a row
+   * of THIS statement (`returningRejectedParams`), so a projected `$n` here
+   * is non-null on every row that comes back.
+   *
+   * Scoped rather than engine-global, and that is what makes it sound where
+   * a flat `rejected` set is not: in `WITH w AS (INSERT … RETURNING e)
+   * SELECT $1 FROM t` the outer `$1` sits in the SELECT's scope, which has
+   * no such set, and the INSERT's rejection says nothing about it. The
+   * engine-global `bindRejectedParams` needs no scoping because Bind rejects
+   * before any execution, everywhere in the statement.
+   */
+  dmlReturningRejectedParams?: ReadonlySet<number>;
   /** Outer scope for correlated references. */
   outer: Scope | null;
   /** Memoized per-output-column results for this scope's AST node. */
@@ -1226,6 +1247,31 @@ class NullabilityEngine {
       else if (target.entry !== bare.entry || target.column !== bare.column) return p;
     }
     return target ?? p;
+  }
+
+  /**
+   * Whether `$num` is rejected on every row-producing path of the DML
+   * statement this scope sits INSIDE — its own, or any scope enclosing it.
+   *
+   * The chain walk is what reaches a MERGE source. `RETURNING s.snm` is not
+   * a ParamRef at all: `s` is a derived relation, and `$1` is walked in the
+   * source subquery's own scope, whose outer is the MERGE's. The same is
+   * true of a scalar subquery written into a RETURNING list.
+   *
+   * Sound in that direction and not the other, which is the whole reason the
+   * fact is scoped rather than engine-global. Every expression evaluated
+   * inside a DML statement's scope contributes to a RETURNING column, and a
+   * RETURNING column exists only on a row that came back — so the row is the
+   * proof. A statement ENCLOSING the DML is the opposite arrangement:
+   * `WITH w AS (INSERT … RETURNING e) SELECT $1 FROM t` puts the SELECT
+   * outside, its rows do not depend on the insert's, and the chain from its
+   * `$1` never reaches the INSERT's scope. Measured, both directions.
+   */
+  private returningRejectsParam(num: number, scope: Scope): boolean {
+    for (let s: Scope | null = scope; s; s = s.outer) {
+      if (s.dmlReturningRejectedParams?.has(num)) return true;
+    }
+    return false;
   }
 
   /**
@@ -3283,6 +3329,14 @@ class NullabilityEngine {
     // entry points reach here only when a RETURNING clause exists.
     this.refuseInsteadRule(stmt.relation, "insert");
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
+    // Set here rather than beside the written-value maps below: those are
+    // voided wholesale by a BEFORE ROW trigger, and this one need not be —
+    // `columnRejection` applies the same guard per site, and a mechanism-A
+    // rejection survives a trigger anyway (Bind runs first).
+    scope.dmlReturningRejectedParams = returningRejectedParams(
+      { InsertStmt: stmt } as unknown as Node,
+      this.catalog,
+    );
     // The parser marks an INSERT target `inh: true`, but an INSERT stores
     // its rows in the named relation itself — inheritance never routes a
     // write (measured: INSERT INTO inh_p lands in ONLY inh_p, and the
@@ -3428,6 +3482,10 @@ class NullabilityEngine {
   private buildUpdateScope(stmt: UpdateStmt, outerScope: Scope | null, depth: number): Scope {
     this.refuseInsteadRule(stmt.relation, "update");
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
+    scope.dmlReturningRejectedParams = returningRejectedParams(
+      { UpdateStmt: stmt } as unknown as Node,
+      this.catalog,
+    );
     this.registerCtes(stmt.withClause, scope);
 
     // UPDATE...FROM: add FROM clause relations too. The target is joined to
@@ -3565,6 +3623,10 @@ class NullabilityEngine {
 
   private buildMergeScope(stmt: MergeStmt, outerScope: Scope | null, depth: number): Scope {
     const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
+    scope.dmlReturningRejectedParams = returningRejectedParams(
+      { MergeStmt: stmt } as unknown as Node,
+      this.catalog,
+    );
     this.registerCtes(stmt.withClause, scope);
 
     interface MergeArm {
@@ -6766,6 +6828,19 @@ class NullabilityEngine {
         trace.conclude(
           true,
           `$${num} rejects NULL at Bind, so any returned row proves it non-null`,
+        );
+        return true;
+      }
+      // The execution-time twin: the parameter lands in a rejecting site on
+      // EVERY path of this DML statement that can produce a returned row, so
+      // the row in hand is itself the proof the binding was not NULL. Scoped
+      // to the statement, unlike the Bind fact — see the Scope field.
+      if (this.returningRejectsParam(num, scope)) {
+        trace.addFact("param", `$${num}`);
+        trace.addFact("returningRejected", "every row-producing path writes it into a NOT NULL site");
+        trace.conclude(
+          true,
+          `$${num} rejects NULL on every path that returns a row, so this row proves it non-null`,
         );
         return true;
       }

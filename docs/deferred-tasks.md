@@ -170,25 +170,27 @@ is permanent and how to re-measure it:
 WITNESS_REPORT=1 pnpm exec vitest run tests/unit/query/generated/generated-soundness.test.ts
 ```
 
-Across 14,964 queries, 32,295 nullable output claims and **32,293 witnessed**.
-The 2 that are not are each classified, and every classification is either
-executable as a `<label>.blame.sql` fixture or declares itself geometric. Two
-buckets:
+Across 14,964 queries, 32,293 nullable output claims and **32,293 witnessed**.
+**Nothing in the corpus is dark.** The `UNWITNESSABLE` list is empty, which is
+a stronger statement than it looks: every nullable claim the engine makes over
+the enumerated structural space is backed by an actual NULL that PostgreSQL
+returned, so no claim is excused and no reason can rot.
 
-| unwitnessed | bucket | why no data reaches the NULL |
-|---:|---|---|
-| 1/6 | `proj=plain \| col=r_snm` | **the witness is a raise, not a row.** `$1` lands in `ck.val`'s NOT NULL constraint, so binding NULL raises; the param suite counts that as a rejection and the witness channel cannot count it as anything |
-| 1/1 | `proj=case \| col=r_ce` | **the engine tracks nullability, not values.** `active` was written as the literal `true`, so PostgreSQL never runs the ELSE branch; written-value tracking deliberately carries only non-nullness |
-
-Two more buckets closed on 2026-08-22 and their rules are deleted:
+All four buckets closed on 2026-08-22, and their rules and blame files are
+deleted:
 
 | was | bucket | what closed it |
 |---:|---|---|
 | 60/462 | `proj=case-nullif \| col=a_case` | `guardedPresence` — the guard channel runs the presence fixpoint instead of copying its rules |
 | 20/522 | `proj=plain \| col=a_tb` | `presenceProducer` — an unnest field's presence producer is its element expression's relation |
+| 1/6 | `proj=plain \| col=r_snm` | `returningRejectedParams` — a projected parameter rejected on every row-producing path |
+| 1/1 | `proj=case \| col=r_ce` | `written-value-guards.ts` — a RETURNING CASE guard answered from the constants the statement wrote |
 
-`r_snm` is not imprecision at all; `r_ce` needs VALUE tracking, which is a
-different project. Nothing else in the corpus is dark.
+**Three of the four reasons were wrong about their own cause by the time they
+closed**, and none of the errors was visible to any gate: an expired reason
+leaves the outcome exactly where it was. That is the case for the blame-file
+discipline, and it is the reason to argue for the next entry rather than
+assume it.
 
 Three gates hold this, in `generated-soundness.test.ts`: an unclassified claim
 fails, a rule matching nothing fails as stale, and a rule blaming a MECHANISM
@@ -313,6 +315,90 @@ IS the claim there). The lesson generalises: **a precision fix measured only in
 corpus claim counts has no regression gate unless something asserts the count,
 and nothing does.**
 
+**r_ce closed last, and its reason was wrong twice.** It said the written-value
+tracking "deliberately carries only non-nullness" — true when written. But the
+walk already PRUNES CASE arms from evaluated guard truth (`evaluatedGuardTruth`
+reads the statement evaluation map; a TRUE guard kills every later arm and the
+ELSE with it), so nothing needed building on the consumer side. What was
+missing is that the evaluator is scope-blind by construction: any node carrying
+a name is open, and `active` is a name.
+
+`written-value-guards.ts` closes the tree instead of teaching the evaluator to
+resolve. It substitutes each written constant for its column, hands the result
+to the same evaluator core the other three grounding passes use, and keys the
+answers back to the ORIGINAL guard nodes so they merge into the statement
+evaluation map. `CASE WHEN status = 'paid'` over a written `'paid'` and a bare
+boolean column are then one question with one answer — the generality is free,
+because the walk never computes a PostgreSQL expression itself. Only a guard
+that reduces to a bare `A_Const` is read directly, and only because a literal
+is closed with nothing to compute, so the evaluator collects no root from one.
+
+The soundness rests on one quantifier: EVERY path that can return a row wrote
+the SAME constant. A second VALUES row with a different literal, a
+disagreeing MERGE arm, an `ON CONFLICT DO UPDATE` writing something else —
+each drops the column; a MERGE DELETE arm drops all of them, since a deleted
+row is returned as it was before the statement. Triggers need no new rule: the
+walk's own guard applies, and a target with a BEFORE ROW or INSTEAD OF hook
+contributes nothing.
+
+**The second error was in the harness, not the engine**, and nothing would have
+found it by reading code: this corpus called the walk with no `evaluate`
+callback, so the entire subtree-evaluation channel was off and no answer could
+have arrived however capable the engine was. Turning it on — one PGlite
+instance, schema only, no data, kept alive through the analysis loop — costs no
+measurable time and moved exactly one claim. **A reason can be wrong about the
+harness as easily as about the engine**, and this one was both.
+
+**r_snm closed the same day, and its own recorded reason was the fix.** The
+rule said the claim could not be witnessed because binding NULL *raises*
+instead of returning a row — which, read the other way, is the proof that a
+returned row had a non-NULL binding. The walk already made exactly that
+inference for the bind-time mechanism (`bindRejectedParams`: a NOT NULL domain
+rejects at Bind, so any returned row proves the parameter non-null). The
+execution-time mechanism produces the same certainty and had no channel.
+
+The naive widening is unsound, and measuring it first is what kept it out.
+`params[i].notNull` is a PRECONDITION — "a NULL binding may raise" — while the
+output claim is a POSTCONDITION — "no returned row is NULL here". Measured:
+
+```sql
+MERGE INTO ck USING (VALUES (905, $1::text)) s(sid, snm) ON ck.id = s.sid
+  WHEN NOT MATCHED THEN INSERT (id, val) VALUES (s.sid, s.snm)
+  WHEN MATCHED THEN UPDATE SET name = 'x'
+RETURNING s.snm
+```
+
+Engine: `$1` notNull. PostgreSQL with `$1` bound NULL: one row, `s.snm` NULL —
+the MATCHED arm ran and never touched the NOT NULL column. So
+`returningRejectedParams` asks per PATH: every action that can produce a
+returned row must put the parameter in a rejecting site. One arm, one INSERT,
+one UPDATE all qualify; a DELETE arm writes nothing and collapses the
+intersection; `ON CONFLICT DO UPDATE` is a second path and is intersected,
+while `DO NOTHING` returns no row for a conflict and stands alone. The
+existential quantifier over VALUES rows (`forcedNullParamsAnyRow`) is the
+right one and the written-value maps' universal one is not — a raise aborts
+the whole statement, so ONE row reaching the site is enough. Triggers need no
+new guard: `columnRejection` already reports nothing for mechanism B on a
+command carrying a BEFORE ROW or INSTEAD OF hook.
+
+The fact is SCOPED, not engine-global, and that is the second half of the
+soundness argument. `WITH w AS (INSERT … RETURNING e) SELECT $1 FROM t` — the
+Collector's own counterexample — puts the SELECT outside, its rows do not
+depend on the write, and the chain walk from that `$1` never reaches the
+INSERT's scope. The same walk going the other way is what reaches a MERGE
+source, where `RETURNING s.snm` is not a ParamRef at all and `$1` lives in the
+source subquery's scope.
+
+Measured: notNull 24453 → 24454, 0 violations. Three fixtures, three
+mutations, each caught by BOTH the annotation and execution (a falsified
+claim, not a stale marker): `param-returning-rejected` (the rung),
+`param-returning-rejected-merge` (the arm intersection),
+`param-returning-rejected-outer` (the scoping). The first mutation run on the
+last of those passed a broken engine — the fixture declared the CTE without
+referencing it, so nothing analyzed the INSERT. **A counterexample fixture
+that is never reached reads as coverage and is not**, which is the same lesson
+the structure sets taught, one construct over.
+
 **a_tb's UNNEST half closed the same day too — 20 → 0 — and the recorded
 reason for it was wrong.** The rule blamed the walk calling every unnest field
 nullable "whatever the element expression put there", and marked it deliberate.
@@ -411,12 +497,13 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **97 `@unwitnessable` reasons in the hand corpus** carry the same rot risk
-and are not yet wired to blame files. That is the obvious next pass and it is
-not done. (Was 101 on 2026-08-22: one came off with `guardedPresence` and three
-with the unnest work, each because the claim it excused turned notNull. The
-suite's own readout counts CLAIMS, not annotation lines, and reads 92 — one
-annotation may name several columns.)
+The **96 `@unwitnessable` reasons in the hand corpus** carry the same rot risk
+and are not yet wired to blame files. **This is now the only place a reason can
+rot**: the generated corpus's list is empty, so every excuse left in the
+project is here, and none of them is executable. That is the obvious next pass
+and it is not done. (Was 101 on 2026-08-22; five came off as the claims they
+excused turned notNull. The suite's own readout counts CLAIMS, not annotation
+lines — one annotation may name several columns.)
 
 ### 4. Known imprecision residue
 
