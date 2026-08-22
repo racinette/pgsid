@@ -255,6 +255,26 @@ gate would have caught the seven dead ones**: the staleness check fires when a
 RULE matches nothing, and this rule still matches 60 claims. A structure set is
 a second place a reason can rot, finer-grained than the rule.
 
+**Mutation-tested afterwards, which found a third.** Each of the day's three
+engine changes was disabled in turn and the suite run. All three were caught —
+by a SINGLE gate, "every unwitnessed nullable output claim is witnessed or
+classified", and by nothing in the 472-fixture hand corpus. That gate sees an
+outcome, and it only fires here because the rules and structure sets were
+trimmed as each bucket closed; re-widen any of them and all three mechanisms
+go dark with a green suite. The setop widening was worse: killing it drops the
+exported groups 2558 → 1662 and **nothing asserts that count** — the run went
+red only because four unrelated a_tb claims lost their proof downstream.
+
+Three fixtures now pin the mechanisms directly, each verified by re-running
+its mutation: `promotion-bare-boolean-and-guard-group` (both rungs, plus a
+`guard_only` column that survives the group-hop mutation and so discriminates
+between them), `presence-group-pin-across-boundary` (the pin, plus the plain
+table that the origin route already reached), and
+`presence-group-union-vacuous-arm` (a `@null-group` assertion, since the group
+IS the claim there). The lesson generalises: **a precision fix measured only in
+corpus claim counts has no regression gate unless something asserts the count,
+and nothing does.**
+
 **a_tb's srf half closed entirely the same day** — 8 → 4 → 0 — in two steps.
 
 The first gave presence groups a second consumer. The inner analysis already grouped a_tb with a_tc and marked
