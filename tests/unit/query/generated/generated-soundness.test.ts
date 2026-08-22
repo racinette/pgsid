@@ -811,64 +811,26 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
   // catch. A structure that becomes witnessable leaves its set via the
   // staleness check below.
   //
-  // Seven structures left this set on 2026-08-22 — every one whose t-u join
-  // was INNER or LEFT, i.e. every one where t and u shared a single
-  // null-extension unit. See the rule's `why`. Nothing in this file would
-  // have noticed: the staleness check below is per RULE, and a rule that
-  // still covers 60 claims reports nothing about the 36 it stopped needing
-  // to. A dead structure here reads as coverage and is not.
-  const CASE_DARK_STRUCTURES = new Set([
-    "nest-left(right,right)",
-    "nest-right(right,right)",
-    "nest-left(right,full)",
-    "nest-right(right,full)",
-    "nest-left(full,right)",
-  ]);
-
+  // `case-needs-t-without-u` was the third and last set here. It named the
+  // twelve structures whose `CASE WHEN t.active THEN u.email` the walk could
+  // not settle; seven left on 2026-08-22 when two guard rungs landed, and
+  // the remaining five left the same day when the guard channel stopped
+  // copying fixpoint rules one at a time and started running the fixpoint
+  // itself under the branch guards (`guardedPresence`). Its whole 60-claim
+  // bucket is witnessed now, so the rule is GONE rather than shrunk — and
+  // the staleness check below is what forced the deletion, which is worth
+  // recording because a SHRINKING set is invisible to it: the check is per
+  // RULE, so a rule still covering 60 claims said nothing about the 36 it
+  // had stopped needing.
+  //
   /**
    * The two unnest structures, enumerated rather than matched by prefix for
-   * the reason the sets above are: a pattern would quietly cover a third one
+   * the reason the set above was: a pattern would quietly cover a third one
    * nobody has measured.
    */
   const UNNEST_STRUCTURES = new Set(["unnest(left)", "unnest(full)"]);
 
   const UNWITNESSABLE: UnwitnessableRule[] = [
-    {
-      label: "case-needs-t-without-u",
-      why:
-        "a_case is NULL only on a row where t is present (active TRUE) and u " +
-        "is NULL-extended. In these five structures the t-u join is RIGHT or " +
-        "FULL, and no such row survives it: a u-absent row either NULL-extends " +
-        "t along with u, or is discarded by the outer join's qual on u's " +
-        "columns (measured for (t FULL u) RIGHT v, the one shape where the " +
-        "t-without-u row exists at all — PostgreSQL returns 'e', the RIGHT " +
-        "JOIN having dropped it).\n" +
-        "This is engine IMPRECISION, not conservatism forced by the branch — " +
-        "and its predecessor said the opposite, which is why the correction " +
-        "is recorded here rather than in a commit message. Seven structures " +
-        "left this rule on 2026-08-22 when two guard rungs landed: a bare " +
-        "boolean predicate now proves its own column non-null, and null-group " +
-        "promotion now consults branch guards and not only the WHERE. Those " +
-        "seven are the ones where t and u shared one null-extension unit. " +
-        "What holds the five below is that t and u sit in DIFFERENT units, " +
-        "and the guard channel has no cross-unit promotion. The WHERE channel " +
-        "does: for all five, `WHERE t.active` with a plain u.email projection " +
-        "reads notNull while the same predicate as a CASE guard reads " +
-        "nullable. Same predicate, same aliases, only the position differs.",
-      geometry:
-        "the fact is 'no row in these structures has t present and u absent', " +
-        "which no single statement exhibits — the witness geometry of a " +
-        "structure set is not a query's property. The structure set itself is " +
-        "the record, and CASE_DARK_STRUCTURES is enumerated rather than " +
-        "matched by pattern for that reason. Note this excuses the WITNESS, " +
-        "not the claim: `why` above names the missing rung, and a blame file " +
-        "would pin a mechanism the engine is expected to keep, which this is " +
-        "not.",
-      matches: (axes, column) =>
-        axes.projection === "case-nullif" &&
-        column === "a_case" &&
-        CASE_DARK_STRUCTURES.has(axes.structure),
-    },
     {
       label: "unnest-refilter-implies-the-u-row-is-present",
       why:
