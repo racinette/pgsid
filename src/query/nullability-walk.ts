@@ -1350,6 +1350,63 @@ class NullabilityEngine {
     return innerResults.findIndex(r => r.name === colName);
   }
 
+  /**
+   * Whether the inner analysis's presence groups make output `index` of
+   * `entry` non-null HERE, because a sibling member of its group is pinned
+   * in this scope.
+   *
+   * The group's contract does both halves of the step: the unit is absent
+   * only with EVERY member NULL, so a member proven non-null proves the row
+   * present; and a DISCRIMINANT is non-null on the present arm. So a pinned
+   * member and a discriminant goal give "non-null on every row this query
+   * returns".
+   *
+   * The presence-group twin of `originCheckEntailment`, and it reaches what
+   * that cannot: origins are TABLE-anchored, and `originOf` returns none for
+   * a table function ("table functions above all"). So `WITH q AS (SELECT
+   * g.email, g.val FROM t LEFT JOIN LATERAL gfn_urows(t.id) g ON true)
+   * SELECT q.email FROM q WHERE q.val IS NOT NULL` had no channel at all —
+   * the same query over a plain LEFT JOINed table read notNull through
+   * origins, and only the pairing of a function with a boundary was dark.
+   * Groups need no anchor, so this arm is uniform over both.
+   *
+   * The evidence channels are the two the caller's own level consults, and
+   * the same soundness argument carries: a WHERE guarantee holds on every
+   * returned row, a branch guard holds wherever this read happens. An outer
+   * name exported twice is skipped rather than guessed at — PostgreSQL
+   * rejects the reference, mirroring `originCheckEntailment`'s dropped set.
+   *
+   * `joinState !== OPTIONAL` is the caller's precondition and is not
+   * re-checked: an outer extension of the entry itself is a SECOND absence
+   * this says nothing about.
+   */
+  private presenceGroupPins(
+    entry: RelationEntry,
+    index: number,
+    outerNames: (string | undefined)[],
+    scope: Scope,
+  ): string | null {
+    if (!entry.ast || index < 0) return null;
+    const duplicated = new Set(
+      outerNames.filter((n, i) => n !== undefined && outerNames.indexOf(n) !== i),
+    );
+    for (const group of this.groupsOfStatement(entry.ast)) {
+      if (!group.discriminants.includes(index)) continue;
+      for (const j of group.columns) {
+        if (j === index) continue;
+        const name = outerNames[j];
+        if (name === undefined || duplicated.has(name)) continue;
+        if (
+          this.checkWhereGuarantee(entry.alias, name, scope) ||
+          this.guardsImplyNotNull(entry.alias, name, scope)
+        ) {
+          return `${entry.alias}.${name}`;
+        }
+      }
+    }
+    return null;
+  }
+
   private newTrace(label: string): ITrace {
     return this.tracing ? new RealTrace(label) : NOOP;
   }
@@ -6937,15 +6994,33 @@ class NullabilityEngine {
         const innerResults = this.innerRelationColumns(entry, scope, depth);
         const outerNames = innerResults.map((r, i) => entry.cteColumns?.[i] ?? r.name);
 
-        // The nullable-but-origin-carrying escape: the inner column is a
-        // bare pass-through of a base table column, so the base table's
-        // validated CHECKs can meet THIS scope's evidence — the one thing
-        // the boolean interface alone cannot express.
-        const tryOrigin = (inner: OutputNullability): boolean =>
-          !inner.notNull &&
-          joinState !== OPTIONAL &&
-          !!inner.origins &&
-          this.originCheckEntailment(entry, inner.origins, inner.originNotNull, innerResults, outerNames, scope, trace);
+        // Two escapes from a nullable inner verdict, both saying the same
+        // kind of thing — the inner analysis exported a fact the boolean
+        // interface cannot carry, and THIS scope's evidence meets it.
+        //
+        //   origins: the inner column is a bare pass-through of a base table
+        //     column, so the base table's validated CHECKs are in play.
+        //   presence groups: the inner column is a discriminant of a group
+        //     whose member is pinned here, so the row is present.
+        //
+        // Ordered origins-first only because that path is older and its
+        // trace line is the one existing expectations read; they are
+        // independent, and the group arm is the only one a table function
+        // can reach (see `presenceGroupPins`).
+        const escape = (inner: OutputNullability, index: number): string | null => {
+          if (inner.notNull || joinState === OPTIONAL) return null;
+          if (
+            inner.origins &&
+            this.originCheckEntailment(entry, inner.origins, inner.originNotNull, innerResults, outerNames, scope, trace)
+          ) {
+            return "origin CHECK entailment through the CTE/subquery → notNull";
+          }
+          const pin = this.presenceGroupPins(entry, index, outerNames, scope);
+          return pin === null
+            ? null
+            : `${pin} is pinned here and shares this column's presence group, ` +
+              `so the inner row is present on every returned row → notNull`;
+        };
 
         // Star expansion resolves positionally — the only caller that can
         // reach a duplicate-named inner column, where a name lookup would
@@ -6955,8 +7030,9 @@ class NullabilityEngine {
           if (inner) {
             const result = inner.notNull && joinState !== OPTIONAL;
             trace.addFact("innerResult", `${inner.notNull ? "notNull" : "nullable"} (ordinal ${ordinal})`);
-            if (!result && tryOrigin(inner)) {
-              trace.conclude(true, "origin CHECK entailment through the CTE/subquery → notNull");
+            const why = result ? null : escape(inner, ordinal);
+            if (why) {
+              trace.conclude(true, why);
               return true;
             }
             trace.conclude(result, `CTE/subquery column[${ordinal}] ${inner.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
@@ -6974,8 +7050,9 @@ class NullabilityEngine {
             const inner = innerResults[colIndex]!;
             const result = inner.notNull && joinState !== OPTIONAL;
             trace.addFact("innerResult", `${inner.notNull ? "notNull" : "nullable"} (col[${colIndex}])`);
-            if (!result && tryOrigin(inner)) {
-              trace.conclude(true, "origin CHECK entailment through the CTE/subquery → notNull");
+            const why = result ? null : escape(inner, colIndex);
+            if (why) {
+              trace.conclude(true, why);
               return true;
             }
             trace.conclude(result, `CTE/subquery column[${colIndex}] ${inner.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
@@ -6986,8 +7063,9 @@ class NullabilityEngine {
           if (col) {
             const result = col.notNull && joinState !== OPTIONAL;
             trace.addFact("innerResult", `${col.notNull ? "notNull" : "nullable"} (by name '${colName}')`);
-            if (!result && tryOrigin(col)) {
-              trace.conclude(true, "origin CHECK entailment through the CTE/subquery → notNull");
+            const why = result ? null : escape(col, innerResults.indexOf(col));
+            if (why) {
+              trace.conclude(true, why);
               return true;
             }
             trace.conclude(result, `CTE/subquery col '${colName}' ${col.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
@@ -7001,8 +7079,9 @@ class NullabilityEngine {
         if (col) {
           const result = col.notNull && joinState !== OPTIONAL;
           trace.addFact("innerResult", `${col.notNull ? "notNull" : "nullable"} (by name '${colName}')`);
-          if (!result && tryOrigin(col)) {
-            trace.conclude(true, "origin CHECK entailment through the CTE/subquery → notNull");
+          const why = result ? null : escape(col, innerResults.indexOf(col));
+          if (why) {
+            trace.conclude(true, why);
             return true;
           }
           trace.conclude(result, `CTE/subquery col '${colName}' ${col.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
