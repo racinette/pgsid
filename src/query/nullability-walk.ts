@@ -737,6 +737,14 @@ interface Scope {
    * anything; consulted as an upgrade alongside the catalog flag.
    */
   dmlWrittenColumns?: { alias: string; columns: ReadonlyMap<string, boolean> };
+  /**
+   * The mirror of `dmlWrittenColumns`: per target column, whether the value
+   * actually written is provably NULL on every path that can produce a
+   * returned row. Kept as a second map rather than a third state in the
+   * first, because the two are read by different questions and a column is
+   * in neither map far more often than it is in either.
+   */
+  dmlWrittenNullColumns?: { alias: string; columns: ReadonlyMap<string, boolean> };
   /** Outer scope for correlated references. */
   outer: Scope | null;
   /** Memoized per-output-column results for this scope's AST node. */
@@ -3255,20 +3263,34 @@ class NullabilityEngine {
     // silently; the refusal made it visible.) A source that referenced the
     // target's alias would be invalid SQL, so the extra visibility is
     // unreachable.
+    // The mirror map, built in lockstep and by the same rule: EVERY VALUES
+    // row must write NULL, because any one row that does not is a returned
+    // row that carries a value.
+    const writtenNull = new Map<string, boolean>();
     const valuesLists = select["valuesLists"] as Node[] | undefined;
     if (valuesLists?.length) {
       columns.forEach((col, i) => {
         if (!col) return;
-        const cellsNotNull = valuesLists.every(row => {
-          const cell = ((row as { List?: { items?: Node[] } }).List?.items ?? [])[i];
-          return !!cell && this.walkExpr(cell, this.emptyScope(scope), depth + 1);
-        });
-        written.set(col, cellsNotNull);
+        const cells = valuesLists.map(
+          row => ((row as { List?: { items?: Node[] } }).List?.items ?? [])[i],
+        );
+        written.set(
+          col,
+          cells.every(cell => !!cell && this.walkExpr(cell, this.emptyScope(scope), depth + 1)),
+        );
+        writtenNull.set(
+          col,
+          cells.every(
+            cell => !!cell && this.alwaysNullExpr(cell, this.emptyScope(scope), depth + 1),
+          ),
+        );
       });
     } else if (select["op"] === "SETOP_NONE" && select["targetList"]) {
       const innerResults = this.analyzeStatement(stmt.selectStmt!, scope, depth + 1);
       columns.forEach((col, i) => {
-        if (col) written.set(col, innerResults[i]?.notNull === true);
+        if (!col) return;
+        written.set(col, innerResults[i]?.notNull === true);
+        writtenNull.set(col, innerResults[i]?.alwaysNull === true);
       });
     } else {
       return;
@@ -3293,9 +3315,14 @@ class NullabilityEngine {
       for (const [col, insertPath] of written) {
         written.set(col, insertPath && (setNotNull.get(col) ?? false));
       }
+      // The conflict path is a SECOND way to produce a returned row, and
+      // its SET expressions are not analysed for always-null here — so the
+      // mirror map cannot speak for any column once that path exists.
+      writtenNull.clear();
     }
 
     scope.dmlWrittenColumns = { alias: entry.alias, columns: written };
+    scope.dmlWrittenNullColumns = { alias: entry.alias, columns: writtenNull };
   }
 
   private analyzeUpdate(
@@ -3940,9 +3967,19 @@ class NullabilityEngine {
         op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT"
           ? l?.unitCrossings
           : [...(l?.unitCrossings ?? []), ...(r?.unitCrossings ?? [])];
+      // Always-null across a set operation, the mirror of `notNull` above:
+      // INTERSECT and EXCEPT rows ARE left-branch rows, so the left claim
+      // passes through verbatim; a UNION row came from one branch or the
+      // other, so the claim survives only when BOTH make it. Same shape as
+      // the origins rule directly above, and the same reason.
+      const alwaysNull =
+        op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT"
+          ? l?.alwaysNull === true
+          : l?.alwaysNull === true && r?.alwaysNull === true;
       results.push({
         name: l?.name ?? r?.name ?? "",
         notNull: combineSetOpColumn(l?.notNull ?? false, r?.notNull ?? false, op),
+        ...(alwaysNull ? { alwaysNull: true } : {}),
         ...(origins ? { origins } : {}),
         ...(originNotNull ? { originNotNull } : {}),
         ...(crossings && crossings.length > 0 ? { unitCrossings: crossings } : {}),
@@ -5944,9 +5981,63 @@ class NullabilityEngine {
    */
   private alwaysNullExpr(expr: Node, scope: Scope, depth: number): boolean {
     if (this.isNullLiteral(expr)) return true;
+
+    const node = expr as Record<string, unknown>;
+
+    // A cast of NULL is NULL for every target type, so the wrapper is
+    // transparent here. Needed for real spellings rather than tidiness:
+    // `CASE … END::text` presents as a TypeCast, and the shape rules below
+    // would never see the CASE at all.
+    if ("TypeCast" in node) {
+      const arg = (node["TypeCast"] as { arg?: Node }).arg;
+      if (arg && this.alwaysNullExpr(arg, scope, depth)) return true;
+    }
+
+    // `NULLIF(c, c)` over the SAME column is NULL whichever way it goes:
+    // equal values give NULL by definition, and a NULL c makes the
+    // comparison NULL, so the expression returns c — also NULL. Restricted
+    // to a bare ColumnRef pair because the argument needs the two operands
+    // to hold the same value within the row, which `NULLIF(random(),
+    // random())` does not.
+    if ("A_Expr" in node) {
+      const ae = node["A_Expr"] as { kind?: string; lexpr?: Node; rexpr?: Node };
+      if (
+        ae.kind === "AEXPR_NULLIF" &&
+        ae.lexpr &&
+        ae.rexpr &&
+        this.sameColumnRef(ae.lexpr, ae.rexpr)
+      ) {
+        return true;
+      }
+    }
+
+    // A CASE is always NULL when every arm that can still fire is, the ELSE
+    // included — and a MISSING ELSE is itself NULL, which is why its absence
+    // helps rather than blocks. Deliberately not consulting arm pruning: a
+    // pruned arm can only remove a way to be non-null, so ignoring the
+    // pruning is the conservative direction here.
+    if ("CaseExpr" in node) {
+      const ce = node["CaseExpr"] as { args?: Node[]; defresult?: Node };
+      const arms = (ce.args ?? []).map(
+        a => (a as Record<string, unknown>)["CaseWhen"] as { result?: Node } | undefined,
+      );
+      const everyArmNull = arms.every(
+        w => !!w?.result && this.alwaysNullExpr(w.result, scope, depth),
+      );
+      const elseNull = !ce.defresult || this.alwaysNullExpr(ce.defresult, scope, depth);
+      if (arms.length > 0 && everyArmNull && elseNull) return true;
+    }
+
+    // The leaf predicate accepts a NULL LITERAL as well as an always-null
+    // column, which is what carries `NULL::numeric + 1` and `upper(NULL)`.
+    // The top-level test above is not enough: it only sees a literal that IS
+    // the whole expression, and a literal one level down was invisible.
+    // Widening the leaf rather than adding a case keeps the closure's care —
+    // `COALESCE(NULL, 'x')` still needs EVERY branch to force, so it stays
+    // notNull rather than riding in on this.
     return this.exprStrictlyForces(
       expr,
-      leaf => this.columnIsAlwaysNull(leaf, scope, depth),
+      leaf => this.isNullLiteral(leaf) || this.columnIsAlwaysNull(leaf, scope, depth),
       scope,
     );
   }
@@ -6010,6 +6101,32 @@ class NullabilityEngine {
       if (extendsEntry) out.push(j.quals);
     }
     return out;
+  }
+
+  /** The written-NULL map when it describes THIS entry, else undefined. */
+  private dmlWrittenNullColumnsFor(
+    entry: RelationEntry,
+    scope: Scope,
+  ): ReadonlyMap<string, boolean> | undefined {
+    const w = scope.dmlWrittenNullColumns;
+    return w && w.alias === entry.alias ? w.columns : undefined;
+  }
+
+  /**
+   * Whether two expressions are the SAME bare column reference, spelled
+   * identically. Not general structural equality: the only caller needs
+   * "these two operands read one value from one row", and a conservative
+   * `false` for anything else is the right answer for it.
+   */
+  private sameColumnRef(a: Node, b: Node): boolean {
+    const an = a as Record<string, unknown>;
+    const bn = b as Record<string, unknown>;
+    if (!("ColumnRef" in an) || !("ColumnRef" in bn)) return false;
+    const parts = (n: Record<string, unknown>): string[] =>
+      ((n["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f) ?? " ");
+    const ap = parts(an);
+    const bp = parts(bn);
+    return ap.length > 0 && ap.length === bp.length && ap.every((p, i) => p === bp[i]);
   }
 
   /** A bare NULL constant, through any number of casts. */
@@ -6078,6 +6195,19 @@ class NullabilityEngine {
     }
 
     if (entry.kind !== "table" || !entry.table) return false;
+
+    // A RETURNING row reports the row the statement WROTE, so a column
+    // written NULL on every producing path is NULL on every returned row —
+    // no CHECK and no evidence required. The catalog name is the map's key,
+    // matching `dmlWrittenColumns`' own consumer.
+    const writtenCol = this.entryCatalogColumn(entry, column);
+    if (
+      writtenCol !== undefined &&
+      this.dmlWrittenNullColumnsFor(entry, scope)?.get(writtenCol) === true
+    ) {
+      return true;
+    }
+
     const checkExprs =
       entry.scanInh === false
         ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
@@ -8480,6 +8610,16 @@ class NullabilityEngine {
     const node = expr as Record<string, unknown>;
 
     if ("ColumnRef" in node) return leaf(expr);
+
+    // A CONSTANT is asked of `leaf` rather than answered here. A NULL
+    // constant does satisfy the contract outright — it is NULL whenever
+    // anything is — but concluding that unilaterally would widen every
+    // caller, and "vacuously sound" is not a reason to move a helper the
+    // promotion machinery rests on. Delegating changes nothing for the two
+    // column-side callers, whose predicates (`columnMatches`,
+    // `columnRefMatchesAlias`) reject a non-ColumnRef node outright; the
+    // always-null caller is the one that says yes.
+    if ("A_Const" in node) return leaf(expr);
 
     if ("TypeCast" in node) {
       const arg = (node["TypeCast"] as { arg?: Node }).arg;
