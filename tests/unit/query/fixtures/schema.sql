@@ -1445,6 +1445,16 @@ CREATE FUNCTION sw4_dom_srf(n integer) RETURNS SETOF nn_text
 CREATE FUNCTION sw4_tab_srf(n integer) RETURNS TABLE(a nn_text, b integer)
   LANGUAGE sql STRICT AS $$ SELECT 'v'::nn_text, n $$;
 
+-- The non-strict SETOF twin that IGNORES its argument, for the strictness
+-- gate on `recordStrictSrfImplications`. `sw4_dom_rows` above looks like the
+-- control and is not: its body is `… FROM generate_series(1, n)`, so a NULL
+-- argument empties the series and the call filters the source row after all,
+-- for a reason that has nothing to do with the function's own strictness.
+-- This one returns its row whatever it is handed, which is what makes the
+-- gate observable (strict-srf-strictness-gate.sql).
+CREATE FUNCTION sw4_ignores_arg(n integer) RETURNS SETOF integer
+  LANGUAGE sql AS $$ SELECT 1 $$;
+
 -- A record-returning call, for the `ROWS FROM` column-definition-list arm:
 -- its declared columns carry no flags, so it is the arm with nothing to lose
 -- to the padding and the control that says so.

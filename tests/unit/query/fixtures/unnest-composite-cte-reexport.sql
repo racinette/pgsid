@@ -8,8 +8,6 @@
 WITH w AS (SELECT id, pairs FROM pair_holder)
 SELECT * FROM w, unnest(w.pairs)
 -- @notNull    (id)
--- @nullable   (pairs)
+-- @notNull    (pairs: the strict SRF filters its own argument)
 -- @nullable   (sku)
 -- @nullable   (qty)
--- @unwitnessable 1: unnesting a NULL array produces no rows, so the column
---   being unnested is never observed NULL through this join.

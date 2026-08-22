@@ -497,13 +497,45 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **96 `@unwitnessable` reasons in the hand corpus** carry the same rot risk
-and are not yet wired to blame files. **This is now the only place a reason can
-rot**: the generated corpus's list is empty, so every excuse left in the
-project is here, and none of them is executable. That is the obvious next pass
-and it is not done. (Was 101 on 2026-08-22; five came off as the claims they
-excused turned notNull. The suite's own readout counts CLAIMS, not annotation
-lines — one annotation may name several columns.)
+The **90 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+**This is now the only place a reason can rot**: the generated corpus's list is
+empty, so every excuse left in the project is here. (Was 101 on 2026-08-22;
+eleven came off that day as the claims they excused turned notNull. The
+suite's own readout counts CLAIMS, not annotation lines — one annotation may
+name several columns, and it reads 79.)
+
+The pass over them started with the **largest cluster, and its reason was the
+mechanism**: seven fixtures said "unnesting a NULL array produces no rows, so
+the column being unnested is never observed NULL through this join". True, and
+stated rather than built. A STRICT set-returning function in FROM filters its
+own arguments — PostgreSQL never calls it for a NULL, the call yields zero
+rows, and an inner join drops the row that supplied it — so every argument is
+non-null on every emitted row. `recordStrictSrfImplications` records that as an
+`IS NOT NULL` implied qual per argument, which every existing consumer then
+picks up unchanged, `rowsImplyWhere` gating included.
+
+Four gates, each a MEASURED counterexample rather than caution, and each with
+its own fixture and mutation:
+
+| gate | what breaks without it |
+|---|---|
+| not OPTIONAL | `LEFT JOIN LATERAL unnest(h.a) ON true` keeps the row with `a` NULL |
+| one arm | `ROWS FROM (unnest(a), unnest(b))` pads the empty arm; the b rows survive |
+| not the zip form | `unnest(a, b)` is one call over several arrays and pads the same way |
+| strict AND set-returning | a strict SCALAR function in FROM returns ONE row of NULL, not none; a non-strict SRF is called with the NULL and returns what it likes |
+
+The strictness fixture needed a new schema object, and the reason is worth
+recording: the obvious control was `sw4_dom_rows`, the non-strict twin the
+schema already carried — and it is the WRONG control. Its body is `… FROM
+generate_series(1, n)`, so a NULL argument empties the series and the call
+filters the source row anyway, for a reason that has nothing to do with
+strictness. Reading the declaration said "non-strict"; running it said
+"filters". `sw4_ignores_arg` exists because of that.
+
+The builtin path rests on one measured fact — no pg_catalog name mixes
+set-returning with scalar overloads, so the capture's `bool_or` quantifier and
+the `bool_and` the walk needs coincide. That is now a snapshot test rather than
+an assumption.
 
 ### 4. Known imprecision residue
 

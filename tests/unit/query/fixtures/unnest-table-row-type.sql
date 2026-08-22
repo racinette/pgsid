@@ -9,9 +9,7 @@
 -- nullable here, which is the same rule a `SETOF <table>` return follows.
 SELECT * FROM trow_holder h, unnest(h.rows)
 -- @notNull    (id)
--- @nullable   (rows)
+-- @notNull    (rows: the unnested column, filtered by the strict SRF)
 -- @nullable   (row1: the bare row-type column beside the array one)
 -- @nullable   (a: NOT NULL in trow, but constraints do not travel with a row type)
 -- @nullable   (b)
--- @unwitnessable 1: unnesting a NULL array produces no rows, so the column
---   being unnested is never observed NULL through this join.

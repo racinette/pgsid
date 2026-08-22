@@ -4,8 +4,6 @@
 -- holds them to it.
 SELECT * FROM (SELECT id, pairs FROM pair_holder) s, unnest(s.pairs)
 -- @notNull    (id)
--- @nullable   (pairs)
+-- @notNull    (pairs: the strict SRF filters its own argument)
 -- @nullable   (sku)
 -- @nullable   (qty)
--- @unwitnessable 1: unnesting a NULL array produces no rows, so the column
---   being unnested is never observed NULL through this join.

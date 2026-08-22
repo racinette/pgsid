@@ -1,0 +1,32 @@
+-- A STRICT set-returning function in FROM filters its own arguments
+-- (`recordStrictSrfImplications`), landed 2026-08-22.
+--
+-- A NULL argument means PostgreSQL never calls the function, the call yields
+-- ZERO ROWS, and an inner join drops the row that supplied the NULL. So every
+-- row the scope emits had every argument non-null — the same shape as a WHERE
+-- conjunct, and recorded as one (an `IS NOT NULL` implied qual per argument)
+-- so every existing consumer picks it up unchanged: column guarantees, alias
+-- promotion, the presence fixpoint, parameter narrowing, and their
+-- `rowsImplyWhere` gating with them.
+--
+-- Six fixtures recorded this as unwitnessable — "unnesting a NULL array
+-- produces no rows, so the column being unnested is never observed NULL
+-- through this join" — which is the mechanism stated and then not built. They
+-- assert notNull now; this file and its two siblings hold the GATES, each a
+-- measured counterexample and none of them exercised by those six.
+--
+--   inner_ok   the claim: a comma join over `unnest(h1.pairs)`.
+--   left_lat   the NOT-OPTIONAL gate, and the one that matters most — the
+--              other gates are shape checks and this one is about the row
+--              surviving. `LEFT JOIN LATERAL … ON true` keeps the h row with
+--              the array NULL and the function's columns extended, which
+--              `pair_holder`'s NULL-array seed witnesses directly.
+--
+-- Kept to two relations on purpose: an earlier draft cross-joined all six
+-- gate shapes into one statement and exhausted the heap in the denser data
+-- states. A cartesian product of unnest expansions is not a cheap fixture.
+SELECT h1.pairs AS inner_ok, h2.pairs AS left_lat
+FROM pair_holder h1, unnest(h1.pairs) p1,
+     pair_holder h2 LEFT JOIN LATERAL unnest(h2.pairs) p2 ON true
+-- @notNull    (inner_ok)
+-- @nullable   (left_lat)
