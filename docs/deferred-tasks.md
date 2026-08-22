@@ -170,20 +170,23 @@ is permanent and how to re-measure it:
 WITNESS_REPORT=1 pnpm exec vitest run tests/unit/query/generated/generated-soundness.test.ts
 ```
 
-Across 14,964 queries, 32,419 nullable output claims and **32,293 witnessed**.
-The 126 that are not are each classified, and every classification is either
+Across 14,964 queries, 32,383 nullable output claims and **32,293 witnessed**.
+The 90 that are not are each classified, and every classification is either
 executable as a `<label>.blame.sql` fixture or declares itself geometric. Four
 buckets, and they fail to be witnessed for four different reasons:
 
 | unwitnessed | bucket | why no data reaches the NULL |
 |---:|---|---|
-| 96/498 | `proj=case-nullif \| col=a_case` | **the join shape forbids the row.** a_case is NULL only where t is present and u NULL-extended; in these twelve structures t and u null-extend jointly, or a later strict qual on u's columns discards the u-absent row |
+| 60/462 | `proj=case-nullif \| col=a_case` | **the join shape forbids the row.** a_case is NULL only where t is present and u NULL-extended; in these five structures the t-u join is RIGHT or FULL, so a u-absent row either extends t with it or is discarded by the outer join's qual on u |
 | 28/526 | `proj=plain \| col=a_tb` | **the query's own filter removes its witness.** The refilter wrappers pin `a_tc IS NOT NULL`, and a_tc is non-null exactly on the rows where the SRF or unnest produced a value — the same rows where a_tb is non-null too |
 | 1/6 | `proj=plain \| col=r_snm` | **the witness is a raise, not a row.** `$1` lands in `ck.val`'s NOT NULL constraint, so binding NULL raises; the param suite counts that as a rejection and the witness channel cannot count it as anything |
 | 1/1 | `proj=case \| col=r_ce` | **the engine tracks nullability, not values.** `active` was written as the literal `true`, so PostgreSQL never runs the ELSE branch; written-value tracking deliberately carries only non-nullness |
 
-Only the last is engine imprecision in the sense that a better engine would flip
-the claim, and closing it means tracking VALUES — a different project.
+Two are engine imprecision in the sense that a better engine would flip the
+claim, and they cost very differently. `r_ce` needs VALUE tracking — a different
+project. `a_case` needs one more rung on a promotion channel that already
+exists, and the same predicate spelled in a WHERE instead of a CASE guard
+already reads notNull in all five structures.
 
 Three gates hold this, in `generated-soundness.test.ts`: an unclassified claim
 fails, a rule matching nothing fails as stale, and a rule blaming a MECHANISM
@@ -192,21 +195,29 @@ cannot substitute for — an expired REASON leaves the outcome where it was, so
 the claim stays unwitnessed, the rule keeps matching, and the suite stays green
 over a cause that has been false for weeks.
 
-**Writing the blame files found five of eight reasons wrong**, in two species:
+**Writing the blame files found five of eight reasons wrong**, and reading one
+of the survivors aloud found a sixth. Three species:
 
 | rule | the reason said | measured |
 |---|---|---|
+| a_case | "sound engine conservatism about the CASE branch" | two promotion rungs were missing, not necessary conservatism; 36 of the 96 flipped when they landed — **imprecision recorded as necessity** |
 | a_fi | name-level dispatch can't narrow `upper` | typed dispatch narrows it and reaches `$n` bodies; it did not reach a parameter by NAME — **expired mechanism** |
 | a_fv | `resolveFunctionCandidates` refuses VARIADIC | a resolved call never enters the consensus branch; the body's `nullif` is the cause — **expired mechanism** |
 | r_snm | the MERGE source is optional unconditionally | `joinState = REQUIRED` with no BY SOURCE arm; the cause is `$1` — **behaviour the engine never had** |
 | a_fa | a user aggregate's sfunc is opaque, so the walk cannot prove it non-null | `gfn_sfunc` folds `''` to NULL, so the aggregate IS nullable over non-empty input — **filed unwitnessable when it was merely unwitnessed** |
 | a_fv | the nullif "fires only when EVERY argument is NULL" | `array_to_string` SKIPS NULLs, so a NULL beside an empty string joins to `''` and folds — **same mistake, same blind spot** |
 
-The last two are the species an outcome gate can never reach: a reason that
-mistakes a data gap for engine imprecision sends every future reader at a
-mechanism that would not have helped. Both rested on the same false premise —
-**that a NOT NULL text column rules out the degenerate value**. It does not
-rule out `''`.
+a_fa and a_fv (the nullif row) are the species an outcome gate can never reach:
+a reason that mistakes a data gap for engine imprecision sends every future
+reader at a mechanism that would not have helped. Both rested on the same false
+premise — **that a NOT NULL text column rules out the degenerate value**. It
+does not rule out `''`.
+
+a_case is the third species and needs no blame file to catch — only reading the
+reason next to the code it names. It called the residue conservatism the branch
+FORCED, and the word "sound" made it read as settled. Nothing in the suite
+disputes a reason that says a thing is impossible; only asking "impossible how?"
+does. **Look at the survivors, not just the ones that flip.**
 
 **Three buckets closed 2026-08-22**, only one of them by changing the engine:
 
@@ -219,6 +230,30 @@ rule out `''`.
   partner, and a `v` partner so the three-table nests keep the group. Measured:
   a_fa 300 → 120 → 0 as the partners went in; a_fv 240 → 0 the moment the
   name went NULL.
+
+**a_case narrowed 96 → 60 the same day**, by two rungs in `nullability-walk.ts`,
+both of them a channel that existed answering one caller and not another:
+
+- `predicateProvesNonNull` enumerates BoolExpr, NullTest and A_Expr, then
+  returns false. A predicate that IS a ColumnRef — `WHERE t.active`,
+  `CASE WHEN t.active` — had no case, so a boolean column steering a row or a
+  branch proved nothing about itself.
+- `findNullGroupPromoter` asked `checkWhereAliasPromoted` and nothing else. The
+  per-alias rung one level up asks the WHERE **and** the branch guards; the
+  group hop asked only the WHERE, so a guard could promote `t` and the
+  promotion had no way to reach `u`.
+
+Both were needed: `CASE WHEN t.active THEN u.email` under `(t INNER u) RIGHT v`
+requires the first to promote `t` and the second to carry it to `u`. The seven
+structures that left the rule are exactly those where t and u share one
+null-extension unit. The five that remain put them in different units, and the
+guard channel has no cross-unit promotion — which is the same asymmetry one
+level deeper, since the WHERE channel reads notNull in all five.
+
+`CASE_DARK_STRUCTURES` was trimmed from twelve entries to five by hand. **No
+gate would have caught the seven dead ones**: the staleness check fires when a
+RULE matches nothing, and this rule still matches 60 claims. A structure set is
+a second place a reason can rot, finer-grained than the rule.
 
 Not the parameter side, which this item also misread. **2724 nullable argument
 claims, 0 falsified** is 2724 confirmations, not a residue: for an argument,
