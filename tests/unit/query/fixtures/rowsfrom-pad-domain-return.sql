@@ -18,10 +18,13 @@
 -- the single-candidate arm alike. It is clipped where the item's columns are
 -- ASSEMBLED now, which is the same point the strict short-circuit is cleared
 -- at and one line from where the rule was written down.
--- @unwitnessable 1: generate_series is the LONGER arm, so the padding never
---   reaches it — the same uniform conservatism body-shape-rows-from-padding.sql
---   records
+-- The clip is per-arm as of 2026-08-22, and this is the shape that shows the
+-- difference in both directions at once. `dom_lenient` returns ONE VALUE, so
+-- it contributes exactly one row; `generate_series(1, 3)` over constant
+-- integer bounds contributes exactly three. Three covers one, so the series
+-- arm cannot be padded and keeps its own reading — which is the whole table
+-- above, read off the shape rather than off the seeds.
 SELECT
   x.dom_lenient,        -- @nullable  (padded once the one-row arm has returned)
-  x.generate_series     -- @nullable  (a builtin SRF's conservative column)
+  x.generate_series     -- @notNull   (three rows against one — never padded)
 FROM ROWS FROM (dom_lenient('a'), generate_series(1, 3)) AS x

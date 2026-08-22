@@ -11,8 +11,13 @@
 -- answers it exactly — the same question the flag rule was already asking of
 -- the same set. Independent of finding 1: completing the builtin name table
 -- would not have moved this claim.
+-- The same consensus answers the padding's ROW BOUND as of 2026-08-22, and
+-- for the same reason: both overloads' bodies are `SELECT '…'::non_empty_text`
+-- — no FROM, no WHERE, one row each, and neither declared STRICT — so
+-- whichever one runs, `o` contributes exactly one row against the series'
+-- three. That is a question the body map could not be asked while it was keyed
+-- by NAME; srf-padding-overload-body-split.sql is the trap that key change
+-- disarms, and body-shape-overload-collision.sql the claim it does NOT open.
 SELECT
   ov_sku(1) AS o,             -- @nullable
-  generate_series(1, 3) AS g  -- @nullable
--- @unwitnessable 1: generate_series is the LONGER call, so the padding
---   never reaches it — the padding rule's uniform conservatism
+  generate_series(1, 3) AS g  -- @notNull

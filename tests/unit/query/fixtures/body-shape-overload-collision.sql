@@ -1,16 +1,23 @@
 -- Gate (b): an OVERLOADED sql-bodied function returning a row type.
 --
--- fnBodyAsts is keyed by `schema.name` alone, so ov_pair's two bodies share
--- one entry; reading it would let one overload's guarantee speak for the
--- other's. The candidates agree on the SHAPE, so the consensus rule answers
--- the column list without resolving the overload, and the flags stay
--- conservative — which is what `resolveFunctionMetadata` returning null for
--- any overloaded name enforces.
+-- One overload's body proves nothing about another's, so the flags stay
+-- conservative until the overload is resolved — which is what
+-- `resolveFunctionMetadata` returning null for any overloaded name enforces.
+-- The candidates agree on the SHAPE, so the consensus rule answers the column
+-- list without resolving anything.
 --
 -- The trap is loaded: this call takes the integer overload, whose body emits
--- NULLs, while the text overload defined after it is what the shared key
--- holds. A body read here would claim notNull and PostgreSQL would falsify it
--- on every row.
+-- NULLs, while the text overload defined after it emits values. A body read
+-- here would claim notNull and PostgreSQL would falsify it on every row.
+--
+-- It was a MAP-KEY trap too until 2026-08-22, when fnBodyAsts was keyed by
+-- `schema.name` and ov_pair's two bodies shared one entry. That key is the
+-- full signature now, so the bodies are individually readable and this fixture
+-- rests on the single-candidate shortcut alone — the reason that was always
+-- doing the work. srf-padding-overload-body-split.sql is the trap the key
+-- change disarmed, and the padding bound's consensus over ALL candidates is
+-- what the key made askable: a bound every candidate satisfies holds whichever
+-- one runs, which is not a permission a FLAG can take.
 SELECT * FROM ov_pair(1)
 -- @nullable   (sku)
 -- @nullable   (qty)

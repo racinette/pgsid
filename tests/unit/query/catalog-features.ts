@@ -517,7 +517,7 @@ export const FEATURES: Record<string, Feature> = {
   "language-sql-body": {
     category: "handled",
     reads: "fnBodyAsts",
-    why: "fnBodyAsts — the walk recurses into a single-candidate LANGUAGE sql body; the map is keyed by NAME alone, so only a single candidate may be read",
+    why: "fnBodyAsts — the walk recurses into a single-candidate LANGUAGE sql body for FLAGS, and reads every candidate's body for the SRF padding bound, where consensus takes the weakest answer; the map is keyed by full SIGNATURE, so an overloaded name's bodies no longer collide",
     detect: s => s.functions.some(f => f.language === "sql"),
   },
   "language-plpgsql-body": {

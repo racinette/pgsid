@@ -10,9 +10,13 @@
 -- Every state witnesses it: generate_series always supplies 200 rows and no
 -- state seeds anywhere near 200 products, so the padded rows are always there
 -- — including `empty`, where sku_pairs contributes nothing at all.
--- @unwitnessable 2: generate_series is the LONGER call, so the padding never
---   reaches it — the same uniform conservatism srf-target-list-padding.sql
---   records one clause over
+-- @unwitnessable 2: generate_series contributes exactly 200 rows and the
+--   other arm has NO CEILING — `SELECT p.sku, 1 FROM products p` is a scan,
+--   and a scan of an unknown table could be longer. Every state seeds far
+--   fewer than 200 products, which is a fact about the seeds and not about
+--   the shape, so the arm is the longest here and unprovably so. The bound
+--   that would close it is a row estimate the walk deliberately has no
+--   business trusting
 SELECT * FROM ROWS FROM (sku_pairs(), generate_series(1, 200))
 -- @nullable   (sku: padded once products run out)
 -- @nullable   (qty: same)

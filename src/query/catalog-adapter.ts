@@ -195,7 +195,7 @@ export async function buildNullabilityCatalog(
   const fnBodyAsts = new Map<string, Node>();
   for (const f of snapshot.functions) {
     if (f.language !== "sql" || f.isAggregate) continue;
-    const fnKey = `${f.schema}.${f.name}`;
+    const fnKey = `${f.schema}.${f.name}(${f.argTypes})`;
     const ast = await parseFnBodyAst(f.body, f.definition);
     if (ast) fnBodyAsts.set(fnKey, ast);
   }
@@ -1602,14 +1602,19 @@ export async function buildNullabilityCatalog(
       userSurvivors.length === 1 && builtinSurvivors.length === 0
         ? userSurvivors[0]!
         : null;
-    // The body-map guard: `fnBodyAsts` is keyed by name alone, so an
-    // overloaded name's SQL bodies collide there — the invariant that made
-    // the key unambiguous was resolveFunctionMetadata's single-candidate
-    // shortcut, and typed selection must not smuggle a colliding meta past
-    // it (the class-A trap fixture is built on exactly that collision).
-    // Domain returns, strictness and plpgsql winners carry no body read
-    // and stay recoverable; a SQL-bodied overload waits for a
-    // signature-keyed body map.
+    // The body-map guard. Its ORIGINAL reason is gone: `fnBodyAsts` was keyed
+    // by name alone, so an overloaded name's SQL bodies collided there, and
+    // typed selection handing back a colliding meta would have let one
+    // overload's body speak for another's. The map is keyed by SIGNATURE as of
+    // 2026-08-22 and that collision no longer exists.
+    //
+    // What is left is a different and weaker claim — that typed selection's
+    // pick is itself trustworthy enough to displace the CONSENSUS the shape
+    // and flag rules take over all candidates — and this is the conservative
+    // side of it. Lifting the guard was measured and moves NOTHING: no fixture
+    // reaches a SQL-bodied overloaded name through this path, so it is inert
+    // in the corpus rather than load-bearing, and removing it would be a
+    // widening nothing could catch. It stays until something reaches it.
     if (winner && winner.language === "sql" && users.length > 1) return null;
     return winner;
   };

@@ -497,12 +497,12 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **86 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **79 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
 empty, so every excuse left in the project is here. (Was 101 on 2026-08-22;
-fifteen came off that day as the claims they excused turned notNull. The
+twenty-two came off that day as the claims they excused turned notNull. The
 suite's own readout counts CLAIMS, not annotation lines — one annotation may
-name several columns, and it reads 74.)
+name several columns, and it reads 67.)
 
 The pass over them started with the **largest cluster, and its reason was the
 mechanism**: seven fixtures said "unnesting a NULL array produces no rows, so
@@ -567,6 +567,99 @@ Two smaller gaps surfaced and are recorded rather than chased: `(f()).field`
 is a different A_Indirection from `(f()).*` and takes an unimproved path, and
 `first_item`'s body is unreadable to `sqlFunctionBodyShape` while
 `get_order_items`' identical star is read.
+
+**The third cluster was the SRF padding / longest arm (9 claims), and it was
+two causes wearing one reason.** Every annotation said some version of "the
+longer call is never padded, and a builtin SRF's column is uniformly
+conservative". The second half was false in the target list and true in FROM,
+for the same call — which is what gave the cluster away.
+
+*(a) The FROM-position value reading, 2 claims.* A pg_catalog SRF with no named
+output column contributes ONE column, and its values are the CALL's values:
+`SELECT generate_series(1, 2)` and `SELECT g FROM generate_series(1, 2) g` emit
+the same rows. The target list read that notNull all along
+(`srf-strict-nullable-argument-target-list.sql` — a strict SRF's nullable
+argument subtracts ROWS, not values); the FROM position never asked. It asks
+now, through the same `walkExpr`. The reading DISCRIMINATES rather than
+widening, which took a control the corpus did not have:
+`string_to_table('a,b,c', ',', 'b')` is non-strict and its third argument is a
+null_string, so row two comes back a real SQL NULL. Both answers now come out
+of that one line (`builtin-from-position-value.sql`). The builtins WITH named
+output columns take the snapshot's shape one branch earlier and did not move.
+
+*(b) The padding's uniformity, 7 claims.* The clip was `counts.map(c => c > 0)`
+— every SRF-carrying participant drops. "Longer" was read as "not alone", which
+is the same answer only when nothing can be counted. `armRowBounds` counts what
+it can and `unpaddedParticipants` compares: a participant survives when its own
+MINIMUM covers every other's MAXIMUM. Three readings, and the asymmetry between
+min and max is the whole mechanism:
+
+| reading | bound | why |
+|---|---|---|
+| not set-returning | exactly 1 | one value is one row — including a strict call handed NULL, which still emits its row, of NULLs |
+| `generate_series(lo, hi)`, constant integers | exactly `hi - lo + 1`, floored at 0 | the only source of a minimum above one; a backwards range emits nothing |
+| SETOF whose body `guaranteesSingleRow` | at most 1, at least 1 unless strict-with-arguments | a strict call handed NULL never runs the body at all |
+
+A lone arm falls out of the arithmetic rather than needing its own rule: with
+no others, the maximum to cover is zero. `loneArm` survives only as the NAMING
+predicate, which is what it always was — arm count names a column, row count
+pads one.
+
+**A per-arm clip broke the presence groups, and the break is the interesting
+part.** Once the longer arm keeps its flags it becomes a group DISCRIMINANT,
+and a unit spanning both arms then reads "the unit is present" on the very rows
+the padding has emptied — the same contract violation
+`rowsfrom-pad-presence-group.sql` was written to record, arriving from the
+other side. A padded arm's columns go NULL while the ITEM is present, so they
+are no part of the item's presence unit; `paddedFunctionColumns` records the
+positions and `presenceProducer` drops them.
+
+Six mutations, all caught, and the one that matters most is caught by
+PostgreSQL rather than by a fixture: **"nothing is ever padded" fails 8
+statements on the witness channel.** The three new fixtures are the controls the
+corpus lacked — `rowsfrom-pad-shortest-arms.sql` (nobody padded; the two
+minima), `rowsfrom-pad-empty-arm.sql` (the counted arm as a CEILING, with the
+padding NULL witnessed), and `srf-padding-overload-body-split.sql`.
+
+*(c) The body map's key.* Closing the 9th claim needed every candidate of an
+overloaded name to be readable, and `fnBodyAsts` was keyed by `schema.name` —
+so an overloaded name's bodies collided and one answered for all of them. It is
+keyed by full SIGNATURE now, as `fnArgDefaultAsts` already was, and as the
+adapter's own guard comment had been asking for. The padding bound takes
+CONSENSUS over the candidates: a ceiling every candidate satisfies holds
+whichever one runs. That is not a permission a FLAG can take, and
+`body-shape-overload-collision.sql` still refuses — on the single-candidate
+shortcut, which is the reason that was always doing the work.
+
+The trap for the key (`ov_rows`) depends on WHICH body a collision would have
+kept, and nothing pins that: it is the order the snapshot's rows came back in.
+So it is paired with an order-independent structural assertion in
+`catalog-census` — one body AST per sql-bodied signature — and the fixture's
+comment says which half it is.
+
+**The adapter's body-map guard was lifted, measured, and put back.** Its stated
+reason is void now that the key is unambiguous, but lifting it moves NOTHING:
+no fixture reaches a SQL-bodied overloaded name through typed selection, so it
+is inert in the corpus rather than load-bearing, and removing it would be a
+widening nothing could catch. The comment now says that instead of the old
+reason.
+
+**Three of the nine did not close, and their reasons are correct for the first
+time.** Two have no bound to be had: `body-shape-rows-from-padding.sql` (the
+other arm is `SELECT p.sku, 1 FROM products p`, an unbounded scan — closing it
+would mean trusting a row estimate) and `srf-padding-unlisted-builtin.sql`
+(`jsonb_path_query_tz` over a literal, countable only by evaluating a
+jsonpath). Both now name the missing BOUND rather than a conservatism.
+
+The third is a **route the bound has newly opened and nothing takes yet**.
+`rowsfrom-pad-presence-group.sql`'s series column is unpadded now; what leaves
+it nullable is the LEFT JOIN LATERAL, whose extension nulls the whole item —
+and that extension can never fire, because `generate_series(1, 3)` guarantees
+the LATERAL three rows. The same MINIMUM the padding already computes, asked of
+the join state instead: an item whose arms guarantee a row cannot be
+null-extended, so it promotes to REQUIRED. That is the presence fixpoint's
+subsystem rather than the padding's, which is why it is recorded here instead
+of built.
 
 ### 4. Known imprecision residue
 

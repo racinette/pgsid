@@ -18,10 +18,14 @@
 -- The exclusion is not what was fixed, and should not be: the padding clears
 -- these flags for a reason that has nothing to do with strictness, and a
 -- strict SRF can never BE the longest arm — it returns zero rows.
--- @unwitnessable 2: generate_series is the LONGER arm and is never padded; a
---   builtin SRF's column is uniformly conservative
+-- The bound reads the strict arm's ceiling off its BODY rather than off its
+-- strictness: `SELECT 'v'::nn_text, n` has no FROM clause and no WHERE, so it
+-- yields exactly one row whenever it runs — at most one, since a strict call
+-- handed NULL never runs it at all. One is covered by the series arm's three,
+-- so the series arm is never padded. The strict-versus-not distinction stays
+-- out of the padding rule, which is what this fixture set out to say.
 SELECT
   x.a,                  -- @nullable  (the declared NOT NULL domain, padded away)
   x.b,                  -- @nullable
-  x.generate_series     -- @nullable
+  x.generate_series     -- @notNull   (three rows against at most one)
 FROM ROWS FROM (sw4_tab_srf(NULL::integer), generate_series(1, 3)) AS x

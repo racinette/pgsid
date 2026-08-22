@@ -889,14 +889,23 @@ export interface NullabilityCatalog {
   ): { args: string[]; returns: string }[] | null;
 
   /**
-   * Pre-parsed ASTs of `LANGUAGE sql` function bodies, keyed by
-   * `"schema.name"`. The value is the last statement's AST node (the
-   * statement whose output expression is the function's return value).
+   * Pre-parsed ASTs of `LANGUAGE sql` function bodies, keyed by the full
+   * signature `"schema.name(argTypes)"`. The value is the last statement's
+   * AST node (the statement whose output expression is the function's return
+   * value).
    *
    * The walk uses this to recurse into `LANGUAGE sql` function bodies
    * synchronously. The caller (pipeline) pre-parses bodies when building
    * the catalog. If a function's body isn't in this map, the walk treats
    * it as conservative nullable.
+   *
+   * Keyed by signature rather than by `schema.name`, like `fnArgDefaultAsts`:
+   * a body belongs to one overload, and under the name key an overloaded
+   * name's bodies COLLIDED — whichever the snapshot listed last answered for
+   * all of them. What kept that from being read was resolveFunctionMetadata's
+   * single-candidate shortcut, an invariant rather than a check, and the
+   * consumer that finally needed a per-candidate body (the SRF padding bound,
+   * which asks every candidate) is the one the key change is for.
    *
    * For `BEGIN ATOMIC ... END` style bodies (PG 14+), the caller extracts
    * the last statement from the sql_body before storing it here.
