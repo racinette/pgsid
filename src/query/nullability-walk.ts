@@ -1172,6 +1172,73 @@ class NullabilityEngine {
    * A group earns its place only over the flat contract: ≥ 2 members and
    * ≥ 1 discriminant.
    */
+  /**
+   * The relation whose PRESENCE decides a producer's column — the producer
+   * itself for everything except an `unnest` of an array constructor, whose
+   * field is the element expression and is therefore NULL exactly when that
+   * expression's relation is absent.
+   *
+   * A separate reading from the producer's own, and deliberately so. The
+   * producer list has two consumers with different semantics: origins claim
+   * "this column IS that table column of that row", which a CAST breaks,
+   * and groups claim "these columns are NULL together", which a cast
+   * preserves exactly — a cast of NULL is NULL and a cast of a value is a
+   * value. So this redirect peels casts and `resolveBareColumnTarget`, which
+   * origins go through, must not.
+   *
+   * That difference is the whole reason the generated corpus's unnest
+   * structures stayed dark. `unnest(ARRAY[ROW(u.val::text, u.email)::pair])`
+   * beside a LEFT-joined `u` puts `p` and `q` in u's null group — an absent
+   * `u` makes the ROW `(NULL, NULL)`, which unnest emits as one row with
+   * both fields NULL — but `p` carries a cast, so no origin could tie the
+   * two fields together and the refilter's pin on `p` said nothing about
+   * `q`. As a presence producer the cast is simply not there.
+   *
+   * Three conditions, each load-bearing:
+   *
+   *   - The item must not itself be OPTIONAL. A null-extended unnest makes
+   *     its fields NULL while the source relation is present, which breaks
+   *     the group's "a discriminant is NULL exactly when the unit is absent"
+   *     in the direction that matters.
+   *   - Every element must name the SAME (relation, column). With elements
+   *     drawn from different relations the field alternates between them row
+   *     by row, and no single relation's absence explains its NULLs.
+   *   - The element must be a bare column under casts. An arithmetic
+   *     expression can be NULL with its relation present.
+   */
+  private presenceProducer(
+    p: { entry: RelationEntry; column: string; ordinal?: number } | null,
+    scope: Scope,
+    depth: number,
+  ): { entry: RelationEntry; column: string; ordinal?: number } | null {
+    if (!p || p.entry.kind !== "function" || p.entry.joinState === OPTIONAL) return p;
+    const index =
+      p.ordinal ??
+      this.resolveTableFunctionColumns(p.entry, scope, depth).findIndex(c => c.name === p.column);
+    if (index < 0) return p;
+    const exprs = this.unnestColumnExpressions(p.entry, index, scope, depth);
+    if (!exprs || exprs.length === 0) return p;
+    let target: { entry: RelationEntry; column: string } | null = null;
+    for (const e of exprs) {
+      const bare = this.resolveBareColumnTarget(this.stripCasts(e), scope);
+      if (!bare) return p;
+      if (!target) target = bare;
+      else if (target.entry !== bare.entry || target.column !== bare.column) return p;
+    }
+    return target ?? p;
+  }
+
+  /**
+   * An expression with its CASTS removed. Sound wherever the question is
+   * presence rather than value: a cast of NULL is NULL and a cast of a
+   * non-null value is non-null, whatever the conversion does to it.
+   */
+  private stripCasts(expr: Node): Node {
+    const rec = expr as Record<string, unknown>;
+    const inner = "TypeCast" in rec ? (rec["TypeCast"] as { arg?: Node }).arg : undefined;
+    return inner ? this.stripCasts(inner) : expr;
+  }
+
   private computePresenceGroups(
     producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[],
     results: { notNull: boolean }[],
@@ -1180,7 +1247,7 @@ class NullabilityEngine {
   ): OutputPresenceGroup[] {
     const units = new Map<number, { columns: number[]; discriminants: number[]; dead: boolean }>();
     for (let i = 0; i < producers.length; i++) {
-      const p = producers[i];
+      const p = this.presenceProducer(producers[i] ?? null, scope, depth);
       if (!p || p.entry.joinState !== OPTIONAL) continue;
       let unit = units.get(p.entry.nullGroup);
       if (!unit) {
@@ -4530,6 +4597,22 @@ class NullabilityEngine {
       return lift(inner);
     }
 
+    // An `unnest` of an array CONSTRUCTOR is the one table function whose
+    // values the query wrote down, so its fields name rows this scope can
+    // already see — see `unnestFieldOrigins` for why the result is not
+    // lifted the way a CTE's is.
+    if (entry.kind === "function") {
+      const index =
+        ordinal ??
+        this.resolveTableFunctionColumns(entry, scope, depth).findIndex(c => c.name === colName);
+      const un = index >= 0 ? this.unnestFieldOrigins(entry, index, scope, depth) : undefined;
+      if (un) {
+        return this.collectUnitCrossings && hereUnits.length > 0
+          ? { ...un, crossings: hereUnits }
+          : un;
+      }
+    }
+
     // Every remaining kind — table functions above all — still CROSSES its
     // units: the entry's own chain is the whole story, and the diagnostic
     // channel is precisely for the kinds origins cannot anchor.
@@ -4854,6 +4937,218 @@ class NullabilityEngine {
     // composites and relations are all captured, so the residual here is the
     // general capture boundary rather than this site's.
     return null;
+  }
+
+  /**
+   * Whether column `ordinal` of an `unnest` over an ARRAY CONSTRUCTOR is
+   * non-null, read from the constructor's own elements.
+   *
+   * `resolveTableFunctionColumns` calls every unnest column nullable, which
+   * is right for an array that arrives as a value — a column, a function
+   * result, an aggregate — and needlessly weak for one written out in the
+   * query. `unnest(ARRAY[…])` emits exactly the constructor's elements, so
+   * the column IS those expressions and the walk can read them:
+   *
+   *   unnest(ARRAY['a', 'b'])                    → one column, notNull
+   *   unnest(ARRAY[ROW(u.val, u.email)::pair])   → `p` follows u.val,
+   *                                                `q` follows u.email
+   *
+   * Two shapes and one refusal:
+   *
+   *   SCALAR element — the single column is every element, so it is non-null
+   *     when every element is.
+   *   COMPOSITE element — the item expands to the type's fields, and field k
+   *     is each element's k-th. Readable only from a ROW CONSTRUCTOR: a
+   *     RowExpr is never itself NULL, so its args are the whole story. Any
+   *     other element (a composite-typed column, a bare NULL, a call) can be
+   *     NULL as a WHOLE, which makes every field NULL on that row — nothing
+   *     about the fields is derivable and the answer is nullable.
+   *   NESTED constructors flatten: `unnest(ARRAY[ARRAY[1,2],ARRAY[3,NULL]])`
+   *     emits four rows, so the leaves are the elements.
+   *
+   * Zero elements is vacuously non-null and sound for the reason the empty
+   * case always is: `unnest(ARRAY[]::pair[])` emits no row, and a claim about
+   * rows that do not exist cannot be contradicted.
+   *
+   * Asked at the LEAF rather than folded into the memoized column list, and
+   * that is the point: the element expressions reference the query's other
+   * relations (a table function in FROM is implicitly LATERAL), so `u.email`
+   * is non-null only once `u` is proven present — which the presence fixpoint
+   * decides long after the column NAMES have to exist. The generated corpus's
+   * refilter wrappers are exactly that case: they pin `g.p IS NOT NULL`,
+   * which proves the u row present, which is what makes its NOT NULL email
+   * non-null in `g.q`.
+   */
+  private unnestArrayColumnNotNull(
+    entry: RelationEntry,
+    ordinal: number,
+    scope: Scope,
+    depth: number,
+  ): boolean {
+    const exprs = this.unnestColumnExpressions(entry, ordinal, scope, depth);
+    return !!exprs && exprs.every(e => this.walkExpr(e, scope, depth));
+  }
+
+  /**
+   * The expressions column `ordinal` of an `unnest` over an ARRAY
+   * CONSTRUCTOR takes its value from — one per element, in element order —
+   * or null when the item is not that shape.
+   *
+   * The list is INDEX-ALIGNED with the constructor's elements, and every
+   * column of the item aligns the same way: output row *i* is element *i*,
+   * so field `p` and field `q` of that row are element *i*'s first and
+   * second arguments. That is the same correspondence origin alternatives
+   * already carry across UNION branches, which is what lets the origins
+   * built from this list ride the existing entailment machinery unchanged.
+   *
+   * Refusals, each for its own reason:
+   *
+   *   ROWS FROM and the multi-argument spelling — both pad with NULLs (the
+   *     shorter arms after they have returned, the shorter arguments while
+   *     a longer one still has elements), so the column's values are not
+   *     the constructor's elements at all.
+   *   A USER-DEFINED `unnest` — it arrives with metadata and never reaches
+   *     the special form, so its columns are its declared return type's.
+   *   A composite element that is not a ROW CONSTRUCTOR — a
+   *     composite-typed column, a bare NULL, a call: each can be NULL as a
+   *     WHOLE, which makes every field NULL on that row, and nothing about
+   *     the fields is derivable.
+   *   An arity mismatch between the ROW and the composite type — a
+   *     statement PostgreSQL rejects, so any answer is unobservable.
+   *
+   * NESTED constructors flatten, because unnest does:
+   * `unnest(ARRAY[ARRAY[1,2],ARRAY[3,NULL]])` emits four rows.
+   *
+   * An empty constructor yields an empty list, and every caller's `every`
+   * is vacuously true — sound for the reason the empty case always is:
+   * `unnest(ARRAY[]::pair[])` emits no row, and a claim about rows that do
+   * not exist cannot be contradicted.
+   */
+  private unnestColumnExpressions(
+    entry: RelationEntry,
+    ordinal: number,
+    scope: Scope | null,
+    depth: number,
+  ): Node[] | null {
+    const arms = entry.rangeFunction?.functions ?? [];
+    if (arms.length !== 1) return null;
+    const list = (arms[0] as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
+    const fc = (list?.items?.[0] as Record<string, unknown> | undefined)?.["FuncCall"] as
+      | FuncCall
+      | undefined;
+    if (!fc || this.funcName(fc) !== "unnest" || (fc.args?.length ?? 0) !== 1) return null;
+    if (this.catalog.resolveFunctionMetadata(this.funcSchema(fc), "unnest")) return null;
+    // A column definition list retypes the item's columns wholesale; the
+    // constructor's own shape is no longer what the caller sees. Read the
+    // same two ways `resolveTableFunctionColumns` does — the `ROWS FROM`
+    // spelling parks it on the List, the lone-function spelling on the
+    // RangeFunction. (The List's second slot is `{}` when there is none,
+    // which is truthy; only its `items` say anything.)
+    const coldeflist =
+      (list?.items?.[1] as { List?: { items?: Node[] } } | undefined)?.List?.items ??
+      entry.rangeFunction?.coldeflist;
+    if (coldeflist?.length) return null;
+
+    const arg = fc.args![0]!;
+    // `ARRAY[…]::pair[]` and `ROW(…)::pair` both wrap the shape this reads
+    // in a cast, and a coercion of a non-null value cannot yield NULL — the
+    // same reading the coldeflist path takes.
+    const flatten = (n: Node): Node[] | null => {
+      const rec = this.stripCasts(n) as Record<string, unknown>;
+      if (!("A_ArrayExpr" in rec)) return null;
+      const out: Node[] = [];
+      for (const e of (rec["A_ArrayExpr"] as { elements?: Node[] }).elements ?? []) {
+        const nested = flatten(e);
+        if (nested) out.push(...nested);
+        else out.push(e);
+      }
+      return out;
+    };
+    const items = flatten(arg);
+    if (!items) return null;
+
+    const fields = this.unnestCompositeElementFields(arg, scope, depth);
+    if (!fields) return ordinal === 0 ? items : null;
+    if (ordinal < 0 || ordinal >= fields.length) return null;
+
+    const out: Node[] = [];
+    for (const e of items) {
+      const rec = this.stripCasts(e) as Record<string, unknown>;
+      if (!("RowExpr" in rec)) return null;
+      const args = (rec["RowExpr"] as { args?: Node[] }).args ?? [];
+      if (args.length !== fields.length) return null;
+      out.push(args[ordinal]!);
+    }
+    return out;
+  }
+
+  /**
+   * The origin alternatives of an `unnest` field, read from the array
+   * CONSTRUCTOR the item unnests — or undefined.
+   *
+   * This is the half that matters for the generated corpus's refilter
+   * wrappers, and it is not the nullability half. Inside the CTE
+   * `unnest(ARRAY[ROW(u.val, u.email)::gfn_pair]) g` sits beside a
+   * LEFT-joined `u`, so both fields ARE nullable there and reading the
+   * elements changes nothing. What the outer query needs is that `g.p` and
+   * `g.q` are the SAME ROW's columns as each other: pinning `a_tc IS NOT
+   * NULL` then proves that row present, and the u row's NOT NULL email
+   * settles `a_tb`. Without an origin the two fields are unrelated nullable
+   * values and the pin says nothing about its sibling.
+   *
+   * `originOf` refuses for every table function and is right to: a function
+   * result is not a table row. An unnest of a constructor is the exception
+   * that proves it — the value is written out in the query, so the row it
+   * names is a row the walk can already see, in THIS scope.
+   *
+   * Which is also why the origin is taken unlifted. A CTE or view origin is
+   * lifted (its rowPath prefixed with the reference's instance) because the
+   * inner row identity is a different scope's; `u` here is a sibling FROM
+   * item, so its rowPath already speaks this scope's instances and
+   * prefixing would name a row that does not exist. What DOES compose is
+   * presence: the field is present only if `u`'s row is AND this item is
+   * not itself null-extended, so the entry's own unit chain and optionality
+   * are merged in at the same depth.
+   *
+   * One alternative per element, and an element whose expression is not
+   * origin-eligible (a literal, an arithmetic expression) contributes a
+   * NULL slot with its own flat verdict as `settled` — the same shape a
+   * literal UNION branch takes.
+   */
+  private unnestFieldOrigins(
+    entry: RelationEntry,
+    ordinal: number,
+    scope: Scope,
+    depth: number,
+  ): OriginResolution | undefined {
+    const exprs = this.unnestColumnExpressions(entry, ordinal, scope, depth);
+    if (!exprs || exprs.length === 0) return undefined;
+    const hereUnits = entry.unitChain.map(unit => ({ depth: 0, unit }));
+    const optionalHere = entry.joinState === OPTIONAL;
+    const origins: (ColumnOrigin | null)[] = [];
+    const settled: boolean[] = [];
+    for (const expr of exprs) {
+      settled.push(this.walkExpr(expr, scope, depth));
+      const bare = this.resolveBareColumnTarget(expr, scope);
+      const inner = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
+      // Exactly one alternative, or the element-to-alternative alignment
+      // this whole construction rests on stops holding: a source that is
+      // itself a union contributes several, and there is no index left to
+      // pair them against the sibling fields with.
+      const o = inner?.origins?.length === 1 ? inner.origins[0] : undefined;
+      if (!o) {
+        origins.push(null);
+        continue;
+      }
+      const units = [...hereUnits, ...(o.units ?? [])];
+      origins.push({
+        ...o,
+        ...(o.optional || optionalHere ? { optional: true } : {}),
+        ...(units.length > 0 ? { units } : {}),
+      });
+    }
+    if (origins.every(o => !o)) return undefined;
+    return { origins, settled };
   }
 
   /**
@@ -7532,10 +7827,22 @@ class NullabilityEngine {
 
     // Table functions: the resolved return-type columns.
     if (entry.kind === "function") {
-      const col = this.resolveTableFunctionColumns(entry, scope, depth).find(c => c.name === colName);
+      const fnCols = this.resolveTableFunctionColumns(entry, scope, depth);
+      const index = fnCols.findIndex(c => c.name === colName);
+      const col = index >= 0 ? fnCols[index]! : undefined;
       if (!col) {
         trace.conclude(false, `column '${colName}' not found in the function's return type`);
         return false;
+      }
+      // An `unnest` over an array CONSTRUCTOR is its elements, and they are
+      // expressions this scope can read. Asked here rather than in the
+      // memoized column list because the answer depends on the presence
+      // fixpoint, which runs after the names have to exist.
+      if (!col.notNull && this.unnestArrayColumnNotNull(entry, index, scope, depth)) {
+        const result = joinState !== OPTIONAL;
+        trace.addFact("unnestArrayElements", "true (every element non-null)");
+        trace.conclude(result, `unnest column '${colName}' follows its array constructor's elements + join ${joinStateName(joinState)}`);
+        return result;
       }
       const result = col.notNull && joinState !== OPTIONAL;
       trace.addFact("tableFunction", entry.alias);

@@ -811,44 +811,27 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
   // catch. A structure that becomes witnessable leaves its set via the
   // staleness check below.
   //
-  // `case-needs-t-without-u` was the third and last set here. It named the
-  // twelve structures whose `CASE WHEN t.active THEN u.email` the walk could
-  // not settle; seven left on 2026-08-22 when two guard rungs landed, and
-  // the remaining five left the same day when the guard channel stopped
-  // copying fixpoint rules one at a time and started running the fixpoint
-  // itself under the branch guards (`guardedPresence`). Its whole 60-claim
-  // bucket is witnessed now, so the rule is GONE rather than shrunk — and
-  // the staleness check below is what forced the deletion, which is worth
-  // recording because a SHRINKING set is invisible to it: the check is per
-  // RULE, so a rule still covering 60 claims said nothing about the 36 it
-  // had stopped needing.
+  // BOTH sets that lived here are gone, on the same day (2026-08-22), each
+  // deleted by that check rather than by a sweep:
   //
-  /**
-   * The two unnest structures, enumerated rather than matched by prefix for
-   * the reason the set above was: a pattern would quietly cover a third one
-   * nobody has measured.
-   */
-  const UNNEST_STRUCTURES = new Set(["unnest(left)", "unnest(full)"]);
+  //   `case-needs-t-without-u` named the twelve structures whose
+  //     `CASE WHEN t.active THEN u.email` the walk could not settle. Seven
+  //     left when two guard rungs landed; the remaining five left when the
+  //     guard channel stopped copying the presence fixpoint's rules one at a
+  //     time and started running the fixpoint itself (`guardedPresence`).
+  //   `unnest-refilter-implies-the-u-row-is-present` named the two unnest
+  //     structures whose `a_tb` the refilter wrappers could not settle. It
+  //     blamed the walk calling every unnest field nullable — true, and not
+  //     the operative cause: what the refilter needed was that `g.p` and
+  //     `g.q` are the SAME ROW's columns, which is a presence fact and not a
+  //     nullability one. `presenceProducer` supplies it and the whole bucket
+  //     went with it.
+  //
+  // A shrinking set is invisible to the staleness check — it is per RULE, so
+  // `case-needs-t-without-u` covering 60 claims said nothing about the 36 it
+  // had stopped needing. Worth remembering if a third set is ever added.
 
   const UNWITNESSABLE: UnwitnessableRule[] = [
-    {
-      label: "unnest-refilter-implies-the-u-row-is-present",
-      why:
-        "the same shape as the srf rule above, one branch over. Under the " +
-        "unnest structures a_tc is g.p, the composite field carrying u.val, " +
-        "and the refilter wrappers pin it IS NOT NULL — so the u row is " +
-        "present on every surviving row and its NOT NULL email is too, which " +
-        "makes a_tb (g.q) non-null there. The walk calls EVERY unnest field " +
-        "nullable whatever the element expression put in it, which is the " +
-        "conservatism this structure exists to exercise rather than a claim " +
-        "worth recovering: the array element is an arbitrary expression and " +
-        "the field's own type carries no flag. Witnessed under every other " +
-        "wrapper, where the LEFT/FULL extension is real.",
-      matches: (axes, column) =>
-        UNNEST_STRUCTURES.has(axes.structure) &&
-        column === "a_tb" &&
-        axes.wrapper.endsWith("refilter"),
-    },
     {
       label: "merge-source-row-carries-an-unbound-parameter",
       why:
