@@ -200,14 +200,27 @@ describe("B — structural expression shapes", () => {
 });
 
 // --- C: structural and relational. -----------------------------------------
-// Three shapes, three different capabilities. The setop case is a mirror of
-// `combineSetOperation` and cheap; the scalar subquery needs "this subquery
-// returns no rows"; the join case needs "this relation is provably absent",
-// which the walk has no notion of at all and is the one item here that is a
-// new analysis rather than a second question to existing machinery.
+// Three shapes. The setop case is a mirror of `combineSetOperation`; the
+// other two needed "no row can satisfy this predicate".
+//
+// LANDED 2026-08-22, and the "new analysis" estimate was wrong for a third
+// time — this needed no new analysis at all.
+//
+// `predicateNeverTrue` answers "no row can satisfy this". It reads a bare
+// literal SYNTACTICALLY, which is the collector's own instruction rather
+// than a shortcut: `collectClosedSubtrees` excludes a bare A_Const by design
+// — "alone its answer restates what the AST already says syntactically" — so
+// the statement map will never answer `ON false`. For everything else it
+// asks the map first, and the map DOES cover closed comparisons in qual
+// position, which is why the `1 = 2` spellings below are green too. (I
+// briefly filed those as red on the strength of a scratch harness that had
+// not enabled the evaluator; the suite disagreed, and the suite is what
+// runs. Measure with the harness that ships.)
+//
+// FALSE and NULL are one fact here: neither admits a row.
 
 describe("C — structural and relational", () => {
-  it.fails("a scalar subquery over a provably empty set", async () => {
+  it("a scalar subquery over a provably empty set", async () => {
     // PostgreSQL: [null, null, null] — an empty scalar subquery is NULL.
     expect(
       await verdict("SELECT (SELECT amount FROM inv WHERE false) AS c FROM inv"),
@@ -221,9 +234,25 @@ describe("C — structural and relational", () => {
     );
   });
 
-  it.fails("a join that can never match", async () => {
+  it("a join that can never match", async () => {
     // PostgreSQL: [null, null, null] — ON false extends every row.
     expect(await verdict("SELECT g.amount AS c FROM ord o LEFT JOIN inv g ON false")).toBe(
+      "alwaysNull",
+    );
+  });
+
+  it("a scalar subquery emptied by a closed COMPARISON, not a literal", async () => {
+    // PostgreSQL: [null, null]. Same fact as the literal spelling above; the
+    // statement map holds no entry for a qual position, so nothing answers
+    // it. Closing this means extending the map's collection, not this file.
+    expect(
+      await verdict("SELECT (SELECT amount FROM inv WHERE 1 = 2) AS c FROM inv"),
+    ).toBe("alwaysNull");
+  });
+
+  it("a join whose qual is a closed COMPARISON that is never true", async () => {
+    // PostgreSQL: [null, null, null].
+    expect(await verdict("SELECT g.amount AS c FROM ord o LEFT JOIN inv g ON 1 = 2")).toBe(
       "alwaysNull",
     );
   });
@@ -244,24 +273,51 @@ describe("C — structural and relational", () => {
 // --- D: aggregates and windows over an always-null input. ------------------
 // Per-function, NOT a rule: `max(dead)` is NULL and `count(dead)` is 0. So
 // this needs a curated list, the way NON_NULL_OVER_NONEMPTY_AGGREGATES is
-// curated with every entry measured on admission. The guard below is the
-// counterexample that forces the curation.
+// curated with every entry measured on admission. The guards below are the
+// counterexamples that force the curation.
+//
+// LANDED 2026-08-22 as ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES and
+// ..._WINDOWS. Admission demands NULL over an all-NULL input AND over an
+// empty one, which is what lets FILTER be ignored: a FILTER can only empty
+// the group, and every member is NULL over an empty group too.
+//
+// The table is NOT the complement of the non-null one, and not a copy —
+// membership differs in both directions, which is exactly why every entry
+// was measured: `stddev`/`variance` are absent there and present here,
+// while `array_agg`/`json_agg`/`jsonb_agg` are present there and absent
+// here because they COLLECT NULLs into a non-null container.
 
 describe("D — aggregates and windows over an always-null input", () => {
-  it.fails("max over an always-null column", async () => {
+  it("max over an always-null column", async () => {
     // PostgreSQL: [null]. NULL over all-NULL input, and NULL over empty.
     expect(await verdict("SELECT max(amount) AS c FROM inv WHERE status <> 'paid'")).toBe(
       "alwaysNull",
     );
   });
 
-  it.fails("a window function over an always-null column", async () => {
+  it("a window function over an always-null column", async () => {
     // PostgreSQL: [null, null].
     expect(
       await verdict(
         "SELECT lag(amount) OVER (ORDER BY id) AS c FROM inv WHERE status <> 'paid'",
       ),
     ).toBe("alwaysNull");
+  });
+
+  it("guard: array_agg COLLECTS the NULLs into a non-null array", async () => {
+    // PostgreSQL: [{null,null}] — a non-null array of NULLs. The shape that
+    // is easiest to get backwards, and the reason array_agg sits in the
+    // NON_NULL table and not in this one.
+    expect(await verdict("SELECT array_agg(amount) AS c FROM inv WHERE status <> 'paid'")).toBe(
+      "nullable",
+    );
+  });
+
+  it("guard: json_agg likewise collects rather than skips", async () => {
+    // PostgreSQL: [[null,null]].
+    expect(await verdict("SELECT json_agg(amount) AS c FROM inv WHERE status <> 'paid'")).toBe(
+      "nullable",
+    );
   });
 
   it("guard: count over an always-null column is 0, not NULL", async () => {
@@ -285,9 +341,11 @@ describe("D — aggregates and windows over an always-null input", () => {
 // value. ON CONFLICT DO UPDATE clears the mirror outright: it is a second
 // producing path whose SET expressions this does not analyse.
 //
-// The UPDATE and MERGE spellings have their own builders and are NOT
-// mirrored — see the red cases below, which is where that lives rather than
-// in a sentence.
+// UPDATE and MERGE followed, same day. UPDATE is the SIMPLEST of the three
+// — one producing path, so a SET expression that is always NULL is the
+// returned value outright, with no intersection to do. MERGE reduces by
+// agreement across every producing arm, exactly as its non-null map does,
+// because the walk cannot know which arm fired for a given row.
 
 describe("E — written values", () => {
   it("INSERT of a NULL literal, read back through RETURNING", async () => {
@@ -299,7 +357,7 @@ describe("E — written values", () => {
     ).toBe("alwaysNull");
   });
 
-  it.fails("UPDATE SET the column NULL, read back through RETURNING", async () => {
+  it("UPDATE SET the column NULL, read back through RETURNING", async () => {
     // PostgreSQL: [null, null]. The UPDATE builder has its own written-value
     // map and it is not mirrored — the INSERT one is.
     expect(
@@ -307,7 +365,7 @@ describe("E — written values", () => {
     ).toBe("alwaysNull");
   });
 
-  it.fails("MERGE WHEN MATCHED UPDATE SET the column NULL", async () => {
+  it("MERGE WHEN MATCHED UPDATE SET the column NULL", async () => {
     // PostgreSQL: [null, null]. Third builder, same gap.
     expect(
       await verdict(
@@ -315,6 +373,19 @@ describe("E — written values", () => {
           " WHEN MATCHED THEN UPDATE SET status = 'draft', amount = NULL" +
           " RETURNING inv.amount AS c",
       ),
+    ).toBe("alwaysNull");
+  });
+
+  it.fails("a column the CHECK forces NULL because of what the statement WROTE", async () => {
+    // PostgreSQL: [null, null]. `amount` is not written, so the mirror map
+    // says nothing about it; what forces it NULL is the CHECK reading the
+    // NEW row's `status`, which the statement DID write. The written value
+    // reaches the kernel as a written-value fact, not as evidence, so no
+    // derivation runs. Same family as the generated corpus's `r_ce`:
+    // closing it means letting written values act as evidence, which is
+    // value tracking and its own project.
+    expect(
+      await verdict("UPDATE inv SET status = 'draft' RETURNING amount AS c"),
     ).toBe("alwaysNull");
   });
 

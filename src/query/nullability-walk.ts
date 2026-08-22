@@ -3395,6 +3395,7 @@ class NullabilityEngine {
     // themselves cannot consult the map they are defining.
     if (targetAlias !== undefined && !rewriting) {
       const written = new Map<string, boolean>();
+      const writtenNull = new Map<string, boolean>();
       this.dmlOldRowRead = true;
       try {
         for (const item of stmt.targetList ?? []) {
@@ -3402,11 +3403,17 @@ class NullabilityEngine {
           if (!rt?.name || !rt.val) continue;
           if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
           written.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+          // The mirror: an UPDATE has ONE producing path, so a SET
+          // expression that is always NULL is the returned value outright —
+          // simpler than the INSERT case, which has to intersect over VALUES
+          // rows and give up entirely on an ON CONFLICT second path.
+          writtenNull.set(rt.name, this.alwaysNullExpr(rt.val, scope, depth + 1));
         }
       } finally {
         this.dmlOldRowRead = false;
       }
       scope.dmlWrittenColumns = { alias: targetAlias, columns: written };
+      scope.dmlWrittenNullColumns = { alias: targetAlias, columns: writtenNull };
     }
 
     return scope;
@@ -3574,8 +3581,13 @@ class NullabilityEngine {
       producing.length > 0 &&
       producing.every(a => a.commandType === "CMD_UPDATE" || a.commandType === "CMD_INSERT")
     ) {
-      const perArm: Map<string, boolean>[] = producing.map(a => {
-        const armMap = new Map<string, boolean>();
+      // Two maps per arm, built together: what the arm writes non-null and
+      // what it writes NULL. A MERGE has one producing arm per matched row
+      // and the walk cannot know which fired, so BOTH maps reduce the same
+      // way below — by agreement across every producing arm.
+      const perArm: { nn: Map<string, boolean>; an: Map<string, boolean> }[] = producing.map(a => {
+        const nn = new Map<string, boolean>();
+        const an = new Map<string, boolean>();
         if (a.commandType === "CMD_UPDATE") {
           this.dmlOldRowRead = true;
           try {
@@ -3583,7 +3595,8 @@ class NullabilityEngine {
               const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
               if (!rt?.name || !rt.val) continue;
               if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
-              armMap.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+              nn.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+              an.set(rt.name, this.alwaysNullExpr(rt.val, scope, depth + 1));
             }
           } finally {
             this.dmlOldRowRead = false;
@@ -3594,16 +3607,21 @@ class NullabilityEngine {
           );
           (a.values ?? []).forEach((val, i) => {
             const col = columns[i];
-            if (col) armMap.set(col, this.walkExpr(val, scope, depth + 1));
+            if (!col) return;
+            nn.set(col, this.walkExpr(val, scope, depth + 1));
+            an.set(col, this.alwaysNullExpr(val, scope, depth + 1));
           });
         }
-        return armMap;
+        return { nn, an };
       });
       const written = new Map<string, boolean>();
-      for (const [col] of perArm[0] ?? []) {
-        written.set(col, perArm.every(m => m.get(col) === true));
+      const writtenNull = new Map<string, boolean>();
+      for (const [col] of perArm[0]?.nn ?? []) {
+        written.set(col, perArm.every(m => m.nn.get(col) === true));
+        writtenNull.set(col, perArm.every(m => m.an.get(col) === true));
       }
       scope.dmlWrittenColumns = { alias: targetAliasW, columns: written };
+      scope.dmlWrittenNullColumns = { alias: targetAliasW, columns: writtenNull };
     }
     // A join written directly as the MERGE source with a BY SOURCE arm is
     // walked OPTIONAL, so the fixpoint's incoming-presence condition keeps
@@ -6028,6 +6046,62 @@ class NullabilityEngine {
       if (arms.length > 0 && everyArmNull && elseNull) return true;
     }
 
+    // A scalar subquery that provably returns NO ROWS is NULL. The "no rows"
+    // half needs nothing new: the statement map already evaluates closed
+    // subtrees, and `evaluatedGuardTruth` reports not-TRUE for a WHERE that
+    // is FALSE *or* NULL — both of which admit no row, so the conflation
+    // that would be wrong elsewhere is exactly right here.
+    //
+    // Restricted to a plain ColumnRef target on purpose. A BARE AGGREGATE
+    // returns one row over an empty input — `(SELECT count(*) FROM t WHERE
+    // false)` is 0, not NULL — so "no rows" does not imply "NULL result"
+    // for every target shape, and the column form is the one that cannot
+    // manufacture a row.
+    if ("SubLink" in node) {
+      const sl = node["SubLink"] as { subLinkType?: string; subselect?: Node };
+      const sub = (sl.subselect as { SelectStmt?: SelectStmt } | undefined)?.SelectStmt;
+      if (sl.subLinkType === "EXPR_SUBLINK" && sub && !sub.groupClause?.length) {
+        const targets = sub.targetList ?? [];
+        const soleTarget = targets.length === 1 ? this.unwrapResTarget(targets[0]!).val : undefined;
+        const plainColumn = !!soleTarget && "ColumnRef" in (soleTarget as Record<string, unknown>);
+        if (plainColumn && this.predicateNeverTrue(sub.whereClause)) return true;
+      }
+    }
+
+    // An aggregate or window function whose FIRST argument is always null.
+    // First rather than all: every admitted aggregate is single-argument
+    // except `string_agg(value, delim)`, whose delimiter says nothing about
+    // the result once every value is NULL.
+    //
+    // The name must be unqualified or pg_catalog's AND unknown to the user
+    // catalog — the same guard the builtin dispatch draws at priority 6b. A
+    // user aggregate called `max` is somebody else's function.
+    if ("FuncCall" in node) {
+      const fc = node["FuncCall"] as FuncCall & {
+        agg_star?: boolean;
+        agg_within_group?: boolean;
+      };
+      const parts = (fc.funcname ?? []).map(f => this.stringVal(f));
+      const name = parts[parts.length - 1] ?? "";
+      const schema = parts.length > 1 ? parts[parts.length - 2] : undefined;
+      const args = fc.args ?? [];
+      const table = fc.over
+        ? ALWAYS_NULL_OVER_ALL_NULL_WINDOWS.has(name) ||
+          ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES.has(name)
+        : ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES.has(name);
+      if (
+        table &&
+        !fc.agg_star &&
+        !fc.agg_within_group &&
+        (schema === undefined || schema === "pg_catalog") &&
+        (this.catalog.resolveFunctionCandidates(schema, name, args.length) ?? []).length === 0 &&
+        args.length > 0 &&
+        this.alwaysNullExpr(args[0]!, scope, depth)
+      ) {
+        return true;
+      }
+    }
+
     // The leaf predicate accepts a NULL LITERAL as well as an always-null
     // column, which is what carries `NULL::numeric + 1` and `upper(NULL)`.
     // The top-level test above is not enough: it only sees a literal that IS
@@ -6103,6 +6177,26 @@ class NullabilityEngine {
     return out;
   }
 
+  /**
+   * Whether an outer join that extends `entry` can NEVER match, which makes
+   * the entry absent on every emitted row and every column of it NULL.
+   *
+   * The same two shapes `qualsHoldingWhenPresent` accepts, asked one step
+   * harder: there the qual holds WHERE the row is present, here it holds
+   * NOWHERE, so presence never happens. `evaluatedGuardTruth` reports
+   * not-TRUE for a qual that is FALSE or NULL, and neither ever matches a
+   * row — so `ON false` and `ON NULL` are the same fact for this question.
+   */
+  private extendingJoinNeverMatches(entry: RelationEntry, scope: Scope): boolean {
+    if (entry.joinState !== OPTIONAL) return false;
+    return scope.joins.some(j => {
+      const extendsEntry =
+        (j.jointype === "JOIN_LEFT" && j.rightAliases.includes(entry.alias)) ||
+        (j.jointype === "JOIN_RIGHT" && j.leftAliases.includes(entry.alias));
+      return extendsEntry && this.predicateNeverTrue(j.quals ?? undefined);
+    });
+  }
+
   /** The written-NULL map when it describes THIS entry, else undefined. */
   private dmlWrittenNullColumnsFor(
     entry: RelationEntry,
@@ -6127,6 +6221,33 @@ class NullabilityEngine {
     const ap = parts(an);
     const bp = parts(bn);
     return ap.length > 0 && ap.length === bp.length && ap.every((p, i) => p === bp[i]);
+  }
+
+  /**
+   * Whether a predicate is CONSTANTLY not-TRUE, so no row can satisfy it.
+   *
+   * Read syntactically for a bare literal, and that is the collector's own
+   * instruction rather than a shortcut: `collectClosedSubtrees` excludes a
+   * bare A_Const on purpose — "alone its answer restates what the AST
+   * already says syntactically" — so the statement map will never answer
+   * `ON false`, by design. Measured 2026-08-22: the map has no entry for a
+   * qual position in EITHER spelling, so `ON 1 = 2` is not covered here and
+   * sits in the red suite rather than in a comment.
+   *
+   * FALSE and NULL are the same fact for this question: neither admits a
+   * row. The map is still consulted first, so anything it does answer wins.
+   */
+  private predicateNeverTrue(expr: Node | undefined): boolean {
+    if (!expr) return false;
+    if (this.evaluatedGuardTruth(expr) === false) return true;
+    const node = expr as Record<string, unknown>;
+    if ("TypeCast" in node) {
+      return this.predicateNeverTrue((node["TypeCast"] as { arg?: Node }).arg);
+    }
+    if (!("A_Const" in node)) return false;
+    const ac = node["A_Const"] as { isnull?: boolean; boolval?: { boolval?: boolean } };
+    if (ac.isnull === true) return true;
+    return "boolval" in ac && ac.boolval?.boolval !== true;
   }
 
   /** A bare NULL constant, through any number of casts. */
@@ -6193,6 +6314,12 @@ class NullabilityEngine {
         true,
       );
     }
+
+    // An entry whose extending join can never match is absent on every
+    // emitted row, which nulls EVERY column of it — no CHECK, no evidence,
+    // and no dependence on what kind of relation it is, so this sits before
+    // the table gate below.
+    if (this.extendingJoinNeverMatches(entry, scope)) return true;
 
     if (entry.kind !== "table" || !entry.table) return false;
 
@@ -10685,6 +10812,50 @@ class NullabilityEngine {
 // is not enough. Ordered-set aggregates (percentile_*, mode) are excluded
 // because their WITHIN GROUP argument is not modelled here.
 // ---------------------------------------------------------------------------
+
+/**
+ * Aggregates that are NULL over an ALL-NULL input AND over an EMPTY one —
+ * the two conditions together, which is what makes the claim independent of
+ * whether the group or window frame has rows. Consumed by `alwaysNullExpr`:
+ * an aggregate from this set over an always-null argument is always null,
+ * as an aggregate and as a window function alike.
+ *
+ * NOT the complement of NON_NULL_OVER_NONEMPTY_AGGREGATES, and not a copy —
+ * membership differs in BOTH directions, which is why every entry was
+ * measured on admission (2026-08-22) rather than derived:
+ *
+ *   - `stddev` / `variance` are absent from that table (undefined for a
+ *     single row) and present here (NULL over all-NULL, NULL over empty).
+ *   - `array_agg` / `json_agg` / `jsonb_agg` are present there and absent
+ *     here: they COLLECT NULLs rather than skipping them, so all-NULL input
+ *     gives `{NULL,NULL,NULL}` / `[null,null,null]` — a non-null container.
+ *     Measured, not assumed; the shape is easy to get backwards.
+ *   - `count` and `regr_count` return 0 for both, so they are in neither.
+ *
+ * FILTER needs no gate here, and that is the point of demanding both
+ * conditions: a FILTER can only empty the group, and every member is NULL
+ * over an empty group too.
+ */
+export const ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES: ReadonlySet<string> = new Set([
+  "sum", "avg", "min", "max",
+  "bit_and", "bit_or", "bool_and", "bool_or", "every",
+  "string_agg",
+  "stddev", "stddev_samp", "stddev_pop", "variance", "var_samp", "var_pop",
+]);
+
+/**
+ * Window functions that report ANOTHER ROW's value of their argument, so an
+ * always-null argument makes every output row NULL whatever the frame or
+ * offset does — including addressing outside the partition, which yields
+ * NULL as well. Measured 2026-08-22 alongside the aggregate table.
+ *
+ * `row_number` and the other rankings are absent because they take no
+ * argument at all; `count` as a window is absent for the reason it is absent
+ * above.
+ */
+export const ALWAYS_NULL_OVER_ALL_NULL_WINDOWS: ReadonlySet<string> = new Set([
+  "lag", "lead", "first_value", "last_value", "nth_value",
+]);
 
 export const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
   // `regr_count` counts non-null PAIRS and has a zero INITCOND, so it is

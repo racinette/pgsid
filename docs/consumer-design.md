@@ -405,7 +405,13 @@ be three unmeasured guesses and one real gap):
 | Bare re-export across subquery / CTE / view | yes, with **no join-state gate** |
 | Outer evidence + inner CHECK, across a boundary | yes, via `originCheckEntailment` |
 | OPTIONAL entries, outer-join `ON` quals as evidence | yes |
-| Written values (`UPDATE … SET status = 'draft' RETURNING amount`) | **no** |
+| Written values — INSERT / UPDATE / MERGE SET a NULL | yes |
+| NULL literal under a strict operator or function | yes |
+| `NULLIF(c, c)`, all-NULL `CASE`, all-NULL `COALESCE` | yes |
+| Set operation where every branch is always-null | yes |
+| Scalar subquery, or outer join, that no row can satisfy | yes |
+| Aggregate / window over an always-null input | yes, curated |
+| A column the CHECK forces NULL from a WRITTEN value | **no** — value tracking |
 
 Three findings from measuring, none of which the armchair produced:
 
@@ -437,12 +443,42 @@ always-null under `LEFT JOIN (SELECT order_id, count(*) …) agg`. Both are
 gated on the goal now. Bidirectional coverage is what surfaced it — an
 engine claim with no marker fails, so a new claim cannot appear unannounced.
 
-What is left is written values: `UPDATE inv SET status = 'draft' RETURNING
-amount` forces `amount IS NULL` on the NEW row through the CHECK, but the
-SET value reaches the kernel only as a written-value fact, and that map
-carries non-nullness and deliberately not nullness. Same family as the
-generated corpus's `r_ce` — closing it means tracking VALUES, which is the
-register's separate item, not a gap in this channel.
+**The eleven remaining shapes were swept 2026-08-22 through a RED SUITE**
+(`tests/unit/query/always-null-red.test.ts`), following the convention
+`subtree-evaluation-red.test.ts` set: every `it.fails` asserts the target and
+passes because the engine does not claim it yet, so landing the mechanism
+forces the flip to a plain `it` in the same commit. Every case was
+adjudicated against PostgreSQL first — targets observed all-NULL, guards
+observed carrying values. 29 cases: 15 targets landed, 13 guards, 1 red.
+
+Three of the five cost estimates were wrong, all in the same direction — I
+had guessed at a mechanism instead of measuring one:
+
+- **A** was "one line: widen the leaf predicate". Widening it did nothing;
+  `exprStrictlyForces` only calls the leaf callback for a ColumnRef, so a
+  constant fell through before the predicate was consulted. The fix is in
+  the closure's dispatch, which now ASKS the leaf about an `A_Const` rather
+  than answering. Delegating keeps it a no-op for the two column-side
+  callers, whose predicates reject non-ColumnRef nodes.
+- **D** was "a curated list like the non-null one". It is a curated list and
+  it is NOT that one: `stddev`/`variance` are absent there and present here,
+  `array_agg`/`json_agg`/`jsonb_agg` present there and absent here (they
+  COLLECT NULLs into a non-null container). Admission demands NULL over
+  all-NULL input AND over empty input, which is what lets FILTER be ignored.
+- **C** was "a relation-emptiness analysis the walk has no notion of". It
+  needed no new analysis: `predicateNeverTrue` reads a bare literal
+  syntactically — which is `collectClosedSubtrees`' own instruction, since
+  it excludes bare A_Consts because "alone its answer restates what the AST
+  already says syntactically" — and asks the statement map for everything
+  else, which already covers closed comparisons in qual position.
+
+What is left is one case, and it is value tracking rather than a gap here:
+`UPDATE inv SET status = 'draft' RETURNING amount` forces `amount IS NULL`
+on the NEW row through the CHECK, but `amount` is not written — what forces
+it is the CHECK reading the NEW `status`, which the statement DID write, and
+a written value reaches the kernel as a written-value fact rather than as
+evidence. Same family as the generated corpus's `r_ce`. It sits in the red
+suite as the one live `it.fails`, not in this paragraph.
 
 ## Diagnostics
 
