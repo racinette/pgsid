@@ -170,23 +170,25 @@ is permanent and how to re-measure it:
 WITNESS_REPORT=1 pnpm exec vitest run tests/unit/query/generated/generated-soundness.test.ts
 ```
 
-Across 14,964 queries, 32,375 nullable output claims and **32,293 witnessed**.
-The 82 that are not are each classified, and every classification is either
-executable as a `<label>.blame.sql` fixture or declares itself geometric. Four
+Across 14,964 queries, 32,295 nullable output claims and **32,293 witnessed**.
+The 2 that are not are each classified, and every classification is either
+executable as a `<label>.blame.sql` fixture or declares itself geometric. Two
 buckets:
 
 | unwitnessed | bucket | why no data reaches the NULL |
 |---:|---|---|
-| 60/462 | `proj=case-nullif \| col=a_case` | **the join shape forbids the row.** a_case is NULL only where t is present and u NULL-extended; in these five structures the t-u join is RIGHT or FULL, so a u-absent row either extends t with it or is discarded by the outer join's qual on u |
-| 20/522 | `proj=plain \| col=a_tb` | **the walk will not type an unnest field.** Every field of an unnested composite reads nullable whatever the element expression put there — the array element is arbitrary and the field's own type carries no flag. Deliberate; this structure exists to exercise it |
 | 1/6 | `proj=plain \| col=r_snm` | **the witness is a raise, not a row.** `$1` lands in `ck.val`'s NOT NULL constraint, so binding NULL raises; the param suite counts that as a rejection and the witness channel cannot count it as anything |
 | 1/1 | `proj=case \| col=r_ce` | **the engine tracks nullability, not values.** `active` was written as the literal `true`, so PostgreSQL never runs the ELSE branch; written-value tracking deliberately carries only non-nullness |
 
-Two of the four are engine imprecision in the sense that a better engine would
-flip the claim, and they cost very differently. `r_ce` needs VALUE tracking — a
-different project. `a_case` needs one more rung on a promotion channel that
-already exists, and the same predicate spelled in a WHERE instead of a CASE
-guard already reads notNull in all five structures.
+Two more buckets closed on 2026-08-22 and their rules are deleted:
+
+| was | bucket | what closed it |
+|---:|---|---|
+| 60/462 | `proj=case-nullif \| col=a_case` | `guardedPresence` — the guard channel runs the presence fixpoint instead of copying its rules |
+| 20/522 | `proj=plain \| col=a_tb` | `presenceProducer` — an unnest field's presence producer is its element expression's relation |
+
+`r_snm` is not imprecision at all; `r_ce` needs VALUE tracking, which is a
+different project. Nothing else in the corpus is dark.
 
 Three gates hold this, in `generated-soundness.test.ts`: an unclassified claim
 fails, a rule matching nothing fails as stale, and a rule blaming a MECHANISM
@@ -311,6 +313,41 @@ IS the claim there). The lesson generalises: **a precision fix measured only in
 corpus claim counts has no regression gate unless something asserts the count,
 and nothing does.**
 
+**a_tb's UNNEST half closed the same day too — 20 → 0 — and the recorded
+reason for it was wrong.** The rule blamed the walk calling every unnest field
+nullable "whatever the element expression put there", and marked it deliberate.
+True, and not the operative cause. Inside the CTE both fields ARE nullable: `u`
+is LEFT-joined, an absent `u` makes `ROW(u.val::text, u.email)` into
+`(NULL, NULL)`, and unnest emits that as one row with both fields NULL. What
+the refilter needed is that `g.p` and `g.q` are the SAME ROW's columns, so
+pinning one settles the other. That is a PRESENCE fact, not a nullability one,
+and no amount of typing the field would have produced it.
+
+The producer list has two consumers with different semantics, and that is the
+finding. Origins claim "this column IS that table column of that row", which a
+CAST breaks — and the corpus's field is `u.val::text`, so
+`resolveBareColumnTarget` refuses it and must keep refusing. Groups claim
+"these columns are NULL together", which a cast preserves exactly. So
+`presenceProducer` reads the same list a different way: it strips casts,
+requires every element to name the same (relation, column), and declines when
+the unnest item is itself OPTIONAL — a null-extended item makes its fields NULL
+while the source is present, which breaks the group in the direction that
+matters. Measured: **notNull 24433 → 24453 (+20, the whole bucket), presence
+groups 2558 → 2618, all with both arms observed, 0 falsified.**
+
+Two more mechanisms landed beside it, each with its own fixture and each
+verified by its own mutation — `unnest-element-presence` (the above),
+`unnest-element-origin` (a field's ORIGIN is its element's, which is what
+carries CHECK entailment through an unnest: guest's `status <> 'housed' OR room
+IS NOT NULL` reaches `pr.q`), and `unnest-composite-shape` (the field's
+NULLABILITY read from the constructor's elements, which flipped two
+long-standing `@unwitnessable` annotations to plain notNull claims — both
+element skus were always non-null literals). The origins half was written
+first, changed nothing in the corpus, and was nearly deleted as dead code; the
+probe that saved it is the guest CHECK above. **A mechanism with no witness is
+not a mechanism yet** — the difference between deleting it and keeping it was
+one measurement, not one opinion.
+
 **a_tb's srf half closed entirely the same day** — 8 → 4 → 0 — in two steps.
 
 The first gave presence groups a second consumer. The inner analysis already grouped a_tb with a_tc and marked
@@ -374,11 +411,12 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **100 `@unwitnessable` reasons in the hand corpus** carry the same rot risk
+The **97 `@unwitnessable` reasons in the hand corpus** carry the same rot risk
 and are not yet wired to blame files. That is the obvious next pass and it is
-not done. (Was 101; one came off when `guardedPresence` landed and the claim it
-excused turned notNull. The suite's own readout counts CLAIMS, not annotation
-lines, and reads 95 — an annotation may name several columns.)
+not done. (Was 101 on 2026-08-22: one came off with `guardedPresence` and three
+with the unnest work, each because the claim it excused turned notNull. The
+suite's own readout counts CLAIMS, not annotation lines, and reads 92 — one
+annotation may name several columns.)
 
 ### 4. Known imprecision residue
 
