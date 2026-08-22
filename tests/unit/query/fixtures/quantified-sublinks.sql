@@ -1,4 +1,3 @@
--- @unwitnessable 13: p.id and both array elements are non-null so = ANY always yields a boolean; the array expression is opaque to the walk
 -- ANY / ALL / IN / NOT IN sublinks do NOT always return a boolean.
 --
 -- The comparison runs per row under three-valued logic and the results are
@@ -35,10 +34,26 @@ SELECT
   -- ARRAY(...) yields an empty array rather than NULL when nothing matches.
   ARRAY(SELECT p2.category_id FROM products p2)                AS arr,          -- @notNull
 
-  -- The array form: a literal ARRAY[...] exposes its elements, so it can be
-  -- judged. An opaque array expression cannot.
+  -- The array form needs to SEE the elements, and there are two ways to. A
+  -- literal ARRAY[...] exposes them as AST children; a CLOSED array
+  -- expression exposes them as a value, through the statement map (2026-08-22
+  -- — the map held `{1,2}` all along and the walk read only whether the ARRAY
+  -- itself was NULL, which is not the question). Casts are looked through
+  -- because the collector takes the maximal closed subtree, which is the
+  -- FuncCall inside the cast; an array cast is element-wise, so the pre-cast
+  -- value answers the same question.
+  --
+  -- The last two are the same call with the same shape and opposite answers:
+  -- string_to_array's third argument is a null_string, so `'2'` comes back a
+  -- real SQL NULL and the ANY can be NULL on any row that matches neither
+  -- element.
   p.id = ANY (ARRAY[1, 2])                                     AS any_literal,  -- @notNull
   p.id = ANY (ARRAY[1, NULL])                                  AS any_has_null, -- @nullable
   p.category_id = ANY (ARRAY[1, 2])                            AS any_lhs_null, -- @nullable
-  p.id = ANY (string_to_array('1,2', ',')::int[])              AS any_opaque    -- @nullable
+  p.id = ANY (string_to_array('1,2', ',')::int[])              AS any_closed,   -- @notNull
+  p.id = ANY (string_to_array('1,2', ',', '2')::int[])         AS any_closed_null, -- @nullable
+  -- Opaque: the array is built from a COLUMN, so no map entry can hold it.
+  -- Witnessed rather than merely refused — `deleted_at` is NULL on most rows,
+  -- `string_to_array(NULL, ',')` is a NULL array, and ANY over one is NULL.
+  p.sku = ANY (string_to_array(p.deleted_at::text, ','))       AS any_opaque    -- @nullable
 FROM products p

@@ -1,4 +1,3 @@
--- @unwitnessable 1: array_length of a two-element literal array is always 2; the builtin sits outside the curated tables (known imprecision)
 -- Expression node combinations: RowExpr in CoalesceExpr in CaseExpr,
 -- A_ArrayExpr as function arg, MinMaxExpr with subquery, CollateClause
 -- on cast of COALESCE, NamedArgExpr with nested function calls.
@@ -7,7 +6,11 @@ SELECT
     WHEN p.deleted_at IS NOT NULL THEN ROW(p.id, 'archived')
     ELSE COALESCE(ROW(p.id, p.name), ROW(0, 'unknown'))
   END AS row_case,                                 -- @notNull
-  array_length(ARRAY[p.id, p.id], 1) AS arr_len,  -- @nullable
+  -- A non-empty ARRAY[...] has a dimension 1 of that length, so the
+  -- name's exclusion from the totality tables — real, and about EMPTY
+  -- arrays and absent dimensions — does not reach this call.
+  -- array-length-literal-shape.sql holds both refusals.
+  array_length(ARRAY[p.id, p.id], 1) AS arr_len,  -- @notNull
   GREATEST(
     (SELECT max(rating) FROM reviews WHERE product_id = p.id),
     0

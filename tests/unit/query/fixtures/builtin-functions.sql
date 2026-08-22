@@ -1,5 +1,4 @@
 -- @unwitnessable 10: date_part of a FINITE timestamp is never NULL; the exclusion exists for the infinite inputs (adversarial-2 finding 11), and orders.placed_at seeds none — builtin-extract-infinity.sql witnesses that class
--- @unwitnessable 23: CURRENT_SCHEMA is NULL only when the search path resolves to no schema, which no data state can arrange
 -- @unwitnessable 24: current_query() is NULL only when the statement has no source text, which no data state can arrange
 -- pg_catalog built-ins.
 --
@@ -70,8 +69,10 @@ SELECT
   array_length(ARRAY[p.id], 2)            AS bad_dim,         -- @nullable
   jsonb_extract_path(e.data, 'nope')      AS missing_path,    -- @nullable
 
-  -- CURRENT_SCHEMA is NULL when the search path resolves to nothing.
-  CURRENT_SCHEMA                          AS schema_name,     -- @nullable
+  -- CURRENT_SCHEMA is NULL only when the search path names no existing
+  -- schema — an engine option, not a data state, and one the walk may read.
+  -- current-schema-unresolvable-path.sql arranges it and witnesses the NULL.
+  CURRENT_SCHEMA                          AS schema_name,     -- @notNull
 
   -- Not in any table and not in the catalog → still conservatively nullable.
   -- `pg_sleep(0)` held this position and is claimed now (the volatile sweep,

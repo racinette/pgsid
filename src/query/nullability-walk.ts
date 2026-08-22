@@ -5220,7 +5220,12 @@ class NullabilityEngine {
         // one column called `json_each`.
         const builtinShape = this.catalog.resolveBuiltinFunctionShape(this.funcSchema(fc), name);
         if (builtinShape) {
-          push(this.columnsForReturnType(builtinShape, scalarName));
+          // The shape is environment, captured; which of its columns can be
+          // SQL NULL is not — no catalog flag says so, and it is curated
+          // (NON_NULL_BUILTIN_TABLE_COLUMNS), each entry measured.
+          const nonNull = NON_NULL_BUILTIN_TABLE_COLUMNS.get(name);
+          const shaped = this.columnsForReturnType(builtinShape, scalarName);
+          push(nonNull ? shaped.map(c => ({ ...c, notNull: c.notNull || nonNull.has(c.name) })) : shaped);
           continue;
         }
         // Everything else — generate_series and the other scalar SRFs —
@@ -7245,14 +7250,25 @@ class NullabilityEngine {
       // CURRENT_DATE, CURRENT_TIMESTAMP, SESSION_USER and friends. All are
       // always defined except CURRENT_SCHEMA, which is NULL when the search
       // path names no existing schema.
+      // "The search path resolves to nothing" was recorded as a state no
+      // fixture could arrange, and it is one the ENGINE OPTION decides: the
+      // walk resolves every unqualified name through that path already, so
+      // asking whether any schema on it exists is a question it is entitled to
+      // (2026-08-22). PostgreSQL returns the first EXISTING schema and NULL
+      // when none of them exists — measured, `SET search_path TO nosuch` gives
+      // NULL and `nosuch, public` gives `public`, which is why the test is
+      // "some schema exists" and not "the first one does".
       const svf = node["SQLValueFunction"] as { op?: string };
       const op = svf.op ?? "";
       trace.addFact("op", op);
-      const canBeNull = op === "SVFOP_CURRENT_SCHEMA";
-      trace.conclude(!canBeNull, canBeNull
-        ? "CURRENT_SCHEMA is NULL when the search path resolves to nothing"
-        : "SQL value function is always defined");
-      return !canBeNull;
+      const notNull =
+        op !== "SVFOP_CURRENT_SCHEMA" || this.catalog.searchPathResolves();
+      trace.conclude(notNull, op !== "SVFOP_CURRENT_SCHEMA"
+        ? "SQL value function is always defined"
+        : notNull
+          ? "a schema on the analysis search path exists → CURRENT_SCHEMA has an answer"
+          : "no schema on the analysis search path exists → CURRENT_SCHEMA is NULL");
+      return notNull;
     }
 
     if ("TypeCast" in node) {
@@ -7549,6 +7565,42 @@ class NullabilityEngine {
         );
         return result;
       }
+      // An ELEMENT subscript is NULL out of range, and "out of range" is a
+      // SHAPE question that a literal `ARRAY[...]` answers: a constructor's
+      // lower bound is 1 and its length is what it lists. A constant index
+      // inside that range therefore selects a KNOWN element, and the subscript
+      // is non-null exactly when that element is — which is why the element is
+      // walked rather than assumed. Measured 2026-08-22: `(ARRAY[1,2])[1]` is
+      // 1, `(ARRAY[1])[99]` is NULL.
+      //
+      // ONE index part, no lower bound, not a slice — `(ARRAY[…])[1][2]` steps
+      // into a second dimension the constructor's own length says nothing
+      // about. Casts are stripped: an array cast is element-wise, so element
+      // `k` stays element `k`.
+      const lone =
+        parts.length === 1
+          ? (parts[0] as { A_Indices?: { is_slice?: boolean; lidx?: Node; uidx?: Node } }).A_Indices
+          : undefined;
+      if (lone && lone.is_slice !== true && lone.uidx && !lone.lidx && ai.arg) {
+        const elems = (
+          (this.stripCasts(ai.arg) as Record<string, unknown>)["A_ArrayExpr"] as
+            | { elements?: Node[] }
+            | undefined
+        )?.elements;
+        const k = this.constantIntegerValue(lone.uidx);
+        if (elems && k !== null && k >= 1 && k <= elems.length) {
+          const result = this.walkExprTraced(
+            elems[k - 1]!, scope, depth + 1, trace.addChild(`subscript: element[${k}]`),
+          );
+          trace.conclude(
+            result,
+            result
+              ? `a constant index inside a literal ARRAY[...] selects element ${k}, which is non-null`
+              : `element ${k} of the literal array is itself nullable`,
+          );
+          return result;
+        }
+      }
       trace.conclude(false, "element/field/jsonb subscript → correctly nullable (out-of-range and missing-key are NULL)");
       return false;
     }
@@ -7724,21 +7776,31 @@ class NullabilityEngine {
         return false;
 
       // `= ANY(...)` / `= ALL(...)` over an array is NULL when the left operand
-      // is NULL, or when no element matches and some element is NULL. A literal
-      // ARRAY[...] constructor lets us inspect the elements; anything else (a
-      // column, a parameter) hides them, so we stay conservative.
+      // is NULL, or when no element matches and some element is NULL. So the
+      // elements have to be seen, and there are two ways to see them.
+      //
+      // A literal `ARRAY[...]` constructor exposes them as AST children. A
+      // CLOSED array expression exposes them as a VALUE: the statement map
+      // already holds `string_to_array('1,2', ',')::int[]` evaluated, and its
+      // `isNull` — the only field the walk read until 2026-08-22 — answers
+      // whether the ARRAY is NULL, which is not the question here. The
+      // elements were in hand and thrown away. Anything else (a column, a
+      // parameter) hides them and stays conservative.
       case "AEXPR_OP_ANY":
       case "AEXPR_OP_ALL": {
         const arrayExpr = (ae.rexpr as Record<string, unknown> | undefined)?.["A_ArrayExpr"] as
           | { elements?: Node[] }
           | undefined;
-        if (!arrayExpr) {
+        const operands = arrayExpr
+          ? [ae.lexpr, ...(arrayExpr.elements ?? [])]
+          : this.evaluatedArrayHasNoNullElement(ae.rexpr)
+            ? [ae.lexpr]
+            : null;
+        if (!operands) {
           trace.conclude(false, "ANY/ALL over an opaque array — elements may be NULL → nullable");
           return false;
         }
-        const allNotNull = this.operandsAllNotNull(
-          [ae.lexpr, ...(arrayExpr.elements ?? [])], scope, depth, trace, "operand",
-        );
+        const allNotNull = this.operandsAllNotNull(operands, scope, depth, trace, "operand");
         trace.conclude(
           allNotNull,
           allNotNull
@@ -10614,6 +10676,34 @@ class NullabilityEngine {
         trace.conclude(false, "VARIADIC passes the parameter as one array, and a NULL array yields NULL → nullable");
         return false;
       }
+      // `array_length` is excluded from the totality tables because it is NULL
+      // for an EMPTY array or a dimension the array does not have. Both causes
+      // are SHAPE rather than value, and a literal `ARRAY[...]` constructor
+      // settles both: it has exactly the elements it lists, so a non-empty one
+      // has a dimension 1 of that length. Measured 2026-08-22 —
+      // `array_length(ARRAY[1,2], 1)` is 2, `array_length(ARRAY[]::int[], 1)`
+      // is NULL, and `array_length(ARRAY[NULL::int], 1)` is 1, which is the
+      // half worth pinning: the ELEMENTS' nullness is not this function's
+      // question, so no operand walk enters the rule.
+      //
+      // Casts are stripped because an array cast changes neither length nor
+      // dimension. Dimension 1 only, and a literal one: `array_length(x, 2)`
+      // of a flat array is NULL, so a non-constant dimension proves nothing.
+      // `array_ndims` is the obvious sibling and is deliberately absent — it
+      // has no claim in the corpus, and a rule nothing can falsify is not
+      // coverage.
+      if (name === "array_length" && (fc.args?.length ?? 0) === 2) {
+        const elems = (
+          (this.stripCasts(fc.args![0]!) as Record<string, unknown>)["A_ArrayExpr"] as
+            | { elements?: Node[] }
+            | undefined
+        )?.elements;
+        if (elems && elems.length > 0 && this.constantIntegerValue(fc.args![1]!) === 1) {
+          trace.addFact("priority", "6b (built-in, array_length of a literal array)");
+          trace.conclude(true, "a non-empty ARRAY[...] has a dimension 1 → array_length is non-null");
+          return true;
+        }
+      }
       // Typed dispatch first (docs/type-aware-overloads.md, the function
       // slice): resolve the call over the captured kind='f' rows and read
       // the verdict per SURVIVOR, which is what lets `lower(<text column>)`
@@ -10718,6 +10808,31 @@ class NullabilityEngine {
    * nullable — which costs count_it its notNull, the honest price of not
    * analysing a transition function.
    */
+  /**
+   * Whether `expr` is a CLOSED array expression the statement map evaluated to
+   * an array holding no NULL anywhere in it.
+   *
+   * CASTS are stripped before the lookup, and have to be: the collector takes
+   * MAXIMAL closed subtrees and `string_to_array('1,2', ',')::int[]` collects
+   * as the FuncCall inside, not as the cast around it, so the map holds the
+   * pre-cast value. That is the right value to read anyway — an array cast is
+   * element-wise, so it turns no NULL into a value and no value into a NULL.
+   *
+   * The recursion is the point rather than tidiness: a multidimensional array
+   * arrives as nested JS arrays, `= ANY` compares against every leaf, and a
+   * one-level check would call `{{1,2},{3,NULL}}` clean. Anything the driver
+   * did not parse into an array (a raw `'{1,2}'` string, a scalar) is not an
+   * answer and claims nothing.
+   */
+  private evaluatedArrayHasNoNullElement(expr: Node | undefined): boolean {
+    if (!expr) return false;
+    const answered = this.evaluation?.get(this.stripCasts(expr));
+    if (!answered || answered.isNull) return false;
+    const clean = (v: unknown): boolean =>
+      Array.isArray(v) ? v.every(clean) : v !== null && v !== undefined;
+    return Array.isArray(answered.value) && clean(answered.value);
+  }
+
   private resolveAggregateTraced(
     fc: FuncCall,
     name: string,
@@ -11667,10 +11782,16 @@ class NullabilityEngine {
    */
   private groupingGuaranteesNonEmptyGroups(select: SelectStmt): boolean {
     if (!select.groupClause || select.groupClause.length === 0) return false;
-    for (const g of select.groupClause) {
-      if ("GroupingSet" in (g as Record<string, unknown>)) return false;
-    }
-    return true;
+    // A GroupingSet term does not disqualify the clause — the EMPTY generated
+    // set does, and that is what emits a row with no input rows behind it
+    // (measured: `GROUP BY GROUPING SETS (())` over zero rows gives one row,
+    // sum NULL). A PLAIN top-level term appears in every generated set, so one
+    // of those makes every generated set non-empty whatever the ROLLUP beside
+    // it expands to — the same fact `collectGroupingSetColumns` already reads
+    // to decide which columns a super-aggregate row blanks, asked here for the
+    // first time (2026-08-22). Sufficient rather than exact: `GROUPING SETS
+    // ((a), (b))` generates no empty set either and is refused.
+    return select.groupClause.some(g => !("GroupingSet" in (g as Record<string, unknown>)));
   }
 }
 
@@ -11705,10 +11826,17 @@ class NullabilityEngine {
 // Aggregates that return a non-null result whenever they see at least one
 // non-null input value.
 //
-// Excluded on purpose: stddev / stddev_samp / variance / var_samp / corr /
-// regr_* — all undefined (NULL) for a single input row, so a non-empty group
-// is not enough. Ordered-set aggregates (percentile_*, mode) are excluded
-// because their WITHIN GROUP argument is not modelled here.
+// The excluded set is SAMPLE statistics, and the line is where the estimator
+// divides by `n - 1`: stddev / stddev_samp / variance / var_samp /
+// covar_samp / corr / regr_slope / regr_intercept / regr_r2 are NULL for a
+// single input row, so a non-empty group is not enough for them. The
+// POPULATION variants divide by `n` and are defined at n = 1 — measured
+// 2026-08-22, one row each, and the whole family measured at once rather than
+// one name at a time, because this comment previously said "regr_* — all
+// undefined" and six of the twelve are not.
+//
+// Ordered-set aggregates (percentile_*, mode) are excluded because their
+// WITHIN GROUP argument is not modelled here.
 // ---------------------------------------------------------------------------
 
 /**
@@ -11763,6 +11891,15 @@ export const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
   "sum", "avg", "min", "max",
   "bit_and", "bit_or", "bool_and", "bool_or", "every",
   "array_agg", "string_agg", "json_agg", "jsonb_agg",
+  // The POPULATION statistics, admitted 2026-08-22 with the whole family
+  // measured over a single row. Their sample twins stay out, one line apart
+  // in the same table so the pairing is visible: stddev_pop / var_pop against
+  // stddev_samp / var_samp, covar_pop against covar_samp. The regr_ moments
+  // are population quantities too — sums and means over the non-null pairs —
+  // while the three that FIT a line (slope, intercept, r2) need two points
+  // and stay out with `corr`.
+  "stddev_pop", "var_pop", "covar_pop",
+  "regr_avgx", "regr_avgy", "regr_sxx", "regr_syy", "regr_sxy",
 ]);
 
 /**
@@ -11772,6 +11909,45 @@ export const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
  * five ranking functions take no arguments, so their keys are bare, but
  * `lag` and `lead` below are exactly the case a name cannot express.
  */
+/**
+ * Output columns of pg_catalog TABLE FUNCTIONS that can never be SQL NULL,
+ * by function name and column name.
+ *
+ * The SHAPE of these functions is environment and is captured
+ * (`builtinTableFunctions`); which columns can be NULL has no catalog flag at
+ * all — `attnotnull` describes table columns, not function outputs — so this
+ * is curated, and every entry was measured on admission (2026-08-22) against
+ * a document holding a JSON null, which is the only thing that could put one
+ * there.
+ *
+ * Only `key`, and the reason the `value` columns are absent is the whole
+ * lesson of this table. It looked like the easier admission: a JSON null is a
+ * json DATUM, so `json_each('{"a": null}')` yields a `value` PostgreSQL's own
+ * `IS NULL` calls non-null — measured, and true. It was admitted on that, and
+ * PostgreSQL falsified it in five data states, because the claim is not about
+ * SQL's notion of NULL. It is about what reaches the consumer, and the driver
+ * parses a `json` datum: the JSON null arrives as `null`, indistinguishable
+ * from the SQL one. `json_each_text` renders the same document to a real SQL
+ * NULL, and the two are the SAME value at the type boundary these claims
+ * describe. A `Json` that can be `null` is `Json | null`.
+ *
+ * `key` survives that test for a reason no rendering can touch: a JSON
+ * object's field names are strings by the grammar, so no document produces a
+ * NULL key, and none produces a json `null` in that position either.
+ *
+ * Keyed by NAME rather than signature, matching `builtinTableFunctions`, which
+ * is the map whose shape these flags overlay. `snapshot.test.ts` asserts each
+ * admitted name has exactly one set-returning pg_catalog row and that `key` is
+ * among its output columns — so a PG release that adds an overload or renames
+ * a column fails rather than drifts.
+ */
+export const NON_NULL_BUILTIN_TABLE_COLUMNS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ["json_each", new Set(["key"])],
+  ["jsonb_each", new Set(["key"])],
+  ["json_each_text", new Set(["key"])],
+  ["jsonb_each_text", new Set(["key"])],
+]);
+
 export const NEVER_NULL_WINDOW_SIGNATURES: ReadonlySet<string> = new Set([
   "row_number()", "rank()", "dense_rank()", "percent_rank()", "cume_dist()",
 ]);

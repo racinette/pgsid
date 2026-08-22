@@ -1246,11 +1246,24 @@ describe("GUARD: lines the mechanism must not cross", () => {
   });
 
   it("structural facts about open trees are refused", async () => {
-    const c = await contract("SELECT (ARRAY[t.id, t.id])[1] AS c FROM t");
-    // The in-range-ness of the subscript is structural, but the tree holds
-    // column refs: open. Structural reasoning is the walk's possible future
-    // business, never the evaluator's.
+    const c = await contract("SELECT (ARRAY[t.id, t.id])[t.id] AS c FROM t");
+    // The array's LENGTH is structural — the constructor lists two elements —
+    // but the index is a column ref, so whether the subscript lands in range
+    // is not. Open tree, no claim from anybody.
     expect(c.outputs[0]!.notNull).toBe(false);
+  });
+
+  it("...and the walk, not the evaluator, is what may answer one", async () => {
+    const c = await contract("SELECT (ARRAY[t.id, t.id])[1] AS c FROM t");
+    // This subject used to sit in the case above, refused, with the note that
+    // structural reasoning was "the walk's possible future business, never the
+    // evaluator's". As of 2026-08-22 the walk does it: a constructor's lower
+    // bound is 1 and its length is what it lists, so a CONSTANT index inside
+    // that range selects a known element and the element is then walked. The
+    // tree is still open and the evaluator still contributes nothing — the
+    // three cases below are what keep that line, and this pair is what keeps
+    // the two mechanisms distinguishable.
+    expect(c.outputs[0]!.notNull).toBe(true);
   });
 
   it("a closed ON condition does not touch join semantics", async () => {

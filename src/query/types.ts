@@ -756,6 +756,21 @@ export interface NullabilityCatalog {
   isStrictBuiltin(name: string): boolean;
 
   /**
+   * Whether the analysis search path names at least one schema the snapshot
+   * carries — which is exactly the condition under which `CURRENT_SCHEMA` has
+   * an answer. PostgreSQL returns the FIRST existing schema on the path and
+   * NULL when none of them exists (measured: `SET search_path TO nosuch`
+   * gives NULL, `nosuch, public` gives `public`).
+   *
+   * The search path is an ENGINE option and lives inside the adapter, so this
+   * is the one question the walk has to ask rather than derive. It is exactly
+   * as sound as every other claim built on that option — the walk already
+   * resolves every unqualified table and type name through it, and a runtime
+   * path that differs invalidates far more than this.
+   */
+  searchPathResolves(): boolean;
+
+  /**
    * The pre-parsed generation expression of `schema.table.column` (GENERATED
    * ALWAYS AS ... STORED/VIRTUAL), or null. An expression over the table's
    * own columns — cycle-free and immutable by PostgreSQL's rules — walked at
