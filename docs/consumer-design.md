@@ -374,11 +374,17 @@ A wrong `alwaysNull` is falsified by ANY non-NULL value, so every returned
 row is a test and no witness has to be constructed — the opposite
 economics to a `nullable` claim, which needs a NULL to appear and may wait
 forever (see the register's unwitnessed residue). Both corpora gate it.
-Measured on landing: 8 claims across the 471 hand fixtures over five data
-states, 0 falsified; 0 in the generated corpus, which is built around join
-structure and emits neither an `IS NULL` filter nor a partitioning CHECK.
+Measured: **17 claims across the hand fixtures over five data states, 0
+falsified**; 0 in the generated corpus, which is built around join structure
+and emits neither an `IS NULL` filter nor a partitioning CHECK. The count
+went 8 → 10 → 11 → 14 → 17 as each boundary below was measured and closed.
 
-The 8 are the shapes you would want: three soft-delete filters
+Fixtures can pin it: `-- @alwaysNull` occupies the same annotation slot as
+`@nullable`/`@notNull` and is checked BIDIRECTIONALLY, like the presence
+groups — an engine claim with no marker is an undocumented claim, a marker
+the engine no longer makes is stale.
+
+The first 8 were the shapes you would want: three soft-delete filters
 (`extreme-correlated-everywhere`, `extreme-order-dashboard-multi-join`,
 `extreme-product-catalog-comprehensive`), two CHECK discriminators
 (`check-and-concatenated`, `check-case-discriminator-nullable`), and three
@@ -387,12 +393,56 @@ the quiet part for months — *"the same CHECK forces it NULL on every
 in-flight row"* — as prose consolation for a claim the engine could not
 make. It makes it now.
 
-**Not yet covered**, and deliberately: DML RETURNING (the SET-mask channel
-split is non-null-specific and would need its own reasoning), columns
-reached through a CTE/subquery boundary via origins, and OPTIONAL entries —
-where an absent row nulls the column outright, so the two ways of being
-null compose and the kernel's presence gate is built to prove the opposite
-thing. Left conservative rather than argued.
+**Coverage**, all four boundaries measured rather than argued (2026-08-22,
+same day; the first cut's "not yet covered, deliberately" list turned out to
+be three unmeasured guesses and one real gap):
+
+| Shape | State |
+|---|---|
+| SELECT, table column, WHERE or CHECK evidence | yes |
+| Strict expressions over an always-null column | yes |
+| DML RETURNING | yes — SELECT's NEW-row channel, core masked, guards free |
+| Bare re-export across subquery / CTE / view | yes, with **no join-state gate** |
+| Outer evidence + inner CHECK, across a boundary | yes, via `originCheckEntailment` |
+| OPTIONAL entries, outer-join `ON` quals as evidence | yes |
+| Written values (`UPDATE … SET status = 'draft' RETURNING amount`) | **no** |
+
+Three findings from measuring, none of which the armchair produced:
+
+**The OPTIONAL gate was inert.** Removing it changed nothing, because every
+evidence source that constrains an alias also promotes it out of OPTIONAL.
+The one that does not is the extending join's own `ON` qual, which
+`impliedQuals` withholds — correctly for a non-null goal, since on a
+NULL-extended row that qual was not TRUE. For a null goal the case-split
+closes it: matched ⇒ the qual held and the CHECKs apply; extended ⇒ every
+column is NULL anyway. `qualsHoldingWhenPresent` supplies them, LEFT and
+RIGHT only — a FULL join emits rows where the entry is present and the qual
+was false, and the measured control returns a non-NULL there.
+
+**The re-export needs no join-state gate**, which is the one place this
+channel is stronger than its notNull mirror rather than weaker. For notNull
+an OPTIONAL entry destroys the claim; here both arms agree.
+
+**DML RETURNING was wired into the traced assembly and not the untraced
+one** — so `inferNullability`, the function every consumer calls, silently
+did not compute the flag, while its traced twin did. No test could see it:
+the two are checked for agreement on `notNull`, and the annotation gate only
+runs the untraced path. A one-line probe against PostgreSQL found it.
+
+**And the `@alwaysNull` annotation gate caught a real unsoundness on its
+first run.** `originAlternativeEntailment` has two shortcuts that conclude
+NON-null ("required alternative + non-null per stored row"); reading their
+boolean as "proved the goal" while the goal was NULL made `agg.order_id`
+always-null under `LEFT JOIN (SELECT order_id, count(*) …) agg`. Both are
+gated on the goal now. Bidirectional coverage is what surfaced it — an
+engine claim with no marker fails, so a new claim cannot appear unannounced.
+
+What is left is written values: `UPDATE inv SET status = 'draft' RETURNING
+amount` forces `amount IS NULL` on the NEW row through the CHECK, but the
+SET value reaches the kernel only as a written-value fact, and that map
+carries non-nullness and deliberately not nullness. Same family as the
+generated corpus's `r_ce` — closing it means tracking VALUES, which is the
+register's separate item, not a gap in this channel.
 
 ## Diagnostics
 

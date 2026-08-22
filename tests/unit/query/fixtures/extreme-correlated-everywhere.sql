@@ -22,7 +22,7 @@ SELECT
   p.sku                                     AS sku,              -- @notNull
   p.price                                   AS price,            -- @notNull
   p.category_id                             AS category_id,      -- @nullable
-  p.deleted_at                              AS deleted_at,       -- @nullable
+  p.deleted_at                              AS deleted_at,       -- @alwaysNull  soft-delete filter
   COALESCE(p.category_id, 0)                AS safe_category,   -- @notNull
 
   -- Category average price (correlated to product's category)

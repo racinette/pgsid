@@ -45,21 +45,36 @@ const fixtureFiles = readdirSync(FIXTURES_DIR)
 // Parse fixture: extract expected annotations from `-- notNull` / `-- nullable`
 // ---------------------------------------------------------------------------
 
-function parseFixture(content: string): { sql: string; expectations: boolean[] } {
+function parseFixture(content: string): {
+  sql: string;
+  expectations: boolean[];
+  alwaysNull: boolean[];
+} {
   const expectations: boolean[] = [];
+  const alwaysNull: boolean[] = [];
   // Annotations use `@notNull` / `@nullable` markers to avoid collision
   // with descriptive comment text. The marker must appear after a `--`
   // comment prefix, optionally with leading whitespace.
   const notNullRe = /--\s*@notNull\b/;
   const nullableRe = /--\s*@nullable\b/;
+  // `@alwaysNull` is a STRONGER nullable: the column is nullable AND proven
+  // NULL on every emitted row. It occupies the same annotation slot rather
+  // than pairing with `@nullable`, so a column carries exactly one verdict
+  // marker and the positional count keeps working.
+  const alwaysNullRe = /--\s*@alwaysNull\b/;
   for (const line of content.split("\n")) {
     if (notNullRe.test(line)) {
       expectations.push(true);
+      alwaysNull.push(false);
+    } else if (alwaysNullRe.test(line)) {
+      expectations.push(false);
+      alwaysNull.push(true);
     } else if (nullableRe.test(line)) {
       expectations.push(false);
+      alwaysNull.push(false);
     }
   }
-  return { sql: content, expectations };
+  return { sql: content, expectations, alwaysNull };
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +103,7 @@ describe("nullability-walk", () => {
 
     it(testName, async () => {
       const content = readFileSync(filePath, "utf8");
-      const { sql, expectations } = parseFixture(content);
+      const { sql, expectations, alwaysNull } = parseFixture(content);
       // `-- @search-path` (fixture-args.ts): the catalog is built on the
       // fixture's own path, and the SESSION is put on it too — the statement
       // map executes closed subtrees, and those must resolve names the way
@@ -146,6 +161,21 @@ describe("nullability-walk", () => {
             actual,
             `Column ${i} (${results[i]?.name ?? "?"}): expected ${expected ? "notNull" : "nullable"}, got ${actual ? "notNull" : "nullable"}`,
           ).toBe(expected);
+        }
+        // `@alwaysNull`, bidirectionally — the same bar the presence groups
+        // carry below. An engine claim with no marker is an undocumented
+        // claim ("you improved — annotate it"); a marker the engine no
+        // longer claims is stale and must come off. A one-directional check
+        // would let the whole channel go dark without a single failure.
+        for (let i = 0; i < alwaysNull.length; i++) {
+          expect(
+            results[i]?.alwaysNull ?? false,
+            `Column ${i} (${results[i]?.name ?? "?"}): ${
+              alwaysNull[i]
+                ? "annotated @alwaysNull, but the engine does not claim it"
+                : "the engine claims alwaysNull — annotate it @alwaysNull instead of @nullable"
+            }`,
+          ).toBe(alwaysNull[i]!);
         }
       }
 

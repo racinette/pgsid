@@ -98,7 +98,7 @@ SELECT
   o.id                                     AS order_id,         -- @notNull
   o.status                                 AS order_status,     -- @notNull
   o.placed_at                              AS placed_at,        -- @notNull
-  o.deleted_at                             AS order_deleted,    -- @nullable
+  o.deleted_at                             AS order_deleted,    -- @alwaysNull  soft-delete filter
   lower_strict(o.status)                   AS lower_status,     -- @notNull
   COALESCE(lower_strict(o.status), 'x')    AS safe_status,      -- @notNull
   always_text(o.status)                    AS guaranteed_status,  -- @notNull
