@@ -14,6 +14,6 @@ UPDATE guest
 SET arrived_at = NULL, status = 'in-flight'
 WHERE status = 'housed'
 RETURNING
-  arrived_at AS tv,   -- @nullable
+  arrived_at AS tv,   -- @alwaysNull  the SET writes a NULL literal
   room,               -- @notNull
   id                  -- @notNull
