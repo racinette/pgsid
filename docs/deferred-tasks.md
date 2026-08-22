@@ -170,27 +170,23 @@ is permanent and how to re-measure it:
 WITNESS_REPORT=1 pnpm exec vitest run tests/unit/query/generated/generated-soundness.test.ts
 ```
 
-Across 14,964 queries, 32,379 nullable output claims and **32,293 witnessed**.
-The 86 that are not are each classified, and every classification is either
+Across 14,964 queries, 32,375 nullable output claims and **32,293 witnessed**.
+The 82 that are not are each classified, and every classification is either
 executable as a `<label>.blame.sql` fixture or declares itself geometric. Four
-buckets — but five mechanisms, because `a_tb` is two:
+buckets:
 
 | unwitnessed | bucket | why no data reaches the NULL |
 |---:|---|---|
 | 60/462 | `proj=case-nullif \| col=a_case` | **the join shape forbids the row.** a_case is NULL only where t is present and u NULL-extended; in these five structures the t-u join is RIGHT or FULL, so a u-absent row either extends t with it or is discarded by the outer join's qual on u |
-| 20/522 | `proj=plain \| col=a_tb`, unnest | **the walk will not type an unnest field.** Every field of an unnested composite reads nullable whatever the element expression put there — the array element is arbitrary and the field's own type carries no flag. Deliberate; this structure exists to exercise it |
-| 4/522 | `proj=plain \| col=a_tb`, srf + union | **a UNION branch of literals carries no presence group.** The pin on a_tc travels to a_tb through the inner statement's presence group, and `computeSetOpGroups` intersects branch groups — a bare literal row has no null-extension unit, so it has no group, so the intersection is empty |
+| 20/522 | `proj=plain \| col=a_tb` | **the walk will not type an unnest field.** Every field of an unnested composite reads nullable whatever the element expression put there — the array element is arbitrary and the field's own type carries no flag. Deliberate; this structure exists to exercise it |
 | 1/6 | `proj=plain \| col=r_snm` | **the witness is a raise, not a row.** `$1` lands in `ck.val`'s NOT NULL constraint, so binding NULL raises; the param suite counts that as a rejection and the witness channel cannot count it as anything |
 | 1/1 | `proj=case \| col=r_ce` | **the engine tracks nullability, not values.** `active` was written as the literal `true`, so PostgreSQL never runs the ELSE branch; written-value tracking deliberately carries only non-nullness |
 
-Three of the five are engine imprecision in the sense that a better engine would
+Two of the four are engine imprecision in the sense that a better engine would
 flip the claim, and they cost very differently. `r_ce` needs VALUE tracking — a
 different project. `a_case` needs one more rung on a promotion channel that
 already exists, and the same predicate spelled in a WHERE instead of a CASE
-guard already reads notNull in all five structures. The srf/union four need a
-branch with no absence to count as vacuously satisfying a presence group, which
-is sound and small but widens an EXPORTED contract — left open deliberately, see
-below.
+guard already reads notNull in all five structures.
 
 Three gates hold this, in `generated-soundness.test.ts`: an unclassified claim
 fails, a rule matching nothing fails as stale, and a rule blaming a MECHANISM
@@ -259,8 +255,9 @@ gate would have caught the seven dead ones**: the staleness check fires when a
 RULE matches nothing, and this rule still matches 60 claims. A structure set is
 a second place a reason can rot, finer-grained than the rule.
 
-**a_tb's srf half narrowed 8 → 4 the same day**, by giving presence groups a
-second consumer. The inner analysis already grouped a_tb with a_tc and marked
+**a_tb's srf half closed entirely the same day** — 8 → 4 → 0 — in two steps.
+
+The first gave presence groups a second consumer. The inner analysis already grouped a_tb with a_tc and marked
 a_tb a discriminant; the group says absent ⟹ every member NULL, so a pinned
 member proves the row present and every discriminant non-null. That fact was
 computed, cached in `groupCache`, lifted across boundaries by
@@ -276,11 +273,43 @@ all — only the pairing of a function with a boundary was dark. Groups need no
 anchor. Measured before the change: SRF with the refilter in the same query →
 notNull; table behind a CTE → notNull; SRF behind a CTE → nullable.
 
-What is left is the four set-operation spellings, and the cause moved to the
-right branch — see the bucket table. The rule was renamed with it, from
-`srf-refilter-implies-the-function-row-is-present` to
-`union-literal-branch-carries-no-presence-group`, which orphaned the old blame
-file loudly, as designed.
+The second closed the remaining four, which were all set operations, and the
+cause had moved to the right branch: the generator's UNION arm is a row of
+literals. It has no outer join, so no null-extension unit, so no presence group
+— and UNION branches were combined by INTERSECTING their groups, so the group
+the left branch earned died against a branch that had nothing to disagree with.
+`computeSetOpGroups` now also admits a left group whose discriminants are all
+notNull on the right: **a branch that cannot be absent cannot break the group.**
+Every row it contributes lands in the present arm, and neither half of the
+contract has a case to fail on there.
+
+That is a contract widening and it was measured before landing: **presence
+groups 1662 → 2558, all 2558 with both arms observed and none falsified.** The
++896 is the point, not the cost. A `UNION` against a constant row is the
+add-a-sentinel idiom, and every one of those queries had been handing consumers
+two independently-nullable columns where the truth is a two-arm union:
+
+```ts
+{ a_tb: string; a_tc: string | null } | { a_tb: null; a_tc: null }
+```
+
+The dead-rule filter in the same function looks like it argues the other way and
+does not — **it drops groups whose ABSENT arm cannot occur**, because a type
+with an unreachable arm is noise. These are the opposite shape: the absent arm
+is the reachable, observed, load-bearing one. The two rules read as one only if
+you take "fewer groups" for the goal, and it never was.
+
+Wiring it needed one small correction: `analyzeSetOperation` settles its groups
+inside the fixpoint and its caller was recomputing them from the combined
+verdicts. Identical while nothing inside knew more than a second pass could —
+and the vacuous arm reads the right branch's own per-column verdicts, which
+exist only in that loop. The groups now travel with the results.
+
+Two rules died on the way, and their blame files with them:
+`srf-refilter-implies-the-function-row-is-present` was renamed to
+`union-literal-branch-carries-no-presence-group` when its cause moved, then
+deleted when the cause closed. The staleness gate flagged it the moment it
+stopped matching, which is exactly its job.
 
 Not the parameter side, which this item also misread. **2724 nullable argument
 claims, 0 falsified** is 2724 confirmations, not a residue: for an argument,

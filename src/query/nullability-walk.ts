@@ -1269,7 +1269,23 @@ class NullabilityEngine {
    * member INTERSECTION, discriminants intersected likewise (a
    * discriminant must discriminate whichever branch a row came from),
    * floors re-applied, duplicates dropped. Exact-set agreement falls out
-   * as the special case where the pair coincides. A recursive branch's
+   * as the special case where the pair coincides.
+   *
+   * Branch agreement asks the other branch for a MATCHING group, which a
+   * branch that cannot be absent — a row of literals: no outer join, so no
+   * unit, so no group — can never supply, though it also cannot break one.
+   * So a left group also survives when every discriminant is notNull on the
+   * right: every row that branch contributes lands in the present arm, and
+   * neither half of the contract ("absent ⇒ every member NULL", "a
+   * discriminant is NULL iff absent") has a case to fail on there. This is
+   * the vacuous arm, and it is what lets `SELECT … FROM t LEFT JOIN … UNION
+   * ALL SELECT 'z', 'z'` keep the union type its left branch earned.
+   *
+   * Not in tension with the dead rule below, which is about the opposite
+   * shape: that one drops a group whose ABSENT arm cannot occur, because a
+   * type with an unreachable arm is noise. Here the absent arm is exactly
+   * what survives — measured, 896 groups admitted corpus-wide and both arms
+   * observed on every one. A recursive branch's
    * self-reference lifts from the group ASSUMPTION the fixpoint in
    * analyzeSetOperation iterates (seeded with the left branch's groups,
    * shrinking to convergence), which is what lets a recursive CTE keep
@@ -1278,6 +1294,7 @@ class NullabilityEngine {
   private computeSetOpGroups(
     sel: SelectStmt,
     results: { notNull: boolean }[],
+    rightResults?: { notNull: boolean }[],
   ): OutputPresenceGroup[] {
     if (!sel.larg || !sel.rarg) return [];
     const left = this.groupCache.get(sel.larg) ?? [];
@@ -1288,17 +1305,25 @@ class NullabilityEngine {
       const right = this.groupCache.get(sel.rarg) ?? [];
       combined = [];
       const seen = new Set<string>();
+      const admit = (columns: number[], discriminants: number[]): void => {
+        if (columns.length < 2 || discriminants.length === 0) return;
+        const key = `${columns.join(",")}|${discriminants.join(",")}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        combined.push({ columns, discriminants });
+      };
       for (const lg of left) {
         for (const rg of right) {
-          const columns = lg.columns.filter(c => rg.columns.includes(c));
-          const discs = lg.discriminants.filter(
-            d => rg.discriminants.includes(d) && columns.includes(d),
+          admit(
+            lg.columns.filter(c => rg.columns.includes(c)),
+            lg.discriminants.filter(
+              d => rg.discriminants.includes(d) && lg.columns.includes(d) && rg.columns.includes(d),
+            ),
           );
-          if (columns.length < 2 || discs.length === 0) continue;
-          const key = `${columns.join(",")}|${discs.join(",")}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          combined.push({ columns, discriminants: discs });
+        }
+        // The vacuous arm — a branch with no absence cannot break the group.
+        if (rightResults && lg.discriminants.every(d => rightResults[d]?.notNull)) {
+          admit(lg.columns, lg.discriminants);
         }
       }
     }
@@ -1478,7 +1503,7 @@ class NullabilityEngine {
         const left = this.analyzeStatementTraced({ SelectStmt: sel.larg } as Node, cteScope, depth + 1);
         const right = this.analyzeStatementTraced({ SelectStmt: sel.rarg } as Node, cteScope, depth + 1);
         const combined = this.combineSetOperationTraced(left, right, sel.op);
-        const groups = this.computeSetOpGroups(sel, combined);
+        const groups = this.computeSetOpGroups(sel, combined, right);
         this.groupCache.set(sel, groups);
         if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
         return combined;
@@ -1669,8 +1694,7 @@ class NullabilityEngine {
       // Register CTEs from the WITH clause so they're visible in larg/rarg.
       const cteScope = this.emptyScope(outerScope);
       this.registerCtes(stmt.withClause, cteScope);
-      const results = this.analyzeSetOperation(stmt, cteScope, depth);
-      const groups = this.computeSetOpGroups(stmt, results);
+      const { results, groups } = this.analyzeSetOperation(stmt, cteScope, depth);
       this.groupCache.set(stmt, groups);
       if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
       this.memoize(stmt, results);
@@ -3682,7 +3706,7 @@ class NullabilityEngine {
     stmt: SelectStmt,
     cteScope: Scope,
     depth: number,
-  ): OutputNullability[] {
+  ): { results: OutputNullability[]; groups: OutputPresenceGroup[] } {
     const left = this.analyzeSelect(stmt.larg!, cteScope, depth + 1);
 
     let assumption = left;
@@ -3706,7 +3730,7 @@ class NullabilityEngine {
       try {
         const right = this.analyzeSelect(stmt.rarg!, cteScope, depth + 1);
         combined = this.combineSetOperation(left, right, stmt.op!);
-        combinedGroups = this.computeSetOpGroups(stmt, combined);
+        combinedGroups = this.computeSetOpGroups(stmt, combined, right);
       } finally {
         this.fixpointJournal = outerJournal;
       }
@@ -3716,7 +3740,12 @@ class NullabilityEngine {
       ) {
         this.recursiveAssumption.delete(stmt);
         this.recursiveGroupAssumption.delete(stmt);
-        return combined;
+        // The settled groups travel WITH the settled results. The caller
+        // used to recompute them from the combined verdicts alone, which
+        // gave the same answer only while nothing here knew more than a
+        // second pass could — and the vacuous arm reads the RIGHT branch's
+        // own per-column verdicts, which exist only inside this loop.
+        return { results: combined, groups: combinedGroups };
       }
       for (const node of journal) {
         this.scopeCache.delete(node);
@@ -3731,7 +3760,7 @@ class NullabilityEngine {
     // cannot be wrong is that nothing is guaranteed.
     this.recursiveAssumption.delete(stmt);
     this.recursiveGroupAssumption.delete(stmt);
-    return left.map(c => ({ name: c.name, notNull: false }));
+    return { results: left.map(c => ({ name: c.name, notNull: false })), groups: [] };
   }
 
   private registerCtes(withClause: WithClause | undefined, scope: Scope): void {

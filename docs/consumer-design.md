@@ -280,6 +280,18 @@ matching, recursive-CTE groups) all closed 2026-08-04; the register's
 Wave 13 entry is the history, and no group-specific conservatism remains
 recorded.
 
+Branch agreement gained a **vacuous arm** on 2026-08-22: a UNION branch
+that cannot be absent — a row of literals has no outer join, so no unit,
+so no group to agree WITH — no longer kills the other branch's group,
+provided every discriminant is notNull there. Every row such a branch
+contributes lands in the present arm, so neither half of the contract has
+a case to fail on. This is what lets the add-a-sentinel idiom
+(`… LEFT JOIN … UNION ALL SELECT 'z', 'z'`) keep the two-arm union its
+LEFT JOIN earned, instead of degrading to two independently-nullable
+columns. Not in tension with the setop dead rule, which drops groups whose
+ABSENT arm cannot occur: an unreachable arm is noise, a reachable one is
+the whole feature.
+
 **Verification** landed at Wave 10's bar: `@null-group N[*],M`
 annotations with compulsory bidirectional coverage (which flagged six
 pre-existing fixtures on its first run), per-row falsification across the
@@ -288,7 +300,10 @@ derived from the discriminants' own `@unwitnessable` annotations — 29
 groups across 24 fixtures. The generated corpus runs the same per-row
 oracle annotation-free over its ~9k queries (the presence-group widening:
 refilter wrappers, varied-branch unions, duplicate names, generated
-columns): 1490 groups, all arms observed, zero falsifications.
+columns): 1490 groups, all arms observed, zero falsifications — **2558 as
+of the vacuous arm above (2026-08-22), still all arms observed and none
+falsified**, the jump being the sentinel-union queries that had been
+losing their group to a branch with nothing to say.
 
 **Emission** — factored, mirroring the parameter decision: flat row type ∩
 one local union per group. Measured 2026-08-04, tsc 5.9.3 `--strict`, all

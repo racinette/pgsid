@@ -858,38 +858,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         CASE_DARK_STRUCTURES.has(axes.structure),
     },
     {
-      label: "union-literal-branch-carries-no-presence-group",
-      why:
-        "the refilter wrappers pin a_tc IS NOT NULL, and under srf-left a_tc " +
-        "is g.val — non-null only on a row the table function actually " +
-        "returned. So g is present there, and g.email is NOT NULL through the " +
-        "body read-back that recovers what SETOF u erased. The engine makes " +
-        "that step now (presence groups crossing a CTE/subquery boundary, " +
-        "2026-08-22) and it closed this rule for setop=none, except and " +
-        "union-full-var — four of the eight claims.\n" +
-        "What is left is the SET OPERATION, and the cause is the right " +
-        "branch rather than the refilter: the generator's union arm is a bare " +
-        "literal row (generator.ts, `bareSelect({targetList: literals})`), " +
-        "which has no null-extension unit and so carries no presence group. " +
-        "`computeSetOpGroups` combines UNION branches by INTERSECTING their " +
-        "groups, and intersecting with nothing is nothing — so the group the " +
-        "left branch computed does not survive to the CTE's output and the " +
-        "pin has no channel to travel on. Measured: the identical query with " +
-        "a second REAL branch reads notNull, and so does EXCEPT (whose rows " +
-        "are left-branch rows, so the left groups pass through verbatim).\n" +
-        "Admitting a branch whose members are all notNull as vacuously " +
-        "satisfying the group would close it — sound, because a branch with " +
-        "no absence cannot break 'absent implies every member NULL'. It is " +
-        "not done because it widens an EXPORTED contract, and the two-arm " +
-        "bar that governs what gets emitted there is a deliberate call " +
-        "(see `computeSetOpGroups`, the dead-rule filter).",
-      matches: (axes, column) =>
-        axes.structure === "srf-left" &&
-        column === "a_tb" &&
-        axes.wrapper.endsWith("refilter") &&
-        (axes.setop === "union" || axes.setop === "union-all"),
-    },
-    {
       label: "unnest-refilter-implies-the-u-row-is-present",
       why:
         "the same shape as the srf rule above, one branch over. Under the " +
