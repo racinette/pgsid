@@ -798,18 +798,18 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
   // more structure would mask exactly the regression this test exists to
   // catch. A structure that becomes witnessable leaves its set via the
   // staleness check below.
+  //
+  // Seven structures left this set on 2026-08-22 — every one whose t-u join
+  // was INNER or LEFT, i.e. every one where t and u shared a single
+  // null-extension unit. See the rule's `why`. Nothing in this file would
+  // have noticed: the staleness check below is per RULE, and a rule that
+  // still covers 60 claims reports nothing about the 36 it stopped needing
+  // to. A dead structure here reads as coverage and is not.
   const CASE_DARK_STRUCTURES = new Set([
-    "nest-left(inner,right)",
-    "nest-right(inner,right)",
-    "nest-left(inner,full)",
-    "nest-right(inner,full)",
-    "nest-left(left,inner)",
-    "nest-left(left,right)",
     "nest-left(right,right)",
     "nest-right(right,right)",
     "nest-left(right,full)",
     "nest-right(right,full)",
-    "nest-left(full,inner)",
     "nest-left(full,right)",
   ]);
 
@@ -825,16 +825,33 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       label: "case-needs-t-without-u",
       why:
         "a_case is NULL only on a row where t is present (active TRUE) and u " +
-        "is NULL-extended. In these structures no such row exists: t and u " +
-        "null-extend jointly ((t INNER u) RIGHT/FULL v), or the u-absent row " +
-        "is discarded by a strict join qual referencing u's columns. Sound " +
-        "engine conservatism about the CASE branch, unreachable by any data.",
+        "is NULL-extended. In these five structures the t-u join is RIGHT or " +
+        "FULL, and no such row survives it: a u-absent row either NULL-extends " +
+        "t along with u, or is discarded by the outer join's qual on u's " +
+        "columns (measured for (t FULL u) RIGHT v, the one shape where the " +
+        "t-without-u row exists at all — PostgreSQL returns 'e', the RIGHT " +
+        "JOIN having dropped it).\n" +
+        "This is engine IMPRECISION, not conservatism forced by the branch — " +
+        "and its predecessor said the opposite, which is why the correction " +
+        "is recorded here rather than in a commit message. Seven structures " +
+        "left this rule on 2026-08-22 when two guard rungs landed: a bare " +
+        "boolean predicate now proves its own column non-null, and null-group " +
+        "promotion now consults branch guards and not only the WHERE. Those " +
+        "seven are the ones where t and u shared one null-extension unit. " +
+        "What holds the five below is that t and u sit in DIFFERENT units, " +
+        "and the guard channel has no cross-unit promotion. The WHERE channel " +
+        "does: for all five, `WHERE t.active` with a plain u.email projection " +
+        "reads notNull while the same predicate as a CASE guard reads " +
+        "nullable. Same predicate, same aliases, only the position differs.",
       geometry:
         "the fact is 'no row in these structures has t present and u absent', " +
         "which no single statement exhibits — the witness geometry of a " +
         "structure set is not a query's property. The structure set itself is " +
         "the record, and CASE_DARK_STRUCTURES is enumerated rather than " +
-        "matched by pattern for that reason.",
+        "matched by pattern for that reason. Note this excuses the WITNESS, " +
+        "not the claim: `why` above names the missing rung, and a blame file " +
+        "would pin a mechanism the engine is expected to keep, which this is " +
+        "not.",
       matches: (axes, column) =>
         axes.projection === "case-nullif" &&
         column === "a_case" &&

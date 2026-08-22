@@ -7837,17 +7837,26 @@ class NullabilityEngine {
   }
 
   /**
-   * Find another relation in `entry`'s null group whose WHERE predicate proves
-   * the group's row exists, or null if there is none.
+   * Find another relation in `entry`'s null group whose WHERE predicate or
+   * branch guard proves the group's row exists, or null if there is none.
    *
    * Sound because a null group is NULL-extended atomically: every member is
    * present, or the whole composite row is absent.
+   *
+   * The guard arm is the same evidence one branch narrower — it holds where
+   * the guard holds, which is exactly where this call is made (the guard
+   * stack is live only inside the branch being walked). Its absence was the
+   * second half of what kept `CASE WHEN t.active THEN u.email` nullable under
+   * `(t INNER u) RIGHT v`: the per-alias rung above consults both channels,
+   * this one consulted only the WHERE, so a guard could promote `t` and the
+   * promotion had no way to reach `u`.
    */
   private findNullGroupPromoter(entry: RelationEntry, scope: Scope): string | null {
     for (const other of scope.aliases.values()) {
       if (other === entry) continue;
       if (other.nullGroup !== entry.nullGroup) continue;
       if (this.checkWhereAliasPromoted(other.alias, scope)) return other.alias;
+      if (this.guardsPromoteAlias(other.alias, scope)) return other.alias;
     }
     return null;
   }
@@ -8004,6 +8013,10 @@ class NullabilityEngine {
    *     (`x IN ($1, 5)` is TRUE via 5), tested value and bounds for BETWEEN
    *     (NOT BETWEEN is a different kind and deliberately absent — it can be
    *     TRUE with a NULL bound).
+   *   - A bare boolean predicate (`WHERE t.active`, `CASE WHEN t.active`):
+   *     the strict-comparison case without the comparison. A predicate steers
+   *     its row or branch only by being TRUE, and TRUE is not NULL, so
+   *     whatever the predicate strictly depends on is non-null.
    */
   private predicateProvesNonNull(
     pred: Node,
@@ -8062,6 +8075,13 @@ class NullabilityEngine {
           return false;
       }
     }
+
+    // A predicate that IS a column, no operator around it. Restricted to a
+    // ColumnRef rather than delegating every unrecognised shape to `forces`:
+    // the enumeration above is what keeps a node the closure misreads from
+    // silently proving something, and a boolean column is the one bare shape
+    // measured to cost claims (`CASE WHEN t.active THEN u.email`, 2026-08-22).
+    if ("ColumnRef" in node) return forces(pred);
 
     return false;
   }
