@@ -83,7 +83,7 @@ SELECT
   p.name                                   AS product_name,     -- @notNull
   p.name COLLATE "C"                       AS collated_name,    -- @notNull
   p.price                                  AS price,            -- @notNull
-  p.deleted_at                             AS deleted_at,       -- @nullable
+  p.deleted_at                             AS deleted_at,       -- @alwaysNull  soft-delete filter
   p.category_id                            AS category_id,      -- @nullable
   COALESCE(pr.review_count, 0)             AS review_count,     -- @notNull
   COALESCE(pr.avg_rating, 0)               AS avg_rating,       -- @notNull

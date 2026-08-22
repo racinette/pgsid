@@ -1559,7 +1559,7 @@ class NullabilityEngine {
           }
           const trace = this.newTrace("Root");
           const notNull = this.walkExprTraced(val, scope, depth + 1, trace);
-          const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope);
+          const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1);
           producers.push(this.originTarget(val, sel, scope, originMode));
           results.push({
             name: name ?? this.inferName(val),
@@ -1661,8 +1661,14 @@ class NullabilityEngine {
       }
       const trace = this.newTrace("Root (RETURNING)");
       const notNull = this.walkExprTraced(val, scope, depth + 1, trace);
+      const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1);
       producers.push(this.resolveBareColumnTarget(val, scope));
-      results.push({ name: name ?? this.inferName(val), notNull, trace: trace.node });
+      results.push({
+        name: name ?? this.inferName(val),
+        notNull,
+        ...(alwaysNull ? { alwaysNull: true } : {}),
+        trace: trace.node,
+      });
     }
     if (stmtKey) {
       const groups = this.computePresenceGroups(producers, results, scope, depth);
@@ -1783,7 +1789,7 @@ class NullabilityEngine {
       const notNull = this.walkExpr(val, scope, depth + 1);
       // Only ever asked of a column the walk left nullable: the two are
       // mutually exclusive, and a proven non-null needs no mirror.
-      const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope);
+      const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1);
       const bare = this.originTarget(val, stmt, scope, originMode);
       producers.push(bare);
       const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
@@ -3650,6 +3656,7 @@ class NullabilityEngine {
       // pass-throughs carry origins like any SELECT's. (PG18 OLD./NEW.
       // qualifications resolve to no scope entry and stay origin-free.)
       const notNull = this.walkExpr(val, scope, depth + 1);
+      const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1);
       const bare = this.resolveBareColumnTarget(val, scope);
       producers.push(bare);
       const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
@@ -3658,11 +3665,16 @@ class NullabilityEngine {
           ? {
               name: name ?? this.inferName(val),
               notNull,
+              ...(alwaysNull ? { alwaysNull: true } : {}),
               ...(og.origins ? { origins: og.origins } : {}),
               ...(og.settled ? { originNotNull: og.settled } : {}),
               ...(og.crossings ? { unitCrossings: og.crossings } : {}),
             }
-          : { name: name ?? this.inferName(val), notNull },
+          : {
+              name: name ?? this.inferName(val),
+              notNull,
+              ...(alwaysNull ? { alwaysNull: true } : {}),
+            },
       );
     }
     if (stmtKey) {
@@ -5930,9 +5942,13 @@ class NullabilityEngine {
    * stronger: a wrong `alwaysNull` is falsified by ANY non-NULL value, so
    * every returned row tests it. No witness has to be constructed.
    */
-  private alwaysNullExpr(expr: Node, scope: Scope): boolean {
+  private alwaysNullExpr(expr: Node, scope: Scope, depth: number): boolean {
     if (this.isNullLiteral(expr)) return true;
-    return this.exprStrictlyForces(expr, leaf => this.columnIsAlwaysNull(leaf, scope), scope);
+    return this.exprStrictlyForces(
+      expr,
+      leaf => this.columnIsAlwaysNull(leaf, scope, depth),
+      scope,
+    );
   }
 
   /**
@@ -5957,6 +5973,45 @@ class NullabilityEngine {
       : false;
   }
 
+  /**
+   * The ON quals that hold on every row where `entry`'s own row is PRESENT —
+   * evidence a null goal may use and a non-null goal may not.
+   *
+   * `scope.impliedQuals` carries the quals of joins whose extension the
+   * fixpoint refiltered away, because only those hold on every emitted row.
+   * A LEFT JOIN that still extends is deliberately left out: on an extended
+   * row its qual was not TRUE, so nothing may be concluded from it.
+   *
+   * For a NULL goal that exclusion is too strong, and the case-split says
+   * why. Take `ord o LEFT JOIN inv g ON g.id = o.inv_id AND g.status <>
+   * 'paid'`, goal `g.amount`. Every emitted row is one of:
+   *   - matched: the ON qual was TRUE, and g's stored row exists, so the
+   *     CHECKs apply and the derivation runs on solid ground;
+   *   - extended: every column of g is NULL, `g.amount` among them.
+   * Both arms end at NULL, so the conclusion is unconditional even though
+   * the evidence is not. The same one-directional asymmetry as the kernel's
+   * presence gate: the rows where the facts fail to apply are the rows that
+   * hand you the answer for free.
+   *
+   * FULL joins are excluded and the reason is not symmetry-for-its-own-sake:
+   * a FULL join emits rows where THIS side is present and the qual was
+   * false, so "present ⇒ qual held" is simply untrue there. LEFT with the
+   * entry on the right, and RIGHT with it on the left, are the two shapes
+   * where presence really does imply the match.
+   */
+  private qualsHoldingWhenPresent(entry: RelationEntry, scope: Scope): Node[] {
+    if (entry.joinState !== OPTIONAL) return [];
+    const out: Node[] = [];
+    for (const j of scope.joins) {
+      if (!j.quals) continue;
+      const extendsEntry =
+        (j.jointype === "JOIN_LEFT" && j.rightAliases.includes(entry.alias)) ||
+        (j.jointype === "JOIN_RIGHT" && j.leftAliases.includes(entry.alias));
+      if (extendsEntry) out.push(j.quals);
+    }
+    return out;
+  }
+
   /** A bare NULL constant, through any number of casts. */
   private isNullLiteral(expr: Node): boolean {
     const node = expr as Record<string, unknown>;
@@ -5978,26 +6033,78 @@ class NullabilityEngine {
    * (`CHECK (CASE WHEN status = 'paid' THEN amount IS NOT NULL ELSE amount
    * IS NULL END)` under `WHERE status <> 'paid'`) come out of the same call.
    *
-   * REQUIRED entries only, for now. An OPTIONAL one is if anything MORE
-   * likely to be null — an absent row nulls it outright — but the two ways
-   * of being null compose, and the kernel's presence gate is built to prove
-   * the opposite thing. Left conservative rather than argued.
+   * OPTIONAL entries are IN, and the case-split is why: an absent row nulls
+   * the column outright, a present row is bound by the CHECKs. So the two
+   * ways of being null compose to the same answer, and the fact that CHECK
+   * facts are invalid on a null-extended row — the thing `presenceColumns`
+   * exists to guard for a non-null goal — is harmless here, because the
+   * rows where the facts do not apply are exactly the rows that give the
+   * answer for free. That gate is load-bearing in one direction only.
    */
-  private columnIsAlwaysNull(leaf: Node, scope: Scope): boolean {
+  private columnIsAlwaysNull(leaf: Node, scope: Scope, depth: number): boolean {
     const target = this.resolveBareColumnTarget(leaf, scope);
     if (!target) return false;
     const { entry, column } = target;
-    if (entry.kind !== "table" || !entry.table || entry.joinState === OPTIONAL) return false;
+
+    // A bare re-export carries the claim across the boundary, and unlike
+    // every notNull rung this needs no join-state gate at all: if the inner
+    // column is NULL on every inner row, a matched row re-exports NULL and
+    // an extended row is NULL by extension. Both arms agree, so an OPTIONAL
+    // entry weakens nothing. (`LEFT JOIN (SELECT amount FROM inv WHERE
+    // status <> 'paid') q ON true` — measured, all NULL.)
+    if (entry.kind === "cte" || entry.kind === "subquery" || entry.kind === "view") {
+      if (!entry.ast) return false;
+      const inner = this.innerRelationColumns(entry, scope, depth);
+      const idx = this.innerIndexOf(entry, column, inner);
+      if (idx < 0) return false;
+      if (inner[idx]?.alwaysNull) return true;
+      // The other half: the evidence is OUT here and the CHECK is IN there.
+      // `originCheckEntailment` is what reaches a base table through a
+      // rowPath, and it takes the mirror goal now — the same call the
+      // notNull side makes, one flag over.
+      const origins = inner[idx]?.origins;
+      if (!origins) return false;
+      const outerNames = inner.map((r, i) => entry.cteColumns?.[i] ?? r.name);
+      return this.originCheckEntailment(
+        entry,
+        origins,
+        inner[idx]?.originNotNull,
+        inner,
+        outerNames,
+        scope,
+        NOOP,
+        true,
+      );
+    }
+
+    if (entry.kind !== "table" || !entry.table) return false;
     const checkExprs =
       entry.scanInh === false
         ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
         : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name);
-    const evidence = [
+    const core = [
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
-      ...this.kernelGuardPreds(scope),
-    ].map(pred => ({ pred, applySetMask: false }));
+      ...this.qualsHoldingWhenPresent(entry, scope),
+    ];
+    const guards = this.kernelGuardPreds(scope);
+    // A DML statement has two stored rows per returned row, and RETURNING
+    // reads the NEW one. So this is the non-null path's NEW-row channel and
+    // only that: core facts tested the OLD row and transfer through non-SET
+    // columns (hence the mask), guard facts describe the row the guarded
+    // expression reads, which here is NEW (hence not). The OLD-row channel
+    // is a second derivation of the same value for non-SET columns; a first
+    // cut needs one, and the unmasked one would be unsound.
+    const setCols =
+      scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null;
+    const evidence =
+      !setCols || this.dmlOldRowRead
+        ? [...core, ...guards].map(pred => ({ pred, applySetMask: false }))
+        : [
+            ...core.map(pred => ({ pred, applySetMask: true })),
+            ...guards.map(pred => ({ pred, applySetMask: false })),
+          ];
     if (evidence.length === 0) return false;
     return checkConstraintsProveNull({
       evaluatedComparison: this.comparisonOracle(),
@@ -6006,7 +6113,7 @@ class NullabilityEngine {
       goal: { alias: entry.alias, column },
       checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias, entry)),
       evidence,
-      isMasked: () => false,
+      isMasked: (alias, col) => !!setCols && alias === entry.alias && setCols.has(col),
       resolveUnqualified: col => {
         let owner: string | null = null;
         for (const v of scope.visible) {
@@ -7541,6 +7648,7 @@ class NullabilityEngine {
     outerNames: readonly string[],
     scope: Scope,
     trace: ITrace,
+    goalIsNull = false,
   ): boolean {
     // A UNION column's row came from exactly ONE alternative — and the same
     // one as every sibling's, which is why the per-alternative run matches
@@ -7553,8 +7661,14 @@ class NullabilityEngine {
       goalOrigins.length > 0 &&
       goalOrigins.every((o, k) =>
         o
-          ? this.originAlternativeEntailment(entry, o, k, innerResults, outerNames, scope, trace)
-          : goalSettled?.[k] === true,
+          ? this.originAlternativeEntailment(
+              entry, o, k, innerResults, outerNames, scope, trace, goalIsNull,
+            )
+          : // A slot with no origin is a literal or an expression branch.
+            // For a non-null goal its own flat verdict settles it; there is
+            // no `originAlwaysNull` channel to answer the mirror, so a null
+            // goal declines rather than guesses.
+            !goalIsNull && goalSettled?.[k] === true,
       )
     );
   }
@@ -7568,6 +7682,7 @@ class NullabilityEngine {
     outerNames: readonly string[],
     scope: Scope,
     trace: ITrace,
+    goalIsNull = false,
   ): boolean {
     // Origins carry no ONLY bit (see the notNullTree comment below), so the
     // tree list is the sound reading: a NO INHERIT constraint is dropped
@@ -7618,7 +7733,17 @@ class NullabilityEngine {
     // operation's combined notNull collapses over branches, so an INNER
     // branch's certainty must be recovered here, alternative by
     // alternative (found by the widened generated axis).
-    if (!goalOrigin.optional && givenPresent) {
+    //
+    // Both shortcuts below conclude NON-NULL, so both are gated on the goal.
+    // Reading their boolean as "proved the goal" while the goal was NULL was
+    // a real unsoundness for the half-day it existed: `agg.order_id` under
+    // `LEFT JOIN (SELECT order_id, count(*) …) agg` came back alwaysNull
+    // because order_items.order_id is catalog NOT NULL and the origin — read
+    // straight off the inner analysis, before the entry's own optionality is
+    // lifted in — looked REQUIRED. Caught by the `@alwaysNull` annotation
+    // gate on its first run, which is the case for making that gate
+    // bidirectional.
+    if (!goalIsNull && !goalOrigin.optional && givenPresent) {
       trace.addChild(`origin ${goalOrigin.schema}.${goalOrigin.table}.${goalOrigin.column}`)
         .conclude(true, "required alternative + non-null per stored row");
       return true;
@@ -7626,7 +7751,7 @@ class NullabilityEngine {
     // An OPTIONAL chain with such a goal has a derivation even with no
     // CHECKs at all: evidence-proven presence settles it (the
     // presence-consumption closure — the kernel's short-circuit).
-    const goalNotNullGivenPresent = goalOrigin.optional && givenPresent;
+    const goalNotNullGivenPresent = !goalIsNull && goalOrigin.optional && givenPresent;
     if (checkExprs.length === 0 && generatedEqualities.length === 0 && !goalNotNullGivenPresent) {
       return false;
     }
@@ -7701,7 +7826,8 @@ class NullabilityEngine {
     if (goalOrigin.optional) {
       ckTrace.addFact("presence", "required — the chain crosses an OPTIONAL slice");
     }
-    const proved = checkConstraintsProveNotNull({
+    const ask = goalIsNull ? checkConstraintsProveNull : checkConstraintsProveNotNull;
+    const proved = ask({
       evaluatedComparison: this.comparisonOracle(),
       btreeStrategy: this.btreeStrategySupply(),
       equalityComplement: this.equalityComplementSupply(),
@@ -7717,9 +7843,16 @@ class NullabilityEngine {
       // Promotion-at-distance: an optional chain's base row exists only for
       // rows some EVIDENCE fact pins a same-row column of — checked in the
       // kernel before the harvest fixpoint, whose facts presuppose presence.
-      presenceColumns: goalOrigin.optional
-        ? [...rename.values()].map(c => `${entry.alias}.${c}`)
-        : undefined,
+      //
+      // A NULL goal does not want the gate, and the case-split is the same
+      // one the outer-join quals rest on: where presence is UNPROVEN the row
+      // may be absent, and an absent row nulls the column outright. So the
+      // rows the CHECK facts cannot speak for are the rows that answer
+      // themselves. Passing it would refuse exactly those.
+      presenceColumns:
+        goalOrigin.optional && !goalIsNull
+          ? [...rename.values()].map(c => `${entry.alias}.${c}`)
+          : undefined,
       goalNotNullGivenPresent,
       isMasked: () => false,
       resolveUnqualified: col => {

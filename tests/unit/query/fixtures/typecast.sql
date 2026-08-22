@@ -2,5 +2,5 @@
 SELECT
   val::text    AS c1,  -- @nullable
   id::text     AS c2,  -- @notNull
-  NULL::int    AS c3   -- @nullable
+  NULL::int    AS c3   -- @alwaysNull
 FROM t

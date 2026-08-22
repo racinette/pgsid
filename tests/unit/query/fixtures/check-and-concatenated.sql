@@ -4,6 +4,6 @@
 -- implication shape again, discharged by the WHERE.
 SELECT
   note,        -- @notNull
-  arrived_at   -- @nullable
+  arrived_at   -- @alwaysNull  'checked-out' takes the CASE's ELSE arm too
 FROM guest
 WHERE status = 'checked-out'
