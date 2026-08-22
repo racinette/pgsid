@@ -324,6 +324,76 @@ in; either way the change is local and golden-driven. An embed-style
 *nested* emit remains possible later as pure emitter sugar over the same
 data, if ever wanted; nothing is foreclosed.
 
+## Always-null columns
+
+**Contract addition** — BUILT (2026-08-22):
+
+```ts
+alwaysNull?: boolean   // on OutputNullability, beside notNull
+```
+
+Proven NULL on EVERY row the statement emits. Additive and mutually
+exclusive with `notNull`; absent means "not proven", exactly as
+`notNull: false` does. A consumer reading only `notNull` sees what it
+always saw, so this breaks nothing.
+
+Emission is the `null` type: `{ deleted_at: null }`. That is the same
+tagged union presence groups express, discriminated by VALUE instead of
+by row presence — and the motivating cases are ordinary, not exotic:
+
+```sql
+-- the soft-delete idiom: deleted_at is dead weight in this query
+SELECT id, name, deleted_at FROM product WHERE deleted_at IS NULL
+
+-- a tagged union declared in SQL, and the query picks an arm
+CHECK (CASE WHEN status = 'paid' THEN amount IS NOT NULL
+                                 ELSE amount IS NULL END)
+SELECT amount FROM inv WHERE status <> 'paid'      -- amount: null
+```
+
+**How it is proven.** Not a third value threaded through the walk — the
+walk is two-valued end to end and a tri-state would touch every branch,
+for a fact with a handful of sources where non-nullness has dozens. It is
+one conservative question asked beside the walk (`alwaysNullExpr`),
+defaulting to false, over two sources: a NULL literal through any cast,
+and anything STRICT over a column the evidence pins NULL. The second is
+`exprStrictlyForces` run against always-null leaves, which brings the
+closure's existing care with it — `COALESCE(dead, 'x')` is correctly not
+always-null, `NULLIF`'s left operand is, and `dead + 1` is.
+
+What pins a column comes from the CHECK kernel, asked its mirror goal
+(`checkConstraintsProveNull`). **Nothing new is derived for it**: the
+harvest already recorded a NullTest of either polarity as a TRUE fact —
+a NullTest is total, so notFALSE means TRUE — so the fact set has always
+contained `amount IS NULL` on rows where the CASE selects that arm. Only
+the final question was single-polarity. `WHERE col IS NULL` needs no
+separate rung either, since evidence NullTests are harvested the same way.
+
+**Verification is the inverse of the nullable side's, and far stronger.**
+A wrong `alwaysNull` is falsified by ANY non-NULL value, so every returned
+row is a test and no witness has to be constructed — the opposite
+economics to a `nullable` claim, which needs a NULL to appear and may wait
+forever (see the register's unwitnessed residue). Both corpora gate it.
+Measured on landing: 8 claims across the 471 hand fixtures over five data
+states, 0 falsified; 0 in the generated corpus, which is built around join
+structure and emits neither an `IS NULL` filter nor a partitioning CHECK.
+
+The 8 are the shapes you would want: three soft-delete filters
+(`extreme-correlated-everywhere`, `extreme-order-dashboard-multi-join`,
+`extreme-product-catalog-comprehensive`), two CHECK discriminators
+(`check-and-concatenated`, `check-case-discriminator-nullable`), and three
+literal NULLs. `check-case-discriminator-nullable`'s own comment had said
+the quiet part for months — *"the same CHECK forces it NULL on every
+in-flight row"* — as prose consolation for a claim the engine could not
+make. It makes it now.
+
+**Not yet covered**, and deliberately: DML RETURNING (the SET-mask channel
+split is non-null-specific and would need its own reasoning), columns
+reached through a CTE/subquery boundary via origins, and OPTIONAL entries —
+where an absent row nulls the column outright, so the two ways of being
+null compose and the kernel's presence gate is built to prove the opposite
+thing. Left conservative rather than argued.
+
 ## Diagnostics
 
 | Category | Severity | Examples |

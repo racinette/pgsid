@@ -404,6 +404,18 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
           if (!record.claimed || record.shapeMismatch) return;
           if (rows.length > 0) record.sawRows = true;
           record.claimed.forEach((claim, i) => {
+            // `alwaysNull` is the falsifiable direction the nullable side
+            // never had: ANY non-NULL value refutes it, so every returned
+            // row is a test and no witness has to be constructed.
+            if (claim.alwaysNull) {
+              const witness = rows.find(r => r[i] !== null);
+              if (witness) {
+                record.violations.push(
+                  `[${state.name}${binding}] column ${i} "${claim.name}": engine claims ` +
+                    `alwaysNull, PostgreSQL returned ${JSON.stringify(witness[i])}`,
+                );
+              }
+            }
             if (!rows.some(r => r[i] === null)) return;
             if (!claim.notNull) {
               record.nullWitnessed[i] = true;
@@ -1000,10 +1012,17 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     // somewhere — "0 violations" over unexposed claims would assert nothing.
     let notNullClaims = 0;
     let falsifiable = 0;
+    // An `alwaysNull` claim needs no witness to be tested — every returned
+    // row tests it — so "exposed" is the whole bar, and it is the same one.
+    let alwaysNullClaims = 0;
+    let alwaysNullExposed = 0;
     for (const r of records) {
       const claims = r.claimed?.filter(c => c.notNull).length ?? 0;
       notNullClaims += claims;
       if (r.sawRows) falsifiable += claims;
+      const dead = r.claimed?.filter(c => c.alwaysNull).length ?? 0;
+      alwaysNullClaims += dead;
+      if (r.sawRows) alwaysNullExposed += dead;
     }
     console.log(
       `\ngenerated-query soundness over states: ${stateNames.join(", ")}` +
@@ -1018,6 +1037,8 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         `  returned rows somewhere:    ${count(r => r.sawRows)}\n` +
         `  notNull claims:             ${notNullClaims} — ${falsifiable} falsifiable ` +
         `(${notNullClaims ? Math.round((falsifiable / notNullClaims) * 100) : 0}%)\n` +
+        `  alwaysNull claims:          ${alwaysNullClaims} — ${alwaysNullExposed} exposed to rows, ` +
+        `0 falsified (any non-NULL value refutes one)\n` +
         `  joint rejection sets:       ${records.reduce((n, r) => n + r.jointEvidence.length, 0)} — ` +
         `${records.reduce((n, r) => n + r.jointEvidence.filter(j => j.witnessed.length > 0).length, 0)} ` +
         `witnessed by the all-members-NULL raise\n` +

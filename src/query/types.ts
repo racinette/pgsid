@@ -1004,6 +1004,24 @@ export interface OutputNullability {
   name: string;
   notNull: boolean;
   /**
+   * Proven NULL on EVERY row the statement emits — the mirror of `notNull`,
+   * and mutually exclusive with it. Absent means "not proven", exactly as
+   * `notNull: false` does; the pair is a three-valued fact carried as two
+   * flags so that a consumer reading only `notNull` sees what it always saw.
+   *
+   * The claim a consumer can make of it is a `null` type: `{ amount: null }`
+   * for `SELECT amount FROM inv WHERE status <> 'paid'` under
+   * `CHECK (CASE WHEN status = 'paid' THEN amount IS NOT NULL ELSE amount IS
+   * NULL END)`. That is the same tagged union presence groups express, but
+   * discriminated by VALUE rather than by row presence — the CHECK is a
+   * tagged union declared in SQL, and this reads the arm the query selected.
+   *
+   * Falsification is the inverse of the nullable side's and far stronger:
+   * any non-NULL value refutes it, so every returned row is a test and no
+   * witness has to be constructed. See `alwaysNullExpr` for what proves it.
+   */
+  alwaysNull?: boolean;
+  /**
    * Provenance ALTERNATIVES, present only for pass-through columns. A
    * single-branch scope yields a singleton; a UNION concatenates each
    * branch's SLOTS positionally — one slot per branch, always, so an

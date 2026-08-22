@@ -197,6 +197,28 @@ export function checkConstraintsProveNotNull(input: CheckEntailmentInput): boole
 }
 
 /**
+ * The mirror question: whether the same facts prove `goal` IS NULL for every
+ * row the scope emits.
+ *
+ * Nothing new is derived for it. The harvest already records a NullTest of
+ * EITHER polarity as a TRUE fact — a NullTest is total, so notFALSE means
+ * TRUE outright — so `CHECK (CASE WHEN status = 'paid' THEN amount IS NOT
+ * NULL ELSE amount IS NULL END)` has always contributed `amount IS NULL` to
+ * the fact set on rows where the CASE selects the ELSE arm. Only the final
+ * question was single-polarity.
+ *
+ * The asymmetry worth knowing: a comparison being TRUE proves its operands
+ * non-null, so the non-null side reads `strictlyInvolves` across every atom
+ * shape. NOTHING proves a column NULL except a NullTest saying so, which is
+ * why `colKnownNull` is the shorter function of the two rather than a
+ * transcription.
+ */
+export function checkConstraintsProveNull(input: CheckEntailmentInput): boolean {
+  const kernel = new EntailmentKernel(input);
+  return kernel.run(true);
+}
+
+/**
  * Whether the facts prove `guard` is NEVER TRUE for an emitted row — the
  * atom-oracle rungs' consumption (docs/subtree-evaluation.md, "The kernel's
  * atom oracle"): the walk prunes a CASE arm whose guard cannot fire, the
@@ -593,7 +615,7 @@ class EntailmentKernel {
     return refuted;
   }
 
-  run(): boolean {
+  run(goalIsNull = false): boolean {
     this.collectEvidence();
     // Presence gate — evidence-only, before any derived fact exists.
     if (this.input.presenceColumns) {
@@ -609,8 +631,10 @@ class EntailmentKernel {
       // With presence proven, a goal that is non-null on every stored row
       // (catalog NOT NULL, or a generation expression the walk proved) is
       // already done: the emitted value is the stored value. CHECK
-      // derivation is for the goals neither can settle.
-      if (this.input.goalNotNullGivenPresent) {
+      // derivation is for the goals neither can settle. Non-null goals
+      // only — the flag says nothing about a null goal, and for one it
+      // would be the counterexample rather than the shortcut.
+      if (this.input.goalNotNullGivenPresent && !goalIsNull) {
         this.input.trace?.addFact("goal", "non-null per stored row — settled by presence alone");
         return true;
       }
@@ -620,9 +644,14 @@ class EntailmentKernel {
     // One question at the end: do the facts pin the goal column? A CHECK's
     // own `goal IS NOT NULL` arrives here as a harvested fact (totality),
     // exactly like a generated-CASE arm's strict condition or a chained
-    // conclusion from a neighbouring constraint.
-    if (this.colKnownNonNull(`${this.input.goal.alias}.${this.input.goal.column}`)) {
-      this.input.trace?.addFact("provedBy", "the derived fact set pins the goal column");
+    // conclusion from a neighbouring constraint. `goalIsNull` asks the
+    // mirror question of the SAME fact set — see checkConstraintsProveNull.
+    const key = `${this.input.goal.alias}.${this.input.goal.column}`;
+    if (goalIsNull ? this.colKnownNull(key) : this.colKnownNonNull(key)) {
+      this.input.trace?.addFact(
+        "provedBy",
+        `the derived fact set pins the goal column ${goalIsNull ? "NULL" : "non-null"}`,
+      );
       return true;
     }
     return false;
@@ -1609,6 +1638,29 @@ class EntailmentKernel {
         ),
       ),
     );
+  }
+
+  /**
+   * Whether the facts pin `col` NULL — the mirror of `colKnownNonNull` over
+   * the same three stores, and deliberately shorter.
+   *
+   * There is no `strictlyInvolves` arm here. That helper exists because a
+   * comparison, a boolean column, a literal test — anything TRUE — proves
+   * its operands non-null by strictness. No atom shape has the dual
+   * property: nothing is TRUE *because* a column is NULL. So a NullTest
+   * saying so, in one of the three polarities the stores can carry, is the
+   * only evidence there is.
+   */
+  private colKnownNull(col: string): boolean {
+    const saysNull = (a: Atom): boolean => a.t === "nullTest" && a.col === col && !a.isNotNull;
+    // TRUE `col IS NULL`.
+    if (this.trueFacts.some(saysNull)) return true;
+    // FALSE `col IS NOT NULL` — total either way, so the negation is TRUE.
+    if (this.falseFacts.some(a => a.t === "nullTest" && a.col === col && a.isNotNull)) {
+      return true;
+    }
+    // Every arm of a disjunction concludes it, so whichever arm held did.
+    return this.orFacts.some(fact => fact.every(arm => arm.some(saysNull)));
   }
 
   // -------------------------------------------------------------------------
