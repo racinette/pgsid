@@ -1249,6 +1249,212 @@ function visitBindOnly(c: Collector, node: unknown): void {
   }
 }
 
+/**
+ * Parameters whose NULL binding raises on EVERY path that can RETURN a row
+ * of this DML statement — the fact the output walk needs to read a projected
+ * `$n` in that statement's RETURNING list as notNull.
+ *
+ * `bindRejected` licenses the same narrowing and is strictly weaker in
+ * reach: it covers only mechanism A, where parse analysis types the
+ * parameter as a NOT NULL domain and Bind rejects before anything executes.
+ * Mechanism B — a plain NOT NULL column — raises per row WRITTEN, and the
+ * Collector's own field comment records why that does not license narrowing
+ * in general: a statement can return rows the writing path never produced.
+ *
+ * What closes the gap is asking the question per PATH instead of per
+ * statement. A row comes back only from an action that ran, so if every
+ * action that can produce one puts the parameter in a rejecting site, a
+ * returned row proves the binding was non-NULL. Measured counterexamples
+ * that this excludes and a flat `rejected` would not:
+ *
+ *   MERGE … WHEN NOT MATCHED THEN INSERT (id, val) VALUES (s.sid, s.snm)
+ *          WHEN MATCHED THEN UPDATE SET name = 'x' RETURNING s.snm
+ *     PostgreSQL returns one row with `s.snm` NULL for a matching id: the
+ *     UPDATE arm ran and never touched the NOT NULL `val`. Intersecting
+ *     over the row-producing arms drops it.
+ *   WITH w AS (INSERT INTO plain SELECT $1 FROM empty_src RETURNING e)
+ *     SELECT $1 FROM t — the outer `$1` is not in the INSERT's RETURNING at
+ *     all. Excluded by CONSTRUCTION rather than here: the walk attaches this
+ *     set to the DML statement's own scope, and the outer SELECT has its own.
+ *
+ * The quantifier over VALUES rows is EXISTENTIAL, unlike the written-value
+ * maps' — a raise aborts the whole statement, so one row placing the
+ * parameter in a rejecting site is enough to guarantee no row comes back.
+ * That is what `forcedNullParamsAnyRow` already computes, which is also how
+ * a cast, a strict operator and a COALESCE around the parameter are read
+ * rather than only a bare `$n`.
+ *
+ * `ON CONFLICT DO UPDATE` is a second row-producing path and is intersected;
+ * `DO NOTHING` returns no row for a conflicting tuple, so the insert path
+ * stands alone. A DELETE arm produces a row and writes nothing, so any MERGE
+ * carrying one yields the empty set. A trigger that could rewrite the row is
+ * handled where it already was: `columnRejection` reports nothing for
+ * mechanism B on a command with a BEFORE ROW / INSTEAD OF hook.
+ */
+export function returningRejectedParams(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+): Set<number> {
+  const c: Collector = {
+    catalog,
+    seen: new Set(),
+    rejected: new Set(),
+    jointRejected: [],
+    bindRejected: new Set(),
+  };
+  const node = stmt as Record<string, unknown>;
+  const intersect = (a: Set<number>, b: Set<number>): Set<number> =>
+    new Set([...a].filter(n => b.has(n)));
+
+  /** What ONE write path rejects, over its (column, value) pairs. */
+  const pathRejects = (
+    schema: string,
+    table: string,
+    command: "insert" | "update",
+    pairs: readonly (readonly [string | undefined, Node | undefined])[],
+    ctx?: AliasContext,
+  ): Set<number> => {
+    const out = new Set<number>();
+    for (const [column, val] of pairs) {
+      if (!column || !val) continue;
+      if (!columnRejection(c, schema, table, column, command)) continue;
+      for (const n of forcedNullParamsAnyRow(val, catalog, ctx)) out.add(n);
+    }
+    return out;
+  };
+  const setPairs = (
+    targetList: Node[] | undefined,
+  ): readonly (readonly [string | undefined, Node | undefined])[] =>
+    (targetList ?? []).map(item => {
+      const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+      // A multi-assignment types the parameter by its own use inside the
+      // source rather than by the target column, and `checkSetClause`
+      // downgrades it for that reason. The raise still happens at the
+      // assignment's coercion, so the path rejects — but only the shapes
+      // `multiAssignDefinition` admits are always evaluated.
+      const val = rt?.val ? (multiAssignDefinition(rt.val) ?? rt.val) : undefined;
+      return [rt?.name, val] as const;
+    });
+
+  if ("InsertStmt" in node) {
+    const ins = node["InsertStmt"] as {
+      relation?: { schemaname?: string; relname?: string };
+      cols?: Node[];
+      selectStmt?: Node;
+      onConflictClause?: { action?: string; targetList?: Node[] };
+    };
+    const target = insertTargetColumns(c, ins.relation, ins.cols);
+    const select = (ins.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
+      ?.SelectStmt;
+    if (!target || !select) return new Set();
+    const sourceCtx = aliasContextOf(select["fromClause"] as Node[] | undefined);
+    const positional = (
+      items: readonly (Node | undefined)[],
+    ): readonly (readonly [string | undefined, Node | undefined])[] =>
+      items.map((val, i) => [target.columns[i], val] as const);
+
+    let insertPath = new Set<number>();
+    const valuesLists = select["valuesLists"] as Node[] | undefined;
+    if (valuesLists?.length) {
+      for (const row of valuesLists) {
+        const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
+        for (const n of pathRejects(
+          target.schema, target.table, "insert", positional(items), sourceCtx,
+        )) {
+          insertPath.add(n);
+        }
+      }
+    } else if (select["op"] === "SETOP_NONE" && select["targetList"]) {
+      const items = ((select["targetList"] as Node[]) ?? []).map(
+        t => (t as { ResTarget?: { val?: Node } }).ResTarget?.val,
+      );
+      insertPath = pathRejects(
+        target.schema, target.table, "insert", positional(items), sourceCtx,
+      );
+    } else {
+      // A set operation underneath keeps its parameters nullable, matching
+      // `checkInsert` — and DEFAULT VALUES writes no parameter at all.
+      return new Set();
+    }
+
+    const conflict = ins.onConflictClause;
+    if (conflict?.action === "ONCONFLICT_UPDATE") {
+      return intersect(
+        insertPath,
+        pathRejects(
+          target.schema,
+          target.table,
+          "update",
+          setPairs(conflict.targetList),
+          excludedContext(target, select),
+        ),
+      );
+    }
+    return insertPath;
+  }
+
+  if ("UpdateStmt" in node) {
+    const upd = node["UpdateStmt"] as {
+      relation?: { schemaname?: string; relname?: string };
+      targetList?: Node[];
+      fromClause?: Node[];
+    };
+    if (!upd.relation?.relname) return new Set();
+    const table = catalog.resolveTable(upd.relation.schemaname, upd.relation.relname);
+    if (!table) return new Set();
+    return pathRejects(
+      table.schema,
+      table.name,
+      "update",
+      setPairs(upd.targetList),
+      aliasContextOf(upd.fromClause),
+    );
+  }
+
+  if ("MergeStmt" in node) {
+    const mrg = node["MergeStmt"] as {
+      relation?: { schemaname?: string; relname?: string };
+      sourceRelation?: Node;
+      mergeWhenClauses?: Node[];
+    };
+    if (!mrg.relation?.relname) return new Set();
+    const table = catalog.resolveTable(mrg.relation.schemaname, mrg.relation.relname);
+    if (!table) return new Set();
+    const ctx = aliasContextOf(mrg.sourceRelation ? [mrg.sourceRelation] : undefined);
+    let acc: Set<number> | null = null;
+    for (const clause of mrg.mergeWhenClauses ?? []) {
+      const mwc = (
+        clause as {
+          MergeWhenClause?: { commandType?: string; targetList?: Node[]; values?: Node[] };
+        }
+      ).MergeWhenClause;
+      if (!mwc) continue;
+      // DO NOTHING emits no row, so it constrains nothing. Every other arm
+      // does emit one, DELETE included — and DELETE writes nothing, so its
+      // empty set collapses the intersection, which is the point.
+      if (mwc.commandType === "CMD_NOTHING") continue;
+      const columns = (mwc.targetList ?? []).map(
+        t => (t as { ResTarget?: { name?: string } }).ResTarget?.name,
+      );
+      const arm = mwc.values
+        ? pathRejects(
+            table.schema,
+            table.name,
+            "insert",
+            mwc.values.map((val, i) => [columns[i], val] as const),
+            ctx,
+          )
+        : pathRejects(table.schema, table.name, "update", setPairs(mwc.targetList), ctx);
+      acc = acc === null ? arm : intersect(acc, arm);
+    }
+    // No row-producing arm means no returned row: the claim would be
+    // vacuous, and the empty set is the honest floor rather than "all".
+    return acc ?? new Set();
+  }
+
+  return new Set();
+}
+
 export interface ParamFacts {
   /** The consumer-facing contract, positional $1..$n. */
   params: ParamNullability[];

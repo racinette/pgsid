@@ -1,0 +1,62 @@
+-- COUNTEREXAMPLE 2 for `returningRejectedParams`: a statement ENCLOSING the
+-- DML, whose rows do not depend on the write happening.
+--
+-- The shape is the one the Collector's own field comment names as the reason
+-- mechanism B licenses no narrowing, executed. The INSERT's source is empty,
+-- so nothing is written and nothing raises; the outer SELECT returns a row
+-- per `t` regardless, carrying `$1` NULL. `$1` is still a rejecting site's
+-- parameter — the contract says notNull, and it is right to, because a
+-- non-empty source WOULD raise — so nothing about the site can be read here.
+--
+-- What excludes it is not a rule but the SCOPE. The fact lives on the DML
+-- statement's own scope, and `returningRejectsParam` walks OUTWARD from the
+-- reference: every expression inside a DML scope contributes to a RETURNING
+-- column, and a RETURNING column exists only on a row that came back. A
+-- statement outside is the opposite arrangement, and the chain from this
+-- `outer_p` never reaches the INSERT's scope. Its twin direction — a `$n`
+-- inside the DML, reached through a derived relation — is
+-- param-returning-rejected-merge.sql's `r_snm`, which the same chain walk is
+-- what finds.
+--
+-- Make the fact engine-global instead of scoped and `outer_p` flips to
+-- notNull while PostgreSQL returns NULL for it. That is a falsified claim,
+-- not a stale annotation, and the soundness suite catches it here.
+--
+-- `w` is JOINED rather than merely declared, and that is load-bearing: an
+-- unreferenced CTE is never analyzed, so a leaking fact would have nothing to
+-- leak from and the file would pass a broken engine. Found by running the
+-- mutation — the first version of this fixture declared `w` and ignored it,
+-- and the leak went straight through it.
+--
+-- The INSERT's source is gated on ck.id 1, and only `sparse` and `generated`
+-- have ck rows. The split is what lets both claims be witnessed by execution:
+-- there the source is non-empty, the write happens and NULL RAISES, which is
+-- `@param 1 notNull`; in the ck-less states the source is empty, nothing is
+-- written, nothing raises, and the row comes back with `outer_p` NULL. The
+-- LEADING binding is the one with a value, because the shape is taken from
+-- the first @args line and the NULL binding raises in two states of five.
+--
+-- The outer query's shape is `FROM (SELECT count(*) FROM w) x`, and both
+-- halves of that were forced by measurement rather than chosen:
+--
+--   `FROM t` is out. Only sparse and generated seed `t`, and both of those
+--   are the states that RAISE, so a `FROM t` version returned no rows in any
+--   state at all and asserted nothing.
+--   `w` is referenced in FROM position rather than through a scalar subquery
+--   in the target list, so it is resolved while the scope is built rather
+--   than midway through walking the targets. Nothing measured requires it —
+--   the global-fact mutation is caught either way — but a fixture whose
+--   verdict depends on target ORDER is one edit away from silently passing.
+--
+-- The count-over-w derived table has exactly one row in every state, which
+-- is what keeps the non-raising states witnessing.
+-- @args ["a"]
+-- @args [null]
+-- @param 1 notNull
+WITH w AS (
+  INSERT INTO ck (id, val) SELECT 9053, $1 FROM ck WHERE ck.id = 1 RETURNING id
+)
+SELECT $1 AS outer_p, x.n AS anchor
+FROM (SELECT count(*) AS n FROM w) AS x
+-- @nullable   (outer_p: outside the INSERT's scope, and PostgreSQL returns NULL)
+-- @notNull    (anchor: count over the CTE, which is never NULL)

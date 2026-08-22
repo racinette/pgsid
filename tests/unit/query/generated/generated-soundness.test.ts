@@ -282,7 +282,6 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     await catalogPg.exec(SCHEMA_SQL);
     const snapshot = await snapshotCatalog(catalogPg);
     const catalog: NullabilityCatalog = await buildNullabilityCatalog(snapshot);
-    await catalogPg.close();
 
     const allStates = loadDataStates(snapshot);
     const sparse = allStates.find(s => s.name === "sparse")!;
@@ -344,7 +343,9 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
       record.drops = query.expectations.filter(ex => !ex.present(stmt)).map(ex => ex.label);
 
       try {
-        record.claimed = await inferNullability(stmt, catalog);
+        record.claimed = await inferNullability(stmt, catalog, {
+          evaluate: async s => (await catalogPg.query<Record<string, unknown>>(s)).rows[0],
+        });
         record.groupEvidence = inferPresenceGroups(stmt, catalog).map(g => ({
           columns: g.columns,
           discriminants: g.discriminants,
@@ -380,6 +381,13 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
         falsified: [],
       }));
     }
+
+    // The evaluator instance carries the SCHEMA and no data, which is all the
+    // pre-walk grounding passes need — they evaluate closed expressions and
+    // grounded CHECK atoms, never a query over rows. Kept alive through the
+    // analysis loop above and closed here; the execution loop below builds
+    // its own per-state instances.
+    await catalogPg.close();
 
     // --- Execution, state-major. Pure SELECTs, so no transaction wrapping. -
     for (const state of states) {
@@ -831,34 +839,36 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
   // `case-needs-t-without-u` covering 60 claims said nothing about the 36 it
   // had stopped needing. Worth remembering if a third set is ever added.
 
-  const UNWITNESSABLE: UnwitnessableRule[] = [
-    {
-      label: "merge-source-row-carries-an-unbound-parameter",
-      why:
-        "not source optionality: with no NOT MATCHED BY SOURCE arm the " +
-        "source's joinState is REQUIRED, and the blame file executes that " +
-        "(a literal source column reads notNull there). r_snm is nullable " +
-        "because it IS `$1`, and no data witnesses it because the source row " +
-        "lands in ck.val's NOT NULL constraint — binding NULL raises instead " +
-        "of returning a row, which the param suite counts as a rejection and " +
-        "the witness channel cannot count as anything.",
-      matches: (axes, column) =>
-        axes.wrapper.startsWith("merge-") &&
-        axes.wrapper !== "merge-bysource" &&
-        (column === "r_sid" || column === "r_snm"),
-    },
-    {
-      label: "dml-returning-case-value-dependence",
-      why:
-        "r_ce is CASE WHEN active THEN 'a' ELSE name END over a row whose " +
-        "active was WRITTEN as the literal true, so the ELSE branch never " +
-        "runs — but that is the boolean's VALUE, not its nullability, and " +
-        "the written-value tracking (Wave 3) deliberately carries only " +
-        "non-nullness. The former companion arm of this rule (dml-cte's " +
-        "a_cv, a written literal) flipped notNull when the tracking landed.",
-      matches: (axes, column) => axes.wrapper === "insert-values" && column === "r_ce",
-    },
-  ];
+  // `merge-source-row-carries-an-unbound-parameter` was the third rule to
+  // close on 2026-08-22, and its own reason contained the fix. It said the
+  // claim could not be witnessed because binding NULL RAISES instead of
+  // returning a row — which, read the other way, is the proof that a
+  // returned row had a non-NULL binding. `returningRejectedParams` says that
+  // per PATH (the raise must be unavoidable on every route to a returned
+  // row) and the walk consults it beside `bindRejectedParams`, whose
+  // narrowing is the same argument for the bind-time mechanism. Its fixture
+  // survives as `merge-source-required-without-by-source.sql`: what that
+  // file actually pinned was the source's joinState, which nothing else
+  // covers on the no-BY-SOURCE side.
+  //
+  // `dml-returning-case-value-dependence` was the fourth and last, and it
+  // closed twice over on the same day. Its reason said the written-value
+  // tracking "deliberately carries only non-nullness" — true when written,
+  // and `written-value-guards.ts` now closes the guard's tree by substituting
+  // the constant and asks PostgreSQL, so the tracking does carry values. The
+  // reason had a SECOND error nobody had noticed: this corpus called the walk
+  // without an `evaluate` callback, so the whole subtree-evaluation channel
+  // was off here and no answer could have arrived however capable the engine
+  // was. Both are fixed; the callback costs no measurable time (one instance,
+  // schema only, no data) and turned the last bucket witnessed.
+  //
+  // THE LIST IS EMPTY, and that is the point of leaving all this above it: an
+  // empty list means every one of the 32,293 nullable claims in the corpus is
+  // witnessed by an actual NULL, so nothing is excused and nothing can rot.
+  // The next entry to be added should be argued for, not assumed — three of
+  // the four that lived here were WRONG about their own cause by the time
+  // they closed.
+  const UNWITNESSABLE: UnwitnessableRule[] = [];
 
   // -------------------------------------------------------------------------
   // Blame files: the reasons above, executable.
