@@ -1,0 +1,46 @@
+-- The GATE on the composite star's body reading (see composite-star-shape.sql
+-- for the mechanism), landed 2026-08-22.
+--
+-- `(expr).*` expands one column per field, and the return TYPE can never
+-- speak for them: a NULL composite expands to a NULL in every field, NOT NULL
+-- domain fields included. Only the BODY can, and only when the call cannot
+-- produce a NULL composite at all — which is SET-RETURNING, because a
+-- set-returning call contributes one output row per BODY row, so an empty
+-- body contributes no row and there is nothing to expand.
+--
+--   set_scan  the body is `SELECT p.sku, 1 FROM products p`, and
+--             `products.sku` is NOT NULL. The claim.
+--   set_qty   the same call's second field, a literal 1 — non-null for a
+--             reason that is the body's rather than the catalog's, so the
+--             fixture is not one column wide.
+--
+-- The SCALAR side is a deliberate gap, not an oversight, and it is the more
+-- interesting half of this file's history. A scalar composite call over a
+-- body that GUARANTEES its row is equally sound, `guaranteesSingleRow` is
+-- exactly that gate, and the schema already carries both sides for the scalar
+-- body inliner (`one_pair` guarantees, `first_item` does not). It was built,
+-- and then removed — because no scalar function in the corpus both yields a
+-- readable body shape AND lacks the guarantee, so the gate's PERMISSIVE
+-- direction has no counterexample and nothing could catch it going wrong.
+-- Three candidate controls were tried and all three passed a broken engine:
+-- `first_item` (no body shape at all), a FROM-less body with a WHERE, and the
+-- same with a parameter. An ungated widening reads as coverage and is not.
+--
+-- Which means the SET-RETURNING test in the code is not itself covered
+-- either, and this file says so rather than implying otherwise: removing it
+-- changes no claim in the corpus, because there is no scalar composite call
+-- here for it to refuse. It stays because it is the sound reading, not
+-- because a test demands it — the asymmetry that matters is that its
+-- absence could only widen, and a widening nothing can catch is the thing to
+-- refuse.
+--
+-- Reopening the scalar side needs a control first: a scalar composite
+-- function whose body the walk CAN read and which can still return zero rows.
+-- The register has the shape.
+--
+-- Written with `.*` rather than `(f()).field`: the FIELD-selection form is a
+-- different A_Indirection and takes a different path, which this change did
+-- not touch and no annotation records. Noted rather than quietly conflated.
+SELECT (sku_pairs()).*
+-- @notNull    (sku)
+-- @notNull    (qty)

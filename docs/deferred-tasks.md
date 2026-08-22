@@ -497,12 +497,12 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **90 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **86 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
 empty, so every excuse left in the project is here. (Was 101 on 2026-08-22;
-eleven came off that day as the claims they excused turned notNull. The
+fifteen came off that day as the claims they excused turned notNull. The
 suite's own readout counts CLAIMS, not annotation lines — one annotation may
-name several columns, and it reads 79.)
+name several columns, and it reads 74.)
 
 The pass over them started with the **largest cluster, and its reason was the
 mechanism**: seven fixtures said "unnesting a NULL array produces no rows, so
@@ -536,6 +536,37 @@ The builtin path rests on one measured fact — no pg_catalog name mixes
 set-returning with scalar overloads, so the capture's `bool_or` quantifier and
 the `bool_and` the walk needs coincide. That is now a snapshot test rather than
 an assumption.
+
+**The second cluster was `composite-star-shape` (5 claims), and its reason was
+the mechanism too**: "a row type carries no constraints, but the fields are
+real order_items rows". The FROM position already read the body —
+`SELECT * FROM get_order_items(1)` claimed all five columns notNull while
+`SELECT (get_order_items(1)).*` claimed none, off the same function and the
+same body. `expandCompositeStar`'s FuncCall arm now passes its declared shape
+through `refineColumnsFromBody`, the same call the FROM path makes.
+
+SET-RETURNING only: a set-returning call contributes one output row per BODY
+row, so an empty body contributes no row and there is no NULL composite to
+expand. A scalar composite call over a zero-row body IS NULL — measured, one
+row of all NULLs. The declared flags stay stripped either way, because a NULL
+composite nulls every field including NOT NULL domain ones.
+
+**A sound widening was built, measured, and then removed** — worth recording
+because the reasoning is the one this whole pass is about. A scalar composite
+call whose body GUARANTEES its row is equally sound, and `guaranteesSingleRow`
+is exactly that gate. But no scalar function in the corpus both yields a
+readable body shape and lacks the guarantee, so the gate's permissive
+direction had no counterexample. Three candidate controls were tried and all
+three passed a broken engine: `first_item` (the walk reads no body shape from
+it at all), a FROM-less body with a WHERE, and the same with a parameter.
+**An ungated widening reads as coverage and is not**, so it came out. Reopening
+it needs the control first: a scalar composite function whose body the walk CAN
+read and which can still return zero rows.
+
+Two smaller gaps surfaced and are recorded rather than chased: `(f()).field`
+is a different A_Indirection from `(f()).*` and takes an unimproved path, and
+`first_item`'s body is unreadable to `sqlFunctionBodyShape` while
+`get_order_items`' identical star is read.
 
 ### 4. Known imprecision residue
 
