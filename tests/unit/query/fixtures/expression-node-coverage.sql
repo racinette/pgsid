@@ -1,5 +1,3 @@
--- @unwitnessable 6: CURRENT_SCHEMA is NULL only when the search path resolves to no schema
--- @unwitnessable 9: an in-range subscript of a two-element array literal is always defined; A_Indirection stays conservative because indexes are not statically checkable (known imprecision)
 -- Expression node types that are easy to get wrong, each with the reason it
 -- lands where it does.
 SELECT
@@ -17,18 +15,26 @@ SELECT
   -- SQL value functions are always defined...
   CURRENT_TIMESTAMP                     AS ts,             -- @notNull
   SESSION_USER                          AS who,            -- @notNull
-  -- ...except CURRENT_SCHEMA, which is NULL when the search path resolves to
-  -- no existing schema.
-  CURRENT_SCHEMA                        AS schema_name,    -- @nullable
+  -- ...CURRENT_SCHEMA included, as long as SOME schema on the analysis
+  -- search path exists. It is NULL only when none does, which is an engine
+  -- option rather than a data state — current-schema-unresolvable-path.sql
+  -- arranges it and witnesses the NULL.
+  CURRENT_SCHEMA                        AS schema_name,    -- @notNull
 
   -- Constructors are never NULL as values, whatever their members.
   ROW(c.id, c.name)                     AS row_val,        -- @notNull
   ARRAY[c.name, c.name]                 AS arr_val,        -- @notNull
 
-  -- Subscripting is not: an out-of-range index yields NULL, and the index
-  -- cannot be checked statically.
-  (ARRAY[c.id, c.id])[1]                AS in_range,       -- @nullable
+  -- Subscripting is not: an out-of-range index yields NULL. Whether it IS
+  -- out of range is a shape question, though, and a literal ARRAY[...]
+  -- answers it — a constructor's lower bound is 1 and its length is what it
+  -- lists, so a constant index inside that range selects a KNOWN element
+  -- (2026-08-22). The element is then walked rather than assumed, which is
+  -- what `null_element` pins.
+  (ARRAY[c.id, c.id])[1]                AS in_range,       -- @notNull
   (ARRAY[c.id])[99]                     AS out_of_range,   -- @nullable
+  (ARRAY[NULL::integer, c.id])[1]       AS null_element,   -- @nullable
+  (ARRAY[c.id, c.id])[c.id]             AS open_index,     -- @nullable
 
   -- JSON access operators are strict yet still return NULL for a missing key,
   -- so they are not total and cannot propagate non-nullness.

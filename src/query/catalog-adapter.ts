@@ -957,6 +957,14 @@ export async function buildNullabilityCatalog(
   const builtinStrict = new Set(snapshot.builtinStrictFunctions ?? []);
   const isStrictBuiltin = (name: string): boolean => builtinStrict.has(name);
 
+  /** Does any schema on the analysis search path exist? `pg_catalog` counts —
+   *  it is always there, and naming it on the path is what makes
+   *  `CURRENT_SCHEMA` answer `pg_catalog` for a path with nothing else on it
+   *  (measured). The snapshot's schema list covers user schemas only. */
+  const snapshotSchemas = new Set(snapshot.schemas.map(s => s.name));
+  const searchPathResolves = (): boolean =>
+    searchPath.some(s => s === "pg_catalog" || snapshotSchemas.has(s));
+
   // -------------------------------------------------------------------------
   // SubtreeEvaluationCatalog — the closure gate's three questions
   // (docs/subtree-evaluation.md). Each began as a capture lookup minus a
@@ -2515,6 +2523,7 @@ export async function buildNullabilityCatalog(
     resolveForeignKey,
     resolveForeignKeyTree,
     isStrictBuiltin,
+    searchPathResolves,
     isImmutableIoType,
     closedOperatorTypes,
     closedFunctionTypes,

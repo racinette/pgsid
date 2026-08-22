@@ -497,12 +497,13 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **79 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **69 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
 empty, so every excuse left in the project is here. (Was 101 on 2026-08-22;
-twenty-two came off that day as the claims they excused turned notNull. The
+thirty-two came off that day — thirty as the claims they excused turned
+notNull, two because the claim became WITNESSED and needed no excuse. The
 suite's own readout counts CLAIMS, not annotation lines — one annotation may
-name several columns, and it reads 67.)
+name several columns, and it reads 57.)
 
 The pass over them started with the **largest cluster, and its reason was the
 mechanism**: seven fixtures said "unnesting a NULL array produces no rows, so
@@ -661,6 +662,60 @@ null-extended, so it promotes to REQUIRED. That is the presence fixpoint's
 subsystem rather than the padding's, which is why it is recorded here instead
 of built.
 
+**The fourth pass took the two small clusters (10 claims), and eight of the ten
+turned on a fact the engine already had.** No new subsystem in any of them:
+
+| what closed | the reason it carried | what was actually true |
+|---|---|---|
+| `stddev_pop` | "population statistics are outside the curated tables" | the table's own comment said the statistical family is undefined for one row; **six of the twelve are not**. The line is `n` versus `n - 1`, and the whole family was re-measured at once |
+| `sum` under `ROLLUP` | "aggregates under GROUPING SETS stay conservative" | what makes an aggregate NULL is an EMPTY generated set. A plain top-level term appears in every set — the fact `collectGroupingSetColumns` already reads to decide which columns get blanked |
+| `= ANY (<closed array>)` | "the array expression is opaque to the walk" | the statement map held it evaluated. The walk read only `isNull`, which answers whether the ARRAY is NULL — not the question |
+| `array_length(ARRAY[…], 1)` | "the builtin sits outside the curated tables" | true of the NAME and not of the call: the exclusion is about empty arrays and absent dimensions, both of which a literal constructor settles |
+| `(ARRAY[…])[1]` | "indexes are not statically checkable" | a constructor's lower bound is 1 and its length is what it lists, so a CONSTANT index is checkable. The element is then walked, which is what makes `(ARRAY[NULL, x])[1]` still nullable |
+| `CURRENT_SCHEMA` ×2 | "NULL only when the search path resolves to no schema, which no data state can arrange" | no DATA state can, and the search path is not data — it is the engine option every unqualified name is already resolved through. `searchPathResolves` is the one question the walk cannot derive |
+
+Three of those needed a control the corpus did not have, and each is a pair of
+calls one token apart: `string_to_array('1,2', ',', '2')` against the same call
+without the null_string, `array_length(ARRAY[]::int[], 1)` and
+`array_length(ARRAY[p.id], 2)` against the two-element form, and a fixture
+under `-- @search-path nosuch`, where the NULL is witnessed on the only row the
+statement can produce.
+
+**The subtree evaluator's red suite had already written down the subscript
+change before it happened.** `structural facts about open trees are refused`
+carried the note that structural reasoning is "the walk's possible future
+business, never the evaluator's" — so the guard's subject moved to an open
+INDEX, and the old subject sits beside it asserting the opposite, which is what
+keeps the two mechanisms distinguishable.
+
+**The builtin table-function columns were the one place a curated claim was
+falsified, and the falsification is the better result.** The admission looked
+easy: a JSON null is a json DATUM, so `json_each('{"a": null}')` yields a
+`value` PostgreSQL's own `IS NULL` calls non-null — measured, and true. It went
+into `NON_NULL_BUILTIN_TABLE_COLUMNS` on that, and **PostgreSQL falsified it in
+five data states**, because the claim is not about SQL's notion of NULL. It is
+about what reaches the consumer, and the driver parses a `json` datum: the JSON
+null arrives as `null`, indistinguishable from the SQL one. `json_each_text`
+renders the same document to a real SQL NULL by a completely different route
+and produces the same value on the wire. Both are in the fixture, identical
+verdicts on different underlying facts.
+
+So only `key` was admitted, on the one argument no rendering can touch — a JSON
+object's field names are strings by the grammar. The other two claims came off
+the `@unwitnessable` list anyway, by being WITNESSED: the fixture's document now
+carries a JSON null, so the nullable claims have NULLs behind them instead of
+excuses. That is the better outcome of the two and worth naming as one.
+
+The table is curated and name-keyed, so it has three ways to drift and a
+snapshot test pins all three — a name growing an overload breaks the key, and a
+renamed column makes the entry SILENTLY INERT, since the flag is set by
+matching the column name and a stale spelling matches nothing and reads as
+conservatism.
+
+`current_query()` was left alone. Its reason is accurate — NULL only when the
+statement has no source text, which nothing executable can arrange — and that
+is precisely what makes claiming it a widening no control could catch.
+
 ### 4. Known imprecision residue
 
 Each row is either correct-and-permanent or closable. The three marked
@@ -668,10 +723,10 @@ closable are the only precision items here with a known route.
 
 | Construct | Current | Note |
 |---|---|---|
-| `A_Indirection` element / field / jsonb subscripts | nullable — correctly | out-of-range elements and missing jsonb keys ARE NULL; composite fields carry no constraints. SLICES are closed — they clamp rather than NULL (`array-slices.sql`) |
+| `A_Indirection` element / field / jsonb subscripts | nullable — correctly | out-of-range elements and missing jsonb keys ARE NULL; composite fields carry no constraints. SLICES are closed — they clamp rather than NULL (`array-slices.sql`) — and so is a CONSTANT index into a literal `ARRAY[…]`, where the length is the constructor's own (2026-08-22) |
 | `JSON_VALUE` / `JSON_QUERY`, `JSON_ARRAY(subquery)`, `XmlExpr` beyond `XMLELEMENT` | nullable — correctly, permanently | a FOUND JSON null maps to SQL NULL through every ON EMPTY/ON ERROR combination, so no clause analysis can prove these; `JSON_ARRAY(SELECT …)` over an empty subquery is NULL; `xmlconcat`/`xmlforest` of NULLs are NULL. `JSON_EXISTS` is the one provable member and is closed |
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; a NOT NULL domain return is the escape hatch |
-| `pg_catalog` builtins outside the totality tables | nullable | totality has no catalog flag and cannot be proven by sampling (`array_length` of an empty array), so the tables stay curated, each entry measured on admission |
+| `pg_catalog` builtins outside the totality tables | nullable | totality has no catalog flag and cannot be proven by sampling, so the tables stay curated, each entry measured on admission. `array_length` used to be the example and is a poor one now: the name's exclusion is real, and a literal `ARRAY[…]` settles both causes behind it |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built; what stays conservative is the output side when the backing function is plpgsql or has multiple candidates |
 | MERGE with mixed arm kinds | condition not row-implied | the join condition promotes only when EVERY arm is MATCHED-kind — a NOT MATCHED arm fires precisely on the condition's failure. Per-arm reasoning judged not worth it |
 | CHECK entailment, conservative edges | nullable | parameters never match (identity needs the literal token; permanent for a per-statement contract), and origin consumption is gated as designed |

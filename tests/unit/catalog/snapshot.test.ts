@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { SchemaBuilder } from "../../../src/schema-builder.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { diffCatalogs, emptyCatalogSnapshot } from "../../../src/catalog/diff.js";
+import { NON_NULL_BUILTIN_TABLE_COLUMNS } from "../../../src/query/nullability-walk.js";
 import {
   ALWAYS_NOT_NULL_BUILTINS,
   FIRST_ARG_BUILTINS,
@@ -669,6 +670,45 @@ describe("snapshotCatalog: the set-returning capture's quantifier", () => {
        ORDER BY 1`,
     );
     expect(res.rows.map(r => r.name)).toEqual([]);
+  });
+
+  // `NON_NULL_BUILTIN_TABLE_COLUMNS` is curated, keyed by NAME, and overlays
+  // flags onto the captured shape — three ways to drift, all pinned here
+  // rather than in a comment.
+  //
+  // A name that grows an overload breaks the key (which row's columns are
+  // these?), and a renamed output column makes the entry silently inert:
+  // `notNull` is set by matching the column NAME, so a stale spelling matches
+  // nothing and reads as conservatism. The claim itself — that a JSON
+  // object's field names are never NULL — is grammar and does not need
+  // measuring; that the column is still called `key` on a function with one
+  // signature does.
+  it("every curated builtin table-function column still names one real signature", async () => {
+    const drift: string[] = [];
+    for (const [name, columns] of NON_NULL_BUILTIN_TABLE_COLUMNS) {
+      const res = await pg.query<{ n: number; names: string | null }>(
+        `SELECT count(*)::int AS n, min(p.proargnames::text) AS names
+         FROM pg_proc p JOIN pg_namespace nm ON nm.oid = p.pronamespace
+         WHERE nm.nspname = 'pg_catalog' AND p.prokind = 'f'
+           AND p.proretset AND p.proname = '${name}'`,
+      );
+      const row = res.rows[0]!;
+      if (row.n !== 1) {
+        drift.push(`${name}: ${row.n} set-returning pg_catalog rows, expected exactly 1`);
+        continue;
+      }
+      const present = (row.names ?? "").replace(/[{}]/g, "").split(",");
+      for (const col of columns) {
+        if (!present.includes(col)) {
+          drift.push(`${name}: no output column named "${col}" (has ${present.join(", ")})`);
+        }
+      }
+    }
+    expect(
+      drift,
+      `curated builtin table-function columns have drifted from pg_catalog — a ` +
+        `stale name sets no flag and reads as conservatism:\n  ${drift.join("\n  ")}`,
+    ).toEqual([]);
   });
 });
 

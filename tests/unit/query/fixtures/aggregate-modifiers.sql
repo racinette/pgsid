@@ -1,4 +1,3 @@
--- @unwitnessable 9: population statistics are outside the curated builtin tables (known imprecision); the group's quantities are non-null, so stddev_pop is always defined
 -- Aggregate modifiers and how each interacts with the non-empty-group rule.
 --
 -- A plain GROUP BY emits no empty groups, so an aggregate over a non-null
@@ -23,14 +22,18 @@ SELECT
   sum(oi.quantity) FILTER (WHERE oi.quantity > 1)    AS sum_filtered,  -- @nullable
   array_agg(oi.quantity) FILTER (WHERE false)        AS agg_filtered,  -- @nullable
 
-  -- Sample statistics are undefined for a single-row group, so a non-empty
-  -- group is not sufficient.
+  -- Sample statistics divide by `n - 1` and are undefined for a single-row
+  -- group, so a non-empty group is not sufficient.
   stddev_samp(oi.quantity)                           AS sd,            -- @nullable
   var_samp(oi.quantity)                              AS variance,      -- @nullable
 
-  -- Population variants are defined for one row, but are not on the
-  -- non-null-preserving list, so they stay conservative.
-  stddev_pop(oi.quantity)                            AS sd_pop,        -- @nullable
+  -- The POPULATION variant divides by `n` and is defined at one row. It sat
+  -- outside the non-null-preserving table until 2026-08-22, on a comment that
+  -- said the whole statistical family was undefined for a single row — six of
+  -- the twelve are not, and the family was re-measured at once rather than one
+  -- name at a time. The pair above and this line are the same call, one
+  -- estimator apart.
+  stddev_pop(oi.quantity)                            AS sd_pop,        -- @notNull
 
   -- Ordered-set aggregates follow the plain-aggregate gates with the WITHIN
   -- GROUP sort expression visible: non-empty group (plain GROUP BY),

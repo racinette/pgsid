@@ -1,0 +1,29 @@
+-- CURRENT_SCHEMA's NULL, arranged.
+--
+-- It was recorded twice as "NULL only when the search path resolves to no
+-- schema, which no data state can arrange", and that is true and beside the
+-- point: no DATA state can, and the search path is not data. It is an engine
+-- OPTION, the same one every unqualified table and type name in the corpus is
+-- resolved through, so whether any schema on it exists is a question the walk
+-- is entitled to ask (2026-08-22).
+--
+-- Measured, all three:
+--
+--     SET search_path TO public          current_schema() = 'public'
+--     SET search_path TO nosuch          current_schema() = NULL
+--     SET search_path TO nosuch, public  current_schema() = 'public'
+--
+-- The third is why the test is "SOME schema on the path exists" rather than
+-- "the first one does": PostgreSQL skips to the first EXISTING entry.
+--
+-- Under the path below nothing exists, so the NULL is witnessed on the only
+-- row this statement can produce. Its counterpart is every other fixture in
+-- the corpus, which runs under a path where `public` does exist and claims
+-- CURRENT_SCHEMA notNull — expression-node-coverage.sql spells that out.
+--
+-- No FROM clause, deliberately: under this path no relation is reachable, and
+-- the fixture is about the path resolving to nothing rather than about what
+-- that costs a query.
+-- @search-path nosuch
+SELECT CURRENT_SCHEMA AS s
+-- @nullable   (s)

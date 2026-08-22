@@ -192,6 +192,13 @@ const COLD_TRIAGE: Record<string, { needs: string; witness: string }> = {
       "(promotionOperatorIsStrict, param-nullability) still consult this",
     witness: "where-promotion-non-strict-op.sql",
   },
+  searchPathResolves: {
+    needs:
+      "a CURRENT_SCHEMA expression — the generated corpus's expression axis " +
+      "produces no SQLValueFunction at all, and this is the one op among them " +
+      "whose answer is not unconditional",
+    witness: "current-schema-unresolvable-path.sql",
+  },
 };
 
 const FIXTURES_DIR = join(__dirname, "..", "fixtures");
