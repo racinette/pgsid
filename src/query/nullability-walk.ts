@@ -78,9 +78,41 @@ const MAX_DEPTH = 200;
  * requires a catalog built by the adapter, which carries the
  * `SubtreeEvaluationCatalog` face beside the walk's own.
  */
+/**
+ * One pre-walk probe that could not be answered.
+ *
+ * A probe going unanswered costs the statement PRECISION and never soundness:
+ * the round records nothing and the walk falls back to what it claimed before
+ * evaluation existed. The reason this is reported at all is that the
+ * degradation is otherwise SILENT — a consumer whose evaluator was killed on a
+ * timeout gets a weaker contract with no way to diagnose it.
+ *
+ * Not an error, and deliberately not on `QueryContract`: a consumer that does
+ * not pass a sink pays no bookkeeping and gets the identical answer.
+ */
+export interface EvalWarning {
+  /** Which pre-walk round lost its answer. */
+  round: "statement-map" | "comparison-groundings" | "srf-cardinality";
+  /** What the evaluator said — a kill, a timeout, or a raise from the probe. */
+  detail: string;
+}
+
 export interface WalkOptions {
   paramTypes?: readonly string[];
   evaluate?: Evaluate;
+  /**
+   * Sink for probes the evaluator could not answer (see `EvalWarning`) — the
+   * same opt-in shape as `joinAudit` and `typeSetAudit`, so the consumer
+   * contract is unchanged and absence costs nothing.
+   *
+   * The engine cannot enforce a TIME bound on `evaluate` itself: `src/query`
+   * imports no database type by charter, and `statement_timeout` does not fire
+   * under PGlite (measured — set to 400ms, a 1473ms query ran to completion),
+   * so a bound has to be a kill from outside the thread running it. That makes
+   * the bound the consumer's to own and this channel the engine's half of the
+   * bargain: it reports that one fired.
+   */
+  evalWarnings?: EvalWarning[];
   /**
    * Test-side sink for the presence fixpoint's per-join verdicts (see
    * `JoinAudit` in types.ts). When present, every analyzed scope appends one
@@ -102,6 +134,48 @@ export interface WalkOptions {
    * walk.
    */
   typeSetAudit?: TypeSetAudit[];
+}
+
+/**
+ * The consumer's `evaluate`, wrapped so a failed probe is RECORDED on its way
+ * past — then rethrown unchanged, because every round's own degradation is
+ * already correct and must keep running.
+ *
+ * Wrapping the callback rather than threading a sink through the three rounds
+ * is what keeps this to one place. Each round already absorbs failures deep
+ * inside its own module (`evaluateClosedSubtrees` degrades a raising batch to
+ * per-subtree probes, `evaluateSrfCardinalities` does the same per call), and
+ * a sink threaded to each of those sites would have to be plumbed through
+ * `subtree-evaluator.ts` and `comparison-groundings.ts` to reach them. The
+ * boundary the failure actually crosses is this callback, and it has the SQL
+ * in hand.
+ *
+ * Only FAILURES are recorded. A probe that answers and is then refused on the
+ * merits — a count over `SUBLINK_SRF_ROW_CAP`, a non-boolean comparison — is
+ * an ordinary conservative outcome the rounds are designed around, not
+ * something a consumer needs to hear about.
+ */
+function recordingEvaluate(
+  evaluate: Evaluate,
+  round: EvalWarning["round"],
+  sink: EvalWarning[] | undefined,
+): Evaluate {
+  if (!sink) return evaluate;
+  return async sql => {
+    try {
+      return await evaluate(sql);
+    } catch (e) {
+      sink.push({ round, detail: e instanceof Error ? e.message : String(e) });
+      throw e;
+    }
+  };
+}
+
+/** `options.evaluate` under this round's recorder, or undefined without one. */
+function evalWith(round: EvalWarning["round"], options?: WalkOptions): Evaluate | undefined {
+  return options?.evaluate
+    ? recordingEvaluate(options.evaluate, round, options.evalWarnings)
+    : undefined;
 }
 
 /** The pre-walk evaluation round: one async step, answers in, sync walk. */
@@ -161,9 +235,9 @@ export async function inferNullability(
   catalog: NullabilityCatalog,
   options?: WalkOptions,
 ): Promise<OutputNullability[]> {
-  const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
-  const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
-  const cardinalities = await srfCardinalities(stmt, catalog, options?.evaluate);
+  const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
+  const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
+  const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -243,7 +317,7 @@ export async function inferQueryContract(
   catalog: NullabilityCatalog,
   options?: WalkOptions,
 ): Promise<QueryContract> {
-  const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
+  const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
   // The CHECK grounder (Mechanism E, docs/argument-nullability.md): the
   // same pre-walk async step over synthesized trees, answers consumed by
   // the collector as data. Same catalog-face requirement as `evaluate`
@@ -258,8 +332,8 @@ export async function inferQueryContract(
     }
   }
   const facts = collectParamFacts(stmt, catalog, mechanismE);
-  const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
-  const cardinalities = await srfCardinalities(stmt, catalog, options?.evaluate);
+  const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
+  const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -307,9 +381,9 @@ export async function inferNullabilityTraced(
   onUnhandled?: UnhandledNodeObserver,
   options?: WalkOptions,
 ): Promise<OutputNullabilityTraced[]> {
-  const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
-  const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
-  const cardinalities = await srfCardinalities(stmt, catalog, options?.evaluate);
+  const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
+  const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
+  const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
   const engine = new NullabilityEngine(
     catalog,
     true,

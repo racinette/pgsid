@@ -490,9 +490,55 @@ suite as the one live `it.fails`, not in this paragraph.
 | PREPARE failure | error | cursor mapped through preprocessor deltas to the author's file |
 | Arity-gate mismatch | error | artifact degrades all-nullable for that query AND the run fails |
 | Engine refusal (`UnsupportedNodeError`) | warning; error under `--strict` | artifact degrades to all-nullable for that query, refusal printed |
+| Unanswered evaluation probe (`EvalWarning`) | warning, never error | the evaluator was killed or raised; that column degrades to what it claimed before evaluation, and the round says which one lost its answer |
 
 Exit codes: 0 = success (warnings allowed), 1 = errors, 2 = usage/config
 unreadable. Machine-readable report format stays deferred (`DESIGN.md`).
+
+### The `evaluate` callback must be TIME-BOUNDED — the consumer's job
+
+The engine cannot bound it. `src/query` imports no database type by charter,
+and there is no in-process way to stop a runaway: **`statement_timeout` does
+not fire under PGlite** (measured 2026-08-23 — `SHOW` reports `400ms` and a
+1473ms query ran to completion), and a same-thread timer never gets to run,
+because the event loop is blocked inside WASM for the duration.
+
+A bound therefore has to be a KILL FROM OUTSIDE the thread running the query.
+`Worker.terminate()` does this in **8ms** on a PGlite instance wedged in WASM
+(measured, against a control proving it wedged and not merely slow). Rebuilding
+afterwards is cheap because **the evaluator needs only the immutable slice of
+the schema** — types and IMMUTABLE functions, no tables and no data. Measured
+over the fixture corpus, **397 of 423 evaluator queries run on a bare PGlite
+with no schema at all**; the entire remainder wanted one domain and one user
+immutable function. A minimal instance rebuilds in ~470ms.
+
+Take that slice from the LIVE CATALOG, never from migration text. A migration
+whose objects are created by dynamic SQL names none of them — measured, with
+function and domain names computed at runtime, all four absent from the
+migration source and all four recovered faithfully through
+`pg_get_functiondef` and a domain reconstruction.
+
+**Choosing the timeout.** 500ms is the suggested default, and it is bounded
+from below by something real: a kill costs a ~470ms rebuild, so a timeout
+under that spends more on recovery than it saves on waiting.
+
+The timeout is also the MEMORY bound, which is why no separate memory guard
+exists. A single datum cannot exceed PostgreSQL's 1GB varlena limit —
+`repeat('x', 2e9)` raises `requested length too large` in 2ms without
+allocating — and accumulation is bounded by the clock, since allocation runs
+at roughly **160 MB/s** (500MB took 3157ms):
+
+| kill timeout | worst case allocated before the kill |
+|---|---|
+| 5s | ~800 MB |
+| 2s | ~320 MB |
+| 500ms | ~80 MB |
+
+A consumer that supplies an unbounded `evaluate` gets no net at all. The
+engine keeps its own probes cheap by construction — every set-returning probe
+is `LIMIT`ed at `SUBLINK_SRF_ROW_CAP + 1` and placed in the TARGET LIST, where
+a LIMIT binds lazily (in a FROM item it does not; see Trap 1 in
+`docs/subtree-evaluation.md`) — but the pathological tail is the consumer's.
 
 ## migrate-from-sqlc
 
