@@ -7305,32 +7305,36 @@ class NullabilityEngine {
    * capability: the predicates go through the same `collectConjuncts` path a
    * WHERE conjunct does.
    *
-   * **REQUIRED only, and that gate is the whole soundness argument.** A
-   * LEFT-joined entry contributes NULL for every column on a non-matching
-   * row, catalog flag or not, so the claim is about a row that exists rather
-   * than about a column. Names are the SCOPE's, not the catalog's: an alias
-   * column list renames, and the kernel is working in the shown vocabulary.
+   * **Presence is the whole soundness argument**, and it is the EFFECTIVE
+   * `joinState` that carries it, never `entry.joinState`. A LEFT-joined entry
+   * contributes NULL for every column on a non-matching row, catalog flag or
+   * not — but the walk promotes such an entry to REQUIRED through four routes
+   * (a WHERE pin, a branch guard, the presence fixpoint, `guardedPresence`),
+   * and a promoted entry's row is present on every emitted row. So the
+   * parameter, not the field.
    *
-   * **NO FIXTURE KILLS THAT GATE, and it stays anyway.** Measured on landing:
-   * removing it feeds the false evidence for 11,664 optional-entry visits
-   * across the suite and changes NO claim in either corpus, and four
-   * hand-built LEFT JOIN shapes — a bare optional column, an optional column
-   * behind a CHECK, the same with the join condition carrying the pin, and
-   * the same under a CASE guard — produce no unsound claim either. What is
-   * NOT established is why; the evidence reaches this site only when the
-   * relation carries CHECKs or generated columns, and the optional paths have
-   * their own presence machinery in front of them, so the suppression may be
-   * redundant with a gate one level up rather than load-bearing here. The
-   * argument for keeping it is the fact, not the test: on a null-extended row
-   * the predicate this would emit is FALSE, and an evidence set is not a
-   * place to put a false predicate and hope nothing reads it.
+   * **The check is UNREACHABLE, and that is a fact about the caller.** The
+   * only call site is inside `if (!catalogNotNull && joinState !== OPTIONAL)`,
+   * which has already established presence — measured: zero reaches with
+   * OPTIONAL across the whole suite. It stays as the precondition written at
+   * the signature, so a second caller cannot pass an unpromoted entry by
+   * omission.
    *
-   * The WIDENING itself has the same measured reach — 218 firings in the hand
-   * corpus, zero claims moved in either. It exists for what it unlocks
-   * downstream (`else-selected-arm-red.test.ts`), not for what it moves.
+   * That redundancy is worth recording because the FIRST version of this
+   * guard read `entry.joinState` and looked load-bearing. It was the
+   * opposite: it fired for 11,664 promoted-entry visits, suppressing evidence
+   * about rows the walk had just proven present — a pure precision loss with
+   * no soundness content. Nothing could kill it, and that was the tell.
+   * A guard no test can kill is either unreachable or wrong, and reading it
+   * against the variable the enclosing block uses is what tells you which.
+   *
+   * The WIDENING itself moves nothing measurable: 218 firings in the hand
+   * corpus, and identical claim counts in both corpora either way. It exists
+   * for what it unlocks downstream (`else-selected-arm-red.test.ts`), not for
+   * what it moves.
    */
-  private entryNotNullEvidence(entry: RelationEntry, scope: Scope): Node[] {
-    if (entry.joinState !== REQUIRED || !entry.table) return [];
+  private entryNotNullEvidence(entry: RelationEntry, scope: Scope, joinState: JoinState): Node[] {
+    if (joinState === OPTIONAL || !entry.table) return [];
     const out: Node[] = [];
     for (const v of scope.visible) {
       if (v.entry !== entry) continue;
@@ -9346,7 +9350,7 @@ class NullabilityEngine {
             ...(scope.whereClause ? [scope.whereClause] : []),
             ...(scope.havingClause ? [scope.havingClause] : []),
             ...scope.impliedQuals,
-            ...this.entryNotNullEvidence(entry, scope),
+            ...this.entryNotNullEvidence(entry, scope, joinState),
           ];
           const guardPreds = this.kernelGuardPreds(scope);
           const channels: { label: string; evidence: { pred: Node; applySetMask: boolean }[] }[] =
