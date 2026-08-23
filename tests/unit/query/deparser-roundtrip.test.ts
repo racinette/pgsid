@@ -70,6 +70,20 @@ const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   // ("frame starting from following row cannot have preceding rows") — a
   // loud failure, not a silent drop, so no expected-node check is owed.
   "window-default-frame": "reparse-failed",
+  // The same defect, and measuring it here showed it is WIDER than the loud
+  // case above and mostly SILENT. The deparser does not distinguish a frame
+  // bound's direction, and drops UNBOUNDED FOLLOWING on the end bound
+  // (measured 2026-08-23):
+  //
+  //   1 FOLLOWING AND 2 FOLLOWING          -> 1 PRECEDING AND 2 FOLLOWING
+  //   1 FOLLOWING AND UNBOUNDED FOLLOWING  -> 1 PRECEDING AND CURRENT ROW
+  //   2 PRECEDING AND 1 PRECEDING          -> 2 FOLLOWING AND 1 PRECEDING
+  //
+  // Only the third fails to reparse. The first two come back as VALID SQL
+  // meaning a different frame, which is the shape an expected-node check
+  // exists for — so the generator must not request an offset frame bound.
+  // This fixture lands on the loud one and is pinned there.
+  "param-window-frame-offset": "reparse-failed",
 };
 
 /** Byte offsets that vary with formatting and mean nothing structurally. */

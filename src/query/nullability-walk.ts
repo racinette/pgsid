@@ -416,6 +416,26 @@ interface RowBounds {
 const UNBOUNDED_ROWS: RowBounds = { min: 0, max: Infinity };
 
 /**
+ * The node tags a join qual may be built from for two joins to be compared as
+ * the SAME RESTRICTION (`sameRestrictionEntailedAlias`). Structure and
+ * comparison only — `ColumnRef` and `A_Const` are the leaves and are handled
+ * before this list is consulted.
+ *
+ * A `FuncCall` is deliberately absent. Two joins carrying `ON c.id =
+ * random()` name no relation but their own and still match different rows,
+ * so a list admitting calls would need volatility resolution to be sound and
+ * would stop being a syntactic test.
+ *
+ * The value wrappers are here because the parser tags them the same way an
+ * expression node is tagged: an operator's name is `[{String: {sval: "="}}]`,
+ * so a list of expression tags alone refuses `c.id = 1` on its `=`.
+ */
+const QUAL_SHAPE_NODES = new Set([
+  "A_Expr", "BoolExpr", "NullTest", "BooleanTest", "TypeCast",
+  "String", "Integer", "Float", "Boolean", "List", "TypeName",
+]);
+
+/**
  * A relation proven to hold a row for a key — see `Scope.rowWitnesses`.
  *
  * The relation is identified AS WRITTEN, by the schema qualifier and name a
@@ -496,6 +516,16 @@ interface RelationEntry {
   valuesRows?: Node[];
   /** For table functions: the whole RangeFunction node (needs `ordinality`). */
   rangeFunction?: RangeFunction;
+  /**
+   * Whether this FROM item provably emits AT LEAST ONE ROW — computed for
+   * table functions from the same `armRowBounds` the lockstep padding takes.
+   *
+   * Recorded here rather than asked in the presence fixpoint because the
+   * bounds need a recursion `depth` and the fixpoint has none: the producer
+   * sits where the item is registered and the consumer reads a bit, the same
+   * split `Scope.rowWitnesses` takes.
+   */
+  guaranteesRow?: boolean;
   /** Memoized column list for a table function — see resolveTableFunctionColumns. */
   functionColumns?: { name: string; notNull: boolean }[];
   /**
@@ -1265,6 +1295,65 @@ class NullabilityEngine {
    *     runs its body at all. `guaranteesSingleRow` is the same predicate the
    *     scalar-sublink path uses, asked of the body rather than the subquery.
    */
+  /**
+   * Whether a table-function FROM item provably emits at least one row.
+   *
+   * The arms of a `ROWS FROM` expand in LOCKSTEP to the longest one, padding
+   * the rest — so the item's row count is the MAXIMUM over the arms, and one
+   * arm with a guaranteed row carries the whole item. That is the same
+   * `armRowBounds` the padding rule already computes, read for its minimum
+   * instead of compared against the others' maximum.
+   *
+   * `WITH ORDINALITY` is irrelevant here: the counter is a column of the item,
+   * not a participant, so it cannot add a row to an item that has none.
+   */
+  /**
+   * Whether a `TABLESAMPLE` clause provably keeps EVERY row, so the alias
+   * still stands for the whole relation and the `sampled` flag would be a
+   * refusal with nothing behind it.
+   *
+   * A percentage of exactly 100 does, for both built-in methods (measured
+   * over repeated executions). Nothing else qualifies, and the neighbouring
+   * value is the argument for why: `BERNOULLI (99)` really drops rows — 489
+   * to 497 of 500 across twelve runs — while `SYSTEM (99)` kept all 500 of
+   * them, because SYSTEM samples by PAGE and a small table is one page. Read
+   * as "a high fraction keeps everything", SYSTEM (99) would look like the
+   * evidence; it is an artifact of the table's size, and the same clause on a
+   * larger one drops whole pages.
+   *
+   * So the test is EQUALITY WITH 100, not a threshold, and the two are not
+   * neighbouring readings of one rule — one is a fact about the clause, the
+   * other a guess about the data. `100.0` counts: the fraction is a
+   * percentage, and the parser spills it to `fval` rather than `ival`.
+   *
+   * The method name is checked because TABLESAMPLE is EXTENSIBLE. A custom
+   * method's argument need not even be a percentage — `tsm_system_rows` takes
+   * a ROW COUNT, where 100 means a hundred rows and not all of them.
+   */
+  private tableSampleKeepsEveryRow(method: Node[] | undefined, args: Node[] | undefined): boolean {
+    const parts = (method ?? []).map(n => this.stringVal(n)).filter((p): p is string => !!p);
+    const name = parts[parts.length - 1]?.toLowerCase();
+    if (name !== "bernoulli" && name !== "system") return false;
+    if ((args ?? []).length !== 1) return false;
+    const ac = (args![0] as Record<string, unknown>)["A_Const"] as
+      | { ival?: { ival?: number }; fval?: { fval?: string }; isnull?: boolean }
+      | undefined;
+    if (!ac || ac.isnull) return false;
+    if ("ival" in ac) return (ac.ival?.ival ?? 0) === 100;
+    if ("fval" in ac) return Number(ac.fval?.fval) === 100;
+    return false;
+  }
+
+  private rangeFunctionGuaranteesRow(rf: RangeFunction, depth: number): boolean {
+    return (rf.functions ?? []).some(fnItem => {
+      const items = (fnItem as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
+      const fc = (items?.items?.[0] as Record<string, unknown> | undefined)?.["FuncCall"] as
+        | FuncCall
+        | undefined;
+      return !!fc && this.armRowBounds(fc, depth).min >= 1;
+    });
+  }
+
   private armRowBounds(fc: FuncCall, depth: number): RowBounds {
     if (!this.isSetReturningCall(fc)) return { min: 1, max: 1 };
 
@@ -2522,6 +2611,26 @@ class NullabilityEngine {
         }
       }
 
+      for (const j of scope.joins) {
+        const lateral = this.unextendableLateralAlias(j, scope);
+        if (lateral && !present.has(lateral)) {
+          present.add(lateral);
+          const entry = scope.aliases.get(lateral);
+          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
+          changed = true;
+        }
+      }
+
+      for (const j of scope.joins) {
+        const twin = this.sameRestrictionEntailedAlias(j, scope, present);
+        if (twin) {
+          present.add(twin);
+          const entry = scope.aliases.get(twin);
+          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
+          changed = true;
+        }
+      }
+
       for (const [alias, entry] of scope.aliases) {
         if (present.has(alias)) continue;
         const proven =
@@ -2775,6 +2884,163 @@ class NullabilityEngine {
    * hops: the join names an OUTPUT column of the item, and that output has to
    * resolve through the target list to the grouped column itself.
    */
+  /**
+   * A LEFT JOIN whose optional side CANNOT be empty and whose qual cannot
+   * fail: the extension has no case left to fire in, so the side is present.
+   *
+   * `LEFT JOIN LATERAL ROWS FROM (f(x), generate_series(1, 3)) i ON true` is
+   * the shape. NULL-extension is not a property of the join type — it is what
+   * the join does when the optional side contributes NO ROW for an outer row,
+   * and that needs both halves: an item that always emits one, and a qual
+   * that always accepts it. Then the LEFT is an inner join that says LEFT.
+   *
+   * The row half is `entry.guaranteesRow`, computed at registration from the
+   * SAME bound the lockstep padding takes. The two rules are the same fact
+   * asked of different things — the padding asks "is this arm the longest",
+   * the join asks "does this item have a row at all" — which is why the
+   * fixture that pinned this gap could record it as one line of arithmetic
+   * already done and never consulted.
+   *
+   * The qual half is a LITERAL TRUE. Anything else can be false or NULL for
+   * some row, and each is a NULL-extension; `ON true` is not a special case
+   * of a general predicate analysis, it is the only qual whose failure is
+   * unreachable without one. LATERALITY is deliberately not required — an
+   * item that guarantees a row guarantees it whether or not it reads the
+   * outer row, and a non-lateral one is only easier.
+   */
+  private unextendableLateralAlias(j: JoinPredicate, scope: Scope): string | null {
+    if (j.jointype !== "JOIN_LEFT") return null;
+    if (!j.quals || !this.isTrueLiteral(j.quals)) return null;
+    if (j.rightAliases.length !== 1) return null;
+    const entry = scope.aliases.get(j.rightAliases[0]!);
+    if (!entry?.guaranteesRow) return null;
+    return entry.alias;
+  }
+
+  /**
+   * A LEFT JOIN whose optional side matches EXACTLY WHEN a present sibling
+   * does, because the two scan the same relation under the same restriction.
+   *
+   * `LEFT JOIN coupons c ON c.id = 1` beside `LEFT JOIN coupons c2 ON c2.id =
+   * 1` with `WHERE c2.code IS NOT NULL`. The WHERE promotes c2; nothing in the
+   * data can then leave c unmatched, because the two joins ask the identical
+   * question of the identical relation. No key is involved and none could be —
+   * `c.id = 1` is a CONSTANT restriction, not a join condition — which is why
+   * foreign-key entailment has nothing to say here.
+   *
+   * Three things have to hold, and each is checked rather than assumed:
+   *
+   *   SAME RELATION — schema and name, both plain RangeVars, neither sampled.
+   *     Two aliases of different tables prove nothing about each other, and a
+   *     TABLESAMPLE alias does not even stand for its own relation's rows.
+   *   SELF-CONTAINED QUALS — every leaf is a column of the join's own alias
+   *     or a constant, and every interior node is on a small ALLOWLIST. A
+   *     qual mentioning a THIRD alias is a correlation, and then which rows
+   *     match depends on a row this rule is not looking at; the two joins
+   *     could be handed different outer rows and diverge. The allowlist is
+   *     the other half and is not the same half: `ON c.id = random()` names
+   *     no other alias and still matches differently in each join, so
+   *     self-containment does NOT rule out volatility and a node list that
+   *     admits calls would be unsound. Open-by-default, as the subtree
+   *     evaluator's allowlist is, and for the same reason.
+   *   IDENTICAL RESTRICTIONS — structurally equal once each qual's own alias
+   *     is rewritten to a common placeholder, so `c.id = 1` and `c2.id = 1`
+   *     are one predicate rather than two.
+   */
+  private sameRestrictionEntailedAlias(
+    j: JoinPredicate,
+    scope: Scope,
+    present: Set<string>,
+  ): string | null {
+    if (j.jointype !== "JOIN_LEFT" || j.rightAliases.length !== 1) return null;
+    const alias = j.rightAliases[0]!;
+    if (present.has(alias)) return null;
+    const entry = scope.aliases.get(alias);
+    const rel = this.plainRelationKey(entry);
+    if (!rel || !j.quals) return null;
+    const own = this.restrictionOverAlias(j.quals, alias);
+    if (!own) return null;
+
+    for (const other of scope.joins) {
+      if (other === j || other.jointype !== "JOIN_LEFT" || other.rightAliases.length !== 1) continue;
+      const sibling = other.rightAliases[0]!;
+      if (!present.has(sibling) || sibling === alias) continue;
+      if (this.plainRelationKey(scope.aliases.get(sibling)) !== rel) continue;
+      if (!other.quals) continue;
+      const theirs = this.restrictionOverAlias(other.quals, sibling);
+      if (theirs && this.sameExpression(own, theirs)) return alias;
+    }
+    return null;
+  }
+
+  /** `schema.relation` for a plain, unsampled table reference — or null. */
+  private plainRelationKey(entry: RelationEntry | undefined): string | null {
+    if (!entry || entry.kind !== "table" || entry.sampled || !entry.table) return null;
+    return `${entry.table.schema ?? ""}.${entry.table.name}`;
+  }
+
+  /**
+   * A join qual rewritten with its own alias replaced by a placeholder, or
+   * null when the qual reaches outside that alias.
+   *
+   * The rewrite is what makes two spellings of one restriction comparable;
+   * the refusal is what keeps a correlated qual out. A bare (unqualified)
+   * column name is refused too — it resolves by scope rather than by
+   * spelling, so the same text under two aliases need not be the same column.
+   */
+  private restrictionOverAlias(qual: Node, alias: string): Node | null {
+    let escaped = false;
+    const rewrite = (n: unknown): unknown => {
+      if (Array.isArray(n)) return n.map(rewrite);
+      if (typeof n !== "object" || n === null) return n;
+      const rec = n as Record<string, unknown>;
+      if ("ColumnRef" in rec) {
+        const fields = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
+        if (fields.length !== 2 || fields[0] !== alias) {
+          escaped = true;
+          return n;
+        }
+        return {
+          ColumnRef: {
+            fields: [{ String: { sval: "\0self" } }, { String: { sval: fields[1]! } }],
+          },
+        };
+      }
+      if ("A_Const" in rec) return n;
+      // A NODE is a single-key wrapper whose key is the tag; anything else is
+      // a node's own payload, which carries no tag and is simply descended
+      // into. Only the tagged wrappers are gated, and the list is everything
+      // a restriction may be BUILT from. A call is absent on purpose: it can
+      // be volatile whatever its arguments are.
+      const keys = Object.keys(rec);
+      const tag = keys.length === 1 && /^[A-Z]/.test(keys[0]!) ? keys[0]! : null;
+      if (tag && !QUAL_SHAPE_NODES.has(tag)) {
+        escaped = true;
+        return n;
+      }
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(rec)) {
+        if (k === "location") continue;
+        out[k] = rewrite(v);
+      }
+      return out;
+    };
+    const rewritten = rewrite(qual);
+    return escaped ? null : (rewritten as Node);
+  }
+
+  /** A literal boolean TRUE, through any number of casts. */
+  private isTrueLiteral(expr: Node): boolean {
+    const node = expr as Record<string, unknown>;
+    if ("TypeCast" in node) {
+      const arg = (node["TypeCast"] as { arg?: Node }).arg;
+      return arg !== undefined && this.isTrueLiteral(arg);
+    }
+    if (!("A_Const" in node)) return false;
+    const ac = node["A_Const"] as { isnull?: boolean; boolval?: { boolval?: boolean } };
+    return ac.isnull !== true && "boolval" in ac && ac.boolval?.boolval === true;
+  }
+
   private rowWitnessEntailedAlias(j: JoinPredicate, scope: Scope): string | null {
     if (scope.rowWitnesses.length === 0) return null;
     const eq = this.equalityColumnRefs(j.quals);
@@ -3538,6 +3804,7 @@ class NullabilityEngine {
         nullGroup,
         unitChain,
         instance: this.nextInstance(),
+        guaranteesRow: this.rangeFunctionGuaranteesRow(rf, depth),
       };
       scope.aliases.set(aliasName, fnEntry);
       this.recordStrictSrfImplications(rf, joinState, scope);
@@ -3567,12 +3834,17 @@ class NullabilityEngine {
       // relation's, and the shape does not change. What changes is which ROWS
       // are there, and that has to be recorded or the alias silently keeps
       // standing for the whole table (sweep-4 finding 3).
-      const rts = node["RangeTableSample"] as { relation?: Node };
+      const rts = node["RangeTableSample"] as {
+        relation?: Node;
+        method?: Node[];
+        args?: Node[];
+      };
       if (!rts.relation) return [];
       const before = new Set(scope.aliases.values());
       const cols = this.walkFromItem(rts.relation, joinState, scope, nullGroup, unitChain, depth);
+      const whole = this.tableSampleKeepsEveryRow(rts.method, rts.args);
       for (const entry of scope.aliases.values()) {
-        if (!before.has(entry)) entry.sampled = true;
+        if (!before.has(entry) && !whole) entry.sampled = true;
       }
       return cols;
     } else {
@@ -3618,9 +3890,17 @@ class NullabilityEngine {
    * Flatten a JSON_TABLE COLUMNS list. NESTED PATH columns are spliced into
    * the same output row, so they contribute alongside their siblings.
    *
-   * Only FOR ORDINALITY is non-null, and only OUTSIDE a NESTED PATH. A regular
-   * column is NULL when its path matches nothing, and an EXISTS column can
-   * still yield NULL under `UNKNOWN ON ERROR`.
+   * Two column kinds are GENERATED rather than extracted, and only those two
+   * are non-null — and only OUTSIDE a NESTED PATH. A regular column is NULL
+   * when its path matches nothing.
+   *
+   * FOR ORDINALITY is a counter. An EXISTS column answers a *predicate*, and
+   * a predicate has no room for "absent": a missing member is `false`, not
+   * NULL (measured). Its one NULL is `UNKNOWN ON ERROR`, which is what the
+   * error behaviour is FOR — `strict $.b[*]` over a document without `b`
+   * raises, and the clause says what to return instead. Every other behaviour
+   * (the default, FALSE, TRUE, ERROR) answers with a boolean or not at all,
+   * so the `on_error` btype is the whole test and the AST carries it verbatim.
    *
    * **A NESTED PATH is an OUTER JOIN against the level above it** (sweep-4
    * finding 5), which is what an ordinality counter inside one cannot survive:
@@ -3649,7 +3929,7 @@ class NullabilityEngine {
   ): void {
     for (const c of columns ?? []) {
       const col = (c as Record<string, unknown>)["JsonTableColumn"] as
-        | { coltype?: string; name?: string; columns?: Node[] }
+        | { coltype?: string; name?: string; columns?: Node[]; on_error?: { btype?: string } }
         | undefined;
       if (!col) continue;
       if (col.coltype === "JTC_NESTED") {
@@ -3657,7 +3937,10 @@ class NullabilityEngine {
         continue;
       }
       if (!col.name) continue;
-      out.push({ name: col.name, notNull: !nested && col.coltype === "JTC_FOR_ORDINALITY" });
+      const generated =
+        col.coltype === "JTC_FOR_ORDINALITY" ||
+        (col.coltype === "JTC_EXISTS" && col.on_error?.btype !== "JSON_BEHAVIOR_UNKNOWN");
+      out.push({ name: col.name, notNull: !nested && generated });
     }
   }
 
@@ -4887,11 +5170,31 @@ class NullabilityEngine {
         }
       }
       // `(ROW(a, b)).*` — the arity is countable at parse time and
-      // PostgreSQL names the fields f1..fN (measured). All nullable, the
-      // shared value-reading rule.
+      // PostgreSQL names the fields f1..fN (measured).
+      //
+      // This arm does NOT take the shared value-reading rule, and it is the
+      // one arm that must not. That rule exists because the expanded value
+      // can be NULL AS A WHOLE, which nulls every field however the fields
+      // were declared — but a ROW CONSTRUCTOR is never itself NULL, so there
+      // is no whole-value NULL to propagate and each field is exactly its own
+      // argument. The same asymmetry `unnestColumnExpressions` already draws
+      // between a RowExpr element and any other one.
+      //
+      // A field whose argument the walk cannot read stays nullable rather
+      // than refusing the whole expansion: the arity is still known, so a
+      // partial answer is a correct column list, which is the thing this
+      // dispatch refuses to guess at.
       const re = argNode["RowExpr"] as { args?: Node[] } | undefined;
       if (re) {
-        return (re.args ?? []).map((_, i) => ({ name: `f${i + 1}`, notNull: false }));
+        return (re.args ?? []).map((a, i) => {
+          let notNull = false;
+          try {
+            notNull = this.walkExpr(a, scope, depth);
+          } catch (e) {
+            if (!(e instanceof UnsupportedNodeError)) throw e;
+          }
+          return { name: `f${i + 1}`, notNull };
+        });
       }
       // `(expr::sku_pair).*` — the cast TARGET names the composite, and the
       // expression may be NULL, so the fields come from the type, all
@@ -5372,7 +5675,13 @@ class NullabilityEngine {
         const recMeta = loneArm
           ? this.catalog.resolveFunctionMetadata(this.funcSchema(fc), this.funcName(fc))
           : null;
-        push(recMeta ? this.refineColumnsFromBody(declared, recMeta, 0) : declared);
+        push(
+          recMeta
+            ? this.refineColumnsFromBody(
+                declared, recMeta, 0, this.literalArgumentResults(fc, recMeta),
+              )
+            : declared,
+        );
         continue;
       }
 
@@ -5515,7 +5824,13 @@ class NullabilityEngine {
       // what lets the padding bound ask them ALL and take the weakest answer.
       // A flag is not a question consensus can answer that way.)
       const declared = this.functionOutputColumns(meta, scalarName);
-      push(loneArm ? this.refineColumnsFromBody(declared, meta, 0) : declared);
+      push(
+        loneArm
+          ? this.refineColumnsFromBody(
+              declared, meta, 0, this.literalArgumentResults(fc, meta),
+            )
+          : declared,
+      );
     }
     closeArm();
 
@@ -5706,7 +6021,7 @@ class NullabilityEngine {
       entry.rangeFunction?.coldeflist;
     if (coldeflist?.length) return null;
 
-    const arg = fc.args![0]!;
+    const rawArg = fc.args![0]!;
     // `ARRAY[…]::pair[]` and `ROW(…)::pair` both wrap the shape this reads
     // in a cast, and a coercion of a non-null value cannot yield NULL — the
     // same reading the coldeflist path takes.
@@ -5721,6 +6036,12 @@ class NullabilityEngine {
       }
       return out;
     };
+    // A CALL in this position can still be the constructor, one indirection
+    // away: `unnest(mk_pairs())` where the body is `SELECT ARRAY[...]`. The
+    // substitution is the array itself, so everything downstream — the
+    // flatten, the field reading, the per-element walk — is unchanged.
+    const arg = this.constantArrayBodyOf(rawArg) ?? rawArg;
+
     const items = flatten(arg);
     if (!items) return null;
 
@@ -10255,9 +10576,12 @@ class NullabilityEngine {
 
     const keyed = singleRow ? false : this.subqueryKeyEntailedNonEmpty(select, scope);
     const unionArm = singleRow || keyed ? false : this.unionArmEntailsNonEmpty(select);
+    const existsWitness =
+      singleRow || keyed || unionArm ? false : this.existsWitnessEntailsSubquery(select, scope);
     trace.addFact("keyEntailedNonEmpty", String(keyed));
     trace.addFact("unionArmNonEmpty", String(unionArm));
-    if (!singleRow && !keyed && !unionArm) {
+    trace.addFact("existsWitnessNonEmpty", String(existsWitness));
+    if (!singleRow && !keyed && !unionArm && !existsWitness) {
       trace.conclude(false, "can return zero rows -> nullable");
       return false;
     }
@@ -10345,6 +10669,128 @@ class NullabilityEngine {
    * GROUP BY, HAVING, LIMIT, OFFSET and set operations are rejected for the
    * same reason `guaranteesSingleRow` rejects them.
    */
+  /**
+   * A scalar subquery proven non-empty by an `EXISTS` the STATEMENT'S OWN
+   * WHERE already carries — the third route to at-least-one, after the key
+   * and the UNION arm.
+   *
+   * `UPDATE products p … WHERE … AND EXISTS (SELECT 1 FROM categories c
+   * WHERE c.id = p.category_id AND c.deleted_at IS NULL) … RETURNING
+   * (SELECT c.name FROM categories c WHERE c.id = p.category_id)`. Every row
+   * that survives to RETURNING passed that EXISTS, so a categories row with
+   * that id exists, so the RETURNING subquery finds one.
+   *
+   * A KEY cannot reach this. There IS a foreign key from products.category_id
+   * to categories.id, and it entails nothing, because the column is NULLABLE —
+   * a product with no category dangles legitimately. The EXISTS is what rules
+   * that row out, and it rules it out per-row rather than per-schema.
+   *
+   * The direction of the two WHEREs is the whole subtlety, and they are held
+   * to different standards on purpose:
+   *
+   *   The EXISTS may carry EXTRA conjuncts. `AND c.deleted_at IS NULL` makes
+   *     it harder to satisfy, so a row passing it still witnesses the weaker
+   *     "a row with this id exists". A stronger premise is free.
+   *   The SUBQUERY may not. Its WHERE must be EXACTLY the correlation
+   *     equality — an extra conjunct there could exclude the very row the
+   *     EXISTS witnessed, and then non-emptiness is not entailed at all.
+   *
+   * `rowsImplyWhere` is required because that is the flag saying every
+   * emitted row passed this WHERE. Without it the WHERE is a filter applied
+   * somewhere else in the statement and proves nothing about these rows.
+   */
+  private existsWitnessEntailsSubquery(select: SelectStmt, scope: Scope): boolean {
+    if (!scope.rowsImplyWhere || !scope.whereClause) return false;
+    const want = this.correlatedScanWitness(select);
+    if (!want) return false;
+
+    const conjuncts: Node[] = [];
+    const flatten = (n: Node | undefined): void => {
+      if (!n) return;
+      const be = (n as Record<string, unknown>)["BoolExpr"] as
+        | { boolop?: string; args?: Node[] }
+        | undefined;
+      if (be?.boolop === "AND_EXPR") {
+        for (const a of be.args ?? []) flatten(a);
+        return;
+      }
+      conjuncts.push(n);
+    };
+    flatten(scope.whereClause);
+
+    for (const c of conjuncts) {
+      const sl = (c as Record<string, unknown>)["SubLink"] as
+        | { subLinkType?: string; subselect?: Node }
+        | undefined;
+      if (sl?.subLinkType !== "EXISTS_SUBLINK" || !sl.subselect) continue;
+      const sub = (sl.subselect as Record<string, unknown>)["SelectStmt"] as
+        | SelectStmt
+        | undefined;
+      if (!sub) continue;
+      const got = this.correlatedScanWitness(sub, true);
+      if (
+        got &&
+        got.schema === want.schema &&
+        got.relation === want.relation &&
+        got.column === want.column &&
+        got.outerAlias === want.outerAlias &&
+        got.outerColumn === want.outerColumn
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * The row a single-relation correlated scan is keyed on, as a `RowWitness`.
+   *
+   * `extraQuals` says which side is being read. False is the CONSUMER, whose
+   * WHERE must be the correlation equality and nothing else. True is the
+   * WITNESS, where further conjuncts only narrow what it took to get here and
+   * the equality need only be one of them.
+   */
+  private correlatedScanWitness(select: SelectStmt, extraQuals = false): RowWitness | null {
+    if (select.op && select.op !== "SETOP_NONE") return null;
+    if (select.limitCount || select.limitOffset) return null;
+    if (select.havingClause || select.groupClause?.length || select.withClause) return null;
+    if ((select.fromClause?.length ?? 0) !== 1 || !select.whereClause) return null;
+    const rv = (select.fromClause![0] as Record<string, unknown>)["RangeVar"] as
+      | RangeVar
+      | undefined;
+    if (!rv?.relname) return null;
+    const inner = rv.alias?.aliasname ?? rv.relname;
+
+    let eq = this.equalityColumnRefs(select.whereClause);
+    if (!eq && extraQuals) {
+      const be = (select.whereClause as Record<string, unknown>)["BoolExpr"] as
+        | { boolop?: string; args?: Node[] }
+        | undefined;
+      if (be?.boolop === "AND_EXPR") {
+        for (const a of be.args ?? []) {
+          const candidate = this.equalityColumnRefs(a);
+          if (candidate && candidate.some(r => r.alias === inner)) {
+            eq = candidate;
+            break;
+          }
+        }
+      }
+    }
+    if (!eq) return null;
+
+    for (const [self, outer] of [[eq[0], eq[1]], [eq[1], eq[0]]] as const) {
+      if (self.alias !== inner || outer.alias === inner) continue;
+      return {
+        schema: rv.schemaname,
+        relation: rv.relname,
+        column: self.column,
+        outerAlias: outer.alias,
+        outerColumn: outer.column,
+      };
+    }
+    return null;
+  }
+
   private subqueryKeyEntailedNonEmpty(select: SelectStmt, scope: Scope): boolean {
     if (select.op && select.op !== "SETOP_NONE") return false;
     if (select.limitCount || select.limitOffset) return false;
@@ -10832,17 +11278,29 @@ class NullabilityEngine {
           return result;
         }
       }
-      // Aggregates over the DEFAULT frame: RANGE UNBOUNDED PRECEDING TO
-      // CURRENT ROW always contains the current row (measured), so the frame
-      // is never empty and an aggregate that is non-null over non-empty
+      // Aggregates over a frame that CONTAINS THE CURRENT ROW: the frame is
+      // then never empty, and an aggregate that is non-null over non-empty
       // non-null input is non-null here — the window analogue of the
       // GROUP-BY-non-empty gate. first_value/last_value pick a row of that
-      // same frame. FILTER can empty the frame, an explicit or named frame
-      // is not analysed, and offset functions (lag/lead/nth_value) can
-      // address outside the partition — all fall through.
+      // same frame. FILTER can empty the frame, and offset functions
+      // (lag/lead/nth_value) can address outside the partition — both fall
+      // through.
+      //
+      // This used to read the DEFAULT frame only, which is one member of the
+      // family (RANGE UNBOUNDED PRECEDING TO CURRENT ROW) rather than the
+      // property. `ROWS BETWEEN 1 PRECEDING AND CURRENT ROW` contains the
+      // current row just as surely, and an explicit frame spelling out the
+      // default's own bounds did not qualify at all, because writing them
+      // sets the NONDEFAULT bit.
+      //
+      // A NAMED window still falls through: its frame lives in the WINDOW
+      // clause and `over` here carries only the reference.
       const over = fc.over as { name?: string; refname?: string; frameOptions?: number };
       const defaultFrame =
-        !over.name && !over.refname && over.frameOptions === FRAMEOPTION_DEFAULTS;
+        !over.name &&
+        !over.refname &&
+        over.frameOptions !== undefined &&
+        frameContainsCurrentRow(over.frameOptions);
       const frameNonNull =
         NON_NULL_OVER_NONEMPTY_AGGREGATES.has(name) ||
         name === "first_value" ||
@@ -10981,11 +11439,49 @@ class NullabilityEngine {
       // a non-null first argument, the json/jsonb constructors, num_nulls
       // and num_nonnulls; `concat(VARIADIC ARRAY[NULL,NULL]::text[])` is ''
       // — the distinction is array-nullability, not element-nullability).
-      // Every variadic-array call falls through to conservative nullable.
+      // A variadic-array call falls through to conservative nullable UNLESS
+      // the array is a LITERAL CONSTRUCTOR, which is the one spelling whose
+      // array-nullability is settled: `ARRAY[...]` is never itself NULL, so
+      // the cause this whole gate exists for cannot arise. The same fact the
+      // `array_length` rule below reads off the same node.
+      //
+      // Two of the three tables come along, and which two is measured rather
+      // than assumed. ALWAYS_NOT_NULL_BUILTINS answers "never NULL WHATEVER
+      // the arguments", so where the elements landed is not a question:
+      // `concat(VARIADIC ARRAY[NULL, NULL])` is '' exactly as
+      // `concat(NULL, NULL)` is. FIRST_ARG_BUILTINS comes too, and the reason
+      // is a signature fact — `concat_ws(text, VARIADIC "any")` and
+      // `format(text, VARIADIC "any")` both declare their first parameter
+      // OUTSIDE the variadic one, so VARIADIC can only ever absorb the
+      // trailing arguments and the operand the rule hinges on is still
+      // `fc.args[0]`. PostgreSQL will not even accept the folded spelling
+      // (`concat_ws(VARIADIC ARRAY[',', 'a'])` — "function concat_ws(text[])
+      // does not exist"), which is what makes the positional read safe here
+      // rather than merely usual. Measured: a NULL separator is still NULL.
+      //
+      // STRICT_TOTAL_BUILTINS does NOT come along, and that is the gate: its
+      // claim is "non-null in, non-null out", and the elements of a literal
+      // array are exactly where a NULL can still be hiding.
       if (fc.func_variadic) {
-        trace.addFact("priority", "6b (built-in, VARIADIC array call)");
-        trace.conclude(false, "VARIADIC passes the parameter as one array, and a NULL array yields NULL → nullable");
-        return false;
+        const last = fc.args?.[fc.args.length - 1];
+        const literalArray =
+          !!last &&
+          "A_ArrayExpr" in (this.stripCasts(last) as Record<string, unknown>);
+        const always = literalArray && ALWAYS_NOT_NULL_BUILTINS.has(name);
+        const firstArg = literalArray && FIRST_ARG_BUILTINS.has(name);
+        if (!always && !firstArg) {
+          trace.addFact("priority", "6b (built-in, VARIADIC array call)");
+          trace.conclude(false, "VARIADIC passes the parameter as one array, and a NULL array yields NULL → nullable");
+          return false;
+        }
+        trace.addFact("priority", "6b (built-in, VARIADIC literal array)");
+        const result = always || (argResults.length > 0 && argResults[0] === true);
+        trace.conclude(result, !result
+          ? `${name}() with a nullable first argument → nullable`
+          : always
+            ? `ARRAY[...] is never NULL, and ${name}() never returns NULL for any arguments`
+            : `ARRAY[...] is never NULL, and ${name}() is non-null when its first argument is`);
+        return result;
       }
       // `array_length` is excluded from the totality tables because it is NULL
       // for an EMPTY array or a dimension the array does not have. Both causes
@@ -11013,6 +11509,36 @@ class NullabilityEngine {
           trace.addFact("priority", "6b (built-in, array_length of a literal array)");
           trace.conclude(true, "a non-empty ARRAY[...] has a dimension 1 → array_length is non-null");
           return true;
+        }
+      }
+      // `extract` / `date_part` are one function under two names, and the pair
+      // is out of the totality tables because neither is total: for an
+      // INFINITE input PostgreSQL answers ±Infinity for some fields and NULL
+      // for others. Which ones is decided by the FIELD together with the
+      // argument's TYPE — `day` is total for an interval and NULL for an
+      // infinite timestamp — so this is a name-level exclusion standing in for
+      // a two-dimensional fact, and EXTRACT_TOTAL_FIELDS is the fact.
+      //
+      // Both halves must be READABLE, and either one missing falls through to
+      // the name-level nullable: a computed field (`date_part(f.name, ts)`) or
+      // an argument whose type does not resolve to exactly one name proves
+      // nothing. Strictness is still the caller's to satisfy — an infinite
+      // input manufactures the NULL, a NULL input passes one through, and the
+      // second is what `argResults[1]` answers.
+      if ((name === "extract" || name === "date_part") && (fc.args?.length ?? 0) === 2) {
+        const fieldConst = (fc.args![0] as Record<string, unknown>)["A_Const"] as
+          | { sval?: { sval?: string }; isnull?: boolean }
+          | undefined;
+        const field = fieldConst?.isnull ? undefined : fieldConst?.sval?.sval?.toLowerCase();
+        const types = this.operandTypeSet(fc.args![1]!, scope, depth + 1);
+        if (field && types?.length === 1 && EXTRACT_TOTAL_FIELDS.get(types[0]!)?.has(field)) {
+          trace.addFact("priority", "6b (built-in, extract field total for its type)");
+          trace.addFact("extractField", `${field} of ${types[0]}`);
+          const result = argResults[1] === true;
+          trace.conclude(result, result
+            ? `${field} is never NULL for a ${types[0]}, infinite input included`
+            : `${field} of a ${types[0]} is total, but the argument is nullable`);
+          return result;
         }
       }
       // Typed dispatch first (docs/type-aware-overloads.md, the function
@@ -11311,8 +11837,21 @@ class NullabilityEngine {
   ): { ordered: boolean[]; supplied: boolean[] } {
     const positional = (n: number): boolean[] => argResults.map((_, i) => i < n);
     if (!meta) return { ordered: argResults, supplied: positional(argResults.length) };
+
+    // Where each INPUT parameter sits in the full parameter list. An OUT
+    // parameter occupies a position in `meta.args` and receives NO argument
+    // from the call, so a positional argument's index is its INPUT ORDINAL
+    // and not its parameter index — `mid_out(a int, OUT x int, b int DEFAULT
+    // NULL)` called as `mid_out(1, 2)` passes 2 to `b`, at position TWO.
+    // Without the map the 2 lands on `x` and `b` reads unbound, which is what
+    // made a supplied argument invisible to strictness.
+    const inputAt: number[] = [];
+    meta.args.forEach((a, i) => {
+      if (a.mode === "in" || a.mode === "inout") inputAt.push(i);
+    });
+    const aligned = inputAt.every((p, k) => p === k);
     const hasNamed = args.some(a => "NamedArgExpr" in (a as Record<string, unknown>));
-    if (!hasNamed) return { ordered: argResults, supplied: positional(argResults.length) };
+    if (!hasNamed && aligned) return { ordered: argResults, supplied: positional(argResults.length) };
 
     const paramNames = meta.args.map(a => a.name);
     const width = Math.max(paramNames.length, argResults.length);
@@ -11329,8 +11868,12 @@ class NullabilityEngine {
           supplied[defIdx] = true;
         }
       } else {
-        ordered[positionalIdx] = argResults[i]!;
-        supplied[positionalIdx] = true;
+        // Past the input list is a VARIADIC call's overflow, which belongs to
+        // the last parameter and has no position of its own. It keeps the raw
+        // index so `allArgumentsNonNull`'s pass over the array still sees it.
+        const defIdx = inputAt[positionalIdx] ?? positionalIdx;
+        ordered[defIdx] = argResults[i]!;
+        supplied[defIdx] = true;
         positionalIdx++;
       }
     }
@@ -11355,10 +11898,15 @@ class NullabilityEngine {
    * nothing. The cycle-detection set is the one thing carried through, since
    * the default may itself be a call.
    *
-   * Substitution stops at the first non-input parameter. Positions after an
-   * OUT parameter no longer line up with the call's own argument list —
-   * `(a int, OUT x int, b int DEFAULT 5)` is legal (measured) — and a
-   * misaligned binding is worse than an unbound one.
+   * Non-input parameters are SKIPPED rather than terminating the pass. This
+   * used to stop at the first one, on the reading that positions after an OUT
+   * parameter no longer line up with the call's argument list — true of the
+   * CALL's list, and this array is not it. `fnArgDefaultAsts` is indexed by
+   * full parameter position (PostgreSQL stores `(a int, OUT x int, b int
+   * DEFAULT 5)`'s default against position THREE, measured), so `defaults[i]`
+   * and `meta.args[i]` are already the same parameter and an OUT one in
+   * between shifts nothing. The call's own misalignment is a separate
+   * problem, and it belongs to `maybeReorderNamedArgs`, which now maps it.
    */
   private bindDefaultArguments(
     meta: FunctionInfo,
@@ -11375,7 +11923,7 @@ class NullabilityEngine {
     let bound: boolean[] | null = null;
     for (let i = 0; i < meta.args.length; i++) {
       const arg = meta.args[i]!;
-      if (arg.mode === "out" || arg.mode === "table") break;
+      if (arg.mode === "out" || arg.mode === "table") continue;
       if (supplied[i]) continue;
       const expr = defaults[i];
       if (!expr) continue;
@@ -11415,14 +11963,18 @@ class NullabilityEngine {
    *
    * Asked per INPUT parameter rather than over the array, because a position
    * the call never reached (an under-supplied argument, a default the walk
-   * could not read, a position after an interleaved OUT parameter) is absent
-   * from `bound` and must count as unproven. The extra pass over `bound`
-   * itself catches a VARIADIC call's overflow arguments, which sit past the
-   * end of the parameter list.
+   * could not read) is absent from `bound` and must count as unproven.
+   *
+   * The pass over `bound` covers only what lies PAST the parameter list — a
+   * VARIADIC call's overflow arguments, which belong to the last parameter and
+   * have no position of their own. It cannot run over the whole array: an OUT
+   * parameter holds a slot there that no argument ever fills, so a blanket
+   * `every` reads the gap as a nullable argument and refuses a call whose
+   * inputs are all proven.
    */
   private allArgumentsNonNull(meta: FunctionInfo, bound: boolean[]): boolean {
     return (
-      bound.every(r => r) &&
+      bound.every((r, i) => i < meta.args.length || r) &&
       meta.args.every(
         (a, i) => a.mode === "out" || a.mode === "table" || bound[i] === true,
       )
@@ -11922,6 +12474,7 @@ class NullabilityEngine {
   private sqlFunctionBodyShape(
     meta: FunctionInfo,
     depth: number,
+    argNotNull: boolean[] | null = null,
   ): { columns: boolean[]; rowFields: boolean[] | null } | null {
     if (meta.language !== "sql" || meta.isAggregate) return null;
     this.checkDepth(depth);
@@ -11937,10 +12490,13 @@ class NullabilityEngine {
 
     const prevCtx = this.fnCtx;
     const prevParamNames = this.fnParamNames;
-    // No argResults: every parameter reference reads nullable. The names are
-    // still needed — a BEGIN ATOMIC body spells its parameters by name.
+    // `argNotNull` is the CALL's contribution and is present only when every
+    // argument is a literal (`literalArgumentResults`); otherwise it is empty
+    // and every parameter reference reads nullable, as it always did. The
+    // names are needed either way — a BEGIN ATOMIC body spells its parameters
+    // by name.
     this.fnCtx = {
-      argResults: [],
+      argResults: argNotNull ?? [],
       analyzing: new Set(prevCtx?.analyzing ?? []).add(fnKey),
       fnName: meta.name,
       // Input parameters only: a SQL body numbers `$n` over the INPUTS,
@@ -12034,13 +12590,89 @@ class NullabilityEngine {
    * one-against-one case is refused for a row-typed return, where the two
    * readings are indistinguishable and disagree.
    */
+  /**
+   * What each INPUT parameter receives, when the CALL passes only LITERALS —
+   * or null, which is every other call.
+   *
+   * A body's parameter references read nullable by default because a body is
+   * read once for a function and the arguments belong to a call site. A
+   * LITERAL argument escapes that: it is closed, so it needs no scope to
+   * evaluate, and it has no join state to be extended by. That is exactly the
+   * boundary `function-out-parameter-shape.sql` recorded — "proving otherwise
+   * means threading the call's argument nullability and being right about its
+   * join state at the call site" — and a constant is the case where the
+   * second half is vacuous, which is why this is safe to fold into a MEMOIZED
+   * column list where a column reference would not be.
+   *
+   * Named notation and under-supplied calls refuse: both make the lineup a
+   * question, and the answer here is meant to need no reasoning at all.
+   */
+  /**
+   * The ARRAY CONSTRUCTOR a zero-argument IMMUTABLE `LANGUAGE sql` function
+   * returns, when its whole body is that constructor — or null.
+   *
+   * `mk_pairs()` declared `sku_pair[]` with body `SELECT ARRAY[ROW('a', 1),
+   * ROW('b', NULL)]` is the same value as writing the constructor inline, and
+   * the element reading wants the constructor. Substituting it is the whole
+   * rule; nothing downstream changes, which is why this returns a NODE rather
+   * than an answer.
+   *
+   * Every gate is about the substitution being an IDENTITY:
+   *
+   *   ZERO ARGUMENTS — a parameter in the body would have to be substituted
+   *     from the call, and this returns the body's own tree unmodified.
+   *   NO FROM, NO WHERE, ONE TARGET — anything else can return a different
+   *     number of rows than one, and then the body is not a value at all.
+   *   IMMUTABLE — held as the general principle that substituting a body for
+   *     a call is only an identity for an immutable function. It is
+   *     CONSERVATIVE here rather than load-bearing, and measured so: dropping
+   *     it changes no claim in the corpus, and no fixture could make it,
+   *     because a body that IS an array constructor yields the same
+   *     constructor whatever volatility it was declared with, and the
+   *     ELEMENTS are walked one by one afterwards — `ARRAY[random()]` reads
+   *     nullable through that walk and not through this gate. Marked rather
+   *     than removed: an ungated widening reads as coverage and is not, and
+   *     so does a gate claimed to be doing work it is not.
+   *
+   * `LANGUAGE sql` is implied by there being a parsed body to read.
+   */
+  private constantArrayBodyOf(arg: Node): Node | null {
+    const fc = (arg as Record<string, unknown>)["FuncCall"] as FuncCall | undefined;
+    if (!fc || (fc.args?.length ?? 0) !== 0) return null;
+    const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), this.funcName(fc));
+    if (!meta || meta.volatile !== "immutable" || meta.args.length !== 0) return null;
+    const body = this.catalog.fnBodyAsts.get(`${meta.schema}.${meta.name}(${meta.argTypes})`);
+    const sel = body && ((body as Record<string, unknown>)["SelectStmt"] as SelectStmt | undefined);
+    if (!sel || sel.whereClause || (sel.fromClause ?? []).length > 0) return null;
+    if ((sel.targetList ?? []).length !== 1) return null;
+    const val = this.unwrapResTarget(sel.targetList![0]!).val;
+    if (!val) return null;
+    return "A_ArrayExpr" in (this.stripCasts(val) as Record<string, unknown>) ? val : null;
+  }
+
+  private literalArgumentResults(fc: FuncCall, meta: FunctionInfo): boolean[] | null {
+    const inputs = meta.args.filter(a => a.mode === "in" || a.mode === "inout");
+    const args = fc.args ?? [];
+    if (args.length !== inputs.length || args.length === 0) return null;
+    const out: boolean[] = [];
+    for (const a of args) {
+      const ac = (this.stripCasts(a) as Record<string, unknown>)["A_Const"] as
+        | { isnull?: boolean }
+        | undefined;
+      if (!ac) return null;
+      out.push(ac.isnull !== true);
+    }
+    return out;
+  }
+
   private refineColumnsFromBody(
     declared: { name: string; notNull: boolean }[],
     meta: FunctionInfo,
     depth: number,
+    argNotNull: boolean[] | null = null,
   ): { name: string; notNull: boolean }[] {
     if (declared.length === 0) return declared;
-    const shape = this.sqlFunctionBodyShape(meta, depth);
+    const shape = this.sqlFunctionBodyShape(meta, depth, argNotNull);
     if (!shape) return declared;
 
     let flags: boolean[] | null = null;
@@ -12602,13 +13234,64 @@ export const STRICT_TOTAL_WINDOW_SIGNATURES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The parser's frameOptions for a window with no explicit frame clause:
- * RANGE UNBOUNDED PRECEDING TO CURRENT ROW, which always contains the
- * current row. Measured by parsing `OVER ()` / `OVER (ORDER BY x)`; an
- * explicit frame — even one spelling out the same bounds — sets the
- * NONDEFAULT bit and lands elsewhere, which is the conservative side.
+ * The `frameOptions` bits, as PostgreSQL's parser sets them.
+ *
+ * Confirmed against the value a window with NO frame clause carries, 1058,
+ * which is exactly RANGE (2) | START_UNBOUNDED_PRECEDING (32) |
+ * END_CURRENT_ROW (1024). That constant used to be the whole rule and is now
+ * one input to it, so it no longer stands alone.
  */
-const FRAMEOPTION_DEFAULTS = 1058;
+const FRAMEOPTION = {
+  START_UNBOUNDED_PRECEDING: 0x00020,
+  END_UNBOUNDED_FOLLOWING: 0x00100,
+  START_CURRENT_ROW: 0x00200,
+  END_CURRENT_ROW: 0x00400,
+  START_OFFSET_PRECEDING: 0x00800,
+  END_OFFSET_FOLLOWING: 0x04000,
+  EXCLUDE_CURRENT_ROW: 0x08000,
+  EXCLUDE_GROUP: 0x10000,
+} as const;
+
+/**
+ * Whether a window frame provably CONTAINS THE CURRENT ROW, and so is never
+ * empty — the property the non-empty-input aggregate rule needs, which the
+ * default frame had been standing in for.
+ *
+ * A frame holds the current row when its start is at or before that row and
+ * its end at or after it, and nothing excludes it:
+ *
+ *   START — UNBOUNDED PRECEDING, CURRENT ROW, or `N PRECEDING`. The offset
+ *     form counts because a NEGATIVE offset raises rather than inverting the
+ *     bound, so `N PRECEDING` is at or before the current row for every
+ *     value that reaches execution.
+ *   END — UNBOUNDED FOLLOWING, CURRENT ROW, or `N FOLLOWING`, symmetrically.
+ *   EXCLUDE — `CURRENT ROW` and `GROUP` both remove it. `TIES` does NOT: it
+ *     drops the current row's peers and keeps the row itself (measured).
+ *     `NO OTHERS` sets no bit at all.
+ *
+ * ROWS, RANGE and GROUPS all qualify. The mode decides how far a bound
+ * reaches, not which side of the current row it falls on, so it does not
+ * enter the question.
+ *
+ * Measured over seventeen frame spellings, each parsed for its bits and then
+ * executed over a non-empty partition of NOT NULL values: this predicate and
+ * "PostgreSQL returned a NULL somewhere" agree on every one.
+ */
+function frameContainsCurrentRow(frameOptions: number): boolean {
+  const startsAtOrBefore =
+    (frameOptions &
+      (FRAMEOPTION.START_UNBOUNDED_PRECEDING |
+        FRAMEOPTION.START_CURRENT_ROW |
+        FRAMEOPTION.START_OFFSET_PRECEDING)) !== 0;
+  const endsAtOrAfter =
+    (frameOptions &
+      (FRAMEOPTION.END_UNBOUNDED_FOLLOWING |
+        FRAMEOPTION.END_CURRENT_ROW |
+        FRAMEOPTION.END_OFFSET_FOLLOWING)) !== 0;
+  const excludesIt =
+    (frameOptions & (FRAMEOPTION.EXCLUDE_CURRENT_ROW | FRAMEOPTION.EXCLUDE_GROUP)) !== 0;
+  return startsAtOrBefore && endsAtOrAfter && !excludesIt;
+}
 
 // Two name tables retired here 2026-08-09 — HYPOTHETICAL_SET_AGGREGATES
 // and ORDERED_SET_AGGREGATES. Both were asserted catalog-equal to
@@ -12663,6 +13346,13 @@ export const ALWAYS_NOT_NULL_BUILTINS = new Set([
   // JSON constructors always produce a container, even from NULL members.
   "jsonb_build_object", "json_build_object",
   "jsonb_build_array", "json_build_array",
+  // array_fill builds a CONTAINER too, and the same distinction applies: a
+  // NULL element gives an array OF NULLs, which is not a NULL array
+  // (`array_fill(NULL::int, ARRAY[2])` is `{NULL,NULL}`, measured). Its other
+  // arguments cannot be NULL at all — a NULL dimension or low-bound array
+  // raises, as does a NULL among the dimension VALUES — and a raise is not a
+  // NULL. So every input either builds an array or errors: total, not strict.
+  "array_fill",
 ]);
 
 /**
@@ -12673,6 +13363,46 @@ export const ALWAYS_NOT_NULL_BUILTINS = new Set([
  * `format(NULL)` is NULL but `format('%s', NULL)` is ''.
  */
 export const FIRST_ARG_BUILTINS = new Set(["concat_ws", "format"]);
+
+/**
+ * The `extract`/`date_part` FIELDS that never yield NULL, per argument type.
+ *
+ * The pair is one function under two names and neither is total (adversarial-2
+ * finding 11), so the NAME alone cannot answer — but the name plus the FIELD
+ * plus the argument's TYPE can, and every cell here was measured over
+ * infinity, -infinity and an ordinary value of that type.
+ *
+ * The interval row is why this is keyed on type at all. `day` and `hour` are
+ * total for an INTERVAL and NULL for an infinite timestamp: an interval's day
+ * count grows with the interval, so an infinite one has an infinite day count,
+ * where an infinite INSTANT has no day-of-month to report. `julian` and
+ * `isoyear` go the other way — calendar readings an interval has no business
+ * answering, and they raise for one.
+ *
+ * A field that RAISES for some input of its type is deliberately absent, even
+ * though a raise is not a NULL. Admitting one could only change a claim on a
+ * statement that returns no row, and nothing can falsify that.
+ *
+ * Types with no infinity (`time`, `timetz`) are absent for the other reason:
+ * every field is total for them, so the entry would be pure gain, and there is
+ * no claim in the corpus to hold it up.
+ *
+ * BOTH SPELLINGS of the two timestamp types are keys, because the two sources
+ * of a type name disagree and each is right for its own source. A column's
+ * name comes from `format_type`, which writes `timestamp without time zone`; a
+ * cast's comes from the statement, where the author wrote `timestamp` or
+ * `timestamptz`. Keying on one spelling silently answers half the calls —
+ * measured, the interval row worked and the timestamp row did not.
+ */
+const DATETIME_TOTAL = ["epoch", "julian", "year", "decade", "century", "millennium", "isoyear"];
+export const EXTRACT_TOTAL_FIELDS = new Map<string, Set<string>>([
+  ["interval", new Set(["epoch", "year", "decade", "century", "millennium", "day", "hour"])],
+  ["date", new Set(DATETIME_TOTAL)],
+  ["timestamp", new Set(DATETIME_TOTAL)],
+  ["timestamp without time zone", new Set(DATETIME_TOTAL)],
+  ["timestamptz", new Set(DATETIME_TOTAL)],
+  ["timestamp with time zone", new Set(DATETIME_TOTAL)],
+]);
 
 /**
  * Built-ins that are total over non-null arguments: non-null in, non-null out.
