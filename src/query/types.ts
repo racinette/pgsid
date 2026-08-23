@@ -681,6 +681,14 @@ export interface NullabilityCatalog {
    * fixture corpus. Without that file the choice of quantifier is
    * unfalsifiable, and an unfalsifiable choice reads as a mechanism while
    * being an opinion.
+   *
+   * Building that schema showed `some` can be outright WRONG, not merely
+   * over-tight: a user operator that is the EXACT match for the typed
+   * operand runs whatever else is in the set, and if it absorbs the NULL the
+   * contract forbids a binding PostgreSQL accepts. `forcedCandidate` in the
+   * adapter answers those from the one operator that will run, so neither
+   * quantifier is consulted — the disagreement that remains is between rows
+   * PostgreSQL's resolution has not already decided between.
    */
   resolveOperatorStrictnessSome(
     schema: string | undefined,

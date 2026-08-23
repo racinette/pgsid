@@ -56,8 +56,30 @@ const FLOW = `INSERT INTO acc (id, n, total) VALUES (1, 5, acc_n() + $1)`;
 /** The same flow without the helper, for PostgreSQL to adjudicate. */
 const EXEC = `INSERT INTO acc (id, n, total) VALUES (1, 5, 5 + $1)`;
 
+/**
+ * A second schema, for the case where the user operator OUTRANKS the builtin
+ * instead of losing to it. `mynum` is a domain over numeric, so the builtin
+ * `+`(numeric, numeric) reaches it by coercion while `+`(mynum, mynum)
+ * matches it exactly — and nothing in pg_catalog shares that signature.
+ */
+const EXOTIC_DDL = `
+  CREATE DOMAIN mynum AS numeric;
+  CREATE TABLE d (id integer PRIMARY KEY, v mynum NOT NULL, total numeric NOT NULL);
+  CREATE FUNCTION mn_or_zero(a mynum, b mynum) RETURNS numeric
+    LANGUAGE sql IMMUTABLE AS $$ SELECT coalesce($1, 0) + coalesce($2, 0) $$;
+  CREATE OPERATOR public.+ (leftarg = mynum, rightarg = mynum, function = mn_or_zero);
+  INSERT INTO d VALUES (1, 3, 0);`;
+
+/** The typed operand reaches the resolver, so the forced candidate decides. */
+const ONE_SIDED = `UPDATE d SET total = v::public.mynum + $1 WHERE id = 1`;
+
+/** The same statement with a BARE COLUMN operand, which types as nothing. */
+const ONE_SIDED_COLUMN = `UPDATE d SET total = v + $1 WHERE id = 1`;
+
 let pg: PGlite;
 let catalog: NullabilityCatalog;
+let exoticPg: PGlite;
+let exotic: NullabilityCatalog;
 
 /** Run a statement against an EMPTY table. Every case here inserts id 1, so
  *  without the clear the second one fails on the primary key and reports a
@@ -72,10 +94,17 @@ beforeAll(async () => {
   await pg.exec(DDL);
   await pg.exec(`CREATE FUNCTION acc_n() RETURNS integer LANGUAGE sql IMMUTABLE AS $$ SELECT 5 $$;`);
   catalog = await buildNullabilityCatalog(await snapshotCatalog(pg), { searchPath: ["public"] });
+
+  exoticPg = await PGlite.create();
+  await exoticPg.exec(EXOTIC_DDL);
+  exotic = await buildNullabilityCatalog(await snapshotCatalog(exoticPg), {
+    searchPath: ["public"],
+  });
 }, 120_000);
 
 afterAll(async () => {
   if (pg && !pg.closed) await pg.close();
+  if (exoticPg && !exoticPg.closed) await exoticPg.close();
 });
 
 describe("operator strictness quantifier", () => {
@@ -124,6 +153,55 @@ describe("operator strictness quantifier", () => {
     expect(collectParamNullability(stmt, catalog)[0]?.notNull).toBe(false);
     // PostgreSQL agrees — the binding it says is legal, the contract admits.
     await expect(exec(sql, [null])).resolves.toBeTruthy();
+  });
+
+  it("a ONE-SIDED exact match decides the operator, quantifier or not", async () => {
+    // The case where `some` is not merely over-tight in principle but WRONG
+    // in fact, measured: PostgreSQL accepts the NULL binding and the contract
+    // says it must not be bound.
+    //
+    // `+`(mynum, mynum) is non-strict and is the exact match for a `mynum`
+    // operand; no builtin carries that signature, so nothing takes the tie
+    // away from it. The builtin numeric rows reach `mynum` only by coercion.
+    // Operator resolution keeps the candidates with the MOST exact matches on
+    // the known positions (step 4.a), so this one is chosen outright — and
+    // then there is one candidate, whose own flag is the answer with no
+    // quantifier involved at all.
+    //
+    // The adapter's exact-match branch is gated on BOTH operands typing, so
+    // an untyped `$1` sends it to the survivor scan instead.
+    const stmt = (await parseSql(ONE_SIDED)).stmts![0]!.stmt!;
+    expect(collectParamNullability(stmt, exotic)[0]?.notNull).toBe(false);
+  });
+
+  it("...and PostgreSQL is the one saying so", async () => {
+    // The adjudication: the binding the old contract forbade is one the
+    // database takes, because it runs the user operator and the operator
+    // absorbs the NULL.
+    await exoticPg.exec("UPDATE d SET total = 0 WHERE id = 1;");
+    await expect(exoticPg.query(ONE_SIDED, [null])).resolves.toBeTruthy();
+    const r = await exoticPg.query<{ total: string }>(`SELECT total FROM d WHERE id = 1`);
+    expect(Number(r.rows[0]!.total)).toBe(3);
+  });
+
+  it("a BARE COLUMN operand is still over-tight, and the cause is not the quantifier", async () => {
+    // The same statement, one cast removed, and the engine goes back to
+    // claiming a parameter PostgreSQL accepts as NULL. Recorded rather than
+    // fixed because the CAUSE IS SOMEWHERE ELSE: `contextFreeTypeSet` in
+    // param-nullability.ts handles A_Const, TypeCast, A_ArrayExpr and A_Expr
+    // and NOT ColumnRef — it is named for that boundary — so both type sets
+    // are null, the typed reading declines on its first line, and the claim
+    // comes from the bare-name rule (`+` is in STRICT_OPERATORS).
+    //
+    // The over-report is the documented safe error for mechanism C, so this
+    // is sound; it is simply not free. Closing it means resolving a column
+    // operand's type, and the `AliasContext` needed to do that is ALREADY in
+    // scope at the call site — it just is not passed. Left as a measured,
+    // adjudicated open rather than an assumption about cost.
+    await exoticPg.exec("UPDATE d SET total = 0 WHERE id = 1;");
+    await expect(exoticPg.query(ONE_SIDED_COLUMN, [null])).resolves.toBeTruthy();
+    const stmt = (await parseSql(ONE_SIDED_COLUMN)).stmts![0]!.stmt!;
+    expect(collectParamNullability(stmt, exotic)[0]?.notNull).toBe(true);
   });
 
   it("pg_catalog wins a shared signature, so the user row never decides", async () => {

@@ -1422,6 +1422,51 @@ export async function buildNullabilityCatalog(
   };
 
   /**
+   * The one candidate PostgreSQL MUST run, or null where the known types do
+   * not force the choice.
+   *
+   * This is operator resolution step 4.a — *keep the candidates with the most
+   * exact matches on the input types* — applied to the positions that are
+   * KNOWN. Its whole value is one-sided: with `$1` on the other side nothing
+   * matches there exactly, so a lone exact match on the typed operand
+   * eliminates every coercion-only rival by itself, and the survivor set
+   * collapses to one.
+   *
+   * **Collapsing to one is what makes the quantifier irrelevant.** A set of
+   * one reads the same under `some` and under `every`, and the answer is that
+   * operator's own flag rather than a vote over rows PostgreSQL was never
+   * going to run. Measured before it existed: a non-strict user
+   * `+`(mynum, mynum) against a `mynum` column and an untyped parameter
+   * produced `some = true`, `every = false`, an emitted contract saying the
+   * parameter must not be NULL — and PostgreSQL accepted the NULL binding,
+   * because it ran the user operator and the operator absorbed it.
+   *
+   * Two ties, decided differently. Rows sharing a SIGNATURE are one choice
+   * and pg_catalog takes it (measured: a user `+`(numeric, numeric)
+   * duplicating the builtin never runs). Rows with different signatures and
+   * the same score are a choice the known types do not force — PostgreSQL
+   * goes on to preferred types and category rules, which are not modelled —
+   * so this declines and the survivor scan decides, as before.
+   */
+  const forcedCandidate = <T extends { leftType: string | null; rightType: string | null }>(
+    survivors: readonly T[],
+    builtins: readonly T[],
+    L: string | null,
+    R: string | null,
+  ): T | null => {
+    if (L === null && R === null) return null;
+    const exactCount = (o: T): number =>
+      (L !== null && o.leftType === L ? 1 : 0) + (R !== null && o.rightType === R ? 1 : 0);
+    let best = 0;
+    for (const o of survivors) best = Math.max(best, exactCount(o));
+    if (best === 0) return null;
+    const winners = survivors.filter(o => exactCount(o) === best);
+    const signatures = new Set(winners.map(o => `${o.leftType},${o.rightType}`));
+    if (signatures.size !== 1) return null;
+    return winners.find(o => builtins.includes(o)) ?? winners[0]!;
+  };
+
+  /**
    * EVERY-quantified strictness over the merged candidate set — the
    * promotion consumer's direction (a wrong "strict" is a wrong notNull).
    * Null cedes to the caller's name rule; a user operator sharing a
@@ -1469,6 +1514,8 @@ export async function buildNullabilityCatalog(
       ...builtins.filter(o => reaches(Ls, o.leftType!) && reaches(Rs, o.rightType!)),
     ];
     if (survivors.length === 0) return null;
+    const forced = forcedCandidate(survivors, builtins, L, R);
+    if (forced) return forced.strict;
     return survivors.every(o => o.strict);
   };
 
@@ -1521,6 +1568,8 @@ export async function buildNullabilityCatalog(
       ...builtins.filter(o => reaches(Ls, o.leftType!) && reaches(Rs, o.rightType!)),
     ];
     if (survivors.length === 0) return null;
+    const forced = forcedCandidate(survivors, builtins, L, R);
+    if (forced) return forced.strict;
     return survivors.some(o => o.strict);
   };
 
