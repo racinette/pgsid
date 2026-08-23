@@ -497,11 +497,11 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **41 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **38 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
 empty, so every excuse left in the project is here. (Was 101 on 2026-08-22.)
 
-The suite's own readout says 47, and the six-claim gap is not a discrepancy —
+The suite's own readout says 44, and the six-claim gap is not a discrepancy —
 it is a SECOND excuse channel, and the note here used to have it backwards.
 An `@unwitnessable` line names exactly one column, so lines and claims are the
 same number. What the readout adds is the nullable claims inside `@no-rows`
@@ -907,6 +907,49 @@ PostgreSQL's outer-join removal fires only when the inner side is UNREFERENCED,
 and seven columns of `ot` are projected, so it keeps the join whatever the join
 can do. The two mechanisms answer different questions and the `@planner-keeps`
 reasons say which.
+
+**The multi-statement cluster needed the catalog to stop throwing the evidence
+away.** `parseFnBodyAst` returned `stmts[stmts.length - 1]` — a body's last
+statement is what the function RETURNS, and for a long time nothing asked for
+the rest. The INSERT that settles these three claims was discarded before the
+walk could ever see it. It is now `fnBodyPreludeAsts`, and the reading of it is
+the third route to AT-LEAST-ONE, after `subqueryKeyEntailedNonEmpty` and
+`unionArmEntailsNonEmpty` — the first whose evidence is not in the statement
+being judged at all.
+
+The premise was measured before it was built on: `multi_stmt_fn('brand-new
+-value')` returns that value out of a table that did not contain it, so a SQL
+function really does advance the command counter between statements and the
+scan really does see the insert.
+
+Three gates on the insert side (a single-row VALUES, no `ON CONFLICT`, and the
+written value equal to what the scan looks for), two on the scan side (HAVING,
+LIMIT/OFFSET), and one on the sequence — no OTHER statement may write that
+table, which is the gate statement ORDER matters for. **Six mutations, six
+kills**, each with its own one-line control function in `schema.sql` and a
+column in `multi-stmt-insert-entails-row.sql`.
+
+**Two things fell out of the measurement that were not the plan.**
+
+First, `INSERT … RETURNING` as a body was ALREADY notNull, and
+`UPDATE … RETURNING` correctly nullable. The single-statement form — the one
+people actually write — needed nothing, which is worth knowing before reaching
+for the multi-statement form.
+
+Second, one of the three claims did not move when the row count was settled,
+and the reason was a separate gap this work surfaced rather than caused.
+**PostgreSQL's deparser renders a `BEGIN ATOMIC` body's parameters QUALIFIED BY
+THE FUNCTION NAME once the body has a FROM clause** — `SELECT b FROM t WHERE …`
+comes back as `multi_stmt_atomic.b` — and parameter resolution read only the
+bare form, so the returned expression resolved to nothing and stayed nullable.
+Both halves had to land. The scope is asked FIRST at that site: a relation
+aliased with the function's own name is the closer binding, and PostgreSQL
+would have resolved it that way too.
+
+Also corrected: `schema.sql`'s own comment on these functions said the body
+"can return zero rows → function returns NULL", which was the ENGINE's verdict
+written down as if it were PostgreSQL's. It is the same error the fixture
+annotations carried, in the schema this time.
 
 ### 4. Known imprecision residue
 

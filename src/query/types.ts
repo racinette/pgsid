@@ -928,6 +928,22 @@ export interface NullabilityCatalog {
   fnBodyAsts: Map<string, Node>;
 
   /**
+   * The statements BEFORE the last one in a multi-statement `LANGUAGE sql`
+   * body, in order, keyed exactly like `fnBodyAsts`. Absent for a
+   * single-statement body — most bodies have no entry here at all.
+   *
+   * `fnBodyAsts` holds what a function RETURNS, which is why for a long time
+   * nothing else was kept. What needs the rest is the ROW COUNT of that final
+   * statement: `INSERT INTO t VALUES (…, $1); SELECT c FROM t WHERE c = $1`
+   * cannot return zero rows, and the reason is a statement the walk could not
+   * see. Reading it is the walk's business; this only stops discarding it.
+   *
+   * Order is significant to the reader — a later write can undo an earlier
+   * one — so the array is the body's own sequence, not a set.
+   */
+  fnBodyPreludeAsts: Map<string, Node[]>;
+
+  /**
    * Pre-parsed ASTs of ARGUMENT DEFAULT expressions, keyed by the full
    * signature `"schema.name(argTypes)"` — one entry per argument position,
    * null where that parameter has no default. A name with no defaulted
