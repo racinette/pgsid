@@ -10,6 +10,7 @@ import { collectParamNullability } from "../../../src/query/param-nullability.js
 import { inferQueryContract, inferNullability } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 import { parseFixtureDirectives, type ParamClaim } from "./fixture-args.js";
+import { createKillableEvaluator } from "./killable-evaluator.js";
 
 // ---------------------------------------------------------------------------
 // Argument-nullability annotation agreement: the engine's parameter contract
@@ -55,6 +56,9 @@ describe("argument nullability (engine vs @param annotations)", () => {
     await pg.exec(readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8"));
     const catalogFor = catalogCache(await snapshotCatalog(pg));
     catalog = await catalogFor(null);
+    const evaluator = await createKillableEvaluator({
+      schema: readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8"),
+    });
 
     // The evaluator runs LIVE here, the way the output-side fixture harnesses
     // run the statement map: without it the CHECK grounder makes no claims at
@@ -73,10 +77,14 @@ describe("argument nullability (engine vs @param annotations)", () => {
       // `-- @search-path`: the contract is read on the fixture's own catalog,
       // with the SESSION held on the same path — the evaluator runs live here.
       const fixtureCatalog = await catalogFor(searchPath);
+      // The evaluator is a separate, KILLABLE session (killable-evaluator.ts):
+      // a probe PGlite will not finish blocks the thread it runs on, so on the
+      // shared `pg` it would hang this suite rather than fail it. The path is
+      // held on both sessions — `withSearchPath` for the catalog side, and the
+      // evaluator's own for the probes, which are not all path-blind.
+      await evaluator.setSearchPath(searchPath);
       const contract = await withSearchPath(pg, searchPath, () =>
-        inferQueryContract(stmt, fixtureCatalog, {
-          evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
-        }),
+        inferQueryContract(stmt, fixtureCatalog, { evaluate: evaluator.evaluate }),
       );
       results.push({
         name: basename(file, ".sql"),
@@ -89,6 +97,7 @@ describe("argument nullability (engine vs @param annotations)", () => {
       });
     }
     await pg.close();
+    await evaluator.close();
   }, 120_000);
 
   it("every parameter in the corpus is annotated, and no annotation is stale", () => {

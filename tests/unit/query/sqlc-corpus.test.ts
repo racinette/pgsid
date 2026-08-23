@@ -8,6 +8,7 @@ import { citext } from "@electric-sql/pglite/contrib/citext";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
+import { createKillableEvaluator } from "./killable-evaluator.js";
 import { inferNullability, UnsupportedNodeError } from "../../../src/query/nullability-walk.js";
 import type { JoinAudit } from "../../../src/query/types.js";
 import {
@@ -175,6 +176,17 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
       extensions: { uuid_ossp, pgcrypto, ltree, pg_trgm, citext },
     });
     let stmtCounter = 0;
+    // Probes run on a KILLABLE instance (killable-evaluator.ts). This corpus
+    // is EXTERNAL SQL, so it is the most likely place for a probe PGlite
+    // will not finish — and on the shared `pg` such a probe blocks the
+    // thread and hangs the suite rather than failing it. Each case opens a
+    // SCOPE holding its own schema: rebuilding an instance per case would
+    // cost ~500ms across 253 of them against a 27s suite, and the scope is
+    // one round trip. It is re-opened after a kill, so a case never
+    // silently continues against an empty database.
+    const evaluator = await createKillableEvaluator({
+      extensions: ["uuid_ossp", "pgcrypto", "ltree", "pg_trgm", "citext"],
+    });
 
     for (const c of cases) {
       await pg.exec("BEGIN;");
@@ -182,6 +194,7 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
       try {
         await pg.exec(c.schema);
         catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
+        await evaluator.beginScope(c.schema);
       } catch {
         tally.schemaFailed++;
         await pg.exec("ROLLBACK;");
@@ -242,18 +255,11 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
             // then records a DISAGREEMENT that is an artefact of how this
             // harness asks — `builtins/Scale` was exactly that, and asking the
             // walk the question with one hand tied is not a measurement of the
-            // walk. Each evaluation runs inside its own savepoint: a raising
-            // subtree is ordinary (`5 / 0` is closed), and without the rollback
-            // its error would leave the case's transaction aborted and take
-            // every query after it down with it.
-            evaluate: async (s: string) => {
-              await pg.exec("SAVEPOINT ev;");
-              try {
-                return (await pg.query<Record<string, unknown>>(s)).rows[0];
-              } finally {
-                await pg.exec("ROLLBACK TO SAVEPOINT ev;");
-              }
-            },
+            // walk. A raising subtree is ordinary (`5 / 0` is closed), and
+            // the evaluator savepoints each probe inside the case's scope so
+            // one raise cannot abort the scope and take every later probe
+            // with it.
+            evaluate: evaluator.evaluate,
           });
           tally.analyzed++;
         } catch (e) {
@@ -447,7 +453,9 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
         }
       }
       await pg.exec("ROLLBACK;");
+      await evaluator.endScope();
     }
+    await evaluator.close();
     await pg.close();
   }, 600_000);
 
