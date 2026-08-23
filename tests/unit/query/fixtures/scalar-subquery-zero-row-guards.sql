@@ -1,16 +1,3 @@
--- One invariant rules three of these, and it is the fixture's own doing: the
--- UNION case returns TWO rows unless the review count is exactly 7, and two
--- rows raise. So a state that returns anything is a state where every product
--- has exactly seven reviews — `uniform` is the only one (measured; adding a
--- reviewless product makes every state raise).
--- @unwitnessable 2: HAVING filters only a count of five or less, which the
---   seven-review invariant above forbids wherever this fixture returns rows
--- @unwitnessable 5: the EXCEPT arm is empty only for a count of exactly 1,
---   which the same invariant forbids
--- @unwitnessable 7: `UNION SELECT 7` always supplies a row, so this subquery
---   can never be empty — structural, and independent of the data
--- @unwitnessable 8: the group is empty exactly for a product with no reviews,
---   and such a product makes the UNION case raise before any row is returned
 -- Constructs that break a scalar subquery's single-row guarantee.
 --
 -- An ungrouped aggregate normally collapses any input, including zero rows,
@@ -21,6 +8,13 @@
 --
 -- Each case is a proven counterexample: with a product that has no reviews,
 -- PostgreSQL returns NULL for every one of these columns.
+--
+-- The UNION case used to sit here and does not any more. It is the set
+-- operation that CANNOT empty itself, so it is a positive rather than a guard
+-- — and, more to the point, it raises on every product without exactly seven
+-- reviews, which stopped this whole file from executing anywhere except the
+-- one data state built to satisfy it. Three of the guards below carried an
+-- unwitnessable reason for that alone. See `scalar-subquery-union-arm.sql`.
 SELECT
   p.id                                      AS product_id,        -- @notNull
 
@@ -63,12 +57,6 @@ SELECT
     SELECT count(*) FROM reviews r WHERE r.product_id = p.id
     INTERSECT SELECT 999
   )                                         AS intersect_count,   -- @nullable
-
-  -- UNION: row count unconstrained.
-  (
-    SELECT count(*) FROM reviews r WHERE r.product_id = p.id
-    UNION SELECT 7
-  )                                         AS union_count,       -- @nullable
 
   -- GROUP BY emits no row at all for a product with no reviews.
   (
