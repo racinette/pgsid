@@ -151,7 +151,13 @@ describe("extractDeps: CTEs", () => {
     expect(d).toContain("public.users.email");
     expect(d).toContain("public.users.active");
     // The CTE itself is not a catalog entity — no dep for "active_users".
+    // Asserting the QUALIFIED spelling passed for the wrong reason until
+    // 2026-08-23: the entity id being emitted was `.active_users`, schema and
+    // all, so the name never appeared with a `public.` prefix to be absent.
+    // Assert on the name and on the shape.
     expect(d).not.toContain("public.active_users");
+    expect(d.filter(e => e.includes("active_users"))).toEqual([]);
+    expect(d.filter(e => e.startsWith("."))).toEqual([]);
   });
 
   it("CTE with JOIN to real table", async () => {

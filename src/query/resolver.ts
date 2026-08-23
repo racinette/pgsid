@@ -380,11 +380,18 @@ class ExtractContext {
       this.tables = savedTables;
 
       // Register the CTE's output columns for subsequent references.
-      // If the CTE has explicit column names, use those; otherwise we'd need
-      // to infer from the body (skip for now — rare in practice).
+      //
+      // An EMPTY list means "unknown", not "no columns" — no SQL relation has
+      // zero columns, so the encoding is unambiguous and needs no second flag.
+      // Unknown is the conservative state: a reference the search cannot
+      // attribute falls through to the next candidate, which over-reports.
+      //
+      // Inferring these is not a convenience. Without them a CTE cannot STOP
+      // the search, and an unqualified reference to a CTE column lands on
+      // whatever table happens to carry the same name.
       const colNames = cteNode.aliascolnames
         ? cteNode.aliascolnames.map((n: Node) => (n as { String?: { sval?: string } }).String?.sval ?? "")
-        : [];
+        : (outputColumnNames(cteNode.ctequery) ?? []);
       this.ctes.set(name, colNames);
     }
   }
@@ -441,6 +448,20 @@ class ExtractContext {
   private resolveAndAddTable(rv: RangeVar): ResolvedTable | null {
     const table = this.resolveTable(rv);
     if (!table) return null;
+    // A CTE is no catalog entity: it has no schema, and there is nothing for a
+    // migration to invalidate against. It still enters the alias scope below,
+    // because attributing a column to it is what stops the search.
+    //
+    // This used to emit `${schema}.${name}` unconditionally, so every CTE
+    // reference put a schema-less `.w` into the dependency set. The test
+    // written to catch it asserted `not.toContain("public.active_users")` —
+    // true, and for the wrong reason.
+    if (!table.schema) {
+      const aliasName = rv.alias?.aliasname ?? rv.relname;
+      this.aliases.set(aliasName, table);
+      if (!rv.alias) this.tables.push(table);
+      return table;
+    }
     this.deps.add(`${table.schema}.${table.name}`);
     const alias = rv.alias?.aliasname ?? rv.relname;
     this.aliases.set(alias, table);
@@ -622,37 +643,52 @@ class ExtractContext {
     }
   }
 
+  /**
+   * Attribute an unqualified column reference, INNER SCOPE FIRST.
+   *
+   * A candidate that carries the name ENDS the search whether or not it is a
+   * catalog table. A CTE or subquery carrying it contributes no dependency —
+   * there is no entity to depend on — but it is still the relation the name
+   * resolves to, and continuing past it lands the reference on whatever table
+   * happens to share the spelling.
+   *
+   * Ending the search is only safe where the candidate's column list is
+   * KNOWN. An unknown list is empty, matches nothing, and falls through — the
+   * over-reporting answer, which costs a spurious invalidation. Getting this
+   * backwards would drop a real dependency and leave a stale contract behind
+   * a changed table, so the fallback direction is not a detail.
+   *
+   * The two halves of a scope are searched together, before moving outward.
+   * That regrouping changes NO answer and is not a fix — measured, against
+   * the correlated shape it looked like it would fix. `resolveAndAddTable`
+   * registers every FROM item in `aliases`, keyed by its own relname when it
+   * carries no alias, so `aliases` already covers a scope completely and
+   * `tables` is a redundant secondary index reached only on a miss. It is
+   * grouped this way because the scoping rule is what the code should say,
+   * not because the old order was reaching a different relation.
+   */
   private resolveUnqualifiedColumn(colName: string): void {
-    // Search inner-scope aliases first, then outer-scope (correlated refs),
-    // then un-aliased tables.
-    for (const [, table] of this.aliases) {
-      if (table.schema && table.columns.includes(colName)) {
-        this.deps.add(`${table.schema}.${table.name}.${colName}`);
-        return;
+    const inScope = (
+      aliases: Map<string, ResolvedTable> | null,
+      tables: readonly ResolvedTable[] | null,
+    ): boolean => {
+      for (const [, table] of aliases ?? []) {
+        if (table.columns.includes(colName)) return this.recordColumn(table, colName);
       }
-    }
-    if (this.outerAliases) {
-      for (const [, table] of this.outerAliases) {
-        if (table.schema && table.columns.includes(colName)) {
-          this.deps.add(`${table.schema}.${table.name}.${colName}`);
-          return;
-        }
+      for (const table of tables ?? []) {
+        if (table.columns.includes(colName)) return this.recordColumn(table, colName);
       }
-    }
-    for (const table of this.tables) {
-      if (table.columns.includes(colName)) {
-        this.deps.add(`${table.schema}.${table.name}.${colName}`);
-        return;
-      }
-    }
-    if (this.outerTables) {
-      for (const table of this.outerTables) {
-        if (table.columns.includes(colName)) {
-          this.deps.add(`${table.schema}.${table.name}.${colName}`);
-          return;
-        }
-      }
-    }
+      return false;
+    };
+    if (inScope(this.aliases, this.tables)) return;
+    inScope(this.outerAliases ?? null, this.outerTables ?? null);
+  }
+
+  /** Record the dependency if the relation is a catalog entity, and report
+   *  that the name has been resolved either way. */
+  private recordColumn(table: ResolvedTable, colName: string): true {
+    if (table.schema) this.deps.add(`${table.schema}.${table.name}.${colName}`);
+    return true;
   }
 
   private resolveAliasedColumn(alias: string, colName: string): void {
@@ -915,4 +951,72 @@ interface XmlExpr {
 
 interface GroupingSet {
   content?: Node[];
+}
+
+// ---------------------------------------------------------------------------
+// Output column names of a CTE body.
+// ---------------------------------------------------------------------------
+
+/**
+ * The names a statement's output columns carry, or NULL when they cannot all
+ * be named confidently.
+ *
+ * Deliberately PARTIAL, and the partiality is the safety argument. This is
+ * not `FigureColname`, which PostgreSQL uses to name every expression and
+ * which this project has decided against implementing: an expression with no
+ * `AS` gets a name here only when the name is READ OFF THE SYNTAX, never
+ * derived. `SELECT lower(x)` is named `lower` by PostgreSQL and refused here.
+ *
+ * Refusing costs nothing but precision, because the caller treats null as
+ * "unknown" and falls through to the over-reporting path. Guessing a name
+ * would end the search on a column the relation may not have, and that drops
+ * a real dependency.
+ */
+function outputColumnNames(stmt: Node | undefined): string[] | null {
+  if (!stmt) return null;
+  const node = stmt as Record<string, unknown>;
+
+  const sel = node["SelectStmt"] as SelectStmt | undefined;
+  if (sel) {
+    // A set operation takes its column names from the LEFT branch, however
+    // deeply the tree nests — `A UNION B UNION C` associates left.
+    if (sel.larg) return outputColumnNames({ SelectStmt: sel.larg } as unknown as Node);
+    // A bare VALUES list names its columns `column1`, `column2`, … That is
+    // derivation rather than reading, so it is refused with everything else.
+    return sel.targetList ? namesOfTargetList(sel.targetList) : null;
+  }
+
+  // A data-modifying CTE's output is its RETURNING list, under the same rules.
+  for (const key of ["InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
+    const dml = node[key] as { returningClause?: Node[] } | undefined;
+    if (dml) return dml.returningClause ? namesOfTargetList(dml.returningClause) : null;
+  }
+  return null;
+}
+
+/** Every item's name, or null the moment one cannot be read off the syntax. */
+function namesOfTargetList(items: Node[]): string[] | null {
+  const names: string[] = [];
+  for (const item of items) {
+    const rt = (item as Record<string, unknown>)["ResTarget"] as
+      | { name?: string; val?: Node }
+      | undefined;
+    if (!rt) return null;
+    if (rt.name) {
+      names.push(rt.name);
+      continue;
+    }
+    // A bare column reference keeps its own last name — `SELECT t.email`
+    // yields `email`. A star yields an unknown number of unknown names, so
+    // the whole list is refused.
+    const fields = (rt.val as Record<string, unknown> | undefined)?.["ColumnRef"] as
+      | { fields?: Node[] }
+      | undefined;
+    const last = fields?.fields?.[fields.fields.length - 1] as
+      | { String?: { sval?: string } }
+      | undefined;
+    if (!last?.String?.sval) return null;
+    names.push(last.String.sval);
+  }
+  return names.length > 0 ? names : null;
 }
