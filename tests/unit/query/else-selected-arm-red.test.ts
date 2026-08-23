@@ -119,20 +119,18 @@ describe("ELSE-selected arm — the premise", () => {
 });
 
 describe("ELSE-selected arm — target", () => {
-  it.fails("an ELSE over TOTAL conditions carries their negations", async () => {
+  it("an ELSE over TOTAL conditions carries their negations", async () => {
+    // Flipped from `it.fails` by `entryNotNullEvidence`. The producer landed
+    // first and this stayed red on its INPUT: the kernel reads no catalog
+    // flags, so `status` being NOT NULL was invisible to the totality gate
+    // until the walk started supplying it as an ordinary evidence predicate.
     expect(await claim(ELSE_TOTAL)).toBe(true);
   });
 
-  it("...and the totality can come from a PREDICATE rather than the catalog", async () => {
-    // Same statement with `status IS NOT NULL` written out. It is redundant
-    // against the schema and not against the KERNEL, which reads no catalog
-    // flags: `colKnownNonNull` consults the three fact stores and nothing
-    // else, so a NOT NULL column is not "pinned" until some fact says so.
-    //
-    // This is what separates the producer from its input. The derivation
-    // works — the ELSE's beaten arms become FALSE facts and the CHECK's
-    // disjuncts fall — and the target above stays red for a reason that has
-    // nothing to do with it.
+  it("...and the same holds with the pin written out by hand", async () => {
+    // `status IS NOT NULL` spelled in the WHERE. Redundant now, and it is
+    // what proved the PRODUCER correct while its input was still missing —
+    // the two halves were separable and were separated.
     expect(await claim(`SELECT note FROM tk WHERE tag = 'z' AND status IS NOT NULL`)).toBe(true);
   });
 });

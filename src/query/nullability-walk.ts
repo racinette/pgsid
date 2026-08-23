@@ -7294,6 +7294,62 @@ class NullabilityEngine {
     return i >= 0 ? cols[i] : undefined;
   }
 
+  /**
+   * `alias.col IS NOT NULL`, one per catalog-NOT NULL column of a PRESENT
+   * entry, as ordinary evidence predicates.
+   *
+   * The kernel reads no catalog flags — `colKnownNonNull` consults its three
+   * fact stores and nothing else — so a NOT NULL column is invisible to
+   * every totality gate inside it until some fact says so. This is that
+   * fact, and it is a WIDENING of the evidence set rather than a new kernel
+   * capability: the predicates go through the same `collectConjuncts` path a
+   * WHERE conjunct does.
+   *
+   * **REQUIRED only, and that gate is the whole soundness argument.** A
+   * LEFT-joined entry contributes NULL for every column on a non-matching
+   * row, catalog flag or not, so the claim is about a row that exists rather
+   * than about a column. Names are the SCOPE's, not the catalog's: an alias
+   * column list renames, and the kernel is working in the shown vocabulary.
+   *
+   * **NO FIXTURE KILLS THAT GATE, and it stays anyway.** Measured on landing:
+   * removing it feeds the false evidence for 11,664 optional-entry visits
+   * across the suite and changes NO claim in either corpus, and four
+   * hand-built LEFT JOIN shapes — a bare optional column, an optional column
+   * behind a CHECK, the same with the join condition carrying the pin, and
+   * the same under a CASE guard — produce no unsound claim either. What is
+   * NOT established is why; the evidence reaches this site only when the
+   * relation carries CHECKs or generated columns, and the optional paths have
+   * their own presence machinery in front of them, so the suppression may be
+   * redundant with a gate one level up rather than load-bearing here. The
+   * argument for keeping it is the fact, not the test: on a null-extended row
+   * the predicate this would emit is FALSE, and an evidence set is not a
+   * place to put a false predicate and hope nothing reads it.
+   *
+   * The WIDENING itself has the same measured reach — 218 firings in the hand
+   * corpus, zero claims moved in either. It exists for what it unlocks
+   * downstream (`else-selected-arm-red.test.ts`), not for what it moves.
+   */
+  private entryNotNullEvidence(entry: RelationEntry, scope: Scope): Node[] {
+    if (entry.joinState !== REQUIRED || !entry.table) return [];
+    const out: Node[] = [];
+    for (const v of scope.visible) {
+      if (v.entry !== entry) continue;
+      const catalogCol = this.entryCatalogColumn(entry, v.name);
+      if (catalogCol === undefined || !this.entryColumnNotNull(entry, catalogCol)) continue;
+      out.push({
+        NullTest: {
+          arg: {
+            ColumnRef: {
+              fields: [{ String: { sval: entry.alias } }, { String: { sval: v.name } }],
+            },
+          },
+          nulltesttype: "IS_NOT_NULL",
+        },
+      } as unknown as Node);
+    }
+    return out;
+  }
+
   private entryColumnNotNull(entry: RelationEntry, col: string): boolean {
     const t = entry.table!;
     return entry.scanInh === false
@@ -9290,6 +9346,7 @@ class NullabilityEngine {
             ...(scope.whereClause ? [scope.whereClause] : []),
             ...(scope.havingClause ? [scope.havingClause] : []),
             ...scope.impliedQuals,
+            ...this.entryNotNullEvidence(entry, scope),
           ];
           const guardPreds = this.kernelGuardPreds(scope);
           const channels: { label: string; evidence: { pred: Node; applySetMask: boolean }[] }[] =
