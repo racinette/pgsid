@@ -167,6 +167,32 @@ function aliasBindings(node: unknown, out: Map<string, number>): void {
 }
 
 /**
+ * A SELECT with `extras` added to its GROUP BY — the escape for the one
+ * refusal a probe reliably earns.
+ *
+ * PostgreSQL rejects a probe naming a column the query does not group by, and
+ * that is the single largest blocker left (16 of the 30 unanswered residue
+ * references, measured 2026-08-24). Grouping by one more column is always
+ * legal and, unlike every aggregate wrapper, changes NO type.
+ *
+ * The aggregate route was tried and is UNSOUND: `(array_agg(c))[1]` over a
+ * `numeric[]` column answers `numeric`, because PostgreSQL arrays do not
+ * nest. It looks like an elegant "make anything legal under GROUP BY" trick
+ * and it silently strips a dimension.
+ *
+ * Only applied to a SELECT that ALREADY groups — adding a GROUP BY to a query
+ * that has none would make every other target entry illegal.
+ */
+function withGroupExtras(
+  sel: Record<string, unknown>,
+  extras: unknown[],
+): Record<string, unknown> {
+  const group = sel["groupClause"];
+  if (extras.length === 0 || !Array.isArray(group) || group.length === 0) return sel;
+  return { ...sel, groupClause: [...group, ...extras] };
+}
+
+/**
  * The statement's own output list and how to replace it, or null when there
  * is none a probe may join: a top-level set operation has no `targetList` of
  * its own (Stage 3's subject), and a DML statement without RETURNING returns
@@ -174,7 +200,7 @@ function aliasBindings(node: unknown, out: Map<string, number>): void {
  */
 function outputList(
   stmt: unknown,
-): { list: unknown[]; replace: (list: unknown[]) => unknown } | null {
+): { list: unknown[]; replace: (list: unknown[], groupExtras: unknown[]) => unknown } | null {
   const rec = stmt as Record<string, unknown>;
   const sel = rec["SelectStmt"] as Record<string, unknown> | undefined;
   if (sel) {
@@ -182,7 +208,8 @@ function outputList(
     if (!Array.isArray(sel["targetList"]) || (op && op !== "SETOP_NONE")) return null;
     return {
       list: sel["targetList"] as unknown[],
-      replace: list => ({ SelectStmt: { ...sel, targetList: list } }),
+      replace: (list, groupExtras) =>
+        ({ SelectStmt: withGroupExtras({ ...sel, targetList: list }, groupExtras) }),
     };
   }
   for (const key of ["InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
@@ -223,21 +250,24 @@ function setOpLeaves(sel: Record<string, unknown>, out: Record<string, unknown>[
   return setOpLeaves(larg, out) && setOpLeaves(rarg, out);
 }
 
-/** Rebuild a set-operation tree with `extras[i]` appended to arm i. */
+/** Rebuild a set-operation tree with `extras[i]` appended to arm i's target
+ *  list, and `groupExtras[i]` to its GROUP BY. */
 function withArmExtras(
   sel: Record<string, unknown>,
   extras: unknown[][],
   next: { i: number },
+  groupExtras: unknown[][] = [],
 ): Record<string, unknown> {
   const op = sel["op"] as string | undefined;
   if (!op || op === "SETOP_NONE") {
-    const extra = extras[next.i++] ?? [];
-    return { ...sel, targetList: [...(sel["targetList"] as unknown[]), ...extra] };
+    const i = next.i++;
+    const arm = { ...sel, targetList: [...(sel["targetList"] as unknown[]), ...(extras[i] ?? [])] };
+    return withGroupExtras(arm, groupExtras[i] ?? []);
   }
   return {
     ...sel,
-    larg: withArmExtras(sel["larg"] as Record<string, unknown>, extras, next),
-    rarg: withArmExtras(sel["rarg"] as Record<string, unknown>, extras, next),
+    larg: withArmExtras(sel["larg"] as Record<string, unknown>, extras, next, groupExtras),
+    rarg: withArmExtras(sel["rarg"] as Record<string, unknown>, extras, next, groupExtras),
   };
 }
 
@@ -259,9 +289,16 @@ const nullTarget = (): unknown => ({ ResTarget: { val: { A_Const: { isnull: true
 function probePlacements(
   stmt: Node,
   qualifiers: ReadonlySet<string>,
-): ((probes: unknown[]) => unknown)[] {
+): ((nodes: unknown[], alsoGroup: boolean) => unknown)[] {
+  const targetsOf = (nodes: unknown[]): unknown[] =>
+    nodes.map(n => ({ ResTarget: { val: n } }));
   const out = outputList(stmt);
-  if (out) return [probes => out.replace([...out.list, ...probes])];
+  if (out) {
+    return [
+      (nodes, alsoGroup) =>
+        out.replace([...out.list, ...targetsOf(nodes)], alsoGroup ? nodes : []),
+    ];
+  }
 
   const sel = (stmt as Record<string, unknown>)["SelectStmt"] as
     | Record<string, unknown>
@@ -271,7 +308,7 @@ function probePlacements(
   const arms: Record<string, unknown>[] = [];
   if (!setOpLeaves(sel, arms) || arms.length < 2) return [];
 
-  const placements: ((probes: unknown[]) => unknown)[] = [];
+  const placements: ((nodes: unknown[], alsoGroup: boolean) => unknown)[] = [];
   arms.forEach((arm, armIndex) => {
     // Skip an arm whose FROM binds none of the qualifiers being asked about.
     // Purely a cost filter — PostgreSQL still adjudicates every probe that is
@@ -281,11 +318,14 @@ function probePlacements(
     const bound = new Map<string, number>();
     aliasBindings(arm["fromClause"], bound);
     if (![...qualifiers].some(q => bound.has(q))) return;
-    placements.push((probes: unknown[]) => {
+    placements.push((nodes: unknown[], alsoGroup: boolean) => {
       const extras = arms.map((__, i) =>
-        i === armIndex ? probes : probes.map(() => nullTarget()),
+        i === armIndex ? targetsOf(nodes) : nodes.map(() => nullTarget()),
       );
-      return { SelectStmt: withArmExtras(sel, extras, { i: 0 }) };
+      // The GROUP BY escape belongs only to the arm holding the real probe;
+      // the padded arms got a bare NULL, which no grouping rule objects to.
+      const groupExtras = arms.map((__, i) => (alsoGroup && i === armIndex ? nodes : []));
+      return { SelectStmt: withArmExtras(sel, extras, { i: 0 }, groupExtras) };
     });
   });
   return placements;
@@ -337,10 +377,11 @@ async function routeB(
   if (baseline.length === 0) return answers; // the statement itself will not prepare
 
   const ask = async (
-    place: (probes: unknown[]) => unknown,
+    place: (nodes: unknown[], alsoGroup: boolean) => unknown,
     batch: readonly { node: unknown; text: string; qualifier: string }[],
+    alsoGroup = false,
   ): Promise<boolean> => {
-    const sql = statementSql(place(batch.map(p => ({ ResTarget: { val: p.node } }))));
+    const sql = statementSql(place(batch.map(p => p.node), alsoGroup));
     if (sql === null) return false;
     let types: string[];
     try {
@@ -364,10 +405,12 @@ async function routeB(
       break;
     }
     // A batch fails as a unit, and one probe this placement cannot serve is
-    // enough to fail it, so retry singly before moving on.
+    // enough to fail it, so retry singly. A probe naming a column the query
+    // does not group by is refused, and grouping by it too is the escape —
+    // tried only after the plain form, so the ordinary path is untouched.
     const unanswered: typeof remaining = [];
     for (const one of remaining) {
-      if (!(await ask(place, [one]))) unanswered.push(one);
+      if (!(await ask(place, [one])) && !(await ask(place, [one], true))) unanswered.push(one);
     }
     remaining = unanswered;
   }
@@ -417,15 +460,23 @@ function owningSelect(node: unknown, qual: string): Record<string, unknown> | nu
     }
     const rec = n as Record<string, unknown>;
     // A SELECT body appears wrapped (`{SelectStmt: …}`) at statement level and
-    // BARE as a set operation's `larg`/`rarg`.
+    // BARE as a set operation's `larg`/`rarg`. Descend into the BODY once it
+    // is recognised, never back into the wrapper — visiting the wrapper's
+    // values would meet the same body again through the bare branch and count
+    // every ordinary select twice, which reads as "bound at two levels" and
+    // refused every hoist except the bare set-operation arms.
     const sel = (rec["SelectStmt"] ??
-      (Array.isArray(rec["targetList"]) && rec["fromClause"] ? rec : undefined)) as
+      (Array.isArray(rec["targetList"]) ? rec : undefined)) as
       | Record<string, unknown>
       | undefined;
-    if (sel && Array.isArray(sel["targetList"]) && sel["fromClause"]) {
-      const bound = new Set<string>();
-      boundAtThisLevel(sel["fromClause"], bound);
-      if (bound.has(qual)) found.push(sel);
+    if (sel) {
+      if (Array.isArray(sel["targetList"]) && sel["fromClause"]) {
+        const bound = new Set<string>();
+        boundAtThisLevel(sel["fromClause"], bound);
+        if (bound.has(qual)) found.push(sel);
+      }
+      for (const value of Object.values(sel)) visit(value);
+      return;
     }
     for (const value of Object.values(rec)) visit(value);
   };
@@ -481,16 +532,22 @@ async function routeBHoist(
   }
 
   for (const [owner, items] of groups) {
-    const build = (probes: unknown[]): unknown => ({
-      SelectStmt: {
-        ...owner,
-        // The owning select's own WITH wins; the statement's is carried only
-        // when it has none, so a hoisted body can still see the CTEs it names.
-        ...(owner["withClause"] || !topWith ? {} : { withClause: topWith }),
-        targetList: [...(owner["targetList"] as unknown[]), ...probes],
-      },
+    const build = (nodes: unknown[], alsoGroup: boolean): unknown => ({
+      SelectStmt: withGroupExtras(
+        {
+          ...owner,
+          // The owning select's own WITH wins; the statement's is carried only
+          // when it has none, so a hoisted body can still see the CTEs it names.
+          ...(owner["withClause"] || !topWith ? {} : { withClause: topWith }),
+          targetList: [
+            ...(owner["targetList"] as unknown[]),
+            ...nodes.map(n => ({ ResTarget: { val: n } })),
+          ],
+        },
+        alsoGroup ? nodes : [],
+      ),
     });
-    const baseSql = statementSql(build([]));
+    const baseSql = statementSql(build([], false));
     if (baseSql === null) continue;
     let baseline: string[];
     try {
@@ -502,8 +559,9 @@ async function routeBHoist(
 
     const ask = async (
       batch: readonly { node: unknown; text: string }[],
+      alsoGroup = false,
     ): Promise<boolean> => {
-      const sql = statementSql(build(batch.map(p => ({ ResTarget: { val: p.node } }))));
+      const sql = statementSql(build(batch.map(p => p.node), alsoGroup));
       if (sql === null) return false;
       let types: string[];
       try {
@@ -517,7 +575,9 @@ async function routeBHoist(
     };
 
     if (!(await ask(items))) {
-      for (const one of items) await ask([one]);
+      for (const one of items) {
+        if (!(await ask([one]))) await ask([one], true);
+      }
     }
   }
   return answers;
