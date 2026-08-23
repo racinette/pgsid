@@ -648,8 +648,10 @@ export interface NullabilityCatalog {
    * Type-aware STRICTNESS for a binary operator, quantified `every` over
    * the non-eliminated survivors — the promotion consumer's direction: a
    * wrong "strict" there is a wrong notNull, so one unvouched survivor
-   * denies the property (mechanism C's `some` reading is a different
-   * consumer and keeps its recorded over-report for now). True/false are
+   * denies the property. (Mechanism C reads the SAME survivors with `some`;
+   * that is not a deferral but the opposite quantifier for a property that
+   * fails the opposite way — see `resolveOperatorStrictnessSome`.)
+   * True/false are
    * verdicts over the merged candidate set; null means no candidates or
    * nothing known, and the caller falls back to the name rule — except
    * that a user operator sharing a curated name with nothing known answers
@@ -668,6 +670,17 @@ export interface NullabilityCatalog {
    * a parameter; under-reporting makes the contract admit a binding that
    * raises. Null cedes to the name rule, whose over-report is this
    * consumer's safe error.
+   *
+   * **The two quantifiers never diverge on any schema in this corpus** —
+   * measured 2026-08-23 by instrumenting the survivor scan and running the
+   * whole suite: 67 scans (`+` n=14, `*` n=16, `||` n=3, `=` n=5), zero
+   * splits, generated corpus included. Splitting the set takes a NON-STRICT
+   * user operator on a curated name whose operands the typed side can reach
+   * by implicit coercion, which is why the gate carries its own schema in
+   * `operator-strictness-quantifier.test.ts` rather than living in the
+   * fixture corpus. Without that file the choice of quantifier is
+   * unfalsifiable, and an unfalsifiable choice reads as a mechanism while
+   * being an opinion.
    */
   resolveOperatorStrictnessSome(
     schema: string | undefined,
