@@ -500,6 +500,25 @@ export interface FunctionInfo {
    * rows: with no rows to transition, the initial state *is* the result.
    */
   aggInitVal: string | null;
+  /**
+   * `pg_aggregate.aggtransfn`, rendered as the key `fnBodyAsts` is keyed by:
+   * `schema.name(identity args)`. Null for non-aggregates.
+   *
+   * This is the whole link between an aggregate and the analysable SQL body
+   * behind it. The transition function is an ordinary function — the body map
+   * has always held it — and nothing recorded which aggregate it belonged to,
+   * so the walk had a fact it could not ask for.
+   */
+  aggTransFn: string | null;
+  /**
+   * `pg_aggregate.aggfinalfn` in the same rendering.
+   *
+   * Null means two different things and the reader must not conflate them:
+   * for a non-aggregate there is no such function, and for an aggregate
+   * DECLARED WITHOUT a FINALFUNC the accumulated state IS the result (the
+   * catalog stores oid 0). `isAggregate` separates the two.
+   */
+  aggFinalFn: string | null;
   isWindow: boolean;
   securityDefiner: boolean;
   strict: boolean;

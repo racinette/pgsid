@@ -10653,7 +10653,7 @@ class NullabilityEngine {
       (!meta && this.catalog.isAggregateBuiltin(name) && name !== "count");
     if (isAggregate) {
       trace.addFact("priority", meta ? "3 (aggregate)" : "3 (aggregate by name, not in catalog)");
-      return this.resolveAggregateTraced(fc, name, argResults, scope, trace);
+      return this.resolveAggregateTraced(fc, name, argResults, meta, scope, depth, trace);
     }
 
     // Priority 4: Strict scalar function — the NULLABLE direction only.
@@ -10875,7 +10875,9 @@ class NullabilityEngine {
     fc: FuncCall,
     name: string,
     argResults: boolean[],
+    meta: FunctionInfo | null,
     scope: Scope,
+    depth: number,
     trace: ITrace,
   ): boolean {
     const hasFilter = !!fc.agg_filter;
@@ -10891,8 +10893,123 @@ class NullabilityEngine {
       trace.conclude(true, `GROUP BY makes the group non-empty and ${name}() over non-null input is non-null`);
       return true;
     }
+
+    // A user-defined aggregate has no name to curate, and a body to read
+    // instead. FILTER and the non-empty group are the same gates as above:
+    // both decide whether anything transitions at all, which is upstream of
+    // what the transition does.
+    if (
+      scope.groupGuaranteesNonEmpty &&
+      !hasFilter &&
+      meta &&
+      this.aggregateFoldKeepsStateNonNull(meta, scope, depth, trace)
+    ) {
+      trace.conclude(true, `${name}()'s INITCOND is non-null and its fold preserves that`);
+      return true;
+    }
+
     trace.conclude(false, "aggregate returns NULL over zero rows");
     return false;
+  }
+
+  /**
+   * Whether a USER-DEFINED aggregate's result is non-null over a NON-EMPTY
+   * group, read from the bodies it folds through.
+   *
+   * `NON_NULL_OVER_NONEMPTY_AGGREGATES` answers for builtins by name, one
+   * curated entry measured on admission. A user aggregate has no name worth
+   * curating — but it does have an analysable SQL body, and `fnBodyAsts` has
+   * held that body all along, because a transition function is an ordinary
+   * function and gets parsed like one. What was missing was the LINK: nothing
+   * recorded WHICH function an aggregate transitions through, so the walk had
+   * a fact it could not ask for. `aggTransFn` is that link and nothing more.
+   *
+   * The induction, one gate per step, each with its own control in schema.sql:
+   *
+   *   - THE STATE STARTS NON-NULL. `agginitval` is the initial state, so a
+   *     non-null INITCOND settles it — `gfn_noinit` and `nn_agg` declare none
+   *     and stop here. PostgreSQL has a second route (no INITCOND plus a
+   *     strict transition makes the first input value the initial state) and
+   *     it is deliberately NOT taken: it turns on whether every input in the
+   *     group is NULL, which is a different question from this one and would
+   *     need its own gate. Left unbuilt rather than assumed.
+   *   - THE TRANSITION PRESERVES IT. Walk the body with the state argument
+   *     assumed non-null and every value argument assumed NULL — the WEAKEST
+   *     hypothesis the induction can close under, so a body that leans on its
+   *     input rather than on its state does not qualify. `nullify_sfunc`
+   *     returns NULL outright and stops here.
+   *   - THE FINAL FUNCTION PRESERVES IT, when there is one. Same walk, same
+   *     hypothesis. `final_null` stops here; `count_it` has no FINALFUNC at
+   *     all, where the accumulated state IS the result.
+   *
+   * Then every step of the fold takes a non-null state to a non-null state,
+   * and the fold's output is the result. That the group is non-empty stays
+   * the CALLER's gate: over zero rows nothing transitions and the INITCOND
+   * answers alone, which is a different claim with a different proof.
+   */
+  private aggregateFoldKeepsStateNonNull(
+    meta: FunctionInfo,
+    scope: Scope,
+    depth: number,
+    trace: ITrace,
+  ): boolean {
+    if (!meta.isAggregate) return false;
+    trace.addFact("aggInitVal", meta.aggInitVal ?? "none");
+    if (meta.aggInitVal === null) return false;
+
+    if (!meta.aggTransFn) return false;
+    if (!this.aggregateStepKeepsNonNull(meta.aggTransFn, scope, depth, trace)) return false;
+
+    // No FINALFUNC means the state is returned as it stands.
+    if (!meta.aggFinalFn) return true;
+    return this.aggregateStepKeepsNonNull(meta.aggFinalFn, scope, depth, trace);
+  }
+
+  /**
+   * Walk one fold step's body under the induction hypothesis: its FIRST input
+   * parameter is the state and is assumed non-null, every other parameter is
+   * assumed NULL.
+   *
+   * The catalog recorded an exact SIGNATURE and this resolves it by NAME,
+   * which is a real narrowing and the reason it is written down here.
+   * `resolveFunctionMetadata` cannot pick among overloads — it takes no
+   * argument types — so it answers null for any overloaded name, and an
+   * aggregate whose transition name is overloaded is REFUSED whichever
+   * overload it actually declares. Conservative, never unsound, and it costs
+   * nothing in practice: a transition function shares its name with another
+   * function only by accident.
+   *
+   * The signature comparison below is therefore UNREACHABLE, measured rather
+   * than assumed — with both of the adapter's body-map guards lifted the
+   * resolver still answers null, so nothing gets past it to compare. It stays
+   * as the assertion of the invariant the caller depends on: that the body
+   * being walked is the body the catalog named. Lifting it is what a
+   * signature-keyed metadata lookup would need to be checked against, and
+   * that lookup is the thing that would make overloaded transitions readable.
+   *
+   * `agg_ambiguous` in `aggregate-transition-fold.sql` pins the OUTCOME
+   * independently of which layer produces it: its two overloads disagree, the
+   * declared one returns NULL, and reaching for the other would claim notNull
+   * where PostgreSQL answers NULL.
+   */
+  private aggregateStepKeepsNonNull(
+    key: string,
+    scope: Scope,
+    depth: number,
+    trace: ITrace,
+  ): boolean {
+    const parts = /^([^.()]+)\.([^.()]+)\((.*)\)$/.exec(key);
+    if (!parts) return false;
+    const meta = this.catalog.resolveFunctionMetadata(parts[1]!, parts[2]!);
+    if (!meta || `${meta.schema}.${meta.name}(${meta.argTypes})` !== key) {
+      trace.addFact("aggStepUnresolved", key);
+      return false;
+    }
+    const hypothesis = meta.args
+      .filter(a => a.mode === "in" || a.mode === "inout")
+      .map((_, i) => i === 0);
+    trace.addFact("aggStep", `${key} [${hypothesis.map(h => (h ? "T" : "F")).join(", ")}]`);
+    return this.resolveSqlFunctionBodyTraced(meta, hypothesis, scope, depth + 1, trace);
   }
 
   /**

@@ -538,4 +538,39 @@ describe("catalog-feature census", () => {
         `speaking for another:\n  ${unanswered.join("\n  ")}`,
     ).toEqual([]);
   });
+
+  it("every aggregate's recorded transition key names a body the map holds", async () => {
+    const catalog = await buildNullabilityCatalog(snapshot);
+    // `aggTransFn`/`aggFinalFn` and the body map's keys are rendered by two
+    // DIFFERENT queries. They agree only because both go through
+    // pg_get_function_identity_arguments, and if either rendering drifts the
+    // fold rule stops resolving anything — silently, and reading as
+    // conservatism rather than as breakage. This is that tripwire.
+    //
+    // The steps are filtered by SCHEMA and not by "is this a signature the
+    // snapshot knows", which was the first spelling and was no tripwire at
+    // all: a drifted key matches no snapshot signature, so filtering on that
+    // DROPPED exactly the rows the test exists to catch. A builtin step is
+    // recognised by living in pg_catalog, which drift does not move it out of.
+    const steps = snapshot.functions
+      .filter(f => f.isAggregate)
+      .flatMap(f =>
+        [f.aggTransFn, f.aggFinalFn]
+          .filter((k): k is string => k !== null)
+          // A transition implemented in C has no body to hold.
+          .filter(k => !k.startsWith("pg_catalog."))
+          .map(k => ({ agg: f.name, key: k })),
+      );
+    expect(steps.length).toBeGreaterThan(0);
+    const missing = steps
+      .filter(s => !catalog.fnBodyAsts.has(s.key))
+      .map(s => `${s.agg} -> ${s.key}`)
+      .sort();
+    expect(
+      missing,
+      `an aggregate names a sql-bodied step the body map cannot answer for — ` +
+        `the two renderings have drifted apart and every user aggregate has ` +
+        `quietly become unreadable:\n  ${missing.join("\n  ")}`,
+    ).toEqual([]);
+  });
 });

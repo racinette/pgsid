@@ -187,6 +187,15 @@ interface FunctionRow {
   /** `pg_aggregate.agginitval` for aggregates; null otherwise (and null when
    *  the aggregate has no initial condition). */
   agg_init_val: string | null;
+  /** `pg_aggregate.aggtransfn` rendered as the key `fnBodyAsts` is keyed by,
+   *  `schema.name(identity args)`. Null for non-aggregates. */
+  agg_trans_fn: string | null;
+  /** `pg_aggregate.aggfinalfn` in the same rendering. Null for
+   *  non-aggregates AND for an aggregate declared without a FINALFUNC, where
+   *  the accumulated state IS the result — `aggfinalfn` is oid 0 there, which
+   *  the LEFT JOIN drops. The two nulls mean different things and the walk
+   *  distinguishes them by `isAggregate`. */
+  agg_final_fn: string | null;
 }
 
 interface EnumTypeRow {
@@ -883,6 +892,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     isProcedure: f.prokind === "p",
     isAggregate: f.prokind === "a",
     aggInitVal: f.agg_init_val ?? null,
+    aggTransFn: f.agg_trans_fn ?? null,
+    aggFinalFn: f.agg_final_fn ?? null,
     isWindow: f.prokind === "w",
     securityDefiner: f.prosecdef,
     strict: f.proisstrict,
@@ -1332,11 +1343,27 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
                                  ) i)
                  ELSE NULL
             END AS argdefaults,
-            a.agginitval AS agg_init_val
+            a.agginitval AS agg_init_val,
+            -- The aggregate's transition and final functions, rendered as the
+            -- key fnBodyAsts is keyed by, so the walk can reach a body it
+            -- already holds. Built from the same
+            -- pg_get_function_identity_arguments the key uses, rather than
+            -- from regprocedure, which renders a DIFFERENT argument list
+            -- (no parameter names) and would match nothing.
+            tn.nspname || '.' || tf.proname
+              || '(' || pg_get_function_identity_arguments(tf.oid) || ')'
+              AS agg_trans_fn,
+            fn.nspname || '.' || ff.proname
+              || '(' || pg_get_function_identity_arguments(ff.oid) || ')'
+              AS agg_final_fn
      FROM pg_proc p
      JOIN pg_namespace n ON n.oid = p.pronamespace
      JOIN pg_language l ON l.oid = p.prolang
      LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
+     LEFT JOIN pg_proc tf ON tf.oid = a.aggtransfn
+     LEFT JOIN pg_namespace tn ON tn.oid = tf.pronamespace
+     LEFT JOIN pg_proc ff ON ff.oid = a.aggfinalfn
+     LEFT JOIN pg_namespace fn ON fn.oid = ff.pronamespace
      WHERE ${USER_NS}
      ORDER BY n.nspname, p.proname;`,
   );
