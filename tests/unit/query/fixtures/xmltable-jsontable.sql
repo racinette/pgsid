@@ -1,5 +1,10 @@
--- @unwitnessable 4: JSON_TABLE columns are conservative (see the node census); the fixed document always provides this member
--- @unwitnessable 9: same: the nested path always resolves in the fixed document
+-- @unwitnessable 4: the document is a LITERAL, so the exact probe exists —
+--   `SELECT bool_and(a IS NOT NULL) FROM <this JSON_TABLE>` — and cannot be
+--   built: pgsql-deparser 18.1.1 throws on every SQL/JSON node, so the item
+--   cannot be rendered to run. Conservative, not wrong. See
+--   docs/deparser-limitations.md §1; blocked on upstream support
+-- @unwitnessable 9: same document, same probe, same blocker — the nested path
+--   always resolves, and nothing can ask
 -- XMLTABLE and JSON_TABLE are FROM items that spell out their own columns.
 --
 -- Neither resolves against the catalog: the COLUMNS list in the query *is* the

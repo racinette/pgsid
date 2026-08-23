@@ -348,6 +348,26 @@ function shapesDisjoint(
  * Internal catalog names → the `format_type` rendering the snapshot stores.
  * Fixed pg_catalog spellings; a name not listed renders as itself.
  */
+/**
+ * How the two members of the distinctness-eligible text family SPELL
+ * themselves — a rendering fact, not a semantic one.
+ *
+ * Which types are eligible is decided in ONE place and not here: the
+ * catalog's `TEXT_FAMILY_OIDS` whitelist behind `literalDistinctnessSound`,
+ * which admits text (25) and varchar (1043) by OID and excludes bpchar (1042)
+ * because it strips trailing blanks before the collation is consulted. Every
+ * reader below asks that predicate for the JUDGMENT and this set only for the
+ * NAME, so the exclusion has a single home and cannot drift between two.
+ *
+ * The names are needed at all because a CHECK on a varchar column DEPARSES
+ * through casts — PostgreSQL renders `CHECK (k <> 'a ')` on `k varchar(4)` as
+ * `(((k)::text <> 'a '::text) …)`, where the same CHECK on `char(4)` renders
+ * `(k <> 'a '::bpchar)`. The column reference itself is wrapped, so the
+ * varchar conjunct is not recognised as being ABOUT `k` without unwrapping
+ * it, and the cast target has to be checked by name when it is.
+ */
+const TEXT_FAMILY_NAMES = new Set(["text", "character varying"]);
+
 const TYPE_RENDERINGS: Record<string, string> = {
   int2: "smallint",
   int4: "integer",
@@ -943,11 +963,35 @@ class EntailmentKernel {
     if (!this.input.literalDistinctnessSound(colKey.slice(0, dot), colKey.slice(dot + 1))) {
       return false;
     }
+    return this.sameEffectiveType(colKey, a, b);
+  }
+
+  /**
+   * Whether two literal tokens are being compared AT THE SAME TYPE against
+   * `colKey` — a bare literal takes the column's own type, an explicitly cast
+   * one takes its target.
+   *
+   * The two sides of one question can land on DIFFERENT SPELLINGS of the same
+   * comparison. A CHECK on a varchar column deparses its literal as
+   * `'a '::text`, while the query's own `k = 'a'` carries no cast and takes
+   * the column's `character varying`. Same operator, same collation, same
+   * answer — two names.
+   *
+   * Equating them is sound exactly where a cast between them is, so this asks
+   * the same catalog predicate `columnKeyThroughCast` does. bpchar is out
+   * there and out here, from the one whitelist.
+   */
+  private sameEffectiveType(colKey: string, a: Lit, b: Lit): boolean {
     const colType = this.colTypeRef(colKey);
     const effA = a.cast ?? colType;
     const effB = b.cast ?? colType;
     if (!effA || !effB) return false;
-    return effA.name === effB.name && effA.schema === effB.schema;
+    if (effA.name === effB.name && effA.schema === effB.schema) return true;
+    return (
+      TEXT_FAMILY_NAMES.has(effA.name) &&
+      TEXT_FAMILY_NAMES.has(effB.name) &&
+      this.textFamilyColumn(colKey)
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -1113,11 +1157,62 @@ class EntailmentKernel {
     return [];
   }
 
+  /**
+   * A column reference, seeing through a cast that CANNOT change what the
+   * comparison around it decides — `(k)::text` for a `character varying`
+   * column, which is how PostgreSQL deparses a CHECK on one.
+   *
+   * Only here, in the comparison atom. Every other reader of a column
+   * reference wants the reference itself.
+   *
+   * Three conditions. The COLUMN must be distinctness-eligible — the
+   * catalog's OID whitelist plus a proven deterministic collation, which
+   * excludes bpchar (the cast strips its padding, `length('a'::char(4)::text)`
+   * is 1) and also a varchar column under a NON-deterministic collation, where
+   * casting to text changes which comparison runs. The cast TARGET must be in
+   * the same family by name. And the cast must carry no TYPMOD, because a
+   * sized one truncates — `'abc'::varchar(4)::varchar(1)` is 'a' (measured).
+   *
+   * The eligibility check here is NOT reachable by any corpus fixture, and it
+   * is not therefore redundant. Every fixture route runs on to `litsDistinct`,
+   * which asks the same predicate and refuses bpchar there — but
+   * `comparisonAtom` also builds `cmpCol`, a COLUMN-TO-COLUMN atom that never
+   * consults it. `(k)::text = (j)::text` over two bpchar columns would become
+   * `cmpCol(k, '=', j)`, and the two are not the same predicate: the cast
+   * comparison is exact where the bpchar one is blank-insensitive, so the
+   * implication holds in one direction only. This is the only thing standing
+   * in that path. Recorded as unwitnessed rather than claimed as tested.
+   */
+  private columnKeyThroughCast(expr: Node): string | null {
+    const direct = this.columnKey(expr);
+    if (direct) return direct;
+    const tc = (expr as Record<string, unknown>)["TypeCast"] as
+      | { arg?: Node; typeName?: { names?: Node[]; typmods?: Node[]; arrayBounds?: Node[] } }
+      | undefined;
+    if (!tc?.arg || !tc.typeName) return null;
+    if (tc.typeName.typmods?.length || tc.typeName.arrayBounds?.length) return null;
+    const col = this.columnKey(tc.arg);
+    if (!col || !this.textFamilyColumn(col)) return null;
+    const target = typeRefOf(tc.typeName.names ?? []);
+    if (!target || (target.schema !== null && target.schema !== "pg_catalog")) return null;
+    return TEXT_FAMILY_NAMES.has(target.name) ? col : null;
+  }
+
+  /**
+   * Whether `colKey` is in the text family whose byte equality is value
+   * equality — asked of the CATALOG, so bpchar's exclusion lives in exactly
+   * one place (`TEXT_FAMILY_OIDS`) rather than being restated by name here.
+   */
+  private textFamilyColumn(colKey: string): boolean {
+    const dot = colKey.indexOf(".");
+    return this.input.literalDistinctnessSound(colKey.slice(0, dot), colKey.slice(dot + 1));
+  }
+
   private comparisonAtom(op: string, lexpr: Node, rexpr: Node): Atom | null {
     const canonical = CANONICAL_OPS[op];
     if (!canonical) return null;
-    const lcol = this.columnKey(lexpr);
-    const rcol = this.columnKey(rexpr);
+    const lcol = this.columnKeyThroughCast(lexpr);
+    const rcol = this.columnKeyThroughCast(rexpr);
     if (lcol && rcol) {
       if (this.maskedKey(lcol) || this.maskedKey(rcol)) return null;
       return { t: "cmpCol", a: lcol, op: canonical, b: rcol };
@@ -1586,11 +1681,7 @@ class EntailmentKernel {
   private litsMatch(colKey: string, a: Lit, b: Lit): boolean {
     if (a.kind !== b.kind || a.value !== b.value) return false;
     if (a.cast === null && b.cast === null) return true;
-    const colType = this.colTypeRef(colKey);
-    const effA = a.cast ?? colType;
-    const effB = b.cast ?? colType;
-    if (!effA || !effB) return false;
-    return effA.name === effB.name && effA.schema === effB.schema;
+    return this.sameEffectiveType(colKey, a, b);
   }
 
   /**

@@ -16,8 +16,11 @@
 -- key-absent spelling (`'{"z":1}'` with a path of `$.a[*]`) behaves
 -- identically — measured.
 -- @unwitnessable 0: the document is a literal in the statement, so `$.z` is
---   present in every state — a JSON_TABLE column is uniformly conservative
---   (see the node census) and this one has nothing to be NULL over
+--   present in every state and this column has nothing to be NULL over. The
+--   exact probe exists — run the item and read `bool_and(rv IS NOT NULL)` —
+--   and cannot be built: pgsql-deparser 18.1.1 throws on every SQL/JSON node,
+--   so a closed JSON_TABLE cannot be rendered to run. Conservative, not
+--   wrong. docs/deparser-limitations.md §1; blocked on upstream support
 SELECT
   j.rv,   -- @nullable  (an ordinary JSON_TABLE column)
   j.na    -- @nullable  (the counter of a path that matched nothing)
