@@ -497,11 +497,11 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **51 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **48 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
 empty, so every excuse left in the project is here. (Was 101 on 2026-08-22.)
 
-The suite's own readout says 57, and the six-claim gap is not a discrepancy —
+The suite's own readout says 54, and the six-claim gap is not a discrepancy —
 it is a SECOND excuse channel, and the note here used to have it backwards.
 An `@unwitnessable` line names exactly one column, so lines and claims are the
 same number. What the readout adds is the nullable claims inside `@no-rows`
@@ -790,6 +790,69 @@ which is exactly the scan's predicate, so the scan always finds at least the row
 it just wrote, and `multi_stmt_log.val` is NOT NULL. The claims are conservative
 rather than wrong; the reasons now name the entailment BETWEEN statements of one
 body, which is a different question from any single statement's row count.
+
+**The aggregate-transition cluster cost a fraction of its estimate, because the
+moving part it was triaged as needing already existed.** The estimate said an
+"induction hypothesis" had to be built into the walk — a way to ASSUME a
+parameter non-null rather than derive it. `resolveSqlFunctionBodyTraced` has
+taken argument nullability as a parameter since it learned to read bodies:
+`argResults: boolean[]`. Passing `[true, false]` IS the hypothesis. Nothing to
+build.
+
+And every transition body was already parsed. A transition function is an
+ordinary LANGUAGE sql function, so `fnBodyAsts` has held `count_it_sfunc`,
+`nullify_sfunc`, `gfn_sfunc` and `nn_sfunc` all along. **The entire gap was the
+LINK** — nothing recorded which function an aggregate folds through — and it
+closed with two strings per catalog row, `aggTransFn` and `aggFinalFn`,
+rendered as the key the body map is already keyed by. No new face member, so no
+new capability and no census entry; `resolveFunctionMetadata` already returns
+the `FunctionInfo` that now carries them.
+
+The rule is an induction with one gate per step, and PostgreSQL falsifies each:
+
+| gate | control | why it fails |
+|---|---|---|
+| non-null INITCOND | `agg_strict_noinit` | no INITCOND, and its STRICT transition makes PostgreSQL SKIP the NULL input, so nothing transitions and the NULL initial state is the answer |
+| transition preserves | `agg_nullify` | throws the state away on the first row |
+| final function preserves | `agg_finalnull` | folds through count_it's own transition, then nulls it in the FINALFUNC — the one control where the first two gates both pass |
+| the HYPOTHESIS is the weakest one | `agg_sum_step` | `state + val` needs its value argument too, so assuming the arguments non-null would claim it |
+
+Two of those four needed new schema objects, and the first taught something in
+the process: PostgreSQL REFUSES `agg_strict_noinit` with `STYPE = bigint`
+("must not omit initial value when transition function is strict and transition
+type is not compatible with input type"). The reason is the very fact the
+control turns on — with a strict transition and no INITCOND the first input
+value BECOMES the state, so the types must agree. `STYPE = integer` and it
+takes.
+
+**A window-position user aggregate cannot reach the rule**, checked rather than
+assumed: `fc.over` concludes and returns before Priority 3. That matters
+because a windowed call may fold through the MOVING transition
+(`aggmtransfn`/`aggminitval`), which nothing here reads — so the hole the rule
+would otherwise have is closed by a dispatch that already existed.
+
+**The one guard that turned out unreachable is recorded as unreachable.** The
+fold reaches a body through a NAME-keyed resolver, and rebuilding the signature
+key to compare against the recorded one looked like the check that keeps an
+overload from speaking for another. Measured: it catches nothing, and not for
+the reason first written down. `resolveFunctionMetadata` takes no argument
+types, so it declines EVERY overloaded name outright — with both of the
+adapter's body-map guards lifted, it still declines. So an aggregate whose
+transition name is overloaded is refused whichever overload it declares:
+conservative, by construction, and the price of not having a signature-keyed
+metadata lookup. `agg_ambiguous` pins the outcome rather than the layer — its
+two bodies disagree, and reaching for the wrong one would claim notNull where
+PostgreSQL answers NULL.
+
+**The drift tripwire was wrong on its first spelling, in exactly the way it
+exists to catch.** `aggTransFn` and the body map's keys are rendered by two
+DIFFERENT queries and agree only because both go through
+`pg_get_function_identity_arguments`; if either drifts, every user aggregate
+becomes unreadable silently and reads as conservatism. The first test filtered
+the steps to "signatures the snapshot knows" — which DROPS a drifted key before
+asserting anything, so mutating the rendering left it green. Filtering by
+schema instead (a builtin step lives in `pg_catalog`, which drift does not move
+it out of) makes the mutation fail with all eight aggregates named.
 
 ### 4. Known imprecision residue
 

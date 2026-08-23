@@ -1032,6 +1032,55 @@ CREATE FUNCTION final_null(state bigint) RETURNS bigint
 CREATE AGGREGATE agg_finalnull(integer)
   (SFUNC = count_it_sfunc, STYPE = bigint, INITCOND = '0', FINALFUNC = final_null);
 
+-- Two more aggregates, each the control for one gate of the fold rule that
+-- reads count_it's transition. Both are non-null claims the rule must REFUSE,
+-- and PostgreSQL returns NULL for both, so a gate that stops working is
+-- falsified rather than merely unannotated.
+--
+-- agg_strict_noinit: no INITCOND, so the state starts NULL — and because the
+-- transition is STRICT, PostgreSQL SKIPS every NULL input instead of calling
+-- it, so over an all-NULL group nothing transitions and the NULL initial
+-- state is the result. Its transition body is the same non-null-preserving
+-- `state + 1` count_it uses, which is the point: only the missing INITCOND
+-- separates the two.
+-- STYPE is `integer` rather than count_it's `bigint` because PostgreSQL
+-- REFUSES the initcond-free strict form otherwise ("must not omit initial
+-- value when transition function is strict and transition type is not
+-- compatible with input type" — measured). The reason is the same fact this
+-- control turns on: with a strict transition and no INITCOND, the first input
+-- value BECOMES the initial state, so the two types have to agree.
+CREATE FUNCTION strict_step_sfunc(state integer, val integer) RETURNS integer
+  LANGUAGE sql STRICT AS $$ SELECT state + 1 $$;
+CREATE AGGREGATE agg_strict_noinit(integer) (SFUNC = strict_step_sfunc, STYPE = integer);
+
+-- agg_sum_step: INITCOND '0' and a transition that READS its value argument.
+-- The fold rule walks a transition under its weakest hypothesis — state
+-- assumed non-null, every value argument assumed NULL — and this is the
+-- aggregate that makes the choice matter: `state + val` is non-null only
+-- when `val` is, so assuming the arguments non-null would claim this one and
+-- PostgreSQL answers NULL for any group holding a NULL.
+CREATE FUNCTION sum_step_sfunc(state bigint, val integer) RETURNS bigint
+  LANGUAGE sql AS $$ SELECT state + val $$;
+CREATE AGGREGATE agg_sum_step(integer) (SFUNC = sum_step_sfunc, STYPE = bigint, INITCOND = '0');
+
+-- agg_ambiguous: the transition function's NAME is overloaded, and the two
+-- bodies disagree about nullability. `SFUNC = amb_sfunc` with STYPE bigint
+-- over an integer input resolves to the (bigint, integer) overload, which
+-- returns NULL — so the honest answer is nullable, and reaching for the OTHER
+-- overload's `state + 1` would be unsound rather than conservative.
+--
+-- Two layers refuse this and only one is active. The adapter declines to
+-- resolve an ambiguous SQL-bodied name at all, so the fold rule never gets a
+-- body; behind that, the fold rule rebuilds the signature key and compares.
+-- The second is redundant TODAY and is what would have to hold if the first
+-- were lifted — which is a live possibility, since that guard is recorded as
+-- inert in this corpus.
+CREATE FUNCTION amb_sfunc(state bigint, val integer) RETURNS bigint
+  LANGUAGE sql AS $$ SELECT NULL::bigint $$;
+CREATE FUNCTION amb_sfunc(state bigint, val text) RETURNS bigint
+  LANGUAGE sql AS $$ SELECT state + 1 $$;
+CREATE AGGREGATE agg_ambiguous(integer) (SFUNC = amb_sfunc, STYPE = bigint, INITCOND = '0');
+
 -- The hooks are the relation SET's, not the named relation's (post-phase
 -- probe, 2026-08-05): tuple routing fires the PARTITION's BEFORE ROW
 -- trigger for an INSERT through the parent, and an UPDATE through an
