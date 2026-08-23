@@ -271,7 +271,6 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
     for (const r of by("engine-stronger")) {
       lines.push(`  engine-stronger   ${r.name}  ${detail(r)}`);
     }
-    // eslint-disable-next-line no-console
     console.log(lines.join("\n"));
 
     // The report holds only its own bookkeeping — every fixture lands in

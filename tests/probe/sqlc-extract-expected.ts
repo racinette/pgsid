@@ -87,5 +87,4 @@ for (const c of cases) {
     rmSync(work, { recursive: true, force: true });
   }
 }
-// eslint-disable-next-line no-console
 console.log(`extracted=${ok} sqlc-refused=${failed} total=${cases.length}`);
