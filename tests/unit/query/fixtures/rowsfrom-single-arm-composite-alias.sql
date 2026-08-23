@@ -9,9 +9,14 @@
 -- `a` is a NOT NULL domain in the declared TABLE(...) list and there is no
 -- padding partner, so it keeps its claim — which is the other half of the
 -- boundary: the flag survives here and must not survive beside a longer arm.
--- @unwitnessable 1: `b` is declared plain integer, so the walk reads it
---   nullable, and the body returns the call's own literal argument — no state
---   can make a constant NULL. Structural, not a data gap
+--
+-- `b` is declared plain integer and carries no flag, so it can only come from
+-- the BODY — `SELECT 'v'::nn_text, n`, which returns the call's own argument.
+-- It used to read nullable because the body reading takes every parameter as
+-- nullable: a body is read once for a function, and the arguments belong to a
+-- call site. A LITERAL argument is the case that needs nothing from the call
+-- site — no scope to evaluate in, no join state to be extended by — so
+-- `sw4_tab_srf(1)` settles it.
 SELECT * FROM ROWS FROM (sw4_tab_srf(1)) AS z
 -- @notNull   (a: the declared NOT NULL domain, no arm to be padded against)
--- @nullable  (b)
+-- @notNull   (b: the body returns the literal argument)

@@ -1,8 +1,23 @@
--- @unwitnessable 24: not a data gap — the UPDATE's own WHERE carries
---   `EXISTS (… categories c WHERE c.id = p.category_id AND c.deleted_at IS
---   NULL)`, so every updated row has a live category and this RETURNING
---   subquery, keyed on that same id, finds it. Measured with a NULL-category
---   product and a soft-deleted-category product: neither is ever updated.
+-- `category_name` is notNull, and the proof is in the UPDATE's own WHERE:
+-- `EXISTS (… categories c WHERE c.id = p.category_id AND c.deleted_at IS
+-- NULL)`, so every updated row has a live category and this RETURNING
+-- subquery, keyed on that same id, finds it. It used to be nullable behind a
+-- recorded reason that said exactly that, ending "Measured with a
+-- NULL-category product and a soft-deleted-category product: neither is ever
+-- updated" — a proof with nowhere to be written down.
+--
+-- No KEY can reach it. There is a foreign key from products.category_id to
+-- categories.id and it entails nothing, because the column is NULLABLE: a
+-- product with no category dangles legitimately. The EXISTS excludes that row
+-- PER ROW, which is a thing a schema-level key cannot say.
+--
+-- The two WHEREs are held to different standards, and the asymmetry is the
+-- rule rather than an oversight. The EXISTS may carry extra conjuncts —
+-- `AND c.deleted_at IS NULL` only makes it harder to satisfy, so passing it
+-- still witnesses the weaker "a row with this id exists". The SUBQUERY may
+-- not: an extra conjunct there could exclude the very row the EXISTS
+-- witnessed. `safe_category_name` beside it is the same subquery under
+-- COALESCE and was already notNull for the other reason.
 -- Extreme fixture: UPDATE with CTEs, FROM clause, WHERE with correlated
 -- subquery, and complex RETURNING expressions.
 --
@@ -152,7 +167,7 @@ RETURNING
     SELECT c.name
     FROM categories c
     WHERE c.id = p.category_id
-  )                                         AS category_name,   -- @nullable
+  )                                         AS category_name,   -- @notNull
   COALESCE(
     (SELECT c.name FROM categories c WHERE c.id = p.category_id),
     'Uncategorized'

@@ -1,4 +1,3 @@
--- @unwitnessable 10: date_part of a FINITE timestamp is never NULL; the exclusion exists for the infinite inputs (adversarial-2 finding 11), and orders.placed_at seeds none — builtin-extract-infinity.sql witnesses that class
 -- @unwitnessable 24: current_query() is NULL only when the statement has no source text, which no data state can arrange
 -- pg_catalog built-ins.
 --
@@ -44,7 +43,11 @@ SELECT
   -- date_part/extract are OUT of the total table: month/day/hour of an
   -- infinite timestamp are NULL (adversarial-2 finding 11), and name-level
   -- dispatch cannot see the input. Conservative even over a NOT NULL column.
-  date_part('year', o.placed_at)          AS yr,              -- @nullable
+  -- `year` is one of the fields that stays a number even for an INFINITE
+  -- timestamp, so this needs nothing of `placed_at` beyond its being non-null.
+  -- It read nullable behind a recorded reason until the totality question was
+  -- asked per FIELD and TYPE rather than per name — builtin-extract-infinity.sql.
+  date_part('year', o.placed_at)          AS yr,              -- @notNull
   md5(p.sku)                              AS digest,          -- @notNull
 
   -- ...and nullable as soon as an argument is.

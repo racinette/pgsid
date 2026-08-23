@@ -15,17 +15,23 @@
 -- `$1` is the control in the same statement: `array_fill`'s ELEMENT position
 -- accepts NULL happily and fills the array with it (measured), so the rule must
 -- reject the DIMENSION argument alone and not the call.
--- The OUTPUT reads nullable here and notNull in the sibling, and the asymmetry
--- is correct: `array_fill` is non-null when its arguments are, and `$1` is a
--- parameter the walk cannot prove non-null, where the sibling's `ARRAY[...]`
--- constructor is non-null whatever is inside it.
--- @unwitnessable 0: `array_fill` of a NULL element yields an array OF NULLs,
---   which is not a NULL array — no binding or state makes this column NULL,
---   so the conservative claim is structurally unwitnessable
+-- The OUTPUT is notNull here and in the sibling, and it does NOT depend on the
+-- element being non-null. This used to read nullable behind a recorded reason,
+-- and the reason was the fact that retires it: `array_fill` of a NULL element
+-- yields an array OF NULLs, which is not a NULL array. Every other argument
+-- RAISES on NULL rather than returning one. So the function is total, not
+-- strict, and it sits in ALWAYS_NOT_NULL_BUILTINS beside the JSON container
+-- constructors, which are non-null from NULL members for the same reason.
+--
+-- The two claims are therefore the same claim, and the asymmetry the earlier
+-- note defended ("non-null when its arguments are") was never real: `$1` being
+-- an unprovable parameter is irrelevant to a container the function builds.
 --
 -- The second binding is PostgreSQL's array-literal syntax rather than JSON's:
--- `@args` values go to the wire as text.
+-- `@args` values go to the wire as text. The NULL binding is the one that
+-- matters — it is the element position, and it still returns an array.
 -- @args [1, "{2}"]
+-- @args [null, "{2}"]
 -- @param 1 nullable
 -- @param 2 notNull
-SELECT array_fill($1::integer, $2::integer[]) AS filled   -- @nullable
+SELECT array_fill($1::integer, $2::integer[]) AS filled   -- @notNull

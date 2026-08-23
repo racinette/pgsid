@@ -1,13 +1,26 @@
--- `unnest` over a FUNCTION's declared return type (adversarial-3 finding
--- 3): not a TypeCast, an ARRAY constructor or a ColumnRef, so none of the
--- three enumerated spellings matched and the item contributed one column.
--- mk_pairs() declares `sku_pair[]`, which the catalog has had all along —
--- the walk simply never asked. It asks by CONSENSUS over the candidates,
--- like every other overloaded question. The second element's empty qty
--- witnesses the field claim.
+-- `unnest` over a FUNCTION's declared return type (adversarial-3 finding 3):
+-- not a TypeCast, an ARRAY constructor or a ColumnRef, so none of the three
+-- enumerated spellings matched and the item contributed one column.
+-- mk_pairs() declares `sku_pair[]`, which the catalog has had all along — the
+-- walk simply never asked. It asks by CONSENSUS over the candidates, like
+-- every other overloaded question.
+--
+-- The FLAGS come from one step further in. The element reading wants an ARRAY
+-- CONSTRUCTOR, and mk_pairs is one indirection away from being written as
+-- one: IMMUTABLE, no arguments, and a body that is nothing but
+-- `SELECT ARRAY[ROW('a', 1)::sku_pair, ROW('b', NULL)::sku_pair]`. Under
+-- those three conditions substituting the body for the call is an IDENTITY,
+-- so the constructor is read exactly as an inline one would be — and each of
+-- the three is doing work: a STABLE body is not the same value twice, a
+-- parameter would need substituting from the call site, and a FROM clause
+-- means the body is not a single value at all.
+--
+-- The two columns then separate, which is the point. Both skus are non-null
+-- so `sku` is notNull; the second element's qty is NULL and witnesses `qty`.
+-- `sku` used to be nullable behind a reason that stated the fact — "mk_pairs
+-- is an IMMUTABLE literal array and its skus are both non-NULL" — and cited
+-- the uniform rule that a NULL element nulls every field. That rule is for an
+-- element that can BE NULL; a ROW constructor cannot.
 SELECT * FROM unnest(mk_pairs())
--- @nullable   (sku)
+-- @notNull    (sku)
 -- @nullable   (qty)
--- @unwitnessable 0: mk_pairs is an IMMUTABLE literal array and its skus are
---   both non-NULL; the nullable is the expansion's uniform rule (a NULL
---   element nulls every field), witnessed in unnest-composite-shape.sql.

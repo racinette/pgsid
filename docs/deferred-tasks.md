@@ -497,11 +497,12 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **38 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **22 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
-empty, so every excuse left in the project is here. (Was 101 on 2026-08-22.)
+empty, so every excuse left in the project is here. (Was 101 on 2026-08-22,
+38 on 2026-08-23 before the triage pass below.)
 
-The suite's own readout says 44, and the six-claim gap is not a discrepancy —
+The suite's own readout says 28, and the six-claim gap is not a discrepancy —
 it is a SECOND excuse channel, and the note here used to have it backwards.
 An `@unwitnessable` line names exactly one column, so lines and claims are the
 same number. What the readout adds is the nullable claims inside `@no-rows`
@@ -950,6 +951,106 @@ Also corrected: `schema.sql`'s own comment on these functions said the body
 "can return zero rows → function returns NULL", which was the ENGINE's verdict
 written down as if it were PostgreSQL's. It is the same error the fixture
 annotations carried, in the schema this time.
+
+#### The triage pass over the remaining 38 (2026-08-23)
+
+The four cluster passes above left 38, described at the time as "roughly twenty
+genuinely permanent". Reading all 38 against the code rather than against their
+own reasons put the permanent count at **15**, with **7 cheap** and 16 needing a
+real build. Sixteen closed: 38 → 22 annotations, 44 → 28 unwitnessed, witnessed
+coverage 94% → 96%.
+
+**The recurring finding held for a fifth time: the reason was usually the
+route.** Several annotations stated the closing fact outright —
+`rowsfrom-pad-presence-group` ended "the route is a REQUIRED promotion for an
+item whose arms guarantee a row", and the number it needed was already computed
+by the padding bound; `extreme-domain-not-null-left-join` said "the two joins
+cannot be separated by data" and had measured it. What was missing in each case
+was somewhere for the proof to be written down.
+
+**Where a rule was keyed on a SHAPE that stood in for a PROPERTY, widening it to
+the property closed the item and usually more.** Three instances:
+
+| was | is |
+|---|---|
+| aggregate over the DEFAULT window frame | over any frame that CONTAINS THE CURRENT ROW — measured against 17 spellings, and the predicate and PostgreSQL agree on all 17. Writing the default's own bounds out longhand had not qualified, because that sets the NONDEFAULT bit |
+| `extract`/`date_part` excluded BY NAME | per FIELD and per argument TYPE. `day` is total for an interval and NULL for an infinite timestamp; the name-level exclusion was one fact standing for a two-dimensional one. Closed a second annotation (`builtin-functions:10`) with no extra work |
+| composite `.*` expansion uniformly nullable | uniform over the arm where the value can be NULL AS A WHOLE, per-field over a ROW CONSTRUCTOR, which cannot be |
+
+**Two measurements contradicted a recorded reason outright.**
+`fk-entail-tablesample-full-fraction` argued that reading the fraction "would be
+one shape away from unsound: `BERNOULLI (99)` keeps every row in almost every
+execution". Measured over twelve runs of a 500-row table, BERNOULLI (99) keeps
+489–497 — it really does drop rows — while **SYSTEM (99) keeps all 500**,
+because SYSTEM samples by PAGE and 500 rows is one page. So 99 is not one shape
+away from 100, it is a different kind of statement, and the trap the old note
+was reaching for was the other method. The gate is equality with 100.
+
+`check-origin-expression-death` said the CHECK "forces x non-null on every
+housed row" and stopped one step short of why that is true. The CHECK tests the
+BARE column against `'housed'`, and `upper(status) = 'HOUSED'` does not imply
+it — a row storing `'HOUSED'` passes the filter and takes the ELSE branch. That
+row cannot be seeded only because a SECOND constraint closes the column to
+lowercase spellings. So the item is not the Tier-B precision fix it looked
+like: carrying the origin needs `upper` proven injective over the admitted set.
+Reclassified permanent, with the reason corrected.
+
+**Three controls were written, measured, and then deleted for costing what they
+bought** — each would have claimed nullable on a value that is never NULL and
+paid a fresh `@unwitnessable` for the privilege (a `num_nulls` variadic call, a
+`BERNOULLI (99)` join, an `out_pair` over a NOT NULL column). Two of the three
+turned out to be already covered by a sibling fixture; the third guards a
+REFUSAL, which can only under-claim and needs no witness. **A control that adds
+an excuse is not a control.**
+
+**Two gates are recorded as conservative rather than load-bearing**, because
+mutating them changed no claim and no fixture could: the IMMUTABLE check on
+`constantArrayBodyOf` (a body that IS an array constructor yields the same
+constructor whatever its declared volatility, and the elements are walked
+individually afterwards), and the third-alias refusal in
+`sameRestrictionEntailedAlias` (two joins correlated to the same outer row do
+match together). Both kept and both marked. **A gate claimed to be doing work
+it is not is the same defect as an ungated widening.**
+
+**Incidental: `pgsql-deparser` corrupts window frame offsets, mostly
+silently.** The loud case was already pinned (`window-default-frame`). Measured
+while adding frame controls, the defect is wider — it does not distinguish a
+bound's DIRECTION and drops `UNBOUNDED FOLLOWING` on the end bound:
+
+    1 FOLLOWING AND 2 FOLLOWING          -> 1 PRECEDING AND 2 FOLLOWING
+    1 FOLLOWING AND UNBOUNDED FOLLOWING  -> 1 PRECEDING AND CURRENT ROW
+    2 PRECEDING AND 1 PRECEDING          -> 2 FOLLOWING AND 1 PRECEDING
+
+Only the third fails to reparse. The first two come back as VALID SQL meaning a
+different frame, so **the generator must not request an offset frame bound**
+without an expected-node check.
+
+**Incidental: the `convalidated = false` gate has no executed witness.**
+`fk_nv` and `fk_df` are seeded by no data state, so both `fk-entail-*` fixtures
+return zero rows in every state and even their notNull claims are vacuous.
+`inbound_receipts` (schema.sql:518) carries a **NOT ENFORCED** key and is
+referenced by no fixture at all. NOT ENFORCED is the useful difference —
+measured, the dangling INSERT that NOT VALID rejects goes through, and the
+LEFT JOIN returns NULL — so seeding it would turn three annotations' worth of
+evidence into a PostgreSQL-produced NULL with no engine change. Not done; the
+two annotations themselves stay either way.
+
+**Still open, and each needs a decision rather than more work:**
+
+- **Five items need a jsonpath evaluated against a literal document** —
+  `xmltable-jsontable` 4 and 9, both `jsontable-*` fixtures, and
+  `srf-padding-unlisted-builtin` (which wants a CARDINALITY from the same
+  evaluation). The subtree evaluator already exists and already reaches the
+  walk as data (`ReadonlyMap<Node, EvalResult>`), but it collects subtrees
+  FROM the statement; these need SYNTHESIZED probes, which is a new capability
+  in its contract rather than a new consumer of it.
+- **`bpchar-distinctness-varchar-control`** needs `columnKey` to see through a
+  value-preserving cast. Measured: `varchar -> text` is an identity
+  (`'a  '::varchar(4)::text = 'a  '::text`, length preserved), where
+  `bpchar -> text` STRIPS trailing blanks (length 4 becomes 1) and changes the
+  comparison — which is exactly the distinction the gate would need, and
+  exactly the unsoundness the current refusal was written to stop. Inside the
+  propositional charter's atom-recognition surface, so not taken unilaterally.
 
 ### 4. Known imprecision residue
 

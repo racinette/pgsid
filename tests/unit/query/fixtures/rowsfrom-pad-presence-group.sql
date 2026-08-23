@@ -27,16 +27,30 @@
 -- the same contract violation, discriminant swapped. A padded arm's columns
 -- are no part of the item's presence unit, so `a` and `b` leave the unit and
 -- the group is still absent. That absence is still the assertion.
--- @unwitnessable 3: the arm is no longer padded — what leaves this column
---   nullable is the LEFT JOIN, whose extension nulls the whole item. It never
---   fires: `generate_series(1, 3)` guarantees the LATERAL three rows, so the
---   item is never empty and never extended. That is the SAME minimum the
---   padding bound already computes, asked of the join state instead — the
---   route is a REQUIRED promotion for an item whose arms guarantee a row
+-- @planner-keeps 1: the walk settles this LEFT JOIN from the ARM's guaranteed
+--   row count; the planner leaves the join in place, because a set-returning
+--   function's cardinality is an estimate to it and never a proof
+-- `generate_series` is notNull, and the route there was written down here
+-- before it was built: the arm is not padded (it is the longest), so the only
+-- thing that could null it was the LEFT JOIN's extension — and the extension
+-- never fires, because `generate_series(1, 3)` guarantees the item three rows.
+-- That minimum is the SAME number the padding bound already computes; the join
+-- state simply never asked for it. It does now, and the answer promotes the
+-- item to REQUIRED.
+--
+-- Both halves are needed and both are gated. `ON true` is the other one: a
+-- qual that can be false or NULL extends the row no matter how many rows the
+-- item has, so the literal is the whole test.
+--
+-- `a` and `b` stay nullable for the OTHER reason — the strict SRF returns no
+-- rows for a NULL argument, and the lockstep padding fills its columns while
+-- the item is present. That is the distinction this fixture exists for: a
+-- PADDED arm and an ABSENT item null the same columns and are not the same
+-- fact, which is why the padded columns leave the presence unit.
 SELECT
   o.id,               -- @notNull
   x.a,                -- @nullable
   x.b,                -- @nullable
-  x.generate_series   -- @nullable
+  x.generate_series   -- @notNull
 FROM orders o
 LEFT JOIN LATERAL ROWS FROM (sw4_tab_srf(o.id), generate_series(1, 3)) x ON true
