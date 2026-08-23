@@ -18,6 +18,10 @@ import {
   type EvalResult,
   type SubtreeEvaluationCatalog,
 } from "./subtree-evaluator.js";
+import {
+  collectSrfCardinalityQuestions,
+  evaluateSrfCardinalities,
+} from "./srf-cardinality.js";
 import { writtenGuardTruths } from "./written-value-guards.js";
 import { TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES, STRICT_OPERATORS } from "./operators.js";
 import {
@@ -123,6 +127,21 @@ async function statementEvaluation(
   return map;
 }
 
+/** The padding bound's pre-walk round (srf-cardinality.ts): how many rows
+ *  each CLOSED set-returning call emits, answered by running it. Same shape
+ *  as the two rounds beside it — one async step, answers as data. */
+async function srfCardinalities(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+  evaluate: Evaluate | undefined,
+): Promise<ReadonlyMap<object, number> | undefined> {
+  if (!evaluate) return undefined;
+  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
+  const questions = collectSrfCardinalityQuestions(stmt, face);
+  if (questions.length === 0) return undefined;
+  return evaluateSrfCardinalities(questions, evaluate);
+}
+
 /** The entailment consumer's pre-walk round (comparison-groundings.ts):
  *  same shape as `statementEvaluation`, one async step, answers as data. */
 async function comparisonGroundings(
@@ -144,6 +163,7 @@ export async function inferNullability(
 ): Promise<OutputNullability[]> {
   const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
   const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
+  const cardinalities = await srfCardinalities(stmt, catalog, options?.evaluate);
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -151,6 +171,7 @@ export async function inferNullability(
     options?.paramTypes,
     evaluation,
     comparisons,
+    cardinalities,
   );
   if (options?.joinAudit) engine.joinAuditSink = options.joinAudit;
   if (options?.collectUnitCrossings) engine.collectUnitCrossings = true;
@@ -238,6 +259,7 @@ export async function inferQueryContract(
   }
   const facts = collectParamFacts(stmt, catalog, mechanismE);
   const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
+  const cardinalities = await srfCardinalities(stmt, catalog, options?.evaluate);
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -245,6 +267,7 @@ export async function inferQueryContract(
     options?.paramTypes,
     evaluation,
     comparisons,
+    cardinalities,
   );
   return {
     outputs: engine.run(stmt),
@@ -286,6 +309,7 @@ export async function inferNullabilityTraced(
 ): Promise<OutputNullabilityTraced[]> {
   const evaluation = await statementEvaluation(stmt, catalog, options?.evaluate);
   const comparisons = await comparisonGroundings(stmt, catalog, options?.evaluate);
+  const cardinalities = await srfCardinalities(stmt, catalog, options?.evaluate);
   const engine = new NullabilityEngine(
     catalog,
     true,
@@ -293,6 +317,7 @@ export async function inferNullabilityTraced(
     options?.paramTypes,
     evaluation,
     comparisons,
+    cardinalities,
   );
   return engine.runTraced(stmt);
 }
@@ -1095,6 +1120,13 @@ class NullabilityEngine {
    */
   private readonly comparisons: ReadonlyMap<string, boolean> | undefined;
 
+  /**
+   * How many rows each CLOSED set-returning call emits, keyed by node
+   * identity — `srf-cardinality.ts`, read only by `armRowBounds`. Undefined
+   * without `evaluate`, and the padding bound then answers exactly as before.
+   */
+  private readonly cardinalities: ReadonlyMap<object, number> | undefined;
+
   constructor(
     catalog: NullabilityCatalog,
     tracing = false,
@@ -1102,6 +1134,7 @@ class NullabilityEngine {
     paramTypes?: readonly string[],
     evaluation?: ReadonlyMap<Node, EvalResult>,
     comparisons?: ReadonlyMap<string, boolean>,
+    cardinalities?: ReadonlyMap<object, number>,
   ) {
     this.catalog = catalog;
     this.tracing = tracing;
@@ -1109,6 +1142,7 @@ class NullabilityEngine {
     this.paramTypes = paramTypes;
     this.evaluation = evaluation;
     this.comparisons = comparisons;
+    this.cardinalities = cardinalities;
   }
 
   /** The kernel-facing reading of `comparisons`, or undefined without it. */
@@ -1356,6 +1390,21 @@ class NullabilityEngine {
 
   private armRowBounds(fc: FuncCall, depth: number): RowBounds {
     if (!this.isSetReturningCall(fc)) return { min: 1, max: 1 };
+
+    // A CLOSED call was RUN before the walk, and the count PostgreSQL gave is
+    // exact in both directions — the one source of a bound that is neither a
+    // shape rule nor an estimate. `jsonb_path_query('[1]'::jsonb, '$[*]')` is
+    // one row and there is no arithmetic on constants that says so; counting
+    // a jsonpath match is PostgreSQL's job.
+    //
+    // The map is keyed by node identity and holds only calls the evaluator's
+    // own closure gate admitted, whose volatility half is what makes this
+    // sound: a STABLE call's count at analysis time promises nothing about
+    // its count at execution time, and the padding turns this number into a
+    // notNull claim. Absent the evaluator the map is undefined and every
+    // reading below is what it always was.
+    const counted = this.cardinalities?.get(fc as unknown as object);
+    if (counted !== undefined) return { min: counted, max: counted };
 
     const name = this.funcName(fc);
     const schema = this.funcSchema(fc);
