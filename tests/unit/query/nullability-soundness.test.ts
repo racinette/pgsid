@@ -11,6 +11,8 @@ import type {
   OutputNullability,
   OutputPresenceGroup,
 } from "../../../src/query/types.js";
+import type { EvalWarning } from "../../../src/query/nullability-walk.js";
+import { createKillableEvaluator } from "./killable-evaluator.js";
 import { bindParams, parseFixtureDirectives, type FixtureBinding } from "./fixture-args.js";
 import { hasStatements, loadDataStates, type DataState } from "./fixture-data/states.js";
 
@@ -145,6 +147,24 @@ async function popSearchPath(pg: PGlite, searchPath: string[] | null): Promise<v
 
 const results = new Map<string, FixtureResult>();
 let dataStates: DataState[] = [];
+/**
+ * Probes that went unanswered, and the subset that went unanswered because
+ * the evaluator was KILLED. The two are not the same failure and only the
+ * second is one.
+ *
+ * A closed subtree may raise on its own — `5 / 0`, a NULL into a NOT NULL
+ * domain, an untyped empty array — and the evaluator core is built around
+ * that: the subtree contributes nothing and the walk keeps its earlier claim.
+ * Those show up here as warnings and are entirely ordinary.
+ *
+ * A KILL is different: it means the probe could not be answered in the time
+ * allowed, which before the evaluator was killable did not fail the suite —
+ * it hung it. Classification belongs to whoever owns the timeout, which is
+ * why the engine's `EvalWarning` records what was said rather than trying to
+ * judge it, and the harness reads `killedSql` from its own evaluator.
+ */
+const evalWarnings: EvalWarning[] = [];
+let killedProbes: readonly string[] = [];
 
 describe("nullability soundness (engine vs PostgreSQL)", () => {
   beforeAll(async () => {
@@ -155,6 +175,19 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     const snapshot = await snapshotCatalog(pg);
     const catalogFor = catalogCache(snapshot);
     dataStates = loadDataStates(snapshot);
+
+    // Analysis probes run on a KILLABLE instance, never on `pg`. A probe
+    // PGlite will not finish blocks the thread it runs on completely — no
+    // timer, handler or `statement_timeout` there can end it — so running one
+    // here would wedge the suite rather than fail it. That is not
+    // hypothetical: an early draft of the cardinality round counted a
+    // FROM-position `generate_series(1, 10000000000)`, which materialises
+    // before any LIMIT applies (Trap 1, docs/subtree-evaluation.md), and the
+    // suite had to be killed from the shell. Now it reports the statement.
+    //
+    // The instance carries the fixture schema and no data: closed subtrees
+    // read no table, so the probes need types and IMMUTABLE functions only.
+    const evaluator = await createKillableEvaluator({ schema: SCHEMA_SQL });
 
     let prepareCounter = 0;
     for (const fixture of fixtures) {
@@ -169,7 +202,8 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       // Same analysis mode as the fixture suite: the statement map runs live,
       // so the claims the oracle adjudicates are the claims the pins assert.
       const claimed = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
-        evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
+        evaluate: evaluator.evaluate,
+        evalWarnings,
       });
       const claimedGroups = inferPresenceGroups(parsed.stmts![0]!.stmt!, catalog);
 
@@ -217,6 +251,10 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       await popSearchPath(pg, fixture.searchPath);
     }
     await pg.close();
+    // Probes belong to the analysis step alone; the data states execute
+    // fixtures, they do not analyse them.
+    killedProbes = [...evaluator.killedSql];
+    await evaluator.close();
 
     // --- Soundness and witnesses, one instance per data state. ---
     for (const state of dataStates) {
@@ -310,6 +348,25 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       await statePg.close();
     }
   }, 900_000);
+
+  it("no analysis probe had to be killed", () => {
+    // A probe PGlite will not finish blocks the thread it runs on, so before
+    // the evaluator was killable this did not fail — it HUNG, and the run had
+    // to be killed from the shell with nothing to show for it. A kill now
+    // reports the statement instead.
+    //
+    // Not a soundness failure: the round degrades and the claim falls back to
+    // what it was before evaluation existed. It is a failure of this SUITE,
+    // because a corpus probe that cannot be answered in half a second is a
+    // fixture or a rule that wants looking at.
+    //
+    // RAISING probes are deliberately not counted. A closed subtree may raise
+    // on its own and the evaluator core is designed around it — the corpus has
+    // five, all of them a NULL reaching a NOT NULL domain or an untyped empty
+    // array, and each correctly contributes nothing.
+    expect(killedProbes, "analysis probes killed on timeout").toEqual([]);
+    expect(evalWarnings.every(w => !/terminated after/.test(w.detail))).toBe(true);
+  });
 
   for (const fixture of fixtures) {
     it(fixture.name, () => {
