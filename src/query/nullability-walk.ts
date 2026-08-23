@@ -4564,11 +4564,26 @@ class NullabilityEngine {
       for (const entry of scope.aliases.values()) entry.ast = undefined;
     }
 
+    // An arm that WRITES NOTHING returns nothing, so it cannot supply a
+    // counterexample to any claim quantified over returned rows — and all
+    // THREE facts read off this arm list are such claims. `DO NOTHING` is the
+    // only arm kind that produces no row: a DELETE arm returns the row as it
+    // stood before the statement (measured), so it counts like the rest.
+    //
+    // This filter used to be applied to the written-value map alone, where it
+    // was written down correctly, while the two facts below read `matchKind`
+    // and ignored `commandType` on the same object. The register called the
+    // difference "per-arm reasoning judged not worth it"; the engine was
+    // already doing per-arm reasoning twenty lines down, and one statement
+    // over in `returningRejectedParams`, which says of the ON CONFLICT twin
+    // that DO NOTHING "returns no row for a conflict and stands alone".
+    const producing = arms.filter(a => a.commandType !== "CMD_NOTHING");
+
     // Only a NOT MATCHED BY SOURCE arm can null-extend the source: every
     // other row-producing arm either matched it (MATCHED) or was driven by
     // it (NOT MATCHED BY TARGET's INSERT). Without such an arm the source is
     // REQUIRED and its columns keep base nullability.
-    const hasBySource = arms.some(a => a.matchKind === "MERGE_WHEN_NOT_MATCHED_BY_SOURCE");
+    const hasBySource = producing.some(a => a.matchKind === "MERGE_WHEN_NOT_MATCHED_BY_SOURCE");
     if (stmt.sourceRelation) {
       const sourceGroup = this.nextNullGroup();
       // PostgreSQL expands MERGE's `RETURNING *` SOURCE FIRST, then the
@@ -4589,12 +4604,22 @@ class NullabilityEngine {
       );
     }
 
-    // When EVERY arm is MATCHED-kind, every returned row satisfied the join
-    // condition — the NOT MATCHED arms that fire precisely on its failure do
-    // not exist — so it is row-implied evidence like a DML WHERE: parameters
-    // narrow (RETURNING has no aggregates), columns promote, with the SET
-    // columns of the UPDATE arms masked (the condition tested the OLD row).
-    const allMatched = arms.length > 0 && arms.every(a => a.matchKind === "MERGE_WHEN_MATCHED");
+    // When every ROW-PRODUCING arm is MATCHED-kind, every returned row
+    // satisfied the join condition — the NOT MATCHED arms that fire precisely
+    // on its failure return nothing — so it is row-implied evidence like a
+    // DML WHERE: parameters narrow (RETURNING has no aggregates), columns
+    // promote, with the SET columns of the UPDATE arms masked (the condition
+    // tested the OLD row).
+    //
+    // The length guard is not redundant with the `every`: a statement whose
+    // arms ALL write nothing returns no row, and an implication over no rows
+    // is vacuous rather than evidence. NO FIXTURE CAN KILL IT, and that is
+    // its own argument — such a statement returns nothing in every data
+    // state, so every claim it carries is vacuously true and no oracle has a
+    // row to disagree with. It is here because `every` over an empty list is
+    // TRUE, which would make the emptiest statement the most confident one.
+    const allMatched =
+      producing.length > 0 && producing.every(a => a.matchKind === "MERGE_WHEN_MATCHED");
     if (allMatched && stmt.joinCondition) {
       scope.whereClause = stmt.joinCondition;
       scope.rowsImplyWhere = true;
@@ -4625,8 +4650,8 @@ class NullabilityEngine {
     // INSERT arms their positional values against their own column list; a
     // column an arm does not write is the existing/default value and
     // contributes nothing; a DELETE arm returns the OLD row, which voids
-    // the whole map; DO NOTHING produces no row and is excluded.
-    const producing = arms.filter(a => a.commandType !== "CMD_NOTHING");
+    // the whole map; DO NOTHING produces no row and is excluded — by the
+    // `producing` filter above, which this reading is where it started.
     const targetAliasW = [...scope.aliases.keys()][0];
     if (
       targetAliasW !== undefined &&
