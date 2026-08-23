@@ -85,6 +85,11 @@ import { BASE_SCHEMA_SQL, SCHEMA_VARIANTS, type SchemaVariant } from "./schema-v
 const FLOOR: string[] = [
   "fnArgDefaultAsts",
   "fnBodyAsts",
+  // read beside `fnBodyAsts` on every body recursion: the row-count check asks
+  // whether an earlier statement of the same body already wrote the row the
+  // final scan looks for, so the lookup happens for single-statement bodies
+  // too and simply comes back empty
+  "fnBodyPreludeAsts",
   "functionReturnsSet",
   "isAggregateBuiltin",
   // the `unnest(...)` structures: unnest of a FuncCall falls to the two

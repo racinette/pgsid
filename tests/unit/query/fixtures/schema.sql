@@ -613,9 +613,12 @@ CREATE FUNCTION strict_build(a text, b text, c text) RETURNS text
   END;
 
 -- Multi-statement LANGUAGE sql function: INSERT then SELECT from table.
--- The catalog-adapter takes the last statement (SELECT). The walk must
--- detect that this SELECT has a FROM clause and is not an aggregate →
--- can return zero rows → function returns NULL.
+-- The catalog-adapter keeps every statement and hands the walk the last one
+-- (SELECT) plus the ones before it. The SELECT has a FROM clause and is not an
+-- aggregate, so on its own it could return zero rows — and it cannot, because
+-- the INSERT one statement earlier wrote the very row its WHERE looks for.
+-- The comment here used to say "→ function returns NULL", which was the
+-- ENGINE's verdict written down as if it were PostgreSQL's.
 CREATE TABLE multi_stmt_log (
   id     integer NOT NULL,
   val    text   NOT NULL
@@ -650,6 +653,53 @@ CREATE FUNCTION strict_multi_atomic(a text, b text) RETURNS text
     INSERT INTO multi_stmt_log VALUES (4, a);
     SELECT b;
   END;
+
+-- Controls for the rule that reads an earlier INSERT to settle a later scan's
+-- row count. Each body is `multi_stmt_fn`'s shape with ONE thing changed, and
+-- PostgreSQL returns NULL for every one of them.
+--
+-- `ms_ctl` carries no constraints, so the repeated inserts a per-row call
+-- makes are all legal; `ms_conflict` has the primary key the ON CONFLICT
+-- control needs, which is also what makes that control witness itself — the
+-- first row inserts, and every row after it conflicts and inserts nothing.
+CREATE TABLE ms_ctl (id integer NOT NULL, val text NOT NULL);
+CREATE TABLE ms_conflict (id integer PRIMARY KEY, val text NOT NULL);
+
+-- A second write to the same table, which can take the row back out. This is
+-- the gate the STATEMENT ORDER matters for.
+CREATE FUNCTION ms_ctl_delete(x text) RETURNS text LANGUAGE sql
+  AS $$ INSERT INTO ms_ctl VALUES (1, 'd:' || $1);
+        DELETE FROM ms_ctl WHERE val = 'd:' || $1;
+        SELECT val FROM ms_ctl WHERE val = 'd:' || $1 $$;
+
+-- The value written is not the value looked for.
+CREATE FUNCTION ms_ctl_other(x text) RETURNS text LANGUAGE sql
+  AS $$ INSERT INTO ms_ctl VALUES (2, 'a:' || $1);
+        SELECT val FROM ms_ctl WHERE val = 'b:' || $1 $$;
+
+-- ON CONFLICT DO NOTHING can insert nothing, and the row it conflicted WITH
+-- need not be the row the scan wants — here it never is, since the conflict is
+-- on `id` and the scan reads `val`.
+CREATE FUNCTION ms_ctl_conflict(x text) RETURNS text LANGUAGE sql
+  AS $$ INSERT INTO ms_conflict VALUES (3, 'c:' || $1) ON CONFLICT DO NOTHING;
+        SELECT val FROM ms_conflict WHERE val = 'c:' || $1 $$;
+
+-- INSERT ... SELECT can insert zero rows; only a single-row VALUES plainly
+-- writes one.
+CREATE FUNCTION ms_ctl_select(x text) RETURNS text LANGUAGE sql
+  AS $$ INSERT INTO ms_ctl SELECT 4, 'i:' || $1 WHERE false;
+        SELECT val FROM ms_ctl WHERE val = 'i:' || $1 $$;
+
+-- The scan side can still throw the row away after finding it: LIMIT here,
+-- HAVING below. OFFSET is gated with them and shares their controls' logic.
+CREATE FUNCTION ms_ctl_limit(x text) RETURNS text LANGUAGE sql
+  AS $$ INSERT INTO ms_ctl VALUES (5, 'l:' || $1);
+        SELECT val FROM ms_ctl WHERE val = 'l:' || $1 LIMIT 0 $$;
+
+CREATE FUNCTION ms_ctl_having(x text) RETURNS text LANGUAGE sql
+  AS $$ INSERT INTO ms_ctl VALUES (6, 'h:' || $1);
+        SELECT val FROM ms_ctl WHERE val = 'h:' || $1
+        GROUP BY val HAVING count(*) > 5 $$;
 
 -- LANGUAGE plpgsql function returning a NOT NULL domain.
 -- Priority 1 (NOT NULL domain return) wins over the language dispatch,

@@ -193,11 +193,14 @@ export async function buildNullabilityCatalog(
 
   // Pre-parse LANGUAGE sql function bodies into ASTs.
   const fnBodyAsts = new Map<string, Node>();
+  const fnBodyPreludeAsts = new Map<string, Node[]>();
   for (const f of snapshot.functions) {
     if (f.language !== "sql" || f.isAggregate) continue;
     const fnKey = `${f.schema}.${f.name}(${f.argTypes})`;
-    const ast = await parseFnBodyAst(f.body, f.definition);
-    if (ast) fnBodyAsts.set(fnKey, ast);
+    const stmts = await parseFnBodyStmts(f.body, f.definition);
+    if (stmts.length === 0) continue;
+    fnBodyAsts.set(fnKey, stmts[stmts.length - 1]!);
+    if (stmts.length > 1) fnBodyPreludeAsts.set(fnKey, stmts.slice(0, -1));
   }
 
   // Pre-parse ARGUMENT DEFAULT expressions, one entry per argument position
@@ -2539,6 +2542,7 @@ export async function buildNullabilityCatalog(
     isNotNullDomainByName,
     resolveDomainBaseTypeName,
     fnBodyAsts,
+    fnBodyPreludeAsts,
     viewAsts,
   };
 }
@@ -2575,28 +2579,34 @@ async function parseExprAst(expr: string): Promise<Node | null> {
 //    this via fnParamNames mapping in resolveColumnRef.
 // ---------------------------------------------------------------------------
 
-async function parseFnBodyAst(
-  body: string,
-  definition?: string,
-): Promise<Node | null> {
+/**
+ * Every statement of a `LANGUAGE sql` body, in order.
+ *
+ * This used to return only the last one, because the last one is what the
+ * function RETURNS and nothing asked for the rest. What asks now is the
+ * row-count question: a body's final scan can be guaranteed non-empty by a
+ * statement that ran before it, and a walk that never sees that statement has
+ * to answer conservatively. The last element is still what `fnBodyAsts` holds;
+ * the rest becomes `fnBodyPreludeAsts`.
+ */
+async function parseFnBodyStmts(body: string, definition?: string): Promise<Node[]> {
+  const tryParse = async (text: string): Promise<Node[]> => {
+    try {
+      return (await parseSql(text)).stmts?.map(s => s.stmt!) ?? [];
+    } catch {
+      return [];
+    }
+  };
+
   // Case 1: prosrc has the raw body (old-style functions).
   if (body && body.trim().length > 0) {
-    try {
-      const parsed = await parseSql(body);
-      const stmts = parsed.stmts ?? [];
-      if (stmts.length > 0) return stmts[stmts.length - 1]!.stmt!;
-    } catch {
-      // prosrc might contain BEGIN ATOMIC text (rare) — try stripping.
-      const stripped = stripBeginAtomic(body);
-      if (stripped) {
-        try {
-          const parsed = await parseSql(stripped);
-          const stmts = parsed.stmts ?? [];
-          if (stmts.length > 0) return stmts[stmts.length - 1]!.stmt!;
-        } catch {
-          // Fall through to definition.
-        }
-      }
+    const direct = await tryParse(body);
+    if (direct.length > 0) return direct;
+    // prosrc might contain BEGIN ATOMIC text (rare) — try stripping.
+    const stripped = stripBeginAtomic(body);
+    if (stripped) {
+      const s = await tryParse(stripped);
+      if (s.length > 0) return s;
     }
   }
 
@@ -2612,11 +2622,12 @@ async function parseFnBodyAst(
           | undefined;
         if (cf?.sql_body) {
           const items = cf.sql_body.List?.items ?? [];
+          // The statement list sits one level down, inside the last item —
+          // the nesting the single-statement reading already relied on, kept
+          // exactly so that what `fnBodyAsts` receives does not change.
           const lastList = items[items.length - 1];
           const innerItems = (lastList as { List?: { items?: Node[] } })?.List?.items ?? [];
-          if (innerItems.length > 0) {
-            return innerItems[innerItems.length - 1]!;
-          }
+          return innerItems;
         }
       }
     } catch {
@@ -2624,7 +2635,7 @@ async function parseFnBodyAst(
     }
   }
 
-  return null;
+  return [];
 }
 
 function stripBeginAtomic(body: string): string | null {

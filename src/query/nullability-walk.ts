@@ -878,6 +878,13 @@ interface FnBodyContext {
   /** Set of function keys currently being analyzed (cycle detection). */
   analyzing: Set<string>;
   /**
+   * The function's own bare name, which is how PostgreSQL's deparser QUALIFIES
+   * a parameter reference in a `BEGIN ATOMIC` body that has a FROM clause:
+   * `SELECT b FROM t WHERE …` comes back as `multi_stmt_atomic.b`. Undefined
+   * where no body is being read under a known name.
+   */
+  fnName?: string;
+  /**
    * The DECLARED type of each positional parameter, from the function's own
    * signature. Inside a body, `$n` names the function's parameter and not the
    * statement's, so this is the only correct source for its type — and it is
@@ -8306,6 +8313,26 @@ class NullabilityEngine {
 
     // 2 parts: `alias.col`.
     if (parts.length === 2) {
+      // A parameter qualified by the FUNCTION's own name. PostgreSQL's
+      // deparser writes `BEGIN ATOMIC` bodies that way whenever the body has a
+      // FROM clause and the bare name could be read as a column of it — so
+      // `SELECT b FROM t WHERE …` comes back as `multi_stmt_atomic.b`. The
+      // scope is asked FIRST: a real relation aliased with the function's name
+      // is the closer binding, and PostgreSQL would have resolved it that way
+      // too.
+      if (this.fnCtx && parts[0] === this.fnCtx.fnName && !scope.aliases.has(parts[0]!)) {
+        const argIndex = this.fnParamNames?.indexOf(parts[1]!) ?? -1;
+        if (argIndex >= 0) {
+          const result = this.fnCtx.argResults[argIndex] ?? false;
+          trace.addFact("fnParam", `${parts[0]}.${parts[1]}`);
+          trace.addFact("argIndex", String(argIndex));
+          trace.conclude(
+            result,
+            `function param '${parts[1]}' (deparsed qualified) → ${result ? "notNull" : "nullable"}`,
+          );
+          return result;
+        }
+      }
       return this.resolveAliasedColumnTraced(parts[0]!, parts[1]!, scope, depth, trace);
     }
 
@@ -11529,6 +11556,7 @@ class NullabilityEngine {
     this.fnCtx = {
       argResults,
       analyzing: new Set(prevCtx?.analyzing ?? []).add(fnKey),
+      fnName: meta.name,
       // Input parameters only: a SQL body numbers `$n` over the INPUTS,
       // so an interleaved OUT parameter must not shift the positions.
       argTypes: meta.args
@@ -11540,7 +11568,13 @@ class NullabilityEngine {
     };
     this.fnParamNames = meta.args.map(a => a.name);
     try {
-      return this.analyzeSqlFunctionReturnTraced(bodyAst, scope, depth, trace);
+      return this.analyzeSqlFunctionReturnTraced(
+        bodyAst,
+        scope,
+        depth,
+        trace,
+        this.catalog.fnBodyPreludeAsts.get(fnKey) ?? [],
+      );
     } finally {
       this.fnCtx = prevCtx;
       this.fnParamNames = prevParamNames;
@@ -11548,11 +11582,200 @@ class NullabilityEngine {
   }
 
 
+  /**
+   * Whether a body's final scan is non-empty because an EARLIER statement of
+   * the same body inserted a row it must find.
+   *
+   *     INSERT INTO t VALUES (1, $1);  SELECT c FROM t WHERE c = $1
+   *
+   * A SQL function's statements run in sequence with the command counter
+   * advanced between them, so the scan sees the insert — measured, and it is
+   * the whole premise: `multi_stmt_fn('brand-new-value')` returns that value
+   * out of a table that did not contain it.
+   *
+   * At-least-one is again the predicate (a scalar SQL function returns the
+   * FIRST row, or NULL over none), so this joins `subqueryKeyEntailedNonEmpty`
+   * and `unionArmEntailsNonEmpty` as a third route to it — and the third one
+   * whose evidence is not in the statement being judged.
+   *
+   * The scan side is gated against everything that could drop the inserted
+   * row on the way out: a WHERE that is more than the equality, HAVING,
+   * OFFSET, `LIMIT 0`, more than one FROM item. GROUP BY is left alone
+   * deliberately — grouping a non-empty input yields a non-empty result — and
+   * so is DISTINCT.
+   *
+   * The insert side must plainly write ONE row that satisfies the equality:
+   * a single-row VALUES (an `INSERT … SELECT` can insert none), no
+   * `ON CONFLICT` (DO NOTHING can insert none), and the value landing in the
+   * scanned column equal — as an expression, ignoring source positions — to
+   * the equality's other side.
+   *
+   * And nothing else in the body may WRITE that table, which is the gate the
+   * sequence matters for: a `DELETE FROM t` between the insert and the scan
+   * would take the row back out.
+   */
+  private preludeInsertEntailsRow(sel: SelectStmt, prelude: Node[]): boolean {
+    if (prelude.length === 0) return false;
+    if (sel.havingClause || sel.limitOffset) return false;
+    if (sel.limitCount) {
+      const n = this.constantIntegerValue(sel.limitCount);
+      if (n === null || n < 1) return false;
+    }
+    if ((sel.fromClause ?? []).length !== 1 || !sel.whereClause) return false;
+    const rv = (sel.fromClause![0] as Record<string, unknown>)["RangeVar"] as RangeVar | undefined;
+    if (!rv?.relname) return false;
+    const scanAlias = rv.alias?.aliasname ?? rv.relname;
+
+    // The WHERE must be `<scanned>.col = <expr>`, and `expr` must not be a
+    // column of the scanned relation itself — `t.a = t.b` says nothing about
+    // what was written.
+    const ae = (sel.whereClause as Record<string, unknown>)["A_Expr"] as
+      | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+      | undefined;
+    if (!ae || (ae.kind ?? "AEXPR_OP") !== "AEXPR_OP") return false;
+    if ((ae.name ?? []).length !== 1 || this.stringVal(ae.name![0]!) !== "=") return false;
+    const columns = this.catalog.resolveTable(rv.schemaname, rv.relname)?.columns ?? [];
+    let column: string | null = null;
+    let value: Node | null = null;
+    for (const [a, b] of [
+      [ae.lexpr, ae.rexpr],
+      [ae.rexpr, ae.lexpr],
+    ] as const) {
+      const col = a ? this.scannedColumnName(a, scanAlias, columns) : null;
+      if (!col || !b) continue;
+      if (this.scannedColumnName(b, scanAlias, columns)) continue;
+      column = col;
+      value = b;
+      break;
+    }
+    if (!column || !value) return false;
+
+    // The schema qualifier must match as WRITTEN, which refuses a body that
+    // spells one statement `public.t` and the other `t`. Conservative: both
+    // resolve the same way, and deciding that here would mean resolving a
+    // search path at a point where being wrong is unsound.
+    const targeting = prelude.filter(s => {
+      const t = this.statementWriteTarget(s);
+      return t !== null && t.schemaname === rv.schemaname && t.relname === rv.relname;
+    });
+    if (targeting.length !== 1) return false;
+
+    const ins = (targeting[0] as Record<string, unknown>)["InsertStmt"] as InsertStmt | undefined;
+    if (!ins || ins.onConflictClause) return false;
+    const written = this.singleRowInsertValue(ins, columns, column);
+    return written !== null && this.sameExpression(written, value);
+  }
+
+  /**
+   * The relation an INSERT/UPDATE/DELETE/MERGE writes, or null for anything
+   * else. A DML statement's `relation` is a BARE RangeVar rather than a
+   * wrapped Node, as the DML walk above already reads it.
+   */
+  private statementWriteTarget(stmt: Node): RangeVar | null {
+    const rec = stmt as Record<string, unknown>;
+    for (const kind of ["InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
+      if (!(kind in rec)) continue;
+      const s = rec[kind] as { relation?: unknown };
+      // A write whose target cannot be read is still a write, and a nameless
+      // RangeVar keeps it in the count the caller requires to be exactly one —
+      // it simply never matches the scanned relation.
+      return (s.relation as RangeVar | undefined) ?? ({} as RangeVar);
+    }
+    return null;
+  }
+
+  /**
+   * The scanned relation's column named by `node`, or null.
+   *
+   * Both spellings occur and in the same corpus: an old-style body keeps what
+   * was written (`WHERE val = $1`, unqualified), while a `BEGIN ATOMIC` body
+   * comes back from PostgreSQL's deparser fully qualified — and qualified with
+   * the FUNCTION's name for a parameter, `multi_stmt_atomic.a`, which is why
+   * a two-part reference cannot be assumed to name the relation.
+   *
+   * An unqualified name is required to be a column the catalog agrees exists,
+   * which settles the one doubt: that a bare name is really a parameter.
+   */
+  private scannedColumnName(
+    node: Node,
+    scanAlias: string,
+    columns: readonly string[],
+  ): string | null {
+    const fields = ((node as Record<string, unknown>)["ColumnRef"] as { fields?: Node[] })?.fields;
+    if (!fields) return null;
+    if (fields.length === 2) {
+      return this.stringVal(fields[0]!) === scanAlias ? this.stringVal(fields[1]!) : null;
+    }
+    if (fields.length === 1) {
+      const name = this.stringVal(fields[0]!);
+      return columns.includes(name) ? name : null;
+    }
+    return null;
+  }
+
+  /**
+   * The expression a single-row `INSERT … VALUES` writes into `column`, or
+   * null when the insert is not that shape.
+   *
+   * With no column list the values line up with the table's own column order,
+   * which is why the catalog is consulted rather than the statement alone.
+   */
+  private singleRowInsertValue(
+    ins: InsertStmt,
+    tableColumns: readonly string[],
+    column: string,
+  ): Node | null {
+    const sub = (ins.selectStmt as Record<string, unknown> | undefined)?.["SelectStmt"] as
+      | SelectStmt
+      | undefined;
+    const rows = sub?.valuesLists;
+    if (!rows || rows.length !== 1) return null;
+    const values = (rows[0] as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
+    const items = values?.items;
+    if (!items) return null;
+
+    const names = ins.cols
+      ? ins.cols.map(c => {
+          const rt = (c as Record<string, unknown>)["ResTarget"] as { name?: string } | undefined;
+          return rt?.name ?? "";
+        })
+      : tableColumns;
+    const at = names.indexOf(column);
+    return at >= 0 && at < items.length ? items[at]! : null;
+  }
+
+  /**
+   * Structural equality of two parse-tree expressions, ignoring `location`.
+   *
+   * Two spellings of `$1` differ only in where they were written, and the
+   * question here is whether the same value was inserted and then looked for.
+   */
+  private sameExpression(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    if (Array.isArray(a) && Array.isArray(b)) {
+      return a.length === b.length && a.every((x, i) => this.sameExpression(x, b[i]));
+    }
+    const ka = Object.keys(a as object).filter(k => k !== "location");
+    const kb = Object.keys(b as object).filter(k => k !== "location");
+    if (ka.length !== kb.length) return false;
+    return ka.every(
+      k =>
+        kb.includes(k) &&
+        this.sameExpression(
+          (a as Record<string, unknown>)[k],
+          (b as Record<string, unknown>)[k],
+        ),
+    );
+  }
+
   private analyzeSqlFunctionReturnTraced(
     stmt: Node,
     scope: Scope,
     depth: number,
     trace: ITrace,
+    prelude: Node[] = [],
   ): boolean {
     const fnScope = this.emptyScope(scope.outer);
 
@@ -11573,7 +11796,9 @@ class NullabilityEngine {
       trace.addFact("noFrom", String(!sel.fromClause || sel.fromClause.length === 0));
       trace.addFact("hasAggregate", String(this.targetListHasAggregate(sel.targetList)));
       trace.addFact("singleRow", String(singleRow));
-      if (!singleRow) {
+      const preludeInsert = singleRow ? false : this.preludeInsertEntailsRow(sel, prelude);
+      trace.addFact("preludeInsertEntailsRow", String(preludeInsert));
+      if (!singleRow && !preludeInsert) {
         trace.conclude(false, "body can return zero rows -> nullable");
         return false;
       }
@@ -11717,6 +11942,7 @@ class NullabilityEngine {
     this.fnCtx = {
       argResults: [],
       analyzing: new Set(prevCtx?.analyzing ?? []).add(fnKey),
+      fnName: meta.name,
       // Input parameters only: a SQL body numbers `$n` over the INPUTS,
       // so an interleaved OUT parameter must not shift the positions.
       argTypes: meta.args
