@@ -180,13 +180,15 @@ describe("type-resolution delegation, Stage 1 (Route A)", () => {
       expect(await delegated(sql, "s.c")).toBeNull();
     });
 
-    it("GUARD: a qualifier not visible at the top level drops to the union", async () => {
-      // `z` is bound inside the CTE. The probe raises, and a probe that
-      // raises must never fail the statement.
+    it("reaches a qualifier bound inside a CTE, which no top-level probe can see", async () => {
+      // `z` is bound in the CTE body, so the top-level splice raises. This was
+      // written as a Stage 2 GUARD and became a win when hoisting landed: the
+      // owning scope is run on its own and answers there.
       const sql =
         "WITH w AS (SELECT abs(z.c) AS r FROM (SELECT count(*) AS c FROM m) z) SELECT w.r FROM w";
       expect(await pgType(sql)).toBe("bigint");
-      expect(await delegated(sql, "z.c")).toBeNull();
+      expect(await symbolic(sql, "z.c")).toBeNull();
+      expect(await delegated(sql, "z.c")).toEqual(["bigint"]);
     });
   });
 

@@ -1,7 +1,7 @@
 # Type-resolution delegation — asking PostgreSQL what an expression is
 
 **CHARTERED 2026-08-20. RE-CHARTERED 2026-08-24 on a different mechanism.
-STAGES 1–4 LANDED 2026-08-24; STAGE 5 NOT STARTED.** Written to be handed to a session with no other context:
+ALL FIVE STAGES LANDED 2026-08-24.** Written to be handed to a session with no other context:
 everything needed to do the work is here or named here, and the numbers are
 measurements rather than estimates. Where this document says "measured", it
 was, and the date is given — re-deriving costs a day and changes nothing.
@@ -407,8 +407,57 @@ rather than absorbed silently.
 **If the next stage is judged by claims moved, it will look worthless. Judge
 it by what the claims rest on.**
 
-**Stage 5 — DML scopes.** The 2 (`excluded.name`, a MERGE source). This is
-PREPARE's unique reach and cannot be done at all on the old transport.
+**Stage 5 — the GROUP BY escape. LANDED 2026-08-24.** Not "DML scopes": that
+entry was written against the `returningList` artifact and Stage 3 dissolved
+it. The measured blocker after Stage 4 was grouping — 16 of the 30 unanswered
+residue references.
+
+A probe naming a column the query does not group by is refused. **Grouping by
+it as well is always legal and changes no type.** Applied only as a RETRY,
+only to a select that ALREADY groups (adding a GROUP BY to a query that has
+none would make every other target entry illegal), and only after the plain
+form fails, so the ordinary path is untouched. It reaches the top-level
+splice, the owning arm of a set operation, and the hoist alike.
+
+**The aggregate wrapper was tried and is UNSOUND — do not reach for it.**
+`(array_agg(c))[1]` looks like an elegant "make anything legal under GROUP BY"
+trick. Over a `numeric[]` column it answers `numeric` where the truth is
+`numeric[]`, because PostgreSQL arrays do not nest. It silently strips a
+dimension, which is an over-drop.
+
+**Stage 5 also found a Stage 4 defect worth more than the escape.**
+`owningSelect` counted every wrapped `{SelectStmt: …}` TWICE — it considered
+the body, then recursed into the wrapper's values and met the same body again
+through the bare set-operation-arm branch. Two candidates reads as "bound at
+two levels", so the uniqueness guard refused every hoist except the bare arms.
+That is why Stage 4 answered only recursive CTEs: they were the sole shape the
+bug let through.
+
+Attribution, measured separately:
+
+```
+after Stage 4                 37 narrowed,  96 probes
++ owningSelect double-count   43 narrowed, 109 probes
++ GROUP BY escape             48 narrowed, 138 probes
+```
+
+Corpus after Stages 1–5: **48 narrowed, multi-member readings 16 → 0, 0
+containment violations, and still 0 of 1868 output claims changed.**
+
+A test written as a Stage 2 guard — "a qualifier not visible at the top level
+drops to the union" — became a WIN here and was rewritten as one. The hoist is
+precisely the mechanism that removes that limit.
+
+## What is left, and it is not much
+
+The unanswered residue is now dominated by the two guards, which is the right
+place for it to be: a qualifier bound at more than one level (refused, because
+a probe cannot say which the walk meant), an unqualified reference (refused,
+because resolving it needs the scope this module does not have), and
+`excluded.name`, whose qualifier is a pseudo-alias no FROM item binds.
+
+None of those is a mechanism gap. Each is a case where the question itself is
+ambiguous without the walk's scope, and the walk is where that lives.
 
 A probe that raises must drop that node silently to the symbolic path and must
 never fail the statement. Run the batch; on error, bisect or fall back
