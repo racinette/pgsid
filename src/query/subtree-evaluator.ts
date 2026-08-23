@@ -736,6 +736,21 @@ function closedLimitClause(
   return true;
 }
 
+/**
+ * Whether a `FuncCall` node is a CLOSED set-returning call — every argument
+ * closed, every surviving signature immutable, no aggregate/window markers.
+ *
+ * Exported for the cardinality round (`srf-cardinality.ts`), which asks a
+ * different QUESTION of the same closure judgment: not "what does this
+ * evaluate to" but "how many rows does it emit". Sharing the gate is what
+ * keeps the volatility rule in one place — a STABLE call is refused here and
+ * there for the same reason, that its analysis-time answer binds nothing at
+ * execution time.
+ */
+export function isClosedSrfCall(val: unknown, catalog: SubtreeEvaluationCatalog): boolean {
+  return topLevelSrfTypes(val, catalog, new WeakMap()) !== null;
+}
+
 /** The element-type set of a closed top-level set-returning call, null for
  *  anything else — the same markers, collision rule and survivor consensus
  *  as the scalar FuncCall gate, through `closedSetFunctionTypes`. */
