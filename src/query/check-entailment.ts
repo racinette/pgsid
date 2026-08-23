@@ -1003,9 +1003,12 @@ class EntailmentKernel {
     const node = eq.expr as Record<string, unknown>;
     const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node } | undefined;
     if (!ce) return null;
-    // An absent ELSE yields NULL, which a TRUE equality has already ruled
-    // out — so the ELSE cannot be the producer and there is nothing here.
-    if (!ce.defresult) return null;
+    // The ELSE must be able to have produced the literal. An ABSENT ELSE
+    // yields NULL, which a TRUE equality has already ruled out — and
+    // `resultExcluded` answers that from `undefined` without a case of its
+    // own. A separate `if (!ce.defresult)` guard stood here until coverage
+    // showed it had never fired; removing it passes the whole suite, because
+    // this line already returns for exactly those CASEs.
     if (this.resultExcluded(eq, lit, ce.defresult)) return null;
 
     const conditions: Node[] = [];

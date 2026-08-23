@@ -267,6 +267,9 @@ describe("capability reach of the generated corpus", () => {
   /** The union over the default entry points and every schema variant. */
   let touched: Set<string>;
   let statements = 0;
+  /** The same measurement over the HAND corpus — the comparison below. */
+  let handTouched: Set<string>;
+  let handStatements = 0;
   /** Per-source reach, for the report: which corpus contributed what. */
   const bySource = new Map<string, Set<string>>();
 
@@ -299,7 +302,62 @@ describe("capability reach of the generated corpus", () => {
     for (const variant of SCHEMA_VARIANTS) {
       record(variant.name, await reach(await catalogFor(variant), prepared));
     }
+
+    // The HAND corpus through the same instrument, so the two are comparable
+    // like for like: same `reach()`, same entry point, no evaluator on either
+    // side (which is why EVALUATION_CATALOG_ONLY is excluded from `members`
+    // for both).
+    const handSql = [
+      ...GRAMMAR_SAMPLER,
+      ...readdirSync(FIXTURES_DIR)
+        .filter(f => f.endsWith(".sql") && f !== "schema.sql")
+        .map(f => readFileSync(join(FIXTURES_DIR, f), "utf8")),
+    ];
+    const handPrepared: Prepared[] = [];
+    for (const sql of handSql) {
+      try {
+        const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
+        if (stmt) handPrepared.push({ sql, stmt });
+      } catch {
+        /* a fixture the parser refuses is the base suite's business */
+      }
+    }
+    handStatements = handPrepared.length;
+    handTouched = await reach(baseCatalog, handPrepared);
   }, 600_000);
+
+  it("the hand corpus reaches every capability the generated one does", () => {
+    // Measured 2026-08-23 and pinned here: 14964 generated statements ask the
+    // catalog NOTHING that 565 hand fixtures do not already ask, while the
+    // hand corpus reaches 13 capabilities the generator never produces a
+    // shape for. Volume is not what buys reach.
+    //
+    // The day this fails is the day the generator finally produces a shape no
+    // fixture carries — which is a RESULT, not a regression. Read the diff,
+    // then either write the fixture or move the assertion.
+    const generatedOnly = [...touched].filter(m => !handTouched.has(m)).sort();
+    expect(
+      generatedOnly,
+      `The generated corpus now reaches capabilities the hand corpus does ` +
+        `not. That is new surface — write the fixture that covers it, or ` +
+        `record why the generated shape is the only route:\n  ${generatedOnly.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("between them the two corpora leave no capability cold", () => {
+    // The union bound. Everything outside the three interface partitions is
+    // walk-facing, so a member neither corpus asks is a walk branch with no
+    // input at all — which is exactly the state `docs/generated-surface.md`
+    // item 5 exists to keep visible.
+    const cold = members.filter(m => !touched.has(m) && !handTouched.has(m)).sort();
+    expect(
+      cold,
+      `Walk-facing capabilities NEITHER corpus reaches (${handStatements} hand ` +
+        `+ ${statements} generated statements). Either a fixture is owed, or ` +
+        `the member belongs on one of the interface-partition lists in ` +
+        `types.ts:\n  ${cold.join("\n  ")}`,
+    ).toEqual([]);
+  });
 
   it("every floor member is a real catalog member", () => {
     // Guards the floor against a rename: a member that left the interface
