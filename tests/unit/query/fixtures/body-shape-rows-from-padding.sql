@@ -7,17 +7,26 @@
 -- them notNull in the plain spelling). The same shape as the target list's
 -- SRF padding rule, one clause over.
 --
--- Every state witnesses it: generate_series always supplies 200 rows and no
--- state seeds anywhere near 200 products, so the padded rows are always there
--- — including `empty`, where sku_pairs contributes nothing at all.
--- @unwitnessable 2: generate_series contributes exactly 200 rows and the
---   other arm has NO CEILING — `SELECT p.sku, 1 FROM products p` is a scan,
---   and a scan of an unknown table could be longer. Every state seeds far
---   fewer than 200 products, which is a fact about the seeds and not about
---   the shape, so the arm is the longest here and unprovably so. The bound
---   that would close it is a row estimate the walk deliberately has no
---   business trusting
-SELECT * FROM ROWS FROM (sku_pairs(), generate_series(1, 200))
+-- All three columns are nullable and all three are WITNESSED, and the count
+-- is chosen so that they can be. Neither arm is provably the longest —
+-- `sku_pairs()` is `SELECT p.sku, 1 FROM products p`, a scan with no ceiling,
+-- so the walk can prove nothing about which arm outlasts which — and the
+-- padding therefore reaches every column. Which arm ACTUALLY outlasts the
+-- other is then a question of data, and three against four products puts the
+-- answer on both sides:
+--
+--   empty, sparse, uniform  0 or 1 products  -> generate_series is longer,
+--                                              so sku and qty are padded
+--   dense                   4 products       -> sku_pairs is longer,
+--                                              so generate_series is padded
+--
+-- The count used to be 200, and then the third column had no witness in any
+-- state and carried a recorded reason instead: "a scan of an unknown table
+-- could be longer... every state seeds far fewer than 200 products, which is
+-- a fact about the seeds and not about the shape". Both halves were true, and
+-- the fix was neither a data state nor an engine rule — the fixture was
+-- asking for a padding direction its own constant had made unreachable.
+SELECT * FROM ROWS FROM (sku_pairs(), generate_series(1, 3))
 -- @nullable   (sku: padded once products run out)
 -- @nullable   (qty: same)
 -- @nullable   (generate_series: a builtin SRF's conservative column)

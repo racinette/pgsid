@@ -498,12 +498,12 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **21 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **17 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
 empty, so every excuse left in the project is here. (Was 101 on 2026-08-22,
 38 on 2026-08-23 before the triage pass below.)
 
-The suite's own readout says 27, and the six-claim gap is not a discrepancy —
+The suite's own readout says 23, and the six-claim gap is not a discrepancy —
 it is a SECOND excuse channel, and the note here used to have it backwards.
 An `@unwitnessable` line names exactly one column, so lines and claims are the
 same number. What the readout adds is the nullable claims inside `@no-rows`
@@ -1102,6 +1102,60 @@ and `SELECT count(*) FROM jsonb_path_query_tz('[1,2,3]'::jsonb, '$[*]')`
 deparses and answers 3 (measured). It wants a pre-walk round that asks closed
 set-returning calls for their row count and hands it to the padding bound.
 Blocked on nothing; open and separable.
+
+#### The "permanent" pass (2026-08-23) — 21 down to 17
+
+Reading the supposedly-permanent set against the runtime rather than against
+its own reasons closed four more, none of them by an engine change. **The
+recurring cause was a fixture standing in its own way, and the recurring fix
+was to change the QUESTION rather than the answer.**
+
+`body-shape-rows-from-padding` asked `ROWS FROM (sku_pairs(), generate_series
+(1, 200))` and recorded that no state seeds 200 products, "a fact about the
+seeds and not about the shape". Both halves true — and the constant was the
+problem. Neither arm is provably longest, so the padding reaches every column,
+and WHICH arm actually outlasts the other is data. Three against four products
+puts the answer on both sides: generate_series is longer in empty/sparse/
+uniform, `sku_pairs` is longer in dense. All three columns witnessed, no engine
+change, no data change.
+
+`extreme-jsonb-operators` held `(SELECT jsonb_agg(e2.data) FROM events e2)`
+under an outer `FROM events e` — empty exactly when the statement returns
+nothing. That is the same self-obstruction the scalar-subquery cluster turned
+out to be. A WHERE that cannot match asks the same question of a statement that
+still returns rows.
+
+**Two gates had NO executed witness anywhere, and both now do.** `fk_nv` and
+`fk_df` are seeded by no data state, so `fk-entail-not-valid` and
+`fk-entail-deferrable` returned zero rows in every state — even their notNull
+claims were vacuous — and `inbound_receipts`, carrying a NOT ENFORCED key since
+it was added, was referenced by nothing at all. The route in both cases is a
+DATA-MODIFYING CTE, which fits the one statement a fixture gets:
+
+- **NOT ENFORCED** gates no write, so the CTE inserts a dangling row and reads
+  it straight back. Same `convalidated = false` bit as NOT VALID.
+- **DEFERRABLE INITIALLY DEFERRED** moves the check to COMMIT, so the CTE
+  dangles the key and the suite's per-fixture `BEGIN … ROLLBACK` never fires
+  the violation. Same `condeferrable` bit as INITIALLY IMMEDIATE, which is
+  checked at end of STATEMENT and raises against the same CTE (measured).
+
+Both fixtures now scan the witnessable relation and carry no annotation. The
+unwitnessable spellings need no claim of their own: they set the same bit by a
+route no single statement can dangle.
+
+**Re-measured and still true:** PGlite CREATES a nondeterministic ICU collation
+and then does not honour it — `'a' = 'A' COLLATE ci` is still false — so
+`check-distinctness-collation-gate` stays referee-bounded rather than
+world-bounded. That reason is correct as written.
+
+**Three reasons were sharpened without changing a count**, because they
+understated what was covered: the instead-of-trigger refusal IS witnessed, by
+`k` in the same statement (passed in as 'v', returned NULL) — only one COLUMN
+of one trigger is uncovered; `extreme-correlated-everywhere`'s column is
+`products.category_id`, witnessed all over the corpus, so what is unwitnessed
+is that statement's own filter; and `check-not-valid` cannot catch a regression
+on its own, its bit being witnessed by `check-not-enforced.sql` on a real row.
+**A fixture that pins a claim nothing can falsify should say so.**
 
 ### 4. Known imprecision residue
 
