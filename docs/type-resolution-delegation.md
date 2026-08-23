@@ -1,7 +1,7 @@
 # Type-resolution delegation — asking PostgreSQL what an expression is
 
 **CHARTERED 2026-08-20. RE-CHARTERED 2026-08-24 on a different mechanism.
-STAGE 1 LANDED 2026-08-24; STAGES 2–5 NOT STARTED.** Written to be handed to a session with no other context:
+STAGES 1–2 LANDED 2026-08-24; STAGES 3–5 NOT STARTED.** Written to be handed to a session with no other context:
 everything needed to do the work is here or named here, and the numbers are
 measurements rather than estimates. Where this document says "measured", it
 was, and the date is given — re-deriving costs a day and changes nothing.
@@ -273,8 +273,51 @@ Original specification follows.
   synchronous**; answers go in as data, exactly as `statementEvaluation` does.
 - Expected reach: the 15 measured, and the multi-member collapses.
 
-**Stage 2 — Route B, plain derived columns.** The 11 pass-through and 3
-name-not-found. Top-level and single-scope splicing only.
+**Stage 2 — Route B, top-level splicing. LANDED 2026-08-24.** `routeB` in
+`type-delegation.ts`: splice the reference into the statement's own output
+list (a SELECT's `targetList`, a DML statement's `returningList`), prepare,
+read the answers off the END of `result_types`.
+
+Measured: **52 residue bare ColumnRefs, 10 answered.** Corpus totals moved
+from 12 narrowed / 11 probes to **22 narrowed / 52 probes, containment
+violations still 0**.
+
+**The staging in this charter was on the wrong axis, and Stage 2 proves it.**
+Buckets 1–5 classify residue by WHY `reExportedBaseColumn` refused. Route B's
+reach is decided by something else entirely — whether the QUALIFIER is visible
+at the top level — and that cuts across every bucket. The top-level splice
+answered `cte-self-join.sql: a.total` (bucket 1, "computed", assigned to Stage
+4), `from-item-kinds.sql: v.a` and `extreme-recursive-category-analytics.sql:
+cs.product_count` (bucket 2, set operations, assigned to Stage 3). Do not plan
+the remaining stages by bucket.
+
+The honest residue, by what actually blocks the probe:
+
+```
+ 19  the statement has no output list to splice into
+       (a top-level set operation, or DML with no RETURNING)
+ 10  the qualifier is bound MORE THAN ONCE in the statement
+  9  the qualifier is not visible at the top level
+       (bound inside a CTE or subquery — needs owning-scope splicing)
+  4  the reference is unqualified
+```
+
+Two guards carry the soundness, both witnessed:
+
+- **An alias bound twice is refused outright.** A top-level probe resolves
+  against whichever binding is visible there, and the answer records nothing
+  about which one the walk meant.
+- **The position mapping is verified, not assumed.** The UNPROBED statement is
+  prepared first, and a batch whose result count did not grow by exactly the
+  number of probes is discarded rather than mapped; answers are read from the
+  END, so a `SELECT *` ahead of them shifts nothing. A failed batch retries one
+  probe at a time.
+
+**Route B runs BEFORE Route A, and the order is load-bearing.** A column Route
+B types becomes a typed LEAF, which is what lets Route A resolve the operators
+above it. `abs(a.c + b.c)` over two `count(*)` subqueries is unreachable to
+either route alone and falls out of the two in sequence — the composition this
+charter argued for, now witnessed by a test.
 
 **Stage 3 — Route B into inner and set-operation scopes.** The 16. Splice
 SYMMETRICALLY into every arm; the arity rule is absolute (measured: a probe in

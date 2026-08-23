@@ -140,6 +140,56 @@ describe("type-resolution delegation, Stage 1 (Route A)", () => {
     expect(on.get("$1 + m.i")).toEqual(["numeric"]);
   });
 
+  describe("Route B — splice a probe into the statement's own output list", () => {
+    it("types a derived column the walk cannot follow to a base column", async () => {
+      // `unnest(m.arr)` is a function scan; `reExportedBaseColumn` requires a
+      // bare ColumnRef target and there is no base column to look up.
+      const sql = "SELECT s.v || 'x' AS r FROM (SELECT unnest(m.arr) AS v FROM m) s";
+      expect(await pgType(sql)).toBe("text");
+      expect(await symbolic(sql, "s.v")).toBeNull();
+      expect(await delegated(sql, "s.v")).toEqual(["text"]);
+    });
+
+    it("types a COMPUTED derived column", async () => {
+      const sql = "SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s";
+      expect(await pgType(sql)).toBe("bigint");
+      expect(await symbolic(sql, "s.c")).toBeNull();
+      expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
+    });
+
+    it("COMPOSES with Route A: typed columns become typed leaves", async () => {
+      // The whole argument for doing both. Route B types `a.c` and `b.c`;
+      // neither the sum nor its operands were typeable before, and with the
+      // leaves pinned Route A resolves the operator over them.
+      const sql =
+        "SELECT abs(a.c + b.c) AS r FROM (SELECT count(*) AS c FROM m) a, (SELECT count(*) AS c FROM m) b";
+      expect(await pgType(sql)).toBe("bigint");
+      expect(await symbolic(sql, "a.c + b.c")).toBeNull();
+      expect(await delegated(sql, "a.c")).toEqual(["bigint"]);
+      expect(await delegated(sql, "a.c + b.c")).toEqual(["bigint"]);
+    });
+
+    it("GUARD: refuses an alias bound more than once in the statement", async () => {
+      // Two relations answer to `s`. A top-level probe would resolve against
+      // whichever one is visible there, and nothing in the probe records
+      // which one the walk was asking about.
+      const sql =
+        "SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s " +
+        "WHERE EXISTS (SELECT 1 FROM (SELECT count(*) AS c FROM m) s WHERE s.c > 0)";
+      expect(await pgType(sql)).toBe("bigint");
+      expect(await delegated(sql, "s.c")).toBeNull();
+    });
+
+    it("GUARD: a qualifier not visible at the top level drops to the union", async () => {
+      // `z` is bound inside the CTE. The probe raises, and a probe that
+      // raises must never fail the statement.
+      const sql =
+        "WITH w AS (SELECT abs(z.c) AS r FROM (SELECT count(*) AS c FROM m) z) SELECT w.r FROM w";
+      expect(await pgType(sql)).toBe("bigint");
+      expect(await delegated(sql, "z.c")).toBeNull();
+    });
+  });
+
   it("without the callback the walk is byte-for-byte what it was", async () => {
     const sql = "SELECT abs(m.i + m.n) AS v, abs(m.r + m.n) AS w FROM m";
     const off = await sets(sql);
