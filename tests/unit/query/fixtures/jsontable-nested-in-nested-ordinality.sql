@@ -15,7 +15,10 @@
 -- the question once.
 -- @unwitnessable 0: the outer path matches both elements of a literal array,
 --   so `na` is nullable by the rule and no state can witness it — the inner
---   counter is what this fixture falsifies, and it does
+--   counter is what this fixture falsifies, and it does. Closing it needs the
+--   item RUN as a probe, which pgsql-deparser 18.1.1 cannot render: it throws
+--   on every SQL/JSON node. Conservative, not wrong —
+--   docs/deparser-limitations.md §1, blocked on upstream support
 SELECT
   j.na,   -- @nullable  (nested itself, so nullable for the same reason)
   j.nb    -- @nullable  (NULL for the outer element whose array is empty)

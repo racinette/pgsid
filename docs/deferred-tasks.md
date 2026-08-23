@@ -41,6 +41,7 @@ and `operators.ts` is 74% — that is where rationale is kept, and it works.
 | Query generator and its axes | `docs/query-generator.md`, `docs/generated-surface.md` |
 | Generated soundness instrument | `tests/unit/query/generated/generated-soundness.test.ts` |
 | Subtree evaluation | `docs/subtree-evaluation.md` |
+| What `pgsql-deparser` cannot render, and what that costs | `docs/deparser-limitations.md` — read BEFORE testing whether a construct deparses; that exploration has been done twice |
 | Argument / parameter contract | `docs/argument-nullability.md` |
 | Witness corpus discipline | `docs/witness-coverage.md` |
 | Anything needing project config or a call site | `docs/consumer-design.md` |
@@ -497,12 +498,12 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **22 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **21 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
 empty, so every excuse left in the project is here. (Was 101 on 2026-08-22,
 38 on 2026-08-23 before the triage pass below.)
 
-The suite's own readout says 28, and the six-claim gap is not a discrepancy —
+The suite's own readout says 27, and the six-claim gap is not a discrepancy —
 it is a SECOND excuse channel, and the note here used to have it backwards.
 An `@unwitnessable` line names exactly one column, so lines and claims are the
 same number. What the readout adds is the nullable claims inside `@no-rows`
@@ -1035,22 +1036,72 @@ LEFT JOIN returns NULL — so seeding it would turn three annotations' worth of
 evidence into a PostgreSQL-produced NULL with no engine change. Not done; the
 two annotations themselves stay either way.
 
-**Still open, and each needs a decision rather than more work:**
+**The cast half of the CHECK kernel closed** (`bpchar-distinctness-varchar-
+control`, 2026-08-23). PostgreSQL renders the SAME constraint two ways
+depending on the column's type, measured:
 
-- **Five items need a jsonpath evaluated against a literal document** —
-  `xmltable-jsontable` 4 and 9, both `jsontable-*` fixtures, and
-  `srf-padding-unlisted-builtin` (which wants a CARDINALITY from the same
-  evaluation). The subtree evaluator already exists and already reaches the
-  walk as data (`ReadonlyMap<Node, EvalResult>`), but it collects subtrees
-  FROM the statement; these need SYNTHESIZED probes, which is a new capability
-  in its contract rather than a new consumer of it.
-- **`bpchar-distinctness-varchar-control`** needs `columnKey` to see through a
-  value-preserving cast. Measured: `varchar -> text` is an identity
-  (`'a  '::varchar(4)::text = 'a  '::text`, length preserved), where
-  `bpchar -> text` STRIPS trailing blanks (length 4 becomes 1) and changes the
-  comparison — which is exactly the distinction the gate would need, and
-  exactly the unsoundness the current refusal was written to stop. Inside the
-  propositional charter's atom-recognition surface, so not taken unilaterally.
+    k varchar(4)  ->  CHECK (((k)::text <> 'a '::text) OR (x IS NOT NULL))
+    k char(4)     ->  CHECK ((k <> 'a '::bpchar)       OR (x IS NOT NULL))
+
+The bpchar form compares the column directly and the varchar form WRAPS it, so
+`columnKey` saw no column at all in the varchar conjunct and the claim read
+nullable behind a reason that called the refusal deliberate. It was deliberate
+— for bpchar, where a cast to text strips the padding
+(`length('a'::char(4)::text)` is 1) while the type's own comparison is
+blank-INSENSITIVE, so the value and the operator move in opposite directions.
+
+**The fix duplicated a fact before it stopped duplicating it.** The first
+version carried its own name set with `character` excluded; the exclusion
+already existed one layer down, as `TEXT_FAMILY_OIDS = {25, 1043}` behind
+`literalDistinctnessSound`, measured for the same reason. Restating it would
+have created two homes for one fact and a place for them to drift. The
+eligibility JUDGMENT is now asked of the catalog at every point and the local
+set holds only the two format_type SPELLINGS — a rendering fact.
+
+Two of the three eligibility calls are unreachable from the corpus and are
+recorded as such rather than presented as gates: every fixture route runs on
+to `litsDistinct`, which asks the same predicate. They are not redundant in
+principle — `comparisonAtom` also builds `cmpCol`, a column-to-column atom
+that never consults it, and `(k)::text = (j)::text` over two bpchar columns
+would become `cmpCol(k, '=', j)`, which is a strictly stronger predicate than
+the bpchar comparison it would stand for.
+
+**Still open, and the two halves have different causes.**
+
+FOUR of the remaining claims are **blocked on the deparser, not on effort** —
+`xmltable-jsontable` 4 and 9, `jsontable-lone-nested-empty-path`,
+`jsontable-nested-in-nested-ordinality`. Each is a JSON_TABLE column over a
+document that is a literal in the statement, so the exact probe is to RUN the
+item and read `bool_and(col IS NOT NULL)`, delegating every jsonpath and
+NESTED-PATH semantic to PostgreSQL. **`pgsql-deparser` 18.1.1 cannot render any
+SQL/JSON node**, so the item cannot be turned into SQL at all. The engine is
+CORRECT and CONSERVATIVE here: those columns read nullable, which is never
+wrong, only imprecise. **Waiting on upstream, deliberately.**
+
+The infrastructure was never the obstacle and neither was its contract —
+`comparison-groundings.ts` and `written-value-guards.ts` are already two
+pre-walk rounds building synthetic trees and handing answers to the walk as
+data, so a third would be a pattern instance rather than a new capability.
+
+**`docs/deparser-limitations.md` is the full measured record**, per construct,
+with repro snippets and three drafted bug reports ready to file. It exists
+because this exploration has now been performed TWICE from scratch and reached
+the same conclusions both times — the first round's findings lived only in a
+`KNOWN_DEVIATIONS` map keyed by fixture name, which is the wrong key for
+remembering what the DEPARSER does. Read it before testing whether some
+construct renders. It also carries two defects found while measuring: window
+frame offset bounds are re-emitted with the wrong direction (three of four
+cases SILENTLY, as valid SQL naming a different frame), and XMLTABLE comes
+back with its row expression and document swapped — the latter masked for as
+long as it was, because the only XMLTABLE fixture was already pinned at the
+louder `deparse-threw` for the JSON_TABLE beside it.
+
+THE FIFTH, `srf-padding-unlisted-builtin`, was grouped with them and **does not
+belong**: it asks a CARDINALITY of an ORDINARY function, not a SQL/JSON node,
+and `SELECT count(*) FROM jsonb_path_query_tz('[1,2,3]'::jsonb, '$[*]')`
+deparses and answers 3 (measured). It wants a pre-walk round that asks closed
+set-returning calls for their row count and hands it to the padding bound.
+Blocked on nothing; open and separable.
 
 ### 4. Known imprecision residue
 

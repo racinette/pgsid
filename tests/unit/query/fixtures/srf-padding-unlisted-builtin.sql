@@ -17,5 +17,9 @@ SELECT
 --   still has no bound — counting `'$[*]'` over `'[1,2,3]'` means evaluating
 --   a jsonpath, which is not arithmetic on constants the way
 --   `generate_series(1, 3)` is. `one_sku()` beside it has a ceiling of one,
---   so the comparison fails on this side only. The route is a closed-subtree
---   evaluation of the call's CARDINALITY, which nothing asks for yet
+--   so the comparison fails on this side only. The route is a pre-walk round
+--   asking a closed set-returning call for its row count, and it is blocked
+--   on NOTHING: `SELECT count(*) FROM jsonb_path_query_tz('[1,2,3]'::jsonb,
+--   '$[*]')` deparses and answers 3 (measured 2026-08-23). This was filed
+--   beside the JSON_TABLE claims that ARE deparser-blocked and does not
+--   belong with them — an ordinary function is not a SQL/JSON node

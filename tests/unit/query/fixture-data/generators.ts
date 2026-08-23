@@ -366,6 +366,10 @@ const columnSpecificGenerators: Record<
     bp: { k: rand => rand.pick(["a", "b", "zz"]) },
     bp2: { k: rand => rand.pick(["a", "b", "zz"]) },
     vc: { k: rand => rand.pick(["a", "b", "zz"]) },
+    // bcx is a bpchar column whose CHECK is written through a CAST, so it
+    // deparses the way a VARCHAR one does. It gates the class the cast may be
+    // unwrapped within: `character` must stay out of it.
+    bcx: { k: rand => rand.pick(["a", "b", "zz"]) },
 
     // The partitioned pair: both the parent (whose inserts route) and the
     // partition (seeded directly) must stay inside part_1's range — an id
@@ -736,6 +740,12 @@ const nullPolicies: {
       // vc: x non-null everywhere — the control never writes the literal
       // 'a ' rows that would admit a NULL.
       vc: { x: () => false },
+      // bcx: the CHECK is `k::text = 'a' OR x IS NOT NULL`, and the cast
+      // STRIPS the padding — so on a k of 'a' (stored 'a   ') the first
+      // disjunct is TRUE and a NULL x is admissible. `WHERE k = 'a '` still
+      // selects that row, bpchar comparison being blank-INSENSITIVE, which is
+      // the pair of facts the gate exists to keep apart.
+      bcx: { x: (_rand, ctx) => ctx.current("k") === "a" },
     },
   },
 };

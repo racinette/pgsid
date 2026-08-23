@@ -42,6 +42,18 @@ type Outcome =
 /**
  * Fixtures known to deviate, measured with pgsql-deparser 18.1.1. Everything
  * absent from this map is expected to round-trip identically.
+ *
+ * **`docs/deparser-limitations.md` is where the DEFECTS live, per construct,
+ * with repro snippets and the drafted bug reports.** This map is keyed by
+ * FIXTURE, which is the wrong key for remembering what the deparser does: the
+ * same exploration was performed twice from scratch and reached the same
+ * conclusions both times, because the conclusions were only ever recorded
+ * here. Read that file before testing whether some construct renders, and add
+ * to it rather than restarting.
+ *
+ * A fixture pinned at a LOUDER outcome also hides every quieter defect in the
+ * same file — `xmltable-jsontable` sat at `deparse-threw` for its JSON_TABLE,
+ * which masked four separate XMLTABLE defects until 2026-08-23.
  */
 const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   // An unhandled node type inside the join tree.
@@ -70,19 +82,12 @@ const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   // ("frame starting from following row cannot have preceding rows") — a
   // loud failure, not a silent drop, so no expected-node check is owed.
   "window-default-frame": "reparse-failed",
-  // The same defect, and measuring it here showed it is WIDER than the loud
-  // case above and mostly SILENT. The deparser does not distinguish a frame
-  // bound's direction, and drops UNBOUNDED FOLLOWING on the end bound
-  // (measured 2026-08-23):
-  //
-  //   1 FOLLOWING AND 2 FOLLOWING          -> 1 PRECEDING AND 2 FOLLOWING
-  //   1 FOLLOWING AND UNBOUNDED FOLLOWING  -> 1 PRECEDING AND CURRENT ROW
-  //   2 PRECEDING AND 1 PRECEDING          -> 2 FOLLOWING AND 1 PRECEDING
-  //
-  // Only the third fails to reparse. The first two come back as VALID SQL
-  // meaning a different frame, which is the shape an expected-node check
-  // exists for — so the generator must not request an offset frame bound.
-  // This fixture lands on the loud one and is pinned there.
+  // The same defect. Measured out in docs/deparser-limitations.md §2, where it
+  // is WIDER than the loud case above and mostly SILENT: a frame survives only
+  // when its START bound is not an offset, or its end is CURRENT ROW or an
+  // offset FOLLOWING. Three of the four failures produce VALID SQL naming a
+  // DIFFERENT frame — so the generator must not request an offset frame bound
+  // without an expected-node check. This fixture lands on the loud one.
   "param-window-frame-offset": "reparse-failed",
 };
 

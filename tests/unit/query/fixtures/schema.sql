@@ -984,6 +984,24 @@ CREATE TABLE bp2 (k char(4) NOT NULL, x text,
   CHECK (CASE WHEN k = 'a' THEN x IS NULL WHEN k = 'a ' THEN x IS NOT NULL END));
 CREATE TABLE vc (k varchar(4) NOT NULL, x text, CHECK (k = 'a ' OR x IS NOT NULL));
 
+-- The gate on the CAST-UNWRAPPING half of the same rule (2026-08-23). A CHECK
+-- on a VARCHAR column deparses its comparison through `(k)::text`, where the
+-- bpchar ones above deparse against the column directly — so recognising the
+-- varchar conjunct at all means seeing through that cast, and this table is
+-- the shape that must not be seen through.
+--
+-- The cast is written by hand here, so a CHAR column gets the varchar
+-- RENDERING: `CHECK (((k)::text = 'a'::text) OR (x IS NOT NULL))`. Everything
+-- then hinges on whether `character` may join `character varying` and `text`
+-- in the blank-significant class, and it may not. ('a', NULL) is ADMISSIBLE —
+-- k stores 'a   ', k::text is 'a', so the first disjunct is TRUE and x is
+-- free — while `WHERE k = 'a '` still selects it, because bpchar comparison
+-- is blank-INSENSITIVE. A class that admitted `character` would read those
+-- two literals as distinct at one type, conclude the disjunct FALSE, and
+-- force x non-null on a row PostgreSQL hands back with x NULL.
+CREATE TABLE bcx (k char(4) NOT NULL, x text,
+  CONSTRAINT bcx_ck CHECK (k::text = 'a' OR x IS NOT NULL));
+
 -- The inheritance attnotnull divergence (adversarial finding 3).
 -- `ALTER TABLE ONLY parent … SET NOT NULL` is legal (measured): parent
 -- attnotnull=true, child false, and a child-stored NULL comes back through
