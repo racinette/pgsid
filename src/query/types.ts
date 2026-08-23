@@ -1199,6 +1199,26 @@ export interface TypeSetAudit {
   set: string[] | null;
 }
 
+/**
+ * Type-resolution delegation (docs/type-resolution-delegation.md): run one
+ * statement through PostgreSQL's PARSE ANALYSIS without executing it, and
+ * return the resolved TYPE NAME of each output column, in order.
+ *
+ * The implementation prepares and deallocates — `PREPARE` performs the
+ * overload resolution the engine wants to read and stops there, touching no
+ * rows and building no plan (measured: `generic_plans` and `custom_plans` are
+ * both 0 afterwards, and preparing four DML statements left the target's row
+ * count unchanged). A statement PostgreSQL rejects must come back as an empty
+ * array rather than throw; the caller drops that probe to the symbolic path.
+ *
+ * The consumer maps driver OIDs through `format_type(oid, null)`, so nothing
+ * under `src/query` ever sees an OID — the same boundary `Evaluate` keeps.
+ *
+ * Absent → the walk answers exactly what it answered before. Delegation only
+ * ever NARROWS a union it could already state, and never invents one.
+ */
+export type ResolveColumnTypes = (sql: string) => Promise<string[]>;
+
 // ---------------------------------------------------------------------------
 // Nullability trace tree — explains why a column is nullable or non-null.
 // ---------------------------------------------------------------------------

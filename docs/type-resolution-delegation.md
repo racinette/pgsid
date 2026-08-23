@@ -1,7 +1,7 @@
 # Type-resolution delegation — asking PostgreSQL what an expression is
 
 **CHARTERED 2026-08-20. RE-CHARTERED 2026-08-24 on a different mechanism.
-NOT STARTED.** Written to be handed to a session with no other context:
+STAGE 1 LANDED 2026-08-24; STAGES 2–5 NOT STARTED.** Written to be handed to a session with no other context:
 everything needed to do the work is here or named here, and the numbers are
 measurements rather than estimates. Where this document says "measured", it
 was, and the date is given — re-deriving costs a day and changes nothing.
@@ -212,8 +212,43 @@ No stage is complete as an instrument only.
 **Stage 0 — prerequisite, not delegation.** The alias-column-list rename (the
 8). No database involved.
 
-**Stage 1 — the mechanism, plus Route A.** This is the stage that makes
-delegation an engine capability.
+**Stage 1 — the mechanism, plus Route A. LANDED 2026-08-24.**
+`src/query/type-delegation.ts`, `ResolveColumnTypes` in `types.ts`,
+`WalkOptions.resolveColumnTypes`, the `delegatedTypes` round wired into all
+three entry points, and the consultation at the head of `operandTypeSetOf`.
+Witnessed by `type-delegation-red.test.ts`, whose last case runs the whole
+fixture corpus twice and holds containment.
+
+Measured over the 511 fixtures: **11 probes** (deduped by expression text),
+**multi-member readings 16 → 5**, **12 narrowed, 0 containment violations**.
+Eleven round trips for the whole corpus is the number that matters for cost.
+
+Three things the implementation settled that this charter had guessed at:
+
+- **The round needs a PRELIMINARY WALK.** A substitution is only legitimate at
+  a type the walk itself read, and the walk is the only thing that knows one —
+  scope lives there, not in the AST. So the round runs the engine once with
+  the audit sink, throws that pass away, and substitutes from its readings.
+  Re-deriving leaf types inside the module would be a second opinion about
+  every column, and the first disagreement between the two would be invisible.
+- **`ParamRef` is refused as a TARGET and accepted as a SOURCE.** Never ask
+  PostgreSQL what `$1` is (it guesses `text`); freely substitute `$n::numeric`
+  when the engine DECLARED numeric. Treating the two as one rule cost the
+  whole mixed-parameter arithmetic surface for nothing.
+- **`SubLink` is opaque and must not be entered.** Rewriting the columns
+  inside `(SELECT max(m2.i) FROM m AS m2)` yields a different expression that
+  PostgreSQL answers confidently. The 2026-08-24 reach measurement of "5 of 10
+  SubLinks answered" was arrived at by exactly that route and is WITHDRAWN;
+  the honest reach is zero until Stage 3.
+
+Also learned, and it shapes every later stage: **the walk never reads a
+comparison node as an operand.** `t.d = '2020-01-01'` produces readings for
+`t.d` and for the literal, not for the equality. So Route A cannot demonstrate
+in-context literal resolution through `operandTypeSet` — the literal is
+refused and stays refused, which is the correct outcome by the safety rule but
+not the one this charter's prose implied.
+
+Original specification follows.
 
 - `src/query/types.ts`: the callback, importing no database type.
 
