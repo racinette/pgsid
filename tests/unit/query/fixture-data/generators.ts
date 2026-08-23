@@ -721,6 +721,16 @@ const nullPolicies: {
           (ctx.current("qty") as number) > 0 ? rand.chance(0.5) : false,
       },
 
+      // relay: the two guarded columns are forced UNCONDITIONALLY — their
+      // CHECKs' other disjunct is a dead boolean literal, so nothing about
+      // the row can excuse a NULL. `note`'s guard is the vacuous `true OR
+      // …`, and its NULLs are what witness that the engine does not claim
+      // it.
+      relay: {
+        route: () => false,
+        hop: () => false,
+      },
+
       // subscription: seats over one force the overflow contact (CHECK₂),
       // whatever the plan; the seats policy itself follows CHECK₁'s arm.
       subscription: {
