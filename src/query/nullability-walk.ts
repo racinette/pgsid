@@ -23,6 +23,7 @@ import {
   evaluateSrfCardinalities,
 } from "./srf-cardinality.js";
 import { writtenGuardTruths } from "./written-value-guards.js";
+import { resolveDelegatedTypes } from "./type-delegation.js";
 import { TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES, STRICT_OPERATORS } from "./operators.js";
 import {
   collectParamFacts,
@@ -44,6 +45,7 @@ import type {
   OutputPresenceGroup,
   JoinAudit,
   TypeSetAudit,
+  ResolveColumnTypes,
   ResolvedTable,
   TraceNode,
 } from "./types.js";
@@ -134,6 +136,16 @@ export interface WalkOptions {
    * walk.
    */
   typeSetAudit?: TypeSetAudit[];
+  /**
+   * Ask PostgreSQL to resolve the operands the walk cannot pin
+   * (docs/type-resolution-delegation.md). Independent of `evaluate`: this
+   * one runs PARSE ANALYSIS and never executes, so a consumer may supply it
+   * where running user expressions is not acceptable.
+   *
+   * Absent → identical answers, exactly as with `evaluate`. Delegation only
+   * narrows a union the walk could already state.
+   */
+  resolveColumnTypes?: ResolveColumnTypes;
 }
 
 /**
@@ -230,6 +242,44 @@ async function comparisonGroundings(
   return evaluateComparisonQuestions(questions, face, evaluate);
 }
 
+/**
+ * The type-resolution round (docs/type-resolution-delegation.md): one async
+ * step, answers as data, sync walk — the same shape as the three beside it.
+ *
+ * It differs from them in ONE way, and the reason is worth stating. The other
+ * rounds ask their questions off the AST alone; this one needs to know what
+ * the walk types each operand as, because a substitution is only legitimate
+ * at a type the walk itself read. So it runs a PRELIMINARY walk to harvest
+ * exactly that, through the audit sink that already exists for the type-union
+ * oracle. Re-deriving those types here instead would be a second opinion
+ * about every column in the statement, and the first disagreement between the
+ * two would be invisible.
+ *
+ * The preliminary walk is thrown away. It sees no delegation, so it is the
+ * engine's ordinary answer, and its cost is one synchronous pass against a
+ * round trip to the database — noise beside what it is paying for.
+ */
+async function delegatedTypes(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+  options?: WalkOptions,
+): Promise<ReadonlyMap<unknown, string> | undefined> {
+  if (!options?.resolveColumnTypes) return undefined;
+  const readings: TypeSetAudit[] = [];
+  const probe = new NullabilityEngine(catalog, false, undefined, options.paramTypes);
+  probe.typeSetAuditSink = readings;
+  try {
+    probe.run(stmt);
+  } catch {
+    // A statement the walk refuses has no delegation to offer, and the real
+    // pass is about to refuse it in the same way and report properly.
+    return undefined;
+  }
+  if (readings.length === 0) return undefined;
+  const answers = await resolveDelegatedTypes(readings, options.resolveColumnTypes);
+  return answers.size > 0 ? answers : undefined;
+}
+
 export async function inferNullability(
   stmt: Node,
   catalog: NullabilityCatalog,
@@ -238,6 +288,7 @@ export async function inferNullability(
   const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
   const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
+  const delegated = await delegatedTypes(stmt, catalog, options);
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -246,6 +297,7 @@ export async function inferNullability(
     evaluation,
     comparisons,
     cardinalities,
+    delegated,
   );
   if (options?.joinAudit) engine.joinAuditSink = options.joinAudit;
   if (options?.collectUnitCrossings) engine.collectUnitCrossings = true;
@@ -334,6 +386,7 @@ export async function inferQueryContract(
   const facts = collectParamFacts(stmt, catalog, mechanismE);
   const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
+  const delegated = await delegatedTypes(stmt, catalog, options);
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -342,6 +395,7 @@ export async function inferQueryContract(
     evaluation,
     comparisons,
     cardinalities,
+    delegated,
   );
   return {
     outputs: engine.run(stmt),
@@ -384,6 +438,7 @@ export async function inferNullabilityTraced(
   const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
   const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
+  const delegated = await delegatedTypes(stmt, catalog, options);
   const engine = new NullabilityEngine(
     catalog,
     true,
@@ -392,6 +447,7 @@ export async function inferNullabilityTraced(
     evaluation,
     comparisons,
     cardinalities,
+    delegated,
   );
   return engine.runTraced(stmt);
 }
@@ -1201,6 +1257,16 @@ class NullabilityEngine {
    */
   private readonly cardinalities: ReadonlyMap<object, number> | undefined;
 
+  /**
+   * What PostgreSQL resolved an operand to, keyed by node identity
+   * (`type-delegation.ts`, docs/type-resolution-delegation.md). Read at the
+   * head of `operandTypeSetOf`, ahead of the symbolic reading, and only ever
+   * for a node the symbolic reading could NOT pin — so this narrows a union
+   * the walk could already state and never invents one. Undefined without
+   * `resolveColumnTypes`, and the walk then answers exactly as before.
+   */
+  private readonly delegatedTypes: ReadonlyMap<unknown, string> | undefined;
+
   constructor(
     catalog: NullabilityCatalog,
     tracing = false,
@@ -1209,6 +1275,7 @@ class NullabilityEngine {
     evaluation?: ReadonlyMap<Node, EvalResult>,
     comparisons?: ReadonlyMap<string, boolean>,
     cardinalities?: ReadonlyMap<object, number>,
+    delegatedTypes?: ReadonlyMap<unknown, string>,
   ) {
     this.catalog = catalog;
     this.tracing = tracing;
@@ -1217,6 +1284,7 @@ class NullabilityEngine {
     this.evaluation = evaluation;
     this.comparisons = comparisons;
     this.cardinalities = cardinalities;
+    this.delegatedTypes = delegatedTypes;
   }
 
   /** The kernel-facing reading of `comparisons`, or undefined without it. */
@@ -6772,6 +6840,13 @@ class NullabilityEngine {
 
   private operandTypeSetOf(expr: Node, scope: Scope | null, depth: number): string[] | null {
     this.checkDepth(depth);
+    // Delegation first: `type-delegation.ts` only ever holds an entry for a
+    // node the SYMBOLIC reading left unpinned, and it obtained that entry by
+    // asking PostgreSQL about the expression with this walk's own readings
+    // substituted in. Consulting ahead of the reading rather than after it is
+    // what makes the answer exact instead of a union to intersect with.
+    const delegated = this.delegatedTypes?.get(expr);
+    if (delegated !== undefined) return [delegated];
     const rec = expr as Record<string, unknown>;
     const ac = rec["A_Const"] as
       | { ival?: unknown; boolval?: unknown; fval?: { fval?: string } }
