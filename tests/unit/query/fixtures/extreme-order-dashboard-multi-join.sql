@@ -1,21 +1,25 @@
--- @unwitnessable 20: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
--- @unwitnessable 21: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
--- @unwitnessable 22: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
--- @unwitnessable 23: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
--- @unwitnessable 24: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
--- @unwitnessable 25: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
--- @unwitnessable 26: the CROSS JOIN LATERAL drops exactly the orders that would leave this aggregate's LEFT JOIN side unmatched, so it always runs over rows
+-- @planner-keeps 1: the ot LEFT JOIN settles by row witness — a sibling FROM
+--   item proves order_item_details holds a row for this order, and
+--   order_totals groups that same CTE by that same key. The planner is not
+--   answering this question: its join removal fires only for an outer join
+--   whose inner side is UNREFERENCED, and seven columns of ot are projected,
+--   so it keeps the join whether or not the join can extend.
 -- @null-group 12*,13,14*,15*,16,17*
--- @null-group 20*,21*,22*,23*,24*,25*,26*
 -- @null-group 34*,35*,36,37,38
 -- @null-group 41*,42*
--- (Four units: the addresses group is LIFTED (R1) — customer_addresses'
+-- (Three units: the addresses group is LIFTED (R1) — customer_addresses'
 -- inner LEFT JOIN rides out through the inner-joined ca reference, with
 -- the NOT NULL address columns discriminating and line2/postal_code as
--- nullable members; ot — its absent arm shares the discriminants'
--- recorded unwitnessability above, the derived exemption; s — shipments,
--- id/carrier discriminate, the timestamps are nullable even when present;
--- cp — the active-coupon lookup.)
+-- nullable members; s — shipments, id/carrier discriminate, the timestamps
+-- are nullable even when present; cp — the active-coupon lookup.)
+--
+-- `ot` used to be a fourth unit and is not one any more, which is the visible
+-- half of a single bit changing: the CROSS JOIN LATERAL at the bottom drops
+-- every order without items, `order_totals` groups the same CTE by the same
+-- key, so the LEFT JOIN onto it can never be extended. The seven columns are
+-- flat notNull now instead of a seven-member discriminated union whose absent
+-- arm no data could reach — the reasons were correct and the union was real
+-- shape the consumer had to handle for a case that could not arise.
 -- Extreme fixture: multiple join types with nested subqueries, CTEs,
 -- LATERAL, window functions, and expression combinations.
 --
@@ -117,13 +121,13 @@ SELECT
   COALESCE(ca.city, 'Unknown')             AS safe_city,        -- @notNull
   COALESCE(ca.state, 'N/A')                AS safe_state,       -- @notNull
 
-  ot.item_count                            AS item_count,       -- @nullable
-  ot.order_total                           AS order_total,      -- @nullable
-  ot.total_units                           AS total_units,      -- @nullable
-  ot.max_line                              AS max_line,         -- @nullable
-  ot.min_line                              AS min_line,         -- @nullable
-  ot.avg_unit_price                        AS avg_unit_price,   -- @nullable
-  ot.category_count                        AS category_count,   -- @nullable
+  ot.item_count                            AS item_count,       -- @notNull
+  ot.order_total                           AS order_total,      -- @notNull
+  ot.total_units                           AS total_units,      -- @notNull
+  ot.max_line                              AS max_line,         -- @notNull
+  ot.min_line                              AS min_line,         -- @notNull
+  ot.avg_unit_price                        AS avg_unit_price,   -- @notNull
+  ot.category_count                        AS category_count,   -- @notNull
   COALESCE(ot.item_count, 0)               AS safe_item_count,  -- @notNull
   COALESCE(ot.order_total, 0)              AS safe_order_total, -- @notNull
   COALESCE(ot.total_units, 0)              AS safe_total_units, -- @notNull

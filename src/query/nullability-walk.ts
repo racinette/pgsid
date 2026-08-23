@@ -415,6 +415,26 @@ interface RowBounds {
 
 const UNBOUNDED_ROWS: RowBounds = { min: 0, max: Infinity };
 
+/**
+ * A relation proven to hold a row for a key — see `Scope.rowWitnesses`.
+ *
+ * The relation is identified AS WRITTEN, by the schema qualifier and name a
+ * `RangeVar` carries, and a consumer must match both. That is deliberately
+ * syntactic: the same spelling in one statement resolves to the same relation
+ * whether it names a CTE or a table, and resolving it further would mean
+ * deciding which, at a point where being wrong is unsound rather than
+ * conservative.
+ */
+interface RowWitness {
+  schema: string | undefined;
+  relation: string;
+  /** The witnessed relation's own column that the restriction keys on. */
+  column: string;
+  /** The outer column the restriction equates it to. */
+  outerAlias: string;
+  outerColumn: string;
+}
+
 // ---------------------------------------------------------------------------
 // Address book entry for a relation in a scope.
 // ---------------------------------------------------------------------------
@@ -713,6 +733,25 @@ interface Scope {
    * on `rowsImplyWhere`, same hazard) parameter narrowing.
    */
   impliedQuals: Node[];
+  /**
+   * Relations proven to HOLD A ROW for a key, on every row this scope emits.
+   *
+   * The sibling of `impliedQuals`, and separate from it because the fact has a
+   * different shape: `impliedQuals` carries PREDICATES, which eight consumers
+   * read as WHERE conjuncts, and this carries an EXISTENCE claim about a
+   * relation, which is not a predicate over any output column and would mean
+   * nothing to those readers.
+   *
+   * A FROM item whose emptiness removes the outer row is what produces one: if
+   * the item scans `S WHERE S.k = X.c` and the row survived, then `S` has a
+   * row with that key. What a consumer does with it is its own business —
+   * today one reads it, to prove that a LEFT JOIN onto a relation GROUPED by
+   * `k` cannot have been extended.
+   *
+   * Written by the FROM walk, never by the presence fixpoint, which is why
+   * `withSpeculativeScope` does not restore it: it has no speculative part.
+   */
+  rowWitnesses: RowWitness[];
   /**
    * Whether every row this scope emits derives from at least one input row
    * that passed `whereClause`. TRUE for a plain SELECT and for a grouped
@@ -1519,6 +1558,75 @@ class NullabilityEngine {
   }
 
   /**
+   * Record that a subquery FROM item's survival proves its source relation
+   * holds a row for a key — see `Scope.rowWitnesses`.
+   *
+   * The premise is the join, not the subquery: an item joined so that its
+   * EMPTINESS REMOVES THE OUTER ROW turns "this row exists" into "the scan
+   * found something". A LEFT JOIN LATERAL keeps the outer row with the item
+   * NULL-extended and proves nothing, which is why an OPTIONAL item is
+   * refused first and is the gate with a control of its own.
+   *
+   * What is needed of the subquery is ONE-DIRECTIONAL, and getting the
+   * direction right removes most of the gates a first reading wants. The claim
+   * is only `item non-empty ⟹ S holds a matching row`. Everything that merely
+   * REMOVES rows — LIMIT, OFFSET, HAVING, GROUP BY, DISTINCT, a join inside
+   * the item, an additional conjunct — can turn a non-empty item empty, which
+   * drops the outer row and makes the witness vacuous rather than wrong. None
+   * of them is gated, and gating them would be caution rather than soundness.
+   *
+   * Two things do break the direction, because they let the item be non-empty
+   * for a reason that is not the restriction, and only ONE of them needs a
+   * gate of its own:
+   *   - a WITH clause, which can bind the very name being witnessed to
+   *     something else — the witness identifies its relation by SPELLING —
+   *     and is refused here;
+   *   - a SET OPERATION, whose other arm can supply the row alone. That
+   *     carries no gate because it cannot reach one: a set-operation node
+   *     holds no `fromClause` or `whereClause` of its own (the parser puts
+   *     both on the arms), so requiring exactly one FROM item and a WHERE
+   *     already excludes it. An explicit `sel.op` check was written, measured
+   *     to catch nothing, and removed. `setop_n` in
+   *     `row-witness-setop-item.sql` pins the outcome either way.
+   *
+   * The WHERE is required to BE the equality rather than to CONTAIN it, which
+   * is the one deliberate over-refusal: a conjunction carrying it would be
+   * sound (a stronger filter still proves the row), and reading that needs a
+   * conjunct walk with nothing yet asking for it. A DISJUNCTION must never be
+   * accepted, and refusing everything that is not the bare equality refuses
+   * that for free.
+   */
+  private recordRowWitness(sub: RangeSubselect, joinState: JoinState, scope: Scope): void {
+    if (joinState === OPTIONAL || !sub.subquery) return;
+    const sel = (sub.subquery as Record<string, unknown>)["SelectStmt"] as SelectStmt | undefined;
+    if (!sel) return;
+    if (sel.withClause) return;
+    if (!sel.whereClause || (sel.fromClause ?? []).length !== 1) return;
+    const rv = (sel.fromClause![0] as Record<string, unknown>)["RangeVar"] as RangeVar | undefined;
+    if (!rv?.relname) return;
+    const inner = rv.alias?.aliasname ?? rv.relname;
+    const eq = this.equalityColumnRefs(sel.whereClause);
+    if (!eq) return;
+    // One side names the scanned relation, the other must name something
+    // OUTSIDE the item — a correlated reference is the whole point, and an
+    // equality between two of the item's own columns witnesses nothing.
+    for (const [self, outer] of [
+      [eq[0], eq[1]],
+      [eq[1], eq[0]],
+    ] as const) {
+      if (self.alias !== inner || outer.alias === inner) continue;
+      scope.rowWitnesses.push({
+        schema: rv.schemaname,
+        relation: rv.relname,
+        column: self.column,
+        outerAlias: outer.alias,
+        outerColumn: outer.column,
+      });
+      return;
+    }
+  }
+
+  /**
    * An expression with its CASTS removed. Sound wherever the question is
    * presence rather than value: a cast of NULL is NULL and a cast of a
    * non-null value is non-null, whatever the conversion does to it.
@@ -2209,6 +2317,7 @@ class NullabilityEngine {
       havingClause: stmt.havingClause,
       joins: [],
       impliedQuals: [],
+      rowWitnesses: [],
       visible: [],
       rowsImplyWhere: stmt.groupClause?.length
         ? this.groupingGuaranteesNonEmptyGroups(stmt)
@@ -2391,6 +2500,16 @@ class NullabilityEngine {
         if (referenced && !present.has(referenced)) {
           present.add(referenced);
           const entry = scope.aliases.get(referenced);
+          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
+          changed = true;
+        }
+      }
+
+      for (const j of scope.joins) {
+        const grouped = this.rowWitnessEntailedAlias(j, scope);
+        if (grouped && !present.has(grouped)) {
+          present.add(grouped);
+          const entry = scope.aliases.get(grouped);
           if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
           changed = true;
         }
@@ -2610,6 +2729,130 @@ class NullabilityEngine {
    *   - Both sides must be plain relation references. A subquery or CTE column
    *     may be an expression, and the key is a fact about tables.
    */
+  /**
+   * The alias this join cannot have extended, because a `Scope.rowWitness`
+   * proves the row it was looking for exists.
+   *
+   * Foreign-key entailment reads the two relations THIS join relates, and says
+   * so: "a column from elsewhere in the tree says nothing about whether this
+   * join matched". That is right for a key, and it is exactly the restriction
+   * a row witness lifts — the evidence deliberately comes from a THIRD FROM
+   * item, and is sound because of what the witness already asserts, that the
+   * relation holds a row for the key on every row this scope emits.
+   *
+   * The optional side must be a relation GROUPED BY the key the join uses:
+   *
+   *     LEFT JOIN (SELECT s.k, count(*) FROM S s GROUP BY s.k) t ON t.k = o.c
+   *
+   * A grouped relation holds a row for exactly the keys its source holds, so
+   * "S has a row with k = o.c" and "the group for o.c exists" are the same
+   * statement.
+   *
+   * This side is gated where the producer is not, and the asymmetry is the
+   * point rather than an inconsistency. The producer needs `non-empty ⟹ the
+   * row exists`, which anything that only REMOVES rows preserves. This needs
+   * `the row exists ⟹ the group is here`, which those same operations destroy:
+   * a WHERE inside the item can remove precisely the witnessed row, HAVING can
+   * drop the group after forming it, LIMIT/OFFSET and a set operation can
+   * remove it afterwards, and a join inside can drop it on the way.
+   *
+   * Two more refusals are conservative rather than load-bearing, and are
+   * marked as such so neither reads as a soundness fact: more than one
+   * grouping term is still sound (a group for the tuple exists exactly when a
+   * row with that first key does, so the join still matches — it may match
+   * SEVERAL times, which is a row-count question this rule does not own), and
+   * a WITH clause could only rebind the name in ways the spelling match would
+   * have to reason about.
+   *
+   * The grouping term must also be the column the join reads, which is two
+   * hops: the join names an OUTPUT column of the item, and that output has to
+   * resolve through the target list to the grouped column itself.
+   */
+  private rowWitnessEntailedAlias(j: JoinPredicate, scope: Scope): string | null {
+    if (scope.rowWitnesses.length === 0) return null;
+    const eq = this.equalityColumnRefs(j.quals);
+    if (!eq) return null;
+
+    for (const side of ["left", "right"] as const) {
+      const group = side === "left" ? j.leftOptionalGroup : j.rightOptionalGroup;
+      if (group === undefined) continue;
+      const optional = side === "left" ? j.leftAliases : j.rightAliases;
+      const other = side === "left" ? j.rightAliases : j.leftAliases;
+
+      for (const [mine, outer] of [
+        [eq[0], eq[1]],
+        [eq[1], eq[0]],
+      ] as const) {
+        if (!optional.includes(mine.alias) || !other.includes(outer.alias)) continue;
+        const entry = scope.aliases.get(mine.alias);
+        if (!entry) continue;
+        const src = this.groupedRelationKey(entry, mine.column);
+        if (!src) continue;
+        const witnessed = scope.rowWitnesses.some(
+          w =>
+            w.schema === src.schema &&
+            w.relation === src.relation &&
+            w.column === src.column &&
+            w.outerAlias === outer.alias &&
+            w.outerColumn === outer.column,
+        );
+        if (witnessed) return mine.alias;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * For a CTE or subquery alias that is nothing but `SELECT … FROM S GROUP BY
+   * S.k`, the source relation and the column `k` — provided `outputColumn` is
+   * the output that resolves to `k`. Null whenever anything could make the
+   * item's rows differ from its source's distinct keys.
+   */
+  private groupedRelationKey(
+    entry: RelationEntry,
+    outputColumn: string,
+  ): { schema: string | undefined; relation: string; column: string } | null {
+    if (entry.kind !== "cte" && entry.kind !== "subquery") return null;
+    const sel = (entry.ast as Record<string, unknown> | undefined)?.["SelectStmt"] as
+      | SelectStmt
+      | undefined;
+    if (!sel) return null;
+    if (sel.op && sel.op !== "SETOP_NONE") return null;
+    if (sel.whereClause || sel.havingClause || sel.withClause) return null;
+    if (sel.limitCount || sel.limitOffset) return null;
+    if ((sel.groupClause ?? []).length !== 1) return null;
+    if ((sel.fromClause ?? []).length !== 1) return null;
+    const rv = (sel.fromClause![0] as Record<string, unknown>)["RangeVar"] as RangeVar | undefined;
+    if (!rv?.relname) return null;
+    const inner = rv.alias?.aliasname ?? rv.relname;
+
+    const grouped = this.qualifiedColumnRef(sel.groupClause![0]!);
+    if (!grouped || grouped.alias !== inner) return null;
+
+    // An alias column list renames positionally and would put `outputColumn`
+    // on a different target entry; refuse rather than reason about it.
+    if (entry.cteColumns && entry.cteColumns.length > 0) return null;
+
+    // The output the join reads must BE the grouped column, resolved through
+    // the target list rather than assumed from the spelling.
+    const target = (sel.targetList ?? []).find(t => {
+      const rt = (t as Record<string, unknown>)["ResTarget"] as
+        | { name?: string; val?: Node }
+        | undefined;
+      if (!rt?.val) return false;
+      const ref = this.qualifiedColumnRef(rt.val);
+      return (rt.name ?? ref?.column) === outputColumn;
+    });
+    const rt = (target as Record<string, unknown> | undefined)?.["ResTarget"] as
+      | { val?: Node }
+      | undefined;
+    const underlying = rt?.val ? this.qualifiedColumnRef(rt.val) : null;
+    if (!underlying || underlying.alias !== inner || underlying.column !== grouped.column) {
+      return null;
+    }
+    return { schema: rv.schemaname, relation: rv.relname, column: grouped.column };
+  }
+
   private foreignKeyEntailedAlias(
     j: JoinPredicate,
     scope: Scope,
@@ -3161,6 +3404,7 @@ class NullabilityEngine {
         instance: this.nextInstance(),
       };
       scope.aliases.set(aliasName, subEntry);
+      this.recordRowWitness(sub, joinState, scope);
       return this.visibleColumnsOf(subEntry, scope, depth);
     } else if ("JoinExpr" in node) {
       const join = node["JoinExpr"] as JoinExpr;
@@ -4036,6 +4280,7 @@ class NullabilityEngine {
       ctes: new Map(),
       joins: [],
       impliedQuals: [],
+      rowWitnesses: [],
       visible: [],
       rowsImplyWhere: false,
       groupGuaranteesNonEmpty: false,
@@ -4323,6 +4568,7 @@ class NullabilityEngine {
       ctes: new Map(),
       joins: [],
       impliedQuals: [],
+      rowWitnesses: [],
       visible: [],
       rowsImplyWhere: false,
       groupGuaranteesNonEmpty: false,
