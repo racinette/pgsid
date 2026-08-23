@@ -1,358 +1,372 @@
 # Type-resolution delegation — asking PostgreSQL what an expression is
 
-**CHARTERED 2026-08-20. NOT STARTED.** Written to be handed to a session with
-no other context: everything needed to do the work is here or named here, and
-the numbers are measurements rather than estimates. Where this document says
-"measured", it was — re-deriving those costs a day and changes nothing.
+**CHARTERED 2026-08-20. RE-CHARTERED 2026-08-24 on a different mechanism.
+NOT STARTED.** Written to be handed to a session with no other context:
+everything needed to do the work is here or named here, and the numbers are
+measurements rather than estimates. Where this document says "measured", it
+was, and the date is given — re-deriving costs a day and changes nothing.
+
+**What changed on 2026-08-24.** The original charter's transport was "splice a
+probe column, append `WHERE false`, execute, read the RowDescription". That is
+replaced by `PREPARE` + `pg_prepared_statements.result_types`, which reaches
+statement kinds the old route cannot express at all. A second route —
+substituting typed parameters for known operands — was measured and is folded
+in as the first stage. The old charter's SAFETY RULE survives unchanged and is
+still the most important section in this document.
+
+**The endpoint is an engine mechanism, not an instrument.** `operandTypeSet`
+must consult delegated types during a real walk. A stage that only teaches the
+test suite to ask PostgreSQL is a checkpoint, never the destination.
 
 ## Charter
 
 `operandTypeSet` in `src/query/nullability-walk.ts` answers "what could this
 expression be" as a type SET, and every elimination downstream is decided on
 it: which operator overload survives, which function signature is dispatched,
-whether a totality verdict may be read. It answers `null` — no claim — for 76
-distinct expressions in the fixture corpus, and `null` is where precision goes
-to die: an operand that constrains nothing keeps every candidate, so the
-verdict falls back to a bare-name rule whose holes are documented and real.
+whether a totality verdict may be read. Where it answers `null` — no claim —
+an operand that constrains nothing keeps every candidate, and
+`resolveOperatorStrictness` falls back to strictness-by-consensus over the
+survivors (`catalog-adapter.ts:937-952`). That consensus is sound and blunt.
 
-Those 76 are not one problem. They are a COLUMN whose relation is derived
-(63), a scalar subquery (10), an array of unknowns (2, and correctly null),
-and one expression inside a function body. Typing them symbolically means five
-separate pieces of work with five separate boundaries.
+**This charter's route: ask PostgreSQL.** `PREPARE` runs parse analysis —
+including PostgreSQL's own overload resolution — and
+`pg_prepared_statements.result_types` reports the resolved type of every
+output column. No rows are touched, no plan is built, no user code runs.
 
-**This charter is the other route: ask PostgreSQL.** A `SELECT … WHERE false`
-statement reports the resolved type of every output column in its
-RowDescription. Splice a probe column into the statement being analysed, run
-it against zero rows, and the database performs its own overload resolution
-and hands back the answer. One round trip, no data touched, no user code run.
+The goal: `operandTypeSet` consults a pre-walk resolution round FIRST and falls
+back to the symbolic union. Nothing is deleted.
 
-The goal: `operandTypeSet` consults a pre-walk resolution round FIRST and
-falls back to the symbolic union. Nothing is deleted.
+## What is broken — measured 2026-08-24
 
-## What is broken — measured 2026-08-20
-
-The census printed by `tests/unit/query/type-unions.test.ts`, over the fixture
-corpus, at the time of writing:
+The census printed by `tests/unit/query/type-unions.test.ts` over the fixture
+corpus (509 fixtures):
 
 ```
-readings:              2854
-  unknown literal:     218   (correct — not a gap)
-  no claim (null):     311   ← the subject
-  singleton:          2303
-  multi-member:          22
-  carrying a pseudo:      2
-not probeable by pg:  1332
+readings:              3718
+  unknown literal:     279   (correct — not a gap)
+  no claim (null):     302   ← the subject
+  singleton:          3115
+  multi-member:         22
+  carrying a pseudo:     2
+not probeable by pg:  1520
 CONTAINMENT VIOLATIONS:  0
 ```
 
-Those 311 readings are 76 distinct expressions once literals are excluded:
+Deduped per fixture and with the safety-refused categories removed, the residue
+is **85 eligible expressions**, of which **60 are a bare `ColumnRef`**. Those 60,
+classified by which refusal in `reExportedBaseColumn`
+(`nullability-walk.ts:6959`) they hit — re-derived 2026-08-24, and the split
+differs from the 2026-08-20 one:
 
 ```
- 63  ColumnRef      (20 answered by a naive top-level probe)
- 10  SubLink        ( 9 answered)
-  2  A_ArrayExpr    ( 2 answered — but these MUST stay null, see the safety rule)
-  1  A_Expr         ( 0 answered — inside a function body, out of reach)
+ 16  set operation / WITH RECURSIVE (no top-level targetList)
+ 14  the column is COMPUTED  (FuncCall 4, Coalesce 4, SubLink 2, Case 2, A_Expr 1, A_Const 1)
+ 11  pass-through, but the base relation did not resolve
+  8  BASE TABLE with an alias column list — the rename is never undone
+  4  unqualified column
+  3  name not found in the owner's target list
+  2  DML scope (excluded.name, a MERGE source)
+  1  subquery alias column list
+  1  base table, plain alias
 ```
 
-The 63 columns are all references to a DERIVED relation, failing for five
-distinct reasons. `reExportedBaseColumn` (nullability-walk.ts) follows a
-CTE or subquery's target list to a base column, and each bucket defeats it
-differently:
+**The 2026-08-20 charter said all of these are "references to a DERIVED
+relation". That is wrong for the 8.** `FROM stock s1(k0, k1)` is a base table;
+`s1.k0` IS `stock.qty` and the catalog knows its type. `operandTypeSet` hands
+the QUERY's name to a catalog keyed under the CATALOG's name
+(`nullability-walk.ts:6942`). The walk already owns the translation —
+`entryCatalogColumn` (`nullability-walk.ts:7290`) — and uses it for every other
+fact; `alias-column-list-carries-facts.sql` exists to prove the rename survives
+into `attnotnull`, CHECK entailment, generation expressions and FK entailment.
+`RelationEntry`'s own doc comment names **type OIDs** among the lookups keyed
+by catalog names.
 
-1. **The column is computed** (~25). `a.total` is `sum(...)`, `pw.rnk` is a
-   window function, `pa.new_price` is a CASE. The follower requires the target
-   entry to be a bare `ColumnRef`, and there is no base column to look up.
-2. **Recursive CTEs and set operations** (~15). A `UNION` SelectStmt has
-   `larg`/`rarg` and no top-level `targetList`, so the follower returns on its
-   first guard. Every `WITH RECURSIVE` is here by construction.
-3. **Subquery alias column lists** (~7). `FROM (SELECT …) s(k0, k1)`.
-4. **DML-specific scopes** (~6). `excluded.name`, a MERGE source, RETURNING.
-5. **VALUES and function scans** (a few).
+**Those 8 are a PREREQUISITE, not part of this charter.** They need no
+delegation, no probe, no database — a call to an existing helper. Do them
+first; they are being taken separately.
 
-A representative worked example, in full, is at the end of this document.
+## The mechanism — `PREPARE`, measured 2026-08-24
 
-## Why now — the blockers are discharged
+PGlite 0.5.4 / PostgreSQL 18.3. `pg_prepared_statements` carries
+`name, statement, prepare_time, parameter_types, result_types, from_sql,
+generic_plans, custom_plans`.
 
-**A live connection is guaranteed.** Stated by the project owner 2026-08-20.
-The engine's "no `evaluate` → everything else identical" contract was the
-standing objection to making types depend on the database; it no longer
-applies. (The symbolic path still stays — see Non-goals — but for reasons
-about REACH, not availability.)
+Why it replaces `WHERE false`:
 
-**The instrument exists.** `tests/unit/query/type-unions.test.ts` holds a
-CONTAINMENT invariant over both a purpose-built corpus and every expression
-the fixture corpus produces: whatever PostgreSQL resolves an expression to
-must be a member of the walk's set. It currently passes with zero violations.
-A wrong delegation fails it on the first run. Use it as the safety net — it
-was built for exactly this.
+| | `WHERE false` + RowDescription | `PREPARE` + `result_types` |
+|---|---|---|
+| SELECT | works | works |
+| INSERT / UPDATE / DELETE / MERGE | **cannot be expressed** — `insert … where false` is a syntax error | works; RETURNING types reported |
+| side effects | executes (zero rows) | never executes — measured: table row count 1 before and after preparing four DML statements |
+| planning | plans | `generic_plans=0 custom_plans=0` after PREPARE |
+| volatile function in the target list | not called | not called |
 
-**The mechanics are proven.** See "Boundaries" below. Batching, inner-scope
-splicing and the zero-row oracle were each measured working before this
-charter was written.
+The volatility row is a WASH and is recorded so nobody re-argues it: a
+`WHERE false` SELECT does not call a volatile function in its target list
+either (measured, an INSERT-ing SQL function, 0 rows appended by both routes).
+The DML rows are the whole case.
 
-## The design
+Session hygiene: `PREPARE p AS …` then `DEALLOCATE p`. Utility statements
+(`CREATE TABLE`) cannot be prepared; the walk does not type them.
 
-### One pre-walk round, mirroring the one that already exists
+## Two routes, and they compose
 
-The walk is deliberately SYNCHRONOUS. `statementEvaluation` in
-nullability-walk.ts already solves this exact shape for the subtree evaluator:
-an async round runs before the walk, its answers go in as data, and the walk
-never awaits. Do the same.
+### Route A — SUBSTITUTE (cheap, no scope analysis)
+
+Replace each operand whose type the walk ALREADY knows with `$n::TYPE`, deparse
+the subexpression alone, `PREPARE SELECT <rewritten>`, read `result_types[0]`.
+
+Measured 2026-08-24 over the 85 eligible: 60 are a bare `ColumnRef` and
+therefore circular (you would need the answer to build the probe); 10 have a
+leaf the walk cannot type; **15 attempted, 15 answered, 0 rejected**. Real
+collapses, e.g. `oi.unit_price * oi.quantity` from
+`["double precision","numeric","real"]` to `numeric`.
+
+Pinning a sibling genuinely steers dispatch, which is the point:
 
 ```
-resolveStatementTypes(stmt, catalog, resolve) → Map<Node, string>
+$1::date    + $2::integer  ->  date
+$1::integer + $2::integer  ->  integer
 ```
 
-1. Walk the AST collecting DELEGABLE nodes (see the safety rule).
-2. For each, splice a probe column into the target list of the SELECT that
-   OWNS its scope, propagating outward so every probe surfaces at the top.
-3. Deparse once, run once, with `WHERE false` at the outermost level.
-4. Read the RowDescription; map each probe position back to its node.
+It also DEFUSES the unknown-literal trap in the one direction that matters:
+`'2020-01-01'` alone resolves `text`, but `$1::date = '2020-01-01'` resolves
+the literal as a date, because the context was rebuilt rather than discarded.
 
-`operandTypeSet` then consults the map by node identity before its existing
-logic, and falls back when there is no entry.
+Route A needs no probe splicing, no owning-scope analysis, no set-operation
+arity handling, and no deparse of the whole statement. It is much the cheaper
+half.
 
-### The safety rule — the whole argument
+### Route B — SPLICE (reaches the derived columns)
+
+Splice a probe column into the target list of the SELECT that OWNS the node's
+scope, propagate outward so every probe surfaces at the top, deparse once,
+PREPARE once, read `result_types` by position.
+
+Route B is what answers the 60 bare `ColumnRef`s. Route A cannot.
+
+### How they compose — the argument for doing both
+
+Route B types the derived columns. A typed derived column is then a TYPED LEAF,
+which unblocks Route A on every composed expression above it — including the 10
+currently blocked by an untypeable leaf. Route B gets column types; **Route A
+converts column types into operator dispatch**, and dispatch is what the walk
+actually consumes.
+
+## The safety rule — the whole argument
+
+*(Preserved from 2026-08-20. Unchanged by the mechanism swap.)*
 
 A node may be delegated **only when its type is determined by its own
-contents.** PostgreSQL will answer a probe for any well-formed expression,
-but for a node whose type comes from OUTSIDE, the answer it gives standalone
-is not the answer it gives in context:
+contents.** PostgreSQL will answer for any well-formed expression, but for a
+node whose type comes from OUTSIDE, the standalone answer is not the in-context
+answer:
 
 ```
-'2020-01-01'                     standalone → text
-t.d = '2020-01-01'               in context → the literal is a DATE
+'2020-01-01'                     standalone -> text
+t.d = '2020-01-01'               in context -> the literal is a DATE
 ```
 
-You cannot observe the second from outside; asking about the literal alone
-returns `text`. Today `operandTypeSet` returns null there, which is humble and
-correct. A delegation that returned `text` would eliminate the `date = date`
-operator — an over-drop, which is the failure class that produced the only
-soundness bug this area has had (see `bare-name-gates-red.test.ts`).
+Typing the literal `text` eliminates the `date = date` operator — an over-drop,
+the failure class that produced the only soundness bug this area has had
+(`bare-name-gates-red.test.ts`).
 
-**Proposed predicate: refuse any node whose subtree contains no typed leaf.**
-A typed leaf is a column reference, a cast, a numeric/boolean literal, or a
-call with a known return. `t.d = '2020-01-01'` is safe — the literal is
-resolved by its sibling, INSIDE the probe. A bare `'2020-01-01'`, or
-`COALESCE('a','b')`, or `ARRAY['a','b']`, is not.
+**Predicate: refuse any node whose subtree contains no typed leaf.** A typed
+leaf is a column reference, a cast, a numeric/boolean literal, or a call with a
+known return. `t.d = '2020-01-01'` is safe — the literal is resolved by its
+sibling, INSIDE the probe. A bare `'2020-01-01'`, or `COALESCE('a','b')`, or
+`ARRAY['a','b']`, is not.
 
-The two `A_ArrayExpr` in the residue are exactly this: `ARRAY['a','b']` and
-`ARRAY[NULL,NULL]`. A probe answers `text[]` for both. Both must stay null.
-They are the ready-made guard tests for this rule — if an implementation types
-them, the rule is not implemented.
+**Measured 2026-08-24: 135 nodes would have been typed had the rule not
+refused them** — `A_Const`, `A_ArrayExpr`, `ParamRef`. The route types
+everything it is pointed at. **The guard is not a detail of this design; it is
+the design.** The two `A_ArrayExpr` in the residue (`ARRAY['a','b']`,
+`ARRAY[NULL,NULL]`) are the ready-made guard tests: a probe answers `text[]` for
+both and both must stay null. If an implementation types them, the rule is not
+implemented.
 
-`ParamRef` is refused for a different reason: PostgreSQL guesses (a bare `$1`
-came back `text`), and the engine's declared `paramTypes` — or the function
-body's `argTypes` — is the contract. Delegation must never override it.
+## PROHIBITED — reading `parameter_types` back to discover a type
 
-### Where probes cannot go
+`PREPARE` reports inferred parameter types, and using them to LEARN an unknown
+operand's type is unsound. Measured 2026-08-24:
 
-Not every scope accepts a probe column. Establish the list by measurement, but
-expect at least:
-
-- a non-grouped column under `GROUP BY` (the probe would raise)
-- set-operation arms, where arity must match on both sides — this bites
-  bucket 2, which is ~15 of the 63, and is the largest single unknown in
-  this charter
-- anything the deparser cannot round-trip
-
-A probe that raises must drop that node silently to the symbolic path. It must
-never fail the statement. Run the probe batch, and on error either bisect or
-fall back wholesale — measure which is cheaper before choosing.
-
-### The callback
-
-`Evaluate` cannot serve. It is `(sql: string) => Promise<EvaluateRow>` — it
-returns the first ROW, and this needs column TYPES over zero rows. Add a
-sibling in the same style, importing no database type:
-
-```ts
-/** Run one statement and return the resolved TYPE NAME of each output
- *  column, in order. The implementation appends nothing; the caller has
- *  already made the statement return no rows. */
-export type ResolveColumnTypes = (sql: string) => Promise<string[]>;
+```
+select $1 * $2::integer   ->  parameter_types = ["integer","integer"]
 ```
 
-The consumer maps driver OIDs through `format_type(oid, null)`, so the engine
-never sees an OID. For PGlite that is `r.fields.map(f => f.dataTypeID)` plus
-one catalog lookup; `tests/unit/query/type-unions.ts` already does it.
+PostgreSQL committed to `integer` for an operand that was unconstrained. If the
+real operand is `numeric`, the correct overload has just been eliminated. This
+is preference resolution, not a constraint — the same reason a bare `$1` comes
+back `text`.
 
-## What must change
+`parameter_types` is legitimate for exactly two things: a CONTAINMENT check in
+the test suite, and confirming a type the engine already declared. The engine's
+`paramTypes` — or a function body's `argTypes` — is the contract and always
+wins.
 
-- `src/query/nullability-walk.ts` — the pre-walk round, its wiring into
-  `inferNullability` / `inferQueryContract` / `inferNullabilityTraced`, and
-  the consultation at the top of `operandTypeSetOf`.
-- A new module is probably right for the collection + splicing + mapping, in
-  the shape of `subtree-evaluator.ts`. It should import no database type.
-- `src/query/types.ts` — the `ResolveColumnTypes` callback, and whatever
-  `WalkOptions` field carries it.
-- `tests/unit/query/type-union-cases.ts` — the pinned sets for the cases that
-  start answering, and NEW guard cases for the safety rule.
+## The application plan
+
+Each stage lands in the walk and is witnessed by a fixture or scenario test.
+No stage is complete as an instrument only.
+
+**Stage 0 — prerequisite, not delegation.** The alias-column-list rename (the
+8). No database involved.
+
+**Stage 1 — the mechanism, plus Route A.** This is the stage that makes
+delegation an engine capability.
+
+- `src/query/types.ts`: the callback, importing no database type.
+
+  ```ts
+  /** Run one statement through parse analysis WITHOUT executing it, and
+   *  return the resolved TYPE NAME of each output column, in order. The
+   *  implementation prepares and deallocates; it appends nothing. */
+  export type ResolveColumnTypes = (sql: string) => Promise<string[]>;
+  ```
+
+  Plus the `WalkOptions` field that carries it. The consumer maps driver OIDs
+  through `format_type(oid, null)` so the engine never sees an OID.
+
+- A new module in the shape of `subtree-evaluator.ts` — collection, the safety
+  predicate, substitution, deparse, mapping back by node identity. It imports
+  no database type.
+- `nullability-walk.ts`: the async pre-walk round
+  (`resolveStatementTypes(stmt, catalog, resolve) → Map<Node, string>`),
+  wired into `inferNullability` / `inferQueryContract` /
+  `inferNullabilityTraced` beside the three rounds that already exist, and the
+  consultation at the top of `operandTypeSetOf`. **The walk stays
+  synchronous**; answers go in as data, exactly as `statementEvaluation` does.
+- Expected reach: the 15 measured, and the multi-member collapses.
+
+**Stage 2 — Route B, plain derived columns.** The 11 pass-through and 3
+name-not-found. Top-level and single-scope splicing only.
+
+**Stage 3 — Route B into inner and set-operation scopes.** The 16. Splice
+SYMMETRICALLY into every arm; the arity rule is absolute (measured: a probe in
+one arm of a UNION fails with "each UNION query must have the same number of
+columns"; the same probe in both arms resolves, including through a
+`WITH RECURSIVE`). Re-run Route A afterwards — Stage 3 creates typed leaves.
+
+**Stage 4 — computed columns.** The 14. These are what the probe-into-the-
+owning-scope machinery is for.
+
+**Stage 5 — DML scopes.** The 2 (`excluded.name`, a MERGE source). This is
+PREPARE's unique reach and cannot be done at all on the old transport.
+
+A probe that raises must drop that node silently to the symbolic path and must
+never fail the statement. Run the batch; on error, bisect or fall back
+wholesale — measure which is cheaper before choosing.
+
+Where a probe cannot go (establish the full list by measurement):
+
+- a non-grouped column under `GROUP BY` — measured to raise; note that a probe
+  BESIDE a legal grouped column is fine, so the constraint is on WHICH probe
+- set-operation arms without symmetric splicing (Stage 3)
+- anything `pgsql-deparser` cannot round-trip — read
+  `docs/deparser-limitations.md` FIRST; that exploration has been done twice
 
 ## Non-goals
 
 - **Deleting the symbolic path.** It is the answer for function bodies, CHECK
   expressions and generation expressions, which the walk analyses and which
-  have no statement to splice a probe into. It is also the fallback for every
-  refused probe. Nothing is removed by this work.
-- **Reimplementing PostgreSQL's overload resolution.** The whole point is not
-  to. `docs/type-aware-overloads.md` declares the tiebreak a non-goal and it
-  stays one.
-- **Changing what a type SET means.** Delegation produces singletons, but the
+  have no statement to prepare. It is also the fallback for every refused
+  probe.
+- **Reimplementing PostgreSQL's overload resolution.**
+  `docs/type-aware-overloads.md` declares the tiebreak a non-goal; it stays one.
+- **Changing what a type SET means.** Delegation produces singletons; the
   representation and the containment invariant are unchanged.
-- **The `btreeStrategyOf` / `isEqualityComplement` bare-name gate.** Recorded
-  in `docs/deferred-tasks.md` as the next gate. It needs operand types at
-  accessors that take only a name, so it is probably EASIER after this lands —
-  which is exactly why it is sequenced after and must not be started here.
+- **The `btreeStrategyOf` / `isEqualityComplement` bare-name gate.** Recorded in
+  `docs/deferred-tasks.md`. Easier after this lands, which is why it is
+  sequenced after and must not be started here.
 
 ## Boundaries — do not re-derive these
 
-Each was measured 2026-08-20. They are why this charter is short.
+2026-08-20 unless marked.
 
-- **The oracle.** `SELECT … WHERE false` reports every output column's
-  resolved type in the RowDescription. Zero rows, one round trip, no data.
+- **The oracle.** `PREPARE` + `result_types` reports every output column's
+  resolved type. No rows, no plan, no execution. *(2026-08-24)*
 - **Batching works.** Six probe columns in one statement returned six types.
-- **Inner scopes are reachable.** A probe column added to a CTE's own target
-  list and re-exported outward resolved correctly (`numeric`) at the top.
-- **The unknown-literal trap is real and unobservable from outside.** See the
-  safety rule. This is the single most important fact in this document.
+- **Inner scopes are reachable.** A probe added to a CTE's own target list and
+  re-exported outward resolved correctly at the top.
+- **Symmetric arm splicing works; asymmetric does not.** *(2026-08-24)*
+- **The unknown-literal trap is real, and Route A is the only thing that sees
+  through it.** The single most important fact in this document.
 - **Domains smash on the wire.** A `pos` domain over `integer` reports
   `integer`. `wireRendering` in `tests/unit/query/type-unions.ts` normalizes
   both sides; reuse it rather than writing another.
-- **Arrays do not nest.** `ARRAY[text[], text[]]` is `text[]`, not `text[][]`.
-- **A bare `$1` is guessed.** PostgreSQL answered `text`. Declared parameter
+- **Arrays do not nest.** `ARRAY[text[], text[]]` is `text[]`.
+- **A bare `$1` is guessed** — PostgreSQL answered `text`. Declared parameter
   types win, always.
-- **Reach of the crudest possible probe: 31 of 76.** A top-level splice,
-  SELECT statements only, answered 20 ColumnRefs and 9 SubLinks. The other 45
-  include statements that harness did not handle at all (it bails on anything
-  that is not a `SelectStmt`), so the REAL reach is unmeasured and measuring
-  it is the first task, not a guess to inherit.
+- **Route A's soundness evidence is THIN.** Only 4 expressions could be
+  cross-checked against the in-context oracle (4 agreed, 0 disagreed).
+  *(2026-08-24)* Widening that agreement set is Stage 1's real acceptance test,
+  not the census delta.
 
-## Do not touch — landed and pinned 2026-08-20
+## Do not touch — landed and pinned
 
-Four pieces of work landed the same day this was chartered. Each is pinned by
-tests that will fight an "improvement":
-
-- **The bare-name gates.** Operators eliminate by operand type before
-  dispatch; type names resolve by search path. `bare-name-gates-red.test.ts`,
+- **The bare-name gates.** `bare-name-gates-red.test.ts`,
   `docs/function-overload-merge.md`.
-- **The predicate-side scope threading.** `promotionOperatorIsStrict` receives
-  a scope now. Do not revert it to the name rule.
-- **Member-list typing.** CASE / COALESCE / GREATEST / LEAST / ARRAY / ROW
-  answer their member union. Note especially that `closedCommonTypes` is NOT
-  the rule to reuse and the reason is recorded in `docs/deferred-tasks.md`.
-- **The type-union suite itself.** The census is PRINTED, not pinned, on
-  purpose: pinned counts would make every precision improvement a maintenance
-  chore. Keep it that way. The CONTAINMENT invariant is the thing that must
-  never regress.
+- **The predicate-side scope threading.** `promotionOperatorIsStrict` receives a
+  scope. Do not revert it to the name rule.
+- **Member-list typing.** CASE / COALESCE / GREATEST / LEAST / ARRAY / ROW answer
+  their member union. `closedCommonTypes` is NOT the rule to reuse; the reason is
+  in `docs/deferred-tasks.md`.
+- **The type-union census is PRINTED, not pinned**, on purpose: pinned counts
+  make every precision improvement a maintenance chore. The CONTAINMENT
+  invariant is the thing that must never regress.
 - **The fixture search-path axis.** A fixture may declare
-  `-- @search-path public, pg_catalog`, and all six suites that read fixtures
-  honour it — per-path catalogs via `tests/unit/query/fixture-catalog.ts`,
-  and the session set to match wherever the fixture is executed. If you add a
-  suite that reads fixtures, honour it or call `refuseSearchPathFixture`; a
-  directive some suites drop silently is worse than none.
+  `-- @search-path public, pg_catalog`, and all six fixture-reading suites honour
+  it via `tests/unit/query/fixture-catalog.ts`. A new suite honours it or calls
+  `refuseSearchPathFixture`.
 
 ## Two things that will bite if you do not know them
 
-- **The catalog census has a second pass, with the evaluator ON.** If this
-  work adds a member to `SubtreeEvaluationCatalog` (or to
-  `EVALUATION_CATALOG_ONLY`), a corpus statement must REACH it or
-  `catalog-census.test.ts` fails by name. That check was added 2026-08-20
-  after two members were found dead behind the exemption, and it is
-  deliberately hard to satisfy vacuously. A new callback type — which is
-  what `ResolveColumnTypes` should be — is not a face member and is not
-  subject to it.
+- **The catalog census has a second pass, with the evaluator ON.** If this work
+  adds a member to `SubtreeEvaluationCatalog` (or `EVALUATION_CATALOG_ONLY`), a
+  corpus statement must REACH it or `catalog-census.test.ts` fails by name. A
+  new callback type — which is what `ResolveColumnTypes` should be — is not a
+  face member and is not subject to it.
 - **The per-column fixture parser matches `@notNull` and `@nullable` as bare
   substrings ANYWHERE in a line.** Writing either word in a fixture's header
-  prose silently adds a phantom column and the fixture fails with an
-  arity mismatch. Spell them out in prose.
+  prose silently adds a phantom column and the fixture fails on arity. Spell
+  them out in prose.
 
 ## The red suite
 
 House protocol: write the target as `it.fails` FIRST, watch it fail for the
 right reason, then fix, then flip it to plain `it` in the same commit as the
-fix. A target that passes before the fix is worthless and a target adjudicated
-only against the engine is worse — every one must carry PostgreSQL's own
-answer in the assertion. `bare-name-gates-red.test.ts` is the worked example.
+fix. A target that passes before the fix is worthless, and a target adjudicated
+only against the engine is worse — **every one must carry PostgreSQL's own
+answer in the assertion.** `bare-name-gates-red.test.ts` is the worked example.
 
 Starting targets, all currently null and all in `type-union-cases.ts`:
 
-- `(SELECT max(m2.i) FROM m AS m2)` → `["integer"]` (already pinned null in
-  the "still untyped" group; it is 9-of-10 top-level probeable, so SubLink is
-  the cheapest first win)
-- `a.total` / `b.total` in `cte-self-join.sql` → `["numeric"]`
-- `ct.depth` in any recursive fixture → the set-operation bucket, the hard one
+- `oi.unit_price * oi.quantity` → `["numeric"]` (Route A, Stage 1, measured)
+- `(SELECT max(m2.i) FROM m AS m2)` → `["integer"]`
+- `a.total` / `b.total` in `cte-self-join.sql` → `["numeric"]` (Route B, Stage 4)
+- `ct.depth` in any recursive fixture (Route B, Stage 3)
 - `ARRAY['a','b']` and `ARRAY[NULL,NULL]` → **must stay null**, as guards
-
-## Risk and ordering
-
-1. **Measure the real reach first.** Build the probe harness properly (all
-   statement kinds, owning-scope splicing) and re-run the residue census. That
-   number decides whether buckets 2 and 4 are worth chasing.
-2. **SubLink first.** 9 of 10 are top-level probeable and a scalar subquery
-   has no scope subtleties beyond its own.
-3. **Then the plain derived columns** — buckets 1, 3, 5.
-4. **Then set operations and recursive CTEs**, or record why not.
-5. **DML scopes last**, or defer with a reason.
-
-The ordering risk worth naming: it is tempting to build the general mechanism
-and then discover set-operation arity makes bucket 2 unreachable. Measure that
-bucket before committing to a design that assumes it.
 
 ## How to know it worked
 
-- `pnpm vitest run tests/unit/query/type-unions.test.ts` — containment must
-  stay at zero violations, and the census's `no claim` line must fall. Report
-  the before and after; the numbers in this document are the baseline.
-- `pnpm vitest run` — the full suite, and specifically
-  `generated-soundness.test.ts`, which falsifies 24089 notNull claims over
-  14964 generated queries per run. More precise types produce MORE notNull
-  claims, and that direction can only be proven, never assumed. Watch that
-  count move and watch violations stay at zero.
-- `tests/unit/query/sqlc-corpus.test.ts` runs separately and takes ~30s.
+- `pnpm vitest run tests/unit/query/type-unions.test.ts` — containment must stay
+  at zero violations and the `no claim` line must fall. The 2026-08-24 numbers
+  above are the baseline.
+- The Route-A-vs-in-context agreement count must RISE and disagreements must
+  stay at zero. This matters more than the census.
+- `pnpm vitest run` — specifically `generated-soundness.test.ts`, which
+  falsifies notNull claims over 14964 generated queries per run. More precise
+  types produce MORE notNull claims, and that direction can only be proven,
+  never assumed. Watch the count move and watch violations stay at zero.
+- `tests/unit/query/sqlc-corpus.test.ts` runs separately, ~30s.
 
 ## House constraints
 
-- Work from `pgsid/`, not the workspace root. `pnpm` only.
+- Work from `pgsid/`, not the workspace root. `pnpm` only, never `npx`.
 - Measure before asserting. This codebase's documents say "measured" and mean
   it; do not add a claim you have not run.
 - No engine change without a fixture or a scenario test that witnesses it.
 - Scratch scripts go inside `pgsid/` (module resolution) and get deleted.
-- `pnpm lint` is broken repo-wide — no `eslint.config.js`. Not your doing and
-  not your job.
-
-## The worked example
-
-`tests/unit/query/fixtures/cte-self-join.sql`:
-
-```sql
-WITH order_totals AS (
-  SELECT oi.order_id                      AS order_id,
-         sum(oi.unit_price * oi.quantity) AS total
-  FROM order_items oi GROUP BY oi.order_id
-)
-SELECT a.order_id, a.total, b.total,
-       a.total + b.total AS combined
-FROM order_totals a JOIN order_totals b ON a.order_id < b.order_id
-```
-
-Today the walk reads:
-
-```
-oi.unit_price               => [numeric]
-oi.quantity                 => [integer]
-oi.unit_price * oi.quantity => [double precision, numeric, real]
-a.total                     => null
-b.total                     => null
-```
-
-`combined` still reads notNull — but through the bare-name allowlist, because
-`+` is in `TOTAL_OPERATORS`. The trace carries no `operandTypes` fact at all.
-The claim rests on nobody having defined a `+`; add one
-`public.+(boolean, boolean)` to the schema and `combined` goes nullable.
-
-With a probe column spliced into the CTE's own target list, PostgreSQL answers
-`numeric` for `total`. `resolveOperatorTotality("+", [numeric], [numeric])`
-then exact-matches one builtin and reads ITS totality. The verdict does not
-move. What moves is what the verdict rests on — and that is the point of this
-work, not the census delta.
+- `pnpm run lint` works as of 2026-08-24 (`eslint.config.js`) and must stay at
+  zero. Its three type-aware promise rules exist because the pre-walk rounds are
+  async and a floating one measures something other than what it reads as.
