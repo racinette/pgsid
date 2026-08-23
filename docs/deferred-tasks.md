@@ -50,6 +50,34 @@ and `operators.ts` is 74% — that is where rationale is kept, and it works.
 
 ---
 
+## What rots here, measured
+
+Every open item below was re-checked against the code on **2026-08-23**, after
+five entries turned out in one day to describe work already done or to name the
+wrong cause. The sweep's result is a rule worth more than its findings:
+
+> **An entry about what the ENGINE DOES rots. An entry about what the CODEBASE
+> IS holds.**
+
+The five that had rotted were all behaviour claims — "this reads nullable",
+"the kernel has no disjunctive fact", "per-arm reasoning is not worth it",
+"closable". Every one is falsified by a fix landing, which is the failure mode
+nothing here can detect: success expires the record, and no suite goes red.
+
+The structural claims all held on re-check: `buildNullabilityCatalog` does take
+an options bag beside `searchPath` and there are exactly two FK maps to empty
+(1b's "five lines" is right); nothing under `src/` calls `inferNullability`
+(1's blocker is real); T1–T5 exist; PGlite ships 33 contrib extensions and
+still no `test_decoding` (6's trigger is unchanged); the annotation arithmetic
+is exact at 17 + 6 = 23.
+
+Two things had drifted, both of the "what does the engine do" kind: 1a's claim
+that domain CHECKs reach no engine consumer, and 7's path. Both are corrected
+in place.
+
+**So: date any behaviour claim written here, and re-derive it rather than
+reading it.** The suites re-derive their numbers every run; this file does not.
+
 ## Open items
 
 ### 1. Arity-and-order gate at the consumer boundary
@@ -93,13 +121,23 @@ captured partition clones and dropped the declaration (`relkind = 'i'` misses
 the declared `'I'`); `queryDomains` read one CHECK of many under a `LIMIT 1`
 with no `ORDER BY`. Neither moved a nullability claim — **and that is the
 finding under the findings**: both survived because nothing downstream was
-strict enough to notice. `snapshot.indexes` and `DomainInfo.checks` reach
-nothing but the diff's entity map.
+strict enough to notice.
+
+**The half of that argument about domains expired (re-checked 2026-08-23).**
+It said `snapshot.indexes` and `DomainInfo.checks` "reach nothing but the
+diff's entity map". True of indexes still — `src/catalog/diff.ts:311` is the
+only reader. FALSE of domain checks since the subtree evaluator learned to
+walk a domain chain: `catalog-adapter.ts` collects `cur.checks` across nested
+domains to decide whether a cast renders immutably, so that capture now has an
+ENGINE consumer whose answers reach real claims. The 2026-08-08 `LIMIT 1`
+truncation would no longer be silent, and would no longer be harmless.
 
 **Trigger.** Do it the next time any capture is added to `snapshot.ts`, and
-before the consumer's first contract-holding slice. A capture whose only
-consumer is the diff is where it pays, precisely because no oracle downstream
-will complain.
+before the consumer's first contract-holding slice. The original argument —
+"a capture whose only consumer is the diff is where it pays" — still names the
+risky case, but it is no longer a description of these two: check which
+consumers a capture actually has before assuming it is diff-only, because that
+set grows without anyone revisiting this entry.
 
 ### 1b. Operational trust declarations — the foreign-key assumption
 
@@ -144,13 +182,40 @@ unqualified RELATION references (`FROM t` resolving to `public.t` until
 someone creates `app_s.t`). It is a property of tracking unqualified names
 under a search path, so it belongs to the consumer design, not the engine.
 
-### 2a. Or-fact triggers for arm exclusion
+### 2a. Or-fact triggers for arm exclusion — CLOSED 2026-08-23
 
-Deferred, from the CASE-arm entailment work. An ELSE-selected CASE derives
-nothing today, because arms fail on FALSE *or* NULL — 3VL — and the kernel has
-no disjunctive fact to carry "one of these arms was taken". Recorded where the
-mechanism is, in `docs/nullability-walk.md` and the `check-generated-arm-*`
-fixtures.
+**Both halves are built, and the entry was wrong about the second one from the
+day it was written.** It stays only to say what its cause turned out to be;
+the mechanisms live beside the code.
+
+It read: "the kernel has no disjunctive fact to carry 'one of these arms was
+taken'". The kernel had one all along — `orFacts`, with `addOrFact` and the
+intersection rule in `colKnownNonNull` — and the trigger the entry names had
+been built too, in the block titled "OR-fact triggers" in
+`check-entailment.ts`: `verdict IN ('fraud','no-fraud')` selects one arm per
+value and their conditions join as an or-fact.
+
+What was genuinely missing is the ELSE half, and the *stated reason for it*
+was the obstacle. `docs/nullability-walk.md` said an ELSE survivor derives
+nothing because "ELSE runs on FALSE *or NULL* conditions, and 3VL grants no
+facts from 'not TRUE'" — true of a condition that CAN evaluate NULL, and false
+of one that cannot. Over a NOT NULL column `status = 'a'` is total, so not-TRUE
+IS FALSE. `elseSelectedConditions` emits those negations, gated on one atom
+(not-TRUE of a conjunction says nothing about a conjunct) and on totality (the
+3VL twin is the fixture that kills it).
+
+Closing it needed a second thing, and finding that out took removing the first
+guess: the kernel reads NO catalog flags, so a NOT NULL column is invisible to
+every totality gate inside it. `entryNotNullEvidence` supplies the flags as
+ordinary evidence predicates for a relation the walk has established present.
+**Measured: 218 firings in the hand corpus and zero claims moved in either
+corpus** — it is worth having for what it unlocks, not for what it moves.
+
+**The lesson, and it is the reason this entry is not simply deleted:** a
+recorded reason that names a LAW ("3VL grants no facts") reads as settled in a
+way that a recorded gap does not, and nothing in the suite disputes a law. It
+was over-general by exactly one case, and that case is the ordinary one — a
+NOT NULL column.
 
 ### 2b. Five sqlc upstream tickets, written and not filed
 
@@ -1209,7 +1274,7 @@ Two of these three needed one query each.
 | Non-strict scalar and `LANGUAGE plpgsql` functions | nullable | bodies are not statically analysable; a NOT NULL domain return is the escape hatch |
 | `pg_catalog` builtins outside the totality tables | nullable | totality has no catalog flag and cannot be proven by sampling, so the tables stay curated, each entry measured on admission. `array_length` used to be the example and is a poor one now: the name's exclusion is real, and a literal `ARRAY[…]` settles both causes behind it |
 | Custom operators backed by unanalysable functions | nullable results | the operator machinery is built; what stays conservative is the output side when the backing function is plpgsql or has multiple candidates |
-| MERGE with mixed arm kinds | condition not row-implied | the join condition promotes only when every ROW-PRODUCING arm is MATCHED-kind — a NOT MATCHED arm fires precisely on the condition's failure, and a `DO NOTHING` arm returns nothing to fire with (closed 2026-08-23). What stays open is an arm's own `AND` condition, which needs the disjunctive fact of item 2a |
+| MERGE with mixed arm kinds | condition not row-implied | the join condition promotes only when every ROW-PRODUCING arm is MATCHED-kind — a NOT MATCHED arm fires precisely on the condition's failure, and a `DO NOTHING` arm returns nothing to fire with (closed 2026-08-23). What stays open is an arm's own `AND` condition: every returned row satisfies the DISJUNCTION of the row-producing arms' conditions. The fact type for that exists (`orFacts`) and so does its consumer; what is missing is a producer reading MERGE arms, which is not what item 2a built — that one reads a generated column's CASE |
 | CHECK entailment, conservative edges | nullable | parameters never match (identity needs the literal token; permanent for a per-statement contract), and origin consumption is gated as designed |
 | Presence groups | none recorded | every launch and post-launch residue closed 2026-08-04; future entries come from consumer corpora |
 | A CHECK literal that is not a truth value | nullable | `boolLiteral` reads a bare boolean A_Const and REFUSES a cast: `'t'::boolean` and `1::boolean` are both TRUE, but the general form is an input function whose result is not a token. A refusal, so it can only under-claim |
@@ -1235,7 +1300,9 @@ replication connection and takes the backend down when called from a SELECT.
 
 ### 7. PostgreSQL's regression suite as a borrowed corpus
 
-Recorded, not scheduled. `postgres-pglite/src/test/regress/sql` — 232 files,
+Recorded, not scheduled. `pglite/postgres-pglite/src/test/regress/sql` —
+verified 2026-08-23, 232 files at that path (the entry used to name it one
+directory up, where nothing is) —
 PostgreSQL License — is the most adversarial SQL corpus in existence, but it
 is stateful scripts rather than schema/query pairs: using it means treating
 each file as a continuous migration and intercepting the SELECTs and DMLs
