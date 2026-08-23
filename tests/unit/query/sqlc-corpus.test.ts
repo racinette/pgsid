@@ -495,7 +495,6 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
   });
 
   it("corpus report", () => {
-    // eslint-disable-next-line no-console
     console.log(
       `sqlc corpus: ${JSON.stringify(tally)}\n  refusals: ${JSON.stringify([...refusalKeys])}` +
         `\n  explain-fail: ${JSON.stringify([...explainFailKeys])}` +

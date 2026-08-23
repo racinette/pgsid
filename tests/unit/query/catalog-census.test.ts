@@ -236,7 +236,13 @@ describe("catalog-feature census", () => {
       const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
       if (!stmt) continue;
       try {
-        inferNullability(stmt, spy.catalog);
+        // AWAITED, and it was not until 2026-08-23. `inferNullability` is
+        // async, so an unawaited call cannot reject into this catch — the
+        // refusal became an unhandled rejection instead — and the spy's
+        // recording happened in a microtask that only flushed because the
+        // NEXT iteration awaits `parseSql`. It measured correctly by
+        // accident.
+        await inferNullability(stmt, spy.catalog);
       } catch {
         // A refusal still asked its questions on the way to refusing.
       }

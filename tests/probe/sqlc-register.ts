@@ -147,7 +147,6 @@ Entries: ${Object.keys(DISAGREEMENTS).length}. Census by disposition: ` +
     : "";
 
   writeFileSync(OUT, header + ticketIndex + sections.join("\n"));
-  // eslint-disable-next-line no-console
   console.log(`wrote ${OUT}: ${sections.length} entries, ${ticketFiles.length} ticket drafts`);
 }
 

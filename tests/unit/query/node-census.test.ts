@@ -281,7 +281,10 @@ describe("node-type census", () => {
         unhandled.set(nodeType, sites);
       };
       try {
-        inferNullabilityTraced(stmt, catalog, record);
+        // AWAITED since 2026-08-23 — see the note in catalog-census.test.ts.
+        // Unawaited, the catch below could never fire and `record` ran in a
+        // microtask the loop did not wait for.
+        await inferNullabilityTraced(stmt, catalog, record);
       } catch {
         // An unknown FROM item or statement now raises (see
         // UnsupportedNodeError). The observer has already recorded it, and

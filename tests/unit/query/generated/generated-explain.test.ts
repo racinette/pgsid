@@ -203,7 +203,6 @@ describe("generated-query EXPLAIN oracle (planner vs the walk)", () => {
     if (engineStronger.length > 6) {
       lines.push(`  … ${engineStronger.length - 6} more engine-stronger (report truncated, not the data)`);
     }
-    // eslint-disable-next-line no-console
     console.log(lines.join("\n"));
     expect(agree + engineStronger.length + plannerStrongerTotal).toBe(compared.length);
   });
