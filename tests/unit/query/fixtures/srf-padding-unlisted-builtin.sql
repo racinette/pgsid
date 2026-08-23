@@ -17,9 +17,19 @@ SELECT
 --   still has no bound — counting `'$[*]'` over `'[1,2,3]'` means evaluating
 --   a jsonpath, which is not arithmetic on constants the way
 --   `generate_series(1, 3)` is. `one_sku()` beside it has a ceiling of one,
---   so the comparison fails on this side only. The route is a pre-walk round
---   asking a closed set-returning call for its row count, and it is blocked
---   on NOTHING: `SELECT count(*) FROM jsonb_path_query_tz('[1,2,3]'::jsonb,
---   '$[*]')` deparses and answers 3 (measured 2026-08-23). This was filed
---   beside the JSON_TABLE claims that ARE deparser-blocked and does not
---   belong with them — an ordinary function is not a SQL/JSON node
+--   so the comparison fails on this side only.
+--
+--   The route would be a pre-walk round asking a CLOSED set-returning call
+--   for its row count, and this call is not closed. `jsonb_path_query_tz` is
+--   STABLE — jsonpath datetime comparisons read the session TimeZone — so
+--   `closedSetFunctionTypes` refuses it, while the immutable
+--   `jsonb_path_query` beside it is admitted (both measured 2026-08-23). A
+--   stable function's analysis-time cardinality is not a promise about its
+--   cardinality at execution time, and the padding turns that count into a
+--   notNull claim, so the refusal is soundness rather than caution.
+--
+--   The `_tz` spelling is not incidental here: it is the name this fixture
+--   exists for, being the direct sibling of the listed `jsonb_path_query`
+--   among the 50 that BUILTIN_SRF_NAMES was missing. Swapping it for the
+--   immutable one would close the claim and delete the fixture's reason to
+--   exist. Recorded, not closable.

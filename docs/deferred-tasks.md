@@ -1096,12 +1096,27 @@ back with its row expression and document swapped — the latter masked for as
 long as it was, because the only XMLTABLE fixture was already pinned at the
 louder `deparse-threw` for the JSON_TABLE beside it.
 
-THE FIFTH, `srf-padding-unlisted-builtin`, was grouped with them and **does not
-belong**: it asks a CARDINALITY of an ORDINARY function, not a SQL/JSON node,
-and `SELECT count(*) FROM jsonb_path_query_tz('[1,2,3]'::jsonb, '$[*]')`
-deparses and answers 3 (measured). It wants a pre-walk round that asks closed
-set-returning calls for their row count and hands it to the padding bound.
-Blocked on nothing; open and separable.
+THE FIFTH, `srf-padding-unlisted-builtin`, was grouped with them and does not
+belong — it asks a CARDINALITY of an ORDINARY function, not a SQL/JSON node.
+It was then called "blocked on nothing" on the strength of `SELECT count(*)
+FROM jsonb_path_query_tz('[1,2,3]'::jsonb, '$[*]')` deparsing and answering 3,
+**and that was wrong**: rendering the probe is not the gate. `jsonb_path_query_tz`
+is STABLE — jsonpath datetime comparisons read the session TimeZone — so
+`closedSetFunctionTypes` refuses it, while the immutable `jsonb_path_query`
+beside it is admitted (both measured 2026-08-23, through the built face). A
+stable function's analysis-time cardinality is not a promise about its
+cardinality at execution time, and the padding turns that count into a notNull
+claim, so the refusal is SOUNDNESS and not caution.
+
+The `_tz` spelling is the name that fixture exists for — the direct sibling of
+the listed `jsonb_path_query` among the 50 `BUILTIN_SRF_NAMES` was missing — so
+swapping it for the immutable one would close the claim and delete the
+fixture's reason to exist. **Recorded, not closable.**
+
+A cardinality round for IMMUTABLE closed set-returning calls remains buildable
+and would be a fourth instance of the pre-walk pattern. It closes nothing in
+the current corpus, which is the argument against building it now: there is no
+fixture it would move, so nothing could catch it going wrong.
 
 #### The "permanent" pass (2026-08-23) — 21 down to 17
 

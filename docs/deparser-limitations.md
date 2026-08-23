@@ -87,18 +87,21 @@ Two routes were considered and both rejected for now:
   hand-written renderer for one node family, and waiting for upstream costs
   nothing but precision.
 
-**`srf-padding-unlisted-builtin` was grouped with these and does not belong.**
-It asks a CARDINALITY — how many rows `jsonb_path_query_tz('[1,2,3]'::jsonb,
-'$[*]')` emits — of an ORDINARY function, not a SQL/JSON node. That renders
-and runs today (measured):
+**`srf-padding-unlisted-builtin` was grouped with these and does not belong —
+but it is not blocked by THIS file either, and the distinction is worth
+keeping straight.** It asks a CARDINALITY — how many rows
+`jsonb_path_query_tz('[1,2,3]'::jsonb, '$[*]')` emits — of an ORDINARY
+function, which renders and runs today:
 
 ```
 SELECT count(*) AS n FROM jsonb_path_query_tz('[1,2,3]'::jsonb, '$[*]')  ->  3
 ```
 
-So it is blocked on nothing; it wants a pre-walk round that asks closed
-set-returning calls for their row count and hands the answer to the padding
-bound, alongside the two rounds that already exist. Open, and separable.
+**Rendering the probe is not the gate.** That call is STABLE, so the closure
+gate refuses it and should: a stable function's analysis-time cardinality is
+not a promise about its cardinality at execution time, and the padding turns
+that count into a notNull claim. See `docs/deferred-tasks.md`. Recording it
+here only because "it deparses" was briefly mistaken for "it is available".
 
 ## 2. Window frame OFFSET bounds are re-emitted wrong, mostly silently
 
