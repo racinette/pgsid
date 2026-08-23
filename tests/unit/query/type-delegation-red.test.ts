@@ -210,6 +210,34 @@ describe("type-resolution delegation, Stage 1 (Route A)", () => {
       expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
     });
 
+    it("HOISTS the owning scope for a reference bound inside a CTE", async () => {
+      // `c2` is bound by the recursive arm's own FROM and is invisible to any
+      // top-level probe. Rather than thread a new column outward through the
+      // set operation and the CTE boundary, the owning SELECT is run as a
+      // statement in its own right with the statement's CTEs carried along.
+      const sql =
+        "WITH RECURSIVE ct(id, depth) AS (" +
+        "  SELECT m.i AS id, 0 AS depth FROM m" +
+        "  UNION ALL" +
+        "  SELECT c2.id, c2.depth + 1 FROM ct c2 WHERE c2.depth < 3" +
+        ") SELECT abs(ct.id) AS r FROM ct";
+      expect(await symbolic(sql, "c2.depth")).toBeNull();
+      expect(await delegated(sql, "c2.depth")).toEqual(["integer"]);
+    });
+
+    it("GUARD: a correlated owning scope stops resolving when hoisted", async () => {
+      // Hoisting cannot change a type, but it CAN break: a reference to the
+      // enclosing query has nothing to resolve against once the scope stands
+      // alone, and PostgreSQL refusing is the outcome we want.
+      const sql =
+        "SELECT abs((SELECT max(s.c + 1) FROM " +
+        "(SELECT count(*) AS c FROM m m3 WHERE m3.i = m.i) s)) AS r FROM m";
+      // `s`'s body reads `m.i` from the enclosing query, so the hoisted form
+      // has nothing to resolve it against.
+      expect(await symbolic(sql, "s.c")).toBeNull();
+      expect(await delegated(sql, "s.c")).toBeNull();
+    });
+
     it("a DML statement with no RETURNING has nothing to delegate", async () => {
       // Why there is no "synthesize a RETURNING" mechanism, recorded so it is
       // not proposed again. A statement with no output columns gives the walk
@@ -405,6 +433,45 @@ describe("delegation over the fixture corpus", () => {
         }
       }
     }
+
+    // What all of this is FOR. A type set is not the product — it decides
+    // which overload is dispatched, and that decides nullability. If the
+    // claims never move, delegation has bought a more defensible derivation
+    // of the same answers; if they do move, every change needs a look,
+    // because a claim that goes notNull on a delegated type is a claim
+    // resting on it.
+    let claimsCompared = 0;
+    const claimChanges: string[] = [];
+    for (const file of files) {
+      const sql = readFileSync(join(DIR, file), "utf8");
+      try {
+        const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
+        const off = await inferNullability(stmt, fcatalog);
+        const on = await inferNullability(stmt, fcatalog, { resolveColumnTypes: fresolve });
+        if (off.length !== on.length) {
+          claimChanges.push(`${file}: column COUNT changed ${off.length} → ${on.length}`);
+          continue;
+        }
+        off.forEach((c, i) => {
+          claimsCompared++;
+          if (c.notNull !== on[i]!.notNull) {
+            claimChanges.push(`${file}: ${c.name} ${c.notNull} → ${on[i]!.notNull}`);
+          }
+        });
+      } catch {
+        continue;
+      }
+    }
+    console.log(
+      `  output claims compared: ${claimsCompared}\n` +
+        `  claims CHANGED by delegation: ${claimChanges.length}\n` +
+        claimChanges.slice(0, 10).map(c => `     ${c}\n`).join(""),
+    );
+    // Not an assertion that they must never move — delegation is meant to
+    // improve precision eventually. It IS an assertion that a move is
+    // deliberate: this list is empty today, and a future entry has to be
+    // looked at and re-pinned rather than absorbed silently.
+    expect(claimChanges).toEqual([]);
 
     console.log(
       `\ntype-delegation over the fixture corpus\n` +

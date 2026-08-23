@@ -1,7 +1,7 @@
 # Type-resolution delegation — asking PostgreSQL what an expression is
 
 **CHARTERED 2026-08-20. RE-CHARTERED 2026-08-24 on a different mechanism.
-STAGES 1–3 LANDED 2026-08-24; STAGES 4–5 NOT STARTED.** Written to be handed to a session with no other context:
+STAGES 1–4 LANDED 2026-08-24; STAGE 5 NOT STARTED.** Written to be handed to a session with no other context:
 everything needed to do the work is here or named here, and the numbers are
 measurements rather than estimates. Where this document says "measured", it
 was, and the date is given — re-deriving costs a day and changes nothing.
@@ -356,8 +356,56 @@ afterwards: a DML statement with no RETURNING has no output columns, so the
 walk analyses no expressions and records NO type-set readings at all. There is
 nothing to delegate. Pinned by a test.
 
-**Stage 4 — computed columns.** The 14. These are what the probe-into-the-
-owning-scope machinery is for.
+**Stage 4 — inner scopes, by HOISTING. LANDED 2026-08-24.** `routeBHoist`.
+
+A reference bound inside a CTE or subquery is invisible to a top-level probe,
+and the charter's original plan was to thread a new column OUTWARD through
+every enclosing scope — each with its own GROUP BY, alias column list and set
+operations to satisfy. **Do not build that.** The opposite is far less
+machinery and answers the same question: run the OWNING select as a statement
+in its own right, carrying the statement's CTEs so its references still
+resolve, with the probe appended to its target list.
+
+Hoisting cannot change the answer — a column's type does not depend on the
+scopes ABOVE the one that binds it, and everything the owning select itself
+says is carried along untouched. What hoisting can do is BREAK: a correlated
+reference to an enclosing query stops resolving and PostgreSQL refuses, which
+is the outcome we want. Guarded by requiring exactly ONE select whose own FROM
+binds the qualifier — the scope-level twin of the alias-uniqueness guard.
+
+Measured: **15 tried, 7 answered**, and every one of the seven is a RECURSIVE
+CTE — the case the 2026-08-20 charter singled out as "the hard one". The 8
+refusals are 6 non-grouped columns under GROUP BY and 2 lost recursive
+self-references.
+
+**Validated against an independent oracle before shipping.** The same hoist
+was run over columns the walk ALREADY types and had to reproduce them: 6
+checked, 6 agreed, 0 disagreed. Thin, but it is the only check available —
+these are null-set residues, so containment is vacuous over them.
+
+Corpus after Stages 1–4: **1064 readings compared, 96 probes, 37 narrowed,
+multi-member 16 → 2, 0 containment violations.**
+
+## What four stages of delegation actually bought — measured 2026-08-24
+
+**1868 output nullability claims compared with delegation ON and OFF. ZERO
+changed.**
+
+That is the honest headline and it is not a disappointment: it is exactly what
+this charter's own worked example predicted — *"The verdict does not move.
+What moves is what the verdict rests on."* Thirty-seven readings that were a
+union or no claim at all are now the type PostgreSQL resolves, and the claims
+that used to rest on the bare-name `TOTAL_OPERATORS` allowlist now rest on a
+dispatched signature. Define a `public.+(boolean, boolean)` and the old
+derivation flips; the new one does not.
+
+The corpus-claims comparison is now a permanent assertion, and deliberately a
+strict one: the list must be EMPTY. Delegation is expected to move claims
+eventually, and when it does the change has to be looked at and re-pinned
+rather than absorbed silently.
+
+**If the next stage is judged by claims moved, it will look worthless. Judge
+it by what the claims rest on.**
 
 **Stage 5 — DML scopes.** The 2 (`excluded.name`, a MERGE source). This is
 PREPARE's unique reach and cannot be done at all on the old transport.

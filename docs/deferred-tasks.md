@@ -38,7 +38,7 @@ and `operators.ts` is 74% — that is where rationale is kept, and it works.
 | Probe corpus, probe database, and its traps | `tests/unit/query/probe-values.ts` |
 | Operator narrowing, partial and non-strict overloads | `src/query/operators.ts` |
 | One-name-many-signatures defects | `docs/type-aware-overloads.md` |
-| Asking PostgreSQL to resolve a type (`PREPARE`) | `docs/type-resolution-delegation.md` — Stages 1–3 landed 2026-08-24 (`src/query/type-delegation.ts`), Stages 4–5 open |
+| Asking PostgreSQL to resolve a type (`PREPARE`) | `docs/type-resolution-delegation.md` — Stages 1–4 landed 2026-08-24 (`src/query/type-delegation.ts`), Stage 5 open |
 | Query generator and its axes | `docs/query-generator.md`, `docs/generated-surface.md` |
 | Generated soundness instrument | `tests/unit/query/generated/generated-soundness.test.ts` |
 | Subtree evaluation | `docs/subtree-evaluation.md` |
