@@ -374,6 +374,155 @@ async function routeB(
   return answers;
 }
 
+/** Aliases a FROM clause binds AT THIS LEVEL — joins descended into, nested
+ *  scopes not. This is scope membership, not the whole-statement census
+ *  `aliasBindings` takes. */
+function boundAtThisLevel(from: unknown, out: Set<string>): void {
+  if (from === null || typeof from !== "object") return;
+  if (Array.isArray(from)) {
+    for (const item of from) boundAtThisLevel(item, out);
+    return;
+  }
+  const rec = from as Record<string, unknown>;
+  const aliasOf = (n: unknown): string | undefined =>
+    ((n as Record<string, unknown> | undefined)?.["alias"] as Record<string, unknown> | undefined)?.[
+      "aliasname"
+    ] as string | undefined;
+  const rv = rec["RangeVar"] as Record<string, unknown> | undefined;
+  if (rv?.["relname"]) out.add(aliasOf(rv) ?? (rv["relname"] as string));
+  for (const key of ["RangeSubselect", "RangeFunction", "RangeTableFunc", "RangeTableSample"]) {
+    const alias = aliasOf(rec[key]);
+    if (alias) out.add(alias);
+  }
+  const je = rec["JoinExpr"] as Record<string, unknown> | undefined;
+  if (je) {
+    boundAtThisLevel(je["larg"], out);
+    boundAtThisLevel(je["rarg"], out);
+  }
+}
+
+/**
+ * The one SELECT body whose OWN FROM binds `qual`, or null when there is not
+ * exactly one. Two candidates means the name is bound at two levels and this
+ * cannot tell which the walk meant — the scope-level twin of the
+ * alias-uniqueness guard.
+ */
+function owningSelect(node: unknown, qual: string): Record<string, unknown> | null {
+  const found: Record<string, unknown>[] = [];
+  const visit = (n: unknown): void => {
+    if (n === null || typeof n !== "object") return;
+    if (Array.isArray(n)) {
+      for (const child of n) visit(child);
+      return;
+    }
+    const rec = n as Record<string, unknown>;
+    // A SELECT body appears wrapped (`{SelectStmt: …}`) at statement level and
+    // BARE as a set operation's `larg`/`rarg`.
+    const sel = (rec["SelectStmt"] ??
+      (Array.isArray(rec["targetList"]) && rec["fromClause"] ? rec : undefined)) as
+      | Record<string, unknown>
+      | undefined;
+    if (sel && Array.isArray(sel["targetList"]) && sel["fromClause"]) {
+      const bound = new Set<string>();
+      boundAtThisLevel(sel["fromClause"], bound);
+      if (bound.has(qual)) found.push(sel);
+    }
+    for (const value of Object.values(rec)) visit(value);
+  };
+  visit(node);
+  return found.length === 1 ? found[0]! : null;
+}
+
+/**
+ * Route B, inner scopes: HOIST the owning SELECT and ask about it there.
+ *
+ * A reference bound inside a CTE or subquery is invisible to a top-level
+ * probe, and carrying one outward means threading a new column through every
+ * enclosing scope — each with its own GROUP BY, alias column list and set
+ * operations to satisfy. This does the opposite and it is far less machinery:
+ * run the OWNING select as a statement in its own right, carrying the
+ * statement's CTEs so its references still resolve, with the probe appended
+ * to its target list.
+ *
+ * Hoisting cannot change the answer, because a column's type does not depend
+ * on the scopes ABOVE the one that binds it — and everything the owning
+ * select itself says (its FROM, WHERE, GROUP BY) is carried along untouched.
+ * What hoisting CAN do is break: a correlated reference to an enclosing query
+ * stops resolving, and PostgreSQL refuses. That is the desired outcome.
+ *
+ * Measured 2026-08-24: 15 tried, 7 answered — every one of them a recursive
+ * CTE, the case the original charter called the hard one. The 8 refusals are
+ * 6 non-grouped columns under GROUP BY and 2 lost recursive self-references.
+ */
+async function routeBHoist(
+  stmt: Node,
+  residue: readonly { node: unknown; text: string; qualifier: string }[],
+  resolve: ResolveColumnTypes,
+): Promise<Map<string, string>> {
+  const answers = new Map<string, string>();
+  if (residue.length === 0) return answers;
+  const top = (stmt as Record<string, unknown>)[kindOf(stmt)] as
+    | Record<string, unknown>
+    | undefined;
+  const topWith = top?.["withClause"];
+  const topSelect = kindOf(stmt) === "SelectStmt" ? top : undefined;
+
+  // Group by owning scope, so one baseline and one batch serve all of them.
+  const groups = new Map<
+    Record<string, unknown>,
+    { node: unknown; text: string; qualifier: string }[]
+  >();
+  for (const item of residue) {
+    const owner = owningSelect(stmt, item.qualifier);
+    if (!owner || owner === topSelect) continue;
+    const group = groups.get(owner) ?? [];
+    group.push(item);
+    groups.set(owner, group);
+  }
+
+  for (const [owner, items] of groups) {
+    const build = (probes: unknown[]): unknown => ({
+      SelectStmt: {
+        ...owner,
+        // The owning select's own WITH wins; the statement's is carried only
+        // when it has none, so a hoisted body can still see the CTEs it names.
+        ...(owner["withClause"] || !topWith ? {} : { withClause: topWith }),
+        targetList: [...(owner["targetList"] as unknown[]), ...probes],
+      },
+    });
+    const baseSql = statementSql(build([]));
+    if (baseSql === null) continue;
+    let baseline: string[];
+    try {
+      baseline = await resolve(baseSql);
+    } catch {
+      continue;
+    }
+    if (baseline.length === 0) continue;
+
+    const ask = async (
+      batch: readonly { node: unknown; text: string }[],
+    ): Promise<boolean> => {
+      const sql = statementSql(build(batch.map(p => ({ ResTarget: { val: p.node } }))));
+      if (sql === null) return false;
+      let types: string[];
+      try {
+        types = await resolve(sql);
+      } catch {
+        return false;
+      }
+      if (types.length !== baseline.length + batch.length) return false;
+      batch.forEach((p, i) => answers.set(p.text, types[baseline.length + i]!));
+      return true;
+    };
+
+    if (!(await ask(items))) {
+      for (const one of items) await ask([one]);
+    }
+  }
+  return answers;
+}
+
 /**
  * Ask PostgreSQL to resolve the expressions the walk could not pin.
  *
@@ -431,6 +580,13 @@ export async function resolveDelegatedTypes(
     spliceable.push({ node: expr, text, qualifier });
   }
   for (const [text, type] of await routeB(stmt, spliceable, resolve)) {
+    pinned.set(text, type);
+    asked.set(text, type);
+  }
+  // Whatever a probe over the WHOLE statement could not reach is bound in an
+  // inner scope; hoist that scope and ask there.
+  const stillOpen = spliceable.filter(s => !asked.has(s.text));
+  for (const [text, type] of await routeBHoist(stmt, stillOpen, resolve)) {
     pinned.set(text, type);
     asked.set(text, type);
   }
