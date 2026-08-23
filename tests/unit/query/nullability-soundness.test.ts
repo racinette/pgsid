@@ -199,6 +199,11 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       // witness, and type-name resolution is exactly what the axis moves.
       const catalog = await catalogFor(fixture.searchPath);
       await pushSearchPath(pg, fixture.searchPath);
+      // The evaluator is a SEPARATE session, so the path has to be held on it
+      // too. Not every probe is path-blind — comparison-groundings renders
+      // `SELECT NULL::<type>` to resolve a type name, and which type that is
+      // moves with the path.
+      await evaluator.setSearchPath(fixture.searchPath);
       // Same analysis mode as the fixture suite: the statement map runs live,
       // so the claims the oracle adjudicates are the claims the pins assert.
       const claimed = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {

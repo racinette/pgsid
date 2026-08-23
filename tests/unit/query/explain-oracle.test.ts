@@ -6,6 +6,7 @@ import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { catalogCache } from "./fixture-catalog.js";
+import { createKillableEvaluator } from "./killable-evaluator.js";
 import { inferNullability } from "../../../src/query/nullability-walk.js";
 import type { JoinAudit } from "../../../src/query/types.js";
 import { parseFixtureDirectives, DEDUCTION_FAILURE } from "./fixture-args.js";
@@ -137,6 +138,10 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
     await pg.exec(SCHEMA_SQL);
     const snapshot = await snapshotCatalog(pg);
     const catalogFor = catalogCache(snapshot);
+    // Probes run on a KILLABLE instance, never on `pg`: one that PGlite
+    // will not finish blocks the thread it runs on, so it would hang this
+    // suite rather than fail it (killable-evaluator.ts).
+    const evaluator = await createKillableEvaluator({ schema: SCHEMA_SQL });
 
     for (const fixture of fixtures) {
       // `-- @search-path`: the walk's catalog AND the session EXPLAIN runs
@@ -146,13 +151,16 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
       if (fixture.searchPath) {
         await pg.exec(`SET search_path = ${fixture.searchPath.join(", ")};`);
       }
+      // The evaluator is a separate session, so it needs the path too — not
+      // every probe is path-blind.
+      await evaluator.setSearchPath(fixture.searchPath);
       const parsed = await parseSql(fixture.sql);
       const syntactic = countRawOuterJoins(parsed.stmts);
 
       // The walk's verdicts, same analysis mode as the soundness suite.
       const joinAudit: JoinAudit[] = [];
       const claims = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
-        evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
+        evaluate: evaluator.evaluate,
         joinAudit,
         collectUnitCrossings: true,
       });
@@ -232,6 +240,7 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
       if (fixture.searchPath) await pg.exec("SET search_path = public;");
     }
     await pg.close();
+    await evaluator.close();
   }, 180_000);
 
   it("every fixture EXPLAINs, or raises exactly what it declares", () => {

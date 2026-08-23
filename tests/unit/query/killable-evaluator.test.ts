@@ -17,6 +17,11 @@ import {
 // NOT FAIL, IT HANGS, and a hang that reports in seconds is a test result.
 // ---------------------------------------------------------------------------
 
+/** Which schema an unqualified `shadowed` resolved in — i.e. the path. */
+const RESOLVED_IN = `SELECT n.nspname AS s FROM pg_type t
+  JOIN pg_namespace n ON n.oid = t.typnamespace
+  WHERE t.oid = 'shadowed'::regtype`;
+
 /** Ten billion rows behind a LIMIT that cannot bind. Never finishes. */
 const WEDGE = `SELECT count(*) FROM (SELECT 1 FROM generate_series(1, 10000000000) LIMIT 1001) z`;
 
@@ -98,6 +103,65 @@ describe("killable evaluator", () => {
     expect(ev.kills).toBe(0);
     expect((await ev.evaluate(`SELECT 3 AS n`))?.["n"]).toBe(3);
   });
+
+  it(
+    "holds a search_path, and restores it after a kill",
+    async () => {
+      const ev = await createKillableEvaluator({
+        schema: `CREATE SCHEMA alt;
+                 CREATE DOMAIN public.shadowed AS int;
+                 CREATE DOMAIN alt.shadowed AS text;`,
+        timeoutMs: 500,
+      });
+      evaluators.push(ev);
+      // The same unqualified type name resolves to two different types; which
+      // one a probe sees is the session's path, not the statement's.
+      await ev.setSearchPath(["alt", "public"]);
+      expect((await ev.evaluate(RESOLVED_IN))?.["s"]).toBe("alt");
+      await ev.setSearchPath(["public"]);
+      expect((await ev.evaluate(RESOLVED_IN))?.["s"]).toBe("public");
+      // And it must survive the rebuild: an instance silently back on
+      // `public` would answer the wrong question one recovery later.
+      await ev.setSearchPath(["alt", "public"]);
+      await expect(ev.evaluate(WEDGE)).rejects.toThrow();
+      expect((await ev.evaluate(RESOLVED_IN))?.["s"]).toBe("alt");
+    },
+    25_000,
+  );
+
+  it(
+    "holds a per-case scope, and re-opens it after a kill",
+    async () => {
+      const ev = await make(500);
+      await ev.beginScope(`CREATE TABLE case_only (id int);
+                           CREATE FUNCTION case_fn() RETURNS int
+                             LANGUAGE sql IMMUTABLE AS $$ SELECT 7 $$;`);
+      expect((await ev.evaluate(`SELECT case_fn() AS n`))?.["n"]).toBe(7);
+      // A raising probe inside a scope must not abort the scope's transaction
+      // and take every later probe with it — that is what the savepoint is for.
+      await expect(ev.evaluate(`SELECT 1 / 0 AS n`)).rejects.toThrow(/division by zero/);
+      expect((await ev.evaluate(`SELECT case_fn() AS n`))?.["n"]).toBe(7);
+      // And a kill must re-open it, or the case silently continues against an
+      // empty database and answers a different question.
+      await expect(ev.evaluate(WEDGE)).rejects.toThrow();
+      expect((await ev.evaluate(`SELECT case_fn() AS n`))?.["n"]).toBe(7);
+      // Ending it takes the schema with it.
+      await ev.endScope();
+      await expect(ev.evaluate(`SELECT case_fn() AS n`)).rejects.toThrow(/does not exist/);
+    },
+    30_000,
+  );
+
+  it("loads contrib extensions by name", async () => {
+    // Resolved by convention from the uniform contrib path, so any of the 33
+    // PGlite ships works without a list to keep in step.
+    const ev = await createKillableEvaluator({
+      extensions: ["citext", "pgcrypto"],
+      schema: "CREATE EXTENSION citext; CREATE TABLE t (c citext);",
+    });
+    evaluators.push(ev);
+    expect((await ev.evaluate(`SELECT ('AB'::citext = 'ab'::citext) AS v`))?.["v"]).toBe(true);
+  }, 20_000);
 
   it("defaults to the rebuild-cost floor", () => {
     // A timeout below the ~500ms rebuild spends more on recovery than it saves
