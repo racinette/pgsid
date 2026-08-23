@@ -276,7 +276,7 @@ async function delegatedTypes(
     return undefined;
   }
   if (readings.length === 0) return undefined;
-  const answers = await resolveDelegatedTypes(readings, options.resolveColumnTypes);
+  const answers = await resolveDelegatedTypes(stmt, readings, options.resolveColumnTypes);
   return answers.size > 0 ? answers : undefined;
 }
 

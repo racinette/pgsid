@@ -137,6 +137,132 @@ function paramCast(n: number, type: string): Node {
 }
 
 /**
+ * Every name a FROM item binds in the statement, with how many times. Route B
+ * probes at the TOP level, so an alias bound twice is one this cannot ask
+ * about: the probe would resolve against whichever binding is visible there,
+ * and nothing in the answer records which one the walk meant.
+ */
+function aliasBindings(node: unknown, out: Map<string, number>): void {
+  if (node === null || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const child of node) aliasBindings(child, out);
+    return;
+  }
+  const rec = node as Record<string, unknown>;
+  const bind = (name: unknown): void => {
+    if (typeof name === "string") out.set(name, (out.get(name) ?? 0) + 1);
+  };
+  const aliasOf = (n: unknown): unknown =>
+    ((n as Record<string, unknown> | undefined)?.["alias"] as Record<string, unknown> | undefined)?.[
+      "aliasname"
+    ];
+  const rv = rec["RangeVar"] as Record<string, unknown> | undefined;
+  if (rv?.["relname"]) bind(aliasOf(rv) ?? rv["relname"]);
+  for (const key of ["RangeSubselect", "RangeFunction", "RangeTableFunc", "RangeTableSample"]) {
+    if (rec[key]) bind(aliasOf(rec[key]));
+  }
+  const cte = rec["CommonTableExpr"] as Record<string, unknown> | undefined;
+  if (cte) bind(cte["ctename"]);
+  for (const value of Object.values(rec)) aliasBindings(value, out);
+}
+
+/**
+ * The statement's own output list and how to replace it, or null when there
+ * is none a probe may join: a top-level set operation has no `targetList` of
+ * its own (Stage 3's subject), and a DML statement without RETURNING returns
+ * nothing to extend.
+ */
+function outputList(
+  stmt: unknown,
+): { list: unknown[]; replace: (list: unknown[]) => unknown } | null {
+  const rec = stmt as Record<string, unknown>;
+  const sel = rec["SelectStmt"] as Record<string, unknown> | undefined;
+  if (sel) {
+    const op = sel["op"] as string | undefined;
+    if (!Array.isArray(sel["targetList"]) || (op && op !== "SETOP_NONE")) return null;
+    return {
+      list: sel["targetList"] as unknown[],
+      replace: list => ({ SelectStmt: { ...sel, targetList: list } }),
+    };
+  }
+  for (const key of ["InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
+    const s = rec[key] as Record<string, unknown> | undefined;
+    if (Array.isArray(s?.["returningList"])) {
+      return {
+        list: s!["returningList"] as unknown[],
+        replace: list => ({ [key]: { ...s, returningList: list } }),
+      };
+    }
+  }
+  return null;
+}
+
+/** A whole statement rendered back to SQL, or null when it will not render. */
+function statementSql(stmt: unknown): string | null {
+  try {
+    return deparseSync(stmt as never);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Route B: ask about a derived column by making it an OUTPUT of the statement.
+ *
+ * `PREPARE` reports the type of every output column and nothing else, so an
+ * expression buried in a FROM item is invisible to it. Splicing the reference
+ * into the statement's own output list is what brings it into view, and
+ * PostgreSQL then resolves it against the real scope — no reimplementation of
+ * name resolution, and no need to know which scope owns it. A probe it
+ * rejects is an ordinary refusal.
+ *
+ * Two things make the position mapping safe rather than assumed. The answers
+ * are read from the END of the list, so a `SELECT *` ahead of them cannot
+ * shift anything; and the UNPROBED statement is prepared first, so a batch
+ * whose result count did not grow by exactly the number of probes is thrown
+ * away rather than mapped. A batch that fails is retried one probe at a time.
+ */
+async function routeB(
+  stmt: Node,
+  residue: readonly { node: unknown; text: string }[],
+  resolve: ResolveColumnTypes,
+): Promise<Map<string, string>> {
+  const answers = new Map<string, string>();
+  const out = outputList(stmt);
+  if (!out || residue.length === 0) return answers;
+
+  const baseSql = statementSql(stmt);
+  if (baseSql === null) return answers;
+  let baseline: string[];
+  try {
+    baseline = await resolve(baseSql);
+  } catch {
+    return answers;
+  }
+  if (baseline.length === 0) return answers; // the statement itself will not prepare
+
+  const ask = async (batch: readonly { node: unknown; text: string }[]): Promise<boolean> => {
+    const probed = out.replace([...out.list, ...batch.map(p => ({ ResTarget: { val: p.node } }))]);
+    const sql = statementSql(probed);
+    if (sql === null) return false;
+    let types: string[];
+    try {
+      types = await resolve(sql);
+    } catch {
+      return false;
+    }
+    if (types.length !== baseline.length + batch.length) return false;
+    batch.forEach((p, i) => answers.set(p.text, types[baseline.length + i]!));
+    return true;
+  };
+
+  if (!(await ask(residue))) {
+    for (const one of residue) await ask([one]);
+  }
+  return answers;
+}
+
+/**
  * Ask PostgreSQL to resolve the expressions the walk could not pin.
  *
  * `readings` is the walk's own audit from a preliminary pass: every operand
@@ -149,6 +275,7 @@ function paramCast(n: number, type: string): Node {
  * map keep the symbolic answer, which is every node this refuses.
  */
 export async function resolveDelegatedTypes(
+  stmt: Node,
   readings: readonly TypeSetAudit[],
   resolve: ResolveColumnTypes,
 ): Promise<Map<unknown, string>> {
@@ -164,6 +291,42 @@ export async function resolveDelegatedTypes(
 
   const answers = new Map<unknown, string>();
   const asked = new Map<string, string | null>();
+
+  // ROUTE B FIRST, and the order is the point: a derived column it types
+  // becomes a typed LEAF, which is what lets Route A resolve the operators
+  // above it. `a.c + b.c` over two `count(*)` subqueries is unreachable to
+  // either route alone and falls out of the two in sequence.
+  const bindings = new Map<string, number>();
+  aliasBindings(stmt, bindings);
+  const spliceable: { node: unknown; text: string }[] = [];
+  const seenText = new Set<string>();
+  for (const { expr, set } of readings) {
+    if (set !== null || kindOf(expr) !== "ColumnRef") continue;
+    const fields = ((expr as Record<string, unknown>)["ColumnRef"] as Record<string, unknown>)[
+      "fields"
+    ] as unknown[] | undefined;
+    const parts = (fields ?? [])
+      .map(f => ((f as Record<string, unknown>)["String"] as Record<string, unknown> | undefined)?.["sval"])
+      .filter((p): p is string => typeof p === "string");
+    // An unqualified name is whatever the scope says it is, and this has no
+    // scope; a qualifier bound twice cannot be asked about from the top.
+    if (parts.length < 2) continue;
+    if (bindings.get(parts[parts.length - 2]!) !== 1) continue;
+    const text = delegationSql(expr);
+    if (text === null || seenText.has(text)) continue;
+    seenText.add(text);
+    spliceable.push({ node: expr, text });
+  }
+  for (const [text, type] of await routeB(stmt, spliceable, resolve)) {
+    pinned.set(text, type);
+    asked.set(text, type);
+  }
+  for (const { expr, set } of readings) {
+    if (set !== null) continue;
+    const text = delegationSql(expr);
+    const answer = text === null ? undefined : asked.get(text);
+    if (answer) answers.set(expr, answer);
+  }
 
   for (const { expr, set } of readings) {
     if (set !== null && set.length === 1) continue; // already exact
