@@ -190,6 +190,59 @@ describe("type-resolution delegation, Stage 1 (Route A)", () => {
     });
   });
 
+  describe("Route B — giving a statement an output list it did not have", () => {
+    it("splices into the owning arm of a top-level set operation", async () => {
+      const sql =
+        "SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s " +
+        "UNION ALL SELECT abs(m.i) FROM m";
+      expect(await symbolic(sql, "s.c")).toBeNull();
+      expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
+    });
+
+    it("finds the owning arm whichever side it is on", async () => {
+      // The arms are padded with a bare NULL, which is `unknown` and takes
+      // the other arm's type — measured in both positions, so the answer
+      // cannot depend on which side the probe landed.
+      const sql =
+        "SELECT abs(m.i) FROM m " +
+        "UNION ALL SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s";
+      expect(await symbolic(sql, "s.c")).toBeNull();
+      expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
+    });
+
+    it("a DML statement with no RETURNING has nothing to delegate", async () => {
+      // Why there is no "synthesize a RETURNING" mechanism, recorded so it is
+      // not proposed again. A statement with no output columns gives the walk
+      // no expressions to analyse, so it records NO type-set readings at all —
+      // and a delegation with no reading to improve has nothing to do.
+      //
+      // This was proposed on a measurement that turned out to be an artifact:
+      // `outputList` looked for `returningList` where the parser emits
+      // `returningClause`, so eight corpus statements that DO have a RETURNING
+      // were counted as lacking one.
+      const sql =
+        "UPDATE m SET b = 1 FROM (SELECT count(*) AS c FROM m m2) s WHERE m.b < s.c * 2";
+      expect((await sets(sql, { resolveColumnTypes })).size).toBe(0);
+    });
+
+    it("delegating over a DML statement executes NOTHING", async () => {
+      // `PREPARE` stops after parse analysis, which is what makes it safe to
+      // probe a statement that would otherwise write rows.
+      await pg.exec(
+        "INSERT INTO m (i,j,b,n,f,r,t,v,d,ts,iv,arr,jb) VALUES " +
+          "(1,1,1,1,1,1,'a','a','2020-01-01','2020-01-01',INTERVAL '1 day',ARRAY['a'],'{}')",
+      );
+      const before = await pg.query("SELECT count(*)::int AS n, sum(b)::int AS s FROM m");
+      const sql =
+        "UPDATE m SET b = s.c + 1 FROM (SELECT count(*) AS c FROM m m2) s " +
+        "WHERE m.i = 1 RETURNING abs(s.c) AS out";
+      expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
+      const after = await pg.query("SELECT count(*)::int AS n, sum(b)::int AS s FROM m");
+      expect(after.rows[0]).toEqual(before.rows[0]);
+      await pg.exec("DELETE FROM m");
+    });
+  });
+
   it("without the callback the walk is byte-for-byte what it was", async () => {
     const sql = "SELECT abs(m.i + m.n) AS v, abs(m.r + m.n) AS w FROM m";
     const off = await sets(sql);

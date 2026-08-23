@@ -187,14 +187,108 @@ function outputList(
   }
   for (const key of ["InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
     const s = rec[key] as Record<string, unknown> | undefined;
-    if (Array.isArray(s?.["returningList"])) {
-      return {
-        list: s!["returningList"] as unknown[],
-        replace: list => ({ [key]: { ...s, returningList: list } }),
-      };
-    }
+    if (!s) continue;
+    // `returningClause`, NOT `returningList` — the field was renamed in the
+    // PG16 grammar and this parser emits the new spelling. Written the old
+    // way, this branch matched nothing at all and every DML statement looked
+    // to Route B like one with no output list: silent under-reach, invisible
+    // to the containment test because a probe never fired.
+    const rc = s["returningClause"] as Record<string, unknown> | undefined;
+    if (!Array.isArray(rc?.["exprs"])) continue;
+    return {
+      list: rc!["exprs"] as unknown[],
+      replace: list => ({ [key]: { ...s, returningClause: { ...rc, exprs: list } } }),
+    };
   }
   return null;
+}
+
+/**
+ * The LEAF arms of a top-level set operation, in output order, or null when
+ * any of them is a shape this cannot extend.
+ *
+ * `larg`/`rarg` hold bare SelectStmt bodies rather than wrapped nodes, and
+ * they nest to the left: `A UNION B UNION C` is `(A UNION B) UNION C`.
+ */
+function setOpLeaves(sel: Record<string, unknown>, out: Record<string, unknown>[]): boolean {
+  const op = sel["op"] as string | undefined;
+  if (!op || op === "SETOP_NONE") {
+    if (!Array.isArray(sel["targetList"])) return false;
+    out.push(sel);
+    return true;
+  }
+  const larg = sel["larg"] as Record<string, unknown> | undefined;
+  const rarg = sel["rarg"] as Record<string, unknown> | undefined;
+  if (!larg || !rarg) return false;
+  return setOpLeaves(larg, out) && setOpLeaves(rarg, out);
+}
+
+/** Rebuild a set-operation tree with `extras[i]` appended to arm i. */
+function withArmExtras(
+  sel: Record<string, unknown>,
+  extras: unknown[][],
+  next: { i: number },
+): Record<string, unknown> {
+  const op = sel["op"] as string | undefined;
+  if (!op || op === "SETOP_NONE") {
+    const extra = extras[next.i++] ?? [];
+    return { ...sel, targetList: [...(sel["targetList"] as unknown[]), ...extra] };
+  }
+  return {
+    ...sel,
+    larg: withArmExtras(sel["larg"] as Record<string, unknown>, extras, next),
+    rarg: withArmExtras(sel["rarg"] as Record<string, unknown>, extras, next),
+  };
+}
+
+/** A bare `NULL` target — `unknown`, so it takes whatever type the arm it is
+ *  padding against resolves to (measured, in either arm position). */
+const nullTarget = (): unknown => ({ ResTarget: { val: { A_Const: { isnull: true } } } });
+
+/**
+ * Every way this statement can be given somewhere to put a probe, in the
+ * order worth trying.
+ *
+ * A plain statement has exactly one: its own output list. A top-level set
+ * operation has one PER ARM — the probe must go into the arm whose scope
+ * binds the qualifier, and every other arm is padded with NULL to keep the
+ * arity legal (PostgreSQL rejects the asymmetric form outright). Which arm
+ * owns it is not computed: each is tried, and the alias-uniqueness guard is
+ * what makes at most one of them able to answer.
+ */
+function probePlacements(
+  stmt: Node,
+  qualifiers: ReadonlySet<string>,
+): ((probes: unknown[]) => unknown)[] {
+  const out = outputList(stmt);
+  if (out) return [probes => out.replace([...out.list, ...probes])];
+
+  const sel = (stmt as Record<string, unknown>)["SelectStmt"] as
+    | Record<string, unknown>
+    | undefined;
+  const op = sel?.["op"] as string | undefined;
+  if (!sel || !op || op === "SETOP_NONE") return [];
+  const arms: Record<string, unknown>[] = [];
+  if (!setOpLeaves(sel, arms) || arms.length < 2) return [];
+
+  const placements: ((probes: unknown[]) => unknown)[] = [];
+  arms.forEach((arm, armIndex) => {
+    // Skip an arm whose FROM binds none of the qualifiers being asked about.
+    // Purely a cost filter — PostgreSQL still adjudicates every probe that is
+    // sent — but without it each arm is asked about every probe, and a
+    // two-arm statement with four of them spends ten round trips to learn
+    // what one syntactic look answers.
+    const bound = new Map<string, number>();
+    aliasBindings(arm["fromClause"], bound);
+    if (![...qualifiers].some(q => bound.has(q))) return;
+    placements.push((probes: unknown[]) => {
+      const extras = arms.map((__, i) =>
+        i === armIndex ? probes : probes.map(() => nullTarget()),
+      );
+      return { SelectStmt: withArmExtras(sel, extras, { i: 0 }) };
+    });
+  });
+  return placements;
 }
 
 /** A whole statement rendered back to SQL, or null when it will not render. */
@@ -224,12 +318,13 @@ function statementSql(stmt: unknown): string | null {
  */
 async function routeB(
   stmt: Node,
-  residue: readonly { node: unknown; text: string }[],
+  residue: readonly { node: unknown; text: string; qualifier: string }[],
   resolve: ResolveColumnTypes,
 ): Promise<Map<string, string>> {
   const answers = new Map<string, string>();
-  const out = outputList(stmt);
-  if (!out || residue.length === 0) return answers;
+  if (residue.length === 0) return answers;
+  const placements = probePlacements(stmt, new Set(residue.map(r => r.qualifier)));
+  if (placements.length === 0) return answers;
 
   const baseSql = statementSql(stmt);
   if (baseSql === null) return answers;
@@ -241,9 +336,11 @@ async function routeB(
   }
   if (baseline.length === 0) return answers; // the statement itself will not prepare
 
-  const ask = async (batch: readonly { node: unknown; text: string }[]): Promise<boolean> => {
-    const probed = out.replace([...out.list, ...batch.map(p => ({ ResTarget: { val: p.node } }))]);
-    const sql = statementSql(probed);
+  const ask = async (
+    place: (probes: unknown[]) => unknown,
+    batch: readonly { node: unknown; text: string; qualifier: string }[],
+  ): Promise<boolean> => {
+    const sql = statementSql(place(batch.map(p => ({ ResTarget: { val: p.node } }))));
     if (sql === null) return false;
     let types: string[];
     try {
@@ -251,13 +348,28 @@ async function routeB(
     } catch {
       return false;
     }
+    // The unprobed count is known, so a result list that did not grow by
+    // exactly the batch size is a statement we are not reading correctly —
+    // discard it rather than map positions onto it.
     if (types.length !== baseline.length + batch.length) return false;
     batch.forEach((p, i) => answers.set(p.text, types[baseline.length + i]!));
     return true;
   };
 
-  if (!(await ask(residue))) {
-    for (const one of residue) await ask([one]);
+  let remaining = [...residue];
+  for (const place of placements) {
+    if (remaining.length === 0) break;
+    if (await ask(place, remaining)) {
+      remaining = [];
+      break;
+    }
+    // A batch fails as a unit, and one probe this placement cannot serve is
+    // enough to fail it, so retry singly before moving on.
+    const unanswered: typeof remaining = [];
+    for (const one of remaining) {
+      if (!(await ask(place, [one]))) unanswered.push(one);
+    }
+    remaining = unanswered;
   }
   return answers;
 }
@@ -298,7 +410,7 @@ export async function resolveDelegatedTypes(
   // either route alone and falls out of the two in sequence.
   const bindings = new Map<string, number>();
   aliasBindings(stmt, bindings);
-  const spliceable: { node: unknown; text: string }[] = [];
+  const spliceable: { node: unknown; text: string; qualifier: string }[] = [];
   const seenText = new Set<string>();
   for (const { expr, set } of readings) {
     if (set !== null || kindOf(expr) !== "ColumnRef") continue;
@@ -311,11 +423,12 @@ export async function resolveDelegatedTypes(
     // An unqualified name is whatever the scope says it is, and this has no
     // scope; a qualifier bound twice cannot be asked about from the top.
     if (parts.length < 2) continue;
-    if (bindings.get(parts[parts.length - 2]!) !== 1) continue;
+    const qualifier = parts[parts.length - 2]!;
+    if (bindings.get(qualifier) !== 1) continue;
     const text = delegationSql(expr);
     if (text === null || seenText.has(text)) continue;
     seenText.add(text);
-    spliceable.push({ node: expr, text });
+    spliceable.push({ node: expr, text, qualifier });
   }
   for (const [text, type] of await routeB(stmt, spliceable, resolve)) {
     pinned.set(text, type);

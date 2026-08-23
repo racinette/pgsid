@@ -1,7 +1,7 @@
 # Type-resolution delegation — asking PostgreSQL what an expression is
 
 **CHARTERED 2026-08-20. RE-CHARTERED 2026-08-24 on a different mechanism.
-STAGES 1–2 LANDED 2026-08-24; STAGES 3–5 NOT STARTED.** Written to be handed to a session with no other context:
+STAGES 1–3 LANDED 2026-08-24; STAGES 4–5 NOT STARTED.** Written to be handed to a session with no other context:
 everything needed to do the work is here or named here, and the numbers are
 measurements rather than estimates. Where this document says "measured", it
 was, and the date is given — re-deriving costs a day and changes nothing.
@@ -319,11 +319,42 @@ above it. `abs(a.c + b.c)` over two `count(*)` subqueries is unreachable to
 either route alone and falls out of the two in sequence — the composition this
 charter argued for, now witnessed by a test.
 
-**Stage 3 — Route B into inner and set-operation scopes.** The 16. Splice
-SYMMETRICALLY into every arm; the arity rule is absolute (measured: a probe in
-one arm of a UNION fails with "each UNION query must have the same number of
-columns"; the same probe in both arms resolves, including through a
-`WITH RECURSIVE`). Re-run Route A afterwards — Stage 3 creates typed leaves.
+**Stage 3 — set-operation arms. LANDED 2026-08-24.** A top-level set operation
+has no `targetList` of its own, so `probePlacements` returns one placement PER
+LEAF ARM: the probe goes into one arm and every other arm is padded with a
+bare `NULL`. The arity rule is absolute (measured: a probe in one arm alone
+fails with "each UNION query must have the same number of columns"), and a
+bare NULL is `unknown`, so it takes the other arm's type and cannot change the
+answer — measured in both arm positions. Which arm OWNS the reference is never
+computed: each is tried, and the alias-uniqueness guard is what makes at most
+one able to answer. A cheap syntactic filter skips an arm whose FROM binds
+none of the qualifiers being asked about; that is cost only, and PostgreSQL
+still adjudicates every probe sent.
+
+**Stage 3 found a Stage 2 defect, and it was worth more than Stage 3.**
+`outputList` looked for `returningList`; the parser emits `returningClause`
+(renamed in the PG16 grammar, `{exprs: [...]}` rather than a bare array). The
+whole DML branch of Route B therefore matched NOTHING, and every DML statement
+looked like one with no output list. Silent under-reach — invisible to the
+containment test, because a probe that never fires cannot answer wrongly.
+Fixing the field name alone moved the corpus from **22 narrowed to 30**, and
+multi-member readings from **16 → 5** to **16 → 2**.
+
+Corpus after both: **1064 readings compared, 77 probes, 30 narrowed,
+0 containment violations.**
+
+**Set-op splicing has ZERO corpus reach, and the reason is worth recording.**
+The eleven residues in top-level set operations are all refused by
+PostgreSQL — `column "ci2.total_spent" must appear in the GROUP BY clause`.
+The mechanism is correct and is witnessed by purpose-built cases in both arm
+positions, on the same footing `UNION_CASES` stands on: the fixture corpus was
+measured first and could not serve.
+
+**The "synthesize a RETURNING" idea is DEAD — do not propose it again.** It
+was motivated entirely by the `returningClause` artifact above. Measured
+afterwards: a DML statement with no RETURNING has no output columns, so the
+walk analyses no expressions and records NO type-set readings at all. There is
+nothing to delegate. Pinned by a test.
 
 **Stage 4 — computed columns.** The 14. These are what the probe-into-the-
 owning-scope machinery is for.
