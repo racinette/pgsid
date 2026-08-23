@@ -52,6 +52,33 @@ const DDL = `
             CASE WHEN score >= 75 THEN 'hi'
                  ELSE 'lo' END) STORED,
     CONSTRAINT sk_memo CHECK (score >= 75 OR memo IS NOT NULL)
+  );
+
+  -- The MULTI-ATOM arm. \`NOT (status = 'a' AND flag)\` does not imply
+  -- \`status <> 'a'\` — the row may have taken the ELSE on \`flag\` alone — so
+  -- the ELSE derives nothing here however total both conjuncts are.
+  CREATE TABLE mk (
+    id     integer PRIMARY KEY,
+    status text NOT NULL,
+    flag   boolean NOT NULL,
+    note   text,
+    tag    text GENERATED ALWAYS AS (
+             CASE WHEN status = 'a' AND flag THEN 'x' ELSE 'z' END) STORED,
+    CONSTRAINT mk_note CHECK (status = 'a' OR note IS NOT NULL)
+  );
+
+  -- The AMBIGUOUS PRODUCER. A WHEN arm and the ELSE both yield 'z', so a row
+  -- with that tag has two possible explanations and neither arm's condition
+  -- is known.
+  CREATE TABLE ak (
+    id     integer PRIMARY KEY,
+    status text NOT NULL,
+    note   text,
+    tag    text GENERATED ALWAYS AS (
+             CASE WHEN status = 'a' THEN 'z'
+                  WHEN status = 'b' THEN 'y'
+                  ELSE 'z' END) STORED,
+    CONSTRAINT ak_note CHECK (status = 'a' OR note IS NOT NULL)
   );`;
 
 /** The ELSE ran, so status is neither 'a' nor 'b' — both total comparisons —
@@ -90,7 +117,11 @@ beforeAll(async () => {
   await pg.exec(DDL);
   await pg.exec(`
     INSERT INTO tk (id, status, note) VALUES (1, 'a', NULL), (2, 'c', 'filled');
-    INSERT INTO sk (id, score, memo) VALUES (1, 90, NULL), (2, NULL, 'why');`);
+    INSERT INTO sk (id, score, memo) VALUES (1, 90, NULL), (2, NULL, 'why');
+    -- The witnesses. Both took the ELSE with a NULL note, which is exactly
+    -- what the two guards refuse to claim against.
+    INSERT INTO mk (id, status, flag, note) VALUES (1, 'a', false, NULL), (2, 'c', true, 'filled');
+    INSERT INTO ak (id, status, note) VALUES (1, 'a', NULL), (2, 'c', 'filled');`);
   catalog = await buildNullabilityCatalog(await snapshotCatalog(pg), { searchPath: ["public"] });
 }, 120_000);
 
@@ -145,5 +176,26 @@ describe("ELSE-selected arm — boundary guards", () => {
 
   it("a WHEN-selected arm is unaffected", async () => {
     expect(await claim(WHEN_ARM)).toBe(false);
+  });
+
+  it("a MULTI-ATOM arm condition derives nothing from the ELSE", async () => {
+    // Coverage said this guard had never fired: no fixture carried a
+    // conjunctive arm condition. not-TRUE of `a AND b` leaves both conjuncts
+    // live, so the ELSE proves nothing about `status` — and the row that says
+    // so is `('a', false, NULL)`, which reaches the ELSE through `flag`
+    // while satisfying the CHECK's first disjunct.
+    expect(await claim(`SELECT note FROM mk WHERE tag = 'z'`)).toBe(false);
+    const r = await pg.query<{ note: string | null }>(`SELECT note FROM mk WHERE tag = 'z'`);
+    expect(r.rows.some(x => x.note === null)).toBe(true);
+  });
+
+  it("an ELSE sharing a literal with a WHEN arm derives nothing", async () => {
+    // The other never-fired guard. Arm one and the ELSE both yield 'z', so a
+    // row carrying that tag has two possible producers and neither arm's
+    // condition is known to have held. Witnessed by ('a', NULL): it took the
+    // WHEN arm, not the ELSE.
+    expect(await claim(`SELECT note FROM ak WHERE tag = 'z'`)).toBe(false);
+    const r = await pg.query<{ note: string | null }>(`SELECT note FROM ak WHERE tag = 'z'`);
+    expect(r.rows.some(x => x.note === null)).toBe(true);
   });
 });
