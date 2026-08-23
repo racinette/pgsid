@@ -79,6 +79,15 @@ in place.
 **So: date any behaviour claim written here, and re-derive it rather than
 reading it.** The suites re-derive their numbers every run; this file does not.
 
+**A third rot mode, found 2026-08-24 — a PARTIAL check closing a WHOLE row.**
+The 2026-08-23 sweep marked "a base-table alias column list is ignored" as
+honoured. It measured names and flags, and there are five lookups behind such
+an entry; the fifth, type OIDs, was still handing the query's name to a catalog
+keyed under the catalog's. The re-check was right about everything it looked
+at, and the row it closed was still open. Where an entry names a MECHANISM
+rather than one claim, enumerate the mechanism's consumers before closing it —
+`RelationEntry`'s own doc comment listed all five.
+
 ## Open items
 
 ### 1. Arity-and-order gate at the consumer boundary
@@ -1254,7 +1263,7 @@ making true, and nothing in this table executes:
 | the row said | measured 2026-08-23 |
 |---|---|
 | a NOT NULL domain column reads nullable — closable | reads **notNull**, and serves as a presence-group discriminant. Closed 2026-08-05 (`docs/imprecision-closure.md`), and the register kept the entry for eighteen days |
-| a base-table alias column list is ignored | **honoured** — `ck AS z(p,q,r,s)` gives correct names AND flags, and a partial list leaves the tail its own |
+| a base-table alias column list is ignored | **honoured for names and flags** — `ck AS z(p,q,r,s)` gives both, and a partial list leaves the tail its own. NOT honoured for TYPES, found 2026-08-24: `renderedTypeOfExpr` handed the query's name to a catalog keyed under the catalog's and read no type for 8 residue columns. Fixed the same day (`alias-column-list-types-red.test.ts`) |
 | boolean literals in CHECK — closable, *if ever worth it* | genuinely open, and closed the same day by `boolLiteral` in `check-entailment.ts` |
 
 The third row is why the other two matter. Its hedge — **"if ever worth it"**
