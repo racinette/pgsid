@@ -497,11 +497,11 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **48 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **41 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
 empty, so every excuse left in the project is here. (Was 101 on 2026-08-22.)
 
-The suite's own readout says 54, and the six-claim gap is not a discrepancy —
+The suite's own readout says 47, and the six-claim gap is not a discrepancy —
 it is a SECOND excuse channel, and the note here used to have it backwards.
 An `@unwitnessable` line names exactly one column, so lines and claims are the
 same number. What the readout adds is the nullable claims inside `@no-rows`
@@ -853,6 +853,60 @@ the steps to "signatures the snapshot knows" — which DROPS a drifted key befor
 asserting anything, so mutating the rendering left it green. Filtering by
 schema instead (a builtin step lives in `pg_catalog`, which drift does not move
 it out of) makes the mutation fail with all eight aggregates named.
+
+**The dashboard cluster was triaged as the hardest of the four and the triage
+had the shape wrong.** It was recorded as seven claims needing a cross-subquery
+containment proof. The trace says otherwise: the walk ALREADY computes all
+seven `order_totals` columns as non-null inside the CTE, and the only thing
+making them nullable outside it is one bit — `ot`'s `joinState = OPTIONAL`.
+Seven claims, one alias, one bit; flipping it also collapses a seven-member
+presence group the consumer had been handed for an arm no data could reach.
+
+The promotion machinery was already there too. A fixpoint exists whose whole
+job is OPTIONAL → REQUIRED, with three routes wired into it. What the dashboard
+needed was a fourth, and what made it a genuinely new KIND rather than another
+route is where the evidence sits. `foreignKeyEntailedAlias` reads the two
+relations the join relates and says so in its own comment — *"a column from
+elsewhere in the tree says nothing about whether THIS join matched"*. True for a
+key, and exactly the restriction this case has to lift: the fact that saves `ot`
+lives in a THIRD FROM item, the `CROSS JOIN LATERAL` at the bottom of the query.
+
+`Scope.rowWitnesses` is the channel, a sibling of `impliedQuals` rather than
+part of it: `impliedQuals` carries PREDICATES that eight consumers read as
+WHERE conjuncts, and this carries an EXISTENCE claim about a relation, which is
+not a predicate over any output column and would mean nothing to them.
+
+**The producer and the consumer need OPPOSITE properties, and getting that
+backwards is what over-gated the first draft.** The producing side needs only
+`item non-empty ⟹ the source holds a matching row`. Everything that merely
+REMOVES rows — LIMIT, OFFSET, HAVING, GROUP BY, a join inside the item, an
+extra conjunct — can only turn the item empty, which drops the outer row and
+makes the witness VACUOUS rather than wrong. The first draft gated all of them
+as soundness gates. They are not, and none is gated now. The consuming side
+needs `the row exists ⟹ the group is here`, which those same operations
+destroy, so it gates every one of them.
+
+Two conservative refusals are marked as conservative so neither reads as a
+soundness fact: a multi-term GROUP BY is still sound (the group for the tuple
+exists exactly when a row with the first key does — it may match SEVERAL times,
+a row-count question this rule does not own), and the WHERE is required to BE
+the equality rather than to CONTAIN it, since a conjunction carrying it would
+be sound and reading that needs a conjunct walk nothing yet asks for.
+
+**Five gates, five mutations, five kills, every one by PostgreSQL** rather than
+by an annotation — an OPTIONAL witnessing item, a WHERE and a HAVING on the
+grouped side, the relation-name match and the outer-column match. A sixth gate
+was written, measured, and deleted: a set-operation witness cannot reach an
+`sel.op` check, because a set-operation node holds no `fromClause` or
+`whereClause` of its own, so requiring exactly one FROM item and a WHERE
+already excludes it. The control stays and pins the outcome.
+
+**EXPLAIN now diverges by one join on two fixtures, declared rather than
+silenced.** The planner keeps the `ot` join, and not because it disagrees:
+PostgreSQL's outer-join removal fires only when the inner side is UNREFERENCED,
+and seven columns of `ot` are projected, so it keeps the join whatever the join
+can do. The two mechanisms answer different questions and the `@planner-keeps`
+reasons say which.
 
 ### 4. Known imprecision residue
 
