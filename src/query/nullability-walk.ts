@@ -9981,8 +9981,10 @@ class NullabilityEngine {
     trace.addFact("singleRow", String(singleRow));
 
     const keyed = singleRow ? false : this.subqueryKeyEntailedNonEmpty(select, scope);
+    const unionArm = singleRow || keyed ? false : this.unionArmEntailsNonEmpty(select);
     trace.addFact("keyEntailedNonEmpty", String(keyed));
-    if (!singleRow && !keyed) {
+    trace.addFact("unionArmNonEmpty", String(unionArm));
+    if (!singleRow && !keyed && !unionArm) {
       trace.conclude(false, "can return zero rows -> nullable");
       return false;
     }
@@ -9996,6 +9998,42 @@ class NullabilityEngine {
     }
     trace.conclude(false, "single-row subquery has no output columns -> nullable");
     return false;
+  }
+
+  /**
+   * Whether a scalar subquery provably returns AT LEAST ONE ROW because a
+   * UNION branch does.
+   *
+   *   (SELECT count(*) FROM reviews r WHERE r.product_id = p.id UNION SELECT 7)
+   *
+   * A UNION is non-empty as soon as ONE branch is: deduplication removes
+   * duplicates, never the last row. So a branch that is itself exactly-one — a
+   * bare `SELECT 7` — settles the whole node whatever the other branch scans,
+   * and no fact about the scanned relation is needed. INTERSECT and EXCEPT are
+   * rejected because either can delete every row the left branch produced,
+   * which is what `except_empties` and `intersect_empties` witness.
+   *
+   * At-least-one is the right predicate here for the same reason it is in
+   * `subqueryKeyEntailedNonEmpty` below: several rows RAISE rather than
+   * evaluating to NULL, and a raise returns nothing to contradict anything.
+   *
+   * This settles the ROW COUNT only. What that row CONTAINS is
+   * `combineSetOperation`'s answer, and it takes the AND across branches — so
+   * `SELECT NULL UNION SELECT NULL` is guaranteed its row and still nullable,
+   * decided by the branches rather than by the count.
+   *
+   * LIMIT and OFFSET sit on the set-operation node itself and can strip the
+   * row back off after the union produced it, so they are rejected here rather
+   * than inside a branch.
+   */
+  private unionArmEntailsNonEmpty(select: SelectStmt): boolean {
+    if (select.op !== "SETOP_UNION") return false;
+    if (select.limitCount || select.limitOffset) return false;
+    // `A UNION B UNION C` nests to the left, so a branch may be a set
+    // operation in its own right and answers for itself.
+    return [select.larg, select.rarg].some(
+      arm => !!arm && (this.guaranteesSingleRow(arm) || this.unionArmEntailsNonEmpty(arm)),
+    );
   }
 
   /**

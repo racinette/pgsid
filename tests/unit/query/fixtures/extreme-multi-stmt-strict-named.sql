@@ -1,5 +1,8 @@
--- @unwitnessable 0: multi-statement body, conservative by design; the return derives from NOT NULL inputs
--- @unwitnessable 1: same: the BEGIN ATOMIC body's return derives from NOT NULL inputs
+-- @unwitnessable 0: the body's INSERT writes `val = $1` and the scan that
+--   follows filters on `val = $1`, so it always finds the row just written;
+--   `multi_stmt_log.val` is NOT NULL, so no data state makes this NULL
+-- @unwitnessable 1: same entailment in the BEGIN ATOMIC body — `VALUES (2, a)`
+--   satisfies `WHERE val = a` — and what it returns is `b`, a NOT NULL column
 -- Multi-statement LANGUAGE sql functions: positional, named (BEGIN ATOMIC),
 -- and strict variants. Tests the interaction of multi-statement body
 -- parsing, named-param reordering, strict dispatch, and the row-count check.

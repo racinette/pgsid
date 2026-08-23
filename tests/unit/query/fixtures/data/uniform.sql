@@ -8,10 +8,15 @@
 --     (SELECT count(*) FROM reviews r WHERE r.product_id = p.id UNION SELECT 7)
 --
 -- returns two rows — and so raises "more than one row returned by a subquery
--- used as an expression" — for every product whose review count is not 7. The
--- set-operation cases in `scalar-subquery-zero-row-guards.sql` are only
--- executable when *every* product row the query visits has exactly that many
--- reviews, which no state built around varied volume can offer.
+-- used as an expression" — for every product whose review count is not 7.
+-- `scalar-subquery-union-arm.sql` is only executable when *every* product row
+-- the query visits has exactly that many reviews, which no state built around
+-- varied volume can offer.
+--
+-- That file used to be part of `scalar-subquery-zero-row-guards.sql`, and the
+-- raise held the guards hostage: three of them are NULL exactly for the review
+-- counts this state forbids. They were split apart, so this state now answers
+-- for the UNION alone and the guards run under `dense` like anything else.
 --
 -- Explicit ids stay below 1000: the identity columns in `schema.sql` start
 -- there, so a fixture that inserts without an id never collides with a row

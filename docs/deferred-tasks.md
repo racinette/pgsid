@@ -497,13 +497,19 @@ raising *is* the witness. The direction that needs witnessing is the
 over-restrictive one, and it is gated — 1848 notNull argument claims, 1848
 witnessed by an actual null-rejection.
 
-The **69 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
+The **51 `@unwitnessable` reasons in the hand corpus** carry the same rot risk.
 **This is now the only place a reason can rot**: the generated corpus's list is
-empty, so every excuse left in the project is here. (Was 101 on 2026-08-22;
-thirty-two came off that day — thirty as the claims they excused turned
-notNull, two because the claim became WITNESSED and needed no excuse. The
-suite's own readout counts CLAIMS, not annotation lines — one annotation may
-name several columns, and it reads 57.)
+empty, so every excuse left in the project is here. (Was 101 on 2026-08-22.)
+
+The suite's own readout says 57, and the six-claim gap is not a discrepancy —
+it is a SECOND excuse channel, and the note here used to have it backwards.
+An `@unwitnessable` line names exactly one column, so lines and claims are the
+same number. What the readout adds is the nullable claims inside `@no-rows`
+fixtures, excused WHOLESALE by the fixture's own declaration that it returns
+nothing rather than per column: four in `cast-jsonb-scalar.sql`, one each in
+`extreme-cast-syntax-domain.sql` and `extreme-typecast-not-null-domain.sql`.
+Six, measured, and they are the looser channel of the two — no per-column
+reason is ever reviewed for them.
 
 The pass over them started with the **largest cluster, and its reason was the
 mechanism**: seven fixtures said "unnesting a NULL array produces no rows, so
@@ -715,6 +721,75 @@ conservatism.
 `current_query()` was left alone. Its reason is accurate — NULL only when the
 statement has no source text, which nothing executable can arrange — and that
 is precisely what makes claiming it a widening no control could catch.
+
+**The fifth pass re-triaged the four "expensive" clusters and found the label
+was applied on the wrong axis.** They had been grouped by claim count, which
+made them look like one kind of problem. They are three:
+
+| cluster | claims | what is actually missing |
+|---|---:|---|
+| scalar-subquery guards | 6 | five need nothing from the engine at all — the SIXTH is a small rule |
+| user-aggregate transitions | 3 | two catalog columns (`aggtransfn`, `aggfinalfn`) plus an induction hypothesis; the negative controls already exist in the schema |
+| multi-statement bodies | 3 | nothing yet — the recorded reasons were wrong about the ROUTE |
+| `extreme-order-dashboard` | 7 | a cross-subquery containment proof, one instance, no second in the corpus |
+
+**Five of the six that closed were the fixture obstructing itself, and the
+mechanism was a raise.** `scalar-subquery-zero-row-guards.sql` carried
+`(SELECT count(*) … UNION SELECT 7)` in its SELECT list, which returns TWO rows
+and raises for every product whose review count is not 7. That raise killed the
+whole statement, so three correct nullable claims beside it — `having_count`,
+`except_count`, `grouped_count` — had no witness for a reason that was nothing
+to do with them. Their annotations said "unwitnessable"; the truth was
+"unexecutable HERE". Splitting the UNION into its own file closed all three
+with **no new data state**: `dense` already holds a product with exactly one
+review and six with none, which is every NULL the three needed.
+
+The other two, in `scalar-subquery.sql`, were the same shape one level up. The
+outer query scanned `t` and so did the subqueries, so an empty `t` produced the
+NULL *and* removed the row that would have shown it. **An uncorrelated scalar
+subquery reads no outer column, so what the outer query scans was never part of
+the claim** — the outer FROM moved to `products` and both claims are witnessed
+under two states.
+
+**The one engine rule is `unionArmEntailsNonEmpty`, and the argument for it was
+already written down.** `subqueryKeyEntailedNonEmpty` sits directly below it and
+its comment already says why at-least-one is the right predicate for a scalar
+subquery: several rows RAISE rather than evaluating to NULL, and a raise returns
+nothing to contradict anything. The missing piece was one more route to
+at-least-one — a UNION is non-empty as soon as one branch is, because dedup
+removes duplicates and never the last row. INTERSECT and EXCEPT are rejected
+because either can delete everything the left branch produced.
+
+The rule settles the ROW COUNT only. `combineSetOperation` already ANDs across
+branches, so `SELECT NULL UNION SELECT NULL` is guaranteed its row and still
+nullable — which is a fixture column, because a rule that reads as "UNION means
+non-null" is exactly the misreading to gate against.
+
+**Three branches, three mutations, three kills — and two needed controls the
+corpus did not have.** Widening to all set operations is caught by
+`except_count` with a real PostgreSQL NULL behind it. The other two were
+ungated until built for: `union_limited` (`UNION … LIMIT 0`, where the branch
+still guarantees its row and the NODE does not, which is why the guard is on the
+node) and `union_nested_arm` (`A UNION B UNION C` nests LEFT, so the only
+guaranteeing branch is one level down and the outer node's own two settle
+nothing).
+
+**Reach, measured: one fixture.** The rule fires nowhere else in the hand
+corpus and changed no other verdict, and the generated corpus's 14964 queries
+report zero violations. That is a small return for a rule, and it is the honest
+number — the controls are what make it a rule rather than a fixture-shaped
+widening.
+
+**The multi-statement cluster closed nothing and the reasons were still wrong.**
+All three said some version of "the return derives from NOT NULL inputs".
+`multi_stmt_fn`'s body is `INSERT INTO multi_stmt_log VALUES (1, $1); SELECT val
+FROM multi_stmt_log WHERE val = $1` — the return derives from a TABLE SCAN, and
+the fixture's own prose said so two lines below the annotation. What makes it
+non-null is the statement the walk does not read: the INSERT writes `val = $1`,
+which is exactly the scan's predicate, so the scan always finds at least the row
+it just wrote, and `multi_stmt_log.val` is NOT NULL. The claims are conservative
+rather than wrong; the reasons now name the entailment BETWEEN statements of one
+body, which is a different question from any single statement's row count.
 
 ### 4. Known imprecision residue
 
