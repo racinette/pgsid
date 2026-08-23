@@ -846,9 +846,13 @@ class EntailmentKernel {
    * TRUE rules it out), or its condition is already FALSE; the implicit or
    * explicit NULL/literal ELSE is treated the same way. If exactly one arm
    * survives and it is a real WHEN arm, its condition evaluated TRUE for
-   * this row and its conjuncts join the facts. (An ELSE survivor derives
-   * nothing: ELSE runs when the conditions were FALSE *or NULL*, and 3VL
-   * grants no facts from "not TRUE".) Single pass: derived facts describe
+   * this row and its conjuncts join the facts.
+   *
+   * An ELSE survivor derives nothing FROM ITSELF — ELSE runs when the
+   * conditions were FALSE *or NULL*, and 3VL grants no facts from "not
+   * TRUE". It derives plenty from the arms it BEAT, whenever their
+   * conditions cannot evaluate NULL: see `elseSelectedConditions`. Single
+   * pass: derived facts describe
    * plain columns, and PostgreSQL forbids a generation expression from
    * referencing another generated column, so no new triggers can appear.
    */
@@ -866,6 +870,29 @@ class EntailmentKernel {
             `${eq.column} = <literal> selects a single CASE arm; its condition joins the facts`,
           );
           this.collectConjuncts(cond);
+        }
+        // The ELSE ran, so EVERY WHEN condition was not-TRUE. That is a fact
+        // only where not-TRUE collapses to FALSE, which is what the totality
+        // gate below decides.
+        for (const armCond of this.elseSelectedConditions(eq, trigger.lit) ?? []) {
+          const atoms = this.atomsOf(armCond);
+          // ONE atom only. not-TRUE of a conjunction says nothing about any
+          // single conjunct — `NOT (a AND b)` leaves both live — and
+          // `atomsOf` returns a conjunction-shaped list for shapes like
+          // BETWEEN, so the count is the guard.
+          if (atoms.length !== 1) continue;
+          const atom = atoms[0]!;
+          // Totality: a strict comparison every operand of which is already
+          // pinned non-null cannot evaluate NULL, so not-TRUE IS FALSE. An
+          // unpinned operand leaves the arm's condition three-valued and the
+          // ELSE proves nothing about it — the 3VL case the doc describes,
+          // and the one PostgreSQL refutes if it is claimed anyway.
+          if (!this.atomOperandsPinned(atom)) continue;
+          this.input.trace?.addFact(
+            "generatedEquality",
+            `${eq.column} = <literal> selects the ELSE; a total arm condition is FALSE`,
+          );
+          this.addFalseFact(atom);
         }
       }
 
@@ -933,15 +960,8 @@ class EntailmentKernel {
     if (!ce) return null;
 
     /** true = provably NOT the producing arm; false = might be. */
-    const resultExcluded = (result: Node | undefined): boolean => {
-      if (!result) return true; // no result → NULL → excluded by the TRUE equality
-      const r = litOf(result);
-      if (r === null) {
-        // Either a NULL literal (excluded) or a non-literal (inconclusive).
-        return this.isNullLiteral(result);
-      }
-      return this.litsDistinct(eq.column, lit, r);
-    };
+    const resultExcluded = (result: Node | undefined): boolean =>
+      this.resultExcluded(eq, lit, result);
 
     let survivor: { cond: Node } | null = null;
     for (const w of ce.args ?? []) {
@@ -959,6 +979,59 @@ class EntailmentKernel {
     const elseExcluded = ce.defresult ? resultExcluded(ce.defresult) : true;
     if (!elseExcluded) return null;
     return survivor?.cond ?? null;
+  }
+
+  /**
+   * Every WHEN condition, when the ELSE is the ONLY thing that can have
+   * produced `lit`.
+   *
+   * The dual of `selectedArmCondition`, and it wants the opposite shape of
+   * the arm list: that one needs exactly one surviving WHEN arm and the ELSE
+   * ruled out, this one needs ZERO surviving WHEN arms and the ELSE alive.
+   * Anything in between — a live WHEN arm beside a live ELSE — leaves two
+   * possible producers and derives nothing either way.
+   *
+   * What the caller gets is a set of NOT-TRUE claims, not TRUE ones. CASE
+   * takes the first arm whose condition is TRUE, so the ELSE running means
+   * no condition was: every arm contributes, including one already excluded
+   * for being FALSE (which merely repeats what was known).
+   */
+  private elseSelectedConditions(
+    eq: { column: string; expr: Node },
+    lit: Lit,
+  ): Node[] | null {
+    const node = eq.expr as Record<string, unknown>;
+    const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node } | undefined;
+    if (!ce) return null;
+    // An absent ELSE yields NULL, which a TRUE equality has already ruled
+    // out — so the ELSE cannot be the producer and there is nothing here.
+    if (!ce.defresult) return null;
+    if (this.resultExcluded(eq, lit, ce.defresult)) return null;
+
+    const conditions: Node[] = [];
+    for (const w of ce.args ?? []) {
+      const when = (w as Record<string, unknown>)["CaseWhen"] as
+        | { expr?: Node; result?: Node }
+        | undefined;
+      const cond = this.armCondition(ce, when);
+      if (!cond) return null;
+      // A WHEN arm that could ALSO have produced the literal means the ELSE
+      // is not the only explanation, and nothing follows.
+      if (!this.isFalse(cond) && !this.resultExcluded(eq, lit, when?.result)) return null;
+      conditions.push(cond);
+    }
+    return conditions.length > 0 ? conditions : null;
+  }
+
+  /** Whether an arm's RESULT is provably not the one that produced `lit`. */
+  private resultExcluded(eq: { column: string }, lit: Lit, result: Node | undefined): boolean {
+    if (!result) return true; // no result → NULL → excluded by the TRUE equality
+    const r = litOf(result);
+    if (r === null) {
+      // Either a NULL literal (excluded) or a non-literal (inconclusive).
+      return this.isNullLiteral(result);
+    }
+    return this.litsDistinct(eq.column, lit, r);
   }
 
   /** Whether `expr` is the literal NULL, possibly under a plain cast. */
