@@ -1401,6 +1401,19 @@ ALTER TABLE fk_nv ADD CONSTRAINT fk_nv_order
 CREATE TABLE fk_df (id integer PRIMARY KEY,
   o_id integer NOT NULL REFERENCES orders(id) DEFERRABLE);
 
+-- fk_dd: the same refusal, WITNESSABLE. INITIALLY DEFERRED moves the check to
+-- COMMIT, so a data-modifying CTE can insert a dangling row and read it back
+-- through a join IN ONE STATEMENT — which is all a fixture gets, and all the
+-- suite's per-fixture `BEGIN … ROLLBACK` ever commits to. Measured: the same
+-- CTE against fk_df's INITIALLY IMMEDIATE key raises instead, which is why
+-- that one is held by an annotation and this one is not.
+--
+-- Without this the deferrable refusal had NO executed witness anywhere: fk_df
+-- is seeded by no data state, so its fixture returned zero rows in every
+-- state and even its notNull claims were vacuous.
+CREATE TABLE fk_dd (id integer PRIMARY KEY,
+  o_id integer NOT NULL REFERENCES orders(id) DEFERRABLE INITIALLY DEFERRED);
+
 -- fk_par/fk_chi: INHERITANCE — a parent's foreign key is NOT copied to a
 -- child (pg_constraint records it on the parent alone, and a violating child
 -- row inserts without complaint — measured), so a TREE scan of fk_par reads

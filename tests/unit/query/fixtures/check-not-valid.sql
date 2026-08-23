@@ -5,8 +5,12 @@
 -- of NOT VALID itself: new writes ARE gated, the schema is applied before
 -- any data state, so every reachable row satisfies the constraint anyway.
 -- @unwitnessable 0: NOT VALID still gates new writes, so no fixture row can
---   carry a NULL badge; the claim under test is the engine IGNORING the
---   constraint, and the annotation-based suite holds it.
+--   carry a NULL badge, and no single statement can dangle one either — the
+--   CTE trick the two fk-entail fixtures use needs a route that does not gate
+--   writes. The BIT is witnessed regardless: `check-not-enforced.sql` reaches
+--   the same `convalidated = false` through NOT ENFORCED, on a real seeded
+--   row, and the adapter reads only that bit. So this file pins the NOT VALID
+--   RENDERING, and could not catch a regression on its own.
 SELECT
   badge,   -- @nullable
   id       -- @notNull

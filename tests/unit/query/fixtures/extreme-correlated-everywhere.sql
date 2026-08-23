@@ -2,7 +2,11 @@
 --   `p2.category_id = p.category_id`, an EQUALITY, which is never true for a
 --   NULL, so a product with no category counts 0 and fails `> 2` in every
 --   state. Measured: four NULL-category products carrying order items and
---   reviews still never reach the output.
+--   reviews still never reach the output. The COLUMN's nullability is
+--   witnessed all over the corpus — it is `products.category_id`, an ordinary
+--   nullable column — so what is unwitnessed is this statement's own filter,
+--   not the claim. Relaxing the guard would witness it and would stop the
+--   fixture being the shape it exists for.
 -- Extreme fixture: deeply nested correlated subqueries in every clause
 -- position — SELECT, WHERE, HAVING, ORDER BY, CASE condition, function
 -- argument, aggregate argument, and JOIN ON.
