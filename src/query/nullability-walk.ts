@@ -4534,6 +4534,8 @@ class NullabilityEngine {
     interface MergeArm {
       matchKind?: string;
       commandType?: string;
+      /** The arm's own `AND …`, absent when it fires on its match kind alone. */
+      condition?: Node;
       targetList?: Node[];
       values?: Node[];
     }
@@ -4618,30 +4620,75 @@ class NullabilityEngine {
     // state, so every claim it carries is vacuously true and no oracle has a
     // row to disagree with. It is here because `every` over an empty list is
     // TRUE, which would make the emptiest statement the most confident one.
+    // The mask every pre-write fact needs: the join condition and a MATCHED
+    // arm's own condition both read the OLD row, while RETURNING reports the
+    // NEW one. Idempotent, so the two producers below may each ask for it
+    // without an ordering between them.
+    const applyDmlSetMask = (): void => {
+      const targetAlias = [...scope.aliases.keys()][0];
+      if (targetAlias === undefined || scope.dmlSetColumns) return;
+      const setColumns = new Set<string>();
+      if (targetRewriting) {
+        // The trigger may replace ANY column of NEW, so the evidence
+        // transfers through none of them — same as UPDATE.
+        for (const col of scope.aliases.get(targetAlias)?.table?.columns ?? []) {
+          setColumns.add(col);
+        }
+      } else {
+        for (const a of arms) {
+          for (const item of a.targetList ?? []) {
+            const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
+            if (name) setColumns.add(name);
+          }
+        }
+      }
+      scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
+    };
+
     const allMatched =
       producing.length > 0 && producing.every(a => a.matchKind === "MERGE_WHEN_MATCHED");
     if (allMatched && stmt.joinCondition) {
       scope.whereClause = stmt.joinCondition;
       scope.rowsImplyWhere = true;
-      const targetAlias = [...scope.aliases.keys()][0];
-      if (targetAlias !== undefined) {
-        const setColumns = new Set<string>();
-        if (targetRewriting) {
-          // The trigger may replace ANY column of NEW, so the join-condition
-          // evidence transfers through none of them — same as UPDATE.
-          for (const col of scope.aliases.get(targetAlias)?.table?.columns ?? []) {
-            setColumns.add(col);
-          }
-        } else {
-          for (const a of arms) {
-            for (const item of a.targetList ?? []) {
-              const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
-              if (name) setColumns.add(name);
-            }
-          }
-        }
-        scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
-      }
+      applyDmlSetMask();
+    }
+
+    // A returned row was produced by exactly ONE row-producing arm, and an arm
+    // fires only when its match kind holds AND its own condition is TRUE. So
+    // every returned row satisfies the DISJUNCTION of the producing arms'
+    // conditions, which is what `impliedQuals` means: TRUE per emitted row.
+    //
+    // It is a disjunction, so it proves a column non-null only when EVERY
+    // arm's condition does — `predicateProvesNonNull`'s OR rule on the plain
+    // path, `colKnownNonNull`'s intersection rule once the kernel turns the
+    // conjunct into an or-fact. Arms constraining DIFFERENT columns prove
+    // neither, which is the honest answer and not a limitation to route
+    // around.
+    //
+    // An arm with NO condition fires on its match kind alone: the disjunction
+    // would contain TRUE and carry nothing, so a single unconditioned
+    // producing arm refuses the whole fact. `DO NOTHING` arms are already out
+    // through `producing` — they return no row, so they can never be the arm
+    // that fired, and their missing condition is not a counterexample.
+    //
+    // Arms cannot mix relations, and PostgreSQL is what guarantees it: a NOT
+    // MATCHED condition may not reference the target and a NOT MATCHED BY
+    // SOURCE condition may not reference the source (both measured — "invalid
+    // reference to FROM-clause entry"). That is why a BY SOURCE arm cannot
+    // promote the source through this fact.
+    const armConditions: Node[] = [];
+    let everyArmConditioned = producing.length > 0;
+    for (const a of producing) {
+      if (a.condition) armConditions.push(a.condition);
+      else everyArmConditioned = false;
+    }
+    if (everyArmConditioned) {
+      scope.impliedQuals.push(
+        armConditions.length === 1
+          ? armConditions[0]!
+          : ({ BoolExpr: { boolop: "OR_EXPR", args: armConditions } } as unknown as Node),
+      );
+      applyDmlSetMask();
     }
     // Written values, per-arm intersection: a returned row can come from
     // any row-producing arm, so a target column's written value is provably
