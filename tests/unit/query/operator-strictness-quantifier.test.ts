@@ -68,7 +68,14 @@ const EXOTIC_DDL = `
   CREATE FUNCTION mn_or_zero(a mynum, b mynum) RETURNS numeric
     LANGUAGE sql IMMUTABLE AS $$ SELECT coalesce($1, 0) + coalesce($2, 0) $$;
   CREATE OPERATOR public.+ (leftarg = mynum, rightarg = mynum, function = mn_or_zero);
-  INSERT INTO d VALUES (1, 3, 0);`;
+  INSERT INTO d VALUES (1, 3, 0);
+  -- The boundary's join partner. \`v\` is deliberately the SAME NAME as the
+  -- target's and a DIFFERENT TYPE: plain numeric, not the mynum domain. A
+  -- qualified reference resolved against the wrong relation therefore gets a
+  -- wrong TYPE rather than a miss, which is the only way the alias guard can
+  -- be caught doing work.
+  CREATE TABLE other (id integer PRIMARY KEY, q numeric NOT NULL, v numeric NOT NULL);
+  INSERT INTO other VALUES (1, 4, 4);`;
 
 /** The typed operand reaches the resolver, so the forced candidate decides. */
 const ONE_SIDED = `UPDATE d SET total = v::public.mynum + $1 WHERE id = 1`;
@@ -184,23 +191,50 @@ describe("operator strictness quantifier", () => {
     expect(Number(r.rows[0]!.total)).toBe(3);
   });
 
-  it("a BARE COLUMN operand is still over-tight, and the cause is not the quantifier", async () => {
-    // The same statement, one cast removed, and the engine goes back to
-    // claiming a parameter PostgreSQL accepts as NULL. Recorded rather than
-    // fixed because the CAUSE IS SOMEWHERE ELSE: `contextFreeTypeSet` in
-    // param-nullability.ts handles A_Const, TypeCast, A_ArrayExpr and A_Expr
-    // and NOT ColumnRef — it is named for that boundary — so both type sets
-    // are null, the typed reading declines on its first line, and the claim
-    // comes from the bare-name rule (`+` is in STRICT_OPERATORS).
+  it("a BARE COLUMN operand types against the statement's own target", async () => {
+    // The same statement with one cast removed. The cause is NOT the
+    // quantifier: `contextFreeTypeSet` handles A_Const, TypeCast, A_ArrayExpr
+    // and A_Expr and not ColumnRef, so both type sets are null, the typed
+    // reading declines on its first line, and the claim comes from the
+    // bare-name rule (`+` is in STRICT_OPERATORS).
     //
-    // The over-report is the documented safe error for mechanism C, so this
-    // is sound; it is simply not free. Closing it means resolving a column
-    // operand's type, and the `AliasContext` needed to do that is ALREADY in
-    // scope at the call site — it just is not passed. Left as a measured,
-    // adjudicated open rather than an assumption about cost.
+    // An UPDATE's SET value is the one place a column needs no scope walk:
+    // `checkUpdate` has already resolved the target relation to reach
+    // `columnRejection` at all, so the type is one catalog call away.
+    const stmt = (await parseSql(ONE_SIDED_COLUMN)).stmts![0]!.stmt!;
+    expect(collectParamNullability(stmt, exotic)[0]?.notNull).toBe(false);
+  });
+
+  it("...and PostgreSQL accepts that binding", async () => {
+    // The adjudication, separate so it is green either side of the fix.
     await exoticPg.exec("UPDATE d SET total = 0 WHERE id = 1;");
     await expect(exoticPg.query(ONE_SIDED_COLUMN, [null])).resolves.toBeTruthy();
-    const stmt = (await parseSql(ONE_SIDED_COLUMN)).stmts![0]!.stmt!;
+    const r = await exoticPg.query<{ total: string }>(`SELECT total FROM d WHERE id = 1`);
+    expect(Number(r.rows[0]!.total)).toBe(3);
+  });
+
+  it("a column the target does NOT carry stays conservative", async () => {
+    // The boundary. `UPDATE … FROM other o` puts columns in scope that the
+    // target does not own, and typing one of those against the target would
+    // be a wrong type — the direction that makes a contract admit a raising
+    // binding. `resolveColumnTypeName` answers null for a non-column, so the
+    // reading declines and the name rule stands.
+    const sql = `UPDATE d SET total = o.q + $1 FROM other o WHERE d.id = o.id`;
+    const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
+    expect(collectParamNullability(stmt, exotic)[0]?.notNull).toBe(true);
+  });
+
+  it("a qualified reference is resolved against the RIGHT relation", async () => {
+    // `other.v` and `d.v` share a name and differ in type. Resolving this one
+    // against the target would type it `mynum`, pick the non-strict user
+    // operator, and report the parameter nullable — while PostgreSQL runs
+    // `numeric + numeric`, propagates the NULL and RAISES. That is the
+    // direction that makes a contract admit a binding which fails, so the
+    // adjudication is the assertion here, not the claim.
+    const sql = `UPDATE d SET total = o.v + $1 FROM other o WHERE d.id = o.id`;
+    await exoticPg.exec("UPDATE d SET total = 0 WHERE id = 1;");
+    await expect(exoticPg.query(sql, [null])).rejects.toThrow(/null value in column "total"/);
+    const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
     expect(collectParamNullability(stmt, exotic)[0]?.notNull).toBe(true);
   });
 

@@ -335,8 +335,9 @@ export function forcedNullImplicantsAnyRow(
   node: Node | undefined,
   catalog: NullabilityCatalog,
   ctx?: AliasContext,
+  target?: WriteTarget,
 ): Implicants {
-  return forcedNullBy(node, catalog, ctx, true);
+  return forcedNullBy(node, catalog, ctx, true, target);
 }
 
 /** The existential face's singleton projection (kept for the walk). */
@@ -349,19 +350,47 @@ export function forcedNullParamsAnyRow(
 }
 
 /**
- * Context-free operand typing for the strictness question — the literal
- * table, cast targets, uniform ARRAY constructors and nested operators.
- * Column references need a scope this walker does not carry, and a bare
- * ParamRef needs the tier-0 input nothing threads here yet; both read
- * null, which keeps the name rule. Mirrors the walk's `operandTypeSet`
- * where context allows; drift between the two costs precision only.
+ * Operand typing for the strictness question — the literal table, cast
+ * targets, uniform ARRAY constructors, nested operators, and a column of the
+ * statement's own WRITE TARGET.
+ *
+ * The column case is the only one needing anything beyond the node, and it
+ * needs the least possible: the target relation the caller had already
+ * resolved. No scope walk, no FROM analysis. A column reference the target
+ * does not own answers null and keeps the name rule — including every column
+ * of an `UPDATE … FROM` join partner, which is the case that would otherwise
+ * produce a WRONG type, and a wrong type is what makes a contract admit a
+ * binding that raises.
+ *
+ * A bare ParamRef still needs the tier-0 input nothing threads here yet.
+ * Mirrors the walk's `operandTypeSet` where context allows; drift between
+ * the two costs precision only.
  */
 function contextFreeTypeSet(
   node: Node | undefined,
   catalog: NullabilityCatalog,
+  target?: WriteTarget,
 ): string[] | null {
   if (!node || typeof node !== "object") return null;
   const n = node as Record<string, unknown>;
+
+  const cr = n["ColumnRef"] as { fields?: Node[] } | undefined;
+  if (cr) {
+    if (!target) return null;
+    const fields = (cr.fields ?? []).map(stringVal);
+    // `v` or `t.v`, where `t` is how this statement spells its target. A
+    // longer path is a schema-qualified reference to something else, and a
+    // star is no column at all.
+    const name =
+      fields.length === 1
+        ? fields[0]
+        : fields.length === 2 && fields[0] === target.alias
+          ? fields[1]
+          : undefined;
+    if (!name) return null;
+    const typeName = catalog.resolveColumnTypeName(target.schema, target.table, name);
+    return typeName ? [typeName] : null;
+  }
   const ac = n["A_Const"] as
     | { ival?: unknown; boolval?: unknown; fval?: { fval?: string } }
     | undefined;
@@ -391,7 +420,7 @@ function contextFreeTypeSet(
   if (arr) {
     // The trivial common type only: every element the SAME singleton. The
     // full promotion rules stay a declined non-goal.
-    const els = (arr.elements ?? []).map(e => contextFreeTypeSet(e, catalog));
+    const els = (arr.elements ?? []).map(e => contextFreeTypeSet(e, catalog, target));
     if (els.length > 0 && els.every(e => e !== null && e.length === 1 && e[0] === els[0]![0])) {
       return [`${els[0]![0]}[]`];
     }
@@ -407,14 +436,14 @@ function contextFreeTypeSet(
     if (ae.lexpr && ae.rexpr) {
       const r = catalog.resolveOperatorTotality(
         schema, op,
-        contextFreeTypeSet(ae.lexpr, catalog),
-        contextFreeTypeSet(ae.rexpr, catalog),
+        contextFreeTypeSet(ae.lexpr, catalog, target),
+        contextFreeTypeSet(ae.rexpr, catalog, target),
       );
       return r.kind === "unknown" ? null : r.returns;
     }
     if (!ae.lexpr && ae.rexpr) {
       const r = catalog.resolveUnaryOperatorTotality(
-        schema, op, contextFreeTypeSet(ae.rexpr, catalog),
+        schema, op, contextFreeTypeSet(ae.rexpr, catalog, target),
       );
       return r.kind === "unknown" ? null : r.returns;
     }
@@ -427,6 +456,7 @@ function forcedNullBy(
   catalog: NullabilityCatalog,
   ctx: AliasContext | undefined,
   anyRow: boolean,
+  target?: WriteTarget,
 ): Implicants {
   const none: Implicants = [];
   if (!node || typeof node !== "object") return none;
@@ -463,19 +493,19 @@ function forcedNullBy(
     }
     const defs = colName ? cols?.get(colName) : undefined;
     if (defs?.length) {
-      const perRow = defs.map(d => forcedNullBy(d, catalog, undefined, anyRow));
+      const perRow = defs.map(d => forcedNullBy(d, catalog, undefined, anyRow, target));
       return anyRow ? unionLists(perRow) : crossUnion(perRow);
     }
     return none;
   }
 
   if (n["TypeCast"]) {
-    return forcedNullBy((n["TypeCast"] as { arg?: Node }).arg, catalog, ctx, anyRow);
+    return forcedNullBy((n["TypeCast"] as { arg?: Node }).arg, catalog, ctx, anyRow, target);
   }
 
   if (n["A_Expr"]) {
     const ae = n["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
-    if (ae.kind === "AEXPR_NULLIF") return forcedNullBy(ae.lexpr, catalog, ctx, anyRow);
+    if (ae.kind === "AEXPR_NULLIF") return forcedNullBy(ae.lexpr, catalog, ctx, anyRow, target);
     const parts = (ae.name ?? []).map(stringVal);
     const op = parts[parts.length - 1] ?? "";
     const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
@@ -487,8 +517,8 @@ function forcedNullBy(
     // attribute.
     const typedStrict = catalog.resolveOperatorStrictnessSome(
       schema, op,
-      contextFreeTypeSet(ae.lexpr, catalog),
-      contextFreeTypeSet(ae.rexpr, catalog),
+      contextFreeTypeSet(ae.lexpr, catalog, target),
+      contextFreeTypeSet(ae.rexpr, catalog, target),
     );
     const strict =
       typedStrict !== null
@@ -496,7 +526,7 @@ function forcedNullBy(
         : (parts.length === 1 && STRICT_OPERATORS.has(op)) ||
           (catalog.resolveOperatorMetadata(schema, op)?.strict ?? false);
     if (ae.kind === "AEXPR_OP" && strict) {
-      return unionLists([ae.lexpr, ae.rexpr].map(o => forcedNullBy(o, catalog, ctx, anyRow)));
+      return unionLists([ae.lexpr, ae.rexpr].map(o => forcedNullBy(o, catalog, ctx, anyRow, target)));
     }
     return none;
   }
@@ -507,7 +537,7 @@ function forcedNullBy(
   if (n["CoalesceExpr"]) {
     const args = (n["CoalesceExpr"] as { args?: Node[] }).args ?? [];
     if (args.length === 0) return none;
-    return crossUnion(args.map(a => forcedNullBy(a, catalog, ctx, anyRow)));
+    return crossUnion(args.map(a => forcedNullBy(a, catalog, ctx, anyRow, target)));
   }
 
   // CASE is NULL only when the SELECTED arm's result is — and covering
@@ -524,9 +554,10 @@ function forcedNullBy(
         catalog,
         ctx,
         anyRow,
+        target,
       ),
     );
-    results.push(ce.defresult ? forcedNullBy(ce.defresult, catalog, ctx, anyRow) : [[]]);
+    results.push(ce.defresult ? forcedNullBy(ce.defresult, catalog, ctx, anyRow, target) : [[]]);
     return crossUnion(results);
   }
 
@@ -560,7 +591,7 @@ function forcedNullBy(
     const perArg: Implicants[] = [];
     for (const arg of fc.args ?? []) {
       if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return none;
-      perArg.push(forcedNullBy(arg, catalog, ctx, anyRow));
+      perArg.push(forcedNullBy(arg, catalog, ctx, anyRow, target));
     }
     return unionLists(perArg);
   }
@@ -577,6 +608,25 @@ function forcedNullBy(
  * param-mechanism.test.ts).
  */
 type AliasContext = Map<string, Map<string, Node[]>>;
+
+/**
+ * The statement's own write target, for TYPING a column operand.
+ *
+ * Distinct from `AliasContext`, which holds DERIVED tables and their defining
+ * expressions and carries no catalog identity at all — it can attribute a
+ * parameter through `s.sv`, and it cannot say what type `s.sv` has.
+ *
+ * Only a write target qualifies, and that is what makes it safe without a
+ * scope walk. `checkUpdate` and `checkMerge` have already resolved the
+ * relation in order to ask `columnRejection` anything, so the type is one
+ * catalog call away — no FROM analysis, no join tree, no search-path work.
+ */
+interface WriteTarget {
+  schema: string;
+  table: string;
+  /** The relation's alias if it carries one, else its own name. */
+  alias: string;
+}
 
 /**
  * Column map of one derived table (RangeSubselect over VALUES or a plain
@@ -654,11 +704,16 @@ function aliasContextOf(items: Node[] | undefined): AliasContext | undefined {
 
 /** Value-flow (mechanism C) into a rejecting site: everything but a direct
  *  ParamRef, which its caller has already handled as A or B. */
-function rejectFlow(c: Collector, expr: Node | undefined, ctx?: AliasContext): void {
+function rejectFlow(
+  c: Collector,
+  expr: Node | undefined,
+  ctx?: AliasContext,
+  target?: WriteTarget,
+): void {
   // Value flow is evaluated, so a never-executed subtree flows nothing.
   if (c.bindOnly) return;
   if (!expr || paramNumberOf(expr) !== null) return;
-  for (const implicant of forcedNullImplicantsAnyRow(expr, c.catalog, ctx)) {
+  for (const implicant of forcedNullImplicantsAnyRow(expr, c.catalog, ctx, target)) {
     // The empty implicant (a literal NULL reaching a rejecting site) is a
     // static always-raise, not a parameter fact: no binding avoids it, so
     // there is nothing to claim about any parameter.
@@ -913,6 +968,7 @@ function checkSetClause(
   schema: string,
   table: string,
   ctx?: AliasContext,
+  target?: WriteTarget,
 ): void {
   for (const item of targetList ?? []) {
     const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
@@ -932,12 +988,12 @@ function checkSetClause(
       const m = mechanism === "domain" ? "constraint" : mechanism;
       const num = paramNumberOf(def);
       if (num !== null) reject(c, num, m);
-      else rejectFlow(c, def, ctx);
+      else rejectFlow(c, def, ctx, target);
       continue;
     }
     const num = paramNumberOf(rt.val);
     if (num !== null) reject(c, num, mechanism);
-    else rejectFlow(c, rt.val, ctx);
+    else rejectFlow(c, rt.val, ctx, target);
   }
 }
 
@@ -981,7 +1037,7 @@ function excludedContext(
 function checkInsert(
   c: Collector,
   stmt: {
-    relation?: { schemaname?: string; relname?: string };
+    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } };
     cols?: Node[];
     selectStmt?: Node;
     onConflictClause?: { targetList?: Node[] };
@@ -1030,6 +1086,14 @@ function checkInsert(
       target.schema,
       target.table,
       excludedContext(target, select),
+      // Inside DO UPDATE an unqualified column IS the target's; `excluded.x`
+      // names the proposed row and declines on the alias check, as it must —
+      // the two carry the same column names and are different values.
+      {
+        schema: target.schema,
+        table: target.table,
+        alias: stmt.relation?.alias?.aliasname ?? stmt.relation?.relname ?? target.table,
+      },
     );
   }
 }
@@ -1037,7 +1101,7 @@ function checkInsert(
 function checkUpdate(
   c: Collector,
   stmt: {
-    relation?: { schemaname?: string; relname?: string };
+    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } };
     targetList?: Node[];
     fromClause?: Node[];
   },
@@ -1045,13 +1109,17 @@ function checkUpdate(
   if (!stmt.relation?.relname) return;
   const table = c.catalog.resolveTable(stmt.relation.schemaname, stmt.relation.relname);
   if (!table) return;
-  checkSetClause(c, stmt.targetList, table.schema, table.name, aliasContextOf(stmt.fromClause));
+  checkSetClause(c, stmt.targetList, table.schema, table.name, aliasContextOf(stmt.fromClause), {
+    schema: table.schema,
+    table: table.name,
+    alias: stmt.relation.alias?.aliasname ?? stmt.relation.relname,
+  });
 }
 
 function checkMerge(
   c: Collector,
   stmt: {
-    relation?: { schemaname?: string; relname?: string };
+    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } };
     sourceRelation?: Node;
     mergeWhenClauses?: Node[];
   },
@@ -1080,7 +1148,13 @@ function checkMerge(
       });
     } else {
       // The update arm: SET col = value pairs.
-      checkSetClause(c, mwc.targetList, table.schema, table.name, ctx);
+      // A MERGE update arm's unqualified columns are the TARGET's; the
+      // source carries its own alias and declines on the alias check.
+      checkSetClause(c, mwc.targetList, table.schema, table.name, ctx, {
+        schema: table.schema,
+        table: table.name,
+        alias: stmt.relation.alias?.aliasname ?? stmt.relation.relname,
+      });
     }
   }
 }
