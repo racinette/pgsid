@@ -6939,9 +6939,23 @@ class NullabilityEngine {
     // target list to the base column it re-exports. That is the shape any
     // query staging a value through a WITH takes, and it was one of
     // adversarial-3 finding 3's six spellings.
-    const source = owner.table
-      ? { table: owner.table, column: colName }
-      : this.reExportedBaseColumn(owner, colName, scope);
+    //
+    // For an entry that DOES have catalog columns, `colName` is the name the
+    // QUERY used, and an alias column list makes that a different name from
+    // the catalog's — `FROM stock s(k0, k1)` answers to `k0` where the
+    // catalog is keyed under `qty`. Translating is not optional here: this
+    // site read no type at all for 8 of the fixture corpus's residue columns
+    // (measured 2026-08-24), and `entryCatalogColumn` refusing a name the
+    // rename HID is the other half of the same fix — PostgreSQL rejects
+    // `s.qty` once `s(k0, k1)` renamed it, so answering from the catalog
+    // would be a claim about a column the query cannot reference.
+    let source: { table: ResolvedTable; column: string } | null;
+    if (owner.table) {
+      const catalogCol = this.entryCatalogColumn(owner, colName);
+      source = catalogCol === undefined ? null : { table: owner.table, column: catalogCol };
+    } else {
+      source = this.reExportedBaseColumn(owner, colName, scope);
+    }
     return source
       ? this.catalog.resolveColumnTypeName(source.table.schema, source.table.name, source.column)
       : null;
