@@ -427,6 +427,27 @@ export function litOf(expr: Node): Lit | null {
   return null;
 }
 
+/**
+ * A boolean literal's own truth value, or null for anything that is not one.
+ *
+ * The kernel matches tokens rather than computing, so every other literal
+ * kind is an OPERAND of a truth value and only this one IS one. It has to be
+ * read because PostgreSQL stores a CHECK expression VERBATIM — there is no
+ * constant folding on the way into `pg_constraint.conbin` (measured;
+ * `pg_get_constraintdef` reads `false` back out) — so a dead disjunct
+ * survives to the kernel and something must recognise it as dead.
+ *
+ * A CAST is refused rather than followed. `'t'::boolean` and `1::boolean`
+ * are both TRUE, but the general form is an input function whose result is
+ * not a token, and reading one spelling while missing the next would be a
+ * rule that looks total and is not.
+ */
+function boolLiteral(expr: Node): boolean | null {
+  const lit = litOf(expr);
+  if (!lit || lit.kind !== "boolval" || lit.cast) return null;
+  return lit.value as boolean;
+}
+
 /** Normalized cast target from a TypeName's names list. */
 function typeRefOf(names: Node[]): TypeRef | null {
   const parts: string[] = [];
@@ -1238,6 +1259,9 @@ class EntailmentKernel {
   private isTrue(expr: Node): boolean {
     const node = expr as Record<string, unknown>;
 
+    const bool = boolLiteral(expr);
+    if (bool !== null) return bool;
+
     if ("BoolExpr" in node) {
       const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
       const args = be.args ?? [];
@@ -1284,6 +1308,12 @@ class EntailmentKernel {
   /** FALSE(expr) — for this emitted row. */
   private isFalse(expr: Node): boolean {
     const node = expr as Record<string, unknown>;
+
+    // The polarity matters as much as the reading: a rule that dropped any
+    // literal arm would also drop the LIVE `true` of a vacuous constraint
+    // and claim the column beside it.
+    const bool = boolLiteral(expr);
+    if (bool !== null) return !bool;
 
     if ("BoolExpr" in node) {
       const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };

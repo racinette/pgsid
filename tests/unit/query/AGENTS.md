@@ -36,7 +36,33 @@ oracle would falsify must never sit in a red suite.
 is not a fixed set of inputs to be satisfied; it is the record of what has
 been explored. Reaching for a case that does not exist yet is the job.
 
-## 2. Every gate gets mutated, and PostgreSQL does the killing
+## 2. Reach is not the metric — correctness is
+
+**Never rank a correction by how many fixtures or corpus claims it moves.** A
+fix that moves exactly one is not a small return to be apologised for; it
+means a CORNER CASE WAS FOUND that nothing else in the corpus accounted for,
+which is precisely what this work is looking for. A thousand more fixtures
+tripping the same correction would not make it more valuable — they would
+measure the corpus, not the engine.
+
+The failure mode is subtle because it does not look like a shortcut. It looks
+like honesty: "reach, measured: one fixture — a small return for a rule."
+That sentence is in this repo, and it is wrong twice over. It ranks a rule by
+a number that says nothing about whether the engine is right, and it teaches
+the next reader to hesitate before checking a case that looks rare. The
+hesitation is the real cost: `docs/deferred-tasks.md` carried a row reading
+"closable, **if ever worth it**", and behind it the kernel could not read a
+boolean literal in a CHECK at all.
+
+So report what a fix makes CORRECT and which gate now holds it. Never write
+"low reach", "small return", or "is it worth it" as an argument about a
+change, and never let a low count justify skipping a fix or weakening a gate.
+
+Claim counts keep the opposite job, and it is a real one: as a REGRESSION
+CANARY. A precision fix measured only in counts has no gate unless something
+ASSERTS the count — see rule 3.
+
+## 3. Every gate gets mutated, and PostgreSQL does the killing
 
 After adding a gate, break it deliberately and re-run. If the suite stays
 green the gate is untested — write the case that kills it. Prefer a kill by
@@ -47,7 +73,7 @@ If a gate cannot be killed by any fixture, say so in its comment and say why.
 **A gate claimed to be doing work it is not is the same defect as an ungated
 widening.**
 
-## 3. A control that adds an excuse is not a control
+## 4. A control that adds an excuse is not a control
 
 A control column that claims nullable on a value which is never NULL costs an
 `@unwitnessable` annotation, and has bought nothing: it trades one recorded
@@ -55,7 +81,7 @@ excuse for another. Before adding one, check whether a sibling fixture already
 kills the mutation. If the branch you are guarding is a REFUSAL — it can only
 under-claim — it needs no witness at all.
 
-## 4. The recorded reason is usually the route
+## 5. The recorded reason is usually the route
 
 An `@unwitnessable` reason that explains why a claim is imprecise has, more
 often than not, described the fix. Read the existing reasons before designing
@@ -66,7 +92,7 @@ Corollary: **a reason can be wrong.** Several said "conservative by design"
 where no design decision had been taken, and several stopped one step short of
 the fact that made them true. Re-derive rather than trust.
 
-## 5. Fixtures obstruct themselves more often than you expect
+## 6. Fixtures obstruct themselves more often than you expect
 
 If a claim has no witness, suspect the FIXTURE before the engine. Recurring
 shapes:
@@ -80,7 +106,7 @@ shapes:
 The fix is usually to change the QUESTION, not the answer, and usually needs
 no data state and no engine change.
 
-## 6. Witness the GATE, not just the claim
+## 7. Witness the GATE, not just the claim
 
 A fixture that returns zero rows in every state witnesses nothing, however
 many claims it carries — its notNull claims are vacuous. Two foreign-key
@@ -94,7 +120,7 @@ VALID (which gates writes, so nothing can dangle it) and by NOT ENFORCED
 (which gates nothing, so a data-modifying CTE can) — one bit, and the
 witnessable spelling stands behind both.
 
-## 7. Anything you send to PostgreSQL needs a WORK bound
+## 8. Anything you send to PostgreSQL needs a WORK bound
 
 Closure — "this expression has no free variables" — is a soundness property
 and says nothing about cost. `generate_series(1, 10000000000)` is perfectly
@@ -122,14 +148,14 @@ worker and kills it from the main thread on a 500ms default. Nothing inside
 that thread can end a runaway — `statement_timeout` does not fire under PGlite
 and a same-thread timer never runs, because the event loop is blocked in WASM
 — so a probe that does not finish does not FAIL the suite, it HANGS it. That
-is not hypothetical; it is how this file's rule 7 came to be written.
+is not hypothetical; it is how this file's rule 8 came to be written.
 
 Assert on `evaluator.killedSql`, not on the warning sink. A closed subtree may
 RAISE on its own (`5 / 0`, a NULL into a NOT NULL domain) and the evaluator
 core is built around that — the corpus has five, all ordinary. Only a KILL
 means a probe could not be answered in the time allowed.
 
-## 8. Measure, then write
+## 9. Measure, then write
 
 Every claim in a comment that says "measured" must have been. Numbers, both
 directions, and the neighbouring case that does NOT behave the same way —

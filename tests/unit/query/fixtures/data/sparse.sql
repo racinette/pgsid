@@ -78,6 +78,14 @@ INSERT INTO chain3 (stage, a, b, c) VALUES
   ('go',   'ax', 'bx', now()),
   ('idle', NULL, NULL, NULL);
 
+-- The dead-literal rows. Both guarded columns must be filled — PostgreSQL
+-- enforces those two constraints, which is the whole claim — while `note`
+-- goes NULL on one row, witnessing that its vacuous `true OR …` constraint
+-- proves nothing.
+INSERT INTO relay (id, route, hop, note) VALUES
+  (1, 'r-north', 'h1', 'checked'),
+  (2, 'r-south', 'h2', NULL);
+
 -- Wave 11c rows: a stocked and a discontinued item; a team and a solo
 -- subscription (the solo one's NULLs witness the unchained claims).
 INSERT INTO stock (qty, discontinued_at) VALUES (5, NULL), (0, now());

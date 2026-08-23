@@ -778,9 +778,12 @@ nothing).
 
 **Reach, measured: one fixture.** The rule fires nowhere else in the hand
 corpus and changed no other verdict, and the generated corpus's 14964 queries
-report zero violations. That is a small return for a rule, and it is the honest
-number — the controls are what make it a rule rather than a fixture-shaped
-widening.
+report zero violations. **That number ranks nothing** — it says the corpus had
+one instance, not that the rule is worth less than a wider one. A UNION arm
+that guarantees a row is a fact about scalar subqueries whether or not anything
+here happens to spell it. What makes this a rule rather than a fixture-shaped
+widening is the three controls, and the reach is a note about coverage
+(AGENTS.md rule 2).
 
 **The multi-statement cluster closed nothing and the reasons were still wrong.**
 All three said some version of "the return derives from NOT NULL inputs".
@@ -1174,8 +1177,30 @@ on its own, its bit being witnessed by `check-not-enforced.sql` on a real row.
 
 ### 4. Known imprecision residue
 
-Each row is either correct-and-permanent or closable. The three marked
-closable are the only precision items here with a known route.
+Every row here is correct-and-permanent. **The three that used to be marked
+"closable" are gone: all three were closable, and two had already been closed
+for weeks while the register went on listing them as work.**
+
+That is the finding, not a bookkeeping note. A row that says "closable"
+records the absence of a fix, which is exactly the fact a closed fix stops
+making true, and nothing in this table executes:
+
+| the row said | measured 2026-08-23 |
+|---|---|
+| a NOT NULL domain column reads nullable — closable | reads **notNull**, and serves as a presence-group discriminant. Closed 2026-08-05 (`docs/imprecision-closure.md`), and the register kept the entry for eighteen days |
+| a base-table alias column list is ignored | **honoured** — `ck AS z(p,q,r,s)` gives correct names AND flags, and a partial list leaves the tail its own |
+| boolean literals in CHECK — closable, *if ever worth it* | genuinely open, and closed the same day by `boolLiteral` in `check-entailment.ts` |
+
+The third row is why the other two matter. Its hedge — **"if ever worth it"**
+— was reach dressed as judgment, and the reach was never measured; behind it
+the kernel could not read a boolean literal in a CHECK at all, which is a
+correctness gap and not a question of return. `AGENTS.md` rule 2 now says so
+as a rule.
+
+**A "closable" entry rots faster than a wrong reason does**, because it is
+falsified by success rather than by drift: the fix lands, the row keeps
+reading as work outstanding, and the only way to notice is to ASK THE ENGINE.
+Two of these three needed one query each.
 
 | Construct | Current | Note |
 |---|---|---|
@@ -1187,9 +1212,7 @@ closable are the only precision items here with a known route.
 | MERGE with mixed arm kinds | condition not row-implied | the join condition promotes only when EVERY arm is MATCHED-kind — a NOT MATCHED arm fires precisely on the condition's failure. Per-arm reasoning judged not worth it |
 | CHECK entailment, conservative edges | nullable | parameters never match (identity needs the literal token; permanent for a per-statement contract), and origin consumption is gated as designed |
 | Presence groups | none recorded | every launch and post-launch residue closed 2026-08-04; future entries come from consumer corpora |
-| Base-table alias column list | ignored — sound | `FROM t AS z(p, o, r, s)` renames positionally for subqueries, VALUES and table functions, not for a RangeVar. Positionally correct flags, so diagnostic only — **closable** |
-| NOT NULL domain column at a REQUIRED entry | nullable — sound | `attnotnull` stays false for a domain-constrained column, yet the domain rejects every write. `isNotNullDomain` + `resolveColumnTypeOid` are already in the catalog interface; closing would also admit such columns as presence-group discriminants — **closable** |
-| Boolean literals in CHECK expressions | not atoms — sound | `CHECK (false OR x IS NOT NULL)` is stored verbatim (no constant folding) and the kernel does not read the `false` disjunct as FALSE. Inside the propositional charter's atom gates — **closable, if ever worth it** |
+| A CHECK literal that is not a truth value | nullable | `boolLiteral` reads a bare boolean A_Const and REFUSES a cast: `'t'::boolean` and `1::boolean` are both TRUE, but the general form is an input function whose result is not a token. A refusal, so it can only under-claim |
 
 ### 5. The datetime settings decision
 

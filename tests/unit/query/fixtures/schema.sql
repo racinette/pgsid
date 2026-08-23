@@ -959,6 +959,26 @@ CREATE TABLE stock (
   CHECK (qty > 0 OR discontinued_at IS NOT NULL)
 );
 
+-- A DEAD BOOLEAN LITERAL beside a real guard. PostgreSQL stores a CHECK
+-- expression verbatim — there is no constant folding on the way into
+-- `pg_constraint.conbin`, and `pg_get_constraintdef` reads the `false` back
+-- out — so the literal reaches the kernel, whose OR harvest already drops
+-- arms it can prove FALSE and had no way to prove a LITERAL one.
+--
+-- `hop` is the second half of the reading rather than a repetition of the
+-- first: FALSE(NOT p) is TRUE(p), so its arm dies only if `true` is read as
+-- TRUE. `note` is the boundary — a LIVE true disjunct makes its constraint
+-- vacuous, and the data states seed the NULL that says so.
+CREATE TABLE relay (
+  id    integer PRIMARY KEY,
+  route text,
+  hop   text,
+  note  text,
+  CHECK (false OR route IS NOT NULL),
+  CHECK (NOT true OR hop IS NOT NULL),
+  CHECK (true OR note IS NOT NULL)
+);
+
 -- The comparison-harvest residue's subject (register: harvested facts are
 -- NullTests only): CHECK₁'s arm concludes seats > 1, which CHECK₂'s
 -- same-token `seats <= 1` disjunct would consume — once comparisons whose
