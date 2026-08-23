@@ -116,6 +116,19 @@ That is Trap 1 in `docs/subtree-evaluation.md` — read it before writing a
 probe, because a bound that reads as protection and is not is worse than no
 bound.
 
+**Never hand a raw `pg` to `WalkOptions.evaluate` in a harness.** Use
+`createKillableEvaluator` (`killable-evaluator.ts`), which runs PGlite in a
+worker and kills it from the main thread on a 500ms default. Nothing inside
+that thread can end a runaway — `statement_timeout` does not fire under PGlite
+and a same-thread timer never runs, because the event loop is blocked in WASM
+— so a probe that does not finish does not FAIL the suite, it HANGS it. That
+is not hypothetical; it is how this file's rule 7 came to be written.
+
+Assert on `evaluator.killedSql`, not on the warning sink. A closed subtree may
+RAISE on its own (`5 / 0`, a NULL into a NOT NULL domain) and the evaluator
+core is built around that — the corpus has five, all ordinary. Only a KILL
+means a probe could not be answered in the time allowed.
+
 ## 8. Measure, then write
 
 Every claim in a comment that says "measured" must have been. Numbers, both
