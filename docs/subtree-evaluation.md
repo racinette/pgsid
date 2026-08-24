@@ -386,6 +386,78 @@ to decide — for or against — with the curated-table and init-script
 costs on the table. (RAN 2026-08-12 — the residue is in "As built"
 above; the decision remains open.)
 
+#### Polymorphic landings (BUILT 2026-08-24)
+
+Both of `survivorConsensus`'s checks are about the type a value is
+ACTUALLY read at, and both were reading the DECLARED spelling:
+
+- an UNKNOWN operand must land on a parameter with immutable I/O,
+  because the landing runs that type's input function;
+- the RESULT must be base-kind, because a pseudo-typed result names no
+  concrete type to thread upward.
+
+For a polymorphic row the declared spelling is `anycompatible` or
+`anycompatiblearray`, which is never a base type and never in a set of
+them. So the first check refused every polymorphic signature the moment
+an argument was an unquoted string literal, and the second refused every
+polymorphic RESULT unconditionally — at any argument spelling at all.
+
+The tell was that the same call folded or did not by how an argument had
+been WRITTEN:
+
+    array_position(ARRAY['a','b'], 'z')        open
+    array_position(ARRAY['a','b'], 'z'::text)  CLOSED
+    array_position(ARRAY[1,2], 3)              CLOSED   (`3` types as integer)
+    array_remove(ARRAY['a','b'], 'a')          open     (returns anycompatiblearray)
+
+That is not a fact about volatility. `polymorphicElement` resolves the
+family from the call's KNOWN operands (`anycompatiblearray` contributing
+its element type) and the two checks then run against the resolved type:
+the unknown's landing is that type — or the ARRAY over it at an array
+position, which still refuses, `array_in` being stable and no array type
+being in the set — and the result threads as `E` or `E[]`.
+
+DELIBERATELY THE AGREEMENT CASE ONLY. Every known operand at a
+polymorphic position must contribute the SAME element type. That is
+exactly PostgreSQL's rule for the `anyelement` family, and a strict
+subset of `anycompatible`'s `select_common_type`, whose answer over
+identical inputs is that input. Disagreement resolves nothing and falls
+back to the pre-existing checks, so the change can only ADD — pinned by
+a guard over `array_position(integer[], bigint)`, which folded before and
+folds now.
+
+THE CHECK IS STILL DOING REAL WORK, and the red suite proves it with a
+value that MOVES rather than an argument:
+`array_position(ARRAY['2020-01-02'::date], '01/02/2020')` is **1 under
+MDY and NULL under DMY**, because the unknown lands on `date` and runs
+the stable `date_in`. `date` is not in the immutable-I/O set, so the
+resolved landing fails the same check the declared one used to. Resolving
+the family also says nothing about the FUNCTION's volatility:
+`array_to_string(anyarray, text)` is stable and stays refused.
+
+SURFACE, measured over PG 18.3 pg_catalog:
+
+    immutable functions with a POLYMORPHIC RESULT      48   (never folded, any spelling)
+    immutable functions with a polymorphic PARAM       46   (folded only without a bare literal)
+    immutable operators, polymorphic result             3
+    immutable operators, polymorphic operand           19
+
+CORPUS EFFECT: one claim, `builtin-totality-table.sql`'s
+`array_position(ARRAY['a','b'], 'z')`, nullable → alwaysNull. Its fixture
+comment had explained the refusal two days earlier as "a bare unknown
+literal beside an array constructor, the syntactic guard" — a mechanism
+replaced by this very rung in 2026-08-12 and one the value never went
+through. The comment is kept in place, corrected, as the cleanest
+instance of that rot mode.
+
+REMAINING, filed rather than reached past: `A_Indirection` is not in the
+closed grammar, so `(array_remove(ARRAY['a','b'], 'a'))[1]` is open even
+though its argument now closes. Measured non-NULL on every row and
+claimed nothing (`polymorphic-landing-red.test.ts`, "a SUBSCRIPT over the
+same call is refused"). The symbolic rule that covers
+`(ARRAY['a','b'])[1]` reads the constructor's own length and has nothing
+to read here.
+
 ## Consumer 1 — the statement map
 
 `Map<Node, EvalResult>` keyed by NODE IDENTITY over the statement's own

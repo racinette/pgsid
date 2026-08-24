@@ -2046,10 +2046,85 @@ export async function buildNullabilityCatalog(
   ]);
 
   /** Result types stay in the base-kind world ('b' covers arrays): a
-   *  pseudo-typed result (a surviving polymorphic) names no concrete type
-   *  to thread, and refusing range/composite results is what keeps the
-   *  range-family drop's premise true. */
+   *  pseudo-typed result names no concrete type to thread, and refusing
+   *  range/composite results is what keeps the range-family drop's premise
+   *  true. A SURVIVING POLYMORPHIC result is resolved before it gets here
+   *  (`polymorphicReturn`) — it names a concrete type once the call does. */
   const isBaseKind = (t: string): boolean => builtinTypeKinds[t] === "b";
+
+  /**
+   * The polymorphic families a candidate pool can still contain, split by
+   * whether the declared spelling stands for the ELEMENT or for the ARRAY
+   * over it. The range families are dropped from every pool before a
+   * candidate reaches here (`RANGE_FAMILY_PARAMS`).
+   */
+  const POLY_ELEMENT_PARAMS = new Set([
+    "anyelement",
+    "anynonarray",
+    "anyenum",
+    "anycompatible",
+    "anycompatiblenonarray",
+  ]);
+  const POLY_ARRAY_PARAMS = new Set(["anyarray", "anycompatiblearray"]);
+  const isPolymorphicParam = (t: string | undefined): boolean =>
+    t !== undefined && (POLY_ELEMENT_PARAMS.has(t) || POLY_ARRAY_PARAMS.has(t));
+
+  /**
+   * The ELEMENT type this row's polymorphic family resolves to for this
+   * call, or null when the call does not determine one.
+   *
+   * Both checks in `survivorConsensus` are about the type a value is
+   * ACTUALLY read at, and both used to read the DECLARED spelling — which
+   * for a polymorphic row is `anycompatible` or `anycompatiblearray`, never
+   * a base type and never in a set of them. So every polymorphic signature
+   * refused on contact with a string literal, and every polymorphic RESULT
+   * refused outright: `array_position(ARRAY['a','b'], 'z')` was open while
+   * `array_position(ARRAY['a','b'], 'z'::text)` folded, which is a
+   * difference in SPELLING, not in volatility.
+   *
+   * The resolution here is deliberately the AGREEMENT case only: every
+   * known operand at a polymorphic position must contribute the same
+   * element type. That is exactly PostgreSQL's rule for the `anyelement`
+   * family (all such arguments must match), and a strict subset of the
+   * `anycompatible` family's (`select_common_type`, whose answer over
+   * identical inputs is that input). Disagreement returns null and the
+   * caller falls back to the pre-existing checks, so this can only ADD.
+   */
+  const polymorphicElement = (
+    params: readonly string[],
+    operands: readonly (readonly string[])[],
+  ): string | null => {
+    let resolved: string | null = null;
+    for (let i = 0; i < operands.length; i++) {
+      const param = params[i];
+      if (!isPolymorphicParam(param) || isUnknownOperand(operands[i]!)) continue;
+      for (const member of operands[i]!) {
+        let element = member;
+        if (POLY_ARRAY_PARAMS.has(param!)) {
+          // An array position fed a scalar contributes nothing to resolve
+          // from, and inventing one is how a landing gets the wrong input
+          // function.
+          if (!member.endsWith("[]")) return null;
+          element = member.slice(0, -2);
+        }
+        if (resolved === null) resolved = element;
+        else if (resolved !== element) return null;
+      }
+    }
+    return resolved;
+  };
+
+  /** A declared result spelling with its polymorphic family resolved, or
+   *  unchanged when the call determined nothing (the fallback path, where
+   *  `isBaseKind` refuses it exactly as before). */
+  const polymorphicReturn = (returns: string, element: string | null): string =>
+    element === null
+      ? returns
+      : POLY_ARRAY_PARAMS.has(returns)
+        ? `${element}[]`
+        : POLY_ELEMENT_PARAMS.has(returns)
+          ? element
+          : returns;
 
   /**
    * May a KNOWN operand rendered `from` cross to declared `to` without
@@ -2087,14 +2162,31 @@ export async function buildNullabilityCatalog(
     rows: SurvivorRow[],
     operands: readonly (readonly string[])[],
   ): string[] | null => {
+    const returns: string[] = [];
     for (const row of rows) {
       if (row.volatility !== "i") return null;
-      if (!isBaseKind(row.returns)) return null;
+      // Resolving the family says nothing about the FUNCTION's volatility —
+      // `array_to_string(anyarray, text)` is stable and stays refused above.
+      const element = polymorphicElement(row.params, operands);
+      const resolvedReturn = polymorphicReturn(row.returns, element);
+      if (!isBaseKind(resolvedReturn)) return null;
+      returns.push(resolvedReturn);
       for (let i = 0; i < operands.length; i++) {
         const param = row.params[i]!;
         const operand = operands[i]!;
         if (isUnknownOperand(operand)) {
-          if (!immutableIoRendered.has(param)) return null;
+          // What the literal is PARSED as. For a polymorphic position that
+          // is the resolved family, and for an array position the ARRAY over
+          // it — `array_in` is stable and no array type is in the set, so
+          // an unknown landing on `anycompatiblearray` still refuses.
+          const landing = !isPolymorphicParam(param)
+            ? param
+            : element === null
+              ? null
+              : POLY_ARRAY_PARAMS.has(param)
+                ? `${element}[]`
+                : element;
+          if (landing === null || !immutableIoRendered.has(landing)) return null;
         } else {
           for (const member of operand) {
             if (mayCoerceImplicitly(member, param) && !cleanImplicitRoute(member, param)) {
@@ -2104,7 +2196,7 @@ export async function buildNullabilityCatalog(
         }
       }
     }
-    return [...new Set(rows.map(r => r.returns))];
+    return [...new Set(returns)];
   };
 
   const closedOperatorTypes = (
