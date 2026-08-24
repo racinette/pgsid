@@ -245,6 +245,28 @@ which the query author does not know.
 **Trigger.** With the consumer's config slice, beside search-path half (b) —
 same input class, same plumbing.
 
+### 1c. The host's DATABASE-DEFAULT collation is a consumer setting
+
+**What.** Column-level collations travel in DDL, so the replica carries them
+and the kernel's gates (order refused; distinctness gated on
+proven-deterministic) fire correctly. The DATABASE default does not travel —
+it is an operational property of the host (`CREATE DATABASE … LOCALE`), and
+the engine currently equates "default" with the REPLICA's default. Two facts
+ride on it: literal DISTINCTNESS is sound under ANY deterministic host
+default (deterministic ⟹ equality is byte equality), and text ORDER facts
+(`check-interval-text-default.sql`) are answered by the replica's session —
+a host default with a different locale (en_US vs C) orders `'a' <= 'B'`
+differently, so an order conclusion could diverge from the host. Found
+2026-08-24 while answering "are we forfeiting equality under non-default
+collations" — the answer surfaced the setting nobody had named.
+
+**Trigger.** With the consumer's config slice, beside `searchPath` and
+`trustForeignKeys` (1b) — same input class, same plumbing. Until then the
+safe narrowing would be to gate text-ORDER facts on a declared host default;
+distinctness needs only "the host default is deterministic", which is the
+overwhelming case (verify whether the host's PostgreSQL version can even
+declare a nondeterministic database default before spending on it).
+
 ### 2. Search-path half (b)
 
 WHERE the search path comes from is a consumer input, not an engine one.
