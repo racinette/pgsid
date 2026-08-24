@@ -163,6 +163,50 @@ defect in the same file.**
 Round-trip cleanly, for the record: `MERGE`, array subscripts `a[1]`, array
 slices `a[1:2]` in isolation, and every jsonpath function and operator.
 
+### The subscripting defect, measured down to the argument kind (2026-08-24)
+
+The row above says "stray `[`". It is narrower and more useful than that: the
+deparser emits the PARENTHESES a subscripted expression needs for some
+argument kinds and drops them for others. A bare name (`a[1]`) needs none,
+which is why the isolation cases round-trip.
+
+| `SELECT <expr>` | emitted | PostgreSQL |
+|---|---|---|
+| `(array_remove(…))[1]` | `(array_remove(…))[1]` | accepted |
+| `('{"a":1}'::jsonb)['a']` | `('{"a":1}'::jsonb)['a']` | accepted |
+| `((SELECT ARRAY['a']))[1]` | `((SELECT ARRAY['a']))[1]` | accepted |
+| `(ARRAY['a','b'])[1]` | `ARRAY['a', 'b'][1]` | **syntax error** |
+| `(CASE … END)[1]` | `CASE … END[1]` | **syntax error** |
+| `(COALESCE(…))[1]` | `COALESCE(…)[1]` | **syntax error** |
+
+So: parenthesised for `FuncCall`, `TypeCast` and `SubLink`; dropped for the
+constructor-shaped kinds. `(ROW(1,2))[1]` renders with parentheses and
+PostgreSQL rejects it anyway — records are not subscriptable, so that one is
+not a deparser defect.
+
+This is a GATE, not a note. The subtree evaluator renders every collected
+subtree through `deparseSelect`, and a batch whose render is rejected returns
+NOTHING for the whole statement — one unrenderable subtree would cost every
+other answer in the same query. `subtree-evaluator.ts` therefore admits
+`A_Indirection` only over the three argument kinds above
+(`SUBSCRIPTABLE_ARG_TAGS`), and `closed-grammar-subscript.sql` carries both
+sides of the split. Remove the gate when the upstream issue lands.
+
+### Every SQL/JSON expression node is unhandled (2026-08-24)
+
+Measured as one blocker rather than seven: `deparseSync` throws
+`Deparser does not handle node type` for **all** of `JsonIsPredicate`,
+`JsonObjectConstructor`, `JsonArrayConstructor`, `JsonScalarExpr`,
+`JsonParseExpr`, `JsonSerializeExpr` and `JsonFuncExpr` — the last covering
+`JSON_VALUE`, `JSON_QUERY` and `JSON_EXISTS` alike. `JsonTable` (issue B
+below) is the same family seen from the FROM side.
+
+Each of those expressions answers a definite value from all-literal arguments
+(measured in `closed-grammar-red.test.ts`), so the closed grammar could admit
+every one of them and is blocked on this alone. That makes filing the
+missing-feature issue below the single action that unblocks seven node kinds
+at once — which is a better reason to send it than tidiness.
+
 ## Bug report — drafted, not filed
 
 Ready to send to <https://github.com/launchql/pgsql-parser> (the

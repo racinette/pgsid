@@ -65,6 +65,18 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   MinMaxExpr: { category: "closed", why: "GREATEST/LEAST: closed arguments, unification-guarded" },
   RowExpr: { category: "closed", why: "independently-typed closed fields" },
   A_ArrayExpr: { category: "closed", why: "closed elements, unification-guarded" },
+  A_Indirection: {
+    category: "closed",
+    why: "subscript or slice over a closed argument — array_subscript_handler and jsonb_subscript_handler are both immutable (measured), so the closure question is the argument's and the bounds'. ANY slice in the list yields the ARRAY type, otherwise the ELEMENT type (PostgreSQL's own rule; arrays do not nest). A FIELD step names no type the `record` rendering carries, jsonb admits no slice, and the ARGUMENT KIND is restricted to what pgsql-deparser parenthesises — a rendering constraint, not a closure one",
+  },
+  CollateClause: {
+    category: "closed",
+    why: "COLLATE names a CATALOG collation and changes no value; the argument's type set threads unchanged. What it changes is how comparisons inside the subtree sort, and the named collation decides that rather than session state — the probe and the execution agree under the analysis-database ≡ execution-database assumption this module already records",
+  },
+  A_Indices: {
+    category: "structural",
+    why: "one subscript or slice bound, consumed by A_Indirection",
+  },
   FuncCall: {
     category: "closed",
     why: "plain scalar call admitted by the survivor consensus at the call's arity; aggregate, window, VARIADIC-spread and ordered shapes are open — plus the sublink-body exception: a TOP-LEVEL set-returning call closes through closedSetFunctionTypes behind the runtime cardinality pre-probe",
@@ -94,19 +106,70 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
   },
 };
 
-/** Kinds the design names as open BY DESIGN, asserted never to appear
- *  inside a collected subtree while the corpus demonstrably produces them.
- *  Everything else unclassified is open by default and caught by the same
- *  assertion without being listed. */
-const OPEN_BY_DESIGN = [
-  "ColumnRef", // any name of any kind opens the subtree
-  "ParamRef",
-  "SQLValueFunction", // CURRENT_DATE is session state
-  "CollateClause", // collation choice is the walk's business, never folded
-  "GroupingFunc",
-  "A_Indirection", // structural facts over open trees are refused
-  "XmlExpr",
-] as const;
+/**
+ * Kinds the design names as open BY DESIGN, asserted never to appear inside a
+ * collected subtree while the corpus demonstrably produces them.
+ *
+ * Each carries its REASON, and that is not decoration. This list held
+ * `A_Indirection` behind "structural facts over open trees are refused" — true
+ * of `arr[i]` over a column and silent about `(array_remove(ARRAY['a','b'],
+ * 'a'))[1]`, which is closed all the way down and was refused anyway. A bare
+ * name with a comment beside it is a refusal nobody can check.
+ */
+const OPEN_BY_DESIGN: Record<string, string> = {
+  // --- a NAME, or something that stands for one -----------------------------
+  ColumnRef: "any name of any kind opens the subtree",
+  ParamRef: "a bind value is not known at analysis time",
+  A_Star: "`*` is a name list; star expansion is the walk's business",
+  SQLValueFunction: "CURRENT_DATE / CURRENT_SCHEMA are session state",
+  GroupingFunc: "GROUPING() reads the grouping sets of the query around it",
+  MergeSupportFunc: "merge_action() names the arm of the MERGE around it",
+  MultiAssignRef:
+    "the source of `SET (a, b) = (SELECT …)`; the written-value map skips it and it is never dispatched as an expression",
+
+  // --- CONTEXT reached through a sublink body -------------------------------
+  // The body gate admits a bare projection and no FROM of any kind; these
+  // arrive inside a sublink the corpus writes in a target list, and the gate
+  // refuses the body whole rather than these one at a time.
+  RangeVar: "a relation is context — the sublink-body gate admits no FROM",
+  RangeSubselect: "a subquery in FROM is a FROM",
+  JoinExpr: "a join is a FROM",
+  CommonTableExpr: "a WITH clause is refused by the body gate's unknown-field default",
+
+  // --- MEASURED refusals ----------------------------------------------------
+  NamedArgExpr:
+    "the AST carries the arguments in the order they were WRITTEN with `argnumber` unresolved (-1, measured) — PostgreSQL reorders during analysis, and the survivor consensus matches parameters POSITIONALLY, so admitting one would type operand i against parameter i when PostgreSQL will not",
+  XmlExpr:
+    "`xml_in` is STABLE (measured — it reads xmloption), so xml is outside the immutable-I/O set and an xml-typed operand threads no type",
+  XmlSerialize:
+    "returns text, but its argument is xml and closes for the same reason XmlExpr does not",
+  JsonObjectAgg: "an aggregate: it needs rows, and closure has none",
+  JsonArrayAgg: "an aggregate, same as JSON_OBJECTAGG",
+  JsonArrayQueryConstructor: "JSON_ARRAY over a SUBQUERY — the body is a query, not an expression",
+
+  // --- DEFERRED behind ONE upstream blocker ---------------------------------
+  // Every one of these answers a definite value from all-literal arguments,
+  // and every one is refused for the same reason: `pgsql-deparser` has NO
+  // case for any SQL/JSON expression node (measured 2026-08-24 — all seven
+  // throw `Deparser does not handle node type`). The evaluator renders every
+  // collected subtree, and a batch whose render throws returns NOTHING for
+  // the whole statement, so admitting one would cost every other answer in
+  // the same query. This is the missing-feature half of the report already
+  // drafted in docs/deparser-limitations.md; filing it is what unblocks the
+  // group. Recorded here as blocked rather than as designed-open, because
+  // "closable, if ever worth it" is the entry shape this project has twice
+  // measured to rot fastest (docs/deferred-tasks.md §4).
+  JsonIsPredicate: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
+  JsonObjectConstructor: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
+  JsonArrayConstructor: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
+  JsonScalarExpr: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
+  JsonParseExpr: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
+  JsonSerializeExpr: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
+  JsonFuncExpr: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
+  JsonKeyValue: "a JSON_OBJECT member, inside a deferred parent",
+  JsonValueExpr: "a value wrapper inside a deferred parent",
+  JsonArgument: "a PASSING argument inside a deferred parent",
+};
 
 const FIXTURES_DIR = join(__dirname, "fixtures");
 
@@ -127,6 +190,15 @@ const CLOSED_SEEDS = [
   "SELECT 'abc' LIKE 'a%' OR 'abc' ILIKE 'A%'",
   "SELECT 5 IN (1, 2, 3) OR 5 = ANY (ARRAY[1, 2])",
   "SELECT 1 IS DISTINCT FROM 2, abs(-5), round(1.5, 0), substr('abc', 2)",
+  // A_Indirection and its A_Indices bounds: an element, a slice, a jsonb key.
+  // The arguments are a FuncCall and a TypeCast because those are the kinds
+  // pgsql-deparser parenthesises — see the classification entry.
+  "SELECT (array_remove(ARRAY['a', 'b'], 'a'))[1]",
+  "SELECT (array_remove(ARRAY['a', 'b'], 'z'))[1:1]",
+  `SELECT ('{"a": 1}'::jsonb)['a']`,
+  // A TYPED argument: a bare unknown literal renders no type set, so the
+  // COLLATE around it is closed as a member but never rootable.
+  `SELECT 'a'::text COLLATE "C"`,
 ];
 
 function collectTags(node: unknown, out: Set<string>): void {
@@ -139,6 +211,24 @@ function collectTags(node: unknown, out: Set<string>): void {
     if (/^[A-Z]/.test(k)) out.add(k);
     collectTags(v, out);
   }
+}
+
+/**
+ * Every `ResTarget.val` under `node` — an unambiguous EXPRESSION position,
+ * and the one output claims are made about. SQL's expression grammar is the
+ * same wherever it appears, so a kind reachable in a WHERE clause is
+ * reachable here too; taking the narrow, obviously-expression position keeps
+ * the completeness census from having to exclude statement structure.
+ */
+function targetListVals(node: unknown, out: Node[]): void {
+  if (Array.isArray(node)) {
+    for (const n of node) targetListVals(n, out);
+    return;
+  }
+  if (!node || typeof node !== "object") return;
+  const rt = (node as Record<string, unknown>)["ResTarget"] as { val?: Node } | undefined;
+  if (rt?.val) out.push(rt.val);
+  for (const v of Object.values(node)) targetListVals(v, out);
 }
 
 let pg: PGlite;
@@ -190,6 +280,7 @@ describe("allowlist census", () => {
   const rootTags = new Set<string>();
   const insideTags = new Set<string>();
   const corpusTags = new Set<string>();
+  const expressionTags = new Set<string>();
 
   beforeAll(async () => {
     const corpus = [
@@ -209,6 +300,9 @@ describe("allowlist census", () => {
       for (const raw of parsed.stmts ?? []) {
         if (!raw.stmt) continue;
         collectTags(raw.stmt, corpusTags);
+        const vals: Node[] = [];
+        targetListVals(raw.stmt, vals);
+        for (const val of vals) collectTags(val, expressionTags);
         for (const root of collectClosedSubtrees(raw.stmt, catalog)) {
           rootTags.add(Object.keys(root)[0]!);
           collectTags(root, insideTags);
@@ -262,13 +356,42 @@ describe("allowlist census", () => {
     // OPEN_BY_DESIGN entries are the charter's own exclusions; asserting
     // the corpus PRODUCES them keeps each refusal a tested claim rather
     // than a comment.
-    const missing = OPEN_BY_DESIGN.filter(t => !corpusTags.has(t));
+    const open = Object.keys(OPEN_BY_DESIGN);
+    const missing = open.filter(t => !corpusTags.has(t));
     expect(missing, `Not produced by the corpus at all: ${missing.join(", ")}`).toEqual([]);
-    const leaked = OPEN_BY_DESIGN.filter(t => insideTags.has(t));
+    const leaked = open.filter(t => insideTags.has(t));
     expect(
       leaked,
       `Open by design, found inside a collected subtree — a closure gate is ` +
         `admitting names or session state:\n  ${leaked.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("every expression kind the corpus writes has been CONSIDERED", () => {
+    // The third direction, added 2026-08-24, and the one whose absence let
+    // twelve node kinds sit unexamined.
+    //
+    // The two above are about kinds that DO reach a collected subtree: one
+    // catches over-admission (an unclassified kind inside a closed tree), the
+    // other catches dead gates (a `closed` kind nothing collects). Neither can
+    // see ABSENCE. A kind the gate has never heard of is never inside a
+    // collected subtree and is never classified `closed`, so both pass while
+    // the gate does not exist — which is exactly how `JsonObjectConstructor`
+    // and friends stayed invisible while evaluating to a definite value from
+    // all-literal arguments.
+    //
+    // Being listed here is not a promise to fold. It is a promise that
+    // somebody looked, and wrote down what they found.
+    const unconsidered = [...expressionTags]
+      .filter(t => !CLASSIFICATION[t] && !OPEN_BY_DESIGN[t])
+      .sort();
+    expect(
+      unconsidered,
+      `Written in an expression position by the corpus and never considered ` +
+        `by the closure gate. Classify each — CLASSIFICATION with a gate, or ` +
+        `OPEN_BY_DESIGN with a MEASURED reason (what does PostgreSQL answer ` +
+        `for it from all-literal arguments, and why may the engine not use ` +
+        `that answer?):\n  ${unconsidered.join(", ")}`,
     ).toEqual([]);
   });
 });

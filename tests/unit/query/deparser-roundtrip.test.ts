@@ -69,6 +69,13 @@ const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   "expression-node-coverage": "reparse-failed",
   // Same subscripting emission defect, on the slice fixture.
   "array-slices": "reparse-failed",
+  // Same defect, and this fixture is where it was MEASURED down to the
+  // argument kind (2026-08-24, docs/deparser-limitations.md §4): the
+  // parentheses survive around a FuncCall, a TypeCast and a SubLink and are
+  // dropped around an ARRAY constructor, a CASE and a COALESCE. The closed
+  // grammar gates on exactly that, so the fixture carries both sides — and
+  // the one unrenderable column is what makes this whole file deviate.
+  "closed-grammar-subscript": "reparse-failed",
   // The deparser drops SEARCH / CYCLE clauses; the SQL still parses. These
   // are the silent drops the generator's expected-node checks exist for.
   "recursive-cte-search-clause": "ast-differed",
