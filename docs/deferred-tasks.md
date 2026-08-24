@@ -41,7 +41,7 @@ and `operators.ts` is 74% — that is where rationale is kept, and it works.
 | Asking PostgreSQL to resolve a type (`PREPARE`) | `docs/type-resolution-delegation.md` — all five stages landed 2026-08-24 (`src/query/type-delegation.ts`) |
 | Query generator and its axes | `docs/query-generator.md`, `docs/generated-surface.md` |
 | Generated soundness instrument | `tests/unit/query/generated/generated-soundness.test.ts` |
-| Subtree evaluation | `docs/subtree-evaluation.md` |
+| Subtree evaluation | `docs/subtree-evaluation.md` — consumer 3 (closed truths, `src/query/closed-truths.ts`) landed 2026-08-24 |
 | What `pgsql-deparser` cannot render, and what that costs | `docs/deparser-limitations.md` — read BEFORE testing whether a construct deparses; that exploration has been done twice |
 | Argument / parameter contract | `docs/argument-nullability.md` |
 | Witness corpus discipline | `docs/witness-coverage.md` |
@@ -1272,6 +1272,14 @@ the kernel could not read a boolean literal in a CHECK at all, which is a
 correctness gap and not a question of return. `AGENTS.md` rule 2 now says so
 as a rule.
 
+**And it kept paying out.** The successor row — "a CHECK literal that is not
+a truth value", the residue the same-day fix left — read as one cast
+spelling. Measured 2026-08-24 it was ten shapes, in two places, and one of
+the two spellings it NAMED does not exist (parse analysis folds
+`'t'::boolean` before the kernel could refuse it). A row that describes a
+refusal in the vocabulary of the refusal will always read smaller than the
+gap: the refusal knows what it declined to match, not what walked past.
+
 **A "closable" entry rots faster than a wrong reason does**, because it is
 falsified by success rather than by drift: the fix lands, the row keeps
 reading as work outstanding, and the only way to notice is to ASK THE ENGINE.
@@ -1287,7 +1295,8 @@ Two of these three needed one query each.
 | MERGE with mixed arm kinds | **closed** | the join condition promotes only when every ROW-PRODUCING arm is MATCHED-kind — a NOT MATCHED arm fires precisely on the condition's failure, and a `DO NOTHING` arm returns nothing to fire with (closed 2026-08-23). The other half, an arm's own `AND` condition, closed 2026-08-24: every returned row satisfies the DISJUNCTION of the row-producing arms' conditions, pushed onto `impliedQuals` by `buildMergeScope`, where the kernel's existing OR handling turns it into an or-fact and `predicateProvesNonNull` reads it on the plain path. Refused whole when ANY producing arm carries no condition — such an arm fires on its match kind alone, so the disjunction would contain TRUE. `merge-arm-disjunction-red.test.ts`, and the fixture pair `merge-arm-condition-{disjunction,uncondition}.sql`, one clause apart with opposite verdicts |
 | CHECK entailment, conservative edges | nullable | parameters never match (identity needs the literal token; permanent for a per-statement contract), and origin consumption is gated as designed |
 | Presence groups | none recorded | every launch and post-launch residue closed 2026-08-04; future entries come from consumer corpora |
-| A CHECK literal that is not a truth value | nullable | `boolLiteral` reads a bare boolean A_Const and REFUSES a cast: `'t'::boolean` and `1::boolean` are both TRUE, but the general form is an input function whose result is not a token. A refusal, so it can only under-claim |
+| A CHECK literal that is not a truth value | **closed** | The row said "a cast", and measuring it said TEN SHAPES and a second site. Parse analysis coerces an UNKNOWN literal, so `'t'::boolean` is already `true` in `conbin` and the kernel never saw it; the rewriter folds NOTHING, so `1::boolean`, `1 > 2`, `'a' = 'b'`, `starts_with('abc','z')`, `ARRAY[1,2] @> ARRAY[3]`, a jsonb `?`, `false IS TRUE`, a closed CASE, `3 = ANY (ARRAY[1,2])` and a closed `IN` all arrive unreadable, each a dead disjunct with PostgreSQL refusing the NULL behind it. And the walk's own OR rule was blind to a BARE `false` (`WHERE false OR v IS NOT NULL` proved nothing). All closed 2026-08-24 by `closed-truths.ts` — subtree-evaluation.md consumer 3 — which ASKS rather than matching, the statement half free off consumer 1's map. `closed-boolean-truths-red.test.ts`; fixtures `closed-truth-check.sql` and the `closed-truth-predicate{,-live}.sql` pair, one character apart with opposite verdicts |
+| A cast over a COMPUTED argument, in any consumer | nullable | `('f'::text)::boolean` is a dead disjunct PostgreSQL refuses the NULL behind, and the engine does not claim it. The refusal is the EVALUATOR's, not the kernel's: `typeSetOf` closes a cast over a LITERAL argument only, because a computed argument's OUTPUT function crossing an I/O coercion is a measured settings leak (`to_timestamp(0)::text` moves with TimeZone). **The sweep that would close it is already run** (2026-08-24, PG18.3): of every `pg_cast` whose source AND target are both pg_catalog types with immutable `typinput` and `typoutput`, ZERO has a non-immutable cast function — 18 rows remain and all are binary-coercible or I/O, both immutable by the set's own definition. So the widening is "allow a non-literal argument whose resolved type set lies entirely in the BUILTIN immutable-I/O renderings", and the one design question left is which predicate to gate on: `isImmutableIoRendering` also admits first-wave USER renderings (domains, enums), whose casts route through user functions of any volatility, so it is the wrong face and a builtin-only one has to be added. Not done here because it changes a gate every evaluator consumer stands on, and this row's fix touched none of them. Boundary test: `closed-boolean-truths-red.test.ts`, "a boundary that is NOT this module's" |
 
 ### 5. The datetime settings decision
 

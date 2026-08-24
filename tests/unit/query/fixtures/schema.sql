@@ -979,6 +979,30 @@ CREATE TABLE relay (
   CHECK (true OR note IS NOT NULL)
 );
 
+-- A DEAD COMPUTATION beside a real guard — `relay` one step past a literal.
+-- The same fact carries both tables (no constant folding into
+-- `pg_constraint.conbin`), but relay's dead arms are TOKENS and these are
+-- calls: `pg_get_constraintdef` reads back `(1 > 2)`, `starts_with(…)` and
+-- `(0)::boolean`, none of which any token matcher can answer. Parse analysis
+-- would have folded a bare `'f'::boolean` into `false` before the kernel saw
+-- it, which is why the cast here is over an INTEGER — the spelling that
+-- survives.
+--
+-- `flow` is the boundary in the other direction: `1 < 2` is a live disjunct,
+-- its constraint is vacuous, and the data states seed the NULL that says the
+-- engine does not claim it.
+CREATE TABLE mesh (
+  id    integer PRIMARY KEY,
+  span  text,
+  probe text,
+  tag   text,
+  flow  text,
+  CHECK (1 > 2 OR span IS NOT NULL),
+  CHECK (starts_with('abc', 'z') OR probe IS NOT NULL),
+  CHECK (0::boolean OR tag IS NOT NULL),
+  CHECK (1 < 2 OR flow IS NOT NULL)
+);
+
 -- The comparison-harvest residue's subject (register: harvested facts are
 -- NullTests only): CHECK₁'s arm concludes seats > 1, which CHECK₂'s
 -- same-token `seats <= 1` disjunct would consume — once comparisons whose

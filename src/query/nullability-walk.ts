@@ -13,6 +13,11 @@ import {
   evaluateComparisonQuestions,
 } from "./comparison-groundings.js";
 import {
+  collectClosedTruthQuestions,
+  evaluateClosedTruths,
+  truthKey,
+} from "./closed-truths.js";
+import {
   evaluateClosedSubtrees,
   type Evaluate,
   type EvalResult,
@@ -94,7 +99,7 @@ const MAX_DEPTH = 200;
  */
 export interface EvalWarning {
   /** Which pre-walk round lost its answer. */
-  round: "statement-map" | "comparison-groundings" | "srf-cardinality";
+  round: "statement-map" | "comparison-groundings" | "srf-cardinality" | "closed-truths";
   /** What the evaluator said — a kill, a timeout, or a raise from the probe. */
   detail: string;
 }
@@ -243,6 +248,37 @@ async function comparisonGroundings(
 }
 
 /**
+ * The closed-truth round (closed-truths.ts): the truth of every CLOSED boolean
+ * expression the walk or the kernel may have to read, keyed structurally.
+ *
+ * It is the one round with TWO sources, and only one of them costs anything.
+ * The statement's own closed subtrees were already evaluated by
+ * `statementEvaluation` above, so its boolean answers are re-keyed here rather
+ * than re-asked; what needs a probe is the CHECK constraints of the
+ * statement's tables, which are catalog trees the statement map never sees.
+ */
+async function closedTruths(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+  evaluate: Evaluate | undefined,
+  evaluation: ReadonlyMap<Node, EvalResult> | undefined,
+): Promise<ReadonlyMap<string, boolean> | undefined> {
+  if (!evaluate) return undefined;
+  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
+  const out = new Map<string, boolean>();
+  for (const [node, answer] of evaluation ?? []) {
+    if (!answer.isNull && typeof answer.value === "boolean") out.set(truthKey(node), answer.value);
+  }
+  const questions = collectClosedTruthQuestions(stmt, face);
+  if (questions.length > 0) {
+    for (const [key, value] of await evaluateClosedTruths(questions, face, evaluate)) {
+      out.set(key, value);
+    }
+  }
+  return out.size > 0 ? out : undefined;
+}
+
+/**
  * The type-resolution round (docs/type-resolution-delegation.md): one async
  * step, answers as data, sync walk — the same shape as the three beside it.
  *
@@ -289,6 +325,7 @@ export async function inferNullability(
   const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
   const delegated = await delegatedTypes(stmt, catalog, options);
+  const truths = await closedTruths(stmt, catalog, evalWith("closed-truths", options), evaluation);
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -298,6 +335,7 @@ export async function inferNullability(
     comparisons,
     cardinalities,
     delegated,
+    truths,
   );
   if (options?.joinAudit) engine.joinAuditSink = options.joinAudit;
   if (options?.collectUnitCrossings) engine.collectUnitCrossings = true;
@@ -387,6 +425,7 @@ export async function inferQueryContract(
   const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
   const delegated = await delegatedTypes(stmt, catalog, options);
+  const truths = await closedTruths(stmt, catalog, evalWith("closed-truths", options), evaluation);
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -396,6 +435,7 @@ export async function inferQueryContract(
     comparisons,
     cardinalities,
     delegated,
+    truths,
   );
   return {
     outputs: engine.run(stmt),
@@ -439,6 +479,7 @@ export async function inferNullabilityTraced(
   const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
   const delegated = await delegatedTypes(stmt, catalog, options);
+  const truths = await closedTruths(stmt, catalog, evalWith("closed-truths", options), evaluation);
   const engine = new NullabilityEngine(
     catalog,
     true,
@@ -448,6 +489,7 @@ export async function inferNullabilityTraced(
     comparisons,
     cardinalities,
     delegated,
+    truths,
   );
   return engine.runTraced(stmt);
 }
@@ -1267,6 +1309,15 @@ class NullabilityEngine {
    */
   private readonly delegatedTypes: ReadonlyMap<unknown, string> | undefined;
 
+  /**
+   * The truth of every CLOSED boolean expression the statement or its tables'
+   * CHECKs contain (closed-truths.ts), keyed STRUCTURALLY rather than by node
+   * identity — the kernel reads `qualifyColumnRefs` output, which is a clone,
+   * so identity does not survive the trip. Undefined without `evaluate`, and
+   * the walk then reads bare literal tokens exactly as before.
+   */
+  private readonly closedTruths: ReadonlyMap<string, boolean> | undefined;
+
   constructor(
     catalog: NullabilityCatalog,
     tracing = false,
@@ -1276,6 +1327,7 @@ class NullabilityEngine {
     comparisons?: ReadonlyMap<string, boolean>,
     cardinalities?: ReadonlyMap<object, number>,
     delegatedTypes?: ReadonlyMap<unknown, string>,
+    closedTruths?: ReadonlyMap<string, boolean>,
   ) {
     this.catalog = catalog;
     this.tracing = tracing;
@@ -1285,6 +1337,29 @@ class NullabilityEngine {
     this.comparisons = comparisons;
     this.cardinalities = cardinalities;
     this.delegatedTypes = delegatedTypes;
+    this.closedTruths = closedTruths;
+  }
+
+  /**
+   * The truth of `expr` as a CONSTANT — a bare boolean literal token, or a
+   * closed expression PostgreSQL evaluated in the pre-walk round. Null for
+   * anything that is not one, including a closed expression that evaluated
+   * NULL: `NULL::boolean` is notFALSE, and an arm that is notFALSE is not an
+   * arm you may drop.
+   *
+   * Shared by the walk's OR rule and the entailment kernel, which is the
+   * point: a dead disjunct is dead in a WHERE clause for the same reason it
+   * is dead in a CHECK, and one reading answers both.
+   */
+  private closedTruthOf(expr: Node): boolean | null {
+    const ac = (expr as Record<string, unknown>)["A_Const"] as
+      | { boolval?: { boolval?: boolean }; isnull?: boolean }
+      | undefined;
+    // `false` arrives as `boolval: {}` — the parser omits a default-valued
+    // field — so the presence of `boolval` is the test and its content is the
+    // value.
+    if (ac && !ac.isnull && ac.boolval) return ac.boolval.boolval ?? false;
+    return this.closedTruths?.get(truthKey(expr)) ?? null;
   }
 
   /** The kernel-facing reading of `comparisons`, or undefined without it. */
@@ -7572,6 +7647,7 @@ class NullabilityEngine {
           evaluatedComparison: this.comparisonOracle(),
           btreeStrategy: this.btreeStrategySupply(),
           equalityComplement: this.equalityComplementSupply(),
+          closedTruth: expr => this.closedTruthOf(expr),
           literalDistinctnessSound: (a, col) => {
             const e = scope.aliases.get(a);
             const cat = e ? this.entryCatalogColumn(e, col) : undefined;
@@ -8006,6 +8082,7 @@ class NullabilityEngine {
       evaluatedComparison: this.comparisonOracle(),
       btreeStrategy: this.btreeStrategySupply(),
       equalityComplement: this.equalityComplementSupply(),
+      closedTruth: expr => this.closedTruthOf(expr),
       goal: { alias: entry.alias, column },
       checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias, entry)),
       evidence,
@@ -9525,6 +9602,7 @@ class NullabilityEngine {
               evaluatedComparison: this.comparisonOracle(),
               btreeStrategy: this.btreeStrategySupply(),
               equalityComplement: this.equalityComplementSupply(),
+              closedTruth: expr => this.closedTruthOf(expr),
               // The shown name, not the catalog one: the CHECKs above were
               // renamed into this scope's vocabulary, and a goal in the other
               // vocabulary matches none of them.
@@ -9840,6 +9918,7 @@ class NullabilityEngine {
       evaluatedComparison: this.comparisonOracle(),
       btreeStrategy: this.btreeStrategySupply(),
       equalityComplement: this.equalityComplementSupply(),
+      closedTruth: expr => this.closedTruthOf(expr),
       goal: { alias: entry.alias, column: goalOrigin.column },
       // NOT renamed through `entry`: these CHECKs belong to the BASE table the
       // origin points at, while `entry` is the view or CTE it was reached
@@ -10557,7 +10636,15 @@ class NullabilityEngine {
         return args.some(arg => this.predicateProvesNonNull(arg, forces, scope));
       }
       if (be.boolop === "OR_EXPR") {
-        return args.length > 0 && args.every(arg => this.predicateProvesNonNull(arg, forces, scope));
+        // A disjunct that is CONSTANTLY FALSE cannot be the arm that made the
+        // predicate TRUE, so the intersection is over the arms that CAN fire
+        // (closed-truths.ts). Without this the rule is defeated by an arm that
+        // proves nothing because it never runs. Every arm dead means the
+        // predicate cannot be TRUE at all — no rows, so any claim would be
+        // vacuous — and refusing is the honest reading of a rule with nothing
+        // left to apply.
+        const live = args.filter(arg => this.closedTruthOf(arg) !== false);
+        return live.length > 0 && live.every(arg => this.predicateProvesNonNull(arg, forces, scope));
       }
       return false;
     }
