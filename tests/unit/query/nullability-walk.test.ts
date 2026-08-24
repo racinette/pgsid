@@ -6,6 +6,7 @@ import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
 import { parseSql } from "../../../src/ast.js";
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 import { catalogCache, withSearchPath, type CatalogFor } from "./fixture-catalog.js";
+import { delegateTypesVia } from "./delegate-types.js";
 import {
   inferNullability,
   inferNullabilityTraced,
@@ -121,13 +122,21 @@ describe("nullability-walk", () => {
       // censuses keep exercising the symbolic paths evaluate short-circuits.
       const evaluate = async (s: string) =>
         (await pg.query<Record<string, unknown>>(s)).rows[0];
+      // Type-resolution delegation is one of those chartered consumers, ON
+      // here since 2026-08-24 for the same reason: the annotations must
+      // describe ONE engine, and the soundness suites now adjudicate the
+      // delegated one. Without it `cte-self-join.sql`'s `combined` is
+      // nullable — a `+` over CTE columns nothing symbolic can type — and
+      // with it the `+(path,path)` row is eliminated and the claim stands.
+      // That fixture is the corpus's first claim that RESTS on delegation.
+      const resolveColumnTypes = delegateTypesVia(evaluate);
 
       // Everything below runs under the fixture's path, so an evaluated
       // subtree resolves names exactly as the claim assumed.
       return withSearchPath(pg, searchPath, async () => {
 
       if (TRACE) {
-        const traced = await inferNullabilityTraced(stmt, catalog, undefined, { evaluate });
+        const traced = await inferNullabilityTraced(stmt, catalog, undefined, { evaluate, resolveColumnTypes });
         expect(traced.length).toBe(expectations.length);
         const traces: string[] = [];
         for (let i = 0; i < expectations.length; i++) {
@@ -152,7 +161,7 @@ describe("nullability-walk", () => {
         console.log(`${"═".repeat(70)}`);
         for (const t of traces) console.log(t);
       } else {
-        const results = await inferNullability(stmt, catalog, { evaluate });
+        const results = await inferNullability(stmt, catalog, { evaluate, resolveColumnTypes });
         expect(results.length).toBe(expectations.length);
         for (let i = 0; i < expectations.length; i++) {
           const expected = expectations[i]!;

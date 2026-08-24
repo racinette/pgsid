@@ -61,6 +61,9 @@ const publicTypeGenerators: Record<string, ColumnGenerator> = {
   "timestamp with time zone": rand => rand.pick(TIMESTAMPS),
   "timestamp without time zone": rand => rand.pick(TIMESTAMPS).slice(0, 19),
   date: rand => rand.pick(TIMESTAMPS).slice(0, 10),
+  // CLOSED paths, always: `route` exists to witness `+(path,path)` returning
+  // NULL, and an OPEN path (`[...]`) concatenates to a value instead.
+  path: (rand, ctx) => `((0,${ctx.row}),(${rand.int(1, 9)},${rand.int(1, 9)}))`,
   jsonb: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
   json: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
 

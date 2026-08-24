@@ -13,6 +13,7 @@ import type {
 } from "../../../src/query/types.js";
 import type { EvalWarning } from "../../../src/query/nullability-walk.js";
 import { createKillableEvaluator } from "./killable-evaluator.js";
+import { delegateTypesVia } from "./delegate-types.js";
 import { bindParams, parseFixtureDirectives, type FixtureBinding } from "./fixture-args.js";
 import { hasStatements, loadDataStates, type DataState } from "./fixture-data/states.js";
 
@@ -209,6 +210,14 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       const claimed = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
         evaluate: evaluator.evaluate,
         evalWarnings,
+        // Type-resolution delegation, ON since 2026-08-24
+        // (docs/type-resolution-delegation.md). It shipped wired into the walk
+        // and switched off in every suite that adjudicates against PostgreSQL,
+        // so its answers had never met a real row — the only thing watching
+        // them was the containment check inside its own red suite. It runs
+        // through the SAME killable evaluator, which is what bounds it in
+        // time, and on the same session the search path is held on.
+        resolveColumnTypes: delegateTypesVia(evaluator.evaluate),
       });
       const claimedGroups = inferPresenceGroups(parsed.stmts![0]!.stmt!, catalog);
 

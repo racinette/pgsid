@@ -160,6 +160,25 @@ export const STRICT_OPERATORS: ReadonlySet<string> = new Set([
  * Recorded rather than tolerated silently, asserted from both sides by
  * `totality-probe.test.ts`, and recovered by `docs/type-aware-overloads.md`.
  */
+/**
+ * Names KEPT on `TOTAL_OPERATORS` that carry a non-total signature, with the
+ * defect recorded. Consulted by the walk at the NAME-LEVEL FALLBACK — the
+ * branch reached exactly when the signature narrowing could not decide — where
+ * the presence of a key here REFUSES the claim.
+ *
+ * That consultation was added 2026-08-24, and its absence was a measured
+ * unsoundness rather than a rounding error. The reasoning below is right about
+ * where the hole is and was silent about when the hole is REACHED: the
+ * name-level claim fires precisely where operand types are unreadable, which
+ * is precisely where the path row cannot be eliminated. A path column behind a
+ * set operation claimed notNull and PostgreSQL returned NULL on every row
+ * (`name-level-partial-overload.sql`).
+ *
+ * The general case survives untouched, because it never reaches that branch:
+ * `id + 1` on a NOT NULL integer narrows to `+(integer,integer)` and answers
+ * there. What is given up is the claim over operands nothing could type, which
+ * is the claim that had no grounds.
+ */
 export const PARTIAL_OVERLOADS: Record<string, string> = {
   "+":
     "`path + path` is NULL whenever EITHER operand is a CLOSED path — " +

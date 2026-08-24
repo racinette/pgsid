@@ -16,6 +16,7 @@ import {
   countPlanOuterJoins,
   survivingOuterJoins,
 } from "./explain-instrument.js";
+import { delegateTypesVia } from "./delegate-types.js";
 import {
   loadSqlcCases,
   sqlcExpectedNullability,
@@ -260,6 +261,11 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
             // one raise cannot abort the scope and take every later probe
             // with it.
             evaluate: evaluator.evaluate,
+            // Type-resolution delegation, ON since 2026-08-24. Foreign input
+            // is where a delegated type is most likely to be asked a question
+            // the fixture corpus never poses, and the judge here is
+            // PostgreSQL — the same one the delegation asks.
+            resolveColumnTypes: delegateTypesVia(evaluator.evaluate),
           });
           tally.analyzed++;
         } catch (e) {
