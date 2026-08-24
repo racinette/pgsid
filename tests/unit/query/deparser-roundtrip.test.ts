@@ -64,6 +64,8 @@ const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   "jsontable-sibling-nested-group": "deparse-threw",
   "jsontable-lone-nested-empty-path": "deparse-threw",
   "jsontable-nested-in-nested-ordinality": "deparse-threw",
+  // The same JsonTable node again — the pg-regress ordering pin.
+  "jsontable-plain-after-nested": "deparse-threw",
   "jsontable-root-ordinality-with-siblings": "deparse-threw",
   // Emits a stray `[` the parser rejects.
   "expression-node-coverage": "reparse-failed",

@@ -968,6 +968,17 @@ interface Scope {
   visible: VisibleColumn[];
   /** CTE name → (AST node, column names, generated SEARCH/CYCLE columns). */
   ctes: Map<string, { ast: Node; columns: string[]; extraColumns: OutputNullability[] }>;
+  /**
+   * Join aliases that own no relation entry, mapped to the columns they
+   * expose: PG14's `USING (a, b) AS x` (x names EXACTLY the merged columns,
+   * in USING order) and a parenthesized join's own alias (`(a JOIN b …) AS
+   * j`, which exposes the join's whole visible list). The pg-regress replay
+   * found star expansion emitting ZERO columns for both — join.sql's
+   * `SELECT x.* FROM J1_TBL JOIN J2_TBL USING (i) AS x` and privileges.sql's
+   * `SELECT j.* FROM (atest5 a JOIN atest5 b USING (one)) j` — the
+   * misalignment class.
+   */
+  joinAliases: Map<string, VisibleColumn[]>;
   /** WHERE clause node (consulted at ColumnRef and ParamRef leaves). */
   whereClause?: Node;
   /**
@@ -1240,6 +1251,17 @@ class NullabilityEngine {
   private speculating = false;
   /** Current function body context (null when analyzing query-level ASTs). */
   private fnCtx: FnBodyContext | null = null;
+
+  /**
+   * The RETURNING clause being analyzed, when it is one: the DML target's
+   * alias plus the names PG18's old/new rows answer to there (`old`/`new`,
+   * or the `WITH (OLD AS o, NEW AS n)` aliases). Consulted by star expansion
+   * only — `old.*` and `new.*` expand to the target's columns, and before
+   * this context existed they expanded to NOTHING, which misaligned every
+   * later flag (the pg-regress replay's updatable_views crop). Saved and
+   * restored around each RETURNING walk, like fnCtx.
+   */
+  private retOldNew: { targetAlias: string; oldName: string; newName: string } | null = null;
   /** Current function parameter names (for resolving named ColumnRefs in body). */
   private fnParamNames: string[] | null = null;
 
@@ -2521,6 +2543,9 @@ class NullabilityEngine {
     const ret = returningClause as { exprs?: Node[] };
     const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
     const results: OutputNullabilityTraced[] = [];
+    const prevRetOldNew = this.retOldNew;
+    this.retOldNew = this.returningOldNewContext(returningClause, stmtKey);
+    try {
     for (const target of ret.exprs ?? []) {
       const rt = this.unwrapResTarget(target);
       const val = rt.val;
@@ -2560,6 +2585,39 @@ class NullabilityEngine {
       if (depth === 0) this.rootPresenceGroups = groups;
     }
     return results;
+    } finally {
+      this.retOldNew = prevRetOldNew;
+    }
+  }
+
+  /**
+   * What PG18's old/new rows are CALLED in this RETURNING clause, and which
+   * scope alias holds the target they mirror. Null when the statement's
+   * target is unreadable — expansion then answers as before (nothing).
+   */
+  private returningOldNewContext(
+    returningClause: Node,
+    stmtKey?: object,
+  ): { targetAlias: string; oldName: string; newName: string } | null {
+    const rv = (stmtKey as { relation?: RangeVar } | undefined)?.relation;
+    if (!rv?.relname) return null;
+    let oldName = "old";
+    let newName = "new";
+    // `RETURNING WITH (OLD AS o, NEW AS n)`: the alias REPLACES the keyword.
+    const options = (returningClause as { options?: Node[] }).options ?? [];
+    for (const o of options) {
+      const opt = (o as Record<string, unknown>)["ReturningOption"] as
+        | { option?: string; value?: string }
+        | undefined;
+      if (!opt?.value) continue;
+      if (opt.option === "RETURNING_OPTION_OLD") oldName = opt.value;
+      if (opt.option === "RETURNING_OPTION_NEW") newName = opt.value;
+    }
+    return {
+      targetAlias: rv.alias?.aliasname ?? rv.relname,
+      oldName,
+      newName,
+    };
   }
 
   // -------------------------------------------------------------------------
@@ -2715,6 +2773,7 @@ class NullabilityEngine {
     const scope: Scope = {
       aliases: new Map(),
       ctes: new Map(),
+      joinAliases: new Map(),
       whereClause: stmt.whereClause,
       havingClause: stmt.havingClause,
       joins: [],
@@ -4095,7 +4154,23 @@ class NullabilityEngine {
       // ON together with USING or NATURAL, so at most one of the two branches
       // above can have fired and this never double-records.
       if (!recorded) record(null);
-      return this.mergeJoinColumns(join, left, right);
+      const mergedCols = this.mergeJoinColumns(join, left, right);
+      // `(a JOIN b …) AS j` — the alias exposes the join's whole visible
+      // list. (PostgreSQL also HIDES the constituents then; the engine keeps
+      // them addressable, which can only accept queries PostgreSQL rejects —
+      // the refusal-safe direction.)
+      const joinAlias = (join as { alias?: { aliasname?: string } }).alias?.aliasname;
+      if (joinAlias) scope.joinAliases.set(joinAlias, mergedCols);
+      // `USING (…) AS x` — the alias names exactly the merged columns.
+      const joinUsingAlias = join.join_using_alias?.aliasname;
+      if (joinUsingAlias && join.usingClause && join.usingClause.length > 0) {
+        const usingNamesSet = new Set(join.usingClause.map(n => this.stringVal(n)));
+        scope.joinAliases.set(
+          joinUsingAlias,
+          mergedCols.filter(c => usingNamesSet.has(c.name) && c.merged),
+        );
+      }
+      return mergedCols;
     } else if ("RangeFunction" in node) {
       const rf = node["RangeFunction"] as RangeFunction;
       const aliasName = rf.alias?.aliasname ?? "";
@@ -4228,18 +4303,41 @@ class NullabilityEngine {
    * affected however many NESTED siblings it has: it counts the root's rows
    * and is present on every one of them (measured).
    */
+  /**
+   * pg_catalog's record-populating functions: FROM-position calls whose
+   * output shape IS the first argument's composite type. A curated name set
+   * because the property is the anyelement-in/anyelement-out signature
+   * pattern, which no catalog flag isolates; the pg-regress replay is the
+   * census that catches a family member going missing (a new one shows up
+   * as a shape mismatch).
+   */
+  private static readonly POPULATE_RECORD_NAMES = new Set([
+    "json_populate_record",
+    "jsonb_populate_record",
+    "json_populate_recordset",
+    "jsonb_populate_recordset",
+  ]);
+
   private collectJsonTableColumns(
     columns: Node[] | undefined,
     out: { name: string; notNull: boolean }[],
     nested = false,
   ): void {
+    // PostgreSQL orders each level's PLAIN columns before its NESTED PATHs'
+    // — declaration order within each half, the rule applied recursively.
+    // Document order is the same thing only while no plain column follows a
+    // NESTED PATH; where one does, emitting document order permutes the
+    // list, which misassigns every later flag (the pg-regress replay's
+    // sqljson_jsontable crop — the corpus's own comment beside the statement
+    // says "Parent columns xx1, xx appear before NESTED ones").
+    const nestedGroups: Node[][] = [];
     for (const c of columns ?? []) {
       const col = (c as Record<string, unknown>)["JsonTableColumn"] as
         | { coltype?: string; name?: string; columns?: Node[]; on_error?: { btype?: string } }
         | undefined;
       if (!col) continue;
       if (col.coltype === "JTC_NESTED") {
-        this.collectJsonTableColumns(col.columns, out, true);
+        nestedGroups.push(col.columns ?? []);
         continue;
       }
       if (!col.name) continue;
@@ -4247,6 +4345,9 @@ class NullabilityEngine {
         col.coltype === "JTC_FOR_ORDINALITY" ||
         (col.coltype === "JTC_EXISTS" && col.on_error?.btype !== "JSON_BEHAVIOR_UNKNOWN");
       out.push({ name: col.name, notNull: !nested && generated });
+    }
+    for (const group of nestedGroups) {
+      this.collectJsonTableColumns(group, out, true);
     }
   }
 
@@ -4946,6 +5047,7 @@ class NullabilityEngine {
     const scope: Scope = {
       aliases: new Map(),
       ctes: new Map(),
+      joinAliases: new Map(),
       joins: [],
       impliedQuals: [],
       rowWitnesses: [],
@@ -4982,6 +5084,9 @@ class NullabilityEngine {
     // contract.
     const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
     const results: OutputNullability[] = [];
+    const prevRetOldNew = this.retOldNew;
+    this.retOldNew = this.returningOldNewContext(returningClause, stmtKey);
+    try {
     for (const target of ret.exprs ?? []) {
       const rt = this.unwrapResTarget(target);
       const val = rt.val;
@@ -5037,6 +5142,9 @@ class NullabilityEngine {
       if (depth === 0) this.rootPresenceGroups = groups;
     }
     return results;
+    } finally {
+      this.retOldNew = prevRetOldNew;
+    }
   }
 
   /**
@@ -5234,6 +5342,7 @@ class NullabilityEngine {
     return {
       aliases: new Map(),
       ctes: new Map(),
+      joinAliases: new Map(),
       joins: [],
       impliedQuals: [],
       rowWitnesses: [],
@@ -5641,8 +5750,58 @@ class NullabilityEngine {
     // index is the ordinal directly.
     const qualifier = this.starQualifier(fields);
     if (qualifier) {
+      // A join alias owns no relation entry (`USING (…) AS x`, `(a JOIN b) AS
+      // j`): expand its recorded column list through the same rules the
+      // unqualified expansion uses — merged columns by the merge rule,
+      // owned columns by their entry's own resolution.
+      if (qualifier.schema === undefined) {
+        const joinCols = this.joinAliasColumns(qualifier.name, scope);
+        if (joinCols) {
+          return joinCols.map(vc => {
+            if (vc.merged) {
+              producers?.push(null);
+              return {
+                name: vc.name,
+                notNull: this.mergedColumnNotNull(vc.name, vc.merged, scope, depth),
+              };
+            }
+            if (vc.entry) {
+              producers?.push({ entry: vc.entry, column: vc.name });
+              return withOrigin(
+                vc.entry,
+                vc.name,
+                this.computeColumnNullability(vc.entry, vc.name, scope, depth, false, undefined),
+                undefined,
+              );
+            }
+            producers?.push(null);
+            return { name: vc.name, notNull: false };
+          });
+        }
+      }
       const entry = this.resolveStarRelation(qualifier, scope);
-      if (!entry) return [];
+      if (!entry) {
+        // PG18's RETURNING old/new rows (`RETURNING old.*, new.*`, or the
+        // WITH (OLD AS o, …) aliases): both expand to the TARGET's columns.
+        // Conservative on every flag — an INSERT's old row and a DELETE's
+        // new row are wholly absent, and an UPDATE's either side deserves
+        // more thought than a star pass — but the SHAPE is the contract, and
+        // zero columns here misaligned every later flag (the pg-regress
+        // replay's updatable_views crop).
+        if (qualifier.schema === undefined && this.retOldNew) {
+          const { targetAlias, oldName, newName } = this.retOldNew;
+          if (qualifier.name === oldName || qualifier.name === newName) {
+            const target = scope.aliases.get(targetAlias);
+            if (target) {
+              return this.relationColumnsIntrinsic(target, scope, depth).map(col => {
+                producers?.push(null);
+                return { name: col.name, notNull: false };
+              });
+            }
+          }
+        }
+        return [];
+      }
       return this.relationColumnsIntrinsic(entry, scope, depth).map((col, ordinal) => {
         producers?.push({ entry, column: col.name, ordinal });
         return withOrigin(
@@ -5702,6 +5861,16 @@ class NullabilityEngine {
       producers?.push(null);
       return { name: vc.name, notNull: false };
     });
+  }
+
+  /** A join alias's column list, searched through enclosing scopes the way
+   *  alias resolution is. */
+  private joinAliasColumns(name: string, scope: Scope): VisibleColumn[] | null {
+    for (let s: Scope | null = scope; s; s = s.outer) {
+      const cols = s.joinAliases.get(name);
+      if (cols) return cols;
+    }
+    return null;
   }
 
   /** The ordered output column names of a view/CTE/subquery entry. */
@@ -6088,6 +6257,53 @@ class NullabilityEngine {
         // declared-return-type path below instead.
         if (name === "unnest" && (fc.args?.length ?? 0) >= 1) {
           const multi = fc.args!.length > 1;
+          // The single-argument spelling dispatches over THREE pg_catalog
+          // rows, and one of them changes the SHAPE: unnest(tsvector) is
+          // SETOF record (lexeme, positions, weights) — three columns where
+          // the array and multirange rows contribute one. Found by the
+          // pg-regress replay (tstypes.sql: engine 1 column, PostgreSQL 3 —
+          // the FROM-item misalignment class sweep 4 named). The zip form is
+          // untouched: `unnest(a, b)` accepts arrays alone, so only the
+          // lone-argument case can reach the tsvector row.
+          //
+          // The dispatch reads the operand's TYPE. A set that CONTAINS
+          // tsvector beside other survivors is an unknowable shape and
+          // REFUSES — a FROM item that contributes the wrong columns is
+          // worse than one that refuses (the dispatch-site rule two branches
+          // down).
+          //
+          // A set nothing can type at all (null) KEEPS the one-column
+          // reading, and that is a RECORDED RESIDUE, not a soundness fact:
+          // the shape is wrong exactly when the untyped operand is a
+          // tsvector, which is the "no application schema has one" reasoning
+          // the name-level operator rows convicted (docs/deferred-tasks.md
+          // §4 carries the row). It is kept because the common untyped
+          // operands really are arrays by construction — `unnest(array_agg
+          // (x))`, an ARRAY sublink, a polymorphic aggregate's result — and
+          // the type reader refuses aggregates BY DESIGN, so refusing here
+          // costs those three measured fixture shapes their whole column
+          // list (unnest-array-agg-of-array, unnest-polymorphic-aggregate,
+          // unnest-sublink-array-column). The residue closes when the
+          // reading learns aggregate return types, not by a guess in either
+          // direction.
+          if (!multi) {
+            const arg = fc.args![0]!;
+            const types = this.operandTypeSet(arg, scope, depth);
+            if (types?.length === 1 && types[0] === "tsvector") {
+              cols.push(
+                { name: "lexeme", notNull: false },
+                { name: "positions", notNull: false },
+                { name: "weights", notNull: false },
+              );
+              continue;
+            }
+            if (types !== null && types.includes("tsvector")) {
+              throw new UnsupportedNodeError(
+                "from-item",
+                "unnest over an operand whose type set contains tsvector (its row changes the column list)",
+              );
+            }
+          }
           for (const arg of fc.args!) {
             const fields = this.unnestCompositeElementFields(arg, scope, depth);
             if (fields) {
@@ -6097,6 +6313,32 @@ class NullabilityEngine {
             }
           }
           continue;
+        }
+        // The record-populating builtins return their FIRST argument's
+        // composite type — `json_populate_record(null::jpop, …)` is SETOF
+        // jpop, three columns of jpop's fields, where the engine contributed
+        // one column named after the call (the pg-regress replay's json.sql
+        // crop: engine 1, PostgreSQL 3, ~38 statements). The type is in the
+        // statement (`null::jpop` is the idiomatic spelling), so the
+        // dispatch reads it; a call whose record argument nothing can type
+        // REFUSES, because for THESE names the one-column guess is wrong on
+        // every valid call — PostgreSQL requires a composite-typed argument.
+        if (NullabilityEngine.POPULATE_RECORD_NAMES.has(name) && (fc.args?.length ?? 0) >= 1) {
+          const types = this.operandTypeSet(fc.args![0]!, scope, depth);
+          const single = types?.length === 1 ? types[0]! : null;
+          const composite = single
+            ? this.catalog.resolveCompositeType(undefined, single)
+            : null;
+          if (composite) {
+            push(
+              composite.fields.map(f => ({ name: f.name, notNull: false })),
+            );
+            continue;
+          }
+          throw new UnsupportedNodeError(
+            "from-item",
+            `${name} whose record argument's composite type cannot be read`,
+          );
         }
         // No single candidate means the name is OVERLOADED, and PostgreSQL
         // picks by argument types the walk cannot compute. The candidates'
@@ -7631,7 +7873,7 @@ class NullabilityEngine {
     const outs = meta.args.filter(
       a => a.mode === "out" || a.mode === "table" || a.mode === "inout",
     );
-    if (outs.length === 0 || outs.some(a => !a.name)) {
+    if (outs.length === 0 || (outs.length === 1 && !outs[0]!.name)) {
       return this.columnsForReturnType(meta.returnType, scalarName);
     }
     if (outs.length === 1) {
@@ -7642,8 +7884,14 @@ class NullabilityEngine {
         ]
       );
     }
+    // Two or more OUT positions are two or more COLUMNS whether or not the
+    // author named them — `f(out int, out int)` is PostgreSQL's column1,
+    // column2, and collapsing to the declared `record` emitted ONE column
+    // (the pg-regress replay's plpgsql ret_query1 crop: engine 1, PostgreSQL
+    // 2). An unnamed position keeps the engine's empty-name convention; the
+    // consumer's RowDescription names it, per position, as everywhere else.
     return outs.map(a => ({
-      name: a.name,
+      name: a.name ?? "",
       notNull: this.catalog.isNotNullDomain(a.typeOid),
     }));
   }
@@ -14335,6 +14583,8 @@ interface JoinExpr {
   quals?: Node;
   /** `USING (a, b)` — the columns to merge. */
   usingClause?: Node[];
+  /** `USING (a, b) AS x` — PG14's alias for exactly the merged columns. */
+  join_using_alias?: { aliasname?: string };
   /** `NATURAL` — merge every commonly-named column. */
   isNatural?: boolean;
 }

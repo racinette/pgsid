@@ -1,0 +1,17 @@
+-- UNNAMED OUT PARAMETERS ARE STILL COLUMNS.
+--
+-- Found by the pg-regress replay (plpgsql.sql's `ret_query1(out int, out
+-- int)`: engine 1 column, PostgreSQL 2). functionOutputColumns required
+-- every OUT position to carry a NAME before it counted them, and a call
+-- with two unnamed ones collapsed to the declared `record` — one column,
+-- the misalignment class. Two OUT positions are two columns whatever they
+-- are called; the engine keeps its empty-name convention per position and
+-- the consumer's RowDescription supplies PostgreSQL's column1/column2.
+--
+-- fb_outs' body returns NULL in both positions, so both claims are
+-- witnessed on every execution. The alias column list names what the
+-- author did not (house style: no empty names in the corpus); the branch
+-- under test still supplies the two POSITIONS the list renames.
+SELECT * FROM fb_outs() AS f(c1, c2)
+  -- @nullable
+  -- @nullable
