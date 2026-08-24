@@ -1866,3 +1866,32 @@ CREATE FUNCTION fb_req(a text) RETURNS text STRICT
 CREATE FUNCTION fb_req(a integer) RETURNS text STRICT
   LANGUAGE sql AS $$ SELECT (a + 1)::text $$;
 
+-- ====================================================================
+-- The rung census's reach objects (rung-census.test.ts).
+--
+-- Each object exists so a TRACED conclude rung the corpus never fired has a
+-- reaching input. The body-statement functions light the summary rungs of
+-- analyzeSqlFunctionReturnTraced (VALUES / INSERT-without-RETURNING /
+-- INSERT…SELECT / DELETE bodies — each a distinct verdict site); fb_osa is a
+-- user ordered-set aggregate, the one shape that reaches the unknown-WITHIN
+-- GROUP refusal; and the prefix @ over text puts a USER row beside pg_catalog's
+-- prefix @ rows, which is what makes the unary narrowing answer "unvouched"
+-- over an opaque operand instead of granting the curated name.
+-- ====================================================================
+CREATE TABLE fb_log (n integer);
+CREATE FUNCTION fb_vals_nn() RETURNS integer
+  LANGUAGE sql AS $$ VALUES (1) $$;
+CREATE FUNCTION fb_vals_n() RETURNS integer
+  LANGUAGE sql AS $$ VALUES (NULL::integer) $$;
+CREATE FUNCTION fb_ins_void(x integer) RETURNS void
+  LANGUAGE sql AS $$ INSERT INTO fb_log VALUES (x) $$;
+CREATE FUNCTION fb_del(x integer) RETURNS integer
+  LANGUAGE sql AS $$ DELETE FROM fb_log WHERE n = x RETURNING n $$;
+CREATE FUNCTION fb_ins_sel(x integer) RETURNS integer
+  LANGUAGE sql AS $$ INSERT INTO fb_log SELECT x WHERE x > 0 RETURNING n $$;
+CREATE FUNCTION fb_osa_sfunc(s numeric, v numeric) RETURNS numeric
+  LANGUAGE sql AS $$ SELECT COALESCE(s, 0) + v $$;
+CREATE AGGREGATE fb_osa(ORDER BY numeric) (SFUNC = fb_osa_sfunc, STYPE = numeric);
+CREATE FUNCTION fb_neg(t text) RETURNS text STRICT
+  LANGUAGE sql AS $$ SELECT 'n' || t $$;
+CREATE OPERATOR @ (RIGHTARG = text, FUNCTION = fb_neg);
