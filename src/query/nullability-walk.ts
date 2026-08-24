@@ -1274,9 +1274,13 @@ class NullabilityEngine {
    * The statement map (docs/subtree-evaluation.md, consumer 1): each maximal
    * closed subtree's PostgreSQL answer, keyed by node identity over the
    * statement's own AST — computed by the async entry point, consumed here
-   * as data. The consumption rule allows exactly two readings: `isNull`
-   * (a non-null answer claims the subtree notNull) and boolean truth (a
-   * guard's answer prunes CASE arms). Values never cross into typed
+   * as data. The consumption rule allows exactly three readings, and all
+   * three rest on the one fact that closure means no row can move the value:
+   * `isNull` BOTH WAYS (a non-null answer claims the subtree notNull, a NULL
+   * answer claims it alwaysNull — the second added 2026-08-24, the symmetric
+   * half of an argument that had only ever been run forwards) and boolean
+   * truth (a guard's answer prunes CASE arms; `closed-truths.ts` re-keys the
+   * same answers for the entailment kernel). Values never cross into typed
    * contexts — that path belongs to the CHECK grounder's declared-type
    * casts. Undefined when no `evaluate` was passed: no evaluation claims,
    * everything else identical.
@@ -7715,6 +7719,14 @@ class NullabilityEngine {
   private alwaysNullExpr(expr: Node, scope: Scope, depth: number): boolean {
     if (this.isNullLiteral(expr)) return true;
 
+    // The statement map, in the direction the notNull reading does not use.
+    // Closure means no row, guard, parameter or session state can move the
+    // value, so a closed subtree that evaluated NULL is NULL on EVERY row —
+    // the same argument that lets a non-null answer claim notNull, run the
+    // other way. Symmetric, and strictly better verified: a wrong alwaysNull
+    // is falsified by any non-NULL value.
+    if (this.evaluation?.get(expr)?.isNull === true) return true;
+
     const node = expr as Record<string, unknown>;
 
     // A cast of NULL is NULL for every target type, so the wrapper is
@@ -12081,11 +12093,13 @@ class NullabilityEngine {
    * Whether `expr` is a CLOSED array expression the statement map evaluated to
    * an array holding no NULL anywhere in it.
    *
-   * CASTS are stripped before the lookup, and have to be: the collector takes
-   * MAXIMAL closed subtrees and `string_to_array('1,2', ',')::int[]` collects
-   * as the FuncCall inside, not as the cast around it, so the map holds the
-   * pre-cast value. That is the right value to read anyway — an array cast is
-   * element-wise, so it turns no NULL into a value and no value into a NULL.
+   * The expression AS WRITTEN is tried first, then with its CASTS STRIPPED,
+   * and both readings are needed because WHICH of the two the collector holds
+   * depends on the cast: `string_to_array('1,2', ',')::int[]` collects whole
+   * once the computed-cast gate admits it (2026-08-24), and as the FuncCall
+   * inside it when the gate refuses — a `::date[]` target, say. Either answer
+   * is the right one to read: an array cast is element-wise, so it turns no
+   * NULL into a value and no value into a NULL.
    *
    * The recursion is the point rather than tidiness: a multidimensional array
    * arrives as nested JS arrays, `= ANY` compares against every leaf, and a
@@ -12095,7 +12109,7 @@ class NullabilityEngine {
    */
   private evaluatedArrayHasNoNullElement(expr: Node | undefined): boolean {
     if (!expr) return false;
-    const answered = this.evaluation?.get(this.stripCasts(expr));
+    const answered = this.evaluation?.get(expr) ?? this.evaluation?.get(this.stripCasts(expr));
     if (!answered || answered.isNull) return false;
     const clean = (v: unknown): boolean =>
       Array.isArray(v) ? v.every(clean) : v !== null && v !== undefined;

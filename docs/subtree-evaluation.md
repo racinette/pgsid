@@ -68,8 +68,10 @@ a gate:
   (`to_timestamp(0)::text` moves with TimeZone while both halves look
   clean). So one set governs everything: pg_catalog types with immutable
   typinput AND typoutput (48 in PG 18.3; no datetime, money, xml, array,
-  record, domain or enum). Casts close on LITERAL arguments only; calls
-  and operators need every reachable signature immutable over that set.
+  record, domain or enum). Calls and operators need every reachable
+  signature immutable over that set. Casts closed on LITERAL arguments only
+  until 2026-08-24 and are now gated on the same set — see "Casts over a
+  computed argument" below, which is where the leak above actually lives.
 - The function gate is keyed `(name, arity)`: `length` is immutable at one
   argument and STABLE at two (`length(bytea, name)`).
 - A signature is exempt from the verdict only when UNREACHABLE from a
@@ -104,6 +106,71 @@ describes were the mechanism until typed operand tracking (below)
 replaced them with per-signature survivors and the general landing rule;
 the measured facts stand, and the guard pins stayed green through the
 replacement.
+
+### Casts over a computed argument (BUILT 2026-08-24)
+
+The cast gate was SYNTACTIC — `A_Const` argument or refuse — and the
+hazard behind it is TYPED. That mismatch is the whole finding. The leak
+is a stable OUTPUT function crossing an I/O coercion, which is a
+statement about `timestamptz`, not about computation: `('f'::text)::bool`
+is two immutable I/O functions end to end and was refused for the SHAPE
+of its argument, in a module that decides every other closure question by
+type.
+
+So a computed argument now closes when its own resolved type set lies
+entirely inside the BUILTIN immutable-I/O set — the same 48 the target is
+checked against. The soundness argument is that a cast between two
+members is performed one of three ways, each immutable:
+
+- binary coercible (`castmethod 'b'`): no function at all;
+- I/O conversion (`castmethod 'i'`, and the fallback an explicit cast
+  takes with no `pg_cast` row): the source's typoutput plus the target's
+  typinput, both immutable BY THE SET'S DEFINITION;
+- a cast function (`castmethod 'f'`): **swept 2026-08-24 over PG 18.3 —
+  of every `pg_cast` row whose source AND target are both set members,
+  ZERO has a non-immutable cast function.** The sweep runs as an
+  assertion in `computed-cast-closure-red.test.ts`, so a future PostgreSQL
+  that adds one fails before any claim built on it can.
+
+An ARRAY rendering answers on its element, because that is how PostgreSQL
+coerces one (COERCION_PATH_ARRAYCOERCE applies the element cast, so the
+sweep's guarantee applies one level down).
+
+TWO THINGS THE GATE DELIBERATELY KEEPS. Design B stays LITERAL-only: its
+admission rests on the VALUE's shape against a regex, and a computed
+argument has no shape to read at analysis time. And the gate reads the
+BUILTIN face (`isBuiltinImmutableIoRendering`), not the wire face
+(`isImmutableIoRendering`): a first-wave user domain or enum may cross the
+wire — its output route is the base's or a snapshot-pinned label — but a
+cast OFF one runs whatever function the user attached, and the sweep swept
+pg_catalog only. Same discipline the unknown-literal landings already keep
+by reading the builtin set directly.
+
+The leak keeps its gate for the reason it always had: `date` and
+`timestamptz` are not in the set. The red suite makes PostgreSQL
+demonstrate that rather than asserting it —
+`('2020-01-02'::date)::text` is `2020-01-02` under ISO and `02.01.2020`
+under German, and a predicate resting on that rendering returns a NULL
+under the second that it does not under the first.
+
+MEASURED REACH over the 515-fixture corpus: the collected-subtree COUNT
+is unchanged (99 → 99) and the SET changes in four fixtures — the
+collector takes the same trees at a HIGHER node. That is the shape of this
+widening: not more closed trees, bigger ones.
+
+    array-length-literal-shape   A_ArrayExpr → FuncCall
+    builtin-variadic-null        3 A_ArrayExpr → 3 TypeCast
+    quantified-sublinks          2 FuncCall → 2 TypeCast
+    computed-cast-closure        2 TypeCast → 2 A_Expr   (the new fixture)
+
+A bigger tree is a MOVED KEY, and one consumer was reading the old one:
+`evaluatedArrayHasNoNullElement` looked the expression up with its casts
+STRIPPED, because `string_to_array('1,2', ',')::int[]` used to collect as
+the FuncCall inside. It now collects whole, the stripped lookup missed,
+and `quantified-sublinks`'s `any_closed` lost its claim — caught by the
+corpus, fixed by trying the expression as written first. Any future
+widening of the collector should expect exactly this failure mode: a
+consumer that compensated for the old boundary.
 
 ### Typed operand tracking (chartered 2026-08-12, BUILT 2026-08-12)
 
@@ -337,6 +404,26 @@ to today's symbolic answer — sound, never wrong.
   map — never values carried into typed contexts. Values crossing into a
   typed comparison is blank-padding territory (`bp`), and that path goes
   through the grounder's declared-type casts.
+- `isNull` IS READ BOTH WAYS (2026-08-24). A non-null answer claims the
+  subtree notNull; a NULL answer claims it **alwaysNull**. Same argument,
+  run the other direction: closure means no row, guard, parameter or
+  session state can move the value, so a closed subtree that evaluated
+  NULL is NULL on every row. It had only ever been run forwards — the
+  reverse reading was absent rather than declined, and a fixture comment
+  in `scalar-subquery-union-arm.sql` had been explaining the gap as a
+  property of the SYMBOLIC channel ("needs both branches to claim it"),
+  which is true of that channel and beside the point for a closed body.
+
+  The verification story is the inverse of the notNull side's and much
+  stronger: a wrong `alwaysNull` is falsified by ANY non-NULL value, so
+  every returned row tests it. Corpus effect, measured: **21 → 31
+  alwaysNull claims, 0 falsified**, across five pre-existing fixtures —
+  `array_length(ARRAY[]::int[], 1)`, `substring('abc' FROM 'z+')`,
+  `scale('NaN'::numeric)`, closed `path + path` twice, three empty
+  set-operation sublinks, and `(SELECT 1 WHERE false)`. One of the ten
+  (`array_length` over an empty literal array) needed the cast widening
+  above to be closed at all; the other nine were closed all along and the
+  channel was not looking.
 
 ### As built (2026-08-12)
 
@@ -483,15 +570,17 @@ nothing — every one of those 12 belongs to a fixture written for this
 round, which is the honest reading of the reach: the shapes are real and
 PostgreSQL rejects the NULLs behind them, but nobody here had written one.
 
-BOUNDARY, and it is the evaluator's rather than this consumer's:
-`('f'::text)::boolean` stays unclaimed. `typeSetOf` closes a cast over a
-LITERAL argument only, because a computed argument's OUTPUT function
-crossing an I/O coercion is a measured settings leak
-(`to_timestamp(0)::text` moves with TimeZone). A cast over a cast is a
-computed argument, so the position never becomes a question. Reaching
-past that gate from a consumer would be one closure question decided in
-two places. See docs/deferred-tasks.md §4 for the sweep that says it is
-closable and what closing it would take.
+BOUNDARY WHEN THIS LANDED, and it was the evaluator's rather than this
+consumer's: `('f'::text)::boolean` stayed unclaimed, because `typeSetOf`
+closed a cast over a LITERAL argument only. Recorded rather than worked
+around — reaching past that gate from a consumer would have been one
+closure question decided in two places.
+
+CLOSED 2026-08-24, one commit later, by widening the gate itself ("Casts
+over a computed argument" above). Nothing in this module changed, which
+is what it looks like when a boundary is filed against its actual owner:
+the flip shows up here as a test whose name still says "the boundary that
+was NOT this module's".
 
 ## The recorded later — output-side CHECK entailment (BUILT 2026-08-12)
 

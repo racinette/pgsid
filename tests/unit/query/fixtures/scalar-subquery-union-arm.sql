@@ -31,16 +31,19 @@ SELECT
   -- deduplication that makes UNION lossy leaves exactly the one row.
   (SELECT 7::bigint UNION SELECT 7::bigint)       AS union_agreeing,   -- @notNull
 
-  -- Same rule, same guaranteed row, and NULL anyway. (Nullable rather than
-  -- alwaysNull: the alwaysNull channel needs both branches to claim it, and a
-  -- cast NULL constant is not something the walk claims it for.)
-  (SELECT NULL::bigint UNION SELECT NULL::bigint) AS union_null_both,  -- @nullable
+  -- Same rule, same guaranteed row, and NULL anyway. This read @nullable
+  -- until 2026-08-24, with a note saying the alwaysNull channel needed both
+  -- branches to claim it — true of the SYMBOLIC channel, and beside the point
+  -- for a body with no relation in it. The whole sublink is a closed subtree,
+  -- the statement map already held its NULL, and the channel simply was not
+  -- reading the map in that direction. The three below flipped with it.
+  (SELECT NULL::bigint UNION SELECT NULL::bigint) AS union_null_both,  -- @alwaysNull
 
   -- EXCEPT deletes the row it was given.
-  (SELECT 7::bigint EXCEPT SELECT 7::bigint)      AS except_empties,   -- @nullable
+  (SELECT 7::bigint EXCEPT SELECT 7::bigint)      AS except_empties,   -- @alwaysNull
 
   -- INTERSECT keeps only what both branches hold, which here is nothing.
-  (SELECT 7::bigint INTERSECT SELECT 8::bigint)   AS intersect_empties, -- @nullable
+  (SELECT 7::bigint INTERSECT SELECT 8::bigint)   AS intersect_empties, -- @alwaysNull
 
   -- LIMIT sits on the set-operation node and takes the row back off after
   -- the union produced it. The branch still guarantees its row; the node

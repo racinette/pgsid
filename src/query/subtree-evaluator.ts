@@ -233,12 +233,42 @@ function typeSetVerdict(
     }
 
     case "TypeCast": {
-      // Literal casts only: a computed argument's type is invisible here,
-      // and its OUTPUT function crossing an I/O coercion is the measured
-      // hole the restriction closes. The target must be an unqualified (or
-      // pg_catalog-qualified) immutable-I/O base type; arrayBounds makes
-      // the real target the ARRAY type, whose input function is stable.
-      if (nodeTag(f.arg) !== "A_Const") return null;
+      // The argument is either a LITERAL — whose input function the target
+      // gate below governs — or COMPUTED, in which case its own type is what
+      // decides. That distinction used to be syntactic (`A_Const` or refuse),
+      // and the rule closed far more than the hole it was written for: the
+      // hole is a stable OUTPUT function crossing an I/O coercion
+      // (`to_timestamp(0)::text` moves with TimeZone), which is a statement
+      // about TYPES, and the module decides every other closure question by
+      // type already.
+      //
+      // So a computed argument closes when its whole type set lies inside the
+      // BUILTIN immutable-I/O set — the same 48 the target gate uses. A cast
+      // between two members runs one of: no function (binary coercible), the
+      // source's typoutput plus the target's typinput (I/O conversion, and
+      // the fallback an explicit cast takes with no pg_cast row), or a cast
+      // function — and there is no non-immutable cast function between two
+      // members (swept 2026-08-24, pinned in `computed-cast-closure-red`).
+      // `date` and `timestamptz` are NOT in the set, which is exactly why the
+      // pinned leak stays gated. An array rendering answers on its element,
+      // because that is how PostgreSQL coerces one.
+      //
+      // The gate is the BUILTIN face, not the wire face: a domain over
+      // integer and an enum both cross the wire session-independently, but a
+      // cast OFF one runs whatever function the user attached, and the sweep
+      // swept pg_catalog only.
+      const argIsLiteral = nodeTag(f.arg) === "A_Const";
+      if (!argIsLiteral) {
+        const source = setOf(f.arg);
+        if (source === null) return null;
+        if (
+          !source.every(
+            s => s !== UNKNOWN_TYPE && catalog.isBuiltinImmutableIoRendering(s),
+          )
+        ) {
+          return null;
+        }
+      }
       const t = (f.typeName ?? {}) as {
         names?: unknown;
         arrayBounds?: unknown[];
@@ -269,6 +299,11 @@ function typeSetVerdict(
       // sweep is the pin). No typmod — the admitted spellings are exactly
       // the measured ones. A non-string literal, NULL included, keeps
       // today's refusal.
+      //
+      // LITERAL only, and it stays that way when the branch above widens:
+      // this admission rests on the VALUE's shape, and a computed argument
+      // has no shape to read at analysis time.
+      if (!argIsLiteral) return null;
       const dt = catalog.closedDatetimeCastTarget(name);
       if (dt === null) return null;
       if (Array.isArray(t.typmods) && t.typmods.length > 0) return null;
