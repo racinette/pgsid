@@ -81,6 +81,34 @@ export type { OutputPresenceGroup } from "./types.js";
 const MAX_DEPTH = 200;
 
 /**
+ * Declared spellings that are NOT types: a polymorphic parameter or return
+ * that nothing resolved. A type SET promises to contain the type PostgreSQL
+ * resolves, and `anyelement` is never that — `format_type` will not report
+ * it for any column — so a set with one in it makes a promise it cannot
+ * keep. Refused where a reading turns into a claim about a column
+ * (`selectColumnTypeSet`); the narrowing sites that legitimately compare
+ * against declared spellings keep their own handling.
+ */
+const UNRESOLVED_POLYMORPHIC = new Set([
+  "anyelement",
+  "anynonarray",
+  "anycompatible",
+  "anyenum",
+  "anyarray",
+  "anycompatiblearray",
+  "anyrange",
+  "anycompatiblerange",
+  "anymultirange",
+  "anycompatiblemultirange",
+]);
+
+/** Set-operation branches to descend when looking for the leftmost SELECT,
+ *  whose target list names a set operation's result columns. A bound rather
+ *  than a recursion because the tree is left-linear and any query needing
+ *  more than this is answered conservatively, not raised over. */
+const MAX_SETOP_DEPTH = 64;
+
+/**
  * The walk's optional inputs. `paramTypes` is tier 0 (see the engine field's
  * doc); `evaluate` switches on the STATEMENT MAP consumer
  * (docs/subtree-evaluation.md, consumer 1): the statement's maximal closed
@@ -1158,6 +1186,9 @@ class NullabilityEngine {
   typeSetAuditSink: TypeSetAudit[] | null = null;
   /** Audit dedup: one record per syntactic join, keyed on its JoinExpr node. */
   private joinAuditSeen = new WeakMap<object, JoinAudit>();
+  /** Cycle guard for `selectColumnTypeSet`, by AST identity: a WITH
+   *  RECURSIVE body types a column from a branch that reads that column. */
+  private reExportsInProgress = new Set<object>();
   /** Per-scope memoization: AST node → results (keyed by object identity). */
   private scopeCache = new WeakMap<object, OutputNullability[]>();
   /**
@@ -7011,14 +7042,12 @@ class NullabilityEngine {
     ];
     for (const members of memberLists) {
       if (members === undefined) continue;
-      const known = members
-        .map(mem => this.operandTypeSet(mem, scope, depth + 1))
-        .filter((s): s is string[] => s !== null);
+      const known = this.unifiableMemberTypes(members, scope, depth);
       // ALL members unknown means the type comes from OUTSIDE this node —
       // `m.d = COALESCE('a','b')` makes it a date — and a node typed from
       // outside cannot be typed from inside. `text` would be a guess, and
       // guessing here eliminates the overload PostgreSQL actually picks.
-      if (known.length === 0) return null;
+      if (known === null || known.length === 0) return null;
       return [...new Set(known.flat())].sort();
     }
 
@@ -7027,10 +7056,8 @@ class NullabilityEngine {
     // element that is already an array contributes itself (measured).
     const arr = rec["A_ArrayExpr"] as { elements?: Node[] } | undefined;
     if (arr) {
-      const known = (arr.elements ?? [])
-        .map(el => this.operandTypeSet(el, scope, depth + 1))
-        .filter((s): s is string[] => s !== null);
-      if (known.length === 0) return null;
+      const known = this.unifiableMemberTypes(arr.elements ?? [], scope, depth);
+      if (known === null || known.length === 0) return null;
       return [
         ...new Set(known.flat().map(t => (t.endsWith("[]") ? t : `${t}[]`))),
       ].sort();
@@ -7071,6 +7098,11 @@ class NullabilityEngine {
     }
     const rendered = this.renderedTypeOfExpr(expr, scope);
     if (rendered !== null) return [rendered];
+    // A CTE/subquery column the base-column reading has no word for — a
+    // set-op branch or a computed target entry. Second, not first: a
+    // pass-through answers from the catalog without building a scope.
+    const reExported = this.reExportedTypeSet(expr, scope, depth + 1);
+    if (reExported !== null) return reExported;
     return this.bodyParameterTypeByName(expr, scope);
   }
 
@@ -7112,18 +7144,84 @@ class NullabilityEngine {
     return t !== undefined ? [t] : null;
   }
 
-  private renderedTypeOfExpr(expr: Node, scope: Scope | null): string | null {
-    const rec = expr as Record<string, unknown>;
-    const tc = rec["TypeCast"] as
-      | { typeName?: { names?: Node[]; arrayBounds?: unknown[] } }
-      | undefined;
-    if (tc) {
-      const parts = (tc.typeName?.names ?? [])
-        .map(n => this.stringVal(n))
-        .filter(p => !!p && p !== "pg_catalog");
-      if (!parts.length) return null;
-      return parts.join(".") + (tc.typeName?.arrayBounds?.length ? "[]" : "");
+  /**
+   * The type sets of a unified member list — a CASE's arms, COALESCE's
+   * arguments, an array literal's elements — or null if the list cannot be
+   * typed from inside at all.
+   *
+   * PostgreSQL unifies these to ONE common type, so a member the walk cannot
+   * read is not the same fact as a member PostgreSQL considers UNTYPED, and
+   * collapsing the two is a containment violation waiting for a witness. It
+   * got one on 2026-08-24, the hour the re-export reading started typing CTE
+   * columns: `COALESCE(cp.product_count, 0)` over a `count(*)` column read
+   * `[integer]` where PostgreSQL resolves **bigint**
+   * (`extreme-recursive-category-analytics.sql`, caught by the containment
+   * direction of `type-unions.test.ts`). The defect was older than the
+   * reading that exposed it — nothing had ever asked this node for a type
+   * with an unreadable member in it.
+   *
+   *   * an UNTYPED member — a string literal, a bare NULL, an undeclared
+   *     `$n` — carries no type of its own and takes the common type of the
+   *     others. Dropping it is what PostgreSQL does, and is why
+   *     `COALESCE(m.ts, 'x')` still reads `timestamptz`.
+   *   * an UNREADABLE member has a type; the walk just cannot see it. The
+   *     union without it is not a superset of what PostgreSQL resolves, so
+   *     there is nothing sound to answer and the whole list refuses.
+   */
+  private unifiableMemberTypes(
+    members: readonly Node[],
+    scope: Scope | null,
+    depth: number,
+  ): string[][] | null {
+    const known: string[][] = [];
+    for (const mem of members) {
+      const set = this.operandTypeSet(mem, scope, depth + 1);
+      if (set !== null) {
+        known.push(set);
+        continue;
+      }
+      if (!this.isContextTypedNode(mem)) return null;
     }
+    return known;
+  }
+
+  /**
+   * Whether a node PostgreSQL itself considers UNTYPED, so that its type
+   * comes from whatever it is unified or compared with: a string literal,
+   * `NULL`, or a `$n` the caller declared no type for. The walk answers
+   * `null` for all three, and for unreadable expressions too — this is the
+   * predicate that tells those apart.
+   */
+  private isContextTypedNode(expr: Node): boolean {
+    const rec = expr as Record<string, unknown>;
+    const ac = rec["A_Const"] as
+      | { ival?: unknown; boolval?: unknown; fval?: unknown }
+      | undefined;
+    if (ac) return !("ival" in ac) && !("boolval" in ac) && !("fval" in ac);
+    const pr = rec["ParamRef"] as { number?: number } | undefined;
+    if (pr) {
+      const n = pr.number;
+      if (n === undefined) return true;
+      const t = this.fnCtx ? this.fnCtx.argTypes[n - 1] : this.paramTypes?.[n - 1];
+      return t === undefined;
+    }
+    return false;
+  }
+
+  /**
+   * The FROM entry a ColumnRef denotes and the name it denotes there, by
+   * PostgreSQL's own resolution: a qualified reference names its alias, an
+   * unqualified one takes the single visible entry carrying the name.
+   *
+   * Shared by the two type readings that follow — the base-column one and
+   * the re-export one — because a second copy of this would be a second
+   * place for the alias-column-list correction below to be missing.
+   */
+  private columnRefOwner(
+    expr: Node,
+    scope: Scope | null,
+  ): { owner: RelationEntry; colName: string } | null {
+    const rec = expr as Record<string, unknown>;
     if (!("ColumnRef" in rec) || !scope) return null;
     const parts = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
     let owner: RelationEntry | undefined;
@@ -7140,7 +7238,24 @@ class NullabilityEngine {
         }
       }
     }
-    if (!owner || !colName) return null;
+    return owner && colName ? { owner, colName } : null;
+  }
+
+  private renderedTypeOfExpr(expr: Node, scope: Scope | null): string | null {
+    const rec = expr as Record<string, unknown>;
+    const tc = rec["TypeCast"] as
+      | { typeName?: { names?: Node[]; arrayBounds?: unknown[] } }
+      | undefined;
+    if (tc) {
+      const parts = (tc.typeName?.names ?? [])
+        .map(n => this.stringVal(n))
+        .filter(p => !!p && p !== "pg_catalog");
+      if (!parts.length) return null;
+      return parts.join(".") + (tc.typeName?.arrayBounds?.length ? "[]" : "");
+    }
+    const resolved = this.columnRefOwner(expr, scope);
+    if (!resolved || !scope) return null;
+    const { owner, colName } = resolved;
     // A CTE or subquery entry has no catalog columns of its own; follow its
     // target list to the base column it re-exports. That is the shape any
     // query staging a value through a WITH takes, and it was one of
@@ -7168,13 +7283,153 @@ class NullabilityEngine {
   }
 
   /**
+   * The type SET of a CTE/subquery column the base-column reading above
+   * could not answer — the second and last resort, and the retirement of a
+   * refusal `catalog-adapter.ts` had recorded as the name-rule fallback's
+   * exit condition ("the fallback retires when those two sources type").
+   *
+   * `reExportedBaseColumn` answers in the vocabulary "WHICH base column is
+   * this", which the caller then types. That vocabulary has no word for a
+   * value with no base column, so two shapes came back untyped:
+   *
+   *   * a target list under a SET OPERATION — there is no ONE base column,
+   *     there is one per branch. The refusal fired before looking at
+   *     anything, so EVERY column of a set-op CTE read untyped however
+   *     ordinary, `integer` columns included.
+   *   * a COMPUTED target entry — `r.n * 2` names no column at all. The
+   *     walk had already typed that expression while analysing the body and
+   *     dropped the reading at the boundary.
+   *
+   * Both were measured 2026-08-24 as the whole precision cost of refusing
+   * the name-level total/strict claims (`half-known-operands.test.ts`,
+   * "the measured COST of the refusal"), and both answer once the question
+   * is asked in TYPES: an expression is typed by `operandTypeSet` in the
+   * inner query's own scope, and a set operation is the UNION of its
+   * branches at that position — the same rule the walk already applies to
+   * CASE arms and COALESCE arguments, and sound for the same reason (a
+   * superset never eliminates the row PostgreSQL picks).
+   *
+   * Refusing anywhere still means untyped, which is the caller's existing
+   * conservative path.
+   */
+  private reExportedTypeSet(expr: Node, scope: Scope | null, depth: number): string[] | null {
+    const resolved = scope ? this.columnRefOwner(expr, scope) : null;
+    if (!resolved || !scope) return null;
+    const { owner, colName } = resolved;
+    if (owner.table || (owner.kind !== "cte" && owner.kind !== "subquery")) return null;
+    const select = (owner.ast as Record<string, unknown> | undefined)?.["SelectStmt"] as
+      | SelectStmt
+      | undefined;
+    if (!select) return null;
+
+    // The exported NAMES are the entry's own column list where one renames,
+    // and otherwise the LEFTMOST branch's target list — which is where
+    // PostgreSQL takes a set operation's column names from.
+    const names = owner.cteColumns?.length ? owner.cteColumns : null;
+    let index = -1;
+    if (names) {
+      index = names.indexOf(colName);
+    } else {
+      const leftmost = this.leftmostBranch(select);
+      for (let i = 0; i < (leftmost?.targetList ?? []).length; i++) {
+        const rt = (leftmost!.targetList![i] as { ResTarget?: { name?: string; val?: Node } })
+          .ResTarget;
+        // A star entry shifts every later position, so nothing after it can
+        // be addressed by index.
+        if (!rt?.val || this.isStarColumn(rt.val)) return null;
+        if ((rt.name ?? this.inferName(rt.val)) === colName) {
+          index = i;
+          break;
+        }
+      }
+    }
+    if (index < 0) return null;
+    return this.selectColumnTypeSet(select, index, scope, depth);
+  }
+
+  /** The leftmost SELECT of a set-operation tree — the branch whose target
+   *  list names the result columns. */
+  private leftmostBranch(select: SelectStmt): SelectStmt | null {
+    let node: SelectStmt | undefined = select;
+    for (let hop = 0; node && hop < MAX_SETOP_DEPTH; hop++) {
+      if (!node.op || node.op === "SETOP_NONE") return node;
+      node = node.larg as SelectStmt | undefined;
+    }
+    return null;
+  }
+
+  /**
+   * The type set of a SELECT's output column at `index`: the union over a
+   * set operation's branches, or the inner expression's own reading.
+   *
+   * The cycle guard is by AST IDENTITY rather than by depth, because the
+   * cycle this closes is a real query rather than a pathological one:
+   * `WITH RECURSIVE s AS (SELECT 1 AS v UNION ALL SELECT s.v + 1 FROM s)`
+   * types `s.v` from a branch that reads `s.v`. Answering `null` there is
+   * the conservative reading the caller already handles; letting it run to
+   * the depth limit would raise instead.
+   */
+  private selectColumnTypeSet(
+    select: SelectStmt,
+    index: number,
+    outerScope: Scope,
+    depth: number,
+  ): string[] | null {
+    this.checkDepth(depth);
+    if (this.reExportsInProgress.has(select)) return null;
+    this.reExportsInProgress.add(select);
+    try {
+      if (select.op && select.op !== "SETOP_NONE") {
+        const branches = [select.larg, select.rarg] as (SelectStmt | undefined)[];
+        const sets: string[][] = [];
+        for (const branch of branches) {
+          if (!branch) return null;
+          const set = this.selectColumnTypeSet(branch, index, outerScope, depth + 1);
+          // A branch nothing could type leaves the UNION unbounded: the
+          // members it would have contributed are unknown, so the survivor
+          // set they would have kept alive is unknown too. Refuse rather
+          // than answer with the branches that did read.
+          if (set === null) return null;
+          sets.push(set);
+        }
+        const union = [...new Set(sets.flat())].sort();
+        return union.length > 0 ? union : null;
+      }
+
+      const rt = (select.targetList?.[index] as { ResTarget?: { val?: Node } } | undefined)
+        ?.ResTarget;
+      if (!rt?.val || this.isStarColumn(rt.val)) return null;
+      // The inner statement's own scope: its column references resolve
+      // against its FROM, not the caller's. Built with the walk's own
+      // builder for the reason `elementTypeInSelect` gives — a derived
+      // table may join, alias or stage through a CTE, and a second
+      // implementation of that would drift.
+      let innerScope: Scope;
+      try {
+        innerScope = this.buildScope(select, outerScope, depth + 1);
+      } catch (e) {
+        if (e instanceof UnsupportedNodeError) return null;
+        throw e;
+      }
+      const set = this.operandTypeSet(rt.val, innerScope, depth + 1);
+      // A column whose reading is an UNRESOLVED polymorphic spelling is not
+      // typed, it is named. `SELECT unnest(m.arr) AS v` reads `anyelement`
+      // from the declared return, and answering that would put a non-type in
+      // a set whose whole contract is to contain the real one.
+      return set === null || set.some(t => UNRESOLVED_POLYMORPHIC.has(t)) ? null : set;
+    } finally {
+      this.reExportsInProgress.delete(select);
+    }
+  }
+
+  /**
    * The base-table column a CTE/subquery entry re-exports under `colName`,
    * or null. A deliberately shallow read of the entry's own target list: a
    * bare `col` or `alias.col` resolved against the inner statement's
    * relation references, joins descended into, and a re-export through
    * ANOTHER CTE followed one level further. Anything the inner query
-   * computes rather than passes through has no base column, and the caller
-   * refuses there.
+   * computes rather than passes through has no base column, and
+   * `reExportedTypeSet` above is what answers for those.
    */
   private reExportedBaseColumn(
     entry: RelationEntry,

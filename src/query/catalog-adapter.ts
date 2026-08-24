@@ -1305,15 +1305,24 @@ export async function buildNullabilityCatalog(
       // The name-rule fallback, KEPT BY MEASUREMENT (2026-08-09, the
       // charter's closing item): removing it cost two real claims —
       // `cte-self-join`'s `a.total + b.total`, where `total` is a computed
-      // CTE column the re-export reading cannot type, and
-      // `function-default-argument`'s body arithmetic over the function's
-      // own parameters, which nothing types inside a body scope. Both are
-      // typeable in principle (the inner target list; the declared
-      // parameter types the snapshot already carries), so the fallback
-      // retires when those two sources type — not before, and not by
-      // assumption. A user operator sharing a curated name still makes the
-      // fallback unsound (the demonstrated rank-1), so that case answers
-      // here rather than ceding.
+      // CTE column, and `function-default-argument`'s body arithmetic over
+      // the function's own parameters, which nothing types inside a body
+      // scope. Both were typeable in principle, so the fallback was to
+      // retire when those two sources type — not before, and not by
+      // assumption. HALF DONE 2026-08-24: `reExportedTypeSet` types the
+      // first (a computed or set-op CTE column now reads from the inner
+      // target list), the body-parameter source remains. The residue is no
+      // longer "anything behind a CTE" but the kinds the type reading
+      // refuses outright — a window or aggregate call, whose semantics live
+      // in their own dispatch.
+      //
+      // What the fallback answers with is no longer its own business
+      // either: the WALK refuses here for any name carrying a recorded hole
+      // (`PARTIAL_OVERLOADS`, `NON_STRICT_OVERLOADS`), because this branch
+      // is reached exactly where the offending row cannot be eliminated.
+      // A user operator sharing a curated name still makes the fallback
+      // unsound (the demonstrated rank-1), so that case answers here rather
+      // than ceding.
       return users.length > 0 && builtins.length > 0
         ? { kind: "nullable", returns: unionOf(users, builtins) }
         : { kind: "unknown" };
