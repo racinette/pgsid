@@ -1838,3 +1838,31 @@ CREATE TABLE "date" (x integer);
 CREATE TABLE "jsonb" (x integer);
 CREATE TABLE "numeric" (x integer);
 CREATE TABLE "line" (x integer);
+
+-- ====================================================================
+-- The fallback census's overload pool (fallback-census.test.ts).
+--
+-- Four fallback branches conclude from an overload CONSENSUS reached only
+-- when `resolveFunctionMetadata` declines a name — which for a USER name
+-- means it is overloaded. The census measured (2026-08-24) that no corpus
+-- input reached any of them: the schema had strict overloaded names and
+-- domain-returning names, but never both properties on ONE name, so the
+-- consensus branches sat dark exactly the way the name-level operator
+-- claims did before the path columns existed.
+--
+-- `fb_tag` — every overload returns the same NOT NULL domain and neither is
+-- STRICT, so the domain-by-consensus claim holds whichever row PostgreSQL
+-- picks and no call can short-circuit past the domain.
+-- `fb_req` — every overload is STRICT, so the strict-by-consensus refusal
+-- and mechanism C's consensus attribution both quantify truthfully.
+-- ====================================================================
+CREATE DOMAIN fb_label AS text NOT NULL;
+CREATE FUNCTION fb_tag(a text) RETURNS fb_label
+  LANGUAGE sql AS $$ SELECT COALESCE(a, 'none')::fb_label $$;
+CREATE FUNCTION fb_tag(a integer) RETURNS fb_label
+  LANGUAGE sql AS $$ SELECT COALESCE(a::text, 'none')::fb_label $$;
+CREATE FUNCTION fb_req(a text) RETURNS text STRICT
+  LANGUAGE sql AS $$ SELECT upper(a) $$;
+CREATE FUNCTION fb_req(a integer) RETURNS text STRICT
+  LANGUAGE sql AS $$ SELECT (a + 1)::text $$;
+
