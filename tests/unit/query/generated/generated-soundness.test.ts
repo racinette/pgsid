@@ -18,6 +18,7 @@ import {
 } from "../../../../src/query/param-nullability.js";
 import type { NullabilityCatalog, OutputNullability } from "../../../../src/query/types.js";
 import { hasStatements, loadDataStates, type DataState } from "../fixture-data/states.js";
+import { delegateTypesVia } from "../delegate-types.js";
 import {
   generateDeepJoinQueries,
   generateDmlQueries,
@@ -281,6 +282,9 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     await catalogPg.exec("CREATE EXTENSION plpgsql_check;");
     await catalogPg.exec(SCHEMA_SQL);
     const snapshot = await snapshotCatalog(catalogPg);
+    const delegationEvaluate = async (sql: string) =>
+      (await catalogPg.query<Record<string, unknown>>(sql)).rows[0];
+    const delegateTypes = delegateTypesVia(delegationEvaluate);
     const catalog: NullabilityCatalog = await buildNullabilityCatalog(snapshot);
 
     const allStates = loadDataStates(snapshot);
@@ -344,7 +348,11 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
 
       try {
         record.claimed = await inferNullability(stmt, catalog, {
-          evaluate: async s => (await catalogPg.query<Record<string, unknown>>(s)).rows[0],
+          evaluate: delegationEvaluate,
+          // Type-resolution delegation, ON since 2026-08-24. It shipped wired
+          // into the walk and switched off in every suite that adjudicates
+          // against PostgreSQL; this corpus is where it meets rows in bulk.
+          resolveColumnTypes: delegateTypes,
         });
         record.groupEvidence = inferPresenceGroups(stmt, catalog).map(g => ({
           columns: g.columns,

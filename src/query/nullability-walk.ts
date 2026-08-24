@@ -29,7 +29,11 @@ import {
 } from "./srf-cardinality.js";
 import { writtenGuardTruths } from "./written-value-guards.js";
 import { resolveDelegatedTypes } from "./type-delegation.js";
-import { TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES, STRICT_OPERATORS } from "./operators.js";
+import {
+  PARTIAL_OVERLOADS,
+  TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES,
+  STRICT_OPERATORS,
+} from "./operators.js";
 import {
   collectParamFacts,
   forcedNullParams,
@@ -8963,6 +8967,33 @@ class NullabilityEngine {
             return false;
           }
         }
+
+        // The name-level fallback is reached exactly when the SIGNATURE
+        // narrowing could not decide — which is exactly when a name with a
+        // RECORDED HOLE must not be claimed. `+` is on TOTAL_OPERATORS
+        // despite `+(path,path)` being NULL for a closed path, and the
+        // register's reason for keeping the name was that "the falsifying
+        // input needs a path-typed column": true, and a set operation is how
+        // one arrives here with the type lost. Measured 2026-08-24 —
+        // `WITH c AS (SELECT seg, other FROM route UNION ALL SELECT other,
+        // seg FROM route) SELECT c.seg + c.other FROM c` claimed notNull and
+        // PostgreSQL returned NULL on every row.
+        //
+        // Refusing HERE and not at the name list is what keeps `id + 1`:
+        // readable operand types narrow to `+(integer,integer)` above and
+        // never reach this line. What is given up is the claim over operands
+        // nothing could type, which is precisely the claim that had no
+        // grounds.
+        if (!qualified && PARTIAL_OVERLOADS[op] !== undefined) {
+          trace.addFact("partialOverload", PARTIAL_OVERLOADS[op]!);
+          trace.conclude(
+            false,
+            `'${op}' carries a recorded non-total signature and the operand ` +
+              `types did not narrow it away → nullable`,
+          );
+          return false;
+        }
+
         // A schema-qualified operator may be user-defined and shadow a
         // built-in symbol, so only bare names are matched.
         if (qualified || !TOTAL_OPERATORS.has(op)) {

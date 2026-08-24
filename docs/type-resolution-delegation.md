@@ -1,7 +1,28 @@
 # Type-resolution delegation — asking PostgreSQL what an expression is
 
 **CHARTERED 2026-08-20. RE-CHARTERED 2026-08-24 on a different mechanism.
-ALL FIVE STAGES LANDED 2026-08-24.** Written to be handed to a session with no other context:
+ALL FIVE STAGES LANDED 2026-08-24. TURNED ON IN THE ADJUDICATING SUITES
+2026-08-24, and it now carries a claim.**
+
+> **What turning it on found.** Delegation shipped wired into the walk and
+> switched OFF in every suite that adjudicates against PostgreSQL, so its
+> answers had never met a row. Switched on — fixture soundness, generated
+> soundness, the sqlc corpus, and the annotation suite — it makes **50
+> delegated answers over the fixture corpus and changed 0 claims**, which is
+> the same no-op Stage 5 measured.
+>
+> The reason it was a no-op turned out to be a WRONG RULE ANSWERING FIRST. `+`
+> is on the name-level `TOTAL_OPERATORS` with `+(path,path)` recorded as a
+> hole, and that name-level claim was reached exactly where operand types are
+> unreadable — so an untypeable operand got notNull for free and delegation had
+> nothing left to buy. That shortcut was measurably unsound
+> (docs/deferred-tasks.md §4). With it removed, `cte-self-join.sql`'s
+> `combined` is nullable symbolically and **notNull through the delegated
+> type**: the corpus's first claim that RESTS on this mechanism, pinned by name
+> in `type-delegation-red.test.ts`.
+>
+> A mechanism that changes nothing may be carrying a defect rather than
+> confirming an engine. Written to be handed to a session with no other context:
 everything needed to do the work is here or named here, and the numbers are
 measurements rather than estimates. Where this document says "measured", it
 was, and the date is given — re-deriving costs a day and changes nothing.

@@ -979,6 +979,26 @@ CREATE TABLE relay (
   CHECK (true OR note IS NOT NULL)
 );
 
+-- The corpus's only PATH-typed columns, and the reason they exist.
+--
+-- `+` is on the name-level TOTAL_OPERATORS despite `+(path,path)` being NULL
+-- whenever either operand is a CLOSED path. The register kept the name because
+-- "the falsifying input needs a path-typed column, which essentially no
+-- application schema has" — true of application schemas, and it made THIS
+-- corpus unable to express the falsifying input at all. Measured 2026-08-24:
+-- the name-level claim was reached exactly when the operand types could not be
+-- narrowed, so a path column behind a set operation read notNull while
+-- PostgreSQL returned NULL on every row.
+--
+-- Both columns are CLOSED paths (`(...)` rather than `[...]`), so the sum is
+-- NULL on every row and the nullable claims below are witnessed rather than
+-- argued.
+CREATE TABLE route (
+  id  integer PRIMARY KEY,
+  seg path NOT NULL,
+  alt path NOT NULL
+);
+
 -- A DEAD COMPUTATION beside a real guard — `relay` one step past a literal.
 -- The same fact carries both tables (no constant folding into
 -- `pg_constraint.conbin`), but relay's dead arms are TOKENS and these are

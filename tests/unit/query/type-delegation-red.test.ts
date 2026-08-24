@@ -470,10 +470,24 @@ describe("delegation over the fixture corpus", () => {
         claimChanges.slice(0, 10).map(c => `     ${c}\n`).join(""),
     );
     // Not an assertion that they must never move — delegation is meant to
-    // improve precision eventually. It IS an assertion that a move is
-    // deliberate: this list is empty today, and a future entry has to be
-    // looked at and re-pinned rather than absorbed silently.
-    expect(claimChanges).toEqual([]);
+    // improve precision. It IS an assertion that a move is DELIBERATE, and
+    // the list stopped being empty on 2026-08-24.
+    //
+    // It was empty for four days, and the reason is worth more than the
+    // entry: a WRONG rule was answering first. `+` sits on the name-level
+    // TOTAL_OPERATORS despite `+(path,path)` being NULL for a closed path,
+    // and that name-level claim was reached exactly when the operand types
+    // could not be narrowed — so an untypeable operand got notNull for free,
+    // and delegation had nothing left to buy. Removing the shortcut (it was
+    // measurably UNSOUND: a path column through a set operation claimed
+    // notNull and PostgreSQL returned NULL on every row) is what made this
+    // claim depend on the delegated type.
+    //
+    // A new entry has to be looked at and re-pinned rather than absorbed,
+    // and the direction matters: a `false → true` is delegation eliminating
+    // a non-total candidate, and the soundness suites — which run with
+    // delegation ON since the same day — are what adjudicate it against rows.
+    expect(claimChanges).toEqual(["cte-self-join.sql: combined false → true"]);
 
     console.log(
       `\ntype-delegation over the fixture corpus\n` +
