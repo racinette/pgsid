@@ -463,3 +463,58 @@ describe("the star-expansion crossing", () => {
     expect(c.outputs[0]!.notNull).toBe(true);
   });
 });
+
+// --- F — a proven-TRUE guard ends the arm chain (GRADUATED 2026-08-25) -----
+// Captured and flipped the same day, which is the whole story: the
+// alwaysNull CASE rule gained arm PRUNING that morning (a guard the facts
+// prove NEVER TRUE excuses its arm from having to be NULL), and its mirror
+// was left out and filed in deferred-tasks 2d as reaching no measured
+// imprecision. One probe falsified that — these two shapes return NULL on
+// every row and the engine said nullable — so the item became a red case
+// and then a fix. A guard the facts PROVE means every later arm and the
+// ELSE never run, which is the same fact `walkExprTraced`'s `firstTrue` has
+// consumed on the notNull side all along.
+//
+// Adjudicated against PostgreSQL before writing: both targets return NULL
+// on every row, both guards return a non-NULL. Corpus: the
+// check-guard-proven-* family (else, later-arm, earlier-arm).
+describe("F — a proven-TRUE guard ends the arm chain", () => {
+  it("the ELSE beside a proven guard never runs", async () => {
+    // The WHERE IS the guard, so the first arm always fires and its NULL is
+    // the only value. PostgreSQL: 1 row, NULL. The ELSE's non-null 'x' is
+    // what the engine currently stops on.
+    expect(
+      await verdict("SELECT CASE WHEN status = 'paid' THEN NULL ELSE 'x' END FROM inv WHERE status = 'paid'"),
+    ).toBe("alwaysNull");
+  });
+
+  it("later ARMS beside a proven guard never run either", async () => {
+    // Same fact one arm further: `id > 0` sits between the proven guard and
+    // the ELSE and is unreachable for the same reason. PostgreSQL: 1 row,
+    // NULL.
+    expect(
+      await verdict(
+        "SELECT CASE WHEN status = 'paid' THEN NULL WHEN id > 0 THEN 'y' ELSE 'x' END FROM inv WHERE status = 'paid'",
+      ),
+    ).toBe("alwaysNull");
+  });
+
+  it("guard: with nothing proving the guard the ELSE is live", async () => {
+    // Unfiltered, the draft and void rows take the ELSE and carry 'x'.
+    expect(
+      await verdict("SELECT CASE WHEN status = 'paid' THEN NULL ELSE 'x' END FROM inv"),
+    ).toBe("nullable");
+  });
+
+  it("guard: an EARLIER arm that can still fire keeps the value alive", async () => {
+    // `id > 0` is not refuted, so it may fire before the proven guard is
+    // ever reached — and it yields 'z'. PostgreSQL returns 'z', so an
+    // alwaysNull claim here would be a lie about a column that carries
+    // values, not eagerness.
+    expect(
+      await verdict(
+        "SELECT CASE WHEN id > 0 THEN 'z' WHEN status = 'paid' THEN NULL ELSE 'x' END FROM inv WHERE status = 'paid'",
+      ),
+    ).toBe("nullable");
+  });
+});

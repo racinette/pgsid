@@ -1087,14 +1087,18 @@ missing was everything that lets the WHERE reach the CASE's ARMS:
   skip as a cost skip, and says so.)
 - **An alwaysNull channel through the inline.** `entryColumnAlwaysNull`
   now inlines the generation expression the notNull side inlines, and
-  `alwaysNullExpr`'s CASE rule consults the same arm pruning. The
-  pruning had been skipped there deliberately — ignoring it is the
-  conservative direction, since a pruned arm only removes a way to be
+  `alwaysNullExpr`'s CASE rule consults arm REACHABILITY. Reachability
+  had been skipped there deliberately — ignoring it is the conservative
+  direction, since a branch that cannot run only removes a way to be
   non-null — and conservative is exactly what kept an ELSE-only
-  predicate from concluding NULL. The notNull side's joinState gate has
-  no counterpart here and needs none: an extended row nulls the column
-  outright, a present row is the stored row the expression describes,
-  and both arms end at NULL.
+  predicate from concluding NULL. Both halves landed: a refuted guard
+  excuses its own arm, and a PROVEN guard silences every later arm and
+  the ELSE (`always-null-red.test.ts` describe F — filed in
+  deferred-tasks 2d as unmeasured, falsified by one probe within the
+  hour, red-then-fixed; corpus `check-guard-proven-*`). The notNull
+  side's joinState gate has no counterpart here and needs none: an
+  extended row nulls the column outright, a present row is the stored
+  row the expression describes, and both arms end at NULL.
 - **The anchor pool, which was the real floor.** Found while flipping
   the first two and invisible from the consumer side:
   `collectComparisonQuestions` drew its per-table literal pool from
