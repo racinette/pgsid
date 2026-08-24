@@ -874,6 +874,13 @@ charter's guess): they are the no-evaluate mode's whole power and the
 same-token fast path, and the capture pins now hold their content
 consistent instead.
 
+**Corrected 2026-08-24** — the anchor reading carried a SOUNDNESS hole
+for twelve days: a cast-less fval read at an integer column ROUNDS
+while the query's comparison runs at numeric, so the rung refuted
+guards the true set contains. Found while building the containment
+rung, measured, closed by `litReadExactAt` — the full story in
+"Interval containment — membership transport" below.
+
 ### List membership exclusion (chartered 2026-08-16, BUILT 2026-08-16)
 
 The measured gap (2026-08-16, the CHECK-twin probe): `CHECK (k IN
@@ -966,6 +973,86 @@ and `partition-bound-list.sql` each gained the IN-spelled claim beside
 their existing `=` one and a NOT IN control witnessed in every data
 state (every guest status is a member; every courier_north region is
 'north' or 'east', so the conjunction is TRUE on every row).
+
+### Interval containment — membership transport (found 2026-08-24, BUILT 2026-08-24)
+
+The gap surfaced by a maintainer question, not a charter: arm selection
+inside a CHECK's CASE was EQUALITY-shaped — `WHERE status = 'housed'`
+selects its arm — while the ORDER theory above concluded emptiness
+alone. `SELECT o FROM t WHERE a >= 4` under `CHECK (CASE WHEN a >= 3
+THEN o IS NOT NULL ELSE o IS NULL END)` stayed nullable, though
+[4,∞) ⊆ [3,∞) is bookkeeping over the very anchors the exclusivity
+rung already evaluates. Measured before writing (the red-suite bar),
+captured RED the same day (`check-arm-interval-red.test.ts`), built the
+same day.
+
+The judgment is the exclusivity table's dual over the SAME core:
+`cmpShapeRel` (one home for every gate — captures, column-typed
+literals, the collation trichotomy) now feeds two thin conclusions,
+`shapesDisjoint` and `shapesContained`. Containment is domain-free like
+emptiness: `{x ≥ 4} ⊆ {x ≥ 3}` because 4 > 3 and the order is
+transitive, never because of what sits between; the closed-into-strict
+cells (a closed ray inside its strict twin at the same anchor) refuse,
+held by boundary data (`check-arm-interval-strict-boundary.sql` and its
+left mirror).
+
+WHY THIS STAYS INSIDE THE DIRECTION WALL: the wall bans concluding
+NONEMPTINESS — "this set has members" needs a type's inhabitants. The
+transport concludes nothing about sets having members. A TRUE witness
+places the emitted row's value in the witness set; the algebra proves
+that set sits inside the question's; the value rides along — the member
+travels WITH the conclusion. That is also why the strength gates are
+what they are, each held by a PostgreSQL-witnessed control: TRUE facts
+only (`check-arm-interval-notfalse-control.sql` — a notFALSE witness
+may be NULL, and the question is NULL beside it), and TRUE OR-facts
+only for the disjunctive face `orFactImpliesAtom`
+(`check-arm-interval-or-notfalse.sql` — a notFALSE disjunction may have
+had no arm hold at all).
+
+Three companions landed in the same pass, each measured first:
+
+- **The lossy anchor read — a SOUNDNESS hole in the exclusivity rung,
+  found while designing the containment fixtures and closed before
+  them.** The anchor questions read both literals at the column's
+  declared type, and for a cast-less fval over an integer column that
+  read ROUNDS: `2.4::integer` is 2, while the query's own `z < 2.4`
+  promotes the COLUMN to numeric and keeps the literal exact. The
+  misread anchor named the wrong set, and exclusivity refuted a guard
+  the true set contains (measured: the z = 2 row fires the arm the
+  engine called dead — an OVERCLAIM, adjudicated before fixing).
+  `litReadExactAt` now gates the evaluated path: typmods refuse for
+  every kind (the read re-rounds/truncates on its own), sval-ish kinds
+  pass (unknown-literal resolution takes the column's type in the query
+  too), ival passes everywhere but `real`, fval only at plain `numeric`
+  and `double precision`. Identical tokens stay exempt — one resolution
+  serves both sides. The equality-anchored oracle needed no gate: a
+  satisfiable equality fact pins the value to something
+  column-representable, which is its substitution argument. Corpus:
+  `check-interval-lossy-anchor.sql` (exclusivity),
+  `check-arm-interval-lossy-anchor.sql` (containment), and the
+  double-held typmod records (`-typmod-numeric`, `-typmod-refusal`) —
+  the typmod bar has no single-gate kill, and the fixtures' headers
+  carry the measured reasons.
+- **OR-fact containment**: TRUE(a >= 4 OR a >= 5) selects the `a >= 3`
+  arm — whichever disjunct held, its set lands inside. The subset rule
+  with containment where it matched by identity;
+  `check-arm-interval-or-containment.sql` and the escaping-disjunct
+  control.
+- **Arm stepping by notTRUE**: the harvest stepped past a CASE arm only
+  on FALSE, and TRUE(a <= 3) proves `a > 5` notTRUE — never FALSE. A
+  NULL guard skips its arm exactly as a FALSE one does, so notTRUE is
+  the right stepping judgment; the ELSE's own enforcement then claims
+  (`check-arm-interval-step-notrue.sql`, with the overlap control that
+  keeps stepping a judgment).
+
+Text rides the identity arm of the collation trichotomy (default
+collation orders, `check-arm-interval-text.sql`); an explicit collation
+stays refused, recorded as the family's `@unwitnessable` entry
+(`check-arm-interval-collation-refusal.sql`). The point-witness row of
+the containment table is provable only through HARVEST-derived
+equalities (`check-arm-interval-point-witness.sql` — the oracle's
+question key needs a statement-side equality that isn't there), which
+is what makes that cell testable at all.
 
 ### Partition-bound facts (chartered 2026-08-12, BUILT 2026-08-16)
 

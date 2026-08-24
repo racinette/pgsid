@@ -67,6 +67,12 @@ const SCHEMA = `
   CREATE TABLE stxc (s text COLLATE "C", CHECK (s > 'm'));
   CREATE TABLE stxeq (s text COLLATE "C", CHECK (s = 'alpha'));
   CREATE TABLE dtc (d date, CHECK (d > '2020-01-01'));
+  -- The lossy-anchor subject (found 2026-08-24 while building the
+  -- containment rung): an fval anchor over an INTEGER column, where the
+  -- anchor's read at the column type rounds (2.4::integer is 2) while the
+  -- query's own comparison runs at numeric.
+  CREATE TABLE cain (a int NOT NULL, o text,
+    CHECK (CASE WHEN a < 2 THEN o IS NOT NULL ELSE o IS NULL END));
   -- Partition-bound subjects (the chartered rung): an integer-range family
   -- with a DEFAULT partition, a list family with a NULL-listing partition,
   -- a hash family. The bound is the ONLY fact anywhere here — no column is
@@ -523,6 +529,51 @@ describe("interval exclusivity (flipped 2026-08-12 — the chartered rung landed
     expect(await notNullOf(
       "SELECT CASE WHEN c.d <= '1/2/2020' THEN NULL ELSE 5 END AS r FROM dtc c",
     )).toBe(false);
+  });
+});
+
+// --- The lossy anchor read (found 2026-08-24, a SOUNDNESS bug). --------------
+// The anchor questions read both literals AT THE COLUMN'S DECLARED TYPE,
+// and for a cast-less fval over an integer column that read ROUNDS:
+// `2.4::integer` is 2, while the query's own `z < 2.4` compares at NUMERIC
+// (the column is promoted, the literal kept exact). The misread anchor
+// names the wrong set — {x < 2.4} over integers is {x <= 2}, read as
+// {x < 2} — and both interval judgments then overclaim: exclusivity
+// refutes a guard the true set contains (z = 2 fires beside z < 2.4;
+// adjudicated, the NULL row measured), and containment selects a CHECK
+// arm the true set escapes (a = 2 satisfies `a < 2.4` and takes the ELSE).
+// The equality-anchored oracle is immune — a satisfiable equality fact
+// pins the value to something column-representable, which is its
+// substitution argument — so the hole is exactly the interval rungs'.
+describe("the lossy anchor read (found & closed 2026-08-24)", () => {
+  const notNullOf = async (sql: string) => (await contract(sql)).outputs[0]!.notNull;
+
+  // Both graduated the day they were captured: `litReadExactAt` gates the
+  // evaluated anchor path (identical tokens stay exempt — one resolution
+  // serves both sides), and the corpus witnesses live in
+  // check-interval-lossy-anchor.sql / check-arm-interval-lossy-anchor.sql.
+  it("exclusivity must not refute through a rounded fval anchor", async () => {
+    // PostgreSQL: z = 2 satisfies CHECK (z <> 5) and `z < 2.4`, and fires
+    // the NULL arm — notNull is an overclaim (measured, rows: [{x: null}]).
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.z = 2 THEN NULL ELSE 5 END AS r FROM ne2 c WHERE c.z < 2.4",
+    )).toBe(false);
+  });
+
+  it("containment must not select an arm through one either", async () => {
+    // PostgreSQL: a = 2 satisfies `a < 2.4` and takes the CHECK's ELSE arm
+    // (o IS NULL) — the rounded read {x < 2} ⊆ {x < 2} "proves" the arm.
+    expect(await notNullOf(
+      "SELECT o FROM cain c WHERE c.a < 2.4",
+    )).toBe(false);
+  });
+
+  it("GUARD: numeric columns keep their cross-kind anchors", async () => {
+    // fval at a NUMERIC column is exact — the numeric-kinds flip above
+    // must survive the gate that closes the integer hole.
+    expect(await notNullOf(
+      "SELECT CASE WHEN c.n <= 5 THEN NULL ELSE 5 END AS r FROM nm c",
+    )).toBe(true);
   });
 });
 

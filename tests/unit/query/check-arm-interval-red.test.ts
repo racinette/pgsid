@@ -7,19 +7,20 @@ import { inferNullability } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// RED SUITE: selecting a CHECK's CASE arm by interval CONTAINMENT.
-//
-// Same discipline as the other *-red suites: every `it.fails` case asserts
-// the TARGET contract — what the engine must claim once the mechanism lands —
-// and passes today exactly because the engine does not claim it yet.
+// RED SUITE (graduated): selecting a CHECK's CASE arm by interval
+// CONTAINMENT.
 //
 // The gap (found 2026-08-24, by a maintainer question): arm selection inside
-// a CHECK's CASE is EQUALITY-shaped — `WHERE status = 'housed'` selects its
+// a CHECK's CASE was EQUALITY-shaped — `WHERE status = 'housed'` selects its
 // arm (check-case-discriminator-notnull.sql) — while the ORDER theory the
-// interval kernel already owns is wired to dead disjuncts and query-side
-// CASE guards, not to arm selection. So `WHERE a >= 4` does not select the
-// `a >= 3` arm, though [4,∞) ⊆ [3,∞) is exactly the containment the kernel
-// computes elsewhere (check-interval-numeric-kinds.sql, one consumer over).
+// interval kernel already owned was wired to disjointness alone (the
+// exclusivity rung), never to implication. So `WHERE a >= 4` did not select
+// the `a >= 3` arm, though [4,∞) ⊆ [3,∞) is order bookkeeping over the
+// same anchors the exclusivity rung already evaluates.
+//
+// Both targets graduated 2026-08-24, the same day they were captured:
+// `intervalImplied` in the kernel (membership transport over
+// `shapesContained`), corpus fixture check-arm-interval-containment.sql.
 //
 // Adjudicated against PostgreSQL before writing (the red-suite bar): every
 // stored row with a >= 4 satisfied the CHECK's a >= 3 arm at write time, so
@@ -38,6 +39,11 @@ const SCHEMA = `
     a integer NOT NULL,
     o text,
     CHECK (CASE WHEN a >= 3 THEN o IS NOT NULL ELSE o IS NULL END)
+  );
+  CREATE TABLE step (
+    a integer NOT NULL,
+    o text,
+    CHECK (CASE WHEN a > 5 THEN o IS NULL ELSE o IS NOT NULL END)
   );
   CREATE TABLE cais (
     s text NOT NULL,
@@ -70,7 +76,7 @@ async function verdict(sql: string): Promise<"notNull" | "nullable"> {
 }
 
 describe("CHECK-CASE arm selection by interval containment", () => {
-  it.fails("an integer WHERE interval contained in the arm's selects it", async () => {
+  it("an integer WHERE interval contained in the arm's selects it", async () => {
     // PostgreSQL: every row with a >= 4 was CHECK-enforced through the
     // a >= 3 arm, so o IS NOT NULL on all of them.
     expect(await verdict("SELECT o FROM cai WHERE a >= 4")).toBe("notNull");
@@ -85,7 +91,7 @@ describe("CHECK-CASE arm selection by interval containment", () => {
     expect(await verdict("SELECT o FROM cai WHERE a >= 3")).toBe("notNull");
   });
 
-  it.fails("default-collation text rides the same containment", async () => {
+  it("default-collation text rides the same containment", async () => {
     // The kernel already anchors text order to the session's default
     // collation (check-interval-text-default.sql); the same identity is what
     // entitles arm selection here.
@@ -107,5 +113,39 @@ describe("CHECK-CASE arm selection by interval containment", () => {
     // Order under COLLATE "C" is the kernel's standing refusal
     // (check-interval-refusals.sql); arm selection must inherit it.
     expect(await verdict("SELECT o FROM caic WHERE s >= 'p'")).toBe("nullable");
+  });
+});
+
+// --- Adjacent rungs, found 2026-08-24 while graduating the containment
+// suite; both graduated the same day (`orFactImpliesAtom`, and the
+// harvest's notTRUE stepping; corpus: check-arm-interval-or-*.sql,
+// check-arm-interval-step-*.sql). -------------------------------------------
+
+describe("OR-fact containment", () => {
+  it("every disjunct inside the arm selects it", async () => {
+    // PostgreSQL: whichever disjunct held, its set sits inside [3,inf) —
+    // the subset rule's shape with containment where it matches by
+    // identity today.
+    expect(await verdict("SELECT o FROM cai WHERE a >= 4 OR a >= 5")).toBe("notNull");
+  });
+
+  it("guard: one escaping disjunct forfeits the fact", async () => {
+    // a >= 2 admits a = 2 — ELSE arm, o NULL (adjudicated).
+    expect(await verdict("SELECT o FROM cai WHERE a >= 4 OR a >= 2")).toBe("nullable");
+  });
+});
+
+describe("arm stepping by notTRUE", () => {
+  it("a refuted first guard falls through to the ELSE", async () => {
+    // PostgreSQL: a <= 3 rows fail `a > 5`, the CASE takes the ELSE, and
+    // o IS NOT NULL is enforced. The harvest steps only on FALSE today,
+    // and TRUE(a <= 3) proves `a > 5` notTRUE (interval exclusivity),
+    // never FALSE — one judgment short.
+    expect(await verdict("SELECT o FROM step WHERE a <= 3")).toBe("notNull");
+  });
+
+  it("guard: an overlapping WHERE keeps the first arm live", async () => {
+    // a <= 6 admits a = 6, whose row fired `a > 5` — o NULL (adjudicated).
+    expect(await verdict("SELECT o FROM step WHERE a <= 6")).toBe("nullable");
   });
 });
