@@ -1376,6 +1376,7 @@ Two of these three needed one query each.
 | **A unified member list with an UNREADABLE member** | **closed — this was UNSOUND, and only the row above could expose it** | `COALESCE`/`CASE`/`GREATEST`/`LEAST`/array-literal members are unified by PostgreSQL to ONE common type. The walk read the union of the members it could type and DROPPED the rest, which is right for a member PostgreSQL itself considers UNTYPED — a string literal, a bare `NULL`, an undeclared `$n` all take the common type of the others, and that is why `COALESCE(m.ts, 'x')` still reads `timestamptz` — and wrong for a member whose type the walk merely could not SEE. Both arrived as `null` from `operandTypeSet`, so the two facts were one. Witnessed the hour the re-export reading landed: `extreme-recursive-category-analytics.sql`'s `COALESCE(cp.product_count, 0)` over a `count(*)` column read **`[integer]` where PostgreSQL resolves `bigint`** — a containment violation, the one thing a type set promises never to be, caught by `type-unions.test.ts`'s containment direction. **The defect was older than the reading that exposed it**; nothing had ever asked that node for a type with an unreadable member in it, because the re-export refused before the question could be reached. `unifiableMemberTypes` now refuses the whole list when a member is unreadable and drops only the context-typed ones (`isContextTypedNode`). A closure whose corpus effect is zero claims is not a closure whose effect is nothing |
 | The OVERLOAD SUBSET rule, as a property | **pinned 2026-08-24** | Both fixes above refuse over a name; neither refuses over a SUBSET, and nothing tested the difference until it was asked for directly. The rule is that the candidate set is the overload subset the KNOWN operands reach and the verdict quantifies over THAT — so one readable operand is a real narrowing, not a licence. It cuts both ways and the two operators land on opposite sides, which is the point: an `integer` left reaches 14 `+` rows and `+(path,path)` is not among them (read from `pg_operator`/`pg_cast` in the assertion, so a future PostgreSQL adding an integer-reachable non-total row fails the test) → **notNull**; a `path` left reaches exactly `path,path` and `path,point`, hole included → **nullable**. On the strictness side one operand is NOT enough: with `text` on the left, `anycompatible \|\| anycompatiblearray` survives, and PostgreSQL really runs it — `NULL::text \|\| ARRAY['a']` is `{NULL,a}`, so the concatenation absorbs the NULL rather than returning one and a TRUE comparison proves nothing. That refusal is correct, not shy. `half-known-operands.test.ts` (15 targets, every claim adjudicated against the database in the same assertion) and four columns of `name-level-partial-overload.sql` — `counted`, `half_int`, `half_path`, `combined` — which walk the rule from one-side-known-and-clean to neither-side-known |
 | A POLYMORPHIC signature, in any consumer | **closed** | The evaluator's two survivor checks — an unknown operand must land on an immutable-I/O parameter, a result must be base-kind — both read the DECLARED spelling, which for a polymorphic row is `anycompatible`/`anycompatiblearray`: never a base type, never in a set of them. So a polymorphic signature refused on contact with a bare string literal, and a polymorphic RESULT refused at any argument spelling. The tell was `array_position(ARRAY['a','b'], 'z')` open while `…, 'z'::text` folded — a difference in SPELLING, not volatility. Closed 2026-08-24 by resolving the family from the call's known operands and running both checks against the resolved type; the AGREEMENT case only, so it falls back to today's answer and can only add. Surface: **48 immutable pg_catalog functions with a polymorphic result could never fold, plus 46 with a polymorphic param, 3 + 19 operators.** The check still works — `array_position(ARRAY['2020-01-02'::date], '01/02/2020')` is 1 under MDY and NULL under DMY, and `date` is out of the set. `polymorphic-landing-red.test.ts`, fixture `polymorphic-landing.sql` |
+| A lone-argument `unnest` over an operand NOTHING can type | one column — a recorded SHAPE residue, not a fact | Found 2026-08-24 by the pg-regress replay: `unnest(tsvector)` is SETOF record (lexeme, positions, weights), and the walk contributed ONE column for it — a FROM-item misalignment, sweep 4's class. The lone-argument spelling now dispatches on the operand's type (fixture `unnest-tsvector-shape.sql`), and a set CONTAINING tsvector refuses. What remains is the fully-UNTYPED operand, kept at one column because the common untyped operands are arrays by construction (`unnest(array_agg(x))`, an ARRAY sublink, a polymorphic aggregate — three measured fixture shapes the type reader refuses BY DESIGN) — which is the same "no application schema has one" reasoning the name-level rows above convicted, so it is recorded HERE rather than trusted. Closes when the type reading learns aggregate return types |
 | `A_Indirection` over a CLOSED array | **closed** | Filed 2026-08-24, closed the same day by the grammar census below. A subscript dispatches a TYPE'S OWN routine, not an I/O function — `array_subscript_handler` and `jsonb_subscript_handler` are both immutable — so the closure question is the argument's. Distinct from the permanent `A_Indirection` row above, which is a subscript over a COLUMN. `closed-grammar-subscript.sql` |
 | Every SQL/JSON expression node, in the evaluator | **blocked upstream** | `JsonIsPredicate`, `JsonObjectConstructor`, `JsonArrayConstructor`, `JsonScalarExpr`, `JsonParseExpr`, `JsonSerializeExpr`, `JsonFuncExpr` (JSON_VALUE/QUERY/EXISTS). Each answers a definite value from all-literal arguments (measured), each would close on the ordinary immutable-I/O grounds — `json_in`/`jsonb_in` are immutable — and `pgsql-deparser` throws `Deparser does not handle node type` on ALL SEVEN. The evaluator renders every collected subtree and a rejected render zeroes the whole statement's map, so admitting one would cost every other answer in the same query. **ONE blocker, not seven, and the drafted-and-unfiled missing-feature issue in `docs/deparser-limitations.md` is what unblocks it** — which is a better reason to send that report than tidiness. `closed-grammar-red.test.ts` |
 | The closed grammar's census | **third direction added** | The allowlist census caught over-admission and dead gates and could not see ABSENCE: a kind the gate never heard of is never inside a collected subtree and never classified `closed`, so both directions passed while the gate did not exist. **Twenty-six expression kinds were in that blind spot** — two closed and refused anyway, seven blocked upstream, the rest open for reasons now written down and testable. `subtree-evaluator.test.ts`, "every expression kind the corpus writes has been CONSIDERED" |
@@ -1401,20 +1402,53 @@ replication connection and takes the backend down when called from a SELECT.
 
 **Trigger.** A future `@electric-sql/pglite` that ships `test_decoding`.
 
-### 7. PostgreSQL's regression suite as a borrowed corpus
+### 7. PostgreSQL's regression suite as a borrowed corpus — BUILT 2026-08-24
 
-Recorded, not scheduled. `pglite/postgres-pglite/src/test/regress/sql` —
-verified 2026-08-23, 232 files at that path (the entry used to name it one
-directory up, where nothing is) —
-PostgreSQL License — is the most adversarial SQL corpus in existence, but it
-is stateful scripts rather than schema/query pairs: using it means treating
-each file as a continuous migration and intercepting the SELECTs and DMLs
-against accumulated state. The query shapes are mostly simplistic; **the prize
-is SYNTAX coverage** — every construct PostgreSQL has — so it buys
-refusal-census and shape-oracle reach, not nullability depth.
+**Built**, by the harness-strengthening handoff's item 4:
+`tests/unit/query/pg-regress.test.ts` plus the `pg-regress/` harness (a
+psql-style splitter, and a killable CHILD-PROCESS session — a worker thread
+is not enough, because a PGlite WASM abort exits the PROCESS, measured on the
+first full attempt). Files replay in parallel_schedule order in one
+accumulating session; every successfully-executed SELECT/DML is analysed
+against the lazily re-snapshotted catalog under the live search_path; the
+census is pinned exactly, refusals and shape mismatches by name.
 
-**Trigger.** Wanting the unsupported-node surface swept by the engine authors'
-own corpus.
+Shape-and-refusal only, as scoped here: the big COPYs read files through psql
+variables the replay does not emulate, so the data mostly never loads and
+witnessing would be witnessing near-empty tables. Two runtime defect classes
+are routed around and COUNTED, never hidden: `COPY … FROM stdin` crashes
+PGlite's extended protocol outright (statements skipped by shape), and
+poisoned backends — the convert_to class in the workspace's own PGlite bug
+report — are detected by a canary probe and end the file with a reboot. A
+third divergence class was the HARNESS's own and is closed: pg_regress runs
+every file on its own CONNECTION, and a one-session replay leaked GUCs
+across files — temp.sql leaves `search_path = pg_temp`, after which every
+later file's unqualified DDL landed in the TEMP schema, invisible to the
+snapshot while PostgreSQL resolved it fine. Debugged to that root (the SNAP
+trace shows `raw_path="pg_temp"` at the divergent statement), fixed with
+`ROLLBACK; DISCARD ALL;` between files — the closest one session gets to a
+fresh connection.
+
+**The replay paid immediately: seven engine defects, all of sweep 4's
+FROM-item class or adjacent, each fixed and pinned the same day.** A walk
+CRASH on variadic-only user overloads (the user-row projections dropped the
+variadic parameter from `args` where the builtin capture keeps it —
+`textmultirange`, pinned by `user-variadic-overload.sql`); the
+`unnest(tsvector)` shape (`unnest-tsvector-shape.sql`, untyped residue in
+§4); `json[b]_populate_record[set]`'s shape being its first argument's
+composite type (`populate-record-shape.sql`, ~38 statements);
+`RETURNING old.*/new.*` expanding to nothing (`returning-old-star-insert.sql`,
+`returning-new-star-delete.sql`); PG14 join aliases — both `USING (…) AS x`
+and `(a JOIN b) AS j` — expanding to nothing (`join-using-alias-star.sql`,
+`join-alias-star.sql`); unnamed OUT parameters collapsing to one column
+(`function-unnamed-out-columns.sql`); and JSON_TABLE emitting document order
+where PostgreSQL puts each level's plain columns before its nested paths'
+(`jsontable-plain-after-nested.sql`). The remaining pinned residue is ONE
+boundary: TEMP-schema relations sit outside the snapshot's capture scope
+(five shape pins over `RETURNS [SETOF] <temp table>`, two name pins over a
+temp table shadowing a permanent one) — closes only by a catalog-scope
+decision, recorded in the suite's pin comments. Witnessing against
+regression-suite data remains a later, separate decision.
 
 ### 8. Semantic re-founding — standing TODO, parallel track
 
