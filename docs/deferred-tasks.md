@@ -45,7 +45,7 @@ and `operators.ts` is 74% — that is where rationale is kept, and it works.
 | What `pgsql-deparser` cannot render, and what that costs | `docs/deparser-limitations.md` — read BEFORE testing whether a construct deparses; that exploration has been done twice |
 | Argument / parameter contract | `docs/argument-nullability.md` |
 | Witness corpus discipline | `docs/witness-coverage.md` |
-| Anything needing project config or a call site | `docs/consumer-design.md` |
+| Anything needing project config or a call site | `docs/consumer-design.md` — slice 2's boundary half landed 2026-08-24: `src/index.ts` and the arity-and-order gate in `src/contract-gate.ts` |
 | Catalog-driven generation | `docs/catalog-driven-generation.md` |
 | History of what was built when | `git log` |
 
@@ -102,7 +102,38 @@ answers, not whether the reason is correct.**
 
 ## Open items
 
-### 1. Arity-and-order gate at the consumer boundary
+### 1. Arity-and-order gate at the consumer boundary — BUILT 2026-08-24
+
+**Built.** `src/contract-gate.ts`, exported from `src/index.ts`, pinned by
+`tests/unit/query/contract-gate.test.ts` and `tests/unit/entrypoint.test.ts`.
+The rest of this entry is the design it was built to, kept because it is the
+argument for why the gate exists rather than a plan.
+
+The one thing the design did not say, and the build had to decide: **how a
+consumer gets PostgreSQL's shape without RUNNING the statement.** A gate that
+executed would fire triggers, advance sequences and write rows for every DML
+query analysed. The answer is a narrow callback in the shape of `evaluate` and
+`resolveColumnTypes` — `DescribeStatement`, two lines over PGlite's
+`describeQuery`, returning the ordered column names and the parameter count.
+Measured: all 515 corpus statements describe, DML with RETURNING and `$n`
+included, and a sequence beside the probe does not advance.
+
+Two things the build measured that the design assumed:
+
+- The engine and PostgreSQL agree on the column NAMES of all 515 fixtures, and
+  on the parameter count of all 515. The gate is silent on the corpus, which
+  is the expected result and is why the suite injects each divergence shape
+  into a real contract instead — a gate that agrees with everything is
+  indistinguishable from no gate.
+- The empty-name degradation is not a corner: it is the ordinary case outside
+  this corpus. Every fixture aliases every column (house style), so the corpus
+  has ZERO empty names — but `SELECT 1 + 1` is `""` here and `?column?`
+  there, `SELECT CASE WHEN true THEN 1 END` is `""` vs `case`, and
+  `SELECT ARRAY[1,2]` is `""` vs `array`. Without the rule the gate would fire
+  on every unaliased expression in every query. It degrades PER POSITION, not
+  per statement.
+
+
 
 **What.** Nullability is a positional array meant to be zipped against
 PostgreSQL's `RowDescription` (the contract is on `OutputNullability` in
@@ -124,11 +155,14 @@ It degrades to arity-only where the engine reports an empty name, since
 `FigureColname` stays unimplemented by decision. On mismatch, the safe
 response is to treat every column as nullable and report loudly.
 
-**Why not done.** No consumer — nothing under `src/` calls `inferNullability`
-yet, and the engine has no PostgreSQL of its own to compare against.
+**Why it was not done, until now.** No consumer — nothing under `src/` called
+`inferNullability`, and the engine has no PostgreSQL of its own to compare
+against. The gate is what ended that: `src/index.ts` now exists, exports the
+boundary rather than the engine, and `pnpm build` succeeds for the first time.
+Items 1a, 1b and 2 are no longer blocked on "there is no call site".
 
-**What the absence of a consumer has already cost (2026-08-24).** The package
-does not build and could not be installed and used:
+**What the absence of a consumer had already cost (2026-08-24).** The package
+did not build and could not be installed and used:
 
 - `pgsql-deparser` was a **devDependency** while `subtree-evaluator.ts`,
   `srf-cardinality.ts` and `type-delegation.ts` imported it at runtime — a
@@ -137,15 +171,17 @@ does not build and could not be installed and used:
   against what `src/` imports in both directions. No suite could have caught
   it: they all run from the repo, where a devDependency resolves exactly like
   a dependency.
-- `tsup` builds `src/index.ts` and `pnpm dev` runs it. **That file does not
-  exist**, and never has.
+- `tsup` built `src/index.ts` and `pnpm dev` ran it. **That file did not
+  exist**, and never had. Written with the gate; `pnpm build` now succeeds and
+  the built package runs the documented pipeline end to end (verified against
+  `dist/`, not just the source tree).
 - Five runtime dependencies (`chokidar`, `fast-glob`, `picomatch`, the two
   `vscode-languageserver` packages) are imported nowhere. Recorded in the
   census's `DECLARED_BUT_UNIMPORTED` rather than dropped — the decision is
-  someone's to make, and it is now visible instead of implied.
+  someone's to make, and it is now visible instead of implied. **Still open.**
 
-These are not the gate. They are the same absence showing up in the manifest,
-and they say the boundary is unbuilt rather than merely unwired.
+These were not the gate. They were the same absence showing up in the
+manifest, and they said the boundary was unbuilt rather than merely unwired.
 
 **Trigger.** Write it with the FIRST slice that holds a contract and a
 `PREPARE` result at the same time, **before** the emitter slice, not with it.

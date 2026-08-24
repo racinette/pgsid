@@ -634,6 +634,20 @@ discipline.
    diagnostics. Existing: `src/schema-builder.ts`, `src/catalog/`,
    `src/query/`. `pgsid check` works at the end of this slice. Verified by
    e2e fixtures asserting diagnostics and exit codes.
+
+   **PART OF THIS SLICE IS BUILT (2026-08-24): the boundary itself.**
+   `src/index.ts` exists and exports the boundary rather than the engine;
+   `src/contract-gate.ts` holds the arity-and-order gate the register
+   prescribes AHEAD of the emitter, and it landed ahead of the emitter as
+   prescribed. The per-statement half of the graph — catalog → contract →
+   gate — runs end to end against a real database. What remains of this slice
+   is the BATCH half: discovery, the preprocessor, and the diagnostics
+   surface that turns a gate outcome into an exit code.
+
+   The gate needed one decision the plan did not contain: PostgreSQL's shape
+   must be obtained WITHOUT executing the statement, or analysing a DML query
+   would write rows. `DescribeStatement` is that callback, in the shape
+   `evaluate` and `resolveColumnTypes` already established.
 3. **Emitter + goldens.** Types, wrappers, the arity gate, determinism.
    Verified by byte-golden files that are also tsc-compiled with narrowing
    assertions.
