@@ -127,6 +127,26 @@ response is to treat every column as nullable and report loudly.
 **Why not done.** No consumer — nothing under `src/` calls `inferNullability`
 yet, and the engine has no PostgreSQL of its own to compare against.
 
+**What the absence of a consumer has already cost (2026-08-24).** The package
+does not build and could not be installed and used:
+
+- `pgsql-deparser` was a **devDependency** while `subtree-evaluator.ts`,
+  `srf-cardinality.ts` and `type-delegation.ts` imported it at runtime — a
+  consumer would have got a missing module. Fixed, and pinned by
+  `tests/unit/runtime-dependencies.test.ts`, which censuses the manifest
+  against what `src/` imports in both directions. No suite could have caught
+  it: they all run from the repo, where a devDependency resolves exactly like
+  a dependency.
+- `tsup` builds `src/index.ts` and `pnpm dev` runs it. **That file does not
+  exist**, and never has.
+- Five runtime dependencies (`chokidar`, `fast-glob`, `picomatch`, the two
+  `vscode-languageserver` packages) are imported nowhere. Recorded in the
+  census's `DECLARED_BUT_UNIMPORTED` rather than dropped — the decision is
+  someone's to make, and it is now visible instead of implied.
+
+These are not the gate. They are the same absence showing up in the manifest,
+and they say the boundary is unbuilt rather than merely unwired.
+
 **Trigger.** Write it with the FIRST slice that holds a contract and a
 `PREPARE` result at the same time, **before** the emitter slice, not with it.
 Every slice in between would otherwise build on a failure mode that is silent
