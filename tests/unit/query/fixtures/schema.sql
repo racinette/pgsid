@@ -1895,3 +1895,22 @@ CREATE AGGREGATE fb_osa(ORDER BY numeric) (SFUNC = fb_osa_sfunc, STYPE = numeric
 CREATE FUNCTION fb_neg(t text) RETURNS text STRICT
   LANGUAGE sql AS $$ SELECT 'n' || t $$;
 CREATE OPERATOR @ (RIGHTARG = text, FUNCTION = fb_neg);
+
+-- The variadic-projection crash pin (user-variadic-overload.sql). An
+-- OVERLOADED name whose extra overload is VARIADIC-ONLY is the regress
+-- corpus's textmultirange shape: metadata declines the name, the typed
+-- 6b dispatch merges the user rows into the builtin pool, and the first
+-- projection put the variadic row in with EMPTY args (the variadic param
+-- was filtered out with the OUT params) — every paramAt-style consumer
+-- then indexed args[-1] and the walk crashed on `.endsWith` of undefined.
+CREATE FUNCTION fb_var(x integer) RETURNS integer
+  LANGUAGE sql AS $$ SELECT x $$;
+CREATE FUNCTION fb_var(VARIADIC xs text[]) RETURNS integer
+  LANGUAGE sql AS $$ SELECT NULL::integer $$;
+
+-- The unnamed-OUT-parameter pin (function-unnamed-out-columns.sql): two OUT
+-- positions with no names are still two COLUMNS — PostgreSQL's column1 and
+-- column2 — and functionOutputColumns collapsed them to the declared
+-- `record`, one column (the pg-regress replay's plpgsql ret_query1 crop).
+CREATE FUNCTION fb_outs(OUT integer, OUT integer)
+  LANGUAGE sql AS $$ SELECT NULL::integer, NULL::integer $$;

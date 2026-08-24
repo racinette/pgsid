@@ -1887,7 +1887,16 @@ export async function buildNullabilityCatalog(
       const variadic = f.args.find(a => a.mode === "variadic");
       out.push({
         name,
-        args: inputs.map(a => normalizeTypeName(a.typeName)),
+        // The VARIADIC parameter goes INTO args, at the end — the shape the
+        // builtin capture already has, because pg_proc.proargtypes includes
+        // it. The first projection left it out, so a variadic-only user row
+        // carried variadic ≠ null with args = [] and every paramAt-style
+        // consumer indexed args[-1] — measured as a walk CRASH on the regress
+        // corpus's textmultirange (a user multirange constructor,
+        // auto-created by CREATE TYPE ... AS RANGE).
+        args: [...inputs, ...(variadic ? [variadic] : [])].map(a =>
+          normalizeTypeName(a.typeName),
+        ),
         returns: f.returnType,
         volatility: f.volatile === "immutable" ? "i" : f.volatile === "stable" ? "s" : "v",
         kind: f.isAggregate ? "a" : f.isWindow ? "w" : "f",
@@ -1923,7 +1932,11 @@ export async function buildNullabilityCatalog(
       const variadic = f.args.find(a => a.mode === "variadic");
       out.push({
         name,
-        args: inputs.map(a => normalizeTypeName(a.typeName)),
+        // Variadic param included, as in pg_proc.proargtypes — see
+        // userVolatilityRows' note; the omission was a measured crash.
+        args: [...inputs, ...(variadic ? [variadic] : [])].map(a =>
+          normalizeTypeName(a.typeName),
+        ),
         returns: f.returnType,
         strict: f.strict,
         kind: "f",
