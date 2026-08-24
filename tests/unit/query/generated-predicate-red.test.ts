@@ -7,36 +7,38 @@ import { inferNullability } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// RED SUITE: predicate-aware GENERATED columns — "transitive nullability".
+// GRADUATED 2026-08-25 — predicate-aware GENERATED columns, "transitive
+// nullability". Captured RED 2026-08-24 (commit 6462e45) by a maintainer
+// question; every verdict measured, every target adjudicated over real rows
+// before it was written down; flipped here by the commit that built the
+// four mechanisms below. The cases live on as the acceptance test of that
+// build, and in the corpus as check-generated-predicate-*.sql.
 //
-// Every `it.fails` case asserts the TARGET contract — what the engine must
-// claim once the mechanisms land — and passes today exactly because the
-// engine does not claim it yet (rule 1's shape; check-arm-interval-red is
-// the nearest sibling).
-//
-// The gaps (found 2026-08-24, by a maintainer question; every verdict
-// measured, every target adjudicated over real rows before writing):
-//
-// The forward INLINE already exists — a selected generated column's
+// The forward INLINE already existed — a selected generated column's
 // expression is walked in the READING scope and composes with WHERE
 // promotion, which is why the ev-shaped CHECK half (`event_duration` under
-// `WHERE has_duration`) claims notNull today (held green by the
-// check-boolean-discriminator-or corpus fixtures). What is missing sits in
-// the walk's CASE rule, three consumers deep:
+// `WHERE has_duration`) claimed notNull all along (held green by the
+// check-boolean-discriminator-or fixtures). What was missing:
 //
 //   1. No guard-TRUE consumer for the kernel. A `CASE ... ELSE NULL` can
 //      claim notNull only when some guard is provably TRUE (that is what
-//      makes the ELSE unreachable), and today only the statement map can
-//      say TRUE — closed guards only. The kernel's `isTrue` — equality
-//      substitution, identity, and the containment rungs — is consumed on
-//      the CHECK-harvest side alone; `guardRefutedByChecks` has no TRUE
-//      dual.
-//   2. The kernel guard consumer skips CHECK-less tables outright
-//      (`checkExprs.length === 0` → continue), so pure WHERE evidence
-//      never reaches it — though evidence alone refutes and proves.
-//   3. The generation inline concludes notNull only; there is no
-//      alwaysNull channel through it, so an ELSE-only predicate cannot
-//      conclude the column NULL.
+//      makes the ELSE unreachable), and only the statement map could say
+//      TRUE — closed guards only. `checkConstraintsRefuteGuard` had no TRUE
+//      dual; it is now `checkConstraintsGuardTruth`, three-valued over one
+//      fact derivation.
+//   2. The kernel guard consumer skipped CHECK-less tables outright
+//      (`checkExprs.length === 0` → continue), so pure WHERE evidence never
+//      reached it. The evidence-only run is now asked FIRST and once.
+//   3. The generation inline concluded notNull only. `entryColumnAlwaysNull`
+//      now inlines the same expression, and `alwaysNullExpr`'s CASE rule
+//      consults arm pruning, so an ELSE-only predicate concludes NULL.
+//   4. Found while flipping 1-2, and not visible from the consumer side at
+//      all: the anchor-question synthesis drew its literal pool from CHECK
+//      constraints ALONE. For a CHECK-less table it synthesized ZERO
+//      questions (measured), so `7 <= 10` and `7 < 10` had no answers and
+//      neither the substitution route nor the interval rung could fire
+//      however the guards were wired. Generation expressions now sit in the
+//      pool beside the CHECKs.
 // ---------------------------------------------------------------------------
 
 let pg: PGlite;
@@ -81,30 +83,31 @@ async function verdict(sql: string): Promise<"notNull" | "alwaysNull" | "nullabl
 }
 
 describe("generated CASE arms selected by WHERE evidence (no CHECK on the table)", () => {
-  it.fails("an equality proves the arm's guard TRUE", async () => {
+  it("an equality proves the arm's guard TRUE", async () => {
     // PostgreSQL: a = 7 refutes `a <= 3` and proves `a <= 10` — every
-    // returned row is 'maybe' (adjudicated: 1 row, 0 NULLs). Both
-    // judgments are the kernel's already; nothing consumes them for a
-    // query-side CASE, and the CHECK-less gate would skip gp regardless.
+    // returned row is 'maybe' (adjudicated: 1 row, 0 NULLs). The route runs
+    // through all four mechanisms: gp has no CHECK, so the pool that
+    // answers `7 <= 3` / `7 <= 10` is the generation expression's own, and
+    // the evidence-only kernel run reads both.
     expect(await verdict("SELECT c FROM gp WHERE a = 7")).toBe("notNull");
   });
 
-  it.fails("the guard's IDENTICAL atom proves it", async () => {
+  it("the guard's IDENTICAL atom proves it", async () => {
     // WHERE a <= 3 IS the first guard — TRUE by identity, ELSE
     // unreachable (adjudicated: 2 rows, 0 NULLs).
     expect(await verdict("SELECT c FROM gp WHERE a <= 3")).toBe("notNull");
   });
 
-  it.fails("containment refutes one arm and selects the next", async () => {
+  it("containment refutes one arm and selects the next", async () => {
     // a >= 5 refutes `a <= 3` (exclusivity); a <= 10 selects the second
     // arm (identity). Adjudicated: 3 rows, 0 NULLs.
     expect(await verdict("SELECT c FROM gp WHERE a >= 5 AND a <= 10")).toBe("notNull");
   });
 
-  it.fails("an ELSE-only predicate concludes alwaysNull", async () => {
+  it("an ELSE-only predicate concludes alwaysNull", async () => {
     // a >= 11 refutes both guards; only ELSE NULL remains (adjudicated:
-    // 2 rows, 2 NULLs). Needs gap 3 beside gaps 1-2: the inline has no
-    // alwaysNull channel.
+    // 2 rows, 2 NULLs). The alwaysNull channel (3) on top of the pruning
+    // that gaps 1-2 and 4 supply.
     expect(await verdict("SELECT c FROM gp WHERE a >= 11")).toBe("alwaysNull");
   });
 
@@ -119,26 +122,26 @@ describe("generated CASE arms selected by WHERE evidence (no CHECK on the table)
 });
 
 describe("transitive nullability through a generated column", () => {
-  it.fails("WHERE + CHECK pin the selected arm's operands", async () => {
+  it("WHERE + CHECK pin the selected arm's operands", async () => {
     // The full chain: status = 3 proves the `status >= 2` guard;
     // TRUE(has_duration) walks the CHECK's OR to `event_duration IS NOT
     // NULL`; started_at is declared NOT NULL — the arm's arithmetic is
     // non-null on every returned row (adjudicated: 0 NULLs). The CHECK
-    // half already works in isolation (the corpus fixture); only the
-    // guard-TRUE link is missing.
+    // half already worked in isolation (the corpus fixture); the
+    // guard-TRUE link is what joined the two halves.
     expect(await verdict(
       "SELECT finished_at FROM ev WHERE status = 3 AND has_duration",
     )).toBe("notNull");
   });
 
-  it.fails("the CHECK-less variant rides WHERE promotion alone", async () => {
+  it("the CHECK-less variant rides WHERE promotion alone", async () => {
     // Same chain with the operand pinned directly (adjudicated: 0 NULLs).
     expect(await verdict(
       "SELECT finished_at FROM ev WHERE status = 3 AND event_duration IS NOT NULL",
     )).toBe("notNull");
   });
 
-  it.fails("a refuted guard concludes the generated column alwaysNull", async () => {
+  it("a refuted guard concludes the generated column alwaysNull", async () => {
     // status = 1 refutes `status >= 2` — the ELSE is the only producer
     // (adjudicated: 1 row, 1 NULL).
     expect(await verdict(

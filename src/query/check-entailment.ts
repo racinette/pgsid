@@ -228,22 +228,33 @@ export function checkConstraintsProveNull(input: CheckEntailmentInput): boolean 
 }
 
 /**
- * Whether the facts prove `guard` is NEVER TRUE for an emitted row — the
- * atom-oracle rungs' consumption (docs/subtree-evaluation.md, "The kernel's
- * atom oracle"): the walk prunes a CASE arm whose guard cannot fire, the
- * same arm-pruning the statement map performs, fed from the kernel instead
- * of an evaluation. notTRUE is deliberately the WEAK judgment: a NULL
- * guard also never fires its arm, so trichotomy facts (notFALSE of an
- * exclusive same-token comparison) suffice where FALSE would be
- * underivable. `input.goal` is unused here; pass the guard's owning alias
- * with an empty column.
+ * What the facts say about `guard` on an emitted row — the atom-oracle
+ * rungs' consumption (docs/subtree-evaluation.md, "The kernel's atom
+ * oracle"): the walk prunes a CASE arm whose guard cannot fire and stops at
+ * one that always does, the same arm-pruning the statement map performs,
+ * fed from the kernel instead of an evaluation.
+ *
+ *   - `false` — the guard is NEVER TRUE, so its arm never fires.
+ *     Deliberately the WEAK judgment: a NULL guard also never fires, so
+ *     trichotomy facts (notFALSE of an exclusive same-token comparison)
+ *     suffice where FALSE would be underivable.
+ *   - `true` — the guard is TRUE, so its arm fires unless an earlier one
+ *     did, and everything after it (the ELSE included) never runs. This is
+ *     the STRONG judgment and takes only TRUE facts: notFALSE admits NULL,
+ *     and a NULL guard fires nothing.
+ *   - `undefined` — neither.
+ *
+ * The two questions share one fact derivation, which is why they are one
+ * call: the fixpoint is the expensive half and the answers read off it.
+ * `input.goal` is unused here; pass the guard's owning alias with an empty
+ * column, or an empty alias for an evidence-only run.
  */
-export function checkConstraintsRefuteGuard(
+export function checkConstraintsGuardTruth(
   input: CheckEntailmentInput,
   guard: Node,
-): boolean {
+): boolean | undefined {
   const kernel = new EntailmentKernel(input);
-  return kernel.runGuardRefutation(guard);
+  return kernel.runGuardTruth(guard);
 }
 
 // ---------------------------------------------------------------------------
@@ -777,15 +788,23 @@ class EntailmentKernel {
     );
   }
 
-  /** notTRUE(guard) for every emitted row — see checkConstraintsRefuteGuard. */
-  runGuardRefutation(guard: Node): boolean {
+  /** notTRUE / TRUE(guard) for every emitted row — see
+   *  checkConstraintsGuardTruth. Refutation is asked first only because it
+   *  is the older rung; the two are mutually exclusive over a satisfiable
+   *  fact set, and over an unsatisfiable one no row is emitted and either
+   *  answer is vacuous. */
+  runGuardTruth(guard: Node): boolean | undefined {
     this.collectEvidence();
     this.deriveFixpoint();
-    const refuted = this.isNotTrue(guard);
-    if (refuted) {
+    if (this.isNotTrue(guard)) {
       this.input.trace?.addFact("guardRefuted", "the facts prove the guard is never TRUE");
+      return false;
     }
-    return refuted;
+    if (this.isTrue(guard)) {
+      this.input.trace?.addFact("guardProven", "the facts prove the guard TRUE on every emitted row");
+      return true;
+    }
+    return undefined;
   }
 
   run(goalIsNull = false): boolean {
