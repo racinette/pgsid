@@ -124,17 +124,34 @@ export async function collectComparisonQuestions(
   };
 
   for (const t of tables) {
-    const checks = [
+    // The per-table expression pool. GENERATION expressions sit beside the
+    // CHECKs and for the same reason: their comparisons are catalog trees
+    // over the table's own columns, read at the same declared types, and
+    // they reach the kernel as the same atoms — a generated CASE's guard
+    // `a <= 3` is a question about `a` exactly as a CHECK's would be.
+    // Leaving them out was measured 2026-08-25 on a CHECK-less table with
+    // one generated column: ZERO questions synthesized for `SELECT c FROM
+    // gp WHERE a = 7`, so neither the substitution route (`7 <= 10`) nor
+    // the interval rung's anchor order (`7 < 10`) had an answer to read,
+    // and a predicate-aware generated column was out of reach however the
+    // consumers were wired.
+    const exprs = [
       ...catalog.resolveCheckConstraints(t.schema, t.name),
       ...catalog.resolveCheckConstraintsTree(t.schema, t.name),
+      ...(catalog.resolveTable(t.schema, t.name)?.columns ?? []).flatMap(col =>
+        [
+          catalog.resolveGenerationExpr(t.schema, t.name, col),
+          catalog.resolveGenerationExprTree(t.schema, t.name, col),
+        ].filter((e): e is Node => e !== null),
+      ),
     ];
     // The interval rung's ANCHOR-ORDER questions: per column, every pair
-    // drawn from the CHECKs' literals and the statement's, both directed
+    // drawn from the pool's literals and the statement's, both directed
     // `<`s and the `=` — the kernel derives lt/eq/gt/ne from whichever
     // answer. Order questions only over non-collatable columns, equality
     // wherever the trichotomy's equality arm allows.
     const anchorsByColumn = new Map<string, Lit[]>();
-    for (const check of checks) {
+    for (const check of exprs) {
       for (const atom of scanLitComparisons(check)) {
         const list = anchorsByColumn.get(atom.column) ?? [];
         list.push(atom.lit);
@@ -166,7 +183,7 @@ export async function collectComparisonQuestions(
         }
       }
     }
-    for (const check of checks) {
+    for (const check of exprs) {
       for (const atom of scanLitComparisons(check)) {
         const evidenceLits = equalities.get(atom.column);
         if (!evidenceLits) continue;

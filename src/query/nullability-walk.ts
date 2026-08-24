@@ -4,7 +4,7 @@ import { splitQualifiedName } from "../catalog/qualified-name.js";
 import {
   checkConstraintsProveNotNull,
   checkConstraintsProveNull,
-  checkConstraintsRefuteGuard,
+  checkConstraintsGuardTruth,
   comparisonKey,
   type Lit,
 } from "./check-entailment.js";
@@ -8107,17 +8107,32 @@ class NullabilityEngine {
 
   /**
    * The atom-oracle rungs' consumption (docs/subtree-evaluation.md, "The
-   * kernel's atom oracle"): can the scope's validated CHECKs plus the
-   * row-implied evidence prove this searched-CASE guard NEVER fires? Tried
-   * per base-table entry — the kernel matches facts by alias, so a wrong
-   * entry simply proves nothing. Refused wholesale for a DML scope (the
-   * OLD/NEW channel split is not built for guards) and per-entry for
-   * NULL-extendable entries, whose extended rows satisfy no CHECK — and on
-   * those rows a guard like `a IS NULL` IS true, so the refusal is
-   * load-bearing, not caution.
+   * kernel's atom oracle"): what do the scope's validated CHECKs plus the
+   * row-implied evidence say about this searched-CASE guard — never fires
+   * (`false`), always fires (`true`), or neither?
+   *
+   * Two runs, and the split is the point. EVIDENCE ALONE is asked first and
+   * ONCE: a WHERE holds on every emitted row whatever produced them, so the
+   * question needs no entry, no CHECK and no table — which is how a guard
+   * over a CHECK-less table gets answered at all. The per-entry runs that
+   * follow add that entry's CHECKs to the same evidence; they are tried one
+   * table at a time because the kernel matches facts by alias, so a wrong
+   * entry simply proves nothing.
+   *
+   * Refused wholesale for a DML scope (the OLD/NEW channel split is not
+   * built for guards) and per-entry for NULL-extendable entries, whose
+   * extended rows satisfy no CHECK — and on those rows a guard like `a IS
+   * NULL` IS true. Both refusals were unkillable by the corpus until the
+   * TRUE direction landed and gave them something to hold back; each now
+   * has a fixture that kills it with `PostgreSQL returned NULL`
+   * (dml-returning-case-guard-old-row.sql, check-guard-optional-entry.sql).
+   *
+   * The evidence-only run keeps neither gate and needs neither: it derives
+   * from predicates that held on the emitted row, extended or not, and a
+   * DML scope reaches it only through the wholesale refusal above.
    */
-  private guardRefutedByChecks(guard: Node, scope: Scope): boolean {
-    if (scope.dmlSetColumns) return false;
+  private guardTruthFromChecks(guard: Node, scope: Scope): boolean | undefined {
+    if (scope.dmlSetColumns) return undefined;
     const core: Node[] = [
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
@@ -8127,59 +8142,90 @@ class NullabilityEngine {
       pred,
       applySetMask: false,
     }));
+    const shared = {
+      evidence,
+      isMasked: () => false,
+      resolveUnqualified: (col: string) => {
+        let owner: string | null = null;
+        for (const v of scope.visible) {
+          if (v.name !== col) continue;
+          if (!v.entry || owner) return null; // merged or ambiguous
+          owner = v.entry.alias;
+        }
+        return owner;
+      },
+      columnTypeName: (a: string, col: string) => {
+        const e = scope.aliases.get(a);
+        const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+        return e?.table && cat !== undefined
+          ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
+          : null;
+      },
+      comparisonEvaluable: (a: string, col: string, op: string) => {
+        const e = scope.aliases.get(a);
+        const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+        return e?.table && cat !== undefined
+          ? this.comparisonOpEvaluable(e.table.schema, e.table.name, cat, op)
+          : false;
+      },
+      evaluatedComparison: this.comparisonOracle(),
+      btreeStrategy: this.btreeStrategySupply(),
+      equalityComplement: this.equalityComplementSupply(),
+      closedTruth: (expr: Node) => this.closedTruthOf(expr),
+      literalDistinctnessSound: (a: string, col: string) => {
+        const e = scope.aliases.get(a);
+        const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+        return e?.table && cat !== undefined
+          ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, cat)
+          : false;
+      },
+    };
+    // A cost skip, like the `checkExprs.length` one below: with no evidence
+    // and no CHECKs the kernel has no fact to derive from and answers
+    // `undefined` anyway, so mutating this out changes no claim.
+    if (evidence.length > 0) {
+      const fromEvidence = checkConstraintsGuardTruth(
+        { ...shared, goal: { alias: "", column: "" }, checkExprs: [] },
+        guard,
+      );
+      if (fromEvidence !== undefined) return fromEvidence;
+    }
     for (const [alias, entry] of scope.aliases) {
       if (!entry.table || entry.joinState === OPTIONAL) continue;
       const checkExprs =
         entry.scanInh === false
           ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
           : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name);
+      // Nothing to add to the evidence-only run above, which already asked
+      // this guard. A cost skip, not a correctness gate: mutating it out
+      // re-derives the same facts per entry and reaches the same answers.
       if (checkExprs.length === 0) continue;
-      const refuted = checkConstraintsRefuteGuard(
+      const truth = checkConstraintsGuardTruth(
         {
+          ...shared,
           goal: { alias, column: "" },
           checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, alias, entry)),
-          evidence,
-          isMasked: () => false,
-          resolveUnqualified: col => {
-            let owner: string | null = null;
-            for (const v of scope.visible) {
-              if (v.name !== col) continue;
-              if (!v.entry || owner) return null; // merged or ambiguous
-              owner = v.entry.alias;
-            }
-            return owner;
-          },
-          columnTypeName: (a, col) => {
-            const e = scope.aliases.get(a);
-            const cat = e ? this.entryCatalogColumn(e, col) : undefined;
-            return e?.table && cat !== undefined
-              ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
-              : null;
-          },
-          comparisonEvaluable: (a, col, op) => {
-            const e = scope.aliases.get(a);
-            const cat = e ? this.entryCatalogColumn(e, col) : undefined;
-            return e?.table && cat !== undefined
-              ? this.comparisonOpEvaluable(e.table.schema, e.table.name, cat, op)
-              : false;
-          },
-          evaluatedComparison: this.comparisonOracle(),
-          btreeStrategy: this.btreeStrategySupply(),
-          equalityComplement: this.equalityComplementSupply(),
-          closedTruth: expr => this.closedTruthOf(expr),
-          literalDistinctnessSound: (a, col) => {
-            const e = scope.aliases.get(a);
-            const cat = e ? this.entryCatalogColumn(e, col) : undefined;
-            return e?.table && cat !== undefined
-              ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, cat)
-              : false;
-          },
         },
         guard,
       );
-      if (refuted) return true;
+      if (truth !== undefined) return truth;
     }
-    return false;
+    return undefined;
+  }
+
+  /**
+   * A searched-CASE guard's truth on every emitted row, from the two
+   * consumers that can speak: the statement map first (a closed guard's
+   * evaluation is exact), then the kernel. Shared by the two CASE rules —
+   * the walk's, where a `false` prunes an arm and a `true` ends the chain,
+   * and `alwaysNullExpr`'s, where a `false` excuses an arm from having to
+   * be NULL.
+   */
+  private guardTruth(expr: Node | undefined, scope: Scope): boolean | undefined {
+    if (!expr) return undefined;
+    const evaluated = this.evaluatedGuardTruth(expr);
+    if (evaluated !== undefined) return evaluated;
+    return this.guardTruthFromChecks(expr, scope);
   }
 
   /**
@@ -8273,16 +8319,33 @@ class NullabilityEngine {
 
     // A CASE is always NULL when every arm that can still fire is, the ELSE
     // included — and a MISSING ELSE is itself NULL, which is why its absence
-    // helps rather than blocks. Deliberately not consulting arm pruning: a
-    // pruned arm can only remove a way to be non-null, so ignoring the
-    // pruning is the conservative direction here.
+    // helps rather than blocks.
+    //
+    // "Can still fire" is the arm pruning the notNull rule uses, read here
+    // in the opposite direction and sound for the same reason: a guard the
+    // facts prove NEVER TRUE fires no arm, so that arm produces no value on
+    // any emitted row and nothing about its result matters. This channel
+    // used to skip the pruning deliberately — ignoring it is the
+    // conservative direction, since a pruned arm can only remove a way to
+    // be non-null — but conservative is what kept `SELECT c FROM gp WHERE a
+    // >= 11` from concluding the ELSE's NULL, which is the whole of what
+    // the reading site knows.
     if ("CaseExpr" in node) {
-      const ce = node["CaseExpr"] as { args?: Node[]; defresult?: Node };
+      const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node };
+      // The simple form compares values rather than evaluating predicates,
+      // so its WHEN slots are not guards and nothing prunes them — the same
+      // split the notNull rule draws.
+      const simpleForm = !!ce.arg;
       const arms = (ce.args ?? []).map(
-        a => (a as Record<string, unknown>)["CaseWhen"] as { result?: Node } | undefined,
+        a =>
+          (a as Record<string, unknown>)["CaseWhen"] as
+            | { expr?: Node; result?: Node }
+            | undefined,
       );
       const everyArmNull = arms.every(
-        w => !!w?.result && this.alwaysNullExpr(w.result, scope, depth),
+        w =>
+          (!simpleForm && this.guardTruth(w?.expr, scope) === false) ||
+          (!!w?.result && this.alwaysNullExpr(w.result, scope, depth)),
       );
       const elseNull = !ce.defresult || this.alwaysNullExpr(ce.defresult, scope, depth);
       if (arms.length > 0 && everyArmNull && elseNull) return true;
@@ -8600,6 +8663,33 @@ class NullabilityEngine {
       return true;
     }
 
+    // The generation-expression inline, mirroring resolveColumnRef's: a
+    // STORED generated column IS its expression over this row's other
+    // columns, so an expression that is NULL on every emitted row makes the
+    // column NULL on every emitted row.
+    //
+    // The notNull side gates this on `joinState !== OPTIONAL` and must — a
+    // NULL-extended row nulls a generated column however non-null its
+    // expression is. Here the same fact is the case-split that makes a gate
+    // unnecessary, exactly as for the re-export above: extended rows are
+    // NULL by extension, present rows are the stored row the expression
+    // describes, and both arms end at NULL.
+    if (writtenCol !== undefined) {
+      const genKey = `${entry.table.schema}.${entry.table.name}.${writtenCol}`;
+      const genExpr = this.generationInFlight.has(genKey)
+        ? null
+        : this.entryGenerationExpr(entry, writtenCol);
+      if (genExpr) {
+        this.generationInFlight.add(genKey);
+        try {
+          const qualified = this.qualifyColumnRefs(genExpr, entry.alias, entry);
+          if (this.alwaysNullExpr(qualified, scope, depth + 1)) return true;
+        } finally {
+          this.generationInFlight.delete(genKey);
+        }
+      }
+    }
+
     const checkExprs =
       entry.scanInh === false
         ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
@@ -8905,19 +8995,17 @@ class NullabilityEngine {
             | undefined,
       );
 
-      // Arm pruning from two sources. Statement map (consumer 1): boolean
-      // truth of an evaluated guard — FALSE or NULL never fires its arm,
-      // everything after a TRUE guard (the ELSE included) never runs, which
-      // also rescues a missing ELSE. Atom oracle (the kernel rungs): a
-      // guard the CHECK facts refute — notFALSE(a > 5) forbids `a <= 5`
-      // ever being TRUE — prunes the same way, though it can only ever say
-      // "never fires", so it rescues nothing.
-      const truths = whens.map(w => {
-        if (simpleForm) return undefined;
-        const evaluated = this.evaluatedGuardTruth(w?.expr);
-        if (evaluated !== undefined) return evaluated;
-        return w?.expr && this.guardRefutedByChecks(w.expr, scope) ? false : undefined;
-      });
+      // Arm pruning from two sources, both now speaking in both directions.
+      // Statement map: boolean truth of an evaluated guard — FALSE or NULL
+      // never fires its arm, everything after a TRUE guard (the ELSE
+      // included) never runs, which also rescues a missing ELSE. Atom
+      // oracle (the kernel rungs): a guard the facts refute — notFALSE(a >
+      // 5) forbids `a <= 5` ever being TRUE — prunes the same way, and a
+      // guard the facts PROVE — TRUE(a = 7) carries `a <= 10` by interval
+      // containment — ends the chain exactly as an evaluated TRUE does.
+      // That second direction is what makes a generated CASE predicate
+      // aware: the WHERE selects the arm the stored value came from.
+      const truths = whens.map(w => (simpleForm ? undefined : this.guardTruth(w?.expr, scope)));
       const firstTrue = truths.indexOf(true);
 
       // Without an ELSE branch, an unmatched CASE evaluates to NULL — unless

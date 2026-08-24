@@ -1054,6 +1054,76 @@ equalities (`check-arm-interval-point-witness.sql` — the oracle's
 question key needs a statement-side equality that isn't there), which
 is what makes that cell testable at all.
 
+### Predicate-aware generated columns (found 2026-08-24, BUILT 2026-08-25)
+
+The maintainer question the containment rung came from, asked one level
+up: is a GENERATED column predicate aware? `SELECT c FROM t WHERE a >= 5`
+where `c GENERATED ALWAYS AS (CASE WHEN a <= 3 THEN 'yes' WHEN a <= 10
+THEN 'maybe' ELSE NULL END) STORED`. Explored under an explicit "just
+check, don't rush fixing it", captured RED the same day
+(`generated-predicate-red.test.ts`, 7 targets and 4 boundary guards, all
+adjudicated over real rows), built the next.
+
+The forward inline already existed and had for a long time: a selected
+generated column's expression is walked in the READING scope, so it
+composes with WHERE promotion and with the CHECK kernel — which is why
+`SELECT event_duration FROM evg WHERE has_duration` claimed notNull
+through a boolean-discriminated OR-CHECK before any of this. What was
+missing was everything that lets the WHERE reach the CASE's ARMS:
+
+- **A guard-TRUE consumer.** `CASE … ELSE NULL` can only claim notNull
+  when some guard is provably TRUE — that is what makes the ELSE
+  unreachable — and only the statement map could say TRUE, for closed
+  guards. The kernel's `isTrue` (identity, equality substitution, the
+  containment rungs) was consumed on the CHECK-harvest side alone.
+  `checkConstraintsRefuteGuard` became `checkConstraintsGuardTruth`,
+  three-valued over ONE fact derivation — the fixpoint is the expensive
+  half and both answers read off it.
+- **Evidence-only runs.** The consumer skipped a CHECK-less table
+  outright, so pure WHERE evidence never reached the kernel. The
+  evidence-only question is now asked FIRST and once: a WHERE holds on
+  every emitted row whatever produced them, so it needs no entry, no
+  CHECK and no table. (The per-entry loop keeps its `checkExprs.length`
+  skip as a cost skip, and says so.)
+- **An alwaysNull channel through the inline.** `entryColumnAlwaysNull`
+  now inlines the generation expression the notNull side inlines, and
+  `alwaysNullExpr`'s CASE rule consults the same arm pruning. The
+  pruning had been skipped there deliberately — ignoring it is the
+  conservative direction, since a pruned arm only removes a way to be
+  non-null — and conservative is exactly what kept an ELSE-only
+  predicate from concluding NULL. The notNull side's joinState gate has
+  no counterpart here and needs none: an extended row nulls the column
+  outright, a present row is the stored row the expression describes,
+  and both arms end at NULL.
+- **The anchor pool, which was the real floor.** Found while flipping
+  the first two and invisible from the consumer side:
+  `collectComparisonQuestions` drew its per-table literal pool from
+  CHECK constraints ALONE. For a table whose only constraint-shaped
+  expression is a generation expression it synthesized ZERO questions
+  (measured), so `7 <= 10` and `7 < 10` had no answers and neither the
+  substitution route nor the interval rung could fire however the
+  consumers were wired. Generation expressions now sit in the pool
+  beside the CHECKs — same declared column types, same atoms.
+
+Reach beyond the subject: `alwaysNullExpr`'s new pruning immediately
+made `dml-returning-written-case-guard.sql` exact in two columns, off
+the STATEMENT MAP rather than the kernel — a written-value guard that
+was already answering FALSE had nothing consuming it on the null side.
+
+Both older refusals in the guard consumer were unkillable by the corpus
+until the TRUE direction gave them something to hold back, and both are
+now killed by `PostgreSQL returned NULL`:
+`dml-returning-case-guard-old-row.sql` (an UPDATE whose SET inverts the
+column its guard tests — the WHERE describes the OLD row, RETURNING
+reads the NEW one, and the written-value pass cannot rescue it because
+`NOT active` is no constant) and `check-guard-optional-entry.sql` (a NO
+INHERIT `CHECK (x IS NOT NULL)` read through `FROM ONLY` under a LEFT
+JOIN — on an extended row the guard it refutes IS true). The simple-form
+gate on the new pruning has its own kill in
+`always-null-simple-case-form.sql`: a bare `false` in a WHEN slot is a
+VALUE, and reading it as a FALSE guard prunes the arm that fires when
+the column IS false.
+
 ### Partition-bound facts (chartered 2026-08-12, BUILT 2026-08-16)
 
 A partition's bound is a validated-CHECK-grade fact the capture never
@@ -1323,14 +1393,16 @@ purely propositional, no values consulted, no evaluator needed:
   from any TRUE or notFALSE fact (col OP₁ x) with OP₁ exclusive: a TRUE
   OP₂ needs a non-null operand, which forces OP₁ to have evaluated — to
   FALSE.
-- notTRUE consumed as guard refutation: `checkConstraintsRefuteGuard`
+- notTRUE consumed as guard refutation: `checkConstraintsGuardTruth`
   (shared evidence collection and fixpoint with the goal question) and
   the walk's searched-CASE dispatch prunes a refuted arm exactly like a
-  map-answered FALSE guard — refutation can only ever say "never
-  fires", so it rescues no missing ELSE. Gated per entry on
+  map-answered FALSE guard. Since 2026-08-25 the same call also answers
+  TRUE, which the map-answered side always could: a proven guard ends
+  the arm chain and rescues a missing ELSE. Gated per entry on
   NULL-extension (an extended row satisfies no CHECK, and `a IS NULL`
   IS true there) and wholesale on DML scopes (the OLD/NEW channel split
-  is not built for guards).
+  is not built for guards) — both gates fixture-killed since the TRUE
+  direction gave them something to hold back.
 
 Both red cases flipped with no evaluator passed; the overreach guard
 held (`<` and `<=` are not exclusive, which is the table's honesty);

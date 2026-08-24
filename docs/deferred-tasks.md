@@ -353,6 +353,34 @@ corpus-shaped query has produced that conjunction. If one does, the fix
 is the same one-word widening the harvest got, and the red case comes
 first (rule 1).
 
+### 2d. Two widenings the predicate-aware generated-column pass left out
+
+Both are adjacent to what landed 2026-08-25
+(docs/subtree-evaluation.md, "Predicate-aware generated columns") and
+both sit here rather than in a red suite for the same reason: no
+measured imprecision reaches either, and rule 1's sequence is
+measure-then-capture, not capture-what-might-exist.
+
+**The alwaysNull side does not read a PROVEN guard.** `alwaysNullExpr`'s
+CASE rule now excuses an arm the facts prove NEVER TRUE. Its mirror —
+arms AFTER a proven-TRUE guard, and the ELSE beside them, never run
+either — is the same fact the notNull rule's `firstTrue` already
+consumes, and would make `CASE WHEN cond THEN NULL ELSE 'x' END`
+always-null under a proven `cond`. Nothing in the corpus or the
+generated bucket has that shape with a provable guard.
+
+**The guard consumer refuses DML scopes wholesale.** The refusal is
+real and now fixture-killed
+(`dml-returning-case-guard-old-row.sql`): the kernel reads the WHERE
+unmasked, so an OLD-row fact would answer a guard evaluated on the NEW
+row. The notNull goal question solved this years-equivalent ago by
+running up to two channels (NEW with core masked, OLD with guards
+masked); the guard question could take the same split. What it needs
+first is a case where the split would CLAIM something — the corpus's
+DML CASE guards are all answered by the written-value pass before the
+kernel is asked, which is why the refusal was unkillable until this
+pass.
+
 ### 3. The precision residue — closed, and held by three gates
 
 Nothing here is open. The entry stays because it is the standing record of what

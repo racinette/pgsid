@@ -23,14 +23,22 @@
 --                  literal is closed but there is nothing to compute — so the
 --                  pass reads the parser's own decoded payload instead.
 --   bare_false     the same path, opposite polarity: the guard is FALSE, the
---                  ELSE runs, and `name` was written NULL. Witnessed.
+--                  ELSE runs, and `name` was written NULL. It read @nullable
+--                  until 2026-08-25, when `alwaysNullExpr`'s CASE rule
+--                  started consulting the SAME arm pruning the notNull rule
+--                  uses — the arm cannot fire, so its non-null `'a'` stops
+--                  standing in the way of the ELSE's NULL. PostgreSQL
+--                  returns NULL for it (adjudicated; the statement writes one
+--                  deterministic row).
 --   eval_hit       the EVALUATED path — `val = 'paid'` over a written 'paid'
 --                  is not a literal, it is a comparison PostgreSQL answers.
 --                  This is what makes the mechanism general rather than a
 --                  boolean special case, and it is dark if only the bare
 --                  path exists.
 --   eval_miss      the same comparison against the other literal: FALSE, so
---                  the ELSE runs and the NULL `name` comes back.
+--                  the ELSE runs and the NULL `name` comes back — @alwaysNull
+--                  by the same 2026-08-25 pruning, through the EVALUATED
+--                  guard rather than the bare one.
 --
 -- The two `eval_` columns are why the corpus needed its `evaluate` callback
 -- turned on as part of this change: without one the pass returns nothing and
@@ -39,6 +47,6 @@ INSERT INTO t (id, name, val, active) VALUES (1, NULL, 'paid', true)
 RETURNING
   active                                        AS still_written, -- @notNull
   CASE WHEN active      THEN 'a' ELSE name END  AS bare_true,     -- @notNull
-  CASE WHEN NOT active  THEN 'a' ELSE name END  AS bare_false,    -- @nullable
+  CASE WHEN NOT active  THEN 'a' ELSE name END  AS bare_false,    -- @alwaysNull
   CASE WHEN val = 'paid'  THEN 'a' ELSE name END AS eval_hit,     -- @notNull
-  CASE WHEN val = 'draft' THEN 'a' ELSE name END AS eval_miss     -- @nullable
+  CASE WHEN val = 'draft' THEN 'a' ELSE name END AS eval_miss     -- @alwaysNull

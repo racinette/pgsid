@@ -892,13 +892,12 @@ CREATE TABLE caie (a integer NOT NULL, o text,
   CHECK (CASE WHEN a > 5 THEN o IS NULL ELSE o IS NOT NULL END));
 
 -- The transitive-nullability subject (generated-predicate-red.test.ts,
--- captured 2026-08-24): a generated column whose CASE arm reads a
--- nullable operand a boolean-discriminated OR-CHECK can pin. The red
--- targets over finished_at are NOT claimed yet; the fixtures hold the
--- half that already works — bare-boolean evidence walking the CHECK's OR
--- to `event_duration IS NOT NULL`, and the reading site composing it
--- into arithmetic — so the missing guard-TRUE link cannot regress the
--- ground it will stand on.
+-- captured 2026-08-24, graduated 2026-08-25): a generated column whose
+-- CASE arm reads a nullable operand a boolean-discriminated OR-CHECK can
+-- pin. The full chain is claimed now — `WHERE status = 3 AND
+-- has_duration` proves the arm's guard, walks the CHECK's OR to
+-- `event_duration IS NOT NULL`, and reads the arithmetic non-null — and
+-- the older fixtures still hold the CHECK half in isolation.
 CREATE TABLE evg (
   status integer NOT NULL,
   has_duration boolean NOT NULL,
@@ -908,6 +907,16 @@ CREATE TABLE evg (
     CASE WHEN status >= 2 THEN started_at + event_duration ELSE NULL END
   ) STORED,
   CHECK ((has_duration AND event_duration IS NOT NULL) OR NOT has_duration)
+);
+-- The same subject with NO CHECK at all: the generated CASE is the only
+-- thing on the table that mentions `a`, so a predicate over `a` reaches
+-- its arms through the evidence-only kernel run and through the
+-- anchor-question pool the generation expression itself supplies.
+CREATE TABLE gpc (
+  a integer NOT NULL,
+  c text GENERATED ALWAYS AS (
+    CASE WHEN a <= 3 THEN 'yes' WHEN a <= 10 THEN 'maybe' ELSE NULL END
+  ) STORED
 );
 CREATE TABLE caiow (a integer, b integer NOT NULL, o text,
   CHECK (a >= 4 OR a = 3),

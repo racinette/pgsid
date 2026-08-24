@@ -319,6 +319,13 @@ const columnSpecificGenerators: Record<
       has_duration: (_rand, ctx) => ctx.row % 2 === 0,
       event_duration: rand => rand.pick(["1 hour", "2 hours", "45 minutes"]),
     },
+    // gpc's `a` rotates through one value per BAND of the generated CASE,
+    // FIRST the equality fixture's own 7 (the sparsest state seeds one row
+    // and that fixture has no other way to return one), then the first
+    // arm's 2, then the ELSE's 12 — which is the NULL witness both nullable
+    // fixtures need AND the row the alwaysNull fixture is tested on — then
+    // a second middle-band 6 so `>= 5 AND <= 10` is not carried by 7 alone.
+    gpc: { a: (_rand, ctx) => [7, 2, 12, 6][ctx.row % 4]! },
     caiow: {
       a: (_rand, ctx) => [4, 3][ctx.row % 2]!,
       b: (_rand, ctx) => [1, 2][ctx.row % 2]!,
