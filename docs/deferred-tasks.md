@@ -41,7 +41,7 @@ and `operators.ts` is 74% — that is where rationale is kept, and it works.
 | Asking PostgreSQL to resolve a type (`PREPARE`) | `docs/type-resolution-delegation.md` — all five stages landed 2026-08-24 (`src/query/type-delegation.ts`) |
 | Query generator and its axes | `docs/query-generator.md`, `docs/generated-surface.md` |
 | Generated soundness instrument | `tests/unit/query/generated/generated-soundness.test.ts` |
-| Subtree evaluation | `docs/subtree-evaluation.md` — consumer 3 (closed truths, `src/query/closed-truths.ts`) landed 2026-08-24 |
+| Subtree evaluation | `docs/subtree-evaluation.md` — consumer 3 (closed truths, `src/query/closed-truths.ts`), the computed-argument cast gate, and consumer 1's reverse `isNull` reading all landed 2026-08-24 |
 | What `pgsql-deparser` cannot render, and what that costs | `docs/deparser-limitations.md` — read BEFORE testing whether a construct deparses; that exploration has been done twice |
 | Argument / parameter contract | `docs/argument-nullability.md` |
 | Witness corpus discipline | `docs/witness-coverage.md` |
@@ -87,6 +87,18 @@ keyed under the catalog's. The re-check was right about everything it looked
 at, and the row it closed was still open. Where an entry names a MECHANISM
 rather than one claim, enumerate the mechanism's consumers before closing it —
 `RelationEntry`'s own doc comment listed all five.
+
+**A fourth, found 2026-08-24 — a TRUE reason for the WRONG channel.** This one
+does not rot in this file at all; it rots in a fixture comment, which is worse,
+because a fixture comment reads as settled and no sweep visits it.
+`scalar-subquery-union-arm.sql` explained `union_null_both`'s nullable claim
+with "the alwaysNull channel needs both branches to claim it, and a cast NULL
+constant is not something the walk claims it for". Every word is true OF THE
+SYMBOLIC CHANNEL, and the column is a CLOSED sublink whose NULL the statement
+map had been holding since 2026-08-12 — the evaluation channel simply was not
+read in that direction. A reason that is true of a mechanism the value never
+goes through will survive any amount of re-reading. **Check which channel
+answers, not whether the reason is correct.**
 
 ## Open items
 
@@ -1296,7 +1308,8 @@ Two of these three needed one query each.
 | CHECK entailment, conservative edges | nullable | parameters never match (identity needs the literal token; permanent for a per-statement contract), and origin consumption is gated as designed |
 | Presence groups | none recorded | every launch and post-launch residue closed 2026-08-04; future entries come from consumer corpora |
 | A CHECK literal that is not a truth value | **closed** | The row said "a cast", and measuring it said TEN SHAPES and a second site. Parse analysis coerces an UNKNOWN literal, so `'t'::boolean` is already `true` in `conbin` and the kernel never saw it; the rewriter folds NOTHING, so `1::boolean`, `1 > 2`, `'a' = 'b'`, `starts_with('abc','z')`, `ARRAY[1,2] @> ARRAY[3]`, a jsonb `?`, `false IS TRUE`, a closed CASE, `3 = ANY (ARRAY[1,2])` and a closed `IN` all arrive unreadable, each a dead disjunct with PostgreSQL refusing the NULL behind it. And the walk's own OR rule was blind to a BARE `false` (`WHERE false OR v IS NOT NULL` proved nothing). All closed 2026-08-24 by `closed-truths.ts` — subtree-evaluation.md consumer 3 — which ASKS rather than matching, the statement half free off consumer 1's map. `closed-boolean-truths-red.test.ts`; fixtures `closed-truth-check.sql` and the `closed-truth-predicate{,-live}.sql` pair, one character apart with opposite verdicts |
-| A cast over a COMPUTED argument, in any consumer | nullable | `('f'::text)::boolean` is a dead disjunct PostgreSQL refuses the NULL behind, and the engine does not claim it. The refusal is the EVALUATOR's, not the kernel's: `typeSetOf` closes a cast over a LITERAL argument only, because a computed argument's OUTPUT function crossing an I/O coercion is a measured settings leak (`to_timestamp(0)::text` moves with TimeZone). **The sweep that would close it is already run** (2026-08-24, PG18.3): of every `pg_cast` whose source AND target are both pg_catalog types with immutable `typinput` and `typoutput`, ZERO has a non-immutable cast function — 18 rows remain and all are binary-coercible or I/O, both immutable by the set's own definition. So the widening is "allow a non-literal argument whose resolved type set lies entirely in the BUILTIN immutable-I/O renderings", and the one design question left is which predicate to gate on: `isImmutableIoRendering` also admits first-wave USER renderings (domains, enums), whose casts route through user functions of any volatility, so it is the wrong face and a builtin-only one has to be added. Not done here because it changes a gate every evaluator consumer stands on, and this row's fix touched none of them. Boundary test: `closed-boolean-truths-red.test.ts`, "a boundary that is NOT this module's" |
+| A closed subtree that evaluates NULL | **closed** | The statement map's `isNull` had only ever been read forwards — non-null claims notNull — and the reverse is the same argument: closure means no row can move the value, so a closed subtree that evaluated NULL is NULL on EVERY row. `alwaysNullExpr` reads the map since 2026-08-24. Corpus effect **21 → 31 alwaysNull claims, 0 falsified**, across five pre-existing fixtures, and the verification is the strong direction — any non-NULL value on any returned row refutes one. Found while writing a fixture for the row below, which is the only reason it was found: nothing recorded it as open, and one fixture comment recorded it as SETTLED for the wrong reason (see "a fourth rot mode" above) |
+| A cast over a COMPUTED argument, in any consumer | **closed** | Opened and closed 2026-08-24, one commit apart. The refusal was the EVALUATOR's rather than the kernel's — `typeSetOf` closed a cast over a LITERAL argument only — and the rule was SYNTACTIC where the hazard it guards is TYPED: the leak is a stable OUTPUT function crossing an I/O coercion, which is a fact about `timestamptz`, not about computation. The gate now reads the same 48-type immutable-I/O set every other closure question uses, on the argument's own resolved types. Sound because a cast between two set members is binary-coercible, an I/O conversion, or a cast function — and of every `pg_cast` row whose source AND target are both members, ZERO has a non-immutable cast function (swept PG18.3, and the sweep RUNS as an assertion in `computed-cast-closure-red.test.ts`, so a future PostgreSQL that adds one fails first). `isBuiltinImmutableIoRendering` was added rather than reusing `isImmutableIoRendering`: the latter admits first-wave USER renderings, whose casts route through user functions of any volatility. Design B stays literal-only (its admission reads the VALUE's shape). Fixture `computed-cast-closure.sql` |
 
 ### 5. The datetime settings decision
 

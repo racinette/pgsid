@@ -287,6 +287,18 @@ export interface SubtreeEvaluationCatalog {
    */
   isImmutableIoRendering(typeName: string): boolean;
   /**
+   * The same set with the first-wave USER admission removed — the builtin
+   * immutable-I/O renderings and nothing else. This is the CAST-SOURCE gate
+   * (docs/subtree-evaluation.md, "Casts over a computed argument"), and it is
+   * a different question from the one above: `isImmutableIoRendering` asks
+   * whether a value may cross the wire, which a domain over integer and an
+   * enum both may; a cast off a user type runs whatever function the user
+   * attached, of whatever volatility, and the sweep that admits the cast gate
+   * swept pg_catalog only. The unknown-literal landings already read the
+   * builtin set directly for the same reason.
+   */
+  isBuiltinImmutableIoRendering(typeName: string): boolean;
+  /**
    * Pre-parsed expressions of the ENFORCED table CHECK constraints on
    * `schema.table` — the CHECK grounder's input channel
    * (docs/argument-nullability.md, Mechanism E), gated on
@@ -369,6 +381,7 @@ export const EVALUATION_CATALOG_ONLY = [
   "closedCastTargetType",
   "closedDatetimeCastTarget",
   "isImmutableIoRendering",
+  "isBuiltinImmutableIoRendering",
   "resolveEnforcedCheckConstraints",
   "resolveColumnCollationDeterministic",
   "resolveColumnCollationIsDefault",

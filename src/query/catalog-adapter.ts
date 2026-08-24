@@ -2348,6 +2348,17 @@ export async function buildNullabilityCatalog(
     return immutableIoRendered.has(base) || admissibleUserRenderings.has(base);
   };
 
+  /** The same question with the first-wave user admission REMOVED — the
+   *  builtin set, and only it. `isImmutableIoRendering` answers "may this
+   *  value cross the wire", where a user domain's output route is its base's
+   *  and an enum's is a snapshot-pinned label. A cast SOURCE is a different
+   *  question: a cast off a user type runs whatever function the user
+   *  attached, of whatever volatility, and the sweep that admits the cast
+   *  gate swept pg_catalog only. Same discipline the unknown-literal landings
+   *  already keep by reading the builtin set directly. */
+  const isBuiltinImmutableIoRendering = (typeName: string): boolean =>
+    immutableIoRendered.has(typeName.endsWith("[]") ? typeName.slice(0, -2) : typeName);
+
   // --- First-wave admission, computed here where every face member exists.
   // Single pass, no fixpoint: a domain whose CHECK casts to a not-yet-
   // admitted domain stays out, and over-keeping only keeps a cast open —
@@ -2389,6 +2400,7 @@ export async function buildNullabilityCatalog(
       closedCastTargetType,
       closedDatetimeCastTarget,
       isImmutableIoRendering,
+      isBuiltinImmutableIoRendering,
       resolveEnforcedCheckConstraints,
       resolveColumnCollationDeterministic,
       resolveColumnCollationIsDefault,
@@ -2584,6 +2596,7 @@ export async function buildNullabilityCatalog(
     closedCastTargetType,
     closedDatetimeCastTarget,
     isImmutableIoRendering,
+    isBuiltinImmutableIoRendering,
     isBuiltinFunction,
     isPolymorphicBuiltin,
     resolvePolymorphicArraySignatures,

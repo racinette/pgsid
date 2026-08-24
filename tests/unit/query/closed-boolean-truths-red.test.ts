@@ -62,7 +62,7 @@ const GUARDS: { col: string; expr: string; dead: boolean; blocked?: string; why:
     col: "g_cast_txt",
     expr: "('f'::text)::boolean",
     dead: true,
-    blocked: "subtree-evaluator.ts typeSetOf, TypeCast: literal arguments only",
+    blocked: "the subtree evaluator's cast gate",
     why: "nested typed cast",
   },
   // --- The family the row did not name. ------------------------------------
@@ -205,22 +205,21 @@ describe("closed boolean subexpressions in a CHECK — targets", () => {
   }
 });
 
-describe("closed boolean subexpressions in a CHECK — a boundary that is NOT this module's", () => {
-  // PostgreSQL refuses the NULL behind `('f'::text)::boolean` (asserted above
-  // with the rest), so this is a real claim the engine does not make. The
-  // refusal is not the kernel's and not this round's: the SUBTREE EVALUATOR
-  // closes a cast only over a LITERAL argument, because a computed argument's
-  // OUTPUT function crossing an I/O coercion is a measured settings leak
-  // (`to_timestamp(0)::text` moves with TimeZone —
-  // docs/subtree-evaluation.md). A cast over a cast is a computed argument, so
-  // the position never becomes a question and no answer exists to read.
+describe("closed boolean subexpressions in a CHECK — the boundary that was NOT this module's", () => {
+  // This shipped REFUSED, and the refusal belonged to the subtree evaluator:
+  // it closed a cast over a LITERAL argument only, so a cast over a cast was
+  // never a question and no answer existed to read. Recorded rather than
+  // worked around, because reaching past the evaluator's gate from here would
+  // have meant one closure question decided in two places.
   //
-  // Recorded rather than worked around. Reaching past the evaluator's gate
-  // from here would mean this module deciding a closure question the evaluator
-  // owns, which is how one gate becomes two that disagree.
+  // The gate itself was then widened — the hazard behind it is a stable
+  // OUTPUT function, which is a fact about TYPES, and `text` is in the
+  // immutable-I/O set while `date` is not (computed-cast-closure-red.test.ts
+  // carries the sweep). So this flipped without this module changing at all,
+  // which is what it looks like when a boundary is filed in the right place.
   const g = GUARDS.find(x => x.blocked)!;
-  it(`${g.why} — refused, and the refusal belongs to ${g.blocked}`, async () => {
-    expect(await guardClaim(g.col)).toBe(false);
+  it(`${g.why} — answered once ${g.blocked} widened`, async () => {
+    expect(await guardClaim(g.col)).toBe(true);
   });
 });
 

@@ -322,15 +322,28 @@ describe("closure gates", () => {
     )).toBe(true);
   });
 
-  it("a computed cast argument is open even to an immutable-I/O target", async () => {
-    // to_timestamp(0)::text moves with TimeZone (measured, pinned in
-    // param-mechanism.test.ts): the stable face is the ARGUMENT type's
-    // output function, which a scope-blind gate cannot see — so only
-    // literal casts close. The computation INSIDE the cast still folds as
-    // its own maximal subtree; the cast node itself is never collected.
+  it("a computed cast argument is gated on its own TYPE, not on being a literal", async () => {
+    // This was "open even to an immutable-I/O target" until 2026-08-24, and
+    // the rule it pinned was syntactic where the hazard is typed.
+    //
+    // The hazard is real: to_timestamp(0)::text moves with TimeZone
+    // (measured, pinned in param-mechanism.test.ts), because the stable face
+    // is the ARGUMENT type's OUTPUT function. But that is a statement about
+    // timestamptz, not about computation — timestamptz is not in the
+    // immutable-I/O set, and the set is what the gate now reads. So the leak
+    // stays gated by the same rule that lets `(1 + 1)::bigint` close whole.
     expect(await open("SELECT to_timestamp(0)::text AS g")).toBe(true);
+    expect(await open("SELECT ('2020-01-02'::date)::text AS g")).toBe(true);
     expect(await answers("SELECT (1 + 1)::bigint AS g")).toEqual([
-      { isNull: false, value: 2, type: "integer" },
+      { isNull: false, value: 2, type: "bigint" },
+    ]);
+    expect(await answers("SELECT ('f'::text)::boolean AS g")).toEqual([
+      { isNull: false, value: false, type: "boolean" },
+    ]);
+    // The cast node is the MAXIMAL subtree now, so the computation inside it
+    // is no longer collected on its own — one answer where there were two.
+    expect(await answers("SELECT (1 + 1)::text AS g")).toEqual([
+      { isNull: false, value: "2", type: "text" },
     ]);
   });
 

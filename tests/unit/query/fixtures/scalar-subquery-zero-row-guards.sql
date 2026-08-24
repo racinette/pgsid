@@ -65,7 +65,10 @@ SELECT
     GROUP BY r.product_id
   )                                         AS grouped_count,     -- @nullable
 
-  -- A FROM-less SELECT is one row only when nothing can filter it out.
-  (SELECT 1 WHERE false)                    AS filtered_constant, -- @nullable
+  -- A FROM-less SELECT is one row only when nothing can filter it out. The
+  -- body is closed, so the map holds its NULL and the column reads @alwaysNull
+  -- (2026-08-24); `grouped_count` above is the same emptiness over a RELATION
+  -- and stays nullable, which is the line between the two.
+  (SELECT 1 WHERE false)                    AS filtered_constant, -- @alwaysNull
   (SELECT 1)                                AS bare_constant      -- @notNull
 FROM products p
