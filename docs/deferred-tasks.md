@@ -353,21 +353,23 @@ corpus-shaped query has produced that conjunction. If one does, the fix
 is the same one-word widening the harvest got, and the red case comes
 first (rule 1).
 
-### 2d. Two widenings the predicate-aware generated-column pass left out
+### 2d. One widening the predicate-aware generated-column pass left out
 
-Both are adjacent to what landed 2026-08-25
-(docs/subtree-evaluation.md, "Predicate-aware generated columns") and
-both sit here rather than in a red suite for the same reason: no
-measured imprecision reaches either, and rule 1's sequence is
-measure-then-capture, not capture-what-might-exist.
+Adjacent to what landed 2026-08-25 (docs/subtree-evaluation.md,
+"Predicate-aware generated columns"), and here rather than in a red
+suite because no measured imprecision reaches it — a sentence this
+entry has already been wrong about once, which is the reason the
+correction is left standing below rather than deleted.
 
-**The alwaysNull side does not read a PROVEN guard.** `alwaysNullExpr`'s
-CASE rule now excuses an arm the facts prove NEVER TRUE. Its mirror —
-arms AFTER a proven-TRUE guard, and the ELSE beside them, never run
-either — is the same fact the notNull rule's `firstTrue` already
-consumes, and would make `CASE WHEN cond THEN NULL ELSE 'x' END`
-always-null under a proven `cond`. Nothing in the corpus or the
-generated bucket has that shape with a provable guard.
+**Filed and falsified the same day.** This item opened with a second
+half: "the alwaysNull side does not read a PROVEN guard", filed as
+reaching no measured imprecision. It took one probe to falsify —
+`SELECT CASE WHEN a <= 3 THEN NULL ELSE 'x' END FROM t WHERE a = 2`
+returns NULL on every row and the engine said nullable — so it became
+`always-null-red.test.ts` describe F and then a fix, inside the hour.
+The lesson is rule 9's, not rule 1's: "no measured imprecision reaches
+it" is a claim about a MEASUREMENT, and writing it without taking one
+is how a gap gets a permanent home. Take the probe before filing.
 
 **The guard consumer refuses DML scopes wholesale.** The refusal is
 real and now fixture-killed

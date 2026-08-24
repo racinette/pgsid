@@ -8321,20 +8321,28 @@ class NullabilityEngine {
     // included — and a MISSING ELSE is itself NULL, which is why its absence
     // helps rather than blocks.
     //
-    // "Can still fire" is the arm pruning the notNull rule uses, read here
-    // in the opposite direction and sound for the same reason: a guard the
-    // facts prove NEVER TRUE fires no arm, so that arm produces no value on
-    // any emitted row and nothing about its result matters. This channel
-    // used to skip the pruning deliberately — ignoring it is the
-    // conservative direction, since a pruned arm can only remove a way to
-    // be non-null — but conservative is what kept `SELECT c FROM gp WHERE a
-    // >= 11` from concluding the ELSE's NULL, which is the whole of what
-    // the reading site knows.
+    // "Can still fire" is the same arm reachability the notNull rule reads,
+    // in the opposite direction and sound for the same reasons. A guard the
+    // facts prove NEVER TRUE fires no arm, so nothing about that arm's
+    // result matters; a guard they PROVE fires unless an earlier arm did,
+    // so everything after it — the ELSE included — never runs and nothing
+    // about those matters either.
+    //
+    // This channel used to consult neither. Ignoring reachability is the
+    // conservative direction, since a branch that cannot run only ever
+    // removes a way to be non-null — and conservative is what kept `SELECT
+    // c FROM gp WHERE a >= 11` from concluding the ELSE's NULL, which is
+    // the whole of what the reading site knows. The refuting half landed
+    // 2026-08-25; the proving half the same day, one probe after it was
+    // filed as unmeasured.
     if ("CaseExpr" in node) {
       const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node };
       // The simple form compares values rather than evaluating predicates,
-      // so its WHEN slots are not guards and nothing prunes them — the same
-      // split the notNull rule draws.
+      // so its WHEN slots are not guards and neither judgment applies — the
+      // same split the notNull rule draws. Load-bearing: a bare `false`
+      // there is a VALUE, and reading it as a FALSE guard would prune the
+      // arm that fires exactly when the column IS false
+      // (always-null-simple-case-form.sql).
       const simpleForm = !!ce.arg;
       const arms = (ce.args ?? []).map(
         a =>
@@ -8342,12 +8350,15 @@ class NullabilityEngine {
             | { expr?: Node; result?: Node }
             | undefined,
       );
+      const truths = arms.map(w => (simpleForm ? undefined : this.guardTruth(w?.expr, scope)));
+      const firstTrue = truths.indexOf(true);
+      const reachable = (i: number): boolean =>
+        truths[i] !== false && (firstTrue < 0 || i <= firstTrue);
       const everyArmNull = arms.every(
-        w =>
-          (!simpleForm && this.guardTruth(w?.expr, scope) === false) ||
-          (!!w?.result && this.alwaysNullExpr(w.result, scope, depth)),
+        (w, i) => !reachable(i) || (!!w?.result && this.alwaysNullExpr(w.result, scope, depth)),
       );
-      const elseNull = !ce.defresult || this.alwaysNullExpr(ce.defresult, scope, depth);
+      const elseNull =
+        firstTrue >= 0 || !ce.defresult || this.alwaysNullExpr(ce.defresult, scope, depth);
       if (arms.length > 0 && everyArmNull && elseNull) return true;
     }
 
