@@ -409,3 +409,57 @@ describe("E — written values", () => {
     ).toBe("notNull");
   });
 });
+
+// --- The star-expansion crossing (found 2026-08-24 by the wrap-invariance
+// suite, wrapper 1). ---------------------------------------------------------
+//
+// `SELECT * FROM (<q>) w` must keep every alwaysNull `<q>` proved — the
+// wrapper emits exactly `<q>`'s rows, and null-extension can only ADD NULLs,
+// so the claim survives every join state. The explicit re-export already
+// carries it (`columnIsAlwaysNull` reads the inner flag), and star expansion
+// did not: `expandStar` built its outputs from the notNull channel alone, so
+// the one path that resolves POSITIONALLY dropped the flag the name path
+// kept. Measured: 32 of the corpus's 37 alwaysNull claims died at a star
+// wrapper and zero notNull claims did — the crossing was one channel in one
+// consumer, the alias-column-list shape one mechanism over.
+
+describe("the star-expansion crossing", () => {
+  // Both graduated 2026-08-24, the same day they were captured: expandStar
+  // asks entryColumnAlwaysNull positionally now, and the corpus fixture is
+  // star-alwaysnull-crossing.sql. wrap-invariance.test.ts holds the class —
+  // its wrapper is exactly this shape over every fixture at once.
+  it("unqualified * over a subselect keeps the inner alwaysNull", async () => {
+    // PostgreSQL: every row NULL (the CHECK's ELSE arm forces it inside).
+    const c = await contract(
+      "SELECT * FROM (SELECT id, amount FROM inv WHERE status <> 'paid') w",
+    );
+    expect(c.outputs[1]!.alwaysNull ?? false).toBe(true);
+  });
+
+  it("qualified w.* keeps it too", async () => {
+    const c = await contract(
+      "SELECT w.* FROM (SELECT id, amount FROM inv WHERE status <> 'paid') w",
+    );
+    expect(c.outputs[1]!.alwaysNull ?? false).toBe(true);
+  });
+
+  it("guard: the explicit re-export already carries it", async () => {
+    // The fixed point the fix must not disturb: the NAME path was never
+    // broken.
+    const c = await contract(
+      "SELECT w.amount AS a FROM (SELECT amount FROM inv WHERE status <> 'paid') w",
+    );
+    expect(c.outputs[0]!.alwaysNull ?? false).toBe(true);
+  });
+
+  it("guard: a value-bearing sibling stays un-flagged through *", async () => {
+    // PostgreSQL: id carries values on every row. An alwaysNull claim is a
+    // `null` type in the consumer's output, so an over-claim here is a lie,
+    // not eagerness.
+    const c = await contract(
+      "SELECT * FROM (SELECT id, amount FROM inv WHERE status <> 'paid') w",
+    );
+    expect(c.outputs[0]!.alwaysNull ?? false).toBe(false);
+    expect(c.outputs[0]!.notNull).toBe(true);
+  });
+});
