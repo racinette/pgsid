@@ -309,6 +309,16 @@ const columnSpecificGenerators: Record<
     },
     caitm: { a: (_rand, ctx) => [2.4, 2.3, 5.0][ctx.row % 3]! },
     caie: { a: (_rand, ctx) => [3, 6, 8][ctx.row % 3]! },
+    // The transitive-nullability subject: finished_at is GENERATED and
+    // never filled; event_duration always draws a value here and the null
+    // policy below erases it exactly where the CHECK allows (has_duration
+    // false), so every row conforms and both fixture polarities have
+    // witnesses in every state.
+    evg: {
+      status: (_rand, ctx) => [3, 1, 2][ctx.row % 3]!,
+      has_duration: (_rand, ctx) => ctx.row % 2 === 0,
+      event_duration: rand => rand.pick(["1 hour", "2 hours", "45 minutes"]),
+    },
     caiow: {
       a: (_rand, ctx) => [4, 3][ctx.row % 2]!,
       b: (_rand, ctx) => [1, 2][ctx.row % 2]!,
@@ -738,6 +748,9 @@ const nullPolicies: {
       },
       caitm: { o: (_rand, ctx) => (ctx.current("a") as number) >= 2.4 },
       caie: { o: (_rand, ctx) => (ctx.current("a") as number) > 5 },
+      evg: {
+        event_duration: (_rand, ctx) => ctx.current("has_duration") === false,
+      },
       caiow: {
         a: (_rand, ctx) => ctx.row % 3 === 2,
         o: (_rand, ctx) => ctx.row % 3 === 2,

@@ -890,6 +890,25 @@ CREATE TABLE caitm (a numeric(3,1) NOT NULL, o text,
   CHECK (CASE WHEN a < 2.4 THEN o IS NOT NULL ELSE o IS NULL END));
 CREATE TABLE caie (a integer NOT NULL, o text,
   CHECK (CASE WHEN a > 5 THEN o IS NULL ELSE o IS NOT NULL END));
+
+-- The transitive-nullability subject (generated-predicate-red.test.ts,
+-- captured 2026-08-24): a generated column whose CASE arm reads a
+-- nullable operand a boolean-discriminated OR-CHECK can pin. The red
+-- targets over finished_at are NOT claimed yet; the fixtures hold the
+-- half that already works — bare-boolean evidence walking the CHECK's OR
+-- to `event_duration IS NOT NULL`, and the reading site composing it
+-- into arithmetic — so the missing guard-TRUE link cannot regress the
+-- ground it will stand on.
+CREATE TABLE evg (
+  status integer NOT NULL,
+  has_duration boolean NOT NULL,
+  started_at timestamp NOT NULL,
+  event_duration interval,
+  finished_at timestamp GENERATED ALWAYS AS (
+    CASE WHEN status >= 2 THEN started_at + event_duration ELSE NULL END
+  ) STORED,
+  CHECK ((has_duration AND event_duration IS NOT NULL) OR NOT has_duration)
+);
 CREATE TABLE caiow (a integer, b integer NOT NULL, o text,
   CHECK (a >= 4 OR a = 3),
   CHECK (CASE WHEN a >= 3 THEN o IS NOT NULL ELSE o IS NULL END));
