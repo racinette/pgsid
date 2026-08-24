@@ -979,6 +979,24 @@ CREATE TABLE relay (
   CHECK (true OR note IS NOT NULL)
 );
 
+-- NULLABLE array columns, for the STRICTNESS twin of `route`'s totality hole.
+--
+-- `||` is on `STRICT_OPERATORS` and `NON_STRICT_OVERLOADS` records why the name
+-- is kept anyway: array concatenation ABSORBS a NULL operand — `ARRAY[1,2] ||
+-- NULL` is `{1,2}` — while `'a' || NULL::text` IS NULL, and the text meaning is
+-- what mechanism C needs. Same shape as `+`, same blind spot: the name-level
+-- rule is reached exactly where operand types are unreadable, and `arr_nn`
+-- above is NOT NULL so it can never witness the promotion.
+--
+-- Row 1 has a NULL `tags` beside a `more` that makes the concatenation equal
+-- the literal the fixture filters on: the row a wrongly-strict promotion
+-- excludes and PostgreSQL returns.
+CREATE TABLE tagged (
+  id   integer PRIMARY KEY,
+  tags text[],
+  more text[]
+);
+
 -- The corpus's only PATH-typed columns, and the reason they exist.
 --
 -- `+` is on the name-level TOTAL_OPERATORS despite `+(path,path)` being NULL
