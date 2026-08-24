@@ -164,17 +164,16 @@ describe("a polymorphic landing — targets", () => {
     expect(await claim(sql)).toBe("alwaysNull");
   });
 
-  it("a SUBSCRIPT over the same call is refused, and the refusal is elsewhere", async () => {
-    // Measured 2026-08-24: non-NULL on every row, and the engine claims
-    // nothing. `array_remove`'s result now closes — the face test above says
-    // so — but `A_Indirection` is not in the evaluator's closed grammar at
-    // all, so the subscript around it is open whatever its argument does.
-    // A separate gap, filed rather than reached past (docs/deferred-tasks.md
-    // §4); the symbolic rule that covers `(ARRAY['a','b'])[1]` needs the
-    // constructor's own length and has nothing to read here.
+  it("a SUBSCRIPT over the same call — the boundary this commit filed", async () => {
+    // Shipped REFUSED: `array_remove`'s result closed, but `A_Indirection`
+    // was not in the evaluator's closed grammar at all, so the subscript
+    // around it stayed open whatever its argument did. Filed rather than
+    // reached past, and the grammar census that closed it one commit later
+    // found it was one of twenty-six kinds nobody had considered
+    // (`closed-grammar-red.test.ts`).
     const sql = "SELECT (array_remove(ARRAY['a','b'], 'a'))[1] AS v FROM rows_t";
     expect((await witness(sql)).anyNull).toBe(false);
-    expect(await claim(sql)).toBe("nullable");
+    expect(await claim(sql)).toBe("notNull");
   });
 
   it("a dead disjunct in a WHERE clause", async () => {

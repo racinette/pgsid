@@ -458,6 +458,59 @@ same call is refused"). The symbolic rule that covers
 `(ARRAY['a','b'])[1]` reads the constructor's own length and has nothing
 to read here.
 
+#### The closed grammar, censused (2026-08-24)
+
+The allowlist census in `subtree-evaluator.test.ts` ran TWO directions and
+needed a third:
+
+- every kind INSIDE a collected subtree must be classified — catches
+  over-admission, the soundness direction;
+- every kind classified `closed` must actually be collected somewhere —
+  catches a dead gate, the reachability direction.
+
+Neither can see ABSENCE. A kind the gate has never heard of is never inside
+a collected subtree and is never classified `closed`, so both assertions
+pass while the gate does not exist. The third direction closes it: **every
+expression kind the corpus writes in a `ResTarget.val` must be CONSIDERED**
+— classified with a gate, or listed open with a reason. Being listed is not
+a promise to fold; it is a promise that somebody looked.
+
+It went red with **twenty-six** kinds. What they turned out to be:
+
+- **Closed, and refused anyway — 2.** `A_Indirection` and `CollateClause`.
+  The first is the one the polymorphic-landing commit had just filed as an
+  open row; its exclusion read "structural facts over open trees are
+  refused", which is right about `arr[i]` over a column and silent about
+  `(array_remove(ARRAY['a','b'], 'a'))[1]`. Both are now gates, with
+  `A_Indices` structural beside them.
+- **Deferred behind ONE upstream blocker — 7.** Every SQL/JSON expression
+  node (`JsonIsPredicate`, the two constructors, `JsonScalarExpr`,
+  `JsonParseExpr`, `JsonSerializeExpr`, `JsonFuncExpr`). Each answers a
+  definite value from all-literal arguments; `pgsql-deparser` throws on all
+  seven, and the evaluator renders every collected subtree. Recorded as
+  BLOCKED rather than designed-open, because "closable, if ever worth it" is
+  the entry shape this project has twice measured to rot fastest.
+- **Open for a measured reason — the rest.** A relation reached through a
+  sublink body is context; an aggregate needs rows; `xml_in` is STABLE
+  (measured) so xml is outside the immutable-I/O set; and `NamedArgExpr`
+  carries its arguments in the order they were WRITTEN with `argnumber`
+  unresolved, while the survivor consensus matches parameters positionally.
+
+`A_Indirection`'s gate carries one restriction that is NOT a closure
+question, and it is worth stating where it will be found: the ARGUMENT KIND
+is limited to what `pgsql-deparser` parenthesises. `(ARRAY['a','b'])[1]`
+renders as `ARRAY['a', 'b'][1]`, which PostgreSQL rejects, and a batch whose
+render is rejected returns nothing for the WHOLE statement — so one
+unrenderable subtree would cost every other answer in the same query. The
+measured split is in docs/deparser-limitations.md §4.
+
+CORPUS EFFECT: none. Every claim in the corpus stood, and the fixture
+written for this — `closed-grammar-subscript.sql` — is the whole of the
+reach. That is the expected shape for a grammar widening whose subject is
+all-literal expressions, and it is also why the census matters more than
+the gates it produced: the instrument now fails when a node kind arrives
+unexamined, instead of waiting for somebody to trip over one.
+
 ## Consumer 1 — the statement map
 
 `Map<Node, EvalResult>` keyed by NODE IDENTITY over the statement's own

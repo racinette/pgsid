@@ -142,6 +142,11 @@ const DATETIME_SHAPES: Record<"date" | "timestamp" | "timestamptz", RegExp> = {
   timestamptz: new RegExp(`^ *${DATE_BODY}${TIME_BODY}${OFFSET_BODY} *$`),
 };
 
+/** Argument kinds `pgsql-deparser` renders with the parentheses a subscript
+ *  needs — measured, not assumed (docs/deparser-limitations.md §4, and the
+ *  table in the `A_Indirection` case below). */
+const SUBSCRIPTABLE_ARG_TAGS = new Set(["TypeCast", "FuncCall", "SubLink"]);
+
 /** A_Expr kinds that resolve through the operator name the AST carries
  *  (`~~` for LIKE, `=` for IN/NULLIF/DISTINCT). SIMILAR resolves through a
  *  helper function and stays open. */
@@ -385,6 +390,77 @@ function typeSetVerdict(
         leftSet === undefined ? null : leftSet,
         rightSets[0]!,
       );
+    }
+
+    case "A_Indirection": {
+      // Subscripting dispatches a TYPE'S OWN routine, not an I/O function:
+      // `array_subscript_handler` and `jsonb_subscript_handler` are both
+      // immutable (measured; `json` has no handler at all and is refused by
+      // falling through). So the closure question is the ARGUMENT's, plus the
+      // bounds', and the exclusion this replaces — "structural facts over
+      // open trees are refused" — was right about `arr[i]` over a column and
+      // silent about a subscript that is closed all the way down.
+      //
+      // A FIELD step is a String, and a composite's field type is not
+      // derivable from the `record` rendering the type sets carry, so those
+      // refuse. PostgreSQL's own rule decides the result: ANY slice in the
+      // list makes it the ARRAY type, otherwise the ELEMENT type — arrays do
+      // not nest, so `arr[1][2]` over a two-dimensional array is still one
+      // element. jsonb subscripts yield jsonb and admit no slice (measured:
+      // `('{"a":1}'::jsonb)['a':'b']` raises).
+      //
+      // THE ARGUMENT KIND IS GATED, and this one is a RENDERING constraint
+      // rather than a closure one. Every collected subtree goes back out
+      // through `deparseSelect`, and `pgsql-deparser` drops the parentheses a
+      // subscripted expression needs for some argument kinds (measured
+      // 2026-08-24, docs/deparser-limitations.md §4):
+      //
+      //     (array_remove(…))[1]  → (array_remove(…))[1]   accepted
+      //     ('{…}'::jsonb)['a']   → ('{…}'::jsonb)['a']    accepted
+      //     ((SELECT …))[1]       → ((SELECT …))[1]        accepted
+      //     (ARRAY['a','b'])[1]   →  ARRAY['a', 'b'][1]    SYNTAX ERROR
+      //     (CASE … END)[1]       →  CASE … END[1]         SYNTAX ERROR
+      //     (COALESCE(…))[1]      →  COALESCE(…)[1]        SYNTAX ERROR
+      //
+      // It has to be gated HERE rather than tolerated: a batch whose render
+      // is rejected returns NOTHING for the whole statement, so one
+      // unrenderable subtree costs every other answer in the same query.
+      if (!SUBSCRIPTABLE_ARG_TAGS.has(nodeTag(f.arg) ?? "")) return null;
+      const base = setOf(f.arg);
+      if (base === null || base.length === 0) return null;
+      const steps = Array.isArray(f.indirection) ? f.indirection : [];
+      if (steps.length === 0) return null;
+      let anySlice = false;
+      for (const step of steps) {
+        if (nodeTag(step) !== "A_Indices") return null;
+        const idx = fieldsOf(step, "A_Indices") as {
+          is_slice?: boolean;
+          lidx?: unknown;
+          uidx?: unknown;
+        };
+        if (idx.is_slice === true) anySlice = true;
+        for (const bound of [idx.lidx, idx.uidx]) {
+          if (bound !== undefined && setOf(bound) === null) return null;
+        }
+      }
+      const out: string[] = [];
+      for (const t of base) {
+        if (t.endsWith("[]")) out.push(anySlice ? t : t.slice(0, -2));
+        else if (t === "jsonb" && !anySlice) out.push("jsonb");
+        else return null;
+      }
+      return [...new Set(out)];
+    }
+
+    case "CollateClause": {
+      // COLLATE names a CATALOG collation and changes no value — the datum
+      // that crosses the wire is the argument's. What it changes is how
+      // comparisons inside the subtree sort, and that is decided by the named
+      // collation rather than by session state, so the probe and the
+      // execution agree under the analysis-database ≡ execution-database
+      // assumption this module already records. A collation the database does
+      // not have makes the probe raise, which contributes nothing.
+      return f.arg === undefined ? null : setOf(f.arg);
     }
 
     case "BoolExpr":
