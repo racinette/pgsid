@@ -184,6 +184,15 @@ export interface CheckEntailmentInput {
    */
   btreeStrategy?: (op: string) => number | null;
   equalityComplement?: (op: string) => boolean;
+  /**
+   * The truth of a CLOSED expression, answered by PostgreSQL in the pre-walk
+   * round (closed-truths.ts). This is what `boolLiteral` refuses to guess:
+   * `1::boolean`, `('f'::text)::boolean`, `1 > 2`, `starts_with('abc','z')` —
+   * every shape parse analysis leaves unfolded in `pg_constraint.conbin`, none
+   * of which is a token. Null for anything not answered, including a closed
+   * expression that evaluated NULL.
+   */
+  closedTruth?: (expr: Node) => boolean | null;
   trace?: CheckEntailmentTrace;
 }
 
@@ -437,10 +446,11 @@ export function litOf(expr: Node): Lit | null {
  * `pg_get_constraintdef` reads `false` back out) — so a dead disjunct
  * survives to the kernel and something must recognise it as dead.
  *
- * A CAST is refused rather than followed. `'t'::boolean` and `1::boolean`
- * are both TRUE, but the general form is an input function whose result is
- * not a token, and reading one spelling while missing the next would be a
- * rule that looks total and is not.
+ * A CAST is still refused rather than followed. `'t'::boolean` and
+ * `1::boolean` are both TRUE, but the general form is an input function whose
+ * result is not a token, and reading one spelling while missing the next would
+ * be a rule that looks total and is not. `constantTruth` is where the cast is
+ * ANSWERED instead — by PostgreSQL, which is total.
  */
 function boolLiteral(expr: Node): boolean | null {
   const lit = litOf(expr);
@@ -1331,11 +1341,24 @@ class EntailmentKernel {
   // Judgments over the CHECK expression tree.
   // -------------------------------------------------------------------------
 
+  /**
+   * The truth of `expr` as a CONSTANT: its own literal token, or — for the
+   * COMPUTATIONS parse analysis leaves unfolded in a stored CHECK — the answer
+   * PostgreSQL gave for it. Both halves are total on their own ground, and the
+   * order between them never matters: a closed expression that is also a
+   * literal has one value.
+   */
+  private constantTruth(expr: Node): boolean | null {
+    const lit = boolLiteral(expr);
+    if (lit !== null) return lit;
+    return this.input.closedTruth?.(expr) ?? null;
+  }
+
   /** TRUE(expr) — for this emitted row. */
   private isTrue(expr: Node): boolean {
     const node = expr as Record<string, unknown>;
 
-    const bool = boolLiteral(expr);
+    const bool = this.constantTruth(expr);
     if (bool !== null) return bool;
 
     if ("BoolExpr" in node) {
@@ -1388,7 +1411,7 @@ class EntailmentKernel {
     // The polarity matters as much as the reading: a rule that dropped any
     // literal arm would also drop the LIVE `true` of a vacuous constraint
     // and claim the column beside it.
-    const bool = boolLiteral(expr);
+    const bool = this.constantTruth(expr);
     if (bool !== null) return !bool;
 
     if ("BoolExpr" in node) {

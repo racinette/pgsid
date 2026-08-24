@@ -731,6 +731,19 @@ const nullPolicies: {
         hop: () => false,
       },
 
+      // mesh: same shape as relay, one step past a literal — the three
+      // guarded columns are forced UNCONDITIONALLY because their CHECKs'
+      // other disjunct is a dead COMPUTATION. `flow`'s guard is the vacuous
+      // `1 < 2 OR …`, and its NULLs witness that the engine does not claim
+      // it. It is non-null often enough that the predicate fixture over the
+      // same table returns rows.
+      mesh: {
+        span: () => false,
+        probe: () => false,
+        tag: () => false,
+        flow: (rand): boolean => rand.chance(0.4),
+      },
+
       // subscription: seats over one force the overflow contact (CHECK₂),
       // whatever the plan; the seats policy itself follows CHECK₁'s arm.
       subscription: {

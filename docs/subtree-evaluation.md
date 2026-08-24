@@ -425,6 +425,74 @@ with every guard green (the bp = direction, NOT ENFORCED, the volatile
 body among them). The as-built record lives with the mechanism's design
 — `docs/argument-nullability.md`, "Mechanism E", "As built".
 
+## Consumer 3 — closed truths (BUILT 2026-08-24)
+
+`src/query/closed-truths.ts`. The narrowest consumer here, and the one
+whose subject is a fact about PostgreSQL rather than about the engine:
+
+> Parse analysis COERCES an unknown literal. The rewriter FOLDS nothing
+> on the way into `pg_constraint.conbin`.
+
+Both halves measured 2026-08-24 through `pg_get_constraintdef`:
+
+    CHECK (a > 0 OR 't'::boolean)  →  ((a > 0) OR true)
+    CHECK (a > 0 OR 1::boolean)    →  ((a > 0) OR (1)::boolean)
+    CHECK (a > 0 OR 1 > 2)         →  ((a > 0) OR (1 > 2))
+
+The first the kernel already read — `boolLiteral` matches a TOKEN. The
+rest it could not, and neither could any token matcher, because they are
+COMPUTATIONS: a cast through an input function, a comparison, a function
+call, `ARRAY[1,2] @> ARRAY[3]`, a jsonb `?`, `false IS TRUE`, a closed
+CASE, `3 = ANY (ARRAY[1,2])`. Ten shapes measured unreadable, each a dead
+disjunct the OR harvest would have dropped had it been able to read it.
+The register carried this as ONE row about ONE cast spelling; measuring
+the refusal is what showed the row was ten.
+
+The same blindness sat on the STATEMENT side, where it needed no cast at
+all: `WHERE false OR v IS NOT NULL` proved nothing, because
+`predicateProvesNonNull` requires EVERY disjunct to prove and a dead
+disjunct proves nothing. That rule is exactly right about arms that can
+fire; the fix is to restrict it to those.
+
+TWO SOURCES, ONE KEY SPACE, ONE COST. The statement's own closed subtrees
+are already evaluated by consumer 1, so its boolean answers are RE-KEYED
+here rather than re-asked — the statement half cost no probe at all. What
+needs asking is the CHECK constraints of the statement's tables, which
+consumer 1 never sees because they are catalog trees.
+
+Keys are STRUCTURAL, not node identity, and must be: the walk hands the
+kernel `qualifyColumnRefs` output, which is a `structuredClone`, so every
+catalog-side identity is destroyed before the kernel reads it. `location`
+is skipped, so a statement's `1 > 2` and a CHECK's converge on one entry.
+
+Two gates keep the probe honest, both measured:
+
+- COLLECTION IS GATED TO BOOLEAN POSITIONS — the CHECK root, BoolExpr
+  arms, a CASE's conditions and results. Whole-tree collection over the
+  corpus's 49 CHECKs yields 28 closed subtrees, NONE of them a truth
+  value (every one an operand like `'x'::text`); the gate spends nothing
+  on answers no consumer can read.
+- A CAST OF THE NULL CONSTANT IS SKIPPED. `NULL::boolean` is what
+  `pg_get_constraintdef` renders for the implicit ELSE of a CASE that has
+  none, its truth is NULL by construction, and it was the ONLY question
+  four corpus fixtures produced. Exact, not conservative.
+
+Corpus cost after both gates: 3 fixtures of 514 ask anything, 12
+questions total, max 4 per statement. The corpus as it STOOD asked
+nothing — every one of those 12 belongs to a fixture written for this
+round, which is the honest reading of the reach: the shapes are real and
+PostgreSQL rejects the NULLs behind them, but nobody here had written one.
+
+BOUNDARY, and it is the evaluator's rather than this consumer's:
+`('f'::text)::boolean` stays unclaimed. `typeSetOf` closes a cast over a
+LITERAL argument only, because a computed argument's OUTPUT function
+crossing an I/O coercion is a measured settings leak
+(`to_timestamp(0)::text` moves with TimeZone). A cast over a cast is a
+computed argument, so the position never becomes a question. Reaching
+past that gate from a consumer would be one closure question decided in
+two places. See docs/deferred-tasks.md §4 for the sweep that says it is
+closable and what closing it would take.
+
 ## The recorded later — output-side CHECK entailment (BUILT 2026-08-12)
 
 Same core, different soundness argument: a VALIDATED CHECK is notFALSE

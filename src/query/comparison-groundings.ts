@@ -24,6 +24,7 @@
 import type { Node } from "libpg-query";
 import { parseSql } from "../ast.js";
 import { comparisonKey, scanLitComparisons, type Lit } from "./check-entailment.js";
+import { referencedTables } from "./closed-truths.js";
 import {
   evaluateClosedSubtrees,
   type Evaluate,
@@ -78,24 +79,10 @@ export async function collectComparisonQuestions(
   }
   if (statementLits.size === 0) return [];
 
-  // Referenced tables: every RangeVar, resolved through the catalog.
-  const tables = new Map<string, { schema: string; name: string }>();
-  const visit = (n: unknown): void => {
-    if (Array.isArray(n)) {
-      for (const x of n) visit(x);
-      return;
-    }
-    if (!n || typeof n !== "object") return;
-    const rv = (n as Fields)["RangeVar"] as
-      | { schemaname?: string; relname?: string }
-      | undefined;
-    if (rv?.relname) {
-      const t = catalog.resolveTable(rv.schemaname, rv.relname);
-      if (t) tables.set(`${t.schema}.${t.name}`, { schema: t.schema, name: t.name });
-    }
-    for (const v of Object.values(n as Fields)) visit(v);
-  };
-  visit(stmt);
+  // Referenced tables: every RangeVar, resolved through the catalog. Shared
+  // with closed-truths.ts, which asks the same question of the same tables —
+  // two definitions of "the statement's tables" would only ever drift apart.
+  const tables = referencedTables(stmt, catalog);
 
   const typeNameCache = new Map<string, unknown | null>();
   const typeNameAstOf = async (rendered: string): Promise<unknown | null> => {
@@ -136,7 +123,7 @@ export async function collectComparisonQuestions(
     } as unknown as Node);
   };
 
-  for (const t of tables.values()) {
+  for (const t of tables) {
     const checks = [
       ...catalog.resolveCheckConstraints(t.schema, t.name),
       ...catalog.resolveCheckConstraintsTree(t.schema, t.name),
