@@ -1554,6 +1554,27 @@ that construction needs, so mutation buys no validity for free — and it is
 bounded by the shapes the corpus already contains, which is the opposite of
 what a generator is for.
 
+*Amended 2026-08-24 — the wrap-invariance suite
+(`tests/unit/query/wrap-invariance.test.ts`) is NOT a re-opening of this.*
+The entry rejects mutation as a COVERAGE GENERATOR ("buys no validity for
+free… bounded by the shapes the corpus already contains"), and that argument
+stands. The suite is a different instrument with new information behind it:
+
+- its oracle is the engine's own MONOTONICITY across a representation
+  crossing, not execution — it detects PRECISION LOSS, which the execution
+  oracle is one-sided against (it can falsify `notNull`, it can never detect
+  a lost guarantee; `docs/query-generator.md`) and which no other suite
+  checks;
+- blind wrapping preserves validity trivially, so the validity half of the
+  rejection does not apply to it;
+- the new information is the August crossing-loss bug class — origins dying
+  at UNION, the CTE re-export unable to type computed columns, the alias
+  column list honoured by four of five consumers — every one wrap-variance,
+  and every one postdating this entry.
+
+The rejection still governs anything that would EDIT a statement rather than
+embed it whole.
+
 **A diagnostics channel for ambiguous references.** An unqualified name
 matching several visible columns resolves to nullable with the candidates in
 the trace. A dedicated channel was rejected: PostgreSQL rejects such queries at

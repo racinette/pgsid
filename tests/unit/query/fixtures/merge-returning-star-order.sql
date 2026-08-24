@@ -17,7 +17,8 @@ WHEN MATCHED THEN UPDATE SET name = 'z'
 RETURNING *
 -- PostgreSQL's order — source first, then target:
 -- @notNull    (sid: the source literal)
--- @nullable   (snote: the source's NULL::text)
+-- @alwaysNull (snote: the source's NULL::text on every returned row — the
+--              star-expansion alwaysNull crossing fix reached it, 2026-08-24)
 -- @notNull    (id)
 -- @notNull    (name: written 'z' by the sole arm)
 -- @notNull    (val)

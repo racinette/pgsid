@@ -555,6 +555,9 @@ it instead of refusing.
 | Annotation-based suite | `tests/unit/query/nullability-walk.test.ts` |
 | Executable suite (validity, shape, soundness, liveness, coverage) | `tests/unit/query/nullability-soundness.test.ts` |
 | EXPLAIN oracle (planner join reduction, observatory) | `tests/unit/query/explain-oracle.test.ts` |
+| Fallback census (name/consensus branches reached through the UNREADABLE path — the 2026-08-24 unsoundness class; per-key entries generated from `PARTIAL_OVERLOADS`/`NON_STRICT_OVERLOADS`, witnesses pinned by name, schema vocabulary derived from the escape tables) | `tests/unit/query/fallback-census.test.ts`, `fallback-spy.ts` |
+| Rung census (every traced verdict site fired on the corpus, outcome directions floored both ways; dark rungs triaged by category — instrument-blind / defensive / capture-backstop) | `tests/unit/query/rung-census.test.ts`, `rung-extractor.ts` |
+| Wrap invariance (verdicts must not WEAKEN across a subselect or CTE wrapper — the monotonicity oracle for precision LOSS, which execution is one-sided against; first crop: the star-expansion alwaysNull crossing, fixed same day) | `tests/unit/query/wrap-invariance.test.ts` |
 | AST node coverage | `tests/unit/query/node-census.test.ts`, `grammar-sampler.ts` |
 | Column order vs PostgreSQL | `tests/unit/query/column-sequence.test.ts` |
 | Generating queries to extend this corpus | `docs/query-generator.md` |

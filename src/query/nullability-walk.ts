@@ -5619,15 +5619,22 @@ class NullabilityEngine {
       ordinal: number | undefined,
     ): OutputNullability => {
       const og = withOrigins ? this.originOf(entry, colName, scope, depth, ordinal) : undefined;
+      // The alwaysNull channel, positionally — the explicit-name path asks
+      // the same question through alwaysNullExpr's leaf, and expansion
+      // dropping it was the wrap-invariance suite's whole first crop
+      // (entryColumnAlwaysNull's note has the measurement).
+      const alwaysNull =
+        !notNull && this.entryColumnAlwaysNull(entry, colName, scope, depth, ordinal);
       return og
         ? {
             name: colName,
             notNull,
+            ...(alwaysNull ? { alwaysNull: true } : {}),
             ...(og.origins ? { origins: og.origins } : {}),
             ...(og.settled ? { originNotNull: og.settled } : {}),
             ...(og.crossings ? { unitCrossings: og.crossings } : {}),
           }
-        : { name: colName, notNull };
+        : { name: colName, notNull, ...(alwaysNull ? { alwaysNull: true } : {}) };
     };
 
     // `alias.*` / `schema.rel.*` — just that relation's columns, so the list
@@ -8269,8 +8276,28 @@ class NullabilityEngine {
   private columnIsAlwaysNull(leaf: Node, scope: Scope, depth: number): boolean {
     const target = this.resolveBareColumnTarget(leaf, scope);
     if (!target) return false;
-    const { entry, column } = target;
+    return this.entryColumnAlwaysNull(target.entry, target.column, scope, depth);
+  }
 
+  /**
+   * The same question keyed by (entry, column) rather than by a leaf node —
+   * the form star expansion needs, which resolves POSITIONALLY and so has no
+   * leaf to hand `resolveBareColumnTarget`. Star expansion was the one
+   * consumer that dropped the flag: `expandStar` built its outputs from the
+   * notNull channel alone, so `SELECT * FROM (<q>) w` erased every
+   * alwaysNull `<q>` had proven while `SELECT w.c FROM (<q>) w` kept it —
+   * found 2026-08-24 by the wrap-invariance suite (32 of the corpus's 37
+   * alwaysNull claims died at a star wrapper; zero notNull claims did).
+   * `ordinal` carries expansion's positional identity, so a duplicate-named
+   * inner column reads its OWN flag here exactly as it does for notNull.
+   */
+  private entryColumnAlwaysNull(
+    entry: RelationEntry,
+    column: string,
+    scope: Scope,
+    depth: number,
+    ordinal?: number,
+  ): boolean {
     // A bare re-export carries the claim across the boundary, and unlike
     // every notNull rung this needs no join-state gate at all: if the inner
     // column is NULL on every inner row, a matched row re-exports NULL and
@@ -8280,7 +8307,10 @@ class NullabilityEngine {
     if (entry.kind === "cte" || entry.kind === "subquery" || entry.kind === "view") {
       if (!entry.ast) return false;
       const inner = this.innerRelationColumns(entry, scope, depth);
-      const idx = this.innerIndexOf(entry, column, inner);
+      const idx =
+        ordinal !== undefined && ordinal >= 0 && ordinal < inner.length
+          ? ordinal
+          : this.innerIndexOf(entry, column, inner);
       if (idx < 0) return false;
       if (inner[idx]?.alwaysNull) return true;
       // The other half: the evidence is OUT here and the CHECK is IN there.
