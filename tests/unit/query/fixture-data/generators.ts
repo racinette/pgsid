@@ -727,12 +727,16 @@ const nullPolicies: {
           (ctx.current("qty") as number) > 0 ? rand.chance(0.5) : false,
       },
 
-      // tagged: `tags` is NULL on row 0 and present after, which is what
-      // makes the promotion witnessable — `NULL || more` is `more`, so the
-      // filtered row comes back with a NULL in it.
+      // tagged: `tags` is NULL on row 0 and `more` on row 1, which is what
+      // makes the promotion witnessable FROM EITHER SIDE — array
+      // concatenation absorbs the NULL wherever it sits, so `NULL || more`
+      // and `tags || NULL` both equal `{x}` and both filtered rows come back
+      // with a NULL in them. One-sided until 2026-08-24, when the fixture
+      // moved off its set operation and `other` lost the witness the UNION's
+      // swap had been giving it for free.
       tagged: {
         tags: (_rand, ctx) => ctx.row === 0,
-        more: () => false,
+        more: (_rand, ctx) => ctx.row === 1,
       },
 
       // relay: the two guarded columns are forced UNCONDITIONALLY — their
