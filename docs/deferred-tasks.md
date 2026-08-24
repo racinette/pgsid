@@ -333,6 +333,26 @@ in `docs/deparser-limitations.md` is the SOLE blocker on seven expression node
 kinds the closed grammar would otherwise admit (§4's table). It is the one item
 in this register where filing a report is engine work.
 
+### 2c. Generated-CASE arm exclusion still steps by FALSE
+
+The CHECK harvest's CASE descent steps past an arm on notTRUE since
+2026-08-24 (the containment pass — a NULL guard skips its arm exactly as
+a FALSE one does, and the interval judgments prove notTRUE where FALSE is
+underivable). The GENERATED-column twin did not move:
+`selectedArmCondition` and `elseSelectedConditions` still exclude an arm
+only on `isFalse(cond)` or result distinctness. The same soundness
+argument transfers verbatim — an arm whose guard is notTRUE did not
+produce the value.
+
+Why it sits here rather than in a red suite: no measured imprecision
+reaches it. Exclusion by RESULT distinctness fires first on every shape
+tried — the guard-side judgment only matters when two arms share a
+result literal (or one is non-literal) AND the shared-result arm's guard
+is refutable by interval/trichotomy but not provably FALSE, and no
+corpus-shaped query has produced that conjunction. If one does, the fix
+is the same one-word widening the harvest got, and the red case comes
+first (rule 1).
+
 ### 3. The precision residue — closed, and held by three gates
 
 Nothing here is open. The entry stays because it is the standing record of what

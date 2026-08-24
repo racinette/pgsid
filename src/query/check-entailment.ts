@@ -354,6 +354,128 @@ function shapesDisjoint(
 }
 
 /**
+ * Is `W ⊆ Q` provable? Same shape/anchor vocabulary as `shapesDisjoint`,
+ * held to the same domain-freedom bar: every row holds for EVERY total
+ * order — no density, no bounds, no inhabitants. `{x ≥ 4} ⊆ {x ≥ 3}`
+ * because 4 > 3 and the order is transitive, never because of what sits
+ * between them. Rows that would need domain knowledge (a closed ray
+ * inside a strict one anchored one step away over a discrete type)
+ * answer false, the over-keep direction.
+ *
+ * The consumer is membership TRANSPORT (`intervalImplied`), which is what
+ * keeps this on the sound side of the charter's nonemptiness wall: the
+ * conclusion is never "Q has members" but "the row's value, placed in W
+ * by a TRUE witness, is in Q" — the member travels with the conclusion.
+ */
+function shapesContained(
+  sw: number,
+  rel: "lt" | "eq" | "gt" | "ne",
+  sq: number,
+): boolean {
+  // The point: contained wherever its anchor itself satisfies Q. The
+  // complement row is the one `ne` reaches — known distinctness alone
+  // puts the point outside Q's excluded value (the kernel's litsDistinct
+  // rule, rederived through evaluation).
+  if (sw === 3) {
+    if (sq === 1) return rel === "lt";
+    if (sq === 2) return rel === "lt" || rel === "eq";
+    if (sq === 3) return rel === "eq";
+    if (sq === 4) return rel === "gt" || rel === "eq";
+    if (sq === 5) return rel === "gt";
+    return rel !== "eq";
+  }
+  // A complement fits inside nothing but its own complement.
+  if (sw === COMPLEMENT_SHAPE) return sq === COMPLEMENT_SHAPE && rel === "eq";
+  // A ray inside a complement: Q's excluded point must sit off the ray —
+  // strictly on its empty side, or at the anchor when the ray is open.
+  if (sq === COMPLEMENT_SHAPE) {
+    if (sw === 1) return rel === "lt" || rel === "eq";
+    if (sw === 2) return rel === "lt";
+    if (sw === 4) return rel === "gt";
+    return rel === "gt" || rel === "eq"; // sw === 5
+  }
+  // Same-direction rays: the witness must not extend past the question's
+  // anchor. Equal anchors are fine except a CLOSED witness inside a
+  // STRICT question, which differs at exactly the shared anchor point.
+  const leftRay = (s: number): boolean => s === 1 || s === 2;
+  const rightRay = (s: number): boolean => s === 4 || s === 5;
+  if (leftRay(sw) && leftRay(sq)) {
+    return rel === "lt" || (rel === "eq" && !(sw === 2 && sq === 1));
+  }
+  if (rightRay(sw) && rightRay(sq)) {
+    return rel === "gt" || (rel === "eq" && !(sw === 4 && sq === 5));
+  }
+  // Opposed rays and a ray into a point: nothing domain-free.
+  return false;
+}
+
+/**
+ * Whether reading a CAST-LESS literal AT `colType` preserves the value the
+ * query's own comparison uses — the gate that closed the lossy-anchor
+ * soundness hole (found 2026-08-24, the red suite's "lossy anchor read"
+ * block): `2.4::integer` is 2, while the query's `z < 2.4` promotes the
+ * COLUMN to numeric and keeps the literal exact, so the anchor named the
+ * wrong set and both interval judgments overclaimed (adjudicated — the
+ * z = 2 row fires the arm exclusivity refuted).
+ *
+ * The equality-anchored oracle needs no such gate: a satisfiable equality
+ * fact pins the row's value to something column-representable, which is
+ * its substitution argument. Order facts pin nothing, so here the READ
+ * itself must be exact:
+ *
+ * - Any typmod re-reads the value on its own (numeric(3,1) rounds,
+ *   varchar(4) truncates, timestamp(3) rounds) while the query's
+ *   comparison ignores it — refused for every kind. NO FIXTURE CAN KILL
+ *   THIS BAR ALONE (measured 2026-08-24): a second gate holds every
+ *   route — numeric's CHECK-side anchors deparse as fvals, which the
+ *   fval whitelist below refuses at any typmodded rendering; typmodded
+ *   DATETIME casts never survive the evaluator's closure gate, so those
+ *   questions never answer; and string typmods collapse the domain onto
+ *   the very truncation they'd misread (a varchar(4) ray cannot tell
+ *   'mango' from 'mangz'). The corpus records the two live routes as
+ *   double-held refusals (check-arm-interval-typmod-numeric.sql,
+ *   check-arm-interval-typmod-refusal.sql): each fails only when BOTH
+ *   its gates open.
+ * - String-ish tokens (sval/boolval/bsval) resolve AT the column's own
+ *   type in the query too (the unknown-literal rule), so the two reads
+ *   agree; an unreadable token raises, the question never answers, and
+ *   the refusal is automatic.
+ * - ival is exact everywhere int32 embeds — which is everything but
+ *   `real`, whose 24-bit mantissa rounds large values silently (an
+ *   overflowing cast elsewhere RAISES, and raising is refusal, not
+ *   loss). The real bar too has no fixture kill, and defensively so: a
+ *   real column's mixed comparisons resolve at float8 by promoting the
+ *   COLUMN, and parse analysis therefore stores its CHECK atoms
+ *   cast-wrapped, which `columnKeyThroughCast` refuses — no atom route
+ *   reaches the read. The bar stays because that argument is about
+ *   today's deparse shapes, not about the algebra.
+ * - fval is numeric text: exact at `numeric`, and exact-by-agreement at
+ *   `double precision` (the query coerces the literal down to the
+ *   column's own float8, the same read) — everywhere else (the integer
+ *   family's rounding, money's cents, real's promotion asymmetry) the
+ *   reads diverge and the anchor is refused. Over-refusal is the safe
+ *   direction: `z < 2.0` loses a claimable anchor, and loses it soundly.
+ *
+ * An EXPLICITLY CAST literal (already pinned to the column's own bare
+ * type by `litColumnTyped`) is exempt below the typmod bar: the query
+ * performs the very cast the anchor read performs.
+ */
+function litReadExactAt(colType: string, lit: Lit): boolean {
+  if (colType.includes("(")) return false;
+  if (lit.cast !== null) return true;
+  switch (lit.kind) {
+    case "sval":
+    case "boolval":
+    case "bsval":
+      return true;
+    case "ival":
+      return colType !== "real";
+    case "fval":
+      return colType === "numeric" || colType === "double precision";
+  }
+}
+
+/**
  * Internal catalog names → the `format_type` rendering the snapshot stores.
  * Fixed pg_catalog spellings; a name not listed renders as itself.
  */
@@ -763,7 +885,13 @@ class EntailmentKernel {
           | undefined;
         const cond = this.armCondition(ce, when);
         if (!cond) return;
-        if (this.isFalse(cond)) continue;
+        // Stepping needs only notTRUE (found 2026-08-24, the "arm
+        // stepping by notTRUE" red block): CASE takes the first TRUE
+        // guard, and a NULL guard skips its arm exactly as a FALSE one
+        // does — so a guard the trichotomy or interval judgments refute
+        // steps past, where FALSE alone would be underivable
+        // (TRUE(a <= 3) proves `a > 5` notTRUE, never FALSE).
+        if (this.isNotTrue(cond)) continue;
         if (this.isTrue(cond) && when?.result) this.harvestCheckFacts(when.result);
         return;
       }
@@ -1493,6 +1621,12 @@ class EntailmentKernel {
     const negated = this.negateAtom(atom);
     if (negated && this.falseFacts.some(f => this.atomsMatch(negated, f))) return true;
     if (atom.t === "cmpLit" && this.oracleAnswer(atom) === true) return true;
+    // Interval containment: a TRUE fact whose value set provably sits
+    // inside the atom's makes the atom TRUE (membership transport),
+    // whether the fact is a single atom or a disjunction each of whose
+    // arms lands inside.
+    if (atom.t === "cmpLit" && this.intervalImplied(atom)) return true;
+    if (atom.t === "cmpLit" && this.orFactImpliesAtom(atom)) return true;
     // Distinctness: TRUE(col = 'a') makes `col <> 'b'` TRUE when 'a' and
     // 'b' are provably distinct values for this column.
     return (
@@ -1656,16 +1790,77 @@ class EntailmentKernel {
   }
 
   /**
-   * The per-witness core of the interval judgment, shared with the
-   * OR-fact rule: the anchor relation when witness `w`'s set and question
-   * `q`'s set are provably disjoint, null otherwise. Same-column callers
-   * only; every gate — captures present, column-typed literals, the
-   * collation trichotomy through `comparisonEvaluable` — applies here.
+   * Membership transport over interval CONTAINMENT — the implication dual
+   * of `intervalRefuted`, and the rung that lets `WHERE a >= 4` select a
+   * CHECK's `a >= 3` arm (found 2026-08-24; the check-arm-interval red
+   * suite is its acceptance frame). A TRUE witness places the row's value
+   * in the witness set; the algebra proves that set sits inside the
+   * question's; the value rides along. The member travels WITH the
+   * conclusion, which is what keeps the charter's nonemptiness wall
+   * unconsulted — nothing here decides that any set has members.
+   *
+   * TRUE facts ONLY, unlike the refutation's witness list: a notFALSE
+   * witness may be NULL, and then the column is NULL and the question
+   * evaluates NULL beside it — notFALSE licenses no implication upward
+   * (the list-membership rung's subset note, same reason).
    */
-  private cmpDisjointRel(
+  private intervalImplied(atom: Extract<Atom, { t: "cmpLit" }>): boolean {
+    for (const f of this.trueFacts) {
+      if (f.t !== "cmpLit" || f.col !== atom.col) continue;
+      const rel = this.cmpContainedRel(f, atom);
+      if (rel !== null) {
+        this.input.trace?.addFact(
+          "intervalContainment",
+          `${atom.col} ${atom.op} <anchor> contains the ${f.op} fact's ` +
+            `set (anchors ${rel}) → TRUE`,
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * The disjunctive face of membership transport (found 2026-08-24, the
+   * "OR-fact containment" red block): a TRUE OR-fact makes a single atom
+   * TRUE when EVERY arm carries some conjunct whose set sits inside the
+   * atom's — whichever arm held, all its conjuncts held, and one of them
+   * placed the value in the question's set. The subset rule
+   * (`orFactImplies`) is this judgment with identity where containment
+   * stands; `orFactRefuted` is its exclusion dual, arm for arm. TRUE
+   * OR-facts ONLY — a notFALSE disjunction may be NULL outright, and no
+   * arm need have held (the caiow control's a-NULL rows are the
+   * PostgreSQL witness against widening).
+   */
+  private orFactImpliesAtom(atom: Extract<Atom, { t: "cmpLit" }>): boolean {
+    const lands = (a: Atom): boolean =>
+      this.atomsMatch(a, atom) ||
+      (a.t === "cmpLit" && a.col === atom.col && this.cmpContainedRel(a, atom) !== null);
+    for (const fact of this.orFacts) {
+      if (fact.length > 0 && fact.every(arm => arm.some(lands))) {
+        this.input.trace?.addFact(
+          "intervalContainment",
+          `${atom.col} ${atom.op} <anchor> contains every arm of a TRUE OR-fact → TRUE`,
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * The per-witness core the interval judgments share: both atoms' set
+   * SHAPES (btree strategy or the equality-negator complement) and the
+   * anchor relation between them, null when any gate refuses. Same-column
+   * callers only; every gate — captures present, column-typed literals,
+   * the collation trichotomy through `comparisonEvaluable` — lives here,
+   * so the disjointness and containment judgments cannot drift apart on
+   * evidence while differing on conclusion.
+   */
+  private cmpShapeRel(
     w: Extract<Atom, { t: "cmpLit" }>,
     q: Extract<Atom, { t: "cmpLit" }>,
-  ): "lt" | "eq" | "gt" | "ne" | null {
+  ): { sw: number; sq: number; rel: "lt" | "eq" | "gt" | "ne" } | null {
     const strat = this.input.btreeStrategy;
     const compl = this.input.equalityComplement;
     if (!strat || !compl || !this.input.evaluatedComparison) return null;
@@ -1683,14 +1878,40 @@ class EntailmentKernel {
     const eqOk = this.input.comparisonEvaluable?.(alias, column, "=") ?? false;
     const ltOk = this.input.comparisonEvaluable?.(alias, column, "<") ?? false;
     const rel = this.anchorRelation(colType, w.lit, q.lit, eqOk, ltOk);
-    return rel !== null && shapesDisjoint(sw, rel, sq) ? rel : null;
+    return rel === null ? null : { sw, sq, rel };
+  }
+
+  /** The anchor relation when witness `w`'s set and question `q`'s set are
+   *  provably disjoint, null otherwise. See `cmpShapeRel` for the gates. */
+  private cmpDisjointRel(
+    w: Extract<Atom, { t: "cmpLit" }>,
+    q: Extract<Atom, { t: "cmpLit" }>,
+  ): "lt" | "eq" | "gt" | "ne" | null {
+    const a = this.cmpShapeRel(w, q);
+    return a !== null && shapesDisjoint(a.sw, a.rel, a.sq) ? a.rel : null;
+  }
+
+  /** The anchor relation when witness `w`'s set provably sits INSIDE
+   *  question `q`'s, null otherwise. See `cmpShapeRel` for the gates. */
+  private cmpContainedRel(
+    w: Extract<Atom, { t: "cmpLit" }>,
+    q: Extract<Atom, { t: "cmpLit" }>,
+  ): "lt" | "eq" | "gt" | "ne" | null {
+    const a = this.cmpShapeRel(w, q);
+    return a !== null && shapesContained(a.sw, a.rel, a.sq) ? a.rel : null;
   }
 
   /**
    * How the witness anchor relates to the question anchor: lt/eq/gt when
    * order is derivable, `ne` when only inequality is (a deterministic
    * collatable column answers `=` but never `<`), null when nothing is.
-   * Identical tokens are `eq` for free — token identity needs no session.
+   * Identical tokens are `eq` for free — token identity needs no session,
+   * and no exact read either: whatever comparison the query resolves for
+   * the pair, it resolves identically for both, so the shapes interlock
+   * in that one order. The EVALUATED path is where the lossy-anchor gate
+   * stands (`litReadExactAt`): the answers read both literals at the
+   * column's declared type, and a read that rounds or truncates names
+   * the wrong set.
    */
   private anchorRelation(
     colType: string,
@@ -1700,6 +1921,7 @@ class EntailmentKernel {
     ltOk: boolean,
   ): "lt" | "eq" | "gt" | "ne" | null {
     if (w.kind === q.kind && w.value === q.value) return "eq";
+    if (!litReadExactAt(colType, w) || !litReadExactAt(colType, q)) return null;
     const ask = this.input.evaluatedComparison!;
     if (eqOk) {
       const e = ask(colType, w, "=", q);

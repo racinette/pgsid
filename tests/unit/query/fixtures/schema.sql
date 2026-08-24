@@ -850,6 +850,50 @@ CREATE TABLE ivstxc (s text COLLATE "C", CHECK (s > 'm'));
 CREATE TABLE ivstxeq (s text COLLATE "C", CHECK (s = 'alpha'));
 CREATE TABLE ivdt (d date, CHECK (d > '2020-01-01'));
 
+-- The arm-selection CONTAINMENT family (the check-arm-interval red suite,
+-- graduated 2026-08-24): each table ties `o` BOTH ways to an ORDER-shaped
+-- CASE guard, so a WHERE whose interval provably sits INSIDE the guard's
+-- selects the arm (membership transport, `intervalImplied`) — and every
+-- fixture claim, notNull and nullable alike, is witnessed by data. One
+-- table per question shape the containment table distinguishes; cail and
+-- caine are NUMERIC so the cross-kind token fixtures (`a < 3.0`,
+-- `a <> 5.0`) pass the lossy-anchor gate that integer columns refuse.
+-- cain is that refusal's own witness: an integer arm one rounded fval
+-- away from the WHERE. caipt's equality fact arrives by HARVEST (its
+-- CHECK, promoted once the WHERE pins `a`), the one route the
+-- equality-anchored oracle cannot shadow; caiw's `a >= 4` stays notFALSE
+-- (nothing pins `a`), the strength the transport must refuse — its a-NULL
+-- rows are the PostgreSQL witness against a notFALSE widening.
+CREATE TABLE cai (a integer NOT NULL, o text,
+  CHECK (CASE WHEN a >= 3 THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE caist (a integer NOT NULL, o text,
+  CHECK (CASE WHEN a > 3 THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE cail (a numeric NOT NULL, o text,
+  CHECK (CASE WHEN a < 3 THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE caine (a numeric NOT NULL, o text,
+  CHECK (CASE WHEN a <> 5 THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE cain (a integer NOT NULL, o text,
+  CHECK (CASE WHEN a < 2 THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE cais (s text NOT NULL, o text,
+  CHECK (CASE WHEN s >= 'm' THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE caic (s text COLLATE "C" NOT NULL, o text,
+  CHECK (CASE WHEN s >= 'm' THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE caipt (a integer, o text,
+  CHECK (a = 7),
+  CHECK (CASE WHEN a >= 3 THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE caiw (a integer, b integer NOT NULL, o text,
+  CHECK (a >= 4),
+  CHECK (CASE WHEN a >= 3 THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE caitt (t timestamp(3) NOT NULL, o text,
+  CHECK (CASE WHEN t < '2020-01-01 00:00:00.123' THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE caitm (a numeric(3,1) NOT NULL, o text,
+  CHECK (CASE WHEN a < 2.4 THEN o IS NOT NULL ELSE o IS NULL END));
+CREATE TABLE caie (a integer NOT NULL, o text,
+  CHECK (CASE WHEN a > 5 THEN o IS NULL ELSE o IS NOT NULL END));
+CREATE TABLE caiow (a integer, b integer NOT NULL, o text,
+  CHECK (a >= 4 OR a = 3),
+  CHECK (CASE WHEN a >= 3 THEN o IS NOT NULL ELSE o IS NULL END));
+
 -- A metrics log partitioned by DATE range — the single most common
 -- real-world source of constant-date constraints, and the argued-real
 -- ground where the partition-bound and datetime rungs compose

@@ -280,6 +280,39 @@ const columnSpecificGenerators: Record<
     // in every state, which a rate would leave to luck.
     ivp: { p: () => 5 },
     ivge: { g: (_rand, ctx) => [5, 6, 40][ctx.row % 3]! },
+
+    // The arm-selection containment family: the discriminant rotates
+    // through the boundary values the fixtures witness with — for each
+    // table, an ELSE-arm row (the nullable claims' NULL witness), the
+    // guard's own anchor, and a row strictly inside every claiming
+    // fixture's WHERE. `o` is tied BOTH ways by the CASE CHECK, so the
+    // null policies below mirror these guards exactly. caipt's `a` is 7
+    // wherever present (its equality CHECK); caiw's is 4 or 8 (its ray
+    // CHECK) — both go NULL by row index below, o aligned by the same
+    // index.
+    cai: { a: (_rand, ctx) => [2, 3, 4, 8][ctx.row % 4]! },
+    caist: { a: (_rand, ctx) => [3, 4, 8][ctx.row % 3]! },
+    cail: { a: (_rand, ctx) => [3, 2, 0][ctx.row % 3]! },
+    caine: { a: (_rand, ctx) => [5, 6, 3][ctx.row % 3]! },
+    cain: { a: (_rand, ctx) => [2, 1, 0][ctx.row % 3]! },
+    cais: { s: (_rand, ctx) => ["c", "m", "peak"][ctx.row % 3]! },
+    caic: { s: (_rand, ctx) => ["c", "m", "peak"][ctx.row % 3]! },
+    caipt: { a: () => 7 },
+    caiw: { a: (_rand, ctx) => [4, 8][ctx.row % 2]!, b: (_rand, ctx) => [1, 2][ctx.row % 2]! },
+    caitt: {
+      t: (_rand, ctx) =>
+        [
+          "2020-01-01 00:00:00.123",
+          "2020-01-01 00:00:00.100",
+          "2021-06-01 00:00:00",
+        ][ctx.row % 3]!,
+    },
+    caitm: { a: (_rand, ctx) => [2.4, 2.3, 5.0][ctx.row % 3]! },
+    caie: { a: (_rand, ctx) => [3, 6, 8][ctx.row % 3]! },
+    caiow: {
+      a: (_rand, ctx) => [4, 3][ctx.row % 2]!,
+      b: (_rand, ctx) => [1, 2][ctx.row % 2]!,
+    },
     ivf: { f: (_rand, ctx) => [5.5, "NaN", 7][ctx.row % 3]! },
     ivnm: { n: (_rand, ctx) => [6, 5.6, 12.25][ctx.row % 3]! },
     ivne: { z: (_rand, ctx) => [3, 7, 100][ctx.row % 3]! },
@@ -674,6 +707,41 @@ const nullPolicies: {
       // witnessed; later rows may go NULL for the UNKNOWN-guard path.
       ivstxeq: { s: (_rand, ctx) => ctx.row % 4 === 3 },
       ivdt: { d: nullRate(0.25) },
+
+      // The arm-selection containment family: `o` is forced BOTH ways by
+      // each table's CASE CHECK, so its NULLness mirrors the guard over
+      // the discriminant assigned above (the guest pattern) — exact, not
+      // a rate, because a stray NULL on an arm row would violate the
+      // CHECK at insert. caipt and caiw NULL their `a` by the same row
+      // index `o` uses: the a-NULL rows take the ELSE arm (guard UNKNOWN)
+      // and are caiw's PostgreSQL witness against a notFALSE transport.
+      cai: { o: (_rand, ctx) => (ctx.current("a") as number) < 3 },
+      caist: { o: (_rand, ctx) => (ctx.current("a") as number) <= 3 },
+      cail: { o: (_rand, ctx) => (ctx.current("a") as number) >= 3 },
+      caine: { o: (_rand, ctx) => (ctx.current("a") as number) === 5 },
+      cain: { o: (_rand, ctx) => (ctx.current("a") as number) >= 2 },
+      cais: { o: (_rand, ctx) => (ctx.current("s") as string) < "m" },
+      caic: { o: (_rand, ctx) => (ctx.current("s") as string) < "m" },
+      caipt: {
+        a: (_rand, ctx) => ctx.row % 3 === 2,
+        o: (_rand, ctx) => ctx.row % 3 === 2,
+      },
+      caiw: {
+        a: (_rand, ctx) => ctx.row % 3 === 2,
+        o: (_rand, ctx) => ctx.row % 3 === 2,
+      },
+      // ISO strings compare like the timestamps they denote, so the guard
+      // mirrors the CHECK's arm exactly (the boundary .123 row is the
+      // witness the typmod-refusal fixture needs).
+      caitt: {
+        o: (_rand, ctx) => (ctx.current("t") as string) >= "2020-01-01 00:00:00.123",
+      },
+      caitm: { o: (_rand, ctx) => (ctx.current("a") as number) >= 2.4 },
+      caie: { o: (_rand, ctx) => (ctx.current("a") as number) > 5 },
+      caiow: {
+        a: (_rand, ctx) => ctx.row % 3 === 2,
+        o: (_rand, ctx) => ctx.row % 3 === 2,
+      },
 
       // The date-partitioned family: `day` may NEVER go NULL — no DEFAULT
       // partition takes a NULL key, so tuple routing raises on the insert
