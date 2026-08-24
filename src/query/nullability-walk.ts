@@ -30,6 +30,7 @@ import {
 import { writtenGuardTruths } from "./written-value-guards.js";
 import { resolveDelegatedTypes } from "./type-delegation.js";
 import {
+  NON_STRICT_OVERLOADS,
   PARTIAL_OVERLOADS,
   TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES,
   STRICT_OPERATORS,
@@ -10874,6 +10875,20 @@ class NullabilityEngine {
     // Builtin names keep the curated set, and only BARE names match it —
     // the documented shadowing blind spot, now reached only when the
     // narrowing has no candidates at all.
+    //
+    // A name with a RECORDED NON-STRICT ROW may not be claimed here, for the
+    // same reason `PARTIAL_OVERLOADS` may not be claimed at the totality
+    // fallback: this branch is reached exactly where operand types are
+    // unreadable, which is exactly where the offending row cannot be
+    // eliminated. `||` is the entry — array concatenation ABSORBS a NULL
+    // operand, so `NULL::text[] || ARRAY['x']` is `{x}` and a TRUE comparison
+    // through it proves nothing about either side. Measured 2026-08-24: an
+    // array column behind a set operation was promoted to notNull and
+    // PostgreSQL returned a NULL row (`non-strict-overload-promotion.sql`).
+    //
+    // The text meaning survives untouched — `a || b` over text columns
+    // narrows to `textcat` above and never reaches this line.
+    if (parts.length === 1 && NON_STRICT_OVERLOADS[op] !== undefined) return false;
     if (parts.length === 1 && STRICT_OPERATORS.has(op)) return true;
     // A user operator's backing function carries a declared strictness flag,
     // which is exactly the property this gate needs: a strict comparison

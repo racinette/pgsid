@@ -64,6 +64,9 @@ const publicTypeGenerators: Record<string, ColumnGenerator> = {
   // CLOSED paths, always: `route` exists to witness `+(path,path)` returning
   // NULL, and an OPEN path (`[...]`) concatenates to a value instead.
   path: (rand, ctx) => `((0,${ctx.row}),(${rand.int(1, 9)},${rand.int(1, 9)}))`,
+  // `tagged` filters on `ARRAY['x']`, so the value has to be in the fixture's
+  // vocabulary rather than merely in the type's.
+  "text[]": () => "{x}",
   jsonb: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
   json: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
 
@@ -722,6 +725,14 @@ const nullPolicies: {
       stock: {
         discontinued_at: (rand, ctx) =>
           (ctx.current("qty") as number) > 0 ? rand.chance(0.5) : false,
+      },
+
+      // tagged: `tags` is NULL on row 0 and present after, which is what
+      // makes the promotion witnessable — `NULL || more` is `more`, so the
+      // filtered row comes back with a NULL in it.
+      tagged: {
+        tags: (_rand, ctx) => ctx.row === 0,
+        more: () => false,
       },
 
       // relay: the two guarded columns are forced UNCONDITIONALLY — their

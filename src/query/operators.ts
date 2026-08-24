@@ -252,6 +252,26 @@ export const TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set([
  * contract calls a parameter rejected where the statement would have
  * succeeded.
  */
+/**
+ * Names KEPT on `STRICT_OPERATORS` that carry a non-strict signature, with the
+ * defect recorded. The strictness twin of `PARTIAL_OVERLOADS`, and it was
+ * consulted by NOTHING until 2026-08-24 — `totality-probe.test.ts` asserted the
+ * ledger against PostgreSQL from both sides, so the record was right and
+ * enforced, and the walk never read it at the point of use.
+ *
+ * It is now read at the NAME-LEVEL STRICTNESS FALLBACK in
+ * `promotionOperatorIsStrict`, where its absence was a measured unsoundness:
+ * `promotionOperatorIsStrict` asks the runtime per-signature first and falls
+ * back to the curated name only when the narrowing has no candidates — which is
+ * exactly where the array row cannot be eliminated. An array column behind a
+ * set operation was promoted to notNull and PostgreSQL returned a NULL row
+ * (`non-strict-overload-promotion.sql`).
+ *
+ * The text meaning survives untouched, because it never reaches that branch:
+ * `a || b` over text columns narrows to `textcat` and answers there.
+ *
+ * A RECORDED HOLE WITH NO CONSUMER AT THE POINT OF USE IS NOT A GUARD.
+ */
 export const NON_STRICT_OVERLOADS: Record<string, string> = {
   "||":
     "array concatenation ABSORBS a NULL operand — `ARRAY[1,2] || NULL` is " +
