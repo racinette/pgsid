@@ -7,6 +7,10 @@ import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 // ---------------------------------------------------------------------------
 // RED SUITE: temporary relations across the MIGRATION pipeline.
 //
+// THE REASONING CHAIN IS docs/temporary-relations.md. These cases are its
+// evidence; that document is the order the evidence was found in and what
+// each finding overturned. A case here read without it looks arbitrary.
+//
 // The question this file answers, case by case: where does the snapshot's
 // deliberate temp-blindness actually cost us, and where does it cost nothing?
 // Every case was measured before it was written down.

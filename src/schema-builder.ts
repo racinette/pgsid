@@ -556,6 +556,11 @@ export class SchemaBuilder {
    * Simulate SESSION END: drop the session's temporary objects, and report
    * every tracked function the drop took with it.
    *
+   * WHY THIS METHOD EXISTS AT ALL is layered, and the chain is written down
+   * in `docs/temporary-relations.md` — including the two readings that look
+   * right and are not. Read it before changing the placement or the DISCARD
+   * variant; both are forced by measurements, not preference.
+   *
    * Migrations are applied and inspected on ONE connection; the application
    * that later runs against the schema is on a DIFFERENT one. Everything a
    * migration left in `pg_temp_N` is therefore invisible to it — and so is
