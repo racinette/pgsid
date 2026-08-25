@@ -493,6 +493,10 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     let nullableTotal = 0;
     let nullableWitnessed = 0;
     const unwitnessed: string[] = [];
+    /** Unwitnessed because the fixture returns no rows at all — exempt from
+     *  the annotation requirement, and NOT the same fact as a recorded
+     *  reason. Kept as its own list so the count below can say which. */
+    const exempt: string[] = [];
     const guarded: string[] = [];
     const unverified: string[] = [];
     const unclassified: string[] = [];
@@ -541,6 +545,8 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
           } else if (!fixture.noRowsReason) {
             unwitnessed.push(`${label} — ${fixture.unwitnessable.get(i) ?? "UNCLASSIFIED"}`);
             if (!fixture.unwitnessable.has(i)) unclassified.push(label);
+          } else {
+            exempt.push(`${label} — @no-rows: ${fixture.noRowsReason}`);
           }
         }
       });
@@ -558,6 +564,19 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       `@unwitnessable annotations that name the wrong thing:\n  ${invalid.join("\n  ")}`,
     ).toEqual([]);
 
+    // Every unwitnessed claim is accounted for BY NAME, in one of exactly two
+    // ways: an `@unwitnessable` reason, or the wholesale `@no-rows` exemption.
+    // Asserted because the summary line folded the second into the first and
+    // reported all of them as "reason recorded" — 24 claims described as
+    // annotated when 18 were, the other 6 invisible in a subtraction (found
+    // 2026-08-25 by the claims sweep). A bucket that goes unprinted reads as
+    // covered, which is the failure this arithmetic makes impossible.
+    expect(
+      unwitnessed.length + exempt.length,
+      `unwitnessed claims that neither list accounts for — the summary count ` +
+        `and the printed lists have drifted apart`,
+    ).toBe(nullableTotal - nullableWitnessed);
+
     const pct = (n: number, total: number) =>
       total === 0 ? "n/a" : `${Math.round((n / total) * 100)}%`;
     console.log(
@@ -567,8 +586,8 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         `(${pct(notNullFalsifiable, notNullTotal)}), ${guarded.length} guarded by a ` +
         `checked refusal, ${unverified.length} unverified\n` +
         `  nullable claims: ${nullableTotal} — ${nullableWitnessed} witnessed ` +
-        `(${pct(nullableWitnessed, nullableTotal)}), ${nullableTotal - nullableWitnessed} ` +
-        `unwitnessed with the reason recorded\n` +
+        `(${pct(nullableWitnessed, nullableTotal)}), ${unwitnessed.length} ` +
+        `unwitnessed with the reason recorded, ${exempt.length} exempt (@no-rows)\n` +
         `  alwaysNull:      ${[...results.values()].reduce(
           (n, r) => n + r.claimed.filter(c => c.alwaysNull).length,
           0,
@@ -578,6 +597,8 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     if (process.env.WITNESS_REPORT) {
       console.log(
         `\nunwitnessed nullable claims (${unwitnessed.length}):\n  ${unwitnessed.join("\n  ")}` +
+          `\n\nnullable claims exempt as @no-rows (${exempt.length}):\n  ` +
+          exempt.join("\n  ") +
           `\n\nnotNull claims guarded by a checked refusal (${guarded.length}):\n  ` +
           guarded.join("\n  "),
       );
