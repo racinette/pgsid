@@ -8,7 +8,7 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
 // GRADUATED 2026-08-25 — predicate-aware GENERATED columns, "transitive
-// nullability". Captured RED 2026-08-24 (commit 6462e45) by a maintainer
+// nullability". Captured RED 2026-08-24 (commit 2a75a10) by a maintainer
 // question; every verdict measured, every target adjudicated over real rows
 // before it was written down; flipped here by the commit that built the
 // four mechanisms below. The cases live on as the acceptance test of that
