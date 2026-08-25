@@ -287,29 +287,37 @@ group.
 
 ## Current measurement
 
-Across 410 fixtures and 5 data states, at the default seed (the FOURTH
-adversarial fix phase's twenty-odd `rowsfrom-*`, `jsontable-*`, `fk-entail-*`
-and `fk-clone-*` fixtures are the latest growth, and roughly half of them are
-OVERSHOOT CONTROLS rather than new claims — the shape a soundness fix has no
-other way to be held to; before them the three `unnest-*` fixtures of the
-element-type work, the nine `fk-entail-subquery-join-*` of the subquery-chain
-composition, the five `fk-entail-*` of the join-level presence work and the
-seven `function-default-*`, `function-strict-*` and `aggregate-domain-*` of
-the argument-substitution work took it to 381, and the imprecision closure's
-sixteen `body-shape-*` and `fk-entail-*` gate fixtures accounted for the step
-over 336 — itself grown through the third adversarial fix phase from 311 and
-288):
+**The suite prints it. This document does not carry a copy** — the numbers
+below come from a run, not from here:
 
-| | count | |
-|---|---|---|
-| `notNull` claims | 917 | |
-| — falsifiable | 907 (99%) | the query returns rows, so a NULL could contradict it |
-| — guarded by a checked refusal | 10 | the statement raises, and the raise is asserted |
-| — unverified | 0 | held at zero |
-| `nullable` claims | 627 | |
-| — witnessed | 538 (86%) | some state or binding produces a real NULL there |
-| — unwitnessed, reason recorded | 89 | every one carries an `@unwitnessable` annotation |
-| `@null-group` claims | 46 (40 fixtures) | every group's two arms observed or absent-arm-exempt by derivation |
+    pnpm exec vitest run tests/unit/query/nullability-soundness.test.ts
+    WITNESS_REPORT=1 …          # adds the per-claim list with its reason
+
+    witness coverage over 593 fixtures and 5 data states (…):
+      notNull claims:  1212 — 1201 falsifiable (99%), 11 guarded by a
+                       checked refusal, 0 unverified
+      nullable claims: 793 — 769 witnessed (97%), 18 unwitnessed with the
+                       reason recorded, 6 exempt (@no-rows)
+      alwaysNull:      46 — every returned row tests one, 0 falsified
+
+**This section used to be a table, and on 2026-08-25 every number in it was
+wrong** — found by the claims sweep. It read 410 fixtures, 917 `notNull`,
+627 `nullable`, 538 witnessed (86%), 89 unwitnessed; the run above says 593,
+1212, 793, 769 (97%), 18. It was a snapshot of roughly 2026-08-06, sitting
+under the heading "Current measurement" with no date on it, in the document
+`docs/harness-strengthening-handoff.md` calls "the map the next reader
+trusts".
+
+Nothing had drifted in the ENGINE — every number moved the good way. That is
+the point: **a copied number is falsified by success, and no suite goes red
+when it is.** The register (`docs/deferred-tasks.md`) deleted 89% of itself
+on 2026-08-21 for this exact reason and stated the rule this section now
+follows — *if a fact can live next to the code it is about, it belongs there,
+not here.* The rule was never applied to this file, which is the one a new
+reader is pointed at first.
+
+The reproduction line stays; the numbers in it are an ILLUSTRATION of the
+shape, dated 2026-08-25, and go stale by design. Re-run rather than read.
 
 **A fourth annotation kind joined the three above**, on the ARGUMENT side:
 `-- @param-opaque N: <reason>` records a parameter whose NULL binding raises
@@ -347,8 +355,8 @@ arms (the setop dead rule), the cross-unit presence-implication
 imprecision (closed via unit chains the same session), and the
 required-alternative gap in origin entailment (closed likewise).
 
-Every fixture returns rows under some state and binding, except the two that
-declare `@no-rows`.
+Every fixture returns rows under some state and binding, except the four that
+declare `@no-rows` (measured 2026-08-25; it read "the two" until then).
 
 ## What remains unwitnessed
 
@@ -358,12 +366,18 @@ inline. A reason may run past one line: continuation lines (`--` followed by
 two or more spaces) are recorded joined, so the report prints the whole fact
 rather than its first clause.
 
-They fall into three groups, plus the rowless fixtures.
-`docs/imprecision-closure.md` carries the exact per-claim census behind these
-counts, audited claim by claim on 2026-08-06 — ten of the hundred reasons
-were wrong, five of them calling a filter in the fixture's own query a gap in
-the data. The three that were genuinely data gaps are closed (2026-08-06),
-which is why no group below is one.
+They fall into three groups, plus the rowless fixtures. **The GROUPS are the
+lasting part; the counts on them are not.** Both counts below are the
+2026-08-06 audit's, when there were 78 annotations across 352 fixtures; the
+live list is 18 across 593, and `WITNESS_REPORT=1` prints it with each reason
+inline. Read the groups as a taxonomy and the report as the census.
+
+`docs/imprecision-closure.md` carries that audit's exact per-claim census —
+ten of the hundred reasons were wrong, five of them calling a filter in the
+fixture's own query a gap in the data. The three that were genuinely data
+gaps are closed (2026-08-06), which is why no group below is one. **Its §D
+classification has since been falsified in the direction that matters** —
+see the dated banner on that file.
 
 **A row type carries no constraints — CLOSED (2026-08-06).** This was the
 largest group at 15. `SETOF <table>` and `SETOF <composite>` erase the NOT
@@ -373,23 +387,28 @@ the very columns those constraints sit on, and the walk reads them now
 witnessed `notNull`; the fifteenth returns the function's own PARAMETER,
 which the reading takes as nullable by design, and it is counted below.
 
-**Conservative by design (39 claims).** The value is provably non-null and the
-engine reports nullable anyway. Each is a known imprecision registered in
-the "Known imprecisions in the walk" entry in
-`docs/deferred-tasks.md` — array subscripting, population statistics,
-built-ins outside the curated tables, genuinely partial ones inside them
-(`date_part`, `array_length`), multi-statement function bodies, JSON_TABLE
-columns, the VARIADIC gate, the SRF padding rule, multi-candidate operators,
-and the CHECK machinery's deliberate gates — plus the six the imprecision
-closure leaves: a parameter inside an inlined body, the longer call in a
-`ROWS FROM` that padding never reaches, a foreign key the engine refuses to
-read (NOT VALID, DEFERRABLE), and a correlated subquery whose FROM carries a
-JOIN. Only four are closable by work already planned
-(`docs/type-aware-overloads.md`); the rest are correct conservatism, and closing one would turn its claim into `notNull` rather than
-witnessing it (the presence-consumption entry retired exactly that way — its
-fixture's carrier now reads notNull and the annotation came off).
+**Conservative by design (39 claims at the audit).** The value is provably
+non-null and the engine reports nullable anyway. Each is a known imprecision
+registered in §4 of `docs/deferred-tasks.md` — array subscripting,
+population statistics, built-ins outside the curated tables, multi-statement
+function bodies, JSON_TABLE columns, the VARIADIC gate, the SRF padding rule,
+multi-candidate operators, and the CHECK machinery's deliberate gates — plus
+the six the imprecision closure leaves: a parameter inside an inlined body,
+the longer call in a `ROWS FROM` that padding never reaches, a foreign key
+the engine refuses to read (NOT VALID, DEFERRABLE), and a correlated subquery
+whose FROM carries a JOIN.
 
-**The query's own shape rules out the NULL case (39 claims).** The other half
+*The two examples this paragraph used to give — `date_part` and
+`array_length` — are both `notNull` now, and were the point of the sentence
+they illustrated.* It also said **"Only four are closable by work already
+planned"**, naming `docs/type-aware-overloads.md`. That work landed
+2026-08-20, and the claims sweep measured the outcome on 2026-08-25: one of
+the four closed, and SEVEN claims the same audit classified as *not*
+closable closed anyway. Closing one turns its claim into `notNull` rather
+than witnessing it, which is why the annotation simply comes off (the
+presence-consumption entry retired exactly that way).
+
+**The query's own shape rules out the NULL case (39 claims at the audit).** The other half
 group: the fixture selects away the rows that would show the NULL. A
 `LEFT JOIN` whose `ON` is an equality on a NOT NULL foreign key always
 matches. A `CROSS JOIN LATERAL` drops exactly the orders that would leave the
@@ -405,8 +424,11 @@ The three the audit found to be genuine data gaps were the exception and are
 closed: two of them cost a fixture one literal, because what a fixture
 asserts and what its ids happen to match are not the same thing.
 
-**Inside a `@no-rows` fixture (2 claims).** Nothing in a statement that never
-returns a row can be witnessed.
+**Inside a `@no-rows` fixture (6 claims).** Nothing in a statement that never
+returns a row can be witnessed. These are the wholesale exemption, and until
+2026-08-25 the suite's own summary line counted them as "unwitnessed with the
+reason recorded" — they have no reason, which is the whole difference. They
+are printed by name now, under `WITNESS_REPORT=1`.
 
 ## The EXPLAIN oracle (observatory)
 

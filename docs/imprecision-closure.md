@@ -15,10 +15,43 @@ classes — C, A and B — are done, 25 of their 28 claims closed and the three
 residues recorded below with what each would take.
 
 Read `docs/witness-coverage.md` first — it defines the discipline (a reason
-is required, and a reason that stops being needed FAILS as stale) and
-carries the current measurements. `docs/nullability-walk.md` is the engine.
+is required, and a reason that stops being needed FAILS as stale) and points
+at the run that measures it. `docs/nullability-walk.md` is the engine.
 One class has its own charter and is out of scope here:
 `docs/type-aware-overloads.md`.
+
+> **HISTORICAL — this is the 2026-08-06 audit, kept for its method, not its
+> census.** Every count below is that day's: 78 annotations across 352
+> fixtures. On 2026-08-25 the live list is 18 across 593; run
+> `WITNESS_REPORT=1 pnpm exec vitest run
+> tests/unit/query/nullability-soundness.test.ts` for the current one.
+>
+> **§D's classification was falsified, and in the direction that matters.**
+> It says "Four kinds, and only the first is closable by work already
+> planned". Measured 2026-08-25:
+>
+> - kind 1, *the overload charter's material (4)* — the one kind called
+>   closable: **one of four closed** (`builtin-functions#4`, `upper`).
+>   `param-fn-overload#0` and `overload-consensus#1,#2` are still annotated.
+> - kind 2, *curated-table coverage (2)* — **both closed.**
+>   `aggregate-modifiers#9` (`stddev_pop`) reads `notNull`; `pg_sleep(0)`
+>   left `builtin-functions#24` entirely, and that column is `current_query()`
+>   now, with a different reason (the fixture records the substitution on its
+>   own line).
+> - kind 3, *genuinely partial functions (5)* — "**No narrowing helps** …
+>   closing these needs value analysis the engine does not do". **All five
+>   closed**, by exactly that value analysis: `date_part`,
+>   `extract(day)`, `array_length`, an in-range subscript and a closed
+>   `= ANY` array all read `notNull` today (`closed-truths.ts`, and §4's "a
+>   literal `ARRAY[…]` settles both causes").
+>
+> So the kind declared closable is the one that mostly did NOT close, and
+> seven claims across two kinds declared not-closable did. The register
+> convicted "closable, *if ever worth it*" as reach dressed as judgment;
+> this is the same error with the sign flipped — **an impossibility asserted
+> where a measurement belonged** — and it is why `AGENTS.md` rule 2 says
+> correctness, not reach, is the metric. The text below is left exactly as
+> written, because a corrected document would not show that.
 
 ## Current measurement
 
