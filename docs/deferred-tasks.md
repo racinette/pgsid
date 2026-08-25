@@ -267,6 +267,50 @@ distinctness needs only "the host default is deterministic", which is the
 overwhelming case (verify whether the host's PostgreSQL version can even
 declare a nondeterministic database default before spending on it).
 
+### 1d. Temporary relations and the session boundary — BUILT 2026-08-25
+
+Migrations are applied and inspected on ONE connection; the application runs
+on a DIFFERENT one. Everything a migration leaves in `pg_temp_N` is invisible
+to it, and so is everything PostgreSQL cascades away when that namespace
+goes — so inspecting the catalog before that point described a database
+nobody would connect to. `SchemaBuilder.validate` now runs `DISCARD TEMP`
+first (`discardTemporaryObjects`, public so a snapshot-only consumer can call
+it between the last `applyMigration` and `snapshotCatalog`).
+
+Two defects closed from opposite directions, both pinned in
+`tests/unit/temp-relations-red.test.ts`:
+
+- **A false NEGATIVE.** A migration doing `CREATE TEMP TABLE staging` plus a
+  function reading it passed clean, because plpgsql_check reads the live
+  catalog and the table was sitting in it. PostgreSQL records a temp
+  dependency only when the reference lands in the TYPE SYSTEM — return type,
+  argument type, a parsed `BEGIN ATOMIC` body — never through an opaque
+  `sql`/`plpgsql` body, so that function SURVIVED into the shipped database
+  and failed on every call. The visibility that bought the silence is what
+  made it wrong.
+- **A dangling capture.** A function whose signature named a temp relation
+  was snapshotted without it, and cannot survive anyway. It is now simply
+  absent — consistency by construction, which is why the `pg_depend` closure
+  check this was first designed as turned out to be unnecessary. The
+  disappearance IS reported: a migration that says `CREATE FUNCTION` and ends
+  with none must say so.
+
+`DISCARD TEMP` not `DISCARD ALL` (the stronger form resets GUCs, and
+`validate` deliberately preserves a migration's non-LOCAL `SET search_path`;
+it also cannot run inside a transaction block). BEFORE the `BEGIN`, because
+the discard is transactional and `validate` always rolls back — measured, a
+rollback brings the tables back.
+
+**Open residue, §4 of that file.** A function that creates its OWN temp table
+is valid code plpgsql_check reports as an error (measured: the function
+returns 1). Not the snapshot's doing and not closed by this: the table is
+created at CALL time, which never happens during a migration. The remedies
+need body knowledge pgsid does not have — libpg-query exposes `parse`/
+`parseSync` only, no plpgsql parser — so the options are a textual scan used
+to DOWNGRADE the diagnostic, or replaying the body's DDL into a savepoint.
+The dynamic form (`EXECUTE 'CREATE TEMP TABLE …'`) is pinned as a boundary
+rather than a target.
+
 ### 2. Search-path half (b)
 
 WHERE the search path comes from is a consumer input, not an engine one.

@@ -458,9 +458,14 @@ export class SchemaBuilder {
    * - **SQL**: re-CREATE via `pg_get_functiondef` with `check_function_bodies=on`
    *   → extract diagnostics from the exec error.
    *
+   * Ends the session's TEMPORARY objects first — see
+   * `discardTemporaryObjects`. That is a deliberate side effect on the
+   * connection, and it is what makes "surviving" mean what the word says.
+   *
    * Returns all diagnostics (collect-all, no halt).
    */
   async validate(pg: PGlite): Promise<SqlDiagnostic[]> {
+    const cascaded = await this.discardTemporaryObjects(pg);
     // Wrap in a transaction: validateSqlFunction uses SAVEPOINT for
     // isolation, which requires a transaction block.
     // Don't override search_path — a migration may have done
@@ -499,7 +504,7 @@ export class SchemaBuilder {
           );
       `);
 
-      const allDiagnostics: SqlDiagnostic[] = [];
+      const allDiagnostics: SqlDiagnostic[] = [...cascaded];
 
       for (const row of surviving.rows) {
         const prov = this.provenance.get(row.oid);
@@ -545,6 +550,89 @@ export class SchemaBuilder {
     } finally {
       await pg.query("ROLLBACK");
     }
+  }
+
+  /**
+   * Simulate SESSION END: drop the session's temporary objects, and report
+   * every tracked function the drop took with it.
+   *
+   * Migrations are applied and inspected on ONE connection; the application
+   * that later runs against the schema is on a DIFFERENT one. Everything a
+   * migration left in `pg_temp_N` is therefore invisible to it — and so is
+   * everything PostgreSQL cascades away when that namespace goes. Looking
+   * at the catalog BEFORE this point describes a database nobody will
+   * connect to. Hence the discard runs first, and `validate` calls it.
+   *
+   * What this buys, measured (tests/unit/temp-relations-red.test.ts):
+   *
+   *   - A body referencing a migration's temp table stops passing silently.
+   *     PostgreSQL records a temp dependency only when the reference lands
+   *     in the TYPE SYSTEM — return type, argument type, a parsed `BEGIN
+   *     ATOMIC` body — never through an opaque `sql`/`plpgsql` body. So the
+   *     tracked cases leave WITH the table and are self-correcting, while
+   *     an untracked one SURVIVES and fails on every call the application
+   *     makes. Before the discard `plpgsql_check` sees the table and says
+   *     nothing; after it, the same check reports the relation missing,
+   *     which is the truth about every session but this one.
+   *   - A function whose SIGNATURE names a temp relation stops reaching the
+   *     snapshot at all. It cannot survive, so recording it was a promise
+   *     the catalog could not keep; now it is simply gone, and the
+   *     consistency is structural rather than diagnosed.
+   *
+   * `DISCARD TEMP`, not `DISCARD ALL`: the stronger form resets GUCs, and
+   * `validate` deliberately preserves a migration's non-LOCAL `SET
+   * search_path` so unqualified references in function bodies still
+   * resolve. It also cannot run inside a transaction block, where this can.
+   *
+   * BEFORE the `BEGIN`, and that is load-bearing: `DISCARD TEMP` is
+   * transactional (measured — a `ROLLBACK` brings the tables back), and
+   * `validate` always rolls back. Inside, the discard would be undone and
+   * the catalog would be captured from the pre-session-end state again.
+   *
+   * Public because the coupling to `validate` is a convenience, not a
+   * requirement: a consumer that only wants a snapshot should call this
+   * between the last `applyMigration` and `snapshotCatalog`.
+   */
+  async discardTemporaryObjects(pg: PGlite): Promise<SqlDiagnostic[]> {
+    const before = await this.snapshotPgProc(pg);
+    await pg.query("DISCARD TEMP");
+    const after = await this.snapshotPgProc(pg);
+
+    const diagnostics: SqlDiagnostic[] = [];
+    for (const oid of before.keys()) {
+      if (after.has(oid)) continue;
+      // Untracked casualties are not ours to report: a function with no
+      // provenance is either pre-existing or something a DO block created,
+      // and in neither case did one of our migration statements promise it.
+      const prov = this.provenance.get(oid);
+      if (!prov) continue;
+
+      const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash);
+      const range = resolved
+        ? {
+            start: mapStrippedToOriginal(resolved.file.removals, resolved.stmt.stmtStart),
+            end: mapStrippedToOriginal(resolved.file.removals, resolved.stmt.stmtEnd),
+          }
+        : null;
+      diagnostics.push({
+        message:
+          `function ${prov.signature} did not survive the migration: it depends on a ` +
+          `temporary relation, and PostgreSQL drops the temporary schema — with everything ` +
+          `depending on it — when the session ends`,
+        code: undefined,
+        severity: "warning" as const,
+        hint:
+          "A temporary table exists only for the connection that created it. Give the " +
+          "function a permanent type to depend on, or create the table permanently.",
+        detail: undefined,
+        range,
+        original: {
+          source: "internal" as const,
+          error: new Error("dropped by temporary-schema cascade"),
+        },
+      });
+    }
+    return diagnostics;
   }
 
   // -------------------------------------------------------------------------

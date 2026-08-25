@@ -19,10 +19,18 @@ import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 //   claimed, so nothing is wrong. These are guards.
 //
 //   PERMANENT + TEMP is NOT. A captured function whose return type is a
-//   temp relation is recorded by the snapshot, is NOT accompanied by that
+//   temp relation was recorded by the snapshot, was NOT accompanied by that
 //   relation, and — measured — is dropped by the CASCADE that removes the
-//   temp namespace at session end. The snapshot describes an object the
-//   real database will not have, silently. That is the defect.
+//   temp namespace at session end. The snapshot described an object the
+//   real database would not have, silently.
+//
+// FIXED 2026-08-25: `validate` now runs `DISCARD TEMP` before it inspects
+// anything, so the catalog is captured from the state every OTHER session
+// sees. Both defects close at once and from opposite directions — §3's
+// dangling function stops being captured at all (consistency by
+// construction, no closure check needed), and §1's silent pass becomes the
+// error it should always have been. The disappearance is reported, since a
+// migration that says CREATE FUNCTION and ends with none must say so.
 //
 // The second axis is WHO CREATES the table, and it splits cleanly:
 //
@@ -51,6 +59,9 @@ interface Applied {
   diags: string[];
   functions: string[];
   tables: string[];
+  /** Temp relations left by the migration, BEFORE validate's session-end discard. */
+  tempRelsAfterApply: string[];
+  /** …and after it. The pair is what makes the discard visible in the matrix. */
   tempRels: string[];
 }
 
@@ -61,6 +72,17 @@ async function apply(sql: string): Promise<Applied> {
     const builder = new SchemaBuilder();
     await builder.snapshotBeforeMigrations(pg);
     const result = await builder.applyMigration(pg, Buffer.from(sql, "utf8"), 0);
+    const tempRelsOf = async (): Promise<string[]> =>
+      (
+        await pg.query<{ relname: string }>(
+          `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname LIKE 'pg_temp%' AND c.relkind = 'r' ORDER BY 1`,
+        )
+      ).rows.map(r => r.relname);
+    // Read the temp relations the migration left BEFORE validate runs —
+    // validate discards them, which is the whole point, and the observation
+    // would otherwise be destroyed by the thing it is describing.
+    const tempRelsAfterApply = await tempRelsOf();
     const diags = result.success
       ? (await builder.validate(pg)).map(d => `${d.severity}: ${d.message}`)
       : result.diagnostics.map(d => `${d.severity}: ${d.message}`);
@@ -73,13 +95,14 @@ async function apply(sql: string): Promise<Applied> {
       .filter(f => !f.name.startsWith("plpgsql_") && !f.name.startsWith("__plpgsql_"))
       .map(f => `${f.schema}.${f.name} -> ${f.returnType ?? "?"}`);
     const tables = (snap.tables ?? []).map(t => `${t.schema}.${t.name}`);
-    const tempRels = (
-      await pg.query<{ relname: string }>(
-        `SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-         WHERE n.nspname LIKE 'pg_temp%' AND c.relkind = 'r' ORDER BY 1`,
-      )
-    ).rows.map(r => r.relname);
-    return { applyOk: result.success, diags, functions, tables, tempRels };
+    return {
+      applyOk: result.success,
+      diags,
+      functions,
+      tables,
+      tempRelsAfterApply,
+      tempRels: await tempRelsOf(),
+    };
   } finally {
     if (!pg.closed) await pg.close();
   }
@@ -92,26 +115,27 @@ async function apply(sql: string): Promise<Applied> {
 // ===========================================================================
 
 describe("1. a migration statement creates the temp table", () => {
-  it("left in place, a function reads it: clean — and that is a FALSE NEGATIVE", async () => {
-    // The assertion is a description, not an endorsement. plpgsql_check
-    // reads the LIVE catalog and `staging` is sitting in it, so the check
-    // passes — but §6 shows the reference is inside an opaque body, so
-    // nothing records it, so `reads_staging` SURVIVES session end and
-    // fails on every call the application makes. The visibility that makes
-    // the check pass is exactly what makes the silence wrong.
+  it("left in place, a function reads it: reported (was a FALSE NEGATIVE)", async () => {
+    // THE CASE THE FIX EXISTS FOR. It read `diags: []` until 2026-08-25:
+    // plpgsql_check reads the LIVE catalog, `staging` was sitting in it, so
+    // the check passed. But §6 shows the reference lives in an opaque body,
+    // so nothing records it — `reads_staging` SURVIVES session end and
+    // fails on every call the application makes. The visibility that made
+    // the check pass was exactly what made the silence wrong.
     //
-    // Not flipped to a target here because the fix is not in this file's
-    // reach: `DISCARD TEMP` before snapshot and validate turns this into
-    // the true positive §1's last case already is (measured — see 6b for
-    // why DISCARD TEMP and not DISCARD ALL).
+    // `validate` now discards temporary objects first, so the check runs
+    // against the catalog every OTHER session sees, and the relation is
+    // correctly missing.
     const r = await apply(`
       CREATE TEMP TABLE staging (id int NOT NULL, val text);
       CREATE FUNCTION public.reads_staging() RETURNS bigint LANGUAGE plpgsql AS $$
       BEGIN RETURN (SELECT count(*) FROM staging WHERE val IS NOT NULL); END $$;
     `);
     expect(r.applyOk).toBe(true);
-    expect(r.diags).toEqual([]);
-    expect(r.tempRels).toEqual(["staging"]);
+    expect(r.diags).toEqual(['error: relation "staging" does not exist']);
+    // The migration really did leave it behind; the discard is what removes it.
+    expect(r.tempRelsAfterApply).toEqual(["staging"]);
+    expect(r.tempRels).toEqual([]);
   });
 
   it("created DYNAMICALLY, the relation still exists afterwards", async () => {
@@ -121,7 +145,9 @@ describe("1. a migration statement creates the temp table", () => {
     const r = await apply(`DO $$ BEGIN EXECUTE 'CREATE TEMP TABLE t_dyn (i int)'; END $$;`);
     expect(r.applyOk).toBe(true);
     expect(r.diags).toEqual([]);
-    expect(r.tempRels).toEqual(["t_dyn"]);
+    expect(r.tempRelsAfterApply).toEqual(["t_dyn"]);
+    // …and is gone once validate simulates session end, dynamic or not.
+    expect(r.tempRels).toEqual([]);
   });
 
   it("pure scratch — created, used, dropped — is silent", async () => {
@@ -182,23 +208,30 @@ describe("2. a temp function over a temp table's type", () => {
 // ===========================================================================
 
 describe("3. a permanent function over a temp table's type", () => {
-  it("today: captured, dangling, silent", async () => {
-    // Not a target — a description, so the flip in the next case is legible.
-    // The function IS in the snapshot; the relation its type names is NOT.
+  it("the dangling capture is gone — consistency by construction", async () => {
+    // Until 2026-08-25 this read `functions: ["public.get_users_t -> SETOF
+    // users_t"]` against `tables: []` — a snapshot promising a function
+    // that cannot exist, since session end drops the temp namespace CASCADE
+    // and takes it along (§6). The discard now happens BEFORE the snapshot,
+    // so the function is simply not there.
+    //
+    // Worth stating plainly: this needed no closure check, no pg_depend
+    // walk, no diagnosis. Simulating session end makes the catalog agree
+    // with reality structurally, which is the stronger kind of fix.
     const r = await apply(`
       CREATE TEMP TABLE users_t (userid text, seq int);
       CREATE FUNCTION public.get_users_t() RETURNS SETOF users_t LANGUAGE sql
         AS $$ SELECT * FROM users_t $$;
     `);
-    expect(r.functions).toEqual(["public.get_users_t -> SETOF users_t"]);
+    expect(r.functions).toEqual([]);
     expect(r.tables).toEqual([]);
   });
 
-  it.fails("TARGET: the capture-closure violation is reported", async () => {
-    // The contract: a captured object whose dependency is NOT captured gets
-    // a warning naming both. Measured beside this file: session end drops
-    // the temp namespace CASCADE and takes get_users_t with it, so the
-    // snapshot is describing a function the database will not have.
+  it("and the disappearance is REPORTED, not silent", async () => {
+    // The other half. A migration that says CREATE FUNCTION and ends with
+    // no function has to say so — otherwise the fix above trades a wrong
+    // snapshot for a mysterious one. The diagnostic carries the statement's
+    // range, so it lands on the CREATE that will not stick.
     const r = await apply(`
       CREATE TEMP TABLE users_t (userid text, seq int);
       CREATE FUNCTION public.get_users_t() RETURNS SETOF users_t LANGUAGE sql
@@ -296,6 +329,12 @@ describe("5. recorded silences", () => {
     // created, apply reports success, validate reports nothing, and the
     // snapshot is empty. Contrived on its own; the realistic harm is a
     // LATER migration inheriting a non-LOCAL search_path.
+    //
+    // The session-end discard does not help here and is not meant to — it
+    // makes the loss more thorough, not more visible. `accounts` was a
+    // temp table all along; nothing depends on it, so no cascade
+    // diagnostic fires. Still the clearest candidate for a warning of its
+    // own: a migration whose DDL contributed NOTHING to the snapshot.
     const r = await apply(`
       SET search_path TO pg_temp;
       CREATE TABLE accounts (id int NOT NULL, email text NOT NULL);
@@ -303,7 +342,8 @@ describe("5. recorded silences", () => {
     expect(r.applyOk).toBe(true);
     expect(r.diags).toEqual([]);
     expect(r.tables).toEqual([]);
-    expect(r.tempRels).toEqual(["accounts"]);
+    expect(r.tempRelsAfterApply).toEqual(["accounts"]);
+    expect(r.tempRels).toEqual([]);
   });
 });
 
