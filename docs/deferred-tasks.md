@@ -304,12 +304,77 @@ rollback brings the tables back.
 **Open residue, §4 of that file.** A function that creates its OWN temp table
 is valid code plpgsql_check reports as an error (measured: the function
 returns 1). Not the snapshot's doing and not closed by this: the table is
-created at CALL time, which never happens during a migration. The remedies
-need body knowledge pgsid does not have — libpg-query exposes `parse`/
-`parseSync` only, no plpgsql parser — so the options are a textual scan used
-to DOWNGRADE the diagnostic, or replaying the body's DDL into a savepoint.
-The dynamic form (`EXECUTE 'CREATE TEMP TABLE …'`) is pinned as a boundary
-rather than a target.
+created at CALL time, which never happens during a migration.
+
+### 1e. `engine.runtime` — declaring relations that exist only when the app runs
+
+The escape hatch for 1d's §4 residue, designed 2026-08-25, not yet built.
+Every alternative was measured out first (§7 of the same file):
+
+- **The pragma is unusable.** `plpgsql_check_pragma` is not a call pgsid
+  makes — it is a `PERFORM` inside the FUNCTION BODY, and that body is the
+  user's migration text, which also runs against a production database that
+  has no plpgsql_check. Measured: `CREATE FUNCTION` succeeds there and the
+  CALL fails. Recommending it in a diagnostic would ship a bug to fix a
+  false positive. It cannot be supplied from outside the body either (a
+  session-level call is a no-op; `plpgsql_check_function_tb` has no
+  parameter for declaring a relation).
+- **`SET plpgsql.enable_check TO false`** — the docs' per-function opt-out —
+  does not exist in our runtime (`invalid configuration parameter name`).
+- **A suppression annotation** (`-- pgsid-ignore: missing-relation(…)`) was
+  considered and rejected: a pre-created relation DECLARES rather than
+  silences, so the body stays fully checked and a real typo in the same
+  function is still caught. Suppression would blind the checker to
+  everything downstream of that relation, which in a function built around
+  a temp table is the whole body.
+
+**The shape.** A config key, not a magic filename — `pgsid.yaml` already
+declares paths (`schema`, `sql.paths`), and `pgsid.init.sql` would be a
+parallel mechanism:
+
+```yaml
+engine:
+  poolSize: 2
+  runtime: engine/runtime.sql     # string or array, as `schema` already allows
+```
+
+Contents are ordinary SQL (`CREATE TEMP TABLE tmp_stage (i int);`) — no new
+syntax anywhere, which was the whole objection to an annotation. Home is
+`engine` because that key already means "the PGlite instance pgsid stands
+up", which is exactly what the file configures.
+
+**Placement is fixed by measurement, not taste:** inside `validate`'s
+transaction, AFTER `discardTemporaryObjects()`. Earlier and the discard
+wipes it (measured); inside the transaction so the `ROLLBACK` cleans it and
+nothing reaches the snapshot. The plumbing question is that `SchemaBuilder`
+takes no config today — `validate(pg)` would need the paths, or the
+already-read SQL, passed in.
+
+**Accepted cost, measured:** a declared relation is visible to every
+function checked in that run, so it masks a genuine missing-relation error
+in an unrelated function using the same name. Narrower than a general
+ignore (opt-in per relation, not per diagnostic). The escalation, if it
+bites: make a declared relation visible only while checking a function
+whose body textually contains `CREATE TEMP TABLE <name>` — a substring
+match, no parser.
+
+**Decided against: hinting at this key from the diagnostic.** `relation "x"
+does not exist` is USUALLY exactly what it says — the table is missing, the
+function was written ahead of it, or the name is a typo. Attaching "declare
+it in `engine.runtime`" to every instance advertises the escape hatch as
+the first move on a genuinely broken function, which is the failure mode
+this whole design avoids. The key is documented instead, and found by
+someone who already knows they have a runtime-created relation — the right
+audience, since everyone else should be creating the table. A TARGETED
+hint (only when the body textually creates that relation) is defensible and
+stays available, but it is a substring scan built to produce one sentence
+for a case the docs cover.
+
+**Not built: a "before migrations" sibling.** Extensions, roles and schemas
+a migration assumes but does not create would want a hook before the first
+`applyMigration`. Proposed from symmetry with the above and dropped: no
+measured case needs it, and naming a pair is where the confusion about
+which file to use would live.
 
 ### 2. Search-path half (b)
 
