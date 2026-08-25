@@ -44,7 +44,8 @@ and `operators.ts` is 74% — that is where rationale is kept, and it works.
 | Subtree evaluation | `docs/subtree-evaluation.md` — consumer 3 (closed truths, `src/query/closed-truths.ts`), the computed-argument cast gate, and consumer 1's reverse `isNull` reading all landed 2026-08-24 |
 | What `pgsql-deparser` cannot render, and what that costs | `docs/deparser-limitations.md` — read BEFORE testing whether a construct deparses; that exploration has been done twice |
 | Argument / parameter contract | `docs/argument-nullability.md` |
-| Witness corpus discipline | `docs/witness-coverage.md` |
+| Witness corpus discipline | `docs/witness-coverage.md` — it carries the COMMAND that measures, not a copy of the numbers (2026-08-25) |
+| Whether a written-down "cannot" is still true | `docs/claims-sweep.md` — the 2026-08-25 sweep of the project's own prose, its three findings and what it left unswept |
 | Anything needing project config or a call site | `docs/consumer-design.md` — slice 2's boundary half landed 2026-08-24: `src/index.ts` and the arity-and-order gate in `src/contract-gate.ts` |
 | Catalog-driven generation | `docs/catalog-driven-generation.md` |
 | History of what was built when | `git log` |
@@ -115,13 +116,16 @@ executed would fire triggers, advance sequences and write rows for every DML
 query analysed. The answer is a narrow callback in the shape of `evaluate` and
 `resolveColumnTypes` — `DescribeStatement`, two lines over PGlite's
 `describeQuery`, returning the ordered column names and the parameter count.
-Measured: all 515 corpus statements describe, DML with RETURNING and `$n`
-included, and a sequence beside the probe does not advance.
+Measured: every corpus statement describes, DML with RETURNING and `$n`
+included, and a sequence beside the probe does not advance. (It read "all 515"
+until 2026-08-25, when the corpus was 593 — the CLAIM is executed every run by
+`contract-gate.test.ts`, which walks the fixture directory and holds a floor,
+so the number was decoration on a live assertion. Decoration still rots.)
 
 Two things the build measured that the design assumed:
 
-- The engine and PostgreSQL agree on the column NAMES of all 515 fixtures, and
-  on the parameter count of all 515. The gate is silent on the corpus, which
+- The engine and PostgreSQL agree on the column NAMES of every fixture, and on
+  the parameter count of every one. The gate is silent on the corpus, which
   is the expected result and is why the suite injects each divergence shape
   into a real contract instead — a gate that agrees with everything is
   indistinguishable from no gate.
@@ -1767,6 +1771,20 @@ catalog it approximates (a scheduled item); compare ORDERED NAMES, never arity
 (open item 1); ask whether a resolver's universe matches PostgreSQL's (a
 checklist item for the next mechanism anyone adds). A fifth sweep needs a new
 argument, and "the code has grown again" is not one.
+
+*Amended 2026-08-25 — the new argument arrived, and it is not aimed at the
+code.* `docs/claims-sweep.md`. Three of this session's four findings came from
+a maintainer question and the fourth from falsifying a sentence written an
+hour earlier, so the target is the project's own PROSE: ~1300 lines across
+fixtures, `src/` comments and `docs/` assert a negative, and none of it
+executes. Three findings, all one shape — **a number or a judgment copied out
+of an instrument that re-derives it, then outliving the instrument's answer**.
+The worst was §D of the closure handoff declaring five claims unclosable for
+want of "value analysis the engine does not do"; all five are `notNull` today.
+This entry's own conviction of "closable, *if ever worth it*" is the same
+error with the sign flipped. What is NOT swept is recorded at the foot of that
+doc — 486 negative claims in `src/` comments is the largest surface left, and
+rot modes 3 and 4 both landed in comments.
 
 **Mutating existing queries as a way to generate new ones.** Rejected.
 Transformations beyond blind wrapping need the same scope and type knowledge
