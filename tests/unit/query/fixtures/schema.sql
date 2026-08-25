@@ -908,6 +908,27 @@ CREATE TABLE evg (
   ) STORED,
   CHECK ((has_duration AND event_duration IS NOT NULL) OR NOT has_duration)
 );
+-- The BICONDITIONAL spelling of the same discipline, and the shape that
+-- reads in both directions: each disjunct names the status band AND the
+-- NullTest that band requires, so whichever one a WHERE kills, the
+-- survivor pins `started_at` — IS NOT NULL on the working side, IS NULL
+-- on the pending one. The generated column inherits both readings
+-- through the strict `+`, which is what makes one filter notNull and its
+-- complement alwaysNull over the same statement shape.
+--
+-- Written this way on the second attempt (2026-08-25, a maintainer's
+-- example): `… OR started_at IS NULL` as the escape hatch is a tautology
+-- in `started_at` and constrains nothing — the exemption has to name the
+-- DISCRIMINATOR, the column whose value decides whether the requirement
+-- applies.
+CREATE TABLE evb (
+  status text NOT NULL,
+  started_at timestamp,
+  event_duration interval NOT NULL,
+  projected timestamp GENERATED ALWAYS AS (started_at + event_duration) STORED,
+  CHECK ((status <> 'pending' AND started_at IS NOT NULL)
+      OR (status =  'pending' AND started_at IS NULL))
+);
 -- The same subject with NO CHECK at all: the generated CASE is the only
 -- thing on the table that mentions `a`, so a predicate over `a` reaches
 -- its arms through the evidence-only kernel run and through the
