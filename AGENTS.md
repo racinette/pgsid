@@ -78,30 +78,3 @@ is nothing, don't write it.
 
 **22.** If someone rewrote this mechanism, would the doc obviously need
 rewriting too? If not, you documented a method.
-
-## Checking compliance
-
-Each rule below has a reading. Run it, judge the result — the counts are not
-recorded here on purpose.
-
-Freshness dates, which rule 3 wants gone:
-
-    grep -rnE "20[0-9]{2}-[01][0-9]-[0-3][0-9]" src/ tests/ docs/
-
-Comments that point outside their own line, against rules 15 and 16:
-
-    grep -rnE "^\s*(//|\*).*(docs/[a-z-]+\.md|[a-z-]+\.(ts|sql)\b|[Ss]ee )" src/
-
-Docs citing other docs, against rule 7, and the same from code:
-
-    grep -rn "docs/[a-z0-9-]*\.md" docs/
-    grep -rn "docs/[a-z0-9-]*\.md" src/ tests/
-
-Docs over the cap, against rule 8:
-
-    wc -l docs/*.md | sort -rn
-
-A doc naming a function or a file is writing about a method, against rule 11 —
-read the hits rather than counting them:
-
-    grep -rnE "\`[a-zA-Z_]+\(\)|[a-z-]+\.(ts|sql)\b" docs/
