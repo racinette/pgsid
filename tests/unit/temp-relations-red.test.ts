@@ -483,3 +483,192 @@ describe("6b. DISCARD TEMP is the session-end simulation validate() can afford",
     }
   });
 });
+
+// ===========================================================================
+// 7. WHY the escape hatch is a pre-created relation and not a pragma.
+//
+//    plpgsql_check documents four ways to let a function that builds its own
+//    temp table pass its checks (§4's open case). Choosing between them took
+//    a discussion, and every step of it was a measurement; without these the
+//    decision reads as taste. It is not — three of the four are unavailable
+//    to us, and the fourth costs something specific.
+//
+//    The decisive one is 7.1. The pragma is not a call pgsid makes; it is a
+//    PERFORM inside the FUNCTION BODY, and that body is the user's migration
+//    text, which also runs against a production database that does not have
+//    plpgsql_check installed. Advising it would ship a broken function.
+// ===========================================================================
+
+/** A database WITHOUT plpgsql_check — i.e. the user's production. */
+async function withoutExtension<T>(fn: (pg: PGlite) => Promise<T>): Promise<T> {
+  const pg = new PGlite();
+  try {
+    return await fn(pg);
+  } finally {
+    if (!pg.closed) await pg.close();
+  }
+}
+
+/** A database WITH it — i.e. pgsid's own instance. */
+async function withExtension<T>(fn: (pg: PGlite) => Promise<T>): Promise<T> {
+  const pg = await PGlite.create({ extensions: { plpgsql_check } });
+  try {
+    await pg.exec("CREATE EXTENSION plpgsql_check;");
+    return await fn(pg);
+  } finally {
+    if (!pg.closed) await pg.close();
+  }
+}
+
+async function checkOf(pg: PGlite, signature: string): Promise<string[]> {
+  const rows = (
+    await pg.query<{ level: string; message: string }>(
+      `SELECT level, message FROM public.plpgsql_check_function_tb('${signature}')`,
+    )
+  ).rows;
+  return rows.map(r => `${r.level}: ${r.message}`);
+}
+
+describe("7. the pragma is unavailable to us, and why", () => {
+  it("7.1 a pragma in a migration body POISONS production", async () => {
+    // The measurement that ended the discussion. CREATE succeeds — so
+    // nothing warns while the migration runs — and the function then fails
+    // at CALL time on every deployment without the extension. A tool that
+    // emits "add plpgsql_check_pragma(...)" as a hint is shipping a bug to
+    // fix a false positive.
+    const outcome = await withoutExtension(async pg => {
+      await pg.exec(`CREATE FUNCTION stager() RETURNS bigint LANGUAGE plpgsql AS $$
+        BEGIN
+          PERFORM plpgsql_check_pragma('table: tmp_stage(i int)');
+          CREATE TEMP TABLE tmp_stage (i int) ON COMMIT DROP;
+          RETURN (SELECT count(*) FROM tmp_stage);
+        END $$;`);
+      try {
+        await pg.query("SELECT stager()");
+        return "call succeeded";
+      } catch (e) {
+        return (e as Error).message;
+      }
+    });
+    expect(outcome).toContain("function plpgsql_check_pragma(unknown) does not exist");
+  });
+
+  it("7.2 the pragma cannot be supplied from OUTSIDE the body", async () => {
+    // The reading that would have rescued it: let pgsid declare the shape
+    // in its own session, leaving the user's SQL clean. It does not work.
+    // The session-level call is accepted and does nothing, in or out of a
+    // transaction, and `plpgsql_check_function_tb` has no parameter for
+    // declaring a relation (`oldtable`/`newtable` are trigger transition
+    // tables). The pragma is body-scoped by construction.
+    const [beforePragma, afterPragma, hasTableParam] = await withExtension(async pg => {
+      await pg.exec(`CREATE FUNCTION stager() RETURNS bigint LANGUAGE plpgsql AS $$
+        BEGIN
+          CREATE TEMP TABLE tmp_stage (i int) ON COMMIT DROP;
+          RETURN (SELECT count(*) FROM tmp_stage WHERE i > 0);
+        END $$;`);
+      const before = await checkOf(pg, "public.stager()");
+      await pg.query(`SELECT public.plpgsql_check_pragma('table: tmp_stage(i int)')`);
+      const after = await checkOf(pg, "public.stager()");
+      const args = (
+        await pg.query<{ args: string }>(
+          `SELECT pg_get_function_arguments(oid) AS args FROM pg_proc
+           WHERE proname = 'plpgsql_check_function_tb'`)
+      ).rows[0]!.args;
+      return [before, after, /\btable\b/.test(args)] as const;
+    });
+    expect(beforePragma).toEqual(['error: relation "tmp_stage" does not exist']);
+    expect(afterPragma).toEqual(beforePragma); // the outside call changed nothing
+    expect(hasTableParam).toBe(false);
+  });
+
+  it("7.3 the fourth documented escape does not exist in this runtime", async () => {
+    // `SET plpgsql.enable_check TO false` is the per-function opt-out the
+    // extension's docs name. PGlite's build does not register the GUC, so
+    // the function cannot even be created. Recorded so the option is not
+    // re-proposed from the documentation alone.
+    const outcome = await withExtension(async pg => {
+      try {
+        await pg.exec(`CREATE FUNCTION opted_out() RETURNS bigint LANGUAGE plpgsql
+          SET plpgsql.enable_check TO false AS $$
+          BEGIN CREATE TEMP TABLE tmp_z (i int); RETURN (SELECT count(*) FROM tmp_z); END $$;`);
+        return "created";
+      } catch (e) {
+        return (e as Error).message;
+      }
+    });
+    expect(outcome).toContain('invalid configuration parameter name "plpgsql.enable_check"');
+  });
+});
+
+describe("7b. a pre-created relation is the escape we CAN use", () => {
+  it("it DECLARES rather than silences — a real typo is still caught", async () => {
+    // The property that rules out `-- pgsid-ignore` and any other
+    // suppression: the body stays fully checked. Creating the relation
+    // tells the checker its shape, exactly as the pragma would, so a wrong
+    // column name in the same function is still an error.
+    const [typo, clean] = await withExtension(async pg => {
+      await pg.exec(`
+        CREATE FUNCTION has_typo() RETURNS bigint LANGUAGE plpgsql AS $$
+          BEGIN
+            CREATE TEMP TABLE tmp_stage (i int) ON COMMIT DROP;
+            RETURN (SELECT count(*) FROM tmp_stage WHERE nope > 0);
+          END $$;
+        CREATE FUNCTION is_clean() RETURNS bigint LANGUAGE plpgsql AS $$
+          BEGIN
+            CREATE TEMP TABLE tmp_stage (i int) ON COMMIT DROP;
+            RETURN (SELECT count(*) FROM tmp_stage WHERE i > 0);
+          END $$;
+        CREATE TEMP TABLE tmp_stage (i int);`);
+      return [await checkOf(pg, "public.has_typo()"), await checkOf(pg, "public.is_clean()")] as const;
+    });
+    expect(typo).toEqual(['error: column "nope" does not exist']);
+    expect(clean).toEqual([]);
+  });
+
+  it("DISCARD TEMP wipes it — so the declaration must come AFTER the discard", async () => {
+    // The ordering constraint the session-end fix imposes on this one.
+    // `validate` discards temporary objects before it checks anything, so a
+    // declaration made earlier is gone by the time it would be read. It
+    // belongs inside validate's transaction, after the discard.
+    const [before, after] = await withExtension(async pg => {
+      await pg.exec(`CREATE FUNCTION stager() RETURNS bigint LANGUAGE plpgsql AS $$
+        BEGIN
+          CREATE TEMP TABLE tmp_stage (i int) ON COMMIT DROP;
+          RETURN (SELECT count(*) FROM tmp_stage WHERE i > 0);
+        END $$;
+        CREATE TEMP TABLE tmp_stage (i int);`);
+      const b = await checkOf(pg, "public.stager()");
+      await pg.exec("DISCARD TEMP");
+      return [b, await checkOf(pg, "public.stager()")] as const;
+    });
+    expect(before).toEqual([]);
+    expect(after).toEqual(['error: relation "tmp_stage" does not exist']);
+  });
+
+  it("the cost we accept: a declared relation MASKS an unrelated genuine error", async () => {
+    // The one thing the pragma's per-function scope bought that this does
+    // not. `mistake()` names tmp_stage by accident — it meant a permanent
+    // table nobody created — and the declaration silences it along with the
+    // function that deserved silencing.
+    //
+    // Accepted because it is opt-in per RELATION NAME rather than per
+    // diagnostic, which is far narrower than a general ignore mechanism.
+    // The escalation, if it ever bites: make a declared relation visible
+    // only while checking a function whose body textually contains
+    // `CREATE TEMP TABLE <name>` — that would keep `intended()` passing and
+    // `mistake()` failing, with a substring match and no parser.
+    const [mistakeBefore, intendedAfter, mistakeAfter] = await withExtension(async pg => {
+      await pg.exec(`
+        CREATE FUNCTION intended() RETURNS bigint LANGUAGE plpgsql AS $$
+          BEGIN CREATE TEMP TABLE tmp_stage (i int); RETURN (SELECT count(*) FROM tmp_stage); END $$;
+        CREATE FUNCTION mistake() RETURNS bigint LANGUAGE plpgsql AS $$
+          BEGIN RETURN (SELECT count(*) FROM tmp_stage); END $$;`);
+      const mb = await checkOf(pg, "public.mistake()");
+      await pg.exec(`CREATE TEMP TABLE tmp_stage (i int)`);
+      return [mb, await checkOf(pg, "public.intended()"), await checkOf(pg, "public.mistake()")] as const;
+    });
+    expect(mistakeBefore).toEqual(['error: relation "tmp_stage" does not exist']);
+    expect(intendedAfter).toEqual([]);
+    expect(mistakeAfter).toEqual([]); // masked — the accepted cost
+  });
+});
