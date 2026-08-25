@@ -1,881 +1,216 @@
 # Argument nullability
 
-## What this document is
+## What is claimed, and what deliberately is not
 
-The design for the input half of the engine's contract: what can be said about
-the query parameters (`$1`, `$2`, …) a statement takes, to the same standard
-the engine holds for output columns. Read `docs/nullability-walk.md` first for
-how the output analysis works; this document leans on its machinery and its
-vocabulary throughout.
+Per parameter, one boolean, mirroring the output side:
 
-The work was previously item 1 ("Argument typing") in `docs/deferred-tasks.md`
-and is removed from that register because it is being taken on.
+**Not-null** means binding NULL to this parameter can make the statement
+raise. A caller must not pass NULL.
 
-## What is being claimed, and what deliberately is not
+**Nullable** means NO CLAIM. The engine found no rejection channel it can see.
+It does not promise the binding is safe, and it does not address whether NULL
+is a *useful* thing to pass.
 
-Per parameter, one boolean, mirroring `OutputNullability`:
+**The contract is one-directional, and that is a decision.** An earlier
+reading had nullable meaning universally safe — no data state, no guard, no
+path makes it raise. That is not achievable and never was. A two-line
+procedural body that raises on a null argument rejects the binding with
+nothing catalog-visible behind it, and no static analysis short of executing
+the body reaches it.
 
-- **`notNull`** — binding NULL to this parameter can make the statement
-  raise. A caller must not pass NULL.
-- **nullable** — no claim. The engine found no rejection channel it can see.
-  Whether NULL is a *useful* binding is not addressed, and neither is whether
-  some code the engine cannot read rejects it anyway.
-
-**The contract is ONE-DIRECTIONAL, and that is a decision** (2026-08-07,
-forced by sweep-4 finding 7 — see "What a nullable parameter does not promise"
-below). An earlier draft of this document read nullable as *universally safe*:
-"no data state, no guard, no path makes it raise". That is not achievable and
-never was. A `LANGUAGE plpgsql` body of two lines —
-`IF x IS NULL THEN RAISE …` — rejects the binding with nothing catalog-visible
-behind it, and no static analysis short of executing the body reaches it. A
-rule the engine cannot satisfy is worse than a weaker one it can: it makes a
+A rule the engine cannot satisfy is worse than a weaker one it can: it makes a
 green suite mean "the corpus happens to contain no such function".
 
-The second half of that sentence is a decision, recorded here so it is not
-re-litigated: **the engine models what PostgreSQL does, not what a caller
-ought to do.** `SELECT * FROM u WHERE email = $1` with `$1` NULL executes
-cleanly and returns zero rows — pointless, but legal, and PostgreSQL's
-willingness to run it is the whole story. A "NULL is never useful here"
-analysis (the predicate is strict, so a NULL argument dead-ends the query) was
-considered and rejected from this contract: it is a lint about caller intent,
-not a fact about PostgreSQL behaviour, and folding it into `notNull` would
-break the deliberate optional-filter idiom `WHERE ($1 IS NULL OR email = $1)`
-that PostgreSQL supports without complaint.
+## The engine models what PostgreSQL does, not what a caller ought to do
 
-Types are likewise not inferred, at all. `PREPARE` hands the consumer
-authoritative parameter types, and a reimplementation of PostgreSQL's type
-resolution would be a version-drifting liability producing something the
-consumer already holds. The analysis needs *targeted* catalog lookups — is
-this cast target a NOT NULL domain, is this INSERT column NOT NULL, what are
-this function's declared argument types — and nothing more.
+Selecting rows where a column equals a null-bound parameter executes cleanly
+and returns nothing. Pointless, but legal, and PostgreSQL's willingness to run
+it is the whole story.
 
-Parameter numbering needs no modelling either: PostgreSQL rejects a statement
-whose parameters have gaps (`SELECT $2` fails at parse analysis with "could
-not determine data type of parameter $1"), so the contract is a dense
-positional array `$1..$n` for any statement PostgreSQL accepts.
+An analysis of the "NULL is never useful here" kind — the predicate is strict,
+so a null argument dead-ends the query — was considered and rejected from this
+contract. It is a lint about caller intent, not a fact about PostgreSQL
+behaviour, and folding it into the not-null claim would condemn the deliberate
+optional-filter idiom, where a parameter is compared only when it is not null.
+PostgreSQL supports that idiom without complaint, so the contract must too.
 
-## The mechanisms, measured
+**Types are not inferred, at all.** Preparing the statement hands the consumer
+authoritative parameter types, and reimplementing PostgreSQL's type resolution
+would be a version-drifting liability producing something the consumer already
+holds. The analysis needs targeted lookups — is this cast target a non-null
+domain, is this insert column non-null, what are this function's declared
+argument types — and nothing more.
 
-Two mechanisms were measured first and named A and B; C (value flow) and D
-(builtin argument positions) were added later and are described in "The
-algorithm" and "What a nullable parameter does not promise" respectively.
+Parameter numbering needs no modelling either. PostgreSQL rejects a statement
+whose parameters have gaps, so for any statement it accepts, the contract is a
+dense positional array.
 
-Everything below was measured against PGlite (PostgreSQL 18) on 2026-07-31,
-with `CREATE DOMAIN uname AS text NOT NULL`, a table `d (n uname)`, a table
-`plain (e text NOT NULL)`, an empty table `empty_t`, and a function
-`takes_dom(v uname)`. The implementation must pin these behaviours as an
-executable test the way `deparser-roundtrip.test.ts` pins the deparser table —
-they are load-bearing for the design, and a PostgreSQL upgrade should fail
-loudly if it moves them.
+## Two rejection mechanisms, and one non-mechanism
 
-**Mechanism A — bind-time rejection.** When parse analysis resolves a
-parameter's *type* to a NOT NULL domain, binding NULL raises before anything
-executes. No guard, no empty table, no unreached branch prevents it:
+**Bind-time rejection.** When parse analysis resolves a parameter's TYPE to a
+non-null domain, binding NULL raises before anything executes.
 
-| statement, `$1` bound to NULL | parameter type | result |
-|---|---|---|
-| `SELECT $1::uname` | `uname` | raises |
-| `SELECT CASE WHEN false THEN $1::uname ELSE 'x' END` | `uname` | **raises** — the guard does not protect it |
-| `SELECT $1::uname FROM empty_t` | `uname` | **raises** — zero rows do not protect it |
-| `SELECT takes_dom($1)` | `uname` | raises |
-| `INSERT INTO d VALUES ($1)` | `uname` | raises |
-| `INSERT INTO d SELECT $1 FROM empty_t` | `uname` | **raises** — even though no row would be inserted |
-| `UPDATE d SET n = $1` | `uname` | raises |
-| `SELECT $1::uname, $1 \|\| 'x'` | `uname` | raises — the domain-typed use types the parameter, and the operator operand deduces nothing of its own |
+The two properties that matter are both surprising, and both were measured. It
+is **guard-immune**: putting the parameter inside a branch that provably never
+runs does not protect it. And it is **zero-row-immune**: a statement over an
+empty table raises anyway, as does an insert that would write no row. Nothing
+about execution is involved, because nothing has executed yet.
 
-The channels that produce a domain-typed parameter: a cast whose operand is
-the parameter itself, a function argument whose declared type is the domain,
-and assignment into a domain-typed column (directly or through the select
-list of `INSERT … SELECT`).
+Three channels produce a domain-typed parameter: a cast whose operand is the
+parameter itself, a function argument whose declared type is the domain, and
+assignment into a domain-typed column.
 
-**Mechanism B — execution-time rejection.** A plain NOT NULL *column
-constraint* leaves the parameter base-typed; NULL binds fine and the check
-fires per row actually written:
+**Execution-time rejection.** A plain non-null column CONSTRAINT leaves the
+parameter base-typed. NULL binds fine, and the check fires per row actually
+written — so inserting a constructed row raises, while inserting the result of
+a query over an empty table succeeds.
 
-| statement, `$1` bound to NULL | parameter type | result |
-|---|---|---|
-| `INSERT INTO plain VALUES ($1)` | `text` | raises (a `VALUES` row is always constructed) |
-| `INSERT INTO plain SELECT $1 FROM empty_t` | `text` | **succeeds**, zero rows |
+**The non-mechanism: comparison never rejects.** PostgreSQL resolves operators
+on a domain's BASE type, so a comparison against a domain-typed column never
+consults the domain's constraint, whatever the column declares.
 
-**Non-mechanism — comparison.** `SELECT * FROM d WHERE n = $1` with NULL
-executes cleanly and returns zero rows, and the parameter's type is `text`:
-PostgreSQL resolves operators on the domain's *base* type, so the domain
-constraint is never consulted. A comparison position never rejects, whatever
-the column's constraints say.
+**Two deduction boundaries constrain what can even be written.** Unification is
+not conflict resolution: a use that deduces its own type makes PostgreSQL
+reject the statement outright rather than let the domain win. And deduction is
+first-use-ordered, so a disjunction that tests the parameter for null before
+comparing it fails where the reverse order prepares fine. Neither changes the
+contract — a rejected statement has no contract — but both bound what fixtures
+and generated queries may emit.
 
-**Two deduction boundaries, found by the fixture suite's PREPARE gate and
-pinned alongside the mechanisms.** Unification is not conflict-resolution: a
-use that deduces its own type makes PostgreSQL reject the statement rather
-than let the domain win (`SELECT $1, $1::uname` fails with "inconsistent
-types deduced" — a bare projection deduces text). And deduction is
-first-use-ordered: `WHERE $1 IS NULL OR col = $1` fails with "could not
-determine data type", while the reversed disjunction prepares fine. Neither
-changes the contract — a rejected statement has no contract — but both
-constrain what fixtures and the generator may emit.
+## What each claim quantifies over
 
-## Claim semantics, and a symmetry worth writing down
+Execution-time rejection makes the not-null claim data-dependent, which forces
+precision:
 
-Mechanism B makes `notNull` data-dependent, which forces precision about what
-each claim quantifies over:
+**Not-null is EXISTENTIAL** — there is an execution in which NULL raises. For
+bind-time rejection it happens to be universal, but the consumer-facing
+meaning does not change: do not pass NULL.
 
-- **`notNull` is existential**: there is an execution in which NULL raises.
-  (For mechanism A it is in fact universal — it always raises — but the
-  consumer-facing meaning does not change: do not pass NULL.)
-- **nullable is the ABSENCE of that claim**: no channel the engine models
-  rejects NULL here. Not a guarantee that nothing does.
+**Nullable is the ABSENCE of that claim** — no channel the engine models
+rejects NULL here. Not a guarantee that nothing does.
 
-### What a nullable parameter does not promise
+## What a nullable parameter does not promise
 
-The boundary, decided 2026-08-07 and scoped deliberately:
+**No claim is made about a user function's arguments beyond its DECLARED
+parameter types.** A function body is not its interface. A non-strict function
+whose body maps its argument into a non-null domain will raise on a null
+binding, and the engine says nothing — which is correct rather than a gap.
 
-**No claim is made about a USER function's arguments beyond its DECLARED
-parameter types.** A function body is not its interface. `sw4_dom_id(x text)
-RETURNS nn_text AS $$ SELECT x::nn_text $$` is non-strict, so it runs, and its
-body maps the argument into a NOT NULL domain — binding NULL raises. The
-engine says nothing, and that is correct rather than a gap to be closed. The
-channel a schema author uses to *get* the claim is the declared type: declare
-the parameter as a NOT NULL domain and mechanism A rejects at Bind, before the
-body is reached at all. Standard types are nullable by design.
+The channel a schema author uses to GET the claim is the declared type:
+declare the parameter as a non-null domain and bind-time rejection applies
+before the body is reached at all. Standard types are nullable by design.
 
 That class is catalog-visible and a rule could be written for it — a
-non-strict function with a NOT NULL domain return whose body is
-NULL-preserving. It is deliberately not written, because it would not close
-the question: the plpgsql `RAISE` above is the same rejection with no catalog
+non-strict function with a non-null domain return whose body preserves nulls.
+It is deliberately not written, because it would not close the question: a
+procedural body that simply raises is the same rejection with no catalog
 trace, so the line would move without arriving anywhere. Reading bodies to
-guess at rejections also inverts the interface: two functions with identical
+guess at rejections also inverts the interface — two functions with identical
 signatures would carry different contracts.
 
-**The must-not-raise convention holds for BUILTINS**, whose behaviour is
-documented and knowable, and where a claim is therefore owed. That is
-**mechanism D**, built 2026-08-07: some builtin argument positions reject NULL
-in their own C implementation with nothing in pg_catalog saying so. Strictness
-cannot express the class — a strict function returns NULL rather than raising,
-so the whole of it sits inside the non-strict set.
-
-Two tables, because there are two distinct checks and neither implies the
-other:
-
-| | positions | message |
-|---|---|---|
-| a NULL ARGUMENT | `array_fill`'s dimension and low-bound arrays; `array_position`'s three-argument initial position; the six range constructors' flags argument; `jsonb_set_lax`'s `null_value_treatment` | 10 signatures, 11 positions |
-| a NULL ELEMENT of an array argument | `array_fill`'s two dimension arrays; `jsonb_set_lax`'s PATH — which accepts a NULL array and rejects a NULL element | 3 signatures, 4 positions |
-
-**These are tables, and that is normally this project's mistake.** The property
-has the same shape as TOTALITY, whose four tables drifted three times
-(`docs/generated-surface.md` items 2 and 3). What makes these safe is that the
-property is cheaply DECIDABLE BY EXECUTION — call the function with NULL in one
-position, call it again with a value, and the pair answers exactly — so
-`builtin-null-rejection.test.ts` does not CHECK the tables, it DERIVES the
-class from pg_catalog and asserts equality. A PostgreSQL upgrade that adds,
-removes or moves a rejection fails with the diff. The tables are a cache of
-that measurement.
-
-Two things bound the rule. The element rule reaches an ARRAY CONSTRUCTOR only,
-where the elements are visible as expressions: `$1::integer[]` bound to an
-array CONTAINING a NULL is the same rejection and cannot be claimed, because
-the parameter is the whole array and its being non-null says nothing about its
-contents. And a USER function of the same name is never matched — the tables
-describe pg_catalog's implementations, and the engine claims nothing about a
-user body.
-
-The rule composes for free: `array_fill(1, coalesce($1, $2))` yields the joint
-rejection set `{1,2}`, because mechanism C's implicant machinery already
-answers "which parameters force this expression NULL".
-
-**How the suite holds the line.** `param-soundness.test.ts` still falsifies a
-nullable claim whose NULL binding raises, because over the hand-written corpus
-that is the strongest oracle the input side has. A fixture in the opaque class
-declares it with `-- @param-opaque N: <reason>`, and the marker is itself
-checked: the raise must be OBSERVED, so a stale marker fails as loudly as a
-missing one — the same bar `@unwitnessable` and `@no-rows` are held to.
-
-This is the output side's structure with the polarity flipped. Output
-`notNull` is universal (no row ever contains NULL) and execution can only
-falsify it; output nullable is existential and execution can only witness it.
-So the verification machinery transfers wholesale, mirrored:
-
-| claim | quantifier | execution can… | analogue |
-|---|---|---|---|
-| output `notNull` | universal | falsify | input nullable |
-| output nullable | existential | witness | input `notNull` |
-
-Concretely: a claimed-nullable parameter is checked by binding NULL (others
-held valid) — any raise, in any data state, is either a channel the engine
-should have seen or an opaque one it must record. A claimed-`notNull`
-parameter is checked by binding NULL and requiring the raise to be *observed*
-in at least one state — mechanism-A claims raise even under `empty`;
-mechanism-B claims need a state that routes a row into the target, exactly the
-way `@no-rows` fixtures must observe their declared refusal rather than be
-taken on faith. An unwitnessed `notNull` is the input side's version of an
-unwitnessed nullable output, and is held to the same standard: witnessed, or
-its unwitnessability recorded explicitly.
-
-Both directions of the contract are therefore executable against PostgreSQL —
-a stronger oracle than the output side has ever had.
-
-**The existential claim has no reachability qualifier — an open question.**
-"There is an execution in which NULL raises" quietly assumes the rejecting
-site RUNS in some execution. A provably-dead subtree breaks that for every
-execution-time mechanism, not just one: PostgreSQL never executes a
-non-data-modifying CTE nobody references (adversarial-2 finding 9, measured
-— the frame-offset site inside one accepted the NULL binding its referenced
-control raises on), and a `WHERE false` conjunct or a never-taken CASE arm
-would kill a site the same way. The collector performs no reachability
-analysis; the NARROW fix it carries is exactly the measured shape — an
-unreferenced SELECT CTE contributes parameter numbers but no rejection
-sites (`visitStatementWithCtes`), name-level and transitively closed, with
-over-approximation erring toward the old behaviour. The general question —
-whether `notNull` should be read as "raises in some execution that
-evaluates the site", or the collector should learn dead-subtree pruning —
-stays open here deliberately: nothing short of a constant-folding pass
-answers it, and the falsification oracle bounds the damage to claims a dead
-site sponsors. Finding 8's tree asymmetry is the same family and is CLOSED:
-mechanism B reads `resolveColumnNotNullTree` for update-command targets, so
-its claims are witnessable in every data state, not only parent-row ones.
-
-## The algorithm
-
-**Collection happens in the walk, not a post-pass.** By the time the walk has
-finished, "this `ParamRef` was a cast operand / a declared-domain function
-argument / an assignment source for column k" is gone — and the walk already
-holds the catalog facts each channel needs (it consults NOT NULL domains for
-output casts and function returns today; the input direction reads the same
-entries). The walk emits per-site facts; a fold afterwards reduces them to the
-per-parameter contract.
-
-Per site, the walk records a rejection when:
-
-1. **[A] the parameter is the direct operand of a cast to a NOT NULL
-   domain.** Direct matters: in `($1 || 'x')::uname` the parameter is typed
-   `text` and the cast applies to the concatenation's result — a different
-   situation (see deferred, below).
-2. **[A] the parameter is an argument in a function call whose declared
-   parameter type at that position is a NOT NULL domain.** Requires declared
-   argument types in the catalog's `FunctionInfo`; extend the adapter if they
-   are not yet carried through.
-3. **[A] the parameter is assigned to a domain-typed NOT NULL column** — an
-   `INSERT` VALUES/SELECT position or an `UPDATE SET`, mapped to its target
-   column, which the walk already does for `RETURNING` analysis.
-4. **[B] the parameter is assigned to a plain NOT NULL column** in the same
-   positions.
-
-**The fold, and multiple occurrences.** The same `$n` may appear anywhere any
-number of times. One rejecting site makes the parameter `notNull` — measured
-above: a single domain-typed use decides the parameter's type for every use,
-and no other site can un-raise a raise. Everything else is nullable. There is
-no guard analysis on the input side at all: mechanism A was measured to be
-guard-immune, and mechanism B's sites (DML targets) cannot be guarded. This
-makes the fold strictly simpler than the output walk's expression analysis —
-a union of per-site verdicts.
-
-**Order of analyses: arguments first.** The dependency between the two halves
-runs one way. No argument fact depends on output nullability; but output
-claims can consume argument facts, and the walk computes them first for
-exactly that reason.
-
-**Mechanism-A narrowing (implemented).** A parameter whose resolved type is a
-NOT NULL domain rejects NULL at Bind, before any execution — so any row the
-statement returns proves that parameter was non-NULL, and a projected
-`ParamRef` for it is `notNull`. The same rows-exist reasoning that lets a
-`@no-rows` refusal guard a claim. The collector exposes the mechanism-A
-subset separately (`ParamFacts.bindRejected`) because mechanism B does NOT
-license this: a B-site raises per row written, and a statement can return
-rows without the writing path ever seeing one — `WITH w AS (INSERT INTO
-plain SELECT $1 FROM empty_src RETURNING e) SELECT $1 FROM t` succeeds with
-NULL bound and returns rows. Fixtures: `param-multi-use` (`$1 || 'x'` is
-notNull), `param-fn-domain-arg` (the inlined body echoes a proven-non-null
-argument).
-
-**Source value-flow attribution (implemented).** `forcedNullParams` resolves
-a derived-table column to its DEFINING EXPRESSIONS and recurses: alias →
-column → definitions, for MERGE `USING` sources, `INSERT … SELECT` derived
-tables, `UPDATE … FROM`, and ON CONFLICT's `excluded` pseudo-alias — whose
-columns are simply the proposed row's expressions, so `SET val =
-EXCLUDED.name` with `name` bound to `$2` rejects `$2` (case-folded like
-every identifier; attribution composes through strict operators). The
-reduction over a multi-row source carries the caller's quantifier — the
-UNIVERSAL face (intersection) for WHERE-narrowing, where one unforced row
-can smuggle a NULL past the conjunct (`param-narrow-multirow.sql`), and the
-EXISTENTIAL face (union) for the contract's rejecting sites, where one
-forced row reaching the site is enough to raise
-(`param-merge-source-multirow.sql`). Trigger fixtures:
-`param-merge-source.sql`, `param-insert-source.sql`,
-`param-onconflict-excluded.sql`, and the two quantifier pins above.
-
-**The overload hazard, and its Wave-5 resolution.** Which overload of
-`f($1)` PostgreSQL executes depends on the argument types *it* resolves, so
-consulting a different overload than PostgreSQL picked could read the wrong
-declared types — a path to unsoundness. The original rule (refuse any
-ambiguous name) is now refined without ever guessing: **arity filtering**
-keeps only the candidates a call with that many arguments could resolve to
-(PostgreSQL never picks one that cannot accept them; variadic and named
-notation still refuse), and **consensus** concludes only what EVERY
-remaining candidate agrees on — all strict for the closures, a position all
-declare as a NOT NULL domain for mechanism A (`param-overload-arity.sql`:
-two `ship` overloads, a one-argument call, $1 rejected at Bind).
-Disagreeing candidates stay conservative, pinned by `over_fn`. Full
-type-based resolution remains rejected — it is a reimplementation of
-PostgreSQL's coercion rules, the simulation category ruled out three times
-now.
-
-**Mechanism C — value-flow rejection (implemented).** The third mechanism,
-found by hand as the exact trigger the first version of this document
-predicted: in `INSERT … RETURNING ($2 || '!')::nn_text`, the parameter stays
-typed `text`, but its VALUE — forced NULL through the strict concatenation —
-hits the runtime domain coercion and raises. Execution-time like B (zero
-evaluations, zero raises: the same statement over an empty source succeeds
-with NULL bound), so C claims are existential and never license narrowing.
-Attribution asks "which `$n` being NULL forces this expression NULL?" and
-counts only guaranteed propagation: strict operators (`operators.ts`, shared
-with the output walk — every entry is both total and strict), `NULLIF`'s
-left operand only, `COALESCE` by intersection of its branches, casts
-transparently, strict single-overload catalog functions by union. Anything
-unrecognised attributes nothing, and the falsification oracle keeps that
-honest. Channels: expression casts to NOT NULL domains, domain-typed
-function arguments, and rejecting DML target columns (both the domain and
-plain-constraint flavours). Measured behaviours — including the
-COALESCE-absorption and NULLIF-asymmetry boundaries — are pinned in
-`param-mechanism.test.ts`; the trigger statement is `param-value-flow.sql`;
-the generated `param-reject` projection carries the shape across the whole
-structural space.
-
-**The window frame offset — mechanism B's fourth sibling (adversarial
-finding 15).** A parameter as a `WindowDef` frame bound (`ROWS BETWEEN $1
-PRECEDING …`) raises `frame starting/ending offset must not be null` for a
-NULL binding — for ROWS, RANGE and GROUPS, in both directions, and even
-over empty input (all measured). The sibling placement, LIMIT/OFFSET, takes
-NULL legally, which is exactly why the site had to be enumerated rather
-than assumed. Still execution-time (a subquery that never runs never
-evaluates its frame), so it rejects without licensing narrowing; the value
-flows through `rejectFlow` like any mechanism-C channel, and the offset
-reaches the collector both as `FuncCall.over` (a concrete struct field,
-emitted UNWRAPPED by libpg-query) and as a wrapped `WindowDef` in the
-windowClause. `param-window-frame-offset.sql` pins it, the raise witnessed.
-
-**WHERE-conjunct narrowing (implemented).** In `SELECT $1 AS x FROM t WHERE
-t.a = $1`, any returned row passed the WHERE, a strict comparison is only
-TRUE with non-null operands, so `x` is notNull for every row that exists —
-while the ARGUMENT stays nullable: NULL is a legal binding that simply
-returns nothing. The parameter mirror of the column WHERE-promotion the walk
-already had, built on `forcedNullParams` and the shared strict-operator set,
-with three boundaries each carried by a fixture or generated negative:
-
-- *Conjuncts, and disjunctions by intersection.* NOT guarantees nothing; an
-  OR narrows only when EVERY arm proves the parameter — whichever arm was
-  TRUE could not have been TRUE with it NULL. The optional-filter idiom
-  stays legal by exactly that rule: its `$1 IS NULL` arm proves nothing, so
-  the intersection is empty (`param-optional-filter`). Qualifying shapes:
-  strict comparisons, `= ANY`/`ALL`, `BETWEEN [SYMMETRIC]`, `IN` (tested
-  value only — `x IN ($1, 5)` is TRUE via 5), `IS NOT NULL` — with operands
-  attributed through the shared strict closure (`forcedNullParams`, now
-  including the measured `STRICT_BUILTIN_FUNCTIONS` set).
-- *Rows must imply the predicate.* An ungrouped aggregate query (or empty
-  grouping sets) emits its row over ZERO input rows — `SELECT $1, count(*) …
-  WHERE val = $1` returns `[NULL, 0]` — so WHERE and ON-qual narrowing are
-  gated on `rowsImplyWhere` (`param-where-agg-norows` is the live trap).
-  Plain GROUP BY qualifies via the non-empty-groups guarantee. HAVING is
-  exempt from the gate: even the zero-input row must pass HAVING to be
-  emitted (`having-narrowing.sql`).
-- *Current scope only.* Subquery/CTE/view analyses are memoized by node
-  identity, so guarantees never travel the outer chain — a context-dependent
-  result would leak across references.
-- *The formerly recorded extensions, all taken (Wave 1):* INNER `ON` and
-  outer-join quals proven held by the presence fixpoint
-  (`resolveJoinImplications` in the walk; `join-on-promotion.sql`), HAVING
-  conjuncts (`having-narrowing.sql`), and the DML WHERE channel — UPDATE and
-  DELETE RETURNING scopes now carry their whereClause with
-  `rowsImplyWhere = true` (every RETURNING row is an affected row, and
-  RETURNING cannot contain aggregates). Parameters narrow unconditionally
-  there; COLUMN promotion applies to FROM/USING relations and non-SET target
-  columns (old row = new row for those), while SET columns are masked —
-  `update-set-mask.sql` is the live counterexample that forces the mask.
-  MERGE joined in Wave 4, arm-aware: the join condition is row-implied
-  (narrowing included) exactly when EVERY arm is MATCHED-kind — a NOT
-  MATCHED arm fires precisely on the condition's failure, so mixed
-  statements keep it dark.
-
-**Deferred, recorded so the boundary is deliberate:**
-
-- *The deadness lint*, decided against for the contract; if it ever exists it
-  is a separate diagnostics channel, not a nullability fact.
-
-## API shape
-
-A second positional array alongside the existing one, produced by the same
-walk over the same tree:
-
-```ts
-interface ParamNullability {
-  /** 1-based parameter number; the array is dense $1..$n. */
-  number: number;
-  /** Binding NULL can make the statement raise. */
-  notNull: boolean;
-}
-```
-
-`inferNullability`'s existing signature stays; a new entry point returns both
-halves. Naming and whether the old entry point becomes a thin wrapper are
-implementation decisions, with one constraint: the two arrays must come from
-one traversal, so they can never disagree about which statement they describe.
-
-### Joint rejection sets (Wave 10)
-
-The flat array has a vocabulary limit: `SET username = COALESCE($1, $2)`
-into a NOT NULL column rejects neither parameter alone, yet binding BOTH
-NULL raises — a fact `notNull: boolean` per parameter cannot say, and a
-consumer emitting `{ $1: string | null; $2: string | null }` admits exactly
-the binding class this analysis exists to forbid. The contract therefore
-carries a third field:
-
-```ts
-interface QueryContract {
-  outputs: OutputNullability[];
-  params: ParamNullability[];       // singleton facts, semantics unchanged
-  paramRejectionSets: number[][];   // minimal sets of size ≥ 2
-}
-```
-
-The underlying theory is uniform: everything is a minimal **rejection set**
-— "binding NULL to every member raises" — and `params[i].notNull` is the
-|S| = 1 slice, kept positional for the PREPARE zip. Minimality gives the
-trichotomy: a notNull parameter never appears in a set (supersets are
-absorbed), so each parameter is unconditionally required, conditionally
-required (the condition spelled entirely by its sets), or unconstrained.
-The claim direction is unchanged and one-directional — claims mean raises;
-absence of a claim promises nothing.
-
-Mechanism-C's value-flow computes this natively: "which params force this
-expression NULL" is a monotone function over "$i is NULL" atoms, and the
-analysis tracks its minimal implicants — strict operators union the
-operands' implicant lists, COALESCE cross-unions its branches (the
-singleton projection of which IS the old intersection, so the flat contract
-is bit-identical to before). Bounds, recorded here per the no-silent-caps
-rule: implicants wider than 4 parameters and joint implicants beyond 8 per
-expression are dropped — a dropped implicant is a missing claim, exactly
-the pre-lift state — and singletons are NEVER dropped, so the flat contract
-cannot regress however wide an expression fans out. CASE expressions
-contribute no implicants (unchanged from the singleton analysis); a
-CASE-shaped joint fact would need the arm machinery the entailment kernel
-has and this traversal does not — deferred, recorded.
-
-Verification mirrors the flat claims: `-- @param-reject 1,2` annotations
-with compulsory bidirectional coverage (engine-claimed sets must be
-annotated, stale annotations must come off), each member required to carry
-its own `nullable` claim (the conditional state), and the soundness suite
-binds all members NULL together expecting the observed raise — existential,
-like notNull — while the members' individual nullable claims keep the set
-irreducible. A type emitter renders each set as one local union over its
-members intersected with the flat per-parameter types; ignoring the field
-yields the old contract, sound and incomplete.
-
-## Sequencing
-
-Agreed order of work, each stage giving the next something real to test:
-
-1. **Engine-side argument treatment** — this document. Includes the
-   mechanism-pinning test, the fixture-format extension for expected
-   argument contracts (an `-- @param 1 notNull`-style annotation next to the
-   existing output annotations), and the overload-resolution audit described
-   above.
-2. **Argument generation in the test machinery** — built:
-   `tests/unit/query/param-soundness.test.ts`. Per-parameter NULL bindings
-   derived from the `@param` claims, run state-major over every data state;
-   both verification directions from "Claim semantics" above, with an
-   all-valid control run per state so a failure the control shares is never
-   attributed to NULL. Bindings go through the real protocol Bind step —
-   mechanism A lives there; a substituted `NULL` literal exercises constant
-   coercion, a related but different code path — with literal substitution
-   as the per-statement fallback when a deduction failure shows the protocol
-   cannot type it (no current fixture needs the fallback). An unwitnessed
-   `notNull` is a hard failure, not a ratchet, until a fixture exists that
-   legitimately cannot witness its raise.
-3. **Parameters in the generated SELECT pipeline** — built: two projection-axis
-   entries in `tests/unit/query/generated/generator.ts` (`param-mix`:
-   parameters in COALESCE and in a WHERE disjunction with `$n IS NULL`, both
-   nullable; `param-reject`: a mechanism-A domain cast, notNull), each
-   crafted deduction-safe per the boundaries above and carrying valid
-   control values. The generated suite runs the all-valid control binding
-   through the output oracle, then per-parameter NULL variants through the
-   two-sided argument oracle — no annotations anywhere, PostgreSQL is the
-   answer key in both directions, and a deduction failure counts as a
-   generator defect rather than falling back to literals.
-4. **Generated DML** — built: `generateDmlQueries()` in the generator, four
-   kinds (`insert-values` with both channels through the written values;
-   `update-from` running the join axis inside DML scope semantics against
-   target `v`; `insert-select` over every join structure as the source;
-   `dml-cte` — `INSERT … RETURNING` in a CTE recombined with the join axis).
-   All executions BEGIN/ROLLBACK-wrapped via the `writes` flag; parameters
-   are the written values, so constraint collisions are a binding choice
-   rather than a literal-crafting problem. First run: zero rejections, zero
-   refusals, zero violations — the engine's DML support survived the space.
-   `ON CONFLICT` joined later (the `oc-*` kinds over the `ck` conflict
-   table, seeded in `sparse` so the DO UPDATE arm fires in some states and
-   not others): the conditional mechanism-B site is witnessed only where the
-   arm fires, the domain-typed SET rejects at Bind arm-or-no-arm with its
-   narrowing intact through the arm, and DO NOTHING contributes the
-   returns-no-row-on-conflict liveness shape. `delete-using` mirrors
-   `update-from` without assignment channels; its projected parameter pins
-   the deliberate absence of WHERE-conjunct narrowing in DML RETURNING (a
-   live trap for the recorded param-only extension). `merge-*` closes the
-   surface: arm combinations (UPDATE/INSERT/DELETE/DO NOTHING/BY SOURCE,
-   `WHEN … AND` conditions) over grouped sources — grouping is load-bearing,
-   since MERGE refuses a source acting on a target row twice — with
-   conditional-B witnessed where arms fire, mechanism A arm-immune (pinned),
-   and `merge_action()` classified (a dedicated `MergeSupportFunc` node,
-   conservative). Parameters in sources are attributed (`merge-src-param`
-   and the trigger fixtures); the multi-row ∃-residual was closed by the
-   quantifier split ("Source value-flow attribution" above).
-5. **Parameter placement** — built: `generateParamPlacementQueries()`.
-   Positions the corpus otherwise never used, each measured against PGlite
-   before generation and crossed with the wrapper axis: a strict ON conjunct
-   with the parameter projected bare (ON-conjunct narrowing is the recorded
-   not-taken extension, so the projection is a live-trap unwitnessable —
-   refiltered under INNER, witnessed through the outer join kinds); the
-   mechanism-A cast inside the ON qual (bind rejection is position-blind,
-   and its output narrowing holds under every join kind and wrapper); the
-   HAVING twin of the ON trap; parameters inside a LATERAL body (the inner
-   scope's WHERE-conjunct narrowing propagates notNull through the derived
-   table under a cross join and degrades under LEFT JOIN LATERAL — verified
-   by the run: absent from both the violation and the unwitnessed lists); a
-   set operation's second branch (branch parameters deduce from the first
-   arm; EXCEPT keeps the left arm's claims); and LIMIT/OFFSET (NULL is
-   legal in both). Zero rejections, refusals, or violations; the two
-   refilter classifications are recorded as live traps that flip with
-   PostgreSQL's agreement if the ON/HAVING extensions land.
-
-## Mechanism E — CHECK-constraint rejection (chartered 2026-08-11, BUILT 2026-08-12)
-
-The evaluation capability this mechanism rides is chartered separately in
-`docs/subtree-evaluation.md` (2026-08-11) — the same core also serves the
-output side, and the red suite for both lives at
-`tests/unit/query/subtree-evaluation-red.test.ts`. This section remains the
-CHECK-channel consumer's design.
-
-The discovery instrument's standing conviction
-(`docs/catalog-driven-generation.md` §9.7): `INSERT INTO subscription (plan,
-seats, overflow_contact) VALUES ('team', 5, $1)` with NULL bound raises
-`CHECK (seats <= 1 OR overflow_contact IS NOT NULL)` — a CHECK whose
-predicate goes FALSE (not UNKNOWN) on a written NULL is a rejection channel
-mechanisms A–D do not cover. Catalog-visible, unlike the plpgsql-body class,
-so a claim is owed where one is derivable.
-
-**The design, decided after measuring the alternative.** Mirroring operator
-semantics per type is the simulation category, ruled out; connecting the
-entailment kernel's exact-atom trade was measured over the schema's fifteen
-rejection-capable CHECKs and covers eleven — but not one of the ordering-
-shaped ones, which are exactly the two on instrument-reachable tables. The
-mechanism instead asks PostgreSQL, confined to the narrowest possible
-question:
-
-1. **Ground** — substitute the statement's written literals into the parsed
-   CHECK expression (the AST we hold, never `pg_get_constraintdef` text),
-   every substituted value AND the tested NULL cast to its column's declared
-   type — bare tokens would compare as text and answer a different question.
-2. **Evaluate closed subtrees only** — no parameters, no unwritten columns,
-   every function and operator immutable (`provolatile = 'i'`, a catalog
-   lookup) — via `SELECT`, batchable as one statement; each collapses to
-   TRUE/FALSE/NULL.
-3. **Reduce** by three-valued algebra (`FALSE OR x → x`, `FALSE AND x →
-   FALSE`, …) — the skeleton logic the kernel already owns.
-4. **Analyze the residue** with existing machinery: an `$n IS NOT NULL`
-   residue rejects exactly on NULL (`notNull`, execution-time — never
-   licenses narrowing); value flow through strict operators is
-   `forcedNullParams`.
-
-The boundaries FALL OUT instead of being ruled: an unwritten column
-surviving reduction → no claim (no blanket coverage rule — `FALSE AND col >
-0` still reduces); a parameter sibling surviving (`$2 <= 1 OR $1 IS NOT
-NULL`) → no claim, because binding $2 NULL makes its atom UNKNOWN, which
-CHECK passes. A `NULL` evaluation result means the CHECK passes (measured,
-pinned in check-null-passes); claim only on FALSE.
-
-CORRECTED 2026-08-12, by measurement: this section originally added "so
-the shape also produces no false findings in the instrument's variants" —
-FALSE. The instrument's rank-3 variant binds ONE parameter NULL while the
-sibling keeps its control value, and a control value that fails its own
-atom ('team' in the guard, a seats value above 1) witnesses the raise —
-2-3 instances per 20,000 at each seed, the register's standing finding
-once the literal-grounded shape closed. Claiming it would need
-satisfiability reasoning over the sibling's value space ("some integer
-fails `$1 <= 1`"), a soundness argument this mechanism does not carry;
-whether to charter that or re-scope the instrument's variant adjudication
-is an OPEN DECISION, recorded in the register.
-
-**Architecture (DECIDED 2026-08-11, superseding the two-phase proposal).**
-The contract/param entry points become async and accept an optional
-`evaluate` callback — run one SELECT, return its row — while the engine
-internals stay sync and consume evaluation ANSWERS as data, the way they
-consume `paramTypes`. No evaluator passed → no E claims, everything else
-identical. Full design and rationale: `docs/subtree-evaluation.md`.
-
-**Pre-work, measured before any code**, param-mechanism style:
-
-- Pin the substitution semantics against PGlite: the cast requirement, the
-  NULL-passes rule, a stable-vs-immutable body, multi-row VALUES (per row,
-  existential), and `bp` as the correctness control — its char(4) blank
-  padding makes `'a' = 'a '` TRUE, so evaluation must claim NOTHING where
-  token reasoning would wrongly claim. DONE (2026-08-11): all six pinned in
-  `param-mechanism.test.ts`, "Mechanism E" section — the bp control measured
-  exactly as predicted (text grounding says FALSE, the char(4) column admits
-  the row), and a STABLE body flipped its answer between evaluation and
-  enforcement via a GUC, which is the immutable-only gate made executable.
-- The input channel gates on ENFORCEMENT, not validation: NOT VALID still
-  gates new writes, NOT ENFORCED does not — and the snapshot was measured
-  treating `convalidated=false` as covering both (schema comment at the
-  `guest` negatives). CHECKED (2026-08-11): the snapshot did not carry the
-  distinction, `pg_constraint.conenforced` (PG18) does — the snapshot now
-  captures it as `enforced` (NOT VALID: true, and a violating new write
-  raises; NOT ENFORCED: false), pinned in `check-constraint-pins.test.ts`.
-  Stored-row reasoning keeps gating on `validated`; E gates on `enforced`.
-- UPDATE channels read OLD values for unwritten columns and INSERT reads
-  defaults — both stay dynamic in the residue and drop claims; a
-  literal-default substitution is a recorded later, not part of the first
-  build.
-
-**As built (2026-08-12)** — `src/query/check-grounder.ts`, wired through
-`inferQueryContract`'s `evaluate` option like the statement map (one async
-pre-step, the collector consumes the claims as data —
-`MechanismEClaims`, merged before minimization so absorption is shared).
-What building it shaped, beyond the charter prose:
-
-- Steps 3 and 4 FUSED: one recursion computes FALSE-implicants of the
-  grounded body, consulting the evaluation answers at every node — a
-  closed answer IS the three-valued reduction, `x IS NOT NULL` maps to
-  the collector's NULL-implicant algebra (strict flow, COALESCE, casts),
-  AND unions, OR cross-unions. CASE joined the skeleton the same day, by
-  conviction (the instrument's first post-landing finding, q1725, both
-  seeds): an evaluated-TRUE guard selects its arm, evaluated-not-TRUE
-  guards drop theirs, everything after a TRUE guard never fires, and a
-  missing ELSE is the implicit NULL arm — never FALSE, so it annihilates
-  the cross-union. Pinned in the red suite's grounder block. The boundaries fall out as charted: any
-  atom a NULL binding can only push to UNKNOWN contributes nothing, and
-  cross-union annihilates a disjunct with no implicants — the
-  `$2 <= 1 OR $1 IS NOT NULL` shape and the unwritten-column shape are
-  the same rule. The empty implicant (the write always raises) is
-  dropped: true, but not a parameter fact — chartered as its own
-  surface below ("The always-raises statement fact", 2026-08-16).
-- The catalog face is `resolveEnforcedCheckConstraints` on the
-  evaluation face (census-exempt like its siblings): gated on `enforced`
-  alone, so NOT VALID is in and NOT ENFORCED is out, beside the walk's
-  validated-only lists.
-- The same rewrite hazard gates here as gates mechanism B — BEFORE ROW /
-  INSTEAD OF / DO INSTEAD on the (command, tree), the partitioned-UPDATE
-  command crossing included.
-- Declared-type casts are synthesized by parsing `SELECT NULL::<type>`
-  per distinct rendered column type (format_type spellings re-parse by
-  construction); a MultiAssignRef column and a sourced INSERT ... SELECT
-  ground nothing (the always-evaluated footing is VALUES rows and
-  FROM-less selects, mechanism B's own measurement).
-
-**As built (2026-08-12).** `src/query/check-grounder.ts`, fed by a new
-enforced-gated capture face (`resolveEnforcedCheckConstraints` beside the
-validated-gated pair) and consumed by `collectParamFacts` as data
-(`MechanismEClaims` — `rejected`/`joint`, never `bindRejected`). The four
-steps as landed: grounding clones the catalog AST and substitutes written
-values cast to declared types (TypeName ASTs harvested by parsing
-`SELECT NULL::<type>`, cached); one evaluator-core call per statement
-covers every grounded body; reduction and residue analysis are one
-recursion — FALSE-implicants with the evaluation answers consulted at
-each node, `IS NOT NULL` handing off to the collector's forced-NULL
-implicant algebra, AND by union, OR by cross-union, so the boundaries
-fall out exactly as designed (a surviving column or parameter atom
-annihilates its disjunct's implicants). Mechanism B's rewrite-hazard
-gate applies unchanged. Seven red targets flipped in the landing
-commit; the bp control and NOT ENFORCED guards held.
-
-**Hazard, recorded:** claim production and adjudication both become
-PostgreSQL — common-mode in principle, though expression evaluation and
-constraint enforcement are different code paths, and the pinned fixture
-corpus is the standing hedge. E-claims themselves never license output
-narrowing (never `bindRejected`); the output side gains its OWN consumers
-of the shared core — the statement map now, entailment later — chartered
-in `docs/subtree-evaluation.md`, each under its own soundness argument.
-
-## The always-raises statement fact (chartered 2026-08-16, BUILT 2026-08-16)
-
-The measured gap (post-landing review, adjudicated live): over
-`t2 (a int, n text, CHECK (a > 5), CHECK (n IS NOT NULL))`,
-`INSERT INTO t2 (a, n) VALUES (7, $1)` claims `$1` notNull, while
-`INSERT INTO t2 (a, n) VALUES (2, $1)` claims NOTHING — the a-CHECK
-grounds `2 > 5` FALSE, its empty implicant subsumes every other
-implicant in minimization, and the statement PostgreSQL rejects on
-every execution carries the emptiest contract of all. The fact is
-computed at analysis time and discarded ("true, but not a parameter
-fact" — the fused-reduction bullet above).
-
-The rung: surface it as a statement-level field on `QueryContract` —
-`alwaysRaises: boolean` — claimed only where the quantifier is
-UNIVERSAL: write events that unconditionally process a row, which is
-the grounder's always-evaluated footing already (VALUES rows and the
-FROM-less INSERT ... SELECT). An UPDATE, MERGE arm or ON CONFLICT arm
-grounding FALSE is the weaker, existential fact — "raises when a row
-matches" — and stays OUT of the first wave, recorded here. A consumer
-that renders types may map the flag to `never`; the engine's
-vocabulary stays claims-only. Absorbed param claims stay absorbed:
-under the flag they are vacuous, and the flag explains their absence
-where today the contract just goes blank.
-
-PRE-WORK, measured before code: whether ON CONFLICT DO NOTHING
-evaluates the proposed row's plain CHECK before the arbiter looks
-(measured yes for partition bounds, undecided for CHECKs — decides
-whether OC-carrying inserts count as unconditional); where
-minimization absorbs the empty implicant (the behavior is measured,
-the code path is not read). Already pinned: one FALSE row rejects the
-whole multi-row statement.
-
-Acceptance frame: red target — the `(2, $1)` contract carries the
-flag; guards — the zero-matched-row shapes claim nothing (UPDATE,
-MERGE arm, ON CONFLICT update arm), and the rewrite-hazard gate keeps
-a hooked table from claiming (a BEFORE ROW trigger can rewrite the
-row into validity). The fixture corpus inverts one assumption: the
-soundness suites REQUIRE the all-valid control to succeed, so the
-annotation (`@always-raises`) must flip that expectation and the
-raise must be OBSERVED — the `@param-opaque` bar. The discovery
-instrument adjudicates for free: its control run executes every
-statement, so a success beside the claim is a finding with no new
-machinery. BOUNDARY: the flag fires only where the grounder already
-stands — enforced CHECKs and fed partition bounds over written
-values, rewrite gates intact — and must not grow toward a general
-will-this-fail analysis.
-
-**As built (2026-08-16).** The universality question is answered where
-the write events are collected, not where the implicants are: `Write`
-and `GroundedCheck` carry a `universal` flag, set only by a VALUES row
-and the FROM-less `INSERT ... SELECT`, and `groundedCheckClaims` reads
-it per check — an empty implicant off a universal check sets
-`alwaysRaises`, off any other check it changes nothing. Claims are
-untouched either way, since a claim is existential already. The
-rewrite gate needed no work: a hooked (command, table) produces no
-Write at all, so there is no grounded check to flag.
-
-PRE-WORK, both measured (param-mechanism, "The always-raises statement
-fact"). ON CONFLICT: the proposed row's CHECK is evaluated BEFORE the
-arbiter is consulted — a conflicting row that violates the CHECK
-raises under DO NOTHING, while a conflicting VALID row is silently
-skipped — so an ON CONFLICT clause does not demote the insert's own
-row, and OC-carrying inserts stay universal. The absorption path read
-as expected: `minimizeImplicants` sorts by length, so `[]` sorts first
-and its superset test swallows everything after it; `groundedCheckClaims`
-then filters for length 1 and length ≥ 2, which is exactly where the
-fact was being discarded. Beside it, the existential shapes measured
-uniformly: UPDATE, MERGE arm, ON CONFLICT update arm and the sourced
-`INSERT ... SELECT` all SUCCEED over an empty match with the same
-violating assignment that raises when a row matches.
-
-Acceptance: three red targets flipped (the `(2, $1)` VALUES row, its
-ON CONFLICT DO NOTHING twin, and the valid `(7, $1)` control keeping
-its parameter claim with no flag) and four guards green — UPDATE,
-MERGE arm, ON CONFLICT update arm, and a BEFORE ROW trigger that
-rewrites the row into validity, that last one oracle-adjudicated
-rather than conservatism-only (PostgreSQL accepts the insert under
-every binding, so a flag there would be false).
-
-The annotation cost two suites their standing assumption, not one.
-`@always-raises` implies `@no-rows` + `@raises` (parse-time, so the
-refusal is always observed) and inverts param-soundness's control
-expectation: the all-valid control must RAISE, and must be seen to.
-nullability-soundness needed the same inversion for a reason the
-charter had not named — it determines a fixture's output shape by
-EXECUTING against an empty database, which works for every other
-`@no-rows` fixture because with no rows the raising expression is
-never evaluated, while an unconditional write raises there too. Under
-the flag that failure is the expected observation, and such a fixture
-must claim no output columns at all: no row is ever returned, so an
-output claim could never be checked. Corpus:
-`param-always-raises.sql`. The engine's flag is annotated in both
-directions in param-nullability, like every other claim.
-
-The discovery instrument adjudicates it in the direction a
-counterexample needs: `always-raises-violated`, its own bucket
-(decided 2026-08-16 — the existing lists are column- and
-parameter-shaped and would have named a statement-level claim
-wrongly), fingerprinted on the write shape (`DML:insert`,
-`DML:insert-onconflict`) so two shapes getting it wrong read as two
-defects and one shape over three tables reads as one. It costs no
-execution: the control run already ran the statement, and a flagged
-statement that returns instead of raising falsifies the claim on the
-spot.
-
-## Witness classification for constraint-shaped raises (chartered 2026-08-16, BUILT 2026-08-16)
-
-The measured gap (post-landing review): the grounder's and the
-write-side bound rung's notNull claims raise `violates check
-constraint` / `violates partition constraint`, and neither message
-matches `NULL_REJECTION` (fixture-args.ts) — the enumerated list
-holds messages only a NULL itself can produce. A correct,
-raise-confirmed claim therefore files under the instrument's neutral
-raised-outside bucket ("10 raised outside the enumerated rejection
-list" in the 2026-08-16 verification runs) and can never be a CORPUS
-witness: a param fixture over these mechanisms would fail
-param-soundness's witness bar, which is why the write-side rung
-shipped fixture-less.
-
-The rung: a SECOND message class — exactly the two
-constraint-violation messages — counted as a notNull witness only
-under a CONTROL condition: the all-valid binding succeeded in the
-same data state, so the raise's only delta is the NULL (the
-principle param-soundness already states for nullable accounting: a
-failure the control shares is not evidence about NULL).
-`NULL_REJECTION` itself stays exactly as it is — "a message only a
-NULL produces" is load-bearing for builtin-null-rejection's tie and
-must not blur. Consumers: param-soundness's witness push (which
-today counts NULL_REJECTION matches without consulting the control —
-the widened class MUST consult it) and the probe harness's
-paramWitness accounting (a raised-other entry in the class moves to
-witnessed under the same condition; pre-work names the harness's
-control). Payoff: Mechanism E and write-side bound claims become
-corpus-witnessable, and the missing param fixtures land WITH the
-rung as its acceptance. Guards: a class raise WITHOUT a succeeded
-control stays raised-other; every message outside the two keeps
-today's buckets.
-
-**As built (2026-08-16).** `CONSTRAINT_REJECTION` in `fixture-args.ts`,
-beside `NULL_REJECTION` and deliberately not merged with it. The two
-consumers take the control condition differently, which the pre-work
-settled: param-soundness evaluates it PER STATE (`witnessesNull(error,
-control.error === null)`, with the constraint-class states recorded
-separately so the suite can assert they are a subset of the states
-whose control passed — the guard, checkable rather than argued), while
-the probe harness has it STRUCTURALLY — its PostgreSQL half runs the
-all-valid binding first and returns before any variant when that
-raised, so no variant there can see a raise its control shared. Joint
-sets take the same widening in both. Pre-work (two pins,
-param-mechanism "Witness classification"): over one table, `(7, $1)`
-raises "violates check constraint" BECAUSE of the NULL while `(2, $1)`
-raises the identical text with the control raising beside it, and the
-partition bound behaves the same way — one message class, two causes,
-which is the whole reason the control may not be skipped. The
-separation is pinned in both directions in
-`builtin-null-rejection.test.ts` beside the derived-message tie: no
-derived builtin message matches the constraint class, and neither
-constraint message matches `NULL_REJECTION`.
-
-One thing the charter did not name blocked the fixtures too, measured
-while building: `param-nullability.test.ts` inferred with the
-evaluator OFF, and with no evaluator the grounder makes no claims at
-all — so a grounder-claimed parameter could not be annotated against
-the engine whatever the witness rules said. It now infers with
-`evaluate` live, the way the output-side fixture harnesses run the
-statement map; measured before flipping it, evaluator-on and
-evaluator-off agree on every claim and every rejection set over the 42
-parameterized fixtures that existed then, so the corpus moved not at
-all and only gained room. Acceptance: `param-check-grounded.sql`
-(Mechanism E — `seats <= 1 OR overflow_contact IS NOT NULL` grounded
-against a written 5) and `param-partition-bound-write.sql` (the
-write-side bound on `daily_metrics_q1`, whose key column is
-deliberately not declared NOT NULL), both red on the witness bar
-before the rung and both witnessed through the new class after it.
-`generated-soundness.test.ts` keeps its own narrower list untouched:
-its argument claims are at full witness coverage already, so nothing
-there was waiting on this.
-
-## Where things are
-
-| | |
-|---|---|
-| Output walk to extend | `src/query/nullability-walk.ts` |
-| Catalog facts (domains, functions) | `src/query/catalog-adapter.ts`, `src/query/types.ts` (`NullabilityCatalog`, `FunctionInfo`) |
-| Binding machinery to reuse | `tests/unit/query/fixture-args.ts` (`@args`, literal substitution) |
-| Existing parameterized fixtures | `extreme-parameterized-queries`, `extreme-params-everywhere`, `extreme-params-in-values` in `tests/unit/query/fixtures/` |
-| Generator to extend (steps 3–4) | `tests/unit/query/generated/generator.ts` |
-| Witness/ratchet precedent | `docs/witness-coverage.md`, `tests/unit/query/nullability-soundness.test.ts` |
+## How the facts are collected
+
+**Collection happens inside the walk, not in a pass afterwards.** By the time
+the walk finishes, the facts a rejection needs — this parameter was a cast
+operand, a declared-domain function argument, an assignment source for that
+column — are gone. The walk already holds the catalog entries each channel
+reads, so it emits per-site facts and a fold reduces them to the contract.
+
+**The fold is a union, and that is why it is simple.** The same parameter may
+appear anywhere, any number of times. One rejecting site makes it not-null: a
+single domain-typed use decides the parameter's type for every use, and no
+other site can un-raise a raise.
+
+**There is no guard analysis on the input side at all.** Bind-time rejection
+was measured guard-immune, and execution-time sites are write targets, which
+cannot be guarded. This makes the input fold strictly simpler than the output
+walk's expression analysis.
+
+**Arguments are computed first**, because the dependency runs one way: no
+argument fact depends on output nullability, but output claims can consume
+argument facts.
+
+## Bind rejection licenses an output claim; execution rejection does not
+
+A parameter that rejects NULL at bind time was non-null in any execution that
+happened at all — so any row the statement returns proves it, and a projected
+reference to that parameter is not-null. This is the same rows-exist reasoning
+the output side uses elsewhere.
+
+Execution-time rejection does NOT license this, and the counterexample is
+sharp: a write that raises per row written can be embedded so that the writing
+path sees no row while the statement still returns rows. The two mechanisms
+are therefore tracked separately, because only one of them is safe to consume
+in the other direction.
+
+## Some rejections belong to a SET of parameters
+
+The flat array has a vocabulary limit. Assigning a coalesce of two parameters
+into a non-null column rejects neither parameter alone, yet binding both NULL
+raises — a fact a per-parameter boolean cannot express. A consumer that emits
+both as independently nullable admits exactly the binding class this analysis
+exists to forbid.
+
+So the contract carries a third component beside the outputs and the
+per-parameter flags: the MINIMAL rejection sets, each of size two or more.
+
+The underlying theory is uniform — everything is a minimal rejection set,
+meaning "binding NULL to every member raises", and the per-parameter flag is
+just the single-member slice, kept positional so it still zips against
+PostgreSQL's own parameter list. Minimality yields a trichotomy: a not-null
+parameter never appears in a set, because supersets are absorbed, so every
+parameter is unconditionally required, conditionally required with the
+condition spelled entirely by its sets, or unconstrained.
+
+The claim direction is unchanged. Claims mean raises; absence of a claim
+promises nothing.
+
+Value-flow computes this natively, because "which parameters force this
+expression null" is a monotone function over "this parameter is null" atoms,
+and the analysis tracks its minimal implicants. Strict operators union their
+operands' implicants; a coalesce cross-unions its branches, whose
+single-member projection is exactly the older intersection, so the flat
+contract is unchanged by the addition.
+
+**Bounds, recorded because a silent cap reads as coverage.** Implicants beyond
+a width limit, and joint implicants beyond a per-expression limit, are
+DROPPED. A dropped implicant is a missing claim, which is exactly the state
+before any of this existed. Single-member implicants are never dropped, so the
+flat contract cannot regress however wide an expression fans out. Conditional
+expressions contribute no joint implicants at all — a conditional-shaped joint
+fact needs the arm machinery the entailment kernel has and this traversal does
+not.
+
+## When the statement raises on every execution
+
+A write whose grounded constraint reduces to false raises on every execution.
+Under minimization its empty implicant absorbs every other implicant, so the
+statement PostgreSQL rejects unconditionally would otherwise carry the
+emptiest contract of all — every parameter claiming nothing, for the best
+possible reason, with no way to say so.
+
+So it is surfaced as a statement-level fact, claimed only where the quantifier
+is UNIVERSAL: write events that unconditionally process a row. An update, or a
+conditional write arm, grounding false is the weaker existential fact — it
+raises when a row matches — and stays out.
+
+Absorbed parameter claims stay absorbed. Under the flag they are vacuous, and
+the flag explains their absence where otherwise the contract just goes blank.
+
+## Witnessing a constraint-shaped rejection needs a control
+
+Claims derived from constraints raise with a constraint-violation message, not
+with one of the messages only a NULL itself can produce. A correct,
+raise-confirmed claim of this kind therefore files under a neutral
+"raised for some other reason" bucket and can never witness anything — which
+is why a whole class of claims once had to ship without fixtures.
+
+The resolution is a SECOND message class, counted as a witness only under a
+CONTROL condition: the all-valid binding succeeded in the same data state, so
+the raise's only delta is the NULL. That is the principle the soundness suite
+already applies in the other direction — a failure the control shares is not
+evidence about NULL.
+
+The narrow "a message only a NULL produces" class stays exactly as it is. It
+is load-bearing elsewhere and must not blur. A class raise with no succeeding
+control stays in the neutral bucket.
