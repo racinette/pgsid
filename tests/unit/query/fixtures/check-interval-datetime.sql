@@ -1,5 +1,5 @@
--- Design B's acceptance (docs/subtree-evaluation.md, "Settings-independent
--- datetime literals"; landed 2026-08-16): ivdt's refusal record flipped —
+-- Design B's acceptance, for settings-independent datetime literals: ivdt's
+-- refusal record flipped —
 -- its ISO anchors pass the value-shape gate, so the anchor questions close
 -- and (-inf, 2019-06-01] misses (2020-01-01, inf), whatever DateStyle any
 -- session runs (the exhaustive sweep in param-mechanism is the pin). The

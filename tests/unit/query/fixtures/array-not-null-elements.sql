@@ -9,7 +9,7 @@
 -- WITH ORDINALITY's counter is generated per row and is always present, so it
 -- is the non-null column beside the nullable one it indexes.
 --
--- The divergence docs/sqlc-disagreements.md records for
+-- The divergence recorded against sqlc for
 -- `unnest_with_ordinality/GetValues`. Measured on the pinned sqlc v1.31.1: the
 -- element is correctly nullable there until a CAST is applied to it, at which
 -- point it flips to NOT NULL — the cast branch reads the target type name and

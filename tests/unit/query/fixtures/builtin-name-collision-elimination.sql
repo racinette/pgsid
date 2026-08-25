@@ -4,7 +4,7 @@
 -- `public.scale(boolean)` and `public.length(boolean)` live in the shared
 -- schema (see its tail). They have nothing to do with numerics or text, and
 -- PostgreSQL eliminates them by argument type under any search path. Before the
--- function overload merge (docs/function-overload-merge.md) their mere
+-- function overload merge their mere
 -- EXISTENCE was enough to collapse both names: the subtree evaluator refused
 -- any subtree using a name `evalUserFunctionNames` carried, whatever its arity,
 -- so `scale(8.41)` — a closed literal with no user involvement at all — stopped
@@ -13,8 +13,8 @@
 -- The last column is the interesting one. A BARE `unknown` literal reaches
 -- every candidate, including the user's `length(boolean)`, so the survivor set
 -- stays mixed and no SYMBOLIC verdict is available — separating them needs
--- PostgreSQL's preferred-type rule, which docs/type-aware-overloads.md declares
--- a non-goal ("No tiebreak algorithm"). It was the merge's one priced cost, and
+-- PostgreSQL's preferred-type rule, which the narrowing declares a non-goal:
+-- no tiebreak algorithm. It was the merge's one priced cost, and
 -- it was refunded rather than paid: once IMMUTABLE user functions are
 -- admitted to execution, the evaluator hands the whole expression to
 -- PostgreSQL, which applies its own resolution and answers with a value.

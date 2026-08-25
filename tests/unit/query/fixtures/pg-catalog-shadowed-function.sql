@@ -10,8 +10,8 @@
 -- pg_catalog's (`pg_typeof` is `integer` for the first — measured).
 -- The candidate set USED to drop wholesale for a name pg_catalog also
 -- carries, because with no builtin signatures in the snapshot no consensus
--- over the user's half was sound. That compensation is gone (2026-08-20,
--- docs/function-overload-merge.md) and it was never safe: dropping the user
+-- over the user's half was sound. That compensation is gone, and it was
+-- never safe: dropping the user
 -- half let a curated totality table answer for a call PostgreSQL runs against
 -- a user body, which is a rank 1 whenever the user's returns NULL. Both rows
 -- now enter one pool, neither is dropped, and the two claims below come from

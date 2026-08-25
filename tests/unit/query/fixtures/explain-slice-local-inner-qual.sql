@@ -1,7 +1,7 @@
 -- The participation closure where the qual-bearer is an INNER join —
 -- pinned separately from the flat form because a closure written only for
 -- outer-join quals would pass that fixture and miss this one
--- (docs/nullability-walk.md, "The participation closure").
+-- by the participation closure.
 --
 -- The INNER join's strict qual `v.u_id = u.id` settles the LEFT above it:
 -- a u-extended row fails the qual and the INNER join drops it. At top

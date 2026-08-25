@@ -3,7 +3,7 @@
 -- are @notNull while the ARGUMENT stays nullable: NULL is a perfectly legal
 -- binding (the second @args line) that simply returns no rows. The third
 -- column is the column-side promotion the engine already had; the parameter
--- side is its mirror (docs/argument-nullability.md).
+-- side is its mirror.
 -- @args ["x"]
 -- @args [null]
 -- @param 1 nullable

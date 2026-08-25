@@ -1,4 +1,4 @@
--- The charter's founding recovery (docs/type-aware-overloads.md): `lower`
+-- The narrowing's founding recovery: `lower`
 -- and `upper` left STRICT_TOTAL_BUILTINS because their (anyrange) rows
 -- return NULL for an empty range, and name-level dispatch could not tell
 -- the text meaning apart — builtin-range-lower-upper.sql pins that side,

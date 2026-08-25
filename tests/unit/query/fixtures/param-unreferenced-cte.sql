@@ -8,8 +8,7 @@
 -- for this site and the nullable reading holds universally. The bind-time
 -- half is param-unreferenced-cte-mechanism-a.sql, whose claim the same gate
 -- once dropped with this one. The wide reachability question this narrows
--- from is recorded beside the claim semantics in
--- docs/argument-nullability.md.
+-- from stays open.
 -- @args [null]
 -- @param 1 nullable
 WITH unused AS (

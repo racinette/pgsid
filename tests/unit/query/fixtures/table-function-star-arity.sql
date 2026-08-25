@@ -10,7 +10,7 @@
 -- `SELECT oi.id, oi.id::text, oi.quantity` — gives the other two theirs
 -- positionally, which is why all three come out non-null.
 --
--- The divergence docs/sqlc-disagreements.md records for
+-- The divergence recorded against sqlc for
 -- `func_star_expansion/TestFuncSelectBlog`, the register's one shape skew.
 -- Measured on the pinned sqlc v1.31.1: a `RETURNS TABLE` function collapses to
 -- ONE column named after the function, while `OUT` parameters and

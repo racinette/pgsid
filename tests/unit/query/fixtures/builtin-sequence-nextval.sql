@@ -18,7 +18,7 @@
 -- `nextval(NULL::regclass)` IS NULL (measured), so the premise is non-null
 -- arguments, not "whatever the arguments".
 --
--- Recorded in docs/sqlc-disagreements.md as the imprecision behind both
+-- Recorded against sqlc as the imprecision behind both
 -- `nextval/GetNextID` entries, and closed 2026-08-20.
 SELECT
   nextval('seq_probe')     AS next_id,  -- @notNull

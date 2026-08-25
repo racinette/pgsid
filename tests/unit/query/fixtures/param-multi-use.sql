@@ -7,7 +7,7 @@
 --
 -- c1 is @notNull by mechanism-A narrowing: $1 rejects NULL at Bind, so any
 -- returned row proves it non-null, and a strict concatenation of two
--- non-null operands never yields NULL (docs/argument-nullability.md).
+-- non-null operands never yields NULL.
 -- @args ["m"]
 -- @param 1 notNull
 SELECT

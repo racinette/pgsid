@@ -24,7 +24,7 @@
 -- and the PADDING makes its columns nullable. That is a different rule, and the
 -- two fixtures together are what keep it separate from this one.
 --
--- Recorded in docs/sqlc-disagreements.md as the imprecision behind
+-- Recorded against sqlc as the imprecision behind
 -- `pg_generate_series/GenerateSeries`, and closed 2026-08-20.
 -- @args ["2020-01-01", "2020-01-02"]
 -- @args [null, null]

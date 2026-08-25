@@ -1,7 +1,6 @@
 -- Inside a LANGUAGE sql body, a builtin CALL narrows its signature by the
 -- PARAMETER'S DECLARED TYPE — the site the type threading did not reach until
--- the function overload merge (docs/function-overload-merge.md, "The second
--- site the types never reach").
+-- the function overload merge — the second site the types never reach.
 --
 -- Both functions are IMMUTABLE STRICT, both are called with literals, both
 -- bodies are a single expression over their own parameters, and the walk

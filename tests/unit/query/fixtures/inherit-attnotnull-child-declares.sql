@@ -13,7 +13,7 @@
 -- The two fixtures pin the two directions of one rule, which is what keeps a
 -- future "read the descendants too" from looking like an improvement.
 --
--- The divergence docs/sqlc-disagreements.md records for
+-- The divergence recorded against sqlc for
 -- `ddl_create_table_inherits/GetAllOrganisations`. Measured on the pinned sqlc
 -- v1.31.1: it marks the PARENT's column NOT NULL, and deleting the child from
 -- the schema makes it nullable again — so the constraint flows child → parent

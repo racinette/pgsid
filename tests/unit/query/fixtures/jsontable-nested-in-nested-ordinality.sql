@@ -18,7 +18,7 @@
 --   counter is what this fixture falsifies, and it does. Closing it needs the
 --   item RUN as a probe, which pgsql-deparser 18.1.1 cannot render: it throws
 --   on every SQL/JSON node. Conservative, not wrong —
---   docs/deparser-limitations.md §1, blocked on upstream support
+--   blocked on upstream deparser support
 SELECT
   j.na,   -- @nullable  (nested itself, so nullable for the same reason)
   j.nb    -- @nullable  (NULL for the outer element whose array is empty)

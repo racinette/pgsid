@@ -17,8 +17,8 @@
 -- `refunds_archive` inherits all three columns NOT NULL from `refunds`, so the
 -- flags survive the rename and it is the NAMES this pins.
 --
--- Found by the discovery generator (docs/catalog-driven-generation.md §9.4) on
--- the first run that emitted alias column lists.
+-- Found by the discovery generator on the first run that emitted alias
+-- column lists.
 SELECT *
   -- @notNull
   -- @notNull

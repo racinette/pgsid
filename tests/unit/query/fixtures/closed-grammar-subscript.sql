@@ -20,7 +20,7 @@
 -- needs (`ARRAY['a','b'][5]` — syntax error) while parenthesising a function
 -- call correctly. A batch whose render is rejected returns nothing for the
 -- WHOLE statement, so the argument kind is gated on what renders rather than
--- tolerated. docs/deparser-limitations.md §4 carries the measurement.
+-- tolerated; the measurement is pinned in subtree-evaluator.test.ts.
 --
 -- `collated` needs the map rather than the shape: NULLIF is nullable by shape,
 -- and the whole expression is closed because COLLATE names a catalog

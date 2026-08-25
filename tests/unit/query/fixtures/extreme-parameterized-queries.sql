@@ -8,7 +8,7 @@
 -- @args ["10", 1, 1]
 -- @args [null, 1, 1]
 -- Every use is a comparison, a cast to a base type, or a text-typed function
--- argument — none rejects NULL (docs/argument-nullability.md).
+-- argument — none rejects NULL.
 -- @param 1 nullable
 -- @param 2 nullable
 -- @param 3 nullable

@@ -1,5 +1,4 @@
--- List membership exclusion (docs/subtree-evaluation.md; landed
--- 2026-08-16), the CHECK IN side. guest_status_note's AND carries
+-- List membership exclusion, the CHECK IN side. guest_status_note's AND carries
 -- `status IN ('in-flight','arrived','housed','checked-out')` — rendered
 -- `= ANY (ARRAY[...])`, a notFALSE OR-fact on the constraint's spine. A
 -- guard naming a point OUTSIDE the list is excluded by every member

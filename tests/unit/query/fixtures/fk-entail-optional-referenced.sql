@@ -20,7 +20,7 @@
 -- above, and the key on THAT join — every order has a customer — then makes
 -- `customers` present throughout.
 --
--- Found by the schema axis (docs/generated-surface.md item 4) on its first
+-- Found by the schema axis on its first
 -- run, under the `fk-chain` variant, in a UNION whose second branch is the
 -- all-FULL variant of a t—u—v join. It needed a foreign key on the generator's
 -- own three relations, which is exactly the coverage the register measured as
