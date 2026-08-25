@@ -162,6 +162,17 @@ directions, and the neighbouring case that does NOT behave the same way —
 that neighbour is usually what makes the rule worth stating. Re-measure by
 version rather than trusting a note: PGlite and pgsql-deparser both change.
 
-See `docs/deparser-limitations.md` before testing whether some construct can
-be rendered; that exploration has been done twice already and must not be
-done a third time.
+Read the deparser's measured limitations before testing whether some
+construct can be rendered; that exploration has been done twice already and
+must not be done a third time.
+
+## 10. Promotion subtracts the witness corpus
+
+A signature convicted by a sweep may already be witnessed by hand, because
+its NULL route is state the sweep cannot vary. Check the hand corpus before
+recording a conviction — the loop-closer caught the same name twice.
+
+## 11. Corpus parity
+
+Any corner value used to convict must join `probe-values.ts`, or the standing
+probe cannot re-find what you found.
