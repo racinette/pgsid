@@ -1,6 +1,5 @@
 // ---------------------------------------------------------------------------
-// Comparison groundings — the entailment consumer's pre-walk step
-// (docs/subtree-evaluation.md, "The recorded later"; built 2026-08-12).
+// Comparison groundings — the entailment consumer's pre-walk step.
 //
 // The kernel's atom oracle needs the truth of `litA OP litB` read at a
 // column's declared type — a CLOSED tree, so the evaluator answers it. The

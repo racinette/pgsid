@@ -59,9 +59,8 @@ export async function buildNullabilityCatalog(
   // finding 5: the adapter hardcoded "public", so under a real search path
   // a shadowing relation answered for the WRONG table and a non-public one
   // refused). WHERE the path comes from is the consumer's decision — a
-  // per-query/per-project input the engine cannot discover
-  // (docs/postgres-language-server-notes.md flags `SET search_path` as a
-  // real connection input); the default keeps every existing caller
+  // per-query/per-project input the engine cannot discover — `SET
+  // search_path` is a real connection input; the default keeps every existing caller
   // byte-identical.
   const searchPath = options?.searchPath ?? ["public"];
   const inPath = <T>(map: { get(key: string): T | undefined }, name: string): T | undefined => {
@@ -305,8 +304,7 @@ export async function buildNullabilityCatalog(
         // Unparseable definition → the constraint contributes no facts.
       }
     }
-    // Partition bounds enter HERE, at validated-CHECK grade
-    // (docs/subtree-evaluation.md, "Partition-bound facts"): routing,
+    // Partition bounds enter HERE, at validated-CHECK grade: routing,
     // direct-insert rejection and ATTACH validation enforce the bound on
     // every stored row of the relation's subtree (pinned in
     // param-mechanism), so both scan faces take it — the tree face too,
@@ -969,15 +967,15 @@ export async function buildNullabilityCatalog(
     searchPath.some(s => s === "pg_catalog" || snapshotSchemas.has(s));
 
   // -------------------------------------------------------------------------
-  // SubtreeEvaluationCatalog — the closure gate's three questions
-  // (docs/subtree-evaluation.md). Each began as a capture lookup minus a
+  // SubtreeEvaluationCatalog — the closure gate's three questions.
+  // Each began as a capture lookup minus a
   // bare-name collision check, on the argument that the evaluator resolves
   // no names, so any user object sharing the name must open the subtree.
   //
   // Two of the three were retired by measurement (2026-08-20). FUNCTIONS and
   // OPERATORS answer by SURVIVAL: the user rows join the pool and a candidate
-  // the operand types eliminate costs the builtin nothing
-  // (docs/function-overload-merge.md). TYPES have no operands to eliminate
+  // the operand types eliminate costs the builtin nothing.
+  // TYPES have no operands to eliminate
   // with, so they answer by PATH — pg_catalog is searched first unless the
   // path names it, which is what `evalUserTypeShadows` reads. What remains
   // schema-blind is `evalUserFunctionNames`, and only where it still gates
@@ -1052,7 +1050,7 @@ export async function buildNullabilityCatalog(
     !evalUserTypeShadows(typeName) && immutableIoTypes.has(typeName);
 
   // -------------------------------------------------------------------------
-  // Coercibility — the elimination rule of docs/type-aware-overloads.md,
+  // Coercibility — the elimination rule,
   // implemented from the environment captures. The WALK does not consult any
   // of this yet: the accessors exist so the rule is testable in isolation
   // before argument types are threaded into candidate selection.
@@ -1212,7 +1210,7 @@ export async function buildNullabilityCatalog(
   };
 
   /**
-   * The operator half of docs/type-aware-overloads.md tiers 1 and 2, for a
+   * The operator half of narrowing tiers 1 and 2, for a
    * BINARY A_Expr: gather the merged candidate set — path-visible user
    * operators plus the captured builtin rows, the answered shadowing
    * question's requirement — take a declared-types exact match where one
@@ -1529,8 +1527,8 @@ export async function buildNullabilityCatalog(
   };
 
   /**
-   * The SOME-quantified reading of the same survivors — mechanism C's
-   * direction (docs/type-aware-overloads.md, the per-property quantifier):
+   * The SOME-quantified reading of the same survivors — the per-property
+   * quantifier's other direction:
    * over-reporting strictness only over-tightens a parameter, while
    * under-reporting makes the contract admit a binding that raises. No
    * shadowing guard here for the nothing-known case, deliberately: falling
@@ -1709,8 +1707,7 @@ export async function buildNullabilityCatalog(
   };
 
   /**
-   * The scalar half of the function dispatch, typed
-   * (docs/type-aware-overloads.md, the function slice): the kind='f' rows
+   * The scalar half of the function dispatch, typed: the kind='f' rows
    * behind a claim-table name, arity-admitted with their captured defaults
    * (five names carry them — eliminating a shorter call would be a false
    * elimination), exact-matched on singleton argument sets, otherwise
@@ -1754,8 +1751,7 @@ export async function buildNullabilityCatalog(
       // a pg_catalog one at the SAME argument types. Which one runs is decided
       // by search-path POSITION, which this selection deliberately does not
       // model — and does not need to: consensus over both is sound whichever
-      // wins, and needs no position. (docs/function-overload-merge.md,
-      // "Selection".)
+      // wins, and needs no position.
       if (exacts.length > 1) return { survivors: exacts };
     }
 
@@ -1859,7 +1855,7 @@ export async function buildNullabilityCatalog(
   /**
    * User functions for `name`, projected into the signature shape the
    * selection reads, so ONE pool can hold pg_catalog rows and user rows
-   * together (docs/function-overload-merge.md, "One pool").
+   * together in one pool.
    *
    * This is what `resolvableCandidates` could not do and had to compensate
    * for by dropping the user half wholesale: with no builtin signatures to
@@ -2013,8 +2009,7 @@ export async function buildNullabilityCatalog(
       : null;
 
   // -------------------------------------------------------------------------
-  // Typed operand tracking (docs/subtree-evaluation.md, "Typed operand
-  // tracking") — the survivor-level closure gate. The subtree evaluator
+  // Typed operand tracking — the survivor-level closure gate. The subtree evaluator
   // threads type SETS bottom-up over the closed grammar and asks, per site,
   // "may this fold?"; the answer is null (open) or the survivors'
   // result-type union, which becomes the node's own set. `unknown` is
@@ -2226,8 +2221,8 @@ export async function buildNullabilityCatalog(
     leftTypes: readonly string[] | null,
     rightTypes: readonly string[],
   ): string[] | null => {
-    // The user half of the pool — the operator twin of the function merge
-    // (docs/function-overload-merge.md). This replaces a bare-name refusal,
+    // The user half of the pool — the operator twin of the function merge.
+    // This replaces a bare-name refusal,
     // `evalUserOperatorNames.has(name)`, which opened every subtree using a
     // SYMBOL any user operator anywhere happened to share, whatever its
     // operand types: a `boolean || boolean` on a scheduling schema stopped
@@ -2296,7 +2291,7 @@ export async function buildNullabilityCatalog(
     argTypes: readonly (readonly string[])[],
     wantSet: boolean,
   ): string[] | null => {
-    // The user half of the pool (docs/function-overload-merge.md). This
+    // The user half of the pool. This
     // replaces a bare-name refusal — `evalUserFunctionNames.has(name)` — which
     // opened every subtree using a name any user function anywhere happened to
     // share, whatever its arity or argument types.
@@ -2406,8 +2401,7 @@ export async function buildNullabilityCatalog(
 
   /** The closed cast gate with its landing type: the grammar-spelled
    *  target, admitted and rendered, or null. */
-  // --- First-wave widenings (docs/subtree-evaluation.md, "The dependence
-  // model, corrected"): enums and domains fold under the snapshot contract.
+  // --- First-wave widenings: enums and domains fold under the snapshot contract.
   // Their I/O is flagged stable for CATALOG-state reasons only — enum_in
   // reads the value list, domain_in runs the CHECKs — and catalog change is
   // this engine's re-analysis trigger, not a soundness hazard. Admission is
@@ -2431,8 +2425,7 @@ export async function buildNullabilityCatalog(
       : (admissibleUserCasts.get(typeName) ?? null);
 
   /** Design B's family gate: the three names whose casts the evaluator may
-   *  admit by value SHAPE (docs/subtree-evaluation.md, "Settings-
-   *  independent datetime literals"). Family from the ALIAS-normalized
+   *  admit by value SHAPE. Family from the ALIAS-normalized
    *  rendering, so `timestamptz` and `timestamp with time zone` answer
    *  alike; a user type shadowing the spelling disqualifies it. */
   const closedDatetimeCastTarget = (

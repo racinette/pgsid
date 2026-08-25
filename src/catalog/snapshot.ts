@@ -46,7 +46,7 @@ import {
 
 // ---------------------------------------------------------------------------
 // The names the engine's curated tables make claims about — the scope of the
-// two signature captures below (docs/type-aware-overloads.md). Imported from
+// two signature captures below. Imported from
 // the tables themselves so the scope cannot drift from the claims. The
 // import direction (catalog ← query) carries no cycle: nothing under
 // src/query imports this module, and the walk's own catalog imports are
@@ -1479,8 +1479,8 @@ async function queryBuiltinFunctionNames(pg: PGlite): Promise<string[]> {
  * direction was safe — the only consumer concludes `scalar` from a builtin
  * being NON-polymorphic, so over-capture refuses where PostgreSQL would have
  * answered — but it made a documented 68-name set silently nine times wider
- * than its own comment. Found by the catalog-feature census
- * (docs/generated-surface.md item 1) while classifying `pg_type.typtype`.
+ * than its own comment. Found by the catalog-feature census while
+ * classifying `pg_type.typtype`.
  */
 async function queryBuiltinPolymorphicFunctions(pg: PGlite): Promise<string[]> {
   const res = await pg.query<{ name: string }>(
@@ -1531,7 +1531,7 @@ async function queryBuiltinPolymorphicArraySignatures(
 /**
  * The pg_catalog signatures behind the curated claim tables. See
  * CatalogSnapshot.builtinFunctionSignatures for scope; the extra columns are
- * the resolution keys docs/type-aware-overloads.md measured — prokind for
+ * the resolution keys the narrowing measured — prokind for
  * call-shape dispatch, aggnumdirectargs for the WITHIN GROUP split,
  * provariadic for the never-exact `"any"` variadic, per-row strictness.
  *
@@ -1634,8 +1634,8 @@ async function queryBuiltinOperatorSignatures(
 
 /**
  * The pg_cast implicit rows. See CatalogSnapshot.builtinImplicitCasts;
- * IMPLICIT only because function arguments never use assignment casts
- * (docs/type-aware-overloads.md, the elimination rule).
+ * IMPLICIT only because function arguments never use assignment casts —
+ * the elimination rule's fifth clause.
  */
 async function queryBuiltinImplicitCasts(pg: PGlite): Promise<ImplicitCastInfo[]> {
   const res = await pg.query<{

@@ -1,12 +1,10 @@
 // ---------------------------------------------------------------------------
 // The package entry point.
 //
-// `tsup` has built this file and `pnpm dev` has run it since the repository
-// was set up; it did not exist until 2026-08-24. That is the same absence
-// `docs/deferred-tasks.md` §1 records from the other side — nothing under
-// `src/` called `inferNullability`, so the engine had no boundary, and a
-// manifest that could not resolve `pgsql-deparser` at runtime went unnoticed
-// for the same reason.
+// `tsup` builds this file and `pnpm dev` runs it, and for a long time it did
+// not exist: nothing under `src/` called `inferNullability`, so the engine
+// had no boundary, and a manifest that could not resolve `pgsql-deparser` at
+// runtime went unnoticed for the same reason.
 //
 // WHAT THIS EXPORTS IS THE BOUNDARY, NOT THE ENGINE. The engine's internal
 // modules stay internal: a consumer gets the contract, the gate that makes
@@ -25,8 +23,7 @@
 //
 // The last step is not optional in spirit. A contract that has not been
 // gated is a positional array nobody has checked against the positions it
-// will be zipped into, and `docs/deferred-tasks.md` §1 is the count of what
-// that costs.
+// will be zipped into.
 // ---------------------------------------------------------------------------
 
 // --- One statement's contract, and the gate that makes it usable ------------

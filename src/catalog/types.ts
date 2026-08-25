@@ -80,7 +80,7 @@ export interface ColumnInfo {
   /**
    * Whether the column's collation IS `pg_catalog."default"` — the
    * database's own; null for non-collatable types. The comparison
-   * oracle's IDENTITY arm (docs/subtree-evaluation.md): a synthesized
+   * oracle's IDENTITY arm: a synthesized
    * question evaluates under the analysis session's default collation,
    * so a default-collated column's answers transfer for EVERY canonical
    * operator — same collation, same semantics, determinism not even
@@ -201,7 +201,7 @@ export interface WriteRewriteInfo {
  * enforces (`pg_get_partition_constraintdef`) — which for a nested
  * partition carries the whole ancestor conjunction (measured). Captured
  * raw for EVERY partition; the adapter gates which strategies become
- * facts (docs/subtree-evaluation.md, "Partition-bound facts"). `strategy`
+ * facts. `strategy`
  * is how the IMMEDIATE parent partitions — a range partition under a hash
  * grandparent reads "range", and its definition carries the ancestor's
  * conjunct, which decomposes to nothing and stays sound.
@@ -321,8 +321,7 @@ export interface BuiltinSignature {
 
 /**
  * One pg_catalog function signature with the keys the subtree evaluator's
- * survivor gate reads (docs/subtree-evaluation.md, "Typed operand
- * tracking"): `provolatile` for the verdict; `prokind` and `proretset`
+ * survivor gate reads: `provolatile` for the verdict; `prokind` and `proretset`
  * because a plainly-spelled call can still resolve to an aggregate
  * (`max(1)`) or a set-returning row; the variadic type and trailing-default
  * count because arity matching must span the same calls PostgreSQL's own
@@ -350,8 +349,7 @@ export interface BuiltinOperatorVolatility {
 
 /**
  * One pg_catalog signature for a name the curated claim tables cover,
- * carrying the resolution keys `docs/type-aware-overloads.md` measured
- * ("The three pre-refactor questions, ANSWERED"): per-signature strictness,
+ * carrying the resolution keys the narrowing measured: per-signature strictness,
  * the call-shape kind, the ordered-set direct/aggregated split, and the
  * variadic parameter type.
  */
@@ -392,7 +390,7 @@ export interface BuiltinFunctionSignature extends BuiltinSignature {
 
 /**
  * One implicit cast edge from `pg_cast` (`castcontext = 'i'`) — the fifth
- * clause of the elimination rule in `docs/type-aware-overloads.md`. IMPLICIT
+ * clause of the elimination rule. IMPLICIT
  * only, deliberately: function arguments do not use assignment casts, and
  * PostgreSQL does not chain casts, so this is a direct lookup, never a
  * reachability search.
@@ -648,7 +646,7 @@ export interface OperatorInfo {
   /**
    * pg_proc.provolatile of the backing function. The subtree evaluator's
    * survivor consensus admits `i` and refuses `s`/`v`, exactly as it does
-   * for a user FUNCTION row (docs/function-overload-merge.md).
+   * for a user FUNCTION row.
    */
   volatility: "i" | "s" | "v";
 }
@@ -799,8 +797,8 @@ export interface CatalogSnapshot {
 
   /**
    * Every pg_catalog signature behind a name the engine's curated claim
-   * tables cover — the prerequisite capture of
-   * `docs/type-aware-overloads.md`. The claim tables key on NAMES while
+   * tables cover — the prerequisite capture for narrowing.
+   * The claim tables key on NAMES while
    * PostgreSQL keys on SIGNATURES, and this is what lets the overload
    * refactor re-key: an exact match finds the row a call resolves to, and
    * each row can carry its own verdict.
@@ -883,8 +881,8 @@ export interface CatalogSnapshot {
    *
    * Note that those last exclusions inherit PostgreSQL's reason, which is
    * not this engine's: provolatile also covers CATALOG-state dependence,
-   * which the snapshot contract neutralizes. docs/subtree-evaluation.md,
-   * "The dependence model, corrected", sorts principled exclusions from
+   * which the snapshot contract neutralizes. The corrected dependence
+   * model sorts principled exclusions from
    * first-wave scope and records the widening path.
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
@@ -893,7 +891,7 @@ export interface CatalogSnapshot {
   /**
    * EVERY pg_catalog function signature (prokind 'f'/'a'/'w') with its
    * `provolatile` — the per-signature capture typed operand tracking
-   * eliminates over (docs/subtree-evaluation.md, "Typed operand tracking").
+   * eliminates over.
    * Unlike `builtinFunctionSignatures` it is not scoped to the curated
    * claim tables, and it carries volatility where that capture carries
    * strictness: the survivor gate asks "is every signature this call can
@@ -914,8 +912,7 @@ export interface CatalogSnapshot {
    * pg_catalog operator name → its btree STRATEGY NUMBER (1 `<`, 2 `<=`,
    * 3 `=`, 4 `>=`, 5 `>`), captured by CONSENSUS across every pg_catalog
    * btree opfamily — a name with conflicting strategies is absent. The
-   * interval-exclusivity rung's shape source
-   * (docs/subtree-evaluation.md): the strategy IS the set shape (rays,
+   * interval-exclusivity rung's shape source: the strategy IS the set shape (rays,
    * the point), published by PostgreSQL for its own index machinery, so
    * nothing here models an operator. `<>` is deliberately absent —
    * PostgreSQL does not index inequality.

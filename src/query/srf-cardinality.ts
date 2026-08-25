@@ -94,8 +94,7 @@ export function collectSrfCardinalityQuestions(
  * second number.
  *
  * **The call goes in the TARGET LIST, and that placement is load-bearing.**
- * This is TRAP 1 in docs/subtree-evaluation.md, already named and already
- * recorded: LIMIT does not bound a FROM-position function scan, and the guard
+ * LIMIT does not bound a FROM-position function scan, and the guard
  * query itself hangs. Re-measured here the expensive way, 2026-08-23, over a
  * 10^10 series with an identical `LIMIT 1001`:
  *

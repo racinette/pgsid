@@ -1,6 +1,5 @@
 // ---------------------------------------------------------------------------
-// Written-value guards — the CASE-arm consumer's pre-walk step
-// (docs/subtree-evaluation.md, the fourth grounding pass; built 2026-08-22).
+// Written-value guards — the CASE-arm consumer's pre-walk step.
 //
 // The walk's written-value tracking carries NON-NULLNESS out of a DML
 // statement's values and no further, which is exactly right for the question

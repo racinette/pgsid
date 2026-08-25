@@ -9,8 +9,7 @@
 //            conclude that a parameter being NULL forces the expression NULL,
 //            so a runtime NOT NULL coercion downstream will raise.
 //
-// **These were ONE set until the totality probe ran** (2026-08-06,
-// docs/generated-surface.md item 3), on the rule that every member must have
+// **These were ONE set until the totality probe ran**, on the rule that every member must have
 // BOTH properties — with the file's own warning that "an operator with only
 // one must not be added, it would be sound for one consumer and wrong for the
 // other". Execution found two members with only one, in opposite directions,
@@ -41,8 +40,7 @@
 // right.
 //
 // Both are name-level dispatch covering two meanings, which is exactly what
-// `docs/type-aware-overloads.md` narrows; that charter carries them as its
-// worked test cases.
+// the type-aware narrowing resolves.
 //
 // The two files cannot import from each other (nullability-walk already
 // imports param-nullability), which is why the sets live here.
@@ -68,8 +66,7 @@ export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   // Pattern matching: LIKE / ILIKE / regex, and their negations.
   "~~", "!~~", "~~*", "!~~*", "~", "!~", "~*", "!~*",
   // -------------------------------------------------------------------------
-  // The operator batch (2026-08-09, docs/builtin-surface-classification.md — the
-  // last half of the re-key's surface). Every row of each symbol below was
+  // The operator batch. Every row of each symbol below was
   // unwitnessed across the corner corpus AND convicted by hand on the classes
   // the corpus reaches for it: an array holding a NULL ELEMENT, the empty
   // array, the empty range and multirange, a jsonb null and a null-VALUED
@@ -158,7 +155,7 @@ export const STRICT_OPERATORS: ReadonlySet<string> = new Set([
  * anyway. An entry is a known unsoundness, bounded by the operand types named
  * in it: for those, the walk claims notNull where PostgreSQL can answer NULL.
  * Recorded rather than tolerated silently, asserted from both sides by
- * `totality-probe.test.ts`, and recovered by `docs/type-aware-overloads.md`.
+ * `totality-probe.test.ts`, and recovered by the type-aware narrowing.
  */
 /**
  * Names KEPT on `TOTAL_OPERATORS` that carry a non-total signature, with the
@@ -191,7 +188,7 @@ export const PARTIAL_OVERLOADS: Record<string, string> = {
 /**
  * The SIGNATURE-keyed half of `PARTIAL_OVERLOADS` — the rows of a kept name
  * that are not total, keyed `name(left,right)` in format_type renderings.
- * The operator narrowing (docs/type-aware-overloads.md tier 2) consults
+ * The operator narrowing's tier 2 consults
  * this per SURVIVOR: a survivor in this set fails the totality consensus,
  * which is what turns the recorded name-level hole into a typed claim —
  * `id + 1` eliminates the path row and keeps notNull; a path-typed operand
