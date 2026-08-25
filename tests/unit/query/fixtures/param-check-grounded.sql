@@ -1,4 +1,4 @@
--- Mechanism E in the corpus (docs/argument-nullability.md): the enforced
+-- Mechanism E in the corpus: the enforced
 -- CHECK `seats <= 1 OR overflow_contact IS NOT NULL` is grounded with the
 -- row's own written values — `5 <= 1` folds FALSE — which leaves
 -- `$1 IS NOT NULL` as the entire remaining constraint, so binding NULL is

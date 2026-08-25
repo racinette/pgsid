@@ -1,5 +1,4 @@
--- Closed sublinks (docs/subtree-evaluation.md, "Closed sublinks"; landed
--- 2026-08-16): a sublink whose body references no tables, columns or
+-- Closed sublinks: a sublink whose body references no tables, columns or
 -- parameters is a closed tree wearing subquery syntax and batches like any
 -- scalar. Tier by tier: (SELECT 7) = 7 answers unconditionally; the small
 -- generated series admits through the runtime cardinality pre-probe; the

@@ -1,5 +1,4 @@
--- The two chartered rungs COMPOSED (docs/subtree-evaluation.md; both
--- landed 2026-08-16): a date-range partition's bound renders its anchors
+-- The two chartered rungs COMPOSED: a date-range partition's bound renders its anchors
 -- as ISO-shaped date casts — ((day IS NOT NULL) AND (day >=
 -- '2024-01-01'::date) AND (day < '2024-04-01'::date)), measured — which
 -- the value-shape gate admits, so the bound feeds and date anchors order

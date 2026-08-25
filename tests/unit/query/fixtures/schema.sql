@@ -65,7 +65,7 @@ CREATE FUNCTION always_text(x text) RETURNS nn_text
 
 -- Function with a NOT NULL domain PARAMETER: coercing an argument to nn_text
 -- applies the domain constraint, so a NULL argument raises at the call
--- (mechanism A in docs/argument-nullability.md).
+-- (mechanism A).
 CREATE FUNCTION takes_nn(x nn_text) RETURNS text
   LANGUAGE sql
   AS $$ SELECT x $$;
@@ -808,9 +808,8 @@ ALTER TABLE guest ADD CONSTRAINT guest_badge_claimed
 CREATE VIEW guest_directory AS
   SELECT id, status, arrived_at, room, note FROM guest;
 
--- The kernel's atom-oracle demand experiment (docs/subtree-evaluation.md,
--- "The kernel's atom oracle"; demand discipline: rungs charter on
--- conviction). Two branch-correlated CHECK shapes, here so the discovery
+-- The kernel's atom-oracle demand experiment (demand discipline: rungs
+-- charter on conviction). Two branch-correlated CHECK shapes, here so the discovery
 -- distribution can show whether CASE guards over their constrained columns
 -- arise often enough to carry weight. tri is same-operand trichotomy
 -- (notFALSE(a > 5) refutes `a <= 5` with no values consulted); bcorr is
@@ -830,8 +829,7 @@ CREATE TABLE bcorr (
   CHECK (CASE WHEN b THEN a < 5 ELSE a >= 5 END)
 );
 
--- The interval-exclusivity shape families (docs/subtree-evaluation.md,
--- "Interval exclusivity over btree strategies"), one table per shape the
+-- The interval-exclusivity shape families, one table per shape the
 -- emptiness algebra distinguishes, with data whose BOUNDARY rows are the
 -- witnesses the guard columns need (g = 5 fires `g <= 5`; NaN satisfies
 -- `f > 5` under btree order). stx exists for the REFUSAL record: its
@@ -946,7 +944,7 @@ CREATE TABLE caiow (a integer, b integer NOT NULL, o text,
 -- A metrics log partitioned by DATE range — the single most common
 -- real-world source of constant-date constraints, and the argued-real
 -- ground where the partition-bound and datetime rungs compose
--- (docs/subtree-evaluation.md, both charters): the bound renders its
+-- through both rungs: the bound renders its
 -- anchors as ISO-shaped date casts, the value-shape gate admits them,
 -- and a direct partition scan orders date anchors. `day` is deliberately
 -- NOT declared NOT NULL: its notNull on direct scans is the bound's own
@@ -957,7 +955,7 @@ CREATE TABLE daily_metrics_q2 PARTITION OF daily_metrics FOR VALUES FROM ('2024-
 
 -- A courier ledger split by explicit region lists — the everyday LIST
 -- deployment, and the list-membership rung's argued-real ground
--- (docs/subtree-evaluation.md, "List membership exclusion"): a direct
+-- through list membership exclusion: a direct
 -- scan of courier_north carries the bound's notNull prefix AND its
 -- membership, which excludes any point outside {north, east}.
 -- courier_south lists NULL — the claims-nothing twin: no prefix, and the
@@ -1616,7 +1614,7 @@ CREATE FUNCTION window_body() RETURNS bigint LANGUAGE sql AS $$
 $$;
 
 -- ====================================================================
--- The function-call axis (docs/generated-surface.md item 4's residue).
+-- The function-call axis.
 --
 -- The generator called exactly ONE function — `max` — while this schema
 -- defined 66, so nothing in the corpus reached a variadic parameter, a
@@ -1851,9 +1849,8 @@ CREATE FUNCTION sw4_raiser(x text) RETURNS text LANGUAGE plpgsql AS
   $$ BEGIN IF x IS NULL THEN RAISE 'nope'; END IF; RETURN x; END $$;
 
 -- ---------------------------------------------------------------------------
--- The sqlc-register shapes (docs/sqlc-disagreements.md, adjudicated
--- 2026-08-20). Each object below exists to make one register entry's
--- PostgreSQL truth EXECUTABLE here rather than prose there — the register
+-- The sqlc-register shapes. Each object below exists to make one register
+-- entry's PostgreSQL truth EXECUTABLE here rather than prose there — the register
 -- records what was observed, these hold it to it.
 -- ---------------------------------------------------------------------------
 
@@ -1900,7 +1897,7 @@ CREATE FUNCTION body_concat(a text, b text) RETURNS text
 -- path. The identical-signature shadows above (min_scale, to_number,
 -- json_each) pin the precedence question; these pin the ELIMINATION one, which
 -- is the half the function overload merge turns on
--- (docs/function-overload-merge.md): a name-only collision must cost the
+-- through the merged pool: a name-only collision must cost the
 -- builtin nothing where the argument types are known, and the merged pool is
 -- what makes that true rather than the bare-name gate that used to open every
 -- subtree using the name.

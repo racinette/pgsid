@@ -8,7 +8,7 @@
 -- the lone-argument spelling on the operand's type; a set CONTAINING
 -- tsvector beside other survivors refuses outright (wrong columns are worse
 -- than refusing), and the fully-untyped residue is recorded in the walk and
--- in docs/deferred-tasks.md §4 rather than guessed either way.
+-- in the register rather than guessed either way.
 --
 -- 'dog' carries no positions, so PostgreSQL returns NULL positions and
 -- weights on its row — both claims witnessed on every execution. The FULL

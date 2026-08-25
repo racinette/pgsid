@@ -2,7 +2,7 @@
 --   `SELECT bool_and(a IS NOT NULL) FROM <this JSON_TABLE>` — and cannot be
 --   built: pgsql-deparser 18.1.1 throws on every SQL/JSON node, so the item
 --   cannot be rendered to run. Conservative, not wrong. See
---   docs/deparser-limitations.md §1; blocked on upstream support
+--   blocked on upstream deparser support
 -- @unwitnessable 9: same document, same probe, same blocker — the nested path
 --   always resolves, and nothing can ask
 -- XMLTABLE and JSON_TABLE are FROM items that spell out their own columns.

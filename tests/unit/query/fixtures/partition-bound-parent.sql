@@ -1,5 +1,5 @@
--- Partition bounds never leak to a parent scan (docs/subtree-evaluation.md,
--- the refused direction, corpus-witnessed): the same guard the direct
+-- Partition bounds never leak to a parent scan — the refused direction,
+-- corpus-witnessed: the same guard the direct
 -- order_events_early scan refutes fires HERE, because a scan naming the
 -- parent reads every partition and only the union holds — the late
 -- partition's rows (ids 150+, deterministic ctx.row + 150) witness the

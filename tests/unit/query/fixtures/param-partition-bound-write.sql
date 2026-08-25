@@ -1,5 +1,5 @@
 -- The write-side partition-bound rung in the corpus
--- (docs/subtree-evaluation.md, "Write-side rung"): naming a partition
+-- on the write side: naming a partition
 -- directly makes its bound an enforced constraint on the written row, and
 -- daily_metrics_q1's bound opens with `day IS NOT NULL` — the key column is
 -- deliberately not declared NOT NULL, so the claim comes from the bound and

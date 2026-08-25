@@ -10,7 +10,7 @@
 -- read as "derived tables lose constraints": `LIKE` copies not-null ALWAYS,
 -- without INCLUDING CONSTRAINTS, so a fix here must not reach it.
 --
--- The divergence docs/sqlc-disagreements.md records for
+-- The divergence recorded against sqlc for
 -- `create_table_as/GetFirst`. Measured on the pinned sqlc v1.31.1: it carries
 -- the source's NOT NULL into the CTAS target (and is right about `LIKE`).
 SELECT

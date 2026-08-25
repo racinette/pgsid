@@ -1,5 +1,4 @@
--- Interval exclusivity over btree strategies (docs/subtree-evaluation.md,
--- the chartered rung; landed 2026-08-12). CHECK (a > 5) is notFALSE per
+-- Interval exclusivity over btree strategies. CHECK (a > 5) is notFALSE per
 -- stored row; each claiming column's guard names a set the evaluated
 -- anchor order proves disjoint from (5, inf) — the NULL arm never fires,
 -- a NULL `a` included (UNKNOWN guard falls to ELSE). The last column's

@@ -1,5 +1,4 @@
--- The atom-oracle rungs' crafted conviction (docs/subtree-evaluation.md,
--- "The kernel's atom oracle"; discipline amended 2026-08-12: crafted
+-- The atom-oracle rungs' crafted conviction (crafted
 -- fixtures convict beside the generated distribution, under this corpus's
 -- own gates — the shape argued real in the header, every claim
 -- adjudicated). A defensive CASE over a CHECK-constrained column is as

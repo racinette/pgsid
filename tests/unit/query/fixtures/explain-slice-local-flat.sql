@@ -1,7 +1,7 @@
 -- The participation closure, flat form — the positive pin. Found as an
 -- imprecision by the generated EXPLAIN oracle (436 cases, one cause),
--- closed in the fixpoint (docs/nullability-walk.md, "The participation
--- closure"; the class is pinned at 0 in generated-explain.test.ts).
+-- closed in the fixpoint by the participation closure; the class is pinned
+-- at 0 in generated-explain.test.ts.
 --
 -- The RIGHT JOIN's strict qual `v.u_id = u.id` references `u`, which the
 -- LEFT JOIN nested in its left arm extends. A u-extended row makes the

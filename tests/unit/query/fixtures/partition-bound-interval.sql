@@ -1,4 +1,4 @@
--- Partition-bound facts (docs/subtree-evaluation.md; landed 2026-08-16).
+-- Partition-bound facts.
 -- The everyday shape: a query pinned to one partition of an event log —
 -- an archival job, a per-range backfill — where the bound is the only
 -- thing standing between the guard and the NULL arm. order_events_early

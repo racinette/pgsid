@@ -11,7 +11,7 @@
 -- same two-step `columnsForReturnType` has always taken for `SETOF <table>`
 -- versus `SETOF <composite>` — composite first, relation second.
 --
--- Found by the composite-star generator axis (docs/generated-surface.md item 4),
+-- Found by the composite-star generator axis,
 -- which could not use `trow` until it landed. The corpus's own composite star
 -- casts to a standalone composite, so this fixture is the relation arm's only
 -- coverage; both spellings are here because they enter `fieldsOf` by different
