@@ -184,6 +184,25 @@ is how a gap gets a permanent home. Take the probe before filing.
 
 **Trigger.** A DML CASE guard the written-value pass does not already answer.
 
+### A set-returning unnest over an operand nothing can type
+
+A lone-argument unnest contributes ONE output column, which is a recorded
+SHAPE residue rather than a fact. Unnesting a text-search vector is really
+three columns, and contributing one misaligns every flag after it — the
+class of defect where the column list itself is wrong. The lone-argument
+spelling now dispatches on the operand's type, and an operand set containing
+that type refuses outright.
+
+What remains is the fully UNTYPED operand, kept at one column because the
+common untyped operands are arrays by construction — unnesting an aggregated
+array, an array subquery, a polymorphic aggregate — three measured shapes the
+type reader refuses by design. That is the same "no application schema has
+one" reasoning that has twice been convicted here, which is why it is
+recorded rather than trusted.
+
+**Trigger.** When the type reading learns aggregate return types, the
+operand stops being untyped and this closes with it.
+
 ### The datetime settings residue
 
 Immutable datetime rows are served with no settings assumption, leaving a
