@@ -5,5 +5,9 @@ release/
 *.tsbuildinfo
 coverage/
 
+# Tool output. Regenerated on demand by the command each file names; never a
+# hand-maintained claim, so nothing here is reviewed and nothing is committed.
+artifacts/
+
 vendor/*
 !vendor/README.MD
