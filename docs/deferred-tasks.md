@@ -269,6 +269,11 @@ declare a nondeterministic database default before spending on it).
 
 ### 1d. Temporary relations and the session boundary — BUILT 2026-08-25
 
+**The reasoning chain is `docs/temporary-relations.md`.** Read it before
+changing anything here: the decision is layered, two of the readings a
+careful person arrives at independently are wrong, and both are recorded
+there with what overturned them.
+
 Migrations are applied and inspected on ONE connection; the application runs
 on a DIFFERENT one. Everything a migration leaves in `pg_temp_N` is invisible
 to it, and so is everything PostgreSQL cascades away when that namespace
