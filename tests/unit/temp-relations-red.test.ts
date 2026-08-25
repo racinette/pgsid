@@ -9,8 +9,16 @@ import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 //
 // The question this file answers, case by case: where does the snapshot's
 // deliberate temp-blindness actually cost us, and where does it cost nothing?
-// Every case was measured before it was written down; each `it.fails` states
-// the TARGET contract and passes today because the engine does not meet it.
+// Every case was measured before it was written down.
+//
+// It began as a red suite and holds no `it.fails` any more, which is the
+// record of how it ended: two targets were BUILT (§1, §3 — the session-end
+// discard), and two were RETIRED after the design settled (§4 — the error
+// they asked to remove turned out to be the intended default, with an
+// opt-in declaration as the escape). Everything here now describes
+// behaviour that is either correct or deliberately accepted; the one
+// unbuilt piece is the `engine.runtime` plumbing in deferred-tasks §1e,
+// whose mechanism §7b already measures.
 //
 // The organising distinction — the one that took a while to see:
 //
@@ -40,10 +48,12 @@ import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 //   observes state, not text.
 //
 //   A FUNCTION BODY creates it at CALL time, which never happens during a
-//   migration. plpgsql_check cannot see it, and reports valid code as an
-//   error. This is not the snapshot's doing and does not close by
-//   capturing anything; it needs body knowledge pgsid does not have
-//   (libpg-query exposes no plpgsql parser).
+//   migration. plpgsql_check cannot see it and reports the relation
+//   missing, which §4 now records as the intended default rather than a
+//   defect: the relation really is absent from the schema, and the
+//   commonest cause of that message is a table nobody created. The escape
+//   is an opt-in declaration (§7, deferred-tasks §1e), not a change to the
+//   diagnostic.
 //
 // Section 6 is the substrate both axes rest on and was measured last, after
 // the sections above had already been written from a weaker reading of it:
@@ -261,9 +271,18 @@ describe("3. a permanent function over a temp table's type", () => {
 // ===========================================================================
 
 describe("4. the function creates its own temp table", () => {
-  it.fails("TARGET: the column-list form is valid code and must not error", async () => {
-    // Measured: stager() returns 1. plpgsql_check reports
-    // `relation "tmp_stage" does not exist` at severity ERROR.
+  // These were `it.fails` targets asserting `diags: []` — "valid code must
+  // not error" — until the escape hatch was designed on 2026-08-25. The
+  // design says the opposite and these now record it: the error is CORRECT
+  // by default, because the relation genuinely is not in the schema and the
+  // commonest cause of that message is a table nobody created. What changes
+  // is not the diagnostic but whether the user has DECLARED the relation as
+  // runtime-created (deferred-tasks §1e, `engine.runtime`); §7b measures the
+  // mechanism, and that declaration is opt-in and deliberately unhinted.
+  it("the column-list form errors, and that is the intended default", async () => {
+    // Measured: stager() returns 1 — the function is valid, and this
+    // diagnostic is still the right thing to say to someone who has not
+    // told the tool that tmp_stage appears at runtime.
     const r = await apply(`
       CREATE FUNCTION public.stager() RETURNS bigint LANGUAGE plpgsql AS $$
       BEGIN
@@ -272,13 +291,15 @@ describe("4. the function creates its own temp table", () => {
         RETURN (SELECT count(*) FROM tmp_stage);
       END $$;
     `);
-    expect(r.diags).toEqual([]);
+    expect(r.diags).toEqual(['error: relation "tmp_stage" does not exist']);
   });
 
-  it.fails("TARGET: the CTAS form too", async () => {
-    // Worth its own case: `CREATE TEMP TABLE x AS SELECT …` has no column
-    // list, so plpgsql_check's own `pragma table:` escape cannot be written
-    // without the user hand-transcribing the types.
+  it("the CTAS form too", async () => {
+    // Worth its own case for the escape hatch's sake rather than the
+    // diagnostic's: `CREATE TEMP TABLE x AS SELECT …` has no column list, so
+    // a pragma could not be written without hand-transcribing inferred
+    // types — while an `engine.runtime` declaration is the same DDL the
+    // body already contains.
     const r = await apply(`
       CREATE TABLE src (id int NOT NULL, val text);
       CREATE FUNCTION public.ctas() RETURNS bigint LANGUAGE plpgsql AS $$
@@ -287,7 +308,7 @@ describe("4. the function creates its own temp table", () => {
         RETURN (SELECT count(*) FROM t_ctas WHERE val IS NOT NULL);
       END $$;
     `);
-    expect(r.diags).toEqual([]);
+    expect(r.diags).toEqual(['error: relation "t_ctas" does not exist']);
   });
 
   it("BOUNDARY: the dynamic form stays unresolvable, recorded as it is", async () => {
