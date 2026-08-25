@@ -23,58 +23,61 @@ description records the thing.
 **5.** Assume every claim you write will be falsified by a fix landing, not by
 a bug. Nothing will warn you.
 
+**6.** No internal numbering. Waves, sweeps, phases and section numbers index
+an episode, not a subject, and mean nothing to a reader who was not there.
+
 ## Docs
 
-**6.** One doc, one subject. If the filename wants a sequence number or a
+**7.** One doc, one subject. If the filename wants a sequence number or a
 date, it's an episode — don't write it.
 
-**7.** No doc references another doc. Split subjects so that two docs can
+**8.** No doc references another doc. Split subjects so that two docs can
 never state the same fact.
 
-**8.** 300 lines is the cap. If it won't fit, the subject is two subjects.
+**9.** 300 lines is the cap. If it won't fit, the subject is two subjects.
 
-**9.** A doc explains principles, concepts and mechanisms — the model a reader
+**10.** A doc explains principles, concepts and mechanisms — the model a reader
 needs before opening the code. That is its primary job.
 
-**10.** Write at the altitude where changing the subject forces rewriting the
+**11.** Write at the altitude where changing the subject forces rewriting the
 doc. Rewriting a mechanism does; rewriting a method almost never does.
 
-**11.** Name no function, signature, file or type. Those are methods: they rot
+**12.** Name no function, signature, file or type. Those are methods: they rot
 silently, and the code carries them accurately already.
 
-**12.** Where a number is involved, teach how to measure it and what the
+**13.** Where a number is involved, teach how to measure it and what the
 result means. Never record the result.
 
-**13.** Narrative of completed work belongs in the commit message. git is the
+**14.** Narrative of completed work belongs in the commit message. git is the
 archive; the doc is not.
 
-**14.** An orientation doc holds commands and pointers, not facts. Facts there
+**15.** An orientation doc holds commands and pointers, not facts. Facts there
 have the shortest shelf life in the repo.
 
 ## Comments
 
-**15.** A comment may only claim what editing the code beneath it would
+**16.** A comment may only claim what editing the code beneath it would
 falsify.
 
-**16.** No comment names another file, doc, mechanism, or issue. Needing to is
+**17.** No comment names another file, doc, mechanism, or issue. Needing to is
 a sign the code is misplaced.
 
-**17.** Explain why this line is what it is — never what the system around it
+**18.** Explain why this line is what it is — never what the system around it
 does.
 
-**18.** A comment restating what a test already asserts is redundant. Delete
+**19.** A comment restating what a test already asserts is redundant. Delete
 it and keep the test.
 
-**19.** Comments are meta about the story. The code is the story. Don't
+**20.** Comments are meta about the story. The code is the story. Don't
 narrate it twice.
 
 ## Before writing either
 
-**20.** Could this be an `expect()` instead? If yes, write that. Prose is what
+**21.** Could this be an `expect()` instead? If yes, write that. Prose is what
 is left when nothing can run.
 
-**21.** If this sentence became false tomorrow, what goes red? If the answer
+**22.** If this sentence became false tomorrow, what goes red? If the answer
 is nothing, don't write it.
 
-**22.** If someone rewrote this mechanism, would the doc obviously need
+**23.** If someone rewrote this mechanism, would the doc obviously need
 rewriting too? If not, you documented a method.
