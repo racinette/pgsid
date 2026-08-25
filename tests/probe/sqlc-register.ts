@@ -1,6 +1,6 @@
 // Generate the sqlc disagreement register — the ADJUDICATED view.
 //
-//   pnpm exec tsx tests/probe/sqlc-register.ts        # writes docs/sqlc-disagreements.md
+//   pnpm exec tsx tests/probe/sqlc-register.ts        # writes artifacts/sqlc-disagreements.md
 //
 // The register used to be the source of truth and this script used to destroy
 // it: it emitted `_unresolved_` per entry, so regenerating after a corpus
@@ -20,7 +20,7 @@
 // on every run), so the register cannot drift from the suite: if a state stops
 // producing its NULL, the suite fails before this file is ever regenerated.
 
-import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -31,7 +31,8 @@ import {
 } from "../unit/query/sqlc-corpus.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = join(HERE, "..", "..", "docs", "sqlc-disagreements.md");
+const ARTIFACTS = join(HERE, "..", "..", "artifacts");
+const OUT = join(ARTIFACTS, "sqlc-disagreements.md");
 const TICKETS = join(HERE, "..", "unit", "query", "sqlc-corpus", "tickets");
 
 function main(): void {
@@ -146,6 +147,7 @@ Entries: ${Object.keys(DISAGREEMENTS).length}. Census by disposition: ` +
       "\n\n"
     : "";
 
+  mkdirSync(ARTIFACTS, { recursive: true });
   writeFileSync(OUT, header + ticketIndex + sections.join("\n"));
   console.log(`wrote ${OUT}: ${sections.length} entries, ${ticketFiles.length} ticket drafts`);
 }
