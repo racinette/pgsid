@@ -36,6 +36,14 @@ import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 //   error. This is not the snapshot's doing and does not close by
 //   capturing anything; it needs body knowledge pgsid does not have
 //   (libpg-query exposes no plpgsql parser).
+//
+// Section 6 is the substrate both axes rest on and was measured last, after
+// the sections above had already been written from a weaker reading of it:
+// PostgreSQL records a temp dependency when the reference lands in the TYPE
+// SYSTEM (return type, argument type, a parsed BEGIN ATOMIC body) and NOT
+// when it sits inside an opaque string body. The tracked ones cascade away
+// with the temp schema and are self-correcting; the untracked ones SURVIVE
+// into the shipped database and fail on every call. Read 6 before 1.
 // ---------------------------------------------------------------------------
 
 interface Applied {
@@ -84,9 +92,18 @@ async function apply(sql: string): Promise<Applied> {
 // ===========================================================================
 
 describe("1. a migration statement creates the temp table", () => {
-  it("left in place, a function reads it: clean", async () => {
-    // plpgsql_check reads the LIVE catalog, and the relation is sitting in
-    // it. The snapshot never needs to know.
+  it("left in place, a function reads it: clean — and that is a FALSE NEGATIVE", async () => {
+    // The assertion is a description, not an endorsement. plpgsql_check
+    // reads the LIVE catalog and `staging` is sitting in it, so the check
+    // passes — but §6 shows the reference is inside an opaque body, so
+    // nothing records it, so `reads_staging` SURVIVES session end and
+    // fails on every call the application makes. The visibility that makes
+    // the check pass is exactly what makes the silence wrong.
+    //
+    // Not flipped to a target here because the fix is not in this file's
+    // reach: `DISCARD TEMP` before snapshot and validate turns this into
+    // the true positive §1's last case already is (measured — see 6b for
+    // why DISCARD TEMP and not DISCARD ALL).
     const r = await apply(`
       CREATE TEMP TABLE staging (id int NOT NULL, val text);
       CREATE FUNCTION public.reads_staging() RETURNS bigint LANGUAGE plpgsql AS $$
@@ -287,5 +304,142 @@ describe("5. recorded silences", () => {
     expect(r.diags).toEqual([]);
     expect(r.tables).toEqual([]);
     expect(r.tempRels).toEqual(["accounts"]);
+  });
+});
+
+// ===========================================================================
+// 6. PostgreSQL's OWN dependency tracking — the substrate every section above
+//    sits on, and the reason §1 and §3 behave so differently.
+//
+//    No pgsid in these: they are observations about the database, pinned
+//    here so the sections that reason from them cannot drift away from what
+//    the database actually does.
+// ===========================================================================
+
+/** Every function referencing a temp table, four ways, plus what survives. */
+async function dependencyMatrix(): Promise<{
+  tracked: string[];
+  dropRefused: boolean;
+  survivors: string[];
+  callSurvivor: string;
+}> {
+  const pg = new PGlite();
+  try {
+    await pg.exec(`
+      CREATE SCHEMA app; CREATE SCHEMA other;
+      CREATE TEMP TABLE tt (i int);
+      -- return type
+      CREATE FUNCTION app.by_sig() RETURNS SETOF tt LANGUAGE sql AS $$ SELECT * FROM tt $$;
+      -- ARGUMENT type — same tracking, and in a third schema again
+      CREATE FUNCTION other.by_arg(x tt) RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;
+      -- opaque string body
+      CREATE FUNCTION app.by_body() RETURNS int LANGUAGE sql AS $$ SELECT i FROM tt LIMIT 1 $$;
+      -- parsed body (PG14+ standard form)
+      CREATE FUNCTION app.by_atomic() RETURNS int LANGUAGE sql
+        BEGIN ATOMIC SELECT i FROM tt LIMIT 1; END;
+      -- plpgsql, also opaque
+      CREATE FUNCTION app.by_plpgsql() RETURNS int LANGUAGE plpgsql AS $$
+        BEGIN RETURN (SELECT i FROM tt LIMIT 1); END $$;
+    `);
+    const tracked = (
+      await pg.query<{ f: string }>(`
+        SELECT DISTINCT p.proname AS f
+        FROM pg_depend d JOIN pg_proc p ON p.oid = d.objid
+        WHERE d.refobjid = 'tt'::regclass
+           OR d.refobjid IN (SELECT oid FROM pg_type WHERE typrelid = 'tt'::regclass)
+        ORDER BY 1`)
+    ).rows.map(r => r.f);
+
+    let dropRefused = false;
+    try {
+      await pg.exec("DROP TABLE tt");
+    } catch {
+      dropRefused = true;
+    }
+
+    // What session end does, minus ending the session.
+    await pg.exec("DISCARD TEMP");
+
+    const survivors = (
+      await pg.query<{ f: string }>(`
+        SELECT n.nspname || '.' || p.proname AS f
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname IN ('app', 'other') ORDER BY 1`)
+    ).rows.map(r => r.f);
+
+    let callSurvivor = "";
+    try {
+      await pg.query("SELECT app.by_body()");
+      callSurvivor = "succeeded";
+    } catch (e) {
+      callSurvivor = (e as Error).message;
+    }
+    return { tracked, dropRefused, survivors, callSurvivor };
+  } finally {
+    if (!pg.closed) await pg.close();
+  }
+}
+
+describe("6. PostgreSQL tracks a temp dependency by TYPE, never through a string body", () => {
+  it("signature and parsed-body references are tracked; opaque bodies are not", async () => {
+    // The whole asymmetry in one assertion. A reference that lands in the
+    // TYPE SYSTEM — return type, argument type, or a BEGIN ATOMIC body the
+    // server parsed — becomes a pg_depend row. A reference inside an
+    // opaque string never does, in `sql` or `plpgsql` alike.
+    const m = await dependencyMatrix();
+    expect(m.tracked).toEqual(["by_arg", "by_atomic", "by_sig"]);
+  });
+
+  it("a plain DROP refuses, but the schema-level cascade takes them silently", async () => {
+    // Worth stating together: the loud path and the quiet path disagree,
+    // and only the quiet one runs at session end.
+    const m = await dependencyMatrix();
+    expect(m.dropRefused).toBe(true);
+  });
+
+  it("the cascade crosses schemas — pg_depend decides, not where the function lives", async () => {
+    // by_sig is in `app`, by_arg in `other`, and both go. The surviving
+    // one is not surviving because of its schema; it survives because
+    // nothing recorded that it depended on anything.
+    const m = await dependencyMatrix();
+    expect(m.survivors).toEqual(["app.by_body", "app.by_plpgsql"]);
+  });
+
+  it("and the survivors are the broken ones", async () => {
+    // The direction that matters: tracked references are self-correcting
+    // (they leave together), untracked ones outlive the table and fail on
+    // every call thereafter. This is what makes §1's silence a false
+    // negative rather than a harmless gap.
+    const m = await dependencyMatrix();
+    expect(m.callSurvivor).toContain('relation "tt" does not exist');
+  });
+});
+
+describe("6b. DISCARD TEMP is the session-end simulation validate() can afford", () => {
+  it("clears temp relations while PRESERVING search_path, which DISCARD ALL does not", async () => {
+    // The gate on the proposed placement. `validate()` deliberately does
+    // not override search_path — a migration's non-LOCAL `SET search_path`
+    // has to survive into body validation — so the stronger DISCARD is
+    // unusable however well it cleans.
+    const pg = new PGlite();
+    try {
+      await pg.exec(`CREATE SCHEMA app; SET search_path TO app, public;
+                     CREATE TEMP TABLE staging (i int);`);
+      await pg.exec("DISCARD TEMP");
+      const kept = (await pg.query<{ search_path: string }>("SHOW search_path")).rows[0]!;
+      const left = (
+        await pg.query<{ n: number }>(
+          `SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname LIKE 'pg_temp%' AND c.relkind = 'r'`)
+      ).rows[0]!;
+      expect(kept.search_path).toBe("app, public");
+      expect(left.n).toBe(0);
+
+      await pg.exec("DISCARD ALL");
+      const reset = (await pg.query<{ search_path: string }>("SHOW search_path")).rows[0]!;
+      expect(reset.search_path).not.toBe("app, public");
+    } finally {
+      if (!pg.closed) await pg.close();
+    }
   });
 });
