@@ -319,6 +319,16 @@ const columnSpecificGenerators: Record<
       has_duration: (_rand, ctx) => ctx.row % 2 === 0,
       event_duration: rand => rand.pick(["1 hour", "2 hours", "45 minutes"]),
     },
+    // evb's biconditional CHECK ties started_at to the status band exactly,
+    // so status rotates and the null policy below reads it back — 'started'
+    // FIRST (the notNull fixtures' own band), then 'pending' (the
+    // alwaysNull fixture's, and the unfiltered control's NULL witness),
+    // then a second working band so `status <> 'pending'` is not carried by
+    // one literal. `interval` has no type tier; the column draws its own.
+    evb: {
+      status: (_rand, ctx) => ["started", "pending", "done"][ctx.row % 3]!,
+      event_duration: rand => rand.pick(["1 hour", "2 hours", "45 minutes"]),
+    },
     // gpc's `a` rotates through one value per BAND of the generated CASE,
     // FIRST the equality fixture's own 7 (the sparsest state seeds one row
     // and that fixture has no other way to return one), then the first
@@ -757,6 +767,13 @@ const nullPolicies: {
       caie: { o: (_rand, ctx) => (ctx.current("a") as number) > 5 },
       evg: {
         event_duration: (_rand, ctx) => ctx.current("has_duration") === false,
+      },
+      // The biconditional runs both ways, so the policy must too: NULL
+      // exactly on the pending rows, a value everywhere else. Columns fill
+      // in catalog order and `status` precedes `started_at`, so the band is
+      // already decided when this is asked.
+      evb: {
+        started_at: (_rand, ctx) => ctx.current("status") === "pending",
       },
       caiow: {
         a: (_rand, ctx) => ctx.row % 3 === 2,
