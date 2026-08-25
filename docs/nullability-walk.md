@@ -1,1481 +1,268 @@
-# Output Column Nullability — Single Recursive Walk
+# Output column nullability
 
-## What this document is
+## The question, and the rule that shapes every answer
 
-The **design specification** for nullability inference, maintained alongside the implementation (`src/query/nullability-walk.ts`). It explains how the walk works and why each rule is shaped the way it is; the open items and deliberate bounds live in `docs/deferred-tasks.md`, and the verification methodology in `docs/witness-coverage.md`.
+For each output column of a statement, is it provably never NULL?
 
----
+PostgreSQL will tell you a prepared statement's column names and types but not
+their nullability, so it has to be inferred from the parsed statement and the
+schema. Both errors cost, and they do not cost the same. Claiming non-null for
+a column that can be NULL produces a type that lies, and the lie surfaces as a
+runtime failure far from here. Claiming nullable for a column that never is
+produces a noisier type than necessary.
 
-## 1. Problem
+So: **correct over precise.** Never claim non-null unless it is proven.
+Claiming nullable where non-null was provable is imprecision — a defect worth
+fixing, but never a wrong answer.
 
-For query codegen, we need to know whether each output column of a SELECT is nullable (`T | null`) or non-null (`T`). PostgreSQL's PREPARE gives us output column names and type OIDs but **not** nullability. PG doesn't expose per-column nullability for prepared statement results. So we must infer it from the query AST + catalog.
+That asymmetry decides every design argument below. Where a rule could go
+either way, it refuses.
 
-Getting it wrong in either direction is bad:
-- Saying non-null when it's nullable → incorrect types (runtime nulls where the type says there are none).
-- Saying nullable when it's non-null → noisy types (`T | null` where `T` suffices).
+## Why this is one recursive walk and not several passes
 
-The design principle is: **correct over precise**. Never say non-null when the result could be null. Saying nullable when it's provably non-null is acceptable imprecision — it's never wrong, just occasionally noisy.
+Three requirements each independently rule out a pipeline of independent
+passes over the statement.
 
----
+**A named subquery's nullability has to escape it.** Selecting a column out of
+a common table expression whose body puts it on the optional side of an outer
+join must inherit that nullability. Nothing in the schema describes that
+column — it belongs to a query, not a table — so the only way to answer is to
+analyse the inner query and read its result.
 
-## 2. Design constraints: why a single recursive walk
+**A scalar subquery's nullability has to escape it too, in the other
+direction.** A subquery counting rows is provably non-null; one selecting a
+column is not. Answering without looking inside gets it wrong.
 
-The walk must be a single leaf-first recursive traversal, not a collection of independent passes composed afterward. Three constraints force this:
+**A predicate's guarantee applies deep inside an expression, not at its top.**
+If the filter proves a column non-null, then an expression wrapping that
+column is affected wherever the column appears — arbitrarily deep. A pass that
+produces a set of guaranteed columns and a later pass that inspects only the
+outermost node of each output expression cannot connect the two.
 
-### Constraint 1: CTE outputs must propagate
+All three need scope and context threaded THROUGH the traversal rather than
+reconstructed after it. Hence: one leaf-first recursive walk per output
+column, resolving each leaf against the facts in scope and combining results
+upward. The join analysis, the predicate reading and the per-construct rules
+are all applied inside that walk, not beside it.
 
-```sql
-WITH x AS (SELECT a FROM t LEFT JOIN u ON u.id = t.id)
-SELECT a FROM x
-```
+## The scope is an address book
 
-Here `a` inside `x` is nullable (because `u` is on the optional side of a LEFT JOIN inside the CTE body). The outer `SELECT a FROM x` must inherit that nullability. A flat per-scope analysis that doesn't thread results across scope boundaries would treat `x` as opaque — it would look up `catalog.notNull("x.a")`, but `x` is a CTE, not a catalog table. The answer is undefined unless the outer walk can recurse into the CTE body and read its results.
+Before deciding anything, the walk reads the FROM clause and records, for each
+relation: what kind of thing it is, what columns it offers, and whether an
+outer join can null-extend it.
 
-### Constraint 2: Scalar subqueries need inner-output propagation
+That last fact is three-valued, and the third value matters. A relation is
+REQUIRED when no outer join can null-extend it, OPTIONAL when one can, and NOT
+FOUND when a reference resolves to no relation at all. A not-found reference
+is answered nullable rather than crashing — it should not happen for a valid
+statement, and the walk is not the right place to adjudicate that.
 
-```sql
-SELECT (SELECT count(*) FROM t) AS cnt
-```
+A scope keeps two separate maps, because they answer different questions. One
+maps a qualifier to a relation, which is what a qualified reference resolves
+against. The other is the ordered list of columns the scope actually exposes,
+which is what a star expands to and what an unqualified name resolves against.
 
-`count(*)` is provably non-null (count never returns NULL). A rule that returns `false` for all scalar sublinks — without recursing into the subquery — gives the wrong answer (nullable). The walk must recurse into the subquery's output column and propagate its result, gated by a row-count test (see section 3).
+They differ wherever a join merges columns. Joining on a shared name makes ONE
+merged column visible, and the constituents' own copies stop being visible
+even though both remain addressable by qualifier. This mirrors PostgreSQL,
+where a join contributes its own column list while the base relations stay
+reachable.
 
-### Constraint 3: WHERE guarantees apply to ColumnRefs *inside* expressions, not just at the top level
+Keeping them separate also settles ambiguity. A name matching more than one
+visible column is one PostgreSQL rejects outright, so the walk answers
+nullable rather than picking a candidate — otherwise the answer would depend
+on the order relations appear in the FROM clause, which is not a fact about
+the query.
 
-If the WHERE clause guarantees `t.col` non-null (via `t.col IS NOT NULL`), and an output column is `COALESCE(t.col, '')`, the guarantee affects `t.col` *inside* the COALESCE — which makes the whole COALESCE non-null. A pass that returns a flat set of "guaranteed column keys" and a composition step that only inspects the top-level expression node would miss this. The guarantee must be consulted *at the ColumnRef leaf*, during the expression walk, where the context (the containing expression) is available.
-
-### The shape these constraints dictate
-
-Cross-scope propagation (CTE body → outer ref, subquery output → SubLink leaf) and context-sensitive resolution (WHERE guarantee applied to a ColumnRef inside an expression) require threading scope and context *through* the traversal, not reconstructing them afterward. The solution: **one recursive walk per output column, leaf-first, that resolves each leaf against the current scope's facts and propagates nullability back up the expression tree.** The join-walk algorithm, WHERE predicate patterns, and expression rules table are all applied *inside* the walk's dispatch, not as standalone passes.
-
----
-
-## 3. The algorithm, told as a story
-
-We are given a SELECT statement (the AST) and a catalog (table/view column metadata + function metadata). We want, for each output column, a single boolean: is it provably non-null?
-
-### Step 1 — Draw the scope. Build the address book.
-
-We stand at the SELECT. We look at the FROM clause and walk the join tree. For each relation we encounter, we record:
-- Its alias.
-- What kind of thing it is: real table, view, subquery-in-FROM, CTE, VALUES, or table function.
-- Its output columns (column names for tables/views from the catalog; for subqueries/CTEs, the output column names of the inner query; for VALUES, positional).
-- Whether it's on the optional side of an outer join, as a three-state value assigned during the join-tree walk:
-  - **REQUIRED** — the relation is not on the optional side of any outer join. `joinNullable = false`. INNER preserves both sides as required. LEFT makes the right side optional, RIGHT makes the left side optional, FULL makes both sides optional.
-  - **OPTIONAL** — the relation is on the optional side of an outer join. `joinNullable = true`. A column from this alias is nullable regardless of the catalog's intrinsic `notNull` flag, because the join can produce NULL-extended rows. A WHERE predicate that guarantees the column is non-null can *promote* the alias back to REQUIRED (see ColumnRef leaf rules).
-  - **NOT_FOUND** — the alias wasn't located in the address book at all. This is the defensive fallback for a ColumnRef that can't be resolved to any relation in the FROM clause (e.g. an unresolvable correlated reference). A NOT_FOUND ColumnRef is conservatively nullable. This should not happen for a valid query, but the walk returns nullable rather than crashing.
-
-A scope keeps two distinct things, because they answer two different questions:
-
-- **`aliases`** — qualifier → relation. This is what `a.id` resolves against.
-- **`visible`** — the scope's output columns, in order. This is what `SELECT *`
-  expands to and what an *unqualified* name resolves against.
-
-They differ wherever a join merges columns. `a JOIN b USING (id)` makes one
-merged `id` visible, followed by the left's remaining columns and then the
-right's; the constituents' own copies stop being visible even though `a.id` and
-`b.id` still resolve through `aliases`. NATURAL is the same rule over every
-commonly-named column. This mirrors PostgreSQL, where a join contributes its own
-column list while the base relations stay addressable.
-
-Separating the two also settles ambiguity. A name matching more than one visible
-column is one PostgreSQL rejects outright, so the walk reports **nullable**
-rather than picking a candidate — otherwise the answer depends on FROM-clause
-order, which produced opposite results for the same unrunnable query. The trace
-records `resolved = AMBIGUOUS` with the candidates.
-
-A **merged** column is not either constituent and has its own rule. Every row of
-the join has at least one side present and the column is drawn from whichever
-that is:
-
-| Join | Merged column non-null when |
-|---|---|
-| INNER | either side's column is (both present, values equal) |
-| LEFT | the left column is |
-| RIGHT | the right column is |
-| FULL | **both** are — which makes it strictly less nullable than either |
+**A merged column is neither constituent and needs its own rule.** Every row
+of the join has at least one side present, and the merged value is drawn from
+whichever that is. Under an inner join either side proving non-null is enough,
+since both are present and equal. Under a one-sided outer join it is the
+preserved side that decides. Under a full outer join BOTH must prove it —
+which makes the merged column strictly less nullable than either constituent,
+the one case where merging loses rather than preserves.
 
 Because star expansion resolves each visible column through the same path as a
-named reference, view definitions, WHERE promotion, null groups and branch
-guards all apply to `SELECT *` too. They previously did not: a star over a view
-lost every NOT NULL, since a view's own catalog columns are all
-`attnotnull = false`.
-
-An alias column list (`v(a, b)`, `f() AS t(x, y)`) renames positionally, and
-partially: naming fewer columns than exist leaves the rest at their default,
-and only naming *more* than exist is an error.
-
-Alongside the join state we record a **null group**: the set of relations that are NULL-extended *together*. An outer join NULL-extends its optional side as a unit — in `(a JOIN b) LEFT JOIN c`, either both `a` and `b` are present or the whole composite row is absent; they can never be half-NULL-extended. Relations joined by INNER JOIN inherit the enclosing group; each side that an outer join makes optional starts a fresh one.
-
-This matters for promotion: a WHERE predicate proving *one* member's row exists proves it for every member of its group. In `FROM o JOIN oi ON … RIGHT JOIN c ON …`, `WHERE o.id IS NOT NULL` promotes `oi` as well, because `o` and `oi` share a group.
-
-**Views** get a third treatment, distinct from both tables and subqueries. PostgreSQL does not propagate `attnotnull` to view columns — every column of a view reads as nullable in `pg_attribute`, no matter what sits behind it. Reading the catalog flag would therefore make every view column nullable. Instead the walk analyzes the view's stored definition (pre-parsed into `NullabilityCatalog.viewAsts`) like a subquery and maps its output columns positionally onto the view's column list. A view with no parsed definition falls back to the catalog flag.
-
-We do NOT analyze nullability yet. We're just building the address book: "in this scope, alias `a` means this table, alias `b` means that subquery, alias `c` means this table on the optional side of a LEFT JOIN."
-
-We also note the WHERE and HAVING clauses of this scope — consulted during leaf resolution, not as a pre-pass — and whether this SELECT's `GROUP BY` guarantees non-empty groups (consulted by the aggregate dispatch).
-
-**The presence fixpoint (`resolveJoinImplications`).** After the FROM walk, one eager pass turns join quals into row-implied predicates. Two facts reinforce each other to a fixed point: *present(R)* — relation R is never NULL-extended in any emitted row (initially: every REQUIRED relation) — and *implied(J)* — join J's ON qual held for every emitted row. An INNER join's qual is implied when its slice genuinely appears in every row: entered REQUIRED (no ancestor can null-extend it), or any subtree relation proven present. An outer join's qual held exactly for its matched rows, so it is implied once its null-extendable side is proven present (LEFT: a right-side relation; RIGHT: mirrored; FULL: one of each). An implied qual — or a WHERE/HAVING conjunct — that strictly references a relation's column proves that relation present, which can activate further joins: in `((t LEFT u) LEFT v) INNER ck ON ck.id = v.u_id`, the inner qual proves `v` present, which implies the middle LEFT's qual, which proves `u` present. Presence is written back to the join state, and implied quals join WHERE and HAVING as guarantee evidence at the leaves. This is what closes the strict-qual-over-a-NULL-extended-side imprecision: in `(t LEFT u) INNER v ON v.u_id = u.id`, no NULL-extended `u` row can pass the strict qual, and the fixpoint now knows it.
-
-**The participation closure (2026-08-19).** Global presence is the right gate for making a qual scope-wide EVIDENCE, but it is too strong for the narrower fact the qual also carries: it held on every row where its arm *participates*. Found by the EXPLAIN oracle as the walk's one systematic divergence from `reduce_outer_joins` (436 generated cases, one cause — `docs/witness-coverage.md`, "The EXPLAIN oracle").
-
-An arm of a join is **non-preserved** when a row of it failing the qual has no way into the output: the join DROPS it (an INNER drops both arms' failures, a LEFT its right's, a RIGHT its left's), or its only other path — being EMITTED by extending the opposite side — is dead, because that side's extension unit was itself dissolved or a member is proven present. For every outer join nested wholly inside a non-preserved arm whose optional unit some strict-qual alias belongs to (the qual TRUE needs the alias's row; the unit's extension nulls it), that unit's extension can never reach the output — rows where the arm is absent altogether belong to the ENCLOSING unit, which keeps its own accounting.
-
-Such a unit **dissolves** into its enclosing one: every member's chain drops it, an innermost membership falls back to the next unit out, and a member left with no enclosing unit is genuinely present — at top level the closure degenerates into the implied-qual promotion above. Dissolution is the single operation that keeps every reader coherent at once: co-membership promotion, presence groups (a settled inner join merges its side into the arm's unit — `explain-slice-local-flat.sql` gained its `{tid*, uem*}` group exactly this way), origins (`ColumnOrigin.units`), and the join audit. Chains persist across fixpoint iterations, so dissolutions chain outside-in: in `t LEFT (u RIGHT (v RIGHT ck))`, the LEFT's qual kills the first RIGHT's extension, which makes that join behave as INNER, whose qual then kills the second's — each join's death arming the next, the same order `reduce_outer_joins` produces. Soundness note: a FULL join with both units alive contributes no arm (a failing row is still emitted, extension intact), and the measured `incomingRequired` counterexample stays out by construction — its qual-bearer's arms nest no outer join. Zero divergence from the planner across the generated corpus after landing; the pinned fixtures are `explain-slice-local-flat.sql` and `explain-slice-local-inner-qual.sql`.
-
-### Step 2 — List the output columns.
-
-We go through the target list. For each entry:
-- If it's `*` (A_Star), we expand it using the address book: one output column per visible column of every visible relation, in order. Each becomes, effectively, a ColumnRef.
-- Otherwise it's one output column with a name (from the AS clause or inferred) and an expression subtree.
-
-We now have a flat list of output columns. Each has a name and an AST expression subtree.
-
-### Step 3 — For each output column, recurse into its subtree and decide.
-
-This is the heart. We take one output column, walk its expression **bottom-up (leaf-first)**. At each node we apply a rule. The rule may recurse into children. Leaves resolve to a boolean. Internal nodes combine child booleans. We climb back up and the root's boolean is the answer for that output column.
-
-### What happens at a leaf:
-
-**Literal (`A_Const`):** resolves itself. `'foo'` → non-null. `42` → non-null. `true` → non-null. The `NULL` literal (tagged `isnull: true` in the AST) → nullable. No recursion needed.
-
-**ColumnRef:** resolves itself against the current scope's address book. We look up which alias this column belongs to, and which column of that alias. Then we combine facts:
-- Is this column guaranteed non-null by a row-implied predicate? A predicate's own column references resolve the same way the target list's do: an unqualified name goes through the scope's visible list, and testifies only for the entry that owns it — a USING/NATURAL-merged column is its own column, owned by neither constituent, so `WHERE id IS NOT NULL` over a merged `id` proves nothing about either side's copy (the LEFT JOIN's merged value is the left side's, and reading it as a guarantee for the right was a measured unsoundness — `using-merged-unqualified-guarantee.sql`). The evidence set is the scope's WHERE, its HAVING (every emitted row passed it — including the zero-input aggregate row, which is why HAVING is exempt from the `rowsImplyWhere` gate on parameter narrowing), and every ON qual the presence fixpoint proved implied. Within a predicate: `IS NOT NULL`, strict comparisons (the shared total+strict operator set), `IN` (tested value only), and `BETWEEN`, inside AND-conjuncts — and inside an OR only by **intersection**: every disjunct must prove the column, since any arm could have been the TRUE one (`col = 'a' OR col = 'b'` promotes; the optional-filter idiom's `IS NULL` arm proves nothing and correctly blocks it). The column need not be a *direct* operand: the strict-expression closure attributes through strict operators, strict functions (catalog metadata, or the measured `STRICT_BUILTIN_FUNCTIONS` set), `NULLIF`'s left side, casts, and `COALESCE` by intersection — `length(col) > 0` proves `col`. If the column's alias is on the optional side of an outer join and such a predicate exists, the alias is **promoted** to required. This check happens *here*, during leaf resolution, not as a pre-pass. In UPDATE RETURNING scopes, SET columns are masked from this evidence: the WHERE tested the OLD row and RETURNING reports the NEW one (`update-set-mask.sql` is the live counterexample).
-- If the alias is a real table/view: read the catalog's `notNull` flag for that column — the flag of the relation SET the reference scans, not the named relation's alone. `FROM p` scans the whole inheritance tree, and `ALTER TABLE ONLY p … SET NOT NULL` is legal (measured): parent `attnotnull` true, child false, the child's NULL returned through the parent. So a tree scan reads the subtree conjunction (`ColumnInfo.notNullTree`, captured per column and diff-included, since adding a child can change inference), while `FROM ONLY p` and an INSERT target (writes never route in plain inheritance — measured) read the relation's own flag; `RangeVar.inh` carries the distinction. The CHECK path needs nothing: a parent's CHECK is copied into every child's own `pg_constraint` and cannot be dropped or invalidated there (measured). Combine with the join nullability: `notNull = catalog.notNull(col) && !joinNullable(alias)` (after promotion). If the WHERE guarantees it, override to non-null. A **GENERATED column** whose flag is false gets one more chance: its generation expression (pre-parsed from the snapshot) is walked with refs bound to this entry — sound because the stored row IS the read row, which also lets WHERE promotion, guards, and the written-value map compose into it — but only under the same `!joinNullable` gate, because a NULL-extended row nulls a generated column however non-null its expression is per-row (`generated-left-join-gate.sql`). A plain nullable column gets the same last chance through the table's validated CHECK constraints — the entailment kernel, described in its own section below.
-- If the alias is a subquery or CTE: **recurse** — run this whole procedure (steps 1–3) on the inner scope, memoize the per-output-column results, and read the Nth one. This is how nullability threads across scope boundaries.
-- If the alias is a VALUES list: each column's nullability is the nullability of the corresponding expression in that row of the VALUES list.
-- If none of the above give non-null, the leaf is nullable.
-
-**Scalar subquery (`SubLink` with `subLinkType: "EXPR_SUBLINK"`):** gets a special rule based on row-count behavior:
-- Can this subquery return zero rows? If yes (plain `FROM table` with no aggregate — it can return nothing), the result is NULL when no row matches, regardless of what the inner output column's nullability is. The leaf is nullable. We stop — we don't recurse into it.
-- If the subquery is **single-row-guaranteed** (aggregate without GROUP BY, or no FROM clause), we recurse into its single output column and propagate the result. E.g. `(SELECT count(*) FROM t)` → single-row (count is an aggregate) → recurse → count(*) is non-null → the scalar subquery is non-null.
-- `LIMIT 1` does NOT make a subquery single-row-guaranteed — it makes it zero-or-one row, which still includes zero → nullable.
-
-**EXISTS / NOT EXISTS subquery (`SubLink` with `subLinkType: "EXISTS_SUBLINK"`):** resolves to non-null (returns bool, never NULL). No recursion into the subquery needed.
-
-**ALL_SUBLINK / ANY_SUBLINK:** resolves to non-null (returns bool). No recursion.
-
-**ARRAY_SUBLINK:** resolves to non-null (ARRAY constructor of the subquery results; never NULL even when empty).
-
-### What happens at an internal node:
-
-We recurse into the children first (each child resolves to a boolean by the same procedure), then apply the node's rule:
-
-| Node type | Rule | Rationale |
-|---|---|---|
-| `A_Const` (literal) | non-null, except `NULL` literal (`isnull: true`) → nullable | Literals are never NULL |
-| `ColumnRef` | resolve against scope (see leaf rules above) | Conservative; intrinsic + join + WHERE + cross-scope |
-| `NullTest` (IS NULL / IS NOT NULL) | non-null | Always returns bool |
-| `SubLink` EXISTS | non-null | Only asks whether a row came back; never inspects a value |
-| `SubLink` ANY/ALL (incl. `IN`, `NOT IN`) | non-null iff the left operand **and** every subquery output column are non-null | The per-row comparisons are OR-ed/AND-ed under three-valued logic, so `1 IN (SELECT NULL)` is NULL |
-| `SubLink` EXPR (scalar) | single-row test + recurse (see leaf rules above) | Row count matters |
-| `SubLink` ARRAY | non-null | ARRAY constructor never NULL |
-| `TypeCast` | recurse into `arg` | Cast preserves nullability |
-| `CoalesceExpr` | non-null if any arg is non-null | `args.some(recurse)` |
-| `CaseExpr` | non-null if there is an `ELSE` **and** every branch result is non-null, each walked under its branch guard | Exactly one branch produces the value; without `ELSE`, an unmatched CASE is NULL. See "Branch guards" |
-| `A_Expr` (comparison/math) | non-null if the operator is *total* and all operands are non-null | See "Total operators" below |
-| `BoolExpr` AND/OR | non-null if all operands are non-null | Three-valued logic only produces NULL from a NULL operand |
-| `BoolExpr` NOT | recurse into arg | `NOT EXISTS` → non-null; `NOT (nullable)` → nullable |
-| `FuncCall` | see function rules below | Varies by function kind |
-| `RowExpr` | non-null | Row constructor never NULL (even with NULL elements) |
-| `A_ArrayExpr` | non-null | ARRAY constructor never NULL |
-| `MinMaxExpr` (GREATEST/LEAST) | non-null if **any** arg is non-null | GREATEST/LEAST skip NULL args; NULL only when every arg is NULL |
-| `BooleanTest` (`IS [NOT] TRUE/FALSE/UNKNOWN`) | non-null | Collapses three-valued logic to a plain boolean |
-| `SQLValueFunction` (`CURRENT_DATE`, `SESSION_USER`, …) | non-null, except `CURRENT_SCHEMA` | Always defined; `CURRENT_SCHEMA` is NULL when the search path resolves to nothing |
-| `GroupingFunc` (`GROUPING(...)`) | non-null | Returns a bitmask, even in super-aggregate rows |
-| `ScalarArrayOp` | nullable | Conservative |
-| `NamedArgExpr` | recurse into `arg` | Unwrap and recurse |
-| `CollateClause` | recurse into `arg` | Collation preserves nullability |
-| Unknown node | nullable | Conservative — add handler when encountered |
-
-### Total operators
-
-`A_Expr` propagation requires the operator to be **total**: never NULL for non-null
-operands. Strictness is not the criterion — a strict operator returns NULL for NULL
-input, which says nothing about non-null input. `jsonb -> 'missing'` and
-`jsonb ->> 'missing'` are both strict and both return NULL for two non-null operands.
-
-**Custom operators** (Wave 3): a name outside the allowlist — or any
-schema-qualified name — resolves through the snapshot's `pg_operator` capture
-by the single-candidate policy, and the RESULT dispatches the operator's
-backing function through the full FuncCall machinery (domain returns,
-`LANGUAGE sql` body inlining, the strict rules), with the operands as
-arguments. The fixture's non-strict `===` analyses to notNull via its
-`SELECT true` body while still promoting nothing; the strict `====` gates
-promotion and narrowing exactly like a builtin comparison
-(`custom-operator.sql`). Totality is never inferred from strictness — the
-WHERE-side gate needs only strictness, the output side only what the
-function's own dispatch can prove.
-
-The allowlist (`TOTAL_OPERATORS`) therefore covers only arithmetic (`+ - * / % ^`),
-comparison (`= <> != < > <= >=`), concatenation (`||`), and pattern matching
-(`~~ !~~ ~~* !~~* ~ !~ ~* !~*`). An operator that raises on bad input still counts as
-total: division by zero is an error, not a NULL. Schema-qualified operators are never
-matched, since a user-defined operator can shadow a built-in symbol.
-
-By `A_Expr` kind:
-
-| Kind | Rule |
-|---|---|
-| `AEXPR_OP` | non-null if the operator is on the allowlist and all operands are non-null |
-| `AEXPR_DISTINCT` / `AEXPR_NOT_DISTINCT` | always non-null — `IS [NOT] DISTINCT FROM` is NULL-aware and yields a plain boolean |
-| `AEXPR_IN`, `AEXPR_LIKE`, `AEXPR_ILIKE`, `AEXPR_SIMILAR`, `AEXPR_BETWEEN` family | non-null if all operands are non-null |
-| `AEXPR_NULLIF` | nullable — `NULLIF(a, b)` is NULL exactly when `a = b` |
-| `AEXPR_OP_ANY` / `AEXPR_OP_ALL` | nullable — a NULL array element yields NULL with no match |
-
-### Branch guards (path-sensitive CASE)
-
-A `CASE` branch result is walked under the conditions that must hold for that
-branch to run, so a nullable column can read as non-null inside a branch that
-tested it. Branch *i* is walked with conditions `1..i-1` known **not TRUE** and
-condition *i* known **TRUE**; the `ELSE` with every condition known not TRUE.
-
-A guard is pinned to the scope its aliases were written against and applies only
-to a column that resolved in that same scope, so an inner query re-using an alias
-name cannot pick up an outer guard. Guards are also cleared at every statement
-boundary: statement results are memoized by AST-node identity, and a CTE analyzed
-once inside a branch is reused everywhere else.
-
-**Positive guards** (condition TRUE) reuse the WHERE analyzer unchanged — a branch
-runs only when its condition is TRUE, and a TRUE strict predicate implies its
-operands are non-null. This is the same inference WHERE promotion makes, including
-promoting an OPTIONAL alias to REQUIRED for the rest of the branch.
-
-**Negative guards** (condition not TRUE) are much weaker, and getting this wrong is
-the easiest way to make the walk unsound. A branch is skipped when its condition is
-FALSE *or NULL*, so falsity alone proves nothing:
-
-```sql
-CASE WHEN a > 5 THEN 'big' ELSE a END   -- a NULL `a` makes the condition NULL,
-                                        -- so the ELSE sees `a` still NULL
-```
-
-Only conditions that can never evaluate to NULL support an inference here:
-
-| Condition shape | Not-TRUE implies |
-|---|---|
-| `col IS NULL` | `col` is non-null — `IS NULL` is total, so not-TRUE means FALSE |
-| `A OR B` | every disjunct is not TRUE (a TRUE disjunct would make the OR TRUE), so any total disjunct yields its inference |
-| `A AND B` | nothing — some conjunct failed, but not which one |
-
-The simple form `CASE x WHEN v THEN ...` compares values rather than evaluating
-predicates, so its `WHEN` expressions are not conditions and contribute no guards.
-
-### CHECK-constraint entailment (conditional nullability)
-
-A plain nullable table column whose catalog flag says nothing gets one more
-chance, after the generation-expression rule: the table's **validated** CHECK
-constraints. `WHERE status = 'housed'` over a status-discriminated table whose
-CHECK spells out which arms force `arrived_at` non-null is a bread-and-butter
-query shape, and the derivation is pure syntax — no expression is ever
-evaluated (the register's rung-ladder ruling stands).
-
-The kernel (`src/query/check-entailment.ts`) works over three judgments in
-three-valued logic, seeded by two fact sources of deliberately different
-strength:
-
-- **TRUE facts** — the row-implied evidence: the `checkWhereGuarantee` list
-  (WHERE conjuncts, HAVING, implied ON quals) plus the scope's taken branch
-  guards (`check-guard-entailment.sql`) — a branch runs only when its
-  condition is TRUE, the same strength as a WHERE conjunct. Disjunctive
-  conjuncts (OR, multi-element IN, `= ANY` over an array literal) become
-  **OR-facts**: TRUE(a ∨ b) names no arm, but it makes any superset
-  disjunction TRUE, so an OR-fact whose every arm matches an arm of a
-  CHECK-side OR/ANY discharges it (`check-or-subset.sql`,
-  `check-or-verbatim.sql`; the non-subset negative
-  `check-or-not-subset.sql`). NOT-wrapped conjuncts contribute FALSE facts,
-  De Morgan included (a negated OR falsifies every disjunct).
-- **notFALSE facts** — each validated CHECK expression. Not TRUE: PostgreSQL
-  admits a row whose CHECK evaluates NULL, measured and pinned in
-  `check-constraint-pins.test.ts`.
-
-Leaves match by **identity over a closed deterministic fragment** (builtin
-comparisons by bare name, `IS [NOT] NULL`, `BETWEEN` desugared, bare boolean
-columns; refs alias-normalized, offsets ignored, function calls never match —
-a CHECK ran at WRITE time, the WHERE holds at READ time, and only expressions
-deterministic over the stored row may carry a truth value between the two).
-Literal casts join the identity check: the deparser renders `'housed'::text`
-where the user's WHERE has the bare literal, and the two equate only when the
-cast names the column's own type — an explicit cast to a different type
-selects a different operator (a citext column's `=` can be TRUE where a
-bytewise comparison of the same tokens is FALSE), so it refuses. The
-**builtin negator pairing** runs in both directions: TRUE(`status =
-'housed'`) falsifies `status <> 'housed'` with no literal values compared —
-which is what makes implication-as-OR
-(`CHECK (status <> 'housed' OR room IS NOT NULL)`) work without the banned
-literal distinctness — and a FALSE strict comparison certifies its negation
-TRUE, since evaluating to FALSE (not NULL) proves the operands were non-null
-(`check-negator-dual.sql`). On top sit plain 3VL algebra
-(notFALSE distributes over AND, an OR whose other disjuncts are FALSE passes
-notFALSE to the survivor, NOT flips), searched-CASE arm selection (arm *i*
-inherits notFALSE when conditions before it are FALSE and its own is TRUE —
-the ELSE when all are FALSE; a condition neither provable ends the
-derivation, which is exactly the distinctness asymmetry keeping the negative
-arms dark), `= ANY (ARRAY[...])` decomposed as the OR the deparser rendered
-it from, and totality: notFALSE(`col IS NOT NULL`) ⇒ TRUE ⇒ the goal.
-
-The gates:
-
-- **joinState** (shared with generated columns): a NULL-extended row
-  satisfies no CHECK, so the entry must not be OPTIONAL after promotion
-  (`check-left-join-gate.sql` is the pinned counterexample;
-  `check-left-join-promoted.sql` its complement).
-- **Row consistency across DML** — a returned DML row has TWO stored,
-  CHECK-satisfying versions (OLD and NEW), and every fact must hold on the
-  row a derivation runs against, with the goal equal to its value there.
-  WHERE-side facts tested the OLD row and transfer to NEW only through
-  non-SET columns; guard facts describe the row the guarded expression reads
-  (NEW in RETURNING, OLD in a SET expression — the `dmlOldRowRead` flag).
-  The walk therefore runs up to two channels: the **NEW row** (WHERE-side
-  facts SET-masked, guards free, any goal) and the **OLD row** (WHERE-side
-  facts free, guards masked, goal restricted to non-SET columns, whose OLD
-  value IS the returned one). `check-update-set-mask.sql` pins both in one
-  statement — the discriminator-moving UPDATE whose `arrived_at` must stay
-  nullable (the NEW mask) while `room` proves notNull (the OLD channel);
-  `check-set-expr-old-read.sql` pins the SET-expression read context, where
-  a single unmasked OLD run is sound because every fact source tested that
-  same row.
-
-**Collation-gated distinctness (Wave 9)** adds the one judgment the kernel
-refused until the catalog could prove it: two string literal TOKENS denote
-DISTINCT values — admitted only where byte equality IS value equality for
-the column's type (OID whitelist: `text` and `varchar`; citext's
-case-folding lives in its operator and never qualifies, and `bpchar` is out
-for the same reason one level down — `character(n)` comparison strips
-trailing blanks before the collation is consulted, so `'a'::char(4) = 'a '`
-is TRUE for distinct tokens, measured) whose collation the snapshot proved
-deterministic (`collisdeterministic`, captured per column), and never for
-numerics (75 vs 75.0: distinct tokens, equal values). TRUE(`col = 'a'`) then falsifies `col = 'b'` and certifies
-`col <> 'b'`, which is what lets a multi-WHEN CHECK CASE reach its later
-arms (`check-multiwhen-second-arm.sql`; numeric refusal pinned by
-`check-multiwhen-numeric-negative.sql`; the nondeterministic-collation
-counterexample by `check-distinctness-collation-gate.sql`). On top of it
-sit **generated-column equalities**: `verdict = <generation expr>` holds
-EXACTLY per stored row — OLD and NEW alike — so a TRUE `verdict = 'fraud'`
-fact runs arm exclusion over a CASE-shaped expression (arms with
-provably-distinct literal results are out, the NULL result is out because a
-TRUE equality has no NULL side, an already-FALSE condition is out), and a
-single surviving WHEN arm contributes its condition as row-implied facts.
-The kernel finishes directly when the facts pin the goal column — no CHECK
-constraint needed (`check-generated-arm-fraud.sql`; the two-arm
-'manual-check' ambiguity stays nullable, witnessed). An ELSE survivor
-derives nothing: ELSE runs on FALSE *or NULL* conditions, and 3VL grants no
-facts from "not TRUE".
-
-**Origin tracking (Wave 8)** carries entailment across scope boundaries. An
-output column that is a bare, untransformed pass-through of a base table
-column records its provenance (`ColumnOrigin`): the base table plus a
-`rowPath` — the chain of relation-instance ids it passed through, each
-CTE/subquery/view re-export prepending its own reference instance. Row
-identity is the PATH, not the table: two references to one memoized CTE
-share its inner analysis and its inner ids, so only the per-reference
-prefix tells `g1`'s rows from `g2`'s (`check-origin-self-join.sql`). At a
-referencing scope, a nullable inner column with an origin gets one more
-chance: the origin table's validated CHECKs against THIS scope's evidence,
-with references to the entry renamed from outer names to base columns —
-only for siblings on the SAME rowPath, and an unmapped reference becomes an
-unmatchable name rather than leaking into the base column space (the
-rename-swap fixture `check-origin-rename.sql` is the adversarial case).
-Origins are produced only for REQUIRED instances and die at transforming
-expressions, USING/NATURAL merges, set operations, grouping (group keys
-would be sound — deferred, recorded), VALUES, and DML RETURNING; DISTINCT
-keeps whole rows and preserves them. The referencing site's joinState gate
-still applies (`check-origin-left-join-gate.sql`). The headline closures:
-`WITH g AS (SELECT * FROM guest) SELECT arrived_at FROM g WHERE status =
-'housed'` and the same filter outside a projection view
-(`check-origin-cte.sql`, `check-origin-view.sql`).
-
-Exclusions: `convalidated=false` covers NOT VALID and PG18 NOT ENFORCED both
-(`check-not-valid.sql`, `check-not-enforced.sql`); PG18's `contype='n'`
-NOT NULL constraint rows — which the snapshot's type mapping folds into
-"check" — are dropped by the PARSED node type in the adapter; domain CHECKs
-are a different mechanism (NOT NULL domains, already consumed). Inheritance
-needs exactly ONE special case: children carry their own `pg_constraint`
-rows for every inheritable CHECK and cannot drop or invalidate them (both
-measured), but a `CHECK … NO INHERIT` is never copied at all (adversarial-2
-finding 2 — the one CHECK divergence route PostgreSQL permits; partitioned
-parents refuse the construct). The adapter therefore exposes two lists:
-`resolveCheckConstraints` (the relation's own rows — a `FROM ONLY` scan may
-read NO INHERIT constraints) and `resolveCheckConstraintsTree` (NO INHERIT
-constraints dropped once descendants exist), consumed through the same
-`scanInh` split as the attnotnull flags; origin entailment takes the tree
-list unconditionally, as origins carry no ONLY bit
-(`check-no-inherit-tree.sql`, `check-no-inherit-conditional.sql`,
-`check-no-inherit-only-control.sql`, `check-no-inherit-origin.sql`).
-
-### Generated CTE columns (SEARCH / CYCLE)
-
-A recursive CTE's `SEARCH DEPTH FIRST BY id SET ord` appends one ordering column,
-and `CYCLE id SET is_cycle USING path` appends a cycle mark and a path array.
-None appear in either branch's target list — the recursion machinery generates
-and always populates them — so all are non-null and must be appended to the
-CTE's output. Missing them makes `SELECT *` over the CTE the wrong shape.
-
-### MERGE ... RETURNING
-
-`MergeStmt` is dispatched like the other DML forms, arm-aware since Wave 4.
-The target relation is REQUIRED (RETURNING reports the row actually
-written). The **source is OPTIONAL only when a `NOT MATCHED BY SOURCE` arm
-exists** — that is the sole arm that can null-extend it; every other
-row-producing arm either matched the source or was driven by it, so without
-one the source is REQUIRED and its columns keep base nullability. When
-EVERY arm is MATCHED-kind, the join condition is row-implied evidence like
-a DML WHERE (parameters narrow, columns promote, SET columns masked).
-Written values intersect per row-producing arm exactly like ON CONFLICT's
-two paths: UPDATE arms contribute SET expressions, INSERT arms their
-positional values, a DELETE arm voids the map (it returns the OLD row),
-and DO NOTHING arms are excluded (they produce no row).
-
-`RETURNING *` expands the **source first**, then the target (measured) —
-the opposite of `UPDATE … FROM` and `DELETE … USING`, which are
-target-first. Same arity either way, so the order is exactly the kind of
-silent permutation section 5b warns about; the soundness suite's ordered
-name comparison is what holds it. A qualified star (`RETURNING ck.*`)
-resolves through the alias and is unaffected. "Qualified" means anything
-before the `A_Star`, not two parts: PostgreSQL accepts `schema.rel.*` and
-`db.schema.rel.*`, and an arity test for the two-part form sent those to
-the unqualified branch, which expands the whole scope (adversarial-3
-finding 5). A schema qualifier SELECTS rather than decorates — two
-same-named relations from different schemas can both be in scope — so it
-resolves to the relation, not through the alias map.
-
-### Foreign-key entailment
-
-A join whose `ON` is an equality on a NOT NULL foreign key ALWAYS matches, so
-the referenced side never null-extends:
-
-```sql
-SELECT c.email FROM orders o LEFT JOIN customers c ON c.id = o.customer_id
--- orders.customer_id is NOT NULL REFERENCES customers(id) — c.email is notNull
-```
-
-The same reading covers a FULL JOIN's referenced side: `orders FULL JOIN
-shipments ON s.order_id = o.id` extends the ORDERS side only for a shipment
-with no order, which the key forbids — one FULL JOIN, one extension unit, not
-two. And it covers a correlated scalar subquery, where the question is not
-"exactly one row" but "at least one": a subquery returning several RAISES
-rather than evaluating to NULL (measured), and a raise returns no rows to
-contradict anything.
-
-```sql
-(SELECT p2.name FROM products p2 WHERE p2.id = p.id) FROM products p
--- a SELF-LOOKUP: the outer row is itself in the scanned set
-(SELECT o.customer_id FROM orders o WHERE o.id = s.order_id)
--- a KEY LOOKUP: shipments.order_id is a NOT NULL key onto orders
-```
-
-Either settles ONE relation — the **anchor**, the one the WHERE keys into. A
-subquery whose FROM is a JOIN needs the rest to match for that anchor row too,
-and the keys that prove it are the ordinary ones one hop further in:
-
-```sql
-(SELECT c.email FROM orders o JOIN customers c ON c.id = o.customer_id
-  WHERE o.id = oi.order_id)
--- the outer key settles `o`; that order's NOT NULL customer_id settles the join
-```
-
-Every join between the anchor and the output then has to answer one of two
-things, and it is the same preserve-or-match pair the join form uses:
-
-- it **preserves** the anchor's side — a LEFT join keeps its left whatever the
-  qual does, a RIGHT join its right, a FULL join both — and then nothing is
-  asked about the other side at all, not even that anything inside it survives;
-- it can **drop** the anchor row (an INNER join, or an outer join with the
-  anchor on the side it extends), and then the row must MATCH: a NOT NULL key
-  carried by a relation already SETTLED, pointing at a relation on the other
-  side that no join inside that side has dropped. That relation is settled in
-  turn, so the next join out can key from it.
-
-Three things in that are load-bearing and each has its gate. The **direction**
-is not symmetric: `o.customer_id = c.id` read from `c` says every order has a
-customer, which is silent about a customer with no orders. The key must be
-carried by a **settled** relation, since one the anchor's side merely acquired
-through a preserving join may have no row and a NULL key points at nothing.
-And the relation it points at must still be **in the slice**, which is the
-same question the join form answers — a key is a fact about the table, not
-about what a join inside the referenced side left behind.
-
-The join form is a promotion inside the existing presence fixpoint
-(`resolveJoinImplications`), so a promoted alias activates further joins and
-carries its null-group co-members with it. The subquery form is a second
-licence beside `guaranteesSingleRow`.
-
-#### The join-level fact
-
-"This join cannot extend that side" is not "every member of that side is
-present", and the second does not follow from the first. The fixpoint's
-vocabulary is ALIASES, so the first has nowhere to live in it — and it is what
-some claims need:
-
-```sql
-SELECT c.id FROM customers c
-FULL JOIN orders o       ON o.customer_id = c.id
-FULL JOIN order_items oi ON oi.order_id   = o.id
--- c.id is never NULL; o.id is NULL for a customer with no orders
-```
-
-Every item has an order and the left slice keeps every order, so the second
-join finds a match for every item and emits no item-only row. That says
-nothing about `o`, which the FIRST join still extends. What it does say is
-that the first join is not extended from above — which is exactly
-`incomingRequired`, the property the walk already records when a side arrives
-REQUIRED — and the key on that join then promotes `customers` by the ordinary
-rule. So the fact is carried as an upgrade to the joins INSIDE the side, and
-nothing else in the fixpoint has to learn a second vocabulary.
-
-A join cannot extend a side when every row of the OTHER side carries a stored
-referencing row, its key is NOT NULL onto a relation on that side, and every
-stored row of that relation is still in the slice — the same three questions
-the promotion rule asks, minus everything about ancestors. Both subtree
-questions are read off join types, over a `scope.joins` that records EVERY
-join — a join with no qual to imply (a CROSS JOIN, a comma join, a NATURAL
-join sharing no column name) is still a join whose type and alias sets these
-readings need, and while it was omitted a side containing one read as a leaf
-that drops nothing (`subtreePreserves`, `subtreeAlwaysPresent`):
-a LEFT join preserves its left side and extends its right, a RIGHT join the
-mirror, a FULL join preserves both and extends both, an INNER join preserves
-neither and extends neither. WHERE is not consulted — it filters after the
-joins, so it can remove a row but never create the NULL-extended one a claim
-is about.
-
-The fact COMPOSES with itself, which is what makes it general rather than a
-special case: a join that cannot extend a side leaves the aliases on that side
-present within it, which is the premise the next join out needs.
-
-```sql
-SELECT c.id FROM order_items oi
-FULL JOIN orders o    ON oi.order_id = o.id      -- no item-only row: every row carries an order
-FULL JOIN customers c ON o.customer_id = c.id    -- so every left row carries a customer key
-```
-
-**What the key actually guarantees is a property of the referencing relation's
-STORED rows**, and every gate below keeps the reasoning to those rows. Four are
-catalog-visible and live in the adapter (`resolveForeignKey[Tree]`), where a
-refused fact can never be misused downstream; each was measured against PG18
-before the gate was written:
-
-| | |
-|---|---|
-| `NOT VALID` | pre-existing rows are unchecked, and one survives to be read back through the join |
-| `NOT ENFORCED` (PG18) | violations insert freely — and it needs no gate of its own: `convalidated` is false for one, and `ALTER CONSTRAINT … NOT ENFORCED` CLEARS it on an already-validated key |
-| `DEFERRABLE` | violable mid-transaction and observable there, with `INITIALLY IMMEDIATE` no protection |
-| INHERITANCE | a parent's key is NOT copied to a child — pg_constraint records it on the parent alone and a violating child row inserts without complaint — so a TREE scan may not read it. Partitioning of the REFERENCING table is the opposite and needs no exclusion: the constraint is recorded on every partition and `ATTACH PARTITION` validates the incoming rows |
-| PARTITION CLONES | a key pointing AT a partitioned table is recorded once per PARTITION on top of the declared constraint (`conparentid` names the parent), and none of those clones means "every referencing row matches THIS partition". Read as declared keys they both invent a claim and destroy the real one, since the map keyed on `schema.table.column` kept whichever came last |
-
-The rest are the walk's, and they are about the query rather than the catalog:
-
-- **The referencing column must be NOT NULL**, read tree-wide or not by the
-  same `scanInh` split every other per-column fact takes. A NULL key matches
-  nothing, which is also what closes `MATCH SIMPLE`'s partial-NULL hole for
-  composite keys (single-column keys only for now, recorded).
-- **The `ON` must be EXACTLY the key equality.** A further conjunct can only
-  remove matches, and removing a match is the extension the claim denies.
-- **The referencing side must arrive carrying stored rows** — proven PRESENT,
-  or never NULL-extended WITHIN its own side of this join while this join's
-  slice is not extended from above (`incomingRequired`). On that second arm the
-  join also emits rows from the referenced side alone, so the referenced
-  relation must be present within ITS side too: in `t FULL JOIN u ON u.t_id =
-  t.id FULL JOIN v ON v.u_id = u.id` a `t` row with no `u` survives with both
-  `u` and `v` extended, and the key is silent about a row that has no `v` at
-  all.
-- **The referenced side must still HOLD the match.** The key says the row
-  exists in the TABLE; the join finds it only if no join inside the referenced
-  side has dropped it. `customers c INNER JOIN orders o ON o.customer_id = c.id
-  AND o.status = 'fulfilled' FULL JOIN order_items oi ON oi.order_id = o.id`
-  emits an item-only row for an item on any other order, and `orders o LEFT
-  JOIN (customers c INNER JOIN addresses a ON a.customer_id = c.id) ON c.id =
-  o.customer_id` extends for an order whose customer has no address — both
-  measured, and a proven-present referencing side does not help on either: the
-  rows it guarantees are exactly the extended ones.
-- **A referenced PARTITIONED parent scanned `ONLY` holds no rows at all.** A
-  partitioned table stores none of its own — they all live in the partitions —
-  so `ONLY sw4_pp` is an empty slice and the key, which promises a match in the
-  TREE, is silent about it. Inheritance is the opposite way round and keeps its
-  promotion: a parent holds its OWN rows and a key's target index covers
-  exactly those, so `ONLY` there is precisely where the match lives. The gate
-  is therefore on the referenced relation being PARTITIONED, not on `ONLY`.
-- **Neither side may be a `TABLESAMPLE`.** The walk unwraps `RangeTableSample`
-  and registers the relation underneath, so the alias would otherwise go on
-  standing for the whole table while the statement reads a fraction of it —
-  `BERNOULLI (0)` reads none. A sampled relation is never a key's side and is
-  never `subtreePreserves`-preserved. The fraction is not read: `BERNOULLI
-  (100)` keeps every row and is refused anyway, the same stance the walk takes
-  on which rows a qual keeps.
-- For the subquery form, **the scan MODE matters**: an `ONLY` subquery under a
-  tree-scanning outer reads a SUBSET, and the outer row may be the child row it
-  excludes.
-- Both relations must be plain tables. A view's rows are a query's output, not
-  the stored rows the key constrains.
-
-**One assumption is explicit and not catalog-detectable.** Foreign keys are
-implemented as system triggers, so enforcement can be switched off underneath
-them with no trace in the catalog. Three routes, all measured:
-`ALTER TABLE … DISABLE TRIGGER ALL` (the orphan lands and `convalidated` /
-`conenforced` both stay TRUE), `SET session_replication_role = 'replica'` (a
-session GUC — no DDL at all), and disabling triggers on the REFERENCED side,
-where a delete's `ON DELETE CASCADE` never fires and orphans rows that were
-valid a moment earlier. `VALIDATE CONSTRAINT` on an already-validated key is a
-no-op, so nothing repairs the bit afterwards.
-
-Nothing else the engine trusts is exposed this way: neither route bypasses a
-CHECK constraint (measured) and NOT NULL is enforced in the executor. So
-reasoning from a declared key means trusting that nobody has done that and left
-it — the assumption every ORM and codegen tool makes, taken deliberately here
-and recorded rather than hidden. A consumer that KNOWS its keys are unenforced
-has no way to say so yet; that escape hatch is section 1b of
-`docs/deferred-tasks.md`, and it waits on the same config wiring as the search
-path.
-
-Two shapes are recorded as NOT covered: a composite (multi-column) key, and a
-subquery whose FROM carries a JOIN — `(SELECT c.email FROM customers c JOIN
-orders o ON o.customer_id = c.id WHERE o.id = s.order_id)`, where each hop is
-individually a NOT NULL key and composing them is the boundary.
-
-### Set-returning functions in FROM
-
-A `RangeFunction` resolves its columns from the function's `pg_get_function_result`
-string: `SETOF <table>` expands to that relation's columns, `SETOF <composite>` to the
-composite type's fields (composites are resolved separately from relations, so
-that `FROM some_type` does not resolve as a table; a DOMAIN over a composite
-IS one, followed to its base — adversarial-3 finding 4),
-`TABLE(a t1, b t2)` to the declared list, and anything else to a single column.
-The `TABLE(…)` list is split IDENTIFIER-aware, not at the first space:
-PostgreSQL renders those names with `quote_ident`, so a quoted name may
-contain a space, a comma or an escaped quote (finding 7).
-
-The nullability rule from the DECLARATION is a **negative** one, and it is the
-opposite of what the table declaration suggests. A `SETOF <table>` result carries
-the table's *row type*, which describes column types and nothing else — **NOT
-NULL constraints do not travel with it.** A function declared `RETURNS SETOF
-order_items` can return a row of all NULLs without error, even though four of
-those columns are NOT NULL in the table, and PostgreSQL re-imposes nothing: a
-body selecting NULL into such a column is accepted and comes back NULL
-(measured). Reading `attnotnull` here would be unsound.
-
-Two things survive the erasure, because both are properties of the *type* rather
-than of the table:
-
-- **a domain's NOT NULL**, which is still enforced on function output — in a
-  `TABLE(...)` column, in a `SETOF <domain>` element, and in a domain-typed
-  column of a `SETOF <table>` result;
-- **`WITH ORDINALITY`**, a generated `bigint` counter that is always present.
-
-#### Reading the body back
-
-The declaration erases, so the only sound source of a guarantee is the **body**,
-which for these functions selects the very columns the constraints sit on. For a
-single-candidate `LANGUAGE sql` function the walk analyses the body's target list
-per column and ORs the result into the declared list — the row-return counterpart
-of priority 5, which reads the same bodies for scalar returns and takes column 0.
-
-The body's columns map onto the function's output either **positionally** (the
-target list has one entry per output column) or through a **ROW constructor**
-(one entry of composite type, which PostgreSQL expands into fields — both
-spellings are accepted, measured). Only a constructor is read the second way: it
-is never itself NULL, while any other composite-typed expression may be, and a
-NULL value nulls every field.
-
-Four gates gives the reading, each measured and each pinned from both sides by a
-`body-shape-*` fixture:
-
-- **A single candidate.** `fnBodyAsts` is keyed by `schema.name` with no argument
-  types, so an overloaded name's bodies collide there and one would speak for the
-  other. The reading is reached only through `resolveFunctionMetadata`, which
-  answers null for any overloaded name; the consensus rule then supplies the
-  shape without resolving the overload, and the flags stay conservative.
-- **No padding partner.** Two or more functions in one `ROWS FROM` expand in
-  lockstep to the longest one's row count, and every shorter one's columns are
-  NULL-padded after it has returned — measured for a body whose columns are
-  otherwise provably non-null. The same shape as the target list's SRF padding
-  rule. This gates the DECLARED reading too, not only the body one: a NOT NULL
-  domain return, or a NOT NULL domain among the OUT/TABLE parameters, is padded
-  away exactly as a proven body column is, and the clearance sits where the
-  item's column list is ASSEMBLED so all three arms take it (sweep-4 finding 1).
-  It also has to sit BEFORE the presence groups read the flags — a surviving
-  flag makes the padded column a group DISCRIMINANT, and the group then reads
-  "the unit is absent" on rows where a longer arm is still producing values.
-- **A guaranteed row when the function is not set-returning.** `RETURNS
-  <composite>` is one row always, and a body that selects nothing makes that row
-  all NULLs (measured) — so `guaranteesSingleRow` gates it, exactly as it gates
-  the scalar path. A `SETOF` body needs no such gate: no rows means no output rows
-  to be NULL.
-- **A one-against-one reading only where the return is not a row type.** For a
-  single-field composite the body's one column is the field under one reading and
-  the whole row under the other, and those disagree.
-
-#### A call that never runs
-
-Both readings above describe what the function produces *when it runs*, and a STRICT call handed an argument that is not provably non-null does not. For a non-set-returning function that call emits one row of **all NULLs** (measured — its NOT NULL domain columns included), which is exactly the row the FROM item contributes. So the flags are cleared where the item's column list is assembled: the body reading and the declared domain reading fall together, because the same row falsifies both. The names stay — a FROM item that contributes the wrong COLUMNS is the one thing worse than a wrong flag.
-
-The argument that is NULL is often the one the caller never wrote: a `DEFAULT NULL` parameter the call omits reaches the function as NULL like any other. Set-returning functions are excluded for the reason above — strictness makes them return no rows — and an unresolved overloaded name is quantified the conservative way: any candidate that could short-circuit clears the list.
-
-Two bounds are recorded rather than closed. A body's PARAMETERS read nullable —
-the caller's NULL does reach the output (measured), and proving otherwise means
-threading the call's argument nullability and being right about its join state at
-the call site. And a set-operation or DML body is not read at all, which is the
-scalar inliner's boundary too.
-
-The result is INTRINSIC to the function's rows: the join state applies on top, so
-the optional side of an outer join nulls a body-proven column like any other.
-
-Resolving the columns matters even where they all come out nullable: without it
-`SELECT * FROM f()` expands to zero columns and the statement's output shape is
-wrong, which for a codegen consumer is worse than an imprecise flag.
-
-Naming follows PostgreSQL: a composite result keeps its own column names and the
-alias names only the relation, while a scalar result takes the alias as its
-column name. An explicit alias list (`f() AS t(a, b)`) renames positionally.
-The scalar-takes-the-alias rule is the LONE-FUNCTION rule and nothing else —
-`ROWS FROM (generate_series(1, 2)) AS z` names its column `z`, with or without
-`WITH ORDINALITY`, exactly as the bare spelling does (measured across the
-spelling space, sweep-4 finding 6). Two arms take the function names whatever
-the alias says. One predicate answers "lone arm" for the naming, body and
-declared readings; when it was two they disagreed, and only one was
-PostgreSQL's.
-
-Two forms override the per-item resolution above:
-
-- **A column definition list** (`AS z(a integer, b text)`) — what makes a
-  record-returning call legal at all — fully determines the item's SHAPE:
-  one column per ColumnDef, by its name. It wins even when catalog metadata
-  exists, whose `SETOF record` return type would otherwise resolve to a
-  single scalar column. The lone-function spelling parks the list on the
-  RangeFunction, the ROWS FROM spelling on each item (both measured). The
-  list says nothing about nullability — a record's fields carry no
-  constraints — so the flags come from the body reading above, which
-  PostgreSQL maps onto the list positionally (a coldeflist type differing
-  from the body's coerces in place, measured, and coercing a non-null value
-  cannot produce NULL).
-- **Multi-argument `unnest`** is a special form: `unnest(a, b)` expands to
-  one column PER ARRAY ARGUMENT, zip-style with NULL padding, each keeping
-  the function's name rather than taking a scalar alias — measured, and
-  measured the same as a ROWS FROM item. Every column is nullable: the zip
-  pads the short arrays, and elements carry no constraints. A user-defined
-  `unnest` arrives with catalog metadata and takes the declared-return-type
-  path instead.
-- **`unnest` of a COMPOSITE-element array** expands the element's FIELDS
-  instead — one column per field, named by the field, all nullable. Which
-  it is depends on a TYPE, so the walk asks the catalog for the argument's
-  element type: a cast's array bounds, an ARRAY constructor of casts or of
-  expressions it can type, a column's rendered `T[]`, a domain followed to
-  its base, a user function's declared return type by consensus, a
-  CTE/subquery column followed to the base column it re-exports, an array
-  SLICE, and `||`/`COALESCE` through their operands. Where it cannot tell it
-  REFUSES (adversarial-3 finding 3): reading "I could not tell" as "scalar"
-  was a wrong SHAPE in six measured spellings, and a FROM item's wrong shape
-  puts every later column's flag on the wrong column.
-
-  Two sources are one level IN, and neither needs anything the walk does not
-  already do. A CTE or subquery column with no base column behind it is one
-  the inner query COMPUTES, and its defining expression is an expression like
-  any other: the same reading answers for it, against a scope built for that
-  statement's own FROM. A scalar SUBLINK is its single output column, typed
-  the same way. `(SELECT ARRAY[p] AS ps FROM cc) s, unnest(s.ps)` and
-  `unnest((SELECT h.pairs FROM pair_holder h LIMIT 1))` both expand to
-  sku_pair's fields because of it.
-
-  **A POLYMORPHIC builtin takes its type from its ARGUMENTS**, and
-  `CatalogSnapshot.builtinPolymorphicArraySignatures` says from which: the 26
-  pg_catalog signatures whose declared return is `anyarray` or
-  `anycompatiblearray`, with their declared argument types. One rule covers
-  all of them — the result takes its type from the argument declared with the
-  matching ARRAY pseudo-type, or, where a signature has none, from the one
-  declared with the matching ELEMENT pseudo-type plus a dimension — and
-  `unnest` strips that dimension straight back off. So an array-declared
-  position answers with its own element type and an element-declared position
-  with the argument's own type.
-
-  A signature the call does not fit is DISCARDED rather than counted as
-  disagreement: `array_agg` declares `(anynonarray)` beside `(anyarray)` and a
-  composite argument satisfies exactly the one PostgreSQL picks. Telling those
-  apart needs the argument to be provably an ARRAY — an ARRAY constructor, a
-  cast with array bounds, or a catalog type rendering with `[]` — because the
-  "not a composite array" verdict is also what a non-array expression gives.
-  What remains must agree, the same consensus quantifier every other
-  overloaded question takes.
-
-  **What still refuses is common-type resolution**: a CASE arm and a set
-  operation each declare their type by agreement between branches, which is
-  the rule `docs/type-aware-overloads.md` lists as its own residue and the
-  walk does not implement. The refusal is pinned with its positive controls in
-  `unsupported-nodes.test.ts` so a fix cannot widen it.
-
-**`(expr).*` in the target list** is the same problem from the other side: a
-target-list entry that expands to one column per field of the expression's
-composite type. Two arg shapes resolve — `(t).*`, the whole-row spelling of
-`t.*`, routes through ordinary star expansion (measured identical); a
-FuncCall with single-candidate metadata expands its declared return type's
-field list with EVERY field forced nullable, because a NULL composite
-expands to a NULL in every field, domain types included (measured —
-`(NULL::ct).*` yields NULL in an `nn_text` field). Anything else refuses
-(`UnsupportedNodeError`, site `composite-star`): the field count is
-unknowable, and a wrong column list is worse than no answer.
-
-#### FROM items that spell out their own columns: XMLTABLE and JSON_TABLE
-
-The `COLUMNS` list in the query IS the column list — neither resolves against
-the catalog — so failing to read it drops every column from `SELECT *`. Only
-two things in one are non-null.
-
-**`FOR ORDINALITY`** is a generated counter, non-null for the rows it counts.
-Which rows those are is the whole question: in XMLTABLE there is one row set
-and the counter is simply present. JSON_TABLE has `NESTED PATH`, and **a
-NESTED PATH is an OUTER JOIN against the level above it** — so a counter
-INSIDE one is nullable (sweep-4 finding 5). Four ways it comes back NULL, all
-measured: a sibling nested path (the two are unioned, and a row from one
-carries NULL in every column of the other); the path matching nothing, whether
-an empty array or a key absent from the document, where the parent row still
-comes back; the same one level down, an empty inner array under
-NESTED-in-NESTED; and either beside an ordinary root column. A ROOT-level
-counter is unaffected however many NESTED siblings it has — it counts the
-root's rows and is present on every emitted row. So the test is "inside a
-NESTED path", asked during the descent, because the columns are flattened into
-one output list before anything else could ask it.
-
-**An XMLTABLE column declared `NOT NULL`** is enforced: PostgreSQL raises
-`null is not allowed in column "a"` rather than emitting NULL (measured), so
-the claim is safe. JSON_TABLE has no `NOT NULL` column option at all. A
-regular column is NULL when its path matches nothing, and a JSON_TABLE
-`EXISTS` column can still yield NULL under `UNKNOWN ON ERROR`.
-
-### Where the recursion crosses scopes:
-
-When a ColumnRef leaf points at a subquery-in-FROM or a CTE, we recurse into that inner scope (steps 1–3 again) and **memoize**. The inner scope's own output columns get resolved by the same procedure; their results are cached and reused by every outer reference. A CTE referenced N times in the outer FROM is analyzed once; all N ColumnRefs read from the cache.
-
-Correlated subqueries — where an inner scope's ColumnRef can't be resolved locally and falls back to the enclosing scope — work because the enclosing scope's results are already memoized by the time we resolve the inner one (we resolve innermost-first).
-
-### Step 4 — Emit the per-output-column booleans.
-
-Once step 3 has run for every output column, we emit the result: a list of `{ name, notNull }`, one per output column, in target-list order.
-
----
-
-## 4. Function rules (FuncCall dispatch)
-
-When the walk arrives at a `FuncCall` node, it recurses into the function's arguments first (each arg resolves to a boolean), then looks up the function in the catalog by name + arg types and applies the appropriate rule. The rules are checked **in priority order** — the first match wins:
-
-### What the call passes: named order, then defaults
-
-Before any rule runs, the walked arguments are laid out over the *parameter* list. Named notation is reordered to definition order, and every position the call left empty is filled from that parameter's **default expression** (`FunctionArgInfo.defaultExpr`, pre-parsed into `NullabilityCatalog.fnArgDefaultAsts`). A call that omits a defaulted parameter is a call that passes that expression: `def_lit(a integer, b integer DEFAULT 7)` invoked as `def_lit(x)` computes `a + b` with `b` = 7, and PostgreSQL's result is total.
-
-The default is **walked, never evaluated** — `DEFAULT 7` and `DEFAULT length('abc')` are non-null, `DEFAULT nullif(1, 1)` is not, `DEFAULT NULL` is the case that turns a strict call into a NULL. It is walked in an empty scope with no enclosing function context: a default cannot reference the caller's columns or the function's other parameters (`column "a" does not exist` — measured), so it is closed over nothing.
-
-Two positions are left unbound, and both then read as unproven rather than as non-null: a default the walk could not parse, and anything **past an interleaved OUT parameter**. `(a int, OUT x int, b int DEFAULT 5)` is a legal declaration (measured) and a call's own positional arguments stop lining up with the parameter list at `x`, so a misaligned binding is worse than an unbound one.
-
-Everything that asks "are all the arguments non-null" therefore asks it per INPUT parameter, not over the supplied list — a position the call never reached counts as unproven.
-
-### Priority 1: NOT NULL domain return
-
-If the function's return type is a domain whose `notNull` flag is set (from `DomainInfo.notNull` in the catalog), the result is **non-null**. PG enforces domain constraints at the call boundary — if the function body returns NULL, PG throws an error. This wins over everything below. This is the PG-native escape hatch for guaranteeing non-null returns from user functions (especially `LANGUAGE plpgsql` whose bodies we can't statically analyze).
-
-**The domain is enforced on a value the function RETURNS**, so two calls that produce no such value are excluded and each returns NULL past the declaration:
-
-- a **STRICT** function handed an argument that is not provably non-null. It returns NULL without entering the body, and the domain never sees it — measured for `LANGUAGE sql` and plpgsql alike, and for the argument PostgreSQL supplied itself from a `DEFAULT NULL`. Such a call falls through to priority 4, which concludes nullable for it; the domain rule is the only thing that would have preempted that. A set-returning function is not excluded: strictness makes it return NO rows (measured), and a claim about columns of rows that do not exist cannot be contradicted;
-- an **AGGREGATE**. Over zero input rows there is no transition and no final value, so the result is NULL whatever the declared return type says (measured). Aggregates continue to priority 3, which owns the empty-input question.
-
-### Priority 2: `count`
-
-If `agg_star` is true (`count(*)`), or the function name is `count` and `isAggregate` is true → **non-null**. `count` never returns NULL (it returns 0 over zero rows).
-
-### Priority 3: Aggregate (built-in or user-defined, other than count)
-
-The default is **nullable** — an aggregate over zero rows returns NULL, and over non-empty input the result is whatever the transition and final functions produced, neither of which is analysable.
-
-**A non-null `INITCOND` proves nothing.** `agginitval` is the state before any transition, so it fixes the EMPTY-input result only; either the transition or the final function can return NULL from non-null state (measured — `agg_nullify`, `agg_finalnull`), and the overall claim would need both cases. The engine once concluded non-null from the INITCOND alone, which was the adversarial sweep's finding 6; the honest cost of the fix is that `count_it` — INITCOND `'0'` with a value-preserving transition — reads nullable.
-
-**Grouping columns are a separate question.** ROLLUP / CUBE / GROUPING SETS also NULL out the *grouping* columns of every super-aggregate row, independently of the aggregates: `GROUP BY ROLLUP(id)` emits a grand-total row whose `id` is NULL even though the column is NOT NULL in the catalog. `Scope.groupingSetColumns` records the columns nested inside a grouping-set construct — in all three spellings PostgreSQL accepts for a term: a ColumnRef directly, an output-column ordinal (`ROLLUP(1)`), and an output-column alias (`ROLLUP(k)`), the latter two resolved against the target list so the selected entry's underlying refs are what gets recorded. A ColumnRef matching one is nullable — overriding both the catalog flag and any WHERE guarantee, since the row exists and the column is merely blanked — and the USING/NATURAL merged-column route applies the same override before answering from its constituents. Plain terms alongside a construct (`GROUP BY a, ROLLUP(b)`) appear in every generated grouping set and are unaffected.
-
-**A group that cannot be empty.** When all of the following hold, the aggregate is non-null:
-
-- the enclosing SELECT has a plain `GROUP BY` (`Scope.groupGuaranteesNonEmpty`). ROLLUP / CUBE / GROUPING SETS do *not* qualify: they emit super-aggregate rows over the empty grouping set, so an empty input still produces one row of NULLs;
-- there is no `FILTER (WHERE ...)` — the filter can exclude every row of the group, and `sum(x) FILTER (WHERE false)` is NULL;
-- the aggregate maps "at least one non-null input" to a non-null result (`NON_NULL_OVER_NONEMPTY_AGGREGATES`: `sum`, `avg`, `min`, `max`, `bit_and`, `bit_or`, `bool_and`, `bool_or`, `every`, `array_agg`, `string_agg`, `json_agg`, `jsonb_agg`). `stddev`, `var_samp`, `corr` and the `regr_*` family are excluded — they are undefined (NULL) for a single-row group, so a non-empty group is not enough;
-- every argument is non-null, so the aggregate sees no NULLs to skip.
-
-**Aggregate definition variants** (moving-aggregate mode, ordered-set, partial aggregation, polymorphic) — see https://www.postgresql.org/docs/current/xaggr.html. None of these variants change the nullability question; they're about how state is computed, not whether the result can be NULL — and how state is computed is exactly what the engine cannot analyse, which is why a user aggregate's only escapes are the measured `NON_NULL_OVER_NONEMPTY_AGGREGATES` list and `count` (special-cased, never NULL).
-
-### Priority 4: Strict scalar function — the nullable direction only
-
-If `isAggregate` is false and `strict` is true (from `FunctionInfo.strict` in the catalog) and **any input parameter is not provably non-null** → **nullable**, concluded before the body walk, whose analysis a strict function with a NULL argument never even runs. That is the whole of what strictness licenses: NULL in ⇒ NULL out. It says nothing about non-null input — `lookup_name(t.id)` over a missing row returns NULL from a non-null argument (measured, the sweep's finding 5) — so with all arguments non-null the dispatch falls THROUGH: to priority 5's body walk for `LANGUAGE sql` (whose zero-row gate is what makes `lookup_name` honest), and to conservative nullable otherwise. The notNull direction needs TOTALITY, which no catalog flag carries — the same distinction `TOTAL_OPERATORS` and `STRICT_TOTAL_BUILTINS` draw. The consensus twin over overloaded names follows the same rule.
-
-### Priority 5: `LANGUAGE sql` user function
-
-If the function is a user-defined `LANGUAGE sql` function → **recurse into the function body**. Parse the body (available in `FunctionInfo.body` / `FunctionInfo.definition`), find the last statement's output expression, and run the nullability walk on it. This gives precise results for `LANGUAGE sql` functions — their bodies are plain SQL we can analyze.
-
-**Body format handling:** `FunctionInfo.body` (`prosrc`) can be in two formats:
-- **Old-style** (pre-PG 14 default): raw SQL, e.g. `SELECT $1 * 2`. Parse directly with `parseSql`.
-- **SQL-standard** (PG 14+ `BEGIN ATOMIC`): `BEGIN ATOMIC\n  SELECT $1 * 2;\nEND`. Parse directly first; if parsing fails, strip the `BEGIN ATOMIC ... END` wrapper and parse the inner statements.
-
-In both cases, the last statement's output expression is the function's return value. Find it, walk it with the same procedure. Arguments to the function are treated as ColumnRef-like leaves whose nullability comes from the call site's resolved arg nullability (mapped by parameter name/position).
-
-**Implementation note:** this means the walk may parse and analyze function bodies, not just the query AST. Transitive recursion (a `LANGUAGE sql` function calling another `LANGUAGE sql` function) is supported with cycle detection: maintain a set of function names currently being analyzed; if a name re-enters, treat it as conservative nullable.
-
-### Priority 6: Non-strict scalar / `LANGUAGE plpgsql` / unknown
-
-Conservative **nullable**. We can't determine strictness from the AST alone for non-strict functions, and `LANGUAGE plpgsql` bodies are not statically analyzable for nullability. The NOT NULL domain return path (priority 1) is the escape hatch for these cases — a user who wants a non-null guarantee from a plpgsql function declares the return type as a NOT NULL domain.
-
-### Priority 6b: `pg_catalog` built-in
-
-The catalog snapshot covers user schemas only, so built-ins arrive with no `FunctionInfo`. Falling through to "unknown → nullable" is safe but badly imprecise for everyday expressions, so three curated tables are consulted — **whenever the user catalog has no candidate the walk may reason from**. That INCLUDES a name `pg_catalog` also carries: PostgreSQL searches `pg_catalog` implicitly and FIRST unless the search path names it, so for an identical signature the built-in HIDES the user function rather than the other way round (adversarial-3 finding 6, measured both directions — `min_scale('NaN'::numeric)` returns NULL from `pg_catalog`'s under the default path, and `'user'` from the user's under `search_path = public, pg_catalog`). The candidate set drops WHOLESALE for such a name, not just the matching signature: the snapshot carries no `pg_catalog` signatures to merge in, so no consensus over the user's half would be sound — a user `lower(integer)` once made `lower(NULL::text)` read notNull. A QUALIFIED call (`public.min_scale(…)`) names the user's function and keeps its precision.
-
-| Table | Rule | Examples |
-|---|---|---|
-| `ALWAYS_NOT_NULL_BUILTINS` | non-null regardless of arguments | `now()`, `random()`, `gen_random_uuid()`, `concat`, `jsonb_build_object` |
-| `FIRST_ARG_BUILTINS` | non-null iff the *first* argument is | `concat_ws`, `format` |
-| `STRICT_TOTAL_BUILTINS` | non-null iff *every* argument is | `upper`, `length`, `round`, `substr`, `split_part`, `date_part` |
-
-Membership requires being **total**, not merely strict — the same distinction that governs `TOTAL_OPERATORS`. Excluded on that basis: `array_length` / `array_ndims` (NULL for an empty array or bad dimension) and `jsonb_extract_path(_text)` (NULL for a missing path), all of which are strict yet return NULL for non-null arguments. The adversarial sweep's finding 7 removed six members that had failed the same criterion (each measured): `array_position` (NULL when the element is absent), `substring` (the FROM-regex form is NULL on no match, and the total positional form is indistinguishable at name level — positional-only `substr` stays), `scale` and `min_scale` (NULL of NaN), `to_number` (`('','')` is NULL), and `to_char` (NULL for a datetime with an empty format; the numeric/int forms are total, but name-level dispatch cannot tell them apart).
-
-`concat` is the mirror image: it is *not* strict and ignores NULL arguments entirely, so all-NULL input yields `''` rather than NULL.
-
-### Priority 7: Unknown function
-
-Conservative **nullable**, with one hardcoded exception: `count` (handled in priority 2) since it's so common and never nullable.
-
-### Window functions
-
-A `FuncCall` with an `OVER` clause is dispatched before the aggregate rule, because the ranking functions share names with entries in `AGGREGATE_NAMES`.
-
-- **Ranking functions** (`NEVER_NULL_WINDOW_FNS`: `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`) → **non-null**. Every row in the partition is assigned a position; even a NULL ordering key still gets a rank.
-- **`ntile(n)`** → non-null iff its bucket-count argument is non-null (`ntile(NULL)` is NULL).
-- **Aggregates over the DEFAULT frame** → non-null when the aggregate is on the `NON_NULL_OVER_NONEMPTY_AGGREGATES` list (or is `first_value`/`last_value`, which pick a row of the frame), every argument is non-null, and there is no `FILTER` or `DISTINCT`. The default frame — `frameOptions` equal to the parser's `FRAMEOPTION_DEFAULTS` (1058), no named window reference — is `RANGE UNBOUNDED PRECEDING TO CURRENT ROW`, which always contains the current row (measured), so it is the window analogue of the non-empty-group gate. An explicit frame, even one spelling the same bounds, sets the NONDEFAULT bit and stays conservative.
-- **Everything else over a window** → **nullable**. An explicit frame can be empty (`ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING` on the first row makes `sum() OVER` return NULL), `FILTER` can exclude every frame row, and the offset functions (`lag`, `lead`, `nth_value`) can address a row outside the partition.
-- **`WITHIN GROUP` (checked after the window branch — ordered-set calls carry `agg_within_group`, not `over`):** the hypothetical-set family (`rank`, `dense_rank`, `percent_rank`, `cume_dist` — `HYPOTHETICAL_SET_AGGREGATES`) is **total**: it returns the hypothetical row's position even over zero input rows and for NULL arguments (measured), so non-null unconditionally. The ordered-set proper (`percentile_disc`, `percentile_cont`, `mode`) returns NULL over an empty group, an all-NULL sort column, or a NULL direct argument, so it follows the plain-aggregate gates with the `WITHIN GROUP` sort expressions walked as arguments (`ordered-set-aggregates.sql`).
-
-### Summary table
-
-| Function kind | Nullability | Source | Precision |
-|---|---|---|---|
-| Returns NOT NULL domain | non-null | `DomainInfo.notNull` | precise |
-| `count(*)` / `count(col)` | non-null | rule | precise |
-| Built-in aggregate (max/sum/avg/…) | non-null over a guaranteed non-empty group with non-null args; else nullable | `Scope.groupGuaranteesNonEmpty` + rule | precise |
-| User aggregate (INITCOND included) | nullable | the transition/final functions are not analysable | correct |
-| Ranking window function | non-null | `NEVER_NULL_WINDOW_FNS` | precise |
-| Aggregate / offset function over a window | nullable | frame may be empty | correct |
-| Strict scalar, any arg nullable | nullable | `FunctionInfo.strict` | precise |
-| Strict scalar, args non-null | falls through — body walk or nullable | strictness is not totality | correct |
-| `LANGUAGE sql` user function | recurse into body (zero-row gate) | parse `FunctionInfo.body` | precise |
-| Non-strict scalar / `LANGUAGE plpgsql` | nullable | conservative | imprecise |
-| Unknown function | nullable | conservative | imprecise |
-| Any function returning NOT NULL domain | non-null | PG enforces at call boundary | precise |
-
----
-
-## 5. Scope and DAG semantics
-
-### Innermost-first resolution
-
-Scopes are resolved innermost-first. Before we can resolve a ColumnRef that points at a CTE or subquery relation, we run the full walk on that inner scope and memoize the per-output-column results. This guarantees that when an outer ColumnRef needs the Nth output of an inner scope, the result is already computed.
-
-### Memoization
-
-Each scope's per-output-column nullability results are cached. A CTE referenced N times in the outer FROM is analyzed once; all N ColumnRefs read from the same cache. The cache is keyed by the scope's identity (the AST node pointer is sufficient — a specific subquery AST node produces one set of results).
-
-### Correlated subqueries
-
-A subquery in a WHERE clause or expression may reference columns from the enclosing scope (correlated reference). The inner scope's address book has an `outer` pointer to the enclosing scope. When a ColumnRef can't be resolved locally, the walk falls back to the outer scope — same mechanism as `resolver.ts`'s `withSubqueryScope`. The outer scope's results are already memoized because we resolve innermost-first (the outer scope is "more inner" than the correlated subquery in the resolution order — we resolve the outer SELECT's output columns before resolving the correlated subquery's expressions).
-
-Wait — that's backwards. The correlated subquery is *inside* the outer SELECT's expression tree. When we walk the outer SELECT's output column, we recurse into the expression, hit the subquery, and recurse into it. At that point the outer scope's address book is available (we're inside its walk). The inner ColumnRef resolves against the outer address book. We don't need the outer's *results* — we need the outer's *facts* (catalog notNull, join nullability, WHERE guarantees). These are available during the walk because we're inside the outer scope's traversal. So correlated references work naturally: the inner leaf resolves against the outer scope's address book + facts, not against the outer scope's *output results*.
-
-### Set operations (UNION / INTERSECT / EXCEPT)
-
-The combination rule depends on the operator (`combineSetOpColumn`):
-
-- **UNION** emits rows from both branches → a column is non-null only if **both** sides are.
-- **EXCEPT** draws every row from the LEFT branch; the right branch only removes rows → the **left** branch alone decides.
-- **INTERSECT** returns values present in both, so **either** side can prove non-nullness — a value drawn from a NOT NULL column cannot be NULL whatever the other side allows.
-
-
-`SELECT a FROM t1 UNION SELECT b FROM t2` — the output column's nullability is the **AND** of all operands' corresponding output columns. If either side is nullable, the result is nullable. INTERSECT and EXCEPT follow the same rule. The walk treats a set-operation SELECT as having N operand scopes, each contributing one output tree per column position; the result is the AND of all operands.
-
-### VALUES as a scope
-
-`FROM (VALUES (1, NULL), (2, 3)) v(a, b)` — column `a` has values `1` and `2` (both non-null literals), so `a` is non-null. Column `b` has values `NULL` and `3` — the NULL makes `b` nullable. Each VALUES row is an expression list; each column's nullability is the AND across all rows (nullable if any row's expression for that column is nullable).
-
-### `SELECT *` expansion
-
-`SELECT *` expands to one output column per visible column of every visible relation, in FROM-clause order. Each expanded column is effectively a ColumnRef to that relation's column. The catalog column list (from `ResolvedTable.columns` — already available via the resolver's scope machinery) drives the expansion. `SELECT t.*` expands to just relation `t`'s columns.
-
-### INSERT / UPDATE / DELETE RETURNING
-
-These statements have a RETURNING list that produces output columns. The target table is always required (it's the row being modified, not a join). RETURNING columns are ColumnRefs to the target table; their nullability is `catalog.notNull(col)`, upgraded by the **written-value map** (Wave 3): a column whose written value is provably non-null on every path that can produce a returned row is notNull regardless of the catalog. INSERT VALUES cells reduce by intersection over rows; INSERT…SELECT reads the source's own analysis positionally (plain shape only); UPDATE SET expressions are exactly the returned values (RETURNING reports the NEW row — the complement of the SET-column predicate mask); ON CONFLICT DO UPDATE intersects the insert and update paths, where a non-SET column on the update path is the EXISTING row and contributes nothing (`returning-conflict-existing.sql` is the witnessed negative). MERGE, multi-assignment SET, and DEFAULT-taking columns keep the catalog. The walk handles RETURNING lists the same way as SELECT target lists, with the FROM scope being just the target table.
-
-`UPDATE ... FROM` and `DELETE ... USING` add further relations to that scope. They join to the target with **inner-join** semantics — a target row with no match is simply not modified — so those relations are REQUIRED, not OPTIONAL. Outer joins written *inside* the FROM/USING list are still honoured normally.
-
-**The rewrite stage sits between the statement and the reported row**, and the snapshot captures its hooks per relation and command (`WriteRewriteInfo`: BEFORE ROW triggers, INSTEAD OF triggers, DO INSTEAD rules — diff-included, since creating one changes inference). The hooks consulted are the **relation SET's**, not the named relation's: the trigger that rewrites a row is the trigger of the relation the row LIVES in — tuple routing fires the PARTITION's BEFORE ROW trigger for an INSERT through the parent, and an UPDATE through an inheritance parent fires the CHILD's trigger for child rows (both measured) — so a plain reference takes `writeRewritesTree`, the `beforeRow` union over the inheritance subtree, while `ONLY` pins the write to the named relation and its own hooks. Rules stay per named relation (they attach to the named RTE and do not fire through a parent — measured), as do INSTEAD OF triggers (views have no descendants). All measured:
-
-- A **BEFORE ROW trigger** (INSERT/UPDATE, and MERGE's insert/update arms) may replace NEW wholesale after the statement's values were chosen, so the written-value map is void and — for UPDATE — the SET mask widens to every target column, since the OLD-row evidence transfer ("non-SET columns keep their WHERE-tested values") holds for no column. Catalog flags survive: the stored row still passes its constraints.
-- An **INSTEAD OF trigger** (view targets, INSERT/UPDATE) reports whatever NEW it builds, with the view's definition expressions never evaluated — even a literal view column comes back NULL — so the view-definition analysis is void too and every column drops to the view's catalog flags, all `attnotnull = false`.
-- A **DO INSTEAD rule** replaces the statement outright; RETURNING reports the rule's query against a table the engine never saw, so the statement is REFUSED (`UnsupportedNodeError`) when it has a RETURNING clause. DO ALSO leaves the original statement and its RETURNING in place.
-- **DELETE is immune on the trigger side**: a modified OLD is ignored for both trigger forms and the reported row is the row as read, view-definition values included. Only the rule refusal applies.
-
-The same hooks gate the parameter contract's mechanism B: a trigger may replace the NULL and a rule may redirect the write, so an execution-time NOT NULL rejection is no longer implied by the statement text on such targets. Mechanism A is untouched — the parameter's type comes from parse analysis of the statement as written, and Bind rejects before any rewrite runs.
-
-### Presence groups (the null-group export — Wave 13)
-
-The walk has always modelled null-extension per UNIT (`RelationEntry.nullGroup`:
-an outer join extends its optional side as one piece, so proving one member's
-row present proves every member's). `QueryContract.outputPresenceGroups`
-exports that internal fact as contract vocabulary — the output-side analogue of
-`paramRejectionSets`: per surviving optional unit, the set of output columns
-that are NULL together exactly when the unit's row is absent, with the
-**discriminants** (non-null on the present arm, so NULL ⟺ absent) marked. A
-type emitter renders each group as one local union (present arm / all-NULL arm)
-intersected with the flat row type — measured to narrow correctly in
-TypeScript, including the factored form (`docs/consumer-design.md` records the
-measurements).
-
-Membership is **bare references to an optional entry**, grouped by
-`nullGroup`. Bareness matters at the group's own scope — a transforming
-expression there (`COALESCE(s.x, …)`) could manufacture non-NULL from an
-extended row and never joins. Expressions computed INSIDE the optional side
-need no such care: extension nulls the subquery's whole output row, computed
-columns included, which is why a `count(*)` from an optional aggregate
-subquery can be a discriminant. Discriminants re-run the column computation
-under `presumePresent` (the entry's own gate lifted, nothing else), which
-hands them the full given-present machinery — catalog constraints, generated
-expressions, CHECK entailment, the inner analysis through CTEs and views.
-
-The refilter interplay resolves without special cases: the presence fixpoint
-writes promotions back to `entry.joinState`, so a refiltered unit is not
-OPTIONAL by assembly time; the lazy promotions surface as a bare member
-reading notNull, and one such member marks the whole unit dead (extension is
-atomic — one refiltered member means no absent arm survives anywhere).
-Groups below the floor (≥ 2 members, ≥ 1 discriminant) say nothing the flat
-contract does not and are not emitted. USING-merged columns are drawn from
-whichever side is present and never join a group.
-
-Groups are computed for EVERY analysis (producer recording in the four
-assembly loops — SELECT and DML RETURNING, traced and untraced, the traced
-twin recording line for line under the parity suite) and stored per
-statement alongside the memoized results. Three composition rules carry
-them outward:
-
-- **Re-export lifting.** A subquery/CTE/view reference translates the
-  inner analysis's groups through its bare projection (inner output index
-  → the outer indices re-exporting it), floors re-applied. A translated
-  member the outer analysis proves notNull drops the lifted group — any
-  such proof refilters exactly the inner-absent rows. Under an OPTIONAL
-  entry the lift composes with the entry's own unit group: a lifted
-  discriminant reads "NULL ⟺ the chain broke somewhere", and the two
-  factored unions intersect to the realizable row states
-  (`presence-group-nested-optional.sql`). Two references to one memoized
-  analysis lift separately. The presumption reaches the fresh walks a
-  discriminant computation spawns (a generation expression's same-entry
-  refs — `generated-left-join-gate.sql`'s `1*,2*`) via a presumed-entries
-  set that statement analyses never read, which is what keeps memos
-  presumption-free.
-- **Set operations.** INTERSECT and EXCEPT rows are left-branch rows and
-  keep the left groups; UNION keeps a group both branches claim over the
-  same member set, discriminants intersected. Then the setop-level dead
-  rule: INTERSECT strengthens flat claims from its right branch
-  (`left || right`), and a group member the combined analysis proves
-  notNull means the absent arm cannot survive the operation — the group
-  is dropped rather than emitted with an uninhabitable arm
-  (`presence-group-intersect-refilter.sql`; found as 67 unwitnessable
-  arms by the generated corpus's two-arm bar). Recursive CTE analyses
-  stay group-less (the fixpoint assumption carries no groups).
-- **Presence consumption.** The kernel's presence gate short-circuits a
-  catalog-NOT NULL goal: evidence pinning any same-rowPath sibling proves
-  the base row present on every emitted row, and a present row's stored
-  value of a NOT NULL column cannot be NULL — so a re-exported column
-  upgrades with no CHECK involved, including from tables with no CHECKs
-  at all (`presence-group-reexport-refilter.sql`'s carrier). Certifiers
-  reach ACROSS tables too: origins carry their unit-crossing chains
-  (`ColumnOrigin.units`, from `RelationEntry.unitChain`), extension is
-  atomic per unit, and a child unit's presence implies every enclosing
-  one's — so a pinned u.val proves a sibling t.id present when they share
-  a unit or u's nests inside t's, the certifier riding the rename map
-  under a NUL sentinel only the presence gate can see
-  (`presence-cross-unit-same.sql`, `presence-cross-unit-nested.sql`). A
-  required origin alternative with a catalog-NOT NULL goal succeeds
-  outright — a set operation's flat notNull collapses over branches, and
-  the inner branch's certainty is recovered per-alternative. UNION
-  matching intersects member sets pairwise (subset restriction is sound
-  per branch), and recursive CTEs iterate a group assumption to fixpoint
-  beside the flat one — no group-specific conservatism remains recorded.
-
-The generated corpus runs the same per-row oracle over every query it
-produces, with a two-arm witness bar and a GROUP_UNWITNESSABLE rule
-mechanism mirroring its nullable-claim discipline — 1490 groups over the
-widened ~9k-query corpus, all arms observed, zero falsified, the group
-rule list empty and the flat-claim rules carrying NOTHING from the
-widening: both of its reasoned entries closed (slot-per-branch setop
-origins with per-branch settledness; `storedRowNotNull` generation
-dispatch at origin sites) and were deleted with their closures
-(`tests/unit/query/generated/generated-soundness.test.ts`; the axes are
-`docs/query-generator.md`'s "presence-group widening").
-
-Verification mirrors Wave 10's: `-- @null-group N[*],M[*]` annotations with
-compulsory bidirectional coverage in the agreement suite, per-row
-falsification in the soundness suite (discriminants must agree; on the absent
-arm every member must be NULL), and a two-arm witness requirement — the
-absent arm's exemption is DERIVED from the discriminants' own
-`@unwitnessable` annotations rather than separately declared, so the
-per-column staleness check re-arms the group assertion the moment data
-witnesses a NULL (`docs/witness-coverage.md`).
-
----
-
-## 5b. Refusing rather than guessing
-
-Results are a **positional array** zipped against PostgreSQL's RowDescription,
-which makes the output column *list* load-bearing: getting it wrong misassigns
+named reference, every fact below applies to a star too. This was once not
+true, and the symptom was that a star over a view lost every non-null the view
+body could prove.
+
+## Null-extension happens to groups, not columns
+
+An outer join null-extends its optional side AS A UNIT. In a join of two
+relations that is then made optional by an outer join, either both are present
+or the whole composite row is absent; they can never be half-extended.
+
+This is why the walk tracks a **null group** — the set of relations extended
+together — alongside each relation's join state. Relations joined inner
+inherit the enclosing group; each side an outer join makes optional starts a
+fresh one.
+
+It pays off in promotion: a predicate proving ONE member's row exists proves
+it for every member of that member's group.
+
+## Which rows actually reach the output
+
+A join condition is not merely a filter; on many shapes it is a fact about
+every row that survives. Turning that into evidence is a fixpoint over two
+reinforcing facts: a relation is PRESENT when it is never null-extended in any
+emitted row, and a join's condition is IMPLIED when it held for every emitted
+row.
+
+An inner join's condition is implied once its slice genuinely appears in every
+row. An outer join's condition held exactly for its matched rows, so it
+becomes implied once its null-extendable side is proven present. A condition
+that strictly references a relation's column proves that relation present,
+which can imply further joins — so the two facts chase each other outward
+until nothing new is learned.
+
+This is what closes the case of a strict condition applied over a
+null-extended side: no extended row can pass a strict condition, so the side
+was never really optional, and the fixpoint now knows it.
+
+**A narrower version of the same fact needed its own treatment.** Global
+presence is the right gate for making a condition scope-wide evidence, but it
+is too strong for what a condition also carries: it held on every row where
+its arm PARTICIPATES. An arm is non-preserved when a row of it failing the
+condition has no path to the output — the join drops it, and its only other
+route, being emitted by extending the opposite side, is itself dead.
+
+When that happens, the optional unit involved can never reach the output, and
+it DISSOLVES into its enclosing unit. Dissolution is one operation that keeps
+every reader coherent at once: co-membership promotion, the exported presence
+groups, origin tracking and the join audit all read the same units. Because
+dissolutions persist across iterations, they chain outward — each join's death
+arming the next, in the same order PostgreSQL's own planner reduces outer
+joins. This was found by comparing the walk against the planner over a
+generated corpus, where it was the single systematic divergence.
+
+## Resolving a leaf
+
+A column reference combines several facts, in order of strength.
+
+**Is it guaranteed by a predicate?** The evidence is the scope's filter, its
+group filter, and every join condition the fixpoint proved implied. Within a
+predicate the walk reads null tests, strict comparisons, membership tests and
+range tests under conjunction — and under disjunction only by INTERSECTION,
+since any arm could have been the true one. The column need not be a direct
+operand: the guarantee attributes through strict operators and functions,
+casts, and other constructs that cannot produce non-null output from null
+input.
+
+A predicate's own references resolve exactly as the output list's do, and
+testify only for the entry that owns them. A merged column is owned by
+neither constituent, so a null test on it proves nothing about either side's
+copy — reading it as a guarantee was a measured unsoundness.
+
+If the column's relation is optional and such a predicate exists, the relation
+is PROMOTED to required. This happens during leaf resolution, where the
+context is available, not as a pre-pass.
+
+**Does the schema say non-null?** The flag is read for the relation SET the
+reference scans, not the named relation alone. Scanning an inheritance parent
+scans the whole tree, and marking only the parent non-null is legal — parent
+true, child false, the child's NULL returned through the parent — so a tree
+scan must read the conjunction over the subtree. Scanning only the named
+relation, and writing to it, read its own flag instead. Constraints need no
+such care: a parent's constraint is copied into every child and cannot be
+dropped or invalidated there.
+
+**Is it a generated column?** Its generation expression is walked in the
+reading scope, which is sound because the stored row IS the row being read —
+and which lets predicates, branch guards and written values compose into it.
+But only where the relation is not null-extendable, because extension nulls a
+generated column however non-null its expression is per row.
+
+**Does a constraint entail it?** A plain nullable column gets one last chance
+from the relation's validated check constraints, described below.
+
+**Is the relation a query rather than a table?** Then recurse: run this whole
+procedure on the inner scope, memoize its per-column results, and read the
+one this reference names. This is how nullability crosses a scope boundary.
+
+**Views need their own treatment**, distinct from both tables and subqueries.
+PostgreSQL does not propagate non-null flags to view columns — every column of
+a view reads as nullable in the catalog, whatever sits behind it. Reading the
+flag would therefore make every view column nullable. Instead the view's
+stored definition is analysed like a subquery and its results mapped
+positionally onto the view's columns.
+
+## Combining upward
+
+An internal node is non-null when its result cannot be NULL given non-null
+children. That single criterion, applied per construct against what PostgreSQL
+actually does with NULLs there, generates every rule — there is no separate
+theory to learn.
+
+Two consequences are worth stating because they are counter-intuitive.
+
+**Strictness is not the criterion for an operator; totality is.** A strict
+operator returns NULL for NULL input, which says nothing about its behaviour
+on non-null input. Subscripting a JSON document with a missing key is strict
+and returns NULL for two perfectly non-null operands. What the walk needs is
+that the operator is never NULL for non-null operands, which is a different
+and stronger property.
+
+**A conditional expression is non-null only with a fallback arm and non-null
+results everywhere.** Without a fallback, an unmatched conditional is NULL.
+Each arm's result is walked under the conditions required to REACH it, so an
+arm can use facts that hold only on its own path.
+
+## Facts the schema does not state directly
+
+**Check constraints.** A validated check constraint held for every stored row,
+so a filter that selects rows the constraint discriminates can entail a column
+non-null. The derivation is purely syntactic — the kernel works in three
+valued logic over the constraint's structure and the statement's own
+predicates, and never evaluates an expression to reach a conclusion. This is
+the difference between reading a constraint and reimplementing PostgreSQL's
+expression semantics, and only the first is in scope.
+
+**Foreign keys.** A join whose condition is an equality on a non-null foreign
+key ALWAYS matches, so the referenced side never null-extends. The same
+reading covers a full outer join's referenced side, where the key forbids the
+extension that would otherwise apply, and a correlated scalar subquery, where
+the question is not "exactly one row" but "at least one".
+
+This entailment reads a validated, enforced, non-deferrable key as a
+guarantee. That trust is deliberate and its boundaries are recorded as an open
+item, because several operational states falsify it with no trace in the
+catalog.
+
+**Set-returning functions in FROM carry a NEGATIVE rule**, and it is the
+opposite of what the declaration suggests. A function returning a set of some
+table's rows carries that table's ROW TYPE, which describes column types and
+nothing else — non-null constraints do not travel with it, and PostgreSQL
+re-imposes nothing. Such a function can return a row of all nulls without
+error. So the declaration is read for SHAPE and never for nullability; where
+nullability is recoverable it comes from analysing the body.
+
+## Refusing rather than guessing
+
+Results are a positional array zipped against PostgreSQL's own column list,
+which makes the output column LIST load-bearing. Getting it wrong misassigns
 every flag past the divergence, and does so while looking authoritative. Arity
-is a weak guard on its own — a construct can preserve the count and change the
-order. `USING` is the standing example: PostgreSQL emits the merged column
-**first**, so an implementation that instead dropped the right-hand duplicate
-would produce `x, id, y` against PostgreSQL's `id, x, y` — same arity, wrong
-order, silently wrong flags.
+alone is a weak guard, because a construct can preserve the count and change
+the order — merged join columns are the standing example, since PostgreSQL
+emits the merged column FIRST.
 
 So the walk refuses where silence would corrupt the column list, and degrades
-where it would merely blunt a value. The distinction is the **dispatch site**:
-
-| Site | Unknown node costs | Behaviour |
-|---|---|---|
-| expression | nothing structural — one target-list entry is one output column whatever the expression is | report nullable |
-| FROM item | contributes columns; an unknown one silently removes them | throw `UnsupportedNodeError` |
-| statement | an unknown one yields no columns at all | throw `UnsupportedNodeError` |
-
-This means DDL, `SET`, `EXPLAIN` and `SHOW` all raise at the top level. DDL has
-no output columns and no parameters, so there is nothing to be nullable and
-asking is a caller mistake; `EXPLAIN` and `SHOW` *do* return columns we cannot
-model, which is precisely why returning an empty list would be a bug rather
-than an answer.
-
-A **function body is an expression site in disguise** — it decides one value's
-nullability, not a column list. So a SQL function whose body is DDL reports
-nullable rather than raising: `SELECT f()` is a perfectly good query whatever
-`f`'s body does, and only its return value is unknowable.
-
-The caller always has a correct escape, because it runs PREPARE for types
-anyway: catch the error and treat every column as nullable. That is always
-sound, just imprecise.
-
----
-
-## 6. What this is NOT
-
-- **Not type inference.** PREPARE gives us types (PG's own analysis). We only infer nullability.
-- **Not theorem proving.** The predicate analysis is syntactic pattern matching plus a strict-expression closure, not logical implication. AND recursion, OR by per-arm intersection, the listed comparison shapes, and strict-dependence attribution (`length(col) > 0` proves `col`) — anything else is conservatively skipped. Branch guards run the same analyzer over CASE conditions, so they share exactly these limits.
-- **Not set-theoretic.** We don't model `A | B` row-shape unions from disjunctive WHERE clauses; an OR contributes only what every arm proves.
-
----
-
-## 7. Pinned policy decisions
-
-These have been decided:
-
-1. **Scalar subquery (`EXPR_SUBLINK`):** nullable unless single-row-guaranteed AND the inner output column is non-null. `guaranteesSingleRow` is the sole authority on the row count and must reject every construct that can drop it to zero: `HAVING`, `LIMIT`, `OFFSET`, set operations (`UNION`/`INTERSECT`/`EXCEPT`), and a `WHERE` on a FROM-less SELECT. The two qualifying shapes are an ungrouped aggregate and a bare `SELECT <expr>` with neither FROM nor WHERE.
-
-   A set-operation node carries no `fromClause` of its own, so it must be rejected *before* the FROM-less check or it will be mistaken for an always-one-row SELECT.
-
-2. **`LANGUAGE sql` function bodies:** recurse into the body. We have the body text in the catalog (`FunctionInfo.body`); we parse it and walk the last statement's output. This is in scope for this implementation.
-
-3. **User aggregates:** `pg_aggregate.agginitval` is snapshotted as `FunctionInfo.aggInitVal`, and it licenses NOTHING: it fixes the empty-input result only, while a non-empty group's result belongs to the unanalysable transition/final functions (the sweep's finding 6 — the rule that read it as totality was removed).
-
-4. **`CASE` expressions:** non-null iff there is an `ELSE` and every branch result is non-null. Branch results are path-sensitive — each is walked under the conditions required to reach it (see "Branch guards").
-
-5. **Disjunctive WHERE (`OR`):** guarantees by intersection — an OR proves a target non-null only when EVERY disjunct does (whichever arm was TRUE, it could not have been TRUE with the target NULL). An arm that proves nothing (`$1 IS NULL`) blocks the whole disjunction, which is what keeps the optional-filter idiom legal.
-
-6. **`NOT EXISTS`:** non-null (returns bool). The `BoolExpr(NOT_EXPR)` rule recurses into its arg; if the arg is an EXISTS subquery (non-null), NOT of it is non-null.
-
-7. **Testing strategy:** end-to-end fixtures (`.sql` files with inline expectations), not unit tests of individual rules. See section 9.
-
----
-
-## 8. Implementation map
-
-### Files to create
-
-| File | Purpose |
-|---|---|
-| `src/query/nullability-walk.ts` | The main walk: `inferNullability(stmt, catalog) → OutputNullability[]`. Contains the scope builder (including the join-tree walk that marks each alias REQUIRED/OPTIONAL), the leaf-first recursive walk, the function dispatch, the cross-scope memoization, and the WHERE consultation. Imports the scope machinery from `resolver.ts`. |
-| `tests/unit/query/nullability-walk.test.ts` | The test driver: parses `.sql` fixture files, runs the walk, asserts per-column expectations. |
-| `tests/unit/query/fixtures/*.sql` | Fixture files with inline `-- notNull` / `-- nullable` annotations per output column. See section 9. |
-
-### Files to reuse (already exist, tested)
-
-| File | What to reuse |
-|---|---|
-| `src/query/resolver.ts` | The scope machinery: `withSubqueryScope`, alias/CTE resolution, `DepCatalog` interface, the `ExtractContext` class's alias/table tracking. The walk needs the same scope resolution to map ColumnRefs to relations. Consider extracting the scope-building part of `ExtractContext` into a shared helper, or build a parallel `NullabilityScope` class that reuses the same patterns. The existing 80 tests validate the scope resolution. |
-| `src/query/types.ts` | `DepCatalog`, `ResolvedTable`, `ResolvedFunction`, `AliasNullability` interfaces — used by `resolver.ts` and available for the walk to reuse or extend. |
-| `src/ast.ts` | `parseSql(sql)` — the libpg-query wrapper. Used by the walk for parsing `LANGUAGE sql` function bodies, and by the test driver for parsing fixtures. |
-| `src/catalog/types.ts` | `FunctionInfo` (for function dispatch: `strict`, `isAggregate`, `returnTypeOid`, `language`, `body`), `DomainInfo` (for NOT NULL domain returns: `notNull`, `baseTypeOid`), `ColumnInfo` (for catalog column `notNull`), `TableInfo`/`ViewInfo` (for column lists). |
-
-### The catalog interface
-
-The walk needs a richer catalog than `DepCatalog` (which only does name resolution). It needs:
-
-```typescript
-interface NullabilityCatalog {
-  // Name resolution (same as DepCatalog):
-  resolveTable(schema: string | undefined, name: string): ResolvedTable | null;
-  resolveFunction(schema: string | undefined, name: string): ResolvedFunction | null;
-
-  // Column nullability (intrinsic):
-  resolveColumnNotNull(schema: string, table: string, column: string): boolean;
-
-  // Function metadata (for FuncCall dispatch).
-  // Resolves by (schema, name) only — arg types are NOT available to the walk
-  // (they come from PREPARE, which the walk does not run). If the catalog has
-  // exactly one FunctionInfo for this (schema, name), return it. If multiple
-  // overloads exist, return null — the walk treats it as an unknown function
-  // (conservative nullable, with `count` as the hardcoded exception). This is
-  // correct because we cannot determine which overload is being called without
-  // arg types, and guessing is never correct.
-  resolveFunctionMetadata(schema: string | undefined, name: string): FunctionInfo | null;
-
-  // Domain metadata (for NOT NULL domain returns):
-  isNotNullDomain(typeOid: number): boolean;
-}
-```
-
-This is built from a `CatalogSnapshot` (the full introspection result — see `src/catalog/types.ts`). The catalog is a pure data structure; the walk is a pure function over `(AST, catalog)`. No PGlite needed.
-
-### The output type
-
-```typescript
-interface OutputNullability {
-  name: string;
-  notNull: boolean;
-}
-```
-
-The walk returns `OutputNullability[]`, one per output column, in target-list order.
-
----
-
-## 9. Testing strategy
-
-### Why end-to-end fixtures
-
-The walk's correctness depends on cross-scope threading (CTE body → outer ref, subquery output → SubLink leaf) and context-sensitive resolution (WHERE guarantees applied to ColumnRefs inside expressions). These are properties of the *whole traversal*, not of individual rules in isolation. Unit tests of individual rules — "does the join-walk mark LEFT JOIN aliases correctly?" — can't catch composition bugs. End-to-end fixtures test the actual property we care about: given a real query, is each output column's nullability correct?
-
-The approach: **end-to-end fixtures** — real SQL parsed by libpg-query into real ASTs, a mock catalog for table/function metadata, and the walk's per-output-column result compared against inline annotations.
-
-### Fixture format
-
-Each fixture is a `.sql` file in `tests/unit/query/fixtures/`. The SQL query is annotated with `-- notNull` or `-- nullable` after each output column:
-
-```sql
--- fixtures/coalesce.sql
-SELECT
-  COALESCE(a.val, '')    AS c1,  -- notNull
-  COALESCE(a.val, b.val)  AS c2,  -- nullable
-  a.val                   AS c3   -- nullable
-FROM a LEFT JOIN b ON b.id = a.id
-```
-
-For fixtures that need catalog facts (strict functions, NOT NULL domains, user aggregates, LANGUAGE sql function bodies), a companion mock-catalog is declared in a header comment or a sibling `.catalog.json` file:
-
-```sql
--- fixtures/strict-function.sql
--- @catalog: { "functions": { "lower": { "strict": true, "isAggregate": false } } }
-SELECT
-  lower(a.val)    AS c1,  -- nullable (a.val nullable, lower is strict)
-  lower('lit')    AS c2   -- notNull  (literal non-null, lower is strict)
-FROM a LEFT JOIN b ON b.id = a.id
-```
-
-### Test driver
-
-The test driver (`tests/unit/query/nullability-walk.test.ts`):
-1. Globs all `*.sql` fixtures in the fixtures directory.
-2. For each fixture: parses the SQL with `parseSql`, extracts the mock catalog from the header comment (if present), runs `inferNullability(stmt, mockCatalog)`, and asserts each output column matches its annotation.
-
-### Suggested fixture categories
-
-Each category should have multiple fixtures covering the cases listed:
-
-1. **Literals:** `'lit'` → non-null, `NULL` → nullable, `42` → non-null, `true` → non-null, `NULL::text` → nullable.
-2. **ColumnRefs (single table):** `col` with catalog NOT NULL → non-null; `col` without → nullable.
-3. **Joins:** INNER JOIN (both required), LEFT JOIN (right optional), RIGHT JOIN, FULL JOIN, nested joins, self-joins.
-4. **WHERE promotion:** LEFT JOIN + `WHERE t.col IS NOT NULL` → t promoted; comparison in WHERE; AND conjuncts; OR (no promotion); NOT (no promotion).
-5. **WHERE guarantees:** `WHERE col IS NOT NULL` → col guaranteed; `WHERE col = 5` → guaranteed; `WHERE col IN (...)` → guaranteed; `WHERE func(col) = x` → NOT guaranteed (strict fn deferred at WHERE level).
-6. **COALESCE:** with literal → non-null; with two columns → nullable; with three args.
-7. **CASE:** non-null with an `ELSE` and non-null branches; nullable without an `ELSE`. Branch results are walked under their branch guards.
-8. **TypeCast:** cast of nullable → nullable; cast of non-null → non-null.
-9. **CTEs:** CTE with internal LEFT JOIN → outer ref inherits nullability; CTE with non-null output → outer ref non-null; CTE referenced multiple times.
-10. **Subqueries (FROM):** subquery in FROM with internal join structure; output columns inherit.
-11. **Scalar subqueries (EXPR_SUBLINK):** plain FROM → nullable; aggregate → recurse; count(*) → non-null; LIMIT 1 → still nullable.
-12. **EXISTS / NOT EXISTS:** → non-null.
-13. **Functions:** strict scalar (AND of args, over the parameter list a default may have filled); non-strict (nullable); count (non-null); max/sum (nullable); NOT NULL domain return (non-null, unless the call short-circuits or aggregates); LANGUAGE sql body (recurse); window function (ignore OVER).
-14. **Set operations:** UNION (AND of operands); INTERSECT; EXCEPT.
-15. **VALUES:** with NULL and non-null literals.
-16. **`SELECT *` expansion:** multiple relations, column order.
-17. **BoolExpr:** AND → nullable; OR → nullable; NOT EXISTS → non-null; NOT (col = 5) → nullable.
-18. **RowExpr / ArrayExpr:** → non-null.
-19. **MinMaxExpr (GREATEST/LEAST):** → nullable.
-20. **RETURNING:** INSERT/UPDATE/DELETE RETURNING — target table is required (no join nullability), columns use catalog `notNull` directly; expressions in RETURNING (e.g. COALESCE) follow the normal expression rules.
-
----
-
-## 10. AST unwrapping pattern (critical for implementation)
-
-libpg-query wraps every AST node in a discriminator-keyed object: `{ NodeType: { ...fields } }`. To access fields, unwrap first:
-
-```typescript
-const node = expr as Record<string, unknown>;
-if ("CoalesceExpr" in node) {
-  const ce = node["CoalesceExpr"] as CoalesceExpr;
-  // ce.args is the inner array
-}
-```
-
-The `ParseResult` from `parseSql(sql)` has shape `{ stmts: RawStmt[] }`. Each `RawStmt` has `{ stmt: Node, stmt_location: number, stmt_len: number }`. The top-level `stmt` is a Node like `{ SelectStmt: { ... } }`.
-
-Key AST node shapes (confirmed against libpg-query 18.0.1 by dumping real parse trees):
-
-- **A_Const** (literal): `{ A_Const: { sval: { sval: "text" }, location } }` for strings, `{ A_Const: { ival: { ival: 42 }, location } }` for integers, `{ A_Const: { boolval: { boolval: true }, location } }` for booleans, `{ A_Const: { isnull: true, location } }` for NULL.
-- **ColumnRef**: `{ ColumnRef: { fields: [{ String: { sval: "col" } }], location } }` for unqualified, `{ ColumnRef: { fields: [{ String: { sval: "alias" } }, { String: { sval: "col" } }], location } }` for qualified. `SELECT *` has `{ A_Star: {} }` in fields.
-- **NullTest**: `{ NullTest: { arg: <expr>, nulltesttype: "IS_NULL" | "IS_NOT_NULL", location } }`.
-- **A_Expr**: `{ A_Expr: { kind: "AEXPR_OP" | "AEXPR_IN" | "AEXPR_OP_ANY" | "AEXPR_OP_ALL" | ..., name: [{ String: { sval: "=" } }], lexpr: <expr>, rexpr: <expr>, location } }`. `IN`, `= ANY(...)`, `= ALL(...)` are all A_Expr variants.
-- **BoolExpr**: `{ BoolExpr: { boolop: "AND_EXPR" | "OR_EXPR" | "NOT_EXPR", args: [<expr>, ...], location } }`.
-- **TypeCast**: `{ TypeCast: { arg: <expr>, typeName: { names: [...], typemod, location }, location } }`.
-- **CoalesceExpr**: `{ CoalesceExpr: { args: [<expr>, ...], location } }`.
-- **CaseExpr**: `{ CaseExpr: { args: [{ CaseWhen: { expr: <condition>, result: <expr>, location } }, ...], defresult: <expr>, location } }`.
-- **SubLink**: `{ SubLink: { subLinkType: "EXISTS_SUBLINK" | "EXPR_SUBLINK" | "ARRAY_SUBLINK" | "ALL_SUBLINK" | "ANY_SUBLINK", subselect: <SelectStmt>, location } }`.
-- **FuncCall**: `{ FuncCall: { funcname: [{ String: { sval: "name" } }, ...], args: [<expr>, ...], agg_star: boolean, over: <WindowDef>, funcformat, location } }`.
-- **RowExpr**: `{ RowExpr: { args: [<expr>, ...], row_format, location } }`.
-- **A_ArrayExpr**: `{ A_ArrayExpr: { elements: [<expr>, ...], list_start, list_end, location } }`.
-- **MinMaxExpr**: `{ MinMaxExpr: { op: "IS_GREATEST" | "IS_LEAST", args: [<expr>, ...], location } }`.
-- **ScalarArrayOp**: `{ ScalarArrayOp: { lexpr: <expr>, rexpr: <expr>, useOr: boolean, location } }` (older builds; modern builds emit A_Expr variants for IN/ANY/ALL).
-- **NamedArgExpr**: `{ NamedArgExpr: { arg: <expr>, name: string, location } }`.
-- **CollateClause**: `{ CollateClause: { arg: <expr>, collname: [...], location } }`.
-- **SelectStmt**: `{ SelectStmt: { targetList: [{ ResTarget: { val: <expr>, name: string, location } }, ...], fromClause: [<RangeVar | RangeSubselect | JoinExpr | ...>], whereClause: <expr>, withClause: { ctes: [{ CommonTableExpr: { ctename, ctequery, aliascolnames, ... } }, ...] }, groupClause, havingClause, sortClause, distinctClause, windowClause, lockingClause, larg, rarg, op, ... } }`.
-- **RangeVar**: `{ RangeVar: { relname, schemaname, alias: { aliasname }, inh, relpersistence, location } }`.
-- **RangeSubselect**: `{ RangeSubselect: { subquery: <SelectStmt>, alias: { aliasname }, ... } }`.
-- **JoinExpr**: `{ JoinExpr: { jointype: "JOIN_INNER" | "JOIN_LEFT" | "JOIN_RIGHT" | "JOIN_FULL" | ..., larg, rarg, quals, ... } }`.
-
----
-
-## 11. Project context (for the implementing agent)
-
-### Workspace layout
-
-Read `AGENTS.md` in the workspace root (`/Users/witaju/Projects/pgsid-workspace/AGENTS.md`) first — it covers the build/test commands, PGlite setup, and hard-won rules.
-
-The application lives in `pgsid/` (a separate git repo within the workspace). The key directories:
-
-```
-pgsid/
-├── src/
-│   ├── query/
-│   │   ├── types.ts              # DepCatalog, ResolvedTable, ResolvedFunction, AliasNullability
-│   │   └── resolver.ts           # extractDeps + scope machinery (withSubqueryScope, alias/CTE resolution)
-│   ├── catalog/
-│   │   ├── types.ts              # FunctionInfo, DomainInfo, ColumnInfo, TableInfo, CatalogSnapshot, ...
-│   │   ├── snapshot.ts           # snapshotCatalog(pg) — full catalog from PG system catalogs
-│   │   └── diff.ts              # diffCatalogs(before, after) — column-level diff
-│   ├── ast.ts                    # parseSql(sql) — libpg-query wrapper
-│   └── schema-builder.ts         # SchemaBuilder (DDL apply + validation — NOT the nullability walk)
-├── tests/
-│   └── unit/query/
-│       └── resolver.test.ts      # 80 tests for extractDeps
-└── docs/
-    └── nullability-walk.md       # THIS FILE
-```
-
-### Build and test commands
-
-```bash
-cd pgsid
-pnpm typecheck          # tsc --noEmit (ignore engine.ts errors — pre-existing)
-pnpm vitest run tests/unit/query/   # query tests (currently 80: resolver only; walk tests added by this task)
-pnpm test               # full suite (currently 408 tests)
-```
-
-### AST parsing
-
-```typescript
-import { parseSql } from "../../src/ast.js";
-
-const parsed = await parseSql(sql);
-const stmt = parsed.stmts![0]!.stmt!;  // top-level statement node
-```
-
-`parseSql` returns a `ParseResult` from `libpg-query`. It's async (WASM-based parser).
-
-### Test pattern (existing tests)
-
-Look at `tests/unit/query/resolver.test.ts` for the established test pattern: `parseSql` to get real ASTs, helper functions to reduce boilerplate, `vitest` as the runner.
-
-### Catalog types available
-
-See `src/catalog/types.ts` for the full catalog type definitions. The key types for the walk:
-
-- `FunctionInfo` (line 135): `schema`, `name`, `argTypes`, `args`, `returnType`, `returnTypeOid`, `language`, `isAggregate`, `isWindow`, `strict`, `body`, `definition`.
-- `DomainInfo` (line 169): `schema`, `name`, `baseTypeOid`, `baseTypeName`, `notNull`.
-- `ColumnInfo` (line 37): `name`, `typeOid`, `typeName`, `notNull`, `hasDefault`, ...
-- `TableInfo` (line 74): `schema`, `name`, `columns: ColumnInfo[]`, `constraints`.
-- `ViewInfo` (line 87): `schema`, `name`, `columns: ColumnInfo[]`, `definition`.
-- `CatalogSnapshot`: the full snapshot containing all of the above.
-
-### What the walk does NOT do
-
-- **Does not run PREPARE.** PREPARE is a runtime operation on PGlite that gives output column names + type OIDs. The walk only infers nullability. The composition with PREPARE results (names + types from PREPARE, nullability from the walk) happens at a future codegen layer, not in the walk.
-- **Does not extract dependencies.** That's `extractDeps` in `resolver.ts`. The walk and `extractDeps` are separate concerns; they both walk the AST but for different purposes.
-- **Does not need PGlite.** The walk is a pure function over `(AST, catalog)`. The catalog is a pure data structure built from a `CatalogSnapshot`. Tests use mock catalogs.
-
----
-
-## 12. Reference: DESIGN.md sections
-
-The overall architecture is in `pgsid/DESIGN.md`. The relevant sections for nullability:
-
-- **"Query type inference: three separable concerns"** (line ~657): describes `extractDeps` and PREPARE — both accurate and used by the walk. The nullability portion of that section describes a different approach; **this document is the authoritative nullability spec**. Do not modify DESIGN.md during this task.
-- **"Nullability rules (beyond join structure)"** (line ~729): the expression rules table and function nullability table. These rules are **reused** in the walk's dispatch (section 4 of this document). The DESIGN.md section should be updated to point to this document once the walk is implemented, but DO NOT modify DESIGN.md during this task.
-
----
-
-## 13. Implementation tasks (ordered)
-
-1. **Define the `NullabilityCatalog` interface** in `src/query/types.ts` — the richer catalog the walk needs (name resolution + column notNull + function metadata + domain metadata).
-
-2. **Create `src/query/nullability-walk.ts`** with:
-   - The `OutputNullability` type.
-   - The `inferNullability(stmt, catalog)` entry point.
-   - The scope builder (address book: aliases → relations, join nullability per alias, WHERE clause).
-   - The leaf-first recursive walk over expression trees.
-   - The ColumnRef leaf resolver (catalog + join + WHERE + cross-scope).
-   - The WHERE consultation (walk the WHERE subtree for predicates implying this column is non-null — reuse the predicate detection patterns: NullTest IS_NOT_NULL, A_Expr with ColumnRef operand, in AND-conjuncts only).
-   - The FuncCall dispatch (7 priorities from section 4).
-   - The SubLink dispatch (EXISTS/ANY/ALL → non-null; EXPR → single-row test + recurse; ARRAY → non-null).
-   - The cross-scope memoization (CTE/subquery inner scope results cached and reused).
-   - The `SELECT *` expansion.
-   - The set-operation handling (UNION/INTERSECT/EXCEPT → AND of operands).
-   - The VALUES handling.
-   - The `LANGUAGE sql` function body recursion (parse body — handle both old-style raw SQL and `BEGIN ATOMIC ... END`; walk last statement's output, map args by position; transitive recursion with cycle detection).
-   - The RETURNING handling (INSERT/UPDATE/DELETE — target table is the sole required relation, no join nullability; RETURNING list treated as the target list).
-
-3. **Create the fixtures directory** `tests/unit/query/fixtures/` with `.sql` files covering all categories from section 9. Start with the simple categories (literals, ColumnRefs, joins, COALESCE, CASE) and progress to the complex ones (CTEs, subqueries, functions, set operations).
-
-4. **Create the test driver** `tests/unit/query/nullability-walk.test.ts` that globs fixtures, parses them, builds mock catalogs, runs the walk, and asserts per-column expectations.
-
-5. **Run `pnpm typecheck`** (ignore engine.ts errors — pre-existing) and `pnpm vitest run tests/unit/query/` (must pass all existing 80 tests + new fixtures).
-
-6. **Run `pnpm test`** (full suite — must pass all existing 408 tests + new tests; the walk is additive, it doesn't modify existing code).
-
----
-
-## 14. Resolved design decisions
-
-These decisions are final — implement per these rules:
-
-1. **`LANGUAGE sql` function body recursion depth:** transitively recurse with cycle detection. Maintain a set of `(schema, name)` keys currently being analyzed; if a key re-enters, treat it as conservative nullable. This prevents infinite recursion when functions are mutually recursive.
-
-2. **Function overload resolution:** name-level only — `resolveFunctionMetadata(schema, name)` ignores arg types (they come from PREPARE, not the AST). Exactly one `FunctionInfo` → full metadata, body inlining included. Multiple overloads → no guessing, but two sound recoveries (Wave 5): **arity filtering** (`resolveFunctionCandidates` keeps only candidates a call with N arguments could resolve to — PostgreSQL never picks one that can't accept them; variadic and named notation refuse) and **consensus** over what remains — a property EVERY candidate shares (all strict, all returning a NOT NULL domain, a position all declare as a NOT NULL domain) holds whichever one runs, the same quantification the builtin strictness capture rests on. Candidates that *disagree* stay conservative (`over_fn` pins that; `overload-consensus.sql` and `param-overload-arity.sql` pin the agreements). Body inlining stays single-candidate: it analyses a specific body, and bodies differ. Operators mirror this: strictness by consensus, backing-function dispatch only when single.
-
-3. **`LANGUAGE sql` body format:** handle both old-style (raw SQL like `SELECT $1 * 2`) and SQL-standard (`BEGIN ATOMIC ... END`). Try parsing the body string directly with `parseSql`; if that fails, strip the `BEGIN ATOMIC ... END` wrapper and parse the inner statements.
-
-4. **RETURNING in scope:** INSERT/UPDATE/DELETE RETURNING is handled in the initial implementation. The target table is the sole relation in scope and is always REQUIRED (no join nullability). The RETURNING list is treated as the target list. Fixture category 20 (section 9) covers this.
-
----
-
-## 15. Open questions (to resolve during implementation)
-
-These remain open and may need decisions once the implementation reveals edge cases:
-
-- **`SELECT *` with `JOIN ... USING`:** the USING columns appear once in the output. Need to handle the deduplication.
-- **Composite types:** `SELECT t FROM t` where `t` is a table — the output is a row type. Is a row type ever NULL? Only if `t` is on the optional side of a join. The `RowExpr` rule says non-null, but a whole-row ColumnRef is different from a RowExpr constructor.
-- **Domain over composite:** a domain with `NOT NULL` over a composite type — does the column `notNull` flag already account for this? (Likely yes — PG propagates domain NOT NULL to `pg_attribute.attnotnull`.) The SHAPE half of this is answered and no longer open: a domain over a composite expands to the base type's fields wherever the walk asks "is this a composite" (adversarial-3 finding 4), and every field is forced nullable there regardless of the domain's own constraint.
+to nullable where it would merely blunt a value. The distinction is the
+dispatch site: an unrecognised expression costs nothing structural, because
+one output entry is one output column whatever the expression is, so it is
+answered nullable. An unrecognised construct in a position that determines the
+column list is refused outright.
+
+## What this is not
+
+**Not type inference.** PostgreSQL supplies types from its own analysis; only
+nullability is inferred here.
+
+**Not theorem proving.** The predicate analysis is syntactic pattern matching
+plus a strict-dependence closure, not logical implication. Conjunction
+recurses, disjunction intersects, a listed set of comparison shapes is
+understood, and anything else is skipped conservatively. Branch guards run the
+same analyser, so they share exactly these limits.
+
+**Not set-theoretic.** Row-shape unions are not modelled from disjunctive
+predicates. A disjunction contributes only what every arm proves.
