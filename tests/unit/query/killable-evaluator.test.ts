@@ -9,8 +9,8 @@ import {
 // The killable evaluator's own pins.
 //
 // The case that matters is the one that wedged the suite: a probe PGlite will
-// never finish. `LIMIT` does not bound a FROM-position function scan (Trap 1,
-// docs/subtree-evaluation.md), so the query below materialises ten billion
+// never finish. `LIMIT` does not bound a FROM-position function scan, so the
+// query below materialises ten billion
 // rows and no timer, handler or `statement_timeout` inside that thread can end
 // it. Only a kill from out here can, and these tests are the proof that it
 // does — each carries a short vitest timeout, because a REGRESSION HERE DOES

@@ -530,8 +530,7 @@ describe("snapshotCatalog: functions and procedures", () => {
   });
 
   it("captures per-signature volatility over ALL of pg_catalog", async () => {
-    // The typed-operand-tracking captures (docs/subtree-evaluation.md,
-    // "Typed operand tracking"): every value below measured 2026-08-12.
+    // The typed-operand-tracking captures: every value below was measured.
     // The survivor gate splits NAMES into SIGNATURES, so each assertion is
     // a fork no name-level capture can express.
     const s = await snapshotCatalog(pg);

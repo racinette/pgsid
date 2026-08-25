@@ -4,8 +4,8 @@ import { parseSql } from "../../../src/ast.js";
 
 // ---------------------------------------------------------------------------
 // Pins the PostgreSQL behaviours the type-aware overload design rests on.
-// See docs/type-aware-overloads.md, "Still uncovered" — the three questions
-// that section named are answered here as executable assertions, the way
+// The three questions the design left uncovered are answered here as
+// executable assertions, the way
 // param-mechanism.test.ts pins the argument-nullability mechanisms. The
 // engine is not involved anywhere: this is a test of PostgreSQL (and of its
 // parser, for the call-shape fields tier 1 would key on), so an upgrade that

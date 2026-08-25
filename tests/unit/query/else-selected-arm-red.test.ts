@@ -17,7 +17,7 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 //
 // The ELSE is refused outright: `selectedArmCondition` returns null the
 // moment the ELSE could be the producing arm, so nothing is derived at all.
-// `docs/nullability-walk.md` states the reason as 3VL necessity — "ELSE runs
+// The reason is 3VL necessity — "ELSE runs
 // on FALSE *or NULL* conditions, and 3VL grants no facts from 'not TRUE'".
 //
 // **That is true of a condition that can evaluate NULL, and false of one that

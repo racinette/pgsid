@@ -381,7 +381,7 @@ export const MAX_COMBOS = 2048;
  * and treats the last two as keywords — so six signatures raised on every
  * combination and went unprobed until the qualifier went on. It is also the
  * more faithful spelling: these tables are about pg_catalog functions, and
- * `docs/nullability-walk.md` has them consulted for exactly that.
+ * the walk consults them for exactly that.
  */
 export const qualify = (name: string): string =>
   `pg_catalog.${/^[a-z_][a-z0-9_]*$/.test(name) ? name : JSON.stringify(name)}`;

@@ -19,7 +19,7 @@ import {
 import { BASE_SCHEMA_SQL, SCHEMA_VARIANTS, type SchemaVariant } from "./schema-variants.js";
 
 // ---------------------------------------------------------------------------
-// The schema axis — `docs/generated-surface.md` item 4.
+// The schema axis.
 //
 // The corpus becomes a function of (SCHEMA, query shape) rather than of query
 // shape alone. The measurement that justifies it: across seven engine changes
@@ -33,8 +33,8 @@ import { BASE_SCHEMA_SQL, SCHEMA_VARIANTS, type SchemaVariant } from "./schema-v
 // them and changes only the catalog features behind them runs the whole
 // structural corpus unchanged; `schema-variants.ts` is that list.
 //
-// **What this suite can and cannot prove is unchanged and still one-sided**
-// (`docs/query-generator.md`). Execution can only falsify a `notNull`, and the
+// **What this suite can and cannot prove is unchanged and still one-sided.**
+// Execution can only falsify a `notNull`, and the
 // column-list comparison is complete. So there are exactly two query oracles
 // here — ordered column NAMES, and no falsified `notNull` — and deliberately
 // none of the base suite's presence-group, parameter-contract or witness

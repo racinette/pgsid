@@ -62,13 +62,11 @@ interface Signature {
 // ---------------------------------------------------------------------------
 // The totality tables, probed by EXECUTION.
 //
-// `docs/generated-surface.md` item 3, and the half item 2 could not reach.
 // Four tables encode TOTALITY — never NULL for non-null arguments — and
 // PostgreSQL does not record it. `proisstrict` is STRICTNESS, a different
 // property that 2548 of PG18's 2726 builtin names carry, so it is no proxy;
 // totality lives only in the C implementations. A source scanner for it was
-// built and discarded (`docs/type-aware-overloads.md` records why in full, so
-// that nobody rebuilds it). Execution is what is left, and it refutes exactly
+// built and discarded. Execution is what is left, and it refutes exactly
 // rather than heuristically.
 //
 // Three sweeps did this by hand and each found members failing their own
@@ -458,7 +456,7 @@ describe("totality tables, probed by execution", () => {
         `in, NULL out. The table's own admission criterion is that a raise is ` +
         `acceptable and a NULL is not, so each of these is a wrong notNull the ` +
         `walk would emit. Remove the name, or narrow the rule that reads it ` +
-        `(docs/type-aware-overloads.md), or record it in PARTIAL_OVERLOADS with ` +
+        `, or record it in PARTIAL_OVERLOADS with ` +
         `the measured reason for keeping it:\n  ${unrecorded.join("\n  ")}`,
     ).toEqual([]);
   });

@@ -2,8 +2,7 @@
 // `pnpm exec tsx tests/probe/catalog-reach.ts`.
 //
 // Which of the fixture schema's tables carry a catalog feature no generated
-// query can reach? It is `docs/catalog-driven-generation.md` §7 (Step 0) as a
-// re-runnable meter, and it prints three things:
+// query can reach? A re-runnable meter, printing three things:
 //
 //   - how many distinct CATALOG SHAPES the corpus queries — how many genuinely
 //     different combinations of declared features it has ever seen on a table,

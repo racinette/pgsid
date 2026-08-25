@@ -1,4 +1,4 @@
-// The discovery instrument, slice 1 — `docs/catalog-driven-generation.md` §3.
+// The discovery instrument, slice 1.
 //
 //   pnpm exec tsx tests/probe/discovery.ts [queries] [seed]
 //
@@ -1828,8 +1828,7 @@ const TIER: Record<Bucket, "TOOL" | "BUDGET" | "FINDING" | "EXPECTED" | "OK"> = 
   // is the revisit trigger for the value-conditional decision.
   "value-conditional": "EXPECTED",
   // The statement-level claim, falsified: the contract says this write
-  // rejects on EVERY execution (docs/argument-nullability.md, "The
-  // always-raises statement fact") and the control run wrote the row. Its
+  // rejects on EVERY execution and the control run wrote the row. Its
   // own bucket because the claim is about the statement — the column and
   // parameter buckets would both name it wrongly.
   "always-raises-violated": "FINDING",
@@ -1903,8 +1902,7 @@ function classify(r: ProbeResult): Bucket {
   if (r.error) return r.error.startsWith("UnsupportedNodeError") ? "engine-refused" : "engine-crashed";
   if (r.pgError) {
     // A deduction failure means the generator emitted a parameter in a
-    // position PostgreSQL cannot type — a TOOL defect by decision
-    // (docs/argument-nullability.md sequencing step 3), never a fallback.
+    // position PostgreSQL cannot type — a TOOL defect by decision, never a fallback.
     // A bind-arity mismatch is the sibling defect: an allocation whose node
     // was dropped from the tree, so the statement binds more than its text
     // mentions. Both are the generator's bugs, never budget.

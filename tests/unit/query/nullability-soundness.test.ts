@@ -183,7 +183,7 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     // here would wedge the suite rather than fail it. That is not
     // hypothetical: an early draft of the cardinality round counted a
     // FROM-position `generate_series(1, 10000000000)`, which materialises
-    // before any LIMIT applies (Trap 1, docs/subtree-evaluation.md), and the
+    // before any LIMIT applies, and the
     // suite had to be killed from the shell. Now it reports the statement.
     //
     // The instance carries the fixture schema and no data: closed subtrees
@@ -210,8 +210,7 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       const claimed = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
         evaluate: evaluator.evaluate,
         evalWarnings,
-        // Type-resolution delegation, ON since 2026-08-24
-        // (docs/type-resolution-delegation.md). It shipped wired into the walk
+        // Type-resolution delegation. It shipped wired into the walk
         // and switched off in every suite that adjudicates against PostgreSQL,
         // so its answers had never met a real row — the only thing watching
         // them was the containment check inside its own red suite. It runs

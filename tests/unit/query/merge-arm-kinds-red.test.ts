@@ -21,7 +21,7 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 //
 // Both arguments are about ROWS THAT COME BACK, and `DO NOTHING` produces
 // none. An arm that writes nothing cannot carry a counterexample to either.
-// `docs/deferred-tasks.md` recorded the gap as "per-arm reasoning judged not
+// The gap was recorded as "per-arm reasoning judged not
 // worth it" — but the engine already reasons per-arm in
 // `returningRejectedParams`, which intersects over the paths that can produce
 // a row and says of ON CONFLICT that "DO NOTHING returns no row for a

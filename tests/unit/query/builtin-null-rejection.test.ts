@@ -17,7 +17,7 @@ import { NULL_REJECTION, CONSTRAINT_REJECTION } from "./fixture-args.js";
 // it lives inside the NON-strict set.
 //
 // That is the same shape as TOTALITY, and this project's totality tables
-// drifted three times (`docs/generated-surface.md` items 2 and 3). The
+// drifted three times. The
 // difference, and the reason this table is allowed to exist: the property is
 // cheaply DECIDABLE BY EXECUTION. Call the function with NULL in one position,
 // call it again with a value, and the pair answers exactly.
@@ -256,8 +256,7 @@ describe("builtin NULL-rejecting argument positions", () => {
   });
 
   it("the constraint class stays disjoint from this one — two meanings, two lists", () => {
-    // The widened witness class (docs/argument-nullability.md, "Witness
-    // classification for constraint-shaped raises") counts constraint
+    // The widened witness class for constraint-shaped raises counts constraint
     // violations as evidence about a NULL only beside a passing control.
     // NULL_REJECTION means something stronger and unconditional — "only a
     // NULL produces this" — which is exactly what the tie above rests on.

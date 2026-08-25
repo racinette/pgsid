@@ -5,8 +5,7 @@ import type { JoinAudit, OutputNullability } from "../../../src/query/types.js";
 // hand-written fixtures (explain-oracle.test.ts, agreement DECLARED per
 // fixture via @planner-keeps) and the generated queries
 // (generated/generated-explain.test.ts, agreement MEASURED — no annotation
-// channel exists there). See docs/witness-coverage.md, "The EXPLAIN oracle",
-// for what the comparison means and the asymmetry that governs reading it.
+// channel exists there).
 // ---------------------------------------------------------------------------
 
 const RAW_OUTER = new Set(["JOIN_LEFT", "JOIN_RIGHT", "JOIN_FULL"]);
@@ -56,8 +55,7 @@ export function countPlanOuterJoins(node: unknown): number {
 //
 //   slice-local-strict-qual — CLOSED 2026-08-19 (was 436 in the first
 //     census, now 0; the pinned count below is the guard). The participation
-//     closure is built into the fixpoint — `resolveJoinImplications`, spec in
-//     docs/nullability-walk.md under "The participation closure". The class
+//     closure is built into the fixpoint — `resolveJoinImplications`. The class
 //     stays armed so a regression re-opens it by name. What it WAS, and what
 //     a re-opening would mean: an outer join's own strict qual references
 //     the optional side of an outer join nested in an arm it governs:

@@ -8,8 +8,8 @@ import { createKillableEvaluator, type KillableEvaluator } from "./killable-eval
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for CLOSED BOOLEAN SUBEXPRESSIONS
-// (docs/deferred-tasks.md §4, "A CHECK literal that is not a truth value").
+// The RED SUITE for CLOSED BOOLEAN SUBEXPRESSIONS — a CHECK literal that is
+// not a truth value.
 //
 // The register carried this as a one-line cast refusal: `boolLiteral` reads a
 // bare boolean A_Const and REFUSES `'t'::boolean`, because following the cast

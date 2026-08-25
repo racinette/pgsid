@@ -3,8 +3,8 @@
 // asserts and the axis vocabulary `generated/schema-axis.test.ts` generates
 // against.
 //
-// It lives in its own module because `docs/generated-surface.md` makes item 1
-// the SPECIFICATION for item 4: "The census list from item 1 is the axis
+// It lives in its own module because the census list IS the specification
+// for the schema axis: "The census list from item 1 is the axis
 // vocabulary, which is why item 1 comes first." A schema variant declares the
 // features it exists to bring under generation by NAME from this map, so a
 // variant claiming a feature nobody classified fails, and a feature the
@@ -144,8 +144,8 @@ const anyQuotedIdentifier = (s: CatalogSnapshot, p: (ident: string) => boolean):
 export const FEATURES: Record<string, Feature> = {
   // --- the type side ------------------------------------------------------
   //
-  // `docs/generated-surface.md`: vary the TYPE side and the NAME side, the
-  // two families that produced sweep-3's five schema-dependent findings.
+  // Vary the TYPE side and the NAME side, the two families that produced
+  // the schema-dependent findings.
 
   "domain-over-scalar": {
     category: "handled",
@@ -493,7 +493,7 @@ export const FEATURES: Record<string, Feature> = {
   "user-window-function": {
     category: "gated",
     reads: "resolveBuiltinScalarTotality",
-    why: "read only to KEEP IT OUT of the merged scalar pool (docs/function-overload-merge.md): a user window row must not be projected as kind 'f' and answer for a scalar call. The window dispatch itself is still keyed on the curated builtin sets (NEVER_NULL_WINDOW_SIGNATURES and siblings), so a USER window function still falls through to nullable — the gate is what makes that fall-through honest rather than a mislabelled row",
+    why: "read only to KEEP IT OUT of the merged scalar pool: a user window row must not be projected as kind 'f' and answer for a scalar call. The window dispatch itself is still keyed on the curated builtin sets (NEVER_NULL_WINDOW_SIGNATURES and siblings), so a USER window function still falls through to nullable — the gate is what makes that fall-through honest rather than a mislabelled row",
     detect: s => s.functions.some(f => f.isWindow),
   },
   "procedure": {

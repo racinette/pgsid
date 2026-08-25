@@ -2,9 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 
 // ---------------------------------------------------------------------------
-// Pins the PostgreSQL behaviours the argument-nullability design rests on.
-// See docs/argument-nullability.md, "The two mechanisms, measured" — this
-// suite is that section as executable assertions, the way
+// Pins the PostgreSQL behaviours the argument-nullability design rests on —
+// the two mechanisms as executable assertions, the way
 // deparser-roundtrip.test.ts pins the deparser table. The engine is not
 // involved anywhere here: this is a test of PostgreSQL, so that a PostgreSQL
 // (or PGlite) upgrade that moves a load-bearing behaviour fails loudly with
@@ -42,13 +41,13 @@ const SCHEMA = `
   CREATE TABLE empty_t (x int);
   CREATE TABLE m (id int, e text NOT NULL DEFAULT 'x', n uname DEFAULT 'g');
   CREATE FUNCTION takes_dom(v uname) RETURNS text LANGUAGE sql AS 'SELECT v';
-  -- Mechanism E grounding pins (docs/argument-nullability.md, "Mechanism E"):
+  -- Mechanism E grounding pins:
   CREATE TABLE sub (seats int, oc text, CHECK (seats <= 1 OR oc IS NOT NULL));
   CREATE TABLE bp_ctl (c char(4) CHECK (c = 'a '));
   CREATE FUNCTION cur_max() RETURNS int LANGUAGE sql STABLE
     AS 'SELECT current_setting(''app.max_n'')::int';
   CREATE TABLE lim (n int CHECK (n <= cur_max()));
-  -- Partition-bound pins (docs/subtree-evaluation.md, "Partition-bound facts"):
+  -- Partition-bound pins:
   CREATE TABLE pb_r (id int, v text) PARTITION BY RANGE (id);
   CREATE TABLE pb_r1 PARTITION OF pb_r FOR VALUES FROM (0) TO (100);
   CREATE TABLE pb_rmax PARTITION OF pb_r FOR VALUES FROM (100) TO (MAXVALUE);
@@ -66,12 +65,10 @@ const SCHEMA = `
   CREATE TABLE pb_nest (id int) PARTITION BY RANGE (id);
   CREATE TABLE pb_nest1 PARTITION OF pb_nest FOR VALUES FROM (0) TO (100) PARTITION BY RANGE (id);
   CREATE TABLE pb_nest1a PARTITION OF pb_nest1 FOR VALUES FROM (0) TO (50);
-  -- Witness-classification pins (docs/argument-nullability.md, "Witness
-  -- classification for constraint-shaped raises"): two CHECKs, one the
+  -- Witness-classification pins for constraint-shaped raises: two CHECKs, one the
   -- parameter can violate and one no binding can rescue.
   CREATE TABLE wcls (a int, n text, CHECK (a > 5), CHECK (n IS NOT NULL));
-  -- Always-raises pins (docs/argument-nullability.md, "The always-raises
-  -- statement fact"): a CHECK plus an arbiter to conflict against.
+  -- Always-raises pins: a CHECK plus an arbiter to conflict against.
   CREATE TABLE arc (id int PRIMARY KEY, a int, n text, CHECK (a > 5));
 `;
 
@@ -342,7 +339,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
 
   // --- Mechanism E: CHECK rejection of a written NULL. ----------------------
   //
-  // docs/argument-nullability.md, "Mechanism E": ground the parsed CHECK
+  // Mechanism E: ground the parsed CHECK
   // body with the statement's written literals, evaluate only fully-closed
   // subtrees through PostgreSQL, reduce by three-valued algebra, analyze the
   // residue. These pins hold the substitution semantics that make the
@@ -427,7 +424,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
   });
 
   it("volatility gates CASTS, not just calls: the I/O functions carry it", async () => {
-    // docs/subtree-evaluation.md: `5::integer` folds and `'now'::timestamptz`
+    // `5::integer` folds and `'now'::timestamptz`
     // never does, because a literal cast invokes the target type's INPUT
     // function — and PostgreSQL declares the datetime family's I/O stable
     // (DateStyle/TimeZone state), while the int/text/numeric family is
@@ -517,7 +514,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
 
   // --- Unknown-literal landing rules (typed operand tracking rests here). ---
   //
-  // docs/subtree-evaluation.md, "Typed operand tracking": a bare string
+  // Typed operand tracking: a bare string
   // literal is UNTYPED — pseudo-type unknown — and PostgreSQL assigns it a
   // type at its first consumption site, by rules these pins hold. The rung's
   // closure gate applies exactly these rules before candidate elimination,
@@ -578,8 +575,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
   });
 
   it("btree strategy numbers are per-name consensus; inequality has none", async () => {
-    // The interval-exclusivity rung's shape source
-    // (docs/subtree-evaluation.md): the strategy number IS the set shape,
+    // The interval-exclusivity rung's shape source: the strategy number IS the set shape,
     // and every pg_catalog btree family agrees per name — a release that
     // splits one must fail here, because the capture would silently drop
     // the name. `<>` carries no strategy anywhere (PostgreSQL does not
@@ -626,7 +622,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(lengthRows.rows.map(r => r.args)).toEqual(["bytea, name"]);
   });
 
-  // --- Partition bounds (docs/subtree-evaluation.md, "Partition-bound facts").
+  // --- Partition bounds.
   //
   // A partition's bound is enforced on every stored row — by tuple routing,
   // by direct-insert rejection, and by ATTACH validation — so a DIRECT scan
@@ -754,9 +750,8 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(await partDef("pb_att")).toBeNull();
   });
 
-  // --- Write-side enforcement (the write-side rung's pre-work,
-  // docs/subtree-evaluation.md "Write-side rung"; the direct-INSERT case is
-  // pinned in the NULL-routing pins above). The grounder may feed a
+  // --- Write-side enforcement (the write-side rung's pre-work; the
+  // direct-INSERT case is pinned in the NULL-routing pins above). The grounder may feed a
   // direct-named partition's bound for every DML shape it grounds: UPDATE,
   // MERGE arms and ON CONFLICT enforce the bound on the new row exactly as
   // direct INSERT does, per row on multi-row VALUES — and naming the PARENT
@@ -888,7 +883,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
 
   // --- Settings-independent datetime literals — design B's exhaustive sweep.
   //
-  // docs/subtree-evaluation.md, "Settings-independent datetime literals": a
+  // Settings-independent datetime literals: a
   // literal whose ISO spelling fixes every field's ROLE parses identically
   // under each of the finitely many DateStyle values, so the shape gate
   // needs no settings assumption — and the invariance is MEASURED here over
@@ -991,7 +986,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     expect(fullUtc).toBe(bareUtc);
   });
 
-  // --- Closed sublinks (docs/subtree-evaluation.md, "Closed sublinks").
+  // --- Closed sublinks.
   //
   // A sublink whose body references no tables, columns or parameters is a
   // closed tree wearing subquery syntax. These pins hold the execution
@@ -1046,8 +1041,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
   });
 
   it("a set operation resolves its result type exactly as COALESCE does — the unifier the gate already owns", async () => {
-    // The body-clause widening's first clause (docs/subtree-evaluation.md,
-    // "Body-clause widening"): UNION/INTERSECT/EXCEPT unify their arms by
+    // The body-clause widening's first clause: UNION/INTERSECT/EXCEPT unify their arms by
     // the same "select a common type" rule the CASE/COALESCE gate models
     // with `closedCommonTypes`. If a version ever moved one of the three
     // off that rule, the widened gate would be predicting the wrong type.
@@ -1224,8 +1218,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
   });
 
   it("an ORDER BY orders the KEY's class, not the VALUE — which closes the sliced-sort question", async () => {
-    // Why ORDER BY beside a LIMIT is refused FOREVER rather than deferred
-    // (measured 2026-08-17; docs/subtree-evaluation.md, "Closed for good").
+    // Why ORDER BY beside a LIMIT is refused FOREVER rather than deferred.
     // The reason first recorded was collation, and collation turned out not
     // to be the obstacle — a closed body can carry only the database's own
     // `"default"` or, through `name`, `"C"`, neither of them session state.
@@ -1306,7 +1299,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     }
   });
 
-  // --- Guard-side IN (docs/subtree-evaluation.md, "Guard-side IN").
+  // --- Guard-side IN.
   //
   // The rung desugars a multi-element IN guard into the disjunction the
   // kernel's OR rule already walks. These pins are the equivalence that
@@ -1346,8 +1339,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     });
   });
 
-  // --- Witness classification for constraint-shaped raises
-  // (docs/argument-nullability.md, section of the same name).
+  // --- Witness classification for constraint-shaped raises.
   //
   // A grounder or partition-bound claim is refused by a CONSTRAINT, so the
   // raise names the constraint rather than the NULL. These pins are why the
@@ -1388,8 +1380,7 @@ describe("parameter NULL-rejection mechanisms (PostgreSQL behaviour)", () => {
     );
   });
 
-  // --- The always-raises statement fact (docs/argument-nullability.md,
-  // section of the same name).
+  // --- The always-raises statement fact.
   //
   // The flag is claimed only where the write event is UNIVERSAL — a row
   // every execution constructs. These pins draw that line: what ON CONFLICT

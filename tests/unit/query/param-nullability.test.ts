@@ -15,7 +15,7 @@ import { createKillableEvaluator } from "./killable-evaluator.js";
 // ---------------------------------------------------------------------------
 // Argument-nullability annotation agreement: the engine's parameter contract
 // vs the `-- @param N notNull|nullable` annotations on every fixture that
-// takes parameters. See docs/argument-nullability.md.
+// takes parameters.
 //
 // Same standing as nullability-walk.test.ts on the output side: this proves
 // the engine and the fixture author agree, not that either is right. The

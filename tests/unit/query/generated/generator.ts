@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Mechanical query generation for the nullability engine.
 //
-// See docs/query-generator.md for the design. In one paragraph: the
+// In one paragraph: the
 // structural space — join kinds and their nesting, grouping, set operations,
 // CTEs, subqueries, LATERAL — is enumerated exhaustively as a nested loop
 // over axes, while expressions are drawn from a small fixed vocabulary so
@@ -511,7 +511,7 @@ function joinStructures(): JoinStructure[] {
     });
   }
 
-  // The ONLY spelling of the same join — `docs/generated-surface.md` item 5.
+  // The ONLY spelling of the same join.
   //
   // `inh` is the bit that chooses between the walk's TREE accessors and their
   // non-tree halves, and the generator set it true everywhere: every catalog
@@ -655,7 +655,7 @@ function joinStructures(): JoinStructure[] {
     expectations: [expect("table function", "RangeFunction"), expectJoins("JOIN_LEFT")],
   });
 
-  // The UNNEST / builtin-SRF axis — `docs/generated-surface.md` item 5.
+  // The UNNEST / builtin-SRF axis.
   //
   // Four catalog capabilities measured cold across the entire generated corpus
   // AND all thirteen schema variants, all four behind ONE missing call site:
@@ -1178,8 +1178,8 @@ const PROJECTIONS: Projection[] = [
     // `max` — while the fixture schema defined 66, so an entire family of
     // catalog features had no call site: a VARIADIC parameter, a DEFAULTED
     // argument, an INOUT parameter, a SECURITY DEFINER body, and — the one
-    // that matters most — a `LANGUAGE sql` body being READ BACK, which
-    // docs/generated-surface.md measured at zero generated coverage.
+    // that matters most — a `LANGUAGE sql` body being READ BACK, measured at
+    // zero generated coverage.
     //
     // Every claim here is witness-aligned by construction, because the suite
     // requires it: gfn_var nullifs its empty join so an all-NULL argument
@@ -1206,7 +1206,7 @@ const PROJECTIONS: Projection[] = [
         target(funcCall("gfn_io", [s.slots.textB]), "a_fi"),
         target(funcCall("gfn_sd", [s.slots.textA]), "a_fs"),
         target(funcCall("double_val", [s.slots.intKey]), "a_fb"),
-        // The STRICT family — `docs/generated-surface.md` item 5, step 3.
+        // The STRICT family.
         // Every function the generator called was non-strict, and five of the
         // seven rank-1 unsoundnesses found on 2026-08-07 were strict ones: a
         // strict call handed a NULL does not run, so it returns NULL past its
@@ -1282,8 +1282,8 @@ const PROJECTIONS: Projection[] = [
     expectations: [expectGroupBy, expectWindow("gfn_win")],
   },
   {
-    // The USER-OPERATOR axis. `docs/generated-surface.md` item 5 measured
-    // `resolveOperatorMetadata` cold across the whole generated corpus and all
+    // The USER-OPERATOR axis. `resolveOperatorMetadata` measured cold across
+    // the whole generated corpus and all
     // thirteen schema variants: the fixture schema declares four custom
     // operators and the generator wrote only bare builtin symbols, every one
     // of which the curated `TOTAL_OPERATORS`/`STRICT_OPERATORS` sets answer
@@ -1483,7 +1483,7 @@ const WRAPPER_EXPECTATIONS: Record<WrapperKey, Expectation[]> = {
 
 // --- Generated DML ---------------------------------------------------------
 //
-// Step 4 of docs/argument-nullability.md. Four kinds, each pure-rollback
+// The argument contract's write side. Four kinds, each pure-rollback
 // (the suite wraps every execution in BEGIN/ROLLBACK via `writes`):
 //
 //   insert-values  — INSERT ... VALUES ($1, $2, ...) RETURNING: parameters
@@ -1677,7 +1677,7 @@ export function generateDmlQueries(): GeneratedQuery[] {
   // `targetWriteRewrites` reads the target RangeVar's `inh` and takes
   // `resolveWriteRewritesTree` when it is set — which it was for every DML
   // statement the generator wrote, so the non-tree half measured cold across
-  // the whole corpus (`docs/generated-surface.md` item 5). The distinction is
+  // the whole corpus. The distinction is
   // real work, not a spelling: a BEFORE ROW trigger on a CHILD fires on a
   // write that names the parent, and `ONLY` is what excludes it.
   //
@@ -2288,8 +2288,7 @@ export function generateDeepJoinQueries(): GeneratedQuery[] {
 // Widening the parameter axis by POSITION rather than mechanism. The
 // projections above put parameters in target lists, in WHERE, and in DML
 // write positions; every placement here is one the corpus otherwise never
-// generates, and each sits on a boundary docs/argument-nullability.md
-// records deliberately:
+// generates, and each sits on a boundary the contract records deliberately:
 //
 //   on-param     — a strict `u.email = $1` conjunct in the JOIN ON qual,
 //                  with $1 also projected bare. ON-conjunct narrowing is a

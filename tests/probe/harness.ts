@@ -35,8 +35,8 @@ import {
 import type { NullabilityCatalog } from "../../src/query/types.js";
 
 /**
- * What counts as "the NULL was rejected" here (docs/argument-nullability.md,
- * "Witness classification for constraint-shaped raises"). The constraint
+ * What counts as "the NULL was rejected" here, for constraint-shaped
+ * raises. The constraint
  * class needs a succeeded all-valid control; in this harness that condition
  * is STRUCTURAL rather than re-tested — the PostgreSQL half runs the
  * all-valid binding first and `if (out.error || out.pgError) return out`
@@ -104,15 +104,14 @@ export interface ProbeResult {
    * one binding pattern with no value freedom left, so its pass proves the
    * rejection rides a sibling's VALUE ("$1 <= 1 OR $2 IS NOT NULL" is the
    * measured shape) — a condition no flat notNull and no rejection set can
-   * carry, adjudicated 2026-08-12 (the value-conditional decision in
-   * docs/subtree-evaluation.md). Counted and fingerprinted per run; the
+   * carry, under the value-conditional decision. Counted and fingerprinted per run; the
    * bucket growing past a few per 20,000 is the revisit trigger.
    */
   valueConditional: string[];
   /**
    * The statement-level claim, falsified: the contract says this write
-   * rejects on EVERY execution (`QueryContract.alwaysRaises`,
-   * docs/argument-nullability.md) and the all-valid control wrote the row
+   * rejects on EVERY execution (`QueryContract.alwaysRaises`) and the
+   * all-valid control wrote the row
    * instead. Adjudicated by the control run the harness already makes —
    * no extra execution, and the direction that would be expensive (proving
    * a flagged statement never succeeds) is not the one a counterexample
@@ -186,7 +185,7 @@ export class ProbeLoop {
     };
 
     // --- tier 0: the statement's parameter types, from PREPARE -------------
-    // The walk's optional input (docs/type-aware-overloads.md tier 0): the
+    // The walk's optional input at tier 0: the
     // caller holds the database, so it asks PostgreSQL rather than leaving
     // every ParamRef untyped. A statement PREPARE rejects (or one with no
     // parameters) simply supplies nothing.
@@ -212,8 +211,8 @@ export class ProbeLoop {
     try {
       const parsed = await parseSql(probe.sql);
       stmt = parsed.stmts![0]!.stmt!;
-      // Both evaluation consumers run live (docs/subtree-evaluation.md):
-      // the instrument adjudicates the same claims the harnesses pin.
+      // Both evaluation consumers run live: the instrument adjudicates the
+      // same claims the harnesses pin.
       const evaluate = async (s: string) =>
         (await this.pg.query<Record<string, unknown>>(s)).rows[0];
       const contract = await inferQueryContract(stmt, this.catalog, { paramTypes, evaluate });
@@ -283,7 +282,7 @@ export class ProbeLoop {
     this.checkRows(out, out.rows, "");
 
     // --- the parameter contract, adjudicated by binding — rank 3 -----------
-    // The verification directions of docs/argument-nullability.md, run per
+    // The contract's verification directions, run per
     // statement instead of per fixture: the target parameter NULL, every
     // other one holding its control value. Attribution needs the control —
     // these variants only run when the all-valid binding succeeded above, so

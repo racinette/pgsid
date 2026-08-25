@@ -5,7 +5,7 @@ import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
 import type { OverloadCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The elimination rule of docs/type-aware-overloads.md, tested in isolation —
+// The elimination rule, tested in isolation —
 // the walk does not consult these accessors yet. Every clause is asserted
 // from BOTH sides, because the property under test is directional:
 // `mayCoerceImplicitly` answers false only on CERTAINTY, and a false

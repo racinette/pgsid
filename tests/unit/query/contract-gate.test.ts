@@ -17,7 +17,7 @@ import type { QueryContract } from "../../../src/query/nullability-walk.js";
 import { parseFixtureDirectives } from "./fixture-args.js";
 
 // ---------------------------------------------------------------------------
-// The arity-and-order gate (docs/deferred-tasks.md §1).
+// The arity-and-order gate.
 //
 // Two halves, and the second is the one that means anything.
 //

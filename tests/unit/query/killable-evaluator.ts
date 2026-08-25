@@ -15,7 +15,7 @@ import type { Evaluate, EvaluateRow } from "../../../src/query/subtree-evaluator
 // The harness is the first consumer that needs one, and it needs it because a
 // probe wedged the suite: an early draft of the cardinality round counted a
 // FROM-position `generate_series(1, 10000000000)`, which materialises before
-// any LIMIT applies (Trap 1, docs/subtree-evaluation.md). The suite did not
+// any LIMIT applies. The suite did not
 // fail — it hung, and had to be killed from the shell. A hang that reports in
 // half a second is a test result; a hang that reports in ten minutes is a
 // wedged CI job.

@@ -13,7 +13,7 @@ import {
 import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 
 // ---------------------------------------------------------------------------
-// The per-overload witness corpus (docs/type-aware-overloads.md, step 5).
+// The per-overload witness corpus.
 //
 // A witness is a POSITIVE, checkable claim: *this overload can return NULL*.
 // Absence of a witness asserts nothing — the engine's default is already
@@ -32,7 +32,7 @@ import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 // witnessed signature may not be claimed total anywhere.
 //
 // Directories declaring a schema.sql get their own PGlite; everything else
-// shares one (state-major, docs/witness-coverage.md's rule).
+// shares one (state-major).
 // ---------------------------------------------------------------------------
 
 const HERE = dirname(fileURLToPath(import.meta.url));

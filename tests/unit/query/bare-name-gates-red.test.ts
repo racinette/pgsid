@@ -7,9 +7,9 @@ import { inferNullability } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for the two remaining BARE-NAME GATES
-// (docs/function-overload-merge.md, "Open questions": `evalUserOperatorNames`
-// and `evalUserTypeNames`). Same idiom as `overload-merge-red.test.ts`:
+// The RED SUITE for the two remaining BARE-NAME GATES —
+// `evalUserOperatorNames` and `evalUserTypeNames`. Same idiom as
+// `overload-merge-red.test.ts`:
 // `it.fails` targets that flip to plain `it` in the commit that fixes them,
 // plain `it` boundary guards that must never move.
 //
@@ -143,7 +143,7 @@ beforeAll(async () => {
   // machinery, because `btreeStrategyOf` and `isEqualityComplement` are still
   // bare-name gates keyed on `evalUserOperatorNames`. Those two take an
   // operator NAME and no operand types, so they cannot eliminate — the next
-  // gate to close, recorded in docs/deferred-tasks.md.
+  // gate to close, recorded in the register.
   scenarios.cmpCollide = await build(
     `CREATE TYPE cmp_pair AS (a integer, b integer);
      CREATE FUNCTION cmp_pair_eq(x cmp_pair, y cmp_pair) RETURNS boolean

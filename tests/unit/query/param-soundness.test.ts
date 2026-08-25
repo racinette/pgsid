@@ -9,8 +9,7 @@ import { bindParams, parseFixtureDirectives, NULL_REJECTION, CONSTRAINT_REJECTIO
 import { hasStatements, loadDataStates, type DataState } from "./fixture-data/states.js";
 
 // ---------------------------------------------------------------------------
-// Executable verification of the argument contract — step 2 of the
-// sequencing in docs/argument-nullability.md.
+// Executable verification of the argument contract.
 //
 // param-nullability.test.ts proves the engine and the fixture author agree
 // about each `-- @param` claim. This suite checks the claims against
@@ -73,9 +72,7 @@ const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
  * Whether a raise witnesses "this NULL was rejected". A null-rejection
  * message says so by itself; a constraint-shaped one says so only where the
  * ALL-VALID control succeeded in the same state, since the identical text
- * arrives when another value in the row is what the constraint refused
- * (docs/argument-nullability.md, "Witness classification for
- * constraint-shaped raises").
+ * arrives when another value in the row is what the constraint refused.
  */
 function witnessesNull(error: string, controlOk: boolean): boolean {
   return NULL_REJECTION.test(error) || (controlOk && CONSTRAINT_REJECTION.test(error));
@@ -252,8 +249,8 @@ describe("argument soundness (@param claims vs PostgreSQL)", () => {
       if (!run) return; // no parameters, nothing claimed
 
       if (run.alwaysRaises) {
-        // The inversion (docs/argument-nullability.md, "The always-raises
-        // statement fact"): this statement is claimed to reject on every
+        // The inversion of the always-raises statement fact: this statement
+        // is claimed to reject on every
         // execution, so a SUCCEEDING control would falsify the flag. The
         // raise still has to be observed — an unraised @always-raises is a
         // stale marker, the same bar @param-opaque and @no-rows set.

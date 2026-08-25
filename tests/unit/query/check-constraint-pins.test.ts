@@ -7,7 +7,7 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
 // Executable pins for the PostgreSQL behaviors the CHECK-entailment design
-// rests on (docs/nullability-walk.md). Each names the design consequence a
+// rests on. Each names the design consequence a
 // version bump would have, so a failure reads as "this assumption moved",
 // not as a mystery.
 // ---------------------------------------------------------------------------
