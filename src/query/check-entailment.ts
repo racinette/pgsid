@@ -58,8 +58,6 @@ import type { Node } from "libpg-query";
 // bytewise comparison of the same tokens is FALSE. Timestamp-like literals
 // are value-rewritten by the deparser ('2020-01-01' becomes
 // '2020-01-01 00:00:00+03'), which exact-token matching rejects on its own.
-//
-// See docs/nullability-walk.md for how the walk feeds this kernel.
 // ---------------------------------------------------------------------------
 
 export interface CheckEntailmentTrace {
@@ -152,8 +150,7 @@ export interface CheckEntailmentInput {
    */
   goalNotNullGivenPresent?: boolean;
   /**
-   * The evaluated-comparison oracle (docs/subtree-evaluation.md, the
-   * entailment consumer): the truth of `a OP b` with both literals read at
+   * The evaluated-comparison oracle: the truth of `a OP b` with both literals read at
    * `colType` — answered from a PRE-EVALUATED map of closed comparison
    * trees, null when no answer exists (an unclosable type, a question the
    * synthesis never met). Sound because a TRUE equality fact makes the
@@ -175,8 +172,7 @@ export interface CheckEntailmentInput {
    */
   comparisonEvaluable?: (alias: string, column: string, op: string) => boolean;
   /**
-   * The interval rung's shape sources (docs/subtree-evaluation.md,
-   * "Interval exclusivity over btree strategies"): the operator's btree
+   * The interval rung's shape sources: the operator's btree
    * strategy number by pg_catalog consensus (1 `<` … 5 `>`), and whether
    * it is a negator of equality (`<>`, the complement-of-point shape).
    * Both walk-supplied from the evaluation face, both closed under the
@@ -229,8 +225,7 @@ export function checkConstraintsProveNull(input: CheckEntailmentInput): boolean 
 
 /**
  * What the facts say about `guard` on an emitted row — the atom-oracle
- * rungs' consumption (docs/subtree-evaluation.md, "The kernel's atom
- * oracle"): the walk prunes a CASE arm whose guard cannot fire and stops at
+ * rungs' consumption: the walk prunes a CASE arm whose guard cannot fire and stops at
  * one that always does, the same arm-pruning the statement map performs,
  * fed from the kernel instead of an evaluation.
  *
@@ -703,8 +698,7 @@ class EntailmentKernel {
   private trueFacts: Atom[] = [];
   private falseFacts: Atom[] = [];
   /**
-   * notFALSE facts — the atom-oracle rungs (docs/subtree-evaluation.md,
-   * "The kernel's atom oracle"): comparison atoms on a CHECK's notFALSE
+   * notFALSE facts — the atom-oracle rungs: comparison atoms on a CHECK's notFALSE
    * spine, too weak to be TRUE (a strict comparison's notFALSE is
    * TRUE-or-NULL) yet strong enough for TRICHOTOMY — an exclusive
    * same-token comparison can never be TRUE beside one. Consumed only by
@@ -722,8 +716,7 @@ class EntailmentKernel {
    */
   private orFacts: Atom[][][] = [];
   /**
-   * notFALSE OR-facts (the list-membership rung, docs/subtree-evaluation.md
-   * "List membership exclusion"): disjunctive conjuncts on a CHECK's
+   * notFALSE OR-facts (the list-membership rung): disjunctive conjuncts on a CHECK's
    * notFALSE spine — `k IN ('a','b')` rendered `= ANY (ARRAY[...])`, a
    * list partition bound — held as arms exactly like `orFacts` but at
    * notFALSE strength: too weak for the subset rule (the OR may be
@@ -1747,8 +1740,7 @@ class EntailmentKernel {
   }
 
   /**
-   * List membership exclusion (docs/subtree-evaluation.md, "List
-   * membership exclusion"): an OR-fact refutes an atom when EVERY arm
+   * List membership exclusion: an OR-fact refutes an atom when EVERY arm
    * carries a comparison over the atom's column whose value set provably
    * shares nothing with it — same-token exclusivity or the interval
    * judgment, per arm, under the same per-column gates. Sound at notFALSE
@@ -1782,9 +1774,8 @@ class EntailmentKernel {
   }
 
   /**
-   * The interval-exclusivity judgment over ORDERED ANCHORS
-   * (docs/subtree-evaluation.md, "Interval exclusivity over btree
-   * strategies"): the witness fact's set and the atom's set share nothing,
+   * The interval-exclusivity judgment over ORDERED ANCHORS: the witness
+   * fact's set and the atom's set share nothing,
    * decided from the shapes PostgreSQL publishes and the evaluated anchor
    * order. If the atom were TRUE the column would be non-null, the
    * witness comparison would have EVALUATED, and notFALSE would force it
@@ -1970,7 +1961,7 @@ class EntailmentKernel {
    * (stronger) or trichotomy; a conjunction-shaped atom list (BETWEEN's
    * two bounds) needs only one refuted member.
    *
-   * Guard-side IN (docs/subtree-evaluation.md, "Guard-side IN"): a
+   * Guard-side IN: a
    * multi-element IN — and its `= ANY (ARRAY[...])` rendering — is a
    * disjunction wearing leaf syntax, so it takes the OR rule through
    * `disjunctArms` rather than atomizing to nothing. `atomsOf` skips these

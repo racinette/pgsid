@@ -66,8 +66,7 @@ export type { OutputPresenceGroup } from "./types.js";
 // ---------------------------------------------------------------------------
 // inferNullability: pure function — AST + NullabilityCatalog → OutputNullability[]
 //
-// A single leaf-first recursive walk per output column. See
-// docs/nullability-walk.md for the full design specification.
+// A single leaf-first recursive walk per output column.
 //
 // The walk is fully synchronous. LANGUAGE sql function body ASTs are
 // pre-parsed by the caller and supplied via NullabilityCatalog.fnBodyAsts.
@@ -110,11 +109,11 @@ const MAX_SETOP_DEPTH = 64;
 
 /**
  * The walk's optional inputs. `paramTypes` is tier 0 (see the engine field's
- * doc); `evaluate` switches on the STATEMENT MAP consumer
- * (docs/subtree-evaluation.md, consumer 1): the statement's maximal closed
- * subtrees run through PostgreSQL before the walk starts, and the walk
- * consults the answers as data — the engine itself stays synchronous. No
- * `evaluate` → no evaluation claims, everything else identical. Passing it
+ * doc); `evaluate` switches on the STATEMENT MAP consumer: the statement's
+ * maximal closed subtrees run through PostgreSQL before the walk starts, and
+ * the walk consults the answers as data — the engine itself stays
+ * synchronous. No `evaluate` → no evaluation claims, everything else
+ * identical. Passing it
  * requires a catalog built by the adapter, which carries the
  * `SubtreeEvaluationCatalog` face beside the walk's own.
  */
@@ -175,8 +174,8 @@ export interface WalkOptions {
    */
   typeSetAudit?: TypeSetAudit[];
   /**
-   * Ask PostgreSQL to resolve the operands the walk cannot pin
-   * (docs/type-resolution-delegation.md). Independent of `evaluate`: this
+   * Ask PostgreSQL to resolve the operands the walk cannot pin.
+   * Independent of `evaluate`: this
    * one runs PARSE ANALYSIS and never executes, so a consumer may supply it
    * where running user expressions is not acceptable.
    *
@@ -312,8 +311,8 @@ async function closedTruths(
 }
 
 /**
- * The type-resolution round (docs/type-resolution-delegation.md): one async
- * step, answers as data, sync walk — the same shape as the three beside it.
+ * The type-resolution round: one async step, answers as data, sync walk —
+ * the same shape as the three beside it.
  *
  * It differs from them in ONE way, and the reason is worth stating. The other
  * rounds ask their questions off the AST alone; this one needs to know what
@@ -378,7 +377,7 @@ export async function inferNullability(
 
 /**
  * Both halves of a statement's contract: what comes out (per output column)
- * and what may go in (per parameter). See docs/argument-nullability.md.
+ * and what may go in (per parameter).
  */
 export interface QueryContract {
   outputs: OutputNullability[];
@@ -413,8 +412,7 @@ export interface QueryContract {
   /**
    * The statement rejects on EVERY execution: an enforced CHECK grounds
    * FALSE over values the statement writes unconditionally, with nothing
-   * left in the predicate that a binding could change
-   * (docs/argument-nullability.md, "The always-raises statement fact").
+   * left in the predicate that a binding could change.
    * Claimed only for UNIVERSAL write events — a VALUES row or a FROM-less
    * `INSERT ... SELECT`, which every execution constructs; an UPDATE, a
    * MERGE arm and an ON CONFLICT update arm raise only when a row matches,
@@ -441,8 +439,8 @@ export async function inferQueryContract(
   options?: WalkOptions,
 ): Promise<QueryContract> {
   const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
-  // The CHECK grounder (Mechanism E, docs/argument-nullability.md): the
-  // same pre-walk async step over synthesized trees, answers consumed by
+  // The CHECK grounder: the same pre-walk async step over synthesized
+  // trees, answers consumed by
   // the collector as data. Same catalog-face requirement as `evaluate`
   // documents; no evaluator → no E claims, everything else identical.
   let mechanismE: MechanismEClaims | undefined;
@@ -1162,7 +1160,6 @@ interface FnBodyContext {
    * what lets a builtin CALL in the body narrow its signature, which is the
    * difference between `SELECT $1 || ' ' || $2` (the operator path decides
    * without types) and `SELECT UPPER($1)` (the dispatch needs one).
-   * docs/function-overload-merge.md, "The second site the types never reach".
    */
   argTypes: (string | undefined)[];
   /**
@@ -1266,8 +1263,8 @@ class NullabilityEngine {
   private fnParamNames: string[] | null = null;
 
   /**
-   * Statement-level parameters rejected at Bind (mechanism A, see
-   * docs/argument-nullability.md): their resolved type is a NOT NULL domain,
+   * Statement-level parameters rejected at Bind: their resolved type is a
+   * NOT NULL domain,
    * so a NULL binding raises before any execution. Any row the statement
    * returns therefore proves these parameters were non-NULL, which makes a
    * projected `ParamRef` for them notNull — the same rows-exist reasoning
@@ -1320,7 +1317,7 @@ class NullabilityEngine {
   private readonly onUnhandled: UnhandledNodeObserver | undefined;
 
   /**
-   * Tier 0 (docs/type-aware-overloads.md): the statement's resolved
+   * Tier 0: the statement's resolved
    * parameter types, as PREPARE reports them — `paramTypes[n-1]` types
    * `$n`. An INPUT, not an inference: the caller runs PREPARE against its
    * database (every harness holds one) and the walk stays pure and stays
@@ -1329,7 +1326,7 @@ class NullabilityEngine {
   private readonly paramTypes: readonly string[] | undefined;
 
   /**
-   * The statement map (docs/subtree-evaluation.md, consumer 1): each maximal
+   * The statement map: each maximal
    * closed subtree's PostgreSQL answer, keyed by node identity over the
    * statement's own AST — computed by the async entry point, consumed here
    * as data. The consumption rule allows exactly three readings, and all
@@ -1363,7 +1360,7 @@ class NullabilityEngine {
 
   /**
    * What PostgreSQL resolved an operand to, keyed by node identity
-   * (`type-delegation.ts`, docs/type-resolution-delegation.md). Read at the
+   * Read at the
    * head of `operandTypeSetOf`, ahead of the symbolic reading, and only ever
    * for a node the symbolic reading could NOT pin — so this narrows a union
    * the walk could already state and never invents one. Undefined without
@@ -5552,7 +5549,7 @@ class NullabilityEngine {
       // `columnsForReturnType` has always taken for `SETOF <table>` versus
       // `SETOF <composite>`, and the same latent defect the post-fix audit
       // closed for the unnest ELEMENT-type resolver — this was its second
-      // site, found by the composite-star axis (docs/generated-surface.md).
+      // site, found by the composite-star axis.
       // Every field is nullable, which is the expansion rule regardless.
       const rel = this.catalog.resolveTable(schema, name);
       return rel ? rel.columns.map(c => ({ name: c, notNull: false })) : null;
@@ -6276,8 +6273,8 @@ class NullabilityEngine {
           // reading, and that is a RECORDED RESIDUE, not a soundness fact:
           // the shape is wrong exactly when the untyped operand is a
           // tsvector, which is the "no application schema has one" reasoning
-          // the name-level operator rows convicted (docs/deferred-tasks.md
-          // §4 carries the row). It is kept because the common untyped
+          // the name-level operator rows convicted. It is kept because the
+          // common untyped
           // operands really are arrays by construction — `unnest(array_agg
           // (x))`, an ARRAY sublink, a polymorphic aggregate's result — and
           // the type reader refuses aggregates BY DESIGN, so refusing here
@@ -7176,7 +7173,7 @@ class NullabilityEngine {
    */
   /**
    * An operand's type SET — the survivor return-type union of whatever
-   * produced it (docs/type-aware-overloads.md, corrected 2026-08-09). Null
+   * produced it. Null
    * constrains nothing; a singleton is an exact type; a wider union
    * eliminates candidates no member can reach and collapses back to exact
    * wherever its members agree.
@@ -8106,8 +8103,8 @@ class NullabilityEngine {
   }
 
   /**
-   * The atom-oracle rungs' consumption (docs/subtree-evaluation.md, "The
-   * kernel's atom oracle"): what do the scope's validated CHECKs plus the
+   * The atom-oracle rungs' consumption: what do the scope's validated
+   * CHECKs plus the
    * row-implied evidence say about this searched-CASE guard — never fires
    * (`false`), always fires (`true`), or neither?
    *
@@ -9494,8 +9491,7 @@ class NullabilityEngine {
         const lset = ae.lexpr ? this.operandTypeSet(ae.lexpr, scope, depth + 1) : null;
         const rset = ae.rexpr ? this.operandTypeSet(ae.rexpr, scope, depth + 1) : null;
 
-        // Type-aware narrowing first (docs/type-aware-overloads.md, the
-        // operator slice): where the operand types are readable, the
+        // Type-aware narrowing first: where the operand types are readable, the
         // candidate set — path-visible user operators MERGED with the
         // captured builtin signatures — replaces the bare-name allowlist,
         // which closed the shadowing blind spot and the `path + path`
@@ -12663,8 +12659,8 @@ class NullabilityEngine {
           return result;
         }
       }
-      // Typed dispatch first (docs/type-aware-overloads.md, the function
-      // slice): resolve the call over the captured kind='f' rows and read
+      // Typed dispatch first: resolve the call over the captured kind='f'
+      // rows and read
       // the verdict per SURVIVOR, which is what lets `lower(<text column>)`
       // claim notNull while `lower(<range>)` keeps reading nullable — the
       // name checks below serve only what the resolution cannot see. Named
@@ -13131,7 +13127,7 @@ class NullabilityEngine {
    * cannot be contradicted"). The totality branches did not consult it, and
    * applied the SCALAR premise — every argument non-null — to a call where
    * argument nullness cannot reach the output. That is the imprecision
-   * docs/sqlc-disagreements.md records for `pg_generate_series/GenerateSeries`.
+   * recorded against sqlc for `pg_generate_series/GenerateSeries`.
    *
    * Strictness is the load-bearing half: a NON-strict SRF handed NULL runs its
    * body and may emit rows with NULLs in them.

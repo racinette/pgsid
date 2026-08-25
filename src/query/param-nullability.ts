@@ -1,8 +1,7 @@
 // ---------------------------------------------------------------------------
 // Argument nullability: which of a statement's parameters ($1, $2, …) reject
-// a NULL binding. See docs/argument-nullability.md for the design and the
-// measured PostgreSQL behaviour it rests on; the executable version of those
-// measurements is tests/unit/query/param-mechanism.test.ts.
+// a NULL binding. The measured PostgreSQL behaviour it rests on is pinned
+// in tests/unit/query/param-mechanism.test.ts.
 //
 // A parameter is `notNull` when binding NULL can make the statement raise:
 //
@@ -250,8 +249,8 @@ function reject(
  *
  * Bounds: implicants larger than MAX_IMPLICANT_SIZE and joint implicants
  * beyond MAX_JOINT_IMPLICANTS are dropped — conservative (a dropped
- * implicant is a missing claim, exactly the pre-lift state) and recorded in
- * docs/argument-nullability.md. SINGLETONS are never dropped: the flat
+ * implicant is a missing claim, exactly the pre-lift state).
+ * SINGLETONS are never dropped: the flat
  * contract's claims must not regress however wide an expression fans out.
  */
 export type Implicants = number[][];
@@ -750,8 +749,7 @@ function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): vo
  * each with its own control — and asserts the derived set EQUALS what is
  * written here. A PostgreSQL upgrade that adds, removes or moves a rejection
  * fails that test with the diff. The table is a cache of a measurement, not a
- * hand-curated list, and the thing `docs/generated-surface.md` warns about
- * cannot happen to it silently.
+ * hand-curated list, so it cannot drift from the catalog silently.
  *
  * Arity is part of the key because the signatures differ: `array_fill` rejects
  * NULL at position 2 in its two-argument form and at 2 and 3 in its
@@ -760,8 +758,8 @@ function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): vo
  * The contract reason this exists at all: a user function's body is not its
  * interface and the engine claims nothing about it, but a BUILTIN's behaviour
  * is documented and knowable, so a rejection it performs is one the engine
- * owes a claim for (`docs/argument-nullability.md`, "What a nullable parameter
- * does not promise"). Sweep-4 finding 8.
+ * owes a claim for — a nullable parameter does not promise the binding
+ * succeeds.
  */
 export const BUILTIN_NULL_REJECTING_ARGS: ReadonlyMap<
   string,
@@ -1215,7 +1213,7 @@ function visit(c: Collector, node: unknown): void {
   // as they always did and its ParamRefs still count for numbering (see
   // visitBindOnly). This is the NARROW reading of reachability; the general
   // question (any provably-dead subtree falsifies an execution-time claim)
-  // is recorded in docs/argument-nullability.md beside the claim semantics.
+  // stays open.
   for (const key of ["SelectStmt", "InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
     const stmtNode = obj[key] as { withClause?: { ctes?: unknown[] } } | undefined;
     if (stmtNode?.withClause?.ctes?.length) {
@@ -1556,8 +1554,8 @@ export interface ParamFacts {
 
 /**
  * Mechanism E's claims, computed by the CHECK grounder and consumed here as
- * DATA — the same one-async-step-then-sync shape as the statement map
- * (docs/subtree-evaluation.md). Execution-time by construction: members
+ * DATA — the same one-async-step-then-sync shape as the statement map.
+ * Execution-time by construction: members
  * land in `rejected`/`jointRejected` and NEVER in `bindRejected`, so an
  * E-claim can never license output narrowing.
  */

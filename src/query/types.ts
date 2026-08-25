@@ -122,9 +122,8 @@ export interface OperatorMetadata {
 export const DEP_CATALOG_ONLY = ["resolveFunctions"] as const satisfies readonly (keyof DepCatalog)[];
 
 /**
- * The catalog face of the type-aware overload refactor
- * (`docs/type-aware-overloads.md`) — candidate signatures and the
- * elimination rule's coercibility questions. A SEPARATE face, deliberately:
+ * The catalog face of type-aware overload narrowing — candidate signatures
+ * and the elimination rule's coercibility questions. A SEPARATE face, deliberately:
  * no walk branch consults these yet, so they must not sit on
  * `NullabilityCatalog`, whose census demands a fixture reaching every
  * member. When the walk starts threading argument types, each member it
@@ -137,7 +136,7 @@ export interface OverloadCatalog {
    * The pg_catalog signatures behind a claim-table function name — empty
    * for a qualified reference to any other schema, and for names outside
    * the claim tables (which have no verdict to narrow). Tier 1 resolves a
-   * call to ONE of these rows; `docs/type-aware-overloads.md` has the rules.
+   * call to ONE of these rows.
    */
   resolveBuiltinFunctionSignatures(
     schema: string | undefined,
@@ -167,8 +166,8 @@ export interface OverloadCatalog {
    * Whether an argument of `fromType` could be accepted at a parameter of
    * `toType` by PostgreSQL's implicit coercion — FALSE only on certainty,
    * which is what licenses eliminating a candidate; any type this catalog
-   * cannot fully explain answers true and keeps it (the governing
-   * invariant of docs/type-aware-overloads.md). Implements the five-clause
+   * cannot fully explain answers true and keeps it — the governing
+   * invariant of the narrowing. Implements the five-clause
    * elimination rule: identity, the polymorphic predicate, domain bases,
    * array element recursion, and the captured pg_cast implicit rows.
    */
@@ -198,7 +197,7 @@ export const OVERLOAD_CATALOG_ONLY = [
 ] as const satisfies readonly (keyof OverloadCatalog)[];
 
 /**
- * The catalog face of the subtree evaluator (docs/subtree-evaluation.md) —
+ * The catalog face of the subtree evaluator —
  * the three questions its closure gate asks, each answered from the
  * captures documented on `CatalogSnapshot.builtinImmutableIoTypes` and its
  * two siblings. A SEPARATE face like `OverloadCatalog`, and for the same
@@ -219,8 +218,7 @@ export interface SubtreeEvaluationCatalog {
    */
   isImmutableIoType(typeName: string): boolean;
   /**
-   * The survivor-level operator gate of typed operand tracking
-   * (docs/subtree-evaluation.md, "Typed operand tracking"): given the
+   * The survivor-level operator gate of typed operand tracking: given the
    * operand TYPE SETS a closed tree threads bottom-up — `["unknown"]` for
    * a bare literal, `leftTypes` null for a prefix operator — the
    * survivors' result-type union when the fold verdict holds, else null.
@@ -241,7 +239,7 @@ export interface SubtreeEvaluationCatalog {
   ): string[] | null;
   /**
    * The SET-RETURNING twin of `closedFunctionTypes` (the closed-sublinks
-   * rung, docs/subtree-evaluation.md): same pool, same landing rules,
+   * rung): same pool, same landing rules,
    * same consensus, but every survivor must be a plain function that
    * RETURNS SET — the rows `closedFunctionTypes` refuses. The verdict is
    * the ELEMENT type union (pg_proc.prorettype of a proretset row is the
@@ -265,8 +263,8 @@ export interface SubtreeEvaluationCatalog {
    *  format_type rendering the type sets thread (`int4` → `integer`). */
   closedCastTargetType(typeName: string): string | null;
   /**
-   * Design B's family gate (docs/subtree-evaluation.md, "Settings-
-   * independent datetime literals"): when `typeName` (grammar spelling)
+   * Design B's family gate, for settings-independent datetime literals:
+   * when `typeName` (grammar spelling)
    * is date / timestamp / timestamptz — whose INPUT is stable, so
    * `closedCastTargetType` refuses them — the family for the evaluator's
    * value-SHAPE regex plus the format rendering the type sets thread.
@@ -288,8 +286,7 @@ export interface SubtreeEvaluationCatalog {
   isImmutableIoRendering(typeName: string): boolean;
   /**
    * The same set with the first-wave USER admission removed — the builtin
-   * immutable-I/O renderings and nothing else. This is the CAST-SOURCE gate
-   * (docs/subtree-evaluation.md, "Casts over a computed argument"), and it is
+   * immutable-I/O renderings and nothing else. This is the CAST-SOURCE gate,
    * a different question from the one above: `isImmutableIoRendering` asks
    * whether a value may cross the wire, which a domain over integer and an
    * enum both may; a cast off a user type runs whatever function the user
@@ -300,8 +297,7 @@ export interface SubtreeEvaluationCatalog {
   isBuiltinImmutableIoRendering(typeName: string): boolean;
   /**
    * Pre-parsed expressions of the ENFORCED table CHECK constraints on
-   * `schema.table` — the CHECK grounder's input channel
-   * (docs/argument-nullability.md, Mechanism E), gated on
+   * `schema.table` — the CHECK grounder's input channel, gated on
    * `pg_constraint.conenforced` where the walk's `resolveCheckConstraints`
    * gates on `convalidated`: NOT VALID still gates NEW writes and is HERE
    * (not there); NOT ENFORCED gates nothing and is in neither (both
@@ -313,8 +309,7 @@ export interface SubtreeEvaluationCatalog {
   resolveEnforcedCheckConstraints(schema: string, table: string): Node[];
   /**
    * `pg_collation.collisdeterministic` of the column's collation, null for
-   * a NON-COLLATABLE type. The evaluated-comparison oracle's gate
-   * (docs/subtree-evaluation.md, the entailment consumer): a synthesized
+   * a NON-COLLATABLE type. The evaluated-comparison oracle's gate: a synthesized
    * question runs under the analysis session's DEFAULT collation, so a
    * collatable column transfers only equality/inequality and only under a
    * deterministic collation (byte-equality semantics, which every
@@ -605,7 +600,7 @@ export interface NullabilityCatalog {
    * shadowing blind spot.
    *
    * The operand type SETS narrow the candidates when given, by the
-   * elimination rule of docs/type-aware-overloads.md — omitted or null
+   * elimination rule — omitted or null
    * constrains nothing, and eliminating every candidate answers null rather
    * than dispatching one the operands rule out. Callers that only want
    * STRICTNESS may omit them; the A_Expr dispatch must not.
@@ -619,9 +614,8 @@ export interface NullabilityCatalog {
 
   /**
    * Type-aware totality for a BINARY operator expression. Each operand is a
-   * type SET — the survivor return-type union of whatever produced it
-   * (docs/type-aware-overloads.md, corrected 2026-08-09): null constrains
-   * nothing, a singleton is exact, a multi-member union eliminates with
+   * type SET — the survivor return-type union of whatever produced it. Null
+   * constrains nothing, a singleton is exact, a multi-member union eliminates with
    * "can ANY member reach P" and never exact-matches. The result carries
    * `returns`, the surviving candidates' return-type union, which is what
    * the walk threads into a PARENT operator's operand position — exact
@@ -711,8 +705,7 @@ export interface NullabilityCatalog {
   ): boolean | null;
 
   /**
-   * The typed SCALAR builtin dispatch (docs/type-aware-overloads.md, the
-   * function slice): resolves a call over the kind='f' rows behind a
+   * The typed SCALAR builtin dispatch: resolves a call over the kind='f' rows behind a
    * claim-table name — arity with captured defaults, exact match on
    * singleton sets, elimination and verdict CONSENSUS over survivors, with
    * the signature-keyed additions recovering what name-level dispatch had
@@ -1167,8 +1160,7 @@ export interface OutputPresenceGroup {
  * FULL → both); a join with an unsettled side can still NULL-extend rows.
  *
  * Consumed by the EXPLAIN oracle (`tests/unit/query/explain-oracle.test.ts`),
- * which compares surviving joins against the planner's — see
- * `docs/witness-coverage.md`, "The EXPLAIN oracle". Deliberately excluded:
+ * which compares surviving joins against the planner's. Deliberately excluded:
  * branch-guard promotions (scoped to a CASE arm, no statement-level meaning)
  * and leaf-time re-derivations (same evidence the fixpoint already consumed).
  * This is a diagnostic surface, not part of the consumer contract.
@@ -1194,7 +1186,7 @@ export interface JoinAudit {
 /**
  * One reading of an expression's TYPE SET — what the walk believes an
  * operand could be, which is what every elimination downstream is decided
- * on (docs/type-aware-overloads.md). `null` is "no claim", always sound.
+ * on. `null` is "no claim", always sound.
  *
  * The set is a UNION over surviving candidates, so its governing invariant
  * is containment, not equality: whatever type PostgreSQL actually resolves
@@ -1213,7 +1205,7 @@ export interface TypeSetAudit {
 }
 
 /**
- * Type-resolution delegation (docs/type-resolution-delegation.md): run one
+ * Type-resolution delegation: run one
  * statement through PostgreSQL's PARSE ANALYSIS without executing it, and
  * return the resolved TYPE NAME of each output column, in order.
  *

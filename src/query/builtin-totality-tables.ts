@@ -70,7 +70,7 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   "json_array_length", "row_to_json", "jsonb_strip_nulls", "jsonb_pretty",
   // Misc
   "num_nulls", "num_nonnulls", "pg_typeof",
-  // Sequences (2026-08-20, docs/sqlc-disagreements.md `nextval/GetNextID`).
+  // Sequences.
   // VOLATILE by nature — the side effect is the point — which is why they are
   // outside the immutable-only totality capture and had no verdict at all.
   // Volatility is not totality: each either RAISES (a sequence that does not
@@ -90,7 +90,7 @@ export const STRICT_TOTAL_BUILTINS = new Set([
   "array_fill", "array_positions", "trim_array",
   "jsonb_set", "jsonb_insert",
   // ---------------------------------------------------------------------
-  // The work-list batch (2026-08-09, docs/builtin-surface-classification.md). Each
+  // The work-list batch. Each
   // name below had EVERY one of its pg_catalog rows in `no-null-found` —
   // claimed nullable with no witness across the corner corpus — and each was
   // then convicted individually on input classes the corpus does not carry.

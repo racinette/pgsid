@@ -1,6 +1,5 @@
 // ---------------------------------------------------------------------------
-// The CHECK grounder — Mechanism E (docs/argument-nullability.md; the
-// evaluation capability is docs/subtree-evaluation.md, consumer 2).
+// The CHECK grounder — Mechanism E.
 //
 // A write statement's ENFORCED CHECK constraints reject a NULL binding when
 // the written values drive the predicate FALSE — not UNKNOWN, which CHECK
@@ -502,8 +501,7 @@ function falseImplicants(
  * is bound) is not a fact about any parameter and drops out of both — it
  * surfaces instead as `alwaysRaises`, and only from a UNIVERSAL write
  * event, since the same implicant off an UPDATE or a MERGE arm means
- * "raises when a row matches" (docs/argument-nullability.md, "The
- * always-raises statement fact").
+ * "raises when a row matches" rather than the always-raises statement fact.
  */
 export function groundedCheckClaims(
   checks: readonly GroundedCheck[],

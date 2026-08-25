@@ -3,11 +3,11 @@ import type { Node } from "libpg-query";
 import type { ResolveColumnTypes, TypeSetAudit } from "./types.js";
 
 // ---------------------------------------------------------------------------
-// Type-resolution delegation, Route A (docs/type-resolution-delegation.md).
+// Type-resolution delegation, Route A.
 //
 // `operandTypeSet` answers "what could this expression be" as a SET, because
 // it does not implement PostgreSQL's preferred-type tiebreak — a declared
-// non-goal (docs/type-aware-overloads.md). Where PostgreSQL has one answer,
+// non-goal. Where PostgreSQL has one answer,
 // this asks for it instead of reimplementing the rule that produces it.
 //
 // The method: take an expression the walk could not pin, replace every column

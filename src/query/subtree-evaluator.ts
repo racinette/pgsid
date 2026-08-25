@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Subtree evaluator (docs/subtree-evaluation.md).
+// Subtree evaluator.
 //
 // Finds the MAXIMAL CLOSED subtrees of a statement's AST — topmost nodes an
 // allowlist proves free of names and of session-state dependence — batches
@@ -11,8 +11,8 @@
 //
 // Closure is OPEN-BY-DEFAULT: any node kind the allowlist has not met is
 // open, which is what makes the evaluator scope-blind — it never resolves a
-// name, it only detects one. The gates are TYPED (docs/subtree-evaluation.md,
-// "Typed operand tracking"): every closed node carries a TYPE SET — the
+// name, it only detects one. The gates are TYPED: every closed node carries
+// a TYPE SET — the
 // survivor return-type union of whatever produced it — threaded bottom-up
 // the way the walk's operandTypeSet does, but scope-free, because the
 // closed grammar holds no columns and no parameters. A bare literal is
@@ -116,7 +116,7 @@ const isUnknownSet = (s: TypeSet): boolean => s.length === 1 && s[0] === UNKNOWN
 
 // --- Design B: the value-SHAPE gate over datetime literals -------------------
 //
-// docs/subtree-evaluation.md, "Settings-independent datetime literals": the
+// Settings-independent datetime literals: the
 // datetime input functions read DateStyle/TimeZone, so their casts fail the
 // immutable-I/O gate — but a spelling that fixes every FIELD'S ROLE parses
 // identically under each of the finitely many DateStyle values, and that
@@ -143,8 +143,8 @@ const DATETIME_SHAPES: Record<"date" | "timestamp" | "timestamptz", RegExp> = {
 };
 
 /** Argument kinds `pgsql-deparser` renders with the parentheses a subscript
- *  needs — measured, not assumed (docs/deparser-limitations.md §4, and the
- *  table in the `A_Indirection` case below). */
+ *  needs — measured, not assumed (the table in the `A_Indirection` case
+ *  below). */
 const SUBSCRIPTABLE_ARG_TAGS = new Set(["TypeCast", "FuncCall", "SubLink"]);
 
 /** A_Expr kinds that resolve through the operator name the AST carries
@@ -289,8 +289,7 @@ function typeSetVerdict(
         // First-wave widening: an array-typed literal cast closes when the
         // ELEMENT type is a builtin with immutable I/O — array_in's blanket
         // stable flag means "elements could be datetime", a question the
-        // element gate answers better than the flag does
-        // (docs/subtree-evaluation.md, first-wave scope). User-typed
+        // element gate answers better than the flag does. User-typed
         // elements stay out with array_in's reason intact.
         if (!catalog.isImmutableIoType(name)) return null;
         const el = catalog.closedCastTargetType(name);
@@ -412,8 +411,7 @@ function typeSetVerdict(
       // THE ARGUMENT KIND IS GATED, and this one is a RENDERING constraint
       // rather than a closure one. Every collected subtree goes back out
       // through `deparseSelect`, and `pgsql-deparser` drops the parentheses a
-      // subscripted expression needs for some argument kinds (measured
-      // 2026-08-24, docs/deparser-limitations.md §4):
+      // subscripted expression needs for some argument kinds (measured):
       //
       //     (array_remove(…))[1]  → (array_remove(…))[1]   accepted
       //     ('{…}'::jsonb)['a']   → ('{…}'::jsonb)['a']    accepted
@@ -543,7 +541,7 @@ function typeSetVerdict(
     }
 
     case "SubLink": {
-      // Closed sublinks (docs/subtree-evaluation.md, "Closed sublinks"): a
+      // Closed sublinks: a
       // body referencing no tables, columns or parameters is a closed tree
       // wearing subquery syntax — it deparses as a scalar expression and
       // batches through the existing protocol unchanged. A multi-row EXPR
@@ -601,8 +599,7 @@ interface SublinkBody {
 /**
  * The non-contextual sublink body: a bare projection — `SELECT <closed
  * exprs>` — a VALUES list, or a SET OPERATION over two such bodies, each
- * free to carry the row-changing clauses (docs/subtree-evaluation.md,
- * "Body-clause widening"). Any FROM refuses (a relation is context; a
+ * free to carry the row-changing clauses. Any FROM refuses (a relation is context; a
  * function scan is trap 1's materializing shape, refused whatever the
  * name), and GROUPING and WITH are refused permanently with their reasons
  * in that document's "Closed for good" section. An unknown field present
@@ -692,8 +689,7 @@ function closedSelectBody(
     return null;
   }
   if (s.op !== undefined && s.op !== "SETOP_NONE") return null;
-  // The free clauses (docs/subtree-evaluation.md, "Body-clause widening",
-  // fourth batch): each changes WHICH rows the body has, never which value
+  // The free clauses: each changes WHICH rows the body has, never which value
   // a given row carries. WHERE is a closed predicate over the same rows;
   // ORDER BY and DISTINCT are admitted but bar a limit from slicing what
   // they leave — DISTINCT's surviving order is a planner choice (measured,
@@ -702,8 +698,7 @@ function closedSelectBody(
   // undetermined too: `VALUES (1.0),(1.00) ORDER BY column1 LIMIT 1`
   // answers 1.0 where the same rows written the other way answer 1.00,
   // `1.0 = 1.00` holding under numeric's opclass while the renderings
-  // differ. Both bars are permanent — docs/subtree-evaluation.md,
-  // "Closed for good".
+  // differ. Both bars are permanent.
   //
   // They are gated HERE, above the branch, because every body shape can
   // carry them: a VALUES body takes an ORDER BY too (measured — WHERE and
@@ -809,8 +804,7 @@ function plainDistinctClause(s: Record<string, unknown>): boolean {
 }
 
 /**
- * The LIMIT/OFFSET clause (docs/subtree-evaluation.md, "Body-clause
- * widening", second clause): both counts are ordinary closed expressions —
+ * The LIMIT/OFFSET clause: both counts are ordinary closed expressions —
  * `LIMIT ALL` is a NULL literal, which closes like any other — and
  * `WITH TIES` is refused, since the count then bounds nothing (it needs an
  * ORDER BY, itself outside the wave, so the shape is unreachable today and

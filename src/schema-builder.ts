@@ -556,9 +556,8 @@ export class SchemaBuilder {
    * Simulate SESSION END: drop the session's temporary objects, and report
    * every tracked function the drop took with it.
    *
-   * WHY THIS METHOD EXISTS AT ALL is layered, and the chain is written down
-   * in `docs/temporary-relations.md` — including the two readings that look
-   * right and are not. Read it before changing the placement or the DISCARD
+   * WHY THIS METHOD EXISTS AT ALL is layered. Read the tests before
+   * changing the placement or the DISCARD
    * variant; both are forced by measurements, not preference.
    *
    * Migrations are applied and inspected on ONE connection; the application

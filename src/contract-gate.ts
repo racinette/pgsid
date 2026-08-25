@@ -1,6 +1,5 @@
 // ---------------------------------------------------------------------------
-// The arity-and-order gate — the consumer boundary
-// (docs/deferred-tasks.md §1; docs/consumer-design.md, decision 5).
+// The arity-and-order gate — the consumer boundary.
 //
 // `inferQueryContract` returns POSITIONAL arrays. A consumer zips them against
 // what PostgreSQL reports for the same statement, and nothing has ever checked
