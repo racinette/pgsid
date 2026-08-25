@@ -29,7 +29,7 @@ import {
 
 // ---------------------------------------------------------------------------
 // Generated-query soundness: the engine vs PostgreSQL over the enumerated
-// structural space. See docs/query-generator.md.
+// structural space.
 //
 // Pipeline per query:  construct AST → deparse → parse the text → engine
 //                                             ↘ same text       → PostgreSQL
@@ -587,7 +587,7 @@ describe("generated-query soundness (engine vs PostgreSQL)", () => {
     expect(
       rejected,
       `A generated query PostgreSQL rejects is a generator defect, not a ` +
-        `finding (docs/query-generator.md):\n${rejected.join("\n")}\n`,
+        `finding:\n${rejected.join("\n")}\n`,
     ).toEqual([]);
   });
 

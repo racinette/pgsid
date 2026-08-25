@@ -35,8 +35,7 @@ export const NULL_REJECTION =
   /does not allow null values|violates not-null constraint|frame (starting|ending) offset must not be null|dimension array or low bound array cannot be null|dimension values cannot be null|initial position must not be null|range constructor flags argument must not be null|null_value_treatment must be|path element at position \d+ is null/;
 
 /**
- * The SECOND witness class (docs/argument-nullability.md, "Witness
- * classification for constraint-shaped raises"): the two messages a
+ * The SECOND witness class, for constraint-shaped raises: the two messages a
  * CONSTRAINT produces when it rejects a written row. Mechanism E's claims
  * and the write-side partition-bound claims are refused this way, so
  * without this class they had no witness any oracle would accept.
@@ -98,8 +97,8 @@ export interface FixtureDirectives {
   raisesPattern: string | null;
   /**
    * Expected argument nullability, from `-- @param N notNull|nullable` lines.
-   * One entry per annotated parameter, in annotation order. See
-   * docs/argument-nullability.md: `notNull` claims binding NULL can make the
+   * One entry per annotated parameter, in annotation order.
+   * `notNull` claims binding NULL can make the
    * statement raise; `nullable` claims NOTHING — it records that no channel
    * the engine models rejects NULL, never that nothing does. See
    * `paramOpaque` for the raises that fall outside.
@@ -548,8 +547,8 @@ export function parseFixtureDirectives(content: string): FixtureDirectives {
     throw new Error("@raises is only meaningful on a fixture marked @no-rows");
   }
 
-  // `@always-raises` is the statement-level claim (QueryContract.alwaysRaises,
-  // docs/argument-nullability.md): every execution rejects, whatever is bound.
+  // `@always-raises` is the statement-level claim
+  // (QueryContract.alwaysRaises): every execution rejects, whatever is bound.
   // It therefore implies the two above — a statement that always raises never
   // returns a row, and the refusal has to be OBSERVED rather than asserted,
   // which is what @raises checks.

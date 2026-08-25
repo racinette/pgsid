@@ -15,7 +15,7 @@ import type { BuiltinFunctionSignature } from "../../../src/catalog/types.js";
 // ---------------------------------------------------------------------------
 // The curated name tables, held to pg_catalog.
 //
-// `docs/generated-surface.md` item 2. Eight hand-curated tables remained in
+// Eight hand-curated tables remained in
 // the walk, and no test asserted what should be *in* one — so a missing entry
 // was invisible until a sweep happened to write the query. That yielded three
 // sweeps running (ALWAYS_NOT_NULL, then STRICT_TOTAL_BUILTINS, then
@@ -37,8 +37,8 @@ import type { BuiltinFunctionSignature } from "../../../src/catalog/types.js";
 //   IT CANNOT answer TOTALITY. `proisstrict` is strictness — NULL in, NULL
 //   out — and 2548 of PG18's 2726 builtin names carry it, so it is no proxy
 //   for "never returns NULL for non-null arguments". That property lives only
-//   in the C implementations, a scanner for it was built and discarded
-//   (`docs/type-aware-overloads.md` records why in full), and the four
+//   in the C implementations, a scanner for it was built and discarded,
+//   and the four
 //   totality tables are therefore held only to EXISTENCE here. Probing them
 //   by execution is item 3.
 //
@@ -49,7 +49,7 @@ import type { BuiltinFunctionSignature } from "../../../src/catalog/types.js";
 // coverage.
 //
 // The signature counts are printed rather than asserted. They are the premise
-// of `docs/type-aware-overloads.md`: a curated entry keys on a NAME while
+// of the narrowing: a curated entry keys on a NAME while
 // PostgreSQL keys on a SIGNATURE, which is how `lower`/`upper` carried a total
 // `(text)` form and a NULL-returning `(anyrange)` form under one entry.
 // ---------------------------------------------------------------------------
@@ -175,7 +175,7 @@ describe("curated name tables vs pg_catalog", () => {
       `\ncurated totality tables: ${names} names → ${sigs} pg_catalog signatures; ` +
         `operator sets: ${opNames.size} distinct names → ${opSigs} signatures.\n` +
         `  A curated entry keys on a NAME and PostgreSQL keys on a SIGNATURE; ` +
-        `docs/type-aware-overloads.md is the narrowing that closes the gap.`,
+        `the type-aware narrowing is what closes the gap.`,
     );
     if (!pg.closed) await pg.close();
   });

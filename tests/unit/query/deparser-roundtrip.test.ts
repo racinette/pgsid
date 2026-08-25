@@ -7,7 +7,7 @@ import { parseSql } from "../../../src/ast.js";
 // ---------------------------------------------------------------------------
 // Deparser round-trip: parse → deparse → parse over every fixture.
 //
-// The query generator (see docs/query-generator.md) constructs ASTs,
+// The query generator constructs ASTs,
 // deparses them with `pgsql-deparser`, and re-parses the text so the engine
 // and PostgreSQL analyse one identical string. That pipeline is only as
 // trustworthy as the deparser, and the failure mode that matters is the
@@ -43,8 +43,7 @@ type Outcome =
  * Fixtures known to deviate, measured with pgsql-deparser 18.1.1. Everything
  * absent from this map is expected to round-trip identically.
  *
- * **`docs/deparser-limitations.md` is where the DEFECTS live, per construct,
- * with repro snippets and the drafted bug reports.** This map is keyed by
+ * This map is keyed by
  * FIXTURE, which is the wrong key for remembering what the deparser does: the
  * same exploration was performed twice from scratch and reached the same
  * conclusions both times, because the conclusions were only ever recorded
@@ -72,7 +71,7 @@ const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   // Same subscripting emission defect, on the slice fixture.
   "array-slices": "reparse-failed",
   // Same defect, and this fixture is where it was MEASURED down to the
-  // argument kind (2026-08-24, docs/deparser-limitations.md §4): the
+  // argument kind: the
   // parentheses survive around a FuncCall, a TypeCast and a SubLink and are
   // dropped around an ARRAY constructor, a CASE and a COALESCE. The closed
   // grammar gates on exactly that, so the fixture carries both sides — and
@@ -91,8 +90,8 @@ const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   // ("frame starting from following row cannot have preceding rows") — a
   // loud failure, not a silent drop, so no expected-node check is owed.
   "window-default-frame": "reparse-failed",
-  // The same defect. Measured out in docs/deparser-limitations.md §2, where it
-  // is WIDER than the loud case above and mostly SILENT: a frame survives only
+  // The same defect, WIDER than the loud case above and mostly SILENT: a
+  // frame survives only
   // when its START bound is not an offset, or its end is CURRENT ROW or an
   // offset FOLLOWING. Three of the four failures produce VALID SQL naming a
   // DIFFERENT frame — so the generator must not request an offset frame bound

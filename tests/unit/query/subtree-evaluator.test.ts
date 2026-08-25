@@ -17,7 +17,7 @@ import {
 import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 
 // ---------------------------------------------------------------------------
-// The subtree evaluator's pins (docs/subtree-evaluation.md, rollout step 1).
+// The subtree evaluator's pins.
 //
 // Two halves. The ALLOWLIST CENSUS makes the closure gate's vocabulary
 // explicit the way node-census.test.ts does the walk's: every node kind that
@@ -154,11 +154,10 @@ const OPEN_BY_DESIGN: Record<string, string> = {
   // throw `Deparser does not handle node type`). The evaluator renders every
   // collected subtree, and a batch whose render throws returns NOTHING for
   // the whole statement, so admitting one would cost every other answer in
-  // the same query. This is the missing-feature half of the report already
-  // drafted in docs/deparser-limitations.md; filing it is what unblocks the
-  // group. Recorded here as blocked rather than as designed-open, because
-  // "closable, if ever worth it" is the entry shape this project has twice
-  // measured to rot fastest (docs/deferred-tasks.md §4).
+  // the same query. Filing the drafted deparser missing-feature report is
+  // what unblocks the group. Recorded here as blocked rather than as
+  // designed-open, because "closable, if ever worth it" is the entry shape
+  // this project has twice measured to rot fastest.
   JsonIsPredicate: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
   JsonObjectConstructor: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
   JsonArrayConstructor: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
@@ -237,7 +236,7 @@ let evaluate: Evaluate;
 
 const SCHEMA = `
   CREATE TABLE orders (id int NOT NULL, qty int NOT NULL);
-  -- First-wave widening subjects (docs/subtree-evaluation.md): a unique
+  -- First-wave widening subjects: a unique
   -- enum and unique domains fold; the duplicated enum, the datetime-based
   -- domain and the GUC-reading CHECK are the guards.
   CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
@@ -419,8 +418,8 @@ describe("closure gates", () => {
   });
 
   it("a stable input function keeps the literal cast open — unless the shape gate answers", async () => {
-    // Design B (docs/subtree-evaluation.md, "Settings-independent datetime
-    // literals"): 'now' and the interval fail the value-shape test and stay
+    // Design B, for settings-independent datetime literals: 'now' and the
+    // interval fail the value-shape test and stay
     // fully open; '2020-01-01'::date CLOSES as a member (the swept ISO
     // shape) but never collects alone — date_out reads DateStyle, and the
     // rendering gate is untouched. The comparison shows the member side:
@@ -681,8 +680,7 @@ describe("evaluation protocol", () => {
   });
 
   it("a set-operation body stores its arms UNWRAPPED, and deparses back as written", async () => {
-    // The body-clause widening's parse-shape pin (docs/subtree-evaluation.md,
-    // "Body-clause widening"): `larg`/`rarg` hold BARE SelectStmt fields, not
+    // The body-clause widening's parse-shape pin: `larg`/`rarg` hold BARE SelectStmt fields, not
     // tagged nodes, which is why the body gate recurses on fields rather than
     // on nodes. If a libpg_query release ever wrapped them, the gate would
     // refuse every set operation — silently, and back to the pre-rung state.
@@ -719,8 +717,7 @@ describe("evaluation protocol", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The acceptance frame for TYPED OPERAND TRACKING (chartered and LANDED
-// 2026-08-12, docs/subtree-evaluation.md). The four targets below were
+// The acceptance frame for TYPED OPERAND TRACKING. The four targets below were
 // written as `it.fails` before the code existed and flipped to plain `it`
 // in the commit that landed the survivor-level gate — a scope-free type
 // pass over the closed grammar, `unknown` first-class under the landing
@@ -831,8 +828,8 @@ describe("GUARD: what no gate refinement may ever fold", () => {
 });
 
 // ---------------------------------------------------------------------------
-// First-wave widenings (docs/subtree-evaluation.md, "The dependence model,
-// corrected"): enums, domains over immutable-I/O bases with closed CHECKs,
+// First-wave widenings, under the corrected dependence model: enums,
+// domains over immutable-I/O bases with closed CHECKs,
 // array literals over immutable-I/O elements — all foldable under the
 // snapshot contract, because their I/O reads CATALOG state only and catalog
 // change is the system's re-analysis trigger. Admission is by UNIQUENESS:

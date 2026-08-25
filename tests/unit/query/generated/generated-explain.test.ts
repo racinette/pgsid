@@ -27,9 +27,7 @@ import {
 // declared. The hand-written fixtures hold the oracle with @planner-keeps
 // annotations (explain-oracle.test.ts); the generated corpus has no
 // annotation channel, so this suite measures agreement over the enumerated
-// structural space and reports the divergence classes. See
-// docs/witness-coverage.md, "The EXPLAIN oracle", for the comparison and the
-// asymmetry that governs reading it.
+// structural space and reports the divergence classes.
 //
 // What IS asserted, because it needs no annotations:
 //

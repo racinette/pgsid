@@ -7,8 +7,8 @@ import { inferQueryContract, type QueryContract } from "../../../src/query/nulla
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for subtree evaluation (docs/subtree-evaluation.md; the
-// CHECK-channel consumer is Mechanism E in docs/argument-nullability.md).
+// The RED SUITE for subtree evaluation; the CHECK-channel consumer is
+// Mechanism E.
 //
 // Every `it.fails` case asserts the TARGET contract — what the engine must
 // claim once the named consumer lands — and passes today exactly because the
@@ -291,9 +291,8 @@ describe("CHECK grounder (flipped 2026-08-12 — rollout step 3 landed)", () => 
 
 // --- The recorded later: output-side CHECK entailment. -----------------------
 // Same core, different soundness argument (validated CHECKs are notFALSE
-// over stored rows; WHERE equalities supply groundings). Charted as a later
-// in docs/subtree-evaluation.md — this case may stay red past the first two
-// consumers, and that is expected.
+// over stored rows; WHERE equalities supply groundings). Charted as a later —
+// this case may stay red past the first two consumers, and that is expected.
 
 describe("entailment (flipped 2026-08-12 — the recorded later landed)", () => {
   it("a WHERE equality grounds a validated CHECK for returned rows", async () => {
@@ -341,8 +340,8 @@ describe("entailment (flipped 2026-08-12 — the recorded later landed)", () => 
   });
 });
 
-// --- Kernel atom-oracle rungs (BUILT 2026-08-12). ----------------------------
-// docs/subtree-evaluation.md, "The kernel's atom oracle". Nothing here is
+// --- Kernel atom-oracle rungs (BUILT). --------------------------------------
+// Nothing here is
 // closed — these are KERNEL derivations (evidence shaping, notFALSE
 // harvest, same-token trichotomy, notTRUE consumed as guard refutation),
 // and both targets flip with NO evaluator passed. Convicted by crafted
@@ -577,8 +576,8 @@ describe("the lossy anchor read (found & closed 2026-08-24)", () => {
   });
 });
 
-// --- Partition-bound facts (chartered 2026-08-12). ---------------------------
-// docs/subtree-evaluation.md, "Partition-bound facts": a non-default
+// --- Partition-bound facts. --------------------------------------------------
+// A non-default
 // partition's rendered bound (pg_get_partition_constraintdef) enters the
 // kernel as a validated-CHECK-grade fact on DIRECT scans of the partition.
 // Every target was adjudicated 2026-08-16 over routed boundary data
@@ -669,8 +668,8 @@ describe("partition bounds (flipped 2026-08-16 — the chartered rung landed)", 
 
 });
 
-// --- Write-side partition bounds (chartered 2026-08-16). ---------------------
-// docs/subtree-evaluation.md, "Write-side rung": the same gated bounds
+// --- Write-side partition bounds. --------------------------------------------
+// The same gated bounds
 // (non-default range/list) feed the grounder's channel for DML naming the
 // partition directly. Enforcement pre-work pinned in param-mechanism
 // ("Write-side enforcement"): UPDATE, MERGE arms, ON CONFLICT and multi-row
@@ -735,8 +734,8 @@ describe("write-side partition bounds (flipped 2026-08-16 — the write-side run
   });
 });
 
-// --- List membership exclusion (chartered 2026-08-16). -----------------------
-// docs/subtree-evaluation.md, "List membership exclusion": an OR-fact —
+// --- List membership exclusion. ----------------------------------------------
+// An OR-fact —
 // TRUE from evidence or notFALSE from a CHECK's spine — refutes a guard
 // when EVERY disjunct carries a comparison over the guard's column whose
 // value set shares nothing with it, each arm answered by the existing
@@ -796,8 +795,8 @@ describe("list membership exclusion (flipped 2026-08-16 — the rung landed)", (
   });
 });
 
-// --- Guard-side IN (chartered 2026-08-16). -----------------------------------
-// docs/subtree-evaluation.md, "Guard-side IN": the refutation above is
+// --- Guard-side IN. ----------------------------------------------------------
+// The refutation above is
 // spelling-dependent — `k = 'q' OR k = 'r'` walks arm by arm through the OR
 // rule while `k IN ('q','r')` atomizes to nothing, so the same question
 // answers two ways. The rung desugars a multi-element IN (and its `= ANY`
@@ -855,8 +854,8 @@ describe("guard-side IN (flipped 2026-08-16 — the rung landed)", () => {
   });
 });
 
-// --- The always-raises statement fact (chartered 2026-08-16). ----------------
-// docs/argument-nullability.md, "The always-raises statement fact": when a
+// --- The always-raises statement fact. ---------------------------------------
+// When a
 // grounded CHECK reduces to FALSE with no parameter left in it, the write
 // rejects on every execution — the empty implicant, which minimization
 // absorbs and the parameter contract then drops as vacuous. The rung
@@ -920,8 +919,8 @@ describe("always-raises (flipped 2026-08-16 — the rung landed)", () => {
   });
 });
 
-// --- Closed sublinks (chartered 2026-08-16). ---------------------------------
-// docs/subtree-evaluation.md, "Closed sublinks": a sublink whose body
+// --- Closed sublinks. --------------------------------------------------------
+// A sublink whose body
 // references no tables, columns or parameters is a closed tree wearing
 // subquery syntax — it deparses as a scalar expression and batches through
 // the existing protocol unchanged; the consumers read it through the same
@@ -984,8 +983,8 @@ describe("closed sublinks (flipped 2026-08-16 — the rung landed)", () => {
   });
 });
 
-// --- Sublink body-clause widening: set operations (chartered 2026-08-16). ----
-// docs/subtree-evaluation.md, "Body-clause widening": the first wave's body
+// --- Sublink body-clause widening: set operations. ---------------------------
+// The first wave's body
 // gate admits ONE shape, the bare projection, so `(SELECT 1 UNION SELECT 1)`
 // refuses on a clause that changes nothing about closure — both arms are
 // closed and the result is constant. The clause rides alone, per the
@@ -1215,8 +1214,7 @@ describe("sublink free body clauses (flipped 2026-08-16 — the batch landed)", 
     // class and not on the value, so it leaves the sliced row undetermined
     // too — `VALUES (1.0),(1.00) ORDER BY column1 LIMIT 1` answers 1.0 and
     // the same rows written the other way answer 1.00. Both bars are
-    // PERMANENT as of 2026-08-17 (docs/subtree-evaluation.md, "Closed for
-    // good"); this guard never flips.
+    // PERMANENT; this guard never flips.
     expect(await notNullOf(
       "SELECT CASE WHEN (SELECT DISTINCT generate_series(1,3) LIMIT 1) = 1" +
         " THEN NULL ELSE 5 END AS c FROM orders o",

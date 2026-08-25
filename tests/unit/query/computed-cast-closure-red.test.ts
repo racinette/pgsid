@@ -8,9 +8,8 @@ import { createKillableEvaluator, type KillableEvaluator } from "./killable-eval
 import type { NullabilityCatalog, SubtreeEvaluationCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for a CAST OVER A COMPUTED ARGUMENT
-// (docs/subtree-evaluation.md, "As built" — "Casts close on LITERAL arguments
-// only"; docs/deferred-tasks.md §4).
+// The RED SUITE for a CAST OVER A COMPUTED ARGUMENT — as built, casts closed
+// on LITERAL arguments only.
 //
 // The evaluator's cast gate was syntactic: `typeSetOf` refused any TypeCast
 // whose argument was not an A_Const. The reason is real and measured — a

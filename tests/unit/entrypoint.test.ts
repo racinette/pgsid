@@ -7,8 +7,7 @@ import * as pgsid from "../../src/index.js";
 //
 // `tsup` built `src/index.ts` and `pnpm dev` ran it from the day the
 // repository was set up. The file did not exist until 2026-08-24, and nothing
-// noticed, because nothing consumed the package — the same absence
-// `docs/deferred-tasks.md` §1 records from the other side.
+// noticed, because nothing consumed the package.
 //
 // Two things are pinned here. The SURFACE, so that removing an export is a
 // named failure rather than a consumer's problem; and the documented ORDER of
@@ -92,8 +91,7 @@ describe("the package entry point", () => {
   it("a refused statement raises the error the boundary exports", async () => {
     // `UnsupportedNodeError` is on the surface because a consumer has to
     // distinguish "the engine cannot analyse this" (a warning, degrade to
-    // all-nullable) from "this SQL is broken" (an error) — decision 5 of
-    // docs/consumer-design.md.
+    // all-nullable) from "this SQL is broken" (an error).
     expect(pgsid.UnsupportedNodeError.prototype).toBeInstanceOf(Error);
   });
 });

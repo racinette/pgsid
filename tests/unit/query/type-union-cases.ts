@@ -47,7 +47,7 @@ export const UNION_CASES: Record<string, UnionCase[]> = {
   // MIXED numeric operands are where the union earns its name. PostgreSQL
   // picks exactly one; the walk keeps every candidate an implicit coercion
   // could reach, because it does not implement the preferred-type tiebreak
-  // (docs/type-aware-overloads.md declares that a non-goal). Sound, wide,
+  // (a declared non-goal). Sound, wide,
   // and the width is the thing to watch.
   "arithmetic, mixed operands — the union is real": [
     { sql: "SELECT abs(m.i + m.n) AS v FROM m", expect: { "m.i + m.n": ["double precision", "numeric", "real"] } },

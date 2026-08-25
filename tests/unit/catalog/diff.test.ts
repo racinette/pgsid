@@ -184,8 +184,8 @@ describe("diffCatalogs: columns", () => {
   it("collation change → column modified", () => {
     // Both collation facts are comparable state: a determinism flip moves
     // what literal distinctness may conclude, and an identity flip moves
-    // whether the comparison oracle may order the column's anchors
-    // (docs/subtree-evaluation.md) — either way the column's claims must
+    // whether the comparison oracle may order the column's anchors —
+    // either way the column's claims must
     // recompute, so the diff must surface the column.
     const before = snapshot({
       tables: [table("public", "users", [

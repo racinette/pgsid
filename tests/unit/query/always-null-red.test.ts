@@ -7,8 +7,7 @@ import { inferQueryContract, type QueryContract } from "../../../src/query/nulla
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for the always-null channel (`OutputNullability.alwaysNull`;
-// docs/consumer-design.md, "Always-null columns").
+// The RED SUITE for the always-null channel (`OutputNullability.alwaysNull`).
 //
 // Same discipline as subtree-evaluation-red.test.ts: every `it.fails` case
 // asserts the TARGET contract — what the engine must claim once the named

@@ -4,7 +4,7 @@ import { fixtureGeneratorRegistry } from "../fixture-data/generators.js";
 import type { ColumnGenerator, GeneratorRegistry } from "../fixture-data/generate.js";
 
 // ---------------------------------------------------------------------------
-// The schema axis — `docs/generated-surface.md` item 4.
+// The schema axis.
 //
 // The generator varies query STRUCTURE over a FIXED schema vocabulary, and the
 // engine is a function of (AST, CATALOG) with only one argument explored. That
@@ -148,7 +148,7 @@ export const SCHEMA_VARIANTS: SchemaVariant[] = [
   {
     name: "check-entail",
     why:
-      "The CAPABILITY axis rather than the feature axis (docs/generated-surface.md item 5), and the one place the two compose. The corpus already ENTERS the entailment kernel — resolveCheckConstraintsTree is warm over the base schema — and learns nothing, because t/u/v carry no CHECK: a question asked of an empty answer never reaches the questions behind it. This variant supplies the answer, and the `check-lit` projection supplies the query half, so `litsDistinct` finally has a TRUE fact `val = 'x'` to set against the constraint's `val = 'zz'` and resolveLiteralDistinctnessSound is asked. The promotion it licenses is the UNSOUND direction — nullable to notNull on a column PostgreSQL will happily return NULL for if the reasoning is wrong.",
+      "The CAPABILITY axis rather than the feature axis, and the one place the two compose. The corpus already ENTERS the entailment kernel — resolveCheckConstraintsTree is warm over the base schema — and learns nothing, because t/u/v carry no CHECK: a question asked of an empty answer never reaches the questions behind it. This variant supplies the answer, and the `check-lit` projection supplies the query half, so `litsDistinct` finally has a TRUE fact `val = 'x'` to set against the constraint's `val = 'zz'` and resolveLiteralDistinctnessSound is asked. The promotion it licenses is the UNSOUND direction — nullable to notNull on a column PostgreSQL will happily return NULL for if the reasoning is wrong.",
     covers: ["validated-check"],
     patch: `
 ALTER TABLE t ADD CONSTRAINT gen_t_ck CHECK (val = 'zz' OR name IS NOT NULL);

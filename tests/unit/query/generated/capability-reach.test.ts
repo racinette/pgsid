@@ -27,7 +27,7 @@ import {
 import { BASE_SCHEMA_SQL, SCHEMA_VARIANTS, type SchemaVariant } from "./schema-variants.js";
 
 // ---------------------------------------------------------------------------
-// Capability reach — `docs/generated-surface.md` item 5.
+// Capability reach.
 //
 // Items 1–4 asked which catalog FEATURES the fixture schema carries. This asks
 // which of the walk's catalog CAPABILITIES a GENERATED query ever exercises,
@@ -347,8 +347,8 @@ describe("capability reach of the generated corpus", () => {
   it("between them the two corpora leave no capability cold", () => {
     // The union bound. Everything outside the three interface partitions is
     // walk-facing, so a member neither corpus asks is a walk branch with no
-    // input at all — which is exactly the state `docs/generated-surface.md`
-    // item 5 exists to keep visible.
+    // input at all — which is exactly the state this census exists to keep
+    // visible.
     const cold = members.filter(m => !touched.has(m) && !handTouched.has(m)).sort();
     expect(
       cold,

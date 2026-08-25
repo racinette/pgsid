@@ -26,14 +26,14 @@ import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 // nodes are interpreted against — and that is where the defects were. All
 // eight adversarial-sweep-3 findings arrived through node types already
 // classified `handled`; five of them needed schema vocabulary
-// `fixtures/schema.sql` did not have, so the generated corpus's 8980 queries
-// could not express a single falsifying input (docs/generated-surface.md).
+// `fixtures/schema.sql` did not have, so the generated corpus could not
+// express a single falsifying input.
 //
 // So: enumerate the CATALOG features the walk branches on, classify each, and
 // fail when the fixture schema stops carrying one. The classification is the
 // deliverable. A generator silently does not generate a feature nobody wrote
 // down; a census fails loudly on it, and the ABSENT entries below are the
-// axis vocabulary for the schema axis (docs/generated-surface.md item 4).
+// axis vocabulary for the schema axis.
 //
 // Five assertions:
 //
@@ -73,8 +73,8 @@ import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 // ---------------------------------------------------------------------------
 // The enumerated catalog columns.
 //
-// The feature list above is hand-written, which is the disease
-// `docs/generated-surface.md` diagnoses in the curated name tables: no test
+// The feature list above is hand-written, which is the same disease as the
+// curated name tables: no test
 // asserts what should be *in* one, so a missing entry is invisible until
 // somebody writes the query. These columns are the antidote available on this
 // axis. Their domains are finite and defined by PostgreSQL, so the values
@@ -279,8 +279,8 @@ describe("catalog-feature census", () => {
   afterAll(async () => {
     // The gap list is this suite's product, not a by-product: every `absent`
     // entry is a catalog feature the walk branches on and the generated corpus
-    // cannot reach, which is the specification for the schema axis
-    // (docs/generated-surface.md item 4). Printed every run in the style of the
+    // cannot reach, which is the specification for the schema axis.
+    // Printed every run in the style of the
     // WITNESS_REPORT / GENERATED_ALL_STATES knobs, with the reasons behind
     // CATALOG_CENSUS_REPORT=1.
     const entries = Object.entries(FEATURES);
@@ -321,7 +321,7 @@ describe("catalog-feature census", () => {
   it("every feature marked `absent` really is absent", () => {
     // The other side of the marker, and the census's actual output: an
     // `absent` entry names a branch the fixture schema cannot reach, which is
-    // a line item for the schema axis (docs/generated-surface.md item 4).
+    // a line item for the schema axis.
     // Adding the DDL is exactly when somebody has to say what now covers it.
     const present = Object.entries(FEATURES)
       .filter(([, f]) => f.absent && f.detect(snapshot, env))

@@ -95,7 +95,7 @@ const PINS = {
   // Moved twice on 2026-08-20, 502/25 → 508/19 → 512/15, and the arithmetic
   // is the check that nothing else moved with them:
   //
-  //   -6  the function overload merge (docs/function-overload-merge.md)
+  //   -6  the function overload merge
   //       threaded a body parameter's declared type into the signature
   //       dispatch, so `concat_lower_or_upper(…)` narrows `UPPER($1)` — the
   //       six `sql_syntax_calling_funcs` entries;
@@ -131,8 +131,8 @@ const explainFailKeys = new Map<string, number>();
  * Every disagreeing column, BY NAME. The census above counts them; this says
  * WHICH — the identity `expect(tally).toEqual(PINS)` cannot carry, because two
  * compensating moves (one entry settled, one new one appearing) leave every
- * count where it was. Keyed `case/query#column (name)`, which is also how
- * docs/sqlc-disagreements.md heads its entries, so the pin and the register
+ * count where it was. Keyed `case/query#column (name)`, which is also how the
+ * disagreement register heads its entries, so the pin and the register
  * are greppable to each other.
  */
 const disagreements = new Map<string, string>();

@@ -3,7 +3,7 @@ import type { ResolveColumnTypes } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
 // The reference `resolveColumnTypes` — PREPARE, read `result_types`,
-// DEALLOCATE (docs/type-resolution-delegation.md).
+// DEALLOCATE.
 //
 // The engine's other database callbacks are all `Evaluate`, so this is built
 // on one rather than on a driver: the harness that already owns a

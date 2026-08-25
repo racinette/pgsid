@@ -7,9 +7,8 @@ import { collectParamNullability } from "../../../src/query/param-nullability.js
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The GATE for the per-property QUANTIFIER on operator strictness
-// (docs/type-aware-overloads.md, "Tier 2's consensus quantifier is
-// per-PROPERTY, not global").
+// The GATE for the per-property QUANTIFIER on operator strictness: tier 2's
+// consensus quantifier is per-PROPERTY, not global.
 //
 // Totality takes `every` and strictness takes `some`, because the two fail in
 // opposite directions: claiming total where a survivor is not is a wrong

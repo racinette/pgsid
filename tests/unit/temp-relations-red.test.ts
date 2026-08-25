@@ -7,10 +7,6 @@ import { snapshotCatalog } from "../../src/catalog/snapshot.js";
 // ---------------------------------------------------------------------------
 // RED SUITE: temporary relations across the MIGRATION pipeline.
 //
-// THE REASONING CHAIN IS docs/temporary-relations.md. These cases are its
-// evidence; that document is the order the evidence was found in and what
-// each finding overturned. A case here read without it looks arbitrary.
-//
 // The question this file answers, case by case: where does the snapshot's
 // deliberate temp-blindness actually cost us, and where does it cost nothing?
 // Every case was measured before it was written down.
@@ -525,7 +521,7 @@ describe("6b. DISCARD TEMP is the session-end simulation validate() can afford",
 //
 //    WHERE THE ESCAPE ENDS UP: an `engine.runtime` config key naming a SQL
 //    file of ordinary DDL, run inside `validate`'s transaction after the
-//    session-end discard (docs/deferred-tasks.md §1e). No new syntax, and
+//    session-end discard. No new syntax, and
 //    nothing in the user's migration.
 //
 //    AND WHY NO HINT POINTS AT IT. `relation "x" does not exist` is usually

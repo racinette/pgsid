@@ -35,8 +35,8 @@ import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 // metadata) was unreadable — the corpus actually reaches THROUGH the
 // information-missing path.
 //
-// That is where both 2026-08-24 unsoundnesses lived (`docs/deferred-tasks.md`
-// §4, the two NAME-LEVEL rows): the name-level total claim for `+` and the
+// That is where both NAME-LEVEL unsoundnesses lived: the name-level total
+// claim for `+` and the
 // name-level strict claim for `||` each fired exactly where operand types were
 // unreadable, which is exactly where the recorded hole (`+(path,path)`, the
 // array `||`) could not be eliminated — and the corpus could not have caught

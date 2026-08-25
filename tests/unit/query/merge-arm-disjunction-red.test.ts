@@ -13,9 +13,8 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 // A returned row was produced by exactly one ROW-PRODUCING arm, and an arm
 // fires only when its match kind holds AND its condition is TRUE. So every
 // returned row satisfies the DISJUNCTION of the row-producing arms'
-// conditions — an or-fact, which the entailment kernel has held since item 2a
-// and which `docs/deferred-tasks.md` records as having no producer reading
-// MERGE arms. This is that producer.
+// conditions — an or-fact the entailment kernel has held for a while, with
+// no producer reading MERGE arms. This is that producer.
 //
 // It is a DISJUNCTION and not a conjunction, so it proves a column non-null
 // only when EVERY arm's condition does — `predicateProvesNonNull`'s OR rule

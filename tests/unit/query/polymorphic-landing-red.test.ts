@@ -8,8 +8,7 @@ import { createKillableEvaluator, type KillableEvaluator } from "./killable-eval
 import type { NullabilityCatalog, SubtreeEvaluationCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for a POLYMORPHIC LANDING
-// (docs/subtree-evaluation.md, "Typed operand tracking").
+// The RED SUITE for a POLYMORPHIC LANDING, under typed operand tracking.
 //
 // Third time in three commits, and the same shape each time: a check applied
 // at the DECLARED level when the fact it tests is about the RESOLVED one.

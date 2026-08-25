@@ -15,8 +15,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
-// THE RED SUITE for type-resolution delegation, Stage 1
-// (docs/type-resolution-delegation.md).
+// THE RED SUITE for type-resolution delegation, Stage 1.
 //
 // `operandTypeSet` keeps every candidate an implicit coercion could reach,
 // because it does not implement PostgreSQL's preferred-type tiebreak — that

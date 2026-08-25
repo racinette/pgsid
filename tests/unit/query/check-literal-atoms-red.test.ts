@@ -8,9 +8,7 @@ import { createKillableEvaluator, type KillableEvaluator } from "./killable-eval
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for BOOLEAN LITERALS inside a CHECK expression
-// (docs/deferred-tasks.md §4, "Boolean literals in CHECK expressions" — the
-// last row there with a live route).
+// The RED SUITE for BOOLEAN LITERALS inside a CHECK expression.
 //
 // PostgreSQL stores a CHECK expression VERBATIM. There is no constant folding
 // on the way into `pg_constraint.conbin`, so `CHECK (false OR v IS NOT NULL)`

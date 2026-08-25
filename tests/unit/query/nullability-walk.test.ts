@@ -117,8 +117,8 @@ describe("nullability-walk", () => {
 
       const stmt = parsed.stmts![0]!.stmt!;
 
-      // The statement map runs live (docs/subtree-evaluation.md, consumer 1):
-      // fixture claims pin the walk WITH its chartered consumers, and the
+      // The statement map runs live: fixture claims pin the walk WITH its
+      // chartered consumers, and the
       // censuses keep exercising the symbolic paths evaluate short-circuits.
       const evaluate = async (s: string) =>
         (await pg.query<Record<string, unknown>>(s)).rows[0];

@@ -10,8 +10,7 @@ import { createKillableEvaluator, type KillableEvaluator } from "./killable-eval
 import type { NullabilityCatalog, SubtreeEvaluationCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for the CLOSED GRAMMAR's missing node kinds
-// (docs/subtree-evaluation.md, "The closed grammar, censused").
+// The RED SUITE for the CLOSED GRAMMAR's missing node kinds.
 //
 // The allowlist census in `subtree-evaluator.test.ts` ran two directions and
 // needed a third. It caught OVER-ADMISSION (an unclassified kind inside a
@@ -218,9 +217,8 @@ describe("JsonIsPredicate — closable by every argument except one", () => {
     // and it would close on those grounds alone. It is refused because
     // `pgsql-deparser` has no case for the node at all — so a collected one
     // would throw during render and zero the whole statement's map. This is
-    // the same defect class as the drafted upstream issue in
-    // docs/deparser-limitations.md, and closing that report is what unblocks
-    // this entry.
+    // the same defect class as the drafted upstream deparser issue, and
+    // closing that report is what unblocks this entry.
     const r = await pg.query<{ v: boolean }>(`SELECT 'nope' IS JSON AS v`);
     expect(r.rows[0]!.v).toBe(false);
     const parsed = await parseSql(`SELECT 'nope' IS JSON AS e0`);
@@ -262,8 +260,8 @@ describe("the kinds that stay open, each for a MEASURED reason", () => {
   it("the JSON constructors and JSON_VALUE are DEFERRED, not refused", async () => {
     // Each answers a definite value from all-literal arguments (below), and
     // each needs the same RETURNING/FORMAT sub-grammar — one coherent piece
-    // of work rather than six, recorded in docs/deferred-tasks.md §4 rather
-    // than dressed up as a design refusal here.
+    // of work rather than six, recorded in the register rather than dressed
+    // up as a design refusal here.
     for (const [expr, expected] of [
       [`JSON_OBJECT('b': 2, 'a': 1)`, { b: 2, a: 1 }],
       [`JSON_ARRAY(1, 'x')`, [1, "x"]],

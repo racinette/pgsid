@@ -58,8 +58,7 @@ import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 //     guard channels run at SCOPE BUILD, outside any column's trace, and emit
 //     no conclude — so they are invisible to this census by construction.
 //     Extending ITrace into the fixpoint is an ENGINE change and is not
-//     authorized by the harness-strengthening handoff; their reach is held by
-//     the mechanism fixtures named in docs/deferred-tasks.md §3
+//     authorized here; their reach is held by the mechanism fixtures
 //     (promotion-guarded-fixpoint.sql and siblings) until someone charters
 //     that.
 //   - param-nullability's mechanisms are untraced for the same reason; the

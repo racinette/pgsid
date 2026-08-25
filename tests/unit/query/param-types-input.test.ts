@@ -11,7 +11,7 @@ import {
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// Tier 0 (docs/type-aware-overloads.md): PREPARE's resolved parameter types
+// Tier 0: PREPARE's resolved parameter types
 // as the walk's optional input. A parameter operand can never make an OUTPUT
 // claim notNull — a parameter is nullable by design — so these pins
 // discriminate on the RESOLUTION, not the claim: with the input, a ParamRef

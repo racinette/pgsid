@@ -21,10 +21,9 @@ import { createKillableEvaluator } from "./killable-evaluator.js";
 // REPRESENTATION CROSSING, not at a semantic one. That loss is the August
 // crossing-loss bug class in miniature (origins dying at UNION, the CTE
 // re-export unable to type computed columns, the alias column list honoured
-// by four of its five consumers: docs/deferred-tasks.md §4), and it is
+// by four of its five consumers), and it is
 // structurally invisible to the execution oracle, which can falsify a notNull
-// claim and can never detect a claim that merely went missing — the one-sided
-// blindness docs/query-generator.md states.
+// claim and can never detect a claim that merely went missing.
 //
 // So the oracle here is the ENGINE'S OWN MONOTONICITY: analyse each fixture
 // statement bare and wrapped, with the same catalog, the same evaluator and
@@ -61,9 +60,8 @@ import { createKillableEvaluator } from "./killable-evaluator.js";
 // deparse round-trip as much as the crossing — scope it when a crop
 // justifies it, per the handoff's re-scope gate.
 //
-// This is not a re-opening of the decided-against "mutation as a generator":
-// the amendment under that entry (docs/deferred-tasks.md) records the
-// argument. Blind wrapping buys no coverage and is not meant to — it buys a
+// This is not a re-opening of the decided-against "mutation as a generator".
+// Blind wrapping buys no coverage and is not meant to — it buys a
 // MONOTONICITY oracle over the corpus that already exists.
 //
 // Skips are counted and NAMED — no silent truncation:

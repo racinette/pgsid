@@ -7,7 +7,7 @@ import { inferNullability } from "../../../src/query/nullability-walk.js";
 import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 // ---------------------------------------------------------------------------
-// The RED SUITE for the function overload merge (docs/function-overload-merge.md).
+// The RED SUITE for the function overload merge.
 //
 // Written RED: every case in the "targets" block was an `it.fails` asserting
 // what the engine must claim once the merged candidate set reached the
@@ -127,7 +127,7 @@ afterAll(async () => {
   for (const s of Object.values(scenarios)) await s.pg.close();
 });
 
-describe("function overload merge — targets (docs/function-overload-merge.md)", () => {
+describe("function overload merge — targets", () => {
   // --- Defect 1: UNSOUND. The user's function runs; the walk reads the
   // builtin's totality table, because `resolvableCandidates` drops every user
   // candidate for a name pg_catalog also carries.
@@ -198,7 +198,7 @@ describe("function overload merge — boundary guards", () => {
     // literal, which reaches every candidate including the user's
     // `length(boolean)`, so the survivor set stays mixed and no symbolic
     // verdict is available — PostgreSQL resolves it by the PREFERRED-TYPE
-    // rule, which docs/type-aware-overloads.md declares a non-goal.
+    // rule, which the narrowing declares a non-goal.
     //
     // The subtree evaluator does not need that rule. It hands the whole
     // expression to PostgreSQL, which applies its own resolution and answers
@@ -235,7 +235,7 @@ describe("function overload merge — boundary guards", () => {
     // `volatility === "i"`, so a STABLE or VOLATILE user row refuses the fold
     // — and it must, because their values are not properties of the arguments.
     // If either of these flips, the trust model moved and someone owes the
-    // argument (docs/function-overload-merge.md).
+    // argument.
     const s = scenarios.userFns!;
     expect(await oracle(s, "SELECT opaque('a') AS v")).toBe("x");
     expect(await claim(s, "SELECT opaque('a') AS v")).toBe(true);
