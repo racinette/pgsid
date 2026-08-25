@@ -497,6 +497,20 @@ describe("6b. DISCARD TEMP is the session-end simulation validate() can afford",
 //    PERFORM inside the FUNCTION BODY, and that body is the user's migration
 //    text, which also runs against a production database that does not have
 //    plpgsql_check installed. Advising it would ship a broken function.
+//
+//    WHERE THE ESCAPE ENDS UP: an `engine.runtime` config key naming a SQL
+//    file of ordinary DDL, run inside `validate`'s transaction after the
+//    session-end discard (docs/deferred-tasks.md §1e). No new syntax, and
+//    nothing in the user's migration.
+//
+//    AND WHY NO HINT POINTS AT IT. `relation "x" does not exist` is usually
+//    exactly what it says — the table is missing, or the function was
+//    written ahead of it, or the name is a typo. Attaching "declare it in
+//    engine.runtime" to every instance would advertise the escape hatch as
+//    the first move on a genuinely broken function, which is the failure
+//    mode this design exists to avoid. 7b's masking case is the same
+//    argument from the other end: the escape is deliberately narrow, so it
+//    should be reached deliberately. Documented, not hinted.
 // ===========================================================================
 
 /** A database WITHOUT plpgsql_check — i.e. the user's production. */
