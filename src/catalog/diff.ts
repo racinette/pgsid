@@ -34,8 +34,8 @@ import type {
 // too (so a column-level dependency graph can match column references
 // without separately expanding the table).
 //
-// "Modified" carries a comparable-state subset (not the full entity) chosen
-// per the DESIGN.md diff spec — e.g. function bodies are NOT compared (a
+// "Modified" carries a comparable-state subset rather than the full entity:
+// function bodies are NOT compared (a
 // body-only change doesn't affect query signatures), while column types,
 // NOT NULL, DEFAULT, and GENERATED are.
 //

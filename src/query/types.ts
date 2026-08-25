@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Query resolver: types for dependency extraction and join nullability.
 //
-// Three separable concerns (see DESIGN.md "Query type inference"):
+// Three separable concerns:
 // 1. extractDeps — pure function, AST + DepCatalog → EntityId[]
 // 2. inferJoinNullability — pure function, AST only → per-alias nullability
 // 3. PREPARE — runtime, PGlite → output column types + param types
