@@ -1,296 +1,213 @@
-# Generating queries to test the nullability engine
+# Generating queries to test the engine
 
-## What this document is
+## The problem generation solves
 
-The specification for a system that generates SQL queries mechanically and
-checks the nullability engine against PostgreSQL on each one. Read
-`docs/nullability-walk.md` first for how the engine works, and
-`docs/witness-coverage.md` for how the existing fixture suite executes and what
-it measures — this system reuses that machinery rather than replacing it.
+Hand-written fixtures verify the constructs somebody thought to write. Every
+construct is covered individually; what is not covered is their COMBINATIONS —
+a full outer join inside a grouping inside a common table expression under a
+set operation, and the thousands of similar shapes nobody sits down and
+invents.
 
-## The problem
+Nullability reasoning is compositional, so combinations are exactly where it
+breaks. Generation reaches that space, and it needs no hand-written
+expectations, because PostgreSQL is the answer key.
 
-The engine's claims are verified against 134 hand-written fixture queries. Every
-one passes, every one returns rows or declares the error it raises instead, and
-every claim it makes is checked against a real PostgreSQL.
+## What the checks prove, and what they cannot
 
-That is a strong result about 134 queries somebody thought to write. It says
-much less about the queries nobody thought to write. The constructs are all
-covered individually; what is not covered is their *combinations* — a `FULL
-JOIN` inside a `GROUP BY` inside a CTE under an `EXCEPT`, and the thousands of
-similar shapes that no author sits down and invents. Nullability reasoning is
-compositional, so combinations are exactly where it breaks.
+Two oracles, and they are not equally strong. Conflating them leads to
+overclaiming.
 
-Generation reaches that space. It needs no hand-written expectations, because
-PostgreSQL is the answer key.
+**The column list is a COMPLETE oracle.** The engine's output column list is
+compared against PostgreSQL's, in order. Any disagreement is a defect with no
+interpretation required. This matters more than it sounds: nullability is
+delivered as a positional array zipped against PostgreSQL's own column list,
+so a wrong column ORDER misassigns every flag past the divergence while
+looking authoritative.
 
-## What the checks can and cannot prove
+**Nullability is a ONE-SIDED oracle.** Running a query can only falsify a
+not-null claim — the engine said never null, the database returned null, the
+engine is wrong. The converse proves nothing: a nullable claim that never
+produces a null might be engine imprecision or might be data that never
+reached the case, and execution cannot tell them apart.
 
-Two oracles, and they are not equally strong. Both matter; conflating them
-leads to overclaiming.
+So this system finds UNSOUNDNESS — wrong "never null" claims, the ones that
+make a consumer skip a check it needs. It does not find imprecision. That is
+measured separately and is not this system's job.
 
-**Column list — complete.** The engine's output column list is compared against
-PostgreSQL's, in order. Any disagreement is a defect, with no interpretation
-required. This is the stronger of the two and the easier to trust, and it
-matters more than it sounds: nullability is delivered as a positional array
-zipped against PostgreSQL's `RowDescription`, so a wrong column *order*
-misassigns every flag past the divergence while looking authoritative.
+## The pipeline, and why the text round-trips
 
-**Nullability — one-sided.** Running a query can only ever falsify a `notNull`
-claim: the engine said a column is never NULL, PostgreSQL returned NULL, so the
-engine is wrong. The converse proves nothing — a `nullable` claim that never
-produces a NULL might be imprecision in the engine or might be data that never
-reached the case, and execution cannot distinguish them.
+    construct a tree → render it as SQL → parse that SQL → the engine
+                                       ↘ the same SQL    → PostgreSQL
 
-So this system finds **unsoundness**: wrong "never NULL" claims, which are the
-ones that would make a consumer skip a NULL check it actually needs. It will not
-find imprecision. Imprecision is measured separately, by witness coverage, and
-that measurement is not this system's job.
+**Feed the engine the RE-PARSED text, not the constructed tree.** Both sides
+then analyse one identical string, and the engine only ever sees trees the
+real parser produces rather than trees a generator imagined.
 
-## Shape of the pipeline
+A useful consequence: exact rendering fidelity stops being a requirement. If
+the renderer produces something different from what was intended, the result
+is simply a different valid query, which is still a perfectly good test.
 
-```
-construct AST → deparse to SQL text → parse that text → engine
-                                   ↘ same text          → PostgreSQL
-```
+**The reachable language is bounded by the RENDERER, not the parser.** A
+construct the renderer cannot emit is unreachable however well the parser and
+the engine handle it — every such query dies before reaching the database.
+Check this before widening the vocabulary, because it is invisible until a
+whole axis produces zero signal.
 
-**Feed the engine the re-parsed text, not the constructed AST.** Both sides then
-analyse one identical string, and the engine only ever sees ASTs the real parser
-produces rather than ASTs a generator imagined. A useful consequence: exact
-deparser fidelity stops being a requirement. If the deparser renders something
-differently than intended, the result is simply a different valid query, which
-is still a perfectly good test case.
+**The one failure mode worth defending against is the silent one.** Where a
+renderer drops a clause and emits SQL that parses cleanly without it, a
+generator that asks for the clause, does not get it, and reports success has
+produced false confidence rather than a test.
 
-### The deparser
+A census of what a corpus CONTAINS cannot detect this, because only the
+generator knows what each query was supposed to contain. So the generator must
+declare its expectations: for each axis tuple, the node kinds that tuple should
+produce, asserted against the re-parsed tree. Anything requested but absent is
+a silent drop, and is reported rather than assumed away.
 
-`pgsql-deparser` (npm, version 18.1.1 at time of writing) is a pure-TypeScript
-deparser for PostgreSQL 18 ASTs with no parser dependency of its own. It is
-compatible with the ASTs `libpg-query` produces here.
+## Volume is not the lever — vocabulary is
 
-It is a devDependency, and the round-trip comparison is committed as
-`tests/unit/query/deparser-roundtrip.test.ts`, which pins the outcome below
-per fixture — the regression guard for any future deparser bump.
+This is the most important measured fact about the instrument, and it inverts
+the obvious instinct.
 
-Measured over all 134 fixtures, `parse → deparse → parse`:
+Half a million generated statements over five seeds produced ZERO findings. The
+run was healthy by every internal measure — high return rate, no crashes, no
+tool defects.
 
-| | |
-|---|---|
-| identical round-trip | 130 |
-| deparse threw | 1 (`xmltable-jsontable` — an unhandled join node type) |
-| regenerated SQL did not parse | 1 (`expression-node-coverage` — a stray `[`) |
-| parsed, but the AST differed | 2 (`recursive-cte-search-clause`, `recursive-cte-cycle-clause`) |
+The saturation curve says why more of it cannot help. At the end of a run, the
+overwhelming majority of queries still produce a shape never seen before. The
+space is not being exhausted, it is barely dented, so there is no volume at
+which this converges and no point at which a clean run means "covered".
 
-Comparing ASTs requires stripping source byte offsets first: `location`, and
-also `list_start` / `list_end` / `rexpr_list_start` / `rexpr_list_end`, which
-are offsets under names that do not say so. Without that, nothing matches and
-the deparser looks broken when it is not.
+Set against that, every defect the instrument has found arrived within the
+first few thousand queries AFTER the vocabulary that could express it existed.
+None needed volume; each needed a CONSTRUCT.
 
-**The one failure mode that needs defending against is the silent one.** For
-the two recursive-CTE cases the deparser drops the `SEARCH` / `CYCLE` clause and
-emits SQL that parses cleanly without it. A generator that asks for a `SEARCH`
-clause, does not get one, and reports success has produced false confidence
-rather than a test.
+**So a large run is an excellent post-change regression net and a poor search
+strategy.** Effort belongs in widening the vocabulary, and after that in
+pointing the instrument at mechanisms it cannot currently express — never in
+running the same space longer.
 
-The defence is a technique that exists, not a tool that can be pointed at new
-input: `node-census.test.ts` hard-codes its corpus (the grammar sampler plus
-the fixtures directory) and keeps its ten-line `collectTags` walker
-module-local, so it cannot be run over a generated corpus as-is. Replicate the
-walker (or export it), and note that the census alone cannot detect a silent
-drop anyway — it reports what a corpus *contains*, and only the generator
-knows what each query was *supposed* to contain. So the generator must declare
-its expectations: for each axis tuple, the node types that tuple should
-produce, asserted against the re-parsed AST. Anything requested but absent is
-a silent drop, and should be reported rather than assumed away.
+## The corpus and the engine can share a blind spot
 
-## Design
+The failure mode this guards against: a corpus whose vocabulary was shaped by
+the same assumption that created the hole in the engine.
 
-### Structure-rich, expression-poor
+It has happened. Two unsound claims fired precisely at the branches that run
+when operand types are unreadable, and the generated corpus could not have
+caught either — its schema had no column of the type that would falsify them,
+because the reasoning for leaving the hole open was that no application schema
+would have one. The corpus could not express what its vocabulary lacked, and
+the vocabulary lacked it for the same reason the engine did.
 
-The engine's reasoning lives almost entirely in *structure* — join kinds and
-their nesting, grouping, set operations, CTEs, subqueries, LATERAL. At the
-expression level it is deliberately conservative: most expressions are nullable
-unless proven otherwise, and the ones that matter are a short list (`COALESCE`,
-`CASE`, `NULLIF`, aggregates, strict functions, casts to NOT NULL domains).
+The defence is that **vocabulary must be derived from the tables the engine
+reads, not from intuition.** For every escape row a curated table records, the
+schema gains a column of the relevant type. The census that enumerates what
+the engine can read becomes the specification for what the schema must offer.
 
-Spend the generator's complexity on structure and draw every expression from a
-small, fixed, known-typed vocabulary — a column reference, `COALESCE(col,
-literal)`, `count(*)`, `max(col)`. Type-correctness then costs almost nothing,
-because the generator never invents an expression, only places one. Join
-structure in particular does not care about column types at all, which makes it
-both the richest source of nullability behaviour and the cheapest to keep valid.
+A corollary worth stating: measure how much of the SCHEMA the corpus actually
+reaches. A corpus referencing a handful of relations out of dozens has large
+shape variety over a single catalog profile, which reads as diversity and is
+not.
 
-### Enumerate rather than randomise, at least first
+## Reporting a run
 
-The structural space is small enough to walk exhaustively. A nested loop over
-axes — join kind × nesting shape × wrapper × grouping × set operation ×
-projection kind — produces a few thousand queries, each of which is small by
-construction.
+**Every query lands in exactly one bucket, and there is no "other".** An
+outcome nothing classifies is itself a finding — a bucket is missing — and it
+fails the run rather than being swallowed.
 
-This is worth preferring to random generation for concrete reasons:
+Buckets fall into four tiers, and the tier decides what the count MEANS:
 
-- Every generated query is already minimal, so no shrinker is needed to make a
-  failure diagnosable. This is the single largest cost avoided.
-- A failure is reproducible from the tuple of axis values, with no seed to
-  replay.
-- Coverage is systematic rather than lucky: a fuzzer may never happen to nest
-  `FULL JOIN` under `GROUP BY` inside a CTE under `EXCEPT`; an enumeration does
-  it because that combination is in the list.
-- Axes can be added one at a time, each multiplying coverage.
+**Finding** — the product. A wrong claim, a disagreeing column list, a crash,
+a broken parity between the traced and untraced walks. Each becomes a fixture
+and an engine fix.
 
-The limitation is real and should be stated rather than hidden: enumeration only
-finds what its axes cover, and will not surprise anyone. If it stops finding
-defects, that is the point at which a general randomised generator becomes worth
-its cost — and by then there will be evidence about which constructs deserve the
-effort.
+**Tool** — our bug. The generator could not build the tree, the renderer had
+no case, the rendered SQL did not parse, the round trip changed the tree, or
+PostgreSQL refused the statement. Never a filter: a rejected query is
+classified, not skipped.
 
-### The presence-group widening (2026-08-04)
+**Budget** — legal but wasteful. A statement that raises, or returns no rows,
+produces no signal, so a high rate means the run is spending itself on
+nothing. A quality metric of the tool, never a correctness problem.
 
-Wave 13 defined four axes the grammar could not previously produce, added
-after the wave's closures to put them under generation (~6.1k → ~9k
-queries):
+**Expected** — the engine's own declared refusals, counted and classified by
+site rather than treated as failures.
 
-- **Refilter wrappers** (`cte-refilter`, `subquery-refilter`): the wrapper
-  adds `WHERE <alias>.a_tc IS NOT NULL` — one predicate exercising pinned
-  promotion, the lifted dead rule, and presence consumption together.
-  Gated to tuples projecting `a_tc`, and off INTERSECT tuples (the match
-  row's `a_tc` is NULL by design, so the cross could never return a row);
-  the suite report prints every gate.
-- **`union-full-var`**: the second branch is the same projection over the
-  structure's all-FULL variant — real groups on BOTH sides, so UNION
-  group agreement and subset intersection run under generation. Laterals
-  have no FULL form and skip it.
-- **`dup-names` projection**: every target aliased to one name, required
-  and optional interleaved; wrappers star-expand (the only legal
-  re-export of an ambiguous column), sweeping positional resolution.
-- **`gm` structures**: t joined to the generated-columns table, putting
-  presumePresent-through-generation under the oracle across join kinds.
-  INTERSECT is gated off (the projections' matchLiterals encode the t–u
-  row).
+Refusals and raises are subdivided by ERROR CODE, never by message text, which
+drifts between versions. Each class is a work item with a count.
 
-The widening earned its keep on arrival: its two-arm witness bar exposed
-the cross-unit presence-implication imprecision (closed the same session
-— origins now carry unit-crossing chains) and the per-branch
-required-alternative gap in origin entailment (closed likewise). The two
-rules it briefly left both closed the next session and were deleted with
-their closures: set-operation origins became slot-per-branch (an
-unattributable branch contributes an explicit NULL slot, its flat verdict
-recorded, so a literal branch settles its alternative without invented
-provenance) and `storedRowNotNull` dispatches a generated column's
-expression through the walk where the entailment kernel's atoms cannot
-follow. The corpus's rule lists carry nothing from the widening.
+## Two fingerprints, because they answer different questions
 
-### Validity is the generator's responsibility
+A run that hits one bug ten thousand times must report *one finding, many
+instances* rather than ten thousand findings.
 
-A generated query PostgreSQL rejects is a generator defect, not a finding.
-Count rejections and report them; a healthy generator's rejection rate is
-approximately zero. Silently discarding rejects hides a generator that has
-quietly stopped exploring half its space.
+**The finding fingerprint** groups instances of one defect. It is composed
+from the bucket plus the query's shape and the offending column's position, or
+for a tool defect the node kind and the construct that triggered it. **Never
+the SQL text**, or every random literal mints a fresh finding. Expect the
+first version to be too specific rather than too loose — that is the direction
+that flatters.
 
-The engine's own refusals are different and expected. Where a construct would
-change the output column list and the walk does not support it, the walk throws
-`UnsupportedNodeError` rather than guessing. Those queries should be counted and
-skipped, not failed — refusing is the designed behaviour, and the count is
-useful signal about where support is missing.
+**The query fingerprint** groups structurally identical queries, so a run can
+answer how many genuinely different things it just tested. It has three
+levels, all computed from the tree and the schema with no engine involvement,
+because diversity is a property of what was GENERATED:
 
-## Reusing what exists
+- the SHAPE — the tree with names and literals erased, so node kinds, nesting,
+  join kinds and clause presence remain;
+- shape plus CATALOG PROFILE — the properties of every column and relation
+  used: nullable, not-null, domain, foreign key, partitioned, generated,
+  trigger-bearing;
+- the NODE-KIND SET, which maps onto the grammar census.
 
-Do not rebuild execution — but be clear about what "reuse" means here. The
-soundness suite's loop lives inline in a `beforeAll` and exports nothing, and
-the generator's loop differs anyway (no argument bindings, no `@no-rows`
-markers, instance recycling every N queries). What is reusable is
-`loadDataStates`, the schema-and-catalog setup, and the patterns below — not
-imports from the test file. `tests/unit/query/nullability-soundness.test.ts`
-already does the expensive part and is worth reading in full before starting:
+The second level is the one a narrow corpus fails, and failing it looks like
+success at the first level.
 
-- Data states live in `tests/unit/query/fixtures/data/` (`empty`, `sparse`,
-  `dense`, `uniform`) plus a generated state built from the catalog snapshot;
-  `loadDataStates` in `tests/unit/query/fixture-data/states.ts` returns them.
-- Execution is **state-major**: one PGlite instance per data state, loaded once,
-  with each query's own writes rolled back around it. This matters — see the
-  memory constraint below.
-- Rows are read with `rowMode: "array"`. Column names are not unique
-  (`SELECT a.id, b.id` yields two columns named `id`), so the object form
-  silently collapses them and would compare a column against itself.
-  Nullability is positional and must be read positionally.
-- A statement that raises is not a counterexample: it returned no rows, so
-  "never NULL" still holds for every row it did return.
+**Watch new distinct fingerprints per thousand queries, not the total.**
+Climbing means volume is buying something. Flattening means the vocabulary is
+exhausted and every further query is waste — and the fix is new vocabulary,
+never more volume. Flat immediately at high volume is the signature of a
+corpus pointed at two or three relations.
 
-Which states get the full enumeration matters, and the answer is two of them,
-for different halves of the space. `empty` is where ungrouped aggregates and
-scalar subqueries are most adversarial: zero input is exactly where `count(*)`
-stays 0 but `max(col)` goes NULL. But `empty` is *vacuous* for join structure —
-an outer join over two empty tables returns no rows at all, and a query that
-returns no rows falsifies nothing (a `GROUP BY` over zero rows likewise yields
-zero groups). The unmatched-join shape — one side produces a row, the other is
-NULL-extended — needs one side populated and the other not. `sparse` was built
-for that shape, but only for the commerce tables: its single `t`/`u`/`v` rows
-all match each other, and those are the tables the generator joins. The
-generated suite therefore runs a third, suite-local state — `unmatched`, which
-is `sparse` plus one row on each side that nothing matches — so that a NOT
-NULL base column actually comes back NULL-extended somewhere. Run the full
-enumeration against `empty`, `sparse`, and `unmatched`, and a reduced set
-against the others if the total execution count needs bounding.
+**Keep one representative per fingerprint, verbatim.** A finding needs a query
+somebody can run.
 
-## Constraint: PGlite memory
+**A negative result must carry its bound.** "No findings" means nothing
+without the shape of what was searched; a clean run reports the vocabulary it
+covered so the reader can see what it could not have found.
 
-A long-lived `PGlite` instance leaks; see rule 6 in the workspace `AGENTS.md`
-for the measurements. WASM linear memory only grows, `ROLLBACK` returns nothing,
-and the ceiling is a self-imposed 2 GB. Thousands of generated queries against
-one instance will reach it.
+## Design decisions that hold
 
-Prefer few large statements over many small ones, and recreate the instance
-every N queries rather than expecting a transaction to reclaim anything. The
-state-major arrangement already limits this: data is loaded once per state, and
-only each query's own writes are rolled back.
+**Structure-rich, expression-poor.** The defects live in how rows are produced
+— joins, grouping, set operations, scope crossings — not in how values are
+computed. Deep expression nesting buys little and costs validity.
 
-## What "done" looks like
+**Enumerate rather than randomise, at least first.** An enumerated space is
+reproducible, its coverage is countable, and its gaps are visible. Randomness
+is what you reach for once enumeration has been exhausted, not before.
 
-**A bounded, deterministic run in the normal test suite.** Fixed axis
-enumeration, no seed-dependent behaviour, and a query count that does not
-meaningfully slow `npx vitest run`. A longer exploratory run behind an
-environment variable, in the style of the existing `FUZZ_SEED` /
-`WITNESS_REPORT` knobs documented in `docs/witness-coverage.md`.
+**Validity is the generator's responsibility.** A query PostgreSQL rejects
+tests nothing and consumes budget. The generator must construct only
+well-formed statements, which means it needs the schema, not just a grammar.
 
-**A report that stands on its own**, printed every run:
+## Constraints that bite
 
-| | |
-|---|---|
-| queries generated | |
-| rejected by PostgreSQL | expected ≈ 0; anything else is a generator defect |
-| refused by the engine | `UnsupportedNodeError`, by node type |
-| column-list disagreements | each a defect |
-| nullability violations | each a defect |
-| nullable claims witnessed by an actual NULL | the reward half, enforced census-style: every unwitnessed claim must match a named `UNWITNESSABLE` rule with its reason, and rules that match nothing are stale. Soundness alone punishes a wrong `notNull` and rewards nothing; an aggregate ratchet was rejected because a regression can hide behind an unrelated improvement |
-| constructs requested but absent from the generated corpus | silent deparser drops |
+**A foreign-key join always matches, so absent arms need a direction.** Follow
+a real key and no row can dangle, so an outer-join spine can emit thousands of
+outer joins and witness the null-extension of none. Which direction is
+inhabitable is a property of the schema, not of the query, and the generator
+has to know it.
 
-**Every failure reproducible from the report alone** — the SQL text, the data
-state, and the axis values that produced it. A finding that requires re-running
-the generator to see again is a story, not a bug report.
+**Modifying statements need more than a rollback.** A returning clause is the
+only observable — without one a modifying statement produces no output
+columns, hence no claims and no signal beyond shape and refusal. And written
+values have the collision problem: a random value duplicates a key, dangles a
+reference, or fails a constraint, so the statement raises and the budget is
+gone. Values must be drawn from what the schema admits — a referencing column
+from the parent's seeded values, a surrogate key freshly, a constrained column
+from its own generator.
 
-**A path from finding to regression test.** A generated counterexample should
-become a permanent fixture in `tests/unit/query/fixtures/` with hand-written
-`-- @notNull` / `-- @nullable` annotations, so that the specific defect stays
-covered by the annotation suite once fixed. That is the loop closing: the
-generator finds it, the corpus keeps it.
-
-## Where things are
-
-| | |
-|---|---|
-| The generator itself | `tests/unit/query/generated/generator.ts` |
-| The schema axis over it | `tests/unit/query/generated/schema-axis.test.ts`, `schema-variants.ts` — the corpus as a function of (SCHEMA, query shape); see `docs/generated-surface.md` item 4 |
-| The generated suite | `tests/unit/query/generated/generated-soundness.test.ts` (`GENERATED_ALL_STATES=1` for every data state) |
-| Deparser round-trip measurement | `tests/unit/query/deparser-roundtrip.test.ts` |
-| Engine | `src/query/nullability-walk.ts`, `src/query/catalog-adapter.ts` |
-| Engine design | `docs/nullability-walk.md` |
-| Engine's refusal contract | `UnsupportedNodeError` in `nullability-walk.ts`; `tests/unit/query/unsupported-nodes.test.ts` |
-| Fixture suite design + measurements | `docs/witness-coverage.md` |
-| Executable suite to reuse | `tests/unit/query/nullability-soundness.test.ts` |
-| Data states | `tests/unit/query/fixtures/data/`, `tests/unit/query/fixture-data/states.ts` |
-| Fixture schema | `tests/unit/query/fixtures/schema.sql` |
-| AST node classification + census | `tests/unit/query/node-census.test.ts`, `grammar-sampler.ts` |
-| Column order vs PostgreSQL | `tests/unit/query/column-sequence.test.ts` |
-| Open work on the engine | `docs/deferred-tasks.md` |
-
-Run the suite with `npx vitest run` from `pgsid/`. Use `pnpm` for installs —
-`npm install` fails in this workspace.
+**Some relations are frozen and must stay so.** A schema the fixtures depend
+on cannot be reshaped to suit the generator, and relations that look unused
+are load-bearing for suites that do not appear in a usage scan. Add rather
+than prune.
