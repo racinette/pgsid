@@ -1,0 +1,7 @@
+{
+  "additivity": 2,
+  "chaining": 2,
+  "generatedOverConstrained": 1,
+  "joinChains": 3,
+  "maxJoinDepth": 3
+}
