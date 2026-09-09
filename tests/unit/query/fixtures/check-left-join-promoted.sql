@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The gate's complement: the same predicate in the WHERE promotes the
 -- LEFT-JOINed entry to REQUIRED (only matched rows survive the filter), and
 -- a present row IS a stored row, so CHECK entailment speaks again.

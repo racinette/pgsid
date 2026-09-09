@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Expression node combinations: RowExpr in CoalesceExpr in CaseExpr,
 -- A_ArrayExpr as function arg, MinMaxExpr with subquery, CollateClause
 -- on cast of COALESCE, NamedArgExpr with nested function calls.

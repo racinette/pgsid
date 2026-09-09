@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The simple-form gate on `alwaysNullExpr`'s arm pruning (added with the
 -- pruning itself, 2026-08-25). In `CASE x WHEN v THEN …` the WHEN slot
 -- holds a VALUE, not a predicate — but it is an expression in the same

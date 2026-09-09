@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The DML SET mask over CHECK entailment, pinned by a live counterexample —
 -- the CHECK analogue of update-set-mask.sql, with the twist that entailment
 -- consumes evidence about columns OTHER than the one it resolves: the WHERE

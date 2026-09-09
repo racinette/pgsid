@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An EXISTS in the statement's own WHERE is a row witness for a scalar
 -- subquery keyed the same way — the third route to at-least-one, after the
 -- key and the UNION arm, and the first whose evidence is a SIBLING CLAUSE

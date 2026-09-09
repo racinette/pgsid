@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The claim the clone capture was COSTING, recovered: joining the DECLARED
 -- parent — the shape anyone would actually write.
 --

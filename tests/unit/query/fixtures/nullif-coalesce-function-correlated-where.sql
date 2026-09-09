@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- NULLIF + COALESCE + nested function calls + scalar subquery in WHERE.
 -- NULLIF returns nullable (unknown built-in). COALESCE with a non-null
 -- fallback makes it non-null. The WHERE clause has a correlated scalar

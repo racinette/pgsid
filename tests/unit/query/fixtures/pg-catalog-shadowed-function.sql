@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- pg_catalog is searched IMPLICITLY and FIRST (adversarial-3 finding 6).
 -- Every builtin table in the engine was documented the other way round —
 -- "consulted only where the user catalog has no candidate, so a user

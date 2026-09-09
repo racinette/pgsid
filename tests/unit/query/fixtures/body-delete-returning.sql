@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A DELETE…RETURNING BODY — "can match zero rows" at the body's verdict site.
 --
 -- The register measured single-statement DML bodies during the multi-statement

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A NOT NULL domain in the return type is enforced on a value the function
 -- RETURNS, and a strict call handed a NULL argument returns none: it stops at
 -- the call boundary, past the body and past the domain. dom_strict of a NULL

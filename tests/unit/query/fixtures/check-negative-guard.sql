@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A NOT-taken guard as kernel evidence: the ELSE runs only when
 -- `combo IS NULL` was not TRUE, and IS NULL is total — not-TRUE means
 -- FALSE — so the branch carries FALSE(combo IS NULL) into the kernel,

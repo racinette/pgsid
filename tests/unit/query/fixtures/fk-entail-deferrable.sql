@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: a DEFERRABLE foreign key entails nothing — WITNESSED.
 --
 -- `SET CONSTRAINTS ALL DEFERRED` inside a transaction lets a violating row be

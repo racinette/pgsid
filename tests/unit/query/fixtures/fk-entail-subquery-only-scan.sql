@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: an `ONLY` subquery under a TREE-scanning outer reads a SUBSET.
 --
 -- The self-lookup licence is that the outer row is in the set the subquery

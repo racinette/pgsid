@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Generated-column reverse entailment, the motivating example verbatim:
 -- verdict IS its CASE expression per stored row (an EQUALITY, stronger than
 -- a CHECK's notFALSE), so TRUE(verdict = 'fraud') excludes every arm whose

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- THE OVERLOAD-CONSENSUS FALLBACKS, REACHED THROUGH OPAQUE TYPES.
 --
 -- `resolveFunctionMetadata` declines an overloaded name outright, and the

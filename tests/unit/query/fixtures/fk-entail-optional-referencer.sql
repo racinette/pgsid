@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the referencing side must arrive carrying STORED rows.
 --
 -- The key constrains rows of orders; a NULL-extended orders slice is not one

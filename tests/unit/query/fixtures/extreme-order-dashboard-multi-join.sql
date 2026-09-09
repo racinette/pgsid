@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- @planner-keeps 1: the ot LEFT JOIN settles by row witness — a sibling FROM
 --   item proves order_item_details holds a row for this order, and
 --   order_totals groups that same CTE by that same key. The planner is not

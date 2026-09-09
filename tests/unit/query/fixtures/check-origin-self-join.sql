@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Row identity is the PATH of reference instances, not the base table: g1
 -- and g2 read the same memoized CTE analysis, but each reference prepends
 -- its own instance, so g1's discriminator says nothing about g2's row —

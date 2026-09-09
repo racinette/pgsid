@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CTE referenced multiple times: the same CTE joined to itself.
 -- The CTE is analyzed once (memoized); both references read the cached
 -- per-column results. sum over a non-empty group of NOT NULL values is

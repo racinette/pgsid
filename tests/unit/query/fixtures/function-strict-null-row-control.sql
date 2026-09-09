@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The control for function-strict-null-row, one argument apart. With the
 -- second parameter SUPPLIED, no argument is NULL, the function runs, and the
 -- body reading is exactly what it was before the short-circuit gate existed:

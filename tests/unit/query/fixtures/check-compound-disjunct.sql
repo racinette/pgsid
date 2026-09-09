@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Arm-implication in the subset rule: the first disjunct is a CONJUNCTION,
 -- but whichever arm held, all its conjuncts held — so `status = 'arrived'`
 -- standing in for its arm (A∧B ⇒ A) makes the OR-fact cover the CHECK

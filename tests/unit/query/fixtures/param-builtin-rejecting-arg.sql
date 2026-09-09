@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Mechanism D: a BUILTIN argument position that rejects NULL in its own C
 -- implementation, with nothing in pg_catalog saying so.
 --

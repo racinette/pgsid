@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The lossy-anchor refusal, containment side (found & closed
 -- 2026-08-24, the red suite's "lossy anchor read" block): read at cain's
 -- INTEGER column the WHERE's 2.4 rounds to 2, and the misread witness

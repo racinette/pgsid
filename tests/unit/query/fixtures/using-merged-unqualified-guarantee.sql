@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The USING resolution pin: a predicate's unqualified `id` DENOTES the
 -- join's merged column — the only visible occurrence of the name, which is
 -- what keeps the query legal — not either constituent, and a LEFT JOIN's

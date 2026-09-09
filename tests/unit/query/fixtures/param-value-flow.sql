@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Mechanism C (value-flow rejection), the trigger case found by hand before
 -- the generator could: $2's VALUE, forced NULL through the strict
 -- concatenation, hits the runtime nn_text coercion in RETURNING, so binding

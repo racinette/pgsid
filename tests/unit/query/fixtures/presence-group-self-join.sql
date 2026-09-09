@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Two references to one table are two relation instances and two units:
 -- the child's own columns stay required while the parent reference forms
 -- its own group. dense: categories 1 and 3 are roots (parent absent),

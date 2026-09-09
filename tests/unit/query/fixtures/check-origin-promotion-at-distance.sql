@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Promotion-at-distance (Wave 12, née residue-origin-promotion-at-distance):
 -- the guest slice is OPTIONAL inside the body, so its origins carry the
 -- optional mark — and the outer filter itself supplies the presence proof

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The gate on unwrapping a cast around a column reference in a CHECK.
 --
 -- A CHECK on a VARCHAR column deparses its comparison through `(k)::text`,

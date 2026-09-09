@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Nested joins: t INNER JOIN u LEFT JOIN v
 SELECT
   t.id      AS c1,  -- @notNull

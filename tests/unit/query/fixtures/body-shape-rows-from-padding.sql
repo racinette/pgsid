@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate (c) on reading a function body for a ROW return: NO PADDING PARTNER.
 --
 -- Two or more functions in one `ROWS FROM` expand in lockstep to the longest

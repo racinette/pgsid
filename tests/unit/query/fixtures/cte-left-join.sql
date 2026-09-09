@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CTE with internal LEFT JOIN → outer ref inherits nullability
 WITH x AS (
   SELECT t.val AS v

@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- USING and presence groups: the merged column is drawn from whichever
 -- side is present, so it never extends with the optional unit and carries
 -- no producer — excluded by construction, and notNull here because the

@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- EXCEPT keeps the left arm's groups verbatim: output rows ARE
 -- left-branch rows (the origins discipline, applied to groups). The
 -- right branch removes only order 1's row, so dense still witnesses

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- RIGHT JOIN: left side optional, right side required
 SELECT
   t.id    AS c1,  -- @nullable

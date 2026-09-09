@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The output-alias spelling of a grouping-set term: `ROLLUP(k)` names the
 -- target entry `t.id AS k`, and the recorder once stored only the key "k"
 -- while the consumers ask about "id"/"t.id" — the claim survived re-export

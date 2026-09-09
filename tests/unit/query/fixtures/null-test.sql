@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- NullTest: IS NULL / IS NOT NULL → always returns bool (non-null)
 SELECT
   val IS NULL       AS c1,  -- @notNull

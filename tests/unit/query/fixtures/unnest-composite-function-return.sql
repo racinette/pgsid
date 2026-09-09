@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `unnest` over a FUNCTION's declared return type (adversarial-3 finding 3):
 -- not a TypeCast, an ARRAY constructor or a ColumnRef, so none of the three
 -- enumerated spellings matched and the item contributed one column.

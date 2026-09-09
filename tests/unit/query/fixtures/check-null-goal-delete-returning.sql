@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The always-null channel reaches DML RETURNING, and this is the shape that
 -- proves it did: a DELETE's WHERE is row-implied evidence exactly as a
 -- SELECT's is, and the row RETURNING reports is the stored row the CHECKs

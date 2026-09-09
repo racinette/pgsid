@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- TWO set-returning calls in one target list expand in lockstep to the
 -- LONGEST one's row count, and every shorter one is NULL-padded AFTER it
 -- returned — max-with-padding, not the cycled LCM this comment used to

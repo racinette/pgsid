@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The same optional column referenced twice: both output positions carry
 -- the same value, so both join the group and both discriminate — the
 -- contract is positional and each position independently claims NULL ⟺

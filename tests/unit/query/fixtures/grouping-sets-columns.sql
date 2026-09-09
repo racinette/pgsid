@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- ROLLUP / CUBE / GROUPING SETS NULL out the grouping columns they collapse.
 --
 -- A super-aggregate row reports NULL for the columns it aggregates over, so a

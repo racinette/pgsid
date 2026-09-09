@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `closed-truth-predicate.sql` with `>` turned into `<`, and the opposite
 -- verdict.
 --

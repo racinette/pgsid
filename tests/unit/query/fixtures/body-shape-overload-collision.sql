@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate (b): an OVERLOADED sql-bodied function returning a row type.
 --
 -- One overload's body proves nothing about another's, so the flags stay

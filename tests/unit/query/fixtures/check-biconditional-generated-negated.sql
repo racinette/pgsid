@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same conclusion off the NEGATED spelling: `status <> 'pending'`
 -- refutes the pending disjunct by the negator relation rather than by
 -- literal distinctness, and matches the survivor's own first conjunct

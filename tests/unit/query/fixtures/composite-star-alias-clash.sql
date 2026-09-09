@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `(x).*` where x names BOTH a range-table alias and a composite COLUMN of
 -- that relation (adversarial-2 finding 13): the parenthesized form is the
 -- VALUE spelling, and PostgreSQL resolves p to the COLUMN — fields sku and

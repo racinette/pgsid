@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The dup-name hazard through UNQUALIFIED star — the occurrence-counting
 -- branch of the positional fix (`s.*` takes the alias-list branch; bare
 -- `*` walks scope.visible and recovers each column's ordinal by counting

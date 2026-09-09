@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The participation closure where the qual-bearer is an INNER join —
 -- pinned separately from the flat form because a closure written only for
 -- outer-join quals would pass that fixture and miss this one

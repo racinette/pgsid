@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- @planner-keeps 1: the `a` join is the one the walk settles, and the planner
 --   keeps it — a set-returning function's row count is an estimate to the
 --   planner and never a proof. The other two it keeps for the same reason the

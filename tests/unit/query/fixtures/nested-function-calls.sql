@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Nested function calls: a function calling another function.
 -- Body recursion threads arg nullability through the call chain.
 SELECT

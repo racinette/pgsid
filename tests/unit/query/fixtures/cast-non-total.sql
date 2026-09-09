@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A cast does NOT preserve its argument's nullability, which the walk assumed
 -- until the pg_cast capture landed. Both counterexamples are ordinary values
 -- rather than exotica: an infinite timestamp has no time of day, and a JSON

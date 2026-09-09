@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The UNION negative: the second branch COALESCEs carrier, so its
 -- column 2 is not a bare member and the branch claims only a
 -- single-member unit — below the floor, no branch group, and therefore

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `category_name` is notNull, and the proof is in the UPDATE's own WHERE:
 -- `EXISTS (… categories c WHERE c.id = p.category_id AND c.deleted_at IS
 -- NULL)`, so every updated row has a live category and this RETURNING

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The strict-expression closure in WHERE promotion: c.name is not a direct
 -- operand of the comparison, but length() is a strict builtin (measured set
 -- in operators.ts), so `length(c.name) > 0` being TRUE implies length(name)

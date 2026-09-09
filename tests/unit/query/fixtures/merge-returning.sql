@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- MERGE ... RETURNING produces output columns like any other DML, and the
 -- source relation is optional.
 --

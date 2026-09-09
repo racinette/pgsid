@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Window function in a CTE, referenced by an outer query with WHERE
 -- promotion. rank() is never NULL, so the COALESCE around it is redundant
 -- but harmless. count(*) OVER is always non-null. The CTE's LEFT JOIN

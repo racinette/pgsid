@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- One half of transitive nullability, over the PLAIN column: this is
 -- what check-generated-predicate-chain.sql carries through the generated
 -- CASE, and it worked on its own long before that did. Bare-boolean

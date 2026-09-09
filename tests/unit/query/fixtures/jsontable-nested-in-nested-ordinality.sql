@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same one level down: a NESTED path INSIDE another, where the inner
 -- array is empty for one outer element.
 --

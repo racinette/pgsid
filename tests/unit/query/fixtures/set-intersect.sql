@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Set operations: INTERSECT → AND of operands
 SELECT
   val   AS result   -- @nullable

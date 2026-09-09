@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The joinState gate holds across the boundary too: the CHECK-discharging
 -- predicate lives in an unproven LEFT JOIN's ON qual, so the CTE reference
 -- stays OPTIONAL and origin entailment must not speak — a NULL-extended row

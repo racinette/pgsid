@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Functions: strict scalar, user aggregate.
 -- lower_strict is strict AND LANGUAGE sql: a nullable argument concludes
 -- nullable outright (strictness's one sound direction), while non-null

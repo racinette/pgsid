@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The gate's witness: unfiltered, the same column is genuinely nullable
 -- — every has_duration = false row carries NULL — so the sibling
 -- fixtures' notNull is the WHERE walking the CHECK, not the column

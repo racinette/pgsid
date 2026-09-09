@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The body inliner routes its INSERT arm through buildInsertScope
 -- (adversarial-2 finding 6): body_ins_view's INSERT targets iot_v, whose
 -- INSTEAD OF trigger reports the NEW it builds and never evaluates the

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same pin composed one expression up: the reading site carries the
 -- CHECK-derived fact into strict arithmetic over a declared-NOT NULL
 -- operand — literally the generated column's arm body,

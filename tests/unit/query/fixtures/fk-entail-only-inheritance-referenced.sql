@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The OVERSHOOT control for the `ONLY` gate: inheritance is the opposite way
 -- round, and its promotion must survive.
 --

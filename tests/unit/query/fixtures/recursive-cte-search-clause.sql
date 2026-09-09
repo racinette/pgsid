@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A recursive CTE's SEARCH clause appends a generated ordering column to the
 -- CTE's output. It appears in neither branch's target list, so it has to come
 -- from the SEARCH clause itself — and `SELECT *` over the CTE must expand to

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The two ways a witnessing item can be non-empty for a reason that is not
 -- the restriction. Everything else the item may do only REMOVES rows, which
 -- drops the outer row and makes the witness vacuous rather than wrong — so

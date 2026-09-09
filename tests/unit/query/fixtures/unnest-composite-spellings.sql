@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The amplified shape of adversarial-3 finding 3: a composite-element
 -- `unnest` whose spelling the enumerated list did not carry, with a
 -- relation AFTER it so the misalignment is visible in the claims and not

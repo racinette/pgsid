@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Arm stepping by notTRUE (graduated 2026-08-24): TRUE(a <= 3) proves
 -- caie's first guard `a > 5` notTRUE — interval exclusivity, never FALSE
 -- — and a guard that is FALSE or NULL skips its arm exactly the same

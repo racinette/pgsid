@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The written-value map composes into generation expressions: the INSERT
 -- writes a literal into b, the RETURNING row's label is b || '!' over that
 -- same row, so label is notNull even though b's catalog says nullable —

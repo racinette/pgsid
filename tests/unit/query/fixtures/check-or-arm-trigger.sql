@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- OR-facts as arm-exclusion triggers: TRUE(verdict IN ('fraud','no-fraud'))
 -- names no arm, but each value selects exactly one generated-CASE arm, so
 -- the disjunction of their conditions held — fraud_score >= 75 OR

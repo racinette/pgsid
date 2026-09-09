@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the entailed relation must be the one CARRYING the key.
 --
 -- `shipments.order_id` is a NOT NULL key onto orders, which is the same fact

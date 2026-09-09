@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A tree scan reads the inheritance SET's flags, not the named relation's.
 -- `ALTER TABLE ONLY inh_p … SET NOT NULL` is legal (measured), so the
 -- parent carries attnotnull while the child does not, and a child-stored

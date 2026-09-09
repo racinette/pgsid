@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- RETURNING: DELETE — target table required
 DELETE FROM t WHERE id = 1
 RETURNING

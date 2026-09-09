@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- extract/date_part are one function under two names, and neither is total
 -- (adversarial-2 finding 11): for an infinite timestamp, timestamptz, date or
 -- interval, PostgreSQL returns ±Infinity for some fields and NULL for others.

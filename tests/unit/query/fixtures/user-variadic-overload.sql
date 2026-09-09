@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A VARIADIC-ONLY USER OVERLOAD BESIDE A PLAIN ONE — the projection crash pin.
 --
 -- Found by the pg-regress replay (2026-08-24): `textmultirange(...)` — the

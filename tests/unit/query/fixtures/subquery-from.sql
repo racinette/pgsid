@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Subquery in FROM with internal join structure
 SELECT
   v   AS c1   -- @nullable

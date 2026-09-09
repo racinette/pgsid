@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The discovery instrument's first parameter conviction (2026-08-11, 36
 -- instances in 5,000 queries): a multi-assignment routes each source
 -- expression into its target column, and the collector attributed nothing

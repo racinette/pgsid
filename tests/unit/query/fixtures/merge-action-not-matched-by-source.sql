@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- `merge_action()` names the arm on the very arm where the SOURCE vanishes.
 --
 -- `WHEN NOT MATCHED BY SOURCE` fires for a target row with no source match, so

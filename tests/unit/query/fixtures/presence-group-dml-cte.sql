@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- A data-modifying CTE's RETURNING groups lift through the reference
 -- like any subquery's: analyzeReturning stores them under the statement
 -- key, and the outer bare projection translates. Same deterministic

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A body's final scan settled by a statement that ran before it.
 --
 -- `multi_stmt_fn` is `INSERT INTO multi_stmt_log VALUES (1, $1); SELECT val

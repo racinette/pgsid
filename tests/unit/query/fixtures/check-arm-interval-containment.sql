@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Arm selection by interval CONTAINMENT (the check-arm-interval red
 -- suite, graduated 2026-08-24): [4,inf) sits inside the arm's [3,inf)
 -- because 4 > 3 — membership transport over the evaluated anchor order,

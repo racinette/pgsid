@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- User-defined aggregate (count_it) with GROUP BY.
 --
 -- count_it declares INITCOND '0', which fixes the EMPTY-input result only —

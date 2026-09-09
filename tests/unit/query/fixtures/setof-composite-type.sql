@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A function returning SETOF a standalone composite type expands to that
 -- type's fields, exactly as SETOF <table> expands to the table's columns.
 --

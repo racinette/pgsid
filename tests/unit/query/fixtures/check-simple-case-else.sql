@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The simple CASE's other arm: distinctness falsifies the desugared
 -- `code = 'assigned'` (text, deterministic collation), selection falls to
 -- the ELSE — literal true, which derives nothing — and combo stays

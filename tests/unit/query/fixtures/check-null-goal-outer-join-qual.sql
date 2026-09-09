@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An outer join's ON qual is evidence a NULL goal may use and a non-null
 -- goal may not — found 2026-08-22 while measuring whether the always-null
 -- channel's OPTIONAL gate was worth keeping. It was not: with the gate

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A MERGE source is REQUIRED when there is no NOT MATCHED BY SOURCE arm.
 --
 -- This was `merge-source-row-carries-an-unbound-parameter.blame.sql` until

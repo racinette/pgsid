@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The DML WHERE channel: every RETURNING row is an affected row, which
 -- passed the WHERE — and RETURNING cannot contain aggregates, so the
 -- zero-input hazard behind rowsImplyWhere does not exist here. The strict

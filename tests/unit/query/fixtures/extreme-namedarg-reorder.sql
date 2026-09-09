@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- NamedArgExpr with different-arity args in reversed order.
 -- Tests the NamedArgExpr reordering fix: concat_val(a text, b text) has
 -- body SELECT $2. When called with named args in reversed order

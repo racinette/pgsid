@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The reference side of the rename, in both directions — and the second is
 -- the one that shows the engine was not merely mislabelling.
 --

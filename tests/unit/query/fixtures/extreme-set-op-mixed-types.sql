@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Set operations with mixed column sources: one side has a scalar
 -- subquery (aggregate → single-row → recurse), the other has a COALESCE
 -- with a literal fallback. Both sides produce 3 columns with different

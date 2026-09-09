@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A PROVEN guard makes the ELSE unreachable, read on the alwaysNull side
 -- (always-null-red.test.ts describe F, graduated 2026-08-25). The WHERE
 -- IS the guard, so the first arm fires on every emitted row and its NULL

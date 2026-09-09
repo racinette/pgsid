@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Triple-nested correlated subquery: subquery inside a subquery inside a
 -- COALESCE, with correlated references at each level.
 -- Level 0: outer SELECT from orders.

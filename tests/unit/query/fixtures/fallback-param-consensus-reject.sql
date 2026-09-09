@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- MECHANISM C'S OVERLOAD-CONSENSUS FALLBACK, AT A REJECTING SITE.
 --
 -- `forcedNullBy` mirrors the walk's dispatch one mechanism over: metadata for

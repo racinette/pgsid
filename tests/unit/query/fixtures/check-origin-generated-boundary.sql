@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The kernel-boundary closure: pinning g2.label proves g2's row present
 -- (presence consumption), and given presence, safe_label and doubled are
 -- non-null BY THEIR GENERATION EXPRESSIONS — a fact the entailment

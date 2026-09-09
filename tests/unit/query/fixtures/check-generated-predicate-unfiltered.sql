@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The evidence gate: with no WHERE there is nothing for the kernel to
 -- run on, so no arm is refuted, none is selected, and the generated
 -- column reads as what the catalog says it is. The sibling fixtures'

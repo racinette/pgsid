@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The dup-name hazard at strength FOUR, on the occurrence-counting branch
 -- (bare `*`): four `id` columns from four different entries, interleaved
 -- with unique names, PLUS a second independent duplicate (`status` twice)

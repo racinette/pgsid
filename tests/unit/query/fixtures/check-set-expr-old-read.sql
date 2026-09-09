@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- SET expressions read the OLD row (dmlOldRowRead), where WHERE facts and
 -- CHECKs alike hold unmasked: the OLD row was housed, its CHECK forced room
 -- non-null, and `note = room` copies that value — so the written note is

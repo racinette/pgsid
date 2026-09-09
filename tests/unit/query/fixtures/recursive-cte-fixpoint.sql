@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Resolving a recursive CTE's self-reference is an induction, and the induction
 -- has to be iterated to a fixed point rather than stopped after one pass.
 --

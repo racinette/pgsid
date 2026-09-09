@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Sibling NESTED paths NULL each other's columns, ordinality included —
 -- sweep-4 finding 5, where the engine claimed BOTH counters notNull.
 --

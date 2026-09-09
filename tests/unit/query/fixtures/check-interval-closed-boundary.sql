@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The closed-ray boundary: CHECK (g >= 5). [5, inf) misses (-inf, 4]
 -- because 4 < 5, and misses (-inf, 5) because the question ray is open —
 -- but [5, inf) and (-inf, 5] SHARE exactly {5}, and the generator's g = 5

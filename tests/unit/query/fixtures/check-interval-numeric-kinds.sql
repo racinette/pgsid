@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Numeric anchors of different LITERAL KINDS: the CHECK's 5.5 is an fval
 -- token, the guard's 5 an ival — token reasoning can never order them
 -- (the multiwhen-numeric lesson), but the evaluated `5 <= 5.5` read at

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- SELECT * expansion: multiple relations, column order
 -- t: id(notNull), name(nullable), val(nullable), active(notNull)
 -- u: id(notNull), t_id(notNull), email(notNull), val(nullable), status(nullable)

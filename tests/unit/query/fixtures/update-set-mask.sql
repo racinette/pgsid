@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The SET-column mask, pinned by a live counterexample: the WHERE proved
 -- OLD val non-null, and the statement then writes NULL into it — RETURNING
 -- reports the NEW row, so the WHERE guarantee must not survive for SET

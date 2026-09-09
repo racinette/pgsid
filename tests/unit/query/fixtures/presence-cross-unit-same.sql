@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The unit-chain closure, same-unit form (found by the widened generated
 -- axis): (t JOIN u) is ONE extension unit under the RIGHT JOIN, and
 -- extension is atomic per unit — so pinning u.email proves t's slice

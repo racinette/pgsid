@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LEFT JOIN to a nullable-side table with aggregates.
 -- count(*) is non-null even over zero matching rows. avg/max are nullable
 -- (aggregates return NULL over zero rows, and the join side is optional).

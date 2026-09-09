@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `RETURNS TABLE(r <composite>)` with ONE output column. A single output
 -- column IS the function's row type — PostgreSQL sets prorettype to the
 -- composite and emits its FIELDS — so the rendering `TABLE(r sku_pair)`

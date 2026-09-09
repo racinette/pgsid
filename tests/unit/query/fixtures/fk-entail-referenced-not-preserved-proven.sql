@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The same gate on the other arm: a PROVEN-PRESENT referencing side does not
 -- make the referenced side's rows survive.
 --

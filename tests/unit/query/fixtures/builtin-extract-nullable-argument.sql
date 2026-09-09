@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- EXTRACT OF A TOTAL FIELD, WITH THE ARGUMENT NULLABLE.
 --
 -- EXTRACT_TOTAL_FIELDS is two-dimensional — FIELD × argument TYPE — and

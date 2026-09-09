@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The list-partition twin of the CHECK IN case (same code path, the
 -- rung's second payer): courier_north's bound renders
 -- ((region IS NOT NULL) AND (region = ANY (ARRAY['north','east']))) and

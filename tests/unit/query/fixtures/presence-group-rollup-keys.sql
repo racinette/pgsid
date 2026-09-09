@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- ROLLUP beside plain optional keys: the rolled column is refused as a
 -- producer (a set-wrapped key never resolves bare — Wave 12's origins
 -- rule) and blanks on subtotal rows, but the PLAIN keys survive every

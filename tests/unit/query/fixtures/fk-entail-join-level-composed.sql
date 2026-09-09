@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The join-level fact composing with itself, which is what makes it a fact
 -- about joins rather than a special case.
 --

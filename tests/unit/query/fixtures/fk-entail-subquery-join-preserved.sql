@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The anchor row does not always need the join to MATCH: it needs to survive
 -- it, and an outer join that preserves the anchor's side does that on its own.
 --

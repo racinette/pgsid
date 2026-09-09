@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `unnest` of a COMPOSITE-element array expands the element's FIELDS
 -- (adversarial-2 finding 4): one column per field, named by the field, all
 -- nullable — not one column per argument. The engine once emitted

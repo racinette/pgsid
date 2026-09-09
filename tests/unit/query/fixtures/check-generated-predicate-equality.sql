@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Predicate-aware GENERATED columns (generated-predicate-red.test.ts,
 -- graduated 2026-08-25). gpc carries NO CHECK, so every mechanism in the
 -- chain is the new one: the anchor-question pool draws `3` and `10` from

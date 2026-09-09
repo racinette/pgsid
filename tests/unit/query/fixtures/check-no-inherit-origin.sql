@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The origin-side route to the same NO INHERIT hole: the CTE re-exports
 -- ni2_p's columns as bare pass-throughs and the filter sits OUTSIDE, so
 -- the CHECK runs at the referencing scope through origin tracking (Wave 8)

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- json[b]_populate_record'S SHAPE IS ITS FIRST ARGUMENT'S COMPOSITE TYPE.
 --
 -- Found by the pg-regress replay (json.sql/jsonb.sql: engine 1 column,

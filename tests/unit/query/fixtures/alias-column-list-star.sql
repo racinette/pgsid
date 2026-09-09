@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A FROM item's alias COLUMN LIST renames the relation's columns, and star
 -- expansion must emit the names the item ANSWERS TO rather than the ones the
 -- catalog carries.

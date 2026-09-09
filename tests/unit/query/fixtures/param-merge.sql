@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- MERGE's conditional arms, executed both ways in a single statement: the
 -- two-row literal source sends sid 1 down the MATCHED arm under `sparse`
 -- (ck.1 is seeded there) while sid 740 takes NOT MATCHED — and under `empty`

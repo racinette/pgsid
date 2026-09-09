@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The OVERSHOOT control: a ROOT-level FOR ORDINALITY keeps its claim however
 -- many NESTED siblings sit beside it.
 --

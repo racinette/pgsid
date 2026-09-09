@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The closed-into-strict exception: [3,inf) and the arm's (3,inf) differ
 -- at exactly the shared anchor, and caist's a = 3 row — ELSE arm, o NULL
 -- — is in the result. Equal anchors must not carry a closed witness into

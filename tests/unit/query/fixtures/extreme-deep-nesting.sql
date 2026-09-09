@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- 5-level deep nesting: outer CTE → scalar subquery → subquery in FROM →
 -- inner CTE → correlated scalar subquery with count(*).
 -- The walk recurses through all 5 scope levels to propagate nullability.

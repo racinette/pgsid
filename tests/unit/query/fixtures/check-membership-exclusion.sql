@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- List membership exclusion, the CHECK IN side. guest_status_note's AND carries
 -- `status IN ('in-flight','arrived','housed','checked-out')` — rendered
 -- `= ANY (ARRAY[...])`, a notFALSE OR-fact on the constraint's spine. A

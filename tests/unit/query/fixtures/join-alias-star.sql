@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A PARENTHESIZED JOIN'S OWN ALIAS — `(a JOIN b …) AS j` exposes the whole
 -- visible list.
 --

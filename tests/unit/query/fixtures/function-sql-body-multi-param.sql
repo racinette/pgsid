@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LANGUAGE sql function body recursion (old-style, positional $1/$2):
 -- concat_val(a text, b text) → text, body: SELECT $2
 -- Returns the second arg — nullability follows $2.

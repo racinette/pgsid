@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An UPDATE through an inheritance parent fires the CHILD's BEFORE ROW
 -- trigger for child rows (measured) — the parent carries no trigger at
 -- all, and the child's nulls a after the SET expression ran. The hooks

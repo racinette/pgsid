@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A grouping-set ORDINAL numbers the EXPANDED output list (adversarial-2
 -- finding 10): `g.*` is ONE ResTarget and THREE output columns, so ROLLUP
 -- (1, 2, 3) groups by a, b and c — while the recorder once indexed the RAW

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- EXCEPT draws every result row from the LEFT branch, so the left branch alone
 -- decides nullability — whatever the right branch contains is only used to
 -- remove rows, never to supply values.

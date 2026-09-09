@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The OVERSHOOT control for the lone-arm naming rule: the relation alias
 -- names the RELATION, and a composite arm keeps its own field names.
 --

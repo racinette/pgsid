@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same mechanism one level IN: an array-typed builtin position that
 -- rejects a NULL ELEMENT.
 --

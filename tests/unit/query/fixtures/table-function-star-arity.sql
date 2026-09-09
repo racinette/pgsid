@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Star expansion over a `RETURNS TABLE (…)` function: the ARITY, asserted by
 -- the one oracle that can settle it — PostgreSQL's own RowDescription.
 --

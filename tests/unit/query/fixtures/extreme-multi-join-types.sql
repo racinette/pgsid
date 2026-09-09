@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Multiple join types in a single FROM: INNER + LEFT + RIGHT + FULL.
 -- The outer FULL JOIN makes everything optional. ON clauses reference
 -- columns from earlier joins. WHERE promotes two aliases (o and c) but

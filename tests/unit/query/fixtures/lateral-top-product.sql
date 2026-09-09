@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LATERAL join: top product per order via a correlated subquery in FROM.
 -- The LATERAL subquery is on the optional side of a LEFT JOIN, so its
 -- columns are nullable (it may produce zero rows for an order).

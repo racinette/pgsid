@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A non-null INITCOND fixes the EMPTY-input result only: with rows to
 -- transition, the result is whatever the transition and final functions
 -- produced, and neither is analysable. agg_nullify's transition returns

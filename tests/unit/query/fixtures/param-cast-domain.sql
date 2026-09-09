@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Casting a parameter to a NOT NULL domain types the parameter AS the domain,
 -- so binding NULL raises at Bind, before execution — mechanism A, measured
 -- in param-mechanism.test.ts.

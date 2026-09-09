@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The GATE on the composite star's body reading (see composite-star-shape.sql
 -- for the mechanism), landed 2026-08-22.
 --

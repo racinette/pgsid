@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `SELECT *` must resolve columns the same way a named reference does.
 --
 -- A view's own catalog columns are all attnotnull=false, so expanding a star

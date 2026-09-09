@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A MERGE arm's OWN condition, as row-implied evidence.
 --
 -- A returned row came from exactly one row-producing arm, and an arm fires

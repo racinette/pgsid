@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A join whose qual is never recorded is invisible to the subtree readings —
 -- sweep-4 finding 2.
 --

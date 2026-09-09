@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The transport's STRENGTH gate, held by data: caiw's ray CHECK
 -- (a >= 4) is only notFALSE per stored row, and nothing here pins `a` —
 -- so its a-NULL rows are real, took the ELSE arm (guard UNKNOWN), and

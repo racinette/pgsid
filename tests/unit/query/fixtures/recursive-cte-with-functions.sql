@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Recursive CTE + COALESCE + strict function + scalar subquery.
 -- The recursive self-reference produces nullable columns (conservative),
 -- but the base-case columns (id, name, slug) are non-null, so COALESCE

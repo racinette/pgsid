@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- UNNAMED OUT PARAMETERS ARE STILL COLUMNS.
 --
 -- Found by the pg-regress replay (plpgsql.sql's `ret_query1(out int, out

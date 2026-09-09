@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `ROWS FROM` NULL-pads its shorter arms, and the DECLARED column reading has
 -- to be clipped by that too — sweep-4 finding 1.
 --

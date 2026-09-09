@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The literal-branch closure: set-operation origins carry one SLOT per
 -- branch, and a branch that cannot attribute a column (the literal row)
 -- contributes an explicit NULL slot with its flat verdict recorded —

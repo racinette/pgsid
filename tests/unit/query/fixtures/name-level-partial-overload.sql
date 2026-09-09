@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `+` IS ON THE NAME-LEVEL TOTAL LIST, AND `+(path,path)` IS NOT TOTAL.
 --
 -- The register kept the name on `TOTAL_OPERATORS` deliberately: `+(path,path)`

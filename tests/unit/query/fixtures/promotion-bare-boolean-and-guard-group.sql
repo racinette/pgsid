@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The two promotion rungs that closed 36 of the a_case bucket on
 -- 2026-08-22, pinned as a mechanism rather than as a claim count.
 --

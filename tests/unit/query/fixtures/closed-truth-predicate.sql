@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The SAME reading on the statement side, where it is the walk's OR rule and
 -- not the kernel's.
 --

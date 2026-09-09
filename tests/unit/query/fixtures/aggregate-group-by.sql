@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Aggregates with GROUP BY. A plain GROUP BY emits no empty groups, so an
 -- aggregate over a non-null expression has at least one non-null value to
 -- work with and cannot return NULL. placed_at, unit_price and quantity are

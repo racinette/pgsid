@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The conditional rejection site, executed both ways: $3 flows into ck.val
 -- (NOT NULL) only when the DO UPDATE arm fires. Under `sparse` (ck.1 seeded)
 -- the first binding conflicts and the arm runs — binding NULL for $3 raises

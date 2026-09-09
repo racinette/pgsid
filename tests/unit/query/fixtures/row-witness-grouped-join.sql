@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A LEFT JOIN that cannot have extended, proven by a THIRD FROM item.
 --
 -- `w` is CROSS JOIN LATERAL, so an order with no items produces no `w` row and

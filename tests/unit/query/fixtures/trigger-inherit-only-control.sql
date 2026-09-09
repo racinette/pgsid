@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The ONLY control: UPDATE ONLY inh_p pins the write to the parent, where
 -- no trigger exists — the child's BEFORE UPDATE trigger cannot fire for
 -- rows it never receives — so the named relation's own hooks are the

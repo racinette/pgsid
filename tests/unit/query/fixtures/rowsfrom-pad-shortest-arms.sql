@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The padding's bound comparison run in the direction the other `rowsfrom-pad`
 -- fixtures cannot reach: NOBODY is padded, because no arm is shorter than any
 -- other. Both arms emit exactly one row, and PostgreSQL returns the one row

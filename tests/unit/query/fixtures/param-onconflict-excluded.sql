@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- excluded IS a derived row: excluded.name is the value this INSERT proposed
 -- for name, so $2 flows through it into val's NOT NULL constraint. Spelled
 -- EXCLUDED to pin case-folding (the parser lower-cases unquoted identifiers)

@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- INTERSECT keeps the left arm's groups: output rows are left-branch
 -- rows that also appear on the right, and set operations pair NULLs as
 -- equal, so the absent-arm rows survive the intersection. The right

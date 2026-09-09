@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The control for generated-child-override.sql: `FROM ONLY gen_p` stays in
 -- the named relation, whose rows WERE computed with its own formula, so
 -- the generation dispatch keeps evaluating a * 2 — total arithmetic over a

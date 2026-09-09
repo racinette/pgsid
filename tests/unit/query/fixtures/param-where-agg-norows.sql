@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The guard on WHERE-conjunct narrowing: an ungrouped aggregate query emits
 -- its row even over ZERO input rows, so a returned row does NOT prove the
 -- WHERE ever evaluated TRUE — the [null] binding returns [NULL, 0], and c1

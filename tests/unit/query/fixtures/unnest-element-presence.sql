@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An `unnest` field's PRESENCE producer is the element expression's relation
 -- (`presenceProducer`), landed 2026-08-22. It closed the generated corpus's
 -- last structural bucket: 20 a_tb claims over unnest(left) and unnest(full),

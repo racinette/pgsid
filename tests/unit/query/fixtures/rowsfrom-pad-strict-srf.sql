@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The padding also covers the shape the strict short-circuit deliberately
 -- excludes: a STRICT set-returning function handed NULL.
 --

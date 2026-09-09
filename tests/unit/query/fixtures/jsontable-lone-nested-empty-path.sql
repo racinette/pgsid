@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A LONE NESTED path whose array is EMPTY — no sibling anywhere, and the
 -- ordinality counter is NULL anyway.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- COUNTEREXAMPLE for `written-value-guards.ts`: two VALUES rows that write
 -- different constants into the guarded column.
 --

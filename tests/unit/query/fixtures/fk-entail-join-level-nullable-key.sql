@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The control for fk-entail-join-level-composed: the same three-relation
 -- FULL-FULL shape with a NULLABLE key at the inner join.
 --

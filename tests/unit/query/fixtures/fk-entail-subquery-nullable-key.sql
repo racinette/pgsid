@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the key column must be NOT NULL.
 --
 -- `p2.category_id = p.category_id` cannot match when the outer value is NULL —

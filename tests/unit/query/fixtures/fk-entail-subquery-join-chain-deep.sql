@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The chain is iterative, not one hop with a special case: three relations,
 -- two joins, and every relation reached from the one before it.
 --

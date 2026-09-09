@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A builtin call inside a LANGUAGE sql body narrows its signature by the
 -- parameter's declared type whether the body spells the parameter `$1` or
 -- names it — the second half of the type threading, closed 2026-08-22.

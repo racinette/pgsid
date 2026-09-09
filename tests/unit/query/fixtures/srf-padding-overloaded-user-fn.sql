@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The padding rule reaching an OVERLOADED user SETOF function
 -- (adversarial-3 finding 2). Set-returningness was asked through
 -- `resolveFunctionMetadata` — the single-candidate shortcut, which answers

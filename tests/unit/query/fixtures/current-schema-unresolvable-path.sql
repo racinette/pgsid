@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CURRENT_SCHEMA's NULL, arranged.
 --
 -- It was recorded twice as "NULL only when the search path resolves to no

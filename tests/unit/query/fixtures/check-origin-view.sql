@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Origin tracking through a view — the same mechanism as the CTE case and
 -- the place users will actually feel it: filtering a projection view from
 -- outside narrows exactly as filtering the base table would.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- NOT NULL on an ARRAY column binds the ARRAY, never its ELEMENTS.
 --
 -- `arr_nn.vals` is `text[] NOT NULL` and every generated row holds

@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- A body-proven notNull is INTRINSIC to the function's rows, and the join
 -- state still applies on top: the optional side of a LEFT JOIN contributes
 -- NULL-extended rows whatever the body guarantees.

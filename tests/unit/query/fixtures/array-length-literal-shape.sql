@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `array_length` is excluded from the totality tables and correctly so — it is
 -- NULL for an EMPTY array and for a dimension the array does not have. Both
 -- causes are SHAPE, and a literal `ARRAY[...]` constructor settles both, which

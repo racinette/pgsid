@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CASE: non-null when there is an ELSE and every branch result is non-null;
 -- nullable without an ELSE, since an unmatched CASE evaluates to NULL.
 -- Branch results are walked under the condition that must hold for that

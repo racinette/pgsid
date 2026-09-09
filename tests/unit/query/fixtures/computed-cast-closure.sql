@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A CAST OVER A COMPUTED ARGUMENT, on both sides of the gate that admits one.
 --
 -- The subtree evaluator used to refuse every cast whose argument was not a

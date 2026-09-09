@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- INHERITS, the direction inherit-attnotnull-divergence.sql does not carry:
 -- the CHILD declares NOT NULL on the inherited column and the PARENT does not.
 --

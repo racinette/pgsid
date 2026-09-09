@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Subquery in FROM with internal GROUP BY and join structure.
 -- The outer query inherits the subquery's per-column nullability.
 SELECT

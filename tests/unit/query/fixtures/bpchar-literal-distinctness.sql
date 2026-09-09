@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The padding gate: bpchar comparison strips trailing blanks BEFORE the
 -- collation is consulted, so 'a' and 'a ' are distinct tokens naming EQUAL
 -- values ('a'::char(4) = 'a ' is TRUE — measured), and byte distinctness

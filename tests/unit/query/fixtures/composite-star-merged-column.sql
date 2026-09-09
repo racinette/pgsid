@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `(p).*` over a column merged by USING. A merged column has no range-table
 -- entry of its own, so the value-reading arm found nothing to type it with
 -- and refused — where PostgreSQL expands it to the composite's fields, the

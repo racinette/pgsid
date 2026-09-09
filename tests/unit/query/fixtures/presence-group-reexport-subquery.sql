@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- R1 closed, the subquery form: a bare re-export preserves the inner
 -- analysis's row facts, so the inner LEFT JOIN's unit rides out of the
 -- derived table — the group the engine could not see while groups were

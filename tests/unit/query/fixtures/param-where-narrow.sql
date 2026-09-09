@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- WHERE-conjunct narrowing: every returned row passed `val = $1`, a strict
 -- comparison that is only TRUE with $1 non-null — so the projections of $1
 -- are @notNull while the ARGUMENT stays nullable: NULL is a perfectly legal

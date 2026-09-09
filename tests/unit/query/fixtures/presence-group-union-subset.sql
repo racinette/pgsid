@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- UNION subset matching (the second recorded imprecision, closed): the
 -- first branch's unit is {1,2,3}, the second's only {1,2} — its COALESCE
 -- drops tracking_no from membership. A group restricted to any member

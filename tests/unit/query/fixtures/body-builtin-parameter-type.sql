@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Inside a LANGUAGE sql body, a builtin CALL narrows its signature by the
 -- PARAMETER'S DECLARED TYPE — the site the type threading did not reach until
 -- the function overload merge — the second site the types never reach.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The SHADOWING side of the type gate, which no fixture could reach before
 -- `-- @search-path` existed (2026-08-20).
 --

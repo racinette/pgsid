@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Arity filtering resolves what name-level lookup cannot: ship has two
 -- overloads, but a one-argument call can only be ship(nn_text), so $1 is
 -- typed as the NOT NULL domain and rejected at Bind (mechanism A) — the

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The strict-qual-over-a-NULL-extended-side closure, on the register's own
 -- example: in (t LEFT u) INNER v ON v.u_id = u.id, no NULL-extended u row
 -- can pass the strict inner qual, so the presence fixpoint proves u present

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Token distinctness never applies to numerics: 1 and 1.0 are distinct
 -- tokens naming equal values, so TRUE(n = 2) must not falsify the CHECK's
 -- n = 1 arm BY TOKENS — and the kernel still refuses that. What answers

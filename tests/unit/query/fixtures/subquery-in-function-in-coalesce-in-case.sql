@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Subquery in function argument in COALESCE in CASE.
 -- Deepest expression nesting: CASE → COALESCE → function call → scalar subquery.
 -- The scalar subquery (count) is single-row-guaranteed and count is non-null,

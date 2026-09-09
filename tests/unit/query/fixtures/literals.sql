@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- literals: various literal types
 SELECT
   'foo'   AS c1,  -- @notNull

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the joining key must be NOT NULL, one hop in as much as at the anchor.
 --
 -- `products.category_id` references categories and may be NULL, and a NULL key

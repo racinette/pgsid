@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- UPDATE RETURNING with expressions in the RETURNING list.
 -- The target table is required (no join nullability). Catalog NOT NULL
 -- columns are non-null; multiplying a NOT NULL column by a literal stays

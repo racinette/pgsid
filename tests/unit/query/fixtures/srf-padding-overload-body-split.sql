@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The trap the body map's SIGNATURE key disarms, aimed at the padding bound.
 --
 -- `ov_rows` is overloaded, and its two bodies disagree about how many rows

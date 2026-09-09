@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `path + path` is NULL whenever EITHER operand is a CLOSED path (measured;
 -- open + open concatenates). The name-level allowlist claimed total for every
 -- `+` and PARTIAL_OVERLOADS recorded this row as the known hole; with the

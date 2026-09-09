@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The shortest route to the same conclusion: the WHERE predicate IS the
 -- first arm's guard, so the kernel proves it by atom identity — no
 -- anchor order, no evaluated comparison. The first arm always fires and

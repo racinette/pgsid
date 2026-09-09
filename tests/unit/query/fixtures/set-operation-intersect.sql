@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- INTERSECT returns values present in BOTH branches, so either side can prove
 -- a column non-null: a value that appears in a NOT NULL column cannot be NULL,
 -- regardless of what the other side's column allows.

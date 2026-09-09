@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `lower`/`upper` over an EMPTY range are NULL (measured), and the argument
 -- is a NOT NULL column — so nothing about the call site rescues it. Both
 -- names carry a total `(text)` form as well, and the walk dispatches

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Scalar subqueries (EXPR_SUBLINK)
 --
 -- The outer FROM is `products`, not `t`, and that is the whole reason these

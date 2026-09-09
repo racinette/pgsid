@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- THE NULLABLE DIRECTION OF THE BOOLEAN CONNECTIVES, PROJECTED.
 --
 -- The rung census (rung-census.test.ts) found both three-valued refusals dark:

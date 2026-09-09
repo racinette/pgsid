@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CTE with non-null output → outer ref non-null
 WITH x AS (
   SELECT id, val FROM t

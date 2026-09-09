@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Coercing an argument to a function's declared NOT NULL domain parameter
 -- applies the domain constraint: NULL raises at the call, even though the
 -- function's own body never rejects anything. The output is @notNull by

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Half of check-generated-predicate-chain.sql's evidence, alone: status
 -- = 3 selects the arm, but nothing pins `event_duration`. The null
 -- policy seeds a (status 3, has_duration false) row whose duration IS

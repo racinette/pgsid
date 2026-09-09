@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A partitioned table is a real relation with real columns, and the
 -- snapshot once skipped relkind 'p' entirely — star expansion then
 -- silently contributed ZERO columns for part_p, measured silent in seven

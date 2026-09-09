@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The unit is a computed subquery: extension nulls its whole output row,
 -- computed columns included, so membership needs no base-table origin —
 -- and given presence, the inner analysis speaks: count(*) over a real

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CTE referenced multiple times
 WITH x AS (
   SELECT id, val FROM t

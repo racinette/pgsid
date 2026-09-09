@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The discriminated NO INHERIT form (adversarial-2 finding 2) — the shape
 -- the entailment kernel exists for: `CHECK (status <> 'open' OR note IS
 -- NOT NULL) NO INHERIT` on the parent, `WHERE status = 'open'` in the

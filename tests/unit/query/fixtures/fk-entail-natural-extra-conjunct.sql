@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Gate: a synthesized condition can be MORE than the key, and then it is the
 -- same near miss `fk-entail-extra-conjunct.sql` pins for a written ON.
 --

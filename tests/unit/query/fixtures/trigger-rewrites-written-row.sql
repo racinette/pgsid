@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- RETURNING reports the row AFTER the rewrite stage: trig_t's BEFORE ROW
 -- trigger sets NEW.a := NULL after the statement's value was chosen, and
 -- the written-value map — which reduces VALUES cells to the values the

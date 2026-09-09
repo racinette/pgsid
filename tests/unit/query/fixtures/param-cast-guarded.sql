@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The CASE guard does NOT protect the parameter: its type resolves to the
 -- domain at parse analysis and NULL is rejected at Bind, before any branch is
 -- evaluated. Guard-immunity is measured in param-mechanism.test.ts.

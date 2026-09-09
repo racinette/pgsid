@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The output-ordinal spelling of a grouping-set term: `ROLLUP(1)` is an
 -- A_Const, not a ColumnRef, and the recorder once collected nothing for it
 -- — claiming t.id notNull against the super-aggregate row that blanks it.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The composite-star value arms the first fix phase refused (the sweep's
 -- rank-7 over-refusal, closed with adversarial-2 finding 13): a qualified
 -- composite COLUMN `(c.p).*` expands its type's fields, and a ROW

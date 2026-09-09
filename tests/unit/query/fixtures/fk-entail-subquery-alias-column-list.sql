@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Key entailment inside a CORRELATED SUBQUERY, with every relation renamed by
 -- an alias column list.
 --

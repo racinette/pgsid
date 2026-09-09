@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Branch guards as kernel evidence: the THEN branch runs only when its
 -- condition is TRUE, which is the same row-implied strength as a WHERE
 -- conjunct — so inside the branch, the CHECK CASE's WHEN condition is

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- UPDATE SET is the same assignment channel as INSERT: a NOT NULL target
 -- column rejects NULL, a nullable one accepts it.
 -- The second binding writes the NULL that $1's nullable claim permits — and

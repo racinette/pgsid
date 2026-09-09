@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- WITHIN GROUP OVER A USER ORDERED-SET AGGREGATE — the unknown-aggregate refusal.
 --
 -- The WITHIN GROUP dispatch answers hypothetical-set and ordered-set CLASSES

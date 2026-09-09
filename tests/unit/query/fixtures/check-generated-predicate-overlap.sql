@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The gate on the selection rung, one boundary out from
 -- check-generated-predicate-containment.sql: [5,inf) refutes the first
 -- arm exactly as it does there, but WITHOUT the upper conjunct it does

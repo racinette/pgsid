@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LANGUAGE plpgsql function returning a NOT NULL domain.
 -- Priority 1 (NOT NULL domain return) is language-agnostic and wins over
 -- everything. Even with a nullable argument, the domain constraint is

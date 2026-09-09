@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Querying a view. PG does not propagate attnotnull to view columns in
 -- pg_attribute (views don't enforce NOT NULL), so the catalog flag is
 -- useless here — it reads false for every column. The walk instead analyzes

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: a parent's foreign key does not reach its children.
 --
 -- pg_constraint records the key on fk_par alone and a violating row inserts

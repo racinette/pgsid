@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the outer relation must be PRESENT.
 --
 -- A NULL-extended outer slice carries a NULL key, which matches nothing — so

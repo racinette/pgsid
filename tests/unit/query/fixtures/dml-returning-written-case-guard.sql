@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A RETURNING CASE guard is answered from the values the statement WROTE
 -- (`written-value-guards.ts`), landed 2026-08-22. This file was
 -- `dml-returning-case-value-dependence.blame.sql` until then, and its own

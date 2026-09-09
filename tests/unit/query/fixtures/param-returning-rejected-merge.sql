@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- COUNTEREXAMPLE 1 for `returningRejectedParams`: a second MERGE arm that
 -- returns rows without writing the parameter.
 --

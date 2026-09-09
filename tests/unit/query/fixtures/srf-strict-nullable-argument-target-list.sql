@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A STRICT set-returning function's totality does not depend on its arguments
 -- being non-null: in the TARGET LIST, a nullable argument subtracts ROWS, not
 -- values.

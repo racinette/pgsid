@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A parameter-driven refilter: `s.carrier = $1` is a strict comparison,
 -- so every returned row proves the extension gone WHATEVER the binding —
 -- a NULL binding just returns nothing. The unit promotes, no group

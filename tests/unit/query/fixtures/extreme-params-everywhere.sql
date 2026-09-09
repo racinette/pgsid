@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Extreme fixture: parameterized query with params in every possible
 -- position — SELECT, WHERE, JOIN ON, subquery, function args, CASE,
 -- COALESCE, VALUES, ORDER BY, aggregate filter, and window partition.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Six former STRICT_TOTAL_BUILTINS members failed the table's own
 -- admission criterion — total, not merely strict — and are out, each
 -- measured returning NULL from non-null literal arguments: array_position

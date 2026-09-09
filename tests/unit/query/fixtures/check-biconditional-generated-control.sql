@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Unfiltered, neither disjunct is refuted, so the CHECK pins nothing and
 -- the generated column reads as its own declaration. The three siblings'
 -- claims are the PREDICATE choosing a disjunct, not evb's data landing

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Collation identity rides containment: cais's column carries the
 -- session's own default collation, so 'p' vs 'm' ORDERS (the identity
 -- arm of the trichotomy) and ['p',inf) fits the arm's ['m',inf). Every

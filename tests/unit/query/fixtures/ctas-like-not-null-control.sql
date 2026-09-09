@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The `LIKE` control for ctas-drops-not-null.sql: the overshoot bound.
 --
 -- `like_dst` was created as `LIKE ctas_src` with no INCLUDING clause, and

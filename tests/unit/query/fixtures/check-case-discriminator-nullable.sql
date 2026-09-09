@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The motivating shape, negative half: proving the CASE's ELSE arm would
 -- need literal distinctness ('in-flight' differs from 'arrived'), which is
 -- unsound to conclude syntactically — so the engine leaves arrived_at

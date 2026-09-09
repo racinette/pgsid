@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: a foreign key with `convalidated = false` entails nothing — WITNESSED.
 --
 -- Three routes clear that bit and the adapter reads only the bit, so one gate

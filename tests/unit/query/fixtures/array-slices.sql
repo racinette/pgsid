@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Slices never fail by range — they clamp, to an empty array if need be
 -- (measured: (ARRAY[1,2,3])[5:9] is '{}', not NULL) — so a slice is NULL
 -- only when the array or a bound is. Element subscripts stay correctly

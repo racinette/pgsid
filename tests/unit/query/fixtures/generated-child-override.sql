@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A generation expression is a per-relation fact and the tree may disagree
 -- (adversarial-2 finding 3): gen_c redefines inherited d as nullif(a, a),
 -- so a tree scan evaluating the PARENT's a * 2 would claim notNull against

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A row-dropper the walk does not MODEL: `TABLESAMPLE` — sweep-4 finding 3.
 --
 -- The key says every order has a customer, and `BERNOULLI (0)` keeps none of

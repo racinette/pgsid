@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Occurrence counting across a USING merge, with a DISTINGUISHABLE
 -- duplicate pair: the merged k disappears from s1's remainder, and the
 -- two surviving `id` columns differ in nullability (o.id NOT NULL,

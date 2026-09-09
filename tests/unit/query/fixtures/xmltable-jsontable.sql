@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- @unwitnessable 4: the document is a LITERAL, so the exact probe exists —
 --   `SELECT bool_and(a IS NOT NULL) FROM <this JSON_TABLE>` — and cannot be
 --   built: pgsql-deparser 18.1.1 throws on every SQL/JSON node, so the item

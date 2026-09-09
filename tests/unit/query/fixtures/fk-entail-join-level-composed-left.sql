@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- fk-entail-join-level-composed with the inner join's operands swapped, which
 -- is a different reading and not a different query: a FULL JOIN is symmetric
 -- in SQL and the walk keeps its two sides apart, so the side the composition

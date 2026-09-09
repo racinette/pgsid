@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the JOIN's ON must be exactly the key equality, for the same reason
 -- the WHERE must be (fk-entail-subquery-extra-conjunct.sql).
 --

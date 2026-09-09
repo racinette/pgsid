@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The one set operation that cannot empty itself.
 --
 -- `UNION SELECT 7` supplies a row whatever the left branch counts, so the

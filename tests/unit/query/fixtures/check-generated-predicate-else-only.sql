@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The alwaysNull direction: [11,inf) is disjoint from BOTH arms, so
 -- neither can fire and the ELSE — a bare NULL — is the only producer
 -- left. This is the channel `alwaysNullExpr` gained on 2026-08-25: it

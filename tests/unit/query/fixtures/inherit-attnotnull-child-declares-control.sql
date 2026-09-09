@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The child half of inherit-attnotnull-child-declares.sql: the constraint the
 -- parent's tree scan must NOT be given is real where it was declared.
 --

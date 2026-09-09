@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The write-side partition-bound rung in the corpus
 -- on the write side: naming a partition
 -- directly makes its bound an enforced constraint on the written row, and

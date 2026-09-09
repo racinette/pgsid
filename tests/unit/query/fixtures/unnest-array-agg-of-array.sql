@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `array_agg` of an ARRAY column takes the OTHER declared signature, and the
 -- result is one dimension deeper.
 --

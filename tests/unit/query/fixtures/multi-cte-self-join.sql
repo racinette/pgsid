@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Multi-CTE with different join structures, self-joined in the outer query.
 -- CTE 'with_reviews' has a LEFT JOIN (nullable rating).
 -- CTE 'with_orders' has an INNER JOIN (non-null order info).

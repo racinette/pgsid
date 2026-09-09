@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `(expr::<domain over a composite>).*` (adversarial-3 finding 4).
 -- `resolveCompositeType` was backed by a snapshot query reading
 -- `typtype = 'c' AND relkind = 'c'` — base composites only — so a domain

@@ -7,6 +7,8 @@ import { check, runAggregate, runRule } from 'espalier'
 import * as fixtureRule from './espalier/worlds/[world]/[fixture].sql.mjs'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
 import * as healthRule from './espalier/worlds/[...world]/world-health.sql.mjs'
+// @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
+import * as sharedFixtureRule from './espalier/fixtures/[fixture].sql.mjs'
 
 const PATH = 'worlds/example/contract.sql'
 const GROUPED = `-- @args [1, 2]
@@ -27,8 +29,17 @@ async function codes(source: string) {
   return issues.map((issue) => issue.code)
 }
 
+async function sharedCodes(source: string) {
+  const path = 'fixtures/example.sql'
+  const issues = await runRule(sharedFixtureRule, {
+    path,
+    tree: { [path]: source },
+  })
+  return issues.map((issue) => issue.code)
+}
+
 describe('Espalier query-fixture rule', () => {
-  it('accepts every fixture in the governed world tree', async () => {
+  it('accepts the complete governed query test tree', async () => {
     await expect(
       check({
         cwd: process.cwd(),
@@ -91,6 +102,74 @@ SELECT 1 -- @notNull
     expect(await codes(GROUPED.replace('-- @param 1 nullable', '-- @param 1 notNull'))).toContain(
       'invalid_parameter_group_member',
     )
+  })
+})
+
+describe('Espalier shared-fixture group rule', () => {
+  it('accepts independently declared positive groups', async () => {
+    await expect(sharedCodes(GROUPED)).resolves.toEqual([])
+  })
+
+  it('accepts explicit empty group channels', async () => {
+    const source = `-- @null-groups none
+-- @param-rejections none
+SELECT 1 -- @notNull
+`
+    await expect(sharedCodes(source)).resolves.toEqual([])
+  })
+
+  it.each([
+    ['output', '-- @param-rejections none\n', 'missing_output_group_contract'],
+    ['parameter', '-- @null-groups none\n', 'missing_parameter_group_contract'],
+  ])('rejects a missing %s group channel', async (_name, retained, expected) => {
+    expect(await sharedCodes(`${retained}SELECT 1 -- @notNull\n`)).toContain(expected)
+  })
+
+  it('rejects positive and empty declarations for the same channel', async () => {
+    const found = await sharedCodes(
+      `-- @null-group 0*,1
+-- @null-groups none
+-- @param-reject 1,2
+-- @param-rejections none
+-- @param 1 nullable
+-- @param 2 nullable
+SELECT $1, -- @nullable
+       $2  -- @nullable
+`,
+    )
+    expect(found).toContain('contradictory_output_group_contract')
+    expect(found).toContain('contradictory_parameter_group_contract')
+  })
+
+  it('rejects malformed and duplicate positive declarations', async () => {
+    const found = await sharedCodes(
+      `-- @null-group 0,1
+-- @null-group 1*,0
+-- @null-group 0*,1
+-- @param-reject 1,1
+-- @param-reject 2,1
+-- @param-reject 1,2
+-- @param 1 nullable
+-- @param 2 nullable
+SELECT $1, -- @nullable
+       $2  -- @nullable
+`,
+    )
+    expect(found).toContain('invalid_output_group_contract')
+    expect(found).toContain('duplicate_output_group_contract')
+    expect(found).toContain('invalid_parameter_group_contract')
+    expect(found).toContain('duplicate_parameter_group_contract')
+  })
+
+  it('rejects group members whose flat contracts are inconsistent', async () => {
+    const found = await sharedCodes(
+      GROUPED.replace('left_value,  -- @nullable', 'left_value,  -- @notNull').replace(
+        '-- @param 1 nullable',
+        '-- @param 1 notNull',
+      ),
+    )
+    expect(found).toContain('invalid_output_group_member')
+    expect(found).toContain('invalid_parameter_group_member')
   })
 })
 

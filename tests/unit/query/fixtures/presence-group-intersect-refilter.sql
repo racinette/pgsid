@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The setop dead rule, found by the generated corpus's two-arm bar (67
 -- groups with unreachable absent arms before it): INTERSECT strengthens
 -- flat claims from the right branch (a row must appear in BOTH, and the

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The complement, and the direction a one-sided CHECK cannot give: the
 -- working disjunct's `status <> 'pending'` is FALSE here, so the
 -- survivor is the pending one and it carries `started_at IS NULL`. NULL

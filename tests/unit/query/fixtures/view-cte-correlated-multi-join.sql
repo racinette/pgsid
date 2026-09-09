@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Aggregate view + CTE + correlated subquery + multi-join.
 -- The order_summary view has nullable columns (sum can be NULL over zero rows).
 -- A CTE wraps it; a correlated subquery in the SELECT list references the
