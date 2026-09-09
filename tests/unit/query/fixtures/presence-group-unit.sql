@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- An outer join NULL-extends its optional side AS A UNIT: the inner join
 -- (orders JOIN order_items) under the LEFT JOIN is one extension unit, so
 -- columns from BOTH tables share a single presence group — proving o.id

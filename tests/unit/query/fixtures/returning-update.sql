@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- RETURNING: UPDATE — target table required. RETURNING reports the NEW
 -- row, so a SET column's returned value IS its SET expression: the literal
 -- makes name notNull (the imprecision this fixture used to record, closed

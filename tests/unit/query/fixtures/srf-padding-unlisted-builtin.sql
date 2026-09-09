@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The padding rule reaching a builtin SRF no hand-written table listed
 -- (adversarial-3 finding 1). `BUILTIN_SRF_NAMES` held 21 names; PG18's
 -- pg_catalog holds 71 set-returning functions once the pg_stat/pg_ls

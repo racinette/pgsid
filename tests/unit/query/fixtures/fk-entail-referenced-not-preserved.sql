@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Gate: the key says the match exists in the TABLE; the join finds it only if
 -- it is still in the SLICE.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The typmodded DATETIME record, DOUBLE-HELD (measured 2026-08-24): read
 -- at timestamp(3) the WHERE's .1234 would round to .123 and fit the
 -- arm's ray exactly, while the query's comparison keeps full precision —

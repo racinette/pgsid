@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- INSERT ... ON CONFLICT ... RETURNING can produce zero rows.
 --
 -- RETURNING reports only rows actually inserted or updated. DO NOTHING

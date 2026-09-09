@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- A foreign key onto a PARTITIONED table is recorded once per partition on
 -- top of the declared constraint, and the adapter kept whichever came last —
 -- sweep-4 finding 4.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- OR promotes by INTERSECTION: a disjunction proves a column non-null only
 -- when EVERY arm does — whichever arm made the WHERE TRUE, it was a strict
 -- comparison on val, so val was non-null. The negative (an OR with a

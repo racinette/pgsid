@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A WINDOW call does not collapse a query to one row.
 --
 -- `guaranteesSingleRow` licenses a scalar sublink's notNull from "an

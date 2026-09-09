@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- HAVING as a group refilter: HAVING is consulted like WHERE (Wave 1's
 -- ungated evidence), so `s.id IS NOT NULL` over a grouping key kills the
 -- all-extended (NULL, NULL) group, promotes the unit, and NO presence

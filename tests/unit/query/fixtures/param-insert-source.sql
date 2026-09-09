@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The INSERT ... SELECT twin of param-merge-source: the identical
 -- attribution through a derived table's column, no MERGE involved.
 -- @args [750, "iv"]

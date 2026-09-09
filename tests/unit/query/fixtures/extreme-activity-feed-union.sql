@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Extreme fixture: set operations combining queries with different
 -- structures, CTEs, subqueries, and expression types.
 --

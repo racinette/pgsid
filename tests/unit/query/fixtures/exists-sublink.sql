@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- EXISTS / NOT EXISTS / IN / = ANY / = ALL / ARRAY sublinks
 SELECT
   EXISTS (SELECT 1 FROM t WHERE t.id = 5)      AS c1,  -- @notNull

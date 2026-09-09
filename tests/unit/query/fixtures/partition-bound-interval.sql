@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Partition-bound facts.
 -- The everyday shape: a query pinned to one partition of an event log —
 -- an archival job, a per-range backfill — where the bound is the only

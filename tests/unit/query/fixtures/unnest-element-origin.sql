@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An `unnest` field's ORIGIN is its element expression's origin
 -- (`unnestFieldOrigins`), landed 2026-08-22 beside `presenceProducer` and
 -- answering the other half of the same question.

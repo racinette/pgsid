@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The other half of the cast finding: every jsonb → scalar cast is NULL for a
 -- JSON null, and `data` is a NOT NULL column, so these are the cast's own
 -- NULLs. The jsonb → text conversion stays claimed, which is what separates a

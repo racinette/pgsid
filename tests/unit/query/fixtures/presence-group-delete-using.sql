@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- DELETE ... USING with an outer join inside the USING list: the target
 -- joins its USING relations with inner semantics, but an outer join
 -- WRITTEN there is honoured, so the shipments unit groups in RETURNING

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the relation a key settles must still be in its own side of the join.
 --
 -- The order's `customer_id` does point at a customer that exists, and that is

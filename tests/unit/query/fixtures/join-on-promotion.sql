@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- INNER ON conjuncts are row-implied predicates: every inner-join row passed
 -- the qual, so the strict `u.email = $1` narrows the projected $1 — while
 -- the ARGUMENT stays nullable (NULL is a legal binding returning zero rows,

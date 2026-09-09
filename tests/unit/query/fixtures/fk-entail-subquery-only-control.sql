@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The control for the scan-mode gate: an `ONLY` outer with a tree-scanning
 -- subquery reads a SUPERSET of the outer's rows, so the self-lookup holds and
 -- the refusal beside it is not blanket.

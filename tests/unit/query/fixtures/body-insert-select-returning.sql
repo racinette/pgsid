@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- AN INSERT…SELECT…RETURNING BODY — the zero-row insert's verdict site.
 --
 -- An INSERT whose source is a SELECT can insert nothing, so its RETURNING

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The counted arm read as a CEILING rather than as a floor — the other half of
 -- `generate_series` over constant bounds, and the only place in the set where
 -- the series arm is the one that gets padded.

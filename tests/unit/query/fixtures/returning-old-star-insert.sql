@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- PG18's `RETURNING old.*` — the absent-row direction of the old/new stars.
 --
 -- Found by the pg-regress replay (updatable_views: engine 0 columns,

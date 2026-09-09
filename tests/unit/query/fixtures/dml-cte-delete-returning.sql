@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Data-modifying CTE: DELETE ... RETURNING inside a WITH clause,
 -- then SELECT from the CTE. Cross-scope propagation: the CTE's
 -- RETURNING columns determine the outer SELECT's nullability.

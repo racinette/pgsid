@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- COUNTEREXAMPLE 2 for `returningRejectedParams`: a statement ENCLOSING the
 -- DML, whose rows do not depend on the write happening.
 --

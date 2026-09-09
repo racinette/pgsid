@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Partition bounds never leak to a parent scan — the refused direction,
 -- corpus-witnessed: the same guard the direct
 -- order_events_early scan refutes fires HERE, because a scan naming the

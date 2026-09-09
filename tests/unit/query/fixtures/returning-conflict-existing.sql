@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The intersection's negative: the update path does not SET name, so a
 -- conflicting row returns the EXISTING name — sparse's seeded ck.1 has name
 -- NULL, which witnesses the claim on the conflict path even though the

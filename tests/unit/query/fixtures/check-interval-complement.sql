@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The complement shape: CHECK (z <> 5) excludes exactly its own point —
 -- same-token, the fast path — and says NOTHING about any other value:
 -- z = 3 is a conforming row (the generator plants it) whose arm fires.

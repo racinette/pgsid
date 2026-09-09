@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Mechanism B reads the flags of the relation the written row LIVES in,
 -- and an UPDATE targets the TREE (adversarial-2 finding 8): `ALTER TABLE
 -- ONLY pnn_p … SET NOT NULL` leaves pnn_c unconstrained, so a child-stored

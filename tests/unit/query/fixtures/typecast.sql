@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- TypeCast: cast of nullable → nullable; cast of non-null → non-null
 SELECT
   val::text    AS c1,  -- @nullable

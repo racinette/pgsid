@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Inter-CHECK chaining at depth three: the WHERE discharges the first
 -- constraint's implication (negator pairing), whose harvested `a IS NOT
 -- NULL` falsifies the second's first disjunct, whose harvested `b IS NOT

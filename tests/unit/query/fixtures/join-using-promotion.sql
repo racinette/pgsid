@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- USING is an equality on each named column, and the presence fixpoint now
 -- receives the synthesized conjuncts exactly as if they were spelled ON:
 -- under the INNER USING join every row proves both sides' id non-null, and

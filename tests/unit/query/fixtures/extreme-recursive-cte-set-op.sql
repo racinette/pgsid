@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Recursive CTE result fed into a UNION with a non-recursive query.
 -- The self-reference resolves by induction, so depth+1 over a non-null depth
 -- is itself non-null. UNION then combines with a literal query; the AND of

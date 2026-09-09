@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Both directions in one statement, over a range rather than a point:
 -- [5,inf) is disjoint from (-inf,3] so the first arm is refuted, and the
 -- second conjunct IS the second arm's guard so it is proven. The CASE

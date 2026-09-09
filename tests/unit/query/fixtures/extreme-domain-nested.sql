@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Domain NOT NULL function returns in nested contexts: inside COALESCE,
 -- inside CASE, in a subquery, and in a CTE. The NOT NULL domain return
 -- (Priority 1) wins over everything, making the function result non-null

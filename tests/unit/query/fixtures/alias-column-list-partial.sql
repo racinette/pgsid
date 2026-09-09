@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The list may be PARTIAL: PostgreSQL renames the columns it covers and
 -- leaves the rest with their own names (measured). So the rename is a
 -- positional overlay, not a replacement — reading it as "the item's columns

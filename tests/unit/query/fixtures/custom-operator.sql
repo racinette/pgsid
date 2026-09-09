@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Custom operators, both directions of the trust boundary. ==== is backed
 -- by the STRICT strict_same, so its declared strictness gates promotion and
 -- parameter narrowing exactly like a builtin comparison: any returned row

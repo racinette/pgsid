@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Correlated scalar subqueries: per-order total (single-row aggregate)
 -- and a correlated aggregate in WHERE comparing against the customer average.
 SELECT

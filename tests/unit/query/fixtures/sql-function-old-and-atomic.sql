@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LANGUAGE sql body recursion in both styles, with positional ($1/$2) and
 -- named parameter references. A nullable argument propagates through the body.
 SELECT

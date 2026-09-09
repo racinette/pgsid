@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- MERGE's `RETURNING *` expands the SOURCE first, then the target
 -- (measured) — the opposite of UPDATE … FROM and DELETE … USING, which are
 -- target-first. buildMergeScope once pushed target-first: same arity,

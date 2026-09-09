@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The presence gate's negative: the filter pins only t's side of the CTE,
 -- so nothing certifies the OPTIONAL guest slice and its origins must not
 -- speak — dense has t rows and no guest rows at all, witnessing the

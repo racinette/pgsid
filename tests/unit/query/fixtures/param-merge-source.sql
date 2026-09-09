@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The register's quarantined counterexample, shipped as the trigger fixture
 -- together with the fix (source value-flow attribution): $1 flows through
 -- the source column s.sid into ck.id's PRIMARY KEY, so binding NULL raises —

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate (a): a NON set-returning function whose body can return zero rows.
 --
 -- `RETURNS order_items` is one row, always — and when the body selects

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Deeply nested CTE inside a subquery inside a CTE.
 -- Outer CTE 'outer_cte' has a subquery in FROM; that subquery has its own
 -- WITH clause with CTE 'inner_cte'. Tests CTE visibility: inner_cte is

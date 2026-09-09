@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An ARRAY constructor over an EXPRESSION rather than a cast. The element
 -- type of `ARRAY[c.p]` is `c.p`'s type, which the catalog knows — the
 -- element-type resolver only looked for a cast, so this fell to the

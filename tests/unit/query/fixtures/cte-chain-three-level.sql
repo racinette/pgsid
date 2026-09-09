@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CTE chain: three CTEs, each referencing the previous.
 -- Tests cross-scope propagation through a chain of scopes:
 --   base → (LEFT JOIN, nullable val) → (INNER JOIN, non-null carry-through)

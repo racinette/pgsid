@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A STRICT set-returning function in FROM filters its own arguments
 -- (`recordStrictSrfImplications`), landed 2026-08-22.
 --

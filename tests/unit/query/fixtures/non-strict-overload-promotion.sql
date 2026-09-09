@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `||` IS ON THE STRICT LIST, AND ARRAY CONCATENATION ABSORBS NULL.
 --
 -- The strictness twin of `name-level-partial-overload.sql`, found the same day

@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The four-id shape through a CTE and `j.*` — the list-index branch of
 -- the positional fix at the same strength, same alternating claims, same
 -- three-position group with two duplicate-named members. Identical

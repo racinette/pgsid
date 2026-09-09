@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Strictness constrains the NULL-input case only — NULL in ⇒ NULL out —
 -- and says NOTHING about non-null input, the same distinction
 -- TOTAL_OPERATORS and STRICT_TOTAL_BUILTINS always drew and the user-

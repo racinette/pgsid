@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The always-raises statement fact: the
 -- enforced CASE constraint reads `WHEN plan = 'team' THEN seats IS NOT NULL
 -- AND seats > 1 ELSE true`, and this row writes 'team' with seats = 1. The

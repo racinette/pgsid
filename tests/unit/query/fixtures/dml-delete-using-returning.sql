@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- DELETE ... USING ... RETURNING with WHERE promotion.
 -- The USING clause adds a relation (customers) with inner-join semantics:
 -- an orders row with no matching customer is not deleted, so USING columns

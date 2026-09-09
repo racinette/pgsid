@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A window frame OFFSET is a rejection site of its own: a NULL bound raises
 -- `frame starting offset must not be null` — for ROWS, RANGE and GROUPS, in
 -- both directions, and even over empty input (all measured). The register pins

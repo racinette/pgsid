@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Set operations combine per-column nullability differently by operator.
 --
 -- UNION emits rows from both branches, so a column is non-null only if both

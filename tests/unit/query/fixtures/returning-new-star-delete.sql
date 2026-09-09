@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- PG18's `RETURNING new.*` on DELETE — the other absent row.
 --
 -- The twin of returning-old-star-insert.sql: a DELETE has no new row, so

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The other half of the arm-kind reading: a NOT MATCHED arm that writes
 -- nothing leaves the JOIN CONDITION as row-implied evidence.
 --

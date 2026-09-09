@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The schema-qualified star inside a CTE body, re-exported by an
 -- unqualified star. The CTE's own column list is what the outer `*`
 -- expands, so a wrong inner shape propagates outward with every later

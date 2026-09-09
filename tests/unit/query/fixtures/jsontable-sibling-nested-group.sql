@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Finding 5's RANK-4 face, and what it looks like once the flag is gone: NO
 -- presence group is emitted here at all.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A VARIADIC user function is RESOLVED and its body INLINED, like any other
 -- single-candidate call — the correction of a belief that stood in three
 -- places at once (this schema's comment on gfn_var, the generated corpus's

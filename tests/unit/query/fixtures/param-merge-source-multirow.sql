@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The residual's trigger fixture, shipped with the quantifier split: $1
 -- defines only ROW ONE of the source column, yet that row always reaches
 -- the INSERT arm (a NULL sid matches nothing), so binding NULL raises

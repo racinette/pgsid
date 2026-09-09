@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- When a GROUP BY guarantees a non-empty group, an aggregate over a non-null
 -- expression is non-null: there is at least one row to aggregate and no NULL
 -- among the values. The escape hatches below must each keep it nullable.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The VARIADIC calling convention defeats element-wise reasoning
 -- (adversarial-2 finding 12): ALWAYS_NOT_NULL_BUILTINS says "concat ignores
 -- NULL arguments" and FIRST_ARG_BUILTINS "concat_ws hinges on its first",

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- WHERE: OR clause — no promotion, u stays optional
 SELECT
   t.id    AS c1,  -- @notNull

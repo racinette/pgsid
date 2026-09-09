@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The other half of the unreferenced-CTE gate (adversarial-3 finding 8).
 -- The gate's licence is "never executed", and it was applied to the WALK,
 -- which dropped all four mechanisms. Mechanism A is not an execution-time

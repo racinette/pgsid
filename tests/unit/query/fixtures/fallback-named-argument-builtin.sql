@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- THE CURATED NAME TABLES AT PRIORITY 6b, REACHED THROUGH NAMED NOTATION.
 --
 -- For a pg_catalog name the signature capture is scoped FROM the claim tables

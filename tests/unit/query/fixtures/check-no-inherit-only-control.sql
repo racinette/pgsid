@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The control for check-no-inherit-tree.sql: `FROM ONLY ni_p` stays in the
 -- named relation, whose own rows DO satisfy its NO INHERIT constraint, so
 -- the full CHECK list applies and `CHECK (x IS NOT NULL)` still derives

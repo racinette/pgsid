@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The anchor hop alone, with only the OUTER relation renamed.
 --
 -- `fk-entail-subquery-alias-column-list.sql` renames all three relations at

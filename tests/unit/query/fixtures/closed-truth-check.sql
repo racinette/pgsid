@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A DEAD COMPUTATION as a disjunct of a CHECK — `check-literal-disjunct.sql`
 -- one step past a token.
 --

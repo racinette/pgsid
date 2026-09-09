@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The control for the non-empty-group gate under GROUPING SETS: a ROLLUP with
 -- NO plain term beside it.
 --

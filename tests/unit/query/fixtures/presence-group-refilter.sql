@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The refilter negative: a strict WHERE conjunct over the optional side
 -- kills every NULL-extended row, promotion makes the unit effectively
 -- required, and NO group forms — its absent arm does not survive to the

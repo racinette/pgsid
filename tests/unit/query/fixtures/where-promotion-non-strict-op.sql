@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The engine's first measured unsoundness, kept as its regression test: ===
 -- is backed by a non-strict function that returns TRUE even for NULL
 -- operands, so this WHERE filters nothing and val arrives NULL in the rows

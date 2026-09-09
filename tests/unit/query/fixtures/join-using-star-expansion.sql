@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- JOIN ... USING merges the join column: `SELECT *` emits it ONCE, first,
 -- followed by the left relation's remaining columns and then the right's.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the subquery's WHERE must be exactly the key equality.
 --
 -- The self-lookup licence is that the outer row is itself in the scanned set;

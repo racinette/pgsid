@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- R2 closed: a UNION's group is the branches' agreement. Every output
 -- row comes from exactly one branch at the same indices, so the shipments
 -- unit survives the UNION ALL — both branches claim {1,2} and both

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The alwaysNull direction on the CHECK-carrying table: status = 1 is
 -- disjoint from [2,inf), so the only arm is refuted and the ELSE's NULL
 -- is what every returned row holds — however thoroughly `has_duration`

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LANGUAGE sql function body (BEGIN ATOMIC, named param):
 -- pass_through(x text) → text, body: SELECT x (deparsed from $1)
 SELECT

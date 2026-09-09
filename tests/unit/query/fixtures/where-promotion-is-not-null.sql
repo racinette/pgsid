@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- WHERE promotion: LEFT JOIN + WHERE u.col IS NOT NULL promotes u to required
 SELECT
   t.id    AS c1,  -- @notNull

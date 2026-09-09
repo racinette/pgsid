@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- RETURNING: INSERT — target table required, and the WRITTEN value now
 -- carries: name receives a literal on the only path that can produce a
 -- returned row, so it is notNull even though the catalog column is nullable

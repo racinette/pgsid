@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The negator pairing's second direction: TRUE(NOT (status <> 'housed'))
 -- makes `status <> 'housed'` FALSE, and a strict comparison that evaluated
 -- FALSE had non-null operands — so FALSE(col <> lit) certifies

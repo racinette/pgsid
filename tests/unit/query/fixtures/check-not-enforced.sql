@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The convalidated=false negative, witnessable rendering: guest_vip_reason
 -- is a goal-deriving CHECK (vip_reason IS NOT NULL) that is NOT ENFORCED,
 -- so stored rows violate it freely and the engine must not consume it —

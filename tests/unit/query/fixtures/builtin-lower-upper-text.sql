@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The narrowing's founding recovery: `lower`
 -- and `upper` left STRICT_TOTAL_BUILTINS because their (anyrange) rows
 -- return NULL for an empty range, and name-level dispatch could not tell

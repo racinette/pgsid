@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: an outer join preserves ONE side, and the anchor has to be on it.
 --
 -- Here the LEFT JOIN keeps every shipment and extends the ORDER — which is

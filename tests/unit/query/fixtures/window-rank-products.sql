@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Window functions: rank products by price within category, and count.
 -- rank() assigns a position to every row in the partition, so it is never NULL
 -- (imprecise but never wrong). count(*) OVER is special-cased to non-null.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A lone `ROWS FROM` arm returning a SCALAR takes the RELATION ALIAS as its
 -- column name — sweep-4 finding 6, where the engine answered `dom_lenient`
 -- and PostgreSQL's RowDescription says `z`.

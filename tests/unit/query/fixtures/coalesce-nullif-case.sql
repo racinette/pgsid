@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- COALESCE / NULLIF / CASE in output columns.
 -- NULLIF is an unknown built-in → conservative nullable.
 -- The CASE has an ELSE and non-null branches, so it is non-null.

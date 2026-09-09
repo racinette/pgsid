@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- R1 closed, the CTE form — and the refilter counterweight: the first
 -- query lifts the inner unit through the CTE reference; the WHERE in the
 -- second re-export site would kill its absent arm, which is the lifted

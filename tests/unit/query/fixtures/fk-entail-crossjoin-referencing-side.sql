@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The OVERSHOOT control for finding 2: an unrecorded CROSS JOIN in the
 -- REFERENCING side is genuinely harmless, and recording it must not cost the
 -- promotion.

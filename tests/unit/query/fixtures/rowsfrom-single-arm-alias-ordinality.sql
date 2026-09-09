@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The lone-arm naming rule with `WITH ORDINALITY`: the alias still names the
 -- scalar column, and the counter keeps its own name beside it.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- ON CONFLICT DO UPDATE is a second producing path, and the written map
 -- intersects over both: name is a literal on the insert path AND a literal
 -- on the update path, so RETURNING name is notNull whichever path produced

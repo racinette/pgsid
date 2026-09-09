@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A CLOSED set-returning call is COUNTED, by running it.
 --
 -- The lockstep padding expands `ROWS FROM` arms to the longest one's row count

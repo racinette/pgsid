@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- BoolExpr: AND/OR are three-valued, but NULL can only enter through an
 -- operand — with every operand non-null the result is a plain boolean.
 SELECT

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The user-function rendering of the coldeflist shape — and the ordering
 -- pin: rec_pairs HAS catalog metadata, whose "SETOF record" return type
 -- would resolve to a single scalar column, so the coldeflist must win

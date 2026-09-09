@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The READABLE half of `name-level-partial-overload.sql`, and the case that
 -- was always right.
 --

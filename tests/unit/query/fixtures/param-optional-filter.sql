@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The optional-filter idiom: NULL deliberately disables the filter. This is
 -- why "NULL would be useless here" must never be folded into notNull — here
 -- NULL is not merely tolerated but meaningful, and both bindings return rows.

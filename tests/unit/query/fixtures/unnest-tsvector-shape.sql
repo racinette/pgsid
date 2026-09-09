@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- unnest(tsvector) IS A DIFFERENT SHAPE — three named columns, not one.
 --
 -- Found by the pg-regress replay (tstypes.sql: engine 1 column, PostgreSQL

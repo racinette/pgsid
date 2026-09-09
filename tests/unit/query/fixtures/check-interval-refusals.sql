@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The interval rung's REFUSAL, recorded rather than silent: the claim
 -- below is TRUE for stored rows — 'k' precedes 'm' under "C" too — and
 -- the engine must keep refusing it. ivstxc's column says COLLATE "C":

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Extreme fixture: recursive category tree with aggregated product metrics,
 -- coupon discounts, and shipment status — all combined in a single query.
 --

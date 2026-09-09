@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- AND-concatenated CHECK (guest_status_note): notFALSE distributes over AND,
 -- so the one constraint contributes its two conjuncts as independent facts
 -- with no authoring convention required. The second conjunct is the

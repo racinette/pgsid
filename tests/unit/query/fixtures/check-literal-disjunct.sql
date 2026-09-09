@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A boolean LITERAL as a disjunct of a CHECK. PostgreSQL stores the
 -- expression verbatim — no constant folding into `pg_constraint.conbin` — so
 -- `false OR route IS NOT NULL` arrives at the kernel with the dead arm

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- UPDATE with WITH clause + RETURNING + subquery referencing the CTE.
 -- The CTE 'archived' is registered in the DML scope; the RETURNING
 -- subquery resolves 'archived' against the scope.

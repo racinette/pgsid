@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LANGUAGE sql functions wrapping DML with RETURNING, called in query contexts.
 -- INSERT with single-row VALUES → single-row-guaranteed → propagate column
 -- nullability. UPDATE/DELETE → can match zero rows → conservative nullable.

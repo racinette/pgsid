@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The float family under NaN: the generator plants 'NaN' rows, which
 -- SATISFY CHECK (f > 5) — btree order sorts NaN above everything
 -- (measured, pinned in param-mechanism.test.ts) — and fail `f <= 3` with

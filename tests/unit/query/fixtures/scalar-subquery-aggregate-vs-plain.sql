@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Scalar subqueries: aggregate (single-row-guaranteed) vs plain FROM
 -- (zero-rows-possible). LIMIT 1 does NOT count as single-row-guaranteed.
 SELECT

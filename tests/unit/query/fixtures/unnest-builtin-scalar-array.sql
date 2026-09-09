@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A BUILTIN function call as the unnest argument, which is where the element
 -- type is decided by what the catalog knows about the name rather than by a
 -- cast or a column.

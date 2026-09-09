@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The dup-name hazard through a CTE reference: CTEs export duplicate
 -- names exactly like subqueries, and `j.*` must resolve them
 -- positionally too. Claims identical to the subquery pins — the

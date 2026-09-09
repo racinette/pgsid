@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The motivating CHECK-entailment shape, positive half: guest_arrival_state
 -- is notFALSE per stored row, the WHERE makes its WHEN condition's second
 -- disjunct TRUE by identity, so the CASE's THEN arm — arrived_at IS NOT NULL

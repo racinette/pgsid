@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Constructs that break a scalar subquery's single-row guarantee.
 --
 -- An ungrouped aggregate normally collapses any input, including zero rows,

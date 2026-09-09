@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Collation identity (flipped from a refusal record 2026-08-12): ivstx's
 -- column carries pg_catalog."default" — the very collation the analysis
 -- session evaluates under — so text anchors ORDER, and (-inf,'k'] misses

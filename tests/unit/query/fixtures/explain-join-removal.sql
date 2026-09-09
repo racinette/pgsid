@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Uniqueness-based join removal — the divergence class that is NOT a
 -- nullability fact, pinned so the distinction stays visible in the hand
 -- corpus. Permanently out of scope, and why is on `DivergenceCause` in

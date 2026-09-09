@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The ONLY control: `FROM ONLY inh_p` scans the parent alone, where its
 -- own attnotnull holds — the named-relation flag is exactly the right
 -- answer there, and the tree conjunction would cost it. RangeVar.inh

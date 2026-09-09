@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- UNNEST OF A CONSTRUCTOR WHOSE EVERY ELEMENT IS NON-NULL.
 --
 -- The unnest column-value rung reads the array constructor's own elements —

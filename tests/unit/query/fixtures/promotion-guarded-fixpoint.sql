@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The guard channel running the PRESENCE FIXPOINT rather than copying its
 -- rules (`guardedPresence` / `withSpeculativeScope`), landed 2026-08-22.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The second site of adversarial-3 finding 4: `unnest` over an array whose
 -- ELEMENT is a domain over a composite. The element type is provable here
 -- (an ARRAY constructor of casts), so this arm refused rather than guessing

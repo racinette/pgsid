@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `(expr).*` in the target list is an expansion in disguise: PostgreSQL
 -- emits one column per field of the expression's composite type, and the
 -- engine once treated the A_Indirection at the expression site — one

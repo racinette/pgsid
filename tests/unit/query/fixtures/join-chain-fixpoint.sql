@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Two chained fixpoint steps: the top INNER qual proves v present (ck.id =
 -- v.u_id is strict in v), and v present means the middle LEFT join only ever
 -- produced MATCHED rows — so ITS qual held too, proving u present. An

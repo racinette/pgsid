@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Mixed join types in one FROM: INNER + LEFT, with WHERE promotion on the
 -- optional side of the LEFT JOIN (c.email IS NOT NULL promotes customers c).
 SELECT

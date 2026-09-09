@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Ordered-set aggregates with the WITHIN GROUP sort expression visible
 -- (measured 2026-08-01): non-empty group + non-null sort input + non-null
 -- direct args → notNull; a nullable sort column can be all-NULL within a

@@ -1,3 +1,4 @@
+-- @null-groups none
 -- CASE-shaped joint implicants: covering every arm's RESULT (the implicit
 -- NULL ELSE included) makes the claim hold whichever arm runs, without
 -- touching the conditions — this CASE is COALESCE($1, $2) in different

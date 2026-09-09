@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The joinState gate over CHECK entailment, pinned by its counterexample —
 -- the CHECK analogue of generated-left-join-gate.sql. The ON qual carries
 -- exactly the predicate that would prove g.arrived_at non-null, but an

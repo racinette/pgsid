@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the key equality may be SYNTHESIZED rather than written.
 --
 -- Foreign-key entailment reads the join's condition to decide whether the join

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The STRICTNESS gate on `recordStrictSrfImplications` (see
 -- strict-srf-filters-its-argument.sql for the mechanism).
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The body path meets the DO INSTEAD rule refusal (adversarial-2 finding
 -- 6, second half): rule_src's rule replaces body_ins_rule's INSERT with
 -- one against rule_dst returning a literal NULL for a, while the engine

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `CREATE TABLE … AS SELECT` copies column names and TYPES and nothing else.
 --
 -- `ctas_dst` was created from `ctas_src`, whose `val` is `text NOT NULL`. The

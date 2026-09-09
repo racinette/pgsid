@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Group-key origins (Wave 12, née residue-origin-group-keys): every row of
 -- a group shares its key values, so sibling KEYS are facts about one real
 -- row and the boundary no longer erases them; non-key targets and

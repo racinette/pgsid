@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The canonical presence group: shipments extends as one unit, so its bare
 -- columns are NULL together exactly when an order has no shipment. sid and
 -- carrier are discriminants (NOT NULL given present — NULL ⟺ absent);

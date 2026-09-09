@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The universal face of attribution, pinned from the narrowing side: $1
 -- defines only row one of s.v, so the WHERE conjunct proves nothing about
 -- $1 — row two survives with $1 NULL and carries it into the output, which

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same padding hazard through the multi-WHEN CASE consumer: reaching
 -- the CHECK's second arm (k = 'a ' → x IS NOT NULL) requires the FIRST
 -- arm's k = 'a' provably FALSE, which for bpchar it never is — the stored

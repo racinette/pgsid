@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- VALUES: with NULL and non-null literals
 SELECT
   a   AS c1,  -- @notNull

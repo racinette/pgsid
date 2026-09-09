@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Aggregate modifiers and how each interacts with the non-empty-group rule.
 --
 -- A plain GROUP BY emits no empty groups, so an aggregate over a non-null

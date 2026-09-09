@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The NULL-listing twin claims NOTHING — the rung's refusal, recorded
 -- rather than silent: courier_south's bound renders
 -- ((region IS NULL) OR (region = 'south')) — no prefix, and the IS NULL

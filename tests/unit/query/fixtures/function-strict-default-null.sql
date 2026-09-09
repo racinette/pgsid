@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Where the two mechanisms meet: the substituted value is itself NULL, and
 -- the function is STRICT. PostgreSQL substitutes the declared NULL, sees a
 -- NULL argument, and returns NULL without entering the body — so `SELECT a`,

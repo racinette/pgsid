@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LANGUAGE sql function body recursion (old-style, positional $1):
 -- double_val(x integer) → integer, body: SELECT $1
 SELECT

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `groupingOrdinalPositions` carried the same two-part test as expandStar
 -- (adversarial-3 finding 5, the second site — written by the sweep-2 fix,
 -- faithfully mirroring the first, which is how a latent defect acquires a

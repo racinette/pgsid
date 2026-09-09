@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The subquery spelling of the same re-export (adversarial-3 finding 3),
 -- which failed for the same reason and must now agree with the CTE one:
 -- the two branches of the fix are one code path, and the fixture pair

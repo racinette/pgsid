@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The ORIGINS face of the dup-name star hazard, execution-falsifiable:
 -- the inner self-join pairs DIFFERENT guest rows (g2.id = g1.id + 1) and
 -- exports both status columns under one name; the middle star expansion

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- ANY / ALL / IN / NOT IN sublinks do NOT always return a boolean.
 --
 -- The comparison runs per row under three-valued logic and the results are

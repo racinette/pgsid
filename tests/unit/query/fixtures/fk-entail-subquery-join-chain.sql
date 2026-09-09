@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Key entailment composing through a JOIN inside the subquery.
 --
 -- One hop settles the anchor: `order_items.order_id` is a NOT NULL key, so

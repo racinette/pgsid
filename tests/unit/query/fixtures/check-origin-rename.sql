@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Origin follows RENAMES, pinned by the adversarial swap: the CTE calls
 -- base status "arrived_at" and base arrived_at "status". The outer filter
 -- on g.arrived_at is therefore a filter on base STATUS, and the selected

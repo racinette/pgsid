@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The DML refusal in `guardTruthFromChecks`, witnessed. The kernel's
 -- guard consumer reads the WHERE unmasked — it has no OLD/NEW channel
 -- split, which is why it declines a scope with SET columns outright —

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The SHAPE half of adversarial-3 finding 6, from the side that proves the
 -- user function is real. `public.json_each(json)` returns SETOF sku_pair,
 -- and NAMED with its schema it is what runs — two columns, sku and qty.

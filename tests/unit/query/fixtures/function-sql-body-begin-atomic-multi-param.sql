@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- LANGUAGE sql function body (BEGIN ATOMIC, named params):
 -- pass_two(a text, b text) → text, body: SELECT b (deparsed from $2)
 -- Returns the second arg — nullability follows b.

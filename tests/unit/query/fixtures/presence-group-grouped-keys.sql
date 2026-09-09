@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Grouped optional keys: GROUP BY separates the NULL-extended rows into
 -- their own (NULL, NULL) group, so the per-row group facts survive
 -- aggregation — every output row's keys are one input slice's values,

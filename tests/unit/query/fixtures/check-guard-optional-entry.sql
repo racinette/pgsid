@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The NULL-extendable refusal in the kernel's guard consumer, witnessed.
 -- The per-entry runs skip an OPTIONAL entry because an extended row
 -- satisfies no CHECK of the table it stands for — and this statement is

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `unnest` over an array of a TABLE's ROW TYPE. The element-type resolver
 -- asked `resolveCompositeType`, which is backed by `CREATE TYPE … AS (…)`
 -- entries alone, so `trow[]` resolved to nothing and the item contributed

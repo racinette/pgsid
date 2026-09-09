@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Set-returning functions in FROM: resolving the return type into columns,
 -- and then reading the BODY that fills them.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The positive control for the inheritance gate: `FROM ONLY fk_par` reads the
 -- named relation's own rows, which the key does constrain, so the entailment
 -- holds and the refusal above is not blanket.

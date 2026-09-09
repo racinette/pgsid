@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Adversarial-2 finding 4 composed with MERGE's source-first RETURNING *
 -- order (sweep-1 finding 10): the composite-element source contributes TWO
 -- columns, so the engine's old one-column reading shifted the entire

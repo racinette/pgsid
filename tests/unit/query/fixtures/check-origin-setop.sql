@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Origins through UNION ALL (Wave 12, née residue-origin-setop): each
 -- branch attributes the column, the alternative lists concatenate
 -- positionally, and entailment proves EVERY alternative — both branches

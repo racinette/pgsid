@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Set operation of two CTE queries with different nullability.
 -- CTE 'nonnull_source' selects only NOT NULL columns.
 -- CTE 'null_source' selects a nullable column (deleted_at AS name).

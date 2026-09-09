@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An always-null claim crosses a subquery/CTE boundary on a bare re-export,
 -- and it needs no join-state gate to do it — which is the one place this
 -- channel is STRONGER than its notNull mirror rather than weaker.

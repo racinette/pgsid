@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- lag WITH AN EXPLICIT DEFAULT — the strict-total WINDOW signature, both ways.
 --
 -- The window re-key exists so `lag(x, 1, 0)` can claim what `lag(x)` may not

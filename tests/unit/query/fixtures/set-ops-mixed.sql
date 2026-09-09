@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Set operations combining nullable and non-null columns.
 -- UNION and EXCEPT are left-associative; each output column is the AND of
 -- the corresponding columns across all operands.

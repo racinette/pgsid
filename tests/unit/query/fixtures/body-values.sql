@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A VALUES BODY, BOTH DIRECTIONS OF ITS SUMMARY RUNG.
 --
 -- analyzeSqlFunctionReturnTraced has a distinct verdict site per body

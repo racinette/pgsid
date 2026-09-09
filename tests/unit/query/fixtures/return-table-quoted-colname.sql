@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A `RETURNS TABLE` whose column names need QUOTING (adversarial-3 finding
 -- 7). `columnsForReturnType` reads the string `pg_get_function_result`
 -- renders — `TABLE("my col" integer, "Upper" nn_text, …)` — and split each

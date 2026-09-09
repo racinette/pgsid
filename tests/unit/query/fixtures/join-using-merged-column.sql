@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The merged column of a USING join is a distinct thing from either
 -- constituent, and in a FULL JOIN it is strictly less nullable than both.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Qualified star expansion: p.*, oi.* in a multi-table query.
 -- Each alias.* expands to just that relation's columns, preserving
 -- their catalog nullability and join state. The optional side of the

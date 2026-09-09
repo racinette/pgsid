@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A projected parameter is notNull when every path that can RETURN a row
 -- rejects a NULL binding (`returningRejectedParams`), landed 2026-08-22.
 --

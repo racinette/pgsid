@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Extreme fixture: product catalog with review aggregation, tag lookup,
 -- coupon discounts, and cross-referencing scalar subqueries.
 --

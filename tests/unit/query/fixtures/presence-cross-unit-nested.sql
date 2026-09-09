@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The unit-chain closure, nested form: u's unit sits INSIDE the left
 -- composite's — its chain is [composite, u-slice] where t's is
 -- [composite] — and a child unit's presence implies every enclosing

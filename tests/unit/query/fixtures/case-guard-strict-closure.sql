@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The branch-guard analogue of where-promotion-strict-closure: the CASE
 -- condition can only be TRUE when c.name is non-null (length is strict), so
 -- the THEN branch sees a non-null name and the ELSE is a literal — the exact

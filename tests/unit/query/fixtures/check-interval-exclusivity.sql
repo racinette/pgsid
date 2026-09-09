@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Interval exclusivity over btree strategies. CHECK (a > 5) is notFALSE per
 -- stored row; each claiming column's guard names a set the evaluated
 -- anchor order proves disjoint from (5, inf) — the NULL arm never fires,

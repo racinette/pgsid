@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Equal anchors under DIFFERENT tokens: the WHERE's 3.0 (fval) and the
 -- arm's 3 (ival), both exact at cail's NUMERIC column, evaluate equal —
 -- (-inf,3.0) IS (-inf,3), and a strict witness fits its strict twin.

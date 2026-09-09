@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Path-sensitive CASE: a branch result is walked under the conditions that
 -- must hold for that branch to run.
 --

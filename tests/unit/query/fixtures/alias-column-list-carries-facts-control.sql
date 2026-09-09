@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The control for `alias-column-list-carries-facts.sql`: the identical four
 -- claims, over the identical four mechanisms, with no rename anywhere.
 --

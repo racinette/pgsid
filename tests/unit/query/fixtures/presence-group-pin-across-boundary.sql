@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `presenceGroupPins`: a presence-group member pinned in THIS scope proves
 -- the inner row present, so every discriminant of its group is non-null.
 -- Landed 2026-08-22 as a second consumer for a fact the walk already

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- TypeCast, CollateClause, and NamedArgExpr (named function arguments).
 -- TypeCast and CollateClause recurse into their arg. NamedArgExpr unwraps
 -- and recurses. concat_val body is `SELECT $2`; named args reorder but the

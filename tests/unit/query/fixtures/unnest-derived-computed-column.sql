@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A column the derived table COMPUTES, unnested by the outer query.
 --
 -- `ARRAY[c.p]` has no base column behind it, which is what the re-export

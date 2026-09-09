@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- AN INSERT-WITHOUT-RETURNING BODY — the void refusal's verdict site.
 --
 -- A sql body whose last statement is an INSERT with no RETURNING can only

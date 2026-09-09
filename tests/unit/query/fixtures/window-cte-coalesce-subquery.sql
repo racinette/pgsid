@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Window function + CTE + COALESCE + strict function + nested subquery.
 -- Combines: CTE with LEFT JOIN, window function (rank, count OVER),
 -- strict function over nullable column, COALESCE with subquery fallback.

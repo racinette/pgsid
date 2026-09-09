@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Star expansion over DUPLICATE inner column names — the one legal way to
 -- re-export an ambiguous column (any explicit reference to s."id" is
 -- rejected by PostgreSQL). Name-based inner resolution first-matched

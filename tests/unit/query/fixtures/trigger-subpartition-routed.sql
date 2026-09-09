@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Tuple routing through a TWO-LEVEL partition tree fires the GRANDCHILD's
 -- BEFORE ROW trigger.
 --

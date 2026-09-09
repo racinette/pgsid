@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Formerly the live trap for the MERGE written-value bound; the per-arm
 -- intersection landed (Wave 4) and flipped it, exactly as the trap's
 -- annotation predicted. EVERY row-producing arm writes a literal into name

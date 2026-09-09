@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `array_agg` of a composite column, unnested back into its fields.
 --
 -- The element type comes from the ARGUMENT: `array_agg` declares

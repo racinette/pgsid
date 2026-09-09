@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- FULL JOIN chain + COALESCE + function + set operation.
 -- Two FULL JOINs make everything optional; COALESCE recovers non-null.
 -- UNION with a query that has NOT NULL columns tests set-op AND propagation.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The schema-qualified star under a JOIN rather than a flat from-list:
 -- the join tree registers its aliases through a different path, and the
 -- shape fix must find the relation there too. Inner join, so t's row is

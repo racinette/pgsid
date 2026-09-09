@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Parameterized queries ($1, $2, $3) in multiple contexts.
 -- ParamRef is conservative nullable (no PREPARE type info).
 -- Tests: params in SELECT, WHERE, function args, subqueries, COALESCE, CASE.

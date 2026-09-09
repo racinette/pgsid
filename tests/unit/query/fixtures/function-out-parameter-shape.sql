@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A user function declared with OUT PARAMETERS. `pg_get_function_result`
 -- renders it `SETOF record` — the column names and types live in
 -- proargnames/proallargtypes, which the snapshot has captured all along —

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- VALUES in FROM with NULL and non-null literals.
 -- Column nullability is the AND across all rows' expression at that position.
 SELECT

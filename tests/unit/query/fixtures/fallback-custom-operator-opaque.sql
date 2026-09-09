@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- THE NAME-LEVEL FALLBACK'S USER-OPERATOR TAIL, REACHED THROUGH OPAQUE TYPES.
 --
 -- The A_Expr totality fallback has three exits: the PARTIAL_OVERLOADS refusal,

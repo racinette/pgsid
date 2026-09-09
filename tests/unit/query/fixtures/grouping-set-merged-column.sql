@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A USING-merged grouping column blanks in super-aggregate rows like any
 -- other. `mergedColumnNotNull` is a third ColumnRef resolution route beside
 -- the two ordinary sites, and it applies the same grouping-set override —

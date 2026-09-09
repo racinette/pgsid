@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The other half: `has_duration` pins `event_duration` through the
 -- CHECK's OR — check-boolean-discriminator-or.sql claims exactly that
 -- over the plain column — but `status` is free, so the ELSE is

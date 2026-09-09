@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A user function's BODY can reject NULL, and the contract does not claim it
 -- — sweep-4 finding 7, closed as a wording decision rather than a rule.
 --

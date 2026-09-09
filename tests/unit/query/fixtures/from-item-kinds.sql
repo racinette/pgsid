@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- FROM-item kinds other than a plain table: VALUES, set-returning functions,
 -- LATERAL, and DISTINCT ON.
 --

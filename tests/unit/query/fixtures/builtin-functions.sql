@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- @unwitnessable 24: current_query() is NULL only when the statement has no source text, which no data state can arrange
 -- pg_catalog built-ins.
 --

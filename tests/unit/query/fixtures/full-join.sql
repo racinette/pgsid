@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- FULL JOIN: both sides optional
 SELECT
   t.id    AS c1,  -- @nullable

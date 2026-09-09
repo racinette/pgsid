@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A recursive CTE's CYCLE clause appends TWO generated columns: the cycle mark
 -- and the path array. Both are always populated by the recursion machinery, so
 -- both are non-null, and `SELECT *` over the CTE must expand to both.

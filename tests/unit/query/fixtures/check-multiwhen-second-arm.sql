@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Multi-WHEN CHECK CASE, the arm distinctness unlocks: reaching the second
 -- arm requires the FIRST arm's condition FALSE, and TRUE(kind = 'auto')
 -- now falsifies kind = 'manual' — distinct text tokens under a collation

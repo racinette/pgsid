@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The OTHER direction of foreign-key cloning, and the one that says the
 -- discriminator is not "is this a clone".
 --

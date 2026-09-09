@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Origin tracking, the motivating case: the CTE's columns are bare
 -- pass-throughs of guest, each carrying its rowPath out of the body, so the
 -- OUTER filter meets the base table's CHECKs again — the scope boundary no

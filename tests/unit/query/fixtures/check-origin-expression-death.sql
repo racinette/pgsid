@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Origin dies at any transforming expression: upper(status) is no longer
 -- the stored discriminator, so the outer filter — though it happens to
 -- select exactly the housed row — cannot be carried back to the base

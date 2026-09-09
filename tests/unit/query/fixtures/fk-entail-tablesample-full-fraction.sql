@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- @planner-keeps 1: the walk reads BERNOULLI (100) as the whole relation and
 --   the key then settles the join; the planner does not reduce a join whose
 --   inner side is a sampling scan, whatever the fraction says

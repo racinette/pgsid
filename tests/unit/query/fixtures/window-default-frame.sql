@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Window aggregates over the DEFAULT frame: RANGE UNBOUNDED PRECEDING TO
 -- CURRENT ROW always contains the current row (measured 2026-08-01), so an
 -- aggregate that is non-null over non-empty non-null input — and

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Design B's acceptance, for settings-independent datetime literals: ivdt's
 -- refusal record flipped —
 -- its ISO anchors pass the value-shape gate, so the anchor questions close

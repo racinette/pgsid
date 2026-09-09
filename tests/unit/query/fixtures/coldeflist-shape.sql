@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A column definition list (`AS z(a integer, b text)`) is what makes a
 -- record-returning call legal at all, and it fully determines the shape:
 -- one column per ColumnDef, by its name. The engine once read only the

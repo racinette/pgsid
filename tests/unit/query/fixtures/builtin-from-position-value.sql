@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A pg_catalog SRF with no named output column contributes ONE column in the
 -- FROM position, and its values are the CALL's values — so the expression
 -- reading applies there verbatim. Until 2026-08-22 the walk did not ask:

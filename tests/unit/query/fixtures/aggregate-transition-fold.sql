@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The fold rule for user-defined aggregates, one column per gate.
 --
 -- A builtin aggregate is answered by name from a curated table. A user

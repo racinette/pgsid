@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same command crossing seen from the argument contract (adversarial-2
 -- finding 1, param face): mechanism B's gate on mv_p's tree hooks now asks
 -- about INSERT triggers too for a partitioned UPDATE target, so b's NOT

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An aggregate over zero input rows is NULL whatever its declared return type
 -- says. nn_agg returns `nn_text`, a NOT NULL domain, and there is no value for
 -- that domain to be enforced on: with no row to transition, the final function

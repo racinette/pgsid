@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A SCHEMA-QUALIFIED star (adversarial-3 finding 5). `public.t.*` is a
 -- spelling PostgreSQL accepts — so are the four-part `db.public.t.*` and
 -- the bare `t.*` — and the walk tested `fields.length === 2` for "is this

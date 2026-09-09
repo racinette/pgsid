@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- NOT NULL domain return wins over everything: always_text returns nn_text
 -- (a NOT NULL domain), so the result is non-null even when the argument is
 -- a nullable column from a LEFT JOIN.

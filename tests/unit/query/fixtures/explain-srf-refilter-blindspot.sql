@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The SRF refilter, attributed — the positive pin for the unitCrossings
 -- channel (was the instrument's last blind spot; `DivergenceCause` in
 -- explain-instrument.ts carries the class and its pinned count of 0).

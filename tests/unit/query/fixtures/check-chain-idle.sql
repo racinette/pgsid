@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The chain's off switch: 'idle' discharges nothing (proving stage <> 'go'
 -- would need distinctness against a literal the evidence does not carry —
 -- it carries the equality itself, which falsifies nothing here), so no

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- FULL JOINs make every relation optional; COALESCE with literals recovers
 -- non-null output columns. Tests join nullability propagation through a
 -- chain of two FULL JOINs.

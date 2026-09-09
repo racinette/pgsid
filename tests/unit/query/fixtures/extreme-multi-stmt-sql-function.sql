@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Multi-statement LANGUAGE sql function: body has INSERT + SELECT from a
 -- table. The catalog keeps every statement now and hands the walk the last one
 -- plus the ones before it, which is what makes `from_table` notNull: the scan

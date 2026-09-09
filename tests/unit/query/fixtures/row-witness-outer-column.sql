@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The witness names an outer column, and it has to be THE SAME one the join
 -- reads.
 --

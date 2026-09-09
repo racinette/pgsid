@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- HAVING conjuncts are row-implied WITHOUT the zero-input gate: even the
 -- row an ungrouped aggregate emits over empty input must pass HAVING to be
 -- emitted, so the strict `u.status <> $1` promotes the group key AND

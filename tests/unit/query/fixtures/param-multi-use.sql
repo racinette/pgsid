@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- One domain-typed use types the parameter for every use that does not
 -- deduce a type of its own: here `$1 || 'x'` leaves $1 unconstrained, so the
 -- cast's nn_text applies everywhere and NULL rejects once and for all. (A

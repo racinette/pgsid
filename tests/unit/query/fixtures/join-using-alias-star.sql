@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- PG14's `USING (…) AS x` — the alias names exactly the merged columns.
 --
 -- Found by the pg-regress replay (join.sql: `SELECT x.* FROM J1_TBL JOIN

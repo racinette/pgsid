@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The OR-transport's STRENGTH gate, held by data: caiow's disjunctive
 -- CHECK (a >= 4 OR a = 3) is only notFALSE per stored row — both its
 -- arms sit inside the CASE arm's [3,inf), and it still licenses nothing,

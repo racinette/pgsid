@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- COALESCE: with literal fallback → non-null; with two columns → nullable
 SELECT
   COALESCE(t.val, '')        AS c1,  -- @notNull

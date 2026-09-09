@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- NATURAL JOIN is USING over every commonly-named column, so it merges the
 -- same way. products and order_items share only `id`.
 SELECT *   -- @notNull    merged id

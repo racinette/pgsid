@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Recursive CTE walking a self-referencing category hierarchy.
 -- The self-reference resolves by induction: the base term makes depth 0, and a
 -- step from a non-null depth produces a non-null depth, so every row at every

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A composite array staged through TWO CTEs. The re-export read followed a
 -- CTE's target list to a base RELATION and stopped there, so a chain — a
 -- CTE selecting from another CTE, which is what any query built up in

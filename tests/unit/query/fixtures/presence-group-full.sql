@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- FULL JOIN, and the asymmetry a foreign key creates in one. The shipments
 -- side is a genuine extension unit — dense's unshipped orders 2 and 4 witness
 -- its absent arm — while the ORDERS side never extends at all:

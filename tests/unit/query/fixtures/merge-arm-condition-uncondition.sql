@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The control for `merge-arm-condition-disjunction.sql`, ONE CLAUSE APART.
 --
 -- The NOT MATCHED arm here has no `AND`, so it fires on its match kind alone:

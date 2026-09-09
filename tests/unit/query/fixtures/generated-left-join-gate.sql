@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The joinState gate over generation expressions, pinned by its
 -- counterexample: safe_label's COALESCE(b, 'anon') is non-null on every row
 -- that EXISTS, but a NULL-extended row nulls generated columns exactly like

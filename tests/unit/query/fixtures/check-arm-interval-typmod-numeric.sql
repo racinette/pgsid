@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The typmodded NUMERIC record, DOUBLE-HELD (measured 2026-08-24): the
 -- anchor questions read literals at the full declared type, and at
 -- numeric(3,1) the WHERE's '2.44' rounds to 2.4 — the evaluated

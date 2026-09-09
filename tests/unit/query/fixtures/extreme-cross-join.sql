@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CROSS JOIN: parses as JOIN_INNER with no quals. Both sides are REQUIRED.
 -- CROSS JOIN of two NOT NULL tables — all columns non-null.
 -- Combined with a LEFT JOIN to show mixed join types in one FROM.

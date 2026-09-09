@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same chain with the operand pinned by the statement instead of by
 -- the CHECK: ordinary WHERE promotion supplies `event_duration IS NOT
 -- NULL`, the guard-TRUE consumer supplies the arm. Sibling of

@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Nested optionality, the R1 composition: TWO groups. The OUTER unit —
 -- x absent nulls all three, oid alone discriminates it (sid/carrier can
 -- be NULL with x present) — and the LIFTED inner unit: among present-x

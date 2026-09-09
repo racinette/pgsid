@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The lifted dead rule: the outer WHERE proves the re-exported inner
 -- column non-null, which refilters exactly the inner unit's absent rows
 -- — so the lifted group must NOT survive. The stale direction fires if

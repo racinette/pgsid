@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- R1 closed, the view form: order_shipment_summary is a stored FULL
 -- JOIN, and the shipment side's unit rides out of the view definition
 -- exactly like view column nullability does. The order side re-exports

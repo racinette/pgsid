@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Closed sublinks: a sublink whose body references no tables, columns or
 -- parameters is a closed tree wearing subquery syntax and batches like any
 -- scalar. Tier by tier: (SELECT 7) = 7 answers unconditionally; the small

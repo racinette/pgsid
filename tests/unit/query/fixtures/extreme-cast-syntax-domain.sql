@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- CAST(x AS T) syntax produces the same TypeCast AST node as x::T.
 -- Both are handled identically by the TypeCast handler. This fixture
 -- uses SQL-standard CAST syntax to confirm parity, including NOT NULL

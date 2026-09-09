@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- JSONB operators and functions. The access operators (->, ->>) are strict
 -- yet still return NULL for a missing key, so they are NOT total operators
 -- and stay nullable even with two non-null operands — the exact reason

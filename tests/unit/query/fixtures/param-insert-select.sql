@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- INSERT ... SELECT maps the select list positionally onto the target
 -- columns, and the parameter rejects NULL exactly as a VALUES row would —
 -- for the domain-typed variant this raises even when the SELECT produces no

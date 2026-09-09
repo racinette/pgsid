@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An INSTEAD OF trigger returns whatever NEW it builds, and RETURNING
 -- reports that row verbatim — the view's own definition expressions are
 -- never evaluated (measured: even the literal `lit` comes back NULL, and

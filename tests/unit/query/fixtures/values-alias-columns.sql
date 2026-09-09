@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A VALUES alias list renames the columns positionally. PostgreSQL applies it
 -- partially: naming fewer columns than exist leaves the rest as columnN, and
 -- only naming MORE than exist is an error.

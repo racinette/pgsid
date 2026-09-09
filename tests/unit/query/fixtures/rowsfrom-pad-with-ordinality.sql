@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The OVERSHOOT control for the padding: `WITH ORDINALITY`'s counter belongs
 -- to the `ROWS FROM` as a whole, not to any one arm, so the padding does not
 -- reach it.

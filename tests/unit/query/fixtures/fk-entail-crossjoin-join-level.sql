@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Finding 2's SECOND reading site, which is what decides its blast radius.
 --
 -- The unseen CROSS JOIN reaches the promotion through `joinCannotExtendSide`

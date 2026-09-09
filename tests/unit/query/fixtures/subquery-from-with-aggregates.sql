@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Subquery in FROM with an internal CTE + join structure.
 -- Tests CTE resolution inside a subquery scope (the CTE is local to the
 -- subquery, not visible to the outer query).

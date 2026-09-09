@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `(x).*` over a TABLE's row type, in both spellings.
 --
 -- `resolveCompositeType` is backed by `CREATE TYPE … AS (…)` entries alone, so

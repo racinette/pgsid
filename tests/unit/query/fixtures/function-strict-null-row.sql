@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The FROM position, where a short-circuited call is loudest: a strict
 -- function with a ROW return and a NULL argument emits one row of all NULLs
 -- (measured) — the arity is the function's, the values are nobody's. Both

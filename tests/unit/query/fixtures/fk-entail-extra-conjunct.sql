@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the ON must be EXACTLY the key equality.
 --
 -- A further conjunct can only remove matches, and removing a match is exactly

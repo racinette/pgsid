@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The atom-oracle rungs' crafted conviction (crafted
 -- fixtures convict beside the generated distribution, under this corpus's
 -- own gates — the shape argued real in the header, every claim

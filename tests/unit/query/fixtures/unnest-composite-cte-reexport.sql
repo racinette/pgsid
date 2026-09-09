@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Staging a composite array through a WITH (adversarial-3 finding 3). The
 -- ColumnRef arm needed `owner.table`, which a CTE entry does not have, so
 -- this fell to one column — and the report's point about this spelling is

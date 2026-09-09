@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- @unwitnessable 4: not a data gap — the WHERE's category-size guard counts
 --   `p2.category_id = p.category_id`, an EQUALITY, which is never true for a
 --   NULL, so a product with no category counts 0 and fails `> 2` in every

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Comparison harvesting, chained across constraints: the WHERE selects
 -- CHECK₁'s team arm; its `seats IS NOT NULL` is harvested, which pins the
 -- operand of its `seats > 1` — a total+strict comparison over pinned

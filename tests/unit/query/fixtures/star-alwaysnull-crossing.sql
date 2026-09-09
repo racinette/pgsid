@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- STAR EXPANSION KEEPS THE alwaysNull CHANNEL — the wrap-invariance crop's fix.
 --
 -- Wrapper 1 of the wrap-invariance suite (2026-08-24) found the corpus's one

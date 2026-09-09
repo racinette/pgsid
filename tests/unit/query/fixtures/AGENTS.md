@@ -193,12 +193,28 @@ probe cannot re-find what you found.
     fixtures/
     ├─ data/          materialized SQL states for the shared fixture schema
     │
+    ├─ schema.sql     the shared schema for hand-authored query fixtures
+    │                 (required)
+    │
     └─ [fixture].sql  a hand-authored query contract over the shared schema
                       (zero or more, any name)
 
+## `schema.sql` — the shared schema for hand-authored query fixtures
+
+Define the common database objects used by fixtures in this directory. Query contracts and their annotations belong in separate fixture files.
+
 ## `[fixture].sql` — a hand-authored query contract over the shared schema
 
-Keep this fixture independently reviewable and retain its inline expected-result annotations. PostgreSQL-backed contract suites, not a generator transcript, decide whether those expectations are sound.
+State both non-flat nullability channels explicitly:
+
+- list every output presence group with -- @null-group N[*],M[*][,…], or
+  state -- @null-groups none;
+- list every minimal joint parameter rejection set with
+  -- @param-reject N,M[,…], or state -- @param-rejections none.
+
+These declarations are expectations independently derived from the query,
+not observations copied from the engine. Keep the existing per-output and
+per-parameter annotations as the separate flat contract.
 
 ## Other repository paths
 

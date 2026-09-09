@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same fact one arm further out: everything AFTER a proven guard is
 -- unreachable, not just the ELSE. `name IS NULL` sits between the two
 -- and would otherwise contribute its non-null 'y'.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- WHERE promotion must apply to star-expanded columns too.
 --
 -- `c.email IS NOT NULL` proves the customers row exists, promoting the alias

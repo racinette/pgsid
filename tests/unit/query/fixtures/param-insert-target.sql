@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Assignment into a NOT NULL column rejects NULL when the row is written
 -- (mechanism B); assignment into a nullable column of the same row does not.
 -- The second binding exercises the NULL that $2's nullable claim permits —

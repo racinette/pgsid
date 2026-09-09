@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Mechanism E in the corpus: the enforced
 -- CHECK `seats <= 1 OR overflow_contact IS NOT NULL` is grounded with the
 -- row's own written values — `5 <= 1` folds FALSE — which leaves

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The hook question crosses commands under row movement (adversarial-2
 -- finding 1): an UPDATE through a partitioned parent that moves a row is
 -- DELETE + INSERT, and the DESTINATION partition's BEFORE **INSERT**

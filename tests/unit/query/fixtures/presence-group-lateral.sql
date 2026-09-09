@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- LEFT JOIN LATERAL: the lateral body is an ordinary extension unit, and
 -- given presence the inner analysis speaks through the correlation —
 -- sid/carrier are the inner shipment row's NOT NULL columns, so both

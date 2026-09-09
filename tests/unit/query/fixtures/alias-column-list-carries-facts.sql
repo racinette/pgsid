@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A renamed column is still the SAME column, and must keep every fact the
 -- catalog states about it.
 --

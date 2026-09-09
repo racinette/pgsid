@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The collation gate itself: tag's collation is nondeterministic, so byte
 -- distinctness proves nothing — under real ICU, WHERE tag = 'A' returns
 -- the stored ('a', NULL) row whose FIRST arm was the true one, and an

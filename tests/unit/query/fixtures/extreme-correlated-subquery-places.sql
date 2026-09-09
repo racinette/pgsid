@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Correlated subqueries in unexpected places: in a CASE condition,
 -- in a function argument inside an aggregate, and in ORDER BY
 -- (not an output column, but the walk must handle it without crashing).

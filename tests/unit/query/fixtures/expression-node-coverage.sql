@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Expression node types that are easy to get wrong, each with the reason it
 -- lands where it does.
 SELECT

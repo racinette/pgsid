@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The other half of the boundary: the EVIDENCE is outside and the CHECK is
 -- inside. `check-null-goal-across-boundary.sql` covers the easy direction —
 -- the inner statement already proved the claim and a bare re-export carries

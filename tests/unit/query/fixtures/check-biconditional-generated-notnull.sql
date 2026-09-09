@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A biconditional CHECK read through a generated column, working side.
 -- `status = 'started'` makes the pending disjunct's `status = 'pending'`
 -- FALSE by literal distinctness, the OR descends to its survivor, and

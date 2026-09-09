@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Tuple routing fires the PARTITION's BEFORE ROW trigger: the statement
 -- names trig_part, the row lands in trig_part_1, and its trigger rewrites
 -- NEW — nulling the written a and rescuing a NULL b (both measured). The

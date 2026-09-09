@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The twin of `merge-action-not-matched-by-source.sql`, ONE TOKEN APART, with
 -- the opposite verdict on the two source columns.
 --

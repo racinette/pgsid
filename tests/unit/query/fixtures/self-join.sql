@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Self-join: same table with different aliases
 SELECT
   a.id    AS c1,  -- @notNull

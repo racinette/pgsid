@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- INNER JOIN: both sides required
 SELECT
   t.id    AS c1,  -- @notNull

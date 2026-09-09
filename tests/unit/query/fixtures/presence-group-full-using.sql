@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- FULL JOIN through USING: the merged column is supplied by whichever
 -- side is present — a FULL row always has one — so it reads notNull and
 -- joins NO group (no producer, by construction). Each side's remainders

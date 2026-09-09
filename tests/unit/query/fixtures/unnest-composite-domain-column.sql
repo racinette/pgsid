@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The third site of adversarial-3 finding 4, and the one that was a wrong
 -- SHAPE rather than a refusal: `dompairs` is `d_sku[]` — an array of a
 -- DOMAIN over the composite — so the column type renders as `d_sku[]`, the

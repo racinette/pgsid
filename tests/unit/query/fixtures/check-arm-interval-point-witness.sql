@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A POINT witness by HARVEST: nothing in this statement says `a = 7` —
 -- the equality is caipt's own CHECK, promoted from notFALSE to TRUE in
 -- the fixpoint round after the WHERE pins `a` non-null. The

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The two chartered rungs COMPOSED: a date-range partition's bound renders its anchors
 -- as ISO-shaped date casts — ((day IS NOT NULL) AND (day >=
 -- '2024-01-01'::date) AND (day < '2024-04-01'::date)), measured — which

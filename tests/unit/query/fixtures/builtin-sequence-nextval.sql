@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The sequence functions are TOTAL, and volatility is not what decides that.
 --
 -- Each either RAISES — a sequence that does not exist, `currval` before

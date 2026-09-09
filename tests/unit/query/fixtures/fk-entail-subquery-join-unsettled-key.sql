@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the key must be carried by a relation whose row is already SETTLED,
 -- not merely by one sitting on the anchor's side of the join.
 --

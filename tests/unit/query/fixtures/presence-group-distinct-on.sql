@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- DISTINCT ON emits a subset of input rows, each a real row, so
 -- row-wise group facts survive untouched — one row per order here, and
 -- dense still shows both arms: orders 2/4 keep their all-NULL shipment

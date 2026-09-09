@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- An execution-time rejection site inside an UNREFERENCED CTE never runs,
 -- in any data state (adversarial-2 finding 9): PostgreSQL does not execute
 -- a non-data-modifying CTE nobody references, so the frame-offset site —

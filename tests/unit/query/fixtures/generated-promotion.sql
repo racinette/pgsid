@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The stored row IS the read row, so reading-scope guarantees apply inside
 -- the generation expression: the WHERE proves b non-null on every returned
 -- row, and label = b || '!' follows through the strict concatenation.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The second atom-oracle rung: WHERE evidence selects a CASE-shaped
 -- CHECK's arm. `b IS TRUE` shapes into TRUE(b), which selects the CHECK's
 -- THEN arm — notFALSE(a < 5) for every returned row — and trichotomy

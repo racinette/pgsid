@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A nested leaf's bound carries the whole ancestor conjunction (measured,
 -- pinned in param-mechanism): part_2a renders part_2's [100, 200) AND its
 -- own [100, 150), so a direct scan refutes guards against EITHER level —

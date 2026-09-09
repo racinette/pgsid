@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Recursive CTE groups (the third recorded imprecision, closed): the
 -- base branch carries the parent unit's group, the recursive branch
 -- copies a.pid/a.pname bare from the self-reference, and the fact holds

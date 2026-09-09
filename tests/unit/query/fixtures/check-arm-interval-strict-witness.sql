@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The strict witness inside a closed arm, EQUAL anchors: (3,inf) fits
 -- [3,inf) because x > 3 already implies x >= 3 — the eq allowance on the
 -- same-direction row of the containment table. Identity cannot see this

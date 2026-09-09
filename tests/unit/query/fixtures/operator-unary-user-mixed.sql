@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A USER PREFIX OPERATOR ON A CURATED NAME, OVER AN OPAQUE OPERAND.
 --
 -- Every pg_catalog PREFIX row is claimed total (the operator batch convicted

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Generated columns read as their expressions over this row's columns:
 -- doubled is a * 2 over NOT NULL a (notNull), label is b || '!' over
 -- nullable b (nullable — sparse's b-NULL row witnesses it through the

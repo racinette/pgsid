@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The hazard the capture fix makes LIVE, which is why the two had to land
 -- together — sweep-4 finding 4, second half.
 --

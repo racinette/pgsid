@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Strictness asked per PARAMETER, not per supplied argument.
 --
 -- mid_out declares an OUT parameter BETWEEN its two inputs, so a call's

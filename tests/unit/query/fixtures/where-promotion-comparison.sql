@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- WHERE promotion: comparison (= 'active') promotes u
 SELECT
   t.id       AS c1,  -- @notNull

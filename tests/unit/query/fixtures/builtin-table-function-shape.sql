@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A pg_catalog function's FROM-position SHAPE, and — since 2026-08-22 —
 -- which of its columns can be NULL.
 --

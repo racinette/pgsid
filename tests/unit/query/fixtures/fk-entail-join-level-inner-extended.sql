@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- Gate: "un-extendable from above" means by EVERYTHING above, not by the top
 -- join alone.
 --

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- ColumnRefs: single table, catalog notNull vs nullable
 SELECT
   id     AS c1,  -- @notNull

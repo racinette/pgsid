@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Transitive nullability end to end — the shape the whole build was
 -- asked for. Three facts meet inside one generated column:
 --

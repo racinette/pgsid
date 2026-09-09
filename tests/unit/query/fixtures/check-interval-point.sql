@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The point shape: CHECK (p = 5) is notFALSE per stored row, so p is 5 or
 -- NULL — rays that miss the point never fire their arm, in either
 -- direction. The guard column's ray CONTAINS the point: p = 5 is a

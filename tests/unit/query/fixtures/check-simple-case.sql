@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Simple CASE in a CHECK, desugared: `CASE code WHEN 'assigned'` IS the
 -- equality `code = 'assigned'`, synthesized by the kernel and judged by the
 -- ordinary fragment — the WHERE discharges it and the arm's combo IS NOT

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Comparison totality for a NOT-taken guard, token-pure: qty is catalog
 -- NOT NULL and > is total+strict, so `qty > 0` cannot evaluate NULL and
 -- the ELSE certifies FALSE(qty > 0) — which meets the CHECK's IDENTICAL

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- `array_fill`'s polymorphic signature: the result takes its element type from
 -- the position declared `anyelement`, and the DIMENSION argument is not one.
 --

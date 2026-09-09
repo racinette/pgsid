@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Extreme fixture: INSERT...SELECT from a CTE chain with complex RETURNING.
 --
 -- Tests: DML with CTEs that reference each other, INSERT...SELECT from a

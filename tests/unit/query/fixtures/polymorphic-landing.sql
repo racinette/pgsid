@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A POLYMORPHIC SIGNATURE, on both sides of the check that reads it.
 --
 -- `survivorConsensus` decides two things per candidate row: an UNKNOWN operand

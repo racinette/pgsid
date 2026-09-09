@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The same defect at the other call site: a `LANGUAGE sql` function body.
 --
 -- The body of `window_body()` is `SELECT count(*) OVER () FROM t`, which

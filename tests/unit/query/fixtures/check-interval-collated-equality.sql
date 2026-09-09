@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The equality arm under an EXPLICIT collation: ivstxeq's column says
 -- COLLATE "C" — order anchors are refused (collation identity fails) but
 -- equality transfers, because every deterministic collation's equality is

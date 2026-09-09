@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The vacuous arm of `computeSetOpGroups`, pinned as a GROUP rather than as
 -- a nullability claim — because the group is the thing the change is for,
 -- and the group is the thing nothing else checks.

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The gate on the reachability rule: a proven guard silences what comes
 -- AFTER it and nothing before it. `name IS NULL` is not refuted, so it
 -- may fire first and yield 'z' — and it does, on every row whose name

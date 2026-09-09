@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Multi-argument unnest is a special form: `unnest(a, b)` in FROM expands
 -- to one column PER ARRAY ARGUMENT, zip-style with NULL padding (measured —
 -- the same per-item rule holds inside ROWS FROM). The engine once pushed

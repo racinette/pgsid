@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The containment REFUSAL under an explicit collation, recorded rather
 -- than silent: the claim below is TRUE for stored rows — 'p' >= 'm'
 -- under "C" exactly as under the session's default, so every returned

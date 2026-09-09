@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- TypeCast to NOT NULL domain: PG enforces the domain constraint at cast
 -- time. NULL::nn_text throws rather than producing NULL, so the cast result
 -- is always non-null (it either succeeds with non-null or the query fails).

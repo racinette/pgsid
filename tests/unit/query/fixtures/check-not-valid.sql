@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The convalidated=false negative, NOT VALID rendering: guest_badge_claimed
 -- (badge IS NOT NULL) was added NOT VALID, so pre-existing rows may violate
 -- it and the engine must ignore it — the nullable claim below is what holds

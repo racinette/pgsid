@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Parameters in VALUES and subqueries. ParamRef is conservative nullable.
 -- VALUES column nullability is the AND across all rows for that position.
 -- A literal fallback in the same column position makes it non-null.

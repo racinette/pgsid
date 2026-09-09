@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Arithmetic over a NULLABLE operand, re-exported through a subquery.
 --
 -- Every builtin arithmetic operator is strict, so one NULL operand makes the

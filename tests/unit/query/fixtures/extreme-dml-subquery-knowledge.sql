@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Knowledge preservation: DML in subquery positions.
 --
 -- PostgreSQL forbids data-modifying statements (INSERT/UPDATE/DELETE) in

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The one provable member of the SQL/JSON path-query family (measured):
 -- JSON_EXISTS over a non-null context returns true/false with ON ERROR
 -- defaulting to FALSE — while a nullable context propagates (je_n, meta is

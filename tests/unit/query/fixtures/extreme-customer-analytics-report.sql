@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Extreme fixture: customer order analytics with multi-level aggregation,
 -- address resolution, coupon application, and shipment tracking.
 --

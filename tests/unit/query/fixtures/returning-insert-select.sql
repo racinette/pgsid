@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- INSERT ... SELECT feeds the written-value map from the source's own
 -- analysis, positionally: name receives the NOT NULL email (notNull even
 -- though t.name's catalog says nullable), while val receives the nullable

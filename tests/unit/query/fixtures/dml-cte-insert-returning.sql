@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- INSERT with WITH clause + RETURNING with expressions.
 -- The INSERT's RETURNING references the target table (order_items), which
 -- is always required. CTEs in the WITH clause feed the SELECT part.

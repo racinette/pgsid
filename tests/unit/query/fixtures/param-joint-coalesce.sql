@@ -1,3 +1,4 @@
+-- @null-groups none
 -- The joint rejection set, motivating shape: neither $1 nor $2 alone forces
 -- COALESCE($1, $2) NULL — each is individually nullable — but both together
 -- do, and name refuses NULL, so the pair is one irreducible claim the flat

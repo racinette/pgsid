@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- @planner-keeps 1: the `c` join settles on c2's promotion, which is a fact
 --   about two joins asking one question; the planner reduces a join from its
 --   own qual and a uniqueness proof, and has no rule that relates two of them

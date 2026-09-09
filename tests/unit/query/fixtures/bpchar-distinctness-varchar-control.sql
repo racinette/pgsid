@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The varchar control for the padding gate. `character varying` keeps
 -- trailing blanks significant ('a'::varchar(4) = 'a ' is FALSE — measured),
 -- so no admissible row pairs k = 'a' with a NULL x — ('a', NULL) is refused

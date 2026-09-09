@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A defaulted parameter the call OMITS is substituted, not left unbound: the
 -- body computes with the declared expression, and `a + b` over a non-null id
 -- is total because `b` is 7. The expression is WALKED like any other, which

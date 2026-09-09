@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- RIGHT JOIN mirrors LEFT: the LEFT side is the extension unit. Pinned
 -- because nothing else exercised JOIN_RIGHT's group formation. dense:
 -- orders 2/4 have no shipment, so the shipments side extends (absent);

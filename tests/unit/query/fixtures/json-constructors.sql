@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The SQL/JSON dedicated nodes (PG16+ syntax; json_build_object and friends
 -- stay FuncCalls on the ALWAYS_NOT_NULL list). Value-list constructors
 -- always produce a container — a NULL member is absorbed or serialized

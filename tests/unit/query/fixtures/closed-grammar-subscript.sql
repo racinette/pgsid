@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A SUBSCRIPT over a CLOSED argument, and the two reasons one may still be
 -- refused.
 --

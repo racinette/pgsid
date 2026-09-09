@@ -1,3 +1,4 @@
+-- @null-groups none
 -- Implicants compose: the strict || makes the fallback NULL when EITHER of
 -- $2, $3 is, so the cross-union with $1 yields TWO minimal sets — {1,2}
 -- and {1,3} — each independently claimed, annotated, and witnessed (the

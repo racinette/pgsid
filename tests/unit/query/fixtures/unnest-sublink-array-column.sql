@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A scalar sublink as the unnest argument: its single output column is the
 -- expression to type, and `pair_holder.pairs` is a base column the catalog
 -- answers directly.

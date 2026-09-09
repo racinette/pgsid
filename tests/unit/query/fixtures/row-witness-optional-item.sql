@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The witness is the JOIN, not the subquery.
 --
 -- Identical to `row-witness-grouped-join.sql` except that the lateral is

@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Gate: the REFERENCED side must be extended by THIS join, not a deeper one —
 -- and the JOIN-LEVEL fact that recovers the leftmost column anyway.
 --

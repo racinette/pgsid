@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Overload consensus: clean2 has two candidates, both STRICT, so the
 -- guarantee closure sees through the call — the WHERE promotes c.name.
 -- Consensus strictness now licenses only the NULLABLE direction (a strict

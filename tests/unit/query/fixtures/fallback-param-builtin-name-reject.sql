@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- MECHANISM C'S MEASURED-BUILTIN NAME FALLBACK, AT A REJECTING SITE.
 --
 -- The tail of forcedNullBy's dispatch: metadata declines (a pg_catalog name),

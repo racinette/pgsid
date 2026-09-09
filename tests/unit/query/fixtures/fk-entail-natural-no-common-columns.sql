@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- The route into an unrecorded join that does not LOOK like one: a NATURAL
 -- JOIN whose two sides share no column name is a cross join in disguise.
 --

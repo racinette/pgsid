@@ -1,3 +1,4 @@
+-- @param-rejections none
 -- The group face of the duplicate-name star hazard: before positional
 -- resolution, the lifted shipments group pulled outer column 1 (g.a AS
 -- id — a DIFFERENT unit) in as a discriminant via first-name-match, a

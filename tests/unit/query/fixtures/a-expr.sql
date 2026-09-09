@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A_Expr: non-null when the operator is total (never NULL for non-null inputs)
 -- and every operand is non-null. A nullable operand makes the result nullable.
 SELECT

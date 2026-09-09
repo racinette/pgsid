@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- Typed selection among ORDINARY user overloads (charter item 5, built):
 -- `pick` has two candidates, so resolveFunctionMetadata refuses — the old
 -- reading lost the integer row's NOT NULL domain return to consensus. The

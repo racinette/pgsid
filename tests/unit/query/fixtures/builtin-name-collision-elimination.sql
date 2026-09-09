@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- A user function colliding with a builtin BY NAME ONLY costs the builtin
 -- nothing — and after the execution admission, nothing at all.
 --

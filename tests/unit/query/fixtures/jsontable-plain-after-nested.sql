@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- JSON_TABLE ORDERS EACH LEVEL'S PLAIN COLUMNS BEFORE ITS NESTED PATHS'.
 --
 -- Found by the pg-regress replay (sqljson_jsontable.sql:469 — the corpus's

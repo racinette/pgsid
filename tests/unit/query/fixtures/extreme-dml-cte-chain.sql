@@ -1,3 +1,5 @@
+-- @null-groups none
+-- @param-rejections none
 -- DML: INSERT...SELECT from CTE chain, with RETURNING expressions.
 -- CTE 'source_products' filters products, CTE 'priced' joins with
 -- order_items. RETURNING references the target table (shipments) and
