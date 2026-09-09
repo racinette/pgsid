@@ -1,0 +1,11 @@
+version: 1
+pin: 0.1.0
+
+name: pgsid query analysis tests
+
+root: espalier
+
+ignoreFiles: []
+
+build:
+  filename: AGENTS.md

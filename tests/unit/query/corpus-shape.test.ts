@@ -11,7 +11,7 @@ import { parseSql } from "../../../src/ast.js";
 // Three instruments answer three different questions, and mixing them up is
 // how a corpus grows without getting better.
 //
-//   worlds-health      the FLOOR: is the corpus collapsing?
+//   Espalier health    the FLOOR: is the corpus collapsing?
 //   rung-cooccurrence  the ENGINE-side frontier: did a world buy anything?
 //   this one           the INPUT-side frontier: what should someone write?
 //
@@ -394,9 +394,9 @@ describe("corpus shape (input-side frontier)", () => {
   it("collection ran over every selected corpus", () => {
     // The only gate here, and it is about the INSTRUMENT rather than the
     // corpus: a report that silently prints zeroes reads exactly like a corpus
-    // with nothing in it. The floors live in worlds-health and the frontier
-    // gate in rung-cooccurrence; a threshold invented here would turn a map of
-    // unexplored input into a chore.
+    // with nothing in it. The floors live in the Espalier world-health
+    // aggregate and the frontier gate in rung-cooccurrence; a threshold
+    // invented here would turn a map of unexplored input into a chore.
     const empty: string[] = [];
     if (WANT_SHARED && shared.statements === 0) empty.push("shared");
     if (WANT_WORLDS && worldDirs().length > 0 && worlds.statements === 0) empty.push("worlds");
