@@ -1,6 +1,0 @@
-# Root-level TypeScript harnesses orchestrate the corpus directories but are
-# outside the first structural pass. Leading slashes keep their sibling source
-# files visible to the directory-specific rules.
-/*.ts
-/*.mjs
-/*.json

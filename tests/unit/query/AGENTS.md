@@ -21,20 +21,95 @@ whether a file may be authored by hand are directory-local facts.
 ## Project layout
 
     ./
-    ├─ fixture-data/  builders for the shared fixture corpus data states
+    ├─ fixture-data/                  builders for the shared fixture corpus
+    │                                 data states
     │
-    ├─ fixtures/      hand-authored query contracts over the shared fixture
-    │                 schema
+    ├─ fixtures/                      hand-authored query contracts over the
+    │                                 shared fixture schema
     │
-    ├─ generated/     mechanical query generation and its PostgreSQL-judged
-    │                 gates
+    ├─ generated/                     mechanical query generation and its
+    │                                 PostgreSQL-judged gates
     │
-    ├─ pg-regress/    replay adapters for PostgreSQL's regression-test corpus
+    ├─ pg-regress/                    replay adapters for PostgreSQL's
+    │                                 regression-test corpus
     │
-    ├─ sqlc-corpus/   a pinned sqlc corpus with pgsid-owned witness
-    │                 adjudications
+    ├─ sqlc-corpus/                   a pinned sqlc corpus with pgsid-owned
+    │                                 witness adjudications
     │
-    └─ worlds/        hand-authored database worlds and their query contracts
+    ├─ worlds/                        hand-authored database worlds and their
+    │                                 query contracts
+    │
+    ├─ catalog-features.ts            the catalog capability classification
+    │                                 shared by census and generation (required)
+    │
+    ├─ catalog-spy.ts                 a recording catalog wrapper for capability
+    │                                 coverage (required)
+    │
+    ├─ delegate-types.ts              the PostgreSQL-backed reference
+    │                                 type-delegation adapter (required)
+    │
+    ├─ explain-instrument.ts          shared raw-AST and EXPLAIN-plan comparison
+    │                                 instrumentation (required)
+    │
+    ├─ fallback-spy.ts                a catalog fallback-call recorder
+    │                                 (required)
+    │
+    ├─ fixture-args.ts                shared fixture directives, bindings, and
+    │                                 rejection witnesses (required)
+    │
+    ├─ fixture-catalog.ts             shared fixture catalog and search-path
+    │                                 helpers (required)
+    │
+    ├─ grammar-sampler.ts             a parse-only SQL grammar sampler
+    │                                 (required)
+    │
+    ├─ killable-evaluator.ts          the time-bounded parent for isolated
+    │                                 PGlite evaluation (required)
+    │
+    ├─ killable-evaluator.worker.mjs  the process-isolated PGlite evaluator
+    │                                 worker (required)
+    │
+    ├─ probe-values.ts                shared adversarial values and database
+    │                                 setup for builtin probes (required)
+    │
+    ├─ rung-cooccurrence.json         the monotonic baseline for query-analysis
+    │                                 interaction reach (required)
+    │
+    ├─ rung-extractor.ts              the source-derived trace-decision
+    │                                 inventory parser (required)
+    │
+    ├─ sqlc-corpus.ts                 the sqlc corpus loader and adjudication
+    │                                 registry (required)
+    │
+    ├─ type-union-cases.ts            purpose-built type-union query
+    │                                 expectations (required)
+    │
+    ├─ type-unions.ts                 PostgreSQL-backed type-union test
+    │                                 instrumentation (required)
+    │
+    └─ [test].test.ts                 an executable query-analysis test suite
+                                      (zero or more, any name)
+
+## `killable-evaluator.worker.mjs` — the process-isolated PGlite evaluator worker
+
+Keep this worker directly loadable by Node without a
+TypeScript loader. It owns the isolated PGlite execution half of the killable
+evaluator protocol; timeout policy and lifecycle orchestration remain in the
+TypeScript parent.
+
+## `rung-cooccurrence.json` — the monotonic baseline for query-analysis interaction reach
+
+Treat this as an executable ratchet, not hand-authored
+project documentation. Regenerate it through the rung co-occurrence harness,
+review the measured change, and never lower the stored reach to accommodate an
+unexplained loss.
+
+## `[test].test.ts` — an executable query-analysis test suite
+
+Keep each root query test as executable evidence for a
+named analysis property, regression, mechanism, or cross-corpus comparison.
+Use a directory-local suite when the behavior belongs exclusively to one
+corpus rather than to the query-analysis harness as a whole.
 
 ## Other repository paths
 
@@ -42,7 +117,6 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
-| `/*.ts`<br>`/*.mjs`<br>`/*.json` | Root-level TypeScript harnesses orchestrate the corpus directories but are outside the first structural pass. Leading slashes keep their sibling source files visible to the directory-specific rules. |
 | `.espalierignore`<br>`espalier`<br>`espalier.config.yaml` | Sources used to generate and check this repository guidance. |
 | `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](espalier/ESPALIER.MD) to change this document's persistent guidance. |
 
