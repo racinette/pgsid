@@ -1,8 +1,11 @@
+import { parse } from 'libpg-query'
+
 export const description = 'a hand-authored query with an independently stated contract'
 
 export const example = 'worlds/shipping/legs-outer.sql'
 
-export const rule = `State all four nullable contract channels in the fixture:
+export const rule = `Contain exactly one SQL statement and state all four
+nullable contract channels for it:
 
 - annotate every output expression inline with \`@notNull\`, \`@nullable\`, or
   \`@alwaysNull\`;
@@ -55,6 +58,25 @@ function parseList(raw, starred) {
 
 export async function lint({ read, emit }) {
   const text = await read()
+
+  try {
+    const parsed = await parse(text)
+    const statementCount = parsed.stmts?.length ?? 0
+    if (statementCount !== 1) {
+      emit({
+        code: 'fixture_statement_count',
+        message: `a world fixture must contain exactly one SQL statement; found ${statementCount}`,
+        line: 1,
+      })
+    }
+  } catch (error) {
+    emit({
+      code: 'fixture_sql_does_not_parse',
+      message: `the fixture SQL does not parse: ${error.message}`,
+      line: 1,
+    })
+  }
+
   const outputs = occurrences(text, outputMarker)
   const outputKinds = outputs.map((match) => match[1])
   const params = occurrences(text, paramMarker)

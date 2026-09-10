@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { check, runAggregate, runRule } from 'espalier'
 // Espalier rules are runtime JavaScript modules, not TypeScript sources.
@@ -65,10 +65,24 @@ describe('Espalier query-fixture rule', () => {
     })
 
     expect(issues.filter((issue) => issue.severity !== 'info')).toEqual([])
-    expect(issues.map((issue) => issue.code)).toEqual([
+    const foundCodes = issues.map((issue) => issue.code)
+    expect([...new Set(foundCodes)]).toEqual([
       'world_rung_reach',
       'world_rung_reach_detail',
+      'world_health',
+      'world_health_ratios',
+      'world_health_composition',
+      'world_health_detail',
     ])
+    const worldCount = readdirSync(join(__dirname, 'worlds')).filter((name) =>
+      statSync(join(__dirname, 'worlds', name)).isDirectory(),
+    ).length
+    expect(foundCodes.filter((code) => code === 'world_rung_reach')).toHaveLength(1)
+    expect(foundCodes.filter((code) => code === 'world_health')).toHaveLength(1)
+    expect(foundCodes.filter((code) => code === 'world_health_ratios')).toHaveLength(1)
+    expect(foundCodes.filter((code) => code === 'world_health_composition')).toHaveLength(1)
+    expect(foundCodes.filter((code) => code === 'world_rung_reach_detail')).toHaveLength(worldCount)
+    expect(foundCodes.filter((code) => code === 'world_health_detail')).toHaveLength(worldCount)
   })
 
   it('accepts a fully declared grouped contract', async () => {
@@ -82,6 +96,10 @@ describe('Espalier query-fixture rule', () => {
 SELECT 1 -- @notNull
 `
     await expect(codes(source)).resolves.toEqual([])
+  })
+
+  it('rejects more than one SQL statement in a fixture', async () => {
+    expect(await codes(`${GROUPED};\nSELECT 1 -- @notNull\n`)).toContain('fixture_statement_count')
   })
 
   it.each([
@@ -225,6 +243,29 @@ describe('Espalier world-health aggregate', () => {
       expect.objectContaining({
         code: 'world_composition_regression',
         message: 'additivity: 2 → 0',
+      }),
+    )
+  })
+
+  it('requires composition growth as worlds are added', async () => {
+    const shipping = shippingCorpus()
+    const flat = shippingCorpus('flat')
+    flat.tree['worlds/flat/schema.sql'] = `CREATE TABLE parent (id int PRIMARY KEY);
+CREATE TABLE child (id int PRIMARY KEY, parent_id int NOT NULL REFERENCES parent (id));
+CREATE TABLE sibling (id int PRIMARY KEY, parent_id int NOT NULL REFERENCES parent (id));
+`
+
+    const issues = await runAggregate(healthRule, {
+      matches: [...shipping.matches, ...flat.matches],
+      pattern: 'worlds/**/*.sql',
+      at: 'worlds/',
+      tree: { ...shipping.tree, ...flat.tree },
+    })
+
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: 'world_composition_growth_below_floor',
+        message: 'composition growth surplus is 0 across 2 worlds; 1 required',
       }),
     )
   })

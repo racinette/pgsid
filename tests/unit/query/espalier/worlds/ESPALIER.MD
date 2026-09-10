@@ -45,7 +45,9 @@ pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \
 Absolute violations name the world and attach to its schema or malformed
 fixture. A proportion out of range names the ratio and its bound. The
 parameter average and generated-column ratio name the whole corpus. A fallen
-ratchet names the measure and both values.
+ratchet names the measure and both values. Successful runs also report every
+current structural, ratio, and composition measurement, including dormant
+ratio thresholds.
 
 A corpus-wide proportion only binds once its denominator reaches
 `ceil(1/floor)`. Below that point it is arithmetic rather than a measurement,
@@ -88,25 +90,11 @@ Presence-group inference and joint parameter rejection run outside the column
 trace that supplies these rungs. Their independent fixture declarations and
 executable contracts remain the gate for those mechanisms.
 
-#### The two shape reports
-
-Neither gates anything; both exist to be read before writing.
+Run those contracts after every fixture or witness-data change:
 
 ```
-pnpm exec vitest run tests/unit/query/corpus-shape.test.ts
-VOCABULARY_REGRESS=1 pnpm exec vitest run tests/unit/query/vocabulary.test.ts
+pnpm exec vitest run tests/unit/query/worlds-contract.test.ts
 ```
-
-`corpus-shape` is how the corpus COMPOSES — depth, join-type chains, writing
-statements, common table expressions, constraint and generation shape — with a
-marginal section naming what this directory reaches that the shared corpus does
-not. `vocabulary` is what the corpus HAS: constructs carried by a single
-statement, which vanish silently if that fixture goes, and constructs a
-borrowed corpus of real SQL produces that neither of ours ever has.
-
-Vocabulary is close to saturated, so expect its gap list to be short and treat
-a long one as suspicious. Composition is not, which is why the marginal rows
-are the ones worth moving.
 
 ### 1. A world is a directory
 
@@ -220,9 +208,11 @@ failure names the change rather than blaming whoever came last.
   the ORDERED sequence of join types from outermost inward, because an outer
   join under an inner one is a different question from the reverse.
 
-**Every new world should move at least one of these.** A world that satisfies
-every shape rule and is then queried with a flat SELECT has spent its cost and
-bought nothing.
+The first world establishes the composition baseline. The corpus must carry at
+least one surplus composition unit for every additional world; one unit is one
+step above an established ratchet in any of these measures. A world that
+satisfies every shape rule and is then queried with flat SELECTs cannot grow
+the collection without improving the corpus somewhere.
 
 ### 7. Data is written by hand, beside the world
 
@@ -260,21 +250,24 @@ a claim. For that, read the engine-side censuses instead.
 
 ### 9. Fixtures state the expected contract independently
 
-A committed fixture here is an oracle, not a transcript of what the engine
-currently emits. It states every flat output and parameter verdict, every
-output presence group, and every minimal joint parameter rejection set. Empty
-group channels are explicit too. Derive those declarations from the query and
-world before asking the engine; copying the engine's answer would reproduce the
-generated corpus's completeness blind spot.
+A committed fixture here is one SQL statement and an oracle for that statement,
+not a transcript of what the engine currently emits. It states every flat
+output and parameter verdict, every output presence group, and every minimal
+joint parameter rejection set. Empty group channels are explicit too. Derive
+those declarations from the query and world before asking the engine; copying
+the engine's answer would reproduce the generated corpus's completeness blind
+spot.
 
 Espalier enforces that every channel is present. The world contract suite
 compares every declaration with the engine in both directions, asks PostgreSQL
 to exhibit both arms of each output presence group, and proves each parameter
 set is minimal before witnessing its all-members-NULL rejection.
 
-When a sweep exposes an engine disagreement, capture the intended result RED
-under the parent guide's discipline. Do not make a committed world green by
-recording an answer already known to be wrong.
+When a sweep exposes an engine disagreement, keep the independently derived
+declarations and use the focused contract failure as the report. Do not change
+the declarations to copy an answer already known to be wrong, and do not commit
+the world until the discrepancy is resolved or explicitly accepted as a known
+failing test.
 
 A world graduates whole and keeps its directory. Folding its schema into the
 shared one spends the isolation that made the finding legible, and grows the
