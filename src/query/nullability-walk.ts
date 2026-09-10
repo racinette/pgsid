@@ -17,7 +17,7 @@ import {
   type SubtreeEvaluationCatalog,
 } from './subtree-evaluator.js'
 import { collectSrfCardinalityQuestions, evaluateSrfCardinalities } from './srf-cardinality.js'
-import { writtenGuardTruths } from './written-value-guards.js'
+import { writtenColumnConstants, writtenGuardTruths } from './written-value-guards.js'
 import { resolveDelegatedTypes } from './type-delegation.js'
 import {
   NON_STRICT_OVERLOADS,
@@ -1099,6 +1099,12 @@ interface Scope {
    * in neither map far more often than it is in either.
    */
   dmlWrittenNullColumns?: { alias: string; columns: ReadonlyMap<string, boolean> }
+  /**
+   * INSERT RETURNING only: target columns written as one identical literal
+   * on every row-producing path. These are NEW-row facts used by CHECK and
+   * generated-expression inference after the rewrite/trigger gate passes.
+   */
+  dmlWrittenConstants?: { alias: string; columns: ReadonlyMap<string, Node> }
   /**
    * Parameters whose NULL binding raises on every path that can return a row
    * of THIS statement (`returningRejectedParams`), so a projected `$n` here
@@ -4643,6 +4649,10 @@ class NullabilityEngine {
 
     scope.dmlWrittenColumns = { alias: entry.alias, columns: written }
     scope.dmlWrittenNullColumns = { alias: entry.alias, columns: writtenNull }
+    const constants = writtenColumnConstants({ InsertStmt: stmt } as unknown as Node, this.catalog)
+    if (constants.size > 0) {
+      scope.dmlWrittenConstants = { alias: entry.alias, columns: constants }
+    }
   }
 
   private analyzeUpdate(
@@ -8130,6 +8140,7 @@ class NullabilityEngine {
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
+      ...this.dmlWrittenConstantEvidence(scope),
     ]
     const evidence = [...core, ...this.kernelGuardPreds(scope)].map((pred) => ({
       pred,
@@ -8513,6 +8524,36 @@ class NullabilityEngine {
     return w && w.alias === entry.alias ? w.columns : undefined
   }
 
+  /** Written INSERT constants rendered as ordinary NEW-row equality facts. */
+  private dmlWrittenConstantEvidence(scope: Scope): Node[] {
+    const written = scope.dmlWrittenConstants
+    if (!written) return []
+    const entry = scope.aliases.get(written.alias)
+    if (!entry?.table) return []
+    const shown = this.entryColumnNames(entry)
+    const out: Node[] = []
+    for (const [catalogColumn, value] of written.columns) {
+      const index = entry.table.columns.indexOf(catalogColumn)
+      if (index < 0) continue
+      out.push({
+        A_Expr: {
+          kind: 'AEXPR_OP',
+          name: [{ String: { sval: '=' } }],
+          lexpr: {
+            ColumnRef: {
+              fields: [
+                { String: { sval: entry.alias } },
+                { String: { sval: shown[index] ?? catalogColumn } },
+              ],
+            },
+          },
+          rexpr: structuredClone(value),
+        },
+      } as unknown as Node)
+    }
+    return out
+  }
+
   /**
    * Whether two expressions are the SAME bare column reference, spelled
    * identically. Not general structural equality: the only caller needs
@@ -8701,6 +8742,7 @@ class NullabilityEngine {
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
       ...this.qualsHoldingWhenPresent(entry, scope),
+      ...this.dmlWrittenConstantEvidence(scope),
     ]
     const guards = this.kernelGuardPreds(scope)
     // A DML statement has two stored rows per returned row, and RETURNING
@@ -10284,6 +10326,7 @@ class NullabilityEngine {
             ...(scope.havingClause ? [scope.havingClause] : []),
             ...scope.impliedQuals,
             ...this.entryNotNullEvidence(entry, scope, joinState),
+            ...this.dmlWrittenConstantEvidence(scope),
           ]
           const guardPreds = this.kernelGuardPreds(scope)
           const channels: { label: string; evidence: { pred: Node; applySetMask: boolean }[] }[] =

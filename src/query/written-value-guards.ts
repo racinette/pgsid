@@ -237,6 +237,21 @@ function writtenConstants(
   return acc ?? empty
 }
 
+/**
+ * Target columns written as one identical literal on every row-producing
+ * path. The caller owns the rewrite/trigger gate; this function only answers
+ * the statement-shape question.
+ */
+export function writtenColumnConstants(
+  stmt: Node,
+  catalog: NullabilityCatalog,
+): ReadonlyMap<string, Node> {
+  const shape = shapeOf(stmt)
+  if (!shape) return new Map()
+  const table = catalog.resolveTable(shape.relation.schemaname, shape.relation.relname ?? '')
+  return table ? writtenConstants(shape, catalog, table.columns) : new Map()
+}
+
 /** Every searched-CASE guard anywhere in the RETURNING list. The simple form
  *  (`CASE x WHEN v`) compares values rather than evaluating predicates, so it
  *  has no guard node to answer. */
