@@ -12,8 +12,10 @@ export const unobservedImplementationDependencies = ['killable-evaluator.worker.
 export const rule = `Require every isolated world to exercise at least nine
 query-analysis decision rungs and eighteen rung pairs. Across the worlds, the
 distinct pair union must contain at least eighteen pairs plus four for every
-world after the first. Presence-group and joint-parameter mechanisms do not
-emit column-trace conclusions and are outside this constraint.`
+world after the first, and each later world must itself add four pairs beyond
+the union of its predecessors. World directory ordinals define that admission
+order. Presence-group and joint-parameter mechanisms do not emit column-trace
+conclusions and are outside this constraint.`
 
 // These are historical floors established by the first admitted world. Raise
 // them when the corpus improves; lower one only for a deliberate loss.
@@ -23,6 +25,8 @@ const RATCHET = {
   initialPairUnion: 18,
   pairUnionGrowth: 4,
 }
+
+const WORLD_NAME = /^(\d{3})_[a-z][a-z0-9_-]*$/
 
 const difference = (left, right) => [...left].filter((value) => !right.has(value)).sort()
 
@@ -35,9 +39,16 @@ function worldInputs(matches) {
     paths.push(path)
     byName.set(parts[1], paths)
   }
-  return [...byName]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, paths]) => ({ name, paths: paths.sort() }))
+  const entries = [...byName].map(([name, paths]) => {
+    const match = WORLD_NAME.exec(name)
+    return { name, ordinal: match === null ? null : Number(match[1]), paths: paths.sort() }
+  })
+  entries.sort(
+    (left, right) =>
+      (left.ordinal ?? Number.POSITIVE_INFINITY) - (right.ordinal ?? Number.POSITIVE_INFINITY) ||
+      left.name.localeCompare(right.name),
+  )
+  return entries
 }
 
 function plural(count, singular, pluralForm = `${singular}s`) {
@@ -45,9 +56,38 @@ function plural(count, singular, pluralForm = `${singular}s`) {
 }
 
 export async function lint({ matches, read, emit }) {
+  const inputs = worldInputs(matches)
+  const invalidNames = inputs.filter((world) => world.ordinal === null || world.ordinal === 0)
+  for (const world of invalidNames) {
+    emit({
+      code: 'world_admission_order_invalid',
+      path: `worlds/${world.name}/schema.sql`,
+      message:
+        `${world.name}: world directories must use a non-zero, three-digit admission ` +
+        `prefix followed by a lowercase name (for example 003_billing)`,
+    })
+  }
+
+  const actualOrdinals = inputs
+    .map((world) => world.ordinal)
+    .filter((ordinal) => ordinal !== null && ordinal !== 0)
+  const expectedOrdinals = Array.from({ length: inputs.length }, (_, index) => index + 1)
+  if (
+    invalidNames.length === 0 &&
+    (actualOrdinals.length !== expectedOrdinals.length ||
+      actualOrdinals.some((ordinal, index) => ordinal !== expectedOrdinals[index]))
+  ) {
+    emit({
+      code: 'world_admission_order_invalid',
+      message:
+        `world admission prefixes must be unique and contiguous from 001; found ` +
+        `${actualOrdinals.map((ordinal) => String(ordinal).padStart(3, '0')).join(', ')}`,
+    })
+  }
+
   const measured = await measureRungReach({
     read,
-    worlds: worldInputs(matches),
+    worlds: inputs,
   })
   const worlds = combineRungSources('worlds', measured.worlds)
   const worldCount = measured.worlds.length
@@ -94,13 +134,10 @@ export async function lint({ matches, read, emit }) {
     })
   }
 
-  for (const world of measured.worlds) {
-    const otherWorlds = combineRungSources(
-      'other worlds',
-      measured.worlds.filter((candidate) => candidate !== world),
-    )
-    const exclusivePairs = difference(world.pairs, otherWorlds.pairs)
-    const preview = exclusivePairs
+  const predecessorPairs = new Set()
+  for (const [index, world] of measured.worlds.entries()) {
+    const marginalPairs = difference(world.pairs, predecessorPairs)
+    const preview = marginalPairs
       .slice(0, 6)
       .map((pair) => pairMembers(pair).join(' + '))
       .join('; ')
@@ -119,6 +156,15 @@ export async function lint({ matches, read, emit }) {
         message: `${world.label}: ${world.pairs.size} rung pairs; ${RATCHET.pairsPerWorld} required`,
       })
     }
+    if (index > 0 && marginalPairs.length < RATCHET.pairUnionGrowth) {
+      emit({
+        code: 'world_pair_marginal_below_floor',
+        path: `worlds/${world.label}/schema.sql`,
+        message:
+          `${world.label}: adds ${marginalPairs.length} rung pairs beyond its predecessors; ` +
+          `${RATCHET.pairUnionGrowth} required`,
+      })
+    }
 
     emit({
       code: 'world_rung_reach_detail',
@@ -126,14 +172,16 @@ export async function lint({ matches, read, emit }) {
       path: `worlds/${world.label}/schema.sql`,
       message:
         `${world.label}: ${world.statements} statements exercise ${world.rungs.size} rungs and ` +
-        `${world.pairs.size} pairs; ${exclusivePairs.length} pairs are exclusive to this world` +
-        `${preview === '' ? '.' : `. Exclusive-pair sample: ${preview}.`}`,
+        `${world.pairs.size} pairs; ${marginalPairs.length} pairs are new beyond its predecessors` +
+        `${preview === '' ? '.' : `. Marginal-pair sample: ${preview}.`}`,
       metadata: {
         statements: world.statements,
         rungs: world.rungs.size,
         pairs: world.pairs.size,
-        exclusivePairs: exclusivePairs.map((pair) => pairMembers(pair)),
+        marginalPairs: marginalPairs.map((pair) => pairMembers(pair)),
       },
     })
+
+    for (const pair of world.pairs) predecessorPairs.add(pair)
   }
 }

@@ -40,19 +40,19 @@ async function sharedCodes(source: string) {
   return issues.map((issue) => issue.code)
 }
 
-function shippingCorpus(world = 'shipping') {
-  const directory = join(__dirname, 'worlds', 'shipping')
+function worldCorpus(sourceWorld = '001_shipping', targetWorld = sourceWorld) {
+  const directory = join(__dirname, 'worlds', sourceWorld)
   const sourcePaths = readdirSync(directory)
     .filter((name) => name.endsWith('.sql'))
     .sort()
-  const paths = sourcePaths.map((name) => `worlds/${world}/${name}`)
+  const paths = sourcePaths.map((name) => `worlds/${targetWorld}/${name}`)
   const tree = Object.fromEntries(
     sourcePaths.map((name) => [
-      `worlds/${world}/${name}`,
+      `worlds/${targetWorld}/${name}`,
       readFileSync(join(directory, name), 'utf8'),
     ]),
   )
-  const matches = paths.map((path) => ({ path, captures: { world: [world] } }))
+  const matches = paths.map((path) => ({ path, captures: { world: [targetWorld] } }))
   return { matches, paths, tree }
 }
 
@@ -223,8 +223,8 @@ describe('Espalier world-health aggregate', () => {
   })
 
   it('rejects a world whose schema loses its required shape', async () => {
-    const { matches, tree } = shippingCorpus()
-    tree['worlds/shipping/schema.sql'] = 'SELECT 1;\n'
+    const { matches, tree } = worldCorpus()
+    tree['worlds/001_shipping/schema.sql'] = 'SELECT 1;\n'
 
     const issues = await runAggregate(healthRule, {
       matches,
@@ -236,21 +236,21 @@ describe('Espalier world-health aggregate', () => {
     expect(issues).toContainEqual(
       expect.objectContaining({
         code: 'world_health_violation',
-        path: 'worlds/shipping/schema.sql',
+        path: 'worlds/001_shipping/schema.sql',
       }),
     )
     expect(issues).toContainEqual(
       expect.objectContaining({
         code: 'world_composition_regression',
-        message: 'additivity: 2 → 0',
+        message: 'additivity: 8 → 0',
       }),
     )
   })
 
   it('requires composition growth as worlds are added', async () => {
-    const shipping = shippingCorpus()
-    const flat = shippingCorpus('flat')
-    flat.tree['worlds/flat/schema.sql'] = `CREATE TABLE parent (id int PRIMARY KEY);
+    const shipping = worldCorpus()
+    const flat = worldCorpus('001_shipping', '002_flat')
+    flat.tree['worlds/002_flat/schema.sql'] = `CREATE TABLE parent (id int PRIMARY KEY);
 CREATE TABLE child (id int PRIMARY KEY, parent_id int NOT NULL REFERENCES parent (id));
 CREATE TABLE sibling (id int PRIMARY KEY, parent_id int NOT NULL REFERENCES parent (id));
 `
@@ -268,12 +268,18 @@ CREATE TABLE sibling (id int PRIMARY KEY, parent_id int NOT NULL REFERENCES pare
         message: 'composition growth surplus is 0 across 2 worlds; 1 required',
       }),
     )
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: 'world_composition_marginal_below_floor',
+        path: 'worlds/002_flat/schema.sql',
+      }),
+    )
   })
 })
 
 describe('Espalier world rung-reach aggregate', () => {
   it('rejects a world that does not reach its individual floors', async () => {
-    const { matches, paths, tree } = shippingCorpus()
+    const { matches, paths, tree } = worldCorpus()
     for (const path of paths) {
       if (!path.endsWith('/schema.sql') && !path.endsWith('/data.sql')) tree[path] = 'SELECT 1;\n'
     }
@@ -295,23 +301,62 @@ describe('Espalier world rung-reach aggregate', () => {
   })
 
   it('rejects a new world that merely repeats existing pair reach', async () => {
-    const shipping = shippingCorpus()
-    const duplicate = shippingCorpus('shipping-copy')
+    const shipping = worldCorpus()
+    const library = worldCorpus('002_library')
+    const duplicate = worldCorpus('001_shipping', '003_shipping-copy')
 
     const issues = await runAggregate(rungReachRule, {
-      matches: [...shipping.matches, ...duplicate.matches],
+      matches: [...shipping.matches, ...library.matches, ...duplicate.matches],
       pattern: 'worlds/**/*.sql',
       at: 'worlds/',
-      tree: { ...shipping.tree, ...duplicate.tree },
+      tree: { ...shipping.tree, ...library.tree, ...duplicate.tree },
     })
 
     expect(issues).toContainEqual(
       expect.objectContaining({
-        code: 'world_pair_diversity_below_floor',
-        message: '18 distinct rung pairs across 2 worlds; 22 required',
+        code: 'world_pair_marginal_below_floor',
+        path: 'worlds/003_shipping-copy/schema.sql',
+        message: '003_shipping-copy: adds 0 rung pairs beyond its predecessors; 4 required',
       }),
     )
+    expect(issues.map((issue) => issue.code)).not.toContain('world_pair_diversity_below_floor')
     expect(issues.map((issue) => issue.code)).not.toContain('world_rung_reach_below_floor')
     expect(issues.map((issue) => issue.code)).not.toContain('world_pair_reach_below_floor')
+  })
+
+  it('requires a zero-padded admission prefix', async () => {
+    const corpus = worldCorpus('001_shipping', 'shipping')
+
+    const issues = await runAggregate(rungReachRule, {
+      matches: corpus.matches,
+      pattern: 'worlds/**/*.sql',
+      at: 'worlds/',
+      tree: corpus.tree,
+    })
+
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: 'world_admission_order_invalid',
+        path: 'worlds/shipping/schema.sql',
+      }),
+    )
+  })
+
+  it('requires contiguous admission ordinals starting at 001', async () => {
+    const corpus = worldCorpus('001_shipping', '002_shipping')
+
+    const issues = await runAggregate(rungReachRule, {
+      matches: corpus.matches,
+      pattern: 'worlds/**/*.sql',
+      at: 'worlds/',
+      tree: corpus.tree,
+    })
+
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: 'world_admission_order_invalid',
+        message: 'world admission prefixes must be unique and contiguous from 001; found 002',
+      }),
+    )
   })
 })

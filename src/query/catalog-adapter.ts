@@ -85,22 +85,34 @@ export async function buildNullabilityCatalog(
     }
   >()
 
-  // Literal distinctness is sound for a column exactly when byte equality
-  // IS value equality for its type under its collation: text/varchar by
-  // OID — a whitelist, because a normalising COMPARISON breaks the
-  // inference one level below the collation. citext case-folds in its
-  // operator; bpchar strips trailing blanks BEFORE the collation is
-  // consulted ('a'::char(4) = 'a ' is TRUE — measured), so its distinct
-  // tokens can name equal values and OID 1042 is out. The collation must
-  // additionally be PROVEN deterministic. Numerics never qualify: 75 and
-  // 75.0 are distinct tokens, equal values.
+  // Literal distinctness is sound for a column exactly when different tokens
+  // cannot denote equal values. Text/varchar qualify only under a proven
+  // deterministic collation: citext case-folds and bpchar strips trailing
+  // blanks, so neither belongs to that family. Enum labels qualify directly;
+  // PostgreSQL makes them unique within their non-collatable type. Numerics do
+  // not qualify because 75 and 75.0 are different tokens for one value.
   const TEXT_FAMILY_OIDS = new Set([25, 1043])
+  const enumTypes = new Set(snapshot.enums.map((e) => `${e.schema}\0${e.name}`))
+  const isEnumType = (rendered: string, relationSchema: string): boolean => {
+    const type = splitQualifiedName(rendered)
+    return enumTypes.has(`${type.schema ?? relationSchema}\0${type.name}`)
+  }
   const distinctnessSound = (
-    cols: { name: string; typeOid: number; collationDeterministic: boolean | null }[],
+    relationSchema: string,
+    cols: {
+      name: string
+      typeOid: number
+      typeName: string
+      collationDeterministic: boolean | null
+    }[],
   ): Set<string> =>
     new Set(
       cols
-        .filter((c) => TEXT_FAMILY_OIDS.has(c.typeOid) && c.collationDeterministic === true)
+        .filter(
+          (c) =>
+            (TEXT_FAMILY_OIDS.has(c.typeOid) && c.collationDeterministic === true) ||
+            isEnumType(c.typeName, relationSchema),
+        )
         .map((c) => c.name),
     )
   // A column whose TYPE is a NOT NULL domain is non-null in every stored
@@ -140,7 +152,7 @@ export async function buildNullabilityCatalog(
       ),
       colTypeOids: new Map(t.columns.map((c) => [c.name, c.typeOid])),
       colTypeNames: new Map(t.columns.map((c) => [c.name, c.typeName])),
-      colDistinctnessSound: distinctnessSound(t.columns),
+      colDistinctnessSound: distinctnessSound(t.schema, t.columns),
     })
   }
   // Views have columns too — treat them like tables for resolution. A view
@@ -156,7 +168,7 @@ export async function buildNullabilityCatalog(
       notNullTreeCols: notNullCols,
       colTypeOids: new Map(v.columns.map((c) => [c.name, c.typeOid])),
       colTypeNames: new Map(v.columns.map((c) => [c.name, c.typeName])),
-      colDistinctnessSound: distinctnessSound(v.columns),
+      colDistinctnessSound: distinctnessSound(v.schema, v.columns),
     })
   }
 
