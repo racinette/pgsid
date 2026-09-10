@@ -18,59 +18,59 @@
  * could weaken on an unlucky draw without ever failing.
  */
 export const FUZZ_SEED = (() => {
-  const raw = process.env.FUZZ_SEED;
-  if (raw === undefined) return 0x5eed_1234 >>> 0;
-  const parsed = Number.parseInt(raw, 10);
+  const raw = process.env.FUZZ_SEED
+  if (raw === undefined) return 0x5eed_1234 >>> 0
+  const parsed = Number.parseInt(raw, 10)
   if (!Number.isFinite(parsed)) {
-    throw new Error(`FUZZ_SEED must be an integer, got ${JSON.stringify(raw)}`);
+    throw new Error(`FUZZ_SEED must be an integer, got ${JSON.stringify(raw)}`)
   }
-  return parsed >>> 0;
-})();
+  return parsed >>> 0
+})()
 
 /** FNV-1a over `key`, mixed with `salt`. */
 export function hashSeed(key: string, salt: number = FUZZ_SEED): number {
-  let h = 0x811c9dc5;
+  let h = 0x811c9dc5
   for (let i = 0; i < key.length; i++) {
-    h ^= key.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
+    h ^= key.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
   }
-  return (h ^ salt) >>> 0;
+  return (h ^ salt) >>> 0
 }
 
 export interface Rand {
   /** Uniform in [0, 1). */
-  next(): number;
+  next(): number
   /** Uniform integer in [min, max], both inclusive. */
-  int(min: number, max: number): number;
+  int(min: number, max: number): number
   /** Uniform element of `items`. */
-  pick<T>(items: readonly T[]): T;
+  pick<T>(items: readonly T[]): T
   /** True with probability `p`. */
-  chance(p: number): boolean;
+  chance(p: number): boolean
   /** Uniform in [min, max), rounded to `decimals` places. */
-  decimal(min: number, max: number, decimals: number): number;
+  decimal(min: number, max: number, decimals: number): number
 }
 
 /** mulberry32 — small, fast, and adequate for fixture data. */
 export function makeRand(seed: number): Rand {
-  let state = seed >>> 0;
+  let state = seed >>> 0
   const next = (): number => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
   return {
     next,
     int: (min, max) => min + Math.floor(next() * (max - min + 1)),
-    pick: items => {
-      if (items.length === 0) throw new Error("pick() on an empty list");
-      return items[Math.floor(next() * items.length)]!;
+    pick: (items) => {
+      if (items.length === 0) throw new Error('pick() on an empty list')
+      return items[Math.floor(next() * items.length)]!
     },
-    chance: p => next() < p,
+    chance: (p) => next() < p,
     decimal: (min, max, decimals) => {
-      const factor = 10 ** decimals;
-      return Math.round((min + next() * (max - min)) * factor) / factor;
+      const factor = 10 ** decimals
+      return Math.round((min + next() * (max - min)) * factor) / factor
     },
-  };
+  }
 }

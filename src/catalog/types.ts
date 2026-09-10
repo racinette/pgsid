@@ -28,20 +28,20 @@
  * - `"uuid-ossp"` — an extension (globally unique name, no schema qualifier).
  * - `"public"` — a schema.
  */
-export type EntityId = string;
+export type EntityId = string
 
 // ---------------------------------------------------------------------------
 // Tables / columns / constraints
 // ---------------------------------------------------------------------------
 
 export interface ColumnInfo {
-  name: string;
-  typeOid: number;
+  name: string
+  typeOid: number
   /** Canonical type name from `format_type(oid, typmod)`, e.g. "bigint", "text". */
-  typeName: string;
+  typeName: string
   /** Type modifier (`atttypmod`), e.g. length for varchar; -1/null when none. */
-  typeMod: number | null;
-  notNull: boolean;
+  typeMod: number | null
+  notNull: boolean
   /**
    * `attnotnull` held across the relation's entire inheritance subtree —
    * equal to `notNull` for a childless relation. `FROM p` scans the whole
@@ -50,12 +50,12 @@ export interface ColumnInfo {
    * descendant the snapshot cannot see (e.g. a temp child) counts as not
    * carrying the constraint.
    */
-  notNullTree: boolean;
-  hasDefault: boolean;
+  notNullTree: boolean
+  hasDefault: boolean
   /** Human-readable default expression from `pg_get_expr(adbin, adrelid)`. */
-  defaultExpr: string | null;
+  defaultExpr: string | null
   /** Generated-column mode: `attgenerated` 's'→stored, 'v'→virtual (PG18), ''→none. */
-  generated: "stored" | "virtual" | "none";
+  generated: 'stored' | 'virtual' | 'none'
   /**
    * Whether any descendant computes this GENERATED column with a different
    * expression. A child may define its OWN generation expression for an
@@ -68,7 +68,7 @@ export interface ColumnInfo {
    * and never read through a scan) and for childless relations.
    * Diff-comparable on the parent for the same reason notNullTree is.
    */
-  generationDivergesInTree: boolean;
+  generationDivergesInTree: boolean
   /**
    * `pg_collation.collisdeterministic` of the column's collation; null for
    * non-collatable types. Gates literal DISTINCTNESS in the entailment
@@ -76,7 +76,7 @@ export interface ColumnInfo {
    * values are provably unequal — under a nondeterministic one they are
    * not, which is why distinctness was banned before this was captured.
    */
-  collationDeterministic: boolean | null;
+  collationDeterministic: boolean | null
   /**
    * Whether the column's collation IS `pg_catalog."default"` — the
    * database's own; null for non-collatable types. The comparison
@@ -89,29 +89,24 @@ export interface ColumnInfo {
    * analysis-database ≡ execution-database assumption, which the charter
    * already extends to collation.
    */
-  collationIsDefault: boolean | null;
+  collationIsDefault: boolean | null
   /** Identity column: `attidentity` 'a'→always, 'd'→byDefault, ''→null. */
-  identity: "always" | "byDefault" | null;
+  identity: 'always' | 'byDefault' | null
 }
 
-export type ConstraintType =
-  | "primaryKey"
-  | "unique"
-  | "foreign"
-  | "check"
-  | "exclusion";
+export type ConstraintType = 'primaryKey' | 'unique' | 'foreign' | 'check' | 'exclusion'
 
 export interface ConstraintInfo {
-  name: string;
-  type: ConstraintType;
+  name: string
+  type: ConstraintType
   /** Column names the constraint applies to (from `conkey` attnums, resolved). */
-  columns: string[];
+  columns: string[]
   /** For FK constraints: target schema/table/column names; null otherwise. */
-  foreignSchema: string | null;
-  foreignTable: string | null;
-  foreignColumns: string[] | null;
+  foreignSchema: string | null
+  foreignTable: string | null
+  foreignColumns: string[] | null
   /** Full definition from `pg_get_constraintdef`. */
-  definition: string;
+  definition: string
   /**
    * `pg_constraint.convalidated`. False for NOT VALID constraints (existing
    * rows may violate them) and for PG18 NOT ENFORCED constraints (which are
@@ -119,7 +114,7 @@ export interface ConstraintInfo {
    * validated CHECK constraints; a VALIDATE CONSTRAINT flips this and is a
    * real schema change, so it participates in the diff.
    */
-  validated: boolean;
+  validated: boolean
   /**
    * PG18 `pg_constraint.conenforced` — whether the constraint gates NEW
    * writes, which `validated` alone cannot say: NOT VALID arrives as
@@ -129,7 +124,7 @@ export interface ConstraintInfo {
    * `validated`; mechanism E's input channel gates on this bit. Diff-
    * included via the constraint list, like `validated`.
    */
-  enforced: boolean;
+  enforced: boolean
   /**
    * `pg_constraint.connoinherit`. A `CHECK … NO INHERIT` is never copied to
    * a child's pg_constraint (measured — every other CHECK divergence route
@@ -139,7 +134,7 @@ export interface ConstraintInfo {
    * partition trees are unaffected. Diff-included via the constraint list:
    * dropping NO INHERIT changes what a tree scan may conclude.
    */
-  noInherit: boolean;
+  noInherit: boolean
   /**
    * `pg_constraint.condeferrable`. A DEFERRABLE constraint can be violated
    * mid-transaction and the violation OBSERVED there: `SET CONSTRAINTS ALL
@@ -150,7 +145,7 @@ export interface ConstraintInfo {
    * Diff-included via the constraint list: `ALTER CONSTRAINT … DEFERRABLE`
    * changes what a join may conclude.
    */
-  deferrable: boolean;
+  deferrable: boolean
   /**
    * `pg_constraint.conparentid <> 0` — this row is a CLONE that PostgreSQL
    * created, not a constraint the schema author wrote.
@@ -171,7 +166,7 @@ export interface ConstraintInfo {
    * which rows PostgreSQL added that nobody wrote. Partition clones are one
    * kind; inherited constraints and index-backing rows are the same class.
    */
-  inheritedClone: boolean;
+  inheritedClone: boolean
 }
 
 /**
@@ -189,11 +184,11 @@ export interface ConstraintInfo {
  */
 export interface WriteRewriteInfo {
   /** Commands with a BEFORE ROW trigger, sorted. */
-  beforeRow: string[];
+  beforeRow: string[]
   /** Commands with an INSTEAD OF ROW trigger (views), sorted. */
-  insteadOf: string[];
+  insteadOf: string[]
   /** Commands with a DO INSTEAD rewrite rule (non-SELECT, is_instead), sorted. */
-  insteadRules: string[];
+  insteadRules: string[]
 }
 
 /**
@@ -207,15 +202,15 @@ export interface WriteRewriteInfo {
  * conjunct, which decomposes to nothing and stays sound.
  */
 export interface PartitionBoundInfo {
-  strategy: "range" | "list" | "hash";
+  strategy: 'range' | 'list' | 'hash'
   /** DEFAULT partition: its bound is the negated union of its siblings'. */
-  isDefault: boolean;
-  definition: string;
+  isDefault: boolean
+  definition: string
 }
 
 export interface TableInfo {
-  schema: string;
-  name: string;
+  schema: string
+  name: string
   /**
    * `pg_class.relkind` within the captured set: 'r' plain, 'p' partitioned,
    * 'f' foreign, 'S' sequence. The nullability engine needs 'p'
@@ -230,12 +225,12 @@ export interface TableInfo {
    * by the sqlc borrowed corpus). Diff-comparable: the kind cannot change
    * in place, so a flip is a drop-and-recreate the diff should surface.
    */
-  relkind: "r" | "p" | "f" | "S";
-  columns: ColumnInfo[];
-  constraints: ConstraintInfo[];
+  relkind: 'r' | 'p' | 'f' | 'S'
+  columns: ColumnInfo[]
+  constraints: ConstraintInfo[]
   /** Storage parameters from `reloptions`, parsed into a map (e.g. fillfactor). */
-  storageParams: Record<string, string>;
-  writeRewrites: WriteRewriteInfo;
+  storageParams: Record<string, string>
+  writeRewrites: WriteRewriteInfo
   /**
    * The relation-SET answer for the hooks, like `notNullTree` is for the
    * flags: `beforeRow` is the union over the inheritance subtree, because
@@ -247,7 +242,7 @@ export interface TableInfo {
    * and do not fire through a parent (measured), and INSTEAD OF triggers
    * live on views, which have no descendants.
    */
-  writeRewritesTree: WriteRewriteInfo;
+  writeRewritesTree: WriteRewriteInfo
   /**
    * Whether pg_inherits lists any child of this relation (inheritance or
    * partition). What gates the NO INHERIT CHECK reading: with no
@@ -256,7 +251,7 @@ export interface TableInfo {
    * is diff-comparable on the parent — like `notNullTree`, which a first
    * child can also flip.
    */
-  hasDescendants: boolean;
+  hasDescendants: boolean
   /**
    * Set when `relispartition` — routing, direct-insert rejection and
    * ATTACH validation enforce the bound on every stored row of the
@@ -266,7 +261,7 @@ export interface TableInfo {
    * keeps bound facts off parent scans. Diff-comparable: ATTACH at a
    * different bound changes what a scan may conclude, DETACH clears it.
    */
-  partitionBound: PartitionBoundInfo | null;
+  partitionBound: PartitionBoundInfo | null
 }
 
 // ---------------------------------------------------------------------------
@@ -274,13 +269,13 @@ export interface TableInfo {
 // ---------------------------------------------------------------------------
 
 export interface ViewInfo {
-  schema: string;
-  name: string;
+  schema: string
+  name: string
   /** Columns resolved from `pg_attribute` (same shape as table columns). */
-  columns: ColumnInfo[];
+  columns: ColumnInfo[]
   /** Definition text from `pg_views.definition` / `pg_matviews.definition`. */
-  definition: string;
-  writeRewrites: WriteRewriteInfo;
+  definition: string
+  writeRewrites: WriteRewriteInfo
 }
 
 // ---------------------------------------------------------------------------
@@ -288,21 +283,21 @@ export interface ViewInfo {
 // ---------------------------------------------------------------------------
 
 export interface IndexInfo {
-  schema: string;
-  name: string;
-  tableSchema: string;
-  tableName: string;
+  schema: string
+  name: string
+  tableSchema: string
+  tableName: string
   /** Key column names (from `indkey` attnums, resolved). Empty for pure
    *  expression indexes (indkey contains 0s for expressions). */
-  columns: string[];
-  unique: boolean;
-  primary: boolean;
+  columns: string[]
+  unique: boolean
+  primary: boolean
   /** Partial-index WHERE predicate from `pg_get_expr(indpred, indrelid)`, or null. */
-  partial: string | null;
+  partial: string | null
   /** Index access method: btree, gin, gist, brin, hash, spgist, ... */
-  method: string;
+  method: string
   /** Full definition from `pg_get_indexdef`. */
-  definition: string;
+  definition: string
 }
 
 // ---------------------------------------------------------------------------
@@ -314,9 +309,9 @@ export interface IndexInfo {
  * declared return type, both as `format_type` renders them.
  */
 export interface BuiltinSignature {
-  name: string;
-  args: string[];
-  returns: string;
+  name: string
+  args: string[]
+  returns: string
 }
 
 /**
@@ -328,23 +323,23 @@ export interface BuiltinSignature {
  * resolution would.
  */
 export interface BuiltinFunctionVolatility extends BuiltinSignature {
-  volatility: "i" | "s" | "v";
-  kind: "f" | "a" | "w";
-  returnsSet: boolean;
+  volatility: 'i' | 's' | 'v'
+  kind: 'f' | 'a' | 'w'
+  returnsSet: boolean
   /** The declared VARIADIC parameter's type, or null when not variadic. */
-  variadic: string | null;
+  variadic: string | null
   /** `pg_proc.pronargdefaults` — trailing parameters carrying defaults. */
-  numArgDefaults: number;
+  numArgDefaults: number
 }
 
 /** One pg_catalog operator row with its backing function's `provolatile`;
  *  `leftType` is null for prefix operators. */
 export interface BuiltinOperatorVolatility {
-  name: string;
-  leftType: string | null;
-  rightType: string | null;
-  returns: string;
-  volatility: "i" | "s" | "v";
+  name: string
+  leftType: string | null
+  rightType: string | null
+  returns: string
+  volatility: 'i' | 's' | 'v'
 }
 
 /**
@@ -355,21 +350,21 @@ export interface BuiltinOperatorVolatility {
  */
 export interface BuiltinFunctionSignature extends BuiltinSignature {
   /** `pg_proc.proisstrict` — strictness of THIS signature, not a name consensus. */
-  strict: boolean;
+  strict: boolean
   /** `pg_proc.prokind`: 'f' scalar, 'a' aggregate, 'w' window. */
-  kind: "f" | "a" | "w";
+  kind: 'f' | 'a' | 'w'
   /**
    * `pg_aggregate.aggkind` for kind 'a' — 'n' normal, 'o' ordered-set, 'h'
    * hypothetical-set; null otherwise. An ordered-set row's `args` INCLUDE
    * the ORDER BY types, which is what keys `percentile_cont`'s four rows.
    */
-  aggKind: "n" | "o" | "h" | null;
+  aggKind: 'n' | 'o' | 'h' | null
   /**
    * `pg_aggregate.aggnumdirectargs` for kind 'a', null otherwise: `args`
    * positions before this index are the WITHIN GROUP call's direct
    * arguments; the rest line up against the ORDER BY expressions.
    */
-  numDirectArgs: number | null;
+  numDirectArgs: number | null
   /**
    * The declared VARIADIC parameter's type as `format_type` renders it —
    * `"any"` (with quotes) for `rank`/`concat`/`format` — or null when the
@@ -377,7 +372,7 @@ export interface BuiltinFunctionSignature extends BuiltinSignature {
    * untouched (measured), so such a candidate is never eliminable by
    * argument type and never an exact match.
    */
-  variadic: string | null;
+  variadic: string | null
   /**
    * `pg_proc.pronargdefaults` — how many trailing parameters carry
    * defaults. Five claim-table names have them (measured: `jsonb_set`,
@@ -385,7 +380,7 @@ export interface BuiltinFunctionSignature extends BuiltinSignature {
    * arity elimination without this count would falsely eliminate a row a
    * shorter call still resolves to.
    */
-  numArgDefaults: number;
+  numArgDefaults: number
 }
 
 /**
@@ -397,16 +392,16 @@ export interface BuiltinFunctionSignature extends BuiltinSignature {
  */
 /** One `pg_cast` row: the pair, and the function that implements it. */
 export interface BuiltinCast {
-  source: string;
-  target: string;
+  source: string
+  target: string
   /** `name(argtype,…)` in format_type spelling, or null for castfunc = 0. */
-  func: string | null;
+  func: string | null
 }
 
 export interface ImplicitCastInfo {
   /** Source and target as `format_type` renders them. */
-  source: string;
-  target: string;
+  source: string
+  target: string
   /**
    * `castmethod = 'b'` — binary-coercible. These 49 edges are ALSO the
    * canonicalisation images tier 1 retries a failed exact-match lookup
@@ -415,7 +410,7 @@ export interface ImplicitCastInfo {
    * two-way edges (`text ↔ varchar`), so canonicalisation tries images —
    * there is no single canonical target.
    */
-  binary: boolean;
+  binary: boolean
   /**
    * `provolatile` of the cast's implementation function, or null when
    * `castfunc = 0` (binary coercion runs nothing; an I/O-conversion cast
@@ -428,7 +423,7 @@ export interface ImplicitCastInfo {
    * operand crossing such an edge is session-dependent even when every
    * surviving signature is immutable.
    */
-  volatility: "i" | "s" | "v" | null;
+  volatility: 'i' | 's' | 'v' | null
 }
 
 /**
@@ -437,24 +432,24 @@ export interface ImplicitCastInfo {
  * an exact match threads upward.
  */
 export interface BuiltinOperatorSignature {
-  name: string;
+  name: string
   /** Operand type names (`format_type`); leftType null for prefix operators. */
-  leftType: string | null;
-  rightType: string | null;
-  returns: string;
+  leftType: string | null
+  rightType: string | null
+  returns: string
   /** `pg_proc.proisstrict` of the backing function. */
-  strict: boolean;
+  strict: boolean
 }
 
-export type ArgMode = "in" | "out" | "inout" | "variadic" | "table";
+export type ArgMode = 'in' | 'out' | 'inout' | 'variadic' | 'table'
 
 export interface FunctionArgInfo {
-  name: string;
-  typeOid: number;
+  name: string
+  typeOid: number
   /** Canonical type name from `format_type(oid, null)` (loses typmod). */
-  typeName: string;
-  mode: ArgMode;
-  hasDefault: boolean;
+  typeName: string
+  mode: ArgMode
+  hasDefault: boolean
   /**
    * The default EXPRESSION as PostgreSQL renders it
    * (`pg_get_function_arg_default`), or null for a parameter without one.
@@ -465,20 +460,20 @@ export interface FunctionArgInfo {
    * — `nullif(1, 1)` is a legal default and yields NULL — so it is analysed
    * like any other expression rather than assumed non-null.
    */
-  defaultExpr: string | null;
+  defaultExpr: string | null
 }
 
-export type Volatility = "immutable" | "stable" | "volatile";
+export type Volatility = 'immutable' | 'stable' | 'volatile'
 
 export interface FunctionInfo {
-  schema: string;
-  name: string;
+  schema: string
+  name: string
   /** Identity argument types from `pg_get_function_identity_arguments`, e.g. "integer, text". */
-  argTypes: string;
-  args: FunctionArgInfo[];
+  argTypes: string
+  args: FunctionArgInfo[]
   /** Return type from `pg_get_function_result`. */
-  returnType: string;
-  returnTypeOid: number;
+  returnType: string
+  returnTypeOid: number
   /**
    * `pg_proc.proretset` — whether a call returns a SET of the return type
    * rather than one value. The rendered `returnType` says the same thing by
@@ -486,10 +481,10 @@ export interface FunctionInfo {
    * needs no entry for this; the flag exists so the walk can ask the catalog
    * instead of parsing that rendering (adversarial-3 finding 2).
    */
-  returnsSet: boolean;
-  language: string;
-  isProcedure: boolean;
-  isAggregate: boolean;
+  returnsSet: boolean
+  language: string
+  isProcedure: boolean
+  isAggregate: boolean
   /**
    * `pg_aggregate.agginitval` — the aggregate's initial state value, or null
    * for non-aggregates and for aggregates declared without an INITCOND.
@@ -497,7 +492,7 @@ export interface FunctionInfo {
    * A non-null INITCOND is what makes an aggregate non-null over zero input
    * rows: with no rows to transition, the initial state *is* the result.
    */
-  aggInitVal: string | null;
+  aggInitVal: string | null
   /**
    * `pg_aggregate.aggtransfn`, rendered as the key `fnBodyAsts` is keyed by:
    * `schema.name(identity args)`. Null for non-aggregates.
@@ -507,7 +502,7 @@ export interface FunctionInfo {
    * has always held it — and nothing recorded which aggregate it belonged to,
    * so the walk had a fact it could not ask for.
    */
-  aggTransFn: string | null;
+  aggTransFn: string | null
   /**
    * `pg_aggregate.aggfinalfn` in the same rendering.
    *
@@ -516,17 +511,17 @@ export interface FunctionInfo {
    * DECLARED WITHOUT a FINALFUNC the accumulated state IS the result (the
    * catalog stores oid 0). `isAggregate` separates the two.
    */
-  aggFinalFn: string | null;
-  isWindow: boolean;
-  securityDefiner: boolean;
-  strict: boolean;
-  volatile: Volatility;
-  cost: number;
-  rows: number;
+  aggFinalFn: string | null
+  isWindow: boolean
+  securityDefiner: boolean
+  strict: boolean
+  volatile: Volatility
+  cost: number
+  rows: number
   /** Function body (`prosrc`) — for future dependency extraction. */
-  body: string;
+  body: string
   /** Full definition from `pg_get_functiondef`. */
-  definition: string;
+  definition: string
 }
 
 // ---------------------------------------------------------------------------
@@ -534,21 +529,21 @@ export interface FunctionInfo {
 // ---------------------------------------------------------------------------
 
 export interface EnumInfo {
-  schema: string;
-  name: string;
-  values: string[];
+  schema: string
+  name: string
+  values: string[]
 }
 
 export interface DomainInfo {
-  schema: string;
-  name: string;
+  schema: string
+  name: string
   /** The domain's own type OID (pg_type.oid). Used to match FunctionInfo.returnTypeOid. */
-  oid: number;
-  baseTypeOid: number;
-  baseTypeName: string;
-  notNull: boolean;
+  oid: number
+  baseTypeOid: number
+  baseTypeName: string
+  notNull: boolean
   /** Default expression from `pg_get_expr(typdefaultbin, oid)`, or null. */
-  default: string | null;
+  default: string | null
   /**
    * Every CHECK constraint on the domain, rendered by `pg_get_constraintdef`
    * and ordered by constraint name. A domain may carry any number of them
@@ -558,38 +553,38 @@ export interface DomainInfo {
    * hid the others from the diff and made the state depend on catalog row
    * order across a replay.
    */
-  checks: string[];
+  checks: string[]
 }
 
 export interface CompositeTypeAttrInfo {
-  name: string;
-  typeOid: number;
-  typeName: string;
+  name: string
+  typeOid: number
+  typeName: string
 }
 
 export interface CompositeTypeInfo {
-  schema: string;
-  name: string;
-  attributes: CompositeTypeAttrInfo[];
+  schema: string
+  name: string
+  attributes: CompositeTypeAttrInfo[]
 }
 
 export interface SequenceInfo {
-  schema: string;
-  name: string;
-  typeOid: number;
-  typeName: string;
+  schema: string
+  name: string
+  typeOid: number
+  typeName: string
   /** `int8` sequence bounds. PGlite returns these as a JS `number` when the
    *  value fits in `Number.MAX_SAFE_INTEGER` and as `bigint` otherwise (e.g.
    *  the default `seqmax` for a bigint sequence, 2^63-1). */
-  start: number | bigint;
-  increment: number | bigint;
-  min: number | bigint;
-  max: number | bigint;
-  cache: number | bigint;
-  cycle: boolean;
+  start: number | bigint
+  increment: number | bigint
+  min: number | bigint
+  max: number | bigint
+  cache: number | bigint
+  cycle: boolean
   /** Owned-by column info (for identity / OWNED BY sequences), or null. */
-  ownedByTable: string | null;
-  ownedByColumn: string | null;
+  ownedByTable: string | null
+  ownedByColumn: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -597,15 +592,15 @@ export interface SequenceInfo {
 // ---------------------------------------------------------------------------
 
 export interface ExtensionInfo {
-  name: string;
-  version: string;
+  name: string
+  version: string
   /** Schema the extension is installed in. */
-  schema: string;
+  schema: string
 }
 
 export interface SchemaInfo {
-  name: string;
-  owner: string;
+  name: string
+  owner: string
 }
 
 // ---------------------------------------------------------------------------
@@ -627,43 +622,43 @@ export interface SchemaInfo {
  * nullability goes through the backing function's own dispatch instead.
  */
 export interface OperatorInfo {
-  schema: string;
+  schema: string
   /** The operator's name, e.g. `===`. */
-  name: string;
+  name: string
   /** Operand type names (rendered), for the diff identity; null for unary. */
-  leftType: string | null;
-  rightType: string | null;
+  leftType: string | null
+  rightType: string | null
   /** The backing function (pg_operator.oprcode). */
-  functionSchema: string;
-  functionName: string;
+  functionSchema: string
+  functionName: string
   /** pg_proc.proisstrict of the backing function. */
-  strict: boolean;
+  strict: boolean
   /**
    * `pg_operator.oprresult` rendered — what a resolved call to this
    * operator carries upward as its return-type union member.
    */
-  resultType: string;
+  resultType: string
   /**
    * pg_proc.provolatile of the backing function. The subtree evaluator's
    * survivor consensus admits `i` and refuses `s`/`v`, exactly as it does
    * for a user FUNCTION row.
    */
-  volatility: "i" | "s" | "v";
+  volatility: 'i' | 's' | 'v'
 }
 
 export interface CatalogSnapshot {
-  tables: TableInfo[];
-  views: ViewInfo[];
-  materializedViews: ViewInfo[];
-  indexes: IndexInfo[];
-  functions: FunctionInfo[];
-  operators: OperatorInfo[];
-  enums: EnumInfo[];
-  domains: DomainInfo[];
-  compositeTypes: CompositeTypeInfo[];
-  sequences: SequenceInfo[];
-  extensions: ExtensionInfo[];
-  schemas: SchemaInfo[];
+  tables: TableInfo[]
+  views: ViewInfo[]
+  materializedViews: ViewInfo[]
+  indexes: IndexInfo[]
+  functions: FunctionInfo[]
+  operators: OperatorInfo[]
+  enums: EnumInfo[]
+  domains: DomainInfo[]
+  compositeTypes: CompositeTypeInfo[]
+  sequences: SequenceInfo[]
+  extensions: ExtensionInfo[]
+  schemas: SchemaInfo[]
   /**
    * pg_catalog function names whose every plain-function overload is STRICT
    * (bool_and over pg_proc.proisstrict, prokind 'f' only). ENVIRONMENT, not
@@ -671,7 +666,7 @@ export interface CatalogSnapshot {
    * migrations, and is deliberately absent from the diff's comparable
    * states. Consumed by the strict-expression closures.
    */
-  builtinStrictFunctions: string[];
+  builtinStrictFunctions: string[]
   /**
    * pg_catalog functions with NAMED OUTPUT COLUMNS, keyed by name and
    * rendered as `TABLE(col type, …)` — the same shape a user function's
@@ -690,7 +685,7 @@ export interface CatalogSnapshot {
    * property of the PostgreSQL version, never changed by a migration, and
    * deliberately absent from the diff's comparable states.
    */
-  builtinTableFunctions: Record<string, string>;
+  builtinTableFunctions: Record<string, string>
   /**
    * pg_catalog function names with at least one SET-RETURNING overload
    * (bool_or over pg_proc.proretset, prokind 'f' only).
@@ -708,7 +703,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinSetReturningFunctions: string[];
+  builtinSetReturningFunctions: string[]
   /**
    * pg_catalog AGGREGATE names (prokind 'a').
    *
@@ -732,7 +727,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinAggregateFunctions: string[];
+  builtinAggregateFunctions: string[]
   /**
    * Every pg_catalog function name (prokind 'f').
    *
@@ -747,7 +742,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinFunctionNames: string[];
+  builtinFunctionNames: string[]
   /**
    * pg_catalog function names whose return type is POLYMORPHIC — it
    * renders with `any…` (`anyarray`, `anycompatiblearray`, `anyelement`,
@@ -767,7 +762,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinPolymorphicFunctions: string[];
+  builtinPolymorphicFunctions: string[]
 
   /**
    * The pg_catalog signatures whose RETURN type is a polymorphic ARRAY, with
@@ -793,7 +788,7 @@ export interface CatalogSnapshot {
    * with the PostgreSQL version, never with a migration, and stays out of the
    * diff for the same reason.
    */
-  builtinPolymorphicArraySignatures: BuiltinSignature[];
+  builtinPolymorphicArraySignatures: BuiltinSignature[]
 
   /**
    * Every pg_catalog signature behind a name the engine's curated claim
@@ -810,21 +805,21 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinFunctionSignatures: BuiltinFunctionSignature[];
+  builtinFunctionSignatures: BuiltinFunctionSignature[]
   /**
    * Every pg_catalog row for an operator symbol in `TOTAL_OPERATORS` or
    * `STRICT_OPERATORS` — the 21-names-over-558-rows spread the charter
    * measures, materialised. Same scope rule and same not-yet-read status as
    * `builtinFunctionSignatures`; ENVIRONMENT like it.
    */
-  builtinOperatorSignatures: BuiltinOperatorSignature[];
+  builtinOperatorSignatures: BuiltinOperatorSignature[]
   /**
    * The `pg_cast` implicit rows (117 in PG18), with the binary-coercible
    * flag that marks the canonicalisation edges. See `ImplicitCastInfo`.
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinImplicitCasts: ImplicitCastInfo[];
+  builtinImplicitCasts: ImplicitCastInfo[]
   /**
    * EVERY `pg_cast` row with the signature of its implementation function,
    * so a `TypeCast` can be answered by the same totality verdicts the
@@ -840,7 +835,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinImplicitCasts`.
    */
-  builtinCasts: BuiltinCast[];
+  builtinCasts: BuiltinCast[]
   /**
    * Every pg_catalog type name → its `pg_type.typtype` ('b' base, 'c'
    * composite, 'p' pseudo, 'r' range, 'm' multirange — pg_catalog holds no
@@ -853,7 +848,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinTypeKinds: Record<string, string>;
+  builtinTypeKinds: Record<string, string>
   /**
    * `pg_type.typname` → the `format_type` rendering, for the 15 pg_catalog
    * types where they differ (`int4` → `integer`, `varchar` → `character
@@ -866,7 +861,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinTypeNameAliases: Record<string, string>;
+  builtinTypeNameAliases: Record<string, string>
   /**
    * pg_catalog base types whose typinput AND typoutput are both IMMUTABLE,
    * by `typname` (the spelling the grammar canonicalises a cast to). The
@@ -887,7 +882,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinImmutableIoTypes: string[];
+  builtinImmutableIoTypes: string[]
   /**
    * EVERY pg_catalog function signature (prokind 'f'/'a'/'w') with its
    * `provolatile` — the per-signature capture typed operand tracking
@@ -901,13 +896,13 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinFunctionVolatilities: BuiltinFunctionVolatility[];
+  builtinFunctionVolatilities: BuiltinFunctionVolatility[]
   /**
    * EVERY pg_catalog operator row with the `provolatile` of its backing
    * function, prefix rows included — the operator half of
    * `builtinFunctionVolatilities`. ENVIRONMENT like it.
    */
-  builtinOperatorVolatilities: BuiltinOperatorVolatility[];
+  builtinOperatorVolatilities: BuiltinOperatorVolatility[]
   /**
    * pg_catalog operator name → its btree STRATEGY NUMBER (1 `<`, 2 `<=`,
    * 3 `=`, 4 `>=`, 5 `>`), captured by CONSENSUS across every pg_catalog
@@ -919,7 +914,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinBtreeStrategies: Record<string, number>;
+  builtinBtreeStrategies: Record<string, number>
   /**
    * pg_catalog operator names that are NEGATORS OF EQUALITY: every row of
    * the name has an `oprnegate`, and every negator carrying a captured
@@ -931,7 +926,7 @@ export interface CatalogSnapshot {
    *
    * ENVIRONMENT, not schema, exactly like `builtinStrictFunctions`.
    */
-  builtinEqualityNegators: string[];
+  builtinEqualityNegators: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -939,15 +934,15 @@ export interface CatalogSnapshot {
 // ---------------------------------------------------------------------------
 
 export interface SchemaDiffEntry {
-  entityId: EntityId;
+  entityId: EntityId
   /** Previous entity state (the comparable subset, JSON-serializable). */
-  old: unknown;
+  old: unknown
   /** New entity state (the comparable subset, JSON-serializable). */
-  new: unknown;
+  new: unknown
 }
 
 export interface SchemaDiff {
-  added: EntityId[];
-  removed: EntityId[];
-  modified: SchemaDiffEntry[];
+  added: EntityId[]
+  removed: EntityId[]
+  modified: SchemaDiffEntry[]
 }

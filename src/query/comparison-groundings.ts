@@ -20,34 +20,34 @@
 // enforcement answer (the grounder's bp rule, third appearance).
 // ---------------------------------------------------------------------------
 
-import type { Node } from "libpg-query";
-import { parseSql } from "../ast.js";
-import { comparisonKey, scanLitComparisons, type Lit } from "./check-entailment.js";
-import { referencedTables } from "./closed-truths.js";
+import type { Node } from 'libpg-query'
+import { parseSql } from '../ast.js'
+import { comparisonKey, scanLitComparisons, type Lit } from './check-entailment.js'
+import { referencedTables } from './closed-truths.js'
 import {
   evaluateClosedSubtrees,
   type Evaluate,
   type SubtreeEvaluationCatalog,
-} from "./subtree-evaluator.js";
-import type { NullabilityCatalog } from "./types.js";
+} from './subtree-evaluator.js'
+import type { NullabilityCatalog } from './types.js'
 
-type Fields = Record<string, unknown>;
+type Fields = Record<string, unknown>
 
 /** Rebuild the A_Const a Lit was extracted from. */
 function litNode(lit: Lit): Node {
   switch (lit.kind) {
-    case "ival":
-      return { A_Const: { ival: { ival: lit.value as number }, location: -1 } } as unknown as Node;
-    case "fval":
-      return { A_Const: { fval: { fval: lit.value as string }, location: -1 } } as unknown as Node;
-    case "sval":
-      return { A_Const: { sval: { sval: lit.value as string }, location: -1 } } as unknown as Node;
-    case "boolval":
+    case 'ival':
+      return { A_Const: { ival: { ival: lit.value as number }, location: -1 } } as unknown as Node
+    case 'fval':
+      return { A_Const: { fval: { fval: lit.value as string }, location: -1 } } as unknown as Node
+    case 'sval':
+      return { A_Const: { sval: { sval: lit.value as string }, location: -1 } } as unknown as Node
+    case 'boolval':
       return {
         A_Const: { boolval: { boolval: lit.value as boolean }, location: -1 },
-      } as unknown as Node;
-    case "bsval":
-      return { A_Const: { bsval: { bsval: lit.value as string }, location: -1 } } as unknown as Node;
+      } as unknown as Node
+    case 'bsval':
+      return { A_Const: { bsval: { bsval: lit.value as string }, location: -1 } } as unknown as Node
   }
 }
 
@@ -64,52 +64,51 @@ export async function collectComparisonQuestions(
   // Evidence side: every column-vs-literal comparison anywhere in the
   // statement — equalities feed the substitution questions, and EVERY
   // anchor feeds the interval rung's order questions.
-  const equalities = new Map<string, Lit[]>();
-  const statementLits = new Map<string, Lit[]>();
+  const equalities = new Map<string, Lit[]>()
+  const statementLits = new Map<string, Lit[]>()
   for (const c of scanLitComparisons(stmt)) {
-    if (c.op === "=") {
-      const list = equalities.get(c.column) ?? [];
-      list.push(c.lit);
-      equalities.set(c.column, list);
+    if (c.op === '=') {
+      const list = equalities.get(c.column) ?? []
+      list.push(c.lit)
+      equalities.set(c.column, list)
     }
-    const all = statementLits.get(c.column) ?? [];
-    all.push(c.lit);
-    statementLits.set(c.column, all);
+    const all = statementLits.get(c.column) ?? []
+    all.push(c.lit)
+    statementLits.set(c.column, all)
   }
-  if (statementLits.size === 0) return [];
+  if (statementLits.size === 0) return []
 
   // Referenced tables: every RangeVar, resolved through the catalog. Shared
   // with closed-truths.ts, which asks the same question of the same tables —
   // two definitions of "the statement's tables" would only ever drift apart.
-  const tables = referencedTables(stmt, catalog);
+  const tables = referencedTables(stmt, catalog)
 
-  const typeNameCache = new Map<string, unknown | null>();
+  const typeNameCache = new Map<string, unknown | null>()
   const typeNameAstOf = async (rendered: string): Promise<unknown | null> => {
-    const hit = typeNameCache.get(rendered);
-    if (hit !== undefined) return hit;
-    let ast: unknown | null = null;
+    const hit = typeNameCache.get(rendered)
+    if (hit !== undefined) return hit
+    let ast: unknown | null = null
     try {
-      const parsed = await parseSql(`SELECT NULL::${rendered}`);
+      const parsed = await parseSql(`SELECT NULL::${rendered}`)
       const target = (
-        (parsed.stmts?.[0]?.stmt as Fields | undefined)?.["SelectStmt"] as
-          | { targetList?: { ResTarget?: { val?: Fields } }[] }
-          | undefined
-      )?.targetList?.[0]?.ResTarget?.val;
-      ast = (target?.["TypeCast"] as { typeName?: unknown } | undefined)?.typeName ?? null;
+        (parsed.stmts?.[0]?.stmt as Fields | undefined)?.['SelectStmt'] as
+          { targetList?: { ResTarget?: { val?: Fields } }[] } | undefined
+      )?.targetList?.[0]?.ResTarget?.val
+      ast = (target?.['TypeCast'] as { typeName?: unknown } | undefined)?.typeName ?? null
     } catch {
-      ast = null;
+      ast = null
     }
-    typeNameCache.set(rendered, ast);
-    return ast;
-  };
+    typeNameCache.set(rendered, ast)
+    return ast
+  }
 
-  const questions = new Map<string, Node>();
+  const questions = new Map<string, Node>()
   const put = (colType: string, typeName: unknown, a: Lit, op: string, b: Lit): void => {
-    const key = comparisonKey(colType, a, op, b);
-    if (questions.has(key)) return;
+    const key = comparisonKey(colType, a, op, b)
+    if (questions.has(key)) return
     questions.set(key, {
       A_Expr: {
-        kind: "AEXPR_OP",
+        kind: 'AEXPR_OP',
         name: [{ String: { sval: op } }],
         lexpr: {
           TypeCast: { arg: litNode(a), typeName: structuredClone(typeName), location: -1 },
@@ -119,8 +118,8 @@ export async function collectComparisonQuestions(
         },
         location: -1,
       },
-    } as unknown as Node);
-  };
+    } as unknown as Node)
+  }
 
   for (const t of tables) {
     // The per-table expression pool. GENERATION expressions sit beside the
@@ -137,83 +136,80 @@ export async function collectComparisonQuestions(
     const exprs = [
       ...catalog.resolveCheckConstraints(t.schema, t.name),
       ...catalog.resolveCheckConstraintsTree(t.schema, t.name),
-      ...(catalog.resolveTable(t.schema, t.name)?.columns ?? []).flatMap(col =>
+      ...(catalog.resolveTable(t.schema, t.name)?.columns ?? []).flatMap((col) =>
         [
           catalog.resolveGenerationExpr(t.schema, t.name, col),
           catalog.resolveGenerationExprTree(t.schema, t.name, col),
         ].filter((e): e is Node => e !== null),
       ),
-    ];
+    ]
     // The interval rung's ANCHOR-ORDER questions: per column, every pair
     // drawn from the pool's literals and the statement's, both directed
     // `<`s and the `=` — the kernel derives lt/eq/gt/ne from whichever
     // answer. Order questions only over non-collatable columns, equality
     // wherever the trichotomy's equality arm allows.
-    const anchorsByColumn = new Map<string, Lit[]>();
+    const anchorsByColumn = new Map<string, Lit[]>()
     for (const check of exprs) {
       for (const atom of scanLitComparisons(check)) {
-        const list = anchorsByColumn.get(atom.column) ?? [];
-        list.push(atom.lit);
-        anchorsByColumn.set(atom.column, list);
+        const list = anchorsByColumn.get(atom.column) ?? []
+        list.push(atom.lit)
+        anchorsByColumn.set(atom.column, list)
       }
     }
     for (const [column, checkLits] of anchorsByColumn) {
-      const det = catalog.resolveColumnCollationDeterministic(t.schema, t.name, column);
-      const isDefault =
-        catalog.resolveColumnCollationIsDefault(t.schema, t.name, column) === true;
+      const det = catalog.resolveColumnCollationDeterministic(t.schema, t.name, column)
+      const isDefault = catalog.resolveColumnCollationIsDefault(t.schema, t.name, column) === true
       // Order questions on the identity arm too: a default-collated
       // column's order evaluates under the session's own collation.
-      const orderOk = det === null || isDefault;
-      if (det === false && !isDefault) continue;
-      const colType = catalog.resolveColumnTypeName(t.schema, t.name, column);
-      if (colType === null) continue;
-      const typeName = await typeNameAstOf(colType);
-      if (typeName === null) continue;
-      const anchors = [...checkLits, ...(statementLits.get(column) ?? [])];
+      const orderOk = det === null || isDefault
+      if (det === false && !isDefault) continue
+      const colType = catalog.resolveColumnTypeName(t.schema, t.name, column)
+      if (colType === null) continue
+      const typeName = await typeNameAstOf(colType)
+      if (typeName === null) continue
+      const anchors = [...checkLits, ...(statementLits.get(column) ?? [])]
       for (let i = 0; i < anchors.length; i++) {
         for (let j = i + 1; j < anchors.length; j++) {
-          const p = anchors[i]!;
-          const q = anchors[j]!;
+          const p = anchors[i]!
+          const q = anchors[j]!
           if (orderOk) {
-            put(colType, typeName, p, "<", q);
-            put(colType, typeName, q, "<", p);
+            put(colType, typeName, p, '<', q)
+            put(colType, typeName, q, '<', p)
           }
-          put(colType, typeName, p, "=", q);
+          put(colType, typeName, p, '=', q)
         }
       }
     }
     for (const check of exprs) {
       for (const atom of scanLitComparisons(check)) {
-        const evidenceLits = equalities.get(atom.column);
-        if (!evidenceLits) continue;
+        const evidenceLits = equalities.get(atom.column)
+        if (!evidenceLits) continue
         // The collation lattice, mirrored from the kernel's gate (which
         // remains the sound one — this mirror only saves evaluations):
         // non-collatable or DEFAULT-collated → all ops; explicit
         // deterministic → equality only; nondeterministic or unknown →
         // nothing.
-        const det = catalog.resolveColumnCollationDeterministic(t.schema, t.name, atom.column);
+        const det = catalog.resolveColumnCollationDeterministic(t.schema, t.name, atom.column)
         const isDefault =
-          catalog.resolveColumnCollationIsDefault(t.schema, t.name, atom.column) === true;
-        if (
-          !(
-            det === null ||
-            isDefault ||
-            (det === true && (atom.op === "=" || atom.op === "<>"))
-          )
-        ) {
-          continue;
+          catalog.resolveColumnCollationIsDefault(t.schema, t.name, atom.column) === true
+        if (!(
+          det === null ||
+          isDefault ||
+          (det === true && (atom.op === '=' || atom.op === '<>'))
+        )) {
+          continue
         }
-        const colType = catalog.resolveColumnTypeName(t.schema, t.name, atom.column);
-        if (colType === null) continue;
-        const typeName = await typeNameAstOf(colType);
-        if (typeName === null) continue;
+        const colType = catalog.resolveColumnTypeName(t.schema, t.name, atom.column)
+        if (colType === null) continue
+        const typeName = await typeNameAstOf(colType)
+        if (typeName === null) continue
         for (const evidenceLit of evidenceLits) {
-          put(colType, typeName, evidenceLit, atom.op, atom.lit);
+          put(colType, typeName, evidenceLit, atom.op, atom.lit)
         }
       }
     }
   }
-  return [...questions.entries()].map(([key, tree]) => ({ key, tree }));
+  return [...questions.entries()].map(([key, tree]) => ({ key, tree }))
 }
 
 /**
@@ -228,15 +224,15 @@ export async function evaluateComparisonQuestions(
   catalog: NullabilityCatalog & SubtreeEvaluationCatalog,
   evaluate: Evaluate,
 ): Promise<ReadonlyMap<string, boolean>> {
-  const out = new Map<string, boolean>();
-  if (questions.length === 0) return out;
-  const root = { List: { items: questions.map(q => q.tree) } } as unknown as Node;
-  const answers = await evaluateClosedSubtrees(root, catalog, evaluate);
+  const out = new Map<string, boolean>()
+  if (questions.length === 0) return out
+  const root = { List: { items: questions.map((q) => q.tree) } } as unknown as Node
+  const answers = await evaluateClosedSubtrees(root, catalog, evaluate)
   for (const q of questions) {
-    const a = answers.get(q.tree);
-    if (a !== undefined && !a.isNull && typeof a.value === "boolean") {
-      out.set(q.key, a.value);
+    const a = answers.get(q.tree)
+    if (a !== undefined && !a.isNull && typeof a.value === 'boolean') {
+      out.set(q.key, a.value)
     }
   }
-  return out;
+  return out
 }

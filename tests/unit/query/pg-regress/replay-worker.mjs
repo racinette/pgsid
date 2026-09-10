@@ -1,4 +1,4 @@
-import { PGlite } from "@electric-sql/pglite";
+import { PGlite } from '@electric-sql/pglite'
 
 // The child-process half of the regress replay session (replay-session.ts).
 //
@@ -19,24 +19,24 @@ import { PGlite } from "@electric-sql/pglite";
 //     snapshot runs through this channel via the parent's shim).
 //   { id, sql, op: "exec" }   — multi-statement bookkeeping via pg.exec.
 
-const pg = await PGlite.create();
-process.send({ ready: true });
+const pg = await PGlite.create()
+process.send({ ready: true })
 
-process.on("message", async ({ id, sql, params, op }) => {
+process.on('message', async ({ id, sql, params, op }) => {
   try {
-    if (op === "exec") {
-      await pg.exec(sql);
-      process.send({ id, ok: true });
-      return;
+    if (op === 'exec') {
+      await pg.exec(sql)
+      process.send({ id, ok: true })
+      return
     }
-    const result = await pg.query(sql, params ?? []);
+    const result = await pg.query(sql, params ?? [])
     process.send({
       id,
       ok: true,
-      fields: (result.fields ?? []).map(f => f.name),
+      fields: (result.fields ?? []).map((f) => f.name),
       rows: result.rows,
-    });
+    })
   } catch (e) {
-    process.send({ id, ok: false, error: e?.message ?? String(e) });
+    process.send({ id, ok: false, error: e?.message ?? String(e) })
   }
-});
+})

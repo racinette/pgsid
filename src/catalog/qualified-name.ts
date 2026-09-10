@@ -24,31 +24,31 @@
  * deeply qualified degrades to its own schema and name rather than failing.
  */
 export function splitQualifiedName(printed: string): {
-  schema: string | undefined;
-  name: string;
+  schema: string | undefined
+  name: string
 } {
-  const parts: string[] = [];
-  let current = "";
-  let quoted = false;
+  const parts: string[] = []
+  let current = ''
+  let quoted = false
   for (let i = 0; i < printed.length; i++) {
-    const ch = printed[i]!;
+    const ch = printed[i]!
     if (ch === '"') {
       if (quoted && printed[i + 1] === '"') {
-        current += '"';
-        i++;
+        current += '"'
+        i++
       } else {
-        quoted = !quoted;
+        quoted = !quoted
       }
-    } else if (ch === "." && !quoted) {
-      parts.push(current);
-      current = "";
+    } else if (ch === '.' && !quoted) {
+      parts.push(current)
+      current = ''
     } else {
-      current += ch;
+      current += ch
     }
   }
-  parts.push(current);
+  parts.push(current)
   return {
     schema: parts.length >= 2 ? parts[parts.length - 2] : undefined,
     name: parts[parts.length - 1]!,
-  };
+  }
 }

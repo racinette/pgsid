@@ -2,11 +2,7 @@
   "adjudicatedAgainst": "v1.31.1",
   "why": "A row the predicate does not select. COUNT answers 0 and is non-null; MIN and MAX answer NULL over the empty selection.",
   "args": {
-    "ActivityStats": [
-      [
-        99
-      ]
-    ]
+    "ActivityStats": [[99]]
   },
   "entries": {
     "ActivityStats#1 (mindate)": {

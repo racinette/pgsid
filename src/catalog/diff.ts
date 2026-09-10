@@ -11,7 +11,7 @@ import type {
   SequenceInfo,
   TableInfo,
   ViewInfo,
-} from "./types.js";
+} from './types.js'
 
 // ---------------------------------------------------------------------------
 // Catalog diff: a pure function over two `CatalogSnapshot`s.
@@ -51,7 +51,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** Build the comparable state object for a column. */
-function columnState(c: ColumnInfo): Omit<ColumnInfo, "typeOid"> {
+function columnState(c: ColumnInfo): Omit<ColumnInfo, 'typeOid'> {
   return {
     name: c.name,
     // `typeName` comes from `format_type`, which renders the modifier into the
@@ -77,21 +77,21 @@ function columnState(c: ColumnInfo): Omit<ColumnInfo, "typeOid"> {
     // conclude (literal distinctness), so it is a comparable property.
     collationDeterministic: c.collationDeterministic,
     collationIsDefault: c.collationIsDefault,
-  };
+  }
 }
 
 /** Build the comparable state object for a table (table-level properties only;
  *  columns are diffed as separate entities). */
 function tableState(t: TableInfo): {
-  schema: string;
-  name: string;
-  storageParams: Record<string, string>;
-  constraints: ConstraintInfo[];
-  writeRewrites: TableInfo["writeRewrites"];
-  writeRewritesTree: TableInfo["writeRewritesTree"];
-  hasDescendants: boolean;
-  relkind: TableInfo["relkind"];
-  partitionBound: TableInfo["partitionBound"];
+  schema: string
+  name: string
+  storageParams: Record<string, string>
+  constraints: ConstraintInfo[]
+  writeRewrites: TableInfo['writeRewrites']
+  writeRewritesTree: TableInfo['writeRewritesTree']
+  hasDescendants: boolean
+  relkind: TableInfo['relkind']
+  partitionBound: TableInfo['partitionBound']
 } {
   return {
     schema: t.schema,
@@ -119,23 +119,23 @@ function tableState(t: TableInfo): {
     // ATTACH at a different bound changes what a direct scan may conclude,
     // and DETACH clears the fact — both must surface as a modification.
     partitionBound: t.partitionBound,
-  };
+  }
 }
 
 /** Build the comparable state object for a view/matview (definition + columns
  *  are diffed as separate entities, so only the definition is compared here). */
 function viewState(v: ViewInfo): {
-  schema: string;
-  name: string;
-  definition: string;
-  writeRewrites: ViewInfo["writeRewrites"];
+  schema: string
+  name: string
+  definition: string
+  writeRewrites: ViewInfo['writeRewrites']
 } {
   return {
     schema: v.schema,
     name: v.name,
     definition: v.definition,
     writeRewrites: v.writeRewrites,
-  };
+  }
 }
 
 /**
@@ -153,18 +153,18 @@ function viewState(v: ViewInfo): {
  * entity id and this state exist to detect.
  */
 function functionState(f: FunctionInfo): {
-  schema: string;
-  name: string;
-  argTypes: string;
-  argDefaults: (string | null)[];
-  returnType: string;
-  language: string;
-  isProcedure: boolean;
-  isAggregate: boolean;
-  isWindow: boolean;
-  securityDefiner: boolean;
-  strict: boolean;
-  volatile: FunctionInfo["volatile"];
+  schema: string
+  name: string
+  argTypes: string
+  argDefaults: (string | null)[]
+  returnType: string
+  language: string
+  isProcedure: boolean
+  isAggregate: boolean
+  isWindow: boolean
+  securityDefiner: boolean
+  strict: boolean
+  volatile: FunctionInfo['volatile']
 } {
   return {
     schema: f.schema,
@@ -172,7 +172,7 @@ function functionState(f: FunctionInfo): {
     // Both rendered by PostgreSQL from the same catalog rows the OIDs point at
     // — `pg_get_function_identity_arguments` and `pg_get_function_result`.
     argTypes: f.argTypes,
-    argDefaults: f.args.map(a => a.defaultExpr),
+    argDefaults: f.args.map((a) => a.defaultExpr),
     returnType: f.returnType,
     language: f.language,
     isProcedure: f.isProcedure,
@@ -181,7 +181,7 @@ function functionState(f: FunctionInfo): {
     securityDefiner: f.securityDefiner,
     strict: f.strict,
     volatile: f.volatile,
-  };
+  }
 }
 
 /**
@@ -189,7 +189,7 @@ function functionState(f: FunctionInfo): {
  * dropped; `baseTypeName` says which type it is built on, and the domain's own
  * identity is the entity id.
  */
-function domainState(d: DomainInfo): Omit<DomainInfo, "oid" | "baseTypeOid"> {
+function domainState(d: DomainInfo): Omit<DomainInfo, 'oid' | 'baseTypeOid'> {
   return {
     schema: d.schema,
     name: d.name,
@@ -197,24 +197,24 @@ function domainState(d: DomainInfo): Omit<DomainInfo, "oid" | "baseTypeOid"> {
     notNull: d.notNull,
     default: d.default,
     checks: d.checks,
-  };
+  }
 }
 
 /** Build the comparable state object for a composite type (attribute OIDs dropped). */
 function compositeTypeState(t: CompositeTypeInfo): {
-  schema: string;
-  name: string;
-  attributes: { name: string; typeName: string }[];
+  schema: string
+  name: string
+  attributes: { name: string; typeName: string }[]
 } {
   return {
     schema: t.schema,
     name: t.name,
-    attributes: t.attributes.map(a => ({ name: a.name, typeName: a.typeName })),
-  };
+    attributes: t.attributes.map((a) => ({ name: a.name, typeName: a.typeName })),
+  }
 }
 
 /** Build the comparable state object for a sequence (`typeOid` dropped). */
-function sequenceState(s: SequenceInfo): Omit<SequenceInfo, "typeOid"> {
+function sequenceState(s: SequenceInfo): Omit<SequenceInfo, 'typeOid'> {
   return {
     schema: s.schema,
     name: s.name,
@@ -227,7 +227,7 @@ function sequenceState(s: SequenceInfo): Omit<SequenceInfo, "typeOid"> {
     cycle: s.cycle,
     ownedByTable: s.ownedByTable,
     ownedByColumn: s.ownedByColumn,
-  };
+  }
 }
 
 /**
@@ -239,32 +239,30 @@ function sequenceState(s: SequenceInfo): Omit<SequenceInfo, "typeOid"> {
  * serializer layer, kept separate from the data model.
  */
 function stateEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== typeof b) return false;
-  if (typeof a === "bigint" && typeof b === "bigint") return a === b;
-  if (a === null || b === null) return a === b;
+  if (a === b) return true
+  if (typeof a !== typeof b) return false
+  if (typeof a === 'bigint' && typeof b === 'bigint') return a === b
+  if (a === null || b === null) return a === b
   if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
+    if (a.length !== b.length) return false
     for (let i = 0; i < a.length; i++) {
-      if (!stateEqual(a[i], b[i])) return false;
+      if (!stateEqual(a[i], b[i])) return false
     }
-    return true;
+    return true
   }
-  if (Array.isArray(a) !== Array.isArray(b)) return false;
-  if (typeof a === "object" && typeof b === "object") {
-    const ak = Object.keys(a as Record<string, unknown>);
-    const bk = Object.keys(b as Record<string, unknown>);
-    if (ak.length !== bk.length) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (typeof a === 'object' && typeof b === 'object') {
+    const ak = Object.keys(a as Record<string, unknown>)
+    const bk = Object.keys(b as Record<string, unknown>)
+    if (ak.length !== bk.length) return false
     for (const k of ak) {
-      if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
-      if (!stateEqual(
-        (a as Record<string, unknown>)[k],
-        (b as Record<string, unknown>)[k],
-      )) return false;
+      if (!Object.prototype.hasOwnProperty.call(b, k)) return false
+      if (!stateEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+        return false
     }
-    return true;
+    return true
   }
-  return false;
+  return false
 }
 
 /** A relation (table/view/matview) + the function emitting its column entities. */
@@ -274,9 +272,9 @@ function emitRelationEntities(
   id: EntityId,
   columns: ColumnInfo[],
 ): void {
-  out.set(id, relState);
+  out.set(id, relState)
   for (const c of columns) {
-    out.set(`${id}.${c.name}`, columnState(c));
+    out.set(`${id}.${c.name}`, columnState(c))
   }
 }
 
@@ -290,73 +288,70 @@ function emitRelationEntities(
  * names, and a test pins that rather than leaving it to inspection.
  */
 export function comparableStates(snapshot: CatalogSnapshot): Map<EntityId, unknown> {
-  const out = new Map<EntityId, unknown>();
+  const out = new Map<EntityId, unknown>()
 
   // Tables (+ columns).
   for (const t of snapshot.tables) {
-    emitRelationEntities(out, tableState(t), `${t.schema}.${t.name}`, t.columns);
+    emitRelationEntities(out, tableState(t), `${t.schema}.${t.name}`, t.columns)
   }
 
   // Views (+ columns).
   for (const v of snapshot.views) {
-    emitRelationEntities(out, viewState(v), `${v.schema}.${v.name}`, v.columns);
+    emitRelationEntities(out, viewState(v), `${v.schema}.${v.name}`, v.columns)
   }
 
   // Materialized views (+ columns).
   for (const v of snapshot.materializedViews) {
-    emitRelationEntities(out, viewState(v), `${v.schema}.${v.name}`, v.columns);
+    emitRelationEntities(out, viewState(v), `${v.schema}.${v.name}`, v.columns)
   }
 
   // Indexes (whole entity).
   for (const ix of snapshot.indexes) {
-    out.set(`${ix.schema}.${ix.name}`, ix);
+    out.set(`${ix.schema}.${ix.name}`, ix)
   }
 
   // Functions (whole-signature state; identity args in the id).
   for (const f of snapshot.functions) {
-    out.set(
-      `${f.schema}.${f.name}(${f.argTypes})`,
-      functionState(f),
-    );
+    out.set(`${f.schema}.${f.name}(${f.argTypes})`, functionState(f))
   }
 
   // Operators (whole entity; operand types are the identity — one oprname
   // can overload across operand types).
   for (const o of snapshot.operators) {
-    out.set(`${o.schema}.${o.name}(${o.leftType ?? ""},${o.rightType ?? ""})`, o);
+    out.set(`${o.schema}.${o.name}(${o.leftType ?? ''},${o.rightType ?? ''})`, o)
   }
 
   // Enums (values compared).
   for (const e of snapshot.enums) {
-    out.set(`${e.schema}.${e.name}`, e);
+    out.set(`${e.schema}.${e.name}`, e)
   }
 
   // Domains.
   for (const d of snapshot.domains) {
-    out.set(`${d.schema}.${d.name}`, domainState(d));
+    out.set(`${d.schema}.${d.name}`, domainState(d))
   }
 
   // Composite types (attributes compared).
   for (const t of snapshot.compositeTypes) {
-    out.set(`${t.schema}.${t.name}`, compositeTypeState(t));
+    out.set(`${t.schema}.${t.name}`, compositeTypeState(t))
   }
 
   // Sequences.
   for (const s of snapshot.sequences) {
-    out.set(`${s.schema}.${s.name}`, sequenceState(s));
+    out.set(`${s.schema}.${s.name}`, sequenceState(s))
   }
 
   // Extensions (globally-unique name, no schema qualifier).
   for (const e of snapshot.extensions) {
-    out.set(e.name, e);
+    out.set(e.name, e)
   }
 
   // Schemas.
   for (const s of snapshot.schemas) {
-    out.set(s.name, s);
+    out.set(s.name, s)
   }
 
-  return out;
+  return out
 }
 
 /**
@@ -368,43 +363,40 @@ export function comparableStates(snapshot: CatalogSnapshot): Map<EntityId, unkno
  *
  * On first boot (empty `before`), every entity is `added`.
  */
-export function diffCatalogs(
-  before: CatalogSnapshot,
-  after: CatalogSnapshot,
-): SchemaDiff {
-  const beforeMap = comparableStates(before);
-  const afterMap = comparableStates(after);
+export function diffCatalogs(before: CatalogSnapshot, after: CatalogSnapshot): SchemaDiff {
+  const beforeMap = comparableStates(before)
+  const afterMap = comparableStates(after)
 
-  const added: EntityId[] = [];
-  const removed: EntityId[] = [];
-  const modified: SchemaDiffEntry[] = [];
+  const added: EntityId[] = []
+  const removed: EntityId[] = []
+  const modified: SchemaDiffEntry[] = []
 
   // Collect the union of ids from both maps.
-  const allIds = new Set<EntityId>();
-  for (const id of beforeMap.keys()) allIds.add(id);
-  for (const id of afterMap.keys()) allIds.add(id);
+  const allIds = new Set<EntityId>()
+  for (const id of beforeMap.keys()) allIds.add(id)
+  for (const id of afterMap.keys()) allIds.add(id)
 
   for (const id of allIds) {
-    const b = beforeMap.get(id);
-    const a = afterMap.get(id);
+    const b = beforeMap.get(id)
+    const a = afterMap.get(id)
     if (b === undefined && a !== undefined) {
-      added.push(id);
+      added.push(id)
     } else if (b !== undefined && a === undefined) {
-      removed.push(id);
+      removed.push(id)
     } else if (b !== undefined && a !== undefined && !stateEqual(b, a)) {
-      modified.push({ entityId: id, old: b, new: a });
+      modified.push({ entityId: id, old: b, new: a })
     }
   }
 
-  added.sort(cmpString);
-  removed.sort(cmpString);
-  modified.sort((x, y) => cmpString(x.entityId, y.entityId));
+  added.sort(cmpString)
+  removed.sort(cmpString)
+  modified.sort((x, y) => cmpString(x.entityId, y.entityId))
 
-  return { added, removed, modified };
+  return { added, removed, modified }
 }
 
 function cmpString(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+  return a < b ? -1 : a > b ? 1 : 0
 }
 
 // ---------------------------------------------------------------------------
@@ -444,5 +436,5 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     builtinCasts: [],
     builtinTypeKinds: {},
     builtinTypeNameAliases: {},
-  };
+  }
 }

@@ -55,16 +55,33 @@
 export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   // Arithmetic. Division and modulo raise on a zero divisor rather than
   // returning NULL, so they are total in the sense that matters here.
-  "+", "-", "*", "/", "%", "^",
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '^',
   // Comparison — always a plain boolean for non-null operands.
   // `!=` was here and is gone: PostgreSQL's lexer converts it to `<>` before
   // a parse tree exists, so no A_Expr ever carries the spelling (measured).
-  "=", "<>", "<", ">", "<=", ">=",
+  '=',
+  '<>',
+  '<',
+  '>',
+  '<=',
+  '>=',
   // Concatenation (text, array, jsonb) — total in every overload, including
   // the array ones that make it a recorded exception in STRICT_OPERATORS.
-  "||",
+  '||',
   // Pattern matching: LIKE / ILIKE / regex, and their negations.
-  "~~", "!~~", "~~*", "!~~*", "~", "!~", "~*", "!~*",
+  '~~',
+  '!~~',
+  '~~*',
+  '!~~*',
+  '~',
+  '!~',
+  '~*',
+  '!~*',
   // -------------------------------------------------------------------------
   // The operator batch. Every row of each symbol below was
   // unwitnessed across the corner corpus AND convicted by hand on the classes
@@ -81,16 +98,28 @@ export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   // here has been measured for it.
   // -------------------------------------------------------------------------
   // Containment and overlap: arrays, ranges, multiranges, jsonb, tsquery.
-  "@>", "<@", "&&",
+  '@>',
+  '<@',
+  '&&',
   // Range and network position, including the network containment pair that
   // is the reason `<<=` and `>>=` exist at all (`ip <<= '10.0.0.0/8'`).
-  "<<", ">>", "<<=", ">>=", "-|-", "&<", "&>",
+  '<<',
+  '>>',
+  '<<=',
+  '>>=',
+  '-|-',
+  '&<',
+  '&>',
   // jsonb key existence, and path deletion.
-  "?", "?|", "?&", "#-",
+  '?',
+  '?|',
+  '?&',
+  '#-',
   // Prefix match — the indexable half of `LIKE 'abc%'`.
-  "^@",
+  '^@',
   // Bitwise AND/OR over the integer types, bit strings and inet.
-  "&", "|",
+  '&',
+  '|',
   // -------------------------------------------------------------------------
   // The REST of the operator surface (2026-08-09, second pass — "every
   // operator, no exceptions"). The first pass left these on triage, that
@@ -110,20 +139,42 @@ export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
   //
   // Geometric position and containment: strictly-below/above, overlaps-above/
   // below, intersects, is-horizontal/vertical/perpendicular/parallel, same-as.
-  "<<|", "|>>", "&<|", "|&>", "<^", ">^", "?#", "?-", "?-|", "?||", "~=",
+  '<<|',
+  '|>>',
+  '&<|',
+  '|&>',
+  '<^',
+  '>^',
+  '?#',
+  '?-',
+  '?-|',
+  '?||',
+  '~=',
   // Prefix arithmetic: absolute value, square and cube root, tsquery
   // negation, and the length of an lseg or path. `|/ (-1)` raises rather
   // than answering NULL, which is the criterion, not an exception to it.
-  "@", "|/", "||/", "!!", "@-@",
+  '@',
+  '|/',
+  '||/',
+  '!!',
+  '@-@',
   // Text search: the deprecated two-argument match spellings.
-  "@@@",
+  '@@@',
   // The pattern-ops class comparisons behind `text_pattern_ops` indexes.
-  "~<~", "~<=~", "~>~", "~>=~",
+  '~<~',
+  '~<=~',
+  '~>~',
+  '~>=~',
   // The record-image comparisons (amcheck's, and REINDEX's). They compare
   // byte images, so a NULL FIELD is part of the image rather than a NULL
   // result — `ROW(1,NULL)::record *= ROW(1,NULL)::record` is true.
-  "*<", "*<=", "*=", "*<>", "*>", "*>=",
-]);
+  '*<',
+  '*<=',
+  '*=',
+  '*<>',
+  '*>',
+  '*>=',
+])
 
 /**
  * NULL for any NULL operand. Consumed by mechanism-C attribution and by
@@ -144,11 +195,28 @@ export const TOTAL_OPERATORS: ReadonlySet<string> = new Set([
  * over-report is the safer error and is what this set takes.
  */
 export const STRICT_OPERATORS: ReadonlySet<string> = new Set([
-  "+", "-", "*", "/", "%", "^",
-  "=", "<>", "<", ">", "<=", ">=",
-  "||",
-  "~~", "!~~", "~~*", "!~~*", "~", "!~", "~*", "!~*",
-]);
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '^',
+  '=',
+  '<>',
+  '<',
+  '>',
+  '<=',
+  '>=',
+  '||',
+  '~~',
+  '!~~',
+  '~~*',
+  '!~~*',
+  '~',
+  '!~',
+  '~*',
+  '!~*',
+])
 
 /**
  * Members of `TOTAL_OPERATORS` with a NON-total overload, and why each is kept
@@ -177,13 +245,13 @@ export const STRICT_OPERATORS: ReadonlySet<string> = new Set([
  * is the claim that had no grounds.
  */
 export const PARTIAL_OVERLOADS: Record<string, string> = {
-  "+":
-    "`path + path` is NULL whenever EITHER operand is a CLOSED path — " +
+  '+':
+    '`path + path` is NULL whenever EITHER operand is a CLOSED path — ' +
     "`'((0,0),(1,1))'::path + '[(0,0),(1,1)]'::path` (measured; open + open " +
-    "is a value, and `path + point` is total). Kept because the falsifying " +
-    "input needs a path-typed column and removing the name costs `id + 1` on " +
-    "a NOT NULL integer, which is the general case.",
-};
+    'is a value, and `path + point` is total). Kept because the falsifying ' +
+    'input needs a path-typed column and removing the name costs `id + 1` on ' +
+    'a NOT NULL integer, which is the general case.',
+}
 
 /**
  * The SIGNATURE-keyed half of `PARTIAL_OVERLOADS` — the rows of a kept name
@@ -195,9 +263,7 @@ export const PARTIAL_OVERLOADS: Record<string, string> = {
  * keeps the row and reads nullable. The prose record above stays the
  * human-facing reason; the two must list the same defects.
  */
-export const NON_TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set([
-  "+(path,path)",
-]);
+export const NON_TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set(['+(path,path)'])
 
 /**
  * The POSITIVE signature-keyed half (2026-08-09), completing the re-key for
@@ -226,22 +292,54 @@ export const NON_TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set([
  */
 export const TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set([
   // Text search match, and the geometric centre prefix.
-  "@@(tsvector,tsquery)", "@@(tsquery,tsvector)", "@@(text,text)", "@@(text,tsquery)",
-  "@@(,box)", "@@(,circle)", "@@(,lseg)", "@@(,polygon)",
+  '@@(tsvector,tsquery)',
+  '@@(tsquery,tsvector)',
+  '@@(text,text)',
+  '@@(text,tsquery)',
+  '@@(,box)',
+  '@@(,circle)',
+  '@@(,lseg)',
+  '@@(,polygon)',
   // Bitwise XOR, box intersection, and the point-count prefix.
-  "#(integer,integer)", "#(bigint,bigint)", "#(smallint,smallint)", "#(bit,bit)",
-  "#(box,box)", "#(,path)", "#(,polygon)",
+  '#(integer,integer)',
+  '#(bigint,bigint)',
+  '#(smallint,smallint)',
+  '#(bit,bit)',
+  '#(box,box)',
+  '#(,path)',
+  '#(,polygon)',
   // Closest point — every row but the two witnessed ones.
-  "##(lseg,box)", "##(point,box)", "##(point,line)", "##(point,lseg)",
+  '##(lseg,box)',
+  '##(point,box)',
+  '##(point,line)',
+  '##(point,lseg)',
   // Distance — every row but `path <-> path`.
-  "<->(box,box)", "<->(box,lseg)", "<->(box,point)", "<->(circle,circle)",
-  "<->(circle,point)", "<->(circle,polygon)", "<->(line,line)", "<->(line,lseg)",
-  "<->(line,point)", "<->(lseg,box)", "<->(lseg,line)", "<->(lseg,lseg)",
-  "<->(lseg,point)", "<->(path,point)", "<->(point,box)", "<->(point,circle)",
-  "<->(point,line)", "<->(point,lseg)", "<->(point,path)", "<->(point,point)",
-  "<->(point,polygon)", "<->(polygon,circle)", "<->(polygon,point)",
-  "<->(polygon,polygon)", "<->(tsquery,tsquery)",
-]);
+  '<->(box,box)',
+  '<->(box,lseg)',
+  '<->(box,point)',
+  '<->(circle,circle)',
+  '<->(circle,point)',
+  '<->(circle,polygon)',
+  '<->(line,line)',
+  '<->(line,lseg)',
+  '<->(line,point)',
+  '<->(lseg,box)',
+  '<->(lseg,line)',
+  '<->(lseg,lseg)',
+  '<->(lseg,point)',
+  '<->(path,point)',
+  '<->(point,box)',
+  '<->(point,circle)',
+  '<->(point,line)',
+  '<->(point,lseg)',
+  '<->(point,path)',
+  '<->(point,point)',
+  '<->(point,polygon)',
+  '<->(polygon,circle)',
+  '<->(polygon,point)',
+  '<->(polygon,polygon)',
+  '<->(tsquery,tsquery)',
+])
 
 /**
  * Members of `STRICT_OPERATORS` with a NON-strict overload, and why each is
@@ -270,10 +368,10 @@ export const TOTAL_OPERATOR_SIGNATURES: ReadonlySet<string> = new Set([
  * A RECORDED HOLE WITH NO CONSUMER AT THE POINT OF USE IS NOT A GUARD.
  */
 export const NON_STRICT_OVERLOADS: Record<string, string> = {
-  "||":
-    "array concatenation ABSORBS a NULL operand — `ARRAY[1,2] || NULL` is " +
+  '||':
+    'array concatenation ABSORBS a NULL operand — `ARRAY[1,2] || NULL` is ' +
     "`{1,2}` (measured), while `'a' || NULL::text` IS NULL. Dropping the name " +
-    "loses the text meaning, and the text meaning is what mechanism C needs " +
-    "to predict a real rejection; measured, dropping it made the corpus admit " +
-    "three bindings PostgreSQL rejects.",
-};
+    'loses the text meaning, and the text meaning is what mechanism C needs ' +
+    'to predict a real rejection; measured, dropping it made the corpus admit ' +
+    'three bindings PostgreSQL rejects.',
+}

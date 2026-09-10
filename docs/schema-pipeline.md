@@ -34,8 +34,8 @@ the whole point of the two phases.
 
 ## Provenance is recovered by diffing the catalog, not by reading the SQL
 
-The question a body diagnostic has to answer is: *which statement last defined
-this body?* The obvious approach is to read the statement and see what it
+The question a body diagnostic has to answer is: _which statement last defined
+this body?_ The obvious approach is to read the statement and see what it
 creates. That approach cannot work, and the reason is worth stating plainly.
 
 **Any statement can create, replace or drop a function.** A block of

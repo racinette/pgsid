@@ -1,11 +1,11 @@
-import { deparseSync } from "pgsql-deparser";
-import type { Node } from "libpg-query";
+import { deparseSync } from 'pgsql-deparser'
+import type { Node } from 'libpg-query'
 import {
   isClosedSrfCall,
   SUBLINK_SRF_ROW_CAP,
   type Evaluate,
   type SubtreeEvaluationCatalog,
-} from "./subtree-evaluator.js";
+} from './subtree-evaluator.js'
 
 // ---------------------------------------------------------------------------
 // The set-returning CARDINALITY round (AGENTS.md rule 1; the third pre-walk
@@ -35,13 +35,13 @@ import {
 /** One closed set-returning call and where its answer belongs. */
 interface CardinalityQuestion {
   /** The `{FuncCall: …}` WRAPPER, which is what the probe AST embeds. */
-  call: Node;
+  call: Node
   /**
    * The wrapper's PAYLOAD — the object the walk holds. `armRowBounds` is
    * handed the inner value (`items[0].FuncCall`), never the wrapper, so the
    * answer map has to key on this or every lookup misses by one level.
    */
-  key: object;
+  key: object
 }
 
 /**
@@ -56,27 +56,27 @@ export function collectSrfCardinalityQuestions(
   stmt: Node,
   catalog: SubtreeEvaluationCatalog,
 ): CardinalityQuestion[] {
-  const out: CardinalityQuestion[] = [];
-  const seen = new Set<object>();
+  const out: CardinalityQuestion[] = []
+  const seen = new Set<object>()
   const visit = (n: unknown): void => {
     if (Array.isArray(n)) {
-      for (const e of n) visit(e);
-      return;
+      for (const e of n) visit(e)
+      return
     }
-    if (!n || typeof n !== "object") return;
-    if (seen.has(n as object)) return;
-    seen.add(n as object);
-    const payload = (n as Record<string, unknown>)["FuncCall"];
-    if (payload && typeof payload === "object" && isClosedSrfCall(n, catalog)) {
-      out.push({ call: n as Node, key: payload as object });
+    if (!n || typeof n !== 'object') return
+    if (seen.has(n as object)) return
+    seen.add(n as object)
+    const payload = (n as Record<string, unknown>)['FuncCall']
+    if (payload && typeof payload === 'object' && isClosedSrfCall(n, catalog)) {
+      out.push({ call: n as Node, key: payload as object })
       // Its arguments are constants by construction — nothing inside a closed
       // call can itself be a set-returning call worth asking about.
-      return;
+      return
     }
-    for (const v of Object.values(n as Record<string, unknown>)) visit(v);
-  };
-  visit(stmt);
-  return out;
+    for (const v of Object.values(n as Record<string, unknown>)) visit(v)
+  }
+  visit(stmt)
+  return out
 }
 
 /**
@@ -128,7 +128,7 @@ function countSelect(calls: readonly Node[]): string {
                 location: -1,
                 val: {
                   SubLink: {
-                    subLinkType: "EXPR_SUBLINK",
+                    subLinkType: 'EXPR_SUBLINK',
                     location: -1,
                     subselect: {
                       SelectStmt: {
@@ -138,7 +138,7 @@ function countSelect(calls: readonly Node[]): string {
                               location: -1,
                               val: {
                                 FuncCall: {
-                                  funcname: [{ String: { sval: "count" } }],
+                                  funcname: [{ String: { sval: 'count' } }],
                                   agg_star: true,
                                   location: -1,
                                 },
@@ -149,44 +149,42 @@ function countSelect(calls: readonly Node[]): string {
                         fromClause: [
                           {
                             RangeSubselect: {
-                              alias: { aliasname: "__pgsid_srf" },
+                              alias: { aliasname: '__pgsid_srf' },
                               subquery: {
                                 SelectStmt: {
                                   // The call sits HERE, in the target list —
                                   // see the note above; the FROM position
                                   // materialises and the LIMIT cannot stop it.
-                                  targetList: [
-                                    { ResTarget: { location: -1, val: call } },
-                                  ],
+                                  targetList: [{ ResTarget: { location: -1, val: call } }],
                                   limitCount: {
                                     A_Const: {
                                       ival: { ival: SUBLINK_SRF_ROW_CAP + 1 },
                                       location: -1,
                                     },
                                   },
-                                  limitOption: "LIMIT_OPTION_COUNT",
-                                  op: "SETOP_NONE",
+                                  limitOption: 'LIMIT_OPTION_COUNT',
+                                  op: 'SETOP_NONE',
                                 },
                               },
                             },
                           },
                         ],
-                        limitOption: "LIMIT_OPTION_DEFAULT",
-                        op: "SETOP_NONE",
+                        limitOption: 'LIMIT_OPTION_DEFAULT',
+                        op: 'SETOP_NONE',
                       },
                     },
                   },
                 },
               },
             })),
-            limitOption: "LIMIT_OPTION_DEFAULT",
-            op: "SETOP_NONE",
+            limitOption: 'LIMIT_OPTION_DEFAULT',
+            op: 'SETOP_NONE',
           },
         },
         stmt_len: 0,
       },
     ],
-  } as never);
+  } as never)
 }
 
 /**
@@ -196,9 +194,9 @@ function countSelect(calls: readonly Node[]): string {
  * rather than a number.
  */
 function rowCount(v: unknown): number | null {
-  const n = typeof v === "bigint" ? Number(v) : typeof v === "string" ? Number(v) : v;
-  if (typeof n !== "number" || !Number.isInteger(n) || n < 0) return null;
-  return n > SUBLINK_SRF_ROW_CAP ? null : n;
+  const n = typeof v === 'bigint' ? Number(v) : typeof v === 'string' ? Number(v) : v
+  if (typeof n !== 'number' || !Number.isInteger(n) || n < 0) return null
+  return n > SUBLINK_SRF_ROW_CAP ? null : n
 }
 
 /**
@@ -213,37 +211,37 @@ export async function evaluateSrfCardinalities(
   questions: readonly CardinalityQuestion[],
   evaluate: Evaluate,
 ): Promise<ReadonlyMap<object, number>> {
-  const out = new Map<object, number>();
-  if (questions.length === 0) return out;
+  const out = new Map<object, number>()
+  if (questions.length === 0) return out
 
-  const calls = questions.map(q => q.call);
+  const calls = questions.map((q) => q.call)
   try {
-    const row = await evaluate(countSelect(calls));
+    const row = await evaluate(countSelect(calls))
     if (row) {
       // The batch ANSWERED, so every reading in it is final. A null here is
       // "over the cap" or unreadable, and asking the same call again alone
       // returns the same null — only a RAISE is worth degrading for, and a
       // raise lands in the catch.
       for (const [i, q] of questions.entries()) {
-        const n = rowCount(row[`n${i}`]);
-        if (n !== null) out.set(q.key, n);
+        const n = rowCount(row[`n${i}`])
+        if (n !== null) out.set(q.key, n)
       }
-      return out;
+      return out
     }
   } catch {
     // Fall through to the per-call pass.
   }
 
   for (const q of questions) {
-    if (out.has(q.key)) continue;
+    if (out.has(q.key)) continue
     try {
-      const row = await evaluate(countSelect([q.call]));
-      const n = row ? rowCount(row["n0"]) : null;
-      if (n !== null) out.set(q.key, n);
+      const row = await evaluate(countSelect([q.call]))
+      const n = row ? rowCount(row['n0']) : null
+      if (n !== null) out.set(q.key, n)
     } catch {
       // A call that raises contributes nothing, and the walk keeps the
       // unbounded default — which is what it had before this round existed.
     }
   }
-  return out;
+  return out
 }

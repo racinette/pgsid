@@ -36,9 +36,9 @@ import type {
   ColumnInfo,
   ConstraintInfo,
   TableInfo,
-} from "../../../../src/catalog/types.js";
-import { splitQualifiedName } from "../../../../src/catalog/qualified-name.js";
-import { FUZZ_SEED, hashSeed, makeRand, type Rand } from "./random.js";
+} from '../../../../src/catalog/types.js'
+import { splitQualifiedName } from '../../../../src/catalog/qualified-name.js'
+import { FUZZ_SEED, hashSeed, makeRand, type Rand } from './random.js'
 
 // ---------------------------------------------------------------------------
 // Public shapes
@@ -46,9 +46,9 @@ import { FUZZ_SEED, hashSeed, makeRand, type Rand } from "./random.js";
 
 export interface GenContext {
   /** 0-based index of the row being filled. */
-  readonly row: number;
+  readonly row: number
   /** Number of rows being generated for this table. */
-  readonly rowCount: number;
+  readonly rowCount: number
   /**
    * Values already generated for `table.column`, in row order.
    *
@@ -57,14 +57,14 @@ export interface GenContext {
    * self-referencing FK (`categories.parent_id`) expressible: reference an
    * earlier id, or nothing.
    */
-  values(table: string, column: string): unknown[];
+  values(table: string, column: string): unknown[]
   /**
    * A value already assigned to another column of the row being filled.
    * Columns are filled in catalog order, so only columns declared earlier are
    * visible; asking for a later one is an error rather than a silent
    * `undefined`.
    */
-  current(column: string): unknown;
+  current(column: string): unknown
   /**
    * The type tier, as a callback: draws one value from the generator
    * registered for this column's type, or for `typeName` if one is named.
@@ -76,11 +76,11 @@ export interface GenContext {
    * looks like. Resolution happens on call, so a column that never delegates
    * does not need its type to have a generator at all.
    */
-  ofType(typeName?: string): unknown;
+  ofType(typeName?: string): unknown
 }
 
 /** Produces one non-NULL value. NULL is the framework's decision, not this one's. */
-export type ColumnGenerator = (rand: Rand, ctx: GenContext) => unknown;
+export type ColumnGenerator = (rand: Rand, ctx: GenContext) => unknown
 
 /**
  * Decides whether one cell is NULL. `true` means NULL, and the value generator
@@ -90,12 +90,12 @@ export type ColumnGenerator = (rand: Rand, ctx: GenContext) => unknown;
  * column never gets one, and registering a policy for one is an error rather
  * than dead configuration.
  */
-export type NullPolicy = (rand: Rand, ctx: GenContext) => boolean;
+export type NullPolicy = (rand: Rand, ctx: GenContext) => boolean
 
 /** A NULL policy that fires with fixed probability `p`. */
 export function nullRate(p: number): NullPolicy {
-  if (p < 0 || p > 1) throw new Error(`null rate must be in [0, 1], got ${p}`);
-  return rand => rand.chance(p);
+  if (p < 0 || p > 1) throw new Error(`null rate must be in [0, 1], got ${p}`)
+  return (rand) => rand.chance(p)
 }
 
 /**
@@ -110,11 +110,11 @@ export function nullRate(p: number): NullPolicy {
  */
 export interface GeneratorRegistry {
   /** type schema → bare type name → generator. A domain is keyed by its own name. */
-  byType: Record<string, Record<string, ColumnGenerator>>;
+  byType: Record<string, Record<string, ColumnGenerator>>
   /** schema → table → column → generator. */
-  byColumn: Record<string, Record<string, Record<string, ColumnGenerator>>>;
+  byColumn: Record<string, Record<string, Record<string, ColumnGenerator>>>
   /** schema → table → [min, max] rows. Defaults to `defaultRows`. */
-  rowCounts?: Record<string, Record<string, [number, number]>>;
+  rowCounts?: Record<string, Record<string, [number, number]>>
   /**
    * How often each nullable column is NULL, resolved column-first then by type,
    * falling back to `defaultNullPolicy`.
@@ -127,76 +127,76 @@ export interface GeneratorRegistry {
    * column's policy leaves every other column's data untouched.
    */
   nullPolicies?: {
-    byType?: Record<string, Record<string, NullPolicy>>;
-    byColumn?: Record<string, Record<string, Record<string, NullPolicy>>>;
-  };
+    byType?: Record<string, Record<string, NullPolicy>>
+    byColumn?: Record<string, Record<string, Record<string, NullPolicy>>>
+  }
 }
 
 export interface GenerateOptions {
-  registry: GeneratorRegistry;
+  registry: GeneratorRegistry
   /** NULL policy for nullable columns the registry does not name. */
-  defaultNullPolicy?: NullPolicy;
+  defaultNullPolicy?: NullPolicy
   /** Row-count range for tables without an explicit entry. */
-  defaultRows?: [number, number];
-  seed?: number;
+  defaultRows?: [number, number]
+  seed?: number
 }
 
 export interface GeneratedData {
   /** Multi-row `INSERT`s in FK-topological order, one statement per table. */
-  sql: string;
-  rowCounts: Record<string, number>;
+  sql: string
+  rowCounts: Record<string, number>
 }
 
 // ---------------------------------------------------------------------------
 // Generation
 // ---------------------------------------------------------------------------
 
-type Row = Map<string, unknown>;
+type Row = Map<string, unknown>
 
-const DEFAULT_NULL_POLICY = nullRate(0.35);
-const DEFAULT_ROWS: [number, number] = [4, 9];
+const DEFAULT_NULL_POLICY = nullRate(0.35)
+const DEFAULT_ROWS: [number, number] = [4, 9]
 
 export function generateFixtureData(
   snapshot: CatalogSnapshot,
   opts: GenerateOptions,
 ): GeneratedData {
-  return new Generation(snapshot, opts).run();
+  return new Generation(snapshot, opts).run()
 }
 
 class Generation {
-  private readonly registry: GeneratorRegistry;
-  private readonly defaultNullPolicy: NullPolicy;
-  private readonly defaultRows: [number, number];
-  private readonly seed: number;
+  private readonly registry: GeneratorRegistry
+  private readonly defaultNullPolicy: NullPolicy
+  private readonly defaultRows: [number, number]
+  private readonly seed: number
   /** Completed tables, in a valid emission order (parents before children). */
-  private readonly done = new Map<string, { table: TableInfo; rows: Row[] }>();
-  private readonly inProgress = new Set<string>();
+  private readonly done = new Map<string, { table: TableInfo; rows: Row[] }>()
+  private readonly inProgress = new Set<string>()
 
   constructor(
     private readonly snapshot: CatalogSnapshot,
     opts: GenerateOptions,
   ) {
-    this.registry = opts.registry;
-    this.defaultNullPolicy = opts.defaultNullPolicy ?? DEFAULT_NULL_POLICY;
-    this.defaultRows = opts.defaultRows ?? DEFAULT_ROWS;
-    this.seed = opts.seed ?? FUZZ_SEED;
+    this.registry = opts.registry
+    this.defaultNullPolicy = opts.defaultNullPolicy ?? DEFAULT_NULL_POLICY
+    this.defaultRows = opts.defaultRows ?? DEFAULT_ROWS
+    this.seed = opts.seed ?? FUZZ_SEED
   }
 
   run(): GeneratedData {
-    this.checkRegistry();
+    this.checkRegistry()
     for (const table of this.snapshot.tables) {
       // Sequences are captured for the walk (legal FROM items, three NOT
       // NULL columns) but hold no insertable data — their single row is the
       // engine's, not ours.
-      if (table.relkind === "S") continue;
-      this.ensure(table.schema, table.name);
+      if (table.relkind === 'S') continue
+      this.ensure(table.schema, table.name)
     }
-    const statements: string[] = [];
-    const rowCounts: Record<string, number> = {};
+    const statements: string[] = []
+    const rowCounts: Record<string, number> = {}
     for (const [key, { table, rows }] of this.done) {
-      rowCounts[key] = rows.length;
-      if (rows.length === 0) continue;
-      statements.push(renderInsert(table, rows));
+      rowCounts[key] = rows.length
+      if (rows.length === 0) continue
+      statements.push(renderInsert(table, rows))
     }
     // A materialized view holds its OWN rows, taken when it is refreshed — so
     // one created with the schema is empty however much data lands afterwards,
@@ -204,40 +204,40 @@ class Generation {
     // artefact of load order rather than of the query. Refreshed last, once
     // every table it reads is populated.
     for (const mv of this.snapshot.materializedViews) {
-      statements.push(`REFRESH MATERIALIZED VIEW "${mv.schema}"."${mv.name}";`);
+      statements.push(`REFRESH MATERIALIZED VIEW "${mv.schema}"."${mv.name}";`)
     }
-    return { sql: `${statements.join("\n\n")}\n`, rowCounts };
+    return { sql: `${statements.join('\n\n')}\n`, rowCounts }
   }
 
   // -- table resolution ----------------------------------------------------
 
   private ensure(schema: string, name: string): Row[] {
-    const key = `${schema}.${name}`;
-    const existing = this.done.get(key);
-    if (existing) return existing.rows;
+    const key = `${schema}.${name}`
+    const existing = this.done.get(key)
+    if (existing) return existing.rows
     if (this.inProgress.has(key)) {
       throw new Error(
-        `circular table dependency at ${key} (in progress: ${[...this.inProgress].join(" → ")}). ` +
+        `circular table dependency at ${key} (in progress: ${[...this.inProgress].join(' → ')}). ` +
           `Break the cycle with a column-specific generator that does not reference the other table.`,
-      );
+      )
     }
-    const table = this.snapshot.tables.find(t => t.schema === schema && t.name === name);
-    if (!table) throw new Error(`no table ${key} in the catalog snapshot`);
+    const table = this.snapshot.tables.find((t) => t.schema === schema && t.name === name)
+    if (!table) throw new Error(`no table ${key} in the catalog snapshot`)
 
-    this.inProgress.add(key);
-    const rows = this.build(table);
-    this.inProgress.delete(key);
-    this.done.set(key, { table, rows });
-    return rows;
+    this.inProgress.add(key)
+    const rows = this.build(table)
+    this.inProgress.delete(key)
+    this.done.set(key, { table, rows })
+    return rows
   }
 
   private build(table: TableInfo): Row[] {
-    const tableKey = `${table.schema}.${table.name}`;
+    const tableKey = `${table.schema}.${table.name}`
     const [minRows, maxRows] =
-      this.registry.rowCounts?.[table.schema]?.[table.name] ?? this.defaultRows;
-    const rowCount = makeRand(hashSeed(tableKey, this.seed)).int(minRows, maxRows);
+      this.registry.rowCounts?.[table.schema]?.[table.name] ?? this.defaultRows
+    const rowCount = makeRand(hashSeed(tableKey, this.seed)).int(minRows, maxRows)
 
-    const rows: Row[] = Array.from({ length: rowCount }, () => new Map<string, unknown>());
+    const rows: Row[] = Array.from({ length: rowCount }, () => new Map<string, unknown>())
 
     // Column policy. A `GENERATED ALWAYS AS` column is computed by PostgreSQL
     // and an `ALWAYS` identity rejects an explicit value, so neither can appear
@@ -252,31 +252,28 @@ class Generation {
     // produces witnesses. `BY DEFAULT` identities are filled for a different
     // reason — a foreign key has to draw from keys that are already known, and
     // an identity's values are not known until PostgreSQL assigns them.
-    const columns = table.columns.filter(
-      c => c.generated === "none" && c.identity !== "always",
-    );
+    const columns = table.columns.filter((c) => c.generated === 'none' && c.identity !== 'always')
 
     for (const column of columns) {
-      const columnKey = `${tableKey}.${column.name}`;
-      const valueRand = makeRand(hashSeed(columnKey, this.seed));
+      const columnKey = `${tableKey}.${column.name}`
+      const valueRand = makeRand(hashSeed(columnKey, this.seed))
       // A separate stream for the NULL decision keeps a policy change from
       // shifting the values themselves — retuning one column's rate changes
       // which of its cells are NULL, and touches no other column at all.
-      const nullRand = makeRand(hashSeed(`${columnKey}#null`, this.seed));
-      const generator = this.resolve(table, column);
+      const nullRand = makeRand(hashSeed(`${columnKey}#null`, this.seed))
+      const generator = this.resolve(table, column)
       const nullPolicy = this.columnRefusesNull(table, column)
         ? null
-        : this.resolveNullPolicy(table, column);
+        : this.resolveNullPolicy(table, column)
 
       for (let row = 0; row < rowCount; row++) {
-        const ctx = this.context(table, column, rows, row, rowCount, valueRand);
-        const value =
-          nullPolicy && nullPolicy(nullRand, ctx) ? null : generator(valueRand, ctx);
-        rows[row]!.set(column.name, value);
+        const ctx = this.context(table, column, rows, row, rowCount, valueRand)
+        const value = nullPolicy && nullPolicy(nullRand, ctx) ? null : generator(valueRand, ctx)
+        rows[row]!.set(column.name, value)
       }
     }
 
-    return dedupe(table, rows);
+    return dedupe(table, rows)
   }
 
   private context(
@@ -287,33 +284,32 @@ class Generation {
     rowCount: number,
     rand: Rand,
   ): GenContext {
-    const tableKey = `${table.schema}.${table.name}`;
+    const tableKey = `${table.schema}.${table.name}`
     const context: GenContext = {
       row,
       rowCount,
-      ofType: typeName =>
-        this.typeGenerator(table, column, typeName)(rand, context),
+      ofType: (typeName) => this.typeGenerator(table, column, typeName)(rand, context),
       values: (target, column) => {
-        const targetKey = target.includes(".") ? target : `${table.schema}.${target}`;
+        const targetKey = target.includes('.') ? target : `${table.schema}.${target}`
         if (targetKey === tableKey) {
           // Self-reference: only rows already completed are visible.
-          return rows.slice(0, row).map(r => r.get(column));
+          return rows.slice(0, row).map((r) => r.get(column))
         }
-        const [schema, name] = splitQualified(targetKey);
-        return this.ensure(schema, name).map(r => r.get(column));
+        const [schema, name] = splitQualified(targetKey)
+        return this.ensure(schema, name).map((r) => r.get(column))
       },
-      current: column => {
-        const current = rows[row]!;
+      current: (column) => {
+        const current = rows[row]!
         if (!current.has(column)) {
           throw new Error(
             `${tableKey}.${column} is not filled yet — ctx.current() sees only columns ` +
               `declared earlier in the table`,
-          );
+          )
         }
-        return current.get(column);
+        return current.get(column)
       },
-    };
-    return context;
+    }
+    return context
   }
 
   // -- generator resolution ------------------------------------------------
@@ -326,15 +322,15 @@ class Generation {
    * something the column's CHECK constraints reject.
    */
   private resolve(table: TableInfo, column: ColumnInfo): ColumnGenerator {
-    const specific = this.registry.byColumn[table.schema]?.[table.name]?.[column.name];
-    if (specific) return specific;
+    const specific = this.registry.byColumn[table.schema]?.[table.name]?.[column.name]
+    if (specific) return specific
 
-    const fk = foreignKeyFor(table, column);
-    if (fk) return this.foreignKeyGenerator(table, column, fk);
+    const fk = foreignKeyFor(table, column)
+    if (fk) return this.foreignKeyGenerator(table, column, fk)
 
-    if (isSurrogateKey(table, column)) return (_rand, ctx) => ctx.row + 1;
+    if (isSurrogateKey(table, column)) return (_rand, ctx) => ctx.row + 1
 
-    return this.typeGenerator(table, column);
+    return this.typeGenerator(table, column)
   }
 
   /**
@@ -353,26 +349,26 @@ class Generation {
     // are bare type names under their own schema, so split before looking up;
     // an unqualified name is a built-in and is looked up under the table's
     // schema, which is where base types are registered.
-    const { schema: typeSchema, name } = splitQualifiedName(typeName);
-    const schema = typeSchema ?? table.schema;
-    const byType = this.registry.byType[schema] ?? {};
-    const direct = byType[name];
-    if (direct) return direct;
+    const { schema: typeSchema, name } = splitQualifiedName(typeName)
+    const schema = typeSchema ?? table.schema
+    const byType = this.registry.byType[schema] ?? {}
+    const direct = byType[name]
+    if (direct) return direct
 
-    const domain = this.snapshot.domains.find(d => d.schema === schema && d.name === name);
+    const domain = this.snapshot.domains.find((d) => d.schema === schema && d.name === name)
     if (domain) {
-      const baseType = splitQualifiedName(domain.baseTypeName);
-      const base = this.registry.byType[baseType.schema ?? schema]?.[baseType.name];
-      if (base) return base;
+      const baseType = splitQualifiedName(domain.baseTypeName)
+      const base = this.registry.byType[baseType.schema ?? schema]?.[baseType.name]
+      if (base) return base
     }
 
     throw new Error(
       `no generator for ${table.schema}.${table.name}.${column.name} of type ` +
-        `"${typeName}"${domain ? ` (domain over "${domain.baseTypeName}")` : ""}. ` +
+        `"${typeName}"${domain ? ` (domain over "${domain.baseTypeName}")` : ''}. ` +
         `Add an entry to typeSpecificGenerators["${schema}"]["${name}"] or to ` +
         `columnSpecificGenerators["${table.schema}"]["${table.name}"] in ` +
         `tests/unit/query/fixture-data/generators.ts.`,
-    );
+    )
   }
 
   /** Column-specific → by type → the run's default. */
@@ -385,20 +381,20 @@ class Generation {
    * name is a built-in, which is never a domain.
    */
   private columnRefusesNull(table: TableInfo, column: ColumnInfo): boolean {
-    if (column.notNull) return true;
-    const { schema: typeSchema, name } = splitQualifiedName(column.typeName);
-    const schema = typeSchema ?? table.schema;
-    const domain = this.snapshot.domains.find(d => d.schema === schema && d.name === name);
-    return domain?.notNull ?? false;
+    if (column.notNull) return true
+    const { schema: typeSchema, name } = splitQualifiedName(column.typeName)
+    const schema = typeSchema ?? table.schema
+    const domain = this.snapshot.domains.find((d) => d.schema === schema && d.name === name)
+    return domain?.notNull ?? false
   }
 
   private resolveNullPolicy(table: TableInfo, column: ColumnInfo): NullPolicy {
-    const policies = this.registry.nullPolicies;
+    const policies = this.registry.nullPolicies
     return (
       policies?.byColumn?.[table.schema]?.[table.name]?.[column.name] ??
       policies?.byType?.[table.schema]?.[column.typeName] ??
       this.defaultNullPolicy
-    );
+    )
   }
 
   /**
@@ -410,18 +406,18 @@ class Generation {
   private checkRegistry(): void {
     const column = (schema: string, table: string, name: string) =>
       this.snapshot.tables
-        .find(t => t.schema === schema && t.name === table)
-        ?.columns.find(c => c.name === name);
+        .find((t) => t.schema === schema && t.name === table)
+        ?.columns.find((c) => c.name === name)
 
     const complain = (what: string, where: string) => {
-      throw new Error(`${what} is registered in ${where} but does not exist in the schema`);
-    };
+      throw new Error(`${what} is registered in ${where} but does not exist in the schema`)
+    }
 
     for (const [schema, tables] of Object.entries(this.registry.byColumn)) {
       for (const [table, columns] of Object.entries(tables)) {
         for (const name of Object.keys(columns)) {
           if (!column(schema, table, name)) {
-            complain(`${schema}.${table}.${name}`, "columnSpecificGenerators");
+            complain(`${schema}.${table}.${name}`, 'columnSpecificGenerators')
           }
         }
       }
@@ -429,26 +425,24 @@ class Generation {
 
     for (const [schema, tables] of Object.entries(this.registry.rowCounts ?? {})) {
       for (const table of Object.keys(tables)) {
-        if (!this.snapshot.tables.some(t => t.schema === schema && t.name === table)) {
-          complain(`${schema}.${table}`, "rowCounts");
+        if (!this.snapshot.tables.some((t) => t.schema === schema && t.name === table)) {
+          complain(`${schema}.${table}`, 'rowCounts')
         }
       }
     }
 
-    for (const [schema, tables] of Object.entries(
-      this.registry.nullPolicies?.byColumn ?? {},
-    )) {
+    for (const [schema, tables] of Object.entries(this.registry.nullPolicies?.byColumn ?? {})) {
       for (const [table, columns] of Object.entries(tables)) {
         for (const name of Object.keys(columns)) {
-          const found = column(schema, table, name);
-          if (!found) complain(`${schema}.${table}.${name}`, "nullPolicies.byColumn");
+          const found = column(schema, table, name)
+          if (!found) complain(`${schema}.${table}.${name}`, 'nullPolicies.byColumn')
           // A NOT NULL column never consults a policy, so one registered for it
           // is a claim about behaviour that cannot happen.
           if (found?.notNull) {
             throw new Error(
               `${schema}.${table}.${name} is NOT NULL, so the null policy ` +
                 `registered for it can never fire`,
-            );
+            )
           }
         }
       }
@@ -460,17 +454,16 @@ class Generation {
     column: ColumnInfo,
     fk: ConstraintInfo,
   ): ColumnGenerator {
-    const at = fk.columns.indexOf(column.name);
-    const targetSchema = fk.foreignSchema ?? table.schema;
-    const targetTable = fk.foreignTable!;
-    const targetColumn = fk.foreignColumns![at]!;
-    const selfReferencing =
-      targetSchema === table.schema && targetTable === table.name;
+    const at = fk.columns.indexOf(column.name)
+    const targetSchema = fk.foreignSchema ?? table.schema
+    const targetTable = fk.foreignTable!
+    const targetColumn = fk.foreignColumns![at]!
+    const selfReferencing = targetSchema === table.schema && targetTable === table.name
 
     return (rand, ctx) => {
       const candidates = ctx
         .values(`${targetSchema}.${targetTable}`, targetColumn)
-        .filter(v => v !== null && v !== undefined);
+        .filter((v) => v !== null && v !== undefined)
       if (candidates.length === 0) {
         if (selfReferencing) {
           // Row 0 has nothing earlier to point at. A NOT NULL self-reference
@@ -479,17 +472,17 @@ class Generation {
             throw new Error(
               `${table.schema}.${table.name}.${column.name} is a NOT NULL self-reference: ` +
                 `the first row has no earlier row to reference`,
-            );
+            )
           }
-          return null;
+          return null
         }
         throw new Error(
           `${table.schema}.${table.name}.${column.name} references ` +
             `${targetSchema}.${targetTable}.${targetColumn}, which generated no non-NULL values`,
-        );
+        )
       }
-      return rand.pick(candidates);
-    };
+      return rand.pick(candidates)
+    }
   }
 }
 
@@ -498,48 +491,48 @@ class Generation {
 // ---------------------------------------------------------------------------
 
 function splitQualified(key: string): [string, string] {
-  const dot = key.indexOf(".");
-  return [key.slice(0, dot), key.slice(dot + 1)];
+  const dot = key.indexOf('.')
+  return [key.slice(0, dot), key.slice(dot + 1)]
 }
 
 function foreignKeyFor(table: TableInfo, column: ColumnInfo): ConstraintInfo | null {
   for (const c of table.constraints) {
-    if (c.type !== "foreign") continue;
-    if (!c.columns.includes(column.name)) continue;
-    if (!c.foreignTable || !c.foreignColumns) continue;
+    if (c.type !== 'foreign') continue
+    if (!c.columns.includes(column.name)) continue
+    if (!c.foreignTable || !c.foreignColumns) continue
     if (c.foreignColumns.length !== c.columns.length) {
-      throw new Error(`malformed FK ${c.name} on ${table.schema}.${table.name}`);
+      throw new Error(`malformed FK ${c.name} on ${table.schema}.${table.name}`)
     }
-    return c;
+    return c
   }
-  return null;
+  return null
 }
 
 /** A single-column integer primary key, numbered 1..N rather than drawn. */
 function isSurrogateKey(table: TableInfo, column: ColumnInfo): boolean {
-  const pk = table.constraints.find(c => c.type === "primaryKey");
-  if (!pk || pk.columns.length !== 1 || pk.columns[0] !== column.name) return false;
-  return ["integer", "bigint", "smallint"].includes(column.typeName);
+  const pk = table.constraints.find((c) => c.type === 'primaryKey')
+  if (!pk || pk.columns.length !== 1 || pk.columns[0] !== column.name) return false
+  return ['integer', 'bigint', 'smallint'].includes(column.typeName)
 }
 
 /** Drop rows that repeat an earlier row's primary key or unique key. */
 function dedupe(table: TableInfo, rows: Row[]): Row[] {
   const keys = table.constraints
-    .filter(c => c.type === "primaryKey" || c.type === "unique")
-    .map(c => c.columns);
-  if (keys.length === 0) return rows;
+    .filter((c) => c.type === 'primaryKey' || c.type === 'unique')
+    .map((c) => c.columns)
+  if (keys.length === 0) return rows
 
-  const seen = keys.map(() => new Set<string>());
-  return rows.filter(row =>
+  const seen = keys.map(() => new Set<string>())
+  return rows.filter((row) =>
     keys.every((columns, i) => {
       // A unique constraint does not constrain rows with a NULL member.
-      if (columns.some(c => row.get(c) === null)) return true;
-      const key = JSON.stringify(columns.map(c => row.get(c)));
-      if (seen[i]!.has(key)) return false;
-      seen[i]!.add(key);
-      return true;
+      if (columns.some((c) => row.get(c) === null)) return true
+      const key = JSON.stringify(columns.map((c) => row.get(c)))
+      if (seen[i]!.has(key)) return false
+      seen[i]!.add(key)
+      return true
     }),
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -553,14 +546,14 @@ function dedupe(table: TableInfo, rows: Row[]): Row[] {
  * as one statement do not.
  */
 function renderInsert(table: TableInfo, rows: Row[]): string {
-  const columns = [...rows[0]!.keys()];
+  const columns = [...rows[0]!.keys()]
   const tuples = rows.map(
-    row => `  (${columns.map(c => renderLiteral(row.get(c))).join(", ")})`,
-  );
+    (row) => `  (${columns.map((c) => renderLiteral(row.get(c))).join(', ')})`,
+  )
   return (
     `INSERT INTO ${quoteIdent(table.schema)}.${quoteIdent(table.name)} ` +
-    `(${columns.map(quoteIdent).join(", ")}) VALUES\n${tuples.join(",\n")};`
-  );
+    `(${columns.map(quoteIdent).join(', ')}) VALUES\n${tuples.join(',\n')};`
+  )
 }
 
 /**
@@ -570,25 +563,25 @@ function renderInsert(table: TableInfo, rows: Row[]): string {
  * has to be threaded through the generator.
  */
 function renderLiteral(value: unknown): string {
-  if (value === null || value === undefined) return "NULL";
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error(`non-finite generated value: ${value}`);
-    return String(value);
+  if (value === null || value === undefined) return 'NULL'
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new Error(`non-finite generated value: ${value}`)
+    return String(value)
   }
-  if (typeof value === "bigint") return value.toString();
-  if (value instanceof Date) return quoteLiteral(value.toISOString());
-  if (typeof value === "string") return quoteLiteral(value);
-  return quoteLiteral(JSON.stringify(value));
+  if (typeof value === 'bigint') return value.toString()
+  if (value instanceof Date) return quoteLiteral(value.toISOString())
+  if (typeof value === 'string') return quoteLiteral(value)
+  return quoteLiteral(JSON.stringify(value))
 }
 
 function quoteLiteral(text: string): string {
-  if (text.includes("\\")) {
-    throw new Error(`generated literals must not contain backslashes: ${text}`);
+  if (text.includes('\\')) {
+    throw new Error(`generated literals must not contain backslashes: ${text}`)
   }
-  return `'${text.replace(/'/g, "''")}'`;
+  return `'${text.replace(/'/g, "''")}'`
 }
 
 function quoteIdent(name: string): string {
-  return `"${name.replace(/"/g, '""')}"`;
+  return `"${name.replace(/"/g, '""')}"`
 }

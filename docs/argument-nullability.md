@@ -9,7 +9,7 @@ raise. A caller must not pass NULL.
 
 **Nullable** means NO CLAIM. The engine found no rejection channel it can see.
 It does not promise the binding is safe, and it does not address whether NULL
-is a *useful* thing to pass.
+is a _useful_ thing to pass.
 
 **The contract is one-directional, and that is a decision.** An earlier
 reading had nullable meaning universally safe — no data state, no guard, no

@@ -2,22 +2,8 @@
   "adjudicatedAgainst": "v1.31.1",
   "why": "The schema is empty; the query's only input is $1, bound both non-null and NULL.",
   "args": {
-    "AdvisoryLockOne": [
-      [
-        1
-      ],
-      [
-        null
-      ]
-    ],
-    "AdvisoryUnlock": [
-      [
-        1
-      ],
-      [
-        null
-      ]
-    ]
+    "AdvisoryLockOne": [[1], [null]],
+    "AdvisoryUnlock": [[1], [null]]
   },
   "entries": {
     "AdvisoryLockOne#0 (pg_advisory_lock)": {

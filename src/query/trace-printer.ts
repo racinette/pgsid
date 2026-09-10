@@ -1,4 +1,4 @@
-import type { TraceNode } from "./types.js";
+import type { TraceNode } from './types.js'
 
 /**
  * Format a TraceNode tree into a human-readable indented string.
@@ -15,28 +15,28 @@ import type { TraceNode } from "./types.js";
  * ```
  */
 export function formatTrace(node: TraceNode, indent = 0): string {
-  const pad = "  ".repeat(indent);
-  const decision = node.decision ? "notNull" : "nullable";
-  const lines: string[] = [];
+  const pad = '  '.repeat(indent)
+  const decision = node.decision ? 'notNull' : 'nullable'
+  const lines: string[] = []
 
-  lines.push(`${pad}${node.label} [${decision}]`);
+  lines.push(`${pad}${node.label} [${decision}]`)
 
   if (node.facts.length > 0) {
-    lines.push(`${pad}  facts:`);
+    lines.push(`${pad}  facts:`)
     for (const f of node.facts) {
-      lines.push(`${pad}    ${f.name} = ${f.value}`);
+      lines.push(`${pad}    ${f.name} = ${f.value}`)
     }
   }
 
   for (const child of node.children) {
-    lines.push(formatTrace(child, indent + 1));
+    lines.push(formatTrace(child, indent + 1))
   }
 
   if (node.reason) {
-    lines.push(`${pad}  → ${node.reason}`);
+    lines.push(`${pad}  → ${node.reason}`)
   }
 
-  return lines.join("\n");
+  return lines.join('\n')
 }
 
 /**
@@ -47,7 +47,7 @@ export function formatColumnTrace(
   notNull: boolean,
   trace: TraceNode | undefined,
 ): string {
-  const header = `── ${colName}: ${notNull ? "notNull" : "nullable"} ──`;
-  if (!trace) return `${header}\n  (no trace available)`;
-  return `${header}\n${formatTrace(trace, 1)}`;
+  const header = `── ${colName}: ${notNull ? 'notNull' : 'nullable'} ──`
+  if (!trace) return `${header}\n  (no trace available)`
+  return `${header}\n${formatTrace(trace, 1)}`
 }

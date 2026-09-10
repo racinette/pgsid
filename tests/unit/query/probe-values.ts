@@ -1,4 +1,4 @@
-import { PGlite } from "@electric-sql/pglite";
+import { PGlite } from '@electric-sql/pglite'
 
 // ---------------------------------------------------------------------------
 // The probe VALUE CORPUS, shared by totality-probe.test.ts (the claimed
@@ -33,8 +33,20 @@ export const VALUES: Record<string, string[]> = {
   // the interval rows; `'[]'` is a range BOUND spec, without which the six
   // three-argument range constructors raised everywhere.
   text: [
-    "'abc'", "''", "'  '", "'NaN'", "'day'", "'base64'", "'hex'", "'escape'",
-    "'NFC'", "'9'", "'UTC'", "'hour'", "'month'", "'[]'",
+    "'abc'",
+    "''",
+    "'  '",
+    "'NaN'",
+    "'day'",
+    "'base64'",
+    "'hex'",
+    "'escape'",
+    "'NFC'",
+    "'9'",
+    "'UTC'",
+    "'hour'",
+    "'month'",
+    "'[]'",
     // The PRIVILEGE words (2026-08-09): the `has_*_privilege` family and
     // `pg_has_role` reject anything else, which left 84 rows — the largest
     // block in raised-everywhere — probed in name only. They are worth the
@@ -42,7 +54,13 @@ export const VALUES: Record<string, string[]> = {
     // answers NULL for an object that does not exist while
     // `has_database_privilege` answers a value, and no amount of staring at
     // the names predicts which.
-    "'SELECT'", "'USAGE'", "'EXECUTE'", "'CREATE'", "'CONNECT'", "'SET'", "'MEMBER'",
+    "'SELECT'",
+    "'USAGE'",
+    "'EXECUTE'",
+    "'CREATE'",
+    "'CONNECT'",
+    "'SET'",
+    "'MEMBER'",
     // A real RELATION name, for the same family's spellings that identify the
     // object by text rather than by OID — `has_table_privilege('abc', …)`
     // raises because no such relation exists. `pg_class` exists in every
@@ -51,13 +69,14 @@ export const VALUES: Record<string, string[]> = {
     // A real GUC name and a real text-search parser name, each closing a row
     // that raises for anything else: `current_setting('abc')` does not exist,
     // and `ts_parse`/`ts_token_type` take a parser.
-    "'search_path'", "'default'",
+    "'search_path'",
+    "'default'",
   ],
-  "character varying": ["''::varchar", "'abc'::varchar"],
+  'character varying': ["''::varchar", "'abc'::varchar"],
   character: ["''::char", "'a'::char"],
   // `'r'` is an object-type abbreviation `acldefault` accepts; `'a'` is not
   // one, and alone it left that signature raising on every combination.
-  '"char"': ["'a'::\"char\"", "'r'::\"char\""],
+  '"char"': ['\'a\'::"char"', '\'r\'::"char"'],
   // A REAL role name (2026-08-09): the `has_*_privilege` family takes its
   // grantee as a `name` and raises for one that does not exist, which left
   // 52 rows probed in name only — every spelling that identifies the role by
@@ -75,29 +94,49 @@ export const VALUES: Record<string, string[]> = {
   // three can be mistaken for an encoding, which is the only bar this list
   // has (see the note above).
   name: [
-    "''::name", "'abc'::name", "'postgres'::name", "'public'::name",
+    "''::name",
+    "'abc'::name",
+    "'postgres'::name",
+    "'public'::name",
     "'probe_role'::name",
-    "'probe_slot'::name", "'probe_lslot'::name", "'probe_origin'::name",
+    "'probe_slot'::name",
+    "'probe_lslot'::name",
+    "'probe_origin'::name",
   ],
 
   // --- numbers: NaN and the infinities (scale/min_scale, and every float).
-  smallint: ["1::smallint", "0::smallint", "(-1)::smallint", "32767::smallint"],
+  smallint: ['1::smallint', '0::smallint', '(-1)::smallint', '32767::smallint'],
   // 1 leads: a zero or negative baseline makes `make_date`, `chr` and
   // `width_bucket`'s bucket count raise on every combination. 65 is a legal
   // code point for `chr`.
-  integer: ["1", "0", "(-1)", "65", "2147483647"],
-  bigint: ["1::bigint", "0::bigint", "(-1)::bigint", "9223372036854775807::bigint"],
-  numeric: ["0::numeric", "(-1.5)::numeric", "'NaN'::numeric", "'Infinity'::numeric"],
-  "double precision": ["1::float8", "0::float8", "(-1.5)::float8", "'NaN'::float8", "'Infinity'::float8", "'-Infinity'::float8"],
-  real: ["0::float4", "'NaN'::float4", "'Infinity'::float4"],
-  money: ["0::money", "(-1)::money"],
+  integer: ['1', '0', '(-1)', '65', '2147483647'],
+  bigint: ['1::bigint', '0::bigint', '(-1)::bigint', '9223372036854775807::bigint'],
+  numeric: ['0::numeric', '(-1.5)::numeric', "'NaN'::numeric", "'Infinity'::numeric"],
+  'double precision': [
+    '1::float8',
+    '0::float8',
+    '(-1.5)::float8',
+    "'NaN'::float8",
+    "'Infinity'::float8",
+    "'-Infinity'::float8",
+  ],
+  real: ['0::float4', "'NaN'::float4", "'Infinity'::float4"],
+  money: ['0::money', '(-1)::money'],
 
   // --- date/time: the infinities are what removed extract/date_part.
   date: ["'2020-01-01'::date", "'infinity'::date", "'-infinity'::date"],
-  "timestamp without time zone": ["'2020-01-01'::timestamp", "'infinity'::timestamp", "'-infinity'::timestamp"],
-  "timestamp with time zone": ["'2020-01-01Z'::timestamptz", "'infinity'::timestamptz", "'-infinity'::timestamptz"],
-  "time without time zone": ["'00:00'::time", "'23:59:59'::time"],
-  "time with time zone": ["'00:00+00'::timetz"],
+  'timestamp without time zone': [
+    "'2020-01-01'::timestamp",
+    "'infinity'::timestamp",
+    "'-infinity'::timestamp",
+  ],
+  'timestamp with time zone': [
+    "'2020-01-01Z'::timestamptz",
+    "'infinity'::timestamptz",
+    "'-infinity'::timestamptz",
+  ],
+  'time without time zone': ["'00:00'::time", "'23:59:59'::time"],
+  'time with time zone': ["'00:00+00'::timetz"],
   // The infinite interval is PG17's addition and the same class as the
   // infinite timestamp: `date_part`/`extract` answer ±Infinity for the
   // monotonic fields and NULL for the rest.
@@ -105,21 +144,35 @@ export const VALUES: Record<string, string[]> = {
 
   // --- containers: the EMPTY array is the array_position/cardinality class.
   bytea: ["''::bytea", "'\\x00'::bytea", "'abc'::bytea"],
-  "integer[]": ["'{}'::int[]", "ARRAY[1,2]"],
-  "text[]": ["'{}'::text[]", "ARRAY['a','b']"],
+  'integer[]': ["'{}'::int[]", 'ARRAY[1,2]'],
+  'text[]': ["'{}'::text[]", "ARRAY['a','b']"],
   // A NON-EMPTY array and a null-VALUED key joined the four originals
   // (2026-08-09, from the set-returning probe): without them every json
   // expander either raised (`json_array_elements` rejects a non-array, and
   // `'[]'` emits nothing) or saw no JSON null — and a JSON null is exactly
   // what separates `json_each_text` from `json_each`, the `_text` half
   // turning it into a SQL NULL while the other returns it as a value.
-  json: ["'null'::json", "'{}'::json", "'[]'::json", "'{\"a\":1}'::json", "'[1,null]'::json", "'{\"a\":null}'::json"],
-  jsonb: ["'null'::jsonb", "'{}'::jsonb", "'[]'::jsonb", "'{\"a\":1}'::jsonb", "'[1,null]'::jsonb", "'{\"a\":null}'::jsonb"],
+  json: [
+    "'null'::json",
+    "'{}'::json",
+    "'[]'::json",
+    '\'{"a":1}\'::json',
+    "'[1,null]'::json",
+    '\'{"a":null}\'::json',
+  ],
+  jsonb: [
+    "'null'::jsonb",
+    "'{}'::jsonb",
+    "'[]'::jsonb",
+    '\'{"a":1}\'::jsonb',
+    "'[1,null]'::jsonb",
+    '\'{"a":null}\'::jsonb',
+  ],
   // The CAST spellings matter: an uncast `ROW(1,2)` is decomposed by the
   // parser, so `ROW(1,2) *< ROW(1,2)` looks for `integer *< integer` and
   // raises — which left all six record-image comparison operators probed in
   // name only. The NULL-holding row is the corner of the pair.
-  record: ["ROW(1,2)", "ROW(1,2)::record", "ROW(1,NULL)::record"],
+  record: ['ROW(1,2)', 'ROW(1,2)::record', 'ROW(1,NULL)::record'],
 
   // --- ranges: the EMPTY range removed lower/upper.
   anyrange: ["'empty'::int4range", "'[1,2)'::int4range"],
@@ -135,12 +188,12 @@ export const VALUES: Record<string, string[]> = {
   daterange: ["'empty'::daterange", "'[2020-01-01,2020-01-02)'::daterange"],
   tsrange: ["'empty'::tsrange", "'[2020-01-01,2020-01-02)'::tsrange"],
   tstzrange: ["'empty'::tstzrange", "'[2020-01-01Z,2020-01-02Z)'::tstzrange"],
-  "int4range[]": ["'{}'::int4range[]", "ARRAY['[1,2)'::int4range]"],
-  "int8range[]": ["'{}'::int8range[]", "ARRAY['[1,2)'::int8range]"],
-  "numrange[]": ["'{}'::numrange[]", "ARRAY['[1,2)'::numrange]"],
-  "daterange[]": ["'{}'::daterange[]", "ARRAY['empty'::daterange]"],
-  "tsrange[]": ["'{}'::tsrange[]", "ARRAY['empty'::tsrange]"],
-  "tstzrange[]": ["'{}'::tstzrange[]", "ARRAY['empty'::tstzrange]"],
+  'int4range[]': ["'{}'::int4range[]", "ARRAY['[1,2)'::int4range]"],
+  'int8range[]': ["'{}'::int8range[]", "ARRAY['[1,2)'::int8range]"],
+  'numrange[]': ["'{}'::numrange[]", "ARRAY['[1,2)'::numrange]"],
+  'daterange[]': ["'{}'::daterange[]", "ARRAY['empty'::daterange]"],
+  'tsrange[]': ["'{}'::tsrange[]", "ARRAY['empty'::tsrange]"],
+  'tstzrange[]': ["'{}'::tstzrange[]", "ARRAY['empty'::tstzrange]"],
 
   // --- the two application-facing pseudo-ish types the triage kept. A
   //     jsonpath that matches NOTHING is the point: it is what makes
@@ -155,12 +208,12 @@ export const VALUES: Record<string, string[]> = {
   jsonpath: ["'$'::jsonpath", "'$.a'::jsonpath", "'$.a == 1'::jsonpath", "'strict $.a'::jsonpath"],
   regconfig: ["'english'::regconfig", "'simple'::regconfig"],
   // ts_rank's weight vector; the short array raises rather than answering.
-  "real[]": ["'{0.1,0.2,0.4,1.0}'::float4[]", "'{}'::float4[]"],
+  'real[]': ["'{0.1,0.2,0.4,1.0}'::float4[]", "'{}'::float4[]"],
 
   // --- bits, network, identifiers and the geometry the operators reach.
-  boolean: ["true", "false"],
+  boolean: ['true', 'false'],
   bit: ["B'0'", "B'1'"],
-  "bit varying": ["B'0'::varbit", "B'101'::varbit"],
+  'bit varying': ["B'0'::varbit", "B'101'::varbit"],
   inet: ["'127.0.0.1'::inet", "'::1'::inet"],
   cidr: ["'127.0.0.0/8'::cidr"],
   macaddr: ["'08:00:2b:01:02:03'::macaddr"],
@@ -171,7 +224,7 @@ export const VALUES: Record<string, string[]> = {
   // 999999 names NOTHING, which is a corner in its own right: the privilege
   // family answers NULL for an object that is not there while raising for a
   // malformed one, and the two are only told apart by trying both.
-  oid: ["0::oid", "1::oid", "999999::oid"],
+  oid: ['0::oid', '1::oid', '999999::oid'],
   // A transaction id with no COMMIT TIMESTAMP recorded, which is what
   // pg_xact_commit_timestamp answers NULL for once track_commit_timestamp is
   // on. Xid 0 raises instead, so one value could not reach the distinction.
@@ -179,7 +232,7 @@ export const VALUES: Record<string, string[]> = {
   xid8: ["'0'::xid8"],
   cid: ["'0'::cid"],
   tid: ["'(0,1)'::tid"],
-  "pg_lsn": ["'0/0'::pg_lsn", "'FFFFFFFF/FFFFFFFF'::pg_lsn"],
+  pg_lsn: ["'0/0'::pg_lsn", "'FFFFFFFF/FFFFFFFF'::pg_lsn"],
   oidvector: ["'1 2'::oidvector"],
   tsvector: ["''::tsvector", "'a b'::tsvector"],
   tsquery: ["'a'::tsquery", "'a & b'::tsquery"],
@@ -230,17 +283,32 @@ export const VALUES: Record<string, string[]> = {
   // good in any cstring position — which is the shape a per-type corpus is
   // for.
   cstring: [
-    "'abc'::cstring", "'42'::cstring", "''::cstring",
-    "'t'::cstring", "'2020-01-01'::cstring", "'2020-01-01Z'::cstring",
-    "'00:00'::cstring", "'00:00+00'::cstring",
-    "'(0,0)'::cstring", "'(0,1)'::cstring", "'(1,2)'::cstring",
-    "'((0,0),(1,1))'::cstring", "'((0,0),(1,1),(1,0))'::cstring",
-    "'[(0,0),(1,1)]'::cstring", "'<(0,0),1>'::cstring", "'{1,1,0}'::cstring",
-    "'127.0.0.1'::cstring", "'08:00:2b:01:02:03'::cstring",
-    "'08:00:2b:01:02:03:04:05'::cstring", "'0/0'::cstring",
-    "'00000000-0000-0000-0000-000000000000'::cstring", "'1:1:'::cstring",
-    "'postgres=r/postgres'::cstring", "'{1,2}'::cstring",
-    "'[1,2)'::cstring", "'{[1,2)}'::cstring",
+    "'abc'::cstring",
+    "'42'::cstring",
+    "''::cstring",
+    "'t'::cstring",
+    "'2020-01-01'::cstring",
+    "'2020-01-01Z'::cstring",
+    "'00:00'::cstring",
+    "'00:00+00'::cstring",
+    "'(0,0)'::cstring",
+    "'(0,1)'::cstring",
+    "'(1,2)'::cstring",
+    "'((0,0),(1,1))'::cstring",
+    "'((0,0),(1,1),(1,0))'::cstring",
+    "'[(0,0),(1,1)]'::cstring",
+    "'<(0,0),1>'::cstring",
+    "'{1,1,0}'::cstring",
+    "'127.0.0.1'::cstring",
+    "'08:00:2b:01:02:03'::cstring",
+    "'08:00:2b:01:02:03:04:05'::cstring",
+    "'0/0'::cstring",
+    "'00000000-0000-0000-0000-000000000000'::cstring",
+    "'1:1:'::cstring",
+    "'postgres=r/postgres'::cstring",
+    "'{1,2}'::cstring",
+    "'[1,2)'::cstring",
+    "'{[1,2)}'::cstring",
   ],
   // The three- and six-element members are aggregate TRANSITION STATES, not
   // arrays of numbers: `float8_accum` wants (N, sum, sumX2) and
@@ -248,20 +316,21 @@ export const VALUES: Record<string, string[]> = {
   // the aggstate group raised because the corpus could only offer it an
   // arbitrary float8[]. A populated state sits beside a zeroed one because
   // `float8_corr` divides by N.
-  "double precision[]": [
-    "'{}'::float8[]", "'{1,2}'::float8[]",
-    "'{0,0,0}'::float8[]", "'{2,3,0}'::float8[]",
-    "'{0,0,0,0,0,0}'::float8[]", "'{2,1,1,1,1,1}'::float8[]",
+  'double precision[]': [
+    "'{}'::float8[]",
+    "'{1,2}'::float8[]",
+    "'{0,0,0}'::float8[]",
+    "'{2,3,0}'::float8[]",
+    "'{0,0,0,0,0,0}'::float8[]",
+    "'{2,1,1,1,1,1}'::float8[]",
   ],
   // The two-element members are the int accumulators' (count, sum) state.
-  "bigint[]": ["'{}'::int8[]", "'{1,2}'::int8[]", "'{0,0}'::int8[]", "'{2,4}'::int8[]"],
-  "oid[]": ["'{}'::oid[]", "'{1,2}'::oid[]"],
+  'bigint[]': ["'{}'::int8[]", "'{1,2}'::int8[]", "'{0,0}'::int8[]", "'{2,4}'::int8[]"],
+  'oid[]': ["'{}'::oid[]", "'{1,2}'::oid[]"],
   // A type MODIFIER list, which is what the ten `*typmodin` rows take: one
   // number for a length or precision, two for numeric's precision and scale.
-  "cstring[]": [
-    "'{}'::cstring[]", "'{a}'::cstring[]", "'{8}'::cstring[]", "'{10,2}'::cstring[]",
-  ],
-  '"char"[]': ["ARRAY['a'::\"char\"]"],
+  'cstring[]': ["'{}'::cstring[]", "'{a}'::cstring[]", "'{8}'::cstring[]", "'{10,2}'::cstring[]"],
+  '"char"[]': ['ARRAY[\'a\'::"char"]'],
   int2vector: ["'1 2'::int2vector"],
   xml: ["''::xml", "'<a/>'::xml"],
   // A refcursor value is a PORTAL NAME, so the literal is trivial and the
@@ -294,10 +363,15 @@ export const VALUES: Record<string, string[]> = {
   // relation that is neither a partition nor partitioned — which reads
   // exactly like a raise and is just as far from a verdict.
   regclass: [
-    "'pg_class'::regclass", "'probe_seq'::regclass",
-    "'probe_seq_unused'::regclass", "999999::oid::regclass",
-    "'probe_rel'::regclass", "'probe_brin'::regclass", "'probe_gin'::regclass",
-    "'probe_part'::regclass", "'probe_part1'::regclass",
+    "'pg_class'::regclass",
+    "'probe_seq'::regclass",
+    "'probe_seq_unused'::regclass",
+    '999999::oid::regclass',
+    "'probe_rel'::regclass",
+    "'probe_brin'::regclass",
+    "'probe_gin'::regclass",
+    "'probe_part'::regclass",
+    "'probe_part1'::regclass",
   ],
   regtype: ["'integer'::regtype"],
   regproc: ["'pg_backend_pid'::regproc"],
@@ -306,7 +380,7 @@ export const VALUES: Record<string, string[]> = {
   regoperator: ["'+(integer,integer)'::regoperator"],
   regnamespace: ["'pg_catalog'::regnamespace"],
   regrole: ["'postgres'::regrole"],
-  regcollation: ["'\"C\"'::regcollation"],
+  regcollation: ['\'"C"\'::regcollation'],
   regdictionary: ["'simple'::regdictionary"],
   // The second member has IN-PROGRESS xids, which is the only thing
   // `pg_snapshot_xip`/`txid_snapshot_xip` emit — over the empty one they
@@ -315,8 +389,8 @@ export const VALUES: Record<string, string[]> = {
   txid_snapshot: ["'1:1:'::txid_snapshot", "'1:3:1,2'::txid_snapshot"],
 
   aclitem: ["makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)"],
-  "aclitem[]": ["ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)]"],
-};
+  'aclitem[]': ["ARRAY[makeaclitem('postgres'::regrole, 'postgres'::regrole, 'SELECT', true)]"],
+}
 
 /**
  * Polymorphic parameters have no type of their own, so every one of them in a
@@ -327,17 +401,31 @@ export const VALUES: Record<string, string[]> = {
  */
 export const POLYMORPHIC_FAMILIES: Record<string, string>[] = [
   {
-    anyelement: "1", anynonarray: "1", anycompatible: "1", anycompatiblenonarray: "1",
-    anyarray: "ARRAY[1,2]", anycompatiblearray: "ARRAY[1,2]",
-    '"any"': "1", anyenum: "'a'::probe_enum", anyrange: "'[1,2)'::int4range",
-    anymultirange: "'{[1,2)}'::int4multirange", anycompatiblerange: "'[1,2)'::int4range",
+    anyelement: '1',
+    anynonarray: '1',
+    anycompatible: '1',
+    anycompatiblenonarray: '1',
+    anyarray: 'ARRAY[1,2]',
+    anycompatiblearray: 'ARRAY[1,2]',
+    '"any"': '1',
+    anyenum: "'a'::probe_enum",
+    anyrange: "'[1,2)'::int4range",
+    anymultirange: "'{[1,2)}'::int4multirange",
+    anycompatiblerange: "'[1,2)'::int4range",
     anycompatiblemultirange: "'{[1,2)}'::int4multirange",
   },
   {
-    anyelement: "'x'", anynonarray: "'x'", anycompatible: "'x'", anycompatiblenonarray: "'x'",
-    anyarray: "'{}'::text[]", anycompatiblearray: "'{}'::text[]",
-    '"any"': "'x'", anyenum: "'b'::probe_enum", anyrange: "'empty'::int4range",
-    anymultirange: "'{}'::int4multirange", anycompatiblerange: "'empty'::int4range",
+    anyelement: "'x'",
+    anynonarray: "'x'",
+    anycompatible: "'x'",
+    anycompatiblenonarray: "'x'",
+    anyarray: "'{}'::text[]",
+    anycompatiblearray: "'{}'::text[]",
+    '"any"': "'x'",
+    anyenum: "'b'::probe_enum",
+    anyrange: "'empty'::int4range",
+    anymultirange: "'{}'::int4multirange",
+    anycompatiblerange: "'empty'::int4range",
     anycompatiblemultirange: "'{}'::int4multirange",
   },
   // A third family whose ARRAY holds a NULL ELEMENT (2026-08-09). The array
@@ -347,15 +435,22 @@ export const POLYMORPHIC_FAMILIES: Record<string, string>[] = [
   // no-null-found. The scalar members repeat family 1 so the family stays a
   // legal instantiation for signatures mixing element and array parameters.
   {
-    anyelement: "1", anynonarray: "1", anycompatible: "1", anycompatiblenonarray: "1",
-    anyarray: "ARRAY[1,NULL]", anycompatiblearray: "ARRAY[1,NULL]",
-    '"any"': "1", anyenum: "'a'::probe_enum", anyrange: "'[1,2)'::int4range",
-    anymultirange: "'{[1,2)}'::int4multirange", anycompatiblerange: "'[1,2)'::int4range",
+    anyelement: '1',
+    anynonarray: '1',
+    anycompatible: '1',
+    anycompatiblenonarray: '1',
+    anyarray: 'ARRAY[1,NULL]',
+    anycompatiblearray: 'ARRAY[1,NULL]',
+    '"any"': '1',
+    anyenum: "'a'::probe_enum",
+    anyrange: "'[1,2)'::int4range",
+    anymultirange: "'{[1,2)}'::int4multirange",
+    anycompatiblerange: "'[1,2)'::int4range",
     anycompatiblemultirange: "'{[1,2)}'::int4multirange",
   },
-];
+]
 
-export const POLYMORPHIC = new Set(Object.keys(POLYMORPHIC_FAMILIES[0]!));
+export const POLYMORPHIC = new Set(Object.keys(POLYMORPHIC_FAMILIES[0]!))
 
 /**
  * Beyond this many combinations a signature is sampled rather than crossed,
@@ -371,7 +466,7 @@ export const POLYMORPHIC = new Set(Object.keys(POLYMORPHIC_FAMILIES[0]!));
  * cheap enough that the cap is about the report staying honest rather than
  * about time — the claimed surface is 26k of them in ~4s.
  */
-export const MAX_COMBOS = 2048;
+export const MAX_COMBOS = 2048
 
 /**
  * Calls are written `pg_catalog.name(...)`, which is not decoration: several
@@ -384,31 +479,31 @@ export const MAX_COMBOS = 2048;
  * the walk consults them for exactly that.
  */
 export const qualify = (name: string): string =>
-  `pg_catalog.${/^[a-z_][a-z0-9_]*$/.test(name) ? name : JSON.stringify(name)}`;
+  `pg_catalog.${/^[a-z_][a-z0-9_]*$/.test(name) ? name : JSON.stringify(name)}`
 
 /** The cross product, capped — beyond the cap, vary one argument at a time. */
 export function combinations(valueLists: string[][]): { combos: string[][]; capped: boolean } {
-  const total = valueLists.reduce((n, l) => n * l.length, 1);
+  const total = valueLists.reduce((n, l) => n * l.length, 1)
   if (total <= MAX_COMBOS) {
-    let combos: string[][] = [[]];
-    for (const list of valueLists) combos = combos.flatMap(c => list.map(v => [...c, v]));
-    return { combos, capped: false };
+    let combos: string[][] = [[]]
+    for (const list of valueLists) combos = combos.flatMap((c) => list.map((v) => [...c, v]))
+    return { combos, capped: false }
   }
   // One-at-a-time from a baseline, plus the diagonals — every argument taking
   // its i-th value together, which is what reaches the corners a
   // one-at-a-time sweep cannot (`to_number('', '')` needs both).
-  const baseline = valueLists.map(l => l[0]!);
-  const combos: string[][] = [baseline];
+  const baseline = valueLists.map((l) => l[0]!)
+  const combos: string[][] = [baseline]
   valueLists.forEach((list, i) => {
     for (const v of list.slice(1)) {
-      const c = [...baseline];
-      c[i] = v;
-      combos.push(c);
+      const c = [...baseline]
+      c[i] = v
+      combos.push(c)
     }
-  });
-  const widest = Math.max(...valueLists.map(l => l.length));
-  for (let i = 1; i < widest; i++) combos.push(valueLists.map(l => l[Math.min(i, l.length - 1)]!));
-  return { combos, capped: true };
+  })
+  const widest = Math.max(...valueLists.map((l) => l.length))
+  for (let i = 1; i < widest; i++) combos.push(valueLists.map((l) => l[Math.min(i, l.length - 1)]!))
+  return { combos, capped: true }
 }
 
 /**
@@ -509,7 +604,7 @@ export const PROBE_OBJECTS_SQL = `
   -- A prepared statement with NO result types, which is the only thing
   -- pg_prepared_statement() reports a null column for.
   PREPARE probe_dml AS INSERT INTO probe_rel VALUES (3, 'd'::tsvector, 'z');
-`;
+`
 
 /**
  * Objects that cannot be made inside the block above, run one statement at a
@@ -531,7 +626,7 @@ export const PROBE_STANDALONE_SQL: readonly string[] = [
   `BEGIN`,
   `INSERT INTO probe_prepared VALUES (1)`,
   `PREPARE TRANSACTION 'probe_gid'`,
-];
+]
 
 /**
  * postgresql.conf lines every probe instance starts with.
@@ -546,16 +641,16 @@ export const PROBE_STANDALONE_SQL: readonly string[] = [
  * verdict means — it only decides whether PostgreSQL will answer at all.
  */
 export const PROBE_CONF: readonly string[] = [
-  "wal_level = logical",
-  "track_commit_timestamp = on",
-  "max_prepared_transactions = 4",
-  "summarize_wal = on",
+  'wal_level = logical',
+  'track_commit_timestamp = on',
+  'max_prepared_transactions = 4',
+  'summarize_wal = on',
   // The slot COPY rows create a slot per combination that succeeds, and the
   // default cap of ten is reached part way through them — after which every
   // later slot row fails on the cap rather than on itself, which reads as a
   // verdict and is not one.
-  "max_replication_slots = 100",
-];
+  'max_replication_slots = 100',
+]
 
 /**
  * Signatures whose GENERATED combinations must not be run, and why.
@@ -574,9 +669,10 @@ export const PROBE_CONF: readonly string[] = [
  * row is probed by that call and convicts or witnesses like any other.
  */
 export const REFUSED_CALLS: Record<string, string> = {
-  "pg_sleep(double precision)": "the corpus carries 'Infinity'::float8, and the sleep is uninterruptible in WASM",
-  "pg_sleep_for(interval)": "the corpus carries 'infinity'::interval and '1 day'",
-  "pg_sleep_until(timestamp with time zone)": "the corpus carries 'infinity'::timestamptz",
+  'pg_sleep(double precision)':
+    "the corpus carries 'Infinity'::float8, and the sleep is uninterruptible in WASM",
+  'pg_sleep_for(interval)': "the corpus carries 'infinity'::interval and '1 day'",
+  'pg_sleep_until(timestamp with time zone)': "the corpus carries 'infinity'::timestamptz",
   // The second reason a call is refused: it changes what the probes AFTER it
   // can see. `set_config('search_path', 'abc', false)` is a legal call the
   // corpus builds from two of its own text values, `is_local = false` makes
@@ -585,7 +681,7 @@ export const REFUSED_CALLS: Record<string, string> = {
   // from claimed-and-held to probed-in-name-only, in silence. The coherent
   // call keeps the mechanism (a GUC is set and its new value returned) with
   // a setting nothing reads and `is_local = true`.
-  "set_config(text,text,boolean)":
+  'set_config(text,text,boolean)':
     "sets a SESSION GUC that outlives the call — search_path among the corpus's own values, which hides the probe's enum type from every later expression in the statement",
   // The third reason: creating a LOGICAL slot waits for every in-progress
   // transaction to finish before it can reach a consistent snapshot, and this
@@ -594,7 +690,7 @@ export const REFUSED_CALLS: Record<string, string> = {
   // the other. A temporary slot waits the same way, so there is no bounded
   // spelling to put here; the row is probed in the SIDE instance instead
   // (SIDE_DB_SCRIPT), which holds neither object.
-  "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)":
+  'pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)':
     "waits forever for the probe database's prepared transaction to finish; probed in the side instance instead",
   // The fourth reason, and the worst consequence of the four: READING a slot
   // through pgoutput kills the backend outright rather than raising. It
@@ -603,28 +699,28 @@ export const REFUSED_CALLS: Record<string, string> = {
   // that is a corpus edit away from being a dead run instead of a verdict.
   // SIDE_DB_SCRIPT records the full measurement and why no plugin in this
   // build can answer these.
-  "pg_logical_slot_get_changes(name,pg_lsn,integer,text[])":
-    "reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build",
-  "pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])":
-    "reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build",
-  "pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])":
-    "reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build",
-  "pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])":
-    "reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build",
+  'pg_logical_slot_get_changes(name,pg_lsn,integer,text[])':
+    'reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build',
+  'pg_logical_slot_get_binary_changes(name,pg_lsn,integer,text[])':
+    'reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build',
+  'pg_logical_slot_peek_changes(name,pg_lsn,integer,text[])':
+    'reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build',
+  'pg_logical_slot_peek_binary_changes(name,pg_lsn,integer,text[])':
+    'reading a slot through pgoutput takes the backend down; no textual output plugin exists in this build',
   // Clears the session replication origin PROBE_OBJECTS_SQL configures, which
   // three other rows need — the set_config shape again, one family over. Its
   // own verdict comes from the SIDE instance, which configures no origin until
   // the two origin rows ask it to.
-  "pg_replication_origin_session_reset()":
-    "clears the session replication origin the probe database configures, which three other rows are evaluated against; probed in the side instance instead",
+  'pg_replication_origin_session_reset()':
+    'clears the session replication origin the probe database configures, which three other rows are evaluated against; probed in the side instance instead',
   // DROPS the probe database's replication slots. The `name` corpus carries
   // their names — that is what made the slot family probeable at all — so
   // its generated combinations delete the objects `pg_replication_slot_advance`
   // and the copy rows are evaluated against, and which ran first decided
   // their verdict. Its coherent call creates a slot of its own to drop.
-  "pg_drop_replication_slot(name)":
+  'pg_drop_replication_slot(name)':
     "drops the probe database's own replication slots, which four other rows are evaluated against",
-};
+}
 
 export const PROBE_FN_SQL = `
   CREATE FUNCTION probe(expr text) RETURNS text LANGUAGE plpgsql AS $probe$
@@ -633,11 +729,11 @@ export const PROBE_FN_SQL = `
     EXECUTE 'SELECT (' || expr || ') IS NULL' INTO r;
     RETURN CASE WHEN r THEN 'NULL' ELSE 'value' END;
   EXCEPTION WHEN OTHERS THEN RETURN 'error';
-  END $probe$;`;
+  END $probe$;`
 
 /** A large object created by the call itself, and a descriptor open on one. */
-const LO_NEW = "pg_catalog.lo_create(0::oid)";
-const LO_FD = `pg_catalog.lo_open(${LO_NEW}, 393216)`;
+const LO_NEW = 'pg_catalog.lo_create(0::oid)'
+const LO_FD = `pg_catalog.lo_open(${LO_NEW}, 393216)`
 
 /**
  * Argument lists known to be valid TOGETHER, appended to the generated
@@ -666,49 +762,65 @@ const LO_FD = `pg_catalog.lo_open(${LO_NEW}, 393216)`;
 export const COHERENT_CALLS: Record<string, readonly (readonly string[])[]> = {
   // The unit and the timezone must be valid together — the signature the
   // combination cap was sized for, twice.
-  "date_trunc(text,timestamp with time zone,text)": [
+  'date_trunc(text,timestamp with time zone,text)': [
     ["'day'", "'2020-01-01Z'::timestamptz", "'UTC'"],
     ["'hour'", "'infinity'::timestamptz", "'UTC'"],
   ],
   // A role, an object of the right KIND, and a privilege that kind accepts.
   // `pg_class`, `pg_catalog`, `sql` and `pg_default` exist in every
   // PostgreSQL; the role is the one PGlite runs as.
-  "has_column_privilege(name,text,smallint,text)": [["'postgres'::name", "'pg_class'", "1::smallint", "'SELECT'"]],
-  "has_column_privilege(name,text,text,text)": [["'postgres'::name", "'pg_class'", "'relname'", "'SELECT'"]],
-  "has_column_privilege(oid,text,smallint,text)": [["'postgres'::regrole::oid", "'pg_class'", "1::smallint", "'SELECT'"]],
-  "has_column_privilege(oid,text,text,text)": [["'postgres'::regrole::oid", "'pg_class'", "'relname'", "'SELECT'"]],
-  "has_column_privilege(text,smallint,text)": [["'pg_class'", "1::smallint", "'SELECT'"]],
-  "has_column_privilege(text,text,text)": [["'pg_class'", "'relname'", "'SELECT'"]],
-  "has_database_privilege(name,text,text)": [["'postgres'::name", "current_database()", "'CONNECT'"]],
-  "has_database_privilege(oid,text,text)": [["'postgres'::regrole::oid", "current_database()", "'CONNECT'"]],
-  "has_database_privilege(text,text)": [["current_database()", "'CONNECT'"]],
-  "has_function_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'upper(text)'", "'EXECUTE'"]],
-  "has_language_privilege(name,text,text)": [["'postgres'::name", "'sql'", "'USAGE'"]],
+  'has_column_privilege(name,text,smallint,text)': [
+    ["'postgres'::name", "'pg_class'", '1::smallint', "'SELECT'"],
+  ],
+  'has_column_privilege(name,text,text,text)': [
+    ["'postgres'::name", "'pg_class'", "'relname'", "'SELECT'"],
+  ],
+  'has_column_privilege(oid,text,smallint,text)': [
+    ["'postgres'::regrole::oid", "'pg_class'", '1::smallint', "'SELECT'"],
+  ],
+  'has_column_privilege(oid,text,text,text)': [
+    ["'postgres'::regrole::oid", "'pg_class'", "'relname'", "'SELECT'"],
+  ],
+  'has_column_privilege(text,smallint,text)': [["'pg_class'", '1::smallint', "'SELECT'"]],
+  'has_column_privilege(text,text,text)': [["'pg_class'", "'relname'", "'SELECT'"]],
+  'has_database_privilege(name,text,text)': [
+    ["'postgres'::name", 'current_database()', "'CONNECT'"],
+  ],
+  'has_database_privilege(oid,text,text)': [
+    ["'postgres'::regrole::oid", 'current_database()', "'CONNECT'"],
+  ],
+  'has_database_privilege(text,text)': [['current_database()', "'CONNECT'"]],
+  'has_function_privilege(oid,text,text)': [
+    ["'postgres'::regrole::oid", "'upper(text)'", "'EXECUTE'"],
+  ],
+  'has_language_privilege(name,text,text)': [["'postgres'::name", "'sql'", "'USAGE'"]],
   // Five more (name,text,text) spellings, which the name corpus's growth
   // pushed past the combination cap: above it the sampler varies ONE
   // argument from a baseline, and these need the role, the object and the
   // privilege valid at once. Trap 5 — a coherent call, not a bigger cap.
-  "has_any_column_privilege(name,text,text)": [["'postgres'::name", "'pg_class'", "'SELECT'"]],
-  "has_function_privilege(name,text,text)": [["'postgres'::name", "'upper(text)'", "'EXECUTE'"]],
-  "has_parameter_privilege(name,text,text)": [["'postgres'::name", "'search_path'", "'SET'"]],
-  "has_table_privilege(name,text,text)": [["'postgres'::name", "'pg_class'", "'SELECT'"]],
-  "has_type_privilege(name,text,text)": [["'postgres'::name", "'integer'", "'USAGE'"]],
-  "has_language_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'sql'", "'USAGE'"]],
-  "has_language_privilege(text,text)": [["'sql'", "'USAGE'"]],
-  "has_schema_privilege(name,text,text)": [["'postgres'::name", "'pg_catalog'", "'USAGE'"]],
-  "has_schema_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'pg_catalog'", "'USAGE'"]],
-  "has_schema_privilege(text,text)": [["'pg_catalog'", "'USAGE'"]],
-  "has_tablespace_privilege(name,text,text)": [["'postgres'::name", "'pg_default'", "'CREATE'"]],
-  "has_tablespace_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'pg_default'", "'CREATE'"]],
-  "has_tablespace_privilege(text,text)": [["'pg_default'", "'CREATE'"]],
+  'has_any_column_privilege(name,text,text)': [["'postgres'::name", "'pg_class'", "'SELECT'"]],
+  'has_function_privilege(name,text,text)': [["'postgres'::name", "'upper(text)'", "'EXECUTE'"]],
+  'has_parameter_privilege(name,text,text)': [["'postgres'::name", "'search_path'", "'SET'"]],
+  'has_table_privilege(name,text,text)': [["'postgres'::name", "'pg_class'", "'SELECT'"]],
+  'has_type_privilege(name,text,text)': [["'postgres'::name", "'integer'", "'USAGE'"]],
+  'has_language_privilege(oid,text,text)': [["'postgres'::regrole::oid", "'sql'", "'USAGE'"]],
+  'has_language_privilege(text,text)': [["'sql'", "'USAGE'"]],
+  'has_schema_privilege(name,text,text)': [["'postgres'::name", "'pg_catalog'", "'USAGE'"]],
+  'has_schema_privilege(oid,text,text)': [["'postgres'::regrole::oid", "'pg_catalog'", "'USAGE'"]],
+  'has_schema_privilege(text,text)': [["'pg_catalog'", "'USAGE'"]],
+  'has_tablespace_privilege(name,text,text)': [["'postgres'::name", "'pg_default'", "'CREATE'"]],
+  'has_tablespace_privilege(oid,text,text)': [
+    ["'postgres'::regrole::oid", "'pg_default'", "'CREATE'"],
+  ],
+  'has_tablespace_privilege(text,text)': [["'pg_default'", "'CREATE'"]],
   // The SEQUENCE privileges (2026-08-21). They were pinned unprobeable
   // because "a fresh PGlite has no sequence" — true when it was written, and
   // false as soon as `PROBE_OBJECTS_SQL` reached the classifying suite. The
   // foreign-data-wrapper and foreign-server rows keep that reason; these
   // three lost it.
-  "has_sequence_privilege(name,text,text)": [["'postgres'::name", "'probe_seq'", "'USAGE'"]],
-  "has_sequence_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'probe_seq'", "'USAGE'"]],
-  "has_sequence_privilege(text,text)": [["'probe_seq'", "'USAGE'"]],
+  'has_sequence_privilege(name,text,text)': [["'postgres'::name", "'probe_seq'", "'USAGE'"]],
+  'has_sequence_privilege(oid,text,text)': [["'postgres'::regrole::oid", "'probe_seq'", "'USAGE'"]],
+  'has_sequence_privilege(text,text)': [["'probe_seq'", "'USAGE'"]],
   // A large-object DESCRIPTOR, opened inside the call. These five raise for
   // any integer the corpus carries, and the descriptor `lo_open` returns is
   // only valid inside the transaction that opened it — so the argument has
@@ -722,141 +834,152 @@ export const COHERENT_CALLS: Record<string, readonly (readonly string[])[]> = {
   // came from whichever row happened to run first — `lo_create(1::oid)` made
   // OID 1 exist and `lo_open(1::oid, …)` then worked, in the classifier's
   // name-ordered batch and not in the totality probe's unordered one.
-  "lo_export(oid,text)": [["16000::oid", "'probe_export'"]],
-  "lo_get(oid)": [["16000::oid"]],
-  "lo_get(oid,bigint,integer)": [["16000::oid", "0::bigint", "1"]],
-  "lo_import(text)": [["'probe_lo'"]],
-  "lo_import(text,oid)": [["'probe_lo'", "0::oid"]],
-  "lo_open(oid,integer)": [[LO_NEW, "393216"]],
-  "lo_put(oid,bigint,bytea)": [[LO_NEW, "0::bigint", "'abc'::bytea"]],
-  "lo_unlink(oid)": [[LO_NEW]],
+  'lo_export(oid,text)': [['16000::oid', "'probe_export'"]],
+  'lo_get(oid)': [['16000::oid']],
+  'lo_get(oid,bigint,integer)': [['16000::oid', '0::bigint', '1']],
+  'lo_import(text)': [["'probe_lo'"]],
+  'lo_import(text,oid)': [["'probe_lo'", '0::oid']],
+  'lo_open(oid,integer)': [[LO_NEW, '393216']],
+  'lo_put(oid,bigint,bytea)': [[LO_NEW, '0::bigint', "'abc'::bytea"]],
+  'lo_unlink(oid)': [[LO_NEW]],
   // The server-side file readers, against the file the large object exported.
   // They convicted before this entry existed because `lo_export(0::oid,'abc')`
   // had written a file called `abc` earlier in the same statement — a
   // promotion resting on alphabetical order, which the totality probe (whose
   // fetch has no ORDER BY) did not reproduce.
-  "pg_read_binary_file(text)": [["'probe_lo'"]],
-  "pg_read_binary_file(text,bigint,bigint)": [["'probe_lo'", "0::bigint", "1::bigint"]],
-  "pg_read_file(text)": [["'probe_lo'"]],
-  "pg_read_file(text,bigint,bigint)": [["'probe_lo'", "0::bigint", "1::bigint"]],
-  "pg_stat_file(text)": [["'probe_lo'"]],
+  'pg_read_binary_file(text)': [["'probe_lo'"]],
+  'pg_read_binary_file(text,bigint,bigint)': [["'probe_lo'", '0::bigint', '1::bigint']],
+  'pg_read_file(text)': [["'probe_lo'"]],
+  'pg_read_file(text,bigint,bigint)': [["'probe_lo'", '0::bigint', '1::bigint']],
+  'pg_stat_file(text)': [["'probe_lo'"]],
   // A slot created by the call itself. The same order accident: `pg_create_*`
   // sorts before `pg_drop_*` and left one lying around.
-  "pg_drop_replication_slot(name)": [
-    ["(pg_catalog.pg_create_physical_replication_slot('probe_drop'::name, false, false)).slot_name"],
+  'pg_drop_replication_slot(name)': [
+    [
+      "(pg_catalog.pg_create_physical_replication_slot('probe_drop'::name, false, false)).slot_name",
+    ],
   ],
   // A slot name that is FREE. Every name the corpus carries is one the probe
   // database already made, and creating a slot that exists raises — so once
   // the DROP row stopped clearing them, this row had nothing left to create.
-  "pg_create_physical_replication_slot(name,boolean,boolean)": [
-    ["'probe_create'::name", "true", "false"],
+  'pg_create_physical_replication_slot(name,boolean,boolean)': [
+    ["'probe_create'::name", 'true', 'false'],
   ],
   // The refused row's bounded call: a GUC nothing reads, set LOCALLY.
-  "set_config(text,text,boolean)": [["'application_name'", "'probe'", "true"]],
-  "lo_close(integer)": [[LO_FD]],
-  "lo_lseek(integer,integer,integer)": [[LO_FD, "0", "0"]],
-  "lo_lseek64(integer,bigint,integer)": [[LO_FD, "0::bigint", "0"]],
-  "lo_tell(integer)": [[LO_FD]],
-  "lo_tell64(integer)": [[LO_FD]],
-  "lo_truncate(integer,integer)": [[LO_FD, "0"]],
-  "lo_truncate64(integer,bigint)": [[LO_FD, "0::bigint"]],
-  "loread(integer,integer)": [[LO_FD, "1"]],
-  "lowrite(integer,bytea)": [[LO_FD, "'abc'::bytea"]],
+  'set_config(text,text,boolean)': [["'application_name'", "'probe'", 'true']],
+  'lo_close(integer)': [[LO_FD]],
+  'lo_lseek(integer,integer,integer)': [[LO_FD, '0', '0']],
+  'lo_lseek64(integer,bigint,integer)': [[LO_FD, '0::bigint', '0']],
+  'lo_tell(integer)': [[LO_FD]],
+  'lo_tell64(integer)': [[LO_FD]],
+  'lo_truncate(integer,integer)': [[LO_FD, '0']],
+  'lo_truncate64(integer,bigint)': [[LO_FD, '0::bigint']],
+  'loread(integer,integer)': [[LO_FD, '1']],
+  'lowrite(integer,bytea)': [[LO_FD, "'abc'::bytea"]],
   // A statistics KIND, a reset TARGET and a log FORMAT — each a small closed
   // vocabulary its function raises for anything outside, the same shape as
   // the privilege words above. `pg_current_logfile` is the one that answers
   // rather than convicting: with no logging collector running there is no
   // file, and it returns NULL exactly as its no-argument sibling does.
-  "pg_stat_have_stats(text,oid,bigint)": [
-    ["'relation'", "'pg_class'::regclass::oid", "0::bigint"],
-  ],
-  "pg_stat_reset_shared(text)": [["'bgwriter'"]],
-  "pg_current_logfile(text)": [["'stderr'"]],
+  'pg_stat_have_stats(text,oid,bigint)': [["'relation'", "'pg_class'::regclass::oid", '0::bigint']],
+  'pg_stat_reset_shared(text)': [["'bgwriter'"]],
+  'pg_current_logfile(text)': [["'stderr'"]],
   // A QUERY, which is what these three take rather than a string: `ts_stat`
   // wants one returning a single tsvector column and `ts_rewrite` one
   // returning two tsqueries. The corpus's `'SELECT'` is a legal query and
   // reaches neither shape.
-  "ts_stat(text)": [["'SELECT ''a b''::tsvector'"]],
-  "ts_stat(text,text)": [["'SELECT ''a:1A b:2B''::tsvector'", "'A'"]],
-  "ts_rewrite(tsquery,text)": [
-    ["'a'::tsquery", "'SELECT ''a''::tsquery, ''b''::tsquery'"],
-  ],
+  'ts_stat(text)': [["'SELECT ''a b''::tsvector'"]],
+  'ts_stat(text,text)': [["'SELECT ''a:1A b:2B''::tsvector'", "'A'"]],
+  'ts_rewrite(tsquery,text)': [["'a'::tsquery", "'SELECT ''a''::tsquery, ''b''::tsquery'"]],
   // A directory that EXISTS. `pg_ls_dir` raises for one that does not, and
   // every corpus text is a name rather than a path; `base` is in every data
   // directory PostgreSQL has ever laid out. The three-argument spelling
   // needed it more, not less: `missing_ok` turns the raise into an EMPTY
   // set, which is no more evidence of totality than the raise was.
-  "pg_ls_dir(text)": [["'base'"]],
-  "pg_ls_dir(text,boolean,boolean)": [["'base'", "false", "false"]],
+  'pg_ls_dir(text)': [["'base'"]],
+  'pg_ls_dir(text,boolean,boolean)': [["'base'", 'false', 'false']],
   // A schema and a relation in it. These take the object by NAME in two
   // parts, so one text list cannot be both — the `has_column_privilege`
   // shape again.
-  "pg_clear_relation_stats(text,text)": [["'pg_catalog'", "'pg_class'"]],
-  "pg_clear_attribute_stats(text,text,text,boolean)": [
-    ["'pg_catalog'", "'pg_class'", "'relname'", "false"],
+  'pg_clear_relation_stats(text,text)': [["'pg_catalog'", "'pg_class'"]],
+  'pg_clear_attribute_stats(text,text,text,boolean)': [
+    ["'pg_catalog'", "'pg_class'", "'relname'", 'false'],
   ],
   // The FOREIGN-DATA-WRAPPER and FOREIGN-SERVER privileges (2026-08-21).
   // Both objects exist in the probe database now, closing the last of the
   // no-such-object group.
-  "has_foreign_data_wrapper_privilege(name,text,text)": [["'postgres'::name", "'probe_fdw'", "'USAGE'"]],
-  "has_foreign_data_wrapper_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'probe_fdw'", "'USAGE'"]],
-  "has_foreign_data_wrapper_privilege(text,text)": [["'probe_fdw'", "'USAGE'"]],
-  "has_server_privilege(name,text,text)": [["'postgres'::name", "'probe_srv'", "'USAGE'"]],
-  "has_server_privilege(oid,text,text)": [["'postgres'::regrole::oid", "'probe_srv'", "'USAGE'"]],
-  "has_server_privilege(text,text)": [["'probe_srv'", "'USAGE'"]],
+  'has_foreign_data_wrapper_privilege(name,text,text)': [
+    ["'postgres'::name", "'probe_fdw'", "'USAGE'"],
+  ],
+  'has_foreign_data_wrapper_privilege(oid,text,text)': [
+    ["'postgres'::regrole::oid", "'probe_fdw'", "'USAGE'"],
+  ],
+  'has_foreign_data_wrapper_privilege(text,text)': [["'probe_fdw'", "'USAGE'"]],
+  'has_server_privilege(name,text,text)': [["'postgres'::name", "'probe_srv'", "'USAGE'"]],
+  'has_server_privilege(oid,text,text)': [["'postgres'::regrole::oid", "'probe_srv'", "'USAGE'"]],
+  'has_server_privilege(text,text)': [["'probe_srv'", "'USAGE'"]],
   // The I/O entry points that take a TARGET TYPE's oid beside the string.
   // The cstring corpus can carry the syntax but not the type: `array_in`
   // wants an element type, `domain_in` a domain, `record_in` a composite,
   // and the two the probe database had to grow a `probe_dom`/`probe_comp`
   // for cannot be spelled with a base type at all.
-  "array_in(cstring,oid,integer)": [["'{1,2}'::cstring", "'int4'::regtype::oid", "(-1)"]],
-  "domain_in(cstring,oid,integer)": [["'1'::cstring", "'probe_dom'::regtype::oid", "(-1)"]],
-  "record_in(cstring,oid,integer)": [["'(1,abc)'::cstring", "'probe_comp'::regtype::oid", "(-1)"]],
-  "range_in(cstring,oid,integer)": [["'[1,2)'::cstring", "'int4range'::regtype::oid", "(-1)"]],
-  "multirange_in(cstring,oid,integer)": [["'{[1,2)}'::cstring", "'int4multirange'::regtype::oid", "(-1)"]],
-  "enum_in(cstring,oid)": [["'a'::cstring", "'probe_enum'::regtype::oid"]],
+  'array_in(cstring,oid,integer)': [["'{1,2}'::cstring", "'int4'::regtype::oid", '(-1)']],
+  'domain_in(cstring,oid,integer)': [["'1'::cstring", "'probe_dom'::regtype::oid", '(-1)']],
+  'record_in(cstring,oid,integer)': [["'(1,abc)'::cstring", "'probe_comp'::regtype::oid", '(-1)']],
+  'range_in(cstring,oid,integer)': [["'[1,2)'::cstring", "'int4range'::regtype::oid", '(-1)']],
+  'multirange_in(cstring,oid,integer)': [
+    ["'{[1,2)}'::cstring", "'int4multirange'::regtype::oid", '(-1)'],
+  ],
+  'enum_in(cstring,oid)': [["'a'::cstring", "'probe_enum'::regtype::oid"]],
   // A composite TARGET, which is what these populate into. The polymorphic
   // families instantiate `anyelement` as an integer, and an integer has no
   // fields to fill.
-  "json_populate_record(anyelement,json,boolean)": [["NULL::probe_comp", "'{\"a\":1}'::json", "false"]],
-  "json_populate_recordset(anyelement,json,boolean)": [["NULL::probe_comp", "'[{\"a\":1}]'::json", "false"]],
-  "jsonb_populate_record(anyelement,jsonb)": [["NULL::probe_comp", "'{\"a\":1}'::jsonb"]],
-  "jsonb_populate_record_valid(anyelement,jsonb)": [["NULL::probe_comp", "'{\"a\":1}'::jsonb"]],
-  "jsonb_populate_recordset(anyelement,jsonb)": [["NULL::probe_comp", "'[{\"a\":1}]'::jsonb"]],
+  'json_populate_record(anyelement,json,boolean)': [
+    ['NULL::probe_comp', '\'{"a":1}\'::json', 'false'],
+  ],
+  'json_populate_recordset(anyelement,json,boolean)': [
+    ['NULL::probe_comp', '\'[{"a":1}]\'::json', 'false'],
+  ],
+  'jsonb_populate_record(anyelement,jsonb)': [['NULL::probe_comp', '\'{"a":1}\'::jsonb']],
+  'jsonb_populate_record_valid(anyelement,jsonb)': [['NULL::probe_comp', '\'{"a":1}\'::jsonb']],
+  'jsonb_populate_recordset(anyelement,jsonb)': [['NULL::probe_comp', '\'[{"a":1}]\'::jsonb']],
   // A real modulus/remainder pair against a HASH-partitioned parent.
-  "satisfies_hash_partition(oid,integer,integer,\"any\")": [
-    ["'probe_hash'::regclass::oid", "2", "0", "1"],
+  'satisfies_hash_partition(oid,integer,integer,"any")': [
+    ["'probe_hash'::regclass::oid", '2', '0', '1'],
   ],
   // Objects identified by OID where the corpus can only offer 0 and 1, and
   // where the KIND of object is the whole question — an opclass, a
   // collation, a function of a particular language, a sequence.
-  "amvalidate(oid)": [["(SELECT oid FROM pg_opclass WHERE opcname = 'int4_ops' LIMIT 1)"]],
-  "pg_collation_actual_version(oid)": [["'probe_coll'::regcollation::oid"]],
-  "fmgr_sql_validator(oid)": [["'probe_sql()'::regprocedure::oid"]],
-  "fmgr_internal_validator(oid)": [["'upper(text)'::regprocedure::oid"]],
-  "fmgr_c_validator(oid)": [["'plpgsql_call_handler()'::regprocedure::oid"]],
-  "plpgsql_validator(oid)": [["'probe_plpgsql()'::regprocedure::oid"]],
-  "pg_sequence_parameters(oid)": [["'probe_seq'::regclass::oid"]],
-  "pg_nextoid(regclass,name,regclass)": [
+  'amvalidate(oid)': [["(SELECT oid FROM pg_opclass WHERE opcname = 'int4_ops' LIMIT 1)"]],
+  'pg_collation_actual_version(oid)': [["'probe_coll'::regcollation::oid"]],
+  'fmgr_sql_validator(oid)': [["'probe_sql()'::regprocedure::oid"]],
+  'fmgr_internal_validator(oid)': [["'upper(text)'::regprocedure::oid"]],
+  'fmgr_c_validator(oid)': [["'plpgsql_call_handler()'::regprocedure::oid"]],
+  'plpgsql_validator(oid)': [["'probe_plpgsql()'::regprocedure::oid"]],
+  'pg_sequence_parameters(oid)': [["'probe_seq'::regclass::oid"]],
+  'pg_nextoid(regclass,name,regclass)': [
     ["'pg_class'::regclass", "'oid'::name", "'pg_class_oid_index'::regclass"],
   ],
   // A committed transaction's id, which only `track_commit_timestamp` makes
   // answerable and only a real xid reaches — the corpus's xid is 0.
-  "pg_xact_commit_timestamp(xid)": [["(SELECT xmin FROM probe_rel LIMIT 1)"]],
-  "pg_xact_commit_timestamp_origin(xid)": [["(SELECT xmin FROM probe_rel LIMIT 1)"]],
+  'pg_xact_commit_timestamp(xid)': [['(SELECT xmin FROM probe_rel LIMIT 1)']],
+  'pg_xact_commit_timestamp_origin(xid)': [['(SELECT xmin FROM probe_rel LIMIT 1)']],
   // A relation and one of its columns, in two parts.
   // Both sides: a column that HAS an owned sequence and one that does not —
   // the second is NULL, and no corpus of relation names finds it by chance.
-  "pg_get_serial_sequence(text,text)": [["'probe_serial'", "'id'"], ["'probe_rel'", "'i'"]],
+  'pg_get_serial_sequence(text,text)': [
+    ["'probe_serial'", "'id'"],
+    ["'probe_rel'", "'i'"],
+  ],
   // An object ADDRESS: a catalog oid, an object oid in it, and a sub-id.
-  "pg_identify_object(oid,oid,integer)": [
-    ["'pg_class'::regclass::oid", "'probe_rel'::regclass::oid", "0"],
+  'pg_identify_object(oid,oid,integer)': [
+    ["'pg_class'::regclass::oid", "'probe_rel'::regclass::oid", '0'],
   ],
-  "pg_identify_object_as_address(oid,oid,integer)": [
-    ["'pg_class'::regclass::oid", "'probe_rel'::regclass::oid", "0"],
+  'pg_identify_object_as_address(oid,oid,integer)': [
+    ["'pg_class'::regclass::oid", "'probe_rel'::regclass::oid", '0'],
   ],
-  "pg_get_object_address(text,text[],text[])": [
-    ["'table'", "ARRAY['probe_rel']", "ARRAY[]::text[]"],
+  'pg_get_object_address(text,text[],text[])': [
+    ["'table'", "ARRAY['probe_rel']", 'ARRAY[]::text[]'],
   ],
   // The last has_column_privilege spelling, which takes the relation by OID
   // and the column by name — no per-type choice can be both.
@@ -864,88 +987,98 @@ export const COHERENT_CALLS: Record<string, readonly (readonly string[])[]> = {
   // object is looked up, so the first call reaches a value and only the
   // second reaches the NULL a missing relation gives — and past the
   // combination cap the sampler can vary one argument at a time, never four.
-  "has_column_privilege(name,oid,text,text)": [
+  'has_column_privilege(name,oid,text,text)': [
     ["'postgres'::name", "'probe_rel'::regclass::oid", "'i'", "'SELECT'"],
-    ["'probe_role'::name", "999999::oid", "'i'", "'SELECT'"],
+    ["'probe_role'::name", '999999::oid', "'i'", "'SELECT'"],
   ],
-  "has_column_privilege(name,oid,smallint,text)": [
-    ["'postgres'::name", "'probe_rel'::regclass::oid", "1::smallint", "'SELECT'"],
-    ["'probe_role'::name", "999999::oid", "1::smallint", "'SELECT'"],
+  'has_column_privilege(name,oid,smallint,text)': [
+    ["'postgres'::name", "'probe_rel'::regclass::oid", '1::smallint', "'SELECT'"],
+    ["'probe_role'::name", '999999::oid', '1::smallint', "'SELECT'"],
   ],
   // Copying a replication slot needs an existing source and a name that is
   // FREE, and the corpus can only offer names that already exist. Each
   // spelling gets its own destination for the same reason.
-  "pg_copy_physical_replication_slot(name,name)": [["'probe_slot'::name", "'probe_copy1'::name"]],
-  "pg_copy_physical_replication_slot(name,name,boolean)": [
-    ["'probe_slot'::name", "'probe_copy2'::name", "false"],
+  'pg_copy_physical_replication_slot(name,name)': [["'probe_slot'::name", "'probe_copy1'::name"]],
+  'pg_copy_physical_replication_slot(name,name,boolean)': [
+    ["'probe_slot'::name", "'probe_copy2'::name", 'false'],
   ],
-  "pg_copy_logical_replication_slot(name,name)": [["'probe_lslot'::name", "'probe_copy3'::name"]],
-  "pg_copy_logical_replication_slot(name,name,boolean)": [
-    ["'probe_lslot'::name", "'probe_copy4'::name", "false"],
+  'pg_copy_logical_replication_slot(name,name)': [["'probe_lslot'::name", "'probe_copy3'::name"]],
+  'pg_copy_logical_replication_slot(name,name,boolean)': [
+    ["'probe_lslot'::name", "'probe_copy4'::name", 'false'],
   ],
-  "pg_copy_logical_replication_slot(name,name,boolean,name)": [
-    ["'probe_lslot'::name", "'probe_copy5'::name", "false", "'pgoutput'::name"],
+  'pg_copy_logical_replication_slot(name,name,boolean,name)': [
+    ["'probe_lslot'::name", "'probe_copy5'::name", 'false', "'pgoutput'::name"],
   ],
   // A replication ORIGIN by name. These take `text` rather than `name`, so
   // the corpus entry that unblocked the slot family does not reach them.
-  "pg_replication_origin_advance(text,pg_lsn)": [["'probe_origin2'", "'0/1'::pg_lsn"]],
+  'pg_replication_origin_advance(text,pg_lsn)': [["'probe_origin2'", "'0/1'::pg_lsn"]],
   // A slot by name and a target the server will accept: advancing past the
   // current WAL position raises, and the corpus's pg_lsn values are 0/0 and
   // the maximum. The RESET row takes its slot as `text`, where the corpus
   // carries no slot name at all — only `name` gained one.
-  "pg_replication_slot_advance(name,pg_lsn)": [
-    ["'probe_slot'::name", "pg_catalog.pg_current_wal_lsn()"],
+  'pg_replication_slot_advance(name,pg_lsn)': [
+    ["'probe_slot'::name", 'pg_catalog.pg_current_wal_lsn()'],
   ],
-  "pg_stat_reset_replication_slot(text)": [["'probe_slot'"]],
-  "pg_replication_origin_progress(text,boolean)": [["'probe_origin'", "false"]],
+  'pg_stat_reset_replication_slot(text)': [["'probe_slot'"]],
+  'pg_replication_origin_progress(text,boolean)': [["'probe_origin'", 'false']],
   // A real WAL file name, which only the server can spell.
-  "pg_split_walfile_name(text)": [
-    ["pg_catalog.pg_walfile_name(pg_catalog.pg_current_wal_lsn())"],
-  ],
+  'pg_split_walfile_name(text)': [['pg_catalog.pg_walfile_name(pg_catalog.pg_current_wal_lsn())']],
   // The default TABLESPACE, by name and by OID. Creating one needs a
   // directory the WASM filesystem has no way to make, but pg_default is
   // there in every cluster.
-  "pg_tablespace_size(name)": [["'pg_default'::name"]],
-  "pg_tablespace_size(oid)": [["1663::oid"]],
-  "pg_tablespace_databases(oid)": [["1663::oid"]],
+  'pg_tablespace_size(name)': [["'pg_default'::name"]],
+  'pg_tablespace_size(oid)': [['1663::oid']],
+  'pg_tablespace_databases(oid)': [['1663::oid']],
   // A text-search PARSER's oid, which is a different kind of object from
   // anything the oid corpus carries.
-  "ts_parse(oid,text)": [["(SELECT oid FROM pg_ts_parser LIMIT 1)", "'abc'"]],
-  "ts_token_type(oid)": [["(SELECT oid FROM pg_ts_parser LIMIT 1)"]],
+  'ts_parse(oid,text)': [['(SELECT oid FROM pg_ts_parser LIMIT 1)', "'abc'"]],
+  'ts_token_type(oid)': [['(SELECT oid FROM pg_ts_parser LIMIT 1)']],
   // An explicit source ENCODING, which is the whole point of the two- and
   // three-argument spellings: the one-argument form reads the DATABASE
   // encoding and PGlite's is UTF8, which `to_ascii` refuses.
-  "to_ascii(text,integer)": [["'abc'", "8"]],
+  'to_ascii(text,integer)': [["'abc'", '8']],
   // The NAME spelling takes the encoding as a name, and this is the ONE
   // place an encoding name may be written: `probe-values.ts` bars them from
   // the `name` CORPUS because `convert_to(text,name)` reads whatever is
   // there as one and a real conversion poisons the backend. A coherent call
   // reaches `to_ascii` and nothing else.
-  "to_ascii(text,name)": [["'abc'", "'LATIN1'::name"]],
+  'to_ascii(text,name)': [["'abc'", "'LATIN1'::name"]],
   // Statistics restored as VARIADIC name/value pairs, which no per-type
   // choice can build — the first element must be a known key and the second
   // its value, alternating.
-  "pg_restore_relation_stats(\"any\")": [[
-    "VARIADIC ARRAY['schemaname','public','relname','probe_rel'," +
-      "'relpages','1','reltuples','2','relallvisible','0','version','180000']",
-  ]],
+  'pg_restore_relation_stats("any")': [
+    [
+      "VARIADIC ARRAY['schemaname','public','relname','probe_rel'," +
+        "'relpages','1','reltuples','2','relallvisible','0','version','180000']",
+    ],
+  ],
   // Written as loose arguments rather than a VARIADIC array, because
   // `inherited` must arrive as a real boolean and an array makes every
   // element text — "argument \"inherited\" must not be null" is what that
   // looks like from the outside.
-  "pg_restore_attribute_stats(\"any\")": [[
-    "'schemaname'", "'public'", "'relname'", "'probe_rel'",
-    "'attname'", "'i'", "'inherited'", "false", "'version'", "180000",
-  ]],
+  'pg_restore_attribute_stats("any")': [
+    [
+      "'schemaname'",
+      "'public'",
+      "'relname'",
+      "'probe_rel'",
+      "'attname'",
+      "'i'",
+      "'inherited'",
+      'false',
+      "'version'",
+      '180000',
+    ],
+  ],
   // A publication name. The row is VARIADIC over text, so the call takes
   // the element rather than the array its signature is keyed by.
-  "pg_get_publication_tables(text[])": [["'probe_pub'"]],
+  'pg_get_publication_tables(text[])': [["'probe_pub'"]],
   // The BOUNDED sleeps, which is the whole probed universe for those three
   // rows — every generated combination is refused above.
-  "pg_sleep(double precision)": [["0::float8"]],
-  "pg_sleep_for(interval)": [["'0'::interval"]],
-  "pg_sleep_until(timestamp with time zone)": [["'2020-01-01Z'::timestamptz"]],
-};
+  'pg_sleep(double precision)': [['0::float8']],
+  'pg_sleep_for(interval)': [["'0'::interval"]],
+  'pg_sleep_until(timestamp with time zone)': [["'2020-01-01Z'::timestamptz"]],
+}
 
 /**
  * The argument types to build a call from, given the declared `proargtypes`
@@ -965,7 +1098,7 @@ export const variadicArgTypes = (
   types: readonly string[],
   variadicElem: string | null,
 ): string[] =>
-  variadicElem === null ? [...types] : [...types.slice(0, -1), variadicElem, variadicElem];
+  variadicElem === null ? [...types] : [...types.slice(0, -1), variadicElem, variadicElem]
 
 /**
  * The expression to run the NULL test on, given whether the call's result is
@@ -981,7 +1114,7 @@ export const variadicArgTypes = (
  * rendering.
  */
 export const nullTestExpr = (call: string, composite: boolean): string =>
-  composite ? `(${call})::text` : call;
+  composite ? `(${call})::text` : call
 
 /**
  * How many emitted rows a set-returning probe inspects. A BOUND, recorded
@@ -994,7 +1127,7 @@ export const nullTestExpr = (call: string, composite: boolean): string =>
  * `generate_series(1::bigint, 9223372036854775807)` emits more rows than
  * exist time to count.
  */
-export const SRF_ROW_LIMIT = 100;
+export const SRF_ROW_LIMIT = 100
 
 /**
  * A probe instance, complete: the configuration, the enum type, both probe
@@ -1008,15 +1141,15 @@ export const SRF_ROW_LIMIT = 100;
  * are probing AGAINST cannot fork either.
  */
 export async function createProbeDb(): Promise<PGlite> {
-  const db = await PGlite.create({ postgresqlconf: [...PROBE_CONF] });
-  await db.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`);
-  await db.exec(PROBE_FN_SQL);
-  await db.exec(SRF_PROBE_FN_SQL);
-  await db.exec(PROBE_OBJECTS_SQL);
+  const db = await PGlite.create({ postgresqlconf: [...PROBE_CONF] })
+  await db.exec(`CREATE TYPE probe_enum AS ENUM ('a','b');`)
+  await db.exec(PROBE_FN_SQL)
+  await db.exec(SRF_PROBE_FN_SQL)
+  await db.exec(PROBE_OBJECTS_SQL)
   // Separate statements: `exec` runs its whole string in one transaction, and
   // PREPARE TRANSACTION is what ends this one.
-  for (const sql of PROBE_STANDALONE_SQL) await db.query(sql);
-  return db;
+  for (const sql of PROBE_STANDALONE_SQL) await db.query(sql)
+  return db
 }
 
 /**
@@ -1042,23 +1175,23 @@ export async function createProbeDb(): Promise<PGlite> {
  * multi-row result.
  */
 export const EXPR_PROBES: Record<string, readonly string[]> = {
-  "json_to_record(json)": [
+  'json_to_record(json)': [
     `(SELECT s.b FROM pg_catalog.json_to_record('{"a":1,"b":"x"}'::json) AS s(a int, b text))`,
     `(SELECT s.b FROM pg_catalog.json_to_record('{"a":1}'::json) AS s(a int, b text))`,
   ],
-  "json_to_recordset(json)": [
+  'json_to_recordset(json)': [
     `(SELECT s.b FROM pg_catalog.json_to_recordset('[{"a":1,"b":"x"}]'::json) AS s(a int, b text))`,
     `(SELECT s.b FROM pg_catalog.json_to_recordset('[{"a":1,"b":"x"},{"a":2}]'::json) AS s(a int, b text) OFFSET 1)`,
   ],
-  "jsonb_to_record(jsonb)": [
+  'jsonb_to_record(jsonb)': [
     `(SELECT s.b FROM pg_catalog.jsonb_to_record('{"a":1,"b":"x"}'::jsonb) AS s(a int, b text))`,
     `(SELECT s.b FROM pg_catalog.jsonb_to_record('{"a":1}'::jsonb) AS s(a int, b text))`,
   ],
-  "jsonb_to_recordset(jsonb)": [
+  'jsonb_to_recordset(jsonb)': [
     `(SELECT s.b FROM pg_catalog.jsonb_to_recordset('[{"a":1,"b":"x"}]'::jsonb) AS s(a int, b text))`,
     `(SELECT s.b FROM pg_catalog.jsonb_to_recordset('[{"a":1,"b":"x"},{"a":2}]'::jsonb) AS s(a int, b text) OFFSET 1)`,
   ],
-};
+}
 
 /**
  * Expressions that must NOT go through `probe()`, and the one reason there is.
@@ -1077,8 +1210,8 @@ export const EXPR_PROBES: Record<string, readonly string[]> = {
  * two identical strings would collapse into one entry.
  */
 export const DIRECT_PROBES: Record<string, readonly string[]> = {
-  "pg_export_snapshot()": ["pg_catalog.pg_export_snapshot() /* no subtransaction */"],
-};
+  'pg_export_snapshot()': ['pg_catalog.pg_export_snapshot() /* no subtransaction */'],
+}
 
 /**
  * A SECOND probe instance, and the two groups that need one.
@@ -1101,9 +1234,9 @@ export const DIRECT_PROBES: Record<string, readonly string[]> = {
  * decode, a table to rewrite, and a log the event triggers write to.
  */
 export const SIDE_PROBE_CONF: readonly string[] = [
-  "wal_level = logical",
-  "max_replication_slots = 100",
-];
+  'wal_level = logical',
+  'max_replication_slots = 100',
+]
 
 export const SIDE_PROBE_OBJECTS_SQL = `
   CREATE TABLE side_rw(x int);
@@ -1113,27 +1246,27 @@ export const SIDE_PROBE_OBJECTS_SQL = `
   -- row answer NULL rather than merely answer. See EVENT_TRIGGER_PROBES.
   CREATE ROLE side_role NOLOGIN;
   CREATE SCHEMA side_schema;
-`;
+`
 
 export async function createSideProbeDb(): Promise<PGlite> {
-  const db = await PGlite.create({ postgresqlconf: [...SIDE_PROBE_CONF] });
-  await db.exec(PROBE_FN_SQL);
-  await db.exec(SRF_PROBE_FN_SQL);
-  await db.exec(SIDE_PROBE_OBJECTS_SQL);
-  return db;
+  const db = await PGlite.create({ postgresqlconf: [...SIDE_PROBE_CONF] })
+  await db.exec(PROBE_FN_SQL)
+  await db.exec(SRF_PROBE_FN_SQL)
+  await db.exec(SIDE_PROBE_OBJECTS_SQL)
+  return db
 }
 
 /** One step of the side instance's script: an object to make, or a row to probe. */
 export type SideStep =
   | { readonly setup: string }
   | {
-      readonly key: string;
-      readonly expr: string;
+      readonly key: string
+      readonly expr: string
       /** A composite result needs `nullTestExpr`; see that function for why. */
-      readonly composite?: boolean;
+      readonly composite?: boolean
       /** Output-column count for a SET-RETURNING row, absent for a scalar one. */
-      readonly ncols?: number;
-    };
+      readonly ncols?: number
+    }
 
 /**
  * The side instance's script, in ORDER — and the order is the mechanism, not a
@@ -1147,22 +1280,22 @@ export type SideStep =
  */
 export const SIDE_DB_SCRIPT: readonly SideStep[] = [
   {
-    key: "pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)",
+    key: 'pg_create_logical_replication_slot(name,name,boolean,boolean,boolean)',
     expr: "pg_catalog.pg_create_logical_replication_slot('side_l1', 'pgoutput', false, false, false)",
     composite: true,
   },
   {
-    key: "pg_copy_logical_replication_slot(name,name)",
+    key: 'pg_copy_logical_replication_slot(name,name)',
     expr: "pg_catalog.pg_copy_logical_replication_slot('side_l1', 'side_c1')",
     composite: true,
   },
   {
-    key: "pg_copy_logical_replication_slot(name,name,boolean)",
+    key: 'pg_copy_logical_replication_slot(name,name,boolean)',
     expr: "pg_catalog.pg_copy_logical_replication_slot('side_l1', 'side_c2', true)",
     composite: true,
   },
   {
-    key: "pg_copy_logical_replication_slot(name,name,boolean,name)",
+    key: 'pg_copy_logical_replication_slot(name,name,boolean,name)',
     expr: "pg_catalog.pg_copy_logical_replication_slot('side_l1', 'side_c3', true, 'pgoutput')",
     composite: true,
   },
@@ -1187,14 +1320,14 @@ export const SIDE_DB_SCRIPT: readonly SideStep[] = [
   // costs the whole run.
   { setup: "SELECT pg_catalog.pg_replication_origin_create('side_origin')" },
   {
-    key: "pg_replication_origin_session_setup(text)",
+    key: 'pg_replication_origin_session_setup(text)',
     expr: "pg_catalog.pg_replication_origin_session_setup('side_origin')",
   },
   {
-    key: "pg_replication_origin_session_reset()",
-    expr: "pg_catalog.pg_replication_origin_session_reset()",
+    key: 'pg_replication_origin_session_reset()',
+    expr: 'pg_catalog.pg_replication_origin_session_reset()',
   },
-];
+]
 
 /**
  * The EVENT TRIGGER rows, and the only shape that reaches them.
@@ -1230,51 +1363,69 @@ export const SIDE_DB_SCRIPT: readonly SideStep[] = [
  * verdict — and what makes the work-list line say which DDL produced it.
  */
 export const EVENT_TRIGGER_PROBES: readonly {
-  readonly when: string;
-  readonly fire: string;
-  readonly probes: readonly { readonly key: string; readonly call: string }[];
+  readonly when: string
+  readonly fire: string
+  readonly probes: readonly { readonly key: string; readonly call: string }[]
 }[] = [
   {
-    when: "ddl_command_end",
-    fire: "CREATE TABLE side_et(x int)",
+    when: 'ddl_command_end',
+    fire: 'CREATE TABLE side_et(x int)',
     probes: [
-      { key: "pg_event_trigger_ddl_commands()", call: "pg_catalog.pg_event_trigger_ddl_commands()" },
+      {
+        key: 'pg_event_trigger_ddl_commands()',
+        call: 'pg_catalog.pg_event_trigger_ddl_commands()',
+      },
     ],
   },
   {
-    when: "sql_drop",
-    fire: "DROP TABLE side_et",
+    when: 'sql_drop',
+    fire: 'DROP TABLE side_et',
     probes: [
-      { key: "pg_event_trigger_dropped_objects()", call: "pg_catalog.pg_event_trigger_dropped_objects()" },
+      {
+        key: 'pg_event_trigger_dropped_objects()',
+        call: 'pg_catalog.pg_event_trigger_dropped_objects()',
+      },
     ],
   },
   {
     // int to bigint changes the stored width, which is what makes this a
     // REWRITE rather than a catalog update — `ALTER COLUMN … TYPE text` would
     // not fire the trigger at all.
-    when: "table_rewrite",
-    fire: "ALTER TABLE side_rw ALTER COLUMN x TYPE bigint",
+    when: 'table_rewrite',
+    fire: 'ALTER TABLE side_rw ALTER COLUMN x TYPE bigint',
     probes: [
-      { key: "pg_event_trigger_table_rewrite_oid()", call: "pg_catalog.pg_event_trigger_table_rewrite_oid()" },
-      { key: "pg_event_trigger_table_rewrite_reason()", call: "pg_catalog.pg_event_trigger_table_rewrite_reason()" },
+      {
+        key: 'pg_event_trigger_table_rewrite_oid()',
+        call: 'pg_catalog.pg_event_trigger_table_rewrite_oid()',
+      },
+      {
+        key: 'pg_event_trigger_table_rewrite_reason()',
+        call: 'pg_catalog.pg_event_trigger_table_rewrite_reason()',
+      },
     ],
   },
   // The two firings chosen from `event_trigger.c` for their NULL branches.
   {
-    when: "ddl_command_end",
-    fire: "GRANT SELECT ON side_rw TO side_role",
+    when: 'ddl_command_end',
+    fire: 'GRANT SELECT ON side_rw TO side_role',
     probes: [
-      { key: "pg_event_trigger_ddl_commands()", call: "pg_catalog.pg_event_trigger_ddl_commands()" },
+      {
+        key: 'pg_event_trigger_ddl_commands()',
+        call: 'pg_catalog.pg_event_trigger_ddl_commands()',
+      },
     ],
   },
   {
-    when: "sql_drop",
-    fire: "DROP SCHEMA side_schema",
+    when: 'sql_drop',
+    fire: 'DROP SCHEMA side_schema',
     probes: [
-      { key: "pg_event_trigger_dropped_objects()", call: "pg_catalog.pg_event_trigger_dropped_objects()" },
+      {
+        key: 'pg_event_trigger_dropped_objects()',
+        call: 'pg_catalog.pg_event_trigger_dropped_objects()',
+      },
     ],
   },
-];
+]
 
 /**
  * Every signature some out-of-band mechanism probes, derived from the three
@@ -1287,15 +1438,15 @@ export const EVENT_TRIGGER_PROBES: readonly {
  */
 export const OUT_OF_BAND_KEYS: ReadonlySet<string> = new Set([
   ...Object.keys(DIRECT_PROBES),
-  ...SIDE_DB_SCRIPT.flatMap(s => ("setup" in s ? [] : [s.key])),
-  ...EVENT_TRIGGER_PROBES.flatMap(g => g.probes.map(p => p.key)),
-]);
+  ...SIDE_DB_SCRIPT.flatMap((s) => ('setup' in s ? [] : [s.key])),
+  ...EVENT_TRIGGER_PROBES.flatMap((g) => g.probes.map((p) => p.key)),
+])
 
 /** One out-of-band verdict, in the shape the classifier merges. */
 export interface OutOfBandVerdict {
-  readonly key: string;
-  readonly expr: string;
-  readonly verdict: string;
+  readonly key: string
+  readonly expr: string
+  readonly verdict: string
 }
 
 /**
@@ -1316,16 +1467,16 @@ async function directVerdict(
     if (ncols !== undefined) {
       const r = await db.query<{ count: string | number; bool_or: boolean | null }>(
         srfQuery(expr, ncols),
-      );
-      if (Number(r.rows[0]?.count ?? 0) === 0) return "empty";
-      return r.rows[0]?.bool_or ? "NULL" : "value";
+      )
+      if (Number(r.rows[0]?.count ?? 0) === 0) return 'empty'
+      return r.rows[0]?.bool_or ? 'NULL' : 'value'
     }
     const r = await db.query<{ v: boolean | null }>(
       `SELECT (${nullTestExpr(expr, composite ?? false)}) IS NULL AS v`,
-    );
-    return r.rows[0]?.v ? "NULL" : "value";
+    )
+    return r.rows[0]?.v ? 'NULL' : 'value'
   } catch {
-    return "error";
+    return 'error'
   }
 }
 
@@ -1344,85 +1495,85 @@ async function directVerdict(
  * changes whether its result was NULL.
  */
 export async function runOutOfBandProbes(pg: PGlite): Promise<OutOfBandVerdict[]> {
-  const out: OutOfBandVerdict[] = [];
+  const out: OutOfBandVerdict[] = []
 
   for (const [key, exprs] of Object.entries(DIRECT_PROBES)) {
     for (const expr of exprs) {
-      out.push({ key, expr, verdict: await directVerdict(pg, expr) });
+      out.push({ key, expr, verdict: await directVerdict(pg, expr) })
     }
   }
 
-  const side = await createSideProbeDb();
+  const side = await createSideProbeDb()
   try {
     // The event triggers first: their firing DDL is the noisiest thing in the
     // script, and doing it before any slot exists keeps it out of what the
     // decoding readers decode.
     const ncols = await srfColumnCounts(
       side,
-      EVENT_TRIGGER_PROBES.flatMap(g => g.probes.map(p => p.key)),
-    );
+      EVENT_TRIGGER_PROBES.flatMap((g) => g.probes.map((p) => p.key)),
+    )
     // The recorded expression names its firing DDL in an SQL comment, so the
     // two firings of a row that is probed twice stay two verdicts rather than
     // one overwriting the other. It is still the call that runs — a comment
     // inside the expression is inert, and it travels into the trigger body's
     // inner query with it.
-    const firedExpr = (call: string, fire: string): string => `${call} /* fired by: ${fire} */`;
+    const firedExpr = (call: string, fire: string): string => `${call} /* fired by: ${fire} */`
     for (const group of EVENT_TRIGGER_PROBES) {
       const body = group.probes
-        .map(p => {
-          const n = ncols.get(p.key);
-          const expr = firedExpr(p.call, group.fire);
-          const inner = n === undefined ? expr : srfQuery(expr, n);
-          const fn = n === undefined ? "probe" : "srfprobe";
-          return `INSERT INTO side_log VALUES ($e$${expr}$e$, ${fn}($q$${inner}$q$));`;
+        .map((p) => {
+          const n = ncols.get(p.key)
+          const expr = firedExpr(p.call, group.fire)
+          const inner = n === undefined ? expr : srfQuery(expr, n)
+          const fn = n === undefined ? 'probe' : 'srfprobe'
+          return `INSERT INTO side_log VALUES ($e$${expr}$e$, ${fn}($q$${inner}$q$));`
         })
-        .join("\n        ");
+        .join('\n        ')
       await side.exec(`
         CREATE FUNCTION side_et_fn() RETURNS event_trigger LANGUAGE plpgsql AS $et$
         BEGIN
         ${body}
         END $et$;
         CREATE EVENT TRIGGER side_et ON ${group.when} EXECUTE FUNCTION side_et_fn();
-      `);
+      `)
       try {
-        await side.exec(group.fire);
+        await side.exec(group.fire)
       } catch {
         // The firing DDL itself failed; every probe of the group stays
         // unlogged and is reported as an error below.
       }
-      await side.exec(`DROP EVENT TRIGGER side_et; DROP FUNCTION side_et_fn();`);
+      await side.exec(`DROP EVENT TRIGGER side_et; DROP FUNCTION side_et_fn();`)
       const logged = new Map(
         (await side.query<{ e: string; v: string }>(`SELECT e, v FROM side_log`)).rows.map(
-          r => [r.e, r.v] as const,
+          (r) => [r.e, r.v] as const,
         ),
-      );
-      await side.exec(`DELETE FROM side_log;`);
+      )
+      await side.exec(`DELETE FROM side_log;`)
       for (const p of group.probes) {
-        const expr = firedExpr(p.call, group.fire);
-        out.push({ key: p.key, expr, verdict: logged.get(expr) ?? "error" });
+        const expr = firedExpr(p.call, group.fire)
+        out.push({ key: p.key, expr, verdict: logged.get(expr) ?? 'error' })
       }
     }
 
     for (const step of SIDE_DB_SCRIPT) {
-      if ("setup" in step) {
+      if ('setup' in step) {
         try {
-          await side.query(step.setup);
+          await side.query(step.setup)
         } catch {
           // A setup statement that fails leaves the rows depending on it to
           // report their own error; it is not itself a verdict about anything.
         }
-        continue;
+        continue
       }
       out.push({
         key: step.key,
         expr: step.expr,
         verdict: await directVerdict(side, step.expr, step.ncols, step.composite),
-      });
+      })
     }
   } finally {
-    if (!side.closed) await side.close();
+    if (!side.closed) await side.close()
   }
-  return out;
+  return out
 }
 
 /**
@@ -1431,7 +1582,7 @@ export async function runOutOfBandProbes(pg: PGlite): Promise<OutOfBandVerdict[]
  * catalog rather than written down. A scalar row is absent from the result.
  */
 async function srfColumnCounts(db: PGlite, keys: string[]): Promise<Map<string, number>> {
-  const names = [...new Set(keys.map(k => k.slice(0, k.indexOf("("))))];
+  const names = [...new Set(keys.map((k) => k.slice(0, k.indexOf('('))))]
   const rows = (
     await db.query<{ key: string; ncols: number }>(
       `SELECT p.proname || '(' ||
@@ -1446,8 +1597,8 @@ async function srfColumnCounts(db: PGlite, keys: string[]): Promise<Map<string, 
           AND p.proretset AND p.proname = ANY($1);`,
       [names],
     )
-  ).rows;
-  return new Map(rows.filter(r => keys.includes(r.key)).map(r => [r.key, r.ncols] as const));
+  ).rows
+  return new Map(rows.filter((r) => keys.includes(r.key)).map((r) => [r.key, r.ncols] as const))
 }
 
 /**
@@ -1482,7 +1633,7 @@ export const SRF_PROBE_FN_SQL = `
     IF n = 0 THEN RETURN 'empty'; END IF;
     RETURN CASE WHEN anynull THEN 'NULL' ELSE 'value' END;
   EXCEPTION WHEN OTHERS THEN RETURN 'error';
-  END $srf$;`;
+  END $srf$;`
 
 /**
  * The inner query for one set-returning call: how many rows it emitted (up to
@@ -1490,11 +1641,10 @@ export const SRF_PROBE_FN_SQL = `
  * Order-independent, which is the property `probe()` lacks.
  */
 export function srfQuery(call: string, ncols: number): string {
-  const cols = Array.from({ length: ncols }, (_, i) => `c${i}`);
-  const projection = ncols === 1 ? `(${call})` : `(${call}).*`;
+  const cols = Array.from({ length: ncols }, (_, i) => `c${i}`)
+  const projection = ncols === 1 ? `(${call})` : `(${call}).*`
   return (
-    `SELECT count(*), bool_or(${cols.map(c => `${c} IS NULL`).join(" OR ")})` +
-    ` FROM (SELECT ${projection} LIMIT ${SRF_ROW_LIMIT}) s(${cols.join(", ")})`
-  );
+    `SELECT count(*), bool_or(${cols.map((c) => `${c} IS NULL`).join(' OR ')})` +
+    ` FROM (SELECT ${projection} LIMIT ${SRF_ROW_LIMIT}) s(${cols.join(', ')})`
+  )
 }
-

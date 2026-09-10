@@ -17,22 +17,22 @@
 // `extraDdl` is how a round introduces objects the fixture schema does not
 // carry, without touching it: a shape that earns its place graduates into
 // `fixtures/schema.sql` with the fix, and one that does not leaves no trace.
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { PGlite } from "@electric-sql/pglite";
-import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
-import { parseSql } from "../../src/ast.js";
-import { snapshotCatalog } from "../../src/catalog/snapshot.js";
-import { NULL_REJECTION, CONSTRAINT_REJECTION } from "../unit/query/fixture-args.js";
-import { buildNullabilityCatalog } from "../../src/query/catalog-adapter.js";
+import { readFileSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { PGlite } from '@electric-sql/pglite'
+import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
+import { parseSql } from '../../src/ast.js'
+import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import { NULL_REJECTION, CONSTRAINT_REJECTION } from '../unit/query/fixture-args.js'
+import { buildNullabilityCatalog } from '../../src/query/catalog-adapter.js'
 import {
   inferQueryContract,
   inferNullability,
   inferNullabilityTraced,
   inferPresenceGroups,
-} from "../../src/query/nullability-walk.js";
-import type { NullabilityCatalog } from "../../src/query/types.js";
+} from '../../src/query/nullability-walk.js'
+import type { NullabilityCatalog } from '../../src/query/types.js'
 
 /**
  * What counts as "the NULL was rejected" here, for constraint-shaped
@@ -43,51 +43,49 @@ import type { NullabilityCatalog } from "../../src/query/types.js";
  * leaves before any variant runs, so nothing below reaches a raise whose
  * control also raised.
  */
-const WITNESSING_RAISE = new RegExp(
-  `${NULL_REJECTION.source}|${CONSTRAINT_REJECTION.source}`,
-);
+const WITNESSING_RAISE = new RegExp(`${NULL_REJECTION.source}|${CONSTRAINT_REJECTION.source}`)
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const FIXTURES = join(HERE, "..", "unit", "query", "fixtures");
+const HERE = dirname(fileURLToPath(import.meta.url))
+const FIXTURES = join(HERE, '..', 'unit', 'query', 'fixtures')
 
 export interface Probe {
-  id: string;
-  sql: string;
+  id: string
+  sql: string
   /** Statements run inside the probe's transaction before the query. */
-  seed?: string[];
+  seed?: string[]
   /** Positional parameter values, when the statement is parameterized. */
-  params?: unknown[];
-  note?: string;
+  params?: unknown[]
+  note?: string
 }
 
 export interface ProbeResult {
-  id: string;
-  engineColumns: { name: string; notNull: boolean }[];
-  pgColumns: string[];
-  rows: unknown[][];
+  id: string
+  engineColumns: { name: string; notNull: boolean }[]
+  pgColumns: string[]
+  rows: unknown[][]
   /** rank 1 — engine said notNull, a row had NULL. */
-  violations: string[];
+  violations: string[]
   /** rank 2 — ordered name lists disagree. */
-  shape: string | null;
+  shape: string | null
   /** rank 4 — a returned row a presence group's contract forbids. */
-  groupViolations: string[];
+  groupViolations: string[]
   /** rank 5 — traced vs untraced. */
-  parity: string | null;
+  parity: string | null
   /**
    * The TRACED walk's per-column result. The traced run happens anyway for the
    * parity check and used to be discarded; a caller grouping findings needs
    * the decisive REASON it carries, because that names the rule that
    * concluded rather than the query that tripped it.
    */
-  traced: { name: string; notNull: boolean; reason: string }[];
+  traced: { name: string; notNull: boolean; reason: string }[]
   /** rank 6, or an expected refusal. */
-  error: string | null;
-  pgError: string | null;
-  groups: { columns: number[]; discriminants: number[] }[];
+  error: string | null
+  pgError: string | null
+  groups: { columns: number[]; discriminants: number[] }[]
   /** The contract's parameter claims, dense $1..$n. */
-  params: { number: number; notNull: boolean }[];
+  params: { number: number; notNull: boolean }[]
   /** Minimal joint rejection sets of size ≥ 2. */
-  paramRejectionSets: number[][];
+  paramRejectionSets: number[][]
   /**
    * rank 3 — a parameter the contract left nullable whose NULL binding raised
    * while the all-valid control succeeded. ANY raise counts, not only the
@@ -96,7 +94,7 @@ export interface ProbeResult {
    * the triage decides which — the same fork `@param-opaque` records in the
    * fixture corpus.
    */
-  paramViolations: string[];
+  paramViolations: string[]
   /**
    * NOT a finding — a raise the ALL-NULL corner refutes as a claimable
    * fact: binding $n NULL raised beside sibling VALUES, and the same
@@ -107,7 +105,7 @@ export interface ProbeResult {
    * carry, under the value-conditional decision. Counted and fingerprinted per run; the
    * bucket growing past a few per 20,000 is the revisit trigger.
    */
-  valueConditional: string[];
+  valueConditional: string[]
   /**
    * The statement-level claim, falsified: the contract says this write
    * rejects on EVERY execution (`QueryContract.alwaysRaises`) and the
@@ -117,7 +115,7 @@ export interface ProbeResult {
    * a flagged statement never succeeds) is not the one a counterexample
    * needs.
    */
-  alwaysRaisesViolated: boolean;
+  alwaysRaisesViolated: boolean
   /**
    * Witness accounting for the one-directional claims (§4: the instrument
    * makes no coverage claim, so an unwitnessed notNull is a COUNT, never a
@@ -126,13 +124,13 @@ export interface ProbeResult {
    * side.
    */
   paramWitness: {
-    notNullWitnessed: number[];
-    notNullUnwitnessed: number[];
-    notNullRaisedOther: number[];
-    setsWitnessed: number[][];
-    setsUnwitnessed: number[][];
-    setsRaisedOther: number[][];
-  };
+    notNullWitnessed: number[]
+    notNullUnwitnessed: number[]
+    notNullRaisedOther: number[]
+    setsWitnessed: number[][]
+    setsUnwitnessed: number[][]
+    setsRaisedOther: number[][]
+  }
 }
 
 export class ProbeLoop {
@@ -142,17 +140,17 @@ export class ProbeLoop {
   ) {}
 
   static async create(extraDdl: string[] = []): Promise<ProbeLoop> {
-    const pg = await PGlite.create({ extensions: { plpgsql_check } });
-    await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec(readFileSync(join(FIXTURES, "schema.sql"), "utf8"));
-    for (const ddl of extraDdl) await pg.exec(ddl);
-    const catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
-    return new ProbeLoop(pg, catalog);
+    const pg = await PGlite.create({ extensions: { plpgsql_check } })
+    await pg.exec('CREATE EXTENSION plpgsql_check;')
+    await pg.exec(readFileSync(join(FIXTURES, 'schema.sql'), 'utf8'))
+    for (const ddl of extraDdl) await pg.exec(ddl)
+    const catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
+    return new ProbeLoop(pg, catalog)
   }
 
   /** Rebuild the catalog after DDL run mid-session. */
   async refresh(): Promise<ProbeLoop> {
-    return new ProbeLoop(this.pg, await buildNullabilityCatalog(await snapshotCatalog(this.pg)));
+    return new ProbeLoop(this.pg, await buildNullabilityCatalog(await snapshotCatalog(this.pg)))
   }
 
   async run(probe: Probe): Promise<ProbeResult> {
@@ -182,104 +180,104 @@ export class ProbeLoop {
         setsUnwitnessed: [],
         setsRaisedOther: [],
       },
-    };
+    }
 
     // --- tier 0: the statement's parameter types, from PREPARE -------------
     // The walk's optional input at tier 0: the
     // caller holds the database, so it asks PostgreSQL rather than leaving
     // every ParamRef untyped. A statement PREPARE rejects (or one with no
     // parameters) simply supplies nothing.
-    let paramTypes: string[] | undefined;
+    let paramTypes: string[] | undefined
     if (/\$\d/.test(probe.sql)) {
       try {
-        await this.pg.exec(`PREPARE pgsid_t0_probe AS ${probe.sql}`);
+        await this.pg.exec(`PREPARE pgsid_t0_probe AS ${probe.sql}`)
         const r = await this.pg.query<{ t: string[] }>(
           `SELECT parameter_types::text[] AS t FROM pg_prepared_statements
            WHERE name = 'pgsid_t0_probe'`,
-        );
-        paramTypes = r.rows[0]?.t;
+        )
+        paramTypes = r.rows[0]?.t
       } catch {
-        paramTypes = undefined;
+        paramTypes = undefined
       } finally {
-        await this.pg.exec("DEALLOCATE ALL").catch(() => {});
+        await this.pg.exec('DEALLOCATE ALL').catch(() => {})
       }
     }
 
     // --- engine half -------------------------------------------------------
-    let stmt;
-    let alwaysRaisesClaimed = false;
+    let stmt
+    let alwaysRaisesClaimed = false
     try {
-      const parsed = await parseSql(probe.sql);
-      stmt = parsed.stmts![0]!.stmt!;
+      const parsed = await parseSql(probe.sql)
+      stmt = parsed.stmts![0]!.stmt!
       // Both evaluation consumers run live: the instrument adjudicates the
       // same claims the harnesses pin.
       const evaluate = async (s: string) =>
-        (await this.pg.query<Record<string, unknown>>(s)).rows[0];
-      const contract = await inferQueryContract(stmt, this.catalog, { paramTypes, evaluate });
-      out.engineColumns = contract.outputs.map(o => ({ name: o.name, notNull: o.notNull }));
-      out.groups = contract.outputPresenceGroups.map(g => ({
+        (await this.pg.query<Record<string, unknown>>(s)).rows[0]
+      const contract = await inferQueryContract(stmt, this.catalog, { paramTypes, evaluate })
+      out.engineColumns = contract.outputs.map((o) => ({ name: o.name, notNull: o.notNull }))
+      out.groups = contract.outputPresenceGroups.map((g) => ({
         columns: [...g.columns],
         discriminants: [...g.discriminants],
-      }));
-      out.params = contract.params.map(p => ({ number: p.number, notNull: p.notNull }));
-      out.paramRejectionSets = contract.paramRejectionSets.map(s => [...s]);
-      alwaysRaisesClaimed = contract.alwaysRaises;
+      }))
+      out.params = contract.params.map((p) => ({ number: p.number, notNull: p.notNull }))
+      out.paramRejectionSets = contract.paramRejectionSets.map((s) => [...s])
+      alwaysRaisesClaimed = contract.alwaysRaises
       // Parity: the traced walk must reach the same columns and groups.
-      const plain = await inferNullability(stmt, this.catalog, { paramTypes, evaluate });
+      const plain = await inferNullability(stmt, this.catalog, { paramTypes, evaluate })
       const traced = await inferNullabilityTraced(stmt, this.catalog, undefined, {
         paramTypes,
         evaluate,
-      });
-      out.traced = traced.map(c => ({
+      })
+      out.traced = traced.map((c) => ({
         name: c.name,
         notNull: c.notNull,
-        reason: (c as { trace?: { reason?: string } }).trace?.reason ?? "",
-      }));
+        reason: (c as { trace?: { reason?: string } }).trace?.reason ?? '',
+      }))
       if (
         plain.length !== traced.length ||
         plain.some((p, i) => p.name !== traced[i]!.name || p.notNull !== traced[i]!.notNull)
       ) {
-        out.parity =
-          `columns differ: plain=${fmt(plain)} traced=${fmt(traced)}`;
+        out.parity = `columns differ: plain=${fmt(plain)} traced=${fmt(traced)}`
       }
-      const gp = inferPresenceGroups(stmt, this.catalog, false);
-      const gt = inferPresenceGroups(stmt, this.catalog, true);
+      const gp = inferPresenceGroups(stmt, this.catalog, false)
+      const gt = inferPresenceGroups(stmt, this.catalog, true)
       if (JSON.stringify(gp) !== JSON.stringify(gt)) {
-        out.parity = (out.parity ? out.parity + "; " : "") +
-          `groups differ: plain=${JSON.stringify(gp)} traced=${JSON.stringify(gt)}`;
+        out.parity =
+          (out.parity ? out.parity + '; ' : '') +
+          `groups differ: plain=${JSON.stringify(gp)} traced=${JSON.stringify(gt)}`
       }
     } catch (e) {
-      out.error = `${(e as Error).name}: ${(e as Error).message}`;
+      out.error = `${(e as Error).name}: ${(e as Error).message}`
     }
 
     // --- PostgreSQL half ---------------------------------------------------
     try {
-      await this.begin();
-      for (const s of probe.seed ?? []) await this.pg.exec(s);
-      const res = await this.pg.query(probe.sql, probe.params ?? [], { rowMode: "array" });
-      out.pgColumns = res.fields.map(f => f.name);
-      out.rows = res.rows as unknown[][];
+      await this.begin()
+      for (const s of probe.seed ?? []) await this.pg.exec(s)
+      const res = await this.pg.query(probe.sql, probe.params ?? [], { rowMode: 'array' })
+      out.pgColumns = res.fields.map((f) => f.name)
+      out.rows = res.rows as unknown[][]
       // The all-valid control just ran the statement to completion, which
       // is the whole adjudication of `alwaysRaises`: a flagged statement
       // that succeeds falsifies the claim outright.
-      if (alwaysRaisesClaimed) out.alwaysRaisesViolated = true;
+      if (alwaysRaisesClaimed) out.alwaysRaisesViolated = true
     } catch (e) {
-      out.pgError = (e as Error).message;
+      out.pgError = (e as Error).message
     } finally {
-      await this.pg.exec("ROLLBACK").catch(() => {});
+      await this.pg.exec('ROLLBACK').catch(() => {})
     }
 
-    if (out.error || out.pgError) return out;
+    if (out.error || out.pgError) return out
 
     // --- compare -----------------------------------------------------------
-    const engineNames = out.engineColumns.map(c => c.name);
+    const engineNames = out.engineColumns.map((c) => c.name)
     if (
       engineNames.length !== out.pgColumns.length ||
       engineNames.some((n, i) => n !== out.pgColumns[i])
     ) {
-      out.shape = `engine=[${engineNames.join(", ")}] pg=[${out.pgColumns.join(", ")}]`;
+      out.shape = `engine=[${engineNames.join(', ')}] pg=[${out.pgColumns.join(', ')}]`
     }
-    this.checkRows(out, out.rows, "");
+    this.checkRows(out, out.rows, '')
 
     // --- the parameter contract, adjudicated by binding — rank 3 -----------
     // The contract's verification directions, run per
@@ -295,65 +293,62 @@ export class ProbeLoop {
         // The contract owes a dense $1..$n; the caller bound what it emitted.
         out.paramViolations.push(
           `contract lists ${out.params.length} parameters, statement binds ${probe.params!.length}`,
-        );
-        return out;
+        )
+        return out
       }
       const bind = (nulls: Set<number>): unknown[] =>
-        probe.params!.map((v, i) => (nulls.has(i + 1) ? null : v));
+        probe.params!.map((v, i) => (nulls.has(i + 1) ? null : v))
       // The ALL-NULL corner, run at most once per statement: the one binding
       // pattern with no value freedom left, so its answer routes a nullable
       // raise — raising there too demands a pure-nullness claim (rank 3),
       // passing there proves the rejection rides a sibling's VALUE, which no
       // claim in the contract's vocabulary can carry (recorded, not a
       // finding). With one parameter the per-param variant IS the corner.
-      let allNullRaises: boolean | null = null;
+      let allNullRaises: boolean | null = null
       const allNullCorner = async (): Promise<boolean> => {
         if (allNullRaises === null) {
-          const r = await this.exec(
-            probe,
-            bind(new Set(out.params.map(q => q.number))),
-          );
-          allNullRaises = r.error !== null;
+          const r = await this.exec(probe, bind(new Set(out.params.map((q) => q.number))))
+          allNullRaises = r.error !== null
         }
-        return allNullRaises;
-      };
+        return allNullRaises
+      }
       for (const p of out.params) {
-        const r = await this.exec(probe, bind(new Set([p.number])));
+        const r = await this.exec(probe, bind(new Set([p.number])))
         if (r.error !== null) {
           if (!p.notNull) {
-            const demandable = out.params.length === 1 || (await allNullCorner());
-            (demandable ? out.paramViolations : out.valueConditional).push(
+            const demandable = out.params.length === 1 || (await allNullCorner())
+            ;(demandable ? out.paramViolations : out.valueConditional).push(
               demandable
                 ? `$${p.number} claimed nullable, binding NULL raised: ${r.error}`
                 : `$${p.number} raised beside sibling values, all-NULL passes: ${r.error}`,
-            );
+            )
           } else if (WITNESSING_RAISE.test(r.error)) {
-            out.paramWitness.notNullWitnessed.push(p.number);
+            out.paramWitness.notNullWitnessed.push(p.number)
           } else {
-            out.paramWitness.notNullRaisedOther.push(p.number);
+            out.paramWitness.notNullRaisedOther.push(p.number)
           }
         } else {
-          if (p.notNull) out.paramWitness.notNullUnwitnessed.push(p.number);
-          this.checkRows(out, r.rows, `$${p.number}=NULL`);
+          if (p.notNull) out.paramWitness.notNullUnwitnessed.push(p.number)
+          this.checkRows(out, r.rows, `$${p.number}=NULL`)
         }
       }
       // Joint sets, existential like notNull: every member NULL together,
       // the rest valid. The members' individual runs above are what keep a
       // witnessed set irreducible.
       for (const set of out.paramRejectionSets) {
-        const r = await this.exec(probe, bind(new Set(set)));
+        const r = await this.exec(probe, bind(new Set(set)))
         if (r.error !== null) {
-          (WITNESSING_RAISE.test(r.error)
+          ;(WITNESSING_RAISE.test(r.error)
             ? out.paramWitness.setsWitnessed
             : out.paramWitness.setsRaisedOther
-          ).push(set);
+          ).push(set)
         } else {
-          out.paramWitness.setsUnwitnessed.push(set);
-          this.checkRows(out, r.rows, `$${set.join(",$")}=NULL`);
+          out.paramWitness.setsUnwitnessed.push(set)
+          this.checkRows(out, r.rows, `$${set.join(',$')}=NULL`)
         }
       }
     }
-    return out;
+    return out
   }
 
   /**
@@ -368,10 +363,10 @@ export class ProbeLoop {
    */
   private async begin(): Promise<void> {
     try {
-      await this.pg.exec("BEGIN");
+      await this.pg.exec('BEGIN')
     } catch {
-      await this.pg.exec("ROLLBACK").catch(() => {});
-      await this.pg.exec("BEGIN");
+      await this.pg.exec('ROLLBACK').catch(() => {})
+      await this.pg.exec('BEGIN')
     }
   }
 
@@ -381,14 +376,14 @@ export class ProbeLoop {
     params: unknown[],
   ): Promise<{ rows: unknown[][]; error: string | null }> {
     try {
-      await this.begin();
-      for (const s of probe.seed ?? []) await this.pg.exec(s);
-      const res = await this.pg.query(probe.sql, params, { rowMode: "array" });
-      return { rows: res.rows as unknown[][], error: null };
+      await this.begin()
+      for (const s of probe.seed ?? []) await this.pg.exec(s)
+      const res = await this.pg.query(probe.sql, params, { rowMode: 'array' })
+      return { rows: res.rows as unknown[][], error: null }
     } catch (e) {
-      return { rows: [], error: (e as Error).message };
+      return { rows: [], error: (e as Error).message }
     } finally {
-      await this.pg.exec("ROLLBACK").catch(() => {});
+      await this.pg.exec('ROLLBACK').catch(() => {})
     }
   }
 
@@ -400,103 +395,117 @@ export class ProbeLoop {
    * `label` says which binding produced the row.
    */
   private checkRows(out: ProbeResult, rows: unknown[][], label: string): void {
-    const tag = label ? `[${label}] ` : "";
-    const width = Math.min(out.engineColumns.length, out.pgColumns.length);
+    const tag = label ? `[${label}] ` : ''
+    const width = Math.min(out.engineColumns.length, out.pgColumns.length)
     for (const row of rows) {
       for (let i = 0; i < width; i++) {
         if (out.engineColumns[i]!.notNull && row[i] === null) {
-          const msg = `${tag}col ${i} (${out.pgColumns[i]}) claimed notNull, row has NULL`;
-          if (!out.violations.includes(msg)) out.violations.push(msg);
+          const msg = `${tag}col ${i} (${out.pgColumns[i]}) claimed notNull, row has NULL`
+          if (!out.violations.includes(msg)) out.violations.push(msg)
         }
       }
     }
     for (const g of out.groups) {
       for (const row of rows) {
-        const nullDiscs = g.discriminants.filter(d => row[d] === null);
-        if (nullDiscs.length === 0) continue;
+        const nullDiscs = g.discriminants.filter((d) => row[d] === null)
+        if (nullDiscs.length === 0) continue
         const note = (m: string): void => {
-          if (!out.groupViolations.includes(m)) out.groupViolations.push(m);
-        };
-        if (nullDiscs.length < g.discriminants.length) {
-          note(`${tag}group {${g.columns}}: discriminants disagree (NULL: ${nullDiscs})`);
-          continue;
+          if (!out.groupViolations.includes(m)) out.groupViolations.push(m)
         }
-        const survivors = g.columns.filter(c => row[c] !== null);
+        if (nullDiscs.length < g.discriminants.length) {
+          note(`${tag}group {${g.columns}}: discriminants disagree (NULL: ${nullDiscs})`)
+          continue
+        }
+        const survivors = g.columns.filter((c) => row[c] !== null)
         if (survivors.length) {
-          note(`${tag}group {${g.columns}}: absent arm but member(s) ${survivors} are non-NULL`);
+          note(`${tag}group {${g.columns}}: absent arm but member(s) ${survivors} are non-NULL`)
         }
       }
     }
   }
 
   async close(): Promise<void> {
-    if (!this.pg.closed) await this.pg.close();
+    if (!this.pg.closed) await this.pg.close()
   }
 }
 
 function fmt(cols: { name: string; notNull: boolean }[]): string {
-  return cols.map(c => `${c.name}${c.notNull ? "!" : "?"}`).join(", ");
+  return cols.map((c) => `${c.name}${c.notNull ? '!' : '?'}`).join(', ')
 }
 
 export function report(r: ProbeResult, probe: Probe): string {
-  const lines: string[] = [];
+  const lines: string[] = []
   const verdict = r.violations.length
-    ? "RANK1"
+    ? 'RANK1'
     : r.shape
-      ? "RANK2"
+      ? 'RANK2'
       : r.paramViolations.length
-        ? "RANK3"
+        ? 'RANK3'
         : r.groupViolations.length
-          ? "RANK4"
+          ? 'RANK4'
           : r.parity
-          ? "RANK5"
-          : r.error && !r.error.startsWith("UnsupportedNodeError")
-            ? "RANK6"
-            : r.error
-              ? "refused"
-              : r.pgError
-                ? "pg-error"
-                : r.rows.length === 0
-                  ? "no-rows"
-                  : "ok";
-  lines.push(`[${verdict}] ${r.id}${probe.note ? ` — ${probe.note}` : ""}`);
-  lines.push(`    sql: ${probe.sql.replace(/\s+/g, " ").trim()}`);
-  if (r.error) lines.push(`    engine: ${r.error}`);
-  else lines.push(`    engine: ${fmt(r.engineColumns)}`);
-  if (r.groups.length) lines.push(`    groups: ${JSON.stringify(r.groups)}`);
-  if (r.pgError) lines.push(`    pg: ERROR ${r.pgError}`);
+            ? 'RANK5'
+            : r.error && !r.error.startsWith('UnsupportedNodeError')
+              ? 'RANK6'
+              : r.error
+                ? 'refused'
+                : r.pgError
+                  ? 'pg-error'
+                  : r.rows.length === 0
+                    ? 'no-rows'
+                    : 'ok'
+  lines.push(`[${verdict}] ${r.id}${probe.note ? ` — ${probe.note}` : ''}`)
+  lines.push(`    sql: ${probe.sql.replace(/\s+/g, ' ').trim()}`)
+  if (r.error) lines.push(`    engine: ${r.error}`)
+  else lines.push(`    engine: ${fmt(r.engineColumns)}`)
+  if (r.groups.length) lines.push(`    groups: ${JSON.stringify(r.groups)}`)
+  if (r.pgError) lines.push(`    pg: ERROR ${r.pgError}`)
   else {
-    lines.push(`    pg cols: [${r.pgColumns.join(", ")}]`);
+    lines.push(`    pg cols: [${r.pgColumns.join(', ')}]`)
     lines.push(
-      `    rows(${r.rows.length}): ${r.rows.slice(0, 4).map(row => JSON.stringify(row)).join(" ")}`,
-    );
+      `    rows(${r.rows.length}): ${r.rows
+        .slice(0, 4)
+        .map((row) => JSON.stringify(row))
+        .join(' ')}`,
+    )
   }
   if (r.params.length) {
-    const w = r.paramWitness;
+    const w = r.paramWitness
     lines.push(
-      `    params: ${r.params.map(p => `$${p.number}${p.notNull ? "!" : "?"}`).join(" ")}` +
-      (r.paramRejectionSets.length ? `  sets: ${JSON.stringify(r.paramRejectionSets)}` : "") +
-      (w.notNullWitnessed.length ? `  witnessed: ${w.notNullWitnessed.map(n => `$${n}`).join(" ")}` : "") +
-      (w.notNullUnwitnessed.length ? `  unwitnessed: ${w.notNullUnwitnessed.map(n => `$${n}`).join(" ")}` : ""),
-    );
+      `    params: ${r.params.map((p) => `$${p.number}${p.notNull ? '!' : '?'}`).join(' ')}` +
+        (r.paramRejectionSets.length ? `  sets: ${JSON.stringify(r.paramRejectionSets)}` : '') +
+        (w.notNullWitnessed.length
+          ? `  witnessed: ${w.notNullWitnessed.map((n) => `$${n}`).join(' ')}`
+          : '') +
+        (w.notNullUnwitnessed.length
+          ? `  unwitnessed: ${w.notNullUnwitnessed.map((n) => `$${n}`).join(' ')}`
+          : ''),
+    )
   }
-  for (const v of r.violations) lines.push(`    !! ${v}`);
-  for (const v of r.paramViolations) lines.push(`    !! ${v}`);
-  for (const v of r.groupViolations) lines.push(`    !! ${v}`);
-  if (r.shape) lines.push(`    !! shape: ${r.shape}`);
-  if (r.parity) lines.push(`    !! parity: ${r.parity}`);
-  return lines.join("\n");
+  for (const v of r.violations) lines.push(`    !! ${v}`)
+  for (const v of r.paramViolations) lines.push(`    !! ${v}`)
+  for (const v of r.groupViolations) lines.push(`    !! ${v}`)
+  if (r.shape) lines.push(`    !! shape: ${r.shape}`)
+  if (r.parity) lines.push(`    !! parity: ${r.parity}`)
+  return lines.join('\n')
 }
 
 export async function runProbes(probes: Probe[], extraDdl: string[] = []): Promise<void> {
-  const loop = await ProbeLoop.create(extraDdl);
-  let hits = 0;
+  const loop = await ProbeLoop.create(extraDdl)
+  let hits = 0
   for (const p of probes) {
-    const r = await loop.run(p);
-    if (r.violations.length || r.shape || r.parity || r.groupViolations.length || r.paramViolations.length) hits++;
-    console.log(report(r, p));
-    console.log("");
+    const r = await loop.run(p)
+    if (
+      r.violations.length ||
+      r.shape ||
+      r.parity ||
+      r.groupViolations.length ||
+      r.paramViolations.length
+    )
+      hits++
+    console.log(report(r, p))
+    console.log('')
   }
-  console.log(`--- ${probes.length} probes, ${hits} with a disagreement ---`);
-  await loop.close();
+  console.log(`--- ${probes.length} probes, ${hits} with a disagreement ---`)
+  await loop.close()
 }

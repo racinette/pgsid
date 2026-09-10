@@ -110,17 +110,17 @@ own frame option when the start is an offset, and `UNBOUNDED FOLLOWING` as the
 END bound is emitted as `CURRENT ROW` in that case. Measured over nine
 spellings of `SELECT sum(a) OVER (ORDER BY a <frame>) FROM t`:
 
-| input frame | emitted | |
-|---|---|---|
-| `ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING` | *(unchanged)* | ok |
-| `ROWS BETWEEN 1 PRECEDING AND CURRENT ROW` | *(unchanged)* | ok |
-| `ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING` | *(unchanged)* | ok |
-| `ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING` | *(unchanged)* | ok |
-| `ROWS BETWEEN UNBOUNDED PRECEDING AND 1 FOLLOWING` | *(unchanged)* | ok |
-| `ROWS BETWEEN 1 PRECEDING AND 2 PRECEDING` | `1 FOLLOWING AND 2 PRECEDING` | **rejected by the parser** |
-| `ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING` | `1 PRECEDING AND 2 FOLLOWING` | **silent** |
-| `ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING` | `1 PRECEDING AND CURRENT ROW` | **silent** |
-| `ROWS BETWEEN 1 PRECEDING AND UNBOUNDED FOLLOWING` | `1 FOLLOWING AND CURRENT ROW` | **silent** |
+| input frame                                        | emitted                       |                            |
+| -------------------------------------------------- | ----------------------------- | -------------------------- |
+| `ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING`         | _(unchanged)_                 | ok                         |
+| `ROWS BETWEEN 1 PRECEDING AND CURRENT ROW`         | _(unchanged)_                 | ok                         |
+| `ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING`         | _(unchanged)_                 | ok                         |
+| `ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING` | _(unchanged)_                 | ok                         |
+| `ROWS BETWEEN UNBOUNDED PRECEDING AND 1 FOLLOWING` | _(unchanged)_                 | ok                         |
+| `ROWS BETWEEN 1 PRECEDING AND 2 PRECEDING`         | `1 FOLLOWING AND 2 PRECEDING` | **rejected by the parser** |
+| `ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING`         | `1 PRECEDING AND 2 FOLLOWING` | **silent**                 |
+| `ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING` | `1 PRECEDING AND CURRENT ROW` | **silent**                 |
+| `ROWS BETWEEN 1 PRECEDING AND UNBOUNDED FOLLOWING` | `1 FOLLOWING AND CURRENT ROW` | **silent**                 |
 
 So a frame is safe exactly when the start bound is not an offset, or the end
 bound is `CURRENT ROW` or an offset `FOLLOWING`. Three of the four failures
@@ -154,11 +154,11 @@ defect in the same file.**
 
 ## 4. Silent drops that were already known
 
-| construct | outcome |
-|---|---|
-| `WITH RECURSIVE … SEARCH DEPTH FIRST BY n SET s` | clause dropped, SQL still parses — **silent** |
-| `WITH RECURSIVE … CYCLE n SET y USING p` | clause dropped, SQL still parses — **silent** |
-| subscripting in `expression-node-coverage`, `array-slices` | stray `[`, parser rejects |
+| construct                                                  | outcome                                       |
+| ---------------------------------------------------------- | --------------------------------------------- |
+| `WITH RECURSIVE … SEARCH DEPTH FIRST BY n SET s`           | clause dropped, SQL still parses — **silent** |
+| `WITH RECURSIVE … CYCLE n SET y USING p`                   | clause dropped, SQL still parses — **silent** |
+| subscripting in `expression-node-coverage`, `array-slices` | stray `[`, parser rejects                     |
 
 Round-trip cleanly, for the record: `MERGE`, array subscripts `a[1]`, array
 slices `a[1:2]` in isolation, and every jsonpath function and operator.
@@ -170,14 +170,14 @@ deparser emits the PARENTHESES a subscripted expression needs for some
 argument kinds and drops them for others. A bare name (`a[1]`) needs none,
 which is why the isolation cases round-trip.
 
-| `SELECT <expr>` | emitted | PostgreSQL |
-|---|---|---|
-| `(array_remove(…))[1]` | `(array_remove(…))[1]` | accepted |
-| `('{"a":1}'::jsonb)['a']` | `('{"a":1}'::jsonb)['a']` | accepted |
-| `((SELECT ARRAY['a']))[1]` | `((SELECT ARRAY['a']))[1]` | accepted |
-| `(ARRAY['a','b'])[1]` | `ARRAY['a', 'b'][1]` | **syntax error** |
-| `(CASE … END)[1]` | `CASE … END[1]` | **syntax error** |
-| `(COALESCE(…))[1]` | `COALESCE(…)[1]` | **syntax error** |
+| `SELECT <expr>`            | emitted                    | PostgreSQL       |
+| -------------------------- | -------------------------- | ---------------- |
+| `(array_remove(…))[1]`     | `(array_remove(…))[1]`     | accepted         |
+| `('{"a":1}'::jsonb)['a']`  | `('{"a":1}'::jsonb)['a']`  | accepted         |
+| `((SELECT ARRAY['a']))[1]` | `((SELECT ARRAY['a']))[1]` | accepted         |
+| `(ARRAY['a','b'])[1]`      | `ARRAY['a', 'b'][1]`       | **syntax error** |
+| `(CASE … END)[1]`          | `CASE … END[1]`            | **syntax error** |
+| `(COALESCE(…))[1]`         | `COALESCE(…)[1]`           | **syntax error** |
 
 So: parenthesised for `FuncCall`, `TypeCast` and `SubLink`; dropped for the
 constructor-shaped kinds. `(ROW(1,2))[1]` renders with parentheses and
@@ -227,26 +227,26 @@ Three of the four broken cases produce valid SQL that describes a different
 frame, so the corruption is silent.
 
 ```js
-import { parse } from "libpg-query";
-import { deparse } from "pgsql-deparser";
+import { parse } from 'libpg-query'
+import { deparse } from 'pgsql-deparser'
 
 for (const frame of [
-  "ROWS BETWEEN 1 PRECEDING AND 2 PRECEDING",
-  "ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING",
-  "ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING",
-  "ROWS BETWEEN 1 PRECEDING AND UNBOUNDED FOLLOWING",
+  'ROWS BETWEEN 1 PRECEDING AND 2 PRECEDING',
+  'ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING',
+  'ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING',
+  'ROWS BETWEEN 1 PRECEDING AND UNBOUNDED FOLLOWING',
 ]) {
-  const sql = `SELECT sum(a) OVER (ORDER BY a ${frame}) FROM t`;
-  console.log(frame, "->", await deparse(await parse(sql)));
+  const sql = `SELECT sum(a) OVER (ORDER BY a ${frame}) FROM t`
+  console.log(frame, '->', await deparse(await parse(sql)))
 }
 ```
 
-| input | emitted | |
-|---|---|---|
-| `1 PRECEDING AND 2 PRECEDING` | `1 FOLLOWING AND 2 PRECEDING` | parser rejects |
-| `1 FOLLOWING AND 2 FOLLOWING` | `1 PRECEDING AND 2 FOLLOWING` | silent |
-| `1 FOLLOWING AND UNBOUNDED FOLLOWING` | `1 PRECEDING AND CURRENT ROW` | silent |
-| `1 PRECEDING AND UNBOUNDED FOLLOWING` | `1 FOLLOWING AND CURRENT ROW` | silent |
+| input                                 | emitted                       |                |
+| ------------------------------------- | ----------------------------- | -------------- |
+| `1 PRECEDING AND 2 PRECEDING`         | `1 FOLLOWING AND 2 PRECEDING` | parser rejects |
+| `1 FOLLOWING AND 2 FOLLOWING`         | `1 PRECEDING AND 2 FOLLOWING` | silent         |
+| `1 FOLLOWING AND UNBOUNDED FOLLOWING` | `1 PRECEDING AND CURRENT ROW` | silent         |
+| `1 PRECEDING AND UNBOUNDED FOLLOWING` | `1 FOLLOWING AND CURRENT ROW` | silent         |
 
 Unaffected: any frame whose start is `UNBOUNDED PRECEDING` or `CURRENT ROW`,
 and `N PRECEDING AND <CURRENT ROW | N FOLLOWING>`.
@@ -260,8 +260,8 @@ Expected: the emitted text re-parses to the same `WindowDef.frameOptions`.
 **Version:** `pgsql-deparser` 18.1.1, `libpg-query` 18.0.1
 
 ```js
-const sql = `SELECT * FROM XMLTABLE('/r' PASSING xml '<r/>' COLUMNS a int PATH 'a' NOT NULL)`;
-console.log(await deparse(await parse(sql)));
+const sql = `SELECT * FROM XMLTABLE('/r' PASSING xml '<r/>' COLUMNS a int PATH 'a' NOT NULL)`
+console.log(await deparse(await parse(sql)))
 // SELECT * FROM '<r/>'::xml PASSING '/r' COLUMNS (a int PATH ''a'')
 ```
 

@@ -3,21 +3,9 @@
   "why": "One matching row and one NULL eventdate, over a one-minute window so the NULL-$1 binding stays cheap.",
   "args": {
     "CountAlertReportBy": [
-      [
-        "hour",
-        "2020-01-01",
-        "2020-01-01 00:01"
-      ],
-      [
-        null,
-        "2020-01-01",
-        "2020-01-01 00:01"
-      ],
-      [
-        "hour",
-        null,
-        "2020-01-01 00:01"
-      ]
+      ["hour", "2020-01-01", "2020-01-01 00:01"],
+      [null, "2020-01-01", "2020-01-01 00:01"],
+      ["hour", null, "2020-01-01 00:01"]
     ]
   },
   "entries": {

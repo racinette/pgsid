@@ -1,4 +1,4 @@
-import type { NullabilityCatalog } from "../../../src/query/types.js";
+import type { NullabilityCatalog } from '../../../src/query/types.js'
 
 // ---------------------------------------------------------------------------
 // A recording wrapper around the NullabilityCatalog — catalog-spy.ts one level
@@ -17,30 +17,30 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 // ---------------------------------------------------------------------------
 
 export interface RecordedCall {
-  member: string;
-  args: readonly unknown[];
-  result: unknown;
+  member: string
+  args: readonly unknown[]
+  result: unknown
 }
 
 export interface RecordingCatalog {
   /** The wrapper to hand to the walk in place of the real catalog. */
-  catalog: NullabilityCatalog;
+  catalog: NullabilityCatalog
   /** Every call so far, in call order. */
-  calls: RecordedCall[];
+  calls: RecordedCall[]
 }
 
 export function recordCatalog(catalog: NullabilityCatalog): RecordingCatalog {
-  const calls: RecordedCall[] = [];
+  const calls: RecordedCall[] = []
   const proxy = new Proxy(catalog, {
     get(target, prop, receiver) {
-      const value = Reflect.get(target, prop, receiver);
-      if (typeof prop !== "string" || typeof value !== "function") return value;
+      const value = Reflect.get(target, prop, receiver)
+      if (typeof prop !== 'string' || typeof value !== 'function') return value
       return (...args: unknown[]) => {
-        const result = (value as (...a: unknown[]) => unknown).apply(target, args);
-        calls.push({ member: prop, args, result });
-        return result;
-      };
+        const result = (value as (...a: unknown[]) => unknown).apply(target, args)
+        calls.push({ member: prop, args, result })
+        return result
+      }
     },
-  });
-  return { catalog: proxy, calls };
+  })
+  return { catalog: proxy, calls }
 }

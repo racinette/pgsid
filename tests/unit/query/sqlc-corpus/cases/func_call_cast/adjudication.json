@@ -2,14 +2,7 @@
   "adjudicatedAgainst": "v1.31.1",
   "why": "No table is involved; the query's only input is $1, bound both non-null and NULL.",
   "args": {
-    "Demo": [
-      [
-        "x"
-      ],
-      [
-        null
-      ]
-    ]
+    "Demo": [["x"], [null]]
   },
   "entries": {
     "Demo#0 (col1)": {

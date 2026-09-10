@@ -1,0 +1,13 @@
+# Package-manager output has its own canonical serializer.
+pnpm-lock.yaml
+
+# Espalier owns the byte-for-byte form of its generated guidance.
+tests/unit/query/**/AGENTS.md
+
+# Pinned sqlc inputs and verdicts retain their upstream/generated form. The
+# pgsid-owned data.sql and adjudication.json files beside them remain in scope.
+tests/unit/query/sqlc-corpus/cases/**/schema.sql
+tests/unit/query/sqlc-corpus/cases/**/query.sql
+tests/unit/query/sqlc-corpus/cases/**/sqlc.json
+tests/unit/query/sqlc-corpus/cases/**/sqlc.yaml
+tests/unit/query/sqlc-corpus/cases/**/expected.json

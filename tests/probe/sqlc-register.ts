@@ -20,77 +20,84 @@
 // on every run), so the register cannot drift from the suite: if a state stops
 // producing its NULL, the suite fails before this file is ever regenerated.
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   loadSqlcCases,
   SQLC_VERSION,
   DISAGREEMENTS,
   ADJUDICATED,
-} from "../unit/query/sqlc-corpus.js";
+} from '../unit/query/sqlc-corpus.js'
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const ARTIFACTS = join(HERE, "..", "..", "artifacts");
-const OUT = join(ARTIFACTS, "sqlc-disagreements.md");
-const TICKETS = join(HERE, "..", "unit", "query", "sqlc-corpus", "tickets");
+const HERE = dirname(fileURLToPath(import.meta.url))
+const ARTIFACTS = join(HERE, '..', '..', 'artifacts')
+const OUT = join(ARTIFACTS, 'sqlc-disagreements.md')
+const TICKETS = join(HERE, '..', 'unit', 'query', 'sqlc-corpus', 'tickets')
 
 function main(): void {
-  const cases = loadSqlcCases();
-  const sqlByKey = new Map<string, string>();
-  const caseOf = new Map<string, string>();
+  const cases = loadSqlcCases()
+  const sqlByKey = new Map<string, string>()
+  const caseOf = new Map<string, string>()
   for (const c of cases) {
     for (const q of c.queries) {
-      sqlByKey.set(`${c.name}/${q.name}`, q.sql);
-      caseOf.set(`${c.name}/${q.name}`, c.name);
+      sqlByKey.set(`${c.name}/${q.name}`, q.sql)
+      caseOf.set(`${c.name}/${q.name}`, c.name)
     }
   }
 
-  const census: Record<string, number> = {};
-  const sections: string[] = [];
+  const census: Record<string, number> = {}
+  const sections: string[] = []
 
   for (const key of Object.keys(DISAGREEMENTS).sort()) {
-    const classification = DISAGREEMENTS[key]!;
-    const verdictLine = ADJUDICATED[key] ?? "UNADJUDICATED";
-    const [verdict, dispositionPart] = verdictLine.split(" · ");
-    const disposition = (dispositionPart ?? "unresolved").replace(/\s*\(T\d\)$/, "");
-    census[disposition] = (census[disposition] ?? 0) + 1;
+    const classification = DISAGREEMENTS[key]!
+    const verdictLine = ADJUDICATED[key] ?? 'UNADJUDICATED'
+    const [verdict, dispositionPart] = verdictLine.split(' · ')
+    const disposition = (dispositionPart ?? 'unresolved').replace(/\s*\(T\d\)$/, '')
+    census[disposition] = (census[disposition] ?? 0) + 1
 
     // `case/Query#i (col)` → the query key, and the column if there is one.
-    const queryKey = key.replace(/#\d+ \(.*\)$/, "");
-    const caseName = caseOf.get(queryKey)!;
-    const c = cases.find(x => x.name === caseName)!;
-    const local = key.slice(caseName.length + 1);
-    const entry = c.adjudication?.entries[local];
-    const ticket = /\((T\d)\)/.exec(verdictLine)?.[1];
+    const queryKey = key.replace(/#\d+ \(.*\)$/, '')
+    const caseName = caseOf.get(queryKey)!
+    const c = cases.find((x) => x.name === caseName)!
+    const local = key.slice(caseName.length + 1)
+    const entry = c.adjudication?.entries[local]
+    const ticket = /\((T\d)\)/.exec(verdictLine)?.[1]
 
-    const col = /#(\d+) \((.*)\)$/.exec(key);
+    const col = /#(\d+) \((.*)\)$/.exec(key)
     const head = col
       ? `## ${classification} — \`${queryKey}\` column ${col[1]} (\`${col[2]}\`)`
-      : `## shape-skew — \`${queryKey}\``;
+      : `## shape-skew — \`${queryKey}\``
 
-    let body = `${head}\n\n`;
-    body += `sqlc/walk: ${classification} · observed: **${verdict}** · schema: ` +
-      `\`tests/unit/query/sqlc-corpus/cases/${caseName}/schema.sql\`\n\n`;
-    body += "```sql\n" + (sqlByKey.get(queryKey) ?? "") + "\n```\n\n";
-    if (c.adjudication) body += `**Data state** — ${c.adjudication.why}\n\n`;
+    let body = `${head}\n\n`
+    body +=
+      `sqlc/walk: ${classification} · observed: **${verdict}** · schema: ` +
+      `\`tests/unit/query/sqlc-corpus/cases/${caseName}/schema.sql\`\n\n`
+    body += '```sql\n' + (sqlByKey.get(queryKey) ?? '') + '\n```\n\n'
+    if (c.adjudication) body += `**Data state** — ${c.adjudication.why}\n\n`
     if (c.data) {
-      const seed = c.data.split("\n").filter(l => !/^--/.test(l) && l.trim()).join("\n");
-      body += "```sql\n" + seed + "\n```\n\n";
+      const seed = c.data
+        .split('\n')
+        .filter((l) => !/^--/.test(l) && l.trim())
+        .join('\n')
+      body += '```sql\n' + seed + '\n```\n\n'
     }
-    const args = c.adjudication?.args?.[queryKey.split("/")[1]!];
-    if (args) body += `**Bindings** — ${args.map(a => JSON.stringify(a)).join(", ")}\n\n`;
-    if (entry) body += `${entry.note}\n\n`;
-    body += `**Disposition:** \`${disposition}\``;
-    body += ticket ? ` — [${ticket}](../tests/unit/query/sqlc-corpus/tickets/${ticket}.md)\n` : "\n";
-    sections.push(body);
+    const args = c.adjudication?.args?.[queryKey.split('/')[1]!]
+    if (args) body += `**Bindings** — ${args.map((a) => JSON.stringify(a)).join(', ')}\n\n`
+    if (entry) body += `${entry.note}\n\n`
+    body += `**Disposition:** \`${disposition}\``
+    body += ticket ? ` — [${ticket}](../tests/unit/query/sqlc-corpus/tickets/${ticket}.md)\n` : '\n'
+    sections.push(body)
   }
 
   const ticketFiles = existsSync(TICKETS)
-    ? readdirSync(TICKETS).filter(f => f.endsWith(".md")).sort()
-    : [];
+    ? readdirSync(TICKETS)
+        .filter((f) => f.endsWith('.md'))
+        .sort()
+    : []
 
-  const header = `# sqlc disagreement register
+  const header =
+    `# sqlc disagreement register
 
 **Generated** by \`tests/probe/sqlc-register.ts\` from the per-case files —
 \`cases/<case>/adjudication.json\` and \`cases/<case>/data.sql\` beside the
@@ -122,34 +129,34 @@ Entries: ${Object.keys(DISAGREEMENTS).length}. Census by disposition: ` +
     Object.entries(census)
       .sort()
       .map(([k, v]) => `${k} ${v}`)
-      .join(" · ") +
+      .join(' · ') +
     `.\n\nVerdicts: ` +
     Object.entries(
       Object.values(ADJUDICATED).reduce<Record<string, number>>((acc, v) => {
-        const key = v.split(" · ")[0]!;
-        acc[key] = (acc[key] ?? 0) + 1;
-        return acc;
+        const key = v.split(' · ')[0]!
+        acc[key] = (acc[key] ?? 0) + 1
+        return acc
       }, {}),
     )
       .sort()
       .map(([k, v]) => `${k} ${v}`)
-      .join(" · ") +
-    `. No pgsid unsoundness: every pgsid-stronger claim survived a state built to break it.\n\n`;
+      .join(' · ') +
+    `. No pgsid unsoundness: every pgsid-stronger claim survived a state built to break it.\n\n`
 
   const ticketIndex = ticketFiles.length
-    ? "## Upstream drafts\n\nDrafted, not filed. One per DEFECT rather than per entry.\n\n" +
+    ? '## Upstream drafts\n\nDrafted, not filed. One per DEFECT rather than per entry.\n\n' +
       ticketFiles
-        .map(f => {
-          const first = readFileSync(join(TICKETS, f), "utf8").split("\n")[0]!;
-          return `- [${first.replace(/^#\s*/, "")}](../tests/unit/query/sqlc-corpus/tickets/${f})`;
+        .map((f) => {
+          const first = readFileSync(join(TICKETS, f), 'utf8').split('\n')[0]!
+          return `- [${first.replace(/^#\s*/, '')}](../tests/unit/query/sqlc-corpus/tickets/${f})`
         })
-        .join("\n") +
-      "\n\n"
-    : "";
+        .join('\n') +
+      '\n\n'
+    : ''
 
-  mkdirSync(ARTIFACTS, { recursive: true });
-  writeFileSync(OUT, header + ticketIndex + sections.join("\n"));
-  console.log(`wrote ${OUT}: ${sections.length} entries, ${ticketFiles.length} ticket drafts`);
+  mkdirSync(ARTIFACTS, { recursive: true })
+  writeFileSync(OUT, header + ticketIndex + sections.join('\n'))
+  console.log(`wrote ${OUT}: ${sections.length} entries, ${ticketFiles.length} ticket drafts`)
 }
 
-main();
+main()

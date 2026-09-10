@@ -154,8 +154,7 @@ export async function lint({ read, emit }) {
       if (!usedParams.has(member) || params.get(member) !== 'nullable') {
         emit({
           code: 'invalid_parameter_group_member',
-          message:
-            '$' + member + ' in @param-reject must occur and be annotated nullable',
+          message: '$' + member + ' in @param-reject must occur and be annotated nullable',
           line: lineAt(text, match.index),
         })
       }

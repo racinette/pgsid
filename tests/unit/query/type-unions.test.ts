@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import type { NullabilityCatalog } from "../../../src/query/types.js";
-import { readingsFor, oracleType, unionContains, wireRendering } from "./type-unions.js";
-import { UNION_SCHEMA, UNION_CASES, CONSISTENCY_CASES } from "./type-union-cases.js";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { PGlite } from '@electric-sql/pglite'
+import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import type { NullabilityCatalog } from '../../../src/query/types.js'
+import { readingsFor, oracleType, unionContains, wireRendering } from './type-unions.js'
+import { UNION_SCHEMA, UNION_CASES, CONSISTENCY_CASES } from './type-union-cases.js'
 
 // ---------------------------------------------------------------------------
 // THE TYPE-UNION SUITE.
@@ -48,83 +48,83 @@ import { UNION_SCHEMA, UNION_CASES, CONSISTENCY_CASES } from "./type-union-cases
 // is what must never regress.
 // ---------------------------------------------------------------------------
 
-describe("type unions", () => {
-  let pg: PGlite;
-  let catalog: NullabilityCatalog;
-  let fixturePg: PGlite;
-  let fixtureCatalog: NullabilityCatalog;
+describe('type unions', () => {
+  let pg: PGlite
+  let catalog: NullabilityCatalog
+  let fixturePg: PGlite
+  let fixtureCatalog: NullabilityCatalog
 
   beforeAll(async () => {
-    pg = await PGlite.create();
-    await pg.exec(UNION_SCHEMA);
-    catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
+    pg = await PGlite.create()
+    await pg.exec(UNION_SCHEMA)
+    catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
 
-    fixturePg = await PGlite.create({ extensions: { plpgsql_check } });
-    await fixturePg.exec("CREATE EXTENSION plpgsql_check;");
-    await fixturePg.exec(readFileSync("tests/unit/query/fixtures/schema.sql", "utf8"));
-    fixtureCatalog = await buildNullabilityCatalog(await snapshotCatalog(fixturePg));
-  }, 300_000);
+    fixturePg = await PGlite.create({ extensions: { plpgsql_check } })
+    await fixturePg.exec('CREATE EXTENSION plpgsql_check;')
+    await fixturePg.exec(readFileSync('tests/unit/query/fixtures/schema.sql', 'utf8'))
+    fixtureCatalog = await buildNullabilityCatalog(await snapshotCatalog(fixturePg))
+  }, 300_000)
 
   afterAll(async () => {
-    if (!pg.closed) await pg.close();
-    if (!fixturePg.closed) await fixturePg.close();
-  });
+    if (!pg.closed) await pg.close()
+    if (!fixturePg.closed) await fixturePg.close()
+  })
 
   // -------------------------------------------------------------------------
   // 1. Containment — the invariant.
   // -------------------------------------------------------------------------
 
-  describe("containment: the real type is always a member", () => {
+  describe('containment: the real type is always a member', () => {
     for (const [group, cases] of Object.entries(UNION_CASES)) {
       it(group, async () => {
         for (const { sql, expect: expected } of cases) {
-          const readings = await readingsFor(sql, catalog);
+          const readings = await readingsFor(sql, catalog)
           for (const probe of Object.keys(expected)) {
-            const rec = readings.get(probe);
-            expect(rec, `${sql}\n  no reading for \`${probe}\``).toBeDefined();
-            const oracle = await oracleType(pg, sql, probe);
-            if (oracle === null) continue; // PostgreSQL would not take the probe
+            const rec = readings.get(probe)
+            expect(rec, `${sql}\n  no reading for \`${probe}\``).toBeDefined()
+            const oracle = await oracleType(pg, sql, probe)
+            if (oracle === null) continue // PostgreSQL would not take the probe
             for (const set of rec!.sets) {
-              if (set === null) continue; // no claim is always sound
-              const ok = await unionContains(pg, set, oracle);
+              if (set === null) continue // no claim is always sound
+              const ok = await unionContains(pg, set, oracle)
               expect(
                 ok,
-                `${sql}\n  \`${probe}\` engine [${set.join(", ")}] omits postgres ${oracle}`,
-              ).toBe(true);
+                `${sql}\n  \`${probe}\` engine [${set.join(', ')}] omits postgres ${oracle}`,
+              ).toBe(true)
             }
           }
         }
-      });
+      })
     }
 
-    it("holds over every expression the fixture corpus produces", async () => {
-      const dir = join(__dirname, "fixtures");
+    it('holds over every expression the fixture corpus produces', async () => {
+      const dir = join(__dirname, 'fixtures')
       const files = readdirSync(dir)
-        .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-        .sort();
+        .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+        .sort()
 
-      let readings = 0;
-      let noClaim = 0;
-      let correctlyUnknown = 0;
-      let singleton = 0;
-      let wide = 0;
-      let polymorphic = 0;
-      let unprobeable = 0;
-      const violations: string[] = [];
+      let readings = 0
+      let noClaim = 0
+      let correctlyUnknown = 0
+      let singleton = 0
+      let wide = 0
+      let polymorphic = 0
+      let unprobeable = 0
+      const violations: string[] = []
 
       for (const file of files) {
-        const sql = readFileSync(join(dir, file), "utf8");
-        let byExpr;
+        const sql = readFileSync(join(dir, file), 'utf8')
+        let byExpr
         try {
-          byExpr = await readingsFor(sql, fixtureCatalog);
+          byExpr = await readingsFor(sql, fixtureCatalog)
         } catch {
-          continue; // a statement the walk refuses; not this suite's subject
+          continue // a statement the walk refuses; not this suite's subject
         }
         for (const [probe, rec] of byExpr) {
-          if (/\$\d/.test(probe)) continue; // parameters need bindings
-          const oracle = await oracleType(fixturePg, sql, probe);
+          if (/\$\d/.test(probe)) continue // parameters need bindings
+          const oracle = await oracleType(fixturePg, sql, probe)
           for (const set of rec.sets) {
-            readings++;
+            readings++
             if (set === null) {
               // A bare literal is `unknown` in PostgreSQL too, and its type
               // comes from whatever consumes it — not a gap. Counting those
@@ -133,26 +133,26 @@ describe("type unions", () => {
               // real expressions and moved the total by ONE, because typing
               // a node means READING its members and an unknown member is a
               // new, correct, null reading.
-              if (rec.kind === "A_Const") correctlyUnknown++;
-              else noClaim++;
-              continue;
+              if (rec.kind === 'A_Const') correctlyUnknown++
+              else noClaim++
+              continue
             }
-            if (set.length === 1) singleton++;
-            else wide++;
+            if (set.length === 1) singleton++
+            else wide++
             for (const member of set) {
-              if ((await wireRendering(fixturePg, member)) === "*") {
-                polymorphic++;
-                break;
+              if ((await wireRendering(fixturePg, member)) === '*') {
+                polymorphic++
+                break
               }
             }
             if (oracle === null) {
-              unprobeable++;
-              continue;
+              unprobeable++
+              continue
             }
             if (!(await unionContains(fixturePg, set, oracle))) {
               violations.push(
-                `${file}: \`${probe}\` engine [${set.join(", ")}] omits postgres ${oracle}`,
-              );
+                `${file}: \`${probe}\` engine [${set.join(', ')}] omits postgres ${oracle}`,
+              )
             }
           }
         }
@@ -160,8 +160,8 @@ describe("type unions", () => {
 
       console.log(
         [
-          "",
-          "type-union census over the fixture corpus",
+          '',
+          'type-union census over the fixture corpus',
           `  readings:              ${readings}`,
           `    unknown literal:     ${correctlyUnknown}  (correct — not a gap)`,
           `    no claim (null):     ${noClaim}`,
@@ -169,50 +169,49 @@ describe("type unions", () => {
           `    multi-member:        ${wide}`,
           `    carrying a pseudo:   ${polymorphic}`,
           `  not probeable by pg:   ${unprobeable}  (inner scopes; the probe is spliced`,
-          "                                into the TOP-LEVEL target list, so an expression",
-          "                                belonging to a CTE interior cannot be asked about)",
+          '                                into the TOP-LEVEL target list, so an expression',
+          '                                belonging to a CTE interior cannot be asked about)',
           `  CONTAINMENT VIOLATIONS: ${violations.length}`,
-          ...violations.slice(0, 40).map(v => `    ${v}`),
-        ].join("\n"),
-      );
+          ...violations.slice(0, 40).map((v) => `    ${v}`),
+        ].join('\n'),
+      )
 
-      expect(violations, violations.slice(0, 10).join("\n")).toHaveLength(0);
-    }, 600_000);
-  });
+      expect(violations, violations.slice(0, 10).join('\n')).toHaveLength(0)
+    }, 600_000)
+  })
 
   // -------------------------------------------------------------------------
   // 2. The exact sets — today's precision, recorded.
   // -------------------------------------------------------------------------
 
-  describe("the sets themselves", () => {
+  describe('the sets themselves', () => {
     for (const [group, cases] of Object.entries(UNION_CASES)) {
       it(group, async () => {
         for (const { sql, expect: expected } of cases) {
-          const readings = await readingsFor(sql, catalog);
+          const readings = await readingsFor(sql, catalog)
           for (const [probe, want] of Object.entries(expected)) {
-            const rec = readings.get(probe);
+            const rec = readings.get(probe)
             expect(
               rec,
-              `${sql}\n  no reading for \`${probe}\` — keys: ${[...readings.keys()].join(" ; ")}`,
-            ).toBeDefined();
+              `${sql}\n  no reading for \`${probe}\` — keys: ${[...readings.keys()].join(' ; ')}`,
+            ).toBeDefined()
             for (const got of rec!.sets) {
-              expect(
-                got === null ? null : [...got].sort(),
-                `${sql}\n  \`${probe}\``,
-              ).toEqual(want === null ? null : [...want].sort());
+              expect(got === null ? null : [...got].sort(), `${sql}\n  \`${probe}\``).toEqual(
+                want === null ? null : [...want].sort(),
+              )
             }
           }
         }
-      });
+      })
     }
-  });
+  })
 
   // -------------------------------------------------------------------------
   // 3. Consistency — RED.
   // -------------------------------------------------------------------------
 
-  describe("consistency", () => {
-    it("one expression gets one reading, wherever it is read", async () => {
+  describe('consistency', () => {
+    it('one expression gets one reading, wherever it is read', async () => {
       // Written RED. A column read in the target list typed; the SAME column
       // read in a JOIN or WHERE predicate did not, because
       // `promotionOperatorIsStrict` declared `scope: Scope | null = null` and
@@ -224,17 +223,17 @@ describe("type unions", () => {
       // and `exprStrictlyForces` (2026-08-20). Every entry point already held
       // a scope; it was captured in a closure and never passed down.
       for (const { sql, expr } of CONSISTENCY_CASES) {
-        const readings = await readingsFor(sql, catalog);
-        const rec = readings.get(expr);
-        expect(rec, `${sql}\n  no reading for \`${expr}\``).toBeDefined();
+        const readings = await readingsFor(sql, catalog)
+        const rec = readings.get(expr)
+        expect(rec, `${sql}\n  no reading for \`${expr}\``).toBeDefined()
         const distinct = new Set(
-          rec!.sets.map(s => (s === null ? "null" : [...s].sort().join("|"))),
-        );
+          rec!.sets.map((s) => (s === null ? 'null' : [...s].sort().join('|'))),
+        )
         expect(
           [...distinct],
           `${sql}\n  \`${expr}\` was read ${rec!.sets.length} times, disagreeing`,
-        ).toHaveLength(1);
+        ).toHaveLength(1)
       }
-    });
-  });
-});
+    })
+  })
+})

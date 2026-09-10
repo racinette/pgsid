@@ -2,10 +2,7 @@
   "adjudicatedAgainst": "v1.31.1",
   "why": "The NULL row is present; the WHERE equality is what removes it.",
   "args": {
-    "GetSecond": [
-      [1],
-      [null]
-    ]
+    "GetSecond": [[1], [null]]
   },
   "entries": {
     "GetSecond#1 (val2)": {

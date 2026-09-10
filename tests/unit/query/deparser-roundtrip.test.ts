@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join, basename } from "node:path";
-import { deparseSync } from "pgsql-deparser";
-import { parseSql } from "../../../src/ast.js";
+import { describe, it, expect, beforeAll } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, basename } from 'node:path'
+import { deparseSync } from 'pgsql-deparser'
+import { parseSql } from '../../../src/ast.js'
 
 // ---------------------------------------------------------------------------
 // Deparser round-trip: parse → deparse → parse over every fixture.
@@ -23,21 +23,21 @@ import { parseSql } from "../../../src/ast.js";
 // matches and the deparser looks broken when it is not.
 // ---------------------------------------------------------------------------
 
-const FIXTURES_DIR = join(__dirname, "fixtures");
+const FIXTURES_DIR = join(__dirname, 'fixtures')
 
 type Outcome =
   /** parse → deparse → parse reproduces the stripped AST exactly. */
-  | "identical"
+  | 'identical'
   /** The deparser threw on a node type it does not handle. */
-  | "deparse-threw"
+  | 'deparse-threw'
   /** The deparser emitted text PostgreSQL's parser rejects. */
-  | "reparse-failed"
+  | 'reparse-failed'
   /**
    * The text parsed, but to a different AST — the silent category. Anything
    * here must never be produced by the generator without a corresponding
    * expected-node check (the generator's silent-drop report).
    */
-  | "ast-differed";
+  | 'ast-differed'
 
 /**
  * Fixtures known to deviate, measured with pgsql-deparser 18.1.1. Everything
@@ -56,109 +56,109 @@ type Outcome =
  */
 const KNOWN_DEVIATIONS: Record<string, Outcome> = {
   // An unhandled node type inside the join tree.
-  "xmltable-jsontable": "deparse-threw",
+  'xmltable-jsontable': 'deparse-threw',
   // The same unhandled `JsonTable` node, in the sweep-4 nested-ordinality
   // fixtures — the whole family deparses no better than the one above.
-  "jsontable-sibling-nested-ordinality": "deparse-threw",
-  "jsontable-sibling-nested-group": "deparse-threw",
-  "jsontable-lone-nested-empty-path": "deparse-threw",
-  "jsontable-nested-in-nested-ordinality": "deparse-threw",
+  'jsontable-sibling-nested-ordinality': 'deparse-threw',
+  'jsontable-sibling-nested-group': 'deparse-threw',
+  'jsontable-lone-nested-empty-path': 'deparse-threw',
+  'jsontable-nested-in-nested-ordinality': 'deparse-threw',
   // The same JsonTable node again — the pg-regress ordering pin.
-  "jsontable-plain-after-nested": "deparse-threw",
-  "jsontable-root-ordinality-with-siblings": "deparse-threw",
+  'jsontable-plain-after-nested': 'deparse-threw',
+  'jsontable-root-ordinality-with-siblings': 'deparse-threw',
   // Emits a stray `[` the parser rejects.
-  "expression-node-coverage": "reparse-failed",
+  'expression-node-coverage': 'reparse-failed',
   // Same subscripting emission defect, on the slice fixture.
-  "array-slices": "reparse-failed",
+  'array-slices': 'reparse-failed',
   // Same defect, and this fixture is where it was MEASURED down to the
   // argument kind: the
   // parentheses survive around a FuncCall, a TypeCast and a SubLink and are
   // dropped around an ARRAY constructor, a CASE and a COALESCE. The closed
   // grammar gates on exactly that, so the fixture carries both sides — and
   // the one unrenderable column is what makes this whole file deviate.
-  "closed-grammar-subscript": "reparse-failed",
+  'closed-grammar-subscript': 'reparse-failed',
   // The deparser drops SEARCH / CYCLE clauses; the SQL still parses. These
   // are the silent drops the generator's expected-node checks exist for.
-  "recursive-cte-search-clause": "ast-differed",
-  "recursive-cte-cycle-clause": "ast-differed",
+  'recursive-cte-search-clause': 'ast-differed',
+  'recursive-cte-cycle-clause': 'ast-differed',
   // The SQL/JSON dedicated constructor nodes (PG16+) are unhandled.
-  "json-constructors": "deparse-threw",
+  'json-constructors': 'deparse-threw',
   // Same family: the path-query JsonFuncExpr node is unhandled too.
-  "json-exists": "deparse-threw",
+  'json-exists': 'deparse-threw',
   // The explicit window frame `ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING`
   // is re-emitted with its bounds mangled, which PostgreSQL rejects
   // ("frame starting from following row cannot have preceding rows") — a
   // loud failure, not a silent drop, so no expected-node check is owed.
-  "window-default-frame": "reparse-failed",
+  'window-default-frame': 'reparse-failed',
   // The same defect, WIDER than the loud case above and mostly SILENT: a
   // frame survives only
   // when its START bound is not an offset, or its end is CURRENT ROW or an
   // offset FOLLOWING. Three of the four failures produce VALID SQL naming a
   // DIFFERENT frame — so the generator must not request an offset frame bound
   // without an expected-node check. This fixture lands on the loud one.
-  "param-window-frame-offset": "reparse-failed",
-};
+  'param-window-frame-offset': 'reparse-failed',
+}
 
 /** Byte offsets that vary with formatting and mean nothing structurally. */
 const OFFSET_KEYS = new Set([
-  "location",
-  "list_start",
-  "list_end",
-  "rexpr_list_start",
-  "rexpr_list_end",
-]);
+  'location',
+  'list_start',
+  'list_end',
+  'rexpr_list_start',
+  'rexpr_list_end',
+])
 
 function stripOffsets(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(stripOffsets);
-  if (!node || typeof node !== "object") return node;
-  const out: Record<string, unknown> = {};
+  if (Array.isArray(node)) return node.map(stripOffsets)
+  if (!node || typeof node !== 'object') return node
+  const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(node)) {
-    if (OFFSET_KEYS.has(k)) continue;
-    out[k] = stripOffsets(v);
+    if (OFFSET_KEYS.has(k)) continue
+    out[k] = stripOffsets(v)
   }
-  return out;
+  return out
 }
 
 const fixtureFiles = readdirSync(FIXTURES_DIR)
-  .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-  .sort();
+  .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+  .sort()
 
-const outcomes = new Map<string, { outcome: Outcome; detail: string }>();
+const outcomes = new Map<string, { outcome: Outcome; detail: string }>()
 
-describe("deparser round-trip (pgsql-deparser vs libpg-query)", () => {
+describe('deparser round-trip (pgsql-deparser vs libpg-query)', () => {
   beforeAll(async () => {
     for (const file of fixtureFiles) {
-      const name = basename(file, ".sql");
-      const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const original = await parseSql(sql);
+      const name = basename(file, '.sql')
+      const sql = readFileSync(join(FIXTURES_DIR, file), 'utf8')
+      const original = await parseSql(sql)
 
-      let regenerated: string;
+      let regenerated: string
       try {
-        regenerated = deparseSync(original);
+        regenerated = deparseSync(original)
       } catch (e) {
-        outcomes.set(name, { outcome: "deparse-threw", detail: (e as Error).message });
-        continue;
+        outcomes.set(name, { outcome: 'deparse-threw', detail: (e as Error).message })
+        continue
       }
 
       try {
-        const reparsed = await parseSql(regenerated);
-        const before = stripOffsets(original.stmts?.map(s => s.stmt) ?? []);
-        const after = stripOffsets(reparsed.stmts?.map(s => s.stmt) ?? []);
+        const reparsed = await parseSql(regenerated)
+        const before = stripOffsets(original.stmts?.map((s) => s.stmt) ?? [])
+        const after = stripOffsets(reparsed.stmts?.map((s) => s.stmt) ?? [])
         outcomes.set(name, {
-          outcome: JSON.stringify(before) === JSON.stringify(after) ? "identical" : "ast-differed",
+          outcome: JSON.stringify(before) === JSON.stringify(after) ? 'identical' : 'ast-differed',
           detail: regenerated,
-        });
+        })
       } catch (e) {
-        outcomes.set(name, { outcome: "reparse-failed", detail: (e as Error).message });
+        outcomes.set(name, { outcome: 'reparse-failed', detail: (e as Error).message })
       }
     }
-  }, 120_000);
+  }, 120_000)
 
   for (const file of fixtureFiles) {
-    const name = basename(file, ".sql");
+    const name = basename(file, '.sql')
     it(name, () => {
-      const r = outcomes.get(name)!;
-      const expected: Outcome = KNOWN_DEVIATIONS[name] ?? "identical";
+      const r = outcomes.get(name)!
+      const expected: Outcome = KNOWN_DEVIATIONS[name] ?? 'identical'
       expect(
         r.outcome,
         `deparser behaviour changed for this fixture (was pinned as ` +
@@ -167,21 +167,21 @@ describe("deparser round-trip (pgsql-deparser vs libpg-query)", () => {
           `the new outcome is "ast-differed", find what got dropped, because ` +
           `the generator must not request that construct without an ` +
           `expected-node check.\n${r.detail}`,
-      ).toBe(expected);
-    });
+      ).toBe(expected)
+    })
   }
 
-  it("prints the round-trip table", () => {
-    const counts = new Map<Outcome, number>();
+  it('prints the round-trip table', () => {
+    const counts = new Map<Outcome, number>()
     for (const { outcome } of outcomes.values()) {
-      counts.set(outcome, (counts.get(outcome) ?? 0) + 1);
+      counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
     }
     console.log(
       `\ndeparser round-trip over ${outcomes.size} fixtures:\n` +
-        `  identical:      ${counts.get("identical") ?? 0}\n` +
-        `  deparse threw:  ${counts.get("deparse-threw") ?? 0}\n` +
-        `  reparse failed: ${counts.get("reparse-failed") ?? 0}\n` +
-        `  AST differed:   ${counts.get("ast-differed") ?? 0}`,
-    );
-  });
-});
+        `  identical:      ${counts.get('identical') ?? 0}\n` +
+        `  deparse threw:  ${counts.get('deparse-threw') ?? 0}\n` +
+        `  reparse failed: ${counts.get('reparse-failed') ?? 0}\n` +
+        `  AST differed:   ${counts.get('ast-differed') ?? 0}`,
+    )
+  })
+})

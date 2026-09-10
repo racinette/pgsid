@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { parseSql } from "../../../src/ast.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullability } from "../../../src/query/nullability-walk.js";
-import type { NullabilityCatalog } from "../../../src/query/types.js";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { parseSql } from '../../../src/ast.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import { inferNullability } from '../../../src/query/nullability-walk.js'
+import type { NullabilityCatalog } from '../../../src/query/types.js'
 
 // ---------------------------------------------------------------------------
 // Column SEQUENCE, not just arity.
@@ -44,48 +44,50 @@ const SETUP = `
   -- two apart.
   CREATE TABLE l (x int NOT NULL, id int NOT NULL);
   CREATE TABLE r (id int NOT NULL, y int NOT NULL);
-`;
+`
 
 const CASES = [
-  "SELECT a.*, b.* FROM a, b",
-  "SELECT b.*, a.* FROM a, b",
-  "SELECT a.val2, a.*, b.val3, b.* FROM a, b",
-  "SELECT * FROM a, b",
-  "SELECT * FROM b, a",
-  "SELECT * FROM gap",
-  "SELECT g.*, l.* FROM gap g, later l",
-  "SELECT * FROM later",
-  "SELECT * FROM (SELECT b.*, a.* FROM a, b) s",
-  "SELECT s.*, a.* FROM a, (SELECT b.* FROM b) s",
-  "SELECT * FROM a LEFT JOIN b ON true RIGHT JOIN gap ON true",
-  "SELECT * FROM v_ab",
-  "SELECT * FROM a CROSS JOIN LATERAL (SELECT b.* FROM b) t",
+  'SELECT a.*, b.* FROM a, b',
+  'SELECT b.*, a.* FROM a, b',
+  'SELECT a.val2, a.*, b.val3, b.* FROM a, b',
+  'SELECT * FROM a, b',
+  'SELECT * FROM b, a',
+  'SELECT * FROM gap',
+  'SELECT g.*, l.* FROM gap g, later l',
+  'SELECT * FROM later',
+  'SELECT * FROM (SELECT b.*, a.* FROM a, b) s',
+  'SELECT s.*, a.* FROM a, (SELECT b.* FROM b) s',
+  'SELECT * FROM a LEFT JOIN b ON true RIGHT JOIN gap ON true',
+  'SELECT * FROM v_ab',
+  'SELECT * FROM a CROSS JOIN LATERAL (SELECT b.* FROM b) t',
   // Merged-first, where merged-first != left order. Expect id, x, y.
-  "SELECT * FROM l JOIN r USING (id)",
-  "SELECT * FROM l NATURAL JOIN r",
-  "SELECT * FROM l FULL JOIN r USING (id)",
-  "SELECT * FROM r JOIN l USING (id)",
-];
+  'SELECT * FROM l JOIN r USING (id)',
+  'SELECT * FROM l NATURAL JOIN r',
+  'SELECT * FROM l FULL JOIN r USING (id)',
+  'SELECT * FROM r JOIN l USING (id)',
+]
 
-describe("output column sequence matches PostgreSQL", () => {
-  let pg: PGlite;
-  let catalog: NullabilityCatalog;
+describe('output column sequence matches PostgreSQL', () => {
+  let pg: PGlite
+  let catalog: NullabilityCatalog
 
   beforeAll(async () => {
-    pg = await PGlite.create();
-    await pg.exec(SETUP);
-    catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
-  });
+    pg = await PGlite.create()
+    await pg.exec(SETUP)
+    catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
+  })
 
   afterAll(async () => {
-    if (!pg.closed) await pg.close();
-  });
+    if (!pg.closed) await pg.close()
+  })
 
   for (const sql of CASES) {
     it(sql, async () => {
-      const engine = (await inferNullability((await parseSql(sql)).stmts![0]!.stmt!, catalog)).map(c => c.name);
-      const postgres = (await pg.query(sql, [], { rowMode: "array" })).fields.map(f => f.name);
-      expect(engine, `column sequence differs from PostgreSQL`).toEqual(postgres);
-    });
+      const engine = (await inferNullability((await parseSql(sql)).stmts![0]!.stmt!, catalog)).map(
+        (c) => c.name,
+      )
+      const postgres = (await pg.query(sql, [], { rowMode: 'array' })).fields.map((f) => f.name)
+      expect(engine, `column sequence differs from PostgreSQL`).toEqual(postgres)
+    })
   }
-});
+})

@@ -1,40 +1,40 @@
-import { messages } from "@electric-sql/pglite";
-import { SqlError, hasSqlDetails } from "libpg-query";
+import { messages } from '@electric-sql/pglite'
+import { SqlError, hasSqlDetails } from 'libpg-query'
 
 // `DatabaseError` is exported inside the `messages` namespace in PGlite's
 // type declarations. Pull it out for `instanceof` checks.
-const DatabaseError = messages.DatabaseError;
-type DatabaseError = InstanceType<typeof DatabaseError>;
+const DatabaseError = messages.DatabaseError
+type DatabaseError = InstanceType<typeof DatabaseError>
 
 // Re-export so callers can `instanceof`-check without re-deriving.
-export { DatabaseError, SqlError, hasSqlDetails };
+export { DatabaseError, SqlError, hasSqlDetails }
 
 /**
  * The raw error from a specific source, preserved for source-specific
  * inspection. The `source` tag discriminates which payload is present.
  */
 export type DiagnosticSource =
-  | { source: "libpg-query"; error: SqlError }
-  | { source: "pglite"; error: DatabaseError }
-  | { source: "plpgsql-check"; row: PlpgsqlCheckRow }
-  | { source: "internal"; error: Error };
+  | { source: 'libpg-query'; error: SqlError }
+  | { source: 'pglite'; error: DatabaseError }
+  | { source: 'plpgsql-check'; row: PlpgsqlCheckRow }
+  | { source: 'internal'; error: Error }
 
 /**
  * A row returned by `plpgsql_check_function_tb(...)`. One row per issue
  * found in the function body.
  */
 export interface PlpgsqlCheckRow {
-  functionid: string;
-  lineno: number | null;
-  statement: string | null;
-  sqlstate: string;
-  message: string;
-  detail: string | null;
-  hint: string | null;
-  level: string;
-  position: number | null;
-  query: string | null;
-  context: string | null;
+  functionid: string
+  lineno: number | null
+  statement: string | null
+  sqlstate: string
+  message: string
+  detail: string | null
+  hint: string | null
+  level: string
+  position: number | null
+  query: string | null
+  context: string | null
 }
 
 /**
@@ -55,15 +55,15 @@ export interface PlpgsqlCheckRow {
  */
 export interface SqlDiagnostic {
   /** Primary error message, e.g. `column "emial" does not exist`. */
-  message: string;
+  message: string
   /** SQLSTATE code, e.g. `42703`. `undefined` for libpg-query parse errors (no SQLSTATE). */
-  code: string | undefined;
+  code: string | undefined
   /** Normalized severity. */
-  severity: "error" | "warning" | "info";
+  severity: 'error' | 'warning' | 'info'
   /** "Did you mean?" suggestion from Postgres. */
-  hint: string | undefined;
+  hint: string | undefined
   /** Additional detail (rare for PREPARE errors; populated for constraint violations). */
-  detail: string | undefined;
+  detail: string | undefined
 
   /**
    * File-absolute byte range [start, end) to highlight, or `null` when
@@ -75,7 +75,7 @@ export interface SqlDiagnostic {
    * - Statement-level (PGlite without position): null → caller fills
    *   the statement range.
    */
-  range: { start: number; end: number } | null;
+  range: { start: number; end: number } | null
 
   /**
    * Zero or more related locations — secondary places the user should look.
@@ -88,24 +88,24 @@ export interface SqlDiagnostic {
    * statement ("trigger on table 'bar'") so the user sees the binding
    * that caused the error.
    */
-  relatedLocations?: { range: { start: number; end: number }; message: string }[];
+  relatedLocations?: { range: { start: number; end: number }; message: string }[]
 
   /**
    * The original error, preserved for source-specific inspection.
    * Carries the raw error object from the source library.
    */
-  original: DiagnosticSource;
+  original: DiagnosticSource
 }
 
 /**
  * Normalize a severity string from any source to our three-level scale.
  */
-export function normalizeSeverity(raw: string | undefined): "error" | "warning" | "info" {
-  if (!raw) return "error";
-  const lower = raw.toLowerCase();
-  if (lower === "error" || lower === "fatal" || lower === "panic") return "error";
-  if (lower === "warning") return "warning";
-  return "info";
+export function normalizeSeverity(raw: string | undefined): 'error' | 'warning' | 'info' {
+  if (!raw) return 'error'
+  const lower = raw.toLowerCase()
+  if (lower === 'error' || lower === 'fatal' || lower === 'panic') return 'error'
+  if (lower === 'warning') return 'warning'
+  return 'info'
 }
 
 /**
@@ -123,19 +123,19 @@ export function normalizeSeverity(raw: string | undefined): "error" | "warning" 
  */
 function expandTokenRange(source: Buffer, pos: number): { start: number; end: number } {
   if (pos < 0 || pos >= source.length) {
-    return { start: Math.max(0, pos), end: Math.max(0, pos) + 1 };
+    return { start: Math.max(0, pos), end: Math.max(0, pos) + 1 }
   }
-  let start = pos;
-  let end = pos + 1;
+  let start = pos
+  let end = pos + 1
   // Walk backward over word chars.
   while (start > 0 && isWordByte(source.readUInt8(start - 1))) {
-    start--;
+    start--
   }
   // Walk forward over word chars.
   while (end < source.length && isWordByte(source.readUInt8(end))) {
-    end++;
+    end++
   }
-  return { start, end };
+  return { start, end }
 }
 
 function isWordByte(byte: number): boolean {
@@ -144,8 +144,8 @@ function isWordByte(byte: number): boolean {
     (byte >= 0x41 && byte <= 0x5a) || // A-Z
     (byte >= 0x61 && byte <= 0x7a) || // a-z
     (byte >= 0x30 && byte <= 0x39) || // 0-9
-    byte === 0x5f                      // _
-  );
+    byte === 0x5f // _
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -168,37 +168,34 @@ export function extractParseDiagnostic(
   source?: Buffer,
 ): SqlDiagnostic {
   if (err instanceof SqlError && err.sqlDetails) {
-    const d = err.sqlDetails;
+    const d = err.sqlDetails
     // cursorPosition is 0-based into the SQL string passed to parse().
-    const pos = d.cursorPosition !== undefined
-      ? sqlOffset + d.cursorPosition
-      : null;
-    const range = pos !== null && source
-      ? expandTokenRange(source, pos)
-      : null;
+    const pos = d.cursorPosition !== undefined ? sqlOffset + d.cursorPosition : null
+    const range = pos !== null && source ? expandTokenRange(source, pos) : null
     return {
       message: d.message,
       code: undefined, // parse errors have no SQLSTATE
-      severity: "error",
+      severity: 'error',
       hint: undefined,
       detail: undefined,
       range,
-      original: { source: "libpg-query", error: err },
-    };
+      original: { source: 'libpg-query', error: err },
+    }
   }
   // Non-SqlError (shouldn't happen from parse(), but defensive).
-  const message = err instanceof Error ? err.message : String(err);
+  const message = err instanceof Error ? err.message : String(err)
   return {
     message,
     code: undefined,
-    severity: "error",
+    severity: 'error',
     hint: undefined,
     detail: undefined,
     range: null,
-    original: err instanceof SqlError
-      ? { source: "libpg-query", error: err }
-      : { source: "libpg-query", error: new SqlError(message) },
-  };
+    original:
+      err instanceof SqlError
+        ? { source: 'libpg-query', error: err }
+        : { source: 'libpg-query', error: new SqlError(message) },
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -211,13 +208,13 @@ export function extractParseDiagnostic(
  */
 export interface ExtractExecOptions {
   /** 0-based byte offset of the statement in the STRIPPED content. */
-  stmtStrippedOffset: number;
+  stmtStrippedOffset: number
   /** Removals from `preprocess` (for CONCURRENTLY remapping). `[]` if none. */
-  removals: { offset: number; length: number }[];
+  removals: { offset: number; length: number }[]
   /** A function that maps stripped positions to original file positions. */
-  mapStrippedToOriginal: (removals: { offset: number; length: number }[], pos: number) => number;
+  mapStrippedToOriginal: (removals: { offset: number; length: number }[], pos: number) => number
   /** The original file content (for token-range expansion). If omitted, `range` is null. */
-  source?: Buffer;
+  source?: Buffer
 }
 
 /**
@@ -244,21 +241,21 @@ export function extractExecDiagnostic(
   ctx: ExtractExecOptions,
 ): SqlDiagnostic {
   if (err instanceof DatabaseError) {
-    let range: { start: number; end: number } | null = null;
+    let range: { start: number; end: number } | null = null
     if (err.position !== undefined) {
-      const parsed = parseInt(err.position, 10);
+      const parsed = parseInt(err.position, 10)
       if (!Number.isNaN(parsed)) {
         // PG position is 1-based into the full query string.
-        const pos0IntoQuery = parsed - 1;
+        const pos0IntoQuery = parsed - 1
         // Subtract prefix to get 0-based into the statement body.
-        const pos0IntoStmt = Math.max(0, pos0IntoQuery - prefixLen);
+        const pos0IntoStmt = Math.max(0, pos0IntoQuery - prefixLen)
         // Add the statement's offset in the stripped content.
-        const pos0IntoStripped = ctx.stmtStrippedOffset + pos0IntoStmt;
+        const pos0IntoStripped = ctx.stmtStrippedOffset + pos0IntoStmt
         // Map through removals to get 0-based into the original file.
-        const pos0IntoFile = ctx.mapStrippedToOriginal(ctx.removals, pos0IntoStripped);
+        const pos0IntoFile = ctx.mapStrippedToOriginal(ctx.removals, pos0IntoStripped)
         // Expand to a token range if we have the source.
         if (ctx.source) {
-          range = expandTokenRange(ctx.source, pos0IntoFile);
+          range = expandTokenRange(ctx.source, pos0IntoFile)
         }
       }
     }
@@ -269,20 +266,20 @@ export function extractExecDiagnostic(
       hint: err.hint,
       detail: err.detail,
       range,
-      original: { source: "pglite", error: err },
-    };
+      original: { source: 'pglite', error: err },
+    }
   }
   // Non-DatabaseError (e.g. a JS-side bug). Surface the message; no range.
-  const message = err instanceof Error ? err.message : String(err);
+  const message = err instanceof Error ? err.message : String(err)
   return {
     message,
     code: undefined,
-    severity: "error",
+    severity: 'error',
     hint: undefined,
     detail: undefined,
     range: null,
-    original: { source: "pglite", error: new Error(message) as DatabaseError },
-  };
+    original: { source: 'pglite', error: new Error(message) as DatabaseError },
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +315,7 @@ export function extractPlpgsqlCheckDiagnostic(
   functionBodyText: string,
   source?: Buffer,
 ): SqlDiagnostic {
-  let range: { start: number; end: number } | null = null;
+  let range: { start: number; end: number } | null = null
 
   // Strategy 1: find `query` in the body, use `position` as offset into it,
   // expand to a token range.
@@ -329,15 +326,15 @@ export function extractPlpgsqlCheckDiagnostic(
   // UTF-16 code unit index, which differs from the byte offset when the body
   // contains multi-byte UTF-8 characters before the query.
   if (row.position !== null && row.query) {
-    const bodyBytes = Buffer.from(functionBodyText, "utf8");
-    const queryOffsetInBody = bodyBytes.indexOf(row.query, 0, "utf8");
+    const bodyBytes = Buffer.from(functionBodyText, 'utf8')
+    const queryOffsetInBody = bodyBytes.indexOf(row.query, 0, 'utf8')
     if (queryOffsetInBody !== -1) {
-      const pos0IntoQuery = row.position - 1;
-      const pos0IntoBody = queryOffsetInBody + pos0IntoQuery;
-      const pos0IntoFile = functionBodyOffset + pos0IntoBody;
+      const pos0IntoQuery = row.position - 1
+      const pos0IntoBody = queryOffsetInBody + pos0IntoQuery
+      const pos0IntoFile = functionBodyOffset + pos0IntoBody
       range = source
         ? expandTokenRange(source, pos0IntoFile)
-        : { start: pos0IntoFile, end: pos0IntoFile + 1 };
+        : { start: pos0IntoFile, end: pos0IntoFile + 1 }
     }
     // If query not found (e.g. PERFORM → SELECT transformation), fall through
     // to the lineno-based fallback below.
@@ -345,18 +342,18 @@ export function extractPlpgsqlCheckDiagnostic(
 
   // Strategy 2: use `lineno` to compute the byte range of the whole line.
   if (range === null && row.lineno !== null) {
-    const lines = functionBodyText.split("\n");
+    const lines = functionBodyText.split('\n')
     if (row.lineno >= 1 && row.lineno <= lines.length) {
-      let lineStart = 0;
+      let lineStart = 0
       for (let i = 0; i < row.lineno - 1; i++) {
-        lineStart += Buffer.byteLength(lines[i]!, "utf8") + 1; // +1 for \n
+        lineStart += Buffer.byteLength(lines[i]!, 'utf8') + 1 // +1 for \n
       }
-      const lineText = lines[row.lineno - 1]!;
-      const lineEnd = lineStart + Buffer.byteLength(lineText, "utf8");
+      const lineText = lines[row.lineno - 1]!
+      const lineEnd = lineStart + Buffer.byteLength(lineText, 'utf8')
       range = {
         start: functionBodyOffset + lineStart,
         end: functionBodyOffset + lineEnd,
-      };
+      }
     }
   }
 
@@ -367,8 +364,8 @@ export function extractPlpgsqlCheckDiagnostic(
     hint: row.hint ?? undefined,
     detail: row.detail ?? undefined,
     range,
-    original: { source: "plpgsql-check", row },
-  };
+    original: { source: 'plpgsql-check', row },
+  }
 }
 
 /**
@@ -383,5 +380,5 @@ export function extractPlpgsqlCheckDiagnostic(
  */
 export function preparePrefixLength(name: string): number {
   // "PREPARE " + name + " AS " — all ASCII, so byte length === char length.
-  return "PREPARE ".length + name.length + " AS ".length;
+  return 'PREPARE '.length + name.length + ' AS '.length
 }

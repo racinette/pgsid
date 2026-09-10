@@ -16,8 +16,8 @@ thing the query actually guarantees — is thrown away.
 
 The common alternative is an embedding macro that shapes the row into a nested
 object. That is the application's business rather than the analyser's, and it
-has a known wart: the embedded object cannot say *this whole group is null
-because the join missed*, so it hands back a nested structure whose fields are
+has a known wart: the embedded object cannot say _this whole group is null
+because the join missed_, so it hands back a nested structure whose fields are
 individually optional.
 
 What an engine that reasons about null-extension can do instead is PROVE the

@@ -2,16 +2,8 @@
   "adjudicatedAgainst": "v1.31.1",
   "why": "A NULL events.ID and a NULL last_handled_id, so both operands of the strict join qual get their turn.",
   "args": {
-    "SelectAllJoined": [
-      [
-        "h"
-      ]
-    ],
-    "SelectAllJoinedAlias": [
-      [
-        "h"
-      ]
-    ]
+    "SelectAllJoined": [["h"]],
+    "SelectAllJoinedAlias": [["h"]]
   },
   "entries": {
     "SelectAllJoined#0 (id)": {

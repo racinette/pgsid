@@ -10,22 +10,19 @@
 // ---------------------------------------------------------------------------
 
 // Re-export EntityId from catalog types for convenience.
-export type { EntityId } from "../catalog/types.js";
+export type { EntityId } from '../catalog/types.js'
 
 // Re-export FunctionInfo for the NullabilityCatalog interface.
-export type { FunctionInfo } from "../catalog/types.js";
-export type {
-  BuiltinFunctionSignature,
-  BuiltinOperatorSignature,
-} from "../catalog/types.js";
+export type { FunctionInfo } from '../catalog/types.js'
+export type { BuiltinFunctionSignature, BuiltinOperatorSignature } from '../catalog/types.js'
 
 // Import types needed for the NullabilityCatalog interface.
 import type {
   BuiltinFunctionSignature,
   BuiltinOperatorSignature,
   FunctionInfo,
-} from "../catalog/types.js";
-import type { Node } from "libpg-query";
+} from '../catalog/types.js'
+import type { Node } from 'libpg-query'
 
 /**
  * A table/view resolved by the catalog — the minimal information needed for
@@ -33,11 +30,11 @@ import type { Node } from "libpg-query";
  * names (for ColumnRef resolution and SELECT * expansion).
  */
 export interface ResolvedTable {
-  schema: string;
-  name: string;
+  schema: string
+  name: string
   /** Column names of the table/view. Used to resolve unqualified ColumnRefs
    *  (which table owns this column?) and to expand `SELECT *`. */
-  columns: string[];
+  columns: string[]
 }
 
 /**
@@ -46,8 +43,8 @@ export interface ResolvedTable {
  * depends on the name, not the specific overload).
  */
 export interface ResolvedFunction {
-  schema: string;
-  name: string;
+  schema: string
+  name: string
 }
 
 /**
@@ -64,7 +61,7 @@ export interface DepCatalog {
    * If `schema` is undefined, search each schema in `searchPath` in order.
    * Returns null if not found.
    */
-  resolveTable(schema: string | undefined, name: string): ResolvedTable | null;
+  resolveTable(schema: string | undefined, name: string): ResolvedTable | null
 
   /**
    * EVERY function of this name the call could resolve to — name-level, no
@@ -78,7 +75,7 @@ export interface DepCatalog {
    * one would leave the query unregistered against the other and silently
    * skip its recheck.
    */
-  resolveFunctions(schema: string | undefined, name: string): ResolvedFunction[];
+  resolveFunctions(schema: string | undefined, name: string): ResolvedFunction[]
 }
 
 /**
@@ -90,8 +87,8 @@ export interface DepCatalog {
  *   outputNotNull = !joinNullable(alias) && catalog.notNull(column)
  */
 export interface AliasNullability {
-  alias: string;
-  joinNullable: boolean;
+  alias: string
+  joinNullable: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -107,9 +104,9 @@ export interface AliasNullability {
  * analyses a specific body, and bodies differ across overloads.
  */
 export interface OperatorMetadata {
-  strict: boolean;
-  functionSchema?: string;
-  functionName?: string;
+  strict: boolean
+  functionSchema?: string
+  functionName?: string
 }
 
 /**
@@ -119,7 +116,9 @@ export interface OperatorMetadata {
  * a new dep-only member that nobody adds here shows up as an unexercised
  * capability, which is the failure that asks for it.
  */
-export const DEP_CATALOG_ONLY = ["resolveFunctions"] as const satisfies readonly (keyof DepCatalog)[];
+export const DEP_CATALOG_ONLY = [
+  'resolveFunctions',
+] as const satisfies readonly (keyof DepCatalog)[]
 
 /**
  * The catalog face of type-aware overload narrowing — candidate signatures
@@ -141,7 +140,7 @@ export interface OverloadCatalog {
   resolveBuiltinFunctionSignatures(
     schema: string | undefined,
     name: string,
-  ): BuiltinFunctionSignature[];
+  ): BuiltinFunctionSignature[]
 
   /**
    * The pg_catalog rows behind a curated operator symbol — the builtin half
@@ -151,7 +150,7 @@ export interface OverloadCatalog {
   resolveBuiltinOperatorSignatures(
     schema: string | undefined,
     name: string,
-  ): BuiltinOperatorSignature[];
+  ): BuiltinOperatorSignature[]
 
   /**
    * The rendered type name with domains recursively resolved to their bases
@@ -160,7 +159,7 @@ export interface OverloadCatalog {
    * this is the FALLBACK key — exact match tries the DECLARED name first,
    * because a candidate declared on the domain type wins.
    */
-  resolveCanonicalTypeName(typeName: string): string;
+  resolveCanonicalTypeName(typeName: string): string
 
   /**
    * Whether an argument of `fromType` could be accepted at a parameter of
@@ -171,14 +170,14 @@ export interface OverloadCatalog {
    * elimination rule: identity, the polymorphic predicate, domain bases,
    * array element recursion, and the captured pg_cast implicit rows.
    */
-  mayCoerceImplicitly(fromType: string, toType: string): boolean;
+  mayCoerceImplicitly(fromType: string, toType: string): boolean
 
   /**
    * Targets of implicit BINARY-coercible casts from this type — the images
    * a failed exact-match lookup retries under (`character varying` has zero
    * operators; the `text` image is where `varchar || varchar` resolves).
    */
-  resolveBinaryCoercionTargets(typeName: string): string[];
+  resolveBinaryCoercionTargets(typeName: string): string[]
 }
 
 /**
@@ -189,12 +188,12 @@ export interface OverloadCatalog {
  * removing it here, which is what makes the move visible.
  */
 export const OVERLOAD_CATALOG_ONLY = [
-  "resolveBuiltinFunctionSignatures",
-  "resolveBuiltinOperatorSignatures",
-  "resolveCanonicalTypeName",
-  "mayCoerceImplicitly",
-  "resolveBinaryCoercionTargets",
-] as const satisfies readonly (keyof OverloadCatalog)[];
+  'resolveBuiltinFunctionSignatures',
+  'resolveBuiltinOperatorSignatures',
+  'resolveCanonicalTypeName',
+  'mayCoerceImplicitly',
+  'resolveBinaryCoercionTargets',
+] as const satisfies readonly (keyof OverloadCatalog)[]
 
 /**
  * The catalog face of the subtree evaluator —
@@ -216,7 +215,7 @@ export interface SubtreeEvaluationCatalog {
    * input and output functions are both immutable and no user type — of
    * any kind, a relation rowtype included — shares the name.
    */
-  isImmutableIoType(typeName: string): boolean;
+  isImmutableIoType(typeName: string): boolean
   /**
    * The survivor-level operator gate of typed operand tracking: given the
    * operand TYPE SETS a closed tree threads bottom-up — `["unknown"]` for
@@ -230,13 +229,10 @@ export interface SubtreeEvaluationCatalog {
     name: string,
     leftTypes: readonly string[] | null,
     rightTypes: readonly string[],
-  ): string[] | null;
+  ): string[] | null
   /** The function-call half of `closedOperatorTypes`, keyed by call arity
    *  the way PostgreSQL's own resolution spans it (defaults, variadics). */
-  closedFunctionTypes(
-    name: string,
-    argTypes: readonly (readonly string[])[],
-  ): string[] | null;
+  closedFunctionTypes(name: string, argTypes: readonly (readonly string[])[]): string[] | null
   /**
    * The SET-RETURNING twin of `closedFunctionTypes` (the closed-sublinks
    * rung): same pool, same landing rules,
@@ -247,10 +243,7 @@ export interface SubtreeEvaluationCatalog {
    * call never closes as an expression, and the body's row count is the
    * runtime pre-probe's question, not this one's.
    */
-  closedSetFunctionTypes(
-    name: string,
-    argTypes: readonly (readonly string[])[],
-  ): string[] | null;
+  closedSetFunctionTypes(name: string, argTypes: readonly (readonly string[])[]): string[] | null
   /**
    * The unification landing for a member list resolved to a common type
    * (CASE results, COALESCE/GREATEST/LEAST, array elements): all-unknown
@@ -258,10 +251,10 @@ export interface SubtreeEvaluationCatalog {
    * known union member immutable-I/O (the landing runs its input
    * function); the union threads on, or null when the landing fails.
    */
-  closedCommonTypes(memberTypes: readonly (readonly string[])[]): string[] | null;
+  closedCommonTypes(memberTypes: readonly (readonly string[])[]): string[] | null
   /** The closed cast gate with its landing: `isImmutableIoType` plus the
    *  format_type rendering the type sets thread (`int4` → `integer`). */
-  closedCastTargetType(typeName: string): string | null;
+  closedCastTargetType(typeName: string): string | null
   /**
    * Design B's family gate, for settings-independent datetime literals:
    * when `typeName` (grammar spelling)
@@ -274,7 +267,7 @@ export interface SubtreeEvaluationCatalog {
    */
   closedDatetimeCastTarget(
     typeName: string,
-  ): { family: "date" | "timestamp" | "timestamptz"; rendered: string } | null;
+  ): { family: 'date' | 'timestamp' | 'timestamptz'; rendered: string } | null
   /**
    * May a value rendered as `typeName` (format spelling, the set-member
    * form) cross to the driver session-independently? Immutable-I/O
@@ -283,7 +276,7 @@ export interface SubtreeEvaluationCatalog {
    * under `date_part`), but collecting it hands its rendering to the
    * consumer, and `date_out` reads DateStyle.
    */
-  isImmutableIoRendering(typeName: string): boolean;
+  isImmutableIoRendering(typeName: string): boolean
   /**
    * The same set with the first-wave USER admission removed — the builtin
    * immutable-I/O renderings and nothing else. This is the CAST-SOURCE gate,
@@ -294,7 +287,7 @@ export interface SubtreeEvaluationCatalog {
    * swept pg_catalog only. The unknown-literal landings already read the
    * builtin set directly for the same reason.
    */
-  isBuiltinImmutableIoRendering(typeName: string): boolean;
+  isBuiltinImmutableIoRendering(typeName: string): boolean
   /**
    * Pre-parsed expressions of the ENFORCED table CHECK constraints on
    * `schema.table` — the CHECK grounder's input channel, gated on
@@ -306,7 +299,7 @@ export interface SubtreeEvaluationCatalog {
    * walk never calls it, and the fixture censuses must not demand walk
    * coverage of it.
    */
-  resolveEnforcedCheckConstraints(schema: string, table: string): Node[];
+  resolveEnforcedCheckConstraints(schema: string, table: string): Node[]
   /**
    * `pg_collation.collisdeterministic` of the column's collation, null for
    * a NON-COLLATABLE type. The evaluated-comparison oracle's gate: a synthesized
@@ -318,11 +311,7 @@ export interface SubtreeEvaluationCatalog {
    * collation transfers nothing — the collation-gate fixture is the
    * measured counterexample.
    */
-  resolveColumnCollationDeterministic(
-    schema: string,
-    table: string,
-    column: string,
-  ): boolean | null;
+  resolveColumnCollationDeterministic(schema: string, table: string, column: string): boolean | null
   /**
    * Whether the column's collation IS the database default (null for
    * non-collatable types) — the trichotomy's IDENTITY arm: a
@@ -331,11 +320,7 @@ export interface SubtreeEvaluationCatalog {
    * transfers, determinism regardless; an explicitly-collated column
    * keeps the deterministic-equality-only arm.
    */
-  resolveColumnCollationIsDefault(
-    schema: string,
-    table: string,
-    column: string,
-  ): boolean | null;
+  resolveColumnCollationIsDefault(schema: string, table: string, column: string): boolean | null
   /**
    * The operator's btree strategy number (1 `<` … 5 `>`) by pg_catalog
    * consensus, or null — including null for any name a user operator
@@ -343,10 +328,10 @@ export interface SubtreeEvaluationCatalog {
    * rung's shape source; `<>` answers through `isEqualityComplement`
    * instead.
    */
-  btreeStrategyOf(op: string): number | null;
+  btreeStrategyOf(op: string): number | null
   /** Whether every pg_catalog row of `op` negates equality — the
    *  complement-of-point shape — under the same collision rule. */
-  isEqualityComplement(op: string): boolean;
+  isEqualityComplement(op: string): boolean
 }
 
 /**
@@ -368,21 +353,21 @@ export interface SubtreeEvaluationCatalog {
  * corpus statement that exercises it now fails.
  */
 export const EVALUATION_CATALOG_ONLY = [
-  "isImmutableIoType",
-  "closedOperatorTypes",
-  "closedFunctionTypes",
-  "closedSetFunctionTypes",
-  "closedCommonTypes",
-  "closedCastTargetType",
-  "closedDatetimeCastTarget",
-  "isImmutableIoRendering",
-  "isBuiltinImmutableIoRendering",
-  "resolveEnforcedCheckConstraints",
-  "resolveColumnCollationDeterministic",
-  "resolveColumnCollationIsDefault",
-  "btreeStrategyOf",
-  "isEqualityComplement",
-] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[];
+  'isImmutableIoType',
+  'closedOperatorTypes',
+  'closedFunctionTypes',
+  'closedSetFunctionTypes',
+  'closedCommonTypes',
+  'closedCastTargetType',
+  'closedDatetimeCastTarget',
+  'isImmutableIoRendering',
+  'isBuiltinImmutableIoRendering',
+  'resolveEnforcedCheckConstraints',
+  'resolveColumnCollationDeterministic',
+  'resolveColumnCollationIsDefault',
+  'btreeStrategyOf',
+  'isEqualityComplement',
+] as const satisfies readonly (keyof SubtreeEvaluationCatalog)[]
 
 /**
  * The richer catalog the nullability walk needs, and ONLY what it needs: name
@@ -403,7 +388,7 @@ export interface NullabilityCatalog {
    * If `schema` is undefined, search each schema in the search path in order.
    * Returns null if not found.
    */
-  resolveTable(schema: string | undefined, name: string): ResolvedTable | null;
+  resolveTable(schema: string | undefined, name: string): ResolvedTable | null
 
   /**
    * Every candidate for this name, UNFILTERED by arity — empty when the
@@ -422,7 +407,7 @@ export interface NullabilityCatalog {
    * the rendering is lossy: a function declared with OUT parameters renders
    * `SETOF record` and its column list lives in the argument array.
    */
-  resolveFunctionShapes(schema: string | undefined, name: string): FunctionInfo[];
+  resolveFunctionShapes(schema: string | undefined, name: string): FunctionInfo[]
 
   /**
    * Whether a call of this name returns a SET, by CONSENSUS over every
@@ -437,14 +422,14 @@ export interface NullabilityCatalog {
    * `every`: the padding rule only ever turns claims nullable, so
    * over-reporting costs precision and under-reporting is the bug.
    */
-  functionReturnsSet(schema: string | undefined, name: string): boolean | null;
+  functionReturnsSet(schema: string | undefined, name: string): boolean | null
 
   /**
    * Whether `name` has a set-returning overload in pg_catalog — the
    * snapshot's measured replacement for a hand-curated name table that
    * missed 50 of PG18's 71 non-pg_stat/pg_ls SRFs (adversarial-3 finding 1).
    */
-  isSetReturningBuiltin(name: string): boolean;
+  isSetReturningBuiltin(name: string): boolean
 
   /**
    * Whether `name` is a pg_catalog AGGREGATE (prokind 'a') — the snapshot's
@@ -453,7 +438,7 @@ export interface NullabilityCatalog {
    * functions. Consulted only where the user catalog has no metadata for the
    * name, like every builtin question.
    */
-  isAggregateBuiltin(name: string): boolean;
+  isAggregateBuiltin(name: string): boolean
 
   /**
    * The FROM-position shape of a pg_catalog function with named output
@@ -467,7 +452,7 @@ export interface NullabilityCatalog {
    * `value`, and `jsonb_array_elements` has one column named `value` — the
    * guess's own arity with a different name.
    */
-  resolveBuiltinFunctionShape(schema: string | undefined, name: string): string | null;
+  resolveBuiltinFunctionShape(schema: string | undefined, name: string): string | null
 
   /**
    * Intrinsic column nullability: whether `schema.table.column` has a NOT NULL
@@ -476,7 +461,7 @@ export interface NullabilityCatalog {
    * and it is the NAMED relation's flag, which is the right question only for
    * a scan that stays there (`FROM ONLY p`, an INSERT target).
    */
-  resolveColumnNotNull(schema: string, table: string, column: string): boolean;
+  resolveColumnNotNull(schema: string, table: string, column: string): boolean
 
   /**
    * The relation-SET answer: attnotnull held across the relation's entire
@@ -485,7 +470,7 @@ export interface NullabilityCatalog {
    * measured), so a tree scan may rely only on this conjunction. Equal to
    * `resolveColumnNotNull` for a childless relation.
    */
-  resolveColumnNotNullTree(schema: string, table: string, column: string): boolean;
+  resolveColumnNotNullTree(schema: string, table: string, column: string): boolean
 
   /**
    * The write-path rewriting hooks on `schema.table`, as command sets
@@ -499,7 +484,11 @@ export interface NullabilityCatalog {
   resolveWriteRewrites(
     schema: string | undefined,
     table: string,
-  ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> };
+  ): {
+    beforeRow: ReadonlySet<string>
+    insteadOf: ReadonlySet<string>
+    insteadRules: ReadonlySet<string>
+  }
 
   /**
    * The relation-SET hooks: `beforeRow` unioned over the inheritance
@@ -514,7 +503,11 @@ export interface NullabilityCatalog {
   resolveWriteRewritesTree(
     schema: string | undefined,
     table: string,
-  ): { beforeRow: ReadonlySet<string>; insteadOf: ReadonlySet<string>; insteadRules: ReadonlySet<string> };
+  ): {
+    beforeRow: ReadonlySet<string>
+    insteadOf: ReadonlySet<string>
+    insteadRules: ReadonlySet<string>
+  }
 
   /**
    * The declared type OID of `schema.table.column`, or null if unknown.
@@ -525,7 +518,7 @@ export interface NullabilityCatalog {
    * part of the type and is still enforced there, so the type OID is the only
    * thing left to ask about.
    */
-  resolveColumnTypeOid(schema: string, table: string, column: string): number | null;
+  resolveColumnTypeOid(schema: string, table: string, column: string): number | null
 
   /**
    * The declared type of `schema.table.column` as `format_type` renders it
@@ -539,7 +532,7 @@ export interface NullabilityCatalog {
    * type selects a different comparison operator (the citext/name collation
    * hazard), so it must refuse to match.
    */
-  resolveColumnTypeName(schema: string, table: string, column: string): string | null;
+  resolveColumnTypeName(schema: string, table: string, column: string): string | null
 
   /**
    * Whether unequal literal TOKENS provably denote unequal VALUES for
@@ -549,7 +542,7 @@ export interface NullabilityCatalog {
    * and never qualifies) whose collation the snapshot proved deterministic.
    * Numerics never qualify: 75 and 75.0 are distinct tokens, equal values.
    */
-  resolveLiteralDistinctnessSound(schema: string, table: string, column: string): boolean;
+  resolveLiteralDistinctnessSound(schema: string, table: string, column: string): boolean
 
   /**
    * Fields of a standalone composite type (`CREATE TYPE ... AS (...)`), or
@@ -563,7 +556,7 @@ export interface NullabilityCatalog {
   resolveCompositeType(
     schema: string | undefined,
     name: string,
-  ): { fields: { name: string; typeOid: number }[] } | null;
+  ): { fields: { name: string; typeOid: number }[] } | null
 
   /**
    * Function metadata (for FuncCall dispatch).
@@ -576,7 +569,7 @@ export interface NullabilityCatalog {
    * correct because we cannot determine which overload is being called without
    * arg types, and guessing is never correct.
    */
-  resolveFunctionMetadata(schema: string | undefined, name: string): FunctionInfo | null;
+  resolveFunctionMetadata(schema: string | undefined, name: string): FunctionInfo | null
 
   /**
    * Overloaded names, the sound half: the candidates a call with `argCount`
@@ -590,7 +583,7 @@ export interface NullabilityCatalog {
     schema: string | undefined,
     name: string,
     argCount: number,
-  ): FunctionInfo[] | null;
+  ): FunctionInfo[] | null
 
   /**
    * Custom operator metadata (for A_Expr dispatch), by the proven
@@ -610,7 +603,7 @@ export interface NullabilityCatalog {
     name: string,
     leftTypes?: readonly string[] | null,
     rightTypes?: readonly string[] | null,
-  ): OperatorMetadata | null;
+  ): OperatorMetadata | null
 
   /**
    * Type-aware totality for a BINARY operator expression. Each operand is a
@@ -631,10 +624,10 @@ export interface NullabilityCatalog {
     leftTypes: readonly string[] | null,
     rightTypes: readonly string[] | null,
   ):
-    | { kind: "user-exact"; functionSchema: string; functionName: string; returns: string[] }
-    | { kind: "total"; returns: string[] }
-    | { kind: "nullable"; returns: string[] }
-    | { kind: "unknown" };
+    | { kind: 'user-exact'; functionSchema: string; functionName: string; returns: string[] }
+    | { kind: 'total'; returns: string[] }
+    | { kind: 'nullable'; returns: string[] }
+    | { kind: 'unknown' }
 
   /**
    * The PREFIX form of `resolveOperatorTotality` — candidates are the rows
@@ -646,10 +639,10 @@ export interface NullabilityCatalog {
     name: string,
     argTypes: readonly string[] | null,
   ):
-    | { kind: "user-exact"; functionSchema: string; functionName: string; returns: string[] }
-    | { kind: "total"; returns: string[] }
-    | { kind: "nullable"; returns: string[] }
-    | { kind: "unknown" };
+    | { kind: 'user-exact'; functionSchema: string; functionName: string; returns: string[] }
+    | { kind: 'total'; returns: string[] }
+    | { kind: 'nullable'; returns: string[] }
+    | { kind: 'unknown' }
 
   /**
    * Type-aware STRICTNESS for a binary operator, quantified `every` over
@@ -669,7 +662,7 @@ export interface NullabilityCatalog {
     name: string,
     leftTypes: readonly string[] | null,
     rightTypes: readonly string[] | null,
-  ): boolean | null;
+  ): boolean | null
 
   /**
    * The SOME-quantified reading of the same survivors — mechanism C's
@@ -702,7 +695,7 @@ export interface NullabilityCatalog {
     name: string,
     leftTypes: readonly string[] | null,
     rightTypes: readonly string[] | null,
-  ): boolean | null;
+  ): boolean | null
 
   /**
    * The typed SCALAR builtin dispatch: resolves a call over the kind='f' rows behind a
@@ -717,11 +710,11 @@ export interface NullabilityCatalog {
     name: string,
     argTypes: readonly (readonly string[] | null)[],
   ):
-    | { kind: "always"; returns: string[] }
-    | { kind: "first-arg"; returns: string[] }
-    | { kind: "strict-total"; returns: string[] }
-    | { kind: "nullable"; returns: string[] }
-    | { kind: "unknown" };
+    | { kind: 'always'; returns: string[] }
+    | { kind: 'first-arg'; returns: string[] }
+    | { kind: 'strict-total'; returns: string[] }
+    | { kind: 'nullable'; returns: string[] }
+    | { kind: 'unknown' }
 
   /**
    * The same resolution over the `prokind = 'w'` rows, answering the two
@@ -734,7 +727,7 @@ export interface NullabilityCatalog {
     schema: string | undefined,
     name: string,
     argTypes: readonly (readonly string[] | null)[],
-  ): { kind: "always" | "strict-total" | "nullable" | "unknown" };
+  ): { kind: 'always' | 'strict-total' | 'nullable' | 'unknown' }
 
   /**
    * Is a cast from these source types to this target total? Read from
@@ -746,7 +739,7 @@ export interface NullabilityCatalog {
   resolveCastTotality(
     sourceTypes: readonly string[] | null,
     target: string,
-  ): "total" | "nullable" | "unknown";
+  ): 'total' | 'nullable' | 'unknown'
 
   /**
    * The WITHIN GROUP dispatch's row facts, keyed on `pg_aggregate.aggkind`
@@ -757,7 +750,7 @@ export interface NullabilityCatalog {
   resolveBuiltinAggregateRows(
     schema: string | undefined,
     name: string,
-  ): { hypothetical: boolean; orderedSet: boolean } | null;
+  ): { hypothetical: boolean; orderedSet: boolean } | null
 
   /**
    * The typed recovery of the builtin-name drop rule: a USER function that
@@ -772,7 +765,7 @@ export interface NullabilityCatalog {
     schema: string | undefined,
     name: string,
     argTypes: readonly (readonly string[] | null)[],
-  ): FunctionInfo | null;
+  ): FunctionInfo | null
 
   /**
    * Whether every pg_catalog plain-function overload of `name` is declared
@@ -780,7 +773,7 @@ export interface NullabilityCatalog {
    * the strict-expression closures consult for builtin names the user
    * catalog does not carry.
    */
-  isStrictBuiltin(name: string): boolean;
+  isStrictBuiltin(name: string): boolean
 
   /**
    * Whether the analysis search path names at least one schema the snapshot
@@ -795,7 +788,7 @@ export interface NullabilityCatalog {
    * resolves every unqualified table and type name through it, and a runtime
    * path that differs invalidates far more than this.
    */
-  searchPathResolves(): boolean;
+  searchPathResolves(): boolean
 
   /**
    * The pre-parsed generation expression of `schema.table.column` (GENERATED
@@ -803,7 +796,7 @@ export interface NullabilityCatalog {
    * own columns — cycle-free and immutable by PostgreSQL's rules — walked at
    * the reading site to upgrade the catalog's (always-false) notNull flag.
    */
-  resolveGenerationExpr(schema: string, table: string, column: string): Node | null;
+  resolveGenerationExpr(schema: string, table: string, column: string): Node | null
 
   /**
    * The relation-SET reading of the generation expression: null whenever
@@ -813,7 +806,7 @@ export interface NullabilityCatalog {
    * would otherwise evaluate a formula the row it reads was never computed
    * with. Equal to `resolveGenerationExpr` for childless relations.
    */
-  resolveGenerationExprTree(schema: string, table: string, column: string): Node | null;
+  resolveGenerationExprTree(schema: string, table: string, column: string): Node | null
 
   /**
    * Pre-parsed expressions of the VALIDATED table CHECK constraints on
@@ -828,7 +821,7 @@ export interface NullabilityCatalog {
    * this list (a `FROM ONLY` scan may read it) but NOT in the tree
    * variant's. Domain CHECKs are a different mechanism and are not here.
    */
-  resolveCheckConstraints(schema: string, table: string): Node[];
+  resolveCheckConstraints(schema: string, table: string): Node[]
 
   /**
    * The relation-SET reading of the same list: the validated CHECKs every
@@ -839,7 +832,7 @@ export interface NullabilityCatalog {
    * no child row ever satisfied it. Partitioned parents cannot carry one
    * (refused), so partition trees resolve identically through both.
    */
-  resolveCheckConstraintsTree(schema: string, table: string): Node[];
+  resolveCheckConstraintsTree(schema: string, table: string): Node[]
 
   /**
    * The single-column FOREIGN KEY on `column`, as {schema, table, column} of
@@ -856,12 +849,12 @@ export interface NullabilityCatalog {
     schema: string,
     table: string,
     column: string,
-  ): { schema: string; table: string; column: string } | null;
+  ): { schema: string; table: string; column: string } | null
   resolveForeignKeyTree(
     schema: string,
     table: string,
     column: string,
-  ): { schema: string; table: string; column: string } | null;
+  ): { schema: string; table: string; column: string } | null
 
   /**
    * Whether `schema.table` is a partitioned table (relkind 'p'). What makes
@@ -871,14 +864,14 @@ export interface NullabilityCatalog {
    * `beforeRow ∩ {update, insert}`. Plain inheritance never routes and
    * keeps the per-command question. False for views and unknown relations.
    */
-  resolveIsPartitioned(schema: string | undefined, table: string): boolean;
+  resolveIsPartitioned(schema: string | undefined, table: string): boolean
 
   /**
    * Domain metadata: whether the type identified by `typeOid` is a domain with
    * a NOT NULL constraint. Used for the priority-1 function dispatch rule
    * (a function returning a NOT NULL domain is guaranteed non-null).
    */
-  isNotNullDomain(typeOid: number): boolean;
+  isNotNullDomain(typeOid: number): boolean
 
   /**
    * Domain metadata by name: whether `schema.typeName` is a domain with a
@@ -886,7 +879,7 @@ export interface NullabilityCatalog {
    * type name, not the OID. If `schema` is undefined, searches each schema
    * in the search path in order.
    */
-  isNotNullDomainByName(schema: string | undefined, typeName: string): boolean;
+  isNotNullDomainByName(schema: string | undefined, typeName: string): boolean
 
   /**
    * The rendered BASE type of a domain (`format_type` of `typbasetype`), or
@@ -895,7 +888,7 @@ export interface NullabilityCatalog {
    * sees through a domain that hides its array-ness behind its own name
    * (adversarial-3 finding 3).
    */
-  resolveDomainBaseTypeName(schema: string | undefined, typeName: string): string | null;
+  resolveDomainBaseTypeName(schema: string | undefined, typeName: string): string | null
 
   /**
    * Whether `name` is a pg_catalog function name. PostgreSQL searches
@@ -903,7 +896,7 @@ export interface NullabilityCatalog {
    * of the same name HIDES a user function with the same signature
    * (adversarial-3 finding 6, measured both directions).
    */
-  isBuiltinFunction(name: string): boolean;
+  isBuiltinFunction(name: string): boolean
 
   /**
    * Whether a pg_catalog function of this name has a POLYMORPHIC return
@@ -911,7 +904,7 @@ export interface NullabilityCatalog {
    * simulates no types, so this is where "a builtin's return type cannot be
    * an array of a user composite" stops being true.
    */
-  isPolymorphicBuiltin(name: string): boolean;
+  isPolymorphicBuiltin(name: string): boolean
 
   /**
    * The pg_catalog signatures of `name` whose return type is a polymorphic
@@ -928,7 +921,7 @@ export interface NullabilityCatalog {
   resolvePolymorphicArraySignatures(
     schema: string | undefined,
     name: string,
-  ): { args: string[]; returns: string }[] | null;
+  ): { args: string[]; returns: string }[] | null
 
   /**
    * Pre-parsed ASTs of `LANGUAGE sql` function bodies, keyed by the full
@@ -952,7 +945,7 @@ export interface NullabilityCatalog {
    * For `BEGIN ATOMIC ... END` style bodies (PG 14+), the caller extracts
    * the last statement from the sql_body before storing it here.
    */
-  fnBodyAsts: Map<string, Node>;
+  fnBodyAsts: Map<string, Node>
 
   /**
    * The statements BEFORE the last one in a multi-statement `LANGUAGE sql`
@@ -968,7 +961,7 @@ export interface NullabilityCatalog {
    * Order is significant to the reader — a later write can undo an earlier
    * one — so the array is the body's own sequence, not a set.
    */
-  fnBodyPreludeAsts: Map<string, Node[]>;
+  fnBodyPreludeAsts: Map<string, Node[]>
 
   /**
    * Pre-parsed ASTs of ARGUMENT DEFAULT expressions, keyed by the full
@@ -986,7 +979,7 @@ export interface NullabilityCatalog {
    * overload, and the sites that consult it (the strict rule and the body
    * inliner) hold a resolved `FunctionInfo` that names its own signature.
    */
-  fnArgDefaultAsts: Map<string, (Node | null)[]>;
+  fnArgDefaultAsts: Map<string, (Node | null)[]>
 
   /**
    * Pre-parsed ASTs of view and materialized-view definitions, keyed by
@@ -1002,7 +995,7 @@ export interface NullabilityCatalog {
    * A view whose definition isn't in this map falls back to the catalog flag
    * (conservative nullable).
    */
-  viewAsts: Map<string, Node>;
+  viewAsts: Map<string, Node>
 }
 
 /**
@@ -1040,10 +1033,10 @@ export interface NullabilityCatalog {
  * the rule list.
  */
 export interface ColumnOrigin {
-  rowPath: number[];
-  schema: string;
-  table: string;
-  column: string;
+  rowPath: number[]
+  schema: string
+  table: string
+  column: string
   /**
    * The instance chain crosses an OPTIONAL (outer-joined) slice, so the
    * base row may be absent: entailment at a referencing scope must first
@@ -1051,7 +1044,7 @@ export interface ColumnOrigin {
    * non-null (a NULL-extended slice has every pass-through NULL, so any
    * pinned sibling certifies the row) — before any CHECK may speak.
    */
-  optional?: boolean;
+  optional?: boolean
   /**
    * The null-extension units the chain crosses, one entry per optional
    * slice: `depth` locates the scope (index into `rowPath`, 0 = the
@@ -1064,12 +1057,12 @@ export interface ColumnOrigin {
    * across nesting (a child unit's presence implies every enclosing
    * unit's).
    */
-  units?: { depth: number; unit: number }[];
+  units?: { depth: number; unit: number }[]
 }
 
 export interface OutputNullability {
-  name: string;
-  notNull: boolean;
+  name: string
+  notNull: boolean
   /**
    * Proven NULL on EVERY row the statement emits — the mirror of `notNull`,
    * and mutually exclusive with it. Absent means "not proven", exactly as
@@ -1087,7 +1080,7 @@ export interface OutputNullability {
    * any non-NULL value refutes it, so every returned row is a test and no
    * witness has to be constructed. See `alwaysNullExpr` for what proves it.
    */
-  alwaysNull?: boolean;
+  alwaysNull?: boolean
   /**
    * Provenance ALTERNATIVES, present only for pass-through columns. A
    * single-branch scope yields a singleton; a UNION concatenates each
@@ -1102,7 +1095,7 @@ export interface OutputNullability {
    * column. INTERSECT and EXCEPT rows are left-branch rows and keep the
    * left slots.
    */
-  origins?: (ColumnOrigin | null)[];
+  origins?: (ColumnOrigin | null)[]
   /**
    * Per-alternative branch settledness, aligned with `origins`:
    * `originNotNull[k]` is branch k's own FLAT notNull verdict for this
@@ -1111,7 +1104,7 @@ export interface OutputNullability {
    * provably non-null settles that alternative without one. Produced at
    * set-operation combines and carried through bare re-export.
    */
-  originNotNull?: boolean[];
+  originNotNull?: boolean[]
   /**
    * TEST-SIDE diagnostic, present only under
    * `WalkOptions.collectUnitCrossings` (the EXPLAIN oracle's flag; never in
@@ -1123,7 +1116,7 @@ export interface OutputNullability {
    * subtraction attributes a notNull claim to the units it kills, and an
    * SRF unit was otherwise unattributable).
    */
-  unitCrossings?: { depth: number; unit: number }[];
+  unitCrossings?: { depth: number; unit: number }[]
 }
 
 /**
@@ -1147,8 +1140,8 @@ export interface OutputNullability {
  * does not survive to the output.
  */
 export interface OutputPresenceGroup {
-  columns: number[];
-  discriminants: number[];
+  columns: number[]
+  discriminants: number[]
 }
 
 /**
@@ -1166,9 +1159,9 @@ export interface OutputPresenceGroup {
  * This is a diagnostic surface, not part of the consumer contract.
  */
 export interface JoinAudit {
-  jointype: string;
-  leftSettled?: boolean;
-  rightSettled?: boolean;
+  jointype: string
+  leftSettled?: boolean
+  rightSettled?: boolean
   /**
    * The null-group ids this join assigned to the sides it made optional —
    * the FIRST analysis's ids, the same id space `ColumnOrigin.units` uses.
@@ -1179,8 +1172,8 @@ export interface JoinAudit {
    * statement-level survival question a scope-local `leftSettled`/
    * `rightSettled` cannot answer alone.
    */
-  leftGroup?: number;
-  rightGroup?: number;
+  leftGroup?: number
+  rightGroup?: number
 }
 
 /**
@@ -1199,9 +1192,9 @@ export interface JoinAudit {
  */
 export interface TypeSetAudit {
   /** The expression node, for deparsing back to SQL an oracle can run. */
-  expr: unknown;
+  expr: unknown
   /** The walk's reading: the survivor union, or null for no claim. */
-  set: string[] | null;
+  set: string[] | null
 }
 
 /**
@@ -1222,7 +1215,7 @@ export interface TypeSetAudit {
  * Absent → the walk answers exactly what it answered before. Delegation only
  * ever NARROWS a union it could already state, and never invents one.
  */
-export type ResolveColumnTypes = (sql: string) => Promise<string[]>;
+export type ResolveColumnTypes = (sql: string) => Promise<string[]>
 
 // ---------------------------------------------------------------------------
 // Nullability trace tree — explains why a column is nullable or non-null.
@@ -1233,8 +1226,8 @@ export type ResolveColumnTypes = (sql: string) => Promise<string[]>;
  * Example: `{ name: "catalog.notNull", value: "true" }`
  */
 export interface TraceFact {
-  name: string;
-  value: string;
+  name: string
+  value: string
 }
 
 /**
@@ -1245,15 +1238,15 @@ export interface TraceFact {
  */
 export interface TraceNode {
   /** Human-readable label (e.g. "ColumnRef: o.id", "CoalesceExpr", "FuncCall: lower_strict"). */
-  label: string;
+  label: string
   /** The facts considered at this decision point. */
-  facts: TraceFact[];
+  facts: TraceFact[]
   /** The final nullability decision: true = non-null, false = nullable. */
-  decision: boolean;
+  decision: boolean
   /** Why this decision was reached (the decisive factor). */
-  reason: string;
+  reason: string
   /** Sub-decisions that fed into this one. */
-  children: TraceNode[];
+  children: TraceNode[]
 }
 
 /**
@@ -1262,7 +1255,7 @@ export interface TraceNode {
  * absent (or `trace` is undefined) for the plain `inferNullability` call.
  */
 export interface OutputNullabilityTraced {
-  name: string;
-  notNull: boolean;
-  trace?: TraceNode;
+  name: string
+  notNull: boolean
+  trace?: TraceNode
 }

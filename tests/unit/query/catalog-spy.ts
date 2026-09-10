@@ -1,4 +1,4 @@
-import type { NullabilityCatalog } from "../../../src/query/types.js";
+import type { NullabilityCatalog } from '../../../src/query/types.js'
 
 // ---------------------------------------------------------------------------
 // A recording wrapper around the NullabilityCatalog.
@@ -22,34 +22,34 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 
 export interface CatalogSpy {
   /** The wrapper to hand to the walk in place of the real catalog. */
-  catalog: NullabilityCatalog;
+  catalog: NullabilityCatalog
   /** Members touched so far, by name. */
-  touched: Set<string>;
+  touched: Set<string>
 }
 
 export function spyOnCatalog(catalog: NullabilityCatalog): CatalogSpy {
-  const touched = new Set<string>();
+  const touched = new Set<string>()
   const proxy = new Proxy(catalog, {
     get(target, prop, receiver) {
-      const value = Reflect.get(target, prop, receiver);
-      if (typeof prop !== "string") return value;
-      if (typeof value === "function") {
+      const value = Reflect.get(target, prop, receiver)
+      if (typeof prop !== 'string') return value
+      if (typeof value === 'function') {
         // Record on CALL rather than on access: the walk destructures nothing,
         // but a member merely *read* — by a type guard, or by this proxy's own
         // caller — is not a question anyone asked.
         return (...args: unknown[]) => {
-          touched.add(prop);
-          return (value as (...a: unknown[]) => unknown).apply(target, args);
-        };
+          touched.add(prop)
+          return (value as (...a: unknown[]) => unknown).apply(target, args)
+        }
       }
-      touched.add(prop);
-      return value;
+      touched.add(prop)
+      return value
     },
-  });
-  return { catalog: proxy, touched };
+  })
+  return { catalog: proxy, touched }
 }
 
 /** Every member of the interface, as the spy would name it. */
 export function catalogMembers(catalog: NullabilityCatalog): string[] {
-  return Object.keys(catalog).sort();
+  return Object.keys(catalog).sort()
 }

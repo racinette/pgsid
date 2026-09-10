@@ -43,16 +43,16 @@
 // a BoolExpr, and a CASE's conditions and results.
 // ---------------------------------------------------------------------------
 
-import type { Node } from "libpg-query";
+import type { Node } from 'libpg-query'
 import {
   collectClosedSubtrees,
   evaluateClosedSubtrees,
   type Evaluate,
   type SubtreeEvaluationCatalog,
-} from "./subtree-evaluator.js";
-import type { NullabilityCatalog } from "./types.js";
+} from './subtree-evaluator.js'
+import type { NullabilityCatalog } from './types.js'
 
-type Fields = Record<string, unknown>;
+type Fields = Record<string, unknown>
 
 /**
  * A structural key for a closed subtree: its shape and payloads, with
@@ -60,32 +60,32 @@ type Fields = Record<string, unknown>;
  * `structuredClone`, so two trees with the same key are the same tree.
  */
 export function truthKey(node: Node): string {
-  const out: string[] = [];
+  const out: string[] = []
   const write = (n: unknown): void => {
     if (Array.isArray(n)) {
-      out.push("[");
+      out.push('[')
       for (const x of n) {
-        write(x);
-        out.push(",");
+        write(x)
+        out.push(',')
       }
-      out.push("]");
-      return;
+      out.push(']')
+      return
     }
-    if (n === null || typeof n !== "object") {
-      out.push(JSON.stringify(n) ?? "undefined");
-      return;
+    if (n === null || typeof n !== 'object') {
+      out.push(JSON.stringify(n) ?? 'undefined')
+      return
     }
-    out.push("{");
+    out.push('{')
     for (const [key, value] of Object.entries(n as Fields)) {
-      if (key === "location") continue;
-      out.push(JSON.stringify(key), ":");
-      write(value);
-      out.push(",");
+      if (key === 'location') continue
+      out.push(JSON.stringify(key), ':')
+      write(value)
+      out.push(',')
     }
-    out.push("}");
-  };
-  write(node);
-  return out.join("");
+    out.push('}')
+  }
+  write(node)
+  return out.join('')
 }
 
 /**
@@ -99,22 +99,22 @@ export function referencedTables(
   stmt: Node,
   catalog: NullabilityCatalog,
 ): { schema: string; name: string }[] {
-  const tables = new Map<string, { schema: string; name: string }>();
+  const tables = new Map<string, { schema: string; name: string }>()
   const visit = (n: unknown): void => {
     if (Array.isArray(n)) {
-      for (const x of n) visit(x);
-      return;
+      for (const x of n) visit(x)
+      return
     }
-    if (!n || typeof n !== "object") return;
-    const rv = (n as Fields)["RangeVar"] as { schemaname?: string; relname?: string } | undefined;
+    if (!n || typeof n !== 'object') return
+    const rv = (n as Fields)['RangeVar'] as { schemaname?: string; relname?: string } | undefined
     if (rv?.relname) {
-      const t = catalog.resolveTable(rv.schemaname, rv.relname);
-      if (t) tables.set(`${t.schema}.${t.name}`, { schema: t.schema, name: t.name });
+      const t = catalog.resolveTable(rv.schemaname, rv.relname)
+      if (t) tables.set(`${t.schema}.${t.name}`, { schema: t.schema, name: t.name })
     }
-    for (const v of Object.values(n as Fields)) visit(v);
-  };
-  visit(stmt);
-  return [...tables.values()];
+    for (const v of Object.values(n as Fields)) visit(v)
+  }
+  visit(stmt)
+  return [...tables.values()]
 }
 
 /**
@@ -130,35 +130,34 @@ export function referencedTables(
  * probe, and when only an arm is, the arm answers alone.
  */
 function booleanPositions(root: Node): Node[] {
-  const out: Node[] = [];
+  const out: Node[] = []
   const visit = (n: unknown): void => {
-    if (!n || typeof n !== "object" || Array.isArray(n)) return;
-    const rec = n as Fields;
+    if (!n || typeof n !== 'object' || Array.isArray(n)) return
+    const rec = n as Fields
 
-    const be = rec["BoolExpr"] as { args?: unknown[] } | undefined;
+    const be = rec['BoolExpr'] as { args?: unknown[] } | undefined
     if (be) {
-      for (const arg of be.args ?? []) visit(arg);
-      return;
+      for (const arg of be.args ?? []) visit(arg)
+      return
     }
 
-    const ce = rec["CaseExpr"] as
-      | { arg?: unknown; args?: unknown[]; defresult?: unknown }
-      | undefined;
+    const ce = rec['CaseExpr'] as
+      { arg?: unknown; args?: unknown[]; defresult?: unknown } | undefined
     if (ce) {
-      out.push(n as Node);
+      out.push(n as Node)
       for (const w of ce.args ?? []) {
-        const when = (w as Fields)["CaseWhen"] as { expr?: unknown; result?: unknown } | undefined;
-        if (!ce.arg && when?.expr) visit(when.expr);
-        if (when?.result) visit(when.result);
+        const when = (w as Fields)['CaseWhen'] as { expr?: unknown; result?: unknown } | undefined
+        if (!ce.arg && when?.expr) visit(when.expr)
+        if (when?.result) visit(when.result)
       }
-      if (ce.defresult) visit(ce.defresult);
-      return;
+      if (ce.defresult) visit(ce.defresult)
+      return
     }
 
-    out.push(n as Node);
-  };
-  visit(root);
-  return out;
+    out.push(n as Node)
+  }
+  visit(root)
+  return out
 }
 
 /**
@@ -170,9 +169,9 @@ function booleanPositions(root: Node): Node[] {
  * conservative — nothing evaluates a NULL constant to a truth.
  */
 function isNullConstant(node: Node): boolean {
-  const tc = (node as Fields)["TypeCast"] as { arg?: unknown } | undefined;
-  const ac = ((tc?.arg ?? node) as Fields)["A_Const"] as { isnull?: boolean } | undefined;
-  return ac?.isnull === true;
+  const tc = (node as Fields)['TypeCast'] as { arg?: unknown } | undefined
+  const ac = ((tc?.arg ?? node) as Fields)['A_Const'] as { isnull?: boolean } | undefined
+  return ac?.isnull === true
 }
 
 /**
@@ -185,26 +184,26 @@ export function collectClosedTruthQuestions(
   stmt: Node,
   catalog: NullabilityCatalog & SubtreeEvaluationCatalog,
 ): Node[] {
-  const questions: Node[] = [];
-  const seen = new Set<string>();
+  const questions: Node[] = []
+  const seen = new Set<string>()
   for (const t of referencedTables(stmt, catalog)) {
     const checks = [
       ...catalog.resolveCheckConstraints(t.schema, t.name),
       ...catalog.resolveCheckConstraintsTree(t.schema, t.name),
-    ];
+    ]
     for (const check of checks) {
       for (const position of booleanPositions(check)) {
-        if (isNullConstant(position)) continue;
-        const collected = collectClosedSubtrees(position, catalog);
-        if (collected.length !== 1 || collected[0] !== position) continue;
-        const key = truthKey(position);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        questions.push(position);
+        if (isNullConstant(position)) continue
+        const collected = collectClosedSubtrees(position, catalog)
+        if (collected.length !== 1 || collected[0] !== position) continue
+        const key = truthKey(position)
+        if (seen.has(key)) continue
+        seen.add(key)
+        questions.push(position)
       }
     }
   }
-  return questions;
+  return questions
 }
 
 /**
@@ -218,15 +217,15 @@ export async function evaluateClosedTruths(
   catalog: NullabilityCatalog & SubtreeEvaluationCatalog,
   evaluate: Evaluate,
 ): Promise<ReadonlyMap<string, boolean>> {
-  const out = new Map<string, boolean>();
-  if (questions.length === 0) return out;
-  const root = { List: { items: [...questions] } } as unknown as Node;
-  const answers = await evaluateClosedSubtrees(root, catalog, evaluate);
+  const out = new Map<string, boolean>()
+  if (questions.length === 0) return out
+  const root = { List: { items: [...questions] } } as unknown as Node
+  const answers = await evaluateClosedSubtrees(root, catalog, evaluate)
   for (const question of questions) {
-    const answer = answers.get(question);
-    if (answer && !answer.isNull && typeof answer.value === "boolean") {
-      out.set(truthKey(question), answer.value);
+    const answer = answers.get(question)
+    if (answer && !answer.isNull && typeof answer.value === 'boolean') {
+      out.set(truthKey(question), answer.value)
     }
   }
-  return out;
+  return out
 }

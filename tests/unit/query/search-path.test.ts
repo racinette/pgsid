@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { parseSql } from "../../../src/ast.js";
-import { inferNullability } from "../../../src/query/nullability-walk.js";
-import type { NullabilityCatalog } from "../../../src/query/types.js";
+import { describe, it, expect, beforeAll } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import { parseSql } from '../../../src/ast.js'
+import { inferNullability } from '../../../src/query/nullability-walk.js'
+import type { NullabilityCatalog } from '../../../src/query/types.js'
 
 // ---------------------------------------------------------------------------
 // Search-path resolution pins (adversarial-2 finding 5).
@@ -27,18 +27,18 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 // search_path is the referee for the shape.
 // ---------------------------------------------------------------------------
 
-let pg: PGlite;
-let defaultCatalog: NullabilityCatalog;
-let pathCatalog: NullabilityCatalog;
-let reverseCatalog: NullabilityCatalog;
+let pg: PGlite
+let defaultCatalog: NullabilityCatalog
+let pathCatalog: NullabilityCatalog
+let reverseCatalog: NullabilityCatalog
 
 async function infer(catalog: NullabilityCatalog, sql: string) {
-  const parsed = await parseSql(sql);
-  return inferNullability(parsed.stmts![0]!.stmt!, catalog);
+  const parsed = await parseSql(sql)
+  return inferNullability(parsed.stmts![0]!.stmt!, catalog)
 }
 
 beforeAll(async () => {
-  pg = new PGlite();
+  pg = new PGlite()
   await pg.exec(`
     CREATE TABLE t (id integer NOT NULL, name text, val text, active boolean NOT NULL);
     CREATE SCHEMA app_s;
@@ -87,52 +87,52 @@ beforeAll(async () => {
     CREATE FUNCTION app_s.tsub(a text, b text) RETURNS text
       LANGUAGE sql AS $$ SELECT NULL::text $$;
     CREATE OPERATOR app_s.- (LEFTARG = text, RIGHTARG = text, FUNCTION = app_s.tsub);
-  `);
-  const snapshot = await snapshotCatalog(pg);
-  defaultCatalog = await buildNullabilityCatalog(snapshot);
-  pathCatalog = await buildNullabilityCatalog(snapshot, { searchPath: ["app_s", "public"] });
-  reverseCatalog = await buildNullabilityCatalog(snapshot, { searchPath: ["public", "app_s"] });
-}, 60_000);
+  `)
+  const snapshot = await snapshotCatalog(pg)
+  defaultCatalog = await buildNullabilityCatalog(snapshot)
+  pathCatalog = await buildNullabilityCatalog(snapshot, { searchPath: ['app_s', 'public'] })
+  reverseCatalog = await buildNullabilityCatalog(snapshot, { searchPath: ['public', 'app_s'] })
+}, 60_000)
 
-describe("search-path resolution", () => {
-  it("the shadow: an unqualified name resolves to the FIRST schema in the path", async () => {
+describe('search-path resolution', () => {
+  it('the shadow: an unqualified name resolves to the FIRST schema in the path', async () => {
     // The referee first: PostgreSQL's own RowDescription under the path.
-    await pg.exec(`SET search_path = app_s, public`);
-    const fields = (await pg.query(`SELECT * FROM t`)).fields.map(f => f.name);
-    await pg.exec(`SET search_path = public`);
-    expect(fields).toEqual(["zzz", "qqq", "www"]);
+    await pg.exec(`SET search_path = app_s, public`)
+    const fields = (await pg.query(`SELECT * FROM t`)).fields.map((f) => f.name)
+    await pg.exec(`SET search_path = public`)
+    expect(fields).toEqual(['zzz', 'qqq', 'www'])
 
-    const results = await infer(pathCatalog, "SELECT * FROM t");
-    expect(results.map(r => r.name)).toEqual(fields);
-    expect(results.map(r => r.notNull)).toEqual([true, true, false]);
-  });
+    const results = await infer(pathCatalog, 'SELECT * FROM t')
+    expect(results.map((r) => r.name)).toEqual(fields)
+    expect(results.map((r) => r.notNull)).toEqual([true, true, false])
+  })
 
-  it("the control: the default path still answers for public.t", async () => {
-    const results = await infer(defaultCatalog, "SELECT * FROM t");
-    expect(results.map(r => r.name)).toEqual(["id", "name", "val", "active"]);
-    expect(results.map(r => r.notNull)).toEqual([true, false, false, true]);
-  });
+  it('the control: the default path still answers for public.t', async () => {
+    const results = await infer(defaultCatalog, 'SELECT * FROM t')
+    expect(results.map((r) => r.name)).toEqual(['id', 'name', 'val', 'active'])
+    expect(results.map((r) => r.notNull)).toEqual([true, false, false, true])
+  })
 
-  it("the refusal half closes: an app_s-only relation resolves under the path", async () => {
-    const results = await infer(pathCatalog, "SELECT * FROM app_only");
-    expect(results.map(r => r.name)).toEqual(["o1", "o2"]);
-    expect(results.map(r => r.notNull)).toEqual([true, false]);
-  });
+  it('the refusal half closes: an app_s-only relation resolves under the path', async () => {
+    const results = await infer(pathCatalog, 'SELECT * FROM app_only')
+    expect(results.map((r) => r.name)).toEqual(['o1', 'o2'])
+    expect(results.map((r) => r.notNull)).toEqual([true, false])
+  })
 
-  it("…and still refuses under the default path, where PostgreSQL would too", async () => {
-    await expect(infer(defaultCatalog, "SELECT * FROM app_only")).rejects.toMatchObject({
-      name: "UnsupportedNodeError",
-      site: "from-item",
-    });
-  });
+  it('…and still refuses under the default path, where PostgreSQL would too', async () => {
+    await expect(infer(defaultCatalog, 'SELECT * FROM app_only')).rejects.toMatchObject({
+      name: 'UnsupportedNodeError',
+      site: 'from-item',
+    })
+  })
 
-  it("a qualified reference is path-independent", async () => {
+  it('a qualified reference is path-independent', async () => {
     for (const catalog of [defaultCatalog, pathCatalog]) {
-      const results = await infer(catalog, "SELECT * FROM app_s.t");
-      expect(results.map(r => r.name)).toEqual(["zzz", "qqq", "www"]);
+      const results = await infer(catalog, 'SELECT * FROM app_s.t')
+      expect(results.map((r) => r.name)).toEqual(['zzz', 'qqq', 'www'])
     }
-  });
-});
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Operator narrowing under the path — the shadowing blind spot, closed.
@@ -143,60 +143,60 @@ describe("search-path resolution", () => {
 // signature exactly and dispatches its backing function instead.
 // ---------------------------------------------------------------------------
 
-describe("operator narrowing: user operators on curated names", () => {
-  it("PostgreSQL runs the user + on booleans, and it answers NULL from non-null inputs", async () => {
-    const r = await pg.query<{ s: boolean | null }>(`SELECT true + false AS s`);
-    expect(r.rows[0]!.s).toBeNull();
-  });
+describe('operator narrowing: user operators on curated names', () => {
+  it('PostgreSQL runs the user + on booleans, and it answers NULL from non-null inputs', async () => {
+    const r = await pg.query<{ s: boolean | null }>(`SELECT true + false AS s`)
+    expect(r.rows[0]!.s).toBeNull()
+  })
 
-  it("the walk dispatches the user operator where the curated name once answered", async () => {
-    const results = await infer(defaultCatalog, "SELECT active + active AS s FROM t");
-    expect(results.map(r => r.notNull)).toEqual([false]);
-  });
+  it('the walk dispatches the user operator where the curated name once answered', async () => {
+    const results = await infer(defaultCatalog, 'SELECT active + active AS s FROM t')
+    expect(results.map((r) => r.notNull)).toEqual([false])
+  })
 
-  it("integer + integer keeps its claim through the same merged candidate set", async () => {
+  it('integer + integer keeps its claim through the same merged candidate set', async () => {
     // The integer operands ELIMINATE both the user row and the path row;
     // every survivor is total, so the general case costs nothing.
-    const results = await infer(defaultCatalog, "SELECT id + 1 AS s FROM t");
-    expect(results.map(r => r.notNull)).toEqual([true]);
-  });
+    const results = await infer(defaultCatalog, 'SELECT id + 1 AS s FROM t')
+    expect(results.map((r) => r.notNull)).toEqual([true])
+  })
 
-  it("recovers a builtin-named user function where the argument type decides", async () => {
+  it('recovers a builtin-named user function where the argument type decides', async () => {
     // The referee first: PostgreSQL runs the USER lower(integer) — no
     // builtin lower takes an integer — and its NOT NULL domain guarantees
     // the value.
-    const r = await pg.query<{ v: string }>(`SELECT lower(41) AS v`);
-    expect(r.rows[0]!.v).toBe("low");
+    const r = await pg.query<{ v: string }>(`SELECT lower(41) AS v`)
+    expect(r.rows[0]!.v).toBe('low')
 
     // The typed merged set resolves the user row (integer eliminates every
     // builtin lower), so the domain-return metadata is back: notNull. The
     // drop rule had cost exactly this — the user overload was the sole
     // candidate the engine could see, and seeing pg_catalog beside it
     // meant seeing nothing.
-    const results = await infer(defaultCatalog, "SELECT lower(id) AS v FROM t");
-    expect(results.map(x => x.notNull)).toEqual([true]);
+    const results = await infer(defaultCatalog, 'SELECT lower(id) AS v FROM t')
+    expect(results.map((x) => x.notNull)).toEqual([true])
 
     // The builtin side is untouched: a text argument resolves the captured
     // (text) row and its signature-keyed verdict, not the user function.
-    const text = await infer(defaultCatalog, "SELECT lower('ABC'::text) AS v FROM t");
-    expect(text.map(x => x.notNull)).toEqual([true]);
-  });
+    const text = await infer(defaultCatalog, "SELECT lower('ABC'::text) AS v FROM t")
+    expect(text.map((x) => x.notNull)).toEqual([true])
+  })
 
-  it("the user operator is a candidate only where its schema is on the path", async () => {
+  it('the user operator is a candidate only where its schema is on the path', async () => {
     // Referee both ways: the app_s operator resolves under the app_s path
     // and does not exist under the default one.
-    await pg.exec(`SET search_path = app_s, public`);
-    const r = await pg.query<{ d: string | null }>(`SELECT 'a'::text - 'b'::text AS d`);
-    expect(r.rows[0]!.d).toBeNull();
-    await pg.exec(`SET search_path = public`);
+    await pg.exec(`SET search_path = app_s, public`)
+    const r = await pg.query<{ d: string | null }>(`SELECT 'a'::text - 'b'::text AS d`)
+    expect(r.rows[0]!.d).toBeNull()
+    await pg.exec(`SET search_path = public`)
     await expect(pg.query(`SELECT 'a'::text - 'b'::text`)).rejects.toThrow(
       /operator does not exist/,
-    );
+    )
 
-    const results = await infer(pathCatalog, "SELECT qqq - qqq AS d FROM t");
-    expect(results.map(r => r.notNull)).toEqual([false]);
-  });
-});
+    const results = await infer(pathCatalog, 'SELECT qqq - qqq AS d FROM t')
+    expect(results.map((r) => r.notNull)).toEqual([false])
+  })
+})
 
 // ---------------------------------------------------------------------------
 // The ORDERED SET itself. The path is an ordered list and every consumer will
@@ -207,79 +207,79 @@ describe("operator narrowing: user operators on curated names", () => {
 // deliberately.
 // ---------------------------------------------------------------------------
 
-describe("search-path orderings", () => {
-  const cases: { path: string[]; expect: string[] | "refuses"; why: string }[] = [
-    { path: ["public"], expect: ["id", "name", "val", "active"], why: "the default" },
-    { path: ["app_s", "public"], expect: ["zzz", "qqq", "www"], why: "first wins" },
-    { path: ["public", "app_s"], expect: ["id", "name", "val", "active"], why: "…and reversed" },
+describe('search-path orderings', () => {
+  const cases: { path: string[]; expect: string[] | 'refuses'; why: string }[] = [
+    { path: ['public'], expect: ['id', 'name', 'val', 'active'], why: 'the default' },
+    { path: ['app_s', 'public'], expect: ['zzz', 'qqq', 'www'], why: 'first wins' },
+    { path: ['public', 'app_s'], expect: ['id', 'name', 'val', 'active'], why: '…and reversed' },
     {
-      path: ["mid_s", "app_s", "public"],
-      expect: ["m1", "m2"],
-      why: "THREE schemas: the first still wins, and the later two are not consulted",
+      path: ['mid_s', 'app_s', 'public'],
+      expect: ['m1', 'm2'],
+      why: 'THREE schemas: the first still wins, and the later two are not consulted',
     },
     {
-      path: ["nope", "public"],
-      expect: ["id", "name", "val", "active"],
-      why: "a nonexistent schema is skipped, not an error",
+      path: ['nope', 'public'],
+      expect: ['id', 'name', 'val', 'active'],
+      why: 'a nonexistent schema is skipped, not an error',
     },
     {
-      path: ["public", "public"],
-      expect: ["id", "name", "val", "active"],
-      why: "duplicates are idempotent",
+      path: ['public', 'public'],
+      expect: ['id', 'name', 'val', 'active'],
+      why: 'duplicates are idempotent',
     },
     {
-      path: ["pg_catalog", "public"],
-      expect: ["id", "name", "val", "active"],
-      why: "naming pg_catalog FIRST changes nothing for a relation — it holds no `t`",
+      path: ['pg_catalog', 'public'],
+      expect: ['id', 'name', 'val', 'active'],
+      why: 'naming pg_catalog FIRST changes nothing for a relation — it holds no `t`',
     },
     {
-      path: ["app_s"],
-      expect: ["zzz", "qqq", "www"],
-      why: "a single non-public schema: public is not implicitly searched",
+      path: ['app_s'],
+      expect: ['zzz', 'qqq', 'www'],
+      why: 'a single non-public schema: public is not implicitly searched',
     },
     {
       path: [],
-      expect: "refuses",
-      why: "the empty path resolves no unqualified name; PostgreSQL rejects it too",
+      expect: 'refuses',
+      why: 'the empty path resolves no unqualified name; PostgreSQL rejects it too',
     },
-  ];
+  ]
 
   for (const { path, expect: want, why } of cases) {
-    it(`resolves \`SELECT * FROM t\` under [${path.join(", ")}] — ${why}`, async () => {
+    it(`resolves \`SELECT * FROM t\` under [${path.join(', ')}] — ${why}`, async () => {
       // PostgreSQL first, under the identical path.
-      if (want !== "refuses") {
-        await pg.exec(`SET search_path = ${path.map(x => `"${x}"`).join(", ")}`);
-        const fields = (await pg.query(`SELECT * FROM t`)).fields.map(f => f.name);
-        await pg.exec(`SET search_path = public`);
-        expect(fields, "PostgreSQL's own answer under this path").toEqual(want);
+      if (want !== 'refuses') {
+        await pg.exec(`SET search_path = ${path.map((x) => `"${x}"`).join(', ')}`)
+        const fields = (await pg.query(`SELECT * FROM t`)).fields.map((f) => f.name)
+        await pg.exec(`SET search_path = public`)
+        expect(fields, "PostgreSQL's own answer under this path").toEqual(want)
       }
 
       const catalog = await buildNullabilityCatalog(await snapshotCatalog(pg), {
         searchPath: path,
-      });
-      if (want === "refuses") {
-        await expect(infer(catalog, "SELECT * FROM t")).rejects.toMatchObject({
-          name: "UnsupportedNodeError",
-          site: "from-item",
-        });
-        return;
+      })
+      if (want === 'refuses') {
+        await expect(infer(catalog, 'SELECT * FROM t')).rejects.toMatchObject({
+          name: 'UnsupportedNodeError',
+          site: 'from-item',
+        })
+        return
       }
-      expect((await infer(catalog, "SELECT * FROM t")).map(r => r.name)).toEqual(want);
-    });
+      expect((await infer(catalog, 'SELECT * FROM t')).map((r) => r.name)).toEqual(want)
+    })
   }
 
-  it("a qualified reference is unaffected by every one of them", async () => {
+  it('a qualified reference is unaffected by every one of them', async () => {
     for (const { path } of cases) {
       const catalog = await buildNullabilityCatalog(await snapshotCatalog(pg), {
         searchPath: path,
-      });
+      })
       expect(
-        (await infer(catalog, "SELECT * FROM app_s.t")).map(r => r.name),
+        (await infer(catalog, 'SELECT * FROM app_s.t')).map((r) => r.name),
         JSON.stringify(path),
-      ).toEqual(["zzz", "qqq", "www"]);
+      ).toEqual(['zzz', 'qqq', 'www'])
     }
-  });
-});
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Functions resolve by name AND argument types, so the first-schema-wins rule
@@ -293,53 +293,53 @@ describe("search-path orderings", () => {
 // overload-consensus rule.
 // ---------------------------------------------------------------------------
 
-describe("search-path function resolution", () => {
-  it("an unqualified call considers candidates from EVERY schema in the path", async () => {
+describe('search-path function resolution', () => {
+  it('an unqualified call considers candidates from EVERY schema in the path', async () => {
     // PostgreSQL runs public.f(integer) — app_s.f takes text — and returns
     // NULL. The engine once read app_s.f's NOT NULL domain return here.
-    await pg.exec(`SET search_path = app_s, public`);
-    const observed = (await pg.query(`SELECT f(42) AS v`, [], { rowMode: "array" }))
-      .rows as unknown[][];
-    await pg.exec(`SET search_path = public`);
-    expect(observed[0]![0]).toBeNull();
+    await pg.exec(`SET search_path = app_s, public`)
+    const observed = (await pg.query(`SELECT f(42) AS v`, [], { rowMode: 'array' }))
+      .rows as unknown[][]
+    await pg.exec(`SET search_path = public`)
+    expect(observed[0]![0]).toBeNull()
 
-    const results = await infer(pathCatalog, "SELECT f(42) AS v");
-    expect(results[0]!.notNull).toBe(false);
-  });
+    const results = await infer(pathCatalog, 'SELECT f(42) AS v')
+    expect(results[0]!.notNull).toBe(false)
+  })
 
-  it("…including a candidate of a different ARITY, which the lookup once ignored", async () => {
-    await pg.exec(`SET search_path = app_s, public`);
-    const observed = (await pg.query(`SELECT m(7) AS v`, [], { rowMode: "array" }))
-      .rows as unknown[][];
-    await pg.exec(`SET search_path = public`);
-    expect(observed[0]![0]).toBeNull();
+  it('…including a candidate of a different ARITY, which the lookup once ignored', async () => {
+    await pg.exec(`SET search_path = app_s, public`)
+    const observed = (await pg.query(`SELECT m(7) AS v`, [], { rowMode: 'array' }))
+      .rows as unknown[][]
+    await pg.exec(`SET search_path = public`)
+    expect(observed[0]![0]).toBeNull()
 
-    const results = await infer(pathCatalog, "SELECT m(7) AS v");
-    expect(results[0]!.notNull).toBe(false);
-  });
+    const results = await infer(pathCatalog, 'SELECT m(7) AS v')
+    expect(results[0]!.notNull).toBe(false)
+  })
 
-  it("an IDENTICAL signature IS hidden by the earlier schema — both directions", async () => {
+  it('an IDENTICAL signature IS hidden by the earlier schema — both directions', async () => {
     // The one place first-in-path is right, and the reason the merge dedupes
     // by argTypes rather than dropping to consensus for every clash: this
     // call keeps its precision.
-    await pg.exec(`SET search_path = app_s, public`);
-    const appRow = (await pg.query(`SELECT h('q') AS v`, [], { rowMode: "array" }))
-      .rows as unknown[][];
-    await pg.exec(`SET search_path = public, app_s`);
-    const pubRow = (await pg.query(`SELECT h('q') AS v`, [], { rowMode: "array" }))
-      .rows as unknown[][];
-    await pg.exec(`SET search_path = public`);
-    expect(appRow[0]![0]).toBe("from_app");
-    expect(pubRow[0]![0]).toBeNull();
+    await pg.exec(`SET search_path = app_s, public`)
+    const appRow = (await pg.query(`SELECT h('q') AS v`, [], { rowMode: 'array' }))
+      .rows as unknown[][]
+    await pg.exec(`SET search_path = public, app_s`)
+    const pubRow = (await pg.query(`SELECT h('q') AS v`, [], { rowMode: 'array' }))
+      .rows as unknown[][]
+    await pg.exec(`SET search_path = public`)
+    expect(appRow[0]![0]).toBe('from_app')
+    expect(pubRow[0]![0]).toBeNull()
 
-    expect((await infer(pathCatalog, "SELECT h('q') AS v"))[0]!.notNull).toBe(true);
-    expect((await infer(reverseCatalog, "SELECT h('q') AS v"))[0]!.notNull).toBe(false);
-  });
+    expect((await infer(pathCatalog, "SELECT h('q') AS v"))[0]!.notNull).toBe(true)
+    expect((await infer(reverseCatalog, "SELECT h('q') AS v"))[0]!.notNull).toBe(false)
+  })
 
-  it("a qualified call is unaffected by the path", async () => {
-    const results = await infer(pathCatalog, "SELECT app_s.f('a') AS v");
-    expect(results[0]!.notNull).toBe(true);
-  });
+  it('a qualified call is unaffected by the path', async () => {
+    const results = await infer(pathCatalog, "SELECT app_s.f('a') AS v")
+    expect(results[0]!.notNull).toBe(true)
+  })
 
   // --- pg_catalog's implicit position (adversarial-3 finding 6) ------------
 
@@ -347,15 +347,18 @@ describe("search-path function resolution", () => {
   // pg_catalog unless the path names it, so for an identical signature the
   // BUILTIN hides the user function — the opposite of what every builtin
   // table in the engine documented. Measured both directions below.
-  it("pg_catalog hides an identically-signed user function under the default path", async () => {
-    const observed = (await pg.query(`SELECT min_scale('NaN'::numeric) AS v`, [], {
-      rowMode: "array",
-    })).rows as unknown[][];
-    expect(observed[0]![0]).toBeNull();
+  it('pg_catalog hides an identically-signed user function under the default path', async () => {
+    const observed = (
+      await pg.query(`SELECT min_scale('NaN'::numeric) AS v`, [], {
+        rowMode: 'array',
+      })
+    ).rows as unknown[][]
+    expect(observed[0]![0]).toBeNull()
 
-    expect((await infer(defaultCatalog, "SELECT min_scale('NaN'::numeric) AS v"))[0]!.notNull)
-      .toBe(false);
-  });
+    expect((await infer(defaultCatalog, "SELECT min_scale('NaN'::numeric) AS v"))[0]!.notNull).toBe(
+      false,
+    )
+  })
 
   it("…and the user's runs when the path names pg_catalog after it — a COST, not a claim", async () => {
     // The one configuration where the user function wins, and the engine
@@ -363,18 +366,20 @@ describe("search-path function resolution", () => {
     // carries no pg_catalog signatures to merge into the candidate set. A
     // dropped claim, never a wrong one. The full form (pg_catalog signatures)
     // waits for the consumer's search-path input, which it interacts with.
-    await pg.exec(`SET search_path = public, pg_catalog`);
-    const observed = (await pg.query(`SELECT min_scale('NaN'::numeric) AS v`, [], {
-      rowMode: "array",
-    })).rows as unknown[][];
-    await pg.exec(`SET search_path = public`);
-    expect(observed[0]![0]).toBe("user");
+    await pg.exec(`SET search_path = public, pg_catalog`)
+    const observed = (
+      await pg.query(`SELECT min_scale('NaN'::numeric) AS v`, [], {
+        rowMode: 'array',
+      })
+    ).rows as unknown[][]
+    await pg.exec(`SET search_path = public`)
+    expect(observed[0]![0]).toBe('user')
 
     const catalog = await buildNullabilityCatalog(await snapshotCatalog(pg), {
-      searchPath: ["public", "pg_catalog"],
-    });
-    expect((await infer(catalog, "SELECT min_scale('NaN'::numeric) AS v"))[0]!.notNull).toBe(false);
-  });
+      searchPath: ['public', 'pg_catalog'],
+    })
+    expect((await infer(catalog, "SELECT min_scale('NaN'::numeric) AS v"))[0]!.notNull).toBe(false)
+  })
 
   // --- the qualifier as a DISAMBIGUATOR ------------------------------------
 
@@ -384,33 +389,39 @@ describe("search-path function resolution", () => {
   // PostgreSQL rejects the bare `t.*` as ambiguous and answers either
   // qualified spelling (measured). Resolving through the alias map answered
   // for whichever registered last and an EMPTY column list for the other.
-  it("a schema-qualified star picks its relation out of a duplicate-named scope", async () => {
-    await pg.exec(`SET search_path = public`);
+  it('a schema-qualified star picks its relation out of a duplicate-named scope', async () => {
+    await pg.exec(`SET search_path = public`)
     const bare = await pg.query(`SELECT t.* FROM app_s.t, t`).then(
       () => null,
       (e: Error) => e.message,
-    );
-    expect(bare).toMatch(/ambiguous/);
+    )
+    expect(bare).toMatch(/ambiguous/)
 
-    const appFields = (await pg.query(`SELECT app_s.t.* FROM app_s.t, t`)).fields.map(f => f.name);
-    const pubFields = (await pg.query(`SELECT public.t.* FROM app_s.t, t`)).fields.map(f => f.name);
-    expect(appFields).toEqual(["zzz", "qqq", "www"]);
-    expect(pubFields).toEqual(["id", "name", "val", "active"]);
+    const appFields = (await pg.query(`SELECT app_s.t.* FROM app_s.t, t`)).fields.map((f) => f.name)
+    const pubFields = (await pg.query(`SELECT public.t.* FROM app_s.t, t`)).fields.map(
+      (f) => f.name,
+    )
+    expect(appFields).toEqual(['zzz', 'qqq', 'www'])
+    expect(pubFields).toEqual(['id', 'name', 'val', 'active'])
 
-    expect((await infer(defaultCatalog, "SELECT app_s.t.* FROM app_s.t, t")).map(r => r.name))
-      .toEqual(appFields);
-    expect((await infer(defaultCatalog, "SELECT public.t.* FROM app_s.t, t")).map(r => r.name))
-      .toEqual(pubFields);
-  });
+    expect(
+      (await infer(defaultCatalog, 'SELECT app_s.t.* FROM app_s.t, t')).map((r) => r.name),
+    ).toEqual(appFields)
+    expect(
+      (await infer(defaultCatalog, 'SELECT public.t.* FROM app_s.t, t')).map((r) => r.name),
+    ).toEqual(pubFields)
+  })
 
-  it("a QUALIFIED call to the shadowed name keeps its precision", async () => {
-    const observed = (await pg.query(`SELECT public.min_scale('NaN'::numeric) AS v`, [], {
-      rowMode: "array",
-    })).rows as unknown[][];
-    expect(observed[0]![0]).toBe("user");
+  it('a QUALIFIED call to the shadowed name keeps its precision', async () => {
+    const observed = (
+      await pg.query(`SELECT public.min_scale('NaN'::numeric) AS v`, [], {
+        rowMode: 'array',
+      })
+    ).rows as unknown[][]
+    expect(observed[0]![0]).toBe('user')
 
     expect(
       (await infer(defaultCatalog, "SELECT public.min_scale('NaN'::numeric) AS v"))[0]!.notNull,
-    ).toBe(true);
-  });
-});
+    ).toBe(true)
+  })
+})

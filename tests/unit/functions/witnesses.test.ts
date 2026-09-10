@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { PGlite } from "@electric-sql/pglite";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { PGlite } from '@electric-sql/pglite'
 import {
   ALWAYS_NOT_NULL_BUILTINS,
   FIRST_ARG_BUILTINS,
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
   SWEPT_TOTAL_SIGNATURES,
-} from "../../../src/query/nullability-walk.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
+} from '../../../src/query/nullability-walk.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
 
 // ---------------------------------------------------------------------------
 // The per-overload witness corpus.
@@ -35,7 +35,7 @@ import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
 // shares one (state-major).
 // ---------------------------------------------------------------------------
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+const HERE = dirname(fileURLToPath(import.meta.url))
 
 /**
  * `name(arg,arg)` in the spelling the claim tables and the signature capture
@@ -47,15 +47,18 @@ const HERE = dirname(fileURLToPath(import.meta.url));
  * it exists to catch.
  */
 const sigKey = (fn: string, args: string): string =>
-  `${fn}(${args.split(",").map(a => a.trim()).join(",")})`;
+  `${fn}(${args
+    .split(',')
+    .map((a) => a.trim())
+    .join(',')})`
 
 interface Witness {
-  fn: string;
-  slug: string;
-  signature: string;
-  nullExpr: string;
-  valueExpr: string;
-  schemaDir: string | null;
+  fn: string
+  slug: string
+  signature: string
+  nullExpr: string
+  valueExpr: string
+  schemaDir: string | null
 }
 
 function parseWitness(fn: string, slug: string, text: string, schemaDir: string | null): Witness {
@@ -69,139 +72,140 @@ function parseWitness(fn: string, slug: string, text: string, schemaDir: string 
    * a broken witness, not a legitimate one.
    */
   const directive = (name: string, mayBeEmpty = false): string => {
-    const m = new RegExp(`^--\\s*@${name}${mayBeEmpty ? "[ \\t]*(.*)" : "\\s+(.+)"}$`, "m").exec(text);
-    if (!m) throw new Error(`${fn}/${slug}: missing @${name}`);
-    return m[1]!.trim();
-  };
+    const m = new RegExp(`^--\\s*@${name}${mayBeEmpty ? '[ \\t]*(.*)' : '\\s+(.+)'}$`, 'm').exec(
+      text,
+    )
+    if (!m) throw new Error(`${fn}/${slug}: missing @${name}`)
+    return m[1]!.trim()
+  }
   return {
     fn,
     slug,
-    signature: directive("signature", true),
-    nullExpr: directive("null"),
-    valueExpr: directive("value"),
+    signature: directive('signature', true),
+    nullExpr: directive('null'),
+    valueExpr: directive('value'),
     schemaDir,
-  };
-}
-
-const witnesses: Witness[] = [];
-for (const dir of readdirSync(HERE)) {
-  const dirPath = join(HERE, dir);
-  if (!statSync(dirPath).isDirectory()) continue;
-  const schemaDir = existsSync(join(dirPath, "schema.sql")) ? dirPath : null;
-  for (const file of readdirSync(dirPath)) {
-    if (!file.endsWith(".sql") || file === "schema.sql") continue;
-    witnesses.push(
-      parseWitness(dir, file, readFileSync(join(dirPath, file), "utf8"), schemaDir),
-    );
   }
 }
 
-let shared: PGlite;
-const perSchema = new Map<string, PGlite>();
+const witnesses: Witness[] = []
+for (const dir of readdirSync(HERE)) {
+  const dirPath = join(HERE, dir)
+  if (!statSync(dirPath).isDirectory()) continue
+  const schemaDir = existsSync(join(dirPath, 'schema.sql')) ? dirPath : null
+  for (const file of readdirSync(dirPath)) {
+    if (!file.endsWith('.sql') || file === 'schema.sql') continue
+    witnesses.push(parseWitness(dir, file, readFileSync(join(dirPath, file), 'utf8'), schemaDir))
+  }
+}
+
+let shared: PGlite
+const perSchema = new Map<string, PGlite>()
 
 async function dbFor(w: Witness): Promise<PGlite> {
-  if (w.schemaDir === null) return shared;
-  let db = perSchema.get(w.schemaDir);
+  if (w.schemaDir === null) return shared
+  let db = perSchema.get(w.schemaDir)
   if (!db) {
-    db = await PGlite.create();
-    await db.exec(readFileSync(join(w.schemaDir, "schema.sql"), "utf8"));
-    perSchema.set(w.schemaDir, db);
+    db = await PGlite.create()
+    await db.exec(readFileSync(join(w.schemaDir, 'schema.sql'), 'utf8'))
+    perSchema.set(w.schemaDir, db)
   }
-  return db;
+  return db
 }
 
 /** Evaluate a witness expression: a full SELECT runs as written; anything
  * else is wrapped. First row, first column. */
 async function evaluate(db: PGlite, expr: string): Promise<unknown> {
-  const sql = /^\s*select\b/i.test(expr) ? expr : `SELECT (${expr}) AS v`;
-  const r = await db.query<Record<string, unknown>>(sql);
-  const row = r.rows[0];
-  if (row === undefined) throw new Error(`no row: ${expr}`);
-  return Object.values(row)[0];
+  const sql = /^\s*select\b/i.test(expr) ? expr : `SELECT (${expr}) AS v`
+  const r = await db.query<Record<string, unknown>>(sql)
+  const row = r.rows[0]
+  if (row === undefined) throw new Error(`no row: ${expr}`)
+  return Object.values(row)[0]
 }
 
-describe("per-overload NULL witnesses", () => {
+describe('per-overload NULL witnesses', () => {
   beforeAll(async () => {
-    shared = await PGlite.create();
-  });
+    shared = await PGlite.create()
+  })
   afterAll(async () => {
-    await shared.close();
-    for (const db of perSchema.values()) await db.close();
-  });
+    await shared.close()
+    for (const db of perSchema.values()) await db.close()
+  })
 
-  it("holds at least the removal evidence", () => {
-    expect(witnesses.length).toBeGreaterThan(0);
-  });
+  it('holds at least the removal evidence', () => {
+    expect(witnesses.length).toBeGreaterThan(0)
+  })
 
-  it("every @signature resolves to exactly one pg_proc entry", async () => {
+  it('every @signature resolves to exactly one pg_proc entry', async () => {
     // `to_regprocedure` answers null for an unknown or ambiguous spelling,
     // and an exact signature is unique by construction — so a removed or
     // re-typed overload fails loudly on a PostgreSQL upgrade instead of
     // silently testing nothing.
-    const unresolved: string[] = [];
+    const unresolved: string[] = []
     for (const w of witnesses) {
-      const r = await shared.query<{ p: string | null }>(
-        `SELECT to_regprocedure($1)::text AS p`,
-        [`${w.fn}(${w.signature})`],
-      );
-      if (r.rows[0]!.p === null) unresolved.push(`${w.fn}(${w.signature}) [${w.slug}]`);
+      const r = await shared.query<{ p: string | null }>(`SELECT to_regprocedure($1)::text AS p`, [
+        `${w.fn}(${w.signature})`,
+      ])
+      if (r.rows[0]!.p === null) unresolved.push(`${w.fn}(${w.signature}) [${w.slug}]`)
     }
-    expect(unresolved).toEqual([]);
-  });
+    expect(unresolved).toEqual([])
+  })
 
   for (const w of witnesses) {
     describe(`${w.fn}(${w.signature}) — ${w.slug}`, () => {
-      it("the witness returns NULL", async () => {
-        expect(await evaluate(await dbFor(w), w.nullExpr)).toBeNull();
-      });
-      it("the control returns a value", async () => {
-        expect(await evaluate(await dbFor(w), w.valueExpr)).not.toBeNull();
-      });
-    });
+      it('the witness returns NULL', async () => {
+        expect(await evaluate(await dbFor(w), w.nullExpr)).toBeNull()
+      })
+      it('the control returns a value', async () => {
+        expect(await evaluate(await dbFor(w), w.valueExpr)).not.toBeNull()
+      })
+    })
   }
 
-  it("no witnessed signature is claimed total anywhere", () => {
+  it('no witnessed signature is claimed total anywhere', () => {
     // The loop-closer: a witness refutes totality for its signature, so the
     // signature may appear neither via its NAME in a totality table nor as
     // a signature-keyed addition. (The operator side's PARTIAL_OVERLOADS
     // "kept with a recorded reason" mechanism has no function instance yet;
     // when one appears, this is where its reason is checked.)
     const nameTables = new Set([
-      ...ALWAYS_NOT_NULL_BUILTINS, ...FIRST_ARG_BUILTINS, ...STRICT_TOTAL_BUILTINS,
-    ]);
-    const offenders: string[] = [];
+      ...ALWAYS_NOT_NULL_BUILTINS,
+      ...FIRST_ARG_BUILTINS,
+      ...STRICT_TOTAL_BUILTINS,
+    ])
+    const offenders: string[] = []
     for (const w of witnesses) {
       if (nameTables.has(w.fn)) {
-        offenders.push(`${w.fn}(${w.signature}) — the NAME is in a totality table`);
+        offenders.push(`${w.fn}(${w.signature}) — the NAME is in a totality table`)
       }
-      const key = sigKey(w.fn, w.signature);
+      const key = sigKey(w.fn, w.signature)
       if (STRICT_TOTAL_BUILTIN_SIGNATURES.has(key)) {
-        offenders.push(`${w.fn}(${w.signature}) — claimed by the signature additions`);
+        offenders.push(`${w.fn}(${w.signature}) — claimed by the signature additions`)
       }
       if (SWEPT_TOTAL_SIGNATURES.has(key)) {
-        offenders.push(`${w.fn}(${w.signature}) — claimed by the cluster sweep`);
+        offenders.push(`${w.fn}(${w.signature}) — claimed by the cluster sweep`)
       }
     }
-    expect(offenders).toEqual([]);
-  });
+    expect(offenders).toEqual([])
+  })
 
-  it("reports coverage over the captured claim rows", async () => {
+  it('reports coverage over the captured claim rows', async () => {
     // Assertion five is a REPORT, not a ratchet: how much of the captured
     // claim surface carries evidence either way. A claimed row's evidence
     // is the totality probe (it executes every claimed signature); a
     // witnessed row's is this corpus; the remainder is the honest gap the
     // charter's "who makes the 235 verdicts" question still owns.
-    const s = await snapshotCatalog(shared);
-    const witnessed = new Set(witnesses.map(w => sigKey(w.fn, w.signature)));
-    const fnRows = s.builtinFunctionSignatures.filter(r => r.kind === "f");
-    const witnessedRows = fnRows.filter(r => witnessed.has(sigKey(r.name, r.args.join(","))));
+    const s = await snapshotCatalog(shared)
+    const witnessed = new Set(witnesses.map((w) => sigKey(w.fn, w.signature)))
+    const fnRows = s.builtinFunctionSignatures.filter((r) => r.kind === 'f')
+    const witnessedRows = fnRows.filter((r) => witnessed.has(sigKey(r.name, r.args.join(','))))
     console.log(
       `\nwitness corpus: ${witnesses.length} witnesses over ` +
-        `${new Set(witnesses.map(w => w.fn)).size} names; ` +
+        `${new Set(witnesses.map((w) => w.fn)).size} names; ` +
         `${witnessedRows.length} of the capture's ${fnRows.length} scalar rows ` +
         `carry a NULL witness (the probed totality tables carry the rest of ` +
         `the claimed surface; unclaimed rows need no verdict).`,
-    );
-    expect(witnessedRows.length).toBeGreaterThan(0);
-  });
-});
+    )
+    expect(witnessedRows.length).toBeGreaterThan(0)
+  })
+})

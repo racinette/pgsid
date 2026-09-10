@@ -21,80 +21,78 @@ import {
   type ColumnGenerator,
   type GeneratorRegistry,
   type NullPolicy,
-} from "./generate.js";
+} from './generate.js'
 
 // ---------------------------------------------------------------------------
 // Vocabularies
 // ---------------------------------------------------------------------------
 
-const WORDS = [
-  "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta",
-] as const;
+const WORDS = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta'] as const
 
 /**
  * A deliberately tiny vocabulary for the free-text columns of `t` and `u`.
  * `set-intersect.sql` intersects `t.val` with `u.val`; drawn from a large
  * space the two would never meet and the fixture would assert nothing.
  */
-const SHARED_VALS = ["x", "y", "z", "a"] as const;
+const SHARED_VALS = ['x', 'y', 'z', 'a'] as const
 
 const TIMESTAMPS = [
-  "2024-01-15 09:30:00+00",
-  "2024-02-29 23:59:59+00",
-  "2024-06-01 12:00:00+00",
-  "2024-11-03 04:15:00+00",
-  "2025-03-21 18:45:00+00",
-] as const;
+  '2024-01-15 09:30:00+00',
+  '2024-02-29 23:59:59+00',
+  '2024-06-01 12:00:00+00',
+  '2024-11-03 04:15:00+00',
+  '2025-03-21 18:45:00+00',
+] as const
 
 // ---------------------------------------------------------------------------
 // Tier 2: by type
 // ---------------------------------------------------------------------------
 
 const publicTypeGenerators: Record<string, ColumnGenerator> = {
-  integer: rand => rand.int(1, 500),
-  bigint: rand => rand.int(1, 500),
-  smallint: rand => rand.int(1, 100),
+  integer: (rand) => rand.int(1, 500),
+  bigint: (rand) => rand.int(1, 500),
+  smallint: (rand) => rand.int(1, 100),
   text: (rand, ctx) => `${rand.pick(WORDS)}-${ctx.row}`,
-  boolean: rand => rand.chance(0.5),
-  numeric: rand => rand.decimal(1, 1000, 2),
-  "double precision": rand => rand.decimal(0, 1000, 4),
-  "timestamp with time zone": rand => rand.pick(TIMESTAMPS),
-  "timestamp without time zone": rand => rand.pick(TIMESTAMPS).slice(0, 19),
-  date: rand => rand.pick(TIMESTAMPS).slice(0, 10),
+  boolean: (rand) => rand.chance(0.5),
+  numeric: (rand) => rand.decimal(1, 1000, 2),
+  'double precision': (rand) => rand.decimal(0, 1000, 4),
+  'timestamp with time zone': (rand) => rand.pick(TIMESTAMPS),
+  'timestamp without time zone': (rand) => rand.pick(TIMESTAMPS).slice(0, 19),
+  date: (rand) => rand.pick(TIMESTAMPS).slice(0, 10),
   // CLOSED paths, always: `route` exists to witness `+(path,path)` returning
   // NULL, and an OPEN path (`[...]`) concatenates to a value instead.
   path: (rand, ctx) => `((0,${ctx.row}),(${rand.int(1, 9)},${rand.int(1, 9)}))`,
   // `tagged` filters on `ARRAY['x']`, so the value has to be in the fixture's
   // vocabulary rather than merely in the type's.
-  "text[]": () => "{x}",
+  'text[]': () => '{x}',
   jsonb: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
   json: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
 
   // Domains. Each has to satisfy its own CHECK.
   nn_text: (rand, ctx) => `${rand.pick(WORDS)}-${ctx.row}`,
-  non_empty_text: rand => rand.pick(WORDS),
-  positive_amount: rand => rand.decimal(0.01, 500, 2),
-  discount_percent: rand => rand.decimal(0, 100, 2),
+  non_empty_text: (rand) => rand.pick(WORDS),
+  positive_amount: (rand) => rand.decimal(0.01, 500, 2),
+  discount_percent: (rand) => rand.decimal(0, 100, 2),
   // A domain over a DOMAIN has to satisfy BOTH checks: positive_amount's
   // `> 0` and its own cap.
-  capped_amount: rand => rand.decimal(0.01, 500, 2),
+  capped_amount: (rand) => rand.decimal(0.01, 500, 2),
   // The enum's own labels are the only legal values.
-  shipment_state: rand => rand.pick(["pending", "in_transit", "delivered", "returned"]),
-};
+  shipment_state: (rand) => rand.pick(['pending', 'in_transit', 'delivered', 'returned']),
+}
 
 const typeSpecificGenerators: Record<string, Record<string, ColumnGenerator>> = {
   public: publicTypeGenerators,
   // The second schema draws from the same type vocabulary; nothing about a
   // value depends on which schema its table lives in.
   billing: publicTypeGenerators,
-};
+}
 
 // ---------------------------------------------------------------------------
 // Tier 1: by column
 // ---------------------------------------------------------------------------
 
 /** 1, 2, 3, … — for the key columns of tables that declare no primary key. */
-const sequential: ColumnGenerator = (_rand, ctx) => ctx.row + 1;
+const sequential: ColumnGenerator = (_rand, ctx) => ctx.row + 1
 
 /**
  * A three-element `sku_pair[]` in text form: one whole element, one with an
@@ -105,24 +103,21 @@ const sequential: ColumnGenerator = (_rand, ctx) => ctx.row + 1;
  * a domain over that array, and an array of a domain over the element all
  * accept the identical literal.
  */
-const skuPairArray: ColumnGenerator = rand =>
-  `{"(${rand.pick(WORDS)},${rand.int(1, 9)})","(${rand.pick(WORDS)},)","(,${rand.int(1, 9)})"}`;
+const skuPairArray: ColumnGenerator = (rand) =>
+  `{"(${rand.pick(WORDS)},${rand.int(1, 9)})","(${rand.pick(WORDS)},)","(,${rand.int(1, 9)})"}`
 
 /** Uniform over an already-generated column of another table. */
 function drawFrom(table: string, column: string): ColumnGenerator {
   return (rand, ctx) => {
-    const candidates = ctx.values(table, column).filter(v => v !== null && v !== undefined);
+    const candidates = ctx.values(table, column).filter((v) => v !== null && v !== undefined)
     if (candidates.length === 0) {
-      throw new Error(`${table}.${column} produced no non-NULL values to draw from`);
+      throw new Error(`${table}.${column} produced no non-NULL values to draw from`)
     }
-    return rand.pick(candidates);
-  };
+    return rand.pick(candidates)
+  }
 }
 
-const columnSpecificGenerators: Record<
-  string,
-  Record<string, Record<string, ColumnGenerator>>
-> = {
+const columnSpecificGenerators: Record<string, Record<string, Record<string, ColumnGenerator>>> = {
   public: {
     // -- t / u / v ---------------------------------------------------------
     // These three declare no keys and no foreign keys, but the fixtures join
@@ -131,8 +126,8 @@ const columnSpecificGenerators: Record<
     // this, every one of the ~35 fixtures over t/u/v returns zero rows.
     t: {
       id: sequential,
-      name: rand => rand.pick(SHARED_VALS),
-      val: rand => rand.pick(SHARED_VALS),
+      name: (rand) => rand.pick(SHARED_VALS),
+      val: (rand) => rand.pick(SHARED_VALS),
     },
     u: {
       id: sequential,
@@ -141,19 +136,19 @@ const columnSpecificGenerators: Record<
       // left-hand match — with every reference resolving, an outer join is an
       // inner join and its NULL-extended columns are never observed.
       t_id: (rand, ctx) => {
-        const ids = ctx.values("t", "id").filter(v => typeof v === "number") as number[];
-        if (ids.length === 0) throw new Error("t generated no ids for u.t_id to reference");
-        if (rand.chance(0.25)) return Math.max(...ids) + 1 + rand.int(0, 5);
-        return rand.pick(ids);
+        const ids = ctx.values('t', 'id').filter((v) => typeof v === 'number') as number[]
+        if (ids.length === 0) throw new Error('t generated no ids for u.t_id to reference')
+        if (rand.chance(0.25)) return Math.max(...ids) + 1 + rand.int(0, 5)
+        return rand.pick(ids)
       },
       email: (_rand, ctx) => `u${ctx.row + 1}@example.com`,
-      val: rand => rand.pick(SHARED_VALS),
-      status: rand => rand.pick(["active", "inactive", "pending"]),
+      val: (rand) => rand.pick(SHARED_VALS),
+      status: (rand) => rand.pick(['active', 'inactive', 'pending']),
     },
     v: {
       id: sequential,
-      u_id: drawFrom("u", "id"),
-      amount: rand => rand.decimal(1, 500, 2),
+      u_id: drawFrom('u', 'id'),
+      amount: (rand) => rand.decimal(1, 500, 2),
     },
 
     // -- e-commerce --------------------------------------------------------
@@ -166,33 +161,33 @@ const columnSpecificGenerators: Record<
       // A quarter of the names are the literal several fixtures compare
       // against (`c.name = 'x'`); the rest defer to the text generator rather
       // than restating what a text column looks like.
-      name: (rand, ctx) => (rand.chance(0.25) ? "x" : ctx.ofType()),
+      name: (rand, ctx) => (rand.chance(0.25) ? 'x' : ctx.ofType()),
     },
     products: {
       sku: (_rand, ctx) => `SKU-${ctx.row + 1}`,
-      name: rand => rand.pick(WORDS),
+      name: (rand) => rand.pick(WORDS),
       // Spanning the thresholds fixtures compare against (5, 100, 500).
-      price: rand => rand.pick([5, 12.5, 99, 150, 480, 900]),
+      price: (rand) => rand.pick([5, 12.5, 99, 150, 480, 900]),
     },
     orders: {
-      status: rand => rand.pick(["pending", "fulfilled", "shipped", "cancelled"]),
+      status: (rand) => rand.pick(['pending', 'fulfilled', 'shipped', 'cancelled']),
     },
     order_items: {
       // Above and below the "bulk order" thresholds fixtures test (10, 50).
-      quantity: rand => rand.pick([1, 2, 5, 12, 60, 80]),
-      unit_price: rand => rand.decimal(1, 900, 2),
+      quantity: (rand) => rand.pick([1, 2, 5, 12, 60, 80]),
+      unit_price: (rand) => rand.decimal(1, 900, 2),
     },
     reviews: {
-      rating: rand => rand.int(1, 5),
-      comment: rand => `${rand.pick(WORDS)} review`,
+      rating: (rand) => rand.int(1, 5),
+      comment: (rand) => `${rand.pick(WORDS)} review`,
     },
     addresses: {
       line1: (rand, ctx) => `${ctx.row + 1} ${rand.pick(WORDS)} street`,
-      line2: rand => `unit ${rand.int(1, 40)}`,
-      city: rand => rand.pick(WORDS),
-      state: rand => rand.pick(["CA", "NY", "TX", "WA"]),
-      postal_code: rand => String(rand.int(10000, 99999)),
-      country: rand => rand.pick(["US", "CA", "GB"]),
+      line2: (rand) => `unit ${rand.int(1, 40)}`,
+      city: (rand) => rand.pick(WORDS),
+      state: (rand) => rand.pick(['CA', 'NY', 'TX', 'WA']),
+      postal_code: (rand) => String(rand.int(10000, 99999)),
+      country: (rand) => rand.pick(['US', 'CA', 'GB']),
     },
     tags: {
       name: (rand, ctx) => `${rand.pick(WORDS)}-tag-${ctx.row + 1}`,
@@ -201,59 +196,59 @@ const columnSpecificGenerators: Record<
       code: (_rand, ctx) => `CODE-${ctx.row + 1}`,
     },
     shipments: {
-      carrier: rand => rand.pick(["UPS", "DHL", "FedEx"]),
+      carrier: (rand) => rand.pick(['UPS', 'DHL', 'FedEx']),
       tracking_no: (rand, ctx) => `TRK${rand.int(1000, 9999)}-${ctx.row}`,
     },
     payment_methods: {
-      name: rand => rand.pick(["card", "invoice", "transfer", "voucher"]),
+      name: (rand) => rand.pick(['card', 'invoice', 'transfer', 'voucher']),
     },
     events: {
       // Fixtures read `data->>'id'` and `data->>'missing'`, so the document
       // needs the first key and must not have the second.
       data: (rand, ctx) => ({ id: ctx.row + 1, kind: rand.pick(WORDS) }),
-      meta: rand => ({ source: rand.pick(WORDS) }),
+      meta: (rand) => ({ source: rand.pick(WORDS) }),
     },
     multi_stmt_log: {
       id: sequential,
-      val: rand => rand.pick(SHARED_VALS),
+      val: (rand) => rand.pick(SHARED_VALS),
     },
     guest: {
       id: sequential,
       // The CHECK-entailment fixtures filter on every one of these; which
       // dependent columns are NULL is the null policies' job, keyed off the
       // status already assigned to the row (see below).
-      status: rand => rand.pick(["in-flight", "arrived", "housed", "checked-out"]),
+      status: (rand) => rand.pick(['in-flight', 'arrived', 'housed', 'checked-out']),
     },
     txn: {
       id: sequential,
       // Spanning the generated verdict's arms; the NULL policy below adds
       // the fourth (IS NULL → manual-check). verdict itself is GENERATED
       // and never filled.
-      fraud_score: rand => rand.pick([80, 90, 50, 40, 10, 5]),
+      fraud_score: (rand) => rand.pick([80, 90, 50, 40, 10, 5]),
     },
     audit_log: {
       id: sequential,
-      kind: rand => rand.pick(["manual", "auto"]),
-      n: rand => rand.pick([1, 2]),
+      kind: (rand) => rand.pick(['manual', 'auto']),
+      n: (rand) => rand.pick([1, 2]),
     },
     nd: {
       // Under PGlite's bytewise stub only 'a' takes the CHECK's first arm
       // (x IS NULL); 'A' and 'z' route through the second (x IS NOT NULL).
-      tag: rand => rand.pick(["a", "A", "z"]),
+      tag: (rand) => rand.pick(['a', 'A', 'z']),
     },
     locker: {
-      code: rand => rand.pick(["assigned", "free"]),
+      code: (rand) => rand.pick(['assigned', 'free']),
     },
     chain3: {
-      stage: rand => rand.pick(["go", "idle"]),
+      stage: (rand) => rand.pick(['go', 'idle']),
     },
     stock: {
-      qty: rand => rand.pick([0, 3, 12]),
+      qty: (rand) => rand.pick([0, 3, 12]),
     },
     subscription: {
-      plan: rand => rand.pick(["team", "solo"]),
+      plan: (rand) => rand.pick(['team', 'solo']),
       seats: (rand, ctx) =>
-        ctx.current("plan") === "team" ? rand.pick([2, 5]) : rand.pick([0, 1]),
+        ctx.current('plan') === 'team' ? rand.pick([2, 5]) : rand.pick([0, 1]),
     },
 
     // The atom-oracle demand experiment (schema.sql): the framework does
@@ -261,13 +256,12 @@ const columnSpecificGenerators: Record<
     // above 5; bcorr's b picks the CHECK's arm and a satisfies it.
     tri: {
       id: sequential,
-      a: rand => rand.pick([6, 8, 42]),
+      a: (rand) => rand.pick([6, 8, 42]),
     },
     bcorr: {
       id: sequential,
-      b: rand => rand.pick([true, false]),
-      a: (rand, ctx) =>
-        ctx.current("b") === true ? rand.pick([1, 4]) : rand.pick([6, 9]),
+      b: (rand) => rand.pick([true, false]),
+      a: (rand, ctx) => (ctx.current('b') === true ? rand.pick([1, 4]) : rand.pick([6, 9])),
     },
 
     // The interval-exclusivity families: every value satisfies its CHECK,
@@ -295,17 +289,13 @@ const columnSpecificGenerators: Record<
     cail: { a: (_rand, ctx) => [3, 2, 0][ctx.row % 3]! },
     caine: { a: (_rand, ctx) => [5, 6, 3][ctx.row % 3]! },
     cain: { a: (_rand, ctx) => [2, 1, 0][ctx.row % 3]! },
-    cais: { s: (_rand, ctx) => ["c", "m", "peak"][ctx.row % 3]! },
-    caic: { s: (_rand, ctx) => ["c", "m", "peak"][ctx.row % 3]! },
+    cais: { s: (_rand, ctx) => ['c', 'm', 'peak'][ctx.row % 3]! },
+    caic: { s: (_rand, ctx) => ['c', 'm', 'peak'][ctx.row % 3]! },
     caipt: { a: () => 7 },
     caiw: { a: (_rand, ctx) => [4, 8][ctx.row % 2]!, b: (_rand, ctx) => [1, 2][ctx.row % 2]! },
     caitt: {
       t: (_rand, ctx) =>
-        [
-          "2020-01-01 00:00:00.123",
-          "2020-01-01 00:00:00.100",
-          "2021-06-01 00:00:00",
-        ][ctx.row % 3]!,
+        ['2020-01-01 00:00:00.123', '2020-01-01 00:00:00.100', '2021-06-01 00:00:00'][ctx.row % 3]!,
     },
     caitm: { a: (_rand, ctx) => [2.4, 2.3, 5.0][ctx.row % 3]! },
     caie: { a: (_rand, ctx) => [3, 6, 8][ctx.row % 3]! },
@@ -317,7 +307,7 @@ const columnSpecificGenerators: Record<
     evg: {
       status: (_rand, ctx) => [3, 1, 2][ctx.row % 3]!,
       has_duration: (_rand, ctx) => ctx.row % 2 === 0,
-      event_duration: rand => rand.pick(["1 hour", "2 hours", "45 minutes"]),
+      event_duration: (rand) => rand.pick(['1 hour', '2 hours', '45 minutes']),
     },
     // evb's biconditional CHECK ties started_at to the status band exactly,
     // so status rotates and the null policy below reads it back — 'started'
@@ -326,8 +316,8 @@ const columnSpecificGenerators: Record<
     // then a second working band so `status <> 'pending'` is not carried by
     // one literal. `interval` has no type tier; the column draws its own.
     evb: {
-      status: (_rand, ctx) => ["started", "pending", "done"][ctx.row % 3]!,
-      event_duration: rand => rand.pick(["1 hour", "2 hours", "45 minutes"]),
+      status: (_rand, ctx) => ['started', 'pending', 'done'][ctx.row % 3]!,
+      event_duration: (rand) => rand.pick(['1 hour', '2 hours', '45 minutes']),
     },
     // gpc's `a` rotates through one value per BAND of the generated CASE,
     // FIRST the equality fixture's own 7 (the sparsest state seeds one row
@@ -340,18 +330,18 @@ const columnSpecificGenerators: Record<
       a: (_rand, ctx) => [4, 3][ctx.row % 2]!,
       b: (_rand, ctx) => [1, 2][ctx.row % 2]!,
     },
-    ivf: { f: (_rand, ctx) => [5.5, "NaN", 7][ctx.row % 3]! },
+    ivf: { f: (_rand, ctx) => [5.5, 'NaN', 7][ctx.row % 3]! },
     ivnm: { n: (_rand, ctx) => [6, 5.6, 12.25][ctx.row % 3]! },
     ivne: { z: (_rand, ctx) => [3, 7, 100][ctx.row % 3]! },
-    ivstx: { s: (_rand, ctx) => ["n", "peak", "z"][ctx.row % 3]! },
-    ivstxc: { s: rand => rand.pick(["n", "peak", "z"]) },
-    ivstxeq: { s: () => "alpha" },
+    ivstx: { s: (_rand, ctx) => ['n', 'peak', 'z'][ctx.row % 3]! },
+    ivstxc: { s: (rand) => rand.pick(['n', 'peak', 'z']) },
+    ivstxeq: { s: () => 'alpha' },
     // ivdt rotates since design B flipped its refusal record: the FIRST
     // value (2020-01-02, the day after the CHECK's anchor) witnesses both
     // nullable guards in check-interval-datetime.sql — the overlap into
     // (2020-01-01, 2020-03-01] and the session's Jan-2 reading of the
     // ambiguous '1/2/2020'.
-    ivdt: { d: (_rand, ctx) => ["2020-01-02", "2020-06-01", "2024-02-29"][ctx.row % 3]! },
+    ivdt: { d: (_rand, ctx) => ['2020-01-02', '2020-06-01', '2024-02-29'][ctx.row % 3]! },
 
     // The date-partitioned pair: same range rule as part_p — a value
     // outside every partition has no home and the INSERT raises — and
@@ -359,9 +349,13 @@ const columnSpecificGenerators: Record<
     // FIRST value (2024-03-15) witnesses partition-bound-datetime.sql's
     // two nullable guards (>= 2024-02-01, and the session's Mar-1 reading
     // of '3/1/2024'); 2024-01-01 is the closed lower boundary row.
-    daily_metrics: { day: (_rand, ctx) => ["2024-02-10", "2024-05-20"][ctx.row % 2]! },
-    daily_metrics_q1: { day: (_rand, ctx) => ["2024-03-15", "2024-01-01", "2024-02-01"][ctx.row % 3]! },
-    daily_metrics_q2: { day: (_rand, ctx) => ["2024-05-05", "2024-04-01", "2024-06-30"][ctx.row % 3]! },
+    daily_metrics: { day: (_rand, ctx) => ['2024-02-10', '2024-05-20'][ctx.row % 2]! },
+    daily_metrics_q1: {
+      day: (_rand, ctx) => ['2024-03-15', '2024-01-01', '2024-02-01'][ctx.row % 3]!,
+    },
+    daily_metrics_q2: {
+      day: (_rand, ctx) => ['2024-05-05', '2024-04-01', '2024-06-30'][ctx.row % 3]!,
+    },
 
     // The list-partitioned family: the parent rotates over every listed
     // value and routes; the partitions seed their own values directly.
@@ -369,9 +363,9 @@ const columnSpecificGenerators: Record<
     // 'north' member that fires partition-bound-list.sql's member guard,
     // and a rate could erase it. NULL reaches courier_south through its
     // null policy's rotation, never through a value.
-    courier_jobs: { region: (_rand, ctx) => ["north", "east", "south"][ctx.row % 3]! },
-    courier_north: { region: (_rand, ctx) => ["north", "east"][ctx.row % 2]! },
-    courier_south: { region: () => "south" },
+    courier_jobs: { region: (_rand, ctx) => ['north', 'east', 'south'][ctx.row % 3]! },
+    courier_north: { region: (_rand, ctx) => ['north', 'east'][ctx.row % 2]! },
+    courier_south: { region: () => 'south' },
 
     // The application event log. Same range rule as every other partitioned
     // pair here: `order_events` routes its rows and the two partitions are
@@ -403,16 +397,16 @@ const columnSpecificGenerators: Record<
     dock_slots: { slot: (_rand, ctx) => ctx.row + 1 },
     leg_scans: {
       leg_no: (rand, ctx) => {
-        const shipmentIds = ctx.values("public.shipment_legs", "shipment_id");
-        const legNos = ctx.values("public.shipment_legs", "leg_no");
-        const want = ctx.current("shipment_id");
-        const matching = legNos.filter((_, i) => shipmentIds[i] === want);
+        const shipmentIds = ctx.values('public.shipment_legs', 'shipment_id')
+        const legNos = ctx.values('public.shipment_legs', 'leg_no')
+        const want = ctx.current('shipment_id')
+        const matching = legNos.filter((_, i) => shipmentIds[i] === want)
         if (matching.length === 0) {
           throw new Error(
             `leg_scans.shipment_id drew ${String(want)}, which no shipment_legs row carries`,
-          );
+          )
         }
-        return rand.pick(matching);
+        return rand.pick(matching)
       },
     },
 
@@ -424,31 +418,31 @@ const columnSpecificGenerators: Record<
     // `fk-entail-natural-extra-conjunct.sql` then never observes its PRESENT
     // arm — the same reason `t.val` and `u.val` share SHARED_VALS. A tiny
     // vocabulary makes both arms happen.
-    sw4_c: { v: rand => rand.pick(SHARED_VALS) },
-    sw4_r: { v: rand => rand.pick(SHARED_VALS) },
+    sw4_c: { v: (rand) => rand.pick(SHARED_VALS) },
+    sw4_r: { v: (rand) => rand.pick(SHARED_VALS) },
 
     // The bpchar padding tables and their varchar control. 'a' is the token
     // the fixtures compare against; bpchar pads it to 'a   ' on write.
-    bp: { k: rand => rand.pick(["a", "b", "zz"]) },
-    bp2: { k: rand => rand.pick(["a", "b", "zz"]) },
-    vc: { k: rand => rand.pick(["a", "b", "zz"]) },
+    bp: { k: (rand) => rand.pick(['a', 'b', 'zz']) },
+    bp2: { k: (rand) => rand.pick(['a', 'b', 'zz']) },
+    vc: { k: (rand) => rand.pick(['a', 'b', 'zz']) },
     // bcx is a bpchar column whose CHECK is written through a CAST, so it
     // deparses the way a VARCHAR one does. It gates the class the cast may be
     // unwrapped within: `character` must stay out of it.
-    bcx: { k: rand => rand.pick(["a", "b", "zz"]) },
+    bcx: { k: (rand) => rand.pick(['a', 'b', 'zz']) },
 
     // The partitioned pair: both the parent (whose inserts route) and the
     // partition (seeded directly) must stay inside part_1's range — an id
     // outside 0..100 has no partition and the INSERT raises.
-    part_p: { id: rand => rand.int(0, 99) },
-    part_1: { id: rand => rand.int(0, 99) },
+    part_p: { id: (rand) => rand.int(0, 99) },
+    part_1: { id: (rand) => rand.int(0, 99) },
     // The sub-partitioned branch draws from ITS range, the way mv_2 does —
     // seeding a partition directly means the value has to land inside it.
     // part_2a rotates by row index, not a draw: the FIRST value is the
     // partition-bound fixture's overlap witness (120 fires `id >= 120`)
     // and must exist in every data state, beside the closed lower
     // boundary (100) and the top row (149).
-    part_2: { id: rand => rand.int(100, 149) },
+    part_2: { id: (rand) => rand.int(100, 149) },
     part_2a: { id: (_rand, ctx) => [120, 100, 149][ctx.row % 3]! },
 
     // The sweep-4 partitioned pair, and the range rule has two more jobs here
@@ -477,24 +471,24 @@ const columnSpecificGenerators: Record<
     // The trigger-bearing partitioned pair, same range rule. The partition
     // trigger nulls a and rescues a NULL b on every insert, seeding
     // included.
-    trig_part: { id: rand => rand.int(0, 99) },
-    trig_part_1: { id: rand => rand.int(0, 99) },
+    trig_part: { id: (rand) => rand.int(0, 99) },
+    trig_part_1: { id: (rand) => rand.int(0, 99) },
 
     // The row-movement partitions. Parent and first partition stay inside
     // mv_1's range so the movement fixtures' `SET id = id + 100` always
     // lands inside mv_2; mv_2's own seeds draw from its range (and its
     // BEFORE INSERT trigger nulls a on the way in, seeding included).
-    mv_p: { id: rand => rand.int(0, 99) },
-    mv_1: { id: rand => rand.int(0, 99) },
-    mv_2: { id: rand => rand.int(100, 199) },
+    mv_p: { id: (rand) => rand.int(0, 99) },
+    mv_1: { id: (rand) => rand.int(0, 99) },
+    mv_2: { id: (rand) => rand.int(100, 199) },
 
     // The mechanism-B inheritance pair: DISJOINT id ranges, so the param
     // fixture's WHERE can address child rows alone — the state in which
     // the NULL binding is accepted and the dropped claim is honest. The
     // parent's a is NOT NULL by its own flag, so the framework never
     // NULL-injects it; the child's stays nullable.
-    pnn_p: { id: rand => rand.int(1, 100) },
-    pnn_c: { id: rand => rand.int(201, 300) },
+    pnn_p: { id: (rand) => rand.int(1, 100) },
+    pnn_c: { id: (rand) => rand.int(201, 300) },
 
     // The composite-column table. `sku_pair` has no type-tier generator;
     // the text format casts on insert. A third of the non-NULL values
@@ -529,7 +523,7 @@ const columnSpecificGenerators: Record<
     // builtin-range-lower-upper.sql.
     rng: {
       id: sequential,
-      span: (rand, ctx) => (ctx.row % 2 === 0 ? "empty" : `[${rand.int(1, 5)},${rand.int(6, 9)})`),
+      span: (rand, ctx) => (ctx.row % 2 === 0 ? 'empty' : `[${rand.int(1, 5)},${rand.int(6, 9)})`),
     },
 
     pair_holder: {
@@ -545,7 +539,7 @@ const columnSpecificGenerators: Record<
     // and no constraints, so `a` is nullable here too and gets one as well.
     trow_holder: {
       id: sequential,
-      rows: rand => `{"(${rand.int(1, 9)},)","(,${rand.pick(WORDS)})"}`,
+      rows: (rand) => `{"(${rand.int(1, 9)},)","(,${rand.pick(WORDS)})"}`,
       // The BARE row-type column, by row index rather than by chance — the
       // composite-star fixture needs BOTH a present composite (so the field
       // claims are read off a real row) and an absent one (so their nullable
@@ -560,10 +554,10 @@ const columnSpecificGenerators: Record<
     // CHECKs never constrained, so they get the status the fixtures filter
     // on and the NULLs that witness the dropped claims.
     ni2_p: {
-      status: rand => rand.pick(["open", "closed", "ack"]),
+      status: (rand) => rand.pick(['open', 'closed', 'ack']),
     },
     ni2_c: {
-      status: rand => rand.pick(["open", "closed"]),
+      status: (rand) => rand.pick(['open', 'closed']),
     },
 
     // Infinite temporal values are the point of this table — extract's
@@ -573,12 +567,14 @@ const columnSpecificGenerators: Record<
     // their draws.
     inf_t: {
       id: sequential,
-      ts: rand =>
+      ts: (rand) =>
         rand.chance(0.5)
-          ? rand.pick(["infinity", "-infinity"])
+          ? rand.pick(['infinity', '-infinity'])
           : rand.pick(TIMESTAMPS).slice(0, 19),
-      iv: rand =>
-        rand.chance(0.5) ? rand.pick(["infinity", "-infinity"]) : rand.pick(["3 days", "2 hours", "1 mon"]),
+      iv: (rand) =>
+        rand.chance(0.5)
+          ? rand.pick(['infinity', '-infinity'])
+          : rand.pick(['3 days', '2 hours', '1 mon']),
     },
 
     // A NOT NULL array whose ELEMENTS are not: the constraint binds the array
@@ -592,7 +588,7 @@ const columnSpecificGenerators: Record<
       vals: (rand, ctx) => `{${rand.pick(WORDS)}-${ctx.row},NULL}`,
     },
   },
-};
+}
 
 // ---------------------------------------------------------------------------
 // Row counts
@@ -617,7 +613,7 @@ const rowCounts: Record<string, Record<string, [number, number]>> = {
     // (with and without a qty) as well as its NULLs.
     cc: [6, 6],
   },
-};
+}
 
 // ---------------------------------------------------------------------------
 // NULL policies
@@ -629,8 +625,8 @@ const rowCounts: Record<string, Record<string, [number, number]>> = {
 // ---------------------------------------------------------------------------
 
 const nullPolicies: {
-  byType?: Record<string, Record<string, NullPolicy>>;
-  byColumn?: Record<string, Record<string, Record<string, NullPolicy>>>;
+  byType?: Record<string, Record<string, NullPolicy>>
+  byColumn?: Record<string, Record<string, Record<string, NullPolicy>>>
 } = {
   byColumn: {
     public: {
@@ -677,9 +673,9 @@ const nullPolicies: {
       // still gates new writes.
       guest: {
         arrived_at: (_rand, ctx) =>
-          ctx.current("status") !== "arrived" && ctx.current("status") !== "housed",
-        room: (rand, ctx) => (ctx.current("status") === "housed" ? false : rand.chance(0.5)),
-        note: (rand, ctx) => (ctx.current("status") === "checked-out" ? false : rand.chance(0.5)),
+          ctx.current('status') !== 'arrived' && ctx.current('status') !== 'housed',
+        room: (rand, ctx) => (ctx.current('status') === 'housed' ? false : rand.chance(0.5)),
+        note: (rand, ctx) => (ctx.current('status') === 'checked-out' ? false : rand.chance(0.5)),
         badge: () => false,
       },
 
@@ -691,10 +687,11 @@ const nullPolicies: {
       ni_p: { x: () => false },
       ni_c: { x: nullRate(0.5) },
       ni2_p: {
-        note: (rand, ctx) => (ctx.current("status") === "open" ? false : rand.chance(0.5)),
+        note: (rand, ctx) => (ctx.current('status') === 'open' ? false : rand.chance(0.5)),
       },
       ni2_c: {
-        note: (rand, ctx) => (ctx.current("status") === "open" ? rand.chance(0.7) : rand.chance(0.3)),
+        note: (rand, ctx) =>
+          ctx.current('status') === 'open' ? rand.chance(0.7) : rand.chance(0.3),
       },
 
       // The sqlc-register shapes. Each of these columns is nullable for a
@@ -742,13 +739,13 @@ const nullPolicies: {
       // CHECK at insert. caipt and caiw NULL their `a` by the same row
       // index `o` uses: the a-NULL rows take the ELSE arm (guard UNKNOWN)
       // and are caiw's PostgreSQL witness against a notFALSE transport.
-      cai: { o: (_rand, ctx) => (ctx.current("a") as number) < 3 },
-      caist: { o: (_rand, ctx) => (ctx.current("a") as number) <= 3 },
-      cail: { o: (_rand, ctx) => (ctx.current("a") as number) >= 3 },
-      caine: { o: (_rand, ctx) => (ctx.current("a") as number) === 5 },
-      cain: { o: (_rand, ctx) => (ctx.current("a") as number) >= 2 },
-      cais: { o: (_rand, ctx) => (ctx.current("s") as string) < "m" },
-      caic: { o: (_rand, ctx) => (ctx.current("s") as string) < "m" },
+      cai: { o: (_rand, ctx) => (ctx.current('a') as number) < 3 },
+      caist: { o: (_rand, ctx) => (ctx.current('a') as number) <= 3 },
+      cail: { o: (_rand, ctx) => (ctx.current('a') as number) >= 3 },
+      caine: { o: (_rand, ctx) => (ctx.current('a') as number) === 5 },
+      cain: { o: (_rand, ctx) => (ctx.current('a') as number) >= 2 },
+      cais: { o: (_rand, ctx) => (ctx.current('s') as string) < 'm' },
+      caic: { o: (_rand, ctx) => (ctx.current('s') as string) < 'm' },
       caipt: {
         a: (_rand, ctx) => ctx.row % 3 === 2,
         o: (_rand, ctx) => ctx.row % 3 === 2,
@@ -761,19 +758,19 @@ const nullPolicies: {
       // mirrors the CHECK's arm exactly (the boundary .123 row is the
       // witness the typmod-refusal fixture needs).
       caitt: {
-        o: (_rand, ctx) => (ctx.current("t") as string) >= "2020-01-01 00:00:00.123",
+        o: (_rand, ctx) => (ctx.current('t') as string) >= '2020-01-01 00:00:00.123',
       },
-      caitm: { o: (_rand, ctx) => (ctx.current("a") as number) >= 2.4 },
-      caie: { o: (_rand, ctx) => (ctx.current("a") as number) > 5 },
+      caitm: { o: (_rand, ctx) => (ctx.current('a') as number) >= 2.4 },
+      caie: { o: (_rand, ctx) => (ctx.current('a') as number) > 5 },
       evg: {
-        event_duration: (_rand, ctx) => ctx.current("has_duration") === false,
+        event_duration: (_rand, ctx) => ctx.current('has_duration') === false,
       },
       // The biconditional runs both ways, so the policy must too: NULL
       // exactly on the pending rows, a value everywhere else. Columns fill
       // in catalog order and `status` precedes `started_at`, so the band is
       // already decided when this is asked.
       evb: {
-        started_at: (_rand, ctx) => ctx.current("status") === "pending",
+        started_at: (_rand, ctx) => ctx.current('status') === 'pending',
       },
       caiow: {
         a: (_rand, ctx) => ctx.row % 3 === 2,
@@ -800,36 +797,35 @@ const nullPolicies: {
       // Each CHECK CASE ties a column's NULLness to the discriminator
       // assigned earlier in the row, same pattern as guest.
       audit_log: {
-        actor: (rand, ctx) => (ctx.current("kind") === "manual" ? false : rand.chance(0.5)),
-        bot_id: (rand, ctx) => (ctx.current("kind") === "auto" ? false : rand.chance(0.5)),
+        actor: (rand, ctx) => (ctx.current('kind') === 'manual' ? false : rand.chance(0.5)),
+        bot_id: (rand, ctx) => (ctx.current('kind') === 'auto' ? false : rand.chance(0.5)),
         n: nullRate(0.2),
-        a: (rand, ctx) => (ctx.current("n") === 1 ? false : rand.chance(0.5)),
-        b: (rand, ctx) => (ctx.current("n") === 2 ? false : rand.chance(0.5)),
+        a: (rand, ctx) => (ctx.current('n') === 1 ? false : rand.chance(0.5)),
+        b: (rand, ctx) => (ctx.current('n') === 2 ? false : rand.chance(0.5)),
       },
 
       // nd's CHECK forces x NULL exactly on (bytewise) 'a' rows.
-      nd: { x: (_rand, ctx) => ctx.current("tag") === "a" },
+      nd: { x: (_rand, ctx) => ctx.current('tag') === 'a' },
 
       // locker's simple-CASE CHECK forces combo on assigned rows; the
       // implication CHECK forces opened_at wherever combo is present.
       locker: {
-        combo: (_rand, ctx) => ctx.current("code") !== "assigned",
-        opened_at: (rand, ctx) =>
-          ctx.current("combo") === null ? rand.chance(0.5) : false,
+        combo: (_rand, ctx) => ctx.current('code') !== 'assigned',
+        opened_at: (rand, ctx) => (ctx.current('combo') === null ? rand.chance(0.5) : false),
       },
 
       // chain3's links: each column is forced by the previous one's
       // presence, so the policies mirror the constraints link by link.
       chain3: {
-        a: (rand, ctx) => (ctx.current("stage") === "go" ? false : rand.chance(0.6)),
-        b: (rand, ctx) => ctx.current("a") === null && rand.chance(0.6),
-        c: (rand, ctx) => ctx.current("b") === null && rand.chance(0.6),
+        a: (rand, ctx) => (ctx.current('stage') === 'go' ? false : rand.chance(0.6)),
+        b: (rand, ctx) => ctx.current('a') === null && rand.chance(0.6),
+        c: (rand, ctx) => ctx.current('b') === null && rand.chance(0.6),
       },
 
       // stock: a zero-qty item must carry its discontinuation timestamp.
       stock: {
         discontinued_at: (rand, ctx) =>
-          (ctx.current("qty") as number) > 0 ? rand.chance(0.5) : false,
+          (ctx.current('qty') as number) > 0 ? rand.chance(0.5) : false,
       },
 
       // tagged: `tags` is NULL on row 0 and `more` on row 1, which is what
@@ -870,19 +866,19 @@ const nullPolicies: {
       // subscription: seats over one force the overflow contact (CHECK₂),
       // whatever the plan; the seats policy itself follows CHECK₁'s arm.
       subscription: {
-        seats: (rand, ctx) => ctx.current("plan") !== "team" && rand.chance(0.4),
+        seats: (rand, ctx) => ctx.current('plan') !== 'team' && rand.chance(0.4),
         overflow_contact: (rand, ctx) => {
-          const seats = ctx.current("seats");
-          return typeof seats === "number" && seats > 1 ? false : rand.chance(0.5);
+          const seats = ctx.current('seats')
+          return typeof seats === 'number' && seats > 1 ? false : rand.chance(0.5)
         },
       },
 
       // bp: the CHECK admits a NULL x exactly where k's padded value equals
       // 'a ' — writing it there is the padding witness the fixtures return.
-      bp: { x: (_rand, ctx) => ctx.current("k") === "a" },
+      bp: { x: (_rand, ctx) => ctx.current('k') === 'a' },
       // bp2: the CASE's first arm FORCES x NULL on 'a' rows; other rows
       // match no arm, so the NULL CASE result admits them either way.
-      bp2: { x: (rand, ctx) => ctx.current("k") === "a" || rand.chance(0.4) },
+      bp2: { x: (rand, ctx) => ctx.current('k') === 'a' || rand.chance(0.4) },
       // vc: x non-null everywhere — the control never writes the literal
       // 'a ' rows that would admit a NULL.
       vc: { x: () => false },
@@ -891,14 +887,14 @@ const nullPolicies: {
       // disjunct is TRUE and a NULL x is admissible. `WHERE k = 'a '` still
       // selects that row, bpchar comparison being blank-INSENSITIVE, which is
       // the pair of facts the gate exists to keep apart.
-      bcx: { x: (_rand, ctx) => ctx.current("k") === "a" },
+      bcx: { x: (_rand, ctx) => ctx.current('k') === 'a' },
     },
   },
-};
+}
 
 export const fixtureGeneratorRegistry: GeneratorRegistry = {
   byType: typeSpecificGenerators,
   byColumn: columnSpecificGenerators,
   rowCounts,
   nullPolicies,
-};
+}

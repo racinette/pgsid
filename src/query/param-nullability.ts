@@ -54,9 +54,9 @@
 // honest — a missed rejecting site is a nullable claim the oracle can refute.
 // ---------------------------------------------------------------------------
 
-import type { Node } from "libpg-query";
-import { STRICT_OPERATORS } from "./operators.js";
-import type { NullabilityCatalog } from "./types.js";
+import type { Node } from 'libpg-query'
+import { STRICT_OPERATORS } from './operators.js'
+import type { NullabilityCatalog } from './types.js'
 
 /**
  * Per-parameter nullability. A **positional** array like `OutputNullability`:
@@ -67,26 +67,26 @@ import type { NullabilityCatalog } from "./types.js";
  */
 export interface ParamNullability {
   /** 1-based parameter number. */
-  number: number;
+  number: number
   /** Binding NULL to this parameter can make the statement raise. */
-  notNull: boolean;
+  notNull: boolean
 }
 
 /** The `$n` of a node that is directly a ParamRef, else null. */
 function paramNumberOf(node: unknown): number | null {
-  const pr = (node as { ParamRef?: { number?: number } } | null)?.ParamRef;
-  if (!pr) return null;
-  return pr.number ?? 0;
+  const pr = (node as { ParamRef?: { number?: number } } | null)?.ParamRef
+  if (!pr) return null
+  return pr.number ?? 0
 }
 
 function stringVal(node: unknown): string {
-  return (node as { String?: { sval?: string } } | null)?.String?.sval ?? "";
+  return (node as { String?: { sval?: string } } | null)?.String?.sval ?? ''
 }
 
 interface Collector {
-  catalog: NullabilityCatalog;
-  seen: Set<number>;
-  rejected: Set<number>;
+  catalog: NullabilityCatalog
+  seen: Set<number>
+  rejected: Set<number>
   /**
    * Joint rejection sets from mechanism-C sites: parameter sets of size ≥ 2
    * whose members, ALL bound NULL together, force a NULL into a rejecting
@@ -96,7 +96,7 @@ interface Collector {
    * rejected parameter are absorbed (the singleton claim already forbids
    * the binding).
    */
-  jointRejected: number[][];
+  jointRejected: number[][]
   /**
    * The mechanism-A subset of `rejected`: parameters whose TYPE parse
    * analysis resolves to a NOT NULL domain, so a NULL binding raises at the
@@ -109,7 +109,7 @@ interface Collector {
    * narrowing (any returned row proves the parameter was non-NULL), which is
    * why the two are tracked separately.
    */
-  bindRejected: Set<number>;
+  bindRejected: Set<number>
   /**
    * Set while walking a subtree PostgreSQL provably never EXECUTES — an
    * unreferenced non-data-modifying CTE. Execution-time mechanisms (B, C,
@@ -118,7 +118,7 @@ interface Collector {
    * Bind, so the binding is rejected whether or not the subtree runs
    * (measured, three shapes — see visitBindOnly).
    */
-  bindOnly?: boolean;
+  bindOnly?: boolean
 }
 
 /**
@@ -143,10 +143,10 @@ function columnRejection(
   schema: string,
   table: string,
   column: string,
-  command: "insert" | "update",
-): "domain" | "constraint" | null {
-  const typeOid = c.catalog.resolveColumnTypeOid(schema, table, column);
-  if (typeOid !== null && c.catalog.isNotNullDomain(typeOid)) return "domain";
+  command: 'insert' | 'update',
+): 'domain' | 'constraint' | null {
+  const typeOid = c.catalog.resolveColumnTypeOid(schema, table, column)
+  if (typeOid !== null && c.catalog.isNotNullDomain(typeOid)) return 'domain'
   // UPDATE (and MERGE's update arm) targets the relation TREE, and the row
   // being written is checked against the flags of the relation it LIVES in
   // — a child left unconstrained by `ALTER TABLE ONLY … SET NOT NULL`
@@ -160,9 +160,9 @@ function columnRejection(
   // domain check above is untouched: a child cannot change an inherited
   // column's TYPE, so mechanism A is per-column everywhere in the tree.
   const rejects =
-    command === "update"
+    command === 'update'
       ? c.catalog.resolveColumnNotNullTree(schema, table, column)
-      : c.catalog.resolveColumnNotNull(schema, table, column);
+      : c.catalog.resolveColumnNotNull(schema, table, column)
   if (rejects) {
     // The TREE hooks: a partition's or child's BEFORE ROW trigger rewrites
     // rows written through the parent (measured — a partition trigger
@@ -170,37 +170,37 @@ function columnRejection(
     // see the whole subtree. Conservative for an ONLY target, whose child
     // triggers cannot fire — the cost is a dropped claim there, never a
     // wrong one.
-    const wr = c.catalog.resolveWriteRewritesTree(schema, table);
+    const wr = c.catalog.resolveWriteRewritesTree(schema, table)
     // The same command crossing as the output side (updateBeforeRowHazard):
     // an UPDATE through a partitioned parent can move the row, and the
     // DESTINATION partition's BEFORE INSERT trigger was measured RESCUING a
     // NULL binding the stationary control raises on — so a partitioned
     // target's update gate asks about the insert triggers too.
     const commands =
-      command === "update" && c.catalog.resolveIsPartitioned(schema, table)
-        ? ["update", "insert"]
-        : [command];
+      command === 'update' && c.catalog.resolveIsPartitioned(schema, table)
+        ? ['update', 'insert']
+        : [command]
     if (
-      commands.some(cmd => wr.beforeRow.has(cmd)) ||
+      commands.some((cmd) => wr.beforeRow.has(cmd)) ||
       wr.insteadOf.has(command) ||
       wr.insteadRules.has(command)
     ) {
-      return null;
+      return null
     }
-    return "constraint";
+    return 'constraint'
   }
-  return null;
+  return null
 }
 
 /** TypeCast target → is it a NOT NULL domain? Mirrors the output walk. */
 function castTargetIsNotNullDomain(c: Collector, typeName: unknown): boolean {
-  const names = (typeName as { names?: Node[] } | undefined)?.names;
-  if (!names || names.length === 0) return false;
-  const parts = names.map(stringVal);
+  const names = (typeName as { names?: Node[] } | undefined)?.names
+  if (!names || names.length === 0) return false
+  const parts = names.map(stringVal)
   if (parts.length >= 2) {
-    return c.catalog.isNotNullDomainByName(parts[parts.length - 2]!, parts[parts.length - 1]!);
+    return c.catalog.isNotNullDomainByName(parts[parts.length - 2]!, parts[parts.length - 1]!)
   }
-  return c.catalog.isNotNullDomainByName(undefined, parts[0]!);
+  return c.catalog.isNotNullDomainByName(undefined, parts[0]!)
 }
 
 /**
@@ -215,12 +215,12 @@ function reject(
   num: number,
   // `builtin-arg` is mechanism D: execution-time like `constraint` and `flow`,
   // so a never-executed subtree drops it the same way.
-  mechanism: "domain" | "constraint" | "flow" | "builtin-arg",
+  mechanism: 'domain' | 'constraint' | 'flow' | 'builtin-arg',
 ): void {
   // In a never-executed subtree only the bind-time mechanism survives.
-  if (c.bindOnly && mechanism !== "domain") return;
-  c.rejected.add(num);
-  if (mechanism === "domain") c.bindRejected.add(num);
+  if (c.bindOnly && mechanism !== 'domain') return
+  c.rejected.add(num)
+  if (mechanism === 'domain') c.bindRejected.add(num)
 }
 
 /**
@@ -253,54 +253,54 @@ function reject(
  * SINGLETONS are never dropped: the flat
  * contract's claims must not regress however wide an expression fans out.
  */
-export type Implicants = number[][];
+export type Implicants = number[][]
 
-const MAX_IMPLICANT_SIZE = 4;
-const MAX_JOINT_IMPLICANTS = 8;
+const MAX_IMPLICANT_SIZE = 4
+const MAX_JOINT_IMPLICANTS = 8
 
 /** Exported for the CHECK grounder (src/query/check-grounder.ts), whose
  *  FALSE-implicant algebra is this NULL-implicant algebra one level up:
  *  same minimization, same bounds, same singleton guarantee. */
 export function minimizeImplicants(sets: number[][]): Implicants {
-  const kept: number[][] = [];
+  const kept: number[][] = []
   // The EMPTY implicant (a literal NULL somewhere in every branch) means
   // "unconditionally NULL" — it sorts first and absorbs everything else.
   const candidates = sets
-    .filter(s => s.length <= MAX_IMPLICANT_SIZE)
-    .map(s => [...new Set(s)].sort((a, b) => a - b))
-    .sort((a, b) => a.length - b.length || a.join(",").localeCompare(b.join(",")));
-  let joints = 0;
+    .filter((s) => s.length <= MAX_IMPLICANT_SIZE)
+    .map((s) => [...new Set(s)].sort((a, b) => a - b))
+    .sort((a, b) => a.length - b.length || a.join(',').localeCompare(b.join(',')))
+  let joints = 0
   for (const s of candidates) {
-    if (kept.some(k => k.every(x => s.includes(x)))) continue; // superset (or dup)
+    if (kept.some((k) => k.every((x) => s.includes(x)))) continue // superset (or dup)
     if (s.length === 1) {
-      kept.push(s);
-      continue;
+      kept.push(s)
+      continue
     }
-    if (joints >= MAX_JOINT_IMPLICANTS) continue;
-    kept.push(s);
-    joints++;
+    if (joints >= MAX_JOINT_IMPLICANTS) continue
+    kept.push(s)
+    joints++
   }
-  return kept;
+  return kept
 }
 
 /** Implicants of "every input NULL": pairwise unions across the lists. */
 export function crossUnion(lists: Implicants[]): Implicants {
-  if (lists.length === 0) return [];
+  if (lists.length === 0) return []
   return lists.reduce((acc, next) => {
-    if (acc.length === 0 || next.length === 0) return [];
-    const out: number[][] = [];
-    for (const a of acc) for (const b of next) out.push([...a, ...b]);
-    return minimizeImplicants(out);
-  });
+    if (acc.length === 0 || next.length === 0) return []
+    const out: number[][] = []
+    for (const a of acc) for (const b of next) out.push([...a, ...b])
+    return minimizeImplicants(out)
+  })
 }
 
 /** Implicants of "any input NULL": concatenation, minimized. */
 export function unionLists(lists: Implicants[]): Implicants {
-  return minimizeImplicants(lists.flat());
+  return minimizeImplicants(lists.flat())
 }
 
 function singletonsOf(implicants: Implicants): Set<number> {
-  return new Set(implicants.filter(s => s.length === 1).map(s => s[0]!));
+  return new Set(implicants.filter((s) => s.length === 1).map((s) => s[0]!))
 }
 
 /**
@@ -318,7 +318,7 @@ export function forcedNullParams(
   catalog: NullabilityCatalog,
   ctx?: AliasContext,
 ): Set<number> {
-  return singletonsOf(forcedNullBy(node, catalog, ctx, false));
+  return singletonsOf(forcedNullBy(node, catalog, ctx, false))
 }
 
 /**
@@ -336,7 +336,7 @@ export function forcedNullImplicantsAnyRow(
   ctx?: AliasContext,
   target?: WriteTarget,
 ): Implicants {
-  return forcedNullBy(node, catalog, ctx, true, target);
+  return forcedNullBy(node, catalog, ctx, true, target)
 }
 
 /** The existential face's singleton projection (kept for the walk). */
@@ -345,7 +345,7 @@ export function forcedNullParamsAnyRow(
   catalog: NullabilityCatalog,
   ctx?: AliasContext,
 ): Set<number> {
-  return singletonsOf(forcedNullBy(node, catalog, ctx, true));
+  return singletonsOf(forcedNullBy(node, catalog, ctx, true))
 }
 
 /**
@@ -370,13 +370,13 @@ function contextFreeTypeSet(
   catalog: NullabilityCatalog,
   target?: WriteTarget,
 ): string[] | null {
-  if (!node || typeof node !== "object") return null;
-  const n = node as Record<string, unknown>;
+  if (!node || typeof node !== 'object') return null
+  const n = node as Record<string, unknown>
 
-  const cr = n["ColumnRef"] as { fields?: Node[] } | undefined;
+  const cr = n['ColumnRef'] as { fields?: Node[] } | undefined
   if (cr) {
-    if (!target) return null;
-    const fields = (cr.fields ?? []).map(stringVal);
+    if (!target) return null
+    const fields = (cr.fields ?? []).map(stringVal)
     // `v` or `t.v`, where `t` is how this statement spells its target. A
     // longer path is a schema-qualified reference to something else, and a
     // star is no column at all.
@@ -385,69 +385,65 @@ function contextFreeTypeSet(
         ? fields[0]
         : fields.length === 2 && fields[0] === target.alias
           ? fields[1]
-          : undefined;
-    if (!name) return null;
-    const typeName = catalog.resolveColumnTypeName(target.schema, target.table, name);
-    return typeName ? [typeName] : null;
+          : undefined
+    if (!name) return null
+    const typeName = catalog.resolveColumnTypeName(target.schema, target.table, name)
+    return typeName ? [typeName] : null
   }
-  const ac = n["A_Const"] as
-    | { ival?: unknown; boolval?: unknown; fval?: { fval?: string } }
-    | undefined;
+  const ac = n['A_Const'] as
+    { ival?: unknown; boolval?: unknown; fval?: { fval?: string } } | undefined
   if (ac) {
-    if ("ival" in ac) return ["integer"];
-    if ("boolval" in ac) return ["boolean"];
-    if ("fval" in ac) {
-      const digits = ac.fval?.fval ?? "";
+    if ('ival' in ac) return ['integer']
+    if ('boolval' in ac) return ['boolean']
+    if ('fval' in ac) {
+      const digits = ac.fval?.fval ?? ''
       return /^[0-9]+$/.test(digits) &&
-        (digits.length < 19 || (digits.length === 19 && digits <= "9223372036854775807"))
-        ? ["bigint"]
-        : ["numeric"];
+        (digits.length < 19 || (digits.length === 19 && digits <= '9223372036854775807'))
+        ? ['bigint']
+        : ['numeric']
     }
-    return null;
+    return null
   }
-  const tc = n["TypeCast"] as
-    | { typeName?: { names?: Node[]; arrayBounds?: unknown[] } }
-    | undefined;
+  const tc = n['TypeCast'] as { typeName?: { names?: Node[]; arrayBounds?: unknown[] } } | undefined
   if (tc) {
-    const parts = (tc.typeName?.names ?? [])
-      .map(stringVal)
-      .filter(p => !!p && p !== "pg_catalog");
-    if (!parts.length) return null;
-    return [parts.join(".") + (tc.typeName?.arrayBounds?.length ? "[]" : "")];
+    const parts = (tc.typeName?.names ?? []).map(stringVal).filter((p) => !!p && p !== 'pg_catalog')
+    if (!parts.length) return null
+    return [parts.join('.') + (tc.typeName?.arrayBounds?.length ? '[]' : '')]
   }
-  const arr = n["A_ArrayExpr"] as { elements?: Node[] } | undefined;
+  const arr = n['A_ArrayExpr'] as { elements?: Node[] } | undefined
   if (arr) {
     // The trivial common type only: every element the SAME singleton. The
     // full promotion rules stay a declined non-goal.
-    const els = (arr.elements ?? []).map(e => contextFreeTypeSet(e, catalog, target));
-    if (els.length > 0 && els.every(e => e !== null && e.length === 1 && e[0] === els[0]![0])) {
-      return [`${els[0]![0]}[]`];
+    const els = (arr.elements ?? []).map((e) => contextFreeTypeSet(e, catalog, target))
+    if (els.length > 0 && els.every((e) => e !== null && e.length === 1 && e[0] === els[0]![0])) {
+      return [`${els[0]![0]}[]`]
     }
-    return null;
+    return null
   }
-  const ae = n["A_Expr"] as
-    | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
-    | undefined;
-  if (ae && (ae.kind === undefined || ae.kind === "AEXPR_OP")) {
-    const parts = (ae.name ?? []).map(stringVal);
-    const op = parts[parts.length - 1] ?? "";
-    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+  const ae = n['A_Expr'] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node } | undefined
+  if (ae && (ae.kind === undefined || ae.kind === 'AEXPR_OP')) {
+    const parts = (ae.name ?? []).map(stringVal)
+    const op = parts[parts.length - 1] ?? ''
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
     if (ae.lexpr && ae.rexpr) {
       const r = catalog.resolveOperatorTotality(
-        schema, op,
+        schema,
+        op,
         contextFreeTypeSet(ae.lexpr, catalog, target),
         contextFreeTypeSet(ae.rexpr, catalog, target),
-      );
-      return r.kind === "unknown" ? null : r.returns;
+      )
+      return r.kind === 'unknown' ? null : r.returns
     }
     if (!ae.lexpr && ae.rexpr) {
       const r = catalog.resolveUnaryOperatorTotality(
-        schema, op, contextFreeTypeSet(ae.rexpr, catalog, target),
-      );
-      return r.kind === "unknown" ? null : r.returns;
+        schema,
+        op,
+        contextFreeTypeSet(ae.rexpr, catalog, target),
+      )
+      return r.kind === 'unknown' ? null : r.returns
     }
   }
-  return null;
+  return null
 }
 
 function forcedNullBy(
@@ -457,20 +453,20 @@ function forcedNullBy(
   anyRow: boolean,
   target?: WriteTarget,
 ): Implicants {
-  const none: Implicants = [];
-  if (!node || typeof node !== "object") return none;
-  const n = node as Record<string, unknown>;
+  const none: Implicants = []
+  if (!node || typeof node !== 'object') return none
+  const n = node as Record<string, unknown>
 
-  const direct = paramNumberOf(n);
-  if (direct !== null) return [[direct]];
+  const direct = paramNumberOf(n)
+  if (direct !== null) return [[direct]]
 
   // The NULL literal is unconditionally NULL: the empty implicant, which
   // survives cross-unions untouched (it adds no members) and is skipped by
   // every consumer that attributes to parameters. A non-null constant has
   // NO implicants, which zeroes out any cross-union it joins — the branch
   // that can never be forced NULL protects the whole COALESCE/CASE.
-  if (n["A_Const"]) {
-    return (n["A_Const"] as { isnull?: boolean }).isnull ? [[]] : none;
+  if (n['A_Const']) {
+    return (n['A_Const'] as { isnull?: boolean }).isnull ? [[]] : none
   }
 
   // A derived-table column: attribute through its defining expressions,
@@ -479,35 +475,35 @@ function forcedNullBy(
   // projection is the old intersection), "some row forces" a plain union.
   // The recursion drops the context: a defining expression cannot reference
   // its own alias, and deeper nesting stays conservative.
-  if (n["ColumnRef"] && ctx) {
-    const fields = ((n["ColumnRef"] as { fields?: Node[] }).fields ?? []).map(stringVal);
-    let cols: Map<string, Node[]> | undefined;
-    let colName: string | undefined;
+  if (n['ColumnRef'] && ctx) {
+    const fields = ((n['ColumnRef'] as { fields?: Node[] }).fields ?? []).map(stringVal)
+    let cols: Map<string, Node[]> | undefined
+    let colName: string | undefined
     if (fields.length === 2) {
-      cols = ctx.get(fields[0]!);
-      colName = fields[1];
+      cols = ctx.get(fields[0]!)
+      colName = fields[1]
     } else if (fields.length === 1 && ctx.size === 1) {
-      cols = [...ctx.values()][0];
-      colName = fields[0];
+      cols = [...ctx.values()][0]
+      colName = fields[0]
     }
-    const defs = colName ? cols?.get(colName) : undefined;
+    const defs = colName ? cols?.get(colName) : undefined
     if (defs?.length) {
-      const perRow = defs.map(d => forcedNullBy(d, catalog, undefined, anyRow, target));
-      return anyRow ? unionLists(perRow) : crossUnion(perRow);
+      const perRow = defs.map((d) => forcedNullBy(d, catalog, undefined, anyRow, target))
+      return anyRow ? unionLists(perRow) : crossUnion(perRow)
     }
-    return none;
+    return none
   }
 
-  if (n["TypeCast"]) {
-    return forcedNullBy((n["TypeCast"] as { arg?: Node }).arg, catalog, ctx, anyRow, target);
+  if (n['TypeCast']) {
+    return forcedNullBy((n['TypeCast'] as { arg?: Node }).arg, catalog, ctx, anyRow, target)
   }
 
-  if (n["A_Expr"]) {
-    const ae = n["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
-    if (ae.kind === "AEXPR_NULLIF") return forcedNullBy(ae.lexpr, catalog, ctx, anyRow, target);
-    const parts = (ae.name ?? []).map(stringVal);
-    const op = parts[parts.length - 1] ?? "";
-    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+  if (n['A_Expr']) {
+    const ae = n['A_Expr'] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+    if (ae.kind === 'AEXPR_NULLIF') return forcedNullBy(ae.lexpr, catalog, ctx, anyRow, target)
+    const parts = (ae.name ?? []).map(stringVal)
+    const op = parts[parts.length - 1] ?? ''
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
     // Typed first: SOME-quantified strictness over the merged candidate
     // set — over-reporting only over-tightens a parameter, so falling back
     // to the bare-name rule (with its recorded `||` over-report) stays this
@@ -515,28 +511,31 @@ function forcedNullBy(
     // non-strict, so `ARRAY[1,2] || $1` now correctly declines to
     // attribute.
     const typedStrict = catalog.resolveOperatorStrictnessSome(
-      schema, op,
+      schema,
+      op,
       contextFreeTypeSet(ae.lexpr, catalog, target),
       contextFreeTypeSet(ae.rexpr, catalog, target),
-    );
+    )
     const strict =
       typedStrict !== null
         ? typedStrict
         : (parts.length === 1 && STRICT_OPERATORS.has(op)) ||
-          (catalog.resolveOperatorMetadata(schema, op)?.strict ?? false);
-    if (ae.kind === "AEXPR_OP" && strict) {
-      return unionLists([ae.lexpr, ae.rexpr].map(o => forcedNullBy(o, catalog, ctx, anyRow, target)));
+          (catalog.resolveOperatorMetadata(schema, op)?.strict ?? false)
+    if (ae.kind === 'AEXPR_OP' && strict) {
+      return unionLists(
+        [ae.lexpr, ae.rexpr].map((o) => forcedNullBy(o, catalog, ctx, anyRow, target)),
+      )
     }
-    return none;
+    return none
   }
 
   // NULL only when EVERY branch is — the joint-fact source: neither $1 nor
   // $2 alone forces COALESCE($1, $2), but together they do, and the
   // cross-union is where that set is born.
-  if (n["CoalesceExpr"]) {
-    const args = (n["CoalesceExpr"] as { args?: Node[] }).args ?? [];
-    if (args.length === 0) return none;
-    return crossUnion(args.map(a => forcedNullBy(a, catalog, ctx, anyRow, target)));
+  if (n['CoalesceExpr']) {
+    const args = (n['CoalesceExpr'] as { args?: Node[] }).args ?? []
+    if (args.length === 0) return none
+    return crossUnion(args.map((a) => forcedNullBy(a, catalog, ctx, anyRow, target)))
   }
 
   // CASE is NULL only when the SELECTED arm's result is — and covering
@@ -545,57 +544,57 @@ function forcedNullBy(
   // reasoning about the conditions at all. `CASE WHEN $1 IS NOT NULL THEN
   // $1 ELSE $2 END` is COALESCE($1, $2) in different clothes and yields
   // the same {1, 2}. Simple CASE (with arg) works identically.
-  if (n["CaseExpr"]) {
-    const ce = n["CaseExpr"] as { args?: Node[]; defresult?: Node };
-    const results = (ce.args ?? []).map(w =>
+  if (n['CaseExpr']) {
+    const ce = n['CaseExpr'] as { args?: Node[]; defresult?: Node }
+    const results = (ce.args ?? []).map((w) =>
       forcedNullBy(
-        ((w as Record<string, unknown>)["CaseWhen"] as { result?: Node } | undefined)?.result,
+        ((w as Record<string, unknown>)['CaseWhen'] as { result?: Node } | undefined)?.result,
         catalog,
         ctx,
         anyRow,
         target,
       ),
-    );
-    results.push(ce.defresult ? forcedNullBy(ce.defresult, catalog, ctx, anyRow, target) : [[]]);
-    return crossUnion(results);
+    )
+    results.push(ce.defresult ? forcedNullBy(ce.defresult, catalog, ctx, anyRow, target) : [[]])
+    return crossUnion(results)
   }
 
-  if (n["FuncCall"]) {
-    const fc = n["FuncCall"] as {
-      funcname?: Node[];
-      args?: Node[];
-      over?: unknown;
-      agg_star?: boolean;
-    };
-    if (fc.over || fc.agg_star) return none;
-    const parts = (fc.funcname ?? []).map(stringVal);
-    const name = parts[parts.length - 1];
-    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
-    if (!name) return none;
+  if (n['FuncCall']) {
+    const fc = n['FuncCall'] as {
+      funcname?: Node[]
+      args?: Node[]
+      over?: unknown
+      agg_star?: boolean
+    }
+    if (fc.over || fc.agg_star) return none
+    const parts = (fc.funcname ?? []).map(stringVal)
+    const name = parts[parts.length - 1]
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
+    if (!name) return none
     // A catalog entry gates on its own declared strictness (a user function
     // always wins over a builtin name); only a name the catalog does not
     // carry falls through to the measured strict-builtin set.
-    const info = catalog.resolveFunctionMetadata(schema, name);
-    let strict: boolean;
+    const info = catalog.resolveFunctionMetadata(schema, name)
+    let strict: boolean
     if (info) {
-      strict = info.strict && !info.isAggregate;
+      strict = info.strict && !info.isAggregate
     } else {
-      const candidates = catalog.resolveFunctionCandidates(schema, name, (fc.args ?? []).length);
+      const candidates = catalog.resolveFunctionCandidates(schema, name, (fc.args ?? []).length)
       strict =
         candidates && candidates.length > 0
-          ? candidates.every(c => c.strict && !c.isAggregate)
-          : (schema === undefined || schema === "pg_catalog") && catalog.isStrictBuiltin(name);
+          ? candidates.every((c) => c.strict && !c.isAggregate)
+          : (schema === undefined || schema === 'pg_catalog') && catalog.isStrictBuiltin(name)
     }
-    if (!strict) return none;
-    const perArg: Implicants[] = [];
+    if (!strict) return none
+    const perArg: Implicants[] = []
     for (const arg of fc.args ?? []) {
-      if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return none;
-      perArg.push(forcedNullBy(arg, catalog, ctx, anyRow, target));
+      if ((arg as { NamedArgExpr?: unknown }).NamedArgExpr) return none
+      perArg.push(forcedNullBy(arg, catalog, ctx, anyRow, target))
     }
-    return unionLists(perArg);
+    return unionLists(perArg)
   }
 
-  return none;
+  return none
 }
 
 /**
@@ -606,7 +605,7 @@ function forcedNullBy(
  * is a real raise the local analysis cannot otherwise see (pinned in
  * param-mechanism.test.ts).
  */
-type AliasContext = Map<string, Map<string, Node[]>>;
+type AliasContext = Map<string, Map<string, Node[]>>
 
 /**
  * The statement's own write target, for TYPING a column operand.
@@ -621,10 +620,10 @@ type AliasContext = Map<string, Map<string, Node[]>>;
  * catalog call away — no FROM analysis, no join tree, no search-path work.
  */
 interface WriteTarget {
-  schema: string;
-  table: string;
+  schema: string
+  table: string
   /** The relation's alias if it carries one, else its own name. */
-  alias: string;
+  alias: string
 }
 
 /**
@@ -637,68 +636,71 @@ interface WriteTarget {
  * ever see them.
  */
 function derivedTableCols(node: unknown): { alias: string; cols: Map<string, Node[]> } | null {
-  const rs = (node as { RangeSubselect?: Record<string, unknown> } | null)?.RangeSubselect;
-  if (!rs) return null;
-  const alias = (rs["alias"] as { aliasname?: string; colnames?: Node[] } | undefined) ?? {};
-  if (!alias.aliasname) return null;
-  const select = (rs["subquery"] as { SelectStmt?: Record<string, unknown> } | undefined)
-    ?.SelectStmt;
-  if (!select) return null;
+  const rs = (node as { RangeSubselect?: Record<string, unknown> } | null)?.RangeSubselect
+  if (!rs) return null
+  const alias = (rs['alias'] as { aliasname?: string; colnames?: Node[] } | undefined) ?? {}
+  if (!alias.aliasname) return null
+  const select = (rs['subquery'] as { SelectStmt?: Record<string, unknown> } | undefined)
+    ?.SelectStmt
+  if (!select) return null
 
-  const aliasNames = alias.colnames?.map(stringVal);
-  const cols = new Map<string, Node[]>();
+  const aliasNames = alias.colnames?.map(stringVal)
+  const cols = new Map<string, Node[]>()
   const put = (name: string | undefined, index: number, expr: Node | undefined): void => {
-    const finalName = aliasNames?.[index] ?? name;
-    if (!finalName || !expr) return;
-    const defs = cols.get(finalName) ?? [];
-    defs.push(expr);
-    cols.set(finalName, defs);
-  };
+    const finalName = aliasNames?.[index] ?? name
+    if (!finalName || !expr) return
+    const defs = cols.get(finalName) ?? []
+    defs.push(expr)
+    cols.set(finalName, defs)
+  }
 
-  const valuesLists = select["valuesLists"] as Node[] | undefined;
+  const valuesLists = select['valuesLists'] as Node[] | undefined
   if (valuesLists?.length) {
-    if (!aliasNames) return null; // VALUES columns have no names of their own
+    if (!aliasNames) return null // VALUES columns have no names of their own
     for (const row of valuesLists) {
-      const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
-      items.forEach((item, i) => put(undefined, i, item));
+      const items = (row as { List?: { items?: Node[] } }).List?.items ?? []
+      items.forEach((item, i) => put(undefined, i, item))
     }
-    return { alias: alias.aliasname, cols };
+    return { alias: alias.aliasname, cols }
   }
 
-  if (select["op"] !== "SETOP_NONE") return null;
-  const targetList = (select["targetList"] as Node[] | undefined) ?? [];
+  if (select['op'] !== 'SETOP_NONE') return null
+  const targetList = (select['targetList'] as Node[] | undefined) ?? []
   for (const [i, item] of targetList.entries()) {
-    const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-    if (rt?.val && (rt.val as { ColumnRef?: { fields?: Node[] } }).ColumnRef?.fields?.some(
-      f => !!(f as { A_Star?: unknown }).A_Star,
-    )) {
-      return null; // star expansion shifts every later position
+    const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+    if (
+      rt?.val &&
+      (rt.val as { ColumnRef?: { fields?: Node[] } }).ColumnRef?.fields?.some(
+        (f) => !!(f as { A_Star?: unknown }).A_Star,
+      )
+    ) {
+      return null // star expansion shifts every later position
     }
-    put(rt?.name, i, rt?.val);
+    put(rt?.name, i, rt?.val)
   }
-  return { alias: alias.aliasname, cols };
+  return { alias: alias.aliasname, cols }
 }
 
 /** Every derived table among a list of from-items (including inside joins). */
 function aliasContextOf(items: Node[] | undefined): AliasContext | undefined {
-  if (!items?.length) return undefined;
-  const ctx: AliasContext = new Map();
+  if (!items?.length) return undefined
+  const ctx: AliasContext = new Map()
   const scan = (node: unknown): void => {
-    if (Array.isArray(node)) return node.forEach(scan);
-    if (!node || typeof node !== "object") return;
-    const derived = derivedTableCols(node);
+    if (Array.isArray(node)) return node.forEach(scan)
+    if (!node || typeof node !== 'object') return
+    const derived = derivedTableCols(node)
     if (derived) {
-      ctx.set(derived.alias, derived.cols);
-      return; // one level: no nesting into the derived table itself
+      ctx.set(derived.alias, derived.cols)
+      return // one level: no nesting into the derived table itself
     }
-    const je = (node as { JoinExpr?: { larg?: Node; rarg?: Node } }).JoinExpr;
+    const je = (node as { JoinExpr?: { larg?: Node; rarg?: Node } }).JoinExpr
     if (je) {
-      scan(je.larg);
-      scan(je.rarg);
+      scan(je.larg)
+      scan(je.rarg)
     }
-  };
-  scan(items);
-  return ctx.size ? ctx : undefined;
+  }
+  scan(items)
+  return ctx.size ? ctx : undefined
 }
 
 /** Value-flow (mechanism C) into a rejecting site: everything but a direct
@@ -710,25 +712,25 @@ function rejectFlow(
   target?: WriteTarget,
 ): void {
   // Value flow is evaluated, so a never-executed subtree flows nothing.
-  if (c.bindOnly) return;
-  if (!expr || paramNumberOf(expr) !== null) return;
+  if (c.bindOnly) return
+  if (!expr || paramNumberOf(expr) !== null) return
   for (const implicant of forcedNullImplicantsAnyRow(expr, c.catalog, ctx, target)) {
     // The empty implicant (a literal NULL reaching a rejecting site) is a
     // static always-raise, not a parameter fact: no binding avoids it, so
     // there is nothing to claim about any parameter.
-    if (implicant.length === 0) continue;
-    if (implicant.length === 1) reject(c, implicant[0]!, "flow");
-    else c.jointRejected.push(implicant);
+    if (implicant.length === 0) continue
+    if (implicant.length === 1) reject(c, implicant[0]!, 'flow')
+    else c.jointRejected.push(implicant)
   }
 }
 
 function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): void {
-  if (!castTargetIsNotNullDomain(c, tc.typeName)) return;
-  const num = paramNumberOf(tc.arg);
+  if (!castTargetIsNotNullDomain(c, tc.typeName)) return
+  const num = paramNumberOf(tc.arg)
   // A direct operand is TYPED as the domain (mechanism A); an expression
   // operand stays base-typed and only its VALUE hits the coercion (C).
-  if (num !== null) reject(c, num, "domain");
-  else rejectFlow(c, tc.arg);
+  if (num !== null) reject(c, num, 'domain')
+  else rejectFlow(c, tc.arg)
 }
 
 /**
@@ -766,22 +768,28 @@ export const BUILTIN_NULL_REJECTING_ARGS: ReadonlyMap<
   ReadonlyMap<number, readonly number[]>
 > = new Map([
   // "dimension array or low bound array cannot be null"
-  ["array_fill", new Map([[2, [2]], [3, [2, 3]]])],
+  [
+    'array_fill',
+    new Map([
+      [2, [2]],
+      [3, [2, 3]],
+    ]),
+  ],
   // "initial position must not be null" — the three-argument form only; the
   // two-argument one has no such position.
-  ["array_position", new Map([[3, [3]]])],
+  ['array_position', new Map([[3, [3]]])],
   // "range constructor flags argument must not be null" — the same third
   // argument across every range type's three-argument constructor.
-  ["daterange", new Map([[3, [3]]])],
-  ["int4range", new Map([[3, [3]]])],
-  ["int8range", new Map([[3, [3]]])],
-  ["numrange", new Map([[3, [3]]])],
-  ["tsrange", new Map([[3, [3]]])],
-  ["tstzrange", new Map([[3, [3]]])],
+  ['daterange', new Map([[3, [3]]])],
+  ['int4range', new Map([[3, [3]]])],
+  ['int8range', new Map([[3, [3]]])],
+  ['numrange', new Map([[3, [3]]])],
+  ['tsrange', new Map([[3, [3]]])],
+  ['tstzrange', new Map([[3, [3]]])],
   // "null_value_treatment must be \"delete_key\", \"return_target\",
   // \"use_json_null\", or \"raise_exception\"" — NULL is not one of them.
-  ["jsonb_set_lax", new Map([[5, [5]]])],
-]);
+  ['jsonb_set_lax', new Map([[5, [5]]])],
+])
 
 /**
  * The same mechanism one level IN: array-typed builtin positions that reject a
@@ -809,11 +817,17 @@ export const BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS: ReadonlyMap<
   ReadonlyMap<number, readonly number[]>
 > = new Map([
   // "dimension values cannot be null"
-  ["array_fill", new Map([[2, [2]], [3, [2, 3]]])],
+  [
+    'array_fill',
+    new Map([
+      [2, [2]],
+      [3, [2, 3]],
+    ]),
+  ],
   // "path element at position N is null" — and note the whole-argument table
   // does NOT carry this position, which is the point of having two.
-  ["jsonb_set_lax", new Map([[5, [2]]])],
-]);
+  ['jsonb_set_lax', new Map([[5, [2]]])],
+])
 
 /**
  * Mechanism D's rejecting positions for this call, or null when the name is
@@ -832,41 +846,42 @@ function builtinRejectingPositions(
   name: string,
   argCount: number,
 ): readonly number[] | null {
-  if (schema !== undefined && schema !== "pg_catalog") return null;
-  const byArity = table.get(name);
-  if (!byArity) return null;
-  if (c.catalog.resolveFunctionMetadata(schema, name)) return null;
-  if ((c.catalog.resolveFunctionCandidates(schema, name, argCount) ?? []).length > 0) return null;
-  return byArity.get(argCount) ?? null;
+  if (schema !== undefined && schema !== 'pg_catalog') return null
+  const byArity = table.get(name)
+  if (!byArity) return null
+  if (c.catalog.resolveFunctionMetadata(schema, name)) return null
+  if ((c.catalog.resolveFunctionCandidates(schema, name, argCount) ?? []).length > 0) return null
+  return byArity.get(argCount) ?? null
 }
 
-function checkFuncCall(
-  c: Collector,
-  fc: { funcname?: Node[]; args?: Node[] },
-): void {
-  if (!fc.args?.length) return;
+function checkFuncCall(c: Collector, fc: { funcname?: Node[]; args?: Node[] }): void {
+  if (!fc.args?.length) return
 
-  const parts = (fc.funcname ?? []).map(stringVal);
-  const name = parts[parts.length - 1];
-  const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
-  if (!name) return;
+  const parts = (fc.funcname ?? []).map(stringVal)
+  const name = parts[parts.length - 1]
+  const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
+  if (!name) return
 
   // Named notation shifts positions and degrades to nullable.
-  if (fc.args.some(a => !!(a as { NamedArgExpr?: unknown }).NamedArgExpr)) return;
+  if (fc.args.some((a) => !!(a as { NamedArgExpr?: unknown }).NamedArgExpr)) return
 
   // Mechanism D, before the declared-type reading below: these positions are
   // rejected by the implementation rather than by a domain, so nothing in the
   // candidates' declared types would show it.
-  const argCount = fc.args.length;
+  const argCount = fc.args.length
   const rejecting = builtinRejectingPositions(
-    c, BUILTIN_NULL_REJECTING_ARGS, schema, name, argCount,
-  );
+    c,
+    BUILTIN_NULL_REJECTING_ARGS,
+    schema,
+    name,
+    argCount,
+  )
   for (const position of rejecting ?? []) {
-    const arg = fc.args[position - 1];
-    if (!arg) continue;
-    const num = paramNumberOf(arg);
-    if (num !== null) reject(c, num, "builtin-arg");
-    else rejectFlow(c, arg);
+    const arg = fc.args[position - 1]
+    if (!arg) continue
+    const num = paramNumberOf(arg)
+    if (num !== null) reject(c, num, 'builtin-arg')
+    else rejectFlow(c, arg)
   }
 
   // The same one level in. Only an ARRAY CONSTRUCTOR exposes its elements as
@@ -874,14 +889,18 @@ function checkFuncCall(
   // walk cannot see, and a claim there would be about the binding's VALUE
   // rather than its nullness.
   const rejectingElements = builtinRejectingPositions(
-    c, BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS, schema, name, argCount,
-  );
+    c,
+    BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS,
+    schema,
+    name,
+    argCount,
+  )
   for (const position of rejectingElements ?? []) {
-    const arg = fc.args[position - 1] as { A_ArrayExpr?: { elements?: Node[] } } | undefined;
+    const arg = fc.args[position - 1] as { A_ArrayExpr?: { elements?: Node[] } } | undefined
     for (const element of arg?.A_ArrayExpr?.elements ?? []) {
-      const num = paramNumberOf(element);
-      if (num !== null) reject(c, num, "builtin-arg");
-      else rejectFlow(c, element);
+      const num = paramNumberOf(element)
+      if (num !== null) reject(c, num, 'builtin-arg')
+      else rejectFlow(c, element)
     }
   }
 
@@ -891,27 +910,27 @@ function checkFuncCall(
   // PostgreSQL resolves (the filter guarantees each candidate has at least
   // argCount inputs). Variadic candidates defeat positional reasoning and
   // resolveFunctionCandidates refuses them wholesale.
-  const info = c.catalog.resolveFunctionMetadata(schema, name);
+  const info = c.catalog.resolveFunctionMetadata(schema, name)
   const candidates = info
-    ? info.args.some(a => a.mode === "variadic")
+    ? info.args.some((a) => a.mode === 'variadic')
       ? []
       : [info]
-    : (c.catalog.resolveFunctionCandidates(schema, name, fc.args.length) ?? []);
-  if (candidates.length === 0) return;
+    : (c.catalog.resolveFunctionCandidates(schema, name, fc.args.length) ?? [])
+  if (candidates.length === 0) return
 
   const inputsOf = (f: (typeof candidates)[number]) =>
-    f.args.filter(a => a.mode === "in" || a.mode === "inout");
+    f.args.filter((a) => a.mode === 'in' || a.mode === 'inout')
 
   fc.args.forEach((arg, i) => {
-    const allDomain = candidates.every(f => {
-      const declared = inputsOf(f)[i];
-      return !!declared && c.catalog.isNotNullDomain(declared.typeOid);
-    });
-    if (!allDomain) return;
-    const num = paramNumberOf(arg);
-    if (num !== null) reject(c, num, "domain");
-    else rejectFlow(c, arg);
-  });
+    const allDomain = candidates.every((f) => {
+      const declared = inputsOf(f)[i]
+      return !!declared && c.catalog.isNotNullDomain(declared.typeOid)
+    })
+    if (!allDomain) return
+    const num = paramNumberOf(arg)
+    if (num !== null) reject(c, num, 'domain')
+    else rejectFlow(c, arg)
+  })
 }
 
 /**
@@ -923,13 +942,13 @@ function insertTargetColumns(
   relation: { schemaname?: string; relname?: string } | undefined,
   cols: Node[] | undefined,
 ): { schema: string; table: string; columns: string[] } | null {
-  if (!relation?.relname) return null;
-  const table = c.catalog.resolveTable(relation.schemaname, relation.relname);
-  if (!table) return null;
+  if (!relation?.relname) return null
+  const table = c.catalog.resolveTable(relation.schemaname, relation.relname)
+  if (!table) return null
   const columns = cols
-    ? cols.map(col => (col as { ResTarget?: { name?: string } }).ResTarget?.name ?? "")
-    : table.columns;
-  return { schema: table.schema, table: table.name, columns };
+    ? cols.map((col) => (col as { ResTarget?: { name?: string } }).ResTarget?.name ?? '')
+    : table.columns
+  return { schema: table.schema, table: table.name, columns }
 }
 
 /**
@@ -945,18 +964,18 @@ function insertTargetColumns(
  * there is evidence about a parameter, so nothing is claimed.
  */
 function multiAssignDefinition(val: Node): Node | null {
-  const mar = (val as { MultiAssignRef?: { source?: Node; colno?: number } }).MultiAssignRef;
-  if (!mar?.source || !mar.colno) return null;
-  const sub = (mar.source as { SubLink?: { subLinkType?: string; subselect?: Node } }).SubLink;
+  const mar = (val as { MultiAssignRef?: { source?: Node; colno?: number } }).MultiAssignRef
+  if (!mar?.source || !mar.colno) return null
+  const sub = (mar.source as { SubLink?: { subLinkType?: string; subselect?: Node } }).SubLink
   if (sub) {
-    if (sub.subLinkType !== "EXPR_SUBLINK" || !sub.subselect) return null;
-    const sel = (sub.subselect as { SelectStmt?: Record<string, unknown> }).SelectStmt;
-    if (!sel || sel["op"] !== "SETOP_NONE" || sel["fromClause"] || sel["valuesLists"]) return null;
-    const tl = (sel["targetList"] as Node[] | undefined) ?? [];
-    return (tl[mar.colno - 1] as { ResTarget?: { val?: Node } } | undefined)?.ResTarget?.val ?? null;
+    if (sub.subLinkType !== 'EXPR_SUBLINK' || !sub.subselect) return null
+    const sel = (sub.subselect as { SelectStmt?: Record<string, unknown> }).SelectStmt
+    if (!sel || sel['op'] !== 'SETOP_NONE' || sel['fromClause'] || sel['valuesLists']) return null
+    const tl = (sel['targetList'] as Node[] | undefined) ?? []
+    return (tl[mar.colno - 1] as { ResTarget?: { val?: Node } } | undefined)?.ResTarget?.val ?? null
   }
-  const row = (mar.source as { RowExpr?: { args?: Node[] } }).RowExpr;
-  return row?.args?.[mar.colno - 1] ?? null;
+  const row = (mar.source as { RowExpr?: { args?: Node[] } }).RowExpr
+  return row?.args?.[mar.colno - 1] ?? null
 }
 
 /** `SET col = $n` — UPDATE, ON CONFLICT DO UPDATE, and MERGE's update arm. */
@@ -969,11 +988,11 @@ function checkSetClause(
   target?: WriteTarget,
 ): void {
   for (const item of targetList ?? []) {
-    const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-    if (!rt?.name || !rt.val) continue;
-    const mechanism = columnRejection(c, schema, table, rt.name, "update");
-    if (!mechanism) continue;
-    const def = multiAssignDefinition(rt.val);
+    const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+    if (!rt?.name || !rt.val) continue
+    const mechanism = columnRejection(c, schema, table, rt.name, 'update')
+    if (!mechanism) continue
+    const def = multiAssignDefinition(rt.val)
     if (def) {
       // Through a multi-assignment the parameter is typed by its own use
       // inside the source (a cast, usually), NOT by the target column — so
@@ -983,15 +1002,15 @@ function checkSetClause(
       // discovery instrument's first parameter conviction: the collector
       // previously attributed nothing through MultiAssignRef, and binding
       // NULL to a claimed-nullable parameter raised.
-      const m = mechanism === "domain" ? "constraint" : mechanism;
-      const num = paramNumberOf(def);
-      if (num !== null) reject(c, num, m);
-      else rejectFlow(c, def, ctx, target);
-      continue;
+      const m = mechanism === 'domain' ? 'constraint' : mechanism
+      const num = paramNumberOf(def)
+      if (num !== null) reject(c, num, m)
+      else rejectFlow(c, def, ctx, target)
+      continue
     }
-    const num = paramNumberOf(rt.val);
-    if (num !== null) reject(c, num, mechanism);
-    else rejectFlow(c, rt.val, ctx, target);
+    const num = paramNumberOf(rt.val)
+    if (num !== null) reject(c, num, mechanism)
+    else rejectFlow(c, rt.val, ctx, target)
   }
 }
 
@@ -1008,72 +1027,70 @@ function excludedContext(
   target: { columns: string[] },
   select: Record<string, unknown> | undefined,
 ): AliasContext | undefined {
-  if (!select) return undefined;
-  const cols = new Map<string, Node[]>();
+  if (!select) return undefined
+  const cols = new Map<string, Node[]>()
   const put = (index: number, expr: Node | undefined): void => {
-    const column = target.columns[index];
-    if (!column || !expr) return;
-    const defs = cols.get(column) ?? [];
-    defs.push(expr);
-    cols.set(column, defs);
-  };
-  const valuesLists = select["valuesLists"] as Node[] | undefined;
+    const column = target.columns[index]
+    if (!column || !expr) return
+    const defs = cols.get(column) ?? []
+    defs.push(expr)
+    cols.set(column, defs)
+  }
+  const valuesLists = select['valuesLists'] as Node[] | undefined
   if (valuesLists?.length) {
     for (const row of valuesLists) {
-      const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
-      items.forEach((item, i) => put(i, item));
+      const items = (row as { List?: { items?: Node[] } }).List?.items ?? []
+      items.forEach((item, i) => put(i, item))
     }
-  } else if (select["op"] === "SETOP_NONE") {
-    const targetList = (select["targetList"] as Node[] | undefined) ?? [];
-    targetList.forEach((item, i) =>
-      put(i, (item as { ResTarget?: { val?: Node } }).ResTarget?.val),
-    );
+  } else if (select['op'] === 'SETOP_NONE') {
+    const targetList = (select['targetList'] as Node[] | undefined) ?? []
+    targetList.forEach((item, i) => put(i, (item as { ResTarget?: { val?: Node } }).ResTarget?.val))
   }
-  return cols.size ? new Map([["excluded", cols]]) : undefined;
+  return cols.size ? new Map([['excluded', cols]]) : undefined
 }
 
 function checkInsert(
   c: Collector,
   stmt: {
-    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } };
-    cols?: Node[];
-    selectStmt?: Node;
-    onConflictClause?: { targetList?: Node[] };
+    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } }
+    cols?: Node[]
+    selectStmt?: Node
+    onConflictClause?: { targetList?: Node[] }
   },
 ): void {
-  const target = insertTargetColumns(c, stmt.relation, stmt.cols);
-  if (!target) return;
+  const target = insertTargetColumns(c, stmt.relation, stmt.cols)
+  if (!target) return
 
   const select = (stmt.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
-    ?.SelectStmt;
+    ?.SelectStmt
   // INSERT ... SELECT: source columns from derived tables in the select's
   // FROM attribute through to the target positions.
-  const sourceCtx = aliasContextOf(select?.["fromClause"] as Node[] | undefined);
+  const sourceCtx = aliasContextOf(select?.['fromClause'] as Node[] | undefined)
 
   const rejectAt = (position: number, val: Node | undefined): void => {
-    const column = target.columns[position];
-    if (!column || !val) return;
-    const mechanism = columnRejection(c, target.schema, target.table, column, "insert");
-    if (!mechanism) return;
-    const num = paramNumberOf(val);
-    if (num !== null) reject(c, num, mechanism);
-    else rejectFlow(c, val, sourceCtx);
-  };
+    const column = target.columns[position]
+    if (!column || !val) return
+    const mechanism = columnRejection(c, target.schema, target.table, column, 'insert')
+    if (!mechanism) return
+    const num = paramNumberOf(val)
+    if (num !== null) reject(c, num, mechanism)
+    else rejectFlow(c, val, sourceCtx)
+  }
 
   if (select) {
-    const valuesLists = select["valuesLists"] as Node[] | undefined;
+    const valuesLists = select['valuesLists'] as Node[] | undefined
     for (const row of valuesLists ?? []) {
-      const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
-      items.forEach((item, i) => rejectAt(i, item));
+      const items = (row as { List?: { items?: Node[] } }).List?.items ?? []
+      items.forEach((item, i) => rejectAt(i, item))
     }
     // INSERT ... SELECT: the select list maps positionally onto the target
     // columns. Only the plain shape — a set operation underneath keeps its
     // parameters nullable.
-    if (!valuesLists && select["op"] === "SETOP_NONE") {
-      const targetList = (select["targetList"] as Node[] | undefined) ?? [];
+    if (!valuesLists && select['op'] === 'SETOP_NONE') {
+      const targetList = (select['targetList'] as Node[] | undefined) ?? []
       targetList.forEach((item, i) =>
         rejectAt(i, (item as { ResTarget?: { val?: Node } }).ResTarget?.val),
-      );
+      )
     }
   }
 
@@ -1092,58 +1109,58 @@ function checkInsert(
         table: target.table,
         alias: stmt.relation?.alias?.aliasname ?? stmt.relation?.relname ?? target.table,
       },
-    );
+    )
   }
 }
 
 function checkUpdate(
   c: Collector,
   stmt: {
-    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } };
-    targetList?: Node[];
-    fromClause?: Node[];
+    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } }
+    targetList?: Node[]
+    fromClause?: Node[]
   },
 ): void {
-  if (!stmt.relation?.relname) return;
-  const table = c.catalog.resolveTable(stmt.relation.schemaname, stmt.relation.relname);
-  if (!table) return;
+  if (!stmt.relation?.relname) return
+  const table = c.catalog.resolveTable(stmt.relation.schemaname, stmt.relation.relname)
+  if (!table) return
   checkSetClause(c, stmt.targetList, table.schema, table.name, aliasContextOf(stmt.fromClause), {
     schema: table.schema,
     table: table.name,
     alias: stmt.relation.alias?.aliasname ?? stmt.relation.relname,
-  });
+  })
 }
 
 function checkMerge(
   c: Collector,
   stmt: {
-    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } };
-    sourceRelation?: Node;
-    mergeWhenClauses?: Node[];
+    relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } }
+    sourceRelation?: Node
+    mergeWhenClauses?: Node[]
   },
 ): void {
-  if (!stmt.relation?.relname) return;
-  const table = c.catalog.resolveTable(stmt.relation.schemaname, stmt.relation.relname);
-  if (!table) return;
-  const ctx = aliasContextOf(stmt.sourceRelation ? [stmt.sourceRelation] : undefined);
+  if (!stmt.relation?.relname) return
+  const table = c.catalog.resolveTable(stmt.relation.schemaname, stmt.relation.relname)
+  if (!table) return
+  const ctx = aliasContextOf(stmt.sourceRelation ? [stmt.sourceRelation] : undefined)
   for (const clause of stmt.mergeWhenClauses ?? []) {
     const mwc = (clause as { MergeWhenClause?: { targetList?: Node[]; values?: Node[] } })
-      .MergeWhenClause;
-    if (!mwc) continue;
+      .MergeWhenClause
+    if (!mwc) continue
     if (mwc.values) {
       // The insert arm: targetList names columns, values maps positionally.
       const columns = (mwc.targetList ?? []).map(
-        t => (t as { ResTarget?: { name?: string } }).ResTarget?.name ?? "",
-      );
+        (t) => (t as { ResTarget?: { name?: string } }).ResTarget?.name ?? '',
+      )
       mwc.values.forEach((val, i) => {
-        const column = columns[i];
-        if (!column) return;
-        const mechanism = columnRejection(c, table.schema, table.name, column, "insert");
-        if (!mechanism) return;
-        const num = paramNumberOf(val);
-        if (num !== null) reject(c, num, mechanism);
-        else rejectFlow(c, val, ctx);
-      });
+        const column = columns[i]
+        if (!column) return
+        const mechanism = columnRejection(c, table.schema, table.name, column, 'insert')
+        if (!mechanism) return
+        const num = paramNumberOf(val)
+        if (num !== null) reject(c, num, mechanism)
+        else rejectFlow(c, val, ctx)
+      })
     } else {
       // The update arm: SET col = value pairs.
       // A MERGE update arm's unqualified columns are the TARGET's; the
@@ -1152,7 +1169,7 @@ function checkMerge(
         schema: table.schema,
         table: table.name,
         alias: stmt.relation.alias?.aliasname ?? stmt.relation.relname,
-      });
+      })
     }
   }
 }
@@ -1169,42 +1186,39 @@ function checkMerge(
  * oppositely. WindowDef appears both as FuncCall.over and in the
  * windowClause (named windows), and the generic recursion reaches both.
  */
-function checkWindowDef(
-  c: Collector,
-  wd: { startOffset?: Node; endOffset?: Node },
-): void {
+function checkWindowDef(c: Collector, wd: { startOffset?: Node; endOffset?: Node }): void {
   for (const offset of [wd.startOffset, wd.endOffset]) {
-    if (!offset) continue;
-    const num = paramNumberOf(offset);
-    if (num !== null) reject(c, num, "constraint");
-    else rejectFlow(c, offset);
+    if (!offset) continue
+    const num = paramNumberOf(offset)
+    if (num !== null) reject(c, num, 'constraint')
+    else rejectFlow(c, offset)
   }
 }
 
 function visit(c: Collector, node: unknown): void {
   if (Array.isArray(node)) {
-    for (const n of node) visit(c, n);
-    return;
+    for (const n of node) visit(c, n)
+    return
   }
-  if (!node || typeof node !== "object") return;
-  const obj = node as Record<string, unknown>;
+  if (!node || typeof node !== 'object') return
+  const obj = node as Record<string, unknown>
 
-  const num = paramNumberOf(obj);
-  if (num !== null) c.seen.add(num);
+  const num = paramNumberOf(obj)
+  if (num !== null) c.seen.add(num)
 
-  if (obj["TypeCast"]) checkTypeCast(c, obj["TypeCast"] as Parameters<typeof checkTypeCast>[1]);
-  if (obj["FuncCall"]) {
-    checkFuncCall(c, obj["FuncCall"] as Parameters<typeof checkFuncCall>[1]);
+  if (obj['TypeCast']) checkTypeCast(c, obj['TypeCast'] as Parameters<typeof checkTypeCast>[1])
+  if (obj['FuncCall']) {
+    checkFuncCall(c, obj['FuncCall'] as Parameters<typeof checkFuncCall>[1])
     // `over` is a concrete struct field (`WindowDef *over`), so libpg-query
     // emits it UNWRAPPED — the discriminator branch below never sees it.
     // Named windows in the windowClause DO arrive wrapped.
-    const over = (obj["FuncCall"] as { over?: Parameters<typeof checkWindowDef>[1] }).over;
-    if (over) checkWindowDef(c, over);
+    const over = (obj['FuncCall'] as { over?: Parameters<typeof checkWindowDef>[1] }).over
+    if (over) checkWindowDef(c, over)
   }
-  if (obj["InsertStmt"]) checkInsert(c, obj["InsertStmt"] as Parameters<typeof checkInsert>[1]);
-  if (obj["UpdateStmt"]) checkUpdate(c, obj["UpdateStmt"] as Parameters<typeof checkUpdate>[1]);
-  if (obj["MergeStmt"]) checkMerge(c, obj["MergeStmt"] as Parameters<typeof checkMerge>[1]);
-  if (obj["WindowDef"]) checkWindowDef(c, obj["WindowDef"] as Parameters<typeof checkWindowDef>[1]);
+  if (obj['InsertStmt']) checkInsert(c, obj['InsertStmt'] as Parameters<typeof checkInsert>[1])
+  if (obj['UpdateStmt']) checkUpdate(c, obj['UpdateStmt'] as Parameters<typeof checkUpdate>[1])
+  if (obj['MergeStmt']) checkMerge(c, obj['MergeStmt'] as Parameters<typeof checkMerge>[1])
+  if (obj['WindowDef']) checkWindowDef(c, obj['WindowDef'] as Parameters<typeof checkWindowDef>[1])
 
   // A non-data-modifying CTE nobody references is never executed — in any
   // data state (measured: the frame-offset site inside one accepts the NULL
@@ -1214,15 +1228,15 @@ function visit(c: Collector, node: unknown): void {
   // visitBindOnly). This is the NARROW reading of reachability; the general
   // question (any provably-dead subtree falsifies an execution-time claim)
   // stays open.
-  for (const key of ["SelectStmt", "InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
-    const stmtNode = obj[key] as { withClause?: { ctes?: unknown[] } } | undefined;
+  for (const key of ['SelectStmt', 'InsertStmt', 'UpdateStmt', 'DeleteStmt', 'MergeStmt']) {
+    const stmtNode = obj[key] as { withClause?: { ctes?: unknown[] } } | undefined
     if (stmtNode?.withClause?.ctes?.length) {
-      visitStatementWithCtes(c, stmtNode);
-      return;
+      visitStatementWithCtes(c, stmtNode)
+      return
     }
   }
 
-  for (const v of Object.values(obj)) visit(c, v);
+  for (const v of Object.values(obj)) visit(c, v)
 }
 
 /**
@@ -1235,63 +1249,62 @@ function visit(c: Collector, node: unknown): void {
  * (a same-named table, WITH-in-branch shadowing) merely keeps the old
  * behaviour for that CTE, which only ever ADDS a claim the oracle checks.
  */
-function visitStatementWithCtes(
-  c: Collector,
-  stmt: { withClause?: { ctes?: unknown[] } },
-): void {
+function visitStatementWithCtes(c: Collector, stmt: { withClause?: { ctes?: unknown[] } }): void {
   interface CteItem {
-    name: string;
-    node: unknown;
-    body: unknown;
-    dml: boolean;
+    name: string
+    node: unknown
+    body: unknown
+    dml: boolean
   }
-  const list: CteItem[] = (stmt.withClause?.ctes ?? []).map(n => {
+  const list: CteItem[] = (stmt.withClause?.ctes ?? []).map((n) => {
     const cte = (n as { CommonTableExpr?: { ctename?: string; ctequery?: unknown } })
-      .CommonTableExpr;
-    const body = cte?.ctequery as Record<string, unknown> | undefined;
+      .CommonTableExpr
+    const body = cte?.ctequery as Record<string, unknown> | undefined
     return {
-      name: cte?.ctename ?? "",
+      name: cte?.ctename ?? '',
       node: n,
       body,
       dml:
         !!body &&
-        ("InsertStmt" in body || "UpdateStmt" in body || "DeleteStmt" in body ||
-          "MergeStmt" in body),
-    };
-  });
+        ('InsertStmt' in body ||
+          'UpdateStmt' in body ||
+          'DeleteStmt' in body ||
+          'MergeStmt' in body),
+    }
+  })
 
-  const { withClause: _withClause, ...rest } = stmt as Record<string, unknown>;
-  const referenced = new Set<string>();
-  collectRangeVarNames(rest, referenced);
-  let grew = true;
+  const { withClause: _withClause, ...rest } = stmt as Record<string, unknown>
+  const referenced = new Set<string>()
+  collectRangeVarNames(rest, referenced)
+  let grew = true
   while (grew) {
-    grew = false;
+    grew = false
     for (const cte of list) {
-      if (!cte.dml && !referenced.has(cte.name)) continue;
-      const before = referenced.size;
-      collectRangeVarNames(cte.body, referenced);
-      if (referenced.size > before) grew = true;
+      if (!cte.dml && !referenced.has(cte.name)) continue
+      const before = referenced.size
+      collectRangeVarNames(cte.body, referenced)
+      if (referenced.size > before) grew = true
     }
   }
 
   for (const cte of list) {
-    if (cte.dml || referenced.has(cte.name)) visit(c, cte.node);
-    else visitBindOnly(c, cte.node);
+    if (cte.dml || referenced.has(cte.name)) visit(c, cte.node)
+    else visitBindOnly(c, cte.node)
   }
-  visit(c, rest);
+  visit(c, rest)
 }
 
 /** Every RangeVar relname under `node` — the reference set for the CTE gate. */
 function collectRangeVarNames(node: unknown, out: Set<string>): void {
   if (Array.isArray(node)) {
-    for (const n of node) collectRangeVarNames(n, out);
-    return;
+    for (const n of node) collectRangeVarNames(n, out)
+    return
   }
-  if (!node || typeof node !== "object") return;
-  const obj = node as Record<string, unknown>;
-  const rv = obj["RangeVar"] as { relname?: string } | undefined;
-  if (rv?.relname) out.add(rv.relname);
-  for (const v of Object.values(obj)) collectRangeVarNames(v, out);
+  if (!node || typeof node !== 'object') return
+  const obj = node as Record<string, unknown>
+  const rv = obj['RangeVar'] as { relname?: string } | undefined
+  if (rv?.relname) out.add(rv.relname)
+  for (const v of Object.values(obj)) collectRangeVarNames(v, out)
 }
 
 /**
@@ -1312,12 +1325,12 @@ function collectRangeVarNames(node: unknown, out: Set<string>): void {
  * So the walk runs in full and `reject`/`rejectFlow` do the gating.
  */
 function visitBindOnly(c: Collector, node: unknown): void {
-  const saved = c.bindOnly;
-  c.bindOnly = true;
+  const saved = c.bindOnly
+  c.bindOnly = true
   try {
-    visit(c, node);
+    visit(c, node)
   } finally {
-    c.bindOnly = saved;
+    c.bindOnly = saved
   }
 }
 
@@ -1363,173 +1376,172 @@ function visitBindOnly(c: Collector, node: unknown): void {
  * handled where it already was: `columnRejection` reports nothing for
  * mechanism B on a command with a BEFORE ROW / INSTEAD OF hook.
  */
-export function returningRejectedParams(
-  stmt: Node,
-  catalog: NullabilityCatalog,
-): Set<number> {
+export function returningRejectedParams(stmt: Node, catalog: NullabilityCatalog): Set<number> {
   const c: Collector = {
     catalog,
     seen: new Set(),
     rejected: new Set(),
     jointRejected: [],
     bindRejected: new Set(),
-  };
-  const node = stmt as Record<string, unknown>;
+  }
+  const node = stmt as Record<string, unknown>
   const intersect = (a: Set<number>, b: Set<number>): Set<number> =>
-    new Set([...a].filter(n => b.has(n)));
+    new Set([...a].filter((n) => b.has(n)))
 
   /** What ONE write path rejects, over its (column, value) pairs. */
   const pathRejects = (
     schema: string,
     table: string,
-    command: "insert" | "update",
+    command: 'insert' | 'update',
     pairs: readonly (readonly [string | undefined, Node | undefined])[],
     ctx?: AliasContext,
   ): Set<number> => {
-    const out = new Set<number>();
+    const out = new Set<number>()
     for (const [column, val] of pairs) {
-      if (!column || !val) continue;
-      if (!columnRejection(c, schema, table, column, command)) continue;
-      for (const n of forcedNullParamsAnyRow(val, catalog, ctx)) out.add(n);
+      if (!column || !val) continue
+      if (!columnRejection(c, schema, table, column, command)) continue
+      for (const n of forcedNullParamsAnyRow(val, catalog, ctx)) out.add(n)
     }
-    return out;
-  };
+    return out
+  }
   const setPairs = (
     targetList: Node[] | undefined,
   ): readonly (readonly [string | undefined, Node | undefined])[] =>
-    (targetList ?? []).map(item => {
-      const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+    (targetList ?? []).map((item) => {
+      const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
       // A multi-assignment types the parameter by its own use inside the
       // source rather than by the target column, and `checkSetClause`
       // downgrades it for that reason. The raise still happens at the
       // assignment's coercion, so the path rejects — but only the shapes
       // `multiAssignDefinition` admits are always evaluated.
-      const val = rt?.val ? (multiAssignDefinition(rt.val) ?? rt.val) : undefined;
-      return [rt?.name, val] as const;
-    });
+      const val = rt?.val ? (multiAssignDefinition(rt.val) ?? rt.val) : undefined
+      return [rt?.name, val] as const
+    })
 
-  if ("InsertStmt" in node) {
-    const ins = node["InsertStmt"] as {
-      relation?: { schemaname?: string; relname?: string };
-      cols?: Node[];
-      selectStmt?: Node;
-      onConflictClause?: { action?: string; targetList?: Node[] };
-    };
-    const target = insertTargetColumns(c, ins.relation, ins.cols);
+  if ('InsertStmt' in node) {
+    const ins = node['InsertStmt'] as {
+      relation?: { schemaname?: string; relname?: string }
+      cols?: Node[]
+      selectStmt?: Node
+      onConflictClause?: { action?: string; targetList?: Node[] }
+    }
+    const target = insertTargetColumns(c, ins.relation, ins.cols)
     const select = (ins.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
-      ?.SelectStmt;
-    if (!target || !select) return new Set();
-    const sourceCtx = aliasContextOf(select["fromClause"] as Node[] | undefined);
+      ?.SelectStmt
+    if (!target || !select) return new Set()
+    const sourceCtx = aliasContextOf(select['fromClause'] as Node[] | undefined)
     const positional = (
       items: readonly (Node | undefined)[],
     ): readonly (readonly [string | undefined, Node | undefined])[] =>
-      items.map((val, i) => [target.columns[i], val] as const);
+      items.map((val, i) => [target.columns[i], val] as const)
 
-    let insertPath = new Set<number>();
-    const valuesLists = select["valuesLists"] as Node[] | undefined;
+    let insertPath = new Set<number>()
+    const valuesLists = select['valuesLists'] as Node[] | undefined
     if (valuesLists?.length) {
       for (const row of valuesLists) {
-        const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
+        const items = (row as { List?: { items?: Node[] } }).List?.items ?? []
         for (const n of pathRejects(
-          target.schema, target.table, "insert", positional(items), sourceCtx,
+          target.schema,
+          target.table,
+          'insert',
+          positional(items),
+          sourceCtx,
         )) {
-          insertPath.add(n);
+          insertPath.add(n)
         }
       }
-    } else if (select["op"] === "SETOP_NONE" && select["targetList"]) {
-      const items = ((select["targetList"] as Node[]) ?? []).map(
-        t => (t as { ResTarget?: { val?: Node } }).ResTarget?.val,
-      );
-      insertPath = pathRejects(
-        target.schema, target.table, "insert", positional(items), sourceCtx,
-      );
+    } else if (select['op'] === 'SETOP_NONE' && select['targetList']) {
+      const items = ((select['targetList'] as Node[]) ?? []).map(
+        (t) => (t as { ResTarget?: { val?: Node } }).ResTarget?.val,
+      )
+      insertPath = pathRejects(target.schema, target.table, 'insert', positional(items), sourceCtx)
     } else {
       // A set operation underneath keeps its parameters nullable, matching
       // `checkInsert` — and DEFAULT VALUES writes no parameter at all.
-      return new Set();
+      return new Set()
     }
 
-    const conflict = ins.onConflictClause;
-    if (conflict?.action === "ONCONFLICT_UPDATE") {
+    const conflict = ins.onConflictClause
+    if (conflict?.action === 'ONCONFLICT_UPDATE') {
       return intersect(
         insertPath,
         pathRejects(
           target.schema,
           target.table,
-          "update",
+          'update',
           setPairs(conflict.targetList),
           excludedContext(target, select),
         ),
-      );
+      )
     }
-    return insertPath;
+    return insertPath
   }
 
-  if ("UpdateStmt" in node) {
-    const upd = node["UpdateStmt"] as {
-      relation?: { schemaname?: string; relname?: string };
-      targetList?: Node[];
-      fromClause?: Node[];
-    };
-    if (!upd.relation?.relname) return new Set();
-    const table = catalog.resolveTable(upd.relation.schemaname, upd.relation.relname);
-    if (!table) return new Set();
+  if ('UpdateStmt' in node) {
+    const upd = node['UpdateStmt'] as {
+      relation?: { schemaname?: string; relname?: string }
+      targetList?: Node[]
+      fromClause?: Node[]
+    }
+    if (!upd.relation?.relname) return new Set()
+    const table = catalog.resolveTable(upd.relation.schemaname, upd.relation.relname)
+    if (!table) return new Set()
     return pathRejects(
       table.schema,
       table.name,
-      "update",
+      'update',
       setPairs(upd.targetList),
       aliasContextOf(upd.fromClause),
-    );
+    )
   }
 
-  if ("MergeStmt" in node) {
-    const mrg = node["MergeStmt"] as {
-      relation?: { schemaname?: string; relname?: string };
-      sourceRelation?: Node;
-      mergeWhenClauses?: Node[];
-    };
-    if (!mrg.relation?.relname) return new Set();
-    const table = catalog.resolveTable(mrg.relation.schemaname, mrg.relation.relname);
-    if (!table) return new Set();
-    const ctx = aliasContextOf(mrg.sourceRelation ? [mrg.sourceRelation] : undefined);
-    let acc: Set<number> | null = null;
+  if ('MergeStmt' in node) {
+    const mrg = node['MergeStmt'] as {
+      relation?: { schemaname?: string; relname?: string }
+      sourceRelation?: Node
+      mergeWhenClauses?: Node[]
+    }
+    if (!mrg.relation?.relname) return new Set()
+    const table = catalog.resolveTable(mrg.relation.schemaname, mrg.relation.relname)
+    if (!table) return new Set()
+    const ctx = aliasContextOf(mrg.sourceRelation ? [mrg.sourceRelation] : undefined)
+    let acc: Set<number> | null = null
     for (const clause of mrg.mergeWhenClauses ?? []) {
       const mwc = (
         clause as {
-          MergeWhenClause?: { commandType?: string; targetList?: Node[]; values?: Node[] };
+          MergeWhenClause?: { commandType?: string; targetList?: Node[]; values?: Node[] }
         }
-      ).MergeWhenClause;
-      if (!mwc) continue;
+      ).MergeWhenClause
+      if (!mwc) continue
       // DO NOTHING emits no row, so it constrains nothing. Every other arm
       // does emit one, DELETE included — and DELETE writes nothing, so its
       // empty set collapses the intersection, which is the point.
-      if (mwc.commandType === "CMD_NOTHING") continue;
+      if (mwc.commandType === 'CMD_NOTHING') continue
       const columns = (mwc.targetList ?? []).map(
-        t => (t as { ResTarget?: { name?: string } }).ResTarget?.name,
-      );
+        (t) => (t as { ResTarget?: { name?: string } }).ResTarget?.name,
+      )
       const arm = mwc.values
         ? pathRejects(
             table.schema,
             table.name,
-            "insert",
+            'insert',
             mwc.values.map((val, i) => [columns[i], val] as const),
             ctx,
           )
-        : pathRejects(table.schema, table.name, "update", setPairs(mwc.targetList), ctx);
-      acc = acc === null ? arm : intersect(acc, arm);
+        : pathRejects(table.schema, table.name, 'update', setPairs(mwc.targetList), ctx)
+      acc = acc === null ? arm : intersect(acc, arm)
     }
     // No row-producing arm means no returned row: the claim would be
     // vacuous, and the empty set is the honest floor rather than "all".
-    return acc ?? new Set();
+    return acc ?? new Set()
   }
 
-  return new Set();
+  return new Set()
 }
 
 export interface ParamFacts {
   /** The consumer-facing contract, positional $1..$n. */
-  params: ParamNullability[];
+  params: ParamNullability[]
   /**
    * Minimal JOINT rejection sets, each of size ≥ 2, sorted: binding NULL to
    * EVERY member provably raises, while `params` records only the singleton
@@ -1541,7 +1553,7 @@ export interface ParamFacts {
    * flag or fully-NULLs a set; the engine's promise stays one-directional
    * (claims mean raises; absence of a claim promises nothing).
    */
-  rejectionSets: number[][];
+  rejectionSets: number[][]
   /**
    * Parameters rejected at Bind (mechanism A): their resolved type is a NOT
    * NULL domain, so a NULL binding raises before any execution — meaning any
@@ -1549,7 +1561,7 @@ export interface ParamFacts {
    * output walk to narrow a projected `ParamRef` to notNull. Deliberately
    * NOT the whole of `rejected`: see the field comment on `Collector`.
    */
-  bindRejected: Set<number>;
+  bindRejected: Set<number>
 }
 
 /**
@@ -1560,12 +1572,12 @@ export interface ParamFacts {
  * E-claim can never license output narrowing.
  */
 export interface MechanismEClaims {
-  rejected: ReadonlySet<number>;
-  joint: readonly (readonly number[])[];
+  rejected: ReadonlySet<number>
+  joint: readonly (readonly number[])[]
   /** A universal write event's grounded CHECK is FALSE outright — the
    *  statement rejects on every execution. Carried through to
    *  `QueryContract.alwaysRaises`; no parameter fact rides on it. */
-  alwaysRaises: boolean;
+  alwaysRaises: boolean
 }
 
 /**
@@ -1584,25 +1596,25 @@ export function collectParamFacts(
     rejected: new Set(),
     jointRejected: [],
     bindRejected: new Set(),
-  };
-  visit(c, stmt);
-  if (mechanismE) {
-    for (const num of mechanismE.rejected) c.rejected.add(num);
-    for (const set of mechanismE.joint) c.jointRejected.push([...set]);
   }
-  const max = Math.max(0, ...c.seen, ...c.rejected);
-  const params: ParamNullability[] = [];
+  visit(c, stmt)
+  if (mechanismE) {
+    for (const num of mechanismE.rejected) c.rejected.add(num)
+    for (const set of mechanismE.joint) c.jointRejected.push([...set])
+  }
+  const max = Math.max(0, ...c.seen, ...c.rejected)
+  const params: ParamNullability[] = []
   for (let number = 1; number <= max; number++) {
-    params.push({ number, notNull: c.rejected.has(number) });
+    params.push({ number, notNull: c.rejected.has(number) })
   }
   // A set containing an individually rejected parameter is absorbed: the
   // singleton claim already forbids every binding the set would. What
   // remains is minimized across sites (several sites can contribute the
   // same or overlapping sets).
   const rejectionSets = minimizeImplicants(
-    c.jointRejected.filter(s => !s.some(p => c.rejected.has(p))),
-  ).filter(s => s.length >= 2);
-  return { params, rejectionSets, bindRejected: c.bindRejected };
+    c.jointRejected.filter((s) => !s.some((p) => c.rejected.has(p))),
+  ).filter((s) => s.length >= 2)
+  return { params, rejectionSets, bindRejected: c.bindRejected }
 }
 
 /** The consumer-facing contract alone. */
@@ -1610,5 +1622,5 @@ export function collectParamNullability(
   stmt: Node,
   catalog: NullabilityCatalog,
 ): ParamNullability[] {
-  return collectParamFacts(stmt, catalog).params;
+  return collectParamFacts(stmt, catalog).params
 }
