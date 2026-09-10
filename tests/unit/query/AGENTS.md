@@ -72,10 +72,7 @@ whether a file may be authored by hand are directory-local facts.
     ├─ probe-values.ts                shared adversarial values and database
     │                                 setup for builtin probes (required)
     │
-    ├─ rung-cooccurrence.json         the monotonic baseline for query-analysis
-    │                                 interaction reach (required)
-    │
-    ├─ rung-cooccurrence.ts           the shared query-rung interaction
+    ├─ rung-cooccurrence.ts           the isolated-world query-rung interaction
     │                                 measurement harness (required)
     │
     ├─ rung-extractor.ts              the source-derived trace-decision
@@ -99,13 +96,6 @@ Keep this worker directly loadable by Node without a
 TypeScript loader. It owns the isolated PGlite execution half of the killable
 evaluator protocol; timeout policy and lifecycle orchestration remain in the
 TypeScript parent.
-
-## `rung-cooccurrence.json` — the monotonic baseline for query-analysis interaction reach
-
-Treat this as an executable ratchet, not hand-authored
-project documentation. Regenerate it through the rung co-occurrence harness,
-review the measured change, and never lower the stored reach to accommodate an
-unexplained loss.
 
 ## `[test].test.ts` — an executable query-analysis test suite
 

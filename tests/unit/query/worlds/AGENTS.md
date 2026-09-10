@@ -65,22 +65,28 @@ each part was written.
 #### The other half: did the world buy anything?
 
 Health says a world is not collapsing. It does not say the world was worth
-building. That question is `tests/unit/query/rung-cooccurrence.test.ts`, which
-counts which PAIRS of engine decisions ever fired while analysing one
-statement — because nearly every decision already fires alone, and what the
-sweeps actually found were rules breaking when another rule fed them.
+building. The rung-reach aggregate counts which engine decisions, and which
+PAIRS of decisions, fire while analysing each world's statements. Nearly every
+decision already fires somewhere; compositions between them remain the useful
+frontier.
 
 ```
-COOCCURRENCE_REPORT=1 pnpm exec vitest run tests/unit/query/rung-cooccurrence.test.ts
+pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \
+  --rule 'worlds/[...world]/rung-reach.sql.mjs' --no-cache
 ```
 
-It measures the shared corpus and this one separately, and `CORPUS=shared` or
-`CORPUS=worlds` narrows it to one. **Read the `worlds-only` row.** That is the
-composition the shared corpus does not already have, and a world that moves
-nothing there bought nothing, however healthy it is.
+Every world must exercise at least nine rungs and eighteen pairs. The distinct
+pair union across this directory must hold eighteen pairs for the first world
+and grow by four for every additional world. Repeating an existing world's
+engine paths therefore cannot admit another world merely by satisfying the
+schema-health rules.
 
-Expect the rung column to stay at zero. Individual decisions are saturated by
-the shared corpus; pairs are not, and pairs are the frontier.
+The shared fixture corpus is excluded completely. It is frozen input and does
+not participate in either the measurement or its ratchets.
+
+Presence-group inference and joint parameter rejection run outside the column
+trace that supplies these rungs. Their independent fixture declarations and
+executable contracts remain the gate for those mechanisms.
 
 #### The two shape reports
 
@@ -335,11 +341,11 @@ Only governed paths matching `*/*.sql` under this constraint's scope are selecte
 
 This constraint analyzes all matching files as one group.
 
-Report how many query-analysis decision rungs and rung
-pairs each isolated world exercises, how much each adds beyond the shared
-corpus, and the averages across worlds. This is an advisory census until its
-measurements establish meaningful floors. Presence-group and joint-parameter
-mechanisms do not emit column-trace conclusions and are outside this census.
+Require every isolated world to exercise at least nine
+query-analysis decision rungs and eighteen rung pairs. Across the worlds, the
+distinct pair union must contain at least eighteen pairs plus four for every
+world after the first. Presence-group and joint-parameter mechanisms do not
+emit column-trace conclusions and are outside this constraint.
 
 #### world-health
 

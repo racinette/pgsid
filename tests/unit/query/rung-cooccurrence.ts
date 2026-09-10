@@ -6,8 +6,6 @@ import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
 import { inferNullabilityTraced } from '../../../src/query/nullability-walk.js'
 import type { TraceNode } from '../../../src/query/types.js'
 import { catalogCache } from './fixture-catalog.js'
-import { parseFixtureDirectives } from './fixture-args.js'
-import { GRAMMAR_SAMPLER } from './grammar-sampler.js'
 import { createKillableEvaluator } from './killable-evaluator.js'
 import { extractConcludeRungs, matchRung, type RungPattern } from './rung-extractor.js'
 
@@ -28,7 +26,6 @@ export interface WorldCorpus {
 
 export interface RungReach {
   patterns: RungPattern[]
-  shared: RungSource
   worlds: RungSource[]
 }
 
@@ -36,7 +33,6 @@ type ReadCorpusFile = (path: string) => Promise<string>
 
 interface Unit {
   sql: string
-  searchPath: string[] | null
 }
 
 export function emptyRungSource(label: string): RungSource {
@@ -98,9 +94,11 @@ async function runCorpus(
   }
 
   const catalogFor = catalogCache(snapshot)
+  const catalog = await catalogFor(null)
   const evaluator = await createKillableEvaluator({ schema: schemaSql })
   try {
-    for (const { sql, searchPath } of units) {
+    await evaluator.setSearchPath(null)
+    for (const { sql } of units) {
       let statement
       try {
         statement = (await parseSql(sql)).stmts?.[0]?.stmt
@@ -109,8 +107,6 @@ async function runCorpus(
       }
       if (!statement) continue
 
-      const catalog = await catalogFor(searchPath)
-      await evaluator.setSearchPath(searchPath)
       const fired = new Set<string>()
       try {
         const columns = await inferNullabilityTraced(statement, catalog, undefined, {
@@ -140,39 +136,22 @@ function fixturePaths(paths: string[]): string[] {
 
 export async function measureRungReach({
   read,
-  sharedPaths = [],
   worlds = [],
 }: {
   read: ReadCorpusFile
-  sharedPaths?: string[]
   worlds?: WorldCorpus[]
 }): Promise<RungReach> {
   const patterns = extractConcludeRungs(readFileSync(WALK_SOURCE, 'utf8')).patterns
-  let shared = emptyRungSource('shared')
-
-  const sharedSchema = schemaPath(sharedPaths)
-  if (sharedSchema !== undefined) {
-    const units: Unit[] = [
-      ...GRAMMAR_SAMPLER.map((sql) => ({ sql, searchPath: null })),
-      ...(await Promise.all(
-        fixturePaths(sharedPaths).map(async (path) => {
-          const sql = await read(path)
-          return { sql, searchPath: parseFixtureDirectives(sql).searchPath }
-        }),
-      )),
-    ]
-    shared = await runCorpus('shared', await read(sharedSchema), units, patterns)
-  }
 
   const measuredWorlds: RungSource[] = []
   for (const world of [...worlds].sort((left, right) => left.name.localeCompare(right.name))) {
     const schema = schemaPath(world.paths)
     if (schema === undefined) continue
     const units = await Promise.all(
-      fixturePaths(world.paths).map(async (path) => ({ sql: await read(path), searchPath: null })),
+      fixturePaths(world.paths).map(async (path) => ({ sql: await read(path) })),
     )
     measuredWorlds.push(await runCorpus(world.name, await read(schema), units, patterns))
   }
 
-  return { patterns, shared, worlds: measuredWorlds }
+  return { patterns, worlds: measuredWorlds }
 }
