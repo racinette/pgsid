@@ -35,7 +35,7 @@
     "@types/node": "^22.10.0",
     "@types/picomatch": "^4.0.3",
     "eslint": "^9.20.0",
-    "espalier": "github:racinette/espalier#329161ab0abe855a0cb7f01d18fc5309300c758a",
+    "espalier": "github:racinette/espalier#a0171515b4e6dffaa286003b7e512e9632ffb964",
     "prettier": "^3.4.0",
     "tsup": "^8.4.0",
     "tsx": "^4.20.3",

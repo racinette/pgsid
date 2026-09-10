@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -104,6 +104,7 @@ export const SQLC_MACRO_RE = /@\w+|sqlc\.(arg|narg|embed|slice)\b/;
 
 export function loadSqlcCases(): SqlcCase[] {
   return readdirSync(CORPUS_DIR)
+    .filter(name => statSync(join(CORPUS_DIR, name)).isDirectory())
     .sort()
     .map(name => {
       const dir = join(CORPUS_DIR, name);

@@ -329,6 +329,18 @@ Example: worlds/shipping/legs-outer.sql
 
 These rules apply to all SQL files under this directory.
 
+#### rung-reach
+
+Only governed paths matching `*/*.sql` under this constraint's scope are selected.
+
+This constraint analyzes all matching files as one group.
+
+Report how many query-analysis decision rungs and rung
+pairs each isolated world exercises, how much each adds beyond the shared
+corpus, and the averages across worlds. This is an advisory census until its
+measurements establish meaningful floors. Presence-group and joint-parameter
+mechanisms do not emit column-trace conclusions and are outside this census.
+
 #### world-health
 
 Only governed paths matching `*/*.sql` under this constraint's scope are selected.

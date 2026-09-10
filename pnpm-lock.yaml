@@ -58,8 +58,8 @@ importers:
         specifier: ^9.20.0
         version: 9.39.5
       espalier:
-        specifier: github:racinette/espalier#329161ab0abe855a0cb7f01d18fc5309300c758a
-        version: https://codeload.github.com/racinette/espalier/tar.gz/329161ab0abe855a0cb7f01d18fc5309300c758a
+        specifier: github:racinette/espalier#a0171515b4e6dffaa286003b7e512e9632ffb964
+        version: https://codeload.github.com/racinette/espalier/tar.gz/a0171515b4e6dffaa286003b7e512e9632ffb964
       prettier:
         specifier: ^3.4.0
         version: 3.9.5
@@ -899,10 +899,10 @@ packages:
       jiti:
         optional: true
 
-  espalier@https://codeload.github.com/racinette/espalier/tar.gz/329161ab0abe855a0cb7f01d18fc5309300c758a:
-    resolution: {tarball: https://codeload.github.com/racinette/espalier/tar.gz/329161ab0abe855a0cb7f01d18fc5309300c758a}
-    version: 0.1.0
-    engines: {node: '>=20'}
+  espalier@https://codeload.github.com/racinette/espalier/tar.gz/a0171515b4e6dffaa286003b7e512e9632ffb964:
+    resolution: {tarball: https://codeload.github.com/racinette/espalier/tar.gz/a0171515b4e6dffaa286003b7e512e9632ffb964}
+    version: 0.2.0
+    engines: {node: '>=24'}
     hasBin: true
 
   espree@10.4.0:
@@ -2197,7 +2197,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  espalier@https://codeload.github.com/racinette/espalier/tar.gz/329161ab0abe855a0cb7f01d18fc5309300c758a:
+  espalier@https://codeload.github.com/racinette/espalier/tar.gz/a0171515b4e6dffaa286003b7e512e9632ffb964:
     dependencies:
       ignore: 7.0.6
       yaml: 2.9.0
