@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
-import { parseSql } from "../../../src/ast.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { inferNullability } from "../../../src/query/nullability-walk.js";
-import type { OutputNullability } from "../../../src/query/types.js";
-import { catalogCache, type CatalogFor } from "./fixture-catalog.js";
-import { parseFixtureDirectives } from "./fixture-args.js";
-import { createKillableEvaluator } from "./killable-evaluator.js";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { PGlite } from '@electric-sql/pglite'
+import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
+import { parseSql } from '../../../src/ast.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { inferNullability } from '../../../src/query/nullability-walk.js'
+import type { OutputNullability } from '../../../src/query/types.js'
+import { catalogCache, type CatalogFor } from './fixture-catalog.js'
+import { parseFixtureDirectives } from './fixture-args.js'
+import { createKillableEvaluator } from './killable-evaluator.js'
 
 // ---------------------------------------------------------------------------
 // Wrap invariance — a verdict must not WEAKEN across a semantics-preserving
@@ -78,53 +78,53 @@ import { createKillableEvaluator } from "./killable-evaluator.js";
 // @unwitnessable. A growing allowlist is the finding, not noise.
 // ---------------------------------------------------------------------------
 
-const FIXTURES_DIR = join(__dirname, "fixtures");
+const FIXTURES_DIR = join(__dirname, 'fixtures')
 
 /** `file#i (name)` → the adjudicated reason the crossing may erase the claim. */
-const WRAP_ALLOWED: Record<string, string> = {};
+const WRAP_ALLOWED: Record<string, string> = {}
 
 /** Skips, pinned by name so the corpus cannot silently shrink out of scope. */
-const SKIP_KINDS = ["dml", "params", "unparseable-wrapped"] as const;
-type SkipKind = (typeof SKIP_KINDS)[number];
+const SKIP_KINDS = ['dml', 'params', 'unparseable-wrapped'] as const
+type SkipKind = (typeof SKIP_KINDS)[number]
 
-describe("wrap invariance (wrappers 1–2: subselect, CTE)", () => {
-  const divergences = new Map<string, string>();
-  const skipped = new Map<SkipKind, string[]>(SKIP_KINDS.map(k => [k, []]));
-  let compared = 0;
-  let columnsCompared = 0;
+describe('wrap invariance (wrappers 1–2: subselect, CTE)', () => {
+  const divergences = new Map<string, string>()
+  const skipped = new Map<SkipKind, string[]>(SKIP_KINDS.map((k) => [k, []]))
+  let compared = 0
+  let columnsCompared = 0
   /** file → error, for wrapped analyses that THREW where bare did not. */
-  const wrappedRefusals: string[] = [];
+  const wrappedRefusals: string[] = []
 
   beforeAll(async () => {
-    const pg = await PGlite.create({ extensions: { plpgsql_check } });
-    await pg.exec("CREATE EXTENSION plpgsql_check;");
-    const schemaSql = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
-    await pg.exec(schemaSql);
-    const snapshot = await snapshotCatalog(pg);
-    await pg.close();
-    const catalogFor: CatalogFor = catalogCache(snapshot);
-    const evaluator = await createKillableEvaluator({ schema: schemaSql });
+    const pg = await PGlite.create({ extensions: { plpgsql_check } })
+    await pg.exec('CREATE EXTENSION plpgsql_check;')
+    const schemaSql = readFileSync(join(FIXTURES_DIR, 'schema.sql'), 'utf8')
+    await pg.exec(schemaSql)
+    const snapshot = await snapshotCatalog(pg)
+    await pg.close()
+    const catalogFor: CatalogFor = catalogCache(snapshot)
+    const evaluator = await createKillableEvaluator({ schema: schemaSql })
 
     for (const file of readdirSync(FIXTURES_DIR)
-      .filter(f => f.endsWith(".sql") && f !== "schema.sql")
+      .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
       .sort()) {
-      const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-      const directives = parseFixtureDirectives(sql);
+      const sql = readFileSync(join(FIXTURES_DIR, file), 'utf8')
+      const directives = parseFixtureDirectives(sql)
 
-      let stmt;
+      let stmt
       try {
-        stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
+        stmt = (await parseSql(sql)).stmts?.[0]?.stmt
       } catch {
-        continue; // the base suites own parse failures
+        continue // the base suites own parse failures
       }
-      if (!stmt) continue;
-      if (!("SelectStmt" in (stmt as Record<string, unknown>))) {
-        skipped.get("dml")!.push(file);
-        continue;
+      if (!stmt) continue
+      if (!('SelectStmt' in (stmt as Record<string, unknown>))) {
+        skipped.get('dml')!.push(file)
+        continue
       }
       if (/\$\d/.test(sql)) {
-        skipped.get("params")!.push(file);
-        continue;
+        skipped.get('params')!.push(file)
+        continue
       }
 
       // The raw text is embedded whole — comments included — so the wrapped
@@ -132,113 +132,111 @@ describe("wrap invariance (wrappers 1–2: subselect, CTE)", () => {
       // down. The newline before the close paren keeps a trailing `-- …`
       // comment from swallowing it.
       const wrappers: [string, string][] = [
-        ["subselect", `SELECT * FROM (\n${sql}\n) wrap_w`],
-        ["cte", `WITH wrap_w AS (\n${sql}\n) SELECT * FROM wrap_w`],
-      ];
+        ['subselect', `SELECT * FROM (\n${sql}\n) wrap_w`],
+        ['cte', `WITH wrap_w AS (\n${sql}\n) SELECT * FROM wrap_w`],
+      ]
 
-      const catalog = await catalogFor(directives.searchPath);
-      await evaluator.setSearchPath(directives.searchPath);
-      const options = { evaluate: evaluator.evaluate };
+      const catalog = await catalogFor(directives.searchPath)
+      await evaluator.setSearchPath(directives.searchPath)
+      const options = { evaluate: evaluator.evaluate }
 
-      let bare: OutputNullability[];
+      let bare: OutputNullability[]
       try {
-        bare = await inferNullability(stmt, catalog, options);
+        bare = await inferNullability(stmt, catalog, options)
       } catch {
-        continue; // a refusal of the bare statement is the base suites' business
+        continue // a refusal of the bare statement is the base suites' business
       }
 
-      compared++;
+      compared++
       for (const [wrapper, wrappedSql] of wrappers) {
-        let wrappedStmt;
+        let wrappedStmt
         try {
-          wrappedStmt = (await parseSql(wrappedSql)).stmts?.[0]?.stmt;
-          if (!wrappedStmt) throw new Error("no statement");
+          wrappedStmt = (await parseSql(wrappedSql)).stmts?.[0]?.stmt
+          if (!wrappedStmt) throw new Error('no statement')
         } catch {
-          skipped.get("unparseable-wrapped")!.push(`${file} (${wrapper})`);
-          continue;
+          skipped.get('unparseable-wrapped')!.push(`${file} (${wrapper})`)
+          continue
         }
-        let wrapped: OutputNullability[];
+        let wrapped: OutputNullability[]
         try {
-          wrapped = await inferNullability(wrappedStmt, catalog, options);
+          wrapped = await inferNullability(wrappedStmt, catalog, options)
         } catch (e) {
-          wrappedRefusals.push(`${file} (${wrapper}): ${(e as Error).message.slice(0, 100)}`);
-          continue;
+          wrappedRefusals.push(`${file} (${wrapper}): ${(e as Error).message.slice(0, 100)}`)
+          continue
         }
 
         if (bare.length !== wrapped.length) {
           divergences.set(
             `${file} (${wrapper} shape)`,
             `bare ${bare.length} columns, wrapped ${wrapped.length}`,
-          );
-          continue;
+          )
+          continue
         }
         for (let i = 0; i < bare.length; i++) {
-          columnsCompared++;
-          const b = bare[i]!;
-          const w = wrapped[i]!;
-          const key = `${file}#${i} (${b.name}) [${wrapper}]`;
+          columnsCompared++
+          const b = bare[i]!
+          const w = wrapped[i]!
+          const key = `${file}#${i} (${b.name}) [${wrapper}]`
           if (b.notNull && !w.notNull) {
-            divergences.set(key, "notNull weakened to nullable across the wrapper");
+            divergences.set(key, 'notNull weakened to nullable across the wrapper')
           } else if (b.alwaysNull && !w.alwaysNull) {
-            divergences.set(key, "alwaysNull lost across the wrapper");
+            divergences.set(key, 'alwaysNull lost across the wrapper')
           }
         }
       }
     }
-    await evaluator.close();
-  }, 600_000);
+    await evaluator.close()
+  }, 600_000)
 
   afterAll(() => {
     console.log(
       `\nwrap invariance: ${compared} fixtures × 2 analyses, ${columnsCompared} columns — ` +
         `${divergences.size} divergence(s), skips: ` +
-        SKIP_KINDS.map(k => `${k}=${skipped.get(k)!.length}`).join(", "),
-    );
+        SKIP_KINDS.map((k) => `${k}=${skipped.get(k)!.length}`).join(', '),
+    )
     if (process.env.WRAP_INVARIANCE_REPORT) {
       console.log(
-        `\ndivergences:\n` +
-          [...divergences.entries()].map(([k, v]) => `  ${k} — ${v}`).join("\n"),
-      );
+        `\ndivergences:\n` + [...divergences.entries()].map(([k, v]) => `  ${k} — ${v}`).join('\n'),
+      )
       console.log(
-        `\nskips:\n` +
-          SKIP_KINDS.map(k => `  ${k}: ${skipped.get(k)!.join(", ")}`).join("\n"),
-      );
+        `\nskips:\n` + SKIP_KINDS.map((k) => `  ${k}: ${skipped.get(k)!.join(', ')}`).join('\n'),
+      )
     }
-  });
+  })
 
-  it("no verdict weakens across the wrapper, except the allowlisted crossings", () => {
+  it('no verdict weakens across the wrapper, except the allowlisted crossings', () => {
     const unexplained = [...divergences.entries()]
       .filter(([key]) => !WRAP_ALLOWED[key])
       .map(([key, what]) => `${key} — ${what}`)
-      .sort();
+      .sort()
     expect(
       unexplained,
       `Claims the subselect wrapper erased. Each is a representation crossing ` +
         `dropping a fact the engine had already proven — the August bug class. ` +
         `Fix the crossing (AGENTS.md rule 1: capture RED, fix, graduate), or ` +
         `allowlist BY NAME with the adjudicated reason the erasure is ` +
-        `principled:\n  ${unexplained.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `principled:\n  ${unexplained.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every allowlist entry still names a live divergence", () => {
+  it('every allowlist entry still names a live divergence', () => {
     const stale = Object.keys(WRAP_ALLOWED)
-      .filter(key => !divergences.has(key))
-      .sort();
+      .filter((key) => !divergences.has(key))
+      .sort()
     expect(
       stale,
       `Allowlisted crossings that no longer diverge — the loss was fixed; ` +
-        `drop the entry so the fix cannot silently regress:\n  ${stale.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `drop the entry so the fix cannot silently regress:\n  ${stale.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("the wrapper never turns an analysable statement into a refusal", () => {
-    expect(wrappedRefusals).toEqual([]);
-  });
+  it('the wrapper never turns an analysable statement into a refusal', () => {
+    expect(wrappedRefusals).toEqual([])
+  })
 
-  it("the comparison actually ran", () => {
+  it('the comparison actually ran', () => {
     // Vacuity guard: a filter bug that skipped everything would pass every
     // assertion above.
-    expect(compared).toBeGreaterThan(300);
-  });
-});
+    expect(compared).toBeGreaterThan(300)
+  })
+})

@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import type { CatalogSnapshot } from "../../../src/catalog/types.js";
-import { FEATURES, type Category, type CensusEnv } from "./catalog-features.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullability, inferQueryContract } from "../../../src/query/nullability-walk.js";
-import { parseSql } from "../../../src/ast.js";
-import { spyOnCatalog, catalogMembers } from "./catalog-spy.js";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { PGlite } from '@electric-sql/pglite'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import type { CatalogSnapshot } from '../../../src/catalog/types.js'
+import { FEATURES, type Category, type CensusEnv } from './catalog-features.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import { inferNullability, inferQueryContract } from '../../../src/query/nullability-walk.js'
+import { parseSql } from '../../../src/ast.js'
+import { spyOnCatalog, catalogMembers } from './catalog-spy.js'
 import {
   DEP_CATALOG_ONLY,
   EVALUATION_CATALOG_ONLY,
   OVERLOAD_CATALOG_ONLY,
-} from "../../../src/query/types.js";
-import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
+} from '../../../src/query/types.js'
+import { GRAMMAR_SAMPLER } from './grammar-sampler.js'
 
 // ---------------------------------------------------------------------------
 // Catalog-feature census.
@@ -88,122 +88,159 @@ import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 // ---------------------------------------------------------------------------
 
 interface EnumValue {
-  meaning: string;
+  meaning: string
   /** No entity in the live catalog carries it; the note says what it needs. */
-  absent?: string;
+  absent?: string
 }
 
 interface EnumeratedColumn {
   /** Returns one `v` column: every distinct value the live catalog carries. */
-  sql: string;
-  values: Record<string, EnumValue>;
+  sql: string
+  values: Record<string, EnumValue>
 }
 
 const ENUMERATED_COLUMNS: Record<string, EnumeratedColumn> = {
-  "pg_type.typtype": {
-    sql: "SELECT DISTINCT typtype::text AS v FROM pg_type",
+  'pg_type.typtype': {
+    sql: 'SELECT DISTINCT typtype::text AS v FROM pg_type',
     values: {
-      b: { meaning: "base type — the ordinary scalar case" },
-      c: { meaning: "composite; resolveCompositeType's own predicate, and every relation's row type" },
-      d: { meaning: "domain; the NOT NULL carrier and the thing resolveDomainBaseTypeName sees through" },
-      e: { meaning: "enum — shipment_state; captured in CatalogSnapshot.enums and an ordinary scalar to the walk" },
-      m: { meaning: "multirange — PG14+; a scalar to the walk, like a range" },
-      p: { meaning: "pseudo-type; note that builtinPolymorphicFunctions keys on THIS, which is wider than polymorphic (it admits trigger, void, cstring, record, internal)" },
+      b: { meaning: 'base type — the ordinary scalar case' },
+      c: {
+        meaning: "composite; resolveCompositeType's own predicate, and every relation's row type",
+      },
+      d: {
+        meaning:
+          'domain; the NOT NULL carrier and the thing resolveDomainBaseTypeName sees through',
+      },
+      e: {
+        meaning:
+          'enum — shipment_state; captured in CatalogSnapshot.enums and an ordinary scalar to the walk',
+      },
+      m: { meaning: 'multirange — PG14+; a scalar to the walk, like a range' },
+      p: {
+        meaning:
+          'pseudo-type; note that builtinPolymorphicFunctions keys on THIS, which is wider than polymorphic (it admits trigger, void, cstring, record, internal)',
+      },
       r: { meaning: "range; the `range-type-column` feature's type" },
     },
   },
-  "pg_class.relkind": {
-    sql: "SELECT DISTINCT relkind::text AS v FROM pg_class",
+  'pg_class.relkind': {
+    sql: 'SELECT DISTINCT relkind::text AS v FROM pg_class',
     values: {
       r: { meaning: "ordinary table — TableInfo.relkind 'r'" },
       p: { meaning: "partitioned table — resolveIsPartitioned's whole question" },
-      f: { meaning: "foreign table", absent: "see the `foreign-table` feature" },
-      v: { meaning: "view — analysed through viewAsts" },
-      m: { meaning: "materialized view — warehouse_totals; ViewInfo like a view, and it holds its own rows so the data states refresh it" },
-      c: { meaning: "composite type's relation row — captured as a compositeType, never as a table" },
-      i: { meaning: "index — IndexInfo; the nullability engine reads none of it" },
-      I: { meaning: "partitioned index — sw4_pp's PRIMARY KEY, which is what makes a key onto a partitioned parent expressible at all; the walk reads none of it" },
-      S: { meaning: "sequence — SequenceInfo; unread by the walk" },
-      t: { meaning: "TOAST table — never captured" },
+      f: { meaning: 'foreign table', absent: 'see the `foreign-table` feature' },
+      v: { meaning: 'view — analysed through viewAsts' },
+      m: {
+        meaning:
+          'materialized view — warehouse_totals; ViewInfo like a view, and it holds its own rows so the data states refresh it',
+      },
+      c: {
+        meaning: "composite type's relation row — captured as a compositeType, never as a table",
+      },
+      i: { meaning: 'index — IndexInfo; the nullability engine reads none of it' },
+      I: {
+        meaning:
+          "partitioned index — sw4_pp's PRIMARY KEY, which is what makes a key onto a partitioned parent expressible at all; the walk reads none of it",
+      },
+      S: { meaning: 'sequence — SequenceInfo; unread by the walk' },
+      t: { meaning: 'TOAST table — never captured' },
     },
   },
-  "pg_proc.prokind": {
-    sql: "SELECT DISTINCT prokind::text AS v FROM pg_proc",
+  'pg_proc.prokind': {
+    sql: 'SELECT DISTINCT prokind::text AS v FROM pg_proc',
     values: {
-      f: { meaning: "plain function — every builtin environment set filters on this" },
-      a: { meaning: "aggregate — FunctionInfo.isAggregate, and the INITCOND question" },
-      w: { meaning: "window function — FunctionInfo.isWindow" },
-      p: { meaning: "procedure — close_shipment; no SELECT has a call site for it, so it is a snapshot branch rather than a walk one" },
+      f: { meaning: 'plain function — every builtin environment set filters on this' },
+      a: { meaning: 'aggregate — FunctionInfo.isAggregate, and the INITCOND question' },
+      w: { meaning: 'window function — FunctionInfo.isWindow' },
+      p: {
+        meaning:
+          'procedure — close_shipment; no SELECT has a call site for it, so it is a snapshot branch rather than a walk one',
+      },
     },
   },
-  "pg_constraint.contype": {
-    sql: "SELECT DISTINCT contype::text AS v FROM pg_constraint",
+  'pg_constraint.contype': {
+    sql: 'SELECT DISTINCT contype::text AS v FROM pg_constraint',
     values: {
       c: { meaning: "check — the entailment kernel's input" },
       f: { meaning: "foreign key — the entailment's input and four gates" },
-      n: { meaning: "PG18 NOT NULL constraint row; folded into \"check\" by mapConstraintType and filtered by parsed node type" },
-      p: { meaning: "primary key" },
+      n: {
+        meaning:
+          'PG18 NOT NULL constraint row; folded into "check" by mapConstraintType and filtered by parsed node type',
+      },
+      p: { meaning: 'primary key' },
       u: {
         meaning:
           "unique. Observed — but only in pg_catalog's own relations, which is where the two halves of this suite part company: this map asks what the PostgreSQL VERSION produces, and the `unique-constraint` feature asks what the FIXTURE SCHEMA carries. It answers no",
       },
-      x: { meaning: "exclusion — dock_slots forbids double-booking a slot; captured and unread" },
-      t: { meaning: "constraint trigger", absent: "no CREATE CONSTRAINT TRIGGER; write hooks are read from pg_trigger, not from here" },
+      x: { meaning: 'exclusion — dock_slots forbids double-booking a slot; captured and unread' },
+      t: {
+        meaning: 'constraint trigger',
+        absent: 'no CREATE CONSTRAINT TRIGGER; write hooks are read from pg_trigger, not from here',
+      },
     },
   },
-  "pg_proc.proargmodes": {
-    sql: "SELECT DISTINCT unnest(proargmodes)::text AS v FROM pg_proc WHERE proargmodes IS NOT NULL",
+  'pg_proc.proargmodes': {
+    sql: 'SELECT DISTINCT unnest(proargmodes)::text AS v FROM pg_proc WHERE proargmodes IS NOT NULL',
     values: {
       i: { meaning: "IN — ArgMode 'in'" },
-      o: { meaning: "OUT — what functionOutputColumns reads" },
-      b: { meaning: "INOUT — an input for the arity filter and an output column for functionOutputColumns, in one declaration" },
-      v: { meaning: "VARIADIC — the candidate set resolveFunctionCandidates refuses outright" },
+      o: { meaning: 'OUT — what functionOutputColumns reads' },
+      b: {
+        meaning:
+          'INOUT — an input for the arity filter and an output column for functionOutputColumns, in one declaration',
+      },
+      v: { meaning: 'VARIADIC — the candidate set resolveFunctionCandidates refuses outright' },
       t: { meaning: "TABLE — RETURNS TABLE(…)'s output columns" },
     },
   },
-  "pg_attribute.attgenerated": {
-    sql: "SELECT DISTINCT attgenerated::text AS v FROM pg_attribute",
+  'pg_attribute.attgenerated': {
+    sql: 'SELECT DISTINCT attgenerated::text AS v FROM pg_attribute',
     values: {
-      "": { meaning: "not generated — ColumnInfo.generated 'none'" },
+      '': { meaning: "not generated — ColumnInfo.generated 'none'" },
       s: { meaning: "STORED — resolveGenerationExpr's subject" },
-      v: { meaning: "VIRTUAL (PG18) — shipment_tracking.weight_g; ColumnInfo.generated carries it and the generation-expression path treats it as STORED" },
+      v: {
+        meaning:
+          'VIRTUAL (PG18) — shipment_tracking.weight_g; ColumnInfo.generated carries it and the generation-expression path treats it as STORED',
+      },
     },
   },
-  "pg_attribute.attidentity": {
-    sql: "SELECT DISTINCT attidentity::text AS v FROM pg_attribute",
+  'pg_attribute.attidentity': {
+    sql: 'SELECT DISTINCT attidentity::text AS v FROM pg_attribute',
     values: {
-      "": { meaning: "not an identity column" },
-      d: { meaning: "GENERATED BY DEFAULT — captured, unread" },
-      a: { meaning: "GENERATED ALWAYS — shipment_tracking.id; the seeder never supplies a value for one" },
+      '': { meaning: 'not an identity column' },
+      d: { meaning: 'GENERATED BY DEFAULT — captured, unread' },
+      a: {
+        meaning:
+          'GENERATED ALWAYS — shipment_tracking.id; the seeder never supplies a value for one',
+      },
     },
   },
-};
+}
 
 /** Every walk source, for the "nothing reads this" half of the census. */
 function walkSources(): string[] {
-  const dir = join(__dirname, "..", "..", "..", "src", "query");
+  const dir = join(__dirname, '..', '..', '..', 'src', 'query')
   return readdirSync(dir)
-    .filter(f => f.endsWith(".ts"))
-    .map(f => readFileSync(join(dir, f), "utf8"));
+    .filter((f) => f.endsWith('.ts'))
+    .map((f) => readFileSync(join(dir, f), 'utf8'))
 }
 
-const FIXTURES_DIR = join(__dirname, "fixtures");
+const FIXTURES_DIR = join(__dirname, 'fixtures')
 
-describe("catalog-feature census", () => {
-  let pg: PGlite;
-  let snapshot: CatalogSnapshot;
-  let env: CensusEnv;
+describe('catalog-feature census', () => {
+  let pg: PGlite
+  let snapshot: CatalogSnapshot
+  let env: CensusEnv
   /** column name → the distinct values the live catalog carries. */
-  const observedValues = new Map<string, Set<string>>();
+  const observedValues = new Map<string, Set<string>>()
   /** Catalog members the corpus actually asked (see catalog-spy.ts). */
-  let touched: Set<string>;
-  let evaluationTouched: Set<string>;
-  let catalogMemberNames: string[];
+  let touched: Set<string>
+  let evaluationTouched: Set<string>
+  let catalogMemberNames: string[]
 
   beforeAll(async () => {
-    pg = await PGlite.create();
-    await pg.exec(readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8"));
-    snapshot = await snapshotCatalog(pg);
+    pg = await PGlite.create()
+    await pg.exec(readFileSync(join(FIXTURES_DIR, 'schema.sql'), 'utf8'))
+    snapshot = await snapshotCatalog(pg)
 
     const inherits = await pg.query<{ child: string; parent: string }>(
       `SELECT c.relname AS child, p.relname AS parent
@@ -212,29 +249,29 @@ describe("catalog-feature census", () => {
          JOIN pg_class p ON p.oid = i.inhparent
          JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public';`,
-    );
-    env = { childToParent: new Map(inherits.rows.map(r => [r.child, r.parent])) };
+    )
+    env = { childToParent: new Map(inherits.rows.map((r) => [r.child, r.parent])) }
 
     for (const [column, spec] of Object.entries(ENUMERATED_COLUMNS)) {
-      const res = await pg.query<{ v: string }>(spec.sql);
-      observedValues.set(column, new Set(res.rows.map(r => r.v)));
+      const res = await pg.query<{ v: string }>(spec.sql)
+      observedValues.set(column, new Set(res.rows.map((r) => r.v)))
     }
 
     // Which catalog QUESTIONS the corpus actually asks. The catalog is a pure
     // data interface, so this is observable by wrapping it — no instrument
     // inside the walk, and the walk cannot tell the difference.
-    const spy = spyOnCatalog(await buildNullabilityCatalog(snapshot));
-    catalogMemberNames = catalogMembers(spy.catalog);
-    touched = spy.touched;
+    const spy = spyOnCatalog(await buildNullabilityCatalog(snapshot))
+    catalogMemberNames = catalogMembers(spy.catalog)
+    touched = spy.touched
     const corpus = [
       ...GRAMMAR_SAMPLER,
       ...readdirSync(FIXTURES_DIR)
-        .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-        .map(f => readFileSync(join(FIXTURES_DIR, f), "utf8")),
-    ];
+        .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+        .map((f) => readFileSync(join(FIXTURES_DIR, f), 'utf8')),
+    ]
     for (const sql of corpus) {
-      const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
-      if (!stmt) continue;
+      const stmt = (await parseSql(sql)).stmts?.[0]?.stmt
+      if (!stmt) continue
       try {
         // AWAITED, and it was not until 2026-08-23. `inferNullability` is
         // async, so an unawaited call cannot reject into this catch — the
@@ -242,7 +279,7 @@ describe("catalog-feature census", () => {
         // recording happened in a microtask that only flushed because the
         // NEXT iteration awaits `parseSql`. It measured correctly by
         // accident.
-        await inferNullability(stmt, spy.catalog);
+        await inferNullability(stmt, spy.catalog)
       } catch {
         // A refusal still asked its questions on the way to refusing.
       }
@@ -260,21 +297,20 @@ describe("catalog-feature census", () => {
     // BOTH entry points, because they reach different consumers: mechanism E
     // rides the CONTRACT path and `resolveEnforcedCheckConstraints` is
     // reached through nothing else — measured, 12 of 13 without it.
-    const evalSpy = spyOnCatalog(await buildNullabilityCatalog(snapshot));
-    const evaluate = async (sql: string) =>
-      (await pg.query<Record<string, unknown>>(sql)).rows[0];
+    const evalSpy = spyOnCatalog(await buildNullabilityCatalog(snapshot))
+    const evaluate = async (sql: string) => (await pg.query<Record<string, unknown>>(sql)).rows[0]
     for (const sql of corpus) {
-      const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
-      if (!stmt) continue;
+      const stmt = (await parseSql(sql)).stmts?.[0]?.stmt
+      if (!stmt) continue
       try {
-        await inferNullability(stmt, evalSpy.catalog, { evaluate });
-        await inferQueryContract(stmt, evalSpy.catalog, { evaluate });
+        await inferNullability(stmt, evalSpy.catalog, { evaluate })
+        await inferQueryContract(stmt, evalSpy.catalog, { evaluate })
       } catch {
         // As above: a refusal still asked its questions.
       }
     }
-    evaluationTouched = evalSpy.touched;
-  }, 300_000);
+    evaluationTouched = evalSpy.touched
+  }, 300_000)
 
   afterAll(async () => {
     // The gap list is this suite's product, not a by-product: every `absent`
@@ -283,42 +319,42 @@ describe("catalog-feature census", () => {
     // Printed every run in the style of the
     // WITNESS_REPORT / GENERATED_ALL_STATES knobs, with the reasons behind
     // CATALOG_CENSUS_REPORT=1.
-    const entries = Object.entries(FEATURES);
-    const gaps = entries.filter(([, f]) => f.absent);
-    const byCategory = (c: Category) => entries.filter(([, f]) => f.category === c).length;
+    const entries = Object.entries(FEATURES)
+    const gaps = entries.filter(([, f]) => f.absent)
+    const byCategory = (c: Category) => entries.filter(([, f]) => f.category === c).length
     console.log(
       `\ncatalog-feature census: ${entries.length} features — ` +
-        `${byCategory("handled")} handled, ${byCategory("gated")} gated, ` +
-        `${byCategory("conservative")} conservative, ${byCategory("environment")} environment.\n` +
+        `${byCategory('handled')} handled, ${byCategory('gated')} gated, ` +
+        `${byCategory('conservative')} conservative, ${byCategory('environment')} environment.\n` +
         `  ${entries.length - gaps.length} carried by the fixture schema, ` +
         `${gaps.length} not reachable from it.`,
-    );
+    )
     if (process.env.CATALOG_CENSUS_REPORT) {
       console.log(
         `\nfeatures the fixture schema cannot reach (${gaps.length}):\n  ` +
-          gaps.map(([k, f]) => `${k} [${f.category}] — ${f.absent}`).join("\n  "),
-      );
+          gaps.map(([k, f]) => `${k} [${f.category}] — ${f.absent}`).join('\n  '),
+      )
     }
-    if (!pg.closed) await pg.close();
-  });
+    if (!pg.closed) await pg.close()
+  })
 
-  it("every classified feature is present in the fixture schema", () => {
+  it('every classified feature is present in the fixture schema', () => {
     const missing = Object.entries(FEATURES)
-      .filter(([, f]) => f.category !== "environment" && !f.absent)
+      .filter(([, f]) => f.category !== 'environment' && !f.absent)
       .filter(([, f]) => !f.detect(snapshot, env))
       .map(([k, f]) => `${k} — ${f.why}`)
-      .sort();
+      .sort()
     expect(
       missing,
       `Classified as carried by the fixture schema, but the snapshot does not ` +
         `have it. Either the DDL was removed — in which case a walk branch just ` +
         `lost its only coverage and the DDL should come back — or the feature ` +
         `is genuinely gone and its entry should be marked \`absent\` with a note ` +
-        `saying where the branch is exercised instead:\n  ${missing.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `saying where the branch is exercised instead:\n  ${missing.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every feature marked `absent` really is absent", () => {
+  it('every feature marked `absent` really is absent', () => {
     // The other side of the marker, and the census's actual output: an
     // `absent` entry names a branch the fixture schema cannot reach, which is
     // a line item for the schema axis.
@@ -326,16 +362,16 @@ describe("catalog-feature census", () => {
     const present = Object.entries(FEATURES)
       .filter(([, f]) => f.absent && f.detect(snapshot, env))
       .map(([k]) => k)
-      .sort();
+      .sort()
     expect(
       present,
       `Marked \`absent\` but the fixture schema now carries it. Drop the ` +
         `marker, and check that a fixture actually exercises the branch — the ` +
-        `DDL existing is not the same as a query reaching it:\n  ${present.join(", ")}`,
-    ).toEqual([]);
-  });
+        `DDL existing is not the same as a query reaching it:\n  ${present.join(', ')}`,
+    ).toEqual([])
+  })
 
-  it("every catalog capability the corpus can exercise is exercised", () => {
+  it('every catalog capability the corpus can exercise is exercised', () => {
     // A member nothing calls is either a branch no query reaches or a capture
     // nobody needs, and neither is visible from outside the walk. The
     // exemptions name where a member IS covered, so the two stay apart.
@@ -343,74 +379,75 @@ describe("catalog-feature census", () => {
     // `DEP_CATALOG_ONLY` lives beside the interfaces and is type-checked
     // against `keyof DepCatalog`, so this is a type boundary rather than a
     // list of excuses.
-    const depOnly = new Set<string>(DEP_CATALOG_ONLY);
-    const overloadOnly = new Set<string>(OVERLOAD_CATALOG_ONLY);
-    const evaluationOnly = new Set<string>(EVALUATION_CATALOG_ONLY);
+    const depOnly = new Set<string>(DEP_CATALOG_ONLY)
+    const overloadOnly = new Set<string>(OVERLOAD_CATALOG_ONLY)
+    const evaluationOnly = new Set<string>(EVALUATION_CATALOG_ONLY)
     const cold = catalogMemberNames
-      .filter(m => !touched.has(m) && !depOnly.has(m) && !overloadOnly.has(m)
-        && !evaluationOnly.has(m))
-      .sort();
+      .filter(
+        (m) => !touched.has(m) && !depOnly.has(m) && !overloadOnly.has(m) && !evaluationOnly.has(m),
+      )
+      .sort()
     expect(
       cold,
       `Catalog members no statement in the corpus asked. Either add SQL that ` +
         `reaches the branch, or — if the member is not a nullability question ` +
-        `at all — move it off NullabilityCatalog:\n  ${cold.join("\n  ")}`,
-    ).toEqual([]);
+        `at all — move it off NullabilityCatalog:\n  ${cold.join('\n  ')}`,
+    ).toEqual([])
 
     const askedAnyway = [...depOnly, ...overloadOnly, ...evaluationOnly]
-      .filter(m => touched.has(m))
-      .sort();
+      .filter((m) => touched.has(m))
+      .sort()
     expect(
       askedAnyway,
       `Declared DepCatalog-, OverloadCatalog- or SubtreeEvaluationCatalog-only, but the walk asked them — ` +
         `the member belongs on NullabilityCatalog now, with its exemption ` +
         `removed and a fixture reaching it:\n  ` +
-        askedAnyway.join("\n  "),
-    ).toEqual([]);
+        askedAnyway.join('\n  '),
+    ).toEqual([])
 
     // ... and the exemption is a PROMISE, not a pass. Every member excused
     // above must be reached by the evaluator-on pass, or it is dead code
     // hiding behind the excuse — which is exactly what two of them were.
     const deadBehindTheExemption = [...evaluationOnly]
-      .filter(m => !evaluationTouched.has(m))
-      .sort();
+      .filter((m) => !evaluationTouched.has(m))
+      .sort()
     expect(
       deadBehindTheExemption,
       `On EVALUATION_CATALOG_ONLY, and not reached even with the evaluator ` +
         `on. The exemption says the evaluator covers these; for these it does ` +
         `not. Either a corpus statement should reach it, or the member is ` +
-        `dead and should go:\n  ${deadBehindTheExemption.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `dead and should go:\n  ${deadBehindTheExemption.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every `handled` feature names an accessor the corpus actually asks", () => {
+  it('every `handled` feature names an accessor the corpus actually asks', () => {
     // The converse of the `conservative` check below, and the reason the
     // catalog spy exists: `handled` claims a branch keys on this fact, and
     // nothing verified that the branch is still there. Accessor granularity —
     // see `Feature.reads` for what that does and does not prove.
-    const unannotated: string[] = [];
-    const cold: string[] = [];
+    const unannotated: string[] = []
+    const cold: string[] = []
     for (const [key, f] of Object.entries(FEATURES)) {
-      if (f.category !== "handled" && f.category !== "gated") continue;
+      if (f.category !== 'handled' && f.category !== 'gated') continue
       if (!f.reads) {
-        unannotated.push(`${key} — add \`reads\`, the accessor the walk asks this through`);
-        continue;
+        unannotated.push(`${key} — add \`reads\`, the accessor the walk asks this through`)
+        continue
       }
-      if (!touched.has(f.reads)) cold.push(`${key} — \`${f.reads}\` was never called`);
+      if (!touched.has(f.reads)) cold.push(`${key} — \`${f.reads}\` was never called`)
     }
     expect(
       unannotated,
-      `\`handled\`/\`gated\` entries whose label nothing can falsify:\n  ${unannotated.join("\n  ")}`,
-    ).toEqual([]);
+      `\`handled\`/\`gated\` entries whose label nothing can falsify:\n  ${unannotated.join('\n  ')}`,
+    ).toEqual([])
     expect(
       cold,
       `These features claim a branch keys on them, but the accessor that ` +
         `carries the fact was never asked across the corpus — the branch is ` +
-        `gone, or the entry names the wrong accessor:\n  ${cold.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `gone, or the entry names the wrong accessor:\n  ${cold.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every `conservative` feature is really unread by the walk", () => {
+  it('every `conservative` feature is really unread by the walk', () => {
     // The label claims the snapshot captures the fact and no branch reads it.
     // Nothing checked that, so it could only ever go stale in the direction
     // that matters: a fact someone STARTS reading leaves an entry reading as
@@ -421,92 +458,96 @@ describe("catalog-feature census", () => {
     // the word "identity" appears twelve times under src/query and every one
     // is English, not `ColumnInfo.identity`.
     const stripped = walkSources()
-      .map(src => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, ""))
-      .join("\n");
+      .map((src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''))
+      .join('\n')
 
-    const unannotated: string[] = [];
-    const nowRead: string[] = [];
+    const unannotated: string[] = []
+    const nowRead: string[] = []
     for (const [key, f] of Object.entries(FEATURES)) {
-      if (f.category !== "conservative") continue;
+      if (f.category !== 'conservative') continue
       if (f.unread === undefined) {
-        unannotated.push(`${key} — add \`unread\` (the token nothing may read) or \`unread: null\` with a note`);
-        continue;
+        unannotated.push(
+          `${key} — add \`unread\` (the token nothing may read) or \`unread: null\` with a note`,
+        )
+        continue
       }
       if (f.unread === null) {
-        if (!f.unreadNote) unannotated.push(`${key} — \`unread: null\` needs \`unreadNote\``);
-        continue;
+        if (!f.unreadNote) unannotated.push(`${key} — \`unread: null\` needs \`unreadNote\``)
+        continue
       }
-      if (stripped.includes(f.unread)) nowRead.push(`${key} — \`${f.unread}\` now appears under src/query`);
+      if (stripped.includes(f.unread))
+        nowRead.push(`${key} — \`${f.unread}\` now appears under src/query`)
     }
 
     expect(
       unannotated,
-      `\`conservative\` entries whose label nothing can falsify:\n  ${unannotated.join("\n  ")}`,
-    ).toEqual([]);
+      `\`conservative\` entries whose label nothing can falsify:\n  ${unannotated.join('\n  ')}`,
+    ).toEqual([])
     expect(
       nowRead,
       `These features are classified 'conservative' but the walk now reads ` +
         `them. Reclassify as 'handled' (or 'gated') and say what the branch ` +
         `concludes — an entry claiming an imprecision that is closed reads as ` +
-        `work nobody needs to do:\n  ${nowRead.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `work nobody needs to do:\n  ${nowRead.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every `environment` capture is non-empty", () => {
+  it('every `environment` capture is non-empty', () => {
     const empty = Object.entries(FEATURES)
-      .filter(([, f]) => f.category === "environment" && !f.detect(snapshot, env))
+      .filter(([, f]) => f.category === 'environment' && !f.detect(snapshot, env))
       .map(([k, f]) => `${k} — ${f.why}`)
-      .sort();
+      .sort()
     expect(
       empty,
       `An environment set the snapshot captures came back empty. These describe ` +
         `the PostgreSQL version rather than the user schema, so an empty one ` +
         `means the capturing query stopped matching — silently turning a ` +
-        `measured answer back into the hand-curated table it replaced:\n  ${empty.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `measured answer back into the hand-curated table it replaced:\n  ${empty.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every value an enumerated catalog column takes is classified", () => {
-    const unclassified: string[] = [];
+  it('every value an enumerated catalog column takes is classified', () => {
+    const unclassified: string[] = []
     for (const [column, spec] of Object.entries(ENUMERATED_COLUMNS)) {
       for (const v of observedValues.get(column) ?? []) {
-        if (!(v in spec.values)) unclassified.push(`${column} = '${v}'`);
+        if (!(v in spec.values)) unclassified.push(`${column} = '${v}'`)
       }
     }
-    unclassified.sort();
+    unclassified.sort()
     expect(
       unclassified,
       `Unclassified catalog value(s). PostgreSQL has produced a value this ` +
         `census does not know about — a version bump, or an extension. Classify ` +
         `each with what it means and what the walk does with it; if a walk ` +
-        `branch is needed, an entry here is not a substitute for one:\n  ${unclassified.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `branch is needed, an entry here is not a substitute for one:\n  ${unclassified.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every classified value is observed, unless marked `absent`", () => {
+  it('every classified value is observed, unless marked `absent`', () => {
     // The complement, and the node census's third assertion transposed: a
     // classification for a value reality never produces is an untested claim,
     // and a value that is not a member of the column's domain at all fails
     // here too, since nothing can ever observe it.
-    const unobserved: string[] = [];
+    const unobserved: string[] = []
     for (const [column, spec] of Object.entries(ENUMERATED_COLUMNS)) {
-      const observed = observedValues.get(column) ?? new Set<string>();
+      const observed = observedValues.get(column) ?? new Set<string>()
       for (const [v, meta] of Object.entries(spec.values)) {
         if (meta.absent) {
-          if (observed.has(v)) unobserved.push(`${column} = '${v}' is marked absent but IS observed — drop the marker`);
+          if (observed.has(v))
+            unobserved.push(`${column} = '${v}' is marked absent but IS observed — drop the marker`)
         } else if (!observed.has(v)) {
-          unobserved.push(`${column} = '${v}' (${meta.meaning}) is classified but never observed`);
+          unobserved.push(`${column} = '${v}' (${meta.meaning}) is classified but never observed`)
         }
       }
     }
-    unobserved.sort();
+    unobserved.sort()
     expect(
       unobserved,
       `A classified catalog value and reality disagree about whether it ` +
         `exists. Mark it \`absent\` with what it would take, or — if it is not ` +
-        `a member of the column's domain at all — delete it:\n  ${unobserved.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `a member of the column's domain at all — delete it:\n  ${unobserved.join('\n  ')}`,
+    ).toEqual([])
+  })
 
   // The body map's KEY, asserted structurally.
   //
@@ -521,32 +562,32 @@ describe("catalog-feature census", () => {
   // and only for the ordering that happens to hold today: which body a
   // collision would keep is nothing more than the order the rows came back in.
   // This is the half that does not depend on it.
-  it("holds one body AST per sql-bodied SIGNATURE, not per name", async () => {
-    const catalog = await buildNullabilityCatalog(snapshot);
-    const byName = new Map<string, CatalogSnapshot["functions"]>();
+  it('holds one body AST per sql-bodied SIGNATURE, not per name', async () => {
+    const catalog = await buildNullabilityCatalog(snapshot)
+    const byName = new Map<string, CatalogSnapshot['functions']>()
     for (const f of snapshot.functions) {
-      if (f.language !== "sql" || f.isAggregate) continue;
-      const key = `${f.schema}.${f.name}`;
-      byName.set(key, [...(byName.get(key) ?? []), f]);
+      if (f.language !== 'sql' || f.isAggregate) continue
+      const key = `${f.schema}.${f.name}`
+      byName.set(key, [...(byName.get(key) ?? []), f])
     }
-    const overloaded = [...byName.values()].filter(fs => fs.length > 1).flat();
+    const overloaded = [...byName.values()].filter((fs) => fs.length > 1).flat()
     // Vacuous over a schema with no sql-bodied overload at all, so say so
     // rather than pass.
-    expect(overloaded.length).toBeGreaterThan(0);
+    expect(overloaded.length).toBeGreaterThan(0)
     const unanswered = overloaded
-      .map(f => `${f.schema}.${f.name}(${f.argTypes})`)
-      .filter(sig => !catalog.fnBodyAsts.has(sig))
-      .sort();
+      .map((f) => `${f.schema}.${f.name}(${f.argTypes})`)
+      .filter((sig) => !catalog.fnBodyAsts.has(sig))
+      .sort()
     expect(
       unanswered,
       `an overloaded sql body the map cannot answer for on its OWN signature ` +
         `— the key has collapsed back to the name, and one overload is ` +
-        `speaking for another:\n  ${unanswered.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `speaking for another:\n  ${unanswered.join('\n  ')}`,
+    ).toEqual([])
+  })
 
   it("every aggregate's recorded transition key names a body the map holds", async () => {
-    const catalog = await buildNullabilityCatalog(snapshot);
+    const catalog = await buildNullabilityCatalog(snapshot)
     // `aggTransFn`/`aggFinalFn` and the body map's keys are rendered by two
     // DIFFERENT queries. They agree only because both go through
     // pg_get_function_identity_arguments, and if either rendering drifts the
@@ -559,24 +600,24 @@ describe("catalog-feature census", () => {
     // DROPPED exactly the rows the test exists to catch. A builtin step is
     // recognised by living in pg_catalog, which drift does not move it out of.
     const steps = snapshot.functions
-      .filter(f => f.isAggregate)
-      .flatMap(f =>
+      .filter((f) => f.isAggregate)
+      .flatMap((f) =>
         [f.aggTransFn, f.aggFinalFn]
           .filter((k): k is string => k !== null)
           // A transition implemented in C has no body to hold.
-          .filter(k => !k.startsWith("pg_catalog."))
-          .map(k => ({ agg: f.name, key: k })),
-      );
-    expect(steps.length).toBeGreaterThan(0);
+          .filter((k) => !k.startsWith('pg_catalog.'))
+          .map((k) => ({ agg: f.name, key: k })),
+      )
+    expect(steps.length).toBeGreaterThan(0)
     const missing = steps
-      .filter(s => !catalog.fnBodyAsts.has(s.key))
-      .map(s => `${s.agg} -> ${s.key}`)
-      .sort();
+      .filter((s) => !catalog.fnBodyAsts.has(s.key))
+      .map((s) => `${s.agg} -> ${s.key}`)
+      .sort()
     expect(
       missing,
       `an aggregate names a sql-bodied step the body map cannot answer for — ` +
         `the two renderings have drifted apart and every user aggregate has ` +
-        `quietly become unreadable:\n  ${missing.join("\n  ")}`,
-    ).toEqual([]);
-  });
-});
+        `quietly become unreadable:\n  ${missing.join('\n  ')}`,
+    ).toEqual([])
+  })
+})

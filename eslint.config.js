@@ -25,14 +25,14 @@
 // three false positives and no true ones is noise, and noise is how a lint
 // step gets ignored.
 // ---------------------------------------------------------------------------
-import tseslint from "typescript-eslint";
+import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "coverage/**", "node_modules/**"],
+    ignores: ['dist/**', 'coverage/**', 'node_modules/**'],
   },
   {
-    files: ["src/**/*.ts", "tests/**/*.ts"],
+    files: ['src/**/*.ts', 'tests/**/*.ts'],
     extends: [tseslint.configs.base],
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
@@ -42,16 +42,16 @@ export default tseslint.config(
       // is not a style question: the walk is async at its entry points and
       // the harnesses drive it in loops, which is exactly where an unawaited
       // call reads as working and measures something else.
-      "@typescript-eslint/no-floating-promises": "error",
-      "@typescript-eslint/no-misused-promises": "error",
-      "@typescript-eslint/await-thenable": "error",
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
     },
   },
   {
     // A library does not print. `logger.ts` is the one place that may, which
     // is the whole reason it exists.
-    files: ["src/**/*.ts"],
-    ignores: ["src/logger.ts"],
-    rules: { "no-console": "error" },
+    files: ['src/**/*.ts'],
+    ignores: ['src/logger.ts'],
+    rules: { 'no-console': 'error' },
   },
-);
+)

@@ -1,6 +1,6 @@
-import { deparseSync } from "pgsql-deparser";
-import type { Node } from "libpg-query";
-import type { ResolveColumnTypes, TypeSetAudit } from "./types.js";
+import { deparseSync } from 'pgsql-deparser'
+import type { Node } from 'libpg-query'
+import type { ResolveColumnTypes, TypeSetAudit } from './types.js'
 
 // ---------------------------------------------------------------------------
 // Type-resolution delegation, Route A.
@@ -39,7 +39,7 @@ import type { ResolveColumnTypes, TypeSetAudit } from "./types.js";
  * The engine's declared `paramTypes`, or a function body's `argTypes`, is the
  * contract and always wins.
  */
-const NEVER_DELEGATED = new Set(["A_Const", "A_ArrayExpr", "ParamRef"]);
+const NEVER_DELEGATED = new Set(['A_Const', 'A_ArrayExpr', 'ParamRef'])
 
 /**
  * Node kinds that carry their own NAME RESOLUTION, which a substitution must
@@ -53,7 +53,7 @@ const NEVER_DELEGATED = new Set(["A_Const", "A_ArrayExpr", "ParamRef"]);
  * at by a route that cannot be defended, so this refuses instead and the
  * enclosing expression falls to the symbolic union.
  */
-const OPAQUE = new Set(["SubLink"]);
+const OPAQUE = new Set(['SubLink'])
 
 /**
  * Node kinds a substitution may REPLACE, given a type the walk already read.
@@ -65,21 +65,21 @@ const OPAQUE = new Set(["SubLink"]);
  * parameter with no declared type has no singleton reading, so it refuses on
  * the ordinary path.
  */
-const SUBSTITUTABLE = new Set(["ColumnRef", "ParamRef"]);
+const SUBSTITUTABLE = new Set(['ColumnRef', 'ParamRef'])
 
-const kindOf = (node: unknown): string => Object.keys((node ?? {}) as object)[0] ?? "?";
+const kindOf = (node: unknown): string => Object.keys((node ?? {}) as object)[0] ?? '?'
 
 /** One expression rendered as SQL the way the walk's own audit renders it. */
 export function delegationSql(expr: unknown): string | null {
   try {
     return deparseSync({
-      SelectStmt: { targetList: [{ ResTarget: { val: expr as never } }], op: "SETOP_NONE" },
+      SelectStmt: { targetList: [{ ResTarget: { val: expr as never } }], op: 'SETOP_NONE' },
     } as never)
-      .replace(/^SELECT\s+/i, "")
-      .replace(/\s+/g, " ")
-      .trim();
+      .replace(/^SELECT\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim()
   } catch {
-    return null;
+    return null
   }
 }
 
@@ -89,32 +89,32 @@ export function delegationSql(expr: unknown): string | null {
  * `OPAQUE` node — whose interior belongs to another scope.
  */
 function scan(node: unknown, leaves: unknown[]): { blocked: boolean } {
-  if (node === null || typeof node !== "object") return { blocked: false };
+  if (node === null || typeof node !== 'object') return { blocked: false }
   if (Array.isArray(node)) {
-    let blocked = false;
-    for (const child of node) blocked = scan(child, leaves).blocked || blocked;
-    return { blocked };
+    let blocked = false
+    for (const child of node) blocked = scan(child, leaves).blocked || blocked
+    return { blocked }
   }
-  const rec = node as Record<string, unknown>;
-  const kind = kindOf(node);
+  const rec = node as Record<string, unknown>
+  const kind = kindOf(node)
   if (SUBSTITUTABLE.has(kind)) {
-    leaves.push(node);
-    return { blocked: false };
+    leaves.push(node)
+    return { blocked: false }
   }
-  if (OPAQUE.has(kind)) return { blocked: true };
-  let blocked = false;
-  for (const value of Object.values(rec)) blocked = scan(value, leaves).blocked || blocked;
-  return { blocked };
+  if (OPAQUE.has(kind)) return { blocked: true }
+  let blocked = false
+  for (const value of Object.values(rec)) blocked = scan(value, leaves).blocked || blocked
+  return { blocked }
 }
 
 /** Deep clone, swapping any node present in `swap` by IDENTITY. */
 function rewrite(node: unknown, swap: Map<unknown, unknown>): unknown {
-  if (swap.has(node)) return swap.get(node);
-  if (node === null || typeof node !== "object") return node;
-  if (Array.isArray(node)) return node.map(child => rewrite(child, swap));
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(node as Record<string, unknown>)) out[k] = rewrite(v, swap);
-  return out;
+  if (swap.has(node)) return swap.get(node)
+  if (node === null || typeof node !== 'object') return node
+  if (Array.isArray(node)) return node.map((child) => rewrite(child, swap))
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) out[k] = rewrite(v, swap)
+  return out
 }
 
 /**
@@ -122,18 +122,18 @@ function rewrite(node: unknown, swap: Map<unknown, unknown>): unknown {
  * synchronous up to the callback, and `parseSql` is not.
  */
 function paramCast(n: number, type: string): Node {
-  const array = type.endsWith("[]");
-  const bare = array ? type.slice(0, -2) : type;
+  const array = type.endsWith('[]')
+  const bare = array ? type.slice(0, -2) : type
   return {
     TypeCast: {
       arg: { ParamRef: { number: n } },
       typeName: {
-        names: bare.split(".").map(part => ({ String: { sval: part } })),
+        names: bare.split('.').map((part) => ({ String: { sval: part } })),
         ...(array ? { arrayBounds: [{ Integer: { ival: -1 } }] } : {}),
         typemod: -1,
       },
     },
-  } as unknown as Node;
+  } as unknown as Node
 }
 
 /**
@@ -143,27 +143,27 @@ function paramCast(n: number, type: string): Node {
  * and nothing in the answer records which one the walk meant.
  */
 function aliasBindings(node: unknown, out: Map<string, number>): void {
-  if (node === null || typeof node !== "object") return;
+  if (node === null || typeof node !== 'object') return
   if (Array.isArray(node)) {
-    for (const child of node) aliasBindings(child, out);
-    return;
+    for (const child of node) aliasBindings(child, out)
+    return
   }
-  const rec = node as Record<string, unknown>;
+  const rec = node as Record<string, unknown>
   const bind = (name: unknown): void => {
-    if (typeof name === "string") out.set(name, (out.get(name) ?? 0) + 1);
-  };
-  const aliasOf = (n: unknown): unknown =>
-    ((n as Record<string, unknown> | undefined)?.["alias"] as Record<string, unknown> | undefined)?.[
-      "aliasname"
-    ];
-  const rv = rec["RangeVar"] as Record<string, unknown> | undefined;
-  if (rv?.["relname"]) bind(aliasOf(rv) ?? rv["relname"]);
-  for (const key of ["RangeSubselect", "RangeFunction", "RangeTableFunc", "RangeTableSample"]) {
-    if (rec[key]) bind(aliasOf(rec[key]));
+    if (typeof name === 'string') out.set(name, (out.get(name) ?? 0) + 1)
   }
-  const cte = rec["CommonTableExpr"] as Record<string, unknown> | undefined;
-  if (cte) bind(cte["ctename"]);
-  for (const value of Object.values(rec)) aliasBindings(value, out);
+  const aliasOf = (n: unknown): unknown =>
+    (
+      (n as Record<string, unknown> | undefined)?.['alias'] as Record<string, unknown> | undefined
+    )?.['aliasname']
+  const rv = rec['RangeVar'] as Record<string, unknown> | undefined
+  if (rv?.['relname']) bind(aliasOf(rv) ?? rv['relname'])
+  for (const key of ['RangeSubselect', 'RangeFunction', 'RangeTableFunc', 'RangeTableSample']) {
+    if (rec[key]) bind(aliasOf(rec[key]))
+  }
+  const cte = rec['CommonTableExpr'] as Record<string, unknown> | undefined
+  if (cte) bind(cte['ctename'])
+  for (const value of Object.values(rec)) aliasBindings(value, out)
 }
 
 /**
@@ -183,13 +183,10 @@ function aliasBindings(node: unknown, out: Map<string, number>): void {
  * Only applied to a SELECT that ALREADY groups — adding a GROUP BY to a query
  * that has none would make every other target entry illegal.
  */
-function withGroupExtras(
-  sel: Record<string, unknown>,
-  extras: unknown[],
-): Record<string, unknown> {
-  const group = sel["groupClause"];
-  if (extras.length === 0 || !Array.isArray(group) || group.length === 0) return sel;
-  return { ...sel, groupClause: [...group, ...extras] };
+function withGroupExtras(sel: Record<string, unknown>, extras: unknown[]): Record<string, unknown> {
+  const group = sel['groupClause']
+  if (extras.length === 0 || !Array.isArray(group) || group.length === 0) return sel
+  return { ...sel, groupClause: [...group, ...extras] }
 }
 
 /**
@@ -201,33 +198,34 @@ function withGroupExtras(
 function outputList(
   stmt: unknown,
 ): { list: unknown[]; replace: (list: unknown[], groupExtras: unknown[]) => unknown } | null {
-  const rec = stmt as Record<string, unknown>;
-  const sel = rec["SelectStmt"] as Record<string, unknown> | undefined;
+  const rec = stmt as Record<string, unknown>
+  const sel = rec['SelectStmt'] as Record<string, unknown> | undefined
   if (sel) {
-    const op = sel["op"] as string | undefined;
-    if (!Array.isArray(sel["targetList"]) || (op && op !== "SETOP_NONE")) return null;
+    const op = sel['op'] as string | undefined
+    if (!Array.isArray(sel['targetList']) || (op && op !== 'SETOP_NONE')) return null
     return {
-      list: sel["targetList"] as unknown[],
-      replace: (list, groupExtras) =>
-        ({ SelectStmt: withGroupExtras({ ...sel, targetList: list }, groupExtras) }),
-    };
+      list: sel['targetList'] as unknown[],
+      replace: (list, groupExtras) => ({
+        SelectStmt: withGroupExtras({ ...sel, targetList: list }, groupExtras),
+      }),
+    }
   }
-  for (const key of ["InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
-    const s = rec[key] as Record<string, unknown> | undefined;
-    if (!s) continue;
+  for (const key of ['InsertStmt', 'UpdateStmt', 'DeleteStmt', 'MergeStmt']) {
+    const s = rec[key] as Record<string, unknown> | undefined
+    if (!s) continue
     // `returningClause`, NOT `returningList` — the field was renamed in the
     // PG16 grammar and this parser emits the new spelling. Written the old
     // way, this branch matched nothing at all and every DML statement looked
     // to Route B like one with no output list: silent under-reach, invisible
     // to the containment test because a probe never fired.
-    const rc = s["returningClause"] as Record<string, unknown> | undefined;
-    if (!Array.isArray(rc?.["exprs"])) continue;
+    const rc = s['returningClause'] as Record<string, unknown> | undefined
+    if (!Array.isArray(rc?.['exprs'])) continue
     return {
-      list: rc!["exprs"] as unknown[],
-      replace: list => ({ [key]: { ...s, returningClause: { ...rc, exprs: list } } }),
-    };
+      list: rc!['exprs'] as unknown[],
+      replace: (list) => ({ [key]: { ...s, returningClause: { ...rc, exprs: list } } }),
+    }
   }
-  return null;
+  return null
 }
 
 /**
@@ -238,16 +236,16 @@ function outputList(
  * they nest to the left: `A UNION B UNION C` is `(A UNION B) UNION C`.
  */
 function setOpLeaves(sel: Record<string, unknown>, out: Record<string, unknown>[]): boolean {
-  const op = sel["op"] as string | undefined;
-  if (!op || op === "SETOP_NONE") {
-    if (!Array.isArray(sel["targetList"])) return false;
-    out.push(sel);
-    return true;
+  const op = sel['op'] as string | undefined
+  if (!op || op === 'SETOP_NONE') {
+    if (!Array.isArray(sel['targetList'])) return false
+    out.push(sel)
+    return true
   }
-  const larg = sel["larg"] as Record<string, unknown> | undefined;
-  const rarg = sel["rarg"] as Record<string, unknown> | undefined;
-  if (!larg || !rarg) return false;
-  return setOpLeaves(larg, out) && setOpLeaves(rarg, out);
+  const larg = sel['larg'] as Record<string, unknown> | undefined
+  const rarg = sel['rarg'] as Record<string, unknown> | undefined
+  if (!larg || !rarg) return false
+  return setOpLeaves(larg, out) && setOpLeaves(rarg, out)
 }
 
 /** Rebuild a set-operation tree with `extras[i]` appended to arm i's target
@@ -258,22 +256,22 @@ function withArmExtras(
   next: { i: number },
   groupExtras: unknown[][] = [],
 ): Record<string, unknown> {
-  const op = sel["op"] as string | undefined;
-  if (!op || op === "SETOP_NONE") {
-    const i = next.i++;
-    const arm = { ...sel, targetList: [...(sel["targetList"] as unknown[]), ...(extras[i] ?? [])] };
-    return withGroupExtras(arm, groupExtras[i] ?? []);
+  const op = sel['op'] as string | undefined
+  if (!op || op === 'SETOP_NONE') {
+    const i = next.i++
+    const arm = { ...sel, targetList: [...(sel['targetList'] as unknown[]), ...(extras[i] ?? [])] }
+    return withGroupExtras(arm, groupExtras[i] ?? [])
   }
   return {
     ...sel,
-    larg: withArmExtras(sel["larg"] as Record<string, unknown>, extras, next, groupExtras),
-    rarg: withArmExtras(sel["rarg"] as Record<string, unknown>, extras, next, groupExtras),
-  };
+    larg: withArmExtras(sel['larg'] as Record<string, unknown>, extras, next, groupExtras),
+    rarg: withArmExtras(sel['rarg'] as Record<string, unknown>, extras, next, groupExtras),
+  }
 }
 
 /** A bare `NULL` target — `unknown`, so it takes whatever type the arm it is
  *  padding against resolves to (measured, in either arm position). */
-const nullTarget = (): unknown => ({ ResTarget: { val: { A_Const: { isnull: true } } } });
+const nullTarget = (): unknown => ({ ResTarget: { val: { A_Const: { isnull: true } } } })
 
 /**
  * Every way this statement can be given somewhere to put a probe, in the
@@ -290,53 +288,49 @@ function probePlacements(
   stmt: Node,
   qualifiers: ReadonlySet<string>,
 ): ((nodes: unknown[], alsoGroup: boolean) => unknown)[] {
-  const targetsOf = (nodes: unknown[]): unknown[] =>
-    nodes.map(n => ({ ResTarget: { val: n } }));
-  const out = outputList(stmt);
+  const targetsOf = (nodes: unknown[]): unknown[] => nodes.map((n) => ({ ResTarget: { val: n } }))
+  const out = outputList(stmt)
   if (out) {
     return [
-      (nodes, alsoGroup) =>
-        out.replace([...out.list, ...targetsOf(nodes)], alsoGroup ? nodes : []),
-    ];
+      (nodes, alsoGroup) => out.replace([...out.list, ...targetsOf(nodes)], alsoGroup ? nodes : []),
+    ]
   }
 
-  const sel = (stmt as Record<string, unknown>)["SelectStmt"] as
-    | Record<string, unknown>
-    | undefined;
-  const op = sel?.["op"] as string | undefined;
-  if (!sel || !op || op === "SETOP_NONE") return [];
-  const arms: Record<string, unknown>[] = [];
-  if (!setOpLeaves(sel, arms) || arms.length < 2) return [];
+  const sel = (stmt as Record<string, unknown>)['SelectStmt'] as Record<string, unknown> | undefined
+  const op = sel?.['op'] as string | undefined
+  if (!sel || !op || op === 'SETOP_NONE') return []
+  const arms: Record<string, unknown>[] = []
+  if (!setOpLeaves(sel, arms) || arms.length < 2) return []
 
-  const placements: ((nodes: unknown[], alsoGroup: boolean) => unknown)[] = [];
+  const placements: ((nodes: unknown[], alsoGroup: boolean) => unknown)[] = []
   arms.forEach((arm, armIndex) => {
     // Skip an arm whose FROM binds none of the qualifiers being asked about.
     // Purely a cost filter — PostgreSQL still adjudicates every probe that is
     // sent — but without it each arm is asked about every probe, and a
     // two-arm statement with four of them spends ten round trips to learn
     // what one syntactic look answers.
-    const bound = new Map<string, number>();
-    aliasBindings(arm["fromClause"], bound);
-    if (![...qualifiers].some(q => bound.has(q))) return;
+    const bound = new Map<string, number>()
+    aliasBindings(arm['fromClause'], bound)
+    if (![...qualifiers].some((q) => bound.has(q))) return
     placements.push((nodes: unknown[], alsoGroup: boolean) => {
       const extras = arms.map((__, i) =>
         i === armIndex ? targetsOf(nodes) : nodes.map(() => nullTarget()),
-      );
+      )
       // The GROUP BY escape belongs only to the arm holding the real probe;
       // the padded arms got a bare NULL, which no grouping rule objects to.
-      const groupExtras = arms.map((__, i) => (alsoGroup && i === armIndex ? nodes : []));
-      return { SelectStmt: withArmExtras(sel, extras, { i: 0 }, groupExtras) };
-    });
-  });
-  return placements;
+      const groupExtras = arms.map((__, i) => (alsoGroup && i === armIndex ? nodes : []))
+      return { SelectStmt: withArmExtras(sel, extras, { i: 0 }, groupExtras) }
+    })
+  })
+  return placements
 }
 
 /** A whole statement rendered back to SQL, or null when it will not render. */
 function statementSql(stmt: unknown): string | null {
   try {
-    return deparseSync(stmt as never);
+    return deparseSync(stmt as never)
   } catch {
-    return null;
+    return null
   }
 }
 
@@ -361,86 +355,91 @@ async function routeB(
   residue: readonly { node: unknown; text: string; qualifier: string }[],
   resolve: ResolveColumnTypes,
 ): Promise<Map<string, string>> {
-  const answers = new Map<string, string>();
-  if (residue.length === 0) return answers;
-  const placements = probePlacements(stmt, new Set(residue.map(r => r.qualifier)));
-  if (placements.length === 0) return answers;
+  const answers = new Map<string, string>()
+  if (residue.length === 0) return answers
+  const placements = probePlacements(stmt, new Set(residue.map((r) => r.qualifier)))
+  if (placements.length === 0) return answers
 
-  const baseSql = statementSql(stmt);
-  if (baseSql === null) return answers;
-  let baseline: string[];
+  const baseSql = statementSql(stmt)
+  if (baseSql === null) return answers
+  let baseline: string[]
   try {
-    baseline = await resolve(baseSql);
+    baseline = await resolve(baseSql)
   } catch {
-    return answers;
+    return answers
   }
-  if (baseline.length === 0) return answers; // the statement itself will not prepare
+  if (baseline.length === 0) return answers // the statement itself will not prepare
 
   const ask = async (
     place: (nodes: unknown[], alsoGroup: boolean) => unknown,
     batch: readonly { node: unknown; text: string; qualifier: string }[],
     alsoGroup = false,
   ): Promise<boolean> => {
-    const sql = statementSql(place(batch.map(p => p.node), alsoGroup));
-    if (sql === null) return false;
-    let types: string[];
+    const sql = statementSql(
+      place(
+        batch.map((p) => p.node),
+        alsoGroup,
+      ),
+    )
+    if (sql === null) return false
+    let types: string[]
     try {
-      types = await resolve(sql);
+      types = await resolve(sql)
     } catch {
-      return false;
+      return false
     }
     // The unprobed count is known, so a result list that did not grow by
     // exactly the batch size is a statement we are not reading correctly —
     // discard it rather than map positions onto it.
-    if (types.length !== baseline.length + batch.length) return false;
-    batch.forEach((p, i) => answers.set(p.text, types[baseline.length + i]!));
-    return true;
-  };
+    if (types.length !== baseline.length + batch.length) return false
+    batch.forEach((p, i) => answers.set(p.text, types[baseline.length + i]!))
+    return true
+  }
 
-  let remaining = [...residue];
+  let remaining = [...residue]
   for (const place of placements) {
-    if (remaining.length === 0) break;
+    if (remaining.length === 0) break
     if (await ask(place, remaining)) {
-      remaining = [];
-      break;
+      remaining = []
+      break
     }
     // A batch fails as a unit, and one probe this placement cannot serve is
     // enough to fail it, so retry singly. A probe naming a column the query
     // does not group by is refused, and grouping by it too is the escape —
     // tried only after the plain form, so the ordinary path is untouched.
-    const unanswered: typeof remaining = [];
+    const unanswered: typeof remaining = []
     for (const one of remaining) {
-      if (!(await ask(place, [one])) && !(await ask(place, [one], true))) unanswered.push(one);
+      if (!(await ask(place, [one])) && !(await ask(place, [one], true))) unanswered.push(one)
     }
-    remaining = unanswered;
+    remaining = unanswered
   }
-  return answers;
+  return answers
 }
 
 /** Aliases a FROM clause binds AT THIS LEVEL — joins descended into, nested
  *  scopes not. This is scope membership, not the whole-statement census
  *  `aliasBindings` takes. */
 function boundAtThisLevel(from: unknown, out: Set<string>): void {
-  if (from === null || typeof from !== "object") return;
+  if (from === null || typeof from !== 'object') return
   if (Array.isArray(from)) {
-    for (const item of from) boundAtThisLevel(item, out);
-    return;
+    for (const item of from) boundAtThisLevel(item, out)
+    return
   }
-  const rec = from as Record<string, unknown>;
+  const rec = from as Record<string, unknown>
   const aliasOf = (n: unknown): string | undefined =>
-    ((n as Record<string, unknown> | undefined)?.["alias"] as Record<string, unknown> | undefined)?.[
-      "aliasname"
-    ] as string | undefined;
-  const rv = rec["RangeVar"] as Record<string, unknown> | undefined;
-  if (rv?.["relname"]) out.add(aliasOf(rv) ?? (rv["relname"] as string));
-  for (const key of ["RangeSubselect", "RangeFunction", "RangeTableFunc", "RangeTableSample"]) {
-    const alias = aliasOf(rec[key]);
-    if (alias) out.add(alias);
+    (
+      (n as Record<string, unknown> | undefined)?.['alias'] as Record<string, unknown> | undefined
+    )?.['aliasname'] as string | undefined
+  const rv = rec['RangeVar'] as Record<string, unknown> | undefined
+  if (rv?.['relname']) out.add(aliasOf(rv) ?? (rv['relname'] as string))
+  for (const key of ['RangeSubselect', 'RangeFunction', 'RangeTableFunc', 'RangeTableSample']) {
+    const alias = aliasOf(rec[key])
+    if (alias) out.add(alias)
   }
-  const je = rec["JoinExpr"] as Record<string, unknown> | undefined;
+  const je = rec['JoinExpr'] as Record<string, unknown> | undefined
   if (je) {
-    boundAtThisLevel(je["larg"], out);
-    boundAtThisLevel(je["rarg"], out);
+    boundAtThisLevel(je['larg'], out)
+    boundAtThisLevel(je['rarg'], out)
   }
 }
 
@@ -451,37 +450,35 @@ function boundAtThisLevel(from: unknown, out: Set<string>): void {
  * alias-uniqueness guard.
  */
 function owningSelect(node: unknown, qual: string): Record<string, unknown> | null {
-  const found: Record<string, unknown>[] = [];
+  const found: Record<string, unknown>[] = []
   const visit = (n: unknown): void => {
-    if (n === null || typeof n !== "object") return;
+    if (n === null || typeof n !== 'object') return
     if (Array.isArray(n)) {
-      for (const child of n) visit(child);
-      return;
+      for (const child of n) visit(child)
+      return
     }
-    const rec = n as Record<string, unknown>;
+    const rec = n as Record<string, unknown>
     // A SELECT body appears wrapped (`{SelectStmt: …}`) at statement level and
     // BARE as a set operation's `larg`/`rarg`. Descend into the BODY once it
     // is recognised, never back into the wrapper — visiting the wrapper's
     // values would meet the same body again through the bare branch and count
     // every ordinary select twice, which reads as "bound at two levels" and
     // refused every hoist except the bare set-operation arms.
-    const sel = (rec["SelectStmt"] ??
-      (Array.isArray(rec["targetList"]) ? rec : undefined)) as
-      | Record<string, unknown>
-      | undefined;
+    const sel = (rec['SelectStmt'] ?? (Array.isArray(rec['targetList']) ? rec : undefined)) as
+      Record<string, unknown> | undefined
     if (sel) {
-      if (Array.isArray(sel["targetList"]) && sel["fromClause"]) {
-        const bound = new Set<string>();
-        boundAtThisLevel(sel["fromClause"], bound);
-        if (bound.has(qual)) found.push(sel);
+      if (Array.isArray(sel['targetList']) && sel['fromClause']) {
+        const bound = new Set<string>()
+        boundAtThisLevel(sel['fromClause'], bound)
+        if (bound.has(qual)) found.push(sel)
       }
-      for (const value of Object.values(sel)) visit(value);
-      return;
+      for (const value of Object.values(sel)) visit(value)
+      return
     }
-    for (const value of Object.values(rec)) visit(value);
-  };
-  visit(node);
-  return found.length === 1 ? found[0]! : null;
+    for (const value of Object.values(rec)) visit(value)
+  }
+  visit(node)
+  return found.length === 1 ? found[0]! : null
 }
 
 /**
@@ -510,25 +507,23 @@ async function routeBHoist(
   residue: readonly { node: unknown; text: string; qualifier: string }[],
   resolve: ResolveColumnTypes,
 ): Promise<Map<string, string>> {
-  const answers = new Map<string, string>();
-  if (residue.length === 0) return answers;
-  const top = (stmt as Record<string, unknown>)[kindOf(stmt)] as
-    | Record<string, unknown>
-    | undefined;
-  const topWith = top?.["withClause"];
-  const topSelect = kindOf(stmt) === "SelectStmt" ? top : undefined;
+  const answers = new Map<string, string>()
+  if (residue.length === 0) return answers
+  const top = (stmt as Record<string, unknown>)[kindOf(stmt)] as Record<string, unknown> | undefined
+  const topWith = top?.['withClause']
+  const topSelect = kindOf(stmt) === 'SelectStmt' ? top : undefined
 
   // Group by owning scope, so one baseline and one batch serve all of them.
   const groups = new Map<
     Record<string, unknown>,
     { node: unknown; text: string; qualifier: string }[]
-  >();
+  >()
   for (const item of residue) {
-    const owner = owningSelect(stmt, item.qualifier);
-    if (!owner || owner === topSelect) continue;
-    const group = groups.get(owner) ?? [];
-    group.push(item);
-    groups.set(owner, group);
+    const owner = owningSelect(stmt, item.qualifier)
+    if (!owner || owner === topSelect) continue
+    const group = groups.get(owner) ?? []
+    group.push(item)
+    groups.set(owner, group)
   }
 
   for (const [owner, items] of groups) {
@@ -538,49 +533,54 @@ async function routeBHoist(
           ...owner,
           // The owning select's own WITH wins; the statement's is carried only
           // when it has none, so a hoisted body can still see the CTEs it names.
-          ...(owner["withClause"] || !topWith ? {} : { withClause: topWith }),
+          ...(owner['withClause'] || !topWith ? {} : { withClause: topWith }),
           targetList: [
-            ...(owner["targetList"] as unknown[]),
-            ...nodes.map(n => ({ ResTarget: { val: n } })),
+            ...(owner['targetList'] as unknown[]),
+            ...nodes.map((n) => ({ ResTarget: { val: n } })),
           ],
         },
         alsoGroup ? nodes : [],
       ),
-    });
-    const baseSql = statementSql(build([], false));
-    if (baseSql === null) continue;
-    let baseline: string[];
+    })
+    const baseSql = statementSql(build([], false))
+    if (baseSql === null) continue
+    let baseline: string[]
     try {
-      baseline = await resolve(baseSql);
+      baseline = await resolve(baseSql)
     } catch {
-      continue;
+      continue
     }
-    if (baseline.length === 0) continue;
+    if (baseline.length === 0) continue
 
     const ask = async (
       batch: readonly { node: unknown; text: string }[],
       alsoGroup = false,
     ): Promise<boolean> => {
-      const sql = statementSql(build(batch.map(p => p.node), alsoGroup));
-      if (sql === null) return false;
-      let types: string[];
+      const sql = statementSql(
+        build(
+          batch.map((p) => p.node),
+          alsoGroup,
+        ),
+      )
+      if (sql === null) return false
+      let types: string[]
       try {
-        types = await resolve(sql);
+        types = await resolve(sql)
       } catch {
-        return false;
+        return false
       }
-      if (types.length !== baseline.length + batch.length) return false;
-      batch.forEach((p, i) => answers.set(p.text, types[baseline.length + i]!));
-      return true;
-    };
+      if (types.length !== baseline.length + batch.length) return false
+      batch.forEach((p, i) => answers.set(p.text, types[baseline.length + i]!))
+      return true
+    }
 
     if (!(await ask(items))) {
       for (const one of items) {
-        if (!(await ask([one]))) await ask([one], true);
+        if (!(await ask([one]))) await ask([one], true)
       }
     }
   }
-  return answers;
+  return answers
 }
 
 /**
@@ -603,128 +603,133 @@ export async function resolveDelegatedTypes(
   // What the walk pinned exactly, by rendered SQL. Keyed by text rather than
   // identity on purpose: the same column reference appears as many distinct
   // nodes across a statement, and they are the same question.
-  const pinned = new Map<string, string>();
+  const pinned = new Map<string, string>()
   for (const { expr, set } of readings) {
-    if (set?.length !== 1) continue;
-    const key = delegationSql(expr);
-    if (key !== null) pinned.set(key, set[0]!);
+    if (set?.length !== 1) continue
+    const key = delegationSql(expr)
+    if (key !== null) pinned.set(key, set[0]!)
   }
 
-  const answers = new Map<unknown, string>();
-  const asked = new Map<string, string | null>();
+  const answers = new Map<unknown, string>()
+  const asked = new Map<string, string | null>()
 
   // ROUTE B FIRST, and the order is the point: a derived column it types
   // becomes a typed LEAF, which is what lets Route A resolve the operators
   // above it. `a.c + b.c` over two `count(*)` subqueries is unreachable to
   // either route alone and falls out of the two in sequence.
-  const bindings = new Map<string, number>();
-  aliasBindings(stmt, bindings);
-  const spliceable: { node: unknown; text: string; qualifier: string }[] = [];
-  const seenText = new Set<string>();
+  const bindings = new Map<string, number>()
+  aliasBindings(stmt, bindings)
+  const spliceable: { node: unknown; text: string; qualifier: string }[] = []
+  const seenText = new Set<string>()
   for (const { expr, set } of readings) {
-    if (set !== null || kindOf(expr) !== "ColumnRef") continue;
-    const fields = ((expr as Record<string, unknown>)["ColumnRef"] as Record<string, unknown>)[
-      "fields"
-    ] as unknown[] | undefined;
+    if (set !== null || kindOf(expr) !== 'ColumnRef') continue
+    const fields = ((expr as Record<string, unknown>)['ColumnRef'] as Record<string, unknown>)[
+      'fields'
+    ] as unknown[] | undefined
     const parts = (fields ?? [])
-      .map(f => ((f as Record<string, unknown>)["String"] as Record<string, unknown> | undefined)?.["sval"])
-      .filter((p): p is string => typeof p === "string");
+      .map(
+        (f) =>
+          ((f as Record<string, unknown>)['String'] as Record<string, unknown> | undefined)?.[
+            'sval'
+          ],
+      )
+      .filter((p): p is string => typeof p === 'string')
     // An unqualified name is whatever the scope says it is, and this has no
     // scope; a qualifier bound twice cannot be asked about from the top.
-    if (parts.length < 2) continue;
-    const qualifier = parts[parts.length - 2]!;
-    if (bindings.get(qualifier) !== 1) continue;
-    const text = delegationSql(expr);
-    if (text === null || seenText.has(text)) continue;
-    seenText.add(text);
-    spliceable.push({ node: expr, text, qualifier });
+    if (parts.length < 2) continue
+    const qualifier = parts[parts.length - 2]!
+    if (bindings.get(qualifier) !== 1) continue
+    const text = delegationSql(expr)
+    if (text === null || seenText.has(text)) continue
+    seenText.add(text)
+    spliceable.push({ node: expr, text, qualifier })
   }
   for (const [text, type] of await routeB(stmt, spliceable, resolve)) {
-    pinned.set(text, type);
-    asked.set(text, type);
+    pinned.set(text, type)
+    asked.set(text, type)
   }
   // Whatever a probe over the WHOLE statement could not reach is bound in an
   // inner scope; hoist that scope and ask there.
-  const stillOpen = spliceable.filter(s => !asked.has(s.text));
+  const stillOpen = spliceable.filter((s) => !asked.has(s.text))
   for (const [text, type] of await routeBHoist(stmt, stillOpen, resolve)) {
-    pinned.set(text, type);
-    asked.set(text, type);
+    pinned.set(text, type)
+    asked.set(text, type)
   }
   for (const { expr, set } of readings) {
-    if (set !== null) continue;
-    const text = delegationSql(expr);
-    const answer = text === null ? undefined : asked.get(text);
-    if (answer) answers.set(expr, answer);
+    if (set !== null) continue
+    const text = delegationSql(expr)
+    const answer = text === null ? undefined : asked.get(text)
+    if (answer) answers.set(expr, answer)
   }
 
   for (const { expr, set } of readings) {
-    if (set !== null && set.length === 1) continue; // already exact
-    if (NEVER_DELEGATED.has(kindOf(expr))) continue;
-    if (answers.has(expr)) continue;
+    if (set !== null && set.length === 1) continue // already exact
+    if (NEVER_DELEGATED.has(kindOf(expr))) continue
+    if (answers.has(expr)) continue
 
-    const text = delegationSql(expr);
-    if (text === null) continue;
+    const text = delegationSql(expr)
+    if (text === null) continue
 
-    const cached = asked.get(text);
+    const cached = asked.get(text)
     if (cached !== undefined) {
-      if (cached !== null) answers.set(expr, cached);
-      continue;
+      if (cached !== null) answers.set(expr, cached)
+      continue
     }
 
-    const leaves: unknown[] = [];
+    const leaves: unknown[] = []
     if (scan(expr, leaves).blocked || leaves.length === 0) {
       // No typed leaf, or a scope we may not enter. The safety rule refuses
       // both: an expression with nothing pinned inside it is exactly the one
       // whose type comes from its context.
-      asked.set(text, null);
-      continue;
+      asked.set(text, null)
+      continue
     }
 
-    const swap = new Map<unknown, unknown>();
-    let n = 0;
-    let refused = false;
+    const swap = new Map<unknown, unknown>()
+    let n = 0
+    let refused = false
     for (const leaf of leaves) {
-      const key = delegationSql(leaf);
-      const type = key === null ? undefined : pinned.get(key);
+      const key = delegationSql(leaf)
+      const type = key === null ? undefined : pinned.get(key)
       if (type === undefined) {
-        refused = true;
-        break;
+        refused = true
+        break
       }
-      swap.set(leaf, paramCast(++n, type));
+      swap.set(leaf, paramCast(++n, type))
     }
     if (refused) {
-      asked.set(text, null);
-      continue;
+      asked.set(text, null)
+      continue
     }
 
-    const probe = delegationSql(rewrite(expr, swap));
+    const probe = delegationSql(rewrite(expr, swap))
     if (probe === null) {
-      asked.set(text, null);
-      continue;
+      asked.set(text, null)
+      continue
     }
 
-    let resolved: string[];
+    let resolved: string[]
     try {
-      resolved = await resolve(`SELECT ${probe}`);
+      resolved = await resolve(`SELECT ${probe}`)
     } catch {
       // A refusal is an ordinary outcome, not a failure of the statement.
-      asked.set(text, null);
-      continue;
+      asked.set(text, null)
+      continue
     }
-    const answer = resolved.length === 1 ? resolved[0]! : null;
-    asked.set(text, answer);
-    if (answer !== null) answers.set(expr, answer);
+    const answer = resolved.length === 1 ? resolved[0]! : null
+    asked.set(text, answer)
+    if (answer !== null) answers.set(expr, answer)
   }
 
   // A second pass binds every OTHER node carrying the same text, so one
   // question answers every occurrence — the walk reads a node, not a string.
   for (const { expr, set } of readings) {
-    if (set !== null && set.length === 1) continue;
-    if (NEVER_DELEGATED.has(kindOf(expr)) || answers.has(expr)) continue;
-    const text = delegationSql(expr);
-    const answer = text === null ? undefined : asked.get(text);
-    if (answer !== undefined && answer !== null) answers.set(expr, answer);
+    if (set !== null && set.length === 1) continue
+    if (NEVER_DELEGATED.has(kindOf(expr)) || answers.has(expr)) continue
+    const text = delegationSql(expr)
+    const answer = text === null ? undefined : asked.get(text)
+    if (answer !== undefined && answer !== null) answers.set(expr, answer)
   }
 
-  return answers;
+  return answers
 }

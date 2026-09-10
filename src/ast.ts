@@ -1,13 +1,12 @@
-import { parse, type ParseResult, type RawStmt, type Node } from "libpg-query";
-import { createHash } from "node:crypto";
-
+import { parse, type ParseResult, type RawStmt, type Node } from 'libpg-query'
+import { createHash } from 'node:crypto'
 
 export async function parseSql(sql: string): Promise<ParseResult> {
   if (sql.length === 0) {
-    return { version: 0, stmts: [] };
+    return { version: 0, stmts: [] }
   }
-  const result = await parse(sql);
-  return result as ParseResult;
+  const result = await parse(sql)
+  return result as ParseResult
 }
 
 /**
@@ -16,15 +15,15 @@ export async function parseSql(sql: string): Promise<ParseResult> {
  * compute diagnostic ranges.
  */
 export interface StatementInfo {
-  raw: RawStmt;
-  stmt: Node;
-  kind: string;
+  raw: RawStmt
+  stmt: Node
+  kind: string
   /** 0-based byte offset of the statement in `source` (excludes leading whitespace). */
-  start: number;
+  start: number
   /** 0-based byte end of the statement (excludes trailing `;` and whitespace). */
-  end: number;
+  end: number
   /** The statement text (slice of `source`). */
-  text: string;
+  text: string
 }
 
 /**
@@ -36,35 +35,35 @@ export interface StatementInfo {
  * bare statement without the semicolon.
  */
 export function getStatements(parsed: ParseResult, source: Buffer): StatementInfo[] {
-  const stmts = parsed.stmts ?? [];
+  const stmts = parsed.stmts ?? []
   return stmts.map((raw, i) => {
-    const start = raw.stmt_location ?? 0;
-    let end: number;
-    if (typeof raw.stmt_len === "number") {
-      end = start + raw.stmt_len;
+    const start = raw.stmt_location ?? 0
+    let end: number
+    if (typeof raw.stmt_len === 'number') {
+      end = start + raw.stmt_len
     } else if (i + 1 < stmts.length) {
-      const nextStart = stmts[i + 1]?.stmt_location ?? 0;
-      end = nextStart;
+      const nextStart = stmts[i + 1]?.stmt_location ?? 0
+      end = nextStart
       while (end > start && isTrailingSep(source.readUInt8(end - 1))) {
-        end--;
+        end--
       }
     } else {
-      end = source.length;
+      end = source.length
       while (end > start && isTrailingSep(source.readUInt8(end - 1))) {
-        end--;
+        end--
       }
     }
-    end = Math.max(end, start);
-    const stmt = raw.stmt!;
+    end = Math.max(end, start)
+    const stmt = raw.stmt!
     return {
       raw,
       stmt,
       kind: Object.keys(stmt)[0]!,
       start,
       end,
-      text: source.subarray(start, end).toString("utf8"),
-    };
-  });
+      text: source.subarray(start, end).toString('utf8'),
+    }
+  })
 }
 
 /**
@@ -74,19 +73,19 @@ export function getStatements(parsed: ParseResult, source: Buffer): StatementInf
  *
  * Returning `{ offset: 0, length: ctx.length }` removes the whole statement.
  */
-export type Removal = { offset: number; length: number };
+export type Removal = { offset: number; length: number }
 
 export interface StatementContext {
   /** The RawStmt wrapper (carries stmt_location, stmt_len). */
-  raw: RawStmt;
+  raw: RawStmt
   /** The top-level statement node (discriminated union). */
-  stmt: Node;
+  stmt: Node
   /** Discriminator key — e.g. "CreateStmt", "InsertStmt", "DoStmt". */
-  kind: string;
+  kind: string
   /** Absolute byte offset of this statement in the source buffer. */
-  sourceOffset: number;
+  sourceOffset: number
   /** Length of this statement in bytes (excludes the trailing `;`). */
-  length: number;
+  length: number
   /**
    * Byte view of this statement's text, zero-offset slice of the source.
    * Use `.toString("utf8")` for text work; `.toString("latin1")` for
@@ -94,20 +93,20 @@ export interface StatementContext {
    * is a byte offset — important when the statement contains non-ASCII
    * comments before the token you're searching for).
    */
-  bytes: Buffer;
+  bytes: Buffer
 }
 
 /**
  * A per-statement filter. Receives one statement; returns the byte ranges
  * (statement-relative) to remove, or nothing/empty to keep the statement as-is.
  */
-export type StatementFilter = (ctx: StatementContext) => Removal[] | void;
+export type StatementFilter = (ctx: StatementContext) => Removal[] | void
 
 export interface PreprocessResult {
   /** True iff any bytes were removed. */
-  modified: boolean;
+  modified: boolean
   /** Preprocessed source as a new Buffer (the input is never mutated). */
-  content: Buffer;
+  content: Buffer
   /**
    * Sorted (ascending by `offset`), merged (non-overlapping) list of byte
    * ranges removed from `source`. Source-absolute coordinates. Empty when
@@ -117,7 +116,7 @@ export interface PreprocessResult {
    * by a downstream consumer (e.g. PGlite applying the stripped content)
    * back to positions in the original un-preprocessed file.
    */
-  removals: Removal[];
+  removals: Removal[]
 }
 
 /**
@@ -138,42 +137,42 @@ export function preprocess(
   parsed: ParseResult,
   filter: StatementFilter,
 ): PreprocessResult {
-  const stmts = parsed.stmts ?? [];
+  const stmts = parsed.stmts ?? []
 
   // Precompute each statement's [start, end) byte range. libpg-query
   // omits `stmt_location` when it's 0 and omits `stmt_len` for the LAST
   // statement (it derives length from the next statement's location).
   // We reconstruct both here so filters get reliable ranges.
-  type Range = { start: number; end: number };
+  type Range = { start: number; end: number }
   const ranges: Range[] = stmts.map((raw, i) => {
-    const start = raw.stmt_location ?? 0;
-    let end: number;
-    if (typeof raw.stmt_len === "number") {
-      end = start + raw.stmt_len;
+    const start = raw.stmt_location ?? 0
+    let end: number
+    if (typeof raw.stmt_len === 'number') {
+      end = start + raw.stmt_len
     } else if (i + 1 < stmts.length) {
       // Next statement's location gives us an upper bound; the gap between
       // them is the trailing `;` and whitespace. Walk back over those.
-      const nextStart = stmts[i + 1]?.stmt_location ?? 0;
-      end = nextStart;
+      const nextStart = stmts[i + 1]?.stmt_location ?? 0
+      end = nextStart
       while (end > start && isTrailingSep(source.readUInt8(end - 1))) {
-        end--;
+        end--
       }
     } else {
       // Last statement: walk back over trailing `;`/whitespace from EOF.
-      end = source.length;
+      end = source.length
       while (end > start && isTrailingSep(source.readUInt8(end - 1))) {
-        end--;
+        end--
       }
     }
-    return { start, end: Math.max(end, start) };
-  });
+    return { start, end: Math.max(end, start) }
+  })
 
-  const removals: Removal[] = [];
+  const removals: Removal[] = []
   for (let i = 0; i < stmts.length; i++) {
-    const raw = stmts[i]!;
-    const stmt = raw.stmt!;
-    const kind = Object.keys(stmt)[0]!;
-    const range = ranges[i]!;
+    const raw = stmts[i]!
+    const stmt = raw.stmt!
+    const kind = Object.keys(stmt)[0]!
+    const range = ranges[i]!
     const ctx: StatementContext = {
       raw,
       stmt,
@@ -181,50 +180,50 @@ export function preprocess(
       sourceOffset: range.start,
       length: range.end - range.start,
       bytes: source.subarray(range.start, range.end),
-    };
-    const r = filter(ctx);
+    }
+    const r = filter(ctx)
     if (r && r.length) {
       for (const { offset, length: len } of r) {
-        const isWholeStmt = offset === 0 && len >= ctx.length;
+        const isWholeStmt = offset === 0 && len >= ctx.length
         if (isWholeStmt) {
           // Whole-statement removal: also consume the trailing `;` and any
           // trailing whitespace so we don't leave a stray `;` or empty line.
           // Leading whitespace is NOT consumed — keeping the newline before
           // the removed statement preserves the visual gap between the
           // previous and next kept statements.
-          let end = range.start + len;
+          let end = range.start + len
           while (end < source.length && isTrailingSep(source.readUInt8(end))) {
-            end++;
+            end++
           }
-          removals.push({ offset: range.start, length: end - range.start });
+          removals.push({ offset: range.start, length: end - range.start })
         } else {
-          removals.push({ offset: range.start + offset, length: len });
+          removals.push({ offset: range.start + offset, length: len })
         }
       }
     }
   }
   if (removals.length === 0) {
-    return { modified: false, content: source, removals: [] };
+    return { modified: false, content: source, removals: [] }
   }
   // Sort ascending, merge overlaps, then stitch kept segments.
-  removals.sort((a, b) => a.offset - b.offset);
-  const merged: Removal[] = [];
+  removals.sort((a, b) => a.offset - b.offset)
+  const merged: Removal[] = []
   for (const r of removals) {
-    const last = merged[merged.length - 1];
+    const last = merged[merged.length - 1]
     if (last && r.offset <= last.offset + last.length) {
-      last.length = Math.max(last.length, r.offset + r.length - last.offset);
+      last.length = Math.max(last.length, r.offset + r.length - last.offset)
     } else {
-      merged.push({ ...r });
+      merged.push({ ...r })
     }
   }
-  const chunks: Buffer[] = [];
-  let cursor = 0;
+  const chunks: Buffer[] = []
+  let cursor = 0
   for (const { offset, length } of merged) {
-    if (offset > cursor) chunks.push(source.subarray(cursor, offset));
-    cursor = offset + length;
+    if (offset > cursor) chunks.push(source.subarray(cursor, offset))
+    cursor = offset + length
   }
-  if (cursor < source.length) chunks.push(source.subarray(cursor));
-  return { modified: true, content: Buffer.concat(chunks), removals: merged };
+  if (cursor < source.length) chunks.push(source.subarray(cursor))
+  return { modified: true, content: Buffer.concat(chunks), removals: merged }
 }
 
 /**
@@ -256,21 +255,21 @@ export function preprocess(
  *   original length (caller's responsibility to clamp).
  */
 export function mapStrippedToOriginal(removals: Removal[], strippedPos: number): number {
-  let removedSoFar = 0;
+  let removedSoFar = 0
   for (const r of removals) {
     // The byte at stripped position `strippedPos` came from original
     // position `strippedPos + removedSoFar`. If that position falls inside
     // this removal [r.offset, r.offset + r.length), then the stripped
     // position is actually the first byte AFTER this removal in the
     // original — so we accumulate this removal's length and continue.
-    const strippedOffsetOfThisRemoval = r.offset - removedSoFar;
+    const strippedOffsetOfThisRemoval = r.offset - removedSoFar
     if (strippedPos < strippedOffsetOfThisRemoval) {
       // Before this removal — no more adjustments needed.
-      return strippedPos + removedSoFar;
+      return strippedPos + removedSoFar
     }
-    removedSoFar += r.length;
+    removedSoFar += r.length
   }
-  return strippedPos + removedSoFar;
+  return strippedPos + removedSoFar
 }
 
 /**
@@ -285,18 +284,18 @@ export function mapStrippedToOriginal(removals: Removal[], strippedPos: number):
  * the first kept byte after that range in the stripped content.
  */
 export function mapOriginalToStripped(removals: Removal[], originalPos: number): number {
-  let removedSoFar = 0;
+  let removedSoFar = 0
   for (const r of removals) {
     if (originalPos < r.offset) {
-      return originalPos - removedSoFar;
+      return originalPos - removedSoFar
     }
     if (originalPos < r.offset + r.length) {
       // Inside this removal — snap to the byte after it in the stripped view.
-      return r.offset - removedSoFar;
+      return r.offset - removedSoFar
     }
-    removedSoFar += r.length;
+    removedSoFar += r.length
   }
-  return originalPos - removedSoFar;
+  return originalPos - removedSoFar
 }
 
 /** Compose multiple filters into one (left-to-right; outputs concatenated). */
@@ -336,41 +335,40 @@ export function stripConcurrently(): StatementFilter {
     const stmt = ctx.stmt as
       | { IndexStmt?: { concurrent?: boolean; relation?: { location?: number } } }
       | { DropStmt?: { concurrent?: boolean } }
-      | { ReindexStmt?: { params?: { DefElem?: { defname?: string; location?: number } }[] } };
+      | { ReindexStmt?: { params?: { DefElem?: { defname?: string; location?: number } }[] } }
 
-    let keywordOffset: number | null = null;
+    let keywordOffset: number | null = null
 
-    if ("IndexStmt" in stmt) {
-      if (!stmt.IndexStmt?.concurrent) return;
+    if ('IndexStmt' in stmt) {
+      if (!stmt.IndexStmt?.concurrent) return
       // relation.location is source-absolute; convert to statement-relative.
-      const relLoc = stmt.IndexStmt.relation?.location;
-      const headerEnd = typeof relLoc === "number"
-        ? Math.min(relLoc - ctx.sourceOffset, ctx.length)
-        : ctx.length;
-      keywordOffset = scanConcurrently(ctx.bytes, 0, headerEnd);
-    } else if ("DropStmt" in stmt) {
-      if (!stmt.DropStmt?.concurrent) return;
+      const relLoc = stmt.IndexStmt.relation?.location
+      const headerEnd =
+        typeof relLoc === 'number' ? Math.min(relLoc - ctx.sourceOffset, ctx.length) : ctx.length
+      keywordOffset = scanConcurrently(ctx.bytes, 0, headerEnd)
+    } else if ('DropStmt' in stmt) {
+      if (!stmt.DropStmt?.concurrent) return
       // No reliable location on object-list String nodes; scan whole stmt.
-      keywordOffset = scanConcurrently(ctx.bytes, 0, ctx.length);
-    } else if ("ReindexStmt" in stmt) {
-      const params = stmt.ReindexStmt?.params ?? [];
-      const def = params.find((p) => p.DefElem?.defname === "concurrently");
-      if (typeof def?.DefElem?.location === "number") {
+      keywordOffset = scanConcurrently(ctx.bytes, 0, ctx.length)
+    } else if ('ReindexStmt' in stmt) {
+      const params = stmt.ReindexStmt?.params ?? []
+      const def = params.find((p) => p.DefElem?.defname === 'concurrently')
+      if (typeof def?.DefElem?.location === 'number') {
         // Source-absolute → statement-relative.
-        keywordOffset = def.DefElem.location - ctx.sourceOffset;
+        keywordOffset = def.DefElem.location - ctx.sourceOffset
       }
     }
 
-    if (keywordOffset === null || keywordOffset < 0) return;
-    if (keywordOffset + "CONCURRENTLY".length > ctx.length) return;
+    if (keywordOffset === null || keywordOffset < 0) return
+    if (keywordOffset + 'CONCURRENTLY'.length > ctx.length) return
 
-    let length = "CONCURRENTLY".length;
-    const after = ctx.bytes.readUInt8(keywordOffset + length);
+    let length = 'CONCURRENTLY'.length
+    const after = ctx.bytes.readUInt8(keywordOffset + length)
     if (after === 0x20 || after === 0x09 || after === 0x0a || after === 0x0d) {
-      length += 1;
+      length += 1
     }
-    return [{ offset: keywordOffset, length }];
-  };
+    return [{ offset: keywordOffset, length }]
+  }
 }
 
 /**
@@ -384,14 +382,14 @@ export function stripConcurrently(): StatementFilter {
  * statement header).
  */
 function scanConcurrently(buf: Buffer, start: number, end: number): number | null {
-  const slice = buf.subarray(start, end).toString("latin1");
-  const m = /\bCONCURRENTLY\b/i.exec(slice);
-  return m ? start + m.index : null;
+  const slice = buf.subarray(start, end).toString('latin1')
+  const m = /\bCONCURRENTLY\b/i.exec(slice)
+  return m ? start + m.index : null
 }
 
 /** `;`, space, tab, newline, CR — the bytes that can trail a statement. */
 function isTrailingSep(byte: number): boolean {
-  return byte === 0x3b || byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d;
+  return byte === 0x3b || byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d
 }
 
 // ---------------------------------------------------------------------------
@@ -402,11 +400,24 @@ function isTrailingSep(byte: number): boolean {
 
 type CreateFunctionNode = {
   CreateFunctionStmt?: {
-    funcname?: { String?: { sval?: string } }[];
-    parameters?: { FunctionParameter?: { name?: string; argType?: { names?: { String?: { sval?: string } }[] }; mode?: string } }[];
-    options?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } } | { List?: { items?: { String?: { sval?: string } }[] } }; location?: number } }[];
-  };
-};
+    funcname?: { String?: { sval?: string } }[]
+    parameters?: {
+      FunctionParameter?: {
+        name?: string
+        argType?: { names?: { String?: { sval?: string } }[] }
+        mode?: string
+      }
+    }[]
+    options?: {
+      DefElem?: {
+        defname?: string
+        arg?:
+          { String?: { sval?: string } } | { List?: { items?: { String?: { sval?: string } }[] } }
+        location?: number
+      }
+    }[]
+  }
+}
 
 /**
  * Extract the LANGUAGE from a CreateFunctionStmt (e.g. "plpgsql", "sql").
@@ -414,15 +425,15 @@ type CreateFunctionNode = {
  * language option.
  */
 export function getFunctionLanguage(stmt: Node): string | undefined {
-  const node = stmt as CreateFunctionNode;
-  if (!node.CreateFunctionStmt) return undefined;
+  const node = stmt as CreateFunctionNode
+  if (!node.CreateFunctionStmt) return undefined
   for (const opt of node.CreateFunctionStmt.options ?? []) {
-    const def = opt?.DefElem;
-    if (def?.defname === "language" && def.arg && "String" in def.arg) {
-      return def.arg.String?.sval;
+    const def = opt?.DefElem
+    if (def?.defname === 'language' && def.arg && 'String' in def.arg) {
+      return def.arg.String?.sval
     }
   }
-  return undefined;
+  return undefined
 }
 
 /**
@@ -430,15 +441,17 @@ export function getFunctionLanguage(stmt: Node): string | undefined {
  * The `funcname` list is a path like `["public", "my_func"]`; the last
  * element is the function name, the second-to-last is the schema.
  */
-export function getFunctionName(stmt: Node): { schema: string | undefined; name: string } | undefined {
-  const node = stmt as CreateFunctionNode;
-  if (!node.CreateFunctionStmt) return undefined;
+export function getFunctionName(
+  stmt: Node,
+): { schema: string | undefined; name: string } | undefined {
+  const node = stmt as CreateFunctionNode
+  if (!node.CreateFunctionStmt) return undefined
   const parts = (node.CreateFunctionStmt.funcname ?? [])
-    .map(n => n?.String?.sval)
-    .filter((s): s is string => typeof s === "string");
-  if (parts.length === 0) return undefined;
-  if (parts.length === 1) return { schema: undefined, name: parts[0]! };
-  return { schema: parts[parts.length - 2], name: parts[parts.length - 1]! };
+    .map((n) => n?.String?.sval)
+    .filter((s): s is string => typeof s === 'string')
+  if (parts.length === 0) return undefined
+  if (parts.length === 1) return { schema: undefined, name: parts[0]! }
+  return { schema: parts[parts.length - 2], name: parts[parts.length - 1]! }
 }
 
 /**
@@ -446,25 +459,23 @@ export function getFunctionName(stmt: Node): { schema: string | undefined; name:
  * Returns the decoded body without the dollar-quote delimiters.
  */
 export function getFunctionBody(stmt: Node): string | undefined {
-  const node = stmt as CreateFunctionNode;
-  if (!node.CreateFunctionStmt) return undefined;
+  const node = stmt as CreateFunctionNode
+  if (!node.CreateFunctionStmt) return undefined
   for (const opt of node.CreateFunctionStmt.options ?? []) {
-    const def = opt?.DefElem;
-    if (def?.defname === "as" && def.arg) {
+    const def = opt?.DefElem
+    if (def?.defname === 'as' && def.arg) {
       // libpg-query wraps the body string in a List of String nodes:
       //   { List: { items: [{ String: { sval: <body> } }] } }
       // (Older versions emitted the String directly. Handle both.)
-      if ("String" in def.arg) return def.arg.String?.sval;
-      if ("List" in def.arg) {
-        const items = def.arg.List?.items ?? [];
+      if ('String' in def.arg) return def.arg.String?.sval
+      if ('List' in def.arg) {
+        const items = def.arg.List?.items ?? []
         // The body is a single string; concatenate just in case.
-        return items
-          .map(it => it?.String?.sval ?? "")
-          .join("");
+        return items.map((it) => it?.String?.sval ?? '').join('')
       }
     }
   }
-  return undefined;
+  return undefined
 }
 
 /**
@@ -477,20 +488,20 @@ export function getFunctionBody(stmt: Node): string | undefined {
  * plpgsql_check_function_tb rejects a regprocedure with extra args.
  */
 export function getFunctionArgTypes(stmt: Node): string[] {
-  const node = stmt as CreateFunctionNode;
-  if (!node.CreateFunctionStmt) return [];
+  const node = stmt as CreateFunctionNode
+  if (!node.CreateFunctionStmt) return []
   return (node.CreateFunctionStmt.parameters ?? [])
-    .filter(p => {
-      const mode = p?.FunctionParameter?.mode;
+    .filter((p) => {
+      const mode = p?.FunctionParameter?.mode
       // mode is undefined for plain IN args in some PG versions; treat
       // absence as IN. Exclude OUT-only.
-      return mode !== "FUNC_PARAM_OUT";
+      return mode !== 'FUNC_PARAM_OUT'
     })
-    .map(p => {
-      const names = p?.FunctionParameter?.argType?.names ?? [];
-      const last = names[names.length - 1]?.String?.sval;
-      return last ?? "unknown";
-    });
+    .map((p) => {
+      const names = p?.FunctionParameter?.argType?.names ?? []
+      const last = names[names.length - 1]?.String?.sval
+      return last ?? 'unknown'
+    })
 }
 
 /**
@@ -499,12 +510,12 @@ export function getFunctionArgTypes(stmt: Node): string[] {
  * `plpgsql_check_function_tb`.
  */
 export function formatFunctionRef(stmt: Node): string | undefined {
-  const name = getFunctionName(stmt);
-  if (!name) return undefined;
-  const types = getFunctionArgTypes(stmt);
-  const schemaPart = name.schema ? `"${name.schema}".` : "";
-  const typesPart = types.length > 0 ? types.join(", ") : "";
-  return `${schemaPart}"${name.name}"(${typesPart})`;
+  const name = getFunctionName(stmt)
+  if (!name) return undefined
+  const types = getFunctionArgTypes(stmt)
+  const schemaPart = name.schema ? `"${name.schema}".` : ''
+  const typesPart = types.length > 0 ? types.join(', ') : ''
+  return `${schemaPart}"${name.name}"(${typesPart})`
 }
 
 // ---------------------------------------------------------------------------
@@ -514,9 +525,11 @@ export function formatFunctionRef(stmt: Node): string | undefined {
 
 type DoStmtNode = {
   DoStmt?: {
-    args?: { DefElem?: { defname?: string; arg?: { String?: { sval?: string } }; location?: number } }[];
-  };
-};
+    args?: {
+      DefElem?: { defname?: string; arg?: { String?: { sval?: string } }; location?: number }
+    }[]
+  }
+}
 
 /**
  * Find the byte offset of the function body within the statement, using
@@ -536,43 +549,39 @@ type DoStmtNode = {
  *   string (stripped content). Used to convert the absolute `location` to
  *   a relative offset within `stmtBytes`.
  */
-export function getBodyOffsetFromAst(
-  stmt: Node,
-  stmtBytes: Buffer,
-  stmtStart: number,
-): number {
+export function getBodyOffsetFromAst(stmt: Node, stmtBytes: Buffer, stmtStart: number): number {
   // Find the 'as' DefElem and its location.
-  let asLocation: number | undefined;
+  let asLocation: number | undefined
 
-  const fnNode = (stmt as CreateFunctionNode).CreateFunctionStmt;
-  const doNode = (stmt as DoStmtNode).DoStmt;
+  const fnNode = (stmt as CreateFunctionNode).CreateFunctionStmt
+  const doNode = (stmt as DoStmtNode).DoStmt
 
   if (fnNode) {
     for (const opt of fnNode.options ?? []) {
-      const def = opt?.DefElem;
-      if (def?.defname === "as") {
-        asLocation = def.location;
-        break;
+      const def = opt?.DefElem
+      if (def?.defname === 'as') {
+        asLocation = def.location
+        break
       }
     }
   } else if (doNode) {
     for (const opt of doNode.args ?? []) {
-      const def = opt?.DefElem;
-      if (def?.defname === "as") {
-        asLocation = def.location;
-        break;
+      const def = opt?.DefElem
+      if (def?.defname === 'as') {
+        asLocation = def.location
+        break
       }
     }
   }
 
-  if (asLocation === undefined) return -1;
+  if (asLocation === undefined) return -1
 
   // asLocation is absolute in the parsed string; convert to relative.
-  const pos = asLocation - stmtStart;
-  if (pos < 0 || pos >= stmtBytes.length) return -1;
+  const pos = asLocation - stmtStart
+  if (pos < 0 || pos >= stmtBytes.length) return -1
 
   // Scan forward to find the body start.
-  return scanToBodyStart(stmtBytes, pos, fnNode !== undefined);
+  return scanToBodyStart(stmtBytes, pos, fnNode !== undefined)
 }
 
 /**
@@ -580,44 +589,42 @@ export function getBodyOffsetFromAst(
  * skipping the `AS` keyword (for functions), whitespace, and the opening
  * dollar-quote delimiter or single quote.
  */
-function scanToBodyStart(
-  stmtBytes: Buffer,
-  pos: number,
-  skipAsKeyword: boolean,
-): number {
-  let p = pos;
+function scanToBodyStart(stmtBytes: Buffer, pos: number, skipAsKeyword: boolean): number {
+  let p = pos
 
   if (skipAsKeyword) {
     // Skip "AS" keyword (case-insensitive).
-    if (p + 2 <= stmtBytes.length &&
-        (stmtBytes.readUInt8(p) === 0x41 || stmtBytes.readUInt8(p) === 0x61) &&
-        (stmtBytes.readUInt8(p + 1) === 0x53 || stmtBytes.readUInt8(p + 1) === 0x73)) {
-      p += 2;
+    if (
+      p + 2 <= stmtBytes.length &&
+      (stmtBytes.readUInt8(p) === 0x41 || stmtBytes.readUInt8(p) === 0x61) &&
+      (stmtBytes.readUInt8(p + 1) === 0x53 || stmtBytes.readUInt8(p + 1) === 0x73)
+    ) {
+      p += 2
     }
     // Skip whitespace.
-    while (p < stmtBytes.length && isSpaceByte(stmtBytes.readUInt8(p))) p++;
+    while (p < stmtBytes.length && isSpaceByte(stmtBytes.readUInt8(p))) p++
   }
 
-  if (p >= stmtBytes.length) return -1;
+  if (p >= stmtBytes.length) return -1
 
-  const byte = stmtBytes.readUInt8(p);
+  const byte = stmtBytes.readUInt8(p)
   if (byte === 0x24) {
     // Dollar-quote: $$ or $tag$
-    p++; // skip first $
-    while (p < stmtBytes.length && stmtBytes.readUInt8(p) !== 0x24) p++;
-    if (p >= stmtBytes.length) return -1;
-    p++; // skip closing $
-    return p;
+    p++ // skip first $
+    while (p < stmtBytes.length && stmtBytes.readUInt8(p) !== 0x24) p++
+    if (p >= stmtBytes.length) return -1
+    p++ // skip closing $
+    return p
   } else if (byte === 0x27) {
     // Single-quote: body starts after the quote.
-    return p + 1;
+    return p + 1
   }
 
-  return -1;
+  return -1
 }
 
 function isSpaceByte(byte: number): boolean {
-  return byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d;
+  return byte === 0x20 || byte === 0x09 || byte === 0x0a || byte === 0x0d
 }
 
 /**
@@ -625,15 +632,15 @@ function isSpaceByte(byte: number): boolean {
  * DO blocks are always LANGUAGE plpgsql.
  */
 export function getDoBlockBody(stmt: Node): string | undefined {
-  const node = stmt as DoStmtNode;
-  if (!node.DoStmt) return undefined;
+  const node = stmt as DoStmtNode
+  if (!node.DoStmt) return undefined
   for (const opt of node.DoStmt.args ?? []) {
-    const def = opt?.DefElem;
-    if (def?.defname === "as" && def.arg && "String" in def.arg) {
-      return def.arg.String?.sval;
+    const def = opt?.DefElem
+    if (def?.defname === 'as' && def.arg && 'String' in def.arg) {
+      return def.arg.String?.sval
     }
   }
-  return undefined;
+  return undefined
 }
 
 // ---------------------------------------------------------------------------
@@ -661,21 +668,21 @@ export function getDoBlockBody(stmt: Node): string | undefined {
  */
 export interface ParsedStatement {
   /** Canonicalized AST hash — stable across cosmetic edits. */
-  hash: string;
+  hash: string
   /** The raw AST statement (with stmt_location, stmt_len, location fields). */
-  raw: RawStmt;
+  raw: RawStmt
   /** The statement node (raw.stmt). */
-  stmt: Node;
+  stmt: Node
   /** AST kind string, e.g. "CreateFunctionStmt", "DoStmt". */
-  kind: string;
+  kind: string
   /** 0-based byte offset of the statement in the stripped content. */
-  stmtStart: number;
+  stmtStart: number
   /** 0-based byte end in the stripped content. */
-  stmtEnd: number;
+  stmtEnd: number
   /** Statement text in the stripped content. */
-  text: string;
+  text: string
   /** Statement bytes in the stripped content (for byte-level offset search). */
-  bytes: Buffer;
+  bytes: Buffer
 }
 
 /**
@@ -687,10 +694,10 @@ export interface ParsedStatement {
  * (immutable, set during apply) from the file state (mutable, updated on edit).
  */
 export interface MigrationFile {
-  index: number;
-  source: Buffer;
-  removals: Removal[];
-  statements: ParsedStatement[];
+  index: number
+  source: Buffer
+  removals: Removal[]
+  statements: ParsedStatement[]
 }
 
 /**
@@ -703,19 +710,19 @@ export interface MigrationFile {
  */
 function canonicalizeNode(obj: unknown): unknown {
   if (Array.isArray(obj)) {
-    return obj.map(canonicalizeNode);
+    return obj.map(canonicalizeNode)
   }
-  if (obj !== null && typeof obj === "object") {
-    const result: Record<string, unknown> = {};
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {}
     for (const key of Object.keys(obj as Record<string, unknown>)) {
-      if (key === "location" || key === "stmt_location" || key === "stmt_len") {
-        continue;
+      if (key === 'location' || key === 'stmt_location' || key === 'stmt_len') {
+        continue
       }
-      result[key] = canonicalizeNode((obj as Record<string, unknown>)[key]);
+      result[key] = canonicalizeNode((obj as Record<string, unknown>)[key])
     }
-    return result;
+    return result
   }
-  return obj;
+  return obj
 }
 
 /**
@@ -727,9 +734,9 @@ function canonicalizeNode(obj: unknown): unknown {
  * different order) have different hashes.
  */
 export function statementHash(stmt: Node): string {
-  const canonical = canonicalizeNode(stmt);
-  const json = JSON.stringify(canonical);
-  return createHash("sha256").update(json).digest("hex");
+  const canonical = canonicalizeNode(stmt)
+  const json = JSON.stringify(canonical)
+  return createHash('sha256').update(json).digest('hex')
 }
 
 /**
@@ -746,26 +753,23 @@ export function statementHash(stmt: Node): string {
  * statement chain. The statement hashes are the stable identity —
  * they survive cosmetic edits to the file.
  */
-export async function parseMigrationFile(
-  source: Buffer,
-  index: number,
-): Promise<MigrationFile> {
+export async function parseMigrationFile(source: Buffer, index: number): Promise<MigrationFile> {
   // 1. Parse the original source.
-  const parsed = await parseSql(source.toString("utf8"));
+  const parsed = await parseSql(source.toString('utf8'))
 
   // 2. Preprocess (strip CONCURRENTLY).
-  const preprocessed = preprocess(source, parsed, stripConcurrently());
-  const strippedContent = preprocessed.content;
-  const removals = preprocessed.removals;
+  const preprocessed = preprocess(source, parsed, stripConcurrently())
+  const strippedContent = preprocessed.content
+  const removals = preprocessed.removals
 
   // 3. Re-parse the stripped content.
-  const strippedParsed = await parseSql(strippedContent.toString("utf8"));
+  const strippedParsed = await parseSql(strippedContent.toString('utf8'))
 
   // 4. Split into statements.
-  const stmts = getStatements(strippedParsed, strippedContent);
+  const stmts = getStatements(strippedParsed, strippedContent)
 
   // 5. Hash each statement.
-  const statements: ParsedStatement[] = stmts.map(stmtInfo => ({
+  const statements: ParsedStatement[] = stmts.map((stmtInfo) => ({
     hash: statementHash(stmtInfo.stmt),
     raw: stmtInfo.raw,
     stmt: stmtInfo.stmt,
@@ -774,14 +778,14 @@ export async function parseMigrationFile(
     stmtEnd: stmtInfo.end,
     text: stmtInfo.text,
     bytes: strippedContent.subarray(stmtInfo.start, stmtInfo.end),
-  }));
+  }))
 
   return {
     index,
     source,
     removals,
     statements,
-  };
+  }
 }
 
 /**
@@ -796,13 +800,13 @@ export function diffStatementChains(
   before: ParsedStatement[],
   after: ParsedStatement[],
 ): number | null {
-  const maxLen = Math.max(before.length, after.length);
+  const maxLen = Math.max(before.length, after.length)
   for (let i = 0; i < maxLen; i++) {
-    const beforeHash = before[i]?.hash;
-    const afterHash = after[i]?.hash;
+    const beforeHash = before[i]?.hash
+    const afterHash = after[i]?.hash
     if (beforeHash !== afterHash) {
-      return i;
+      return i
     }
   }
-  return null;
+  return null
 }

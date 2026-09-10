@@ -1,6 +1,6 @@
-import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 // ---------------------------------------------------------------------------
 // The sqlc borrowed corpus: enumeration and the expected-verdict reader.
@@ -27,27 +27,23 @@ import { fileURLToPath } from "node:url";
  * — the suite fails when the two part, so a bump cannot silently inherit
  * reasoning about the old IR.
  */
-export const SQLC_VERSION = "v1.31.1";
+export const SQLC_VERSION = 'v1.31.1'
 
-export const CORPUS_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "sqlc-corpus",
-  "cases",
-);
+export const CORPUS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'sqlc-corpus', 'cases')
 
 export interface SqlcQuery {
   /** `-- name: GetFoo :many` → GetFoo. */
-  name: string;
+  name: string
   /** one | many | exec | execrows | execresult | copyfrom | batchexec … */
-  cmd: string;
-  sql: string;
+  cmd: string
+  sql: string
 }
 
 export interface SqlcExpectedQuery {
-  name: string;
-  cmd: string;
-  columns: { name: string; notNull: boolean }[];
-  params: boolean[];
+  name: string
+  cmd: string
+  columns: { name: string; notNull: boolean }[]
+  params: boolean[]
 }
 
 /**
@@ -66,82 +62,82 @@ export interface SqlcExpectedQuery {
  */
 export interface SqlcAdjudication {
   /** The sqlc release these conclusions were drawn against, e.g. `v1.31.1`. */
-  adjudicatedAgainst: string;
+  adjudicatedAgainst: string
   /** Why this data state is the one that decides the case. */
-  why: string;
+  why: string
   /** Binding vectors per query name, positionally `$1..$n`. */
-  args?: Record<string, unknown[][]>;
+  args?: Record<string, unknown[][]>
   /** Keyed `Query#column (name)`, or bare `Query` for a shape skew. */
   entries: Record<
     string,
     {
       /** ticket-ready | pgsid-imprecision | conservatism-expected | unresolved */
-      disposition: string;
+      disposition: string
       /** The upstream draft this rides, for `ticket-ready`. */
-      ticket?: string;
-      note: string;
+      ticket?: string
+      note: string
     }
-  >;
+  >
 }
 
 export interface SqlcCase {
-  name: string;
-  dir: string;
-  schema: string;
-  queries: SqlcQuery[];
+  name: string
+  dir: string
+  schema: string
+  queries: SqlcQuery[]
   /** sqlc's own verdicts, by query name; null when sqlc refused the case. */
-  expected: Map<string, SqlcExpectedQuery> | null;
+  expected: Map<string, SqlcExpectedQuery> | null
   /** `data.sql` — ours, applied after the schema; null when the case has none. */
-  data: string | null;
+  data: string | null
   /** `adjudication.json` — ours; null when the register says nothing here. */
-  adjudication: SqlcAdjudication | null;
+  adjudication: SqlcAdjudication | null
 }
 
-const NAME_RE = /^-- name:\s+(\S+)\s+:(\S+)\s*$/m;
+const NAME_RE = /^-- name:\s+(\S+)\s+:(\S+)\s*$/m
 
 /** sqlc-isms that make a query not-PostgreSQL; the suite skips these. */
-export const SQLC_MACRO_RE = /@\w+|sqlc\.(arg|narg|embed|slice)\b/;
+export const SQLC_MACRO_RE = /@\w+|sqlc\.(arg|narg|embed|slice)\b/
 
 export function loadSqlcCases(): SqlcCase[] {
   return readdirSync(CORPUS_DIR)
-    .filter(name => statSync(join(CORPUS_DIR, name)).isDirectory())
+    .filter((name) => statSync(join(CORPUS_DIR, name)).isDirectory())
     .sort()
-    .map(name => {
-      const dir = join(CORPUS_DIR, name);
-      const schema = readFileSync(join(dir, "schema.sql"), "utf8");
-      const raw = readFileSync(join(dir, "query.sql"), "utf8");
+    .map((name) => {
+      const dir = join(CORPUS_DIR, name)
+      const schema = readFileSync(join(dir, 'schema.sql'), 'utf8')
+      const raw = readFileSync(join(dir, 'query.sql'), 'utf8')
       const queries: SqlcQuery[] = raw
         .split(/^(?=-- name:)/m)
-        .filter(b => NAME_RE.test(b))
-        .map(b => {
-          const m = NAME_RE.exec(b)!;
-          return { name: m[1]!, cmd: m[2]!, sql: b.replace(/^-- name:[^\n]*\n/, "").trim() };
+        .filter((b) => NAME_RE.test(b))
+        .map((b) => {
+          const m = NAME_RE.exec(b)!
+          return { name: m[1]!, cmd: m[2]!, sql: b.replace(/^-- name:[^\n]*\n/, '').trim() }
         })
-        .filter(q => q.sql.length > 0);
+        .filter((q) => q.sql.length > 0)
 
-      let expected: Map<string, SqlcExpectedQuery> | null = null;
-      const expectedPath = join(dir, "expected.json");
+      let expected: Map<string, SqlcExpectedQuery> | null = null
+      const expectedPath = join(dir, 'expected.json')
       if (existsSync(expectedPath)) {
-        const parsed = JSON.parse(readFileSync(expectedPath, "utf8")) as {
-          error?: string;
-          queries?: SqlcExpectedQuery[];
-        };
+        const parsed = JSON.parse(readFileSync(expectedPath, 'utf8')) as {
+          error?: string
+          queries?: SqlcExpectedQuery[]
+        }
         if (parsed.queries) {
-          expected = new Map(parsed.queries.map(q => [q.name, q]));
+          expected = new Map(parsed.queries.map((q) => [q.name, q]))
         }
       }
       // Ours. Both optional: most of the 253 cases carry no disagreement and
       // need no state, and a case whose entries are all agreement needs no
       // conclusion either.
-      const dataPath = join(dir, "data.sql");
-      const data = existsSync(dataPath) ? readFileSync(dataPath, "utf8") : null;
-      const adjPath = join(dir, "adjudication.json");
+      const dataPath = join(dir, 'data.sql')
+      const data = existsSync(dataPath) ? readFileSync(dataPath, 'utf8') : null
+      const adjPath = join(dir, 'adjudication.json')
       const adjudication = existsSync(adjPath)
-        ? (JSON.parse(readFileSync(adjPath, "utf8")) as SqlcAdjudication)
-        : null;
+        ? (JSON.parse(readFileSync(adjPath, 'utf8')) as SqlcAdjudication)
+        : null
 
-      return { name, dir, schema, queries, expected, data, adjudication };
-    });
+      return { name, dir, schema, queries, expected, data, adjudication }
+    })
 }
 
 /**
@@ -153,11 +149,11 @@ export function sqlcExpectedNullability(
   c: SqlcCase,
   q: SqlcQuery,
 ): { column: string; notNull: boolean }[] | string {
-  if (!c.expected) return "sqlc refused the case";
-  if (q.cmd !== "one" && q.cmd !== "many") return `:${q.cmd} has no row shape`;
-  const e = c.expected.get(q.name);
-  if (!e) return "query missing from IR";
-  return e.columns.map(col => ({ column: col.name, notNull: col.notNull }));
+  if (!c.expected) return 'sqlc refused the case'
+  if (q.cmd !== 'one' && q.cmd !== 'many') return `:${q.cmd} has no row shape`
+  const e = c.expected.get(q.name)
+  if (!e) return 'query missing from IR'
+  return e.columns.map((col) => ({ column: col.name, notNull: col.notNull }))
 }
 
 /**
@@ -178,37 +174,37 @@ export function sqlcExpectedNullability(
  * why it is pinned separately from the adjudication below.
  */
 export const DISAGREEMENTS: Record<string, string> = {
-  "accurate_cte/GetProductStats#1 (avg_price)": "sqlc-stronger",
-  "coalesce_as/SumBaz#1 (quantity)": "pgsid-stronger",
-  "create_table_as/GetFirst#0 (val)": "sqlc-stronger",
-  "create_view/GetSecond#1 (val2)": "pgsid-stronger",
-  "cte_recursive_star/GetDictTree#5 (path)": "pgsid-stronger",
-  "ddl_create_table_inherits/GetAllOrganisations#2 (legal_name)": "sqlc-stronger",
-  "emit_result_and_params_struct_pointers/GetOne#0 (a)": "pgsid-stronger",
-  "emit_result_and_params_struct_pointers/GetOne#1 (b)": "pgsid-stronger",
-  "func_aggregate/Percentile#0 (percentile_disc)": "sqlc-stronger",
-  "func_call_cast/Demo#0 (col1)": "sqlc-stronger",
-  "func_star_expansion/TestFuncSelectBlog": "shape-skew: sqlc 1, walk 4",
-  "join_full/FullJoin#0 (id)": "pgsid-stronger",
-  "join_inner/SelectAllJoined#0 (id)": "pgsid-stronger",
-  "join_inner/SelectAllJoinedAlias#0 (id)": "pgsid-stronger",
-  "join_right/RightJoin#0 (id)": "pgsid-stronger",
-  "join_right/RightJoin#1 (bar_id)": "pgsid-stronger",
-  "min_max_date/ActivityStats#1 (mindate)": "sqlc-stronger",
-  "min_max_date/ActivityStats#2 (maxdate)": "sqlc-stronger",
-  "null_if_type/GetRestrictedId#0 (restricted_id)": "sqlc-stronger",
-  "omit_unused_structs/query_param_enum_table#2 (value)": "pgsid-stronger",
-  "params_two/FooByAandB#0 (a)": "pgsid-stronger",
-  "params_two/FooByAandB#1 (b)": "pgsid-stronger",
-  "pg_advisory_xact_lock/AdvisoryLockOne#0 (pg_advisory_lock)": "sqlc-stronger",
-  "pg_advisory_xact_lock/AdvisoryUnlock#0 (pg_advisory_unlock)": "sqlc-stronger",
-  "returning/DeleteUserAndReturnUser#0 (name)": "pgsid-stronger",
-  "star_expansion_series/CountAlertReportBy#0 (datetime)": "sqlc-stronger",
-  "subquery_calculated_column/SubqueryCalcColumn#0 (sum)": "sqlc-stronger",
-  "sum_type/SumOrder#0 (sum)": "sqlc-stronger",
-  "unnest_with_ordinality/GetValues#2 (value)": "sqlc-stronger",
-  "valid_group_by_reference/ListMetrics#2 (avg)": "sqlc-stronger",
-};
+  'accurate_cte/GetProductStats#1 (avg_price)': 'sqlc-stronger',
+  'coalesce_as/SumBaz#1 (quantity)': 'pgsid-stronger',
+  'create_table_as/GetFirst#0 (val)': 'sqlc-stronger',
+  'create_view/GetSecond#1 (val2)': 'pgsid-stronger',
+  'cte_recursive_star/GetDictTree#5 (path)': 'pgsid-stronger',
+  'ddl_create_table_inherits/GetAllOrganisations#2 (legal_name)': 'sqlc-stronger',
+  'emit_result_and_params_struct_pointers/GetOne#0 (a)': 'pgsid-stronger',
+  'emit_result_and_params_struct_pointers/GetOne#1 (b)': 'pgsid-stronger',
+  'func_aggregate/Percentile#0 (percentile_disc)': 'sqlc-stronger',
+  'func_call_cast/Demo#0 (col1)': 'sqlc-stronger',
+  'func_star_expansion/TestFuncSelectBlog': 'shape-skew: sqlc 1, walk 4',
+  'join_full/FullJoin#0 (id)': 'pgsid-stronger',
+  'join_inner/SelectAllJoined#0 (id)': 'pgsid-stronger',
+  'join_inner/SelectAllJoinedAlias#0 (id)': 'pgsid-stronger',
+  'join_right/RightJoin#0 (id)': 'pgsid-stronger',
+  'join_right/RightJoin#1 (bar_id)': 'pgsid-stronger',
+  'min_max_date/ActivityStats#1 (mindate)': 'sqlc-stronger',
+  'min_max_date/ActivityStats#2 (maxdate)': 'sqlc-stronger',
+  'null_if_type/GetRestrictedId#0 (restricted_id)': 'sqlc-stronger',
+  'omit_unused_structs/query_param_enum_table#2 (value)': 'pgsid-stronger',
+  'params_two/FooByAandB#0 (a)': 'pgsid-stronger',
+  'params_two/FooByAandB#1 (b)': 'pgsid-stronger',
+  'pg_advisory_xact_lock/AdvisoryLockOne#0 (pg_advisory_lock)': 'sqlc-stronger',
+  'pg_advisory_xact_lock/AdvisoryUnlock#0 (pg_advisory_unlock)': 'sqlc-stronger',
+  'returning/DeleteUserAndReturnUser#0 (name)': 'pgsid-stronger',
+  'star_expansion_series/CountAlertReportBy#0 (datetime)': 'sqlc-stronger',
+  'subquery_calculated_column/SubqueryCalcColumn#0 (sum)': 'sqlc-stronger',
+  'sum_type/SumOrder#0 (sum)': 'sqlc-stronger',
+  'unnest_with_ordinality/GetValues#2 (value)': 'sqlc-stronger',
+  'valid_group_by_reference/ListMetrics#2 (avg)': 'sqlc-stronger',
+}
 
 /**
  * The same keys with what the ROWS said and what it MEANT: `<verdict> ·
@@ -225,37 +221,37 @@ export const DISAGREEMENTS: Record<string, string> = {
  * absorb it.
  */
 export const ADJUDICATED: Record<string, string> = {
-  "accurate_cte/GetProductStats#1 (avg_price)": "sqlc-convicted · ticket-ready (T1)",
-  "coalesce_as/SumBaz#1 (quantity)": "attempted · conservatism-expected",
-  "create_table_as/GetFirst#0 (val)": "sqlc-convicted · ticket-ready (T3)",
-  "create_view/GetSecond#1 (val2)": "attempted · conservatism-expected",
-  "cte_recursive_star/GetDictTree#5 (path)": "attempted · conservatism-expected",
-  "ddl_create_table_inherits/GetAllOrganisations#2 (legal_name)":
-    "sqlc-convicted · ticket-ready (T4)",
-  "emit_result_and_params_struct_pointers/GetOne#0 (a)": "attempted · conservatism-expected",
-  "emit_result_and_params_struct_pointers/GetOne#1 (b)": "attempted · conservatism-expected",
-  "func_aggregate/Percentile#0 (percentile_disc)": "sqlc-convicted · ticket-ready (T1)",
-  "func_call_cast/Demo#0 (col1)": "sqlc-convicted · ticket-ready (T2)",
-  "func_star_expansion/TestFuncSelectBlog": "shape-skew · ticket-ready (T5)",
-  "join_full/FullJoin#0 (id)": "attempted · conservatism-expected",
-  "join_inner/SelectAllJoined#0 (id)": "attempted · conservatism-expected",
-  "join_inner/SelectAllJoinedAlias#0 (id)": "attempted · conservatism-expected",
-  "join_right/RightJoin#0 (id)": "attempted · conservatism-expected",
-  "join_right/RightJoin#1 (bar_id)": "attempted · conservatism-expected",
-  "min_max_date/ActivityStats#1 (mindate)": "sqlc-convicted · ticket-ready (T1)",
-  "min_max_date/ActivityStats#2 (maxdate)": "sqlc-convicted · ticket-ready (T1)",
-  "null_if_type/GetRestrictedId#0 (restricted_id)": "sqlc-convicted · ticket-ready (T2)",
-  "omit_unused_structs/query_param_enum_table#2 (value)": "attempted · conservatism-expected",
-  "params_two/FooByAandB#0 (a)": "attempted · conservatism-expected",
-  "params_two/FooByAandB#1 (b)": "attempted · conservatism-expected",
-  "pg_advisory_xact_lock/AdvisoryLockOne#0 (pg_advisory_lock)":
-    "sqlc-convicted · ticket-ready (T1)",
-  "pg_advisory_xact_lock/AdvisoryUnlock#0 (pg_advisory_unlock)":
-    "sqlc-convicted · ticket-ready (T1)",
-  "returning/DeleteUserAndReturnUser#0 (name)": "attempted · conservatism-expected",
-  "star_expansion_series/CountAlertReportBy#0 (datetime)": "sqlc-convicted · ticket-ready (T2)",
-  "subquery_calculated_column/SubqueryCalcColumn#0 (sum)": "sqlc-convicted · ticket-ready (T2)",
-  "sum_type/SumOrder#0 (sum)": "sqlc-convicted · ticket-ready (T1)",
-  "unnest_with_ordinality/GetValues#2 (value)": "sqlc-convicted · ticket-ready (T2)",
-  "valid_group_by_reference/ListMetrics#2 (avg)": "sqlc-convicted · ticket-ready (T1)",
-};
+  'accurate_cte/GetProductStats#1 (avg_price)': 'sqlc-convicted · ticket-ready (T1)',
+  'coalesce_as/SumBaz#1 (quantity)': 'attempted · conservatism-expected',
+  'create_table_as/GetFirst#0 (val)': 'sqlc-convicted · ticket-ready (T3)',
+  'create_view/GetSecond#1 (val2)': 'attempted · conservatism-expected',
+  'cte_recursive_star/GetDictTree#5 (path)': 'attempted · conservatism-expected',
+  'ddl_create_table_inherits/GetAllOrganisations#2 (legal_name)':
+    'sqlc-convicted · ticket-ready (T4)',
+  'emit_result_and_params_struct_pointers/GetOne#0 (a)': 'attempted · conservatism-expected',
+  'emit_result_and_params_struct_pointers/GetOne#1 (b)': 'attempted · conservatism-expected',
+  'func_aggregate/Percentile#0 (percentile_disc)': 'sqlc-convicted · ticket-ready (T1)',
+  'func_call_cast/Demo#0 (col1)': 'sqlc-convicted · ticket-ready (T2)',
+  'func_star_expansion/TestFuncSelectBlog': 'shape-skew · ticket-ready (T5)',
+  'join_full/FullJoin#0 (id)': 'attempted · conservatism-expected',
+  'join_inner/SelectAllJoined#0 (id)': 'attempted · conservatism-expected',
+  'join_inner/SelectAllJoinedAlias#0 (id)': 'attempted · conservatism-expected',
+  'join_right/RightJoin#0 (id)': 'attempted · conservatism-expected',
+  'join_right/RightJoin#1 (bar_id)': 'attempted · conservatism-expected',
+  'min_max_date/ActivityStats#1 (mindate)': 'sqlc-convicted · ticket-ready (T1)',
+  'min_max_date/ActivityStats#2 (maxdate)': 'sqlc-convicted · ticket-ready (T1)',
+  'null_if_type/GetRestrictedId#0 (restricted_id)': 'sqlc-convicted · ticket-ready (T2)',
+  'omit_unused_structs/query_param_enum_table#2 (value)': 'attempted · conservatism-expected',
+  'params_two/FooByAandB#0 (a)': 'attempted · conservatism-expected',
+  'params_two/FooByAandB#1 (b)': 'attempted · conservatism-expected',
+  'pg_advisory_xact_lock/AdvisoryLockOne#0 (pg_advisory_lock)':
+    'sqlc-convicted · ticket-ready (T1)',
+  'pg_advisory_xact_lock/AdvisoryUnlock#0 (pg_advisory_unlock)':
+    'sqlc-convicted · ticket-ready (T1)',
+  'returning/DeleteUserAndReturnUser#0 (name)': 'attempted · conservatism-expected',
+  'star_expansion_series/CountAlertReportBy#0 (datetime)': 'sqlc-convicted · ticket-ready (T2)',
+  'subquery_calculated_column/SubqueryCalcColumn#0 (sum)': 'sqlc-convicted · ticket-ready (T2)',
+  'sum_type/SumOrder#0 (sum)': 'sqlc-convicted · ticket-ready (T1)',
+  'unnest_with_ordinality/GetValues#2 (value)': 'sqlc-convicted · ticket-ready (T2)',
+  'valid_group_by_reference/ListMetrics#2 (avg)': 'sqlc-convicted · ticket-ready (T1)',
+}

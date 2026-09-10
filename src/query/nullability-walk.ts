@@ -1,52 +1,42 @@
-import type { Node } from "libpg-query";
-import type { FunctionInfo } from "../catalog/types.js";
-import { splitQualifiedName } from "../catalog/qualified-name.js";
+import type { Node } from 'libpg-query'
+import type { FunctionInfo } from '../catalog/types.js'
+import { splitQualifiedName } from '../catalog/qualified-name.js'
 import {
   checkConstraintsProveNotNull,
   checkConstraintsProveNull,
   checkConstraintsGuardTruth,
   comparisonKey,
   type Lit,
-} from "./check-entailment.js";
-import {
-  collectComparisonQuestions,
-  evaluateComparisonQuestions,
-} from "./comparison-groundings.js";
-import {
-  collectClosedTruthQuestions,
-  evaluateClosedTruths,
-  truthKey,
-} from "./closed-truths.js";
+} from './check-entailment.js'
+import { collectComparisonQuestions, evaluateComparisonQuestions } from './comparison-groundings.js'
+import { collectClosedTruthQuestions, evaluateClosedTruths, truthKey } from './closed-truths.js'
 import {
   evaluateClosedSubtrees,
   type Evaluate,
   type EvalResult,
   type SubtreeEvaluationCatalog,
-} from "./subtree-evaluator.js";
-import {
-  collectSrfCardinalityQuestions,
-  evaluateSrfCardinalities,
-} from "./srf-cardinality.js";
-import { writtenGuardTruths } from "./written-value-guards.js";
-import { resolveDelegatedTypes } from "./type-delegation.js";
+} from './subtree-evaluator.js'
+import { collectSrfCardinalityQuestions, evaluateSrfCardinalities } from './srf-cardinality.js'
+import { writtenGuardTruths } from './written-value-guards.js'
+import { resolveDelegatedTypes } from './type-delegation.js'
 import {
   NON_STRICT_OVERLOADS,
   PARTIAL_OVERLOADS,
   TOTAL_OPERATORS as TOTAL_OPERATOR_NAMES,
   STRICT_OPERATORS,
-} from "./operators.js";
+} from './operators.js'
 import {
   collectParamFacts,
   forcedNullParams,
   returningRejectedParams,
   type MechanismEClaims,
   type ParamNullability,
-} from "./param-nullability.js";
+} from './param-nullability.js'
 import {
   evaluateGroundedChecks,
   groundEnforcedChecks,
   groundedCheckClaims,
-} from "./check-grounder.js";
+} from './check-grounder.js'
 import type {
   ColumnOrigin,
   NullabilityCatalog,
@@ -58,10 +48,10 @@ import type {
   ResolveColumnTypes,
   ResolvedTable,
   TraceNode,
-} from "./types.js";
+} from './types.js'
 
-export type { ParamNullability } from "./param-nullability.js";
-export type { OutputPresenceGroup } from "./types.js";
+export type { ParamNullability } from './param-nullability.js'
+export type { OutputPresenceGroup } from './types.js'
 
 // ---------------------------------------------------------------------------
 // inferNullability: pure function — AST + NullabilityCatalog → OutputNullability[]
@@ -77,7 +67,7 @@ export type { OutputPresenceGroup } from "./types.js";
 // sql function body recursion.
 // ---------------------------------------------------------------------------
 
-const MAX_DEPTH = 200;
+const MAX_DEPTH = 200
 
 /**
  * Declared spellings that are NOT types: a polymorphic parameter or return
@@ -89,23 +79,23 @@ const MAX_DEPTH = 200;
  * against declared spellings keep their own handling.
  */
 const UNRESOLVED_POLYMORPHIC = new Set([
-  "anyelement",
-  "anynonarray",
-  "anycompatible",
-  "anyenum",
-  "anyarray",
-  "anycompatiblearray",
-  "anyrange",
-  "anycompatiblerange",
-  "anymultirange",
-  "anycompatiblemultirange",
-]);
+  'anyelement',
+  'anynonarray',
+  'anycompatible',
+  'anyenum',
+  'anyarray',
+  'anycompatiblearray',
+  'anyrange',
+  'anycompatiblerange',
+  'anymultirange',
+  'anycompatiblemultirange',
+])
 
 /** Set-operation branches to descend when looking for the leftmost SELECT,
  *  whose target list names a set operation's result columns. A bound rather
  *  than a recursion because the tree is left-linear and any query needing
  *  more than this is answered conservatively, not raised over. */
-const MAX_SETOP_DEPTH = 64;
+const MAX_SETOP_DEPTH = 64
 
 /**
  * The walk's optional inputs. `paramTypes` is tier 0 (see the engine field's
@@ -131,14 +121,14 @@ const MAX_SETOP_DEPTH = 64;
  */
 export interface EvalWarning {
   /** Which pre-walk round lost its answer. */
-  round: "statement-map" | "comparison-groundings" | "srf-cardinality" | "closed-truths";
+  round: 'statement-map' | 'comparison-groundings' | 'srf-cardinality' | 'closed-truths'
   /** What the evaluator said — a kill, a timeout, or a raise from the probe. */
-  detail: string;
+  detail: string
 }
 
 export interface WalkOptions {
-  paramTypes?: readonly string[];
-  evaluate?: Evaluate;
+  paramTypes?: readonly string[]
+  evaluate?: Evaluate
   /**
    * Sink for probes the evaluator could not answer (see `EvalWarning`) — the
    * same opt-in shape as `joinAudit` and `typeSetAudit`, so the consumer
@@ -151,20 +141,20 @@ export interface WalkOptions {
    * the bound the consumer's to own and this channel the engine's half of the
    * bargain: it reports that one fired.
    */
-  evalWarnings?: EvalWarning[];
+  evalWarnings?: EvalWarning[]
   /**
    * Test-side sink for the presence fixpoint's per-join verdicts (see
    * `JoinAudit` in types.ts). When present, every analyzed scope appends one
    * record per outer join as `resolveJoinImplications` concludes. Read by the
    * EXPLAIN oracle; absent in production use, and never affects the walk.
    */
-  joinAudit?: JoinAudit[];
+  joinAudit?: JoinAudit[]
   /**
    * Test-side flag: attach `unitCrossings` to bare pass-through claims (see
    * `OutputNullability.unitCrossings`). Read by the EXPLAIN oracle; off in
    * production, where claims never carry the field.
    */
-  collectUnitCrossings?: boolean;
+  collectUnitCrossings?: boolean
   /**
    * Test-side sink for every operand TYPE SET the walk reads (see
    * `TypeSetAudit` in types.ts). Read by the type-union oracle, which asks
@@ -172,7 +162,7 @@ export interface WalkOptions {
    * the containment invariant. Absent in production, and never affects the
    * walk.
    */
-  typeSetAudit?: TypeSetAudit[];
+  typeSetAudit?: TypeSetAudit[]
   /**
    * Ask PostgreSQL to resolve the operands the walk cannot pin.
    * Independent of `evaluate`: this
@@ -182,7 +172,7 @@ export interface WalkOptions {
    * Absent → identical answers, exactly as with `evaluate`. Delegation only
    * narrows a union the walk could already state.
    */
-  resolveColumnTypes?: ResolveColumnTypes;
+  resolveColumnTypes?: ResolveColumnTypes
 }
 
 /**
@@ -206,25 +196,25 @@ export interface WalkOptions {
  */
 function recordingEvaluate(
   evaluate: Evaluate,
-  round: EvalWarning["round"],
+  round: EvalWarning['round'],
   sink: EvalWarning[] | undefined,
 ): Evaluate {
-  if (!sink) return evaluate;
-  return async sql => {
+  if (!sink) return evaluate
+  return async (sql) => {
     try {
-      return await evaluate(sql);
+      return await evaluate(sql)
     } catch (e) {
-      sink.push({ round, detail: e instanceof Error ? e.message : String(e) });
-      throw e;
+      sink.push({ round, detail: e instanceof Error ? e.message : String(e) })
+      throw e
     }
-  };
+  }
 }
 
 /** `options.evaluate` under this round's recorder, or undefined without one. */
-function evalWith(round: EvalWarning["round"], options?: WalkOptions): Evaluate | undefined {
+function evalWith(round: EvalWarning['round'], options?: WalkOptions): Evaluate | undefined {
   return options?.evaluate
     ? recordingEvaluate(options.evaluate, round, options.evalWarnings)
-    : undefined;
+    : undefined
 }
 
 /** The pre-walk evaluation round: one async step, answers in, sync walk. */
@@ -233,21 +223,21 @@ async function statementEvaluation(
   catalog: NullabilityCatalog,
   evaluate: Evaluate | undefined,
 ): Promise<Map<Node, EvalResult> | undefined> {
-  if (!evaluate) return undefined;
+  if (!evaluate) return undefined
   // Every adapter product carries the face (WalkOptions documents the
   // requirement); a catalog without it belongs to a caller that never
   // passes `evaluate`.
-  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
-  const map = await evaluateClosedSubtrees(stmt, face, evaluate);
+  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog
+  const map = await evaluateClosedSubtrees(stmt, face, evaluate)
   // Written-value guards (written-value-guards.ts) answer the same question
   // for trees the scope-blind collector must call open — a RETURNING CASE
   // guard over a column the statement WROTE as a constant. Keyed by the
   // original guard node, so they merge here and `evaluatedGuardTruth` reads
   // one map without knowing which pass filled the entry.
   for (const [node, result] of await writtenGuardTruths(stmt, face, evaluate)) {
-    if (!map.has(node)) map.set(node, result);
+    if (!map.has(node)) map.set(node, result)
   }
-  return map;
+  return map
 }
 
 /** The padding bound's pre-walk round (srf-cardinality.ts): how many rows
@@ -258,11 +248,11 @@ async function srfCardinalities(
   catalog: NullabilityCatalog,
   evaluate: Evaluate | undefined,
 ): Promise<ReadonlyMap<object, number> | undefined> {
-  if (!evaluate) return undefined;
-  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
-  const questions = collectSrfCardinalityQuestions(stmt, face);
-  if (questions.length === 0) return undefined;
-  return evaluateSrfCardinalities(questions, evaluate);
+  if (!evaluate) return undefined
+  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog
+  const questions = collectSrfCardinalityQuestions(stmt, face)
+  if (questions.length === 0) return undefined
+  return evaluateSrfCardinalities(questions, evaluate)
 }
 
 /** The entailment consumer's pre-walk round (comparison-groundings.ts):
@@ -272,11 +262,11 @@ async function comparisonGroundings(
   catalog: NullabilityCatalog,
   evaluate: Evaluate | undefined,
 ): Promise<ReadonlyMap<string, boolean> | undefined> {
-  if (!evaluate) return undefined;
-  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
-  const questions = await collectComparisonQuestions(stmt, face);
-  if (questions.length === 0) return undefined;
-  return evaluateComparisonQuestions(questions, face, evaluate);
+  if (!evaluate) return undefined
+  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog
+  const questions = await collectComparisonQuestions(stmt, face)
+  if (questions.length === 0) return undefined
+  return evaluateComparisonQuestions(questions, face, evaluate)
 }
 
 /**
@@ -295,19 +285,19 @@ async function closedTruths(
   evaluate: Evaluate | undefined,
   evaluation: ReadonlyMap<Node, EvalResult> | undefined,
 ): Promise<ReadonlyMap<string, boolean> | undefined> {
-  if (!evaluate) return undefined;
-  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
-  const out = new Map<string, boolean>();
+  if (!evaluate) return undefined
+  const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog
+  const out = new Map<string, boolean>()
   for (const [node, answer] of evaluation ?? []) {
-    if (!answer.isNull && typeof answer.value === "boolean") out.set(truthKey(node), answer.value);
+    if (!answer.isNull && typeof answer.value === 'boolean') out.set(truthKey(node), answer.value)
   }
-  const questions = collectClosedTruthQuestions(stmt, face);
+  const questions = collectClosedTruthQuestions(stmt, face)
   if (questions.length > 0) {
     for (const [key, value] of await evaluateClosedTruths(questions, face, evaluate)) {
-      out.set(key, value);
+      out.set(key, value)
     }
   }
-  return out.size > 0 ? out : undefined;
+  return out.size > 0 ? out : undefined
 }
 
 /**
@@ -332,20 +322,20 @@ async function delegatedTypes(
   catalog: NullabilityCatalog,
   options?: WalkOptions,
 ): Promise<ReadonlyMap<unknown, string> | undefined> {
-  if (!options?.resolveColumnTypes) return undefined;
-  const readings: TypeSetAudit[] = [];
-  const probe = new NullabilityEngine(catalog, false, undefined, options.paramTypes);
-  probe.typeSetAuditSink = readings;
+  if (!options?.resolveColumnTypes) return undefined
+  const readings: TypeSetAudit[] = []
+  const probe = new NullabilityEngine(catalog, false, undefined, options.paramTypes)
+  probe.typeSetAuditSink = readings
   try {
-    probe.run(stmt);
+    probe.run(stmt)
   } catch {
     // A statement the walk refuses has no delegation to offer, and the real
     // pass is about to refuse it in the same way and report properly.
-    return undefined;
+    return undefined
   }
-  if (readings.length === 0) return undefined;
-  const answers = await resolveDelegatedTypes(stmt, readings, options.resolveColumnTypes);
-  return answers.size > 0 ? answers : undefined;
+  if (readings.length === 0) return undefined
+  const answers = await resolveDelegatedTypes(stmt, readings, options.resolveColumnTypes)
+  return answers.size > 0 ? answers : undefined
 }
 
 export async function inferNullability(
@@ -353,11 +343,15 @@ export async function inferNullability(
   catalog: NullabilityCatalog,
   options?: WalkOptions,
 ): Promise<OutputNullability[]> {
-  const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
-  const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
-  const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
-  const delegated = await delegatedTypes(stmt, catalog, options);
-  const truths = await closedTruths(stmt, catalog, evalWith("closed-truths", options), evaluation);
+  const evaluation = await statementEvaluation(stmt, catalog, evalWith('statement-map', options))
+  const comparisons = await comparisonGroundings(
+    stmt,
+    catalog,
+    evalWith('comparison-groundings', options),
+  )
+  const cardinalities = await srfCardinalities(stmt, catalog, evalWith('srf-cardinality', options))
+  const delegated = await delegatedTypes(stmt, catalog, options)
+  const truths = await closedTruths(stmt, catalog, evalWith('closed-truths', options), evaluation)
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -368,11 +362,11 @@ export async function inferNullability(
     cardinalities,
     delegated,
     truths,
-  );
-  if (options?.joinAudit) engine.joinAuditSink = options.joinAudit;
-  if (options?.collectUnitCrossings) engine.collectUnitCrossings = true;
-  if (options?.typeSetAudit) engine.typeSetAuditSink = options.typeSetAudit;
-  return engine.run(stmt);
+  )
+  if (options?.joinAudit) engine.joinAuditSink = options.joinAudit
+  if (options?.collectUnitCrossings) engine.collectUnitCrossings = true
+  if (options?.typeSetAudit) engine.typeSetAuditSink = options.typeSetAudit
+  return engine.run(stmt)
 }
 
 /**
@@ -380,8 +374,8 @@ export async function inferNullability(
  * and what may go in (per parameter).
  */
 export interface QueryContract {
-  outputs: OutputNullability[];
-  params: ParamNullability[];
+  outputs: OutputNullability[]
+  params: ParamNullability[]
   /**
    * Minimal joint rejection sets, each of size ≥ 2: binding NULL to EVERY
    * member raises — `COALESCE($1, $2)` into a NOT NULL column claims
@@ -394,7 +388,7 @@ export interface QueryContract {
    * intersected with the flat per-parameter types; consumers that ignore
    * this field get exactly the old (sound, incomplete) flat contract.
    */
-  paramRejectionSets: number[][];
+  paramRejectionSets: number[][]
   /**
    * The output-side joint vocabulary, mirroring `paramRejectionSets`: sets
    * of output columns NULL-extended together by an outer join, with the
@@ -408,7 +402,7 @@ export interface QueryContract {
    * arm) intersected with the flat row type; consumers that ignore this
    * field get exactly the flat per-column contract.
    */
-  outputPresenceGroups: OutputPresenceGroup[];
+  outputPresenceGroups: OutputPresenceGroup[]
   /**
    * The statement rejects on EVERY execution: an enforced CHECK grounds
    * FALSE over values the statement writes unconditionally, with nothing
@@ -423,7 +417,7 @@ export interface QueryContract {
    * Parameter claims under the flag are vacuous and stay absorbed — the
    * flag is what explains a contract that would otherwise just be blank.
    */
-  alwaysRaises: boolean;
+  alwaysRaises: boolean
 }
 
 /**
@@ -438,25 +432,29 @@ export async function inferQueryContract(
   catalog: NullabilityCatalog,
   options?: WalkOptions,
 ): Promise<QueryContract> {
-  const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
+  const evaluation = await statementEvaluation(stmt, catalog, evalWith('statement-map', options))
   // The CHECK grounder: the same pre-walk async step over synthesized
   // trees, answers consumed by
   // the collector as data. Same catalog-face requirement as `evaluate`
   // documents; no evaluator → no E claims, everything else identical.
-  let mechanismE: MechanismEClaims | undefined;
+  let mechanismE: MechanismEClaims | undefined
   if (options?.evaluate) {
-    const grounderCatalog = catalog as NullabilityCatalog & SubtreeEvaluationCatalog;
-    const grounded = await groundEnforcedChecks(stmt, grounderCatalog);
+    const grounderCatalog = catalog as NullabilityCatalog & SubtreeEvaluationCatalog
+    const grounded = await groundEnforcedChecks(stmt, grounderCatalog)
     if (grounded.length > 0) {
-      const answers = await evaluateGroundedChecks(grounded, grounderCatalog, options.evaluate);
-      mechanismE = groundedCheckClaims(grounded, answers, catalog);
+      const answers = await evaluateGroundedChecks(grounded, grounderCatalog, options.evaluate)
+      mechanismE = groundedCheckClaims(grounded, answers, catalog)
     }
   }
-  const facts = collectParamFacts(stmt, catalog, mechanismE);
-  const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
-  const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
-  const delegated = await delegatedTypes(stmt, catalog, options);
-  const truths = await closedTruths(stmt, catalog, evalWith("closed-truths", options), evaluation);
+  const facts = collectParamFacts(stmt, catalog, mechanismE)
+  const comparisons = await comparisonGroundings(
+    stmt,
+    catalog,
+    evalWith('comparison-groundings', options),
+  )
+  const cardinalities = await srfCardinalities(stmt, catalog, evalWith('srf-cardinality', options))
+  const delegated = await delegatedTypes(stmt, catalog, options)
+  const truths = await closedTruths(stmt, catalog, evalWith('closed-truths', options), evaluation)
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -467,14 +465,14 @@ export async function inferQueryContract(
     cardinalities,
     delegated,
     truths,
-  );
+  )
   return {
     outputs: engine.run(stmt),
     params: facts.params,
     paramRejectionSets: facts.rejectionSets,
     outputPresenceGroups: engine.presenceGroups(),
     alwaysRaises: mechanismE?.alwaysRaises ?? false,
-  };
+  }
 }
 
 /**
@@ -488,10 +486,10 @@ export function inferPresenceGroups(
   catalog: NullabilityCatalog,
   traced = false,
 ): OutputPresenceGroup[] {
-  const engine = new NullabilityEngine(catalog, traced);
-  if (traced) engine.runTraced(stmt);
-  else engine.run(stmt);
-  return engine.presenceGroups();
+  const engine = new NullabilityEngine(catalog, traced)
+  if (traced) engine.runTraced(stmt)
+  else engine.run(stmt)
+  return engine.presenceGroups()
 }
 
 /**
@@ -506,11 +504,15 @@ export async function inferNullabilityTraced(
   onUnhandled?: UnhandledNodeObserver,
   options?: WalkOptions,
 ): Promise<OutputNullabilityTraced[]> {
-  const evaluation = await statementEvaluation(stmt, catalog, evalWith("statement-map", options));
-  const comparisons = await comparisonGroundings(stmt, catalog, evalWith("comparison-groundings", options));
-  const cardinalities = await srfCardinalities(stmt, catalog, evalWith("srf-cardinality", options));
-  const delegated = await delegatedTypes(stmt, catalog, options);
-  const truths = await closedTruths(stmt, catalog, evalWith("closed-truths", options), evaluation);
+  const evaluation = await statementEvaluation(stmt, catalog, evalWith('statement-map', options))
+  const comparisons = await comparisonGroundings(
+    stmt,
+    catalog,
+    evalWith('comparison-groundings', options),
+  )
+  const cardinalities = await srfCardinalities(stmt, catalog, evalWith('srf-cardinality', options))
+  const delegated = await delegatedTypes(stmt, catalog, options)
+  const truths = await closedTruths(stmt, catalog, evalWith('closed-truths', options), evaluation)
   const engine = new NullabilityEngine(
     catalog,
     true,
@@ -521,8 +523,8 @@ export async function inferNullabilityTraced(
     cardinalities,
     delegated,
     truths,
-  );
-  return engine.runTraced(stmt);
+  )
+  return engine.runTraced(stmt)
 }
 
 /**
@@ -535,9 +537,9 @@ export async function inferNullabilityTraced(
  * node-census test tell a considered fallback from an unconsidered one.
  */
 export type UnhandledNodeObserver = (
-  site: "expression" | "from-item" | "statement",
+  site: 'expression' | 'from-item' | 'statement',
   nodeType: string,
-) => void;
+) => void
 
 /**
  * Thrown when the walk meets a construct it has no branch for *and* silence
@@ -560,7 +562,7 @@ export type UnhandledNodeObserver = (
  */
 export class UnsupportedNodeError extends Error {
   constructor(
-    readonly site: "from-item" | "statement" | "composite-star",
+    readonly site: 'from-item' | 'statement' | 'composite-star',
     readonly nodeType: string,
   ) {
     super(
@@ -568,8 +570,8 @@ export class UnsupportedNodeError extends Error {
         `Unlike an unknown expression, this changes the output column list, so ` +
         `the result would be misaligned rather than merely conservative. ` +
         `Treat every column of this statement as nullable.`,
-    );
-    this.name = "UnsupportedNodeError";
+    )
+    this.name = 'UnsupportedNodeError'
   }
 }
 
@@ -580,53 +582,59 @@ export class UnsupportedNodeError extends Error {
 // ---------------------------------------------------------------------------
 
 interface ITrace {
-  addFact(name: string, value: string): void;
-  addChild(label: string): ITrace;
-  conclude(decision: boolean, reason: string): void;
-  readonly node: TraceNode | undefined;
+  addFact(name: string, value: string): void
+  addChild(label: string): ITrace
+  conclude(decision: boolean, reason: string): void
+  readonly node: TraceNode | undefined
 }
 
 class RealTrace implements ITrace {
-  private readonly _node: TraceNode;
+  private readonly _node: TraceNode
   constructor(label: string) {
-    this._node = { label, facts: [], decision: false, reason: "", children: [] };
+    this._node = { label, facts: [], decision: false, reason: '', children: [] }
   }
   addFact(name: string, value: string): void {
-    this._node.facts.push({ name, value });
+    this._node.facts.push({ name, value })
   }
   addChild(label: string): ITrace {
-    const child = new RealTrace(label);
-    this._node.children.push(child.node!);
-    return child;
+    const child = new RealTrace(label)
+    this._node.children.push(child.node!)
+    return child
   }
   conclude(decision: boolean, reason: string): void {
-    this._node.decision = decision;
-    this._node.reason = reason;
+    this._node.decision = decision
+    this._node.reason = reason
   }
-  get node(): TraceNode | undefined { return this._node; }
+  get node(): TraceNode | undefined {
+    return this._node
+  }
 }
 
 class NoopTrace implements ITrace {
   addFact(): void {}
-  addChild(): ITrace { return NOOP; }
+  addChild(): ITrace {
+    return NOOP
+  }
   conclude(): void {}
-  get node(): TraceNode | undefined { return undefined; }
+  get node(): TraceNode | undefined {
+    return undefined
+  }
 }
 
-const NOOP = new NoopTrace();
+const NOOP = new NoopTrace()
 
 // ---------------------------------------------------------------------------
 // Join nullability state (three-state per the design spec).
 // ---------------------------------------------------------------------------
 
-const REQUIRED = 0;
-const OPTIONAL = 1;
-const NOT_FOUND = 2;
+const REQUIRED = 0
+const OPTIONAL = 1
+const NOT_FOUND = 2
 
-type JoinState = typeof REQUIRED | typeof OPTIONAL | typeof NOT_FOUND;
+type JoinState = typeof REQUIRED | typeof OPTIONAL | typeof NOT_FOUND
 
 function joinStateName(s: JoinState): string {
-  return s === REQUIRED ? "REQUIRED" : s === OPTIONAL ? "OPTIONAL" : "NOT_FOUND";
+  return s === REQUIRED ? 'REQUIRED' : s === OPTIONAL ? 'OPTIONAL' : 'NOT_FOUND'
 }
 
 // ---------------------------------------------------------------------------
@@ -637,11 +645,11 @@ function joinStateName(s: JoinState): string {
 // ---------------------------------------------------------------------------
 
 interface RowBounds {
-  min: number;
-  max: number;
+  min: number
+  max: number
 }
 
-const UNBOUNDED_ROWS: RowBounds = { min: 0, max: Infinity };
+const UNBOUNDED_ROWS: RowBounds = { min: 0, max: Infinity }
 
 /**
  * The node tags a join qual may be built from for two joins to be compared as
@@ -659,9 +667,18 @@ const UNBOUNDED_ROWS: RowBounds = { min: 0, max: Infinity };
  * so a list of expression tags alone refuses `c.id = 1` on its `=`.
  */
 const QUAL_SHAPE_NODES = new Set([
-  "A_Expr", "BoolExpr", "NullTest", "BooleanTest", "TypeCast",
-  "String", "Integer", "Float", "Boolean", "List", "TypeName",
-]);
+  'A_Expr',
+  'BoolExpr',
+  'NullTest',
+  'BooleanTest',
+  'TypeCast',
+  'String',
+  'Integer',
+  'Float',
+  'Boolean',
+  'List',
+  'TypeName',
+])
 
 /**
  * A relation proven to hold a row for a key — see `Scope.rowWitnesses`.
@@ -674,35 +691,35 @@ const QUAL_SHAPE_NODES = new Set([
  * conservative.
  */
 interface RowWitness {
-  schema: string | undefined;
-  relation: string;
+  schema: string | undefined
+  relation: string
   /** The witnessed relation's own column that the restriction keys on. */
-  column: string;
+  column: string
   /** The outer column the restriction equates it to. */
-  outerAlias: string;
-  outerColumn: string;
+  outerAlias: string
+  outerColumn: string
 }
 
 // ---------------------------------------------------------------------------
 // Address book entry for a relation in a scope.
 // ---------------------------------------------------------------------------
 
-type RelationKind = "table" | "view" | "subquery" | "cte" | "values" | "function";
+type RelationKind = 'table' | 'view' | 'subquery' | 'cte' | 'values' | 'function'
 
 interface RelationEntry {
-  alias: string;
-  kind: RelationKind;
+  alias: string
+  kind: RelationKind
   /** The AST node for subquery/CTE/VALUES, so we can recurse into it. */
-  ast?: Node;
+  ast?: Node
   /** For tables/views: the resolved table (schema + name + columns). */
-  table?: ResolvedTable;
+  table?: ResolvedTable
   /**
    * Whether this table reference scans the inheritance tree (`FROM p`) or
    * the named relation alone (`FROM ONLY p`, an INSERT target). Decides
    * which catalog flag a column read may rely on — see entryColumnNotNull.
    * Absent means tree, the conservative side.
    */
-  scanInh?: boolean;
+  scanInh?: boolean
   /**
    * Whether this reference is a `TABLESAMPLE` of the relation rather than the
    * relation (sweep-4 finding 3). The walk unwraps `RangeTableSample` and
@@ -715,7 +732,7 @@ interface RelationEntry {
    * not MODEL, so the flag is the modelling: a sampled relation is never a
    * key's side and is never preserved.
    */
-  sampled?: boolean;
+  sampled?: boolean
   /**
    * A FROM item's alias COLUMN LIST — `FROM refunds_archive AS r(c0, c1, c2)`.
    *
@@ -731,19 +748,19 @@ interface RelationEntry {
    * Absent when the item carries no list, which is the ordinary case and the
    * one where both questions have the same answer.
    */
-  columnAliases?: string[];
+  columnAliases?: string[]
   /** For CTEs: the column names (from aliascolnames or inferred). */
-  cteColumns?: string[];
+  cteColumns?: string[]
   /**
    * Columns a CTE's SEARCH / CYCLE clause appends to its output. They appear
    * in neither branch's target list, so they must be added after analyzing the
    * CTE query.
    */
-  extraColumns?: OutputNullability[];
+  extraColumns?: OutputNullability[]
   /** For VALUES: the rows (valuesLists from SelectStmt). */
-  valuesRows?: Node[];
+  valuesRows?: Node[]
   /** For table functions: the whole RangeFunction node (needs `ordinality`). */
-  rangeFunction?: RangeFunction;
+  rangeFunction?: RangeFunction
   /**
    * Whether this FROM item provably emits AT LEAST ONE ROW — computed for
    * table functions from the same `armRowBounds` the lockstep padding takes.
@@ -753,18 +770,18 @@ interface RelationEntry {
    * sits where the item is registered and the consumer reads a bit, the same
    * split `Scope.rowWitnesses` takes.
    */
-  guaranteesRow?: boolean;
+  guaranteesRow?: boolean
   /** Memoized column list for a table function — see resolveTableFunctionColumns. */
-  functionColumns?: { name: string; notNull: boolean }[];
+  functionColumns?: { name: string; notNull: boolean }[]
   /**
    * Output positions belonging to a `ROWS FROM` arm the lockstep padding
    * reaches. Filled beside `functionColumns`, and read by the presence
    * grouping: a padded arm's columns go NULL while the ITEM is present, so
    * they are not members of the item's presence unit.
    */
-  paddedFunctionColumns?: Set<number>;
+  paddedFunctionColumns?: Set<number>
   /** Join nullability state. */
-  joinState: JoinState;
+  joinState: JoinState
   /**
    * Engine-unique id of this relation reference, the building block of
    * origin rowPaths (see ColumnOrigin in types.ts). Two references to the
@@ -772,7 +789,7 @@ interface RelationEntry {
    * ids — so row identity lives in the chain of REFERENCE instances, each
    * re-export prepending its own.
    */
-  instance: number;
+  instance: number
   /**
    * Identifier of the set of relations that are NULL-extended *together*.
    *
@@ -784,7 +801,7 @@ interface RelationEntry {
    * Relations joined by INNER JOIN inherit the enclosing group; each optional
    * side of an outer join starts a fresh one.
    */
-  nullGroup: number;
+  nullGroup: number
   /**
    * The CHAIN of null-extension units enclosing this entry, outermost
    * first — every optional slice whose absence NULL-extends this entry's
@@ -796,7 +813,7 @@ interface RelationEntry {
    * slice present, and a pinned child-unit column proves every enclosing
    * unit present.
    */
-  unitChain: number[];
+  unitChain: number[]
 }
 
 /**
@@ -807,9 +824,9 @@ interface RelationEntry {
  * present only under `WalkOptions.collectUnitCrossings`.
  */
 interface OriginResolution {
-  origins?: (ColumnOrigin | null)[];
-  settled?: boolean[];
-  crossings?: { depth: number; unit: number }[];
+  origins?: (ColumnOrigin | null)[]
+  settled?: boolean[]
+  crossings?: { depth: number; unit: number }[]
 }
 
 /**
@@ -820,11 +837,11 @@ interface OriginResolution {
  * constituent and has its own nullability rule.
  */
 interface VisibleColumn {
-  name: string;
+  name: string
   /** Producing relation; null for a merged column. */
-  entry: RelationEntry | null;
+  entry: RelationEntry | null
   /** Set only for a USING/NATURAL merged column. */
-  merged: MergedColumn | null;
+  merged: MergedColumn | null
 }
 
 /**
@@ -834,14 +851,14 @@ interface VisibleColumn {
  * either constituent in a FULL join.
  */
 interface MergedColumn {
-  left: RelationEntry;
-  right: RelationEntry;
-  jointype: string;
+  left: RelationEntry
+  right: RelationEntry
+  jointype: string
 }
 
 /** The shared shape of the unary SQL/JSON and XML conversion nodes. */
 interface JsonUnaryShape {
-  expr?: unknown;
+  expr?: unknown
 }
 
 /**
@@ -851,7 +868,7 @@ interface JsonUnaryShape {
  * side as a unit).
  */
 interface JoinPredicate {
-  jointype: string;
+  jointype: string
   /**
    * The join's qual, or NULL for a join that has none — a CROSS JOIN, a
    * comma join, a NATURAL join sharing no column name, a USING join whose
@@ -866,9 +883,9 @@ interface JoinPredicate {
    * been emptied. Everything structural is recorded now, and the fixpoint
    * skips the entries with nothing to imply.
    */
-  quals: Node | null;
-  leftAliases: string[];
-  rightAliases: string[];
+  quals: Node | null
+  leftAliases: string[]
+  rightAliases: string[]
   /**
    * The joinState this JoinExpr was entered with. REQUIRED means no ancestor
    * join can null-extend this join's slice — for an INNER join that alone
@@ -876,7 +893,7 @@ interface JoinPredicate {
    * inside it is optional ((t FULL u) INNER (v FULL ck): nothing is present,
    * yet every row passed the inner qual).
    */
-  incomingRequired: boolean;
+  incomingRequired: boolean
   /**
    * The null-group THIS join assigned to each side it made optional, absent
    * for a side it did not. Foreign-key entailment needs to tell "optional
@@ -884,8 +901,8 @@ interface JoinPredicate {
    * constrains the referencing relation's STORED rows, so a side already
    * NULL-extended when it arrives here carries rows the key never saw.
    */
-  leftOptionalGroup?: number;
-  rightOptionalGroup?: number;
+  leftOptionalGroup?: number
+  rightOptionalGroup?: number
   /**
    * The JoinExpr AST node this predicate was built from — the join's stable
    * identity across fixpoint re-runs and scope rebuilds (DML channels,
@@ -893,7 +910,7 @@ interface JoinPredicate {
    * group ids for the same syntactic join). Only the joinAudit readout keys
    * on it; the walk itself never reads it.
    */
-  node?: object;
+  node?: object
 }
 
 /**
@@ -903,9 +920,9 @@ interface JoinPredicate {
  * readings are about join structure and nothing else.
  */
 interface JoinSides {
-  jointype: string;
-  leftAliases: string[];
-  rightAliases: string[];
+  jointype: string
+  leftAliases: string[]
+  rightAliases: string[]
 }
 
 /**
@@ -915,21 +932,21 @@ interface JoinSides {
  * takes.
  */
 interface KeyedRelation {
-  schema: string;
-  name: string;
-  scansTree: boolean;
+  schema: string
+  name: string
+  scansTree: boolean
 }
 
 /** One join of a scalar subquery's FROM, as `subqueryFromTree` reads it. */
 interface SubqueryJoin extends JoinSides {
-  quals: Node;
+  quals: Node
 }
 
 /** One relation of a scalar subquery's FROM, as `subqueryFromTree` reads it. */
 interface SubqueryRelation extends KeyedRelation {
-  alias: string;
-  schemaname?: string;
-  relname: string;
+  alias: string
+  schemaname?: string
+  relname: string
   /**
    * The relation's alias COLUMN LIST, if it carries one. The subquery paths
    * work on this reduced structure rather than on a `RelationEntry`, so
@@ -937,9 +954,9 @@ interface SubqueryRelation extends KeyedRelation {
    * nothing — the key is recorded in `pg_constraint` under catalog names and
    * the WHERE is written in the query's.
    */
-  columnAliases?: string[];
+  columnAliases?: string[]
   /** The resolved catalog column order, for translating through that list. */
-  catalogColumns?: readonly string[];
+  catalogColumns?: readonly string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -948,7 +965,7 @@ interface SubqueryRelation extends KeyedRelation {
 
 interface Scope {
   /** alias → entry */
-  aliases: Map<string, RelationEntry>;
+  aliases: Map<string, RelationEntry>
   /**
    * The scope's output columns, in order — what `SELECT *` expands to and
    * what an unqualified column name resolves against.
@@ -963,9 +980,9 @@ interface Scope {
    * A name occurring more than once here is ambiguous — PostgreSQL rejects
    * such a reference outright, so the walk must not silently pick one.
    */
-  visible: VisibleColumn[];
+  visible: VisibleColumn[]
   /** CTE name → (AST node, column names, generated SEARCH/CYCLE columns). */
-  ctes: Map<string, { ast: Node; columns: string[]; extraColumns: OutputNullability[] }>;
+  ctes: Map<string, { ast: Node; columns: string[]; extraColumns: OutputNullability[] }>
   /**
    * Join aliases that own no relation entry, mapped to the columns they
    * expose: PG14's `USING (a, b) AS x` (x names EXACTLY the merged columns,
@@ -976,9 +993,9 @@ interface Scope {
    * `SELECT j.* FROM (atest5 a JOIN atest5 b USING (one)) j` — the
    * misalignment class.
    */
-  joinAliases: Map<string, VisibleColumn[]>;
+  joinAliases: Map<string, VisibleColumn[]>
   /** WHERE clause node (consulted at ColumnRef and ParamRef leaves). */
-  whereClause?: Node;
+  whereClause?: Node
   /**
    * HAVING clause node — the same evidence as WHERE with one difference in
    * strength: every emitted row passed HAVING, INCLUDING the zero-input
@@ -987,13 +1004,13 @@ interface Scope {
    * opaque to the strict closure, so `max(col) = 'x'` proves nothing about
    * per-row `col` — only conjuncts over group keys or parameters land.
    */
-  havingClause?: Node;
+  havingClause?: Node
   /**
    * The scope's join tree, flattened: one record per JoinExpr with an ON
    * qual, carrying the aliases registered under each side. Input to the
    * presence fixpoint (`resolveJoinImplications`).
    */
-  joins: JoinPredicate[];
+  joins: JoinPredicate[]
   /**
    * ON quals proven to have HELD for every row this scope emits — an INNER
    * join whose slice appears genuinely in every row, or an outer join whose
@@ -1001,7 +1018,7 @@ interface Scope {
    * Consulted exactly like WHERE conjuncts for column guarantees and (gated
    * on `rowsImplyWhere`, same hazard) parameter narrowing.
    */
-  impliedQuals: Node[];
+  impliedQuals: Node[]
   /**
    * Relations proven to HOLD A ROW for a key, on every row this scope emits.
    *
@@ -1020,7 +1037,7 @@ interface Scope {
    * Written by the FROM walk, never by the presence fixpoint, which is why
    * `withSpeculativeScope` does not restore it: it has no speculative part.
    */
-  rowWitnesses: RowWitness[];
+  rowWitnesses: RowWitness[]
   /**
    * Whether every row this scope emits derives from at least one input row
    * that passed `whereClause`. TRUE for a plain SELECT and for a grouped
@@ -1030,7 +1047,7 @@ interface Scope {
    * NULL bound returns `[NULL, 0]`), so a returned row proves nothing about
    * the WHERE. Gates the WHERE-conjunct narrowing of ParamRef.
    */
-  rowsImplyWhere: boolean;
+  rowsImplyWhere: boolean
   /**
    * Whether this SELECT's GROUP BY guarantees every emitted group holds at
    * least one input row. True for a plain `GROUP BY a`; false when there is no
@@ -1040,7 +1057,7 @@ interface Scope {
    * Consulted by the aggregate dispatch: an aggregate over a non-null
    * expression is non-null only when its group cannot be empty.
    */
-  groupGuaranteesNonEmpty: boolean;
+  groupGuaranteesNonEmpty: boolean
   /**
    * Columns that ROLLUP / CUBE / GROUPING SETS can NULL out in the output.
    *
@@ -1053,7 +1070,7 @@ interface Scope {
    * Keyed by both `alias.column` and bare `column` so qualified and
    * unqualified references both match.
    */
-  groupingSetColumns: ReadonlySet<string>;
+  groupingSetColumns: ReadonlySet<string>
   /**
    * UPDATE only: the target alias and its SET columns. A DML WHERE tested
    * the OLD row while RETURNING reports the NEW one, so column guarantees
@@ -1063,7 +1080,7 @@ interface Scope {
    * statement, and parameters are statement constants; both keep the full
    * guarantee machinery.
    */
-  dmlSetColumns?: { alias: string; columns: ReadonlySet<string> };
+  dmlSetColumns?: { alias: string; columns: ReadonlySet<string> }
   /**
    * DML RETURNING: target columns whose written value is provably non-null
    * on EVERY path that can produce a returned row — INSERT VALUES cells by
@@ -1073,7 +1090,7 @@ interface Scope {
    * intersection of the insert and update paths. Only `true` entries mean
    * anything; consulted as an upgrade alongside the catalog flag.
    */
-  dmlWrittenColumns?: { alias: string; columns: ReadonlyMap<string, boolean> };
+  dmlWrittenColumns?: { alias: string; columns: ReadonlyMap<string, boolean> }
   /**
    * The mirror of `dmlWrittenColumns`: per target column, whether the value
    * actually written is provably NULL on every path that can produce a
@@ -1081,7 +1098,7 @@ interface Scope {
    * first, because the two are read by different questions and a column is
    * in neither map far more often than it is in either.
    */
-  dmlWrittenNullColumns?: { alias: string; columns: ReadonlyMap<string, boolean> };
+  dmlWrittenNullColumns?: { alias: string; columns: ReadonlyMap<string, boolean> }
   /**
    * Parameters whose NULL binding raises on every path that can return a row
    * of THIS statement (`returningRejectedParams`), so a projected `$n` here
@@ -1094,11 +1111,11 @@ interface Scope {
    * engine-global `bindRejectedParams` needs no scoping because Bind rejects
    * before any execution, everywhere in the statement.
    */
-  dmlReturningRejectedParams?: ReadonlySet<number>;
+  dmlReturningRejectedParams?: ReadonlySet<number>
   /** Outer scope for correlated references. */
-  outer: Scope | null;
+  outer: Scope | null
   /** Memoized per-output-column results for this scope's AST node. */
-  results: OutputNullability[] | null;
+  results: OutputNullability[] | null
 }
 
 // ---------------------------------------------------------------------------
@@ -1119,8 +1136,8 @@ interface Scope {
  * inner query re-using the alias name cannot pick up an outer guard.
  */
 interface Guard {
-  scope: Scope;
-  predicate: Node;
+  scope: Scope
+  predicate: Node
   /**
    * How the predicate evaluated on the path being walked.
    *
@@ -1134,7 +1151,7 @@ interface Guard {
    * never evaluate to NULL (`IS NULL`, and OR-combinations of such) support an
    * inference here — see `falsityImpliesNotNull`.
    */
-  taken: boolean;
+  taken: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -1143,16 +1160,16 @@ interface Guard {
 
 interface FnBodyContext {
   /** Resolved nullability of each positional arg ($1, $2, ...). */
-  argResults: boolean[];
+  argResults: boolean[]
   /** Set of function keys currently being analyzed (cycle detection). */
-  analyzing: Set<string>;
+  analyzing: Set<string>
   /**
    * The function's own bare name, which is how PostgreSQL's deparser QUALIFIES
    * a parameter reference in a `BEGIN ATOMIC` body that has a FROM clause:
    * `SELECT b FROM t WHERE …` comes back as `multi_stmt_atomic.b`. Undefined
    * where no body is being read under a known name.
    */
-  fnName?: string;
+  fnName?: string
   /**
    * The DECLARED type of each positional parameter, from the function's own
    * signature. Inside a body, `$n` names the function's parameter and not the
@@ -1161,7 +1178,7 @@ interface FnBodyContext {
    * difference between `SELECT $1 || ' ' || $2` (the operator path decides
    * without types) and `SELECT UPPER($1)` (the dispatch needs one).
    */
-  argTypes: (string | undefined)[];
+  argTypes: (string | undefined)[]
   /**
    * The NAMES of those same positional parameters, so a body that references
    * one by name reaches `argTypes` the way `$n` does. Input parameters only,
@@ -1170,7 +1187,7 @@ interface FnBodyContext {
    * parameter shifts its indices out of line with `argTypes` and
    * `argResults`, both of which are input-positional.
    */
-  argNames: (string | undefined)[];
+  argNames: (string | undefined)[]
 }
 
 // ---------------------------------------------------------------------------
@@ -1183,22 +1200,22 @@ class NullabilityEngine {
    * Written once per analyzed scope at the end of `resolveJoinImplications`;
    * null in production use. Never read by the walk itself.
    */
-  joinAuditSink: JoinAudit[] | null = null;
+  joinAuditSink: JoinAudit[] | null = null
   /** Test-side flag (`WalkOptions.collectUnitCrossings`); see types.ts. */
-  collectUnitCrossings = false;
+  collectUnitCrossings = false
   /**
    * Test-side sink for operand type-set readings (`WalkOptions.typeSetAudit`).
    * Appended by `operandTypeSet` at every nesting level; null in production
    * use. Never read by the walk itself.
    */
-  typeSetAuditSink: TypeSetAudit[] | null = null;
+  typeSetAuditSink: TypeSetAudit[] | null = null
   /** Audit dedup: one record per syntactic join, keyed on its JoinExpr node. */
-  private joinAuditSeen = new WeakMap<object, JoinAudit>();
+  private joinAuditSeen = new WeakMap<object, JoinAudit>()
   /** Cycle guard for `selectColumnTypeSet`, by AST identity: a WITH
    *  RECURSIVE body types a column from a branch that reads that column. */
-  private reExportsInProgress = new Set<object>();
+  private reExportsInProgress = new Set<object>()
   /** Per-scope memoization: AST node → results (keyed by object identity). */
-  private scopeCache = new WeakMap<object, OutputNullability[]>();
+  private scopeCache = new WeakMap<object, OutputNullability[]>()
   /**
    * Per-analysis presence groups, keyed like `scopeCache` (the inner
    * statement object) and invalidated with it. Storing groups for EVERY
@@ -1208,15 +1225,15 @@ class NullabilityEngine {
    * stored list already contains ITS lifted groups, nesting composes to
    * any depth with no extra machinery.
    */
-  private groupCache = new WeakMap<object, OutputPresenceGroup[]>();
+  private groupCache = new WeakMap<object, OutputPresenceGroup[]>()
   /** Nodes currently being analyzed (prevents infinite recursion in recursive CTEs). */
-  private analyzing = new WeakSet<object>();
+  private analyzing = new WeakSet<object>()
   /**
    * What a recursive CTE's self-reference is currently assumed to produce.
    * Read by `analyzeSelect` when it re-enters a node already under analysis —
    * which happens exactly at the self-reference. See `analyzeSetOperation`.
    */
-  private recursiveAssumption = new WeakMap<object, OutputNullability[]>();
+  private recursiveAssumption = new WeakMap<object, OutputNullability[]>()
   /**
    * The group counterpart of `recursiveAssumption`: what a recursive
    * CTE's self-reference is assumed to carry as presence groups while the
@@ -1224,19 +1241,19 @@ class NullabilityEngine {
    * union could keep — and shrunk each round; `groupsOfStatement` falls
    * back to it when the in-flight statement has no cached groups yet.
    */
-  private recursiveGroupAssumption = new WeakMap<object, OutputPresenceGroup[]>();
+  private recursiveGroupAssumption = new WeakMap<object, OutputPresenceGroup[]>()
   /**
    * Nodes memoized while a recursive fixpoint is iterating, so their results
    * can be dropped when the assumption they were computed under is disproved.
    * Null when no fixpoint is in progress.
    */
-  private fixpointJournal: object[] | null = null;
+  private fixpointJournal: object[] | null = null
   /** Monotonic source of null-group ids (see RelationEntry.nullGroup). */
-  private nullGroupCounter = 0;
+  private nullGroupCounter = 0
   /** Monotonic source of relation-instance ids (see RelationEntry.instance). */
-  private instanceCounter = 0;
+  private instanceCounter = 0
   /** Branch guards currently in effect (see the Guard type). */
-  private guards: Guard[] = [];
+  private guards: Guard[] = []
   /**
    * Whether a speculative presence fixpoint is running right now
    * (`withSpeculativeScope`). Two readers: the join audit skips recording a
@@ -1245,9 +1262,9 @@ class NullabilityEngine {
    * speculation layered on the first would restore into already-widened
    * state rather than the real one.
    */
-  private speculating = false;
+  private speculating = false
   /** Current function body context (null when analyzing query-level ASTs). */
-  private fnCtx: FnBodyContext | null = null;
+  private fnCtx: FnBodyContext | null = null
 
   /**
    * The RETURNING clause being analyzed, when it is one: the DML target's
@@ -1258,9 +1275,9 @@ class NullabilityEngine {
    * later flag (the pg-regress replay's updatable_views crop). Saved and
    * restored around each RETURNING walk, like fnCtx.
    */
-  private retOldNew: { targetAlias: string; oldName: string; newName: string } | null = null;
+  private retOldNew: { targetAlias: string; oldName: string; newName: string } | null = null
   /** Current function parameter names (for resolving named ColumnRefs in body). */
-  private fnParamNames: string[] | null = null;
+  private fnParamNames: string[] | null = null
 
   /**
    * Statement-level parameters rejected at Bind: their resolved type is a
@@ -1274,7 +1291,7 @@ class NullabilityEngine {
    * (Function-body `$n` is that function's own parameter and is handled by
    * `fnCtx` before this set is consulted.)
    */
-  private bindRejectedParams: Set<number> = new Set();
+  private bindRejectedParams: Set<number> = new Set()
   /**
    * Presence groups of the ROOT statement, set by whichever assembly ran
    * at depth 0 (SELECT target list, DML RETURNING, or a set operation —
@@ -1283,7 +1300,7 @@ class NullabilityEngine {
    * Every nested analysis stores its own groups in `groupCache`; this
    * field is just the root's copy.
    */
-  private rootPresenceGroups: OutputPresenceGroup[] = [];
+  private rootPresenceGroups: OutputPresenceGroup[] = []
   /**
    * Entries whose row is PRESUMED present for the duration of a
    * presence-group discriminant computation. `presumePresent` lifts the
@@ -1297,9 +1314,9 @@ class NullabilityEngine {
    * memoized presumption-free — the cached-inner-results paths are what
    * keep a presumed walk from ever poisoning a memo).
    */
-  private presumedPresent: Set<RelationEntry> = new Set();
+  private presumedPresent: Set<RelationEntry> = new Set()
   /** Generation expressions currently being walked (cycle insurance). */
-  private generationInFlight: Set<string> = new Set();
+  private generationInFlight: Set<string> = new Set()
   /**
    * Whether the expression being walked is a DML SET expression, which reads
    * the OLD row (RETURNING reads the NEW one). CHECK entailment picks its
@@ -1308,13 +1325,13 @@ class NullabilityEngine {
    * the OLD row, so a single unmasked run against the OLD row's CHECKs is
    * both sound and complete, and the NEW-row channel would be the wrong row.
    */
-  private dmlOldRowRead = false;
+  private dmlOldRowRead = false
   /** Whether tracing is enabled. */
-  private readonly tracing: boolean;
+  private readonly tracing: boolean
   /** The catalog. */
-  private readonly catalog: NullabilityCatalog;
+  private readonly catalog: NullabilityCatalog
 
-  private readonly onUnhandled: UnhandledNodeObserver | undefined;
+  private readonly onUnhandled: UnhandledNodeObserver | undefined
 
   /**
    * Tier 0: the statement's resolved
@@ -1323,7 +1340,7 @@ class NullabilityEngine {
    * database (every harness holds one) and the walk stays pure and stays
    * correct without it, degrading to an untyped ParamRef.
    */
-  private readonly paramTypes: readonly string[] | undefined;
+  private readonly paramTypes: readonly string[] | undefined
 
   /**
    * The statement map: each maximal
@@ -1340,7 +1357,7 @@ class NullabilityEngine {
    * casts. Undefined when no `evaluate` was passed: no evaluation claims,
    * everything else identical.
    */
-  private readonly evaluation: ReadonlyMap<Node, EvalResult> | undefined;
+  private readonly evaluation: ReadonlyMap<Node, EvalResult> | undefined
 
   /**
    * The entailment consumer's answers (comparison-groundings.ts): the
@@ -1349,14 +1366,14 @@ class NullabilityEngine {
    * undefined without `evaluate`, and the kernel then answers exactly as
    * before.
    */
-  private readonly comparisons: ReadonlyMap<string, boolean> | undefined;
+  private readonly comparisons: ReadonlyMap<string, boolean> | undefined
 
   /**
    * How many rows each CLOSED set-returning call emits, keyed by node
    * identity — `srf-cardinality.ts`, read only by `armRowBounds`. Undefined
    * without `evaluate`, and the padding bound then answers exactly as before.
    */
-  private readonly cardinalities: ReadonlyMap<object, number> | undefined;
+  private readonly cardinalities: ReadonlyMap<object, number> | undefined
 
   /**
    * What PostgreSQL resolved an operand to, keyed by node identity
@@ -1366,7 +1383,7 @@ class NullabilityEngine {
    * the walk could already state and never invents one. Undefined without
    * `resolveColumnTypes`, and the walk then answers exactly as before.
    */
-  private readonly delegatedTypes: ReadonlyMap<unknown, string> | undefined;
+  private readonly delegatedTypes: ReadonlyMap<unknown, string> | undefined
 
   /**
    * The truth of every CLOSED boolean expression the statement or its tables'
@@ -1375,7 +1392,7 @@ class NullabilityEngine {
    * so identity does not survive the trip. Undefined without `evaluate`, and
    * the walk then reads bare literal tokens exactly as before.
    */
-  private readonly closedTruths: ReadonlyMap<string, boolean> | undefined;
+  private readonly closedTruths: ReadonlyMap<string, boolean> | undefined
 
   constructor(
     catalog: NullabilityCatalog,
@@ -1388,15 +1405,15 @@ class NullabilityEngine {
     delegatedTypes?: ReadonlyMap<unknown, string>,
     closedTruths?: ReadonlyMap<string, boolean>,
   ) {
-    this.catalog = catalog;
-    this.tracing = tracing;
-    this.onUnhandled = onUnhandled;
-    this.paramTypes = paramTypes;
-    this.evaluation = evaluation;
-    this.comparisons = comparisons;
-    this.cardinalities = cardinalities;
-    this.delegatedTypes = delegatedTypes;
-    this.closedTruths = closedTruths;
+    this.catalog = catalog
+    this.tracing = tracing
+    this.onUnhandled = onUnhandled
+    this.paramTypes = paramTypes
+    this.evaluation = evaluation
+    this.comparisons = comparisons
+    this.cardinalities = cardinalities
+    this.delegatedTypes = delegatedTypes
+    this.closedTruths = closedTruths
   }
 
   /**
@@ -1411,23 +1428,21 @@ class NullabilityEngine {
    * is dead in a CHECK, and one reading answers both.
    */
   private closedTruthOf(expr: Node): boolean | null {
-    const ac = (expr as Record<string, unknown>)["A_Const"] as
-      | { boolval?: { boolval?: boolean }; isnull?: boolean }
-      | undefined;
+    const ac = (expr as Record<string, unknown>)['A_Const'] as
+      { boolval?: { boolval?: boolean }; isnull?: boolean } | undefined
     // `false` arrives as `boolval: {}` — the parser omits a default-valued
     // field — so the presence of `boolval` is the test and its content is the
     // value.
-    if (ac && !ac.isnull && ac.boolval) return ac.boolval.boolval ?? false;
-    return this.closedTruths?.get(truthKey(expr)) ?? null;
+    if (ac && !ac.isnull && ac.boolval) return ac.boolval.boolval ?? false
+    return this.closedTruths?.get(truthKey(expr)) ?? null
   }
 
   /** The kernel-facing reading of `comparisons`, or undefined without it. */
   private comparisonOracle():
-    | ((colType: string, a: Lit, op: string, b: Lit) => boolean | null)
-    | undefined {
-    const map = this.comparisons;
-    if (!map) return undefined;
-    return (colType, a, op, b) => map.get(comparisonKey(colType, a, op, b)) ?? null;
+    ((colType: string, a: Lit, op: string, b: Lit) => boolean | null) | undefined {
+    const map = this.comparisons
+    if (!map) return undefined
+    return (colType, a, op, b) => map.get(comparisonKey(colType, a, op, b)) ?? null
   }
 
   /**
@@ -1443,49 +1458,49 @@ class NullabilityEngine {
     column: string,
     op: string,
   ): boolean {
-    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>;
-    if (typeof face.resolveColumnCollationDeterministic !== "function") return false;
-    const det = face.resolveColumnCollationDeterministic(schema, table, column);
-    if (det === null) return true;
+    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>
+    if (typeof face.resolveColumnCollationDeterministic !== 'function') return false
+    const det = face.resolveColumnCollationDeterministic(schema, table, column)
+    if (det === null) return true
     // The IDENTITY arm: a default-collated column's comparisons run under
     // the very collation the analysis session evaluates with, so every
     // canonical op transfers — determinism regardless. Explicit COLLATE
     // keeps the deterministic-equality-only arm.
-    if (face.resolveColumnCollationIsDefault?.(schema, table, column) === true) return true;
-    return det === true && (op === "=" || op === "<>");
+    if (face.resolveColumnCollationIsDefault?.(schema, table, column) === true) return true
+    return det === true && (op === '=' || op === '<>')
   }
 
   /** The interval rung's shape supplies, absent on a face-less catalog. */
   private btreeStrategySupply(): ((op: string) => number | null) | undefined {
-    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>;
-    const fn = face.btreeStrategyOf;
-    return typeof fn === "function" ? op => fn(op) : undefined;
+    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>
+    const fn = face.btreeStrategyOf
+    return typeof fn === 'function' ? (op) => fn(op) : undefined
   }
 
   private equalityComplementSupply(): ((op: string) => boolean) | undefined {
-    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>;
-    const fn = face.isEqualityComplement;
-    return typeof fn === "function" ? op => fn(op) : undefined;
+    const face = this.catalog as NullabilityCatalog & Partial<SubtreeEvaluationCatalog>
+    const fn = face.isEqualityComplement
+    return typeof fn === 'function' ? (op) => fn(op) : undefined
   }
 
   /** First key of a node object — its type tag. */
   private nodeTag(node: Record<string, unknown>): string {
-    return Object.keys(node).find(k => /^[A-Z]/.test(k)) ?? "?";
+    return Object.keys(node).find((k) => /^[A-Z]/.test(k)) ?? '?'
   }
 
   run(stmt: Node): OutputNullability[] {
-    this.bindRejectedParams = collectParamFacts(stmt, this.catalog).bindRejected;
-    return this.analyzeStatement(stmt, null, 0);
+    this.bindRejectedParams = collectParamFacts(stmt, this.catalog).bindRejected
+    return this.analyzeStatement(stmt, null, 0)
   }
 
   runTraced(stmt: Node): OutputNullabilityTraced[] {
-    this.bindRejectedParams = collectParamFacts(stmt, this.catalog).bindRejected;
-    return this.analyzeStatementTraced(stmt, null, 0);
+    this.bindRejectedParams = collectParamFacts(stmt, this.catalog).bindRejected
+    return this.analyzeStatementTraced(stmt, null, 0)
   }
 
   /** The root statement's presence groups, valid after run()/runTraced(). */
   presenceGroups(): OutputPresenceGroup[] {
-    return this.rootPresenceGroups;
+    return this.rootPresenceGroups
   }
 
   /**
@@ -1493,8 +1508,8 @@ class NullabilityEngine {
    * traced and untraced assemblies so the two cannot disagree about which
    * targets are bare.
    */
-  private originModeOf(stmt: SelectStmt): "all" | "keys" | "none" {
-    return stmt.groupClause?.length ? "keys" : stmt.havingClause ? "none" : "all";
+  private originModeOf(stmt: SelectStmt): 'all' | 'keys' | 'none' {
+    return stmt.groupClause?.length ? 'keys' : stmt.havingClause ? 'none' : 'all'
   }
 
   /**
@@ -1518,21 +1533,21 @@ class NullabilityEngine {
    * padded nor a source of rows anyone else is padded against.
    */
   private srfPaddedTargets(targetList: Node[], depth: number): boolean[] | null {
-    const calls = targetList.map(t => {
-      const val = this.unwrapResTarget(t).val;
-      return val ? this.setReturningCallsIn(val) : [];
-    });
-    const total = calls.reduce((a, c) => a + c.length, 0);
-    if (total < 2) return null;
+    const calls = targetList.map((t) => {
+      const val = this.unwrapResTarget(t).val
+      return val ? this.setReturningCallsIn(val) : []
+    })
+    const total = calls.reduce((a, c) => a + c.length, 0)
+    if (total < 2) return null
     // Two SRFs in ONE entry (`f(generate_series(...))`) expand against each
     // other inside it, and no bound here describes the result — unknown, which
     // pads the entry and every other entry alike, the answer this rule gave
     // everywhere before there were bounds at all.
-    const bounds = calls.map(c =>
+    const bounds = calls.map((c) =>
       c.length === 0 ? null : c.length === 1 ? this.armRowBounds(c[0]!, depth) : UNBOUNDED_ROWS,
-    );
-    const unpadded = this.unpaddedParticipants(bounds);
-    return calls.map((c, i) => c.length > 0 && !unpadded[i]);
+    )
+    const unpadded = this.unpaddedParticipants(bounds)
+    return calls.map((c, i) => c.length > 0 && !unpadded[i])
   }
 
   /**
@@ -1541,23 +1556,23 @@ class NullabilityEngine {
    * no part in this list's lockstep.
    */
   private setReturningCallsIn(node: Node): FuncCall[] {
-    const rec = node as Record<string, unknown>;
-    if ("SubLink" in rec) return [];
-    const found: FuncCall[] = [];
-    if ("FuncCall" in rec) {
-      const fc = rec["FuncCall"] as FuncCall;
-      if (!fc.over && this.isSetReturningCall(fc)) found.push(fc);
+    const rec = node as Record<string, unknown>
+    if ('SubLink' in rec) return []
+    const found: FuncCall[] = []
+    if ('FuncCall' in rec) {
+      const fc = rec['FuncCall'] as FuncCall
+      if (!fc.over && this.isSetReturningCall(fc)) found.push(fc)
     }
     for (const value of Object.values(rec)) {
       if (Array.isArray(value)) {
         for (const v of value) {
-          if (v && typeof v === "object") found.push(...this.setReturningCallsIn(v as Node));
+          if (v && typeof v === 'object') found.push(...this.setReturningCallsIn(v as Node))
         }
-      } else if (value && typeof value === "object") {
-        found.push(...this.setReturningCallsIn(value as Node));
+      } else if (value && typeof value === 'object') {
+        found.push(...this.setReturningCallsIn(value as Node))
       }
     }
-    return found;
+    return found
   }
 
   /**
@@ -1574,14 +1589,14 @@ class NullabilityEngine {
    */
   private unpaddedParticipants(bounds: (RowBounds | null)[]): boolean[] {
     return bounds.map((b, i) => {
-      if (!b) return true;
-      let othersMax = 0;
+      if (!b) return true
+      let othersMax = 0
       for (let j = 0; j < bounds.length; j++) {
-        const other = bounds[j];
-        if (j !== i && other) othersMax = Math.max(othersMax, other.max);
+        const other = bounds[j]
+        if (j !== i && other) othersMax = Math.max(othersMax, other.max)
       }
-      return b.min >= othersMax;
-    });
+      return b.min >= othersMax
+    })
   }
 
   /**
@@ -1641,31 +1656,29 @@ class NullabilityEngine {
    * a ROW COUNT, where 100 means a hundred rows and not all of them.
    */
   private tableSampleKeepsEveryRow(method: Node[] | undefined, args: Node[] | undefined): boolean {
-    const parts = (method ?? []).map(n => this.stringVal(n)).filter((p): p is string => !!p);
-    const name = parts[parts.length - 1]?.toLowerCase();
-    if (name !== "bernoulli" && name !== "system") return false;
-    if ((args ?? []).length !== 1) return false;
-    const ac = (args![0] as Record<string, unknown>)["A_Const"] as
-      | { ival?: { ival?: number }; fval?: { fval?: string }; isnull?: boolean }
-      | undefined;
-    if (!ac || ac.isnull) return false;
-    if ("ival" in ac) return (ac.ival?.ival ?? 0) === 100;
-    if ("fval" in ac) return Number(ac.fval?.fval) === 100;
-    return false;
+    const parts = (method ?? []).map((n) => this.stringVal(n)).filter((p): p is string => !!p)
+    const name = parts[parts.length - 1]?.toLowerCase()
+    if (name !== 'bernoulli' && name !== 'system') return false
+    if ((args ?? []).length !== 1) return false
+    const ac = (args![0] as Record<string, unknown>)['A_Const'] as
+      { ival?: { ival?: number }; fval?: { fval?: string }; isnull?: boolean } | undefined
+    if (!ac || ac.isnull) return false
+    if ('ival' in ac) return (ac.ival?.ival ?? 0) === 100
+    if ('fval' in ac) return Number(ac.fval?.fval) === 100
+    return false
   }
 
   private rangeFunctionGuaranteesRow(rf: RangeFunction, depth: number): boolean {
-    return (rf.functions ?? []).some(fnItem => {
-      const items = (fnItem as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
-      const fc = (items?.items?.[0] as Record<string, unknown> | undefined)?.["FuncCall"] as
-        | FuncCall
-        | undefined;
-      return !!fc && this.armRowBounds(fc, depth).min >= 1;
-    });
+    return (rf.functions ?? []).some((fnItem) => {
+      const items = (fnItem as Record<string, unknown>)['List'] as { items?: Node[] } | undefined
+      const fc = (items?.items?.[0] as Record<string, unknown> | undefined)?.['FuncCall'] as
+        FuncCall | undefined
+      return !!fc && this.armRowBounds(fc, depth).min >= 1
+    })
   }
 
   private armRowBounds(fc: FuncCall, depth: number): RowBounds {
-    if (!this.isSetReturningCall(fc)) return { min: 1, max: 1 };
+    if (!this.isSetReturningCall(fc)) return { min: 1, max: 1 }
 
     // A CLOSED call was RUN before the walk, and the count PostgreSQL gave is
     // exact in both directions — the one source of a bound that is neither a
@@ -1679,22 +1692,22 @@ class NullabilityEngine {
     // its count at execution time, and the padding turns this number into a
     // notNull claim. Absent the evaluator the map is undefined and every
     // reading below is what it always was.
-    const counted = this.cardinalities?.get(fc as unknown as object);
-    if (counted !== undefined) return { min: counted, max: counted };
+    const counted = this.cardinalities?.get(fc as unknown as object)
+    if (counted !== undefined) return { min: counted, max: counted }
 
-    const name = this.funcName(fc);
-    const schema = this.funcSchema(fc);
-    const meta = this.catalog.resolveFunctionMetadata(schema, name);
+    const name = this.funcName(fc)
+    const schema = this.funcSchema(fc)
+    const meta = this.catalog.resolveFunctionMetadata(schema, name)
     if (meta) {
-      if (!this.sqlBodyGuaranteesSingleRow(meta, depth)) return UNBOUNDED_ROWS;
+      if (!this.sqlBodyGuaranteesSingleRow(meta, depth)) return UNBOUNDED_ROWS
       // The body runs on every call unless STRICTNESS can stop it, and it can
       // only stop it through an argument — so a strict call with arguments is
       // the one shape whose minimum stays zero. Nothing here reads the
       // arguments themselves; a strict call whose arguments are all provably
       // non-null does run, and would raise the minimum to one, but no bound in
       // this rule needs it yet.
-      const canBeSkipped = meta.strict && meta.args.length > 0;
-      return { min: canBeSkipped ? 0 : 1, max: 1 };
+      const canBeSkipped = meta.strict && meta.args.length > 0
+      return { min: canBeSkipped ? 0 : 1, max: 1 }
     }
     // No user metadata: an OVERLOADED user name, or a builtin.
     //
@@ -1708,18 +1721,18 @@ class NullabilityEngine {
     // body-shape-overload-collision.sql the neighbouring shape that must not
     // move — consensus over the candidates is not the same permission as
     // reading ONE candidate's body for its flags.
-    const candidates = this.catalog.resolveFunctionShapes(schema, name);
+    const candidates = this.catalog.resolveFunctionShapes(schema, name)
     if (candidates.length > 0) {
-      if (!candidates.every(c => this.sqlBodyGuaranteesSingleRow(c, depth))) return UNBOUNDED_ROWS;
-      const canBeSkipped = candidates.some(c => c.strict && c.args.length > 0);
-      return { min: canBeSkipped ? 0 : 1, max: 1 };
+      if (!candidates.every((c) => this.sqlBodyGuaranteesSingleRow(c, depth))) return UNBOUNDED_ROWS
+      const canBeSkipped = candidates.some((c) => c.strict && c.args.length > 0)
+      return { min: canBeSkipped ? 0 : 1, max: 1 }
     }
     // The series count is a pg_catalog fact and must not be read off a name
     // the user catalog claims — the same precedence
     // `resolveBuiltinFunctionShape` sits behind one branch over, which the
     // empty candidate list above has already established.
-    const series = this.constantSeriesLength(fc, name, schema);
-    return series === null ? UNBOUNDED_ROWS : { min: series, max: series };
+    const series = this.constantSeriesLength(fc, name, schema)
+    return series === null ? UNBOUNDED_ROWS : { min: series, max: series }
   }
 
   /**
@@ -1733,14 +1746,14 @@ class NullabilityEngine {
     name: string,
     schema: string | undefined,
   ): number | null {
-    if (name !== "generate_series") return null;
-    if (schema !== undefined && schema !== "pg_catalog") return null;
-    const args = fc.args ?? [];
-    if (args.length !== 2) return null;
-    const lo = this.constantIntegerValue(args[0]!);
-    const hi = this.constantIntegerValue(args[1]!);
-    if (lo === null || hi === null) return null;
-    return Math.max(0, hi - lo + 1);
+    if (name !== 'generate_series') return null
+    if (schema !== undefined && schema !== 'pg_catalog') return null
+    const args = fc.args ?? []
+    if (args.length !== 2) return null
+    const lo = this.constantIntegerValue(args[0]!)
+    const hi = this.constantIntegerValue(args[1]!)
+    if (lo === null || hi === null) return null
+    return Math.max(0, hi - lo + 1)
   }
 
   /**
@@ -1749,11 +1762,10 @@ class NullabilityEngine {
    * the key is the test and the value defaults to zero.
    */
   private constantIntegerValue(node: Node): number | null {
-    const ac = (node as Record<string, unknown>)["A_Const"] as
-      | { ival?: { ival?: number }; isnull?: boolean }
-      | undefined;
-    if (!ac || ac.isnull || !("ival" in ac)) return null;
-    return ac.ival?.ival ?? 0;
+    const ac = (node as Record<string, unknown>)['A_Const'] as
+      { ival?: { ival?: number }; isnull?: boolean } | undefined
+    if (!ac || ac.isnull || !('ival' in ac)) return null
+    return ac.ival?.ival ?? 0
   }
 
   /**
@@ -1762,12 +1774,12 @@ class NullabilityEngine {
    * expressions and no `fnCtx` to establish.
    */
   private sqlBodyGuaranteesSingleRow(meta: FunctionInfo, depth: number): boolean {
-    if (meta.language !== "sql" || meta.isAggregate) return false;
-    this.checkDepth(depth);
-    const bodyAst = this.catalog.fnBodyAsts.get(`${meta.schema}.${meta.name}(${meta.argTypes})`);
-    const node = bodyAst as Record<string, unknown> | undefined;
-    if (!node || !("SelectStmt" in node)) return false;
-    return this.guaranteesSingleRow(node["SelectStmt"] as SelectStmt);
+    if (meta.language !== 'sql' || meta.isAggregate) return false
+    this.checkDepth(depth)
+    const bodyAst = this.catalog.fnBodyAsts.get(`${meta.schema}.${meta.name}(${meta.argTypes})`)
+    const node = bodyAst as Record<string, unknown> | undefined
+    if (!node || !('SelectStmt' in node)) return false
+    return this.guaranteesSingleRow(node['SelectStmt'] as SelectStmt)
   }
 
   /**
@@ -1787,14 +1799,13 @@ class NullabilityEngine {
    * call carrying a notNull PostgreSQL pads away.
    */
   private isSetReturningCall(fc: FuncCall): boolean {
-    const name = this.funcName(fc);
-    const schema = this.funcSchema(fc);
-    const known = this.catalog.functionReturnsSet(schema, name);
-    if (known !== null) return known;
+    const name = this.funcName(fc)
+    const schema = this.funcSchema(fc)
+    const known = this.catalog.functionReturnsSet(schema, name)
+    if (known !== null) return known
     return (
-      (schema === undefined || schema === "pg_catalog") &&
-      this.catalog.isSetReturningBuiltin(name)
-    );
+      (schema === undefined || schema === 'pg_catalog') && this.catalog.isSetReturningBuiltin(name)
+    )
   }
 
   /**
@@ -1863,10 +1874,10 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): { entry: RelationEntry; column: string; ordinal?: number } | null {
-    if (!p || p.entry.kind !== "function") return p;
+    if (!p || p.entry.kind !== 'function') return p
     const index =
       p.ordinal ??
-      this.resolveTableFunctionColumns(p.entry, scope, depth).findIndex(c => c.name === p.column);
+      this.resolveTableFunctionColumns(p.entry, scope, depth).findIndex((c) => c.name === p.column)
     // A PADDED `ROWS FROM` arm's columns go NULL while the ITEM is present, so
     // they are no part of the item's presence unit — the same break the
     // OPTIONAL condition below guards against, arriving one clause in rather
@@ -1874,19 +1885,19 @@ class NullabilityEngine {
     // showed: once a longer arm keeps its flags the arm becomes a
     // DISCRIMINANT, and a unit spanning both arms then reads "present" on the
     // very rows the padding has emptied.
-    if (index >= 0 && p.entry.paddedFunctionColumns?.has(index)) return null;
-    if (p.entry.joinState === OPTIONAL) return p;
-    if (index < 0) return p;
-    const exprs = this.unnestColumnExpressions(p.entry, index, scope, depth);
-    if (!exprs || exprs.length === 0) return p;
-    let target: { entry: RelationEntry; column: string } | null = null;
+    if (index >= 0 && p.entry.paddedFunctionColumns?.has(index)) return null
+    if (p.entry.joinState === OPTIONAL) return p
+    if (index < 0) return p
+    const exprs = this.unnestColumnExpressions(p.entry, index, scope, depth)
+    if (!exprs || exprs.length === 0) return p
+    let target: { entry: RelationEntry; column: string } | null = null
     for (const e of exprs) {
-      const bare = this.resolveBareColumnTarget(this.stripCasts(e), scope);
-      if (!bare) return p;
-      if (!target) target = bare;
-      else if (target.entry !== bare.entry || target.column !== bare.column) return p;
+      const bare = this.resolveBareColumnTarget(this.stripCasts(e), scope)
+      if (!bare) return p
+      if (!target) target = bare
+      else if (target.entry !== bare.entry || target.column !== bare.column) return p
     }
-    return target ?? p;
+    return target ?? p
   }
 
   /**
@@ -1909,9 +1920,9 @@ class NullabilityEngine {
    */
   private returningRejectsParam(num: number, scope: Scope): boolean {
     for (let s: Scope | null = scope; s; s = s.outer) {
-      if (s.dmlReturningRejectedParams?.has(num)) return true;
+      if (s.dmlReturningRejectedParams?.has(num)) return true
     }
-    return false;
+    return false
   }
 
   /**
@@ -1944,23 +1955,18 @@ class NullabilityEngine {
    *     executor, so `sql` and `plpgsql` bodies behave alike — both
    *     measured.
    */
-  private recordStrictSrfImplications(
-    rf: RangeFunction,
-    joinState: JoinState,
-    scope: Scope,
-  ): void {
-    if (joinState === OPTIONAL) return;
-    const arms = rf.functions ?? [];
-    if (arms.length !== 1) return;
-    const list = (arms[0] as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
-    const fc = (list?.items?.[0] as Record<string, unknown> | undefined)?.["FuncCall"] as
-      | FuncCall
-      | undefined;
-    const args = fc?.args ?? [];
-    if (!fc || args.length === 0) return;
-    const name = this.funcName(fc);
-    if (name === "unnest" && args.length > 1) return;
-    const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
+  private recordStrictSrfImplications(rf: RangeFunction, joinState: JoinState, scope: Scope): void {
+    if (joinState === OPTIONAL) return
+    const arms = rf.functions ?? []
+    if (arms.length !== 1) return
+    const list = (arms[0] as Record<string, unknown>)['List'] as { items?: Node[] } | undefined
+    const fc = (list?.items?.[0] as Record<string, unknown> | undefined)?.['FuncCall'] as
+      FuncCall | undefined
+    const args = fc?.args ?? []
+    if (!fc || args.length === 0) return
+    const name = this.funcName(fc)
+    if (name === 'unnest' && args.length > 1) return
+    const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name)
     const strictSrf = meta
       ? meta.strict && meta.returnsSet && !meta.isAggregate
       : // A pg_catalog name the user catalog does not carry. Both faces
@@ -1968,13 +1974,13 @@ class NullabilityEngine {
         // an overload PostgreSQL would not pick — `isStrictBuiltin` demands
         // every overload strict, and no pg_catalog name mixes set-returning
         // with scalar overloads (measured, and gated in builtin-surface).
-        this.catalog.isStrictBuiltin(name) && this.catalog.isSetReturningBuiltin(name);
-    if (!strictSrf) return;
+        this.catalog.isStrictBuiltin(name) && this.catalog.isSetReturningBuiltin(name)
+    if (!strictSrf) return
 
     for (const arg of args) {
       scope.impliedQuals.push({
-        NullTest: { arg, nulltesttype: "IS_NOT_NULL" },
-      } as unknown as Node);
+        NullTest: { arg, nulltesttype: 'IS_NOT_NULL' },
+      } as unknown as Node)
     }
   }
 
@@ -2018,16 +2024,16 @@ class NullabilityEngine {
    * that for free.
    */
   private recordRowWitness(sub: RangeSubselect, joinState: JoinState, scope: Scope): void {
-    if (joinState === OPTIONAL || !sub.subquery) return;
-    const sel = (sub.subquery as Record<string, unknown>)["SelectStmt"] as SelectStmt | undefined;
-    if (!sel) return;
-    if (sel.withClause) return;
-    if (!sel.whereClause || (sel.fromClause ?? []).length !== 1) return;
-    const rv = (sel.fromClause![0] as Record<string, unknown>)["RangeVar"] as RangeVar | undefined;
-    if (!rv?.relname) return;
-    const inner = rv.alias?.aliasname ?? rv.relname;
-    const eq = this.equalityColumnRefs(sel.whereClause);
-    if (!eq) return;
+    if (joinState === OPTIONAL || !sub.subquery) return
+    const sel = (sub.subquery as Record<string, unknown>)['SelectStmt'] as SelectStmt | undefined
+    if (!sel) return
+    if (sel.withClause) return
+    if (!sel.whereClause || (sel.fromClause ?? []).length !== 1) return
+    const rv = (sel.fromClause![0] as Record<string, unknown>)['RangeVar'] as RangeVar | undefined
+    if (!rv?.relname) return
+    const inner = rv.alias?.aliasname ?? rv.relname
+    const eq = this.equalityColumnRefs(sel.whereClause)
+    if (!eq) return
     // One side names the scanned relation, the other must name something
     // OUTSIDE the item — a correlated reference is the whole point, and an
     // equality between two of the item's own columns witnesses nothing.
@@ -2035,15 +2041,15 @@ class NullabilityEngine {
       [eq[0], eq[1]],
       [eq[1], eq[0]],
     ] as const) {
-      if (self.alias !== inner || outer.alias === inner) continue;
+      if (self.alias !== inner || outer.alias === inner) continue
       scope.rowWitnesses.push({
         schema: rv.schemaname,
         relation: rv.relname,
         column: self.column,
         outerAlias: outer.alias,
         outerColumn: outer.column,
-      });
-      return;
+      })
+      return
     }
   }
 
@@ -2053,9 +2059,9 @@ class NullabilityEngine {
    * non-null value is non-null, whatever the conversion does to it.
    */
   private stripCasts(expr: Node): Node {
-    const rec = expr as Record<string, unknown>;
-    const inner = "TypeCast" in rec ? (rec["TypeCast"] as { arg?: Node }).arg : undefined;
-    return inner ? this.stripCasts(inner) : expr;
+    const rec = expr as Record<string, unknown>
+    const inner = 'TypeCast' in rec ? (rec['TypeCast'] as { arg?: Node }).arg : undefined
+    return inner ? this.stripCasts(inner) : expr
   }
 
   private computePresenceGroups(
@@ -2064,37 +2070,37 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): OutputPresenceGroup[] {
-    const units = new Map<number, { columns: number[]; discriminants: number[]; dead: boolean }>();
+    const units = new Map<number, { columns: number[]; discriminants: number[]; dead: boolean }>()
     for (let i = 0; i < producers.length; i++) {
-      const p = this.presenceProducer(producers[i] ?? null, scope, depth);
-      if (!p || p.entry.joinState !== OPTIONAL) continue;
-      let unit = units.get(p.entry.nullGroup);
+      const p = this.presenceProducer(producers[i] ?? null, scope, depth)
+      if (!p || p.entry.joinState !== OPTIONAL) continue
+      let unit = units.get(p.entry.nullGroup)
       if (!unit) {
-        unit = { columns: [], discriminants: [], dead: false };
-        units.set(p.entry.nullGroup, unit);
+        unit = { columns: [], discriminants: [], dead: false }
+        units.set(p.entry.nullGroup, unit)
       }
       if (results[i]!.notNull) {
         // A bare optional-entry column can only be notNull via promotion,
         // and promotion refilters the whole unit's absent arm.
-        unit.dead = true;
-        continue;
+        unit.dead = true
+        continue
       }
-      unit.columns.push(i);
+      unit.columns.push(i)
       // The presumption must reach the fresh walks this call spawns (a
       // generation expression's same-entry refs), not just the top call.
-      this.presumedPresent.add(p.entry);
+      this.presumedPresent.add(p.entry)
       try {
         if (this.computeColumnNullability(p.entry, p.column, scope, depth, true, p.ordinal)) {
-          unit.discriminants.push(i);
+          unit.discriminants.push(i)
         }
       } finally {
-        this.presumedPresent.delete(p.entry);
+        this.presumedPresent.delete(p.entry)
       }
     }
-    const groups: OutputPresenceGroup[] = [];
+    const groups: OutputPresenceGroup[] = []
     for (const unit of units.values()) {
-      if (unit.dead || unit.columns.length < 2 || unit.discriminants.length === 0) continue;
-      groups.push({ columns: unit.columns, discriminants: unit.discriminants });
+      if (unit.dead || unit.columns.length < 2 || unit.discriminants.length === 0) continue
+      groups.push({ columns: unit.columns, discriminants: unit.discriminants })
     }
 
     // LIFTED groups (R1): a bare re-export preserves the inner analysis's
@@ -2114,44 +2120,46 @@ class NullabilityEngine {
     // group by intersection. Two references to one memoized analysis lift
     // separately (per entry), which is the instance-distinctness rowPaths
     // provide for origins.
-    const byEntry = new Map<RelationEntry, Map<number, number[]>>();
+    const byEntry = new Map<RelationEntry, Map<number, number[]>>()
     for (let i = 0; i < producers.length; i++) {
-      const p = producers[i];
-      if (!p) continue;
-      const e = p.entry;
-      if ((e.kind !== "subquery" && e.kind !== "cte" && e.kind !== "view") || !e.ast) continue;
+      const p = producers[i]
+      if (!p) continue
+      const e = p.entry
+      if ((e.kind !== 'subquery' && e.kind !== 'cte' && e.kind !== 'view') || !e.ast) continue
       const innerResults =
-        e.kind === "view"
+        e.kind === 'view'
           ? this.analyzeStatement(e.ast, scope, depth + 1)
-          : this.innerRelationColumns(e, scope, depth);
+          : this.innerRelationColumns(e, scope, depth)
       // Star-expanded producers carry their position; a name lookup would
       // first-match the wrong column when the entry exports duplicates.
-      const j = p.ordinal ?? this.innerIndexOf(e, p.column, innerResults);
-      if (j < 0) continue;
-      let m = byEntry.get(e);
+      const j = p.ordinal ?? this.innerIndexOf(e, p.column, innerResults)
+      if (j < 0) continue
+      let m = byEntry.get(e)
       if (!m) {
-        m = new Map();
-        byEntry.set(e, m);
+        m = new Map()
+        byEntry.set(e, m)
       }
-      const outs = m.get(j) ?? [];
-      outs.push(i);
-      m.set(j, outs);
+      const outs = m.get(j) ?? []
+      outs.push(i)
+      m.set(j, outs)
     }
-    const seenKeys = new Set(groups.map(g => `${g.columns.join(",")}|${g.discriminants.join(",")}`));
+    const seenKeys = new Set(
+      groups.map((g) => `${g.columns.join(',')}|${g.discriminants.join(',')}`),
+    )
     for (const [e, map] of byEntry) {
       for (const g of this.groupsOfStatement(e.ast!)) {
-        const cols: number[] = [];
-        const discs: number[] = [];
-        for (const j of g.columns) for (const i of map.get(j) ?? []) cols.push(i);
-        for (const j of g.discriminants) for (const i of map.get(j) ?? []) discs.push(i);
-        cols.sort((a, b) => a - b);
-        discs.sort((a, b) => a - b);
-        if (cols.length < 2 || discs.length === 0) continue;
-        if (cols.some(i => results[i]!.notNull)) continue;
-        const key = `${cols.join(",")}|${discs.join(",")}`;
-        if (seenKeys.has(key)) continue;
-        seenKeys.add(key);
-        groups.push({ columns: cols, discriminants: discs });
+        const cols: number[] = []
+        const discs: number[] = []
+        for (const j of g.columns) for (const i of map.get(j) ?? []) cols.push(i)
+        for (const j of g.discriminants) for (const i of map.get(j) ?? []) discs.push(i)
+        cols.sort((a, b) => a - b)
+        discs.sort((a, b) => a - b)
+        if (cols.length < 2 || discs.length === 0) continue
+        if (cols.some((i) => results[i]!.notNull)) continue
+        const key = `${cols.join(',')}|${discs.join(',')}`
+        if (seenKeys.has(key)) continue
+        seenKeys.add(key)
+        groups.push({ columns: cols, discriminants: discs })
       }
     }
 
@@ -2159,8 +2167,8 @@ class NullabilityEngine {
       (a, b) =>
         a.columns[0]! - b.columns[0]! ||
         a.columns.length - b.columns.length ||
-        (a.columns.join(",") < b.columns.join(",") ? -1 : 1),
-    );
+        (a.columns.join(',') < b.columns.join(',') ? -1 : 1),
+    )
   }
 
   /**
@@ -2200,34 +2208,35 @@ class NullabilityEngine {
     results: { notNull: boolean }[],
     rightResults?: { notNull: boolean }[],
   ): OutputPresenceGroup[] {
-    if (!sel.larg || !sel.rarg) return [];
-    const left = this.groupCache.get(sel.larg) ?? [];
-    let combined: OutputPresenceGroup[];
-    if (sel.op === "SETOP_INTERSECT" || sel.op === "SETOP_EXCEPT") {
-      combined = left;
+    if (!sel.larg || !sel.rarg) return []
+    const left = this.groupCache.get(sel.larg) ?? []
+    let combined: OutputPresenceGroup[]
+    if (sel.op === 'SETOP_INTERSECT' || sel.op === 'SETOP_EXCEPT') {
+      combined = left
     } else {
-      const right = this.groupCache.get(sel.rarg) ?? [];
-      combined = [];
-      const seen = new Set<string>();
+      const right = this.groupCache.get(sel.rarg) ?? []
+      combined = []
+      const seen = new Set<string>()
       const admit = (columns: number[], discriminants: number[]): void => {
-        if (columns.length < 2 || discriminants.length === 0) return;
-        const key = `${columns.join(",")}|${discriminants.join(",")}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        combined.push({ columns, discriminants });
-      };
+        if (columns.length < 2 || discriminants.length === 0) return
+        const key = `${columns.join(',')}|${discriminants.join(',')}`
+        if (seen.has(key)) return
+        seen.add(key)
+        combined.push({ columns, discriminants })
+      }
       for (const lg of left) {
         for (const rg of right) {
           admit(
-            lg.columns.filter(c => rg.columns.includes(c)),
+            lg.columns.filter((c) => rg.columns.includes(c)),
             lg.discriminants.filter(
-              d => rg.discriminants.includes(d) && lg.columns.includes(d) && rg.columns.includes(d),
+              (d) =>
+                rg.discriminants.includes(d) && lg.columns.includes(d) && rg.columns.includes(d),
             ),
-          );
+          )
         }
         // The vacuous arm — a branch with no absence cannot break the group.
-        if (rightResults && lg.discriminants.every(d => rightResults[d]?.notNull)) {
-          admit(lg.columns, lg.discriminants);
+        if (rightResults && lg.discriminants.every((d) => rightResults[d]?.notNull)) {
+          admit(lg.columns, lg.discriminants)
         }
       }
     }
@@ -2240,7 +2249,7 @@ class NullabilityEngine {
     // collapses it) but noisy, and its arm could never be witnessed —
     // found by the generated corpus's two-arm bar, 67 groups strong,
     // before any consumer saw one.
-    return combined.filter(g => g.columns.every(i => !results[i]?.notNull));
+    return combined.filter((g) => g.columns.every((i) => !results[i]?.notNull))
   }
 
   /**
@@ -2250,14 +2259,14 @@ class NullabilityEngine {
    * conservatively group-less.
    */
   private groupsOfStatement(ast: Node): OutputPresenceGroup[] {
-    const node = ast as Record<string, unknown>;
-    for (const tag of ["SelectStmt", "InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
+    const node = ast as Record<string, unknown>
+    for (const tag of ['SelectStmt', 'InsertStmt', 'UpdateStmt', 'DeleteStmt', 'MergeStmt']) {
       if (tag in node) {
-        const inner = node[tag] as object;
-        return this.groupCache.get(inner) ?? this.recursiveGroupAssumption.get(inner) ?? [];
+        const inner = node[tag] as object
+        return this.groupCache.get(inner) ?? this.recursiveGroupAssumption.get(inner) ?? []
       }
     }
-    return [];
+    return []
   }
 
   /**
@@ -2271,12 +2280,12 @@ class NullabilityEngine {
     colName: string,
     innerResults: { name: string }[],
   ): number {
-    if (entry.kind === "view" && entry.table) return this.entryColumnNames(entry).indexOf(colName);
+    if (entry.kind === 'view' && entry.table) return this.entryColumnNames(entry).indexOf(colName)
     if (entry.cteColumns && entry.cteColumns.length > 0) {
-      const idx = entry.cteColumns.indexOf(colName);
-      if (idx >= 0 && idx < innerResults.length) return idx;
+      const idx = entry.cteColumns.indexOf(colName)
+      if (idx >= 0 && idx < innerResults.length) return idx
     }
-    return innerResults.findIndex(r => r.name === colName);
+    return innerResults.findIndex((r) => r.name === colName)
   }
 
   /**
@@ -2315,29 +2324,29 @@ class NullabilityEngine {
     outerNames: (string | undefined)[],
     scope: Scope,
   ): string | null {
-    if (!entry.ast || index < 0) return null;
+    if (!entry.ast || index < 0) return null
     const duplicated = new Set(
       outerNames.filter((n, i) => n !== undefined && outerNames.indexOf(n) !== i),
-    );
+    )
     for (const group of this.groupsOfStatement(entry.ast)) {
-      if (!group.discriminants.includes(index)) continue;
+      if (!group.discriminants.includes(index)) continue
       for (const j of group.columns) {
-        if (j === index) continue;
-        const name = outerNames[j];
-        if (name === undefined || duplicated.has(name)) continue;
+        if (j === index) continue
+        const name = outerNames[j]
+        if (name === undefined || duplicated.has(name)) continue
         if (
           this.checkWhereGuarantee(entry.alias, name, scope) ||
           this.guardsImplyNotNull(entry.alias, name, scope)
         ) {
-          return `${entry.alias}.${name}`;
+          return `${entry.alias}.${name}`
         }
       }
     }
-    return null;
+    return null
   }
 
   private newTrace(label: string): ITrace {
-    return this.tracing ? new RealTrace(label) : NOOP;
+    return this.tracing ? new RealTrace(label) : NOOP
   }
 
   // -------------------------------------------------------------------------
@@ -2349,38 +2358,38 @@ class NullabilityEngine {
     outerScope: Scope | null,
     depth: number,
   ): OutputNullability[] {
-    this.checkDepth(depth);
+    this.checkDepth(depth)
     // Statement results are memoized by AST node identity, so they must not
     // depend on the branch guards active at the call site — a CTE analyzed
     // once inside a CASE branch is reused everywhere else. Guards therefore
     // stop at every statement boundary.
-    const saved = this.guards;
-    this.guards = [];
+    const saved = this.guards
+    this.guards = []
     try {
-      const node = stmt as Record<string, unknown>;
-      if ("SelectStmt" in node) {
-        return this.analyzeSelect(node["SelectStmt"] as SelectStmt, outerScope, depth);
+      const node = stmt as Record<string, unknown>
+      if ('SelectStmt' in node) {
+        return this.analyzeSelect(node['SelectStmt'] as SelectStmt, outerScope, depth)
       }
-      if ("InsertStmt" in node) {
-        return this.analyzeInsert(node["InsertStmt"] as InsertStmt, outerScope, depth);
+      if ('InsertStmt' in node) {
+        return this.analyzeInsert(node['InsertStmt'] as InsertStmt, outerScope, depth)
       }
-      if ("UpdateStmt" in node) {
-        return this.analyzeUpdate(node["UpdateStmt"] as UpdateStmt, outerScope, depth);
+      if ('UpdateStmt' in node) {
+        return this.analyzeUpdate(node['UpdateStmt'] as UpdateStmt, outerScope, depth)
       }
-      if ("DeleteStmt" in node) {
-        return this.analyzeDelete(node["DeleteStmt"] as DeleteStmt, outerScope, depth);
+      if ('DeleteStmt' in node) {
+        return this.analyzeDelete(node['DeleteStmt'] as DeleteStmt, outerScope, depth)
       }
-      if ("MergeStmt" in node) {
-        return this.analyzeMerge(node["MergeStmt"] as MergeStmt, outerScope, depth);
+      if ('MergeStmt' in node) {
+        return this.analyzeMerge(node['MergeStmt'] as MergeStmt, outerScope, depth)
       }
       // An unrecognised statement contributes no columns at all — a shape
       // defect, not a conservative flag. Refuse rather than return a column
       // list we know is wrong.
-      const tag = this.nodeTag(node);
-      this.onUnhandled?.("statement", tag);
-      throw new UnsupportedNodeError("statement", tag);
+      const tag = this.nodeTag(node)
+      this.onUnhandled?.('statement', tag)
+      throw new UnsupportedNodeError('statement', tag)
     } finally {
-      this.guards = saved;
+      this.guards = saved
     }
   }
 
@@ -2394,51 +2403,62 @@ class NullabilityEngine {
     outerScope: Scope | null,
     depth: number,
   ): OutputNullabilityTraced[] {
-    this.checkDepth(depth);
-    const node = stmt as Record<string, unknown>;
+    this.checkDepth(depth)
+    const node = stmt as Record<string, unknown>
 
     // For set operations, trace each branch.
-    if ("SelectStmt" in node) {
-      const sel = node["SelectStmt"] as SelectStmt;
-      if (sel.op && sel.op !== "SETOP_NONE" && sel.larg && sel.rarg) {
+    if ('SelectStmt' in node) {
+      const sel = node['SelectStmt'] as SelectStmt
+      if (sel.op && sel.op !== 'SETOP_NONE' && sel.larg && sel.rarg) {
         // Register CTEs from the WITH clause so they're visible in larg/rarg.
-        const cteScope = this.emptyScope(outerScope);
-        this.registerCtes(sel.withClause, cteScope);
-        const left = this.analyzeStatementTraced({ SelectStmt: sel.larg } as Node, cteScope, depth + 1);
-        const right = this.analyzeStatementTraced({ SelectStmt: sel.rarg } as Node, cteScope, depth + 1);
-        const combined = this.combineSetOperationTraced(left, right, sel.op);
-        const groups = this.computeSetOpGroups(sel, combined, right);
-        this.groupCache.set(sel, groups);
-        if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
-        return combined;
+        const cteScope = this.emptyScope(outerScope)
+        this.registerCtes(sel.withClause, cteScope)
+        const left = this.analyzeStatementTraced(
+          { SelectStmt: sel.larg } as Node,
+          cteScope,
+          depth + 1,
+        )
+        const right = this.analyzeStatementTraced(
+          { SelectStmt: sel.rarg } as Node,
+          cteScope,
+          depth + 1,
+        )
+        const combined = this.combineSetOperationTraced(left, right, sel.op)
+        const groups = this.computeSetOpGroups(sel, combined, right)
+        this.groupCache.set(sel, groups)
+        if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups
+        return combined
       }
       // For normal SELECT, build scope and trace each target. Producer
       // recording mirrors the untraced assembly line by line — the parity
       // suite compares the two engines' presence groups.
       if (!sel.valuesLists || sel.valuesLists.length === 0) {
-        const scope = this.buildScope(sel, outerScope, depth);
-        const originMode = this.originModeOf(sel);
-        const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
-        const results: OutputNullabilityTraced[] = [];
-        const tracedTargets = sel.targetList ?? [];
-        const srfPadded = this.srfPaddedTargets(tracedTargets, depth);
+        const scope = this.buildScope(sel, outerScope, depth)
+        const originMode = this.originModeOf(sel)
+        const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = []
+        const results: OutputNullabilityTraced[] = []
+        const tracedTargets = sel.targetList ?? []
+        const srfPadded = this.srfPaddedTargets(tracedTargets, depth)
         for (const [targetIndex, target] of tracedTargets.entries()) {
-          const rt = this.unwrapResTarget(target);
-          const val = rt.val;
-          const name = rt.name;
+          const rt = this.unwrapResTarget(target)
+          const val = rt.val
+          const name = rt.name
           if (!val) {
-            results.push({ name: name ?? "", notNull: false });
-            producers.push(null);
-            continue;
+            results.push({ name: name ?? '', notNull: false })
+            producers.push(null)
+            continue
           }
           // Mirrors the untraced assembly — see srfPaddedTargets.
           if (srfPadded?.[targetIndex]) {
-            const trace = this.newTrace("Root");
-            trace.addFact("srfPadding", "two or more set-returning calls in this target list");
-            trace.conclude(false, "lockstep SRF expansion NULL-pads the shorter call after it returned → nullable");
-            results.push({ name: name ?? this.inferName(val), notNull: false, trace: trace.node });
-            producers.push(null);
-            continue;
+            const trace = this.newTrace('Root')
+            trace.addFact('srfPadding', 'two or more set-returning calls in this target list')
+            trace.conclude(
+              false,
+              'lockstep SRF expansion NULL-pads the shorter call after it returned → nullable',
+            )
+            results.push({ name: name ?? this.inferName(val), notNull: false, trace: trace.node })
+            producers.push(null)
+            continue
           }
           if (this.isStarColumn(val)) {
             const expanded = this.expandStar(
@@ -2446,35 +2466,35 @@ class NullabilityEngine {
               scope,
               depth,
               false,
-              originMode === "all" ? producers : undefined,
-            );
-            if (originMode !== "all") for (const _ of expanded) producers.push(null);
-            for (const e of expanded) results.push({ ...e });
-            continue;
+              originMode === 'all' ? producers : undefined,
+            )
+            if (originMode !== 'all') for (const _ of expanded) producers.push(null)
+            for (const e of expanded) results.push({ ...e })
+            continue
           }
-          const compositeStar = this.expandCompositeStar(val, scope, depth);
+          const compositeStar = this.expandCompositeStar(val, scope, depth)
           if (compositeStar) {
             for (const e of compositeStar) {
-              results.push({ ...e });
-              producers.push(null);
+              results.push({ ...e })
+              producers.push(null)
             }
-            continue;
+            continue
           }
-          const trace = this.newTrace("Root");
-          const notNull = this.walkExprTraced(val, scope, depth + 1, trace);
-          const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1);
-          producers.push(this.originTarget(val, sel, scope, originMode));
+          const trace = this.newTrace('Root')
+          const notNull = this.walkExprTraced(val, scope, depth + 1, trace)
+          const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1)
+          producers.push(this.originTarget(val, sel, scope, originMode))
           results.push({
             name: name ?? this.inferName(val),
             notNull,
             ...(alwaysNull ? { alwaysNull: true } : {}),
             trace: trace.node,
-          });
+          })
         }
-        const groups = this.computePresenceGroups(producers, results, scope, depth);
-        this.groupCache.set(sel, groups);
-        if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
-        return results;
+        const groups = this.computePresenceGroups(producers, results, scope, depth)
+        this.groupCache.set(sel, groups)
+        if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups
+        return results
       }
     }
 
@@ -2484,33 +2504,33 @@ class NullabilityEngine {
     // drifted (no WHERE channel, no SET mask, no written-value map), so the
     // tracer explained decisions the engine did not make. The parity suite
     // in nullability-walk-traced.test.ts holds the property.
-    if ("InsertStmt" in node) {
-      const ins = node["InsertStmt"] as InsertStmt;
-      if (!ins.returningClause) return [];
-      const scope = this.buildInsertScope(ins, outerScope, depth);
-      return this.analyzeReturningTraced(ins.returningClause, scope, depth, ins);
+    if ('InsertStmt' in node) {
+      const ins = node['InsertStmt'] as InsertStmt
+      if (!ins.returningClause) return []
+      const scope = this.buildInsertScope(ins, outerScope, depth)
+      return this.analyzeReturningTraced(ins.returningClause, scope, depth, ins)
     }
-    if ("UpdateStmt" in node) {
-      const upd = node["UpdateStmt"] as UpdateStmt;
-      if (!upd.returningClause) return [];
-      const scope = this.buildUpdateScope(upd, outerScope, depth);
-      return this.analyzeReturningTraced(upd.returningClause, scope, depth, upd);
+    if ('UpdateStmt' in node) {
+      const upd = node['UpdateStmt'] as UpdateStmt
+      if (!upd.returningClause) return []
+      const scope = this.buildUpdateScope(upd, outerScope, depth)
+      return this.analyzeReturningTraced(upd.returningClause, scope, depth, upd)
     }
-    if ("MergeStmt" in node) {
-      const mrg = node["MergeStmt"] as MergeStmt;
-      if (!mrg.returningClause) return [];
-      const scope = this.buildMergeScope(mrg, outerScope, depth);
-      return this.analyzeReturningTraced(mrg.returningClause, scope, depth, mrg);
+    if ('MergeStmt' in node) {
+      const mrg = node['MergeStmt'] as MergeStmt
+      if (!mrg.returningClause) return []
+      const scope = this.buildMergeScope(mrg, outerScope, depth)
+      return this.analyzeReturningTraced(mrg.returningClause, scope, depth, mrg)
     }
-    if ("DeleteStmt" in node) {
-      const del = node["DeleteStmt"] as DeleteStmt;
-      if (!del.returningClause) return [];
-      const scope = this.buildDeleteScope(del, outerScope, depth);
-      return this.analyzeReturningTraced(del.returningClause, scope, depth, del);
+    if ('DeleteStmt' in node) {
+      const del = node['DeleteStmt'] as DeleteStmt
+      if (!del.returningClause) return []
+      const scope = this.buildDeleteScope(del, outerScope, depth)
+      return this.analyzeReturningTraced(del.returningClause, scope, depth, del)
     }
 
     // Fallback: untraced.
-    return this.analyzeStatement(stmt, outerScope, depth);
+    return this.analyzeStatement(stmt, outerScope, depth)
   }
 
   private combineSetOperationTraced(
@@ -2518,17 +2538,17 @@ class NullabilityEngine {
     right: OutputNullabilityTraced[],
     op: string | undefined,
   ): OutputNullabilityTraced[] {
-    const len = Math.max(left.length, right.length);
-    const results: OutputNullabilityTraced[] = [];
+    const len = Math.max(left.length, right.length)
+    const results: OutputNullabilityTraced[] = []
     for (let i = 0; i < len; i++) {
-      const l = left[i];
-      const r = right[i];
+      const l = left[i]
+      const r = right[i]
       results.push({
-        name: l?.name ?? r?.name ?? "",
+        name: l?.name ?? r?.name ?? '',
         notNull: combineSetOpColumn(l?.notNull ?? false, r?.notNull ?? false, op),
-      });
+      })
     }
-    return results;
+    return results
   }
 
   private analyzeReturningTraced(
@@ -2537,53 +2557,53 @@ class NullabilityEngine {
     depth: number,
     stmtKey?: object,
   ): OutputNullabilityTraced[] {
-    const ret = returningClause as { exprs?: Node[] };
-    const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
-    const results: OutputNullabilityTraced[] = [];
-    const prevRetOldNew = this.retOldNew;
-    this.retOldNew = this.returningOldNewContext(returningClause, stmtKey);
+    const ret = returningClause as { exprs?: Node[] }
+    const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = []
+    const results: OutputNullabilityTraced[] = []
+    const prevRetOldNew = this.retOldNew
+    this.retOldNew = this.returningOldNewContext(returningClause, stmtKey)
     try {
-    for (const target of ret.exprs ?? []) {
-      const rt = this.unwrapResTarget(target);
-      const val = rt.val;
-      const name = rt.name;
-      if (!val) {
-        results.push({ name: name ?? "", notNull: false });
-        producers.push(null);
-        continue;
-      }
-      if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth, false, producers);
-        for (const e of expanded) results.push({ ...e });
-        continue;
-      }
-      const compositeStar = this.expandCompositeStar(val, scope, depth);
-      if (compositeStar) {
-        for (const e of compositeStar) {
-          results.push({ ...e });
-          producers.push(null);
+      for (const target of ret.exprs ?? []) {
+        const rt = this.unwrapResTarget(target)
+        const val = rt.val
+        const name = rt.name
+        if (!val) {
+          results.push({ name: name ?? '', notNull: false })
+          producers.push(null)
+          continue
         }
-        continue;
+        if (this.isStarColumn(val)) {
+          const expanded = this.expandStar(val, scope, depth, false, producers)
+          for (const e of expanded) results.push({ ...e })
+          continue
+        }
+        const compositeStar = this.expandCompositeStar(val, scope, depth)
+        if (compositeStar) {
+          for (const e of compositeStar) {
+            results.push({ ...e })
+            producers.push(null)
+          }
+          continue
+        }
+        const trace = this.newTrace('Root (RETURNING)')
+        const notNull = this.walkExprTraced(val, scope, depth + 1, trace)
+        const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1)
+        producers.push(this.resolveBareColumnTarget(val, scope))
+        results.push({
+          name: name ?? this.inferName(val),
+          notNull,
+          ...(alwaysNull ? { alwaysNull: true } : {}),
+          trace: trace.node,
+        })
       }
-      const trace = this.newTrace("Root (RETURNING)");
-      const notNull = this.walkExprTraced(val, scope, depth + 1, trace);
-      const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1);
-      producers.push(this.resolveBareColumnTarget(val, scope));
-      results.push({
-        name: name ?? this.inferName(val),
-        notNull,
-        ...(alwaysNull ? { alwaysNull: true } : {}),
-        trace: trace.node,
-      });
-    }
-    if (stmtKey) {
-      const groups = this.computePresenceGroups(producers, results, scope, depth);
-      this.groupCache.set(stmtKey, groups);
-      if (depth === 0) this.rootPresenceGroups = groups;
-    }
-    return results;
+      if (stmtKey) {
+        const groups = this.computePresenceGroups(producers, results, scope, depth)
+        this.groupCache.set(stmtKey, groups)
+        if (depth === 0) this.rootPresenceGroups = groups
+      }
+      return results
     } finally {
-      this.retOldNew = prevRetOldNew;
+      this.retOldNew = prevRetOldNew
     }
   }
 
@@ -2596,25 +2616,24 @@ class NullabilityEngine {
     returningClause: Node,
     stmtKey?: object,
   ): { targetAlias: string; oldName: string; newName: string } | null {
-    const rv = (stmtKey as { relation?: RangeVar } | undefined)?.relation;
-    if (!rv?.relname) return null;
-    let oldName = "old";
-    let newName = "new";
+    const rv = (stmtKey as { relation?: RangeVar } | undefined)?.relation
+    if (!rv?.relname) return null
+    let oldName = 'old'
+    let newName = 'new'
     // `RETURNING WITH (OLD AS o, NEW AS n)`: the alias REPLACES the keyword.
-    const options = (returningClause as { options?: Node[] }).options ?? [];
+    const options = (returningClause as { options?: Node[] }).options ?? []
     for (const o of options) {
-      const opt = (o as Record<string, unknown>)["ReturningOption"] as
-        | { option?: string; value?: string }
-        | undefined;
-      if (!opt?.value) continue;
-      if (opt.option === "RETURNING_OPTION_OLD") oldName = opt.value;
-      if (opt.option === "RETURNING_OPTION_NEW") newName = opt.value;
+      const opt = (o as Record<string, unknown>)['ReturningOption'] as
+        { option?: string; value?: string } | undefined
+      if (!opt?.value) continue
+      if (opt.option === 'RETURNING_OPTION_OLD') oldName = opt.value
+      if (opt.option === 'RETURNING_OPTION_NEW') newName = opt.value
     }
     return {
       targetAlias: rv.alias?.aliasname ?? rv.relname,
       oldName,
       newName,
-    };
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -2627,8 +2646,8 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     // Check memoization cache.
-    const cached = this.scopeCache.get(stmt);
-    if (cached) return cached;
+    const cached = this.scopeCache.get(stmt)
+    if (cached) return cached
 
     // Prevent infinite recursion for recursive CTEs: if this node is
     // already being analyzed (somewhere up the call stack), return empty
@@ -2637,124 +2656,127 @@ class NullabilityEngine {
     // Re-entry means a recursive CTE's self-reference. During a fixpoint that
     // resolves to the current assumption; outside one there is nothing to say
     // and every column resolves nullable.
-    if (this.analyzing.has(stmt)) return this.recursiveAssumption.get(stmt) ?? [];
-    this.analyzing.add(stmt);
+    if (this.analyzing.has(stmt)) return this.recursiveAssumption.get(stmt) ?? []
+    this.analyzing.add(stmt)
     try {
-
-    // Set operations (UNION/INTERSECT/EXCEPT) — handle before scope building.
-    if (stmt.op && stmt.op !== "SETOP_NONE" && stmt.larg && stmt.rarg) {
-      // Register CTEs from the WITH clause so they're visible in larg/rarg.
-      const cteScope = this.emptyScope(outerScope);
-      this.registerCtes(stmt.withClause, cteScope);
-      const { results, groups } = this.analyzeSetOperation(stmt, cteScope, depth);
-      this.groupCache.set(stmt, groups);
-      if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
-      this.memoize(stmt, results);
-      return results;
-    }
-
-    // VALUES — no FROM clause, valuesLists populated.
-    if (stmt.valuesLists && stmt.valuesLists.length > 0) {
-      const results = this.analyzeValuesSelect(stmt.valuesLists, outerScope, depth);
-      this.memoize(stmt, results);
-      return results;
-    }
-
-    // Build the scope (address book).
-    const scope = this.buildScope(stmt, outerScope, depth);
-
-    // Origins survive shapes where an output value IS some real row's
-    // value. Ungrouped, un-aggregated targets: all bare pass-throughs.
-    // Grouped: plain grouping KEYS only (Wave 12 — every row of a group
-    // shares the key values, so sibling keys are same-row; ROLLUP/CUBE-
-    // nulled columns and non-keys refuse). HAVING without GROUP BY is an
-    // aggregate query — no row identity at all. DISTINCT keeps whole rows.
-    const originMode = this.originModeOf(stmt);
-
-    // Process the target list. Each output's bare producer is recorded
-    // alongside — the input to presence-group folding, at every depth: a
-    // nested analysis's groups are what re-export lifting reads.
-    const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
-    const results: OutputNullability[] = [];
-    const targetList = stmt.targetList ?? [];
-    const srfPadded = this.srfPaddedTargets(targetList, depth);
-    for (const [targetIndex, target] of targetList.entries()) {
-      const rt = this.unwrapResTarget(target);
-      const val = rt.val;
-      const name = rt.name;
-
-      if (!val) {
-        results.push({ name: name ?? "", notNull: false });
-        producers.push(null);
-        continue;
+      // Set operations (UNION/INTERSECT/EXCEPT) — handle before scope building.
+      if (stmt.op && stmt.op !== 'SETOP_NONE' && stmt.larg && stmt.rarg) {
+        // Register CTEs from the WITH clause so they're visible in larg/rarg.
+        const cteScope = this.emptyScope(outerScope)
+        this.registerCtes(stmt.withClause, cteScope)
+        const { results, groups } = this.analyzeSetOperation(stmt, cteScope, depth)
+        this.groupCache.set(stmt, groups)
+        if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups
+        this.memoize(stmt, results)
+        return results
       }
 
-      // Lockstep SRF padding voids per-call reasoning — see
-      // srfPaddedTargets. No origins either: a padding row is nobody's.
-      if (srfPadded?.[targetIndex]) {
-        results.push({ name: name ?? this.inferName(val), notNull: false });
-        producers.push(null);
-        continue;
+      // VALUES — no FROM clause, valuesLists populated.
+      if (stmt.valuesLists && stmt.valuesLists.length > 0) {
+        const results = this.analyzeValuesSelect(stmt.valuesLists, outerScope, depth)
+        this.memoize(stmt, results)
+        return results
       }
 
-      // Handle SELECT * (A_Star in ColumnRef).
-      if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(
-          val,
-          scope,
-          depth,
-          originMode === "all",
-          originMode === "all" ? producers : undefined,
-        );
-        if (originMode !== "all") for (const _ of expanded) producers.push(null);
-        for (const e of expanded) {
-          results.push(e);
+      // Build the scope (address book).
+      const scope = this.buildScope(stmt, outerScope, depth)
+
+      // Origins survive shapes where an output value IS some real row's
+      // value. Ungrouped, un-aggregated targets: all bare pass-throughs.
+      // Grouped: plain grouping KEYS only (Wave 12 — every row of a group
+      // shares the key values, so sibling keys are same-row; ROLLUP/CUBE-
+      // nulled columns and non-keys refuse). HAVING without GROUP BY is an
+      // aggregate query — no row identity at all. DISTINCT keeps whole rows.
+      const originMode = this.originModeOf(stmt)
+
+      // Process the target list. Each output's bare producer is recorded
+      // alongside — the input to presence-group folding, at every depth: a
+      // nested analysis's groups are what re-export lifting reads.
+      const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = []
+      const results: OutputNullability[] = []
+      const targetList = stmt.targetList ?? []
+      const srfPadded = this.srfPaddedTargets(targetList, depth)
+      for (const [targetIndex, target] of targetList.entries()) {
+        const rt = this.unwrapResTarget(target)
+        const val = rt.val
+        const name = rt.name
+
+        if (!val) {
+          results.push({ name: name ?? '', notNull: false })
+          producers.push(null)
+          continue
         }
-        continue;
-      }
 
-      // `(expr).*` — a composite expansion in target-list position, one
-      // column per field. A transforming expression, so no origins and no
-      // producers.
-      const compositeStar = this.expandCompositeStar(val, scope, depth);
-      if (compositeStar) {
-        for (const e of compositeStar) {
-          results.push(e);
-          producers.push(null);
+        // Lockstep SRF padding voids per-call reasoning — see
+        // srfPaddedTargets. No origins either: a padding row is nobody's.
+        if (srfPadded?.[targetIndex]) {
+          results.push({ name: name ?? this.inferName(val), notNull: false })
+          producers.push(null)
+          continue
         }
-        continue;
+
+        // Handle SELECT * (A_Star in ColumnRef).
+        if (this.isStarColumn(val)) {
+          const expanded = this.expandStar(
+            val,
+            scope,
+            depth,
+            originMode === 'all',
+            originMode === 'all' ? producers : undefined,
+          )
+          if (originMode !== 'all') for (const _ of expanded) producers.push(null)
+          for (const e of expanded) {
+            results.push(e)
+          }
+          continue
+        }
+
+        // `(expr).*` — a composite expansion in target-list position, one
+        // column per field. A transforming expression, so no origins and no
+        // producers.
+        const compositeStar = this.expandCompositeStar(val, scope, depth)
+        if (compositeStar) {
+          for (const e of compositeStar) {
+            results.push(e)
+            producers.push(null)
+          }
+          continue
+        }
+
+        const notNull = this.walkExpr(val, scope, depth + 1)
+        // Only ever asked of a column the walk left nullable: the two are
+        // mutually exclusive, and a proven non-null needs no mirror.
+        const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1)
+        const bare = this.originTarget(val, stmt, scope, originMode)
+        producers.push(bare)
+        const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined
+        results.push(
+          og
+            ? {
+                name: name ?? this.inferName(val),
+                notNull,
+                ...(alwaysNull ? { alwaysNull: true } : {}),
+                ...(og.origins ? { origins: og.origins } : {}),
+                ...(og.settled ? { originNotNull: og.settled } : {}),
+                ...(og.crossings ? { unitCrossings: og.crossings } : {}),
+              }
+            : {
+                name: name ?? this.inferName(val),
+                notNull,
+                ...(alwaysNull ? { alwaysNull: true } : {}),
+              },
+        )
       }
 
-      const notNull = this.walkExpr(val, scope, depth + 1);
-      // Only ever asked of a column the walk left nullable: the two are
-      // mutually exclusive, and a proven non-null needs no mirror.
-      const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1);
-      const bare = this.originTarget(val, stmt, scope, originMode);
-      producers.push(bare);
-      const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
-      results.push(
-        og
-          ? {
-              name: name ?? this.inferName(val),
-              notNull,
-              ...(alwaysNull ? { alwaysNull: true } : {}),
-              ...(og.origins ? { origins: og.origins } : {}),
-              ...(og.settled ? { originNotNull: og.settled } : {}),
-              ...(og.crossings ? { unitCrossings: og.crossings } : {}),
-            }
-          : { name: name ?? this.inferName(val), notNull, ...(alwaysNull ? { alwaysNull: true } : {}) },
-      );
-    }
+      const groups = this.computePresenceGroups(producers, results, scope, depth)
+      this.groupCache.set(stmt, groups)
+      if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups
 
-    const groups = this.computePresenceGroups(producers, results, scope, depth);
-    this.groupCache.set(stmt, groups);
-    if (depth === 0 && outerScope === null) this.rootPresenceGroups = groups;
-
-    this.memoize(stmt, results);
-    scope.results = results;
-    return results;
+      this.memoize(stmt, results)
+      scope.results = results
+      return results
     } finally {
-      this.analyzing.delete(stmt);
+      this.analyzing.delete(stmt)
     }
   }
 
@@ -2762,11 +2784,7 @@ class NullabilityEngine {
   // Scope building: walk FROM clause + WITH clause
   // -------------------------------------------------------------------------
 
-  private buildScope(
-    stmt: SelectStmt,
-    outerScope: Scope | null,
-    depth: number,
-  ): Scope {
+  private buildScope(stmt: SelectStmt, outerScope: Scope | null, depth: number): Scope {
     const scope: Scope = {
       aliases: new Map(),
       ctes: new Map(),
@@ -2784,10 +2802,10 @@ class NullabilityEngine {
       groupingSetColumns: EMPTY_STRING_SET,
       outer: outerScope,
       results: null,
-    };
+    }
 
     // WITH clause — register CTEs first (in scope for the body).
-    this.registerCtes(stmt.withClause, scope);
+    this.registerCtes(stmt.withClause, scope)
 
     // FROM clause — walk each from item, building the address book. Top-level
     // items are comma-joined, so each is its own null group.
@@ -2795,11 +2813,11 @@ class NullabilityEngine {
       for (const item of stmt.fromClause) {
         scope.visible.push(
           ...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), [], depth),
-        );
+        )
       }
     }
 
-    this.resolveJoinImplications(scope);
+    this.resolveJoinImplications(scope)
     // After the FROM walk, deliberately: the recorder resolves output
     // ORDINALS against the EXPANDED target list (a star entry is ONE
     // ResTarget and N output columns — adversarial-2 finding 10), and
@@ -2810,8 +2828,8 @@ class NullabilityEngine {
       stmt.targetList,
       scope,
       depth,
-    );
-    return scope;
+    )
+    return scope
   }
 
   /**
@@ -2851,44 +2869,44 @@ class NullabilityEngine {
    * restores every mutation once the answer is read.
    */
   private resolveJoinImplications(scope: Scope, extraPreds: Node[] = []): void {
-    if (scope.joins.length === 0 && scope.impliedQuals.length === 0) return;
-    const present = new Set<string>();
+    if (scope.joins.length === 0 && scope.impliedQuals.length === 0) return
+    const present = new Set<string>()
     for (const [alias, entry] of scope.aliases) {
-      if (entry.joinState === REQUIRED) present.add(alias);
+      if (entry.joinState === REQUIRED) present.add(alias)
     }
     const wherePreds: Node[] = [
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...extraPreds,
-    ];
-    const pending = [...scope.joins];
+    ]
+    const pending = [...scope.joins]
 
-    let changed = true;
+    let changed = true
     while (changed) {
-      changed = false;
+      changed = false
 
       for (let i = pending.length - 1; i >= 0; i--) {
-        const j = pending[i]!;
-        const leftPresent = j.leftAliases.some(a => present.has(a));
-        const rightPresent = j.rightAliases.some(a => present.has(a));
+        const j = pending[i]!
+        const leftPresent = j.leftAliases.some((a) => present.has(a))
+        const rightPresent = j.rightAliases.some((a) => present.has(a))
         const active =
-          j.jointype === "JOIN_INNER"
+          j.jointype === 'JOIN_INNER'
             ? j.incomingRequired || leftPresent || rightPresent
-            : j.jointype === "JOIN_LEFT"
+            : j.jointype === 'JOIN_LEFT'
               ? rightPresent
-              : j.jointype === "JOIN_RIGHT"
+              : j.jointype === 'JOIN_RIGHT'
                 ? leftPresent
-                : j.jointype === "JOIN_FULL"
+                : j.jointype === 'JOIN_FULL'
                   ? leftPresent && rightPresent
-                  : false;
+                  : false
         if (active) {
           // A qual-less join implies nothing — an INNER join with no ON
           // clause constrains no column — so it leaves the pending list
           // without contributing. It is in `scope.joins` for the subtree
           // readings, which want its TYPE, not its qual.
-          if (j.quals) scope.impliedQuals.push(j.quals);
-          pending.splice(i, 1);
-          changed = true;
+          if (j.quals) scope.impliedQuals.push(j.quals)
+          pending.splice(i, 1)
+          changed = true
         }
       }
 
@@ -2922,91 +2940,96 @@ class NullabilityEngine {
       // returns NULL in. So an inner join is skipped when another join within
       // the SAME side has an optional group covering it.
       const extendedWithinSide = (inner: JoinPredicate, within: string[]): boolean =>
-        scope.joins.some(other => {
-          if (other === inner || !this.joinWithin(other, within)) return false;
-          return (["left", "right"] as const).some(s => {
-            const g = s === "left" ? other.leftOptionalGroup : other.rightOptionalGroup;
-            if (g === undefined) return false;
-            return this.joinWithin(inner, s === "left" ? other.leftAliases : other.rightAliases);
-          });
-        });
+        scope.joins.some((other) => {
+          if (other === inner || !this.joinWithin(other, within)) return false
+          return (['left', 'right'] as const).some((s) => {
+            const g = s === 'left' ? other.leftOptionalGroup : other.rightOptionalGroup
+            if (g === undefined) return false
+            return this.joinWithin(inner, s === 'left' ? other.leftAliases : other.rightAliases)
+          })
+        })
       for (const j of scope.joins) {
-        if (!j.incomingRequired) continue;
-        for (const side of ["left", "right"] as const) {
-          const group = side === "left" ? j.leftOptionalGroup : j.rightOptionalGroup;
-          if (group === undefined) continue;
-          const aliases = side === "left" ? j.leftAliases : j.rightAliases;
-          if (!scope.joins.some(inner =>
-            !inner.incomingRequired &&
-            this.joinWithin(inner, aliases) &&
-            !extendedWithinSide(inner, aliases))
+        if (!j.incomingRequired) continue
+        for (const side of ['left', 'right'] as const) {
+          const group = side === 'left' ? j.leftOptionalGroup : j.rightOptionalGroup
+          if (group === undefined) continue
+          const aliases = side === 'left' ? j.leftAliases : j.rightAliases
+          if (
+            !scope.joins.some(
+              (inner) =>
+                !inner.incomingRequired &&
+                this.joinWithin(inner, aliases) &&
+                !extendedWithinSide(inner, aliases),
+            )
           ) {
-            continue;
+            continue
           }
-          if (!this.joinCannotExtendSide(j, scope, side)) continue;
+          if (!this.joinCannotExtendSide(j, scope, side)) continue
           for (const inner of scope.joins) {
-            if (inner.incomingRequired || !this.joinWithin(inner, aliases)) continue;
-            if (extendedWithinSide(inner, aliases)) continue;
-            inner.incomingRequired = true;
-            changed = true;
+            if (inner.incomingRequired || !this.joinWithin(inner, aliases)) continue
+            if (extendedWithinSide(inner, aliases)) continue
+            inner.incomingRequired = true
+            changed = true
           }
         }
       }
 
       for (const j of scope.joins) {
-        const referenced = this.foreignKeyEntailedAlias(j, scope, present);
+        const referenced = this.foreignKeyEntailedAlias(j, scope, present)
         if (referenced && !present.has(referenced)) {
-          present.add(referenced);
-          const entry = scope.aliases.get(referenced);
-          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
-          changed = true;
+          present.add(referenced)
+          const entry = scope.aliases.get(referenced)
+          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED
+          changed = true
         }
       }
 
       for (const j of scope.joins) {
-        const grouped = this.rowWitnessEntailedAlias(j, scope);
+        const grouped = this.rowWitnessEntailedAlias(j, scope)
         if (grouped && !present.has(grouped)) {
-          present.add(grouped);
-          const entry = scope.aliases.get(grouped);
-          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
-          changed = true;
+          present.add(grouped)
+          const entry = scope.aliases.get(grouped)
+          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED
+          changed = true
         }
       }
 
       for (const j of scope.joins) {
-        const lateral = this.unextendableLateralAlias(j, scope);
+        const lateral = this.unextendableLateralAlias(j, scope)
         if (lateral && !present.has(lateral)) {
-          present.add(lateral);
-          const entry = scope.aliases.get(lateral);
-          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
-          changed = true;
+          present.add(lateral)
+          const entry = scope.aliases.get(lateral)
+          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED
+          changed = true
         }
       }
 
       for (const j of scope.joins) {
-        const twin = this.sameRestrictionEntailedAlias(j, scope, present);
+        const twin = this.sameRestrictionEntailedAlias(j, scope, present)
         if (twin) {
-          present.add(twin);
-          const entry = scope.aliases.get(twin);
-          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
-          changed = true;
+          present.add(twin)
+          const entry = scope.aliases.get(twin)
+          if (entry && entry.joinState === OPTIONAL) entry.joinState = REQUIRED
+          changed = true
         }
       }
 
       for (const [alias, entry] of scope.aliases) {
-        if (present.has(alias)) continue;
+        if (present.has(alias)) continue
         const proven =
-          [...wherePreds, ...scope.impliedQuals].some(p =>
+          [...wherePreds, ...scope.impliedQuals].some((p) =>
             this.whereImpliesAliasNotNull(p, alias, scope),
           ) ||
           [...scope.aliases.values()].some(
-            other => other.alias !== alias && other.nullGroup === entry.nullGroup &&
+            (other) =>
+              other.alias !== alias &&
+              other.nullGroup === entry.nullGroup &&
               present.has(other.alias),
-          );
+          )
         if (proven) {
-          present.add(alias);
-          if (entry.joinState === OPTIONAL) entry.joinState = REQUIRED;
-          changed = true;
+          present.add(alias)
+          if (entry.joinState === OPTIONAL) entry.joinState = REQUIRED
+          changed = true
         }
       }
 
@@ -3050,7 +3073,7 @@ class NullabilityEngine {
       // join, and its RIGHT join's left arm contains only an INNER one —
       // nothing dissolves, and no qual is implied that today is not.
       for (const j of scope.joins) {
-        if (!j.quals) continue;
+        if (!j.quals) continue
         // An arm is non-preserved exactly when a row of it failing Q has no
         // way into the output. Two paths exist: the join DROPS it (an
         // INNER drops both arms' failures, a LEFT its right's, a RIGHT its
@@ -3064,29 +3087,30 @@ class NullabilityEngine {
         // arms the next: t LEFT (u RIGHT (v RIGHT ck)) settles outside-in,
         // each join behaving as INNER once its own extension dies.
         const unitDead = (g: number | undefined): boolean =>
-          g !== undefined &&
-          ![...scope.aliases.values()].some(e => e.unitChain.includes(g));
+          g !== undefined && ![...scope.aliases.values()].some((e) => e.unitChain.includes(g))
         const leftExtDead =
-          unitDead(j.leftOptionalGroup) || j.leftAliases.some(a => present.has(a));
+          unitDead(j.leftOptionalGroup) || j.leftAliases.some((a) => present.has(a))
         const rightExtDead =
-          unitDead(j.rightOptionalGroup) || j.rightAliases.some(a => present.has(a));
-        const arms: string[][] = [];
-        if (j.jointype === "JOIN_INNER" || j.jointype === "JOIN_RIGHT" || rightExtDead)
-          arms.push(j.leftAliases);
-        if (j.jointype === "JOIN_INNER" || j.jointype === "JOIN_LEFT" || leftExtDead)
-          arms.push(j.rightAliases);
+          unitDead(j.rightOptionalGroup) || j.rightAliases.some((a) => present.has(a))
+        const arms: string[][] = []
+        if (j.jointype === 'JOIN_INNER' || j.jointype === 'JOIN_RIGHT' || rightExtDead)
+          arms.push(j.leftAliases)
+        if (j.jointype === 'JOIN_INNER' || j.jointype === 'JOIN_LEFT' || leftExtDead)
+          arms.push(j.rightAliases)
         for (const arm of arms) {
           for (const n of scope.joins) {
-            if (n === j || !this.joinWithin(n, arm)) continue;
-            for (const side of ["left", "right"] as const) {
-              const g = side === "left" ? n.leftOptionalGroup : n.rightOptionalGroup;
-              if (g === undefined) continue;
+            if (n === j || !this.joinWithin(n, arm)) continue
+            for (const side of ['left', 'right'] as const) {
+              const g = side === 'left' ? n.leftOptionalGroup : n.rightOptionalGroup
+              if (g === undefined) continue
               const killed = [...scope.aliases.values()].some(
-                e => e.unitChain.includes(g) && this.whereImpliesAliasNotNull(j.quals!, e.alias, scope),
-              );
-              if (!killed) continue;
-              this.dissolveUnit(scope, g, present);
-              changed = true;
+                (e) =>
+                  e.unitChain.includes(g) &&
+                  this.whereImpliesAliasNotNull(j.quals!, e.alias, scope),
+              )
+              if (!killed) continue
+              this.dissolveUnit(scope, g, present)
+              changed = true
             }
           }
         }
@@ -3113,31 +3137,31 @@ class NullabilityEngine {
     if (this.joinAuditSink && !this.speculating) {
       const settledOf = (group: number): boolean => {
         for (const entry of scope.aliases.values()) {
-          if (entry.nullGroup === group && entry.joinState === OPTIONAL) return false;
+          if (entry.nullGroup === group && entry.joinState === OPTIONAL) return false
         }
-        return true;
-      };
+        return true
+      }
       for (const j of scope.joins) {
-        if (j.leftOptionalGroup === undefined && j.rightOptionalGroup === undefined) continue;
-        const prior = j.node ? this.joinAuditSeen.get(j.node) : undefined;
+        if (j.leftOptionalGroup === undefined && j.rightOptionalGroup === undefined) continue
+        const prior = j.node ? this.joinAuditSeen.get(j.node) : undefined
         if (prior) {
           if (prior.leftSettled === false && j.leftOptionalGroup !== undefined)
-            prior.leftSettled = settledOf(j.leftOptionalGroup);
+            prior.leftSettled = settledOf(j.leftOptionalGroup)
           if (prior.rightSettled === false && j.rightOptionalGroup !== undefined)
-            prior.rightSettled = settledOf(j.rightOptionalGroup);
-          continue;
+            prior.rightSettled = settledOf(j.rightOptionalGroup)
+          continue
         }
-        const audit: JoinAudit = { jointype: j.jointype };
+        const audit: JoinAudit = { jointype: j.jointype }
         if (j.leftOptionalGroup !== undefined) {
-          audit.leftSettled = settledOf(j.leftOptionalGroup);
-          audit.leftGroup = j.leftOptionalGroup;
+          audit.leftSettled = settledOf(j.leftOptionalGroup)
+          audit.leftGroup = j.leftOptionalGroup
         }
         if (j.rightOptionalGroup !== undefined) {
-          audit.rightSettled = settledOf(j.rightOptionalGroup);
-          audit.rightGroup = j.rightOptionalGroup;
+          audit.rightSettled = settledOf(j.rightOptionalGroup)
+          audit.rightGroup = j.rightOptionalGroup
         }
-        if (j.node) this.joinAuditSeen.set(j.node, audit);
-        this.joinAuditSink.push(audit);
+        if (j.node) this.joinAuditSeen.set(j.node, audit)
+        this.joinAuditSink.push(audit)
       }
     }
   }
@@ -3151,18 +3175,18 @@ class NullabilityEngine {
    */
   private dissolveUnit(scope: Scope, group: number, present: Set<string>): void {
     for (const entry of scope.aliases.values()) {
-      if (!entry.unitChain.includes(group)) continue;
+      if (!entry.unitChain.includes(group)) continue
       // REASSIGN, never splice: sibling entries of one join side share the
       // chain ARRAY (walkFromItem threads it through), and an in-place
       // mutation dissolves the unit for whichever entry the loop visits
       // first while stranding the rest with a stale nullGroup.
-      entry.unitChain = entry.unitChain.filter(g => g !== group);
-      if (entry.nullGroup !== group) continue;
+      entry.unitChain = entry.unitChain.filter((g) => g !== group)
+      if (entry.nullGroup !== group) continue
       if (entry.unitChain.length > 0) {
-        entry.nullGroup = entry.unitChain[entry.unitChain.length - 1]!;
+        entry.nullGroup = entry.unitChain[entry.unitChain.length - 1]!
       } else if (entry.joinState === OPTIONAL) {
-        entry.joinState = REQUIRED;
-        present.add(entry.alias);
+        entry.joinState = REQUIRED
+        present.add(entry.alias)
       }
     }
   }
@@ -3271,12 +3295,12 @@ class NullabilityEngine {
    * outer row, and a non-lateral one is only easier.
    */
   private unextendableLateralAlias(j: JoinPredicate, scope: Scope): string | null {
-    if (j.jointype !== "JOIN_LEFT") return null;
-    if (!j.quals || !this.isTrueLiteral(j.quals)) return null;
-    if (j.rightAliases.length !== 1) return null;
-    const entry = scope.aliases.get(j.rightAliases[0]!);
-    if (!entry?.guaranteesRow) return null;
-    return entry.alias;
+    if (j.jointype !== 'JOIN_LEFT') return null
+    if (!j.quals || !this.isTrueLiteral(j.quals)) return null
+    if (j.rightAliases.length !== 1) return null
+    const entry = scope.aliases.get(j.rightAliases[0]!)
+    if (!entry?.guaranteesRow) return null
+    return entry.alias
   }
 
   /**
@@ -3314,31 +3338,31 @@ class NullabilityEngine {
     scope: Scope,
     present: Set<string>,
   ): string | null {
-    if (j.jointype !== "JOIN_LEFT" || j.rightAliases.length !== 1) return null;
-    const alias = j.rightAliases[0]!;
-    if (present.has(alias)) return null;
-    const entry = scope.aliases.get(alias);
-    const rel = this.plainRelationKey(entry);
-    if (!rel || !j.quals) return null;
-    const own = this.restrictionOverAlias(j.quals, alias);
-    if (!own) return null;
+    if (j.jointype !== 'JOIN_LEFT' || j.rightAliases.length !== 1) return null
+    const alias = j.rightAliases[0]!
+    if (present.has(alias)) return null
+    const entry = scope.aliases.get(alias)
+    const rel = this.plainRelationKey(entry)
+    if (!rel || !j.quals) return null
+    const own = this.restrictionOverAlias(j.quals, alias)
+    if (!own) return null
 
     for (const other of scope.joins) {
-      if (other === j || other.jointype !== "JOIN_LEFT" || other.rightAliases.length !== 1) continue;
-      const sibling = other.rightAliases[0]!;
-      if (!present.has(sibling) || sibling === alias) continue;
-      if (this.plainRelationKey(scope.aliases.get(sibling)) !== rel) continue;
-      if (!other.quals) continue;
-      const theirs = this.restrictionOverAlias(other.quals, sibling);
-      if (theirs && this.sameExpression(own, theirs)) return alias;
+      if (other === j || other.jointype !== 'JOIN_LEFT' || other.rightAliases.length !== 1) continue
+      const sibling = other.rightAliases[0]!
+      if (!present.has(sibling) || sibling === alias) continue
+      if (this.plainRelationKey(scope.aliases.get(sibling)) !== rel) continue
+      if (!other.quals) continue
+      const theirs = this.restrictionOverAlias(other.quals, sibling)
+      if (theirs && this.sameExpression(own, theirs)) return alias
     }
-    return null;
+    return null
   }
 
   /** `schema.relation` for a plain, unsampled table reference — or null. */
   private plainRelationKey(entry: RelationEntry | undefined): string | null {
-    if (!entry || entry.kind !== "table" || entry.sampled || !entry.table) return null;
-    return `${entry.table.schema ?? ""}.${entry.table.name}`;
+    if (!entry || entry.kind !== 'table' || entry.sampled || !entry.table) return null
+    return `${entry.table.schema ?? ''}.${entry.table.name}`
   }
 
   /**
@@ -3351,90 +3375,90 @@ class NullabilityEngine {
    * spelling, so the same text under two aliases need not be the same column.
    */
   private restrictionOverAlias(qual: Node, alias: string): Node | null {
-    let escaped = false;
+    let escaped = false
     const rewrite = (n: unknown): unknown => {
-      if (Array.isArray(n)) return n.map(rewrite);
-      if (typeof n !== "object" || n === null) return n;
-      const rec = n as Record<string, unknown>;
-      if ("ColumnRef" in rec) {
-        const fields = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
+      if (Array.isArray(n)) return n.map(rewrite)
+      if (typeof n !== 'object' || n === null) return n
+      const rec = n as Record<string, unknown>
+      if ('ColumnRef' in rec) {
+        const fields = ((rec['ColumnRef'] as ColumnRef).fields ?? []).map((f) => this.stringVal(f))
         if (fields.length !== 2 || fields[0] !== alias) {
-          escaped = true;
-          return n;
+          escaped = true
+          return n
         }
         return {
           ColumnRef: {
-            fields: [{ String: { sval: "\0self" } }, { String: { sval: fields[1]! } }],
+            fields: [{ String: { sval: '\0self' } }, { String: { sval: fields[1]! } }],
           },
-        };
+        }
       }
-      if ("A_Const" in rec) return n;
+      if ('A_Const' in rec) return n
       // A NODE is a single-key wrapper whose key is the tag; anything else is
       // a node's own payload, which carries no tag and is simply descended
       // into. Only the tagged wrappers are gated, and the list is everything
       // a restriction may be BUILT from. A call is absent on purpose: it can
       // be volatile whatever its arguments are.
-      const keys = Object.keys(rec);
-      const tag = keys.length === 1 && /^[A-Z]/.test(keys[0]!) ? keys[0]! : null;
+      const keys = Object.keys(rec)
+      const tag = keys.length === 1 && /^[A-Z]/.test(keys[0]!) ? keys[0]! : null
       if (tag && !QUAL_SHAPE_NODES.has(tag)) {
-        escaped = true;
-        return n;
+        escaped = true
+        return n
       }
-      const out: Record<string, unknown> = {};
+      const out: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(rec)) {
-        if (k === "location") continue;
-        out[k] = rewrite(v);
+        if (k === 'location') continue
+        out[k] = rewrite(v)
       }
-      return out;
-    };
-    const rewritten = rewrite(qual);
-    return escaped ? null : (rewritten as Node);
+      return out
+    }
+    const rewritten = rewrite(qual)
+    return escaped ? null : (rewritten as Node)
   }
 
   /** A literal boolean TRUE, through any number of casts. */
   private isTrueLiteral(expr: Node): boolean {
-    const node = expr as Record<string, unknown>;
-    if ("TypeCast" in node) {
-      const arg = (node["TypeCast"] as { arg?: Node }).arg;
-      return arg !== undefined && this.isTrueLiteral(arg);
+    const node = expr as Record<string, unknown>
+    if ('TypeCast' in node) {
+      const arg = (node['TypeCast'] as { arg?: Node }).arg
+      return arg !== undefined && this.isTrueLiteral(arg)
     }
-    if (!("A_Const" in node)) return false;
-    const ac = node["A_Const"] as { isnull?: boolean; boolval?: { boolval?: boolean } };
-    return ac.isnull !== true && "boolval" in ac && ac.boolval?.boolval === true;
+    if (!('A_Const' in node)) return false
+    const ac = node['A_Const'] as { isnull?: boolean; boolval?: { boolval?: boolean } }
+    return ac.isnull !== true && 'boolval' in ac && ac.boolval?.boolval === true
   }
 
   private rowWitnessEntailedAlias(j: JoinPredicate, scope: Scope): string | null {
-    if (scope.rowWitnesses.length === 0) return null;
-    const eq = this.equalityColumnRefs(j.quals);
-    if (!eq) return null;
+    if (scope.rowWitnesses.length === 0) return null
+    const eq = this.equalityColumnRefs(j.quals)
+    if (!eq) return null
 
-    for (const side of ["left", "right"] as const) {
-      const group = side === "left" ? j.leftOptionalGroup : j.rightOptionalGroup;
-      if (group === undefined) continue;
-      const optional = side === "left" ? j.leftAliases : j.rightAliases;
-      const other = side === "left" ? j.rightAliases : j.leftAliases;
+    for (const side of ['left', 'right'] as const) {
+      const group = side === 'left' ? j.leftOptionalGroup : j.rightOptionalGroup
+      if (group === undefined) continue
+      const optional = side === 'left' ? j.leftAliases : j.rightAliases
+      const other = side === 'left' ? j.rightAliases : j.leftAliases
 
       for (const [mine, outer] of [
         [eq[0], eq[1]],
         [eq[1], eq[0]],
       ] as const) {
-        if (!optional.includes(mine.alias) || !other.includes(outer.alias)) continue;
-        const entry = scope.aliases.get(mine.alias);
-        if (!entry) continue;
-        const src = this.groupedRelationKey(entry, mine.column);
-        if (!src) continue;
+        if (!optional.includes(mine.alias) || !other.includes(outer.alias)) continue
+        const entry = scope.aliases.get(mine.alias)
+        if (!entry) continue
+        const src = this.groupedRelationKey(entry, mine.column)
+        if (!src) continue
         const witnessed = scope.rowWitnesses.some(
-          w =>
+          (w) =>
             w.schema === src.schema &&
             w.relation === src.relation &&
             w.column === src.column &&
             w.outerAlias === outer.alias &&
             w.outerColumn === outer.column,
-        );
-        if (witnessed) return mine.alias;
+        )
+        if (witnessed) return mine.alias
       }
     }
-    return null;
+    return null
   }
 
   /**
@@ -3447,45 +3471,42 @@ class NullabilityEngine {
     entry: RelationEntry,
     outputColumn: string,
   ): { schema: string | undefined; relation: string; column: string } | null {
-    if (entry.kind !== "cte" && entry.kind !== "subquery") return null;
-    const sel = (entry.ast as Record<string, unknown> | undefined)?.["SelectStmt"] as
-      | SelectStmt
-      | undefined;
-    if (!sel) return null;
-    if (sel.op && sel.op !== "SETOP_NONE") return null;
-    if (sel.whereClause || sel.havingClause || sel.withClause) return null;
-    if (sel.limitCount || sel.limitOffset) return null;
-    if ((sel.groupClause ?? []).length !== 1) return null;
-    if ((sel.fromClause ?? []).length !== 1) return null;
-    const rv = (sel.fromClause![0] as Record<string, unknown>)["RangeVar"] as RangeVar | undefined;
-    if (!rv?.relname) return null;
-    const inner = rv.alias?.aliasname ?? rv.relname;
+    if (entry.kind !== 'cte' && entry.kind !== 'subquery') return null
+    const sel = (entry.ast as Record<string, unknown> | undefined)?.['SelectStmt'] as
+      SelectStmt | undefined
+    if (!sel) return null
+    if (sel.op && sel.op !== 'SETOP_NONE') return null
+    if (sel.whereClause || sel.havingClause || sel.withClause) return null
+    if (sel.limitCount || sel.limitOffset) return null
+    if ((sel.groupClause ?? []).length !== 1) return null
+    if ((sel.fromClause ?? []).length !== 1) return null
+    const rv = (sel.fromClause![0] as Record<string, unknown>)['RangeVar'] as RangeVar | undefined
+    if (!rv?.relname) return null
+    const inner = rv.alias?.aliasname ?? rv.relname
 
-    const grouped = this.qualifiedColumnRef(sel.groupClause![0]!);
-    if (!grouped || grouped.alias !== inner) return null;
+    const grouped = this.qualifiedColumnRef(sel.groupClause![0]!)
+    if (!grouped || grouped.alias !== inner) return null
 
     // An alias column list renames positionally and would put `outputColumn`
     // on a different target entry; refuse rather than reason about it.
-    if (entry.cteColumns && entry.cteColumns.length > 0) return null;
+    if (entry.cteColumns && entry.cteColumns.length > 0) return null
 
     // The output the join reads must BE the grouped column, resolved through
     // the target list rather than assumed from the spelling.
-    const target = (sel.targetList ?? []).find(t => {
-      const rt = (t as Record<string, unknown>)["ResTarget"] as
-        | { name?: string; val?: Node }
-        | undefined;
-      if (!rt?.val) return false;
-      const ref = this.qualifiedColumnRef(rt.val);
-      return (rt.name ?? ref?.column) === outputColumn;
-    });
-    const rt = (target as Record<string, unknown> | undefined)?.["ResTarget"] as
-      | { val?: Node }
-      | undefined;
-    const underlying = rt?.val ? this.qualifiedColumnRef(rt.val) : null;
+    const target = (sel.targetList ?? []).find((t) => {
+      const rt = (t as Record<string, unknown>)['ResTarget'] as
+        { name?: string; val?: Node } | undefined
+      if (!rt?.val) return false
+      const ref = this.qualifiedColumnRef(rt.val)
+      return (rt.name ?? ref?.column) === outputColumn
+    })
+    const rt = (target as Record<string, unknown> | undefined)?.['ResTarget'] as
+      { val?: Node } | undefined
+    const underlying = rt?.val ? this.qualifiedColumnRef(rt.val) : null
     if (!underlying || underlying.alias !== inner || underlying.column !== grouped.column) {
-      return null;
+      return null
     }
-    return { schema: rv.schemaname, relation: rv.relname, column: grouped.column };
+    return { schema: rv.schemaname, relation: rv.relname, column: grouped.column }
   }
 
   private foreignKeyEntailedAlias(
@@ -3493,23 +3514,23 @@ class NullabilityEngine {
     scope: Scope,
     present: Set<string>,
   ): string | null {
-    const eq = this.equalityColumnRefs(j.quals);
-    if (!eq) return null;
+    const eq = this.equalityColumnRefs(j.quals)
+    if (!eq) return null
 
-    const sides: { optionalAliases: string[]; group: number; otherAliases: string[] }[] = [];
+    const sides: { optionalAliases: string[]; group: number; otherAliases: string[] }[] = []
     if (j.leftOptionalGroup !== undefined) {
       sides.push({
         optionalAliases: j.leftAliases,
         group: j.leftOptionalGroup,
         otherAliases: j.rightAliases,
-      });
+      })
     }
     if (j.rightOptionalGroup !== undefined) {
       sides.push({
         optionalAliases: j.rightAliases,
         group: j.rightOptionalGroup,
         otherAliases: j.leftAliases,
-      });
+      })
     }
 
     for (const side of sides) {
@@ -3519,20 +3540,19 @@ class NullabilityEngine {
       ] as const) {
         // The referencing side is the one carrying the key: it must be on the
         // OTHER side of this join, or be this join's own optional twin.
-        const referencing = scope.aliases.get(refCol.alias);
-        const referenced = scope.aliases.get(targetCol.alias);
-        if (!referencing || !referenced) continue;
-        if (!side.optionalAliases.includes(targetCol.alias)) continue;
+        const referencing = scope.aliases.get(refCol.alias)
+        const referenced = scope.aliases.get(targetCol.alias)
+        if (!referencing || !referenced) continue
+        if (!side.optionalAliases.includes(targetCol.alias)) continue
         // The referencing side must be the other side of this very join —
         // the key relates these two relations, and a column from elsewhere in
         // the tree says nothing about whether THIS join matched.
-        if (!side.otherAliases.includes(refCol.alias)) continue;
+        if (!side.otherAliases.includes(refCol.alias)) continue
 
-        const provenPresent = present.has(refCol.alias);
+        const provenPresent = present.has(refCol.alias)
         const otherSideCarriesTheKey =
-          j.incomingRequired &&
-          this.subtreeAlwaysPresent(scope, side.otherAliases, refCol.alias);
-        if (!provenPresent && !otherSideCarriesTheKey) continue;
+          j.incomingRequired && this.subtreeAlwaysPresent(scope, side.otherAliases, refCol.alias)
+        if (!provenPresent && !otherSideCarriesTheKey) continue
         // The key says the match exists in the TABLE; the join finds it only
         // if it is still in the SLICE. `customers c INNER JOIN orders o ON
         // o.customer_id = c.id AND o.status = 'fulfilled' FULL JOIN
@@ -3545,7 +3565,8 @@ class NullabilityEngine {
         // customer is dropped for having no address. Presence of the
         // REFERENCING side does not help there: those rows carry a stored
         // referencing row and are exactly the extended ones.
-        if (!this.subtreePreserves(scope.joins, side.optionalAliases, targetCol.alias, scope)) continue;
+        if (!this.subtreePreserves(scope.joins, side.optionalAliases, targetCol.alias, scope))
+          continue
         // On the second arm this join also emits rows from the referenced
         // side ALONE, so the referenced relation must be present within that
         // side: in `t FULL JOIN u ON u.t_id = t.id FULL JOIN v ON v.u_id =
@@ -3559,25 +3580,25 @@ class NullabilityEngine {
           !provenPresent &&
           !this.subtreeAlwaysPresent(scope, side.optionalAliases, targetCol.alias)
         ) {
-          continue;
+          continue
         }
 
-        const referencingKey = this.keyedRelation(referencing);
-        const referencedKey = this.keyedRelation(referenced);
-        if (!referencingKey || !referencedKey) continue;
+        const referencingKey = this.keyedRelation(referencing)
+        const referencedKey = this.keyedRelation(referenced)
+        if (!referencingKey || !referencedKey) continue
         // The join qual names columns as the QUERY spells them; a key is
         // recorded in `pg_constraint` under the catalog's names. An alias
         // column list is exactly the case where those differ.
-        const refCat = this.entryCatalogColumn(referencing, refCol.column);
-        const tgtCat = this.entryCatalogColumn(referenced, targetCol.column);
-        if (refCat === undefined || tgtCat === undefined) continue;
+        const refCat = this.entryCatalogColumn(referencing, refCol.column)
+        const tgtCat = this.entryCatalogColumn(referenced, targetCol.column)
+        if (refCat === undefined || tgtCat === undefined) continue
         if (!this.keyEntails(referencingKey, refCat, referencedKey, tgtCat)) {
-          continue;
+          continue
         }
-        return targetCol.alias;
+        return targetCol.alias
       }
     }
-    return null;
+    return null
   }
 
   /**
@@ -3598,19 +3619,19 @@ class NullabilityEngine {
    * share one alias kind in the scope.
    */
   private keyedRelation(entry: RelationEntry): KeyedRelation | null {
-    if (entry.kind !== "table" || !entry.table) return null;
+    if (entry.kind !== 'table' || !entry.table) return null
     // A SAMPLE of a table is not the table. A key constrains the stored rows,
     // and neither side of one can be a relation the statement is reading a
     // fraction of: as the referenced side the match may have been sampled
     // away, and as the referencing side the rows that carry the key are not
     // the rows the join sees. Refusing both is what the flag buys — and it
     // costs nothing real, since no codegen query writes TABLESAMPLE.
-    if (entry.sampled) return null;
+    if (entry.sampled) return null
     return {
       schema: entry.table.schema,
       name: entry.table.name,
       scansTree: entry.scanInh !== false,
-    };
+    }
   }
 
   private keyEntails(
@@ -3634,26 +3655,18 @@ class NullabilityEngine {
       !referenced.scansTree &&
       this.catalog.resolveIsPartitioned(referenced.schema, referenced.name)
     ) {
-      return false;
+      return false
     }
     const fk = referencing.scansTree
-      ? this.catalog.resolveForeignKeyTree(
-          referencing.schema,
-          referencing.name,
-          referencingColumn,
-        )
-      : this.catalog.resolveForeignKey(
-          referencing.schema,
-          referencing.name,
-          referencingColumn,
-        );
-    if (!fk) return false;
+      ? this.catalog.resolveForeignKeyTree(referencing.schema, referencing.name, referencingColumn)
+      : this.catalog.resolveForeignKey(referencing.schema, referencing.name, referencingColumn)
+    if (!fk) return false
     if (
       fk.schema !== referenced.schema ||
       fk.table !== referenced.name ||
       fk.column !== referencedColumn
     ) {
-      return false;
+      return false
     }
     return referencing.scansTree
       ? this.catalog.resolveColumnNotNullTree(
@@ -3661,11 +3674,7 @@ class NullabilityEngine {
           referencing.name,
           referencingColumn,
         )
-      : this.catalog.resolveColumnNotNull(
-          referencing.schema,
-          referencing.name,
-          referencingColumn,
-        );
+      : this.catalog.resolveColumnNotNull(referencing.schema, referencing.name, referencingColumn)
   }
 
   /**
@@ -3691,16 +3700,16 @@ class NullabilityEngine {
     // is false before any join is consulted. The flag lives on the entry
     // rather than being re-derived here, because the walk has already unwrapped
     // the `RangeTableSample` node by the time this runs.
-    if (scope?.aliases.get(alias)?.sampled) return false;
+    if (scope?.aliases.get(alias)?.sampled) return false
     for (const inner of joins) {
-      if (!this.joinWithin(inner, subtreeAliases)) continue;
+      if (!this.joinWithin(inner, subtreeAliases)) continue
       if (inner.leftAliases.includes(alias)) {
-        if (inner.jointype !== "JOIN_LEFT" && inner.jointype !== "JOIN_FULL") return false;
+        if (inner.jointype !== 'JOIN_LEFT' && inner.jointype !== 'JOIN_FULL') return false
       } else if (inner.rightAliases.includes(alias)) {
-        if (inner.jointype !== "JOIN_RIGHT" && inner.jointype !== "JOIN_FULL") return false;
+        if (inner.jointype !== 'JOIN_RIGHT' && inner.jointype !== 'JOIN_FULL') return false
       }
     }
-    return true;
+    return true
   }
 
   /**
@@ -3721,30 +3730,26 @@ class NullabilityEngine {
    * The recursion is well-founded: each step descends to a strictly smaller
    * subtree.
    */
-  private subtreeAlwaysPresent(
-    scope: Scope,
-    subtreeAliases: string[],
-    alias: string,
-  ): boolean {
+  private subtreeAlwaysPresent(scope: Scope, subtreeAliases: string[], alias: string): boolean {
     for (const inner of scope.joins) {
-      if (!this.joinWithin(inner, subtreeAliases)) continue;
+      if (!this.joinWithin(inner, subtreeAliases)) continue
       if (inner.leftAliases.includes(alias)) {
-        if (inner.jointype !== "JOIN_RIGHT" && inner.jointype !== "JOIN_FULL") continue;
-        if (!this.joinCannotExtendSide(inner, scope, "left")) return false;
+        if (inner.jointype !== 'JOIN_RIGHT' && inner.jointype !== 'JOIN_FULL') continue
+        if (!this.joinCannotExtendSide(inner, scope, 'left')) return false
       } else if (inner.rightAliases.includes(alias)) {
-        if (inner.jointype !== "JOIN_LEFT" && inner.jointype !== "JOIN_FULL") continue;
-        if (!this.joinCannotExtendSide(inner, scope, "right")) return false;
+        if (inner.jointype !== 'JOIN_LEFT' && inner.jointype !== 'JOIN_FULL') continue
+        if (!this.joinCannotExtendSide(inner, scope, 'right')) return false
       }
     }
-    return true;
+    return true
   }
 
   /** Whether a join lies entirely inside the subtree spanning these aliases. */
   private joinWithin(j: JoinSides, subtreeAliases: string[]): boolean {
     return (
-      j.leftAliases.every(a => subtreeAliases.includes(a)) &&
-      j.rightAliases.every(a => subtreeAliases.includes(a))
-    );
+      j.leftAliases.every((a) => subtreeAliases.includes(a)) &&
+      j.rightAliases.every((a) => subtreeAliases.includes(a))
+    )
   }
 
   /**
@@ -3767,41 +3772,37 @@ class NullabilityEngine {
    * not any alias's, and what it licenses is that the joins INSIDE S are not
    * extended from above.
    */
-  private joinCannotExtendSide(
-    j: JoinPredicate,
-    scope: Scope,
-    side: "left" | "right",
-  ): boolean {
-    const eq = this.equalityColumnRefs(j.quals);
-    if (!eq) return false;
-    const extendable = side === "left" ? j.leftAliases : j.rightAliases;
-    const other = side === "left" ? j.rightAliases : j.leftAliases;
+  private joinCannotExtendSide(j: JoinPredicate, scope: Scope, side: 'left' | 'right'): boolean {
+    const eq = this.equalityColumnRefs(j.quals)
+    if (!eq) return false
+    const extendable = side === 'left' ? j.leftAliases : j.rightAliases
+    const other = side === 'left' ? j.rightAliases : j.leftAliases
 
     for (const [refCol, targetCol] of [
       [eq[0], eq[1]],
       [eq[1], eq[0]],
     ] as const) {
-      if (!extendable.includes(targetCol.alias)) continue;
-      if (!other.includes(refCol.alias)) continue;
-      const referencing = scope.aliases.get(refCol.alias);
-      const referenced = scope.aliases.get(targetCol.alias);
-      if (!referencing || !referenced) continue;
-      if (!this.subtreeAlwaysPresent(scope, other, refCol.alias)) continue;
-      if (!this.subtreePreserves(scope.joins, extendable, targetCol.alias, scope)) continue;
-      const referencingKey = this.keyedRelation(referencing);
-      const referencedKey = this.keyedRelation(referenced);
-      if (!referencingKey || !referencedKey) continue;
+      if (!extendable.includes(targetCol.alias)) continue
+      if (!other.includes(refCol.alias)) continue
+      const referencing = scope.aliases.get(refCol.alias)
+      const referenced = scope.aliases.get(targetCol.alias)
+      if (!referencing || !referenced) continue
+      if (!this.subtreeAlwaysPresent(scope, other, refCol.alias)) continue
+      if (!this.subtreePreserves(scope.joins, extendable, targetCol.alias, scope)) continue
+      const referencingKey = this.keyedRelation(referencing)
+      const referencedKey = this.keyedRelation(referenced)
+      if (!referencingKey || !referencedKey) continue
       // Same translation as the join-level reading — the qual is in the
       // query's names and the key is in the catalog's.
-      const refCat2 = this.entryCatalogColumn(referencing, refCol.column);
-      const tgtCat2 = this.entryCatalogColumn(referenced, targetCol.column);
-      if (refCat2 === undefined || tgtCat2 === undefined) continue;
+      const refCat2 = this.entryCatalogColumn(referencing, refCol.column)
+      const tgtCat2 = this.entryCatalogColumn(referenced, targetCol.column)
+      if (refCat2 === undefined || tgtCat2 === undefined) continue
       if (!this.keyEntails(referencingKey, refCat2, referencedKey, tgtCat2)) {
-        continue;
+        continue
       }
-      return true;
+      return true
     }
-    return false;
+    return false
   }
 
   /**
@@ -3815,48 +3816,41 @@ class NullabilityEngine {
     // A join with no qual answers null here, which is what every caller
     // already does with "this is not a key equality" — so recording qual-less
     // joins needed no new branch at the three reading sites.
-    if (!qual) return null;
-    const ae = (qual as Record<string, unknown>)["A_Expr"] as
-      | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
-      | undefined;
-    if (!ae || (ae.kind ?? "AEXPR_OP") !== "AEXPR_OP") return null;
-    if ((ae.name ?? []).length !== 1 || this.stringVal(ae.name![0]!) !== "=") return null;
-    const left = ae.lexpr ? this.qualifiedColumnRef(ae.lexpr) : null;
-    const right = ae.rexpr ? this.qualifiedColumnRef(ae.rexpr) : null;
-    return left && right ? [left, right] : null;
+    if (!qual) return null
+    const ae = (qual as Record<string, unknown>)['A_Expr'] as
+      { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node } | undefined
+    if (!ae || (ae.kind ?? 'AEXPR_OP') !== 'AEXPR_OP') return null
+    if ((ae.name ?? []).length !== 1 || this.stringVal(ae.name![0]!) !== '=') return null
+    const left = ae.lexpr ? this.qualifiedColumnRef(ae.lexpr) : null
+    const right = ae.rexpr ? this.qualifiedColumnRef(ae.rexpr) : null
+    return left && right ? [left, right] : null
   }
 
   /** A two-part `alias.column` reference, or null. */
   private qualifiedColumnRef(node: Node): { alias: string; column: string } | null {
-    const ref = (node as Record<string, unknown>)["ColumnRef"] as
-      | { fields?: Node[] }
-      | undefined;
-    const fields = ref?.fields;
-    if (!fields || fields.length !== 2) return null;
-    const alias = this.stringVal(fields[0]!);
-    const column = this.stringVal(fields[1]!);
-    return alias && column ? { alias, column } : null;
+    const ref = (node as Record<string, unknown>)['ColumnRef'] as { fields?: Node[] } | undefined
+    const fields = ref?.fields
+    if (!fields || fields.length !== 2) return null
+    const alias = this.stringVal(fields[0]!)
+    const column = this.stringVal(fields[1]!)
+    return alias && column ? { alias, column } : null
   }
 
   private nextNullGroup(): number {
-    return ++this.nullGroupCounter;
+    return ++this.nullGroupCounter
   }
 
   private nextInstance(): number {
-    return ++this.instanceCounter;
+    return ++this.instanceCounter
   }
 
   /** The columns a single relation contributes, in declaration order. */
-  private visibleColumnsOf(
-    entry: RelationEntry,
-    scope: Scope,
-    depth: number,
-  ): VisibleColumn[] {
-    return this.relationColumnsIntrinsic(entry, scope, depth).map(c => ({
+  private visibleColumnsOf(entry: RelationEntry, scope: Scope, depth: number): VisibleColumn[] {
+    return this.relationColumnsIntrinsic(entry, scope, depth).map((c) => ({
       name: c.name,
       entry,
       merged: null,
-    }));
+    }))
   }
 
   /**
@@ -3884,29 +3878,29 @@ class NullabilityEngine {
     // that only knows `st.k5`.
     const shown = entry?.columnAliases
       ? new Map((entry.table?.columns ?? []).map((c, i) => [c, entry.columnAliases![i] ?? c]))
-      : null;
-    const clone = structuredClone(expr);
+      : null
+    const clone = structuredClone(expr)
     const rewrite = (node: unknown): void => {
       if (Array.isArray(node)) {
-        node.forEach(rewrite);
-        return;
+        node.forEach(rewrite)
+        return
       }
-      if (!node || typeof node !== "object") return;
-      const obj = node as Record<string, unknown>;
-      const cr = obj["ColumnRef"] as { fields?: Node[] } | undefined;
+      if (!node || typeof node !== 'object') return
+      const obj = node as Record<string, unknown>
+      const cr = obj['ColumnRef'] as { fields?: Node[] } | undefined
       if (cr?.fields?.length === 1) {
-        const bare = this.stringVal(cr.fields[0]!);
-        const name = shown?.get(bare) ?? bare;
+        const bare = this.stringVal(cr.fields[0]!)
+        const name = shown?.get(bare) ?? bare
         cr.fields = [
           { String: { sval: alias } } as unknown as Node,
           { String: { sval: name } } as unknown as Node,
-        ];
-        return;
+        ]
+        return
       }
-      Object.values(obj).forEach(rewrite);
-    };
-    rewrite(clone);
-    return clone;
+      Object.values(obj).forEach(rewrite)
+    }
+    rewrite(clone)
+    return clone
   }
 
   /** A synthesized `l.a = r.b` A_Expr for the USING/NATURAL conjuncts. */
@@ -3918,15 +3912,15 @@ class NullabilityEngine {
   ): Node {
     const col = (alias: string, name: string): unknown => ({
       ColumnRef: { fields: [{ String: { sval: alias } }, { String: { sval: name } }] },
-    });
+    })
     return {
       A_Expr: {
-        kind: "AEXPR_OP",
-        name: [{ String: { sval: "=" } }],
+        kind: 'AEXPR_OP',
+        name: [{ String: { sval: '=' } }],
         lexpr: col(leftAlias, leftCol),
         rexpr: col(rightAlias, rightCol),
       },
-    } as unknown as Node;
+    } as unknown as Node
   }
 
   private mergeJoinColumns(
@@ -3934,40 +3928,40 @@ class NullabilityEngine {
     left: VisibleColumn[],
     right: VisibleColumn[],
   ): VisibleColumn[] {
-    let mergedNames: string[];
+    let mergedNames: string[]
     if (join.usingClause && join.usingClause.length > 0) {
-      mergedNames = join.usingClause.map(n => this.stringVal(n));
+      mergedNames = join.usingClause.map((n) => this.stringVal(n))
     } else if (join.isNatural) {
       // NATURAL is USING over every commonly-named column, in left order.
-      const rightNames = new Set(right.map(c => c.name));
-      mergedNames = left.filter(c => rightNames.has(c.name)).map(c => c.name);
+      const rightNames = new Set(right.map((c) => c.name))
+      mergedNames = left.filter((c) => rightNames.has(c.name)).map((c) => c.name)
     } else {
-      return [...left, ...right];
+      return [...left, ...right]
     }
-    if (mergedNames.length === 0) return [...left, ...right];
+    if (mergedNames.length === 0) return [...left, ...right]
 
-    const isMerged = new Set(mergedNames);
-    const merged: VisibleColumn[] = [];
+    const isMerged = new Set(mergedNames)
+    const merged: VisibleColumn[] = []
     for (const name of mergedNames) {
-      const l = left.find(c => c.name === name);
-      const r = right.find(c => c.name === name);
+      const l = left.find((c) => c.name === name)
+      const r = right.find((c) => c.name === name)
       // A USING name that does not exist on both sides is a query PostgreSQL
       // rejects; keep whatever we can rather than inventing a column.
       if (!l?.entry || !r?.entry) {
-        if (l ?? r) merged.push((l ?? r)!);
-        continue;
+        if (l ?? r) merged.push((l ?? r)!)
+        continue
       }
       merged.push({
         name,
         entry: null,
-        merged: { left: l.entry, right: r.entry, jointype: join.jointype ?? "JOIN_INNER" },
-      });
+        merged: { left: l.entry, right: r.entry, jointype: join.jointype ?? 'JOIN_INNER' },
+      })
     }
     return [
       ...merged,
-      ...left.filter(c => !isMerged.has(c.name)),
-      ...right.filter(c => !isMerged.has(c.name)),
-    ];
+      ...left.filter((c) => !isMerged.has(c.name)),
+      ...right.filter((c) => !isMerged.has(c.name)),
+    ]
   }
 
   /**
@@ -3979,33 +3973,28 @@ class NullabilityEngine {
    * In a FULL join both sides' columns must be non-null, which makes the
    * merged column strictly less nullable than either of them.
    */
-  private mergedColumnNotNull(
-    name: string,
-    m: MergedColumn,
-    scope: Scope,
-    depth: number,
-  ): boolean {
+  private mergedColumnNotNull(name: string, m: MergedColumn, scope: Scope, depth: number): boolean {
     // A grouping-set construct blanks its grouping columns in super-aggregate
     // rows whatever the source rows guarantee — the same override the two
     // ordinary ColumnRef sites apply. The merged column is a third resolution
     // route and must not bypass it.
-    if (scope.groupingSetColumns.has(name)) return false;
+    if (scope.groupingSetColumns.has(name)) return false
     const side = (entry: RelationEntry): boolean =>
-      this.relationColumnsIntrinsic(entry, scope, depth)
-        .find(c => c.name === name)?.notNull ?? false;
-    const left = side(m.left);
-    const right = side(m.right);
+      this.relationColumnsIntrinsic(entry, scope, depth).find((c) => c.name === name)?.notNull ??
+      false
+    const left = side(m.left)
+    const right = side(m.right)
     switch (m.jointype) {
-      case "JOIN_LEFT":
-        return left;
-      case "JOIN_RIGHT":
-        return right;
-      case "JOIN_FULL":
-        return left && right;
+      case 'JOIN_LEFT':
+        return left
+      case 'JOIN_RIGHT':
+        return right
+      case 'JOIN_FULL':
+        return left && right
       default:
         // INNER: both rows are present and the values are equal by
         // construction, so either side proving non-null is enough.
-        return left || right;
+        return left || right
     }
   }
 
@@ -4017,72 +4006,72 @@ class NullabilityEngine {
     unitChain: number[],
     depth: number,
   ): VisibleColumn[] {
-    const node = item as Record<string, unknown>;
-    if ("RangeVar" in node) {
-      const rv = node["RangeVar"] as RangeVar;
-      const entry = this.addRangeVar(rv, joinState, scope, nullGroup, unitChain);
-      return entry ? this.visibleColumnsOf(entry, scope, depth) : [];
-    } else if ("RangeSubselect" in node) {
-      const sub = node["RangeSubselect"] as RangeSubselect;
-      const aliasName = sub.alias?.aliasname ?? "";
+    const node = item as Record<string, unknown>
+    if ('RangeVar' in node) {
+      const rv = node['RangeVar'] as RangeVar
+      const entry = this.addRangeVar(rv, joinState, scope, nullGroup, unitChain)
+      return entry ? this.visibleColumnsOf(entry, scope, depth) : []
+    } else if ('RangeSubselect' in node) {
+      const sub = node['RangeSubselect'] as RangeSubselect
+      const aliasName = sub.alias?.aliasname ?? ''
       const colNames = sub.alias?.colnames
         ? sub.alias.colnames.map((n: Node) => this.stringVal(n))
-        : [];
+        : []
       const subEntry: RelationEntry = {
         alias: aliasName,
-        kind: "subquery",
+        kind: 'subquery',
         ast: sub.subquery,
         cteColumns: colNames,
         joinState,
         nullGroup,
         unitChain,
         instance: this.nextInstance(),
-      };
-      scope.aliases.set(aliasName, subEntry);
-      this.recordRowWitness(sub, joinState, scope);
-      return this.visibleColumnsOf(subEntry, scope, depth);
-    } else if ("JoinExpr" in node) {
-      const join = node["JoinExpr"] as JoinExpr;
-      let leftState = joinState;
-      let rightState = joinState;
+      }
+      scope.aliases.set(aliasName, subEntry)
+      this.recordRowWitness(sub, joinState, scope)
+      return this.visibleColumnsOf(subEntry, scope, depth)
+    } else if ('JoinExpr' in node) {
+      const join = node['JoinExpr'] as JoinExpr
+      let leftState = joinState
+      let rightState = joinState
       // The required side keeps the enclosing group; each side that this join
       // makes optional is NULL-extended as its own unit, so it starts a new
       // one — and appends it to the side's unit CHAIN, the ancestry origins
       // carry out for cross-table presence certification.
-      let leftGroup = nullGroup;
-      let rightGroup = nullGroup;
-      let leftChain = unitChain;
-      let rightChain = unitChain;
+      let leftGroup = nullGroup
+      let rightGroup = nullGroup
+      let leftChain = unitChain
+      let rightChain = unitChain
       switch (join.jointype) {
-        case "JOIN_INNER":
-          break; // both inherit current state and group
-        case "JOIN_LEFT":
-          rightState = OPTIONAL;
-          rightGroup = this.nextNullGroup();
-          rightChain = [...unitChain, rightGroup];
-          break;
-        case "JOIN_RIGHT":
-          leftState = OPTIONAL;
-          leftGroup = this.nextNullGroup();
-          leftChain = [...unitChain, leftGroup];
-          break;
-        case "JOIN_FULL":
-          leftState = OPTIONAL;
-          leftGroup = this.nextNullGroup();
-          leftChain = [...unitChain, leftGroup];
-          rightState = OPTIONAL;
-          rightGroup = this.nextNullGroup();
-          rightChain = [...unitChain, rightGroup];
-          break;
+        case 'JOIN_INNER':
+          break // both inherit current state and group
+        case 'JOIN_LEFT':
+          rightState = OPTIONAL
+          rightGroup = this.nextNullGroup()
+          rightChain = [...unitChain, rightGroup]
+          break
+        case 'JOIN_RIGHT':
+          leftState = OPTIONAL
+          leftGroup = this.nextNullGroup()
+          leftChain = [...unitChain, leftGroup]
+          break
+        case 'JOIN_FULL':
+          leftState = OPTIONAL
+          leftGroup = this.nextNullGroup()
+          leftChain = [...unitChain, leftGroup]
+          rightState = OPTIONAL
+          rightGroup = this.nextNullGroup()
+          rightChain = [...unitChain, rightGroup]
+          break
       }
-      const aliasesBefore = scope.aliases.size;
+      const aliasesBefore = scope.aliases.size
       const left = join.larg
         ? this.walkFromItem(join.larg, leftState, scope, leftGroup, leftChain, depth)
-        : [];
-      const aliasesAfterLeft = scope.aliases.size;
+        : []
+      const aliasesAfterLeft = scope.aliases.size
       const right = join.rarg
         ? this.walkFromItem(join.rarg, rightState, scope, rightGroup, rightChain, depth)
-        : [];
+        : []
       // Record the qual with its per-side alias sets (whole subtrees — the
       // Map appends in registration order, so slicing the key list recovers
       // exactly what each side's walk added) for the presence fixpoint.
@@ -4098,12 +4087,12 @@ class NullabilityEngine {
       // dropping every row of a side is exactly what they exist to see. So
       // `record` runs once per JoinExpr whatever the qual — the structural
       // entry is unconditional and the qual is the optional part.
-      const keys = [...scope.aliases.keys()];
-      let recorded = false;
+      const keys = [...scope.aliases.keys()]
+      let recorded = false
       const record = (quals: Node | null): void => {
-        recorded = true;
+        recorded = true
         scope.joins.push({
-          jointype: join.jointype ?? "JOIN_INNER",
+          jointype: join.jointype ?? 'JOIN_INNER',
           node: join,
           quals,
           leftAliases: keys.slice(aliasesBefore, aliasesAfterLeft),
@@ -4113,126 +4102,137 @@ class NullabilityEngine {
           // side ends up with: under an ancestor outer join both sides arrive
           // OPTIONAL already, and the FK reading still needs to know which of
           // them this join can extend.
-          ...(join.jointype === "JOIN_RIGHT" || join.jointype === "JOIN_FULL"
+          ...(join.jointype === 'JOIN_RIGHT' || join.jointype === 'JOIN_FULL'
             ? { leftOptionalGroup: leftGroup }
             : {}),
-          ...(join.jointype === "JOIN_LEFT" || join.jointype === "JOIN_FULL"
+          ...(join.jointype === 'JOIN_LEFT' || join.jointype === 'JOIN_FULL'
             ? { rightOptionalGroup: rightGroup }
             : {}),
-        });
-      };
-      if (join.quals) record(join.quals);
+        })
+      }
+      if (join.quals) record(join.quals)
       const usingNames =
         join.usingClause && join.usingClause.length > 0
-          ? join.usingClause.map(n => this.stringVal(n))
+          ? join.usingClause.map((n) => this.stringVal(n))
           : join.isNatural
-            ? left
-                .filter(c => right.some(r => r.name === c.name))
-                .map(c => c.name)
-            : [];
+            ? left.filter((c) => right.some((r) => r.name === c.name)).map((c) => c.name)
+            : []
       if (usingNames.length > 0) {
-        const eqs: Node[] = [];
+        const eqs: Node[] = []
         for (const name of usingNames) {
-          const l = left.find(c => c.name === name);
-          const r = right.find(c => c.name === name);
-          if (!l?.entry || !r?.entry) continue;
-          eqs.push(this.syntheticEquality(l.entry.alias, name, r.entry.alias, name));
+          const l = left.find((c) => c.name === name)
+          const r = right.find((c) => c.name === name)
+          if (!l?.entry || !r?.entry) continue
+          eqs.push(this.syntheticEquality(l.entry.alias, name, r.entry.alias, name))
         }
         if (eqs.length > 0) {
           record(
             eqs.length === 1
               ? eqs[0]!
-              : ({ BoolExpr: { boolop: "AND_EXPR", args: eqs } } as unknown as Node),
-          );
+              : ({ BoolExpr: { boolop: 'AND_EXPR', args: eqs } } as unknown as Node),
+          )
         }
       }
       // Neither an ON qual nor a synthesizable merge: the join is still
       // recorded, with nothing for the fixpoint to imply. PostgreSQL forbids
       // ON together with USING or NATURAL, so at most one of the two branches
       // above can have fired and this never double-records.
-      if (!recorded) record(null);
-      const mergedCols = this.mergeJoinColumns(join, left, right);
+      if (!recorded) record(null)
+      const mergedCols = this.mergeJoinColumns(join, left, right)
       // `(a JOIN b …) AS j` — the alias exposes the join's whole visible
       // list. (PostgreSQL also HIDES the constituents then; the engine keeps
       // them addressable, which can only accept queries PostgreSQL rejects —
       // the refusal-safe direction.)
-      const joinAlias = (join as { alias?: { aliasname?: string } }).alias?.aliasname;
-      if (joinAlias) scope.joinAliases.set(joinAlias, mergedCols);
+      const joinAlias = (join as { alias?: { aliasname?: string } }).alias?.aliasname
+      if (joinAlias) scope.joinAliases.set(joinAlias, mergedCols)
       // `USING (…) AS x` — the alias names exactly the merged columns.
-      const joinUsingAlias = join.join_using_alias?.aliasname;
+      const joinUsingAlias = join.join_using_alias?.aliasname
       if (joinUsingAlias && join.usingClause && join.usingClause.length > 0) {
-        const usingNamesSet = new Set(join.usingClause.map(n => this.stringVal(n)));
+        const usingNamesSet = new Set(join.usingClause.map((n) => this.stringVal(n)))
         scope.joinAliases.set(
           joinUsingAlias,
-          mergedCols.filter(c => usingNamesSet.has(c.name) && c.merged),
-        );
+          mergedCols.filter((c) => usingNamesSet.has(c.name) && c.merged),
+        )
       }
-      return mergedCols;
-    } else if ("RangeFunction" in node) {
-      const rf = node["RangeFunction"] as RangeFunction;
-      const aliasName = rf.alias?.aliasname ?? "";
+      return mergedCols
+    } else if ('RangeFunction' in node) {
+      const rf = node['RangeFunction'] as RangeFunction
+      const aliasName = rf.alias?.aliasname ?? ''
       const fnEntry: RelationEntry = {
         alias: aliasName,
-        kind: "function",
+        kind: 'function',
         rangeFunction: rf,
-        cteColumns: rf.alias?.colnames
-          ? rf.alias.colnames.map((n: Node) => this.stringVal(n))
-          : [],
+        cteColumns: rf.alias?.colnames ? rf.alias.colnames.map((n: Node) => this.stringVal(n)) : [],
         joinState,
         nullGroup,
         unitChain,
         instance: this.nextInstance(),
         guaranteesRow: this.rangeFunctionGuaranteesRow(rf, depth),
-      };
-      scope.aliases.set(aliasName, fnEntry);
-      this.recordStrictSrfImplications(rf, joinState, scope);
-      return this.visibleColumnsOf(fnEntry, scope, depth);
-    } else if ("RangeTableFunc" in node) {
+      }
+      scope.aliases.set(aliasName, fnEntry)
+      this.recordStrictSrfImplications(rf, joinState, scope)
+      return this.visibleColumnsOf(fnEntry, scope, depth)
+    } else if ('RangeTableFunc' in node) {
       // XMLTABLE(... COLUMNS a int PATH '...', n FOR ORDINALITY)
-      const rtf = node["RangeTableFunc"] as RangeTableFunc;
-      const cols: { name: string; notNull: boolean }[] = [];
+      const rtf = node['RangeTableFunc'] as RangeTableFunc
+      const cols: { name: string; notNull: boolean }[] = []
       for (const c of rtf.columns ?? []) {
-        const col = (c as Record<string, unknown>)["RangeTableFuncCol"] as
-          | { colname?: string; for_ordinality?: boolean; is_not_null?: boolean }
-          | undefined;
-        if (!col?.colname) continue;
+        const col = (c as Record<string, unknown>)['RangeTableFuncCol'] as
+          { colname?: string; for_ordinality?: boolean; is_not_null?: boolean } | undefined
+        if (!col?.colname) continue
         // FOR ORDINALITY is a generated counter; a column declared NOT NULL is
         // enforced — PostgreSQL raises rather than emitting NULL.
-        cols.push({ name: col.colname, notNull: !!col.for_ordinality || !!col.is_not_null });
+        cols.push({ name: col.colname, notNull: !!col.for_ordinality || !!col.is_not_null })
       }
-      return this.addColumnListRelation(rtf.alias?.aliasname ?? "", cols, rtf.alias?.colnames, joinState, scope, nullGroup, unitChain);
-    } else if ("JsonTable" in node) {
+      return this.addColumnListRelation(
+        rtf.alias?.aliasname ?? '',
+        cols,
+        rtf.alias?.colnames,
+        joinState,
+        scope,
+        nullGroup,
+        unitChain,
+      )
+    } else if ('JsonTable' in node) {
       // JSON_TABLE(... COLUMNS (n FOR ORDINALITY, a int PATH '...', NESTED ...))
-      const jt = node["JsonTable"] as JsonTable;
-      const cols: { name: string; notNull: boolean }[] = [];
-      this.collectJsonTableColumns(jt.columns, cols);
-      return this.addColumnListRelation(jt.alias?.aliasname ?? "", cols, jt.alias?.colnames, joinState, scope, nullGroup, unitChain);
-    } else if ("RangeTableSample" in node) {
+      const jt = node['JsonTable'] as JsonTable
+      const cols: { name: string; notNull: boolean }[] = []
+      this.collectJsonTableColumns(jt.columns, cols)
+      return this.addColumnListRelation(
+        jt.alias?.aliasname ?? '',
+        cols,
+        jt.alias?.colnames,
+        joinState,
+        scope,
+        nullGroup,
+        unitChain,
+      )
+    } else if ('RangeTableSample' in node) {
       // The sampled relation is walked as itself — its COLUMNS are the
       // relation's, and the shape does not change. What changes is which ROWS
       // are there, and that has to be recorded or the alias silently keeps
       // standing for the whole table (sweep-4 finding 3).
-      const rts = node["RangeTableSample"] as {
-        relation?: Node;
-        method?: Node[];
-        args?: Node[];
-      };
-      if (!rts.relation) return [];
-      const before = new Set(scope.aliases.values());
-      const cols = this.walkFromItem(rts.relation, joinState, scope, nullGroup, unitChain, depth);
-      const whole = this.tableSampleKeepsEveryRow(rts.method, rts.args);
-      for (const entry of scope.aliases.values()) {
-        if (!before.has(entry) && !whole) entry.sampled = true;
+      const rts = node['RangeTableSample'] as {
+        relation?: Node
+        method?: Node[]
+        args?: Node[]
       }
-      return cols;
+      if (!rts.relation) return []
+      const before = new Set(scope.aliases.values())
+      const cols = this.walkFromItem(rts.relation, joinState, scope, nullGroup, unitChain, depth)
+      const whole = this.tableSampleKeepsEveryRow(rts.method, rts.args)
+      for (const entry of scope.aliases.values()) {
+        if (!before.has(entry) && !whole) entry.sampled = true
+      }
+      return cols
     } else {
       // An unrecognised FROM item contributes no columns and no alias, so
       // `SELECT *` over it silently loses them. A shape defect, not a flag.
-      const tag = this.nodeTag(node);
-      this.onUnhandled?.("from-item", tag);
-      throw new UnsupportedNodeError("from-item", tag);
+      const tag = this.nodeTag(node)
+      this.onUnhandled?.('from-item', tag)
+      throw new UnsupportedNodeError('from-item', tag)
     }
-    return [];
+    return []
   }
 
   /**
@@ -4250,18 +4250,18 @@ class NullabilityEngine {
     nullGroup: number,
     unitChain: number[],
   ): VisibleColumn[] {
-    const names = aliasColnames?.map(n => this.stringVal(n)) ?? [];
+    const names = aliasColnames?.map((n) => this.stringVal(n)) ?? []
     const entry: RelationEntry = {
       alias: aliasName,
-      kind: "function",
+      kind: 'function',
       functionColumns: columns.map((c, i) => ({ name: names[i] ?? c.name, notNull: c.notNull })),
       joinState,
       nullGroup,
       unitChain,
       instance: this.nextInstance(),
-    };
-    scope.aliases.set(aliasName, entry);
-    return entry.functionColumns!.map(c => ({ name: c.name, entry, merged: null }));
+    }
+    scope.aliases.set(aliasName, entry)
+    return entry.functionColumns!.map((c) => ({ name: c.name, entry, merged: null }))
   }
 
   /**
@@ -4309,11 +4309,11 @@ class NullabilityEngine {
    * as a shape mismatch).
    */
   private static readonly POPULATE_RECORD_NAMES = new Set([
-    "json_populate_record",
-    "jsonb_populate_record",
-    "json_populate_recordset",
-    "jsonb_populate_recordset",
-  ]);
+    'json_populate_record',
+    'jsonb_populate_record',
+    'json_populate_recordset',
+    'jsonb_populate_recordset',
+  ])
 
   private collectJsonTableColumns(
     columns: Node[] | undefined,
@@ -4327,24 +4327,24 @@ class NullabilityEngine {
     // list, which misassigns every later flag (the pg-regress replay's
     // sqljson_jsontable crop — the corpus's own comment beside the statement
     // says "Parent columns xx1, xx appear before NESTED ones").
-    const nestedGroups: Node[][] = [];
+    const nestedGroups: Node[][] = []
     for (const c of columns ?? []) {
-      const col = (c as Record<string, unknown>)["JsonTableColumn"] as
+      const col = (c as Record<string, unknown>)['JsonTableColumn'] as
         | { coltype?: string; name?: string; columns?: Node[]; on_error?: { btype?: string } }
-        | undefined;
-      if (!col) continue;
-      if (col.coltype === "JTC_NESTED") {
-        nestedGroups.push(col.columns ?? []);
-        continue;
+        | undefined
+      if (!col) continue
+      if (col.coltype === 'JTC_NESTED') {
+        nestedGroups.push(col.columns ?? [])
+        continue
       }
-      if (!col.name) continue;
+      if (!col.name) continue
       const generated =
-        col.coltype === "JTC_FOR_ORDINALITY" ||
-        (col.coltype === "JTC_EXISTS" && col.on_error?.btype !== "JSON_BEHAVIOR_UNKNOWN");
-      out.push({ name: col.name, notNull: !nested && generated });
+        col.coltype === 'JTC_FOR_ORDINALITY' ||
+        (col.coltype === 'JTC_EXISTS' && col.on_error?.btype !== 'JSON_BEHAVIOR_UNKNOWN')
+      out.push({ name: col.name, notNull: !nested && generated })
     }
     for (const group of nestedGroups) {
-      this.collectJsonTableColumns(group, out, true);
+      this.collectJsonTableColumns(group, out, true)
     }
   }
 
@@ -4355,16 +4355,16 @@ class NullabilityEngine {
     nullGroup: number,
     unitChain: number[] = [],
   ): RelationEntry | null {
-    const aliasName = rv.alias?.aliasname ?? rv.relname;
+    const aliasName = rv.alias?.aliasname ?? rv.relname
 
     // Check if it's a CTE — search this scope and all outer scopes.
     // CTEs defined in a parent scope's WITH clause are visible to child
     // scopes (e.g., CTEs in the outer query are visible in subqueries).
-    const cte = this.findCte(rv.relname, scope);
+    const cte = this.findCte(rv.relname, scope)
     if (cte) {
       const cteEntry: RelationEntry = {
         alias: aliasName,
-        kind: "cte",
+        kind: 'cte',
         ast: cte.ast,
         cteColumns: cte.columns,
         extraColumns: cte.extraColumns,
@@ -4372,20 +4372,20 @@ class NullabilityEngine {
         nullGroup,
         unitChain,
         instance: this.nextInstance(),
-      };
-      scope.aliases.set(aliasName, cteEntry);
-      return cteEntry;
+      }
+      scope.aliases.set(aliasName, cteEntry)
+      return cteEntry
     }
 
     // Resolve from catalog.
-    const table = this.catalog.resolveTable(rv.schemaname ?? undefined, rv.relname);
+    const table = this.catalog.resolveTable(rv.schemaname ?? undefined, rv.relname)
     if (table) {
       // A view's own catalog columns are always attnotnull=false, so prefer
       // its parsed definition when we have one and analyze it as a subquery.
-      const viewAst = this.catalog.viewAsts.get(`${table.schema}.${table.name}`);
+      const viewAst = this.catalog.viewAsts.get(`${table.schema}.${table.name}`)
       const entry: RelationEntry = {
         alias: aliasName,
-        kind: table.schema === "" ? "cte" : viewAst ? "view" : "table",
+        kind: table.schema === '' ? 'cte' : viewAst ? 'view' : 'table',
         table,
         ...(rv.alias?.colnames && rv.alias.colnames.length > 0
           ? { columnAliases: rv.alias.colnames.map((n: Node) => this.stringVal(n)) }
@@ -4398,9 +4398,9 @@ class NullabilityEngine {
         nullGroup,
         unitChain,
         instance: this.nextInstance(),
-      };
-      scope.aliases.set(aliasName, entry);
-      return entry;
+      }
+      scope.aliases.set(aliasName, entry)
+      return entry
     }
 
     // A relation the snapshot does not capture: a temporary table,
@@ -4413,9 +4413,9 @@ class NullabilityEngine {
     // Partitioned and foreign tables are captured (relkind 'p'/'f') and
     // resolve above rather than landing here.
     throw new UnsupportedNodeError(
-      "from-item",
-      `unresolvable relation ${rv.schemaname ? `${rv.schemaname}.` : ""}${rv.relname}`,
-    );
+      'from-item',
+      `unresolvable relation ${rv.schemaname ? `${rv.schemaname}.` : ''}${rv.relname}`,
+    )
   }
 
   // -------------------------------------------------------------------------
@@ -4436,14 +4436,14 @@ class NullabilityEngine {
    * precision on trigger-bearing children an INSERT can never reach.)
    */
   private targetWriteRewrites(relation: Node | undefined): {
-    beforeRow: ReadonlySet<string>;
-    insteadOf: ReadonlySet<string>;
-    insteadRules: ReadonlySet<string>;
+    beforeRow: ReadonlySet<string>
+    insteadOf: ReadonlySet<string>
+    insteadRules: ReadonlySet<string>
   } {
-    const rv = relation as unknown as RangeVar | undefined;
+    const rv = relation as unknown as RangeVar | undefined
     return rv?.inh === true
-      ? this.catalog.resolveWriteRewritesTree(rv?.schemaname ?? undefined, rv?.relname ?? "")
-      : this.catalog.resolveWriteRewrites(rv?.schemaname ?? undefined, rv?.relname ?? "");
+      ? this.catalog.resolveWriteRewritesTree(rv?.schemaname ?? undefined, rv?.relname ?? '')
+      : this.catalog.resolveWriteRewrites(rv?.schemaname ?? undefined, rv?.relname ?? '')
   }
 
   /**
@@ -4462,12 +4462,12 @@ class NullabilityEngine {
     relation: Node | undefined,
     wr: { beforeRow: ReadonlySet<string> },
   ): boolean {
-    if (wr.beforeRow.has("update")) return true;
-    const rv = relation as unknown as RangeVar | undefined;
+    if (wr.beforeRow.has('update')) return true
+    const rv = relation as unknown as RangeVar | undefined
     return (
-      wr.beforeRow.has("insert") &&
-      this.catalog.resolveIsPartitioned(rv?.schemaname ?? undefined, rv?.relname ?? "")
-    );
+      wr.beforeRow.has('insert') &&
+      this.catalog.resolveIsPartitioned(rv?.schemaname ?? undefined, rv?.relname ?? '')
+    )
   }
 
   /**
@@ -4481,11 +4481,11 @@ class NullabilityEngine {
    */
   private refuseInsteadRule(relation: Node | undefined, command: string): void {
     if (this.targetWriteRewrites(relation).insteadRules.has(command)) {
-      const rv = relation as unknown as RangeVar | undefined;
+      const rv = relation as unknown as RangeVar | undefined
       throw new UnsupportedNodeError(
-        "statement",
-        `DO INSTEAD rule (ON ${command.toUpperCase()}) on ${rv?.relname ?? "?"}`,
-      );
+        'statement',
+        `DO INSTEAD rule (ON ${command.toUpperCase()}) on ${rv?.relname ?? '?'}`,
+      )
     }
   }
 
@@ -4494,9 +4494,9 @@ class NullabilityEngine {
     outerScope: Scope | null,
     depth: number,
   ): OutputNullability[] {
-    if (!stmt.returningClause) return [];
-    const scope = this.buildInsertScope(stmt, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt);
+    if (!stmt.returningClause) return []
+    const scope = this.buildInsertScope(stmt, outerScope, depth)
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt)
   }
 
   /**
@@ -4510,8 +4510,8 @@ class NullabilityEngine {
     // In the builder rather than the analyzer so the traced walk shares the
     // refusal by construction — it calls the builders directly, and both
     // entry points reach here only when a RETURNING clause exists.
-    this.refuseInsteadRule(stmt.relation, "insert");
-    const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
+    this.refuseInsteadRule(stmt.relation, 'insert')
+    const scope = this.buildDmlScope(stmt.relation, outerScope, depth)
     // Set here rather than beside the written-value maps below: those are
     // voided wholesale by a BEFORE ROW trigger, and this one need not be —
     // `columnRejection` applies the same guard per site, and a mechanism-A
@@ -4519,7 +4519,7 @@ class NullabilityEngine {
     scope.dmlReturningRejectedParams = returningRejectedParams(
       { InsertStmt: stmt } as unknown as Node,
       this.catalog,
-    );
+    )
     // The parser marks an INSERT target `inh: true`, but an INSERT stores
     // its rows in the named relation itself — inheritance never routes a
     // write (measured: INSERT INTO inh_p lands in ONLY inh_p, and the
@@ -4527,8 +4527,8 @@ class NullabilityEngine {
     // relation's flags, not the tree conjunction. Tuple routing is a
     // partitioned-table mechanism, where partitions provably carry the
     // parent's constraints and the two flags agree.
-    for (const entry of scope.aliases.values()) entry.scanInh = false;
-    this.registerCtes(stmt.withClause, scope);
+    for (const entry of scope.aliases.values()) entry.scanInh = false
+    this.registerCtes(stmt.withClause, scope)
     // A BEFORE ROW trigger may replace NEW wholesale after the statement's
     // values were chosen (measured: NEW.a := NULL comes back through
     // RETURNING), so the written-value map describes a row that may never be
@@ -4539,18 +4539,18 @@ class NullabilityEngine {
     // definition expressions never evaluated (measured: a literal view
     // column comes back NULL) — so the view analysis is void too, and the
     // catalog flags the entry falls back to are the view's own, all false.
-    const wr = this.targetWriteRewrites(stmt.relation);
+    const wr = this.targetWriteRewrites(stmt.relation)
     const conflictUpdates = !!(stmt.onConflictClause as { targetList?: Node[] } | undefined)
-      ?.targetList;
-    const commands = ["insert", ...(conflictUpdates ? ["update"] : [])];
-    if (commands.some(cmd => wr.insteadOf.has(cmd))) {
-      for (const entry of scope.aliases.values()) entry.ast = undefined;
+      ?.targetList
+    const commands = ['insert', ...(conflictUpdates ? ['update'] : [])]
+    if (commands.some((cmd) => wr.insteadOf.has(cmd))) {
+      for (const entry of scope.aliases.values()) entry.ast = undefined
     }
-    if (commands.some(cmd => wr.beforeRow.has(cmd) || wr.insteadOf.has(cmd))) {
-      return scope;
+    if (commands.some((cmd) => wr.beforeRow.has(cmd) || wr.insteadOf.has(cmd))) {
+      return scope
     }
-    this.attachInsertWrittenColumns(stmt, scope, depth);
-    return scope;
+    this.attachInsertWrittenColumns(stmt, scope, depth)
+    return scope
   }
 
   /**
@@ -4566,21 +4566,17 @@ class NullabilityEngine {
    * row's value and contributes nothing. DO NOTHING returns only inserted
    * rows and changes nothing.
    */
-  private attachInsertWrittenColumns(
-    stmt: InsertStmt,
-    scope: Scope,
-    depth: number,
-  ): void {
-    const entry = [...scope.aliases.values()][0];
-    if (!entry?.table) return;
+  private attachInsertWrittenColumns(stmt: InsertStmt, scope: Scope, depth: number): void {
+    const entry = [...scope.aliases.values()][0]
+    if (!entry?.table) return
     const columns = stmt.cols
-      ? stmt.cols.map(c => (c as { ResTarget?: { name?: string } }).ResTarget?.name ?? "")
-      : entry.table.columns;
+      ? stmt.cols.map((c) => (c as { ResTarget?: { name?: string } }).ResTarget?.name ?? '')
+      : entry.table.columns
 
     const select = (stmt.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
-      ?.SelectStmt;
-    if (!select) return;
-    const written = new Map<string, boolean>();
+      ?.SelectStmt
+    if (!select) return
+    const written = new Map<string, boolean>()
 
     // The source is walked with the DML scope as its outer, NOT the
     // statement's own outer: the WITH clause's CTEs are registered on the
@@ -4592,63 +4588,61 @@ class NullabilityEngine {
     // The mirror map, built in lockstep and by the same rule: EVERY VALUES
     // row must write NULL, because any one row that does not is a returned
     // row that carries a value.
-    const writtenNull = new Map<string, boolean>();
-    const valuesLists = select["valuesLists"] as Node[] | undefined;
+    const writtenNull = new Map<string, boolean>()
+    const valuesLists = select['valuesLists'] as Node[] | undefined
     if (valuesLists?.length) {
       columns.forEach((col, i) => {
-        if (!col) return;
+        if (!col) return
         const cells = valuesLists.map(
-          row => ((row as { List?: { items?: Node[] } }).List?.items ?? [])[i],
-        );
+          (row) => ((row as { List?: { items?: Node[] } }).List?.items ?? [])[i],
+        )
         written.set(
           col,
-          cells.every(cell => !!cell && this.walkExpr(cell, this.emptyScope(scope), depth + 1)),
-        );
+          cells.every((cell) => !!cell && this.walkExpr(cell, this.emptyScope(scope), depth + 1)),
+        )
         writtenNull.set(
           col,
           cells.every(
-            cell => !!cell && this.alwaysNullExpr(cell, this.emptyScope(scope), depth + 1),
+            (cell) => !!cell && this.alwaysNullExpr(cell, this.emptyScope(scope), depth + 1),
           ),
-        );
-      });
-    } else if (select["op"] === "SETOP_NONE" && select["targetList"]) {
-      const innerResults = this.analyzeStatement(stmt.selectStmt!, scope, depth + 1);
+        )
+      })
+    } else if (select['op'] === 'SETOP_NONE' && select['targetList']) {
+      const innerResults = this.analyzeStatement(stmt.selectStmt!, scope, depth + 1)
       columns.forEach((col, i) => {
-        if (!col) return;
-        written.set(col, innerResults[i]?.notNull === true);
-        writtenNull.set(col, innerResults[i]?.alwaysNull === true);
-      });
+        if (!col) return
+        written.set(col, innerResults[i]?.notNull === true)
+        writtenNull.set(col, innerResults[i]?.alwaysNull === true)
+      })
     } else {
-      return;
+      return
     }
 
-    const conflict = stmt.onConflictClause as
-      | { action?: string; targetList?: Node[] }
-      | undefined;
-    if (conflict?.action === "ONCONFLICT_UPDATE") {
-      const setNotNull = new Map<string, boolean>();
-      this.dmlOldRowRead = true;
+    const conflict = stmt.onConflictClause as { action?: string; targetList?: Node[] } | undefined
+    if (conflict?.action === 'ONCONFLICT_UPDATE') {
+      const setNotNull = new Map<string, boolean>()
+      this.dmlOldRowRead = true
       try {
         for (const item of conflict.targetList ?? []) {
-          const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-          if (!rt?.name || !rt.val) continue;
-          if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
-          setNotNull.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+          const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+          if (!rt?.name || !rt.val) continue
+          if ('MultiAssignRef' in (rt.val as Record<string, unknown>)) continue
+          setNotNull.set(rt.name, this.walkExpr(rt.val, scope, depth + 1))
         }
       } finally {
-        this.dmlOldRowRead = false;
+        this.dmlOldRowRead = false
       }
       for (const [col, insertPath] of written) {
-        written.set(col, insertPath && (setNotNull.get(col) ?? false));
+        written.set(col, insertPath && (setNotNull.get(col) ?? false))
       }
       // The conflict path is a SECOND way to produce a returned row, and
       // its SET expressions are not analysed for always-null here — so the
       // mirror map cannot speak for any column once that path exists.
-      writtenNull.clear();
+      writtenNull.clear()
     }
 
-    scope.dmlWrittenColumns = { alias: entry.alias, columns: written };
-    scope.dmlWrittenNullColumns = { alias: entry.alias, columns: writtenNull };
+    scope.dmlWrittenColumns = { alias: entry.alias, columns: written }
+    scope.dmlWrittenNullColumns = { alias: entry.alias, columns: writtenNull }
   }
 
   private analyzeUpdate(
@@ -4656,20 +4650,20 @@ class NullabilityEngine {
     outerScope: Scope | null,
     depth: number,
   ): OutputNullability[] {
-    if (!stmt.returningClause) return [];
-    const scope = this.buildUpdateScope(stmt, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt);
+    if (!stmt.returningClause) return []
+    const scope = this.buildUpdateScope(stmt, outerScope, depth)
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt)
   }
 
   /** The complete RETURNING scope for an UPDATE — see buildInsertScope. */
   private buildUpdateScope(stmt: UpdateStmt, outerScope: Scope | null, depth: number): Scope {
-    this.refuseInsteadRule(stmt.relation, "update");
-    const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
+    this.refuseInsteadRule(stmt.relation, 'update')
+    const scope = this.buildDmlScope(stmt.relation, outerScope, depth)
     scope.dmlReturningRejectedParams = returningRejectedParams(
       { UpdateStmt: stmt } as unknown as Node,
       this.catalog,
-    );
-    this.registerCtes(stmt.withClause, scope);
+    )
+    this.registerCtes(stmt.withClause, scope)
 
     // UPDATE...FROM: add FROM clause relations too. The target is joined to
     // them with inner-join semantics — a target row with no match in the FROM
@@ -4678,7 +4672,9 @@ class NullabilityEngine {
     // joins *within* the FROM list are still handled by walkFromItem.)
     if (stmt.fromClause) {
       for (const item of stmt.fromClause) {
-        scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), [], depth));
+        scope.visible.push(
+          ...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), [], depth),
+        )
       }
     }
 
@@ -4686,8 +4682,8 @@ class NullabilityEngine {
     // RETURNING cannot contain aggregates, so the zero-input hazard behind
     // rowsImplyWhere does not exist here. The SET columns are the one
     // exception (old row vs new row) and are masked via dmlSetColumns.
-    scope.whereClause = stmt.whereClause;
-    scope.rowsImplyWhere = true;
+    scope.whereClause = stmt.whereClause
+    scope.rowsImplyWhere = true
     // A BEFORE ROW / INSTEAD OF UPDATE trigger may replace ANY column of
     // NEW, not just the SET ones (measured), so the OLD-row evidence
     // transfer the SET mask licenses — "non-SET columns keep their WHERE-
@@ -4697,26 +4693,26 @@ class NullabilityEngine {
     // the trigger's NEW verbatim — measured, a literal view column comes
     // back NULL). Catalog flags survive for tables: the stored row still
     // passes its constraints.
-    const wr = this.targetWriteRewrites(stmt.relation);
-    const rewriting = this.updateBeforeRowHazard(stmt.relation, wr) || wr.insteadOf.has("update");
-    if (wr.insteadOf.has("update")) {
-      for (const entry of scope.aliases.values()) entry.ast = undefined;
+    const wr = this.targetWriteRewrites(stmt.relation)
+    const rewriting = this.updateBeforeRowHazard(stmt.relation, wr) || wr.insteadOf.has('update')
+    if (wr.insteadOf.has('update')) {
+      for (const entry of scope.aliases.values()) entry.ast = undefined
     }
-    const targetAlias = [...scope.aliases.keys()][0];
-    const targetEntry = targetAlias !== undefined ? scope.aliases.get(targetAlias) : undefined;
+    const targetAlias = [...scope.aliases.keys()][0]
+    const targetEntry = targetAlias !== undefined ? scope.aliases.get(targetAlias) : undefined
     if (targetAlias !== undefined) {
-      const setColumns = new Set<string>();
+      const setColumns = new Set<string>()
       if (rewriting) {
-        for (const col of targetEntry?.table?.columns ?? []) setColumns.add(col);
+        for (const col of targetEntry?.table?.columns ?? []) setColumns.add(col)
       } else {
         for (const item of stmt.targetList ?? []) {
-          const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
-          if (name) setColumns.add(name);
+          const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name
+          if (name) setColumns.add(name)
         }
       }
-      scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
+      scope.dmlSetColumns = { alias: targetAlias, columns: setColumns }
     }
-    this.resolveJoinImplications(scope);
+    this.resolveJoinImplications(scope)
 
     // RETURNING reports the NEW row, so a SET column's returned value IS its
     // SET expression — walked with the predicate mask already in place (the
@@ -4724,29 +4720,29 @@ class NullabilityEngine {
     // conservative, never wrong). Attached after the walk so the expressions
     // themselves cannot consult the map they are defining.
     if (targetAlias !== undefined && !rewriting) {
-      const written = new Map<string, boolean>();
-      const writtenNull = new Map<string, boolean>();
-      this.dmlOldRowRead = true;
+      const written = new Map<string, boolean>()
+      const writtenNull = new Map<string, boolean>()
+      this.dmlOldRowRead = true
       try {
         for (const item of stmt.targetList ?? []) {
-          const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-          if (!rt?.name || !rt.val) continue;
-          if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
-          written.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
+          const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+          if (!rt?.name || !rt.val) continue
+          if ('MultiAssignRef' in (rt.val as Record<string, unknown>)) continue
+          written.set(rt.name, this.walkExpr(rt.val, scope, depth + 1))
           // The mirror: an UPDATE has ONE producing path, so a SET
           // expression that is always NULL is the returned value outright —
           // simpler than the INSERT case, which has to intersect over VALUES
           // rows and give up entirely on an ON CONFLICT second path.
-          writtenNull.set(rt.name, this.alwaysNullExpr(rt.val, scope, depth + 1));
+          writtenNull.set(rt.name, this.alwaysNullExpr(rt.val, scope, depth + 1))
         }
       } finally {
-        this.dmlOldRowRead = false;
+        this.dmlOldRowRead = false
       }
-      scope.dmlWrittenColumns = { alias: targetAlias, columns: written };
-      scope.dmlWrittenNullColumns = { alias: targetAlias, columns: writtenNull };
+      scope.dmlWrittenColumns = { alias: targetAlias, columns: written }
+      scope.dmlWrittenNullColumns = { alias: targetAlias, columns: writtenNull }
     }
 
-    return scope;
+    return scope
   }
 
   private analyzeDelete(
@@ -4754,9 +4750,9 @@ class NullabilityEngine {
     outerScope: Scope | null,
     depth: number,
   ): OutputNullability[] {
-    if (!stmt.returningClause) return [];
-    const scope = this.buildDeleteScope(stmt, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt);
+    if (!stmt.returningClause) return []
+    const scope = this.buildDeleteScope(stmt, outerScope, depth)
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt)
   }
 
   /** The complete RETURNING scope for a DELETE — see buildInsertScope. */
@@ -4765,24 +4761,26 @@ class NullabilityEngine {
     // ignored for both BEFORE and INSTEAD OF triggers, and the reported row
     // is the row as read (measured — including the view-definition values
     // through an INSTEAD OF DELETE). Only the rule refusal applies.
-    this.refuseInsteadRule(stmt.relation, "delete");
-    const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
-    this.registerCtes(stmt.withClause, scope);
+    this.refuseInsteadRule(stmt.relation, 'delete')
+    const scope = this.buildDmlScope(stmt.relation, outerScope, depth)
+    this.registerCtes(stmt.withClause, scope)
 
     // DELETE...USING: add USING clause relations. Same inner-join semantics as
     // UPDATE...FROM — an unmatched target row is not deleted, so USING columns
     // are never NULL-extended in RETURNING.
     if (stmt.usingClause) {
       for (const item of stmt.usingClause) {
-        scope.visible.push(...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), [], depth));
+        scope.visible.push(
+          ...this.walkFromItem(item, REQUIRED, scope, this.nextNullGroup(), [], depth),
+        )
       }
     }
     // Same reasoning as UPDATE: deleted rows all passed the WHERE, RETURNING
     // has no aggregates — and DELETE has no SET, so no column is masked.
-    scope.whereClause = stmt.whereClause;
-    scope.rowsImplyWhere = true;
-    this.resolveJoinImplications(scope);
-    return scope;
+    scope.whereClause = stmt.whereClause
+    scope.rowsImplyWhere = true
+    this.resolveJoinImplications(scope)
+    return scope
   }
 
   /**
@@ -4799,30 +4797,30 @@ class NullabilityEngine {
     outerScope: Scope | null,
     depth: number,
   ): OutputNullability[] {
-    if (!stmt.returningClause) return [];
-    const scope = this.buildMergeScope(stmt, outerScope, depth);
-    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt);
+    if (!stmt.returningClause) return []
+    const scope = this.buildMergeScope(stmt, outerScope, depth)
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt)
   }
 
   private buildMergeScope(stmt: MergeStmt, outerScope: Scope | null, depth: number): Scope {
-    const scope = this.buildDmlScope(stmt.relation, outerScope, depth);
+    const scope = this.buildDmlScope(stmt.relation, outerScope, depth)
     scope.dmlReturningRejectedParams = returningRejectedParams(
       { MergeStmt: stmt } as unknown as Node,
       this.catalog,
-    );
-    this.registerCtes(stmt.withClause, scope);
+    )
+    this.registerCtes(stmt.withClause, scope)
 
     interface MergeArm {
-      matchKind?: string;
-      commandType?: string;
+      matchKind?: string
+      commandType?: string
       /** The arm's own `AND …`, absent when it fires on its match kind alone. */
-      condition?: Node;
-      targetList?: Node[];
-      values?: Node[];
+      condition?: Node
+      targetList?: Node[]
+      values?: Node[]
     }
     const arms = (stmt.mergeWhenClauses ?? [])
-      .map(c => (c as { MergeWhenClause?: MergeArm }).MergeWhenClause)
-      .filter((a): a is MergeArm => !!a);
+      .map((c) => (c as { MergeWhenClause?: MergeArm }).MergeWhenClause)
+      .filter((a): a is MergeArm => !!a)
 
     // The target's BEFORE ROW / INSTEAD OF triggers rewrite MERGE's insert
     // and update arms exactly as they do the standalone statements; a
@@ -4830,21 +4828,21 @@ class NullabilityEngine {
     // on a MERGE target are refused by PostgreSQL itself. At this point the
     // scope holds only the target entry, so the ast strip cannot touch the
     // source added below.
-    const wrTarget = this.targetWriteRewrites(stmt.relation);
+    const wrTarget = this.targetWriteRewrites(stmt.relation)
     const armCommands = new Set<string>(
-      arms.map(a =>
-        a.commandType === "CMD_INSERT" ? "insert" : a.commandType === "CMD_UPDATE" ? "update" : "",
+      arms.map((a) =>
+        a.commandType === 'CMD_INSERT' ? 'insert' : a.commandType === 'CMD_UPDATE' ? 'update' : '',
       ),
-    );
-    const rewriteCmds = ["insert", "update"].filter(cmd => armCommands.has(cmd));
+    )
+    const rewriteCmds = ['insert', 'update'].filter((cmd) => armCommands.has(cmd))
     // An update arm on a partitioned target carries the row-movement
     // INSERT hazard too — see updateBeforeRowHazard. (With an insert arm
     // present the insert triggers are already in the test.)
     const targetRewriting =
-      rewriteCmds.some(cmd => wrTarget.beforeRow.has(cmd) || wrTarget.insteadOf.has(cmd)) ||
-      (armCommands.has("update") && this.updateBeforeRowHazard(stmt.relation, wrTarget));
-    if (rewriteCmds.some(cmd => wrTarget.insteadOf.has(cmd))) {
-      for (const entry of scope.aliases.values()) entry.ast = undefined;
+      rewriteCmds.some((cmd) => wrTarget.beforeRow.has(cmd) || wrTarget.insteadOf.has(cmd)) ||
+      (armCommands.has('update') && this.updateBeforeRowHazard(stmt.relation, wrTarget))
+    if (rewriteCmds.some((cmd) => wrTarget.insteadOf.has(cmd))) {
+      for (const entry of scope.aliases.values()) entry.ast = undefined
     }
 
     // An arm that WRITES NOTHING returns nothing, so it cannot supply a
@@ -4860,15 +4858,15 @@ class NullabilityEngine {
     // already doing per-arm reasoning twenty lines down, and one statement
     // over in `returningRejectedParams`, which says of the ON CONFLICT twin
     // that DO NOTHING "returns no row for a conflict and stands alone".
-    const producing = arms.filter(a => a.commandType !== "CMD_NOTHING");
+    const producing = arms.filter((a) => a.commandType !== 'CMD_NOTHING')
 
     // Only a NOT MATCHED BY SOURCE arm can null-extend the source: every
     // other row-producing arm either matched it (MATCHED) or was driven by
     // it (NOT MATCHED BY TARGET's INSERT). Without such an arm the source is
     // REQUIRED and its columns keep base nullability.
-    const hasBySource = producing.some(a => a.matchKind === "MERGE_WHEN_NOT_MATCHED_BY_SOURCE");
+    const hasBySource = producing.some((a) => a.matchKind === 'MERGE_WHEN_NOT_MATCHED_BY_SOURCE')
     if (stmt.sourceRelation) {
-      const sourceGroup = this.nextNullGroup();
+      const sourceGroup = this.nextNullGroup()
       // PostgreSQL expands MERGE's `RETURNING *` SOURCE FIRST, then the
       // target (measured) — the opposite of UPDATE … FROM and DELETE …
       // USING, which are target-first. The target's columns are already in
@@ -4884,7 +4882,7 @@ class NullabilityEngine {
           hasBySource ? [sourceGroup] : [],
           depth,
         ),
-      );
+      )
     }
 
     // When every ROW-PRODUCING arm is MATCHED-kind, every returned row
@@ -4906,32 +4904,32 @@ class NullabilityEngine {
     // NEW one. Idempotent, so the two producers below may each ask for it
     // without an ordering between them.
     const applyDmlSetMask = (): void => {
-      const targetAlias = [...scope.aliases.keys()][0];
-      if (targetAlias === undefined || scope.dmlSetColumns) return;
-      const setColumns = new Set<string>();
+      const targetAlias = [...scope.aliases.keys()][0]
+      if (targetAlias === undefined || scope.dmlSetColumns) return
+      const setColumns = new Set<string>()
       if (targetRewriting) {
         // The trigger may replace ANY column of NEW, so the evidence
         // transfers through none of them — same as UPDATE.
         for (const col of scope.aliases.get(targetAlias)?.table?.columns ?? []) {
-          setColumns.add(col);
+          setColumns.add(col)
         }
       } else {
         for (const a of arms) {
           for (const item of a.targetList ?? []) {
-            const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name;
-            if (name) setColumns.add(name);
+            const name = (item as { ResTarget?: { name?: string } }).ResTarget?.name
+            if (name) setColumns.add(name)
           }
         }
       }
-      scope.dmlSetColumns = { alias: targetAlias, columns: setColumns };
-    };
+      scope.dmlSetColumns = { alias: targetAlias, columns: setColumns }
+    }
 
     const allMatched =
-      producing.length > 0 && producing.every(a => a.matchKind === "MERGE_WHEN_MATCHED");
+      producing.length > 0 && producing.every((a) => a.matchKind === 'MERGE_WHEN_MATCHED')
     if (allMatched && stmt.joinCondition) {
-      scope.whereClause = stmt.joinCondition;
-      scope.rowsImplyWhere = true;
-      applyDmlSetMask();
+      scope.whereClause = stmt.joinCondition
+      scope.rowsImplyWhere = true
+      applyDmlSetMask()
     }
 
     // A returned row was produced by exactly ONE row-producing arm, and an arm
@@ -4957,19 +4955,19 @@ class NullabilityEngine {
     // SOURCE condition may not reference the source (both measured — "invalid
     // reference to FROM-clause entry"). That is why a BY SOURCE arm cannot
     // promote the source through this fact.
-    const armConditions: Node[] = [];
-    let everyArmConditioned = producing.length > 0;
+    const armConditions: Node[] = []
+    let everyArmConditioned = producing.length > 0
     for (const a of producing) {
-      if (a.condition) armConditions.push(a.condition);
-      else everyArmConditioned = false;
+      if (a.condition) armConditions.push(a.condition)
+      else everyArmConditioned = false
     }
     if (everyArmConditioned) {
       scope.impliedQuals.push(
         armConditions.length === 1
           ? armConditions[0]!
-          : ({ BoolExpr: { boolop: "OR_EXPR", args: armConditions } } as unknown as Node),
-      );
-      applyDmlSetMask();
+          : ({ BoolExpr: { boolop: 'OR_EXPR', args: armConditions } } as unknown as Node),
+      )
+      applyDmlSetMask()
     }
     // Written values, per-arm intersection: a returned row can come from
     // any row-producing arm, so a target column's written value is provably
@@ -4980,60 +4978,68 @@ class NullabilityEngine {
     // contributes nothing; a DELETE arm returns the OLD row, which voids
     // the whole map; DO NOTHING produces no row and is excluded — by the
     // `producing` filter above, which this reading is where it started.
-    const targetAliasW = [...scope.aliases.keys()][0];
+    const targetAliasW = [...scope.aliases.keys()][0]
     if (
       targetAliasW !== undefined &&
       !targetRewriting &&
       producing.length > 0 &&
-      producing.every(a => a.commandType === "CMD_UPDATE" || a.commandType === "CMD_INSERT")
+      producing.every((a) => a.commandType === 'CMD_UPDATE' || a.commandType === 'CMD_INSERT')
     ) {
       // Two maps per arm, built together: what the arm writes non-null and
       // what it writes NULL. A MERGE has one producing arm per matched row
       // and the walk cannot know which fired, so BOTH maps reduce the same
       // way below — by agreement across every producing arm.
-      const perArm: { nn: Map<string, boolean>; an: Map<string, boolean> }[] = producing.map(a => {
-        const nn = new Map<string, boolean>();
-        const an = new Map<string, boolean>();
-        if (a.commandType === "CMD_UPDATE") {
-          this.dmlOldRowRead = true;
-          try {
-            for (const item of a.targetList ?? []) {
-              const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-              if (!rt?.name || !rt.val) continue;
-              if ("MultiAssignRef" in (rt.val as Record<string, unknown>)) continue;
-              nn.set(rt.name, this.walkExpr(rt.val, scope, depth + 1));
-              an.set(rt.name, this.alwaysNullExpr(rt.val, scope, depth + 1));
+      const perArm: { nn: Map<string, boolean>; an: Map<string, boolean> }[] = producing.map(
+        (a) => {
+          const nn = new Map<string, boolean>()
+          const an = new Map<string, boolean>()
+          if (a.commandType === 'CMD_UPDATE') {
+            this.dmlOldRowRead = true
+            try {
+              for (const item of a.targetList ?? []) {
+                const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+                if (!rt?.name || !rt.val) continue
+                if ('MultiAssignRef' in (rt.val as Record<string, unknown>)) continue
+                nn.set(rt.name, this.walkExpr(rt.val, scope, depth + 1))
+                an.set(rt.name, this.alwaysNullExpr(rt.val, scope, depth + 1))
+              }
+            } finally {
+              this.dmlOldRowRead = false
             }
-          } finally {
-            this.dmlOldRowRead = false;
+          } else {
+            const columns = (a.targetList ?? []).map(
+              (t) => (t as { ResTarget?: { name?: string } }).ResTarget?.name ?? '',
+            )
+            ;(a.values ?? []).forEach((val, i) => {
+              const col = columns[i]
+              if (!col) return
+              nn.set(col, this.walkExpr(val, scope, depth + 1))
+              an.set(col, this.alwaysNullExpr(val, scope, depth + 1))
+            })
           }
-        } else {
-          const columns = (a.targetList ?? []).map(
-            t => (t as { ResTarget?: { name?: string } }).ResTarget?.name ?? "",
-          );
-          (a.values ?? []).forEach((val, i) => {
-            const col = columns[i];
-            if (!col) return;
-            nn.set(col, this.walkExpr(val, scope, depth + 1));
-            an.set(col, this.alwaysNullExpr(val, scope, depth + 1));
-          });
-        }
-        return { nn, an };
-      });
-      const written = new Map<string, boolean>();
-      const writtenNull = new Map<string, boolean>();
+          return { nn, an }
+        },
+      )
+      const written = new Map<string, boolean>()
+      const writtenNull = new Map<string, boolean>()
       for (const [col] of perArm[0]?.nn ?? []) {
-        written.set(col, perArm.every(m => m.nn.get(col) === true));
-        writtenNull.set(col, perArm.every(m => m.an.get(col) === true));
+        written.set(
+          col,
+          perArm.every((m) => m.nn.get(col) === true),
+        )
+        writtenNull.set(
+          col,
+          perArm.every((m) => m.an.get(col) === true),
+        )
       }
-      scope.dmlWrittenColumns = { alias: targetAliasW, columns: written };
-      scope.dmlWrittenNullColumns = { alias: targetAliasW, columns: writtenNull };
+      scope.dmlWrittenColumns = { alias: targetAliasW, columns: written }
+      scope.dmlWrittenNullColumns = { alias: targetAliasW, columns: writtenNull }
     }
     // A join written directly as the MERGE source with a BY SOURCE arm is
     // walked OPTIONAL, so the fixpoint's incoming-presence condition keeps
     // its quals un-implied — deliberate, not an oversight.
-    this.resolveJoinImplications(scope);
-    return scope;
+    this.resolveJoinImplications(scope)
+    return scope
   }
 
   private buildDmlScope(
@@ -5054,15 +5060,15 @@ class NullabilityEngine {
       groupingSetColumns: EMPTY_STRING_SET,
       outer: outerScope,
       results: null,
-    };
+    }
     if (relation) {
-      const rv = relation as unknown as RangeVar;
+      const rv = relation as unknown as RangeVar
       if (rv.relname) {
-        const entry = this.addRangeVar(rv, REQUIRED, scope, this.nextNullGroup());
-        if (entry) scope.visible.push(...this.visibleColumnsOf(entry, scope, depth));
+        const entry = this.addRangeVar(rv, REQUIRED, scope, this.nextNullGroup())
+        if (entry) scope.visible.push(...this.visibleColumnsOf(entry, scope, depth))
       }
     }
-    return scope;
+    return scope
   }
 
   private analyzeReturning(
@@ -5071,7 +5077,7 @@ class NullabilityEngine {
     depth: number,
     stmtKey?: object,
   ): OutputNullability[] {
-    const ret = returningClause as { exprs?: Node[] };
+    const ret = returningClause as { exprs?: Node[] }
     // A DML statement's FROM/USING/source can outer-join (UPDATE … FROM a
     // LEFT JOIN b; MERGE's optional source), so RETURNING records producers
     // for presence groups exactly like a SELECT's target list. `stmtKey` is
@@ -5079,68 +5085,68 @@ class NullabilityEngine {
     // analyzers so a data-modifying CTE's groups are liftable, and absent
     // for function-body DML analysis, which computes a value, not a
     // contract.
-    const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = [];
-    const results: OutputNullability[] = [];
-    const prevRetOldNew = this.retOldNew;
-    this.retOldNew = this.returningOldNewContext(returningClause, stmtKey);
+    const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = []
+    const results: OutputNullability[] = []
+    const prevRetOldNew = this.retOldNew
+    this.retOldNew = this.returningOldNewContext(returningClause, stmtKey)
     try {
-    for (const target of ret.exprs ?? []) {
-      const rt = this.unwrapResTarget(target);
-      const val = rt.val;
-      const name = rt.name;
-      if (!val) {
-        results.push({ name: name ?? "", notNull: false });
-        producers.push(null);
-        continue;
-      }
-      if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth, true, producers);
-        for (const e of expanded) results.push(e);
-        continue;
-      }
-      const compositeStar = this.expandCompositeStar(val, scope, depth);
-      if (compositeStar) {
-        for (const e of compositeStar) {
-          results.push(e);
-          producers.push(null);
+      for (const target of ret.exprs ?? []) {
+        const rt = this.unwrapResTarget(target)
+        const val = rt.val
+        const name = rt.name
+        if (!val) {
+          results.push({ name: name ?? '', notNull: false })
+          producers.push(null)
+          continue
         }
-        continue;
+        if (this.isStarColumn(val)) {
+          const expanded = this.expandStar(val, scope, depth, true, producers)
+          for (const e of expanded) results.push(e)
+          continue
+        }
+        const compositeStar = this.expandCompositeStar(val, scope, depth)
+        if (compositeStar) {
+          for (const e of compositeStar) {
+            results.push(e)
+            producers.push(null)
+          }
+          continue
+        }
+        // RETURNING rows ARE stored rows (Wave 12): the NEW row an
+        // INSERT/UPDATE wrote, the OLD row a DELETE removed — every one
+        // CHECK-satisfying at the moment it was stored — so bare column
+        // pass-throughs carry origins like any SELECT's. (PG18 OLD./NEW.
+        // qualifications resolve to no scope entry and stay origin-free.)
+        const notNull = this.walkExpr(val, scope, depth + 1)
+        const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1)
+        const bare = this.resolveBareColumnTarget(val, scope)
+        producers.push(bare)
+        const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined
+        results.push(
+          og
+            ? {
+                name: name ?? this.inferName(val),
+                notNull,
+                ...(alwaysNull ? { alwaysNull: true } : {}),
+                ...(og.origins ? { origins: og.origins } : {}),
+                ...(og.settled ? { originNotNull: og.settled } : {}),
+                ...(og.crossings ? { unitCrossings: og.crossings } : {}),
+              }
+            : {
+                name: name ?? this.inferName(val),
+                notNull,
+                ...(alwaysNull ? { alwaysNull: true } : {}),
+              },
+        )
       }
-      // RETURNING rows ARE stored rows (Wave 12): the NEW row an
-      // INSERT/UPDATE wrote, the OLD row a DELETE removed — every one
-      // CHECK-satisfying at the moment it was stored — so bare column
-      // pass-throughs carry origins like any SELECT's. (PG18 OLD./NEW.
-      // qualifications resolve to no scope entry and stay origin-free.)
-      const notNull = this.walkExpr(val, scope, depth + 1);
-      const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1);
-      const bare = this.resolveBareColumnTarget(val, scope);
-      producers.push(bare);
-      const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
-      results.push(
-        og
-          ? {
-              name: name ?? this.inferName(val),
-              notNull,
-              ...(alwaysNull ? { alwaysNull: true } : {}),
-              ...(og.origins ? { origins: og.origins } : {}),
-              ...(og.settled ? { originNotNull: og.settled } : {}),
-              ...(og.crossings ? { unitCrossings: og.crossings } : {}),
-            }
-          : {
-              name: name ?? this.inferName(val),
-              notNull,
-              ...(alwaysNull ? { alwaysNull: true } : {}),
-            },
-      );
-    }
-    if (stmtKey) {
-      const groups = this.computePresenceGroups(producers, results, scope, depth);
-      this.groupCache.set(stmtKey, groups);
-      if (depth === 0) this.rootPresenceGroups = groups;
-    }
-    return results;
+      if (stmtKey) {
+        const groups = this.computePresenceGroups(producers, results, scope, depth)
+        this.groupCache.set(stmtKey, groups)
+        if (depth === 0) this.rootPresenceGroups = groups
+      }
+      return results
     } finally {
-      this.retOldNew = prevRetOldNew;
+      this.retOldNew = prevRetOldNew
     }
   }
 
@@ -5153,8 +5159,8 @@ class NullabilityEngine {
    * iterating so the entry can be dropped if its assumption is disproved.
    */
   private memoize(stmt: object, results: OutputNullability[]): void {
-    this.scopeCache.set(stmt, results);
-    this.fixpointJournal?.push(stmt);
+    this.scopeCache.set(stmt, results)
+    this.fixpointJournal?.push(stmt)
   }
 
   /**
@@ -5189,75 +5195,75 @@ class NullabilityEngine {
     cteScope: Scope,
     depth: number,
   ): { results: OutputNullability[]; groups: OutputPresenceGroup[] } {
-    const left = this.analyzeSelect(stmt.larg!, cteScope, depth + 1);
+    const left = this.analyzeSelect(stmt.larg!, cteScope, depth + 1)
 
-    let assumption = left;
+    let assumption = left
     // The group assumption iterates beside the flat one: seeded with the
     // base branch's groups (the most the union could keep), consumed by
     // the self-reference's lift, shrunk by each round's branch agreement.
-    let groupAssumption = this.groupCache.get(stmt.larg!) ?? [];
+    let groupAssumption = this.groupCache.get(stmt.larg!) ?? []
     // Each round that changes anything turns at least one column nullable
     // or removes a group member from the assumption, so the column count
     // plus the seeded membership bounds the rounds. The extra round is the
     // one that confirms a fixed point without changing anything.
-    const groupBudget = groupAssumption.reduce((n, g) => n + g.columns.length, 0);
+    const groupBudget = groupAssumption.reduce((n, g) => n + g.columns.length, 0)
     for (let round = 0; round <= left.length + groupBudget + 1; round++) {
-      this.recursiveAssumption.set(stmt, assumption);
-      this.recursiveGroupAssumption.set(stmt, groupAssumption);
-      const outerJournal = this.fixpointJournal;
-      const journal: object[] = [];
-      this.fixpointJournal = journal;
-      let combined: OutputNullability[];
-      let combinedGroups: OutputPresenceGroup[];
+      this.recursiveAssumption.set(stmt, assumption)
+      this.recursiveGroupAssumption.set(stmt, groupAssumption)
+      const outerJournal = this.fixpointJournal
+      const journal: object[] = []
+      this.fixpointJournal = journal
+      let combined: OutputNullability[]
+      let combinedGroups: OutputPresenceGroup[]
       try {
-        const right = this.analyzeSelect(stmt.rarg!, cteScope, depth + 1);
-        combined = this.combineSetOperation(left, right, stmt.op!);
-        combinedGroups = this.computeSetOpGroups(stmt, combined, right);
+        const right = this.analyzeSelect(stmt.rarg!, cteScope, depth + 1)
+        combined = this.combineSetOperation(left, right, stmt.op!)
+        combinedGroups = this.computeSetOpGroups(stmt, combined, right)
       } finally {
-        this.fixpointJournal = outerJournal;
+        this.fixpointJournal = outerJournal
       }
       if (
         sameNullability(combined, assumption) &&
         JSON.stringify(combinedGroups) === JSON.stringify(groupAssumption)
       ) {
-        this.recursiveAssumption.delete(stmt);
-        this.recursiveGroupAssumption.delete(stmt);
+        this.recursiveAssumption.delete(stmt)
+        this.recursiveGroupAssumption.delete(stmt)
         // The settled groups travel WITH the settled results. The caller
         // used to recompute them from the combined verdicts alone, which
         // gave the same answer only while nothing here knew more than a
         // second pass could — and the vacuous arm reads the RIGHT branch's
         // own per-column verdicts, which exist only inside this loop.
-        return { results: combined, groups: combinedGroups };
+        return { results: combined, groups: combinedGroups }
       }
       for (const node of journal) {
-        this.scopeCache.delete(node);
-        this.groupCache.delete(node);
+        this.scopeCache.delete(node)
+        this.groupCache.delete(node)
       }
-      assumption = combined;
-      groupAssumption = combinedGroups;
+      assumption = combined
+      groupAssumption = combinedGroups
     }
 
     // Unreachable while the lattice is two-valued and the loop descends. If it
     // ever is reached, the assumption never settled, and the only answer that
     // cannot be wrong is that nothing is guaranteed.
-    this.recursiveAssumption.delete(stmt);
-    this.recursiveGroupAssumption.delete(stmt);
-    return { results: left.map(c => ({ name: c.name, notNull: false })), groups: [] };
+    this.recursiveAssumption.delete(stmt)
+    this.recursiveGroupAssumption.delete(stmt)
+    return { results: left.map((c) => ({ name: c.name, notNull: false })), groups: [] }
   }
 
   private registerCtes(withClause: WithClause | undefined, scope: Scope): void {
-    if (!withClause) return;
+    if (!withClause) return
     for (const cte of withClause.ctes) {
-      const cteNode = this.unwrapCTE(cte);
-      if (!cteNode) continue;
+      const cteNode = this.unwrapCTE(cte)
+      if (!cteNode) continue
       const colNames = cteNode.aliascolnames
         ? cteNode.aliascolnames.map((n: Node) => this.stringVal(n))
-        : [];
+        : []
       scope.ctes.set(cteNode.ctename, {
         ast: cteNode.ctequery,
         columns: colNames,
         extraColumns: this.cteGeneratedColumns(cteNode),
-      });
+      })
     }
   }
 
@@ -5270,17 +5276,17 @@ class NullabilityEngine {
    * always populates them, so all are non-null.
    */
   private cteGeneratedColumns(cteNode: {
-    search_clause?: { search_seq_column?: string };
-    cycle_clause?: { cycle_mark_column?: string; cycle_path_column?: string };
+    search_clause?: { search_seq_column?: string }
+    cycle_clause?: { cycle_mark_column?: string; cycle_path_column?: string }
   }): OutputNullability[] {
-    const extras: OutputNullability[] = [];
-    const seq = cteNode.search_clause?.search_seq_column;
-    if (seq) extras.push({ name: seq, notNull: true });
-    const mark = cteNode.cycle_clause?.cycle_mark_column;
-    if (mark) extras.push({ name: mark, notNull: true });
-    const path = cteNode.cycle_clause?.cycle_path_column;
-    if (path) extras.push({ name: path, notNull: true });
-    return extras;
+    const extras: OutputNullability[] = []
+    const seq = cteNode.search_clause?.search_seq_column
+    if (seq) extras.push({ name: seq, notNull: true })
+    const mark = cteNode.cycle_clause?.cycle_mark_column
+    if (mark) extras.push({ name: mark, notNull: true })
+    const path = cteNode.cycle_clause?.cycle_path_column
+    if (path) extras.push({ name: path, notNull: true })
+    return extras
   }
 
   /**
@@ -5292,12 +5298,12 @@ class NullabilityEngine {
     name: string,
     scope: Scope,
   ): { ast: Node; columns: string[]; extraColumns: OutputNullability[] } | null {
-    let s: Scope | null = scope;
+    let s: Scope | null = scope
     while (s) {
-      if (s.ctes.has(name)) return s.ctes.get(name)!;
-      s = s.outer;
+      if (s.ctes.has(name)) return s.ctes.get(name)!
+      s = s.outer
     }
-    return null;
+    return null
   }
 
   // -------------------------------------------------------------------------
@@ -5311,28 +5317,34 @@ class NullabilityEngine {
   ): OutputNullability[] {
     // Each row is a List of expressions. Column N's nullability is the AND
     // across all rows' expression at position N.
-    if (valuesLists.length === 0) return [];
+    if (valuesLists.length === 0) return []
 
     // Parse rows into arrays of expression nodes.
-    const rows: Node[][] = valuesLists.map(row => {
-      const list = (row as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
-      return list?.items ?? [];
-    });
+    const rows: Node[][] = valuesLists.map((row) => {
+      const list = (row as Record<string, unknown>)['List'] as { items?: Node[] } | undefined
+      return list?.items ?? []
+    })
 
     // Determine column count from first row.
-    const numCols = rows[0]?.length ?? 0;
-    const results: OutputNullability[] = [];
+    const numCols = rows[0]?.length ?? 0
+    const results: OutputNullability[] = []
     for (let col = 0; col < numCols; col++) {
-      let notNull = true;
+      let notNull = true
       for (const row of rows) {
-        const expr = row[col];
-        if (!expr) { notNull = false; break; }
-        const cellNotNull = this.walkExpr(expr, this.emptyScope(outerScope), depth + 1);
-        if (!cellNotNull) { notNull = false; break; }
+        const expr = row[col]
+        if (!expr) {
+          notNull = false
+          break
+        }
+        const cellNotNull = this.walkExpr(expr, this.emptyScope(outerScope), depth + 1)
+        if (!cellNotNull) {
+          notNull = false
+          break
+        }
       }
-      results.push({ name: `column${col + 1}`, notNull });
+      results.push({ name: `column${col + 1}`, notNull })
     }
-    return results;
+    return results
   }
 
   private emptyScope(outer: Scope | null): Scope {
@@ -5349,7 +5361,7 @@ class NullabilityEngine {
       groupingSetColumns: EMPTY_STRING_SET,
       outer,
       results: null,
-    };
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -5361,11 +5373,11 @@ class NullabilityEngine {
     right: OutputNullability[],
     op: string | undefined,
   ): OutputNullability[] {
-    const len = Math.max(left.length, right.length);
-    const results: OutputNullability[] = [];
+    const len = Math.max(left.length, right.length)
+    const results: OutputNullability[] = []
     for (let i = 0; i < len; i++) {
-      const l = left[i];
-      const r = right[i];
+      const l = left[i]
+      const r = right[i]
       // Origins across a set operation (Wave 12, slot form since the rule
       // closure): every INTERSECT/EXCEPT output row IS a left-branch row
       // (dedup keeps whole rows), so the left slots pass through. A UNION
@@ -5375,21 +5387,21 @@ class NullabilityEngine {
       // with its flat verdict recorded in originNotNull, which is what
       // lets a literal branch settle its alternative without provenance.
       // An all-null slot array says nothing and is dropped.
-      let origins: (ColumnOrigin | null)[] | undefined;
-      let originNotNull: boolean[] | undefined;
-      if (op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT") {
-        origins = l?.origins;
-        originNotNull = l?.originNotNull;
+      let origins: (ColumnOrigin | null)[] | undefined
+      let originNotNull: boolean[] | undefined
+      if (op === 'SETOP_INTERSECT' || op === 'SETOP_EXCEPT') {
+        origins = l?.origins
+        originNotNull = l?.originNotNull
       } else {
-        const lSlots = l?.origins ?? [null];
-        const rSlots = r?.origins ?? [null];
-        const slots = [...lSlots, ...rSlots];
-        if (slots.some(s => s !== null)) {
-          origins = slots;
+        const lSlots = l?.origins ?? [null]
+        const rSlots = r?.origins ?? [null]
+        const slots = [...lSlots, ...rSlots]
+        if (slots.some((s) => s !== null)) {
+          origins = slots
           originNotNull = [
             ...(l?.originNotNull ?? lSlots.map(() => l?.notNull ?? false)),
             ...(r?.originNotNull ?? rSlots.map(() => r?.notNull ?? false)),
-          ];
+          ]
         }
       }
       // The diagnostic crossings channel: INTERSECT/EXCEPT rows are left
@@ -5398,28 +5410,28 @@ class NullabilityEngine {
       // within that branch's rows — the concatenation is the sound combine,
       // no slot alignment needed (the consumer collects unit ids).
       const crossings =
-        op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT"
+        op === 'SETOP_INTERSECT' || op === 'SETOP_EXCEPT'
           ? l?.unitCrossings
-          : [...(l?.unitCrossings ?? []), ...(r?.unitCrossings ?? [])];
+          : [...(l?.unitCrossings ?? []), ...(r?.unitCrossings ?? [])]
       // Always-null across a set operation, the mirror of `notNull` above:
       // INTERSECT and EXCEPT rows ARE left-branch rows, so the left claim
       // passes through verbatim; a UNION row came from one branch or the
       // other, so the claim survives only when BOTH make it. Same shape as
       // the origins rule directly above, and the same reason.
       const alwaysNull =
-        op === "SETOP_INTERSECT" || op === "SETOP_EXCEPT"
+        op === 'SETOP_INTERSECT' || op === 'SETOP_EXCEPT'
           ? l?.alwaysNull === true
-          : l?.alwaysNull === true && r?.alwaysNull === true;
+          : l?.alwaysNull === true && r?.alwaysNull === true
       results.push({
-        name: l?.name ?? r?.name ?? "",
+        name: l?.name ?? r?.name ?? '',
         notNull: combineSetOpColumn(l?.notNull ?? false, r?.notNull ?? false, op),
         ...(alwaysNull ? { alwaysNull: true } : {}),
         ...(origins ? { origins } : {}),
         ...(originNotNull ? { originNotNull } : {}),
         ...(crossings && crossings.length > 0 ? { unitCrossings: crossings } : {}),
-      });
+      })
     }
-    return results;
+    return results
   }
 
   // -------------------------------------------------------------------------
@@ -5427,12 +5439,12 @@ class NullabilityEngine {
   // -------------------------------------------------------------------------
 
   private isStarColumn(val: Node): boolean {
-    const node = val as Record<string, unknown>;
-    if ("ColumnRef" in node) {
-      const cr = node["ColumnRef"] as ColumnRef;
-      return (cr.fields ?? []).some(f => "A_Star" in (f as Record<string, unknown>));
+    const node = val as Record<string, unknown>
+    if ('ColumnRef' in node) {
+      const cr = node['ColumnRef'] as ColumnRef
+      return (cr.fields ?? []).some((f) => 'A_Star' in (f as Record<string, unknown>))
     }
-    return false;
+    return false
   }
 
   /**
@@ -5457,12 +5469,12 @@ class NullabilityEngine {
    */
   private starQualifier(fields: Node[]): { name: string; schema?: string } | null {
     const names = fields
-      .filter(f => "String" in (f as Record<string, unknown>))
-      .map(f => this.stringVal(f));
-    const name = names[names.length - 1];
-    if (!name) return null;
-    const schema = names.length >= 2 ? names[names.length - 2] : undefined;
-    return schema === undefined ? { name } : { name, schema };
+      .filter((f) => 'String' in (f as Record<string, unknown>))
+      .map((f) => this.stringVal(f))
+    const name = names[names.length - 1]
+    if (!name) return null
+    const schema = names.length >= 2 ? names[names.length - 2] : undefined
+    return schema === undefined ? { name } : { name, schema }
   }
 
   /**
@@ -5474,27 +5486,27 @@ class NullabilityEngine {
     q: { name: string; schema?: string },
     scope: Scope,
   ): RelationEntry | null {
-    if (q.schema === undefined) return this.resolveAlias(q.name, scope);
+    if (q.schema === undefined) return this.resolveAlias(q.name, scope)
     // `scope.visible` rather than `scope.aliases`: the alias map is keyed by
     // NAME, so `FROM app_s.t, t` — legal, and the very case a schema
     // qualifier exists to disambiguate — keeps only one of the two entries
     // there while both are visible in FROM order. Scanning the visible list
     // finds either; scanning the map answered for whichever registered last
     // and an EMPTY column list for the other (measured).
-    let s: Scope | null = scope;
+    let s: Scope | null = scope
     while (s) {
       for (const entry of [
         ...new Set(
-          [...s.visible.map(v => v.entry), ...s.aliases.values()].filter(
+          [...s.visible.map((v) => v.entry), ...s.aliases.values()].filter(
             (e): e is RelationEntry => !!e,
           ),
         ),
       ]) {
-        if (entry.table?.schema === q.schema && entry.table.name === q.name) return entry;
+        if (entry.table?.schema === q.schema && entry.table.name === q.name) return entry
       }
-      s = s.outer;
+      s = s.outer
     }
-    return null;
+    return null
   }
 
   /**
@@ -5515,32 +5527,25 @@ class NullabilityEngine {
    * Anything else refuses: the field count is unknowable, and a wrong
    * column list is worse than no answer — the dispatch-site rule.
    */
-  private expandCompositeStar(
-    val: Node,
-    scope: Scope,
-    depth: number,
-  ): OutputNullability[] | null {
-    const ai = (val as Record<string, unknown>)["A_Indirection"] as
-      | { arg?: Node; indirection?: Node[] }
-      | undefined;
-    if (!ai) return null;
-    const parts = ai.indirection ?? [];
-    const last = parts[parts.length - 1];
-    if (!last || !("A_Star" in (last as Record<string, unknown>))) return null;
+  private expandCompositeStar(val: Node, scope: Scope, depth: number): OutputNullability[] | null {
+    const ai = (val as Record<string, unknown>)['A_Indirection'] as
+      { arg?: Node; indirection?: Node[] } | undefined
+    if (!ai) return null
+    const parts = ai.indirection ?? []
+    const last = parts[parts.length - 1]
+    if (!last || !('A_Star' in (last as Record<string, unknown>))) return null
 
-    const argNode = ai.arg as Record<string, unknown> | undefined;
+    const argNode = ai.arg as Record<string, unknown> | undefined
     // A known composite type's fields, all forced nullable — the rule every
     // value-reading arm shares: a NULL composite expands to a NULL in every
     // field, domains included (measured).
-    const fieldsOf = (
-      typeParts: (string | undefined)[],
-    ): OutputNullability[] | null => {
-      const cleaned = typeParts.filter((p): p is string => !!p && p !== "pg_catalog");
-      if (!cleaned.length) return null;
-      const schema = cleaned.length >= 2 ? cleaned[cleaned.length - 2] : undefined;
-      const name = cleaned[cleaned.length - 1]!;
-      const ct = this.catalog.resolveCompositeType(schema, name);
-      if (ct) return ct.fields.map(f => ({ name: f.name, notNull: false }));
+    const fieldsOf = (typeParts: (string | undefined)[]): OutputNullability[] | null => {
+      const cleaned = typeParts.filter((p): p is string => !!p && p !== 'pg_catalog')
+      if (!cleaned.length) return null
+      const schema = cleaned.length >= 2 ? cleaned[cleaned.length - 2] : undefined
+      const name = cleaned[cleaned.length - 1]!
+      const ct = this.catalog.resolveCompositeType(schema, name)
+      if (ct) return ct.fields.map((f) => ({ name: f.name, notNull: false }))
       // A TABLE's row type is a composite too, and `resolveCompositeType` is
       // backed by `CREATE TYPE … AS (…)` entries alone — so without this the
       // star REFUSED a statement PostgreSQL expands: `(NULL::trow).*` and
@@ -5551,21 +5556,21 @@ class NullabilityEngine {
       // closed for the unnest ELEMENT-type resolver — this was its second
       // site, found by the composite-star axis.
       // Every field is nullable, which is the expansion rule regardless.
-      const rel = this.catalog.resolveTable(schema, name);
-      return rel ? rel.columns.map(c => ({ name: c, notNull: false })) : null;
-    };
+      const rel = this.catalog.resolveTable(schema, name)
+      return rel ? rel.columns.map((c) => ({ name: c, notNull: false })) : null
+    }
     if (argNode && parts.length === 1) {
-      const cr = argNode["ColumnRef"] as ColumnRef | undefined;
+      const cr = argNode['ColumnRef'] as ColumnRef | undefined
       if (cr) {
-        const crParts = (cr.fields ?? []).map(f => this.stringVal(f));
+        const crParts = (cr.fields ?? []).map((f) => this.stringVal(f))
         // The parentheses force the VALUE reading (adversarial-2 finding
         // 13, measured): a composite COLUMN named x beats a range-table
         // alias named x, so column resolution comes FIRST — the old
         // alias-first order expanded the RELATION's columns for the clash,
         // same arity, entirely different meaning. Qualified `(t.c).*` is
         // only ever the column.
-        let colOwner: RelationEntry | undefined;
-        let colName: string | undefined;
+        let colOwner: RelationEntry | undefined
+        let colName: string | undefined
         if (crParts.length === 1) {
           for (const v of scope.visible) {
             if (v.name === crParts[0]) {
@@ -5576,26 +5581,28 @@ class NullabilityEngine {
               // spellings). Reading it as untypable refused a statement
               // PostgreSQL answers.
               colOwner =
-                v.entry ??
-                (v.merged?.left.table ? v.merged.left : v.merged?.right) ??
-                undefined;
-              colName = crParts[0];
-              break;
+                v.entry ?? (v.merged?.left.table ? v.merged.left : v.merged?.right) ?? undefined
+              colName = crParts[0]
+              break
             }
           }
         } else if (crParts.length === 2) {
-          const entry = this.resolveAlias(crParts[0]!, scope);
+          const entry = this.resolveAlias(crParts[0]!, scope)
           if (entry) {
-            colOwner = entry;
-            colName = crParts[1];
+            colOwner = entry
+            colName = crParts[1]
           }
         }
         if (colOwner && colName) {
           const rendered = colOwner.table
-            ? this.catalog.resolveColumnTypeName(colOwner.table.schema, colOwner.table.name, colName)
-            : null;
-          const expanded = rendered ? fieldsOf(rendered.split(".")) : null;
-          if (expanded) return expanded;
+            ? this.catalog.resolveColumnTypeName(
+                colOwner.table.schema,
+                colOwner.table.name,
+                colName,
+              )
+            : null
+          const expanded = rendered ? fieldsOf(rendered.split('.')) : null
+          if (expanded) return expanded
           // The column exists and IS the value reading; a type the catalog
           // cannot expand (an uncaptured composite, a subquery's column —
           // or a scalar, which PostgreSQL itself rejects here) refuses
@@ -5605,19 +5612,19 @@ class NullabilityEngine {
         if (crParts.length === 1 && !colName && this.resolveAlias(crParts[0]!, scope)) {
           const synth = {
             ColumnRef: { fields: [{ String: { sval: crParts[0]! } }, { A_Star: {} }] },
-          } as unknown as Node;
-          return this.expandStar(synth, scope, depth);
+          } as unknown as Node
+          return this.expandStar(synth, scope, depth)
         }
       }
-      const fc = argNode["FuncCall"] as FuncCall | undefined;
+      const fc = argNode['FuncCall'] as FuncCall | undefined
       if (fc) {
-        const name = this.funcName(fc);
-        const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
+        const name = this.funcName(fc)
+        const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name)
         if (meta) {
-          const declared = this.columnsForReturnType(meta.returnType, name).map(c => ({
+          const declared = this.columnsForReturnType(meta.returnType, name).map((c) => ({
             name: c.name,
             notNull: false,
-          }));
+          }))
           // The BODY is what can put a constraint back, exactly as it does
           // for the same call in FROM position — `(get_order_items(1)).*`
           // and `SELECT * FROM get_order_items(1)` expand the same rows, and
@@ -5650,7 +5657,7 @@ class NullabilityEngine {
           // included (measured), so the return TYPE can never speak here —
           // only the body, which refuses whenever it cannot match the shape
           // column for column.
-          return meta.returnsSet ? this.refineColumnsFromBody(declared, meta, depth) : declared;
+          return meta.returnsSet ? this.refineColumnsFromBody(declared, meta, depth) : declared
         }
       }
       // `(ROW(a, b)).*` — the arity is countable at parse time and
@@ -5668,31 +5675,30 @@ class NullabilityEngine {
       // than refusing the whole expansion: the arity is still known, so a
       // partial answer is a correct column list, which is the thing this
       // dispatch refuses to guess at.
-      const re = argNode["RowExpr"] as { args?: Node[] } | undefined;
+      const re = argNode['RowExpr'] as { args?: Node[] } | undefined
       if (re) {
         return (re.args ?? []).map((a, i) => {
-          let notNull = false;
+          let notNull = false
           try {
-            notNull = this.walkExpr(a, scope, depth);
+            notNull = this.walkExpr(a, scope, depth)
           } catch (e) {
-            if (!(e instanceof UnsupportedNodeError)) throw e;
+            if (!(e instanceof UnsupportedNodeError)) throw e
           }
-          return { name: `f${i + 1}`, notNull };
-        });
+          return { name: `f${i + 1}`, notNull }
+        })
       }
       // `(expr::sku_pair).*` — the cast TARGET names the composite, and the
       // expression may be NULL, so the fields come from the type, all
       // nullable. An array cast is not a composite; an unknown target
       // refuses below.
-      const tc = argNode["TypeCast"] as
-        | { typeName?: { names?: Node[]; arrayBounds?: unknown[] } }
-        | undefined;
+      const tc = argNode['TypeCast'] as
+        { typeName?: { names?: Node[]; arrayBounds?: unknown[] } } | undefined
       if (tc && !tc.typeName?.arrayBounds?.length) {
-        const expanded = fieldsOf((tc.typeName?.names ?? []).map(n => this.stringVal(n)));
-        if (expanded) return expanded;
+        const expanded = fieldsOf((tc.typeName?.names ?? []).map((n) => this.stringVal(n)))
+        if (expanded) return expanded
       }
     }
-    throw new UnsupportedNodeError("composite-star", this.nodeTag(argNode ?? {}));
+    throw new UnsupportedNodeError('composite-star', this.nodeTag(argNode ?? {}))
   }
 
   private expandStar(
@@ -5702,9 +5708,9 @@ class NullabilityEngine {
     withOrigins = false,
     producers?: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[],
   ): OutputNullability[] {
-    const node = val as Record<string, unknown>;
-    const cr = node["ColumnRef"] as ColumnRef;
-    const fields = cr.fields ?? [];
+    const node = val as Record<string, unknown>
+    const cr = node['ColumnRef'] as ColumnRef
+    const fields = cr.fields ?? []
 
     // Star expansion is the ONE path that can re-export a subquery/CTE/view
     // column whose NAME is ambiguous inside its entry (`SELECT sh.id, g.a
@@ -5724,13 +5730,13 @@ class NullabilityEngine {
       notNull: boolean,
       ordinal: number | undefined,
     ): OutputNullability => {
-      const og = withOrigins ? this.originOf(entry, colName, scope, depth, ordinal) : undefined;
+      const og = withOrigins ? this.originOf(entry, colName, scope, depth, ordinal) : undefined
       // The alwaysNull channel, positionally — the explicit-name path asks
       // the same question through alwaysNullExpr's leaf, and expansion
       // dropping it was the wrap-invariance suite's whole first crop
       // (entryColumnAlwaysNull's note has the measurement).
       const alwaysNull =
-        !notNull && this.entryColumnAlwaysNull(entry, colName, scope, depth, ordinal);
+        !notNull && this.entryColumnAlwaysNull(entry, colName, scope, depth, ordinal)
       return og
         ? {
             name: colName,
@@ -5740,43 +5746,43 @@ class NullabilityEngine {
             ...(og.settled ? { originNotNull: og.settled } : {}),
             ...(og.crossings ? { unitCrossings: og.crossings } : {}),
           }
-        : { name: colName, notNull, ...(alwaysNull ? { alwaysNull: true } : {}) };
-    };
+        : { name: colName, notNull, ...(alwaysNull ? { alwaysNull: true } : {}) }
+    }
 
     // `alias.*` / `schema.rel.*` — just that relation's columns, so the list
     // index is the ordinal directly.
-    const qualifier = this.starQualifier(fields);
+    const qualifier = this.starQualifier(fields)
     if (qualifier) {
       // A join alias owns no relation entry (`USING (…) AS x`, `(a JOIN b) AS
       // j`): expand its recorded column list through the same rules the
       // unqualified expansion uses — merged columns by the merge rule,
       // owned columns by their entry's own resolution.
       if (qualifier.schema === undefined) {
-        const joinCols = this.joinAliasColumns(qualifier.name, scope);
+        const joinCols = this.joinAliasColumns(qualifier.name, scope)
         if (joinCols) {
-          return joinCols.map(vc => {
+          return joinCols.map((vc) => {
             if (vc.merged) {
-              producers?.push(null);
+              producers?.push(null)
               return {
                 name: vc.name,
                 notNull: this.mergedColumnNotNull(vc.name, vc.merged, scope, depth),
-              };
+              }
             }
             if (vc.entry) {
-              producers?.push({ entry: vc.entry, column: vc.name });
+              producers?.push({ entry: vc.entry, column: vc.name })
               return withOrigin(
                 vc.entry,
                 vc.name,
                 this.computeColumnNullability(vc.entry, vc.name, scope, depth, false, undefined),
                 undefined,
-              );
+              )
             }
-            producers?.push(null);
-            return { name: vc.name, notNull: false };
-          });
+            producers?.push(null)
+            return { name: vc.name, notNull: false }
+          })
         }
       }
-      const entry = this.resolveStarRelation(qualifier, scope);
+      const entry = this.resolveStarRelation(qualifier, scope)
       if (!entry) {
         // PG18's RETURNING old/new rows (`RETURNING old.*, new.*`, or the
         // WITH (OLD AS o, …) aliases): both expand to the TARGET's columns.
@@ -5786,28 +5792,28 @@ class NullabilityEngine {
         // zero columns here misaligned every later flag (the pg-regress
         // replay's updatable_views crop).
         if (qualifier.schema === undefined && this.retOldNew) {
-          const { targetAlias, oldName, newName } = this.retOldNew;
+          const { targetAlias, oldName, newName } = this.retOldNew
           if (qualifier.name === oldName || qualifier.name === newName) {
-            const target = scope.aliases.get(targetAlias);
+            const target = scope.aliases.get(targetAlias)
             if (target) {
-              return this.relationColumnsIntrinsic(target, scope, depth).map(col => {
-                producers?.push(null);
-                return { name: col.name, notNull: false };
-              });
+              return this.relationColumnsIntrinsic(target, scope, depth).map((col) => {
+                producers?.push(null)
+                return { name: col.name, notNull: false }
+              })
             }
           }
         }
-        return [];
+        return []
       }
       return this.relationColumnsIntrinsic(entry, scope, depth).map((col, ordinal) => {
-        producers?.push({ entry, column: col.name, ordinal });
+        producers?.push({ entry, column: col.name, ordinal })
         return withOrigin(
           entry,
           col.name,
           this.computeColumnNullability(entry, col.name, scope, depth, false, ordinal),
           ordinal,
-        );
-      });
+        )
+      })
     }
 
     // Unqualified `*` — the scope's visible columns, in order. Each is
@@ -5816,65 +5822,68 @@ class NullabilityEngine {
     // USING/NATURAL column is drawn from either side and carries no origin —
     // and no producer: it is present whenever EITHER side is, so it does not
     // extend with one unit.
-    const nameLists = new Map<RelationEntry, string[]>();
-    const seen = new Map<RelationEntry, Map<string, number>>();
+    const nameLists = new Map<RelationEntry, string[]>()
+    const seen = new Map<RelationEntry, Map<string, number>>()
     const ordinalOf = (entry: RelationEntry, colName: string): number | undefined => {
-      if (entry.kind !== "view" && entry.kind !== "cte" && entry.kind !== "subquery") {
-        return undefined;
+      if (entry.kind !== 'view' && entry.kind !== 'cte' && entry.kind !== 'subquery') {
+        return undefined
       }
-      let list = nameLists.get(entry);
+      let list = nameLists.get(entry)
       if (!list) {
-        list = this.innerColumnNames(entry, scope, depth);
-        nameLists.set(entry, list);
+        list = this.innerColumnNames(entry, scope, depth)
+        nameLists.set(entry, list)
       }
-      let counts = seen.get(entry);
+      let counts = seen.get(entry)
       if (!counts) {
-        counts = new Map();
-        seen.set(entry, counts);
+        counts = new Map()
+        seen.set(entry, counts)
       }
-      const n = counts.get(colName) ?? 0;
-      counts.set(colName, n + 1);
-      let hits = 0;
+      const n = counts.get(colName) ?? 0
+      counts.set(colName, n + 1)
+      let hits = 0
       for (let k = 0; k < list.length; k++) {
-        if (list[k] === colName && hits++ === n) return k;
+        if (list[k] === colName && hits++ === n) return k
       }
-      return undefined;
-    };
-    return scope.visible.map(vc => {
+      return undefined
+    }
+    return scope.visible.map((vc) => {
       if (vc.merged) {
-        producers?.push(null);
-        return { name: vc.name, notNull: this.mergedColumnNotNull(vc.name, vc.merged, scope, depth) };
+        producers?.push(null)
+        return {
+          name: vc.name,
+          notNull: this.mergedColumnNotNull(vc.name, vc.merged, scope, depth),
+        }
       }
       if (vc.entry) {
-        const ordinal = ordinalOf(vc.entry, vc.name);
-        producers?.push({ entry: vc.entry, column: vc.name, ordinal });
+        const ordinal = ordinalOf(vc.entry, vc.name)
+        producers?.push({ entry: vc.entry, column: vc.name, ordinal })
         return withOrigin(
           vc.entry,
           vc.name,
           this.computeColumnNullability(vc.entry, vc.name, scope, depth, false, ordinal),
           ordinal,
-        );
+        )
       }
-      producers?.push(null);
-      return { name: vc.name, notNull: false };
-    });
+      producers?.push(null)
+      return { name: vc.name, notNull: false }
+    })
   }
 
   /** A join alias's column list, searched through enclosing scopes the way
    *  alias resolution is. */
   private joinAliasColumns(name: string, scope: Scope): VisibleColumn[] | null {
     for (let s: Scope | null = scope; s; s = s.outer) {
-      const cols = s.joinAliases.get(name);
-      if (cols) return cols;
+      const cols = s.joinAliases.get(name)
+      if (cols) return cols
     }
-    return null;
+    return null
   }
 
   /** The ordered output column names of a view/CTE/subquery entry. */
   private innerColumnNames(entry: RelationEntry, scope: Scope, depth: number): string[] {
-    if (entry.kind === "view" && entry.table) return this.entryColumnNames(entry);
-    if (entry.cteColumns && entry.cteColumns.length > 0) return entry.cteColumns;
-    return this.innerRelationColumns(entry, scope, depth).map(r => r.name);
+    if (entry.kind === 'view' && entry.table) return this.entryColumnNames(entry)
+    if (entry.cteColumns && entry.cteColumns.length > 0) return entry.cteColumns
+    return this.innerRelationColumns(entry, scope, depth).map((r) => r.name)
   }
 
   /**
@@ -5888,27 +5897,27 @@ class NullabilityEngine {
     val: Node,
     scope: Scope,
   ): { entry: RelationEntry; column: string } | null {
-    const node = val as Record<string, unknown>;
-    if (!("ColumnRef" in node)) return null;
-    const fields = (node["ColumnRef"] as ColumnRef).fields ?? [];
-    const parts: string[] = [];
+    const node = val as Record<string, unknown>
+    if (!('ColumnRef' in node)) return null
+    const fields = (node['ColumnRef'] as ColumnRef).fields ?? []
+    const parts: string[] = []
     for (const f of fields) {
-      if (!("String" in (f as Record<string, unknown>))) return null;
-      parts.push(this.stringVal(f));
+      if (!('String' in (f as Record<string, unknown>))) return null
+      parts.push(this.stringVal(f))
     }
     if (parts.length === 1) {
-      let found: { entry: RelationEntry; column: string } | null = null;
+      let found: { entry: RelationEntry; column: string } | null = null
       for (const vc of scope.visible) {
-        if (vc.name !== parts[0]) continue;
-        if (!vc.entry || found) return null;
-        found = { entry: vc.entry, column: parts[0]! };
+        if (vc.name !== parts[0]) continue
+        if (!vc.entry || found) return null
+        found = { entry: vc.entry, column: parts[0]! }
       }
-      return found;
+      return found
     }
-    const alias = parts.length === 2 ? parts[0] : parts.length === 3 ? parts[1] : undefined;
-    if (alias === undefined) return null;
-    const entry = scope.aliases.get(alias);
-    return entry ? { entry, column: parts[parts.length - 1]! } : null;
+    const alias = parts.length === 2 ? parts[0] : parts.length === 3 ? parts[1] : undefined
+    if (alias === undefined) return null
+    const entry = scope.aliases.get(alias)
+    return entry ? { entry, column: parts[parts.length - 1]! } : null
   }
 
   /**
@@ -5922,23 +5931,23 @@ class NullabilityEngine {
     val: Node,
     stmt: SelectStmt,
     scope: Scope,
-    mode: "all" | "keys" | "none",
+    mode: 'all' | 'keys' | 'none',
   ): { entry: RelationEntry; column: string } | null {
-    if (mode === "none") return null;
-    const bare = this.resolveBareColumnTarget(val, scope);
-    if (!bare) return null;
-    if (mode === "all") return bare;
+    if (mode === 'none') return null
+    const bare = this.resolveBareColumnTarget(val, scope)
+    if (!bare) return null
+    if (mode === 'all') return bare
     if (
       scope.groupingSetColumns.has(bare.column) ||
       scope.groupingSetColumns.has(`${bare.entry.alias}.${bare.column}`)
     ) {
-      return null;
+      return null
     }
     for (const g of stmt.groupClause ?? []) {
-      const key = this.resolveBareColumnTarget(g, scope);
-      if (key && key.entry === bare.entry && key.column === bare.column) return bare;
+      const key = this.resolveBareColumnTarget(g, scope)
+      if (key && key.entry === bare.entry && key.column === bare.column) return bare
     }
-    return null;
+    return null
   }
 
   /**
@@ -5958,15 +5967,15 @@ class NullabilityEngine {
     /** Positional resolution from star expansion — see computeColumnNullabilityTraced. */
     ordinal?: number,
   ): OriginResolution | undefined {
-    if (entry.joinState === NOT_FOUND) return undefined;
-    const optionalHere = entry.joinState === OPTIONAL;
+    if (entry.joinState === NOT_FOUND) return undefined
+    const optionalHere = entry.joinState === OPTIONAL
     // This reference's own null-extension crossings, all at depth 0 (the
     // rowPath step this entry contributes); a lift shifts the inner
     // origins' crossings one step deeper, exactly like rowPath itself.
     // NULL slots (a set-operation branch that could not attribute) pass
     // through as NULL, and the inner per-branch settledness rides along —
     // a bare re-export changes neither.
-    const hereUnits = entry.unitChain.map(unit => ({ depth: 0, unit }));
+    const hereUnits = entry.unitChain.map((unit) => ({ depth: 0, unit }))
     const lift = (inner: OutputNullability | undefined): OriginResolution | undefined => {
       // The diagnostic crossings channel composes like origins' units but
       // needs no table anchor, so it survives where origins die — a
@@ -5974,38 +5983,38 @@ class NullabilityEngine {
       const crossings = this.collectUnitCrossings
         ? [
             ...hereUnits,
-            ...(inner?.unitCrossings ?? []).map(c => ({ depth: c.depth + 1, unit: c.unit })),
+            ...(inner?.unitCrossings ?? []).map((c) => ({ depth: c.depth + 1, unit: c.unit })),
           ]
-        : [];
+        : []
       if (!inner?.origins) {
-        return crossings.length > 0 ? { crossings } : undefined;
+        return crossings.length > 0 ? { crossings } : undefined
       }
-      const origins = inner.origins.map(o => {
-        if (!o) return null;
+      const origins = inner.origins.map((o) => {
+        if (!o) return null
         const units = [
           ...hereUnits,
-          ...(o.units ?? []).map(c => ({ depth: c.depth + 1, unit: c.unit })),
-        ];
+          ...(o.units ?? []).map((c) => ({ depth: c.depth + 1, unit: c.unit })),
+        ]
         return {
           ...o,
           rowPath: [entry.instance, ...o.rowPath],
           ...(o.optional || optionalHere ? { optional: true } : {}),
           ...(units.length > 0 ? { units } : {}),
-        };
-      });
+        }
+      })
       return {
         origins,
         ...(inner.originNotNull ? { settled: inner.originNotNull } : {}),
         ...(crossings.length > 0 ? { crossings } : {}),
-      };
-    };
+      }
+    }
 
-    if (entry.kind === "table" && entry.table) {
+    if (entry.kind === 'table' && entry.table) {
       // An origin names the column the CATALOG carries — it is what a CHECK
       // constraint and a foreign key are stated over — while the lookup is by
       // the name the query used.
-      const catalogCol = this.entryCatalogColumn(entry, colName);
-      if (!entry.table.schema || catalogCol === undefined) return undefined;
+      const catalogCol = this.entryCatalogColumn(entry, colName)
+      if (!entry.table.schema || catalogCol === undefined) return undefined
       return {
         origins: [
           {
@@ -6018,53 +6027,53 @@ class NullabilityEngine {
           },
         ],
         ...(this.collectUnitCrossings && hereUnits.length > 0 ? { crossings: hereUnits } : {}),
-      };
+      }
     }
 
-    if (entry.kind === "view" && entry.ast && entry.table) {
-      const idx = ordinal ?? this.entryColumnNames(entry).indexOf(colName);
-      if (idx < 0) return undefined;
-      return lift(this.analyzeStatement(entry.ast, scope, depth + 1)[idx]);
+    if (entry.kind === 'view' && entry.ast && entry.table) {
+      const idx = ordinal ?? this.entryColumnNames(entry).indexOf(colName)
+      if (idx < 0) return undefined
+      return lift(this.analyzeStatement(entry.ast, scope, depth + 1)[idx])
     }
 
-    if ((entry.kind === "cte" || entry.kind === "subquery") && entry.ast) {
-      const innerResults = this.innerRelationColumns(entry, scope, depth);
-      let inner: OutputNullability | undefined;
+    if ((entry.kind === 'cte' || entry.kind === 'subquery') && entry.ast) {
+      const innerResults = this.innerRelationColumns(entry, scope, depth)
+      let inner: OutputNullability | undefined
       if (ordinal !== undefined) {
-        inner = innerResults[ordinal];
+        inner = innerResults[ordinal]
       } else if (entry.cteColumns && entry.cteColumns.length > 0) {
-        const idx = entry.cteColumns.indexOf(colName);
+        const idx = entry.cteColumns.indexOf(colName)
         inner =
           idx >= 0 && idx < innerResults.length
             ? innerResults[idx]
-            : innerResults.find(r => r.name === colName);
+            : innerResults.find((r) => r.name === colName)
       } else {
-        inner = innerResults.find(r => r.name === colName);
+        inner = innerResults.find((r) => r.name === colName)
       }
-      return lift(inner);
+      return lift(inner)
     }
 
     // An `unnest` of an array CONSTRUCTOR is the one table function whose
     // values the query wrote down, so its fields name rows this scope can
     // already see — see `unnestFieldOrigins` for why the result is not
     // lifted the way a CTE's is.
-    if (entry.kind === "function") {
+    if (entry.kind === 'function') {
       const index =
         ordinal ??
-        this.resolveTableFunctionColumns(entry, scope, depth).findIndex(c => c.name === colName);
-      const un = index >= 0 ? this.unnestFieldOrigins(entry, index, scope, depth) : undefined;
+        this.resolveTableFunctionColumns(entry, scope, depth).findIndex((c) => c.name === colName)
+      const un = index >= 0 ? this.unnestFieldOrigins(entry, index, scope, depth) : undefined
       if (un) {
         return this.collectUnitCrossings && hereUnits.length > 0
           ? { ...un, crossings: hereUnits }
-          : un;
+          : un
       }
     }
 
     // Every remaining kind — table functions above all — still CROSSES its
     // units: the entry's own chain is the whole story, and the diagnostic
     // channel is precisely for the kinds origins cannot anchor.
-    if (this.collectUnitCrossings && hereUnits.length > 0) return { crossings: hereUnits };
-    return undefined;
+    if (this.collectUnitCrossings && hereUnits.length > 0) return { crossings: hereUnits }
+    return undefined
   }
 
   /** Untraced form of computeColumnNullabilityTraced. */
@@ -6084,7 +6093,7 @@ class NullabilityEngine {
       NOOP,
       presumePresent,
       ordinal,
-    );
+    )
   }
 
   // -------------------------------------------------------------------------
@@ -6116,10 +6125,10 @@ class NullabilityEngine {
   ): { name: string; notNull: boolean }[] {
     // Precomputed for FROM items that spell out their own COLUMNS list, and
     // memoized for everything else.
-    if (entry.functionColumns) return entry.functionColumns;
+    if (entry.functionColumns) return entry.functionColumns
 
-    const rf = entry.rangeFunction;
-    const cols: { name: string; notNull: boolean }[] = [];
+    const rf = entry.rangeFunction
+    const cols: { name: string; notNull: boolean }[] = []
     // NAMING. A lone function returning a SCALAR takes the relation alias as
     // its column name, `ROWS FROM` or not — measured across the spelling
     // space, including `WITH ORDINALITY`. Two arms take the function names
@@ -6127,7 +6136,7 @@ class NullabilityEngine {
     // either way. This predicate once served the PADDING rules too, and the
     // two have come apart: arm count is what names a column, and row count is
     // what pads one.
-    const loneArm = (rf?.functions?.length ?? 0) === 1;
+    const loneArm = (rf?.functions?.length ?? 0) === 1
 
     // THE BODY READING and THE DECLARED READING. Two or more functions in one
     // `ROWS FROM` expand in lockstep to the LONGEST one's row count, and every
@@ -6136,39 +6145,38 @@ class NullabilityEngine {
     // the same bounds, so "the longest arm is never padded" is a claim the two
     // clauses now share rather than a fact only their comments knew. A lone
     // arm falls out of it with no others to cover.
-    const armCalls = (rf?.functions ?? []).map(fnItem => {
-      const items = (fnItem as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
-      return (items?.items?.[0] as Record<string, unknown> | undefined)?.["FuncCall"] as
-        | FuncCall
-        | undefined;
-    });
+    const armCalls = (rf?.functions ?? []).map((fnItem) => {
+      const items = (fnItem as Record<string, unknown>)['List'] as { items?: Node[] } | undefined
+      return (items?.items?.[0] as Record<string, unknown> | undefined)?.['FuncCall'] as
+        FuncCall | undefined
+    })
     const unpadded = this.unpaddedParticipants(
-      armCalls.map(c => (c ? this.armRowBounds(c, depth) : null)),
-    );
+      armCalls.map((c) => (c ? this.armRowBounds(c, depth) : null)),
+    )
 
     // Which OUTPUT positions the padding reaches. Recorded by closing each arm
     // out at the start of the next — the arm body has too many early exits for
     // a tail, and every route that appends columns has to be covered, the two
     // that push straight past the clearance included.
-    const paddedColumns = new Set<number>();
-    let armStart = 0;
-    let armSurvives = true;
+    const paddedColumns = new Set<number>()
+    let armStart = 0
+    let armSurvives = true
     const closeArm = (): void => {
-      if (!armSurvives) for (let k = armStart; k < cols.length; k++) paddedColumns.add(k);
-      armStart = cols.length;
-      armSurvives = true;
-    };
+      if (!armSurvives) for (let k = armStart; k < cols.length; k++) paddedColumns.add(k)
+      armStart = cols.length
+      armSurvives = true
+    }
 
     for (const [armIndex, fnItem] of (rf?.functions ?? []).entries()) {
-      closeArm();
+      closeArm()
       // Each entry is a List whose first item is the FuncCall and whose
       // second, when present, is the item's column definition list (the
       // ROWS FROM spelling; the lone-function spelling parks it on the
       // RangeFunction itself — both measured).
-      const list = (fnItem as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
-      const callNode = list?.items?.[0] as Record<string, unknown> | undefined;
-      const fc = callNode?.["FuncCall"] as FuncCall | undefined;
-      if (!fc) continue;
+      const list = (fnItem as Record<string, unknown>)['List'] as { items?: Node[] } | undefined
+      const callNode = list?.items?.[0] as Record<string, unknown> | undefined
+      const fc = callNode?.['FuncCall'] as FuncCall | undefined
+      if (!fc) continue
 
       // Every route that can contribute a CLAIM goes through here, and both
       // things that take a claim away apply at this ONE point rather than in
@@ -6198,12 +6206,12 @@ class NullabilityEngine {
       // the long arm supplying them and the padding the NULLs. The exclusion
       // stays: the padding covers that shape for a reason of its own, and a
       // strict SRF can never BE the longest arm, since it returns no rows.
-      const survives = unpadded[armIndex] ?? false;
-      armSurvives = survives;
+      const survives = unpadded[armIndex] ?? false
+      armSurvives = survives
       const push = (itemCols: { name: string; notNull: boolean }[]): void => {
-        const padded = survives ? itemCols : itemCols.map(c => ({ name: c.name, notNull: false }));
-        cols.push(...this.clearShortCircuitedColumns(padded, fc, scope));
-      };
+        const padded = survives ? itemCols : itemCols.map((c) => ({ name: c.name, notNull: false }))
+        cols.push(...this.clearShortCircuitedColumns(padded, fc, scope))
+      }
 
       // A column definition list (`AS z(a integer, b text)`) is what makes a
       // record-returning call legal at all, and it fully determines the
@@ -6211,12 +6219,12 @@ class NullabilityEngine {
       // nullable — a record's fields carry no constraints.
       const coldeflist =
         (list?.items?.[1] as { List?: { items?: Node[] } } | undefined)?.List?.items ??
-        (loneArm ? rf?.coldeflist : undefined);
+        (loneArm ? rf?.coldeflist : undefined)
       if (coldeflist?.length) {
-        const declared: { name: string; notNull: boolean }[] = [];
+        const declared: { name: string; notNull: boolean }[] = []
         for (const cd of coldeflist) {
-          const colname = (cd as { ColumnDef?: { colname?: string } }).ColumnDef?.colname;
-          if (colname) declared.push({ name: colname, notNull: false });
+          const colname = (cd as { ColumnDef?: { colname?: string } }).ColumnDef?.colname
+          if (colname) declared.push({ name: colname, notNull: false })
         }
         // A record's FIELDS carry no constraints, and the column definition
         // list is types and names only — but the body that produced the record
@@ -6225,23 +6233,26 @@ class NullabilityEngine {
         // place). A coercion of a non-null value cannot yield NULL.
         const recMeta = loneArm
           ? this.catalog.resolveFunctionMetadata(this.funcSchema(fc), this.funcName(fc))
-          : null;
+          : null
         push(
           recMeta
             ? this.refineColumnsFromBody(
-                declared, recMeta, 0, this.literalArgumentResults(fc, recMeta),
+                declared,
+                recMeta,
+                0,
+                this.literalArgumentResults(fc, recMeta),
               )
             : declared,
-        );
-        continue;
+        )
+        continue
       }
 
-      const name = this.funcName(fc);
+      const name = this.funcName(fc)
       // A function returning a scalar contributes one column, and PostgreSQL
       // names it after the relation alias when there is one. Composite results
       // keep their own column names, so the alias applies only to the relation.
-      const scalarName = loneArm && entry.alias ? entry.alias : name;
-      const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
+      const scalarName = loneArm && entry.alias ? entry.alias : name
+      const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name)
       if (!meta) {
         // `unnest` is a special form twice over. Per ARGUMENT (sweep-1
         // finding 12): one column each, zip-style with NULL padding, named
@@ -6252,8 +6263,8 @@ class NullabilityEngine {
         // five spellings, ROWS FROM and MERGE-source included). A
         // user-defined unnest arrives with metadata and takes the
         // declared-return-type path below instead.
-        if (name === "unnest" && (fc.args?.length ?? 0) >= 1) {
-          const multi = fc.args!.length > 1;
+        if (name === 'unnest' && (fc.args?.length ?? 0) >= 1) {
+          const multi = fc.args!.length > 1
           // The single-argument spelling dispatches over THREE pg_catalog
           // rows, and one of them changes the SHAPE: unnest(tsvector) is
           // SETOF record (lexeme, positions, weights) — three columns where
@@ -6284,32 +6295,32 @@ class NullabilityEngine {
           // reading learns aggregate return types, not by a guess in either
           // direction.
           if (!multi) {
-            const arg = fc.args![0]!;
-            const types = this.operandTypeSet(arg, scope, depth);
-            if (types?.length === 1 && types[0] === "tsvector") {
+            const arg = fc.args![0]!
+            const types = this.operandTypeSet(arg, scope, depth)
+            if (types?.length === 1 && types[0] === 'tsvector') {
               cols.push(
-                { name: "lexeme", notNull: false },
-                { name: "positions", notNull: false },
-                { name: "weights", notNull: false },
-              );
-              continue;
+                { name: 'lexeme', notNull: false },
+                { name: 'positions', notNull: false },
+                { name: 'weights', notNull: false },
+              )
+              continue
             }
-            if (types !== null && types.includes("tsvector")) {
+            if (types !== null && types.includes('tsvector')) {
               throw new UnsupportedNodeError(
-                "from-item",
-                "unnest over an operand whose type set contains tsvector (its row changes the column list)",
-              );
+                'from-item',
+                'unnest over an operand whose type set contains tsvector (its row changes the column list)',
+              )
             }
           }
           for (const arg of fc.args!) {
-            const fields = this.unnestCompositeElementFields(arg, scope, depth);
+            const fields = this.unnestCompositeElementFields(arg, scope, depth)
             if (fields) {
-              for (const f of fields) cols.push({ name: f, notNull: false });
+              for (const f of fields) cols.push({ name: f, notNull: false })
             } else {
-              cols.push({ name: multi ? "unnest" : scalarName, notNull: false });
+              cols.push({ name: multi ? 'unnest' : scalarName, notNull: false })
             }
           }
-          continue;
+          continue
         }
         // The record-populating builtins return their FIRST argument's
         // composite type — `json_populate_record(null::jpop, …)` is SETOF
@@ -6321,21 +6332,17 @@ class NullabilityEngine {
         // REFUSES, because for THESE names the one-column guess is wrong on
         // every valid call — PostgreSQL requires a composite-typed argument.
         if (NullabilityEngine.POPULATE_RECORD_NAMES.has(name) && (fc.args?.length ?? 0) >= 1) {
-          const types = this.operandTypeSet(fc.args![0]!, scope, depth);
-          const single = types?.length === 1 ? types[0]! : null;
-          const composite = single
-            ? this.catalog.resolveCompositeType(undefined, single)
-            : null;
+          const types = this.operandTypeSet(fc.args![0]!, scope, depth)
+          const single = types?.length === 1 ? types[0]! : null
+          const composite = single ? this.catalog.resolveCompositeType(undefined, single) : null
           if (composite) {
-            push(
-              composite.fields.map(f => ({ name: f.name, notNull: false })),
-            );
-            continue;
+            push(composite.fields.map((f) => ({ name: f.name, notNull: false })))
+            continue
           }
           throw new UnsupportedNodeError(
-            "from-item",
+            'from-item',
             `${name} whose record argument's composite type cannot be read`,
-          );
+          )
         }
         // No single candidate means the name is OVERLOADED, and PostgreSQL
         // picks by argument types the walk cannot compute. The candidates'
@@ -6359,21 +6366,21 @@ class NullabilityEngine {
         // beside `vp(integer)`, both `SETOF sku_pair`, gave one column
         // named `vp` against PostgreSQL's two).
         const shapeOf = (candidate: FunctionInfo) =>
-          this.functionOutputColumns(candidate, scalarName);
+          this.functionOutputColumns(candidate, scalarName)
         const agree = (shapes: { name: string; notNull: boolean }[][]): boolean => {
-          const first = shapes[0]!;
+          const first = shapes[0]!
           return shapes.every(
-            s =>
+            (s) =>
               s.length === first.length &&
               s.every((c, i) => c.name === first[i]!.name && c.notNull === first[i]!.notNull),
-          );
-        };
-        const allCandidates = this.catalog.resolveFunctionShapes(this.funcSchema(fc), name);
+          )
+        }
+        const allCandidates = this.catalog.resolveFunctionShapes(this.funcSchema(fc), name)
         if (allCandidates.length > 0) {
-          const shapes = allCandidates.map(shapeOf);
+          const shapes = allCandidates.map(shapeOf)
           if (agree(shapes)) {
-            push(shapes[0]!);
-            continue;
+            push(shapes[0]!)
+            continue
           }
           // Disagreement: narrow to the candidates that accept this
           // argument count, which is the one resolution step the engine
@@ -6384,35 +6391,39 @@ class NullabilityEngine {
             this.funcSchema(fc),
             name,
             (fc.args ?? []).length,
-          );
+          )
           if (candidates && candidates.length > 0) {
-            const narrowed = candidates.map(shapeOf);
+            const narrowed = candidates.map(shapeOf)
             if (agree(narrowed)) {
-              push(narrowed[0]!);
-              continue;
+              push(narrowed[0]!)
+              continue
             }
           }
           // A FROM item that contributes the WRONG columns is worse than
           // one that refuses — the dispatch-site rule.
           throw new UnsupportedNodeError(
-            "from-item",
+            'from-item',
             `overloaded function ${name} whose candidates return different shapes`,
-          );
+          )
         }
         // Unknown to the USER catalog — a pg_catalog function. Those with
         // named output columns are captured by the snapshot (their
         // `pg_get_function_result` says only `SETOF record`), so the shape
         // is known after all: json_each contributes `key` and `value`, not
         // one column called `json_each`.
-        const builtinShape = this.catalog.resolveBuiltinFunctionShape(this.funcSchema(fc), name);
+        const builtinShape = this.catalog.resolveBuiltinFunctionShape(this.funcSchema(fc), name)
         if (builtinShape) {
           // The shape is environment, captured; which of its columns can be
           // SQL NULL is not — no catalog flag says so, and it is curated
           // (NON_NULL_BUILTIN_TABLE_COLUMNS), each entry measured.
-          const nonNull = NON_NULL_BUILTIN_TABLE_COLUMNS.get(name);
-          const shaped = this.columnsForReturnType(builtinShape, scalarName);
-          push(nonNull ? shaped.map(c => ({ ...c, notNull: c.notNull || nonNull.has(c.name) })) : shaped);
-          continue;
+          const nonNull = NON_NULL_BUILTIN_TABLE_COLUMNS.get(name)
+          const shaped = this.columnsForReturnType(builtinShape, scalarName)
+          push(
+            nonNull
+              ? shaped.map((c) => ({ ...c, notNull: c.notNull || nonNull.has(c.name) }))
+              : shaped,
+          )
+          continue
         }
         // Everything else — generate_series and the other scalar SRFs —
         // contributes ONE column, and its values are the CALL's values:
@@ -6436,9 +6447,12 @@ class NullabilityEngine {
         // Through `push`, because this is a claim like any other and the
         // padding has to be able to clear it.
         push([
-          { name: scalarName, notNull: scope ? this.walkExpr(callNode as Node, scope, depth) : false },
-        ]);
-        continue;
+          {
+            name: scalarName,
+            notNull: scope ? this.walkExpr(callNode as Node, scope, depth) : false,
+          },
+        ])
+        continue
       }
       // The declared shape is the column list; the body is what can put a
       // constraint back on it. Only here, at the SINGLE-candidate site: the
@@ -6447,30 +6461,28 @@ class NullabilityEngine {
       // individually READABLE now — the map is keyed by signature — which is
       // what lets the padding bound ask them ALL and take the weakest answer.
       // A flag is not a question consensus can answer that way.)
-      const declared = this.functionOutputColumns(meta, scalarName);
+      const declared = this.functionOutputColumns(meta, scalarName)
       push(
         loneArm
-          ? this.refineColumnsFromBody(
-              declared, meta, 0, this.literalArgumentResults(fc, meta),
-            )
+          ? this.refineColumnsFromBody(declared, meta, 0, this.literalArgumentResults(fc, meta))
           : declared,
-      );
+      )
     }
-    closeArm();
+    closeArm()
 
     // The counter belongs to the `ROWS FROM` as a whole, not to any one arm,
     // so the padding does not reach it — rowsfrom-pad-with-ordinality.sql.
     if (rf?.ordinality) {
-      cols.push({ name: "ordinality", notNull: true });
+      cols.push({ name: 'ordinality', notNull: true })
     }
 
     // Explicit column aliases rename positionally: `f() AS t(a, b)`.
-    const aliases = entry.cteColumns ?? [];
-    const named = cols.map((c, i) => ({ name: aliases[i] ?? c.name, notNull: c.notNull }));
+    const aliases = entry.cteColumns ?? []
+    const named = cols.map((c, i) => ({ name: aliases[i] ?? c.name, notNull: c.notNull }))
 
-    entry.functionColumns = named;
-    entry.paddedFunctionColumns = paddedColumns;
-    return named;
+    entry.functionColumns = named
+    entry.paddedFunctionColumns = paddedColumns
+    return named
   }
 
   /**
@@ -6501,19 +6513,19 @@ class NullabilityEngine {
     scope: Scope | null,
     depth: number,
   ): string[] | null {
-    const element = this.unnestElementType(arg, scope, depth);
-    if (element.kind === "scalar") return null;
-    if (element.kind === "unknown") {
+    const element = this.unnestElementType(arg, scope, depth)
+    if (element.kind === 'scalar') return null
+    if (element.kind === 'unknown') {
       throw new UnsupportedNodeError(
-        "from-item",
+        'from-item',
         `unnest of an argument whose element type is not derivable (${this.nodeTag(arg)})`,
-      );
+      )
     }
-    const parts = element.parts;
-    const typeName = parts[parts.length - 1]!;
-    const typeSchema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
-    const ct = this.catalog.resolveCompositeType(typeSchema, typeName);
-    if (ct) return ct.fields.map(f => f.name);
+    const parts = element.parts
+    const typeName = parts[parts.length - 1]!
+    const typeSchema = parts.length >= 2 ? parts[parts.length - 2] : undefined
+    const ct = this.catalog.resolveCompositeType(typeSchema, typeName)
+    if (ct) return ct.fields.map((f) => f.name)
     // A TABLE's ROW TYPE is a composite too, and it is not in
     // `compositeTypes` — the same two-step `columnsForReturnType` takes for
     // `SETOF <table>` versus `SETOF <composite>`. Types and relations share
@@ -6521,18 +6533,18 @@ class NullabilityEngine {
     // relation's row type: `unnest(h.rows)` over a `trow[]` column expands
     // to trow's columns (measured), where the composite lookup alone
     // answered one column and shifted every position after it.
-    const table = this.catalog.resolveTable(typeSchema, typeName);
-    if (table) return [...table.columns];
+    const table = this.catalog.resolveTable(typeSchema, typeName)
+    if (table) return [...table.columns]
     if (element.provablyComposite) {
       throw new UnsupportedNodeError(
-        "from-item",
+        'from-item',
         `unnest of a composite-element array with unresolvable element type ${typeName}`,
-      );
+      )
     }
     // A named type the snapshot carries as neither is a scalar: user
     // composites and relations are all captured, so the residual here is the
     // general capture boundary rather than this site's.
-    return null;
+    return null
   }
 
   /**
@@ -6581,8 +6593,8 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): boolean {
-    const exprs = this.unnestColumnExpressions(entry, ordinal, scope, depth);
-    return !!exprs && exprs.every(e => this.walkExpr(e, scope, depth));
+    const exprs = this.unnestColumnExpressions(entry, ordinal, scope, depth)
+    return !!exprs && exprs.every((e) => this.walkExpr(e, scope, depth))
   }
 
   /**
@@ -6626,14 +6638,13 @@ class NullabilityEngine {
     scope: Scope | null,
     depth: number,
   ): Node[] | null {
-    const arms = entry.rangeFunction?.functions ?? [];
-    if (arms.length !== 1) return null;
-    const list = (arms[0] as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
-    const fc = (list?.items?.[0] as Record<string, unknown> | undefined)?.["FuncCall"] as
-      | FuncCall
-      | undefined;
-    if (!fc || this.funcName(fc) !== "unnest" || (fc.args?.length ?? 0) !== 1) return null;
-    if (this.catalog.resolveFunctionMetadata(this.funcSchema(fc), "unnest")) return null;
+    const arms = entry.rangeFunction?.functions ?? []
+    if (arms.length !== 1) return null
+    const list = (arms[0] as Record<string, unknown>)['List'] as { items?: Node[] } | undefined
+    const fc = (list?.items?.[0] as Record<string, unknown> | undefined)?.['FuncCall'] as
+      FuncCall | undefined
+    if (!fc || this.funcName(fc) !== 'unnest' || (fc.args?.length ?? 0) !== 1) return null
+    if (this.catalog.resolveFunctionMetadata(this.funcSchema(fc), 'unnest')) return null
     // A column definition list retypes the item's columns wholesale; the
     // constructor's own shape is no longer what the caller sees. Read the
     // same two ways `resolveTableFunctionColumns` does — the `ROWS FROM`
@@ -6642,46 +6653,46 @@ class NullabilityEngine {
     // which is truthy; only its `items` say anything.)
     const coldeflist =
       (list?.items?.[1] as { List?: { items?: Node[] } } | undefined)?.List?.items ??
-      entry.rangeFunction?.coldeflist;
-    if (coldeflist?.length) return null;
+      entry.rangeFunction?.coldeflist
+    if (coldeflist?.length) return null
 
-    const rawArg = fc.args![0]!;
+    const rawArg = fc.args![0]!
     // `ARRAY[…]::pair[]` and `ROW(…)::pair` both wrap the shape this reads
     // in a cast, and a coercion of a non-null value cannot yield NULL — the
     // same reading the coldeflist path takes.
     const flatten = (n: Node): Node[] | null => {
-      const rec = this.stripCasts(n) as Record<string, unknown>;
-      if (!("A_ArrayExpr" in rec)) return null;
-      const out: Node[] = [];
-      for (const e of (rec["A_ArrayExpr"] as { elements?: Node[] }).elements ?? []) {
-        const nested = flatten(e);
-        if (nested) out.push(...nested);
-        else out.push(e);
+      const rec = this.stripCasts(n) as Record<string, unknown>
+      if (!('A_ArrayExpr' in rec)) return null
+      const out: Node[] = []
+      for (const e of (rec['A_ArrayExpr'] as { elements?: Node[] }).elements ?? []) {
+        const nested = flatten(e)
+        if (nested) out.push(...nested)
+        else out.push(e)
       }
-      return out;
-    };
+      return out
+    }
     // A CALL in this position can still be the constructor, one indirection
     // away: `unnest(mk_pairs())` where the body is `SELECT ARRAY[...]`. The
     // substitution is the array itself, so everything downstream — the
     // flatten, the field reading, the per-element walk — is unchanged.
-    const arg = this.constantArrayBodyOf(rawArg) ?? rawArg;
+    const arg = this.constantArrayBodyOf(rawArg) ?? rawArg
 
-    const items = flatten(arg);
-    if (!items) return null;
+    const items = flatten(arg)
+    if (!items) return null
 
-    const fields = this.unnestCompositeElementFields(arg, scope, depth);
-    if (!fields) return ordinal === 0 ? items : null;
-    if (ordinal < 0 || ordinal >= fields.length) return null;
+    const fields = this.unnestCompositeElementFields(arg, scope, depth)
+    if (!fields) return ordinal === 0 ? items : null
+    if (ordinal < 0 || ordinal >= fields.length) return null
 
-    const out: Node[] = [];
+    const out: Node[] = []
     for (const e of items) {
-      const rec = this.stripCasts(e) as Record<string, unknown>;
-      if (!("RowExpr" in rec)) return null;
-      const args = (rec["RowExpr"] as { args?: Node[] }).args ?? [];
-      if (args.length !== fields.length) return null;
-      out.push(args[ordinal]!);
+      const rec = this.stripCasts(e) as Record<string, unknown>
+      if (!('RowExpr' in rec)) return null
+      const args = (rec['RowExpr'] as { args?: Node[] }).args ?? []
+      if (args.length !== fields.length) return null
+      out.push(args[ordinal]!)
     }
-    return out;
+    return out
   }
 
   /**
@@ -6723,34 +6734,34 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): OriginResolution | undefined {
-    const exprs = this.unnestColumnExpressions(entry, ordinal, scope, depth);
-    if (!exprs || exprs.length === 0) return undefined;
-    const hereUnits = entry.unitChain.map(unit => ({ depth: 0, unit }));
-    const optionalHere = entry.joinState === OPTIONAL;
-    const origins: (ColumnOrigin | null)[] = [];
-    const settled: boolean[] = [];
+    const exprs = this.unnestColumnExpressions(entry, ordinal, scope, depth)
+    if (!exprs || exprs.length === 0) return undefined
+    const hereUnits = entry.unitChain.map((unit) => ({ depth: 0, unit }))
+    const optionalHere = entry.joinState === OPTIONAL
+    const origins: (ColumnOrigin | null)[] = []
+    const settled: boolean[] = []
     for (const expr of exprs) {
-      settled.push(this.walkExpr(expr, scope, depth));
-      const bare = this.resolveBareColumnTarget(expr, scope);
-      const inner = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined;
+      settled.push(this.walkExpr(expr, scope, depth))
+      const bare = this.resolveBareColumnTarget(expr, scope)
+      const inner = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined
       // Exactly one alternative, or the element-to-alternative alignment
       // this whole construction rests on stops holding: a source that is
       // itself a union contributes several, and there is no index left to
       // pair them against the sibling fields with.
-      const o = inner?.origins?.length === 1 ? inner.origins[0] : undefined;
+      const o = inner?.origins?.length === 1 ? inner.origins[0] : undefined
       if (!o) {
-        origins.push(null);
-        continue;
+        origins.push(null)
+        continue
       }
-      const units = [...hereUnits, ...(o.units ?? [])];
+      const units = [...hereUnits, ...(o.units ?? [])]
       origins.push({
         ...o,
         ...(o.optional || optionalHere ? { optional: true } : {}),
         ...(units.length > 0 ? { units } : {}),
-      });
+      })
     }
-    if (origins.every(o => !o)) return undefined;
-    return { origins, settled };
+    if (origins.every((o) => !o)) return undefined
+    return { origins, settled }
   }
 
   /**
@@ -6767,20 +6778,20 @@ class NullabilityEngine {
     scope: Scope | null,
     depth: number,
   ):
-    | { kind: "type"; parts: string[]; provablyComposite: boolean }
-    | { kind: "scalar" }
-    | { kind: "unknown" } {
-    const rec = arg as Record<string, unknown>;
+    | { kind: 'type'; parts: string[]; provablyComposite: boolean }
+    | { kind: 'scalar' }
+    | { kind: 'unknown' } {
+    const rec = arg as Record<string, unknown>
     const partsOf = (tn: { names?: Node[] } | undefined): string[] | null => {
       const parts = (tn?.names ?? [])
-        .map(n => this.stringVal(n))
-        .filter((p): p is string => !!p && p !== "pg_catalog");
-      return parts.length ? parts : null;
-    };
+        .map((n) => this.stringVal(n))
+        .filter((p): p is string => !!p && p !== 'pg_catalog')
+      return parts.length ? parts : null
+    }
     const isRow = (n: Node | undefined): boolean =>
-      !!n && "RowExpr" in (n as Record<string, unknown>);
+      !!n && 'RowExpr' in (n as Record<string, unknown>)
     const typed = (parts: string[], provablyComposite = false) =>
-      ({ kind: "type", parts, provablyComposite }) as const;
+      ({ kind: 'type', parts, provablyComposite }) as const
 
     /**
      * A rendered type name as an ELEMENT type. `T[]` strips its bounds; a
@@ -6790,58 +6801,59 @@ class NullabilityEngine {
      * Anything else is not an array, so the statement is one PostgreSQL
      * rejects and any answer is unobservable.
      */
-    const fromRendered = (rendered: string, seen = new Set<string>()): ReturnType<
-      typeof this.unnestElementType
-    > => {
-      const trimmed = rendered.replace(/^setof\s+/i, "").trim();
+    const fromRendered = (
+      rendered: string,
+      seen = new Set<string>(),
+    ): ReturnType<typeof this.unnestElementType> => {
+      const trimmed = rendered.replace(/^setof\s+/i, '').trim()
       const nameParts = (printed: string): string[] => {
-        const { schema, name } = splitQualifiedName(printed);
-        return schema ? [schema, name] : [name];
-      };
-      if (trimmed.endsWith("[]")) {
-        return typed(nameParts(trimmed.replace(/(\[\])+$/, "")));
+        const { schema, name } = splitQualifiedName(printed)
+        return schema ? [schema, name] : [name]
       }
-      if (seen.has(trimmed)) return { kind: "unknown" };
-      seen.add(trimmed);
-      const { schema, name } = splitQualifiedName(trimmed);
-      const base = this.catalog.resolveDomainBaseTypeName(schema, name);
-      return base ? fromRendered(base, seen) : { kind: "scalar" };
-    };
-
-    if ("TypeCast" in rec) {
-      const tc = rec["TypeCast"] as {
-        arg?: Node;
-        typeName?: { names?: Node[]; arrayBounds?: unknown[] };
-      };
-      const parts = partsOf(tc.typeName);
-      if (!parts) return { kind: "unknown" };
-      if (tc.typeName?.arrayBounds?.length) {
-        const inner = tc.arg as Record<string, unknown> | undefined;
-        const provablyComposite =
-          !!inner &&
-          "A_ArrayExpr" in inner &&
-          ((inner["A_ArrayExpr"] as { elements?: Node[] }).elements ?? []).some(e => isRow(e));
-        return typed(parts, provablyComposite);
+      if (trimmed.endsWith('[]')) {
+        return typed(nameParts(trimmed.replace(/(\[\])+$/, '')))
       }
-      // No array bounds: the target may still be a DOMAIN over an array.
-      return fromRendered(parts.join("."));
+      if (seen.has(trimmed)) return { kind: 'unknown' }
+      seen.add(trimmed)
+      const { schema, name } = splitQualifiedName(trimmed)
+      const base = this.catalog.resolveDomainBaseTypeName(schema, name)
+      return base ? fromRendered(base, seen) : { kind: 'scalar' }
     }
 
-    if ("A_ArrayExpr" in rec) {
-      const elements = (rec["A_ArrayExpr"] as { elements?: Node[] }).elements ?? [];
+    if ('TypeCast' in rec) {
+      const tc = rec['TypeCast'] as {
+        arg?: Node
+        typeName?: { names?: Node[]; arrayBounds?: unknown[] }
+      }
+      const parts = partsOf(tc.typeName)
+      if (!parts) return { kind: 'unknown' }
+      if (tc.typeName?.arrayBounds?.length) {
+        const inner = tc.arg as Record<string, unknown> | undefined
+        const provablyComposite =
+          !!inner &&
+          'A_ArrayExpr' in inner &&
+          ((inner['A_ArrayExpr'] as { elements?: Node[] }).elements ?? []).some((e) => isRow(e))
+        return typed(parts, provablyComposite)
+      }
+      // No array bounds: the target may still be a DOMAIN over an array.
+      return fromRendered(parts.join('.'))
+    }
+
+    if ('A_ArrayExpr' in rec) {
+      const elements = (rec['A_ArrayExpr'] as { elements?: Node[] }).elements ?? []
       for (const e of elements) {
-        const er = e as Record<string, unknown>;
-        if (!("TypeCast" in er)) continue;
-        const tc = er["TypeCast"] as {
-          arg?: Node;
-          typeName?: { names?: Node[]; arrayBounds?: unknown[] };
-        };
+        const er = e as Record<string, unknown>
+        if (!('TypeCast' in er)) continue
+        const tc = er['TypeCast'] as {
+          arg?: Node
+          typeName?: { names?: Node[]; arrayBounds?: unknown[] }
+        }
         // An array element cast to an array is not this shape.
-        if (tc.typeName?.arrayBounds?.length) continue;
-        const parts = partsOf(tc.typeName);
+        if (tc.typeName?.arrayBounds?.length) continue
+        const parts = partsOf(tc.typeName)
         if (parts) {
-          const element = fromRendered(parts.join("."));
-          return element.kind === "scalar" ? typed(parts, isRow(tc.arg)) : element;
+          const element = fromRendered(parts.join('.'))
+          return element.kind === 'scalar' ? typed(parts, isRow(tc.arg)) : element
         }
       }
       // No cast to read the element type from. An ARRAY constructor's
@@ -6850,33 +6862,34 @@ class NullabilityEngine {
       // that type's fields (measured). `unnest` flattens every dimension,
       // so a member that is itself an array contributes its own element
       // type.
-      const memberTypes = elements.map(e => this.renderedTypeOfExpr(e, scope));
-      const known = memberTypes.filter((t): t is string => t !== null);
+      const memberTypes = elements.map((e) => this.renderedTypeOfExpr(e, scope))
+      const known = memberTypes.filter((t): t is string => t !== null)
       if (known.length === elements.length && elements.length > 0) {
-        const first = known[0]!;
-        if (known.every(t => t === first)) {
-          const { schema, name } = splitQualifiedName(first.replace(/(\[\])+$/, ""));
-          return typed(schema ? [schema, name] : [name]);
+        const first = known[0]!
+        if (known.every((t) => t === first)) {
+          const { schema, name } = splitQualifiedName(first.replace(/(\[\])+$/, ''))
+          return typed(schema ? [schema, name] : [name])
         }
       }
       // A literal cannot be a composite, so `ARRAY[1, 2]` is a scalar array
       // by construction; anything else needs the type of an expression the
       // walk does not compute.
-      return elements.length > 0 && elements.every(e => "A_Const" in (e as Record<string, unknown>))
-        ? { kind: "scalar" }
-        : { kind: "unknown" };
+      return elements.length > 0 &&
+        elements.every((e) => 'A_Const' in (e as Record<string, unknown>))
+        ? { kind: 'scalar' }
+        : { kind: 'unknown' }
     }
 
-    if ("ColumnRef" in rec) {
-      const rendered = this.renderedTypeOfExpr(arg, scope);
-      if (rendered) return fromRendered(rendered);
+    if ('ColumnRef' in rec) {
+      const rendered = this.renderedTypeOfExpr(arg, scope)
+      if (rendered) return fromRendered(rendered)
       // No base column behind it: the CTE or subquery COMPUTES this column.
       // Its defining expression is an expression like any other, and this
       // same reading answers for it one level in — `(SELECT ARRAY[p] AS ps
       // FROM cc) s, unnest(s.ps)` types `ARRAY[p]` against `cc` and expands
       // to sku_pair's fields (measured). No new typing, one more place to
       // ask.
-      return this.computedColumnElementType(arg, scope, depth);
+      return this.computedColumnElementType(arg, scope, depth)
     }
 
     // A scalar sublink contributes its single output column, and that column
@@ -6885,28 +6898,29 @@ class NullabilityEngine {
     // level down. The subquery's row COUNT does not matter: a scalar sublink
     // yielding several rows raises, and the shape question is about the type
     // either way.
-    if ("SubLink" in rec) {
-      const sl = rec["SubLink"] as SubLink;
-      if (sl.subLinkType !== "EXPR_SUBLINK" || !sl.subselect) return { kind: "unknown" };
-      const inner = (sl.subselect as Record<string, unknown>)["SelectStmt"] as
-        | SelectStmt
-        | undefined;
-      const targets = inner?.targetList ?? [];
-      if (!inner || targets.length !== 1) return { kind: "unknown" };
-      const val = this.unwrapResTarget(targets[0]!).val;
-      return val ? this.elementTypeInSelect(val, inner, scope, depth) : { kind: "unknown" };
+    if ('SubLink' in rec) {
+      const sl = rec['SubLink'] as SubLink
+      if (sl.subLinkType !== 'EXPR_SUBLINK' || !sl.subselect) return { kind: 'unknown' }
+      const inner = (sl.subselect as Record<string, unknown>)['SelectStmt'] as
+        SelectStmt | undefined
+      const targets = inner?.targetList ?? []
+      if (!inner || targets.length !== 1) return { kind: 'unknown' }
+      const val = this.unwrapResTarget(targets[0]!).val
+      return val ? this.elementTypeInSelect(val, inner, scope, depth) : { kind: 'unknown' }
     }
 
     // `pairs[1:1]` — a SLICE of an array is an array of the same element
     // type. A plain subscript is not: it yields the element itself, and
     // unnesting one is a statement PostgreSQL rejects.
-    if ("A_Indirection" in rec) {
-      const ai = rec["A_Indirection"] as { arg?: Node; indirection?: Node[] };
-      const parts = ai.indirection ?? [];
+    if ('A_Indirection' in rec) {
+      const ai = rec['A_Indirection'] as { arg?: Node; indirection?: Node[] }
+      const parts = ai.indirection ?? []
       const allSlices =
         parts.length > 0 &&
-        parts.every(p => !!(p as { A_Indices?: { is_slice?: boolean } }).A_Indices?.is_slice);
-      return allSlices && ai.arg ? this.unnestElementType(ai.arg, scope, depth) : { kind: "unknown" };
+        parts.every((p) => !!(p as { A_Indices?: { is_slice?: boolean } }).A_Indices?.is_slice)
+      return allSlices && ai.arg
+        ? this.unnestElementType(ai.arg, scope, depth)
+        : { kind: 'unknown' }
     }
 
     // `a || b` and `COALESCE(a, b)` — every operand shares the result's
@@ -6914,54 +6928,53 @@ class NullabilityEngine {
     // `||` also concatenates an ELEMENT onto an array, and an operand read
     // as a scalar cannot be told apart from that, so a scalar answer needs
     // EVERY operand to give one.
-    const ae = rec["A_Expr"] as
-      | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
-      | undefined;
-    const aeName = (ae?.name ?? [])[0];
-    const aeOp = ae?.kind === "AEXPR_OP" && aeName ? this.stringVal(aeName) : undefined;
+    const ae = rec['A_Expr'] as
+      { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node } | undefined
+    const aeName = (ae?.name ?? [])[0]
+    const aeOp = ae?.kind === 'AEXPR_OP' && aeName ? this.stringVal(aeName) : undefined
     const operands: (Node | undefined)[] | null =
-      aeOp === "||"
+      aeOp === '||'
         ? [ae!.lexpr, ae!.rexpr]
-        : "CoalesceExpr" in rec
-          ? ((rec["CoalesceExpr"] as { args?: Node[] }).args ?? [])
-          : null;
+        : 'CoalesceExpr' in rec
+          ? ((rec['CoalesceExpr'] as { args?: Node[] }).args ?? [])
+          : null
     if (operands) {
-      const resolved = operands.map(o =>
-        o ? this.unnestElementType(o, scope, depth) : { kind: "unknown" as const },
-      );
-      const array = resolved.find(r => r.kind === "type");
-      if (array) return array;
-      return resolved.length > 0 && resolved.every(r => r.kind === "scalar")
-        ? { kind: "scalar" }
-        : { kind: "unknown" };
+      const resolved = operands.map((o) =>
+        o ? this.unnestElementType(o, scope, depth) : { kind: 'unknown' as const },
+      )
+      const array = resolved.find((r) => r.kind === 'type')
+      if (array) return array
+      return resolved.length > 0 && resolved.every((r) => r.kind === 'scalar')
+        ? { kind: 'scalar' }
+        : { kind: 'unknown' }
     }
 
-    if ("FuncCall" in rec) {
-      const fc = rec["FuncCall"] as FuncCall;
-      const name = this.funcName(fc);
+    if ('FuncCall' in rec) {
+      const fc = rec['FuncCall'] as FuncCall
+      const name = this.funcName(fc)
       const returnTypes = this.catalog
         .resolveFunctionShapes(this.funcSchema(fc), name)
-        .map(f => f.returnType);
+        .map((f) => f.returnType)
       if (returnTypes.length > 0) {
         // Consensus, like every other overloaded question: one rendered
         // return type across the candidates answers whichever one runs.
-        const first = returnTypes[0]!;
-        return returnTypes.every(rt => rt === first) ? fromRendered(first) : { kind: "unknown" };
+        const first = returnTypes[0]!
+        return returnTypes.every((rt) => rt === first) ? fromRendered(first) : { kind: 'unknown' }
       }
       // A polymorphic builtin takes its type FROM ITS ARGUMENTS, and the
       // snapshot carries the signatures that say how.
-      const poly = this.polymorphicArrayElementType(fc, scope, depth);
-      if (poly) return poly;
+      const poly = this.polymorphicArrayElementType(fc, scope, depth)
+      if (poly) return poly
       // A builtin with a CONCRETE return type cannot yield an array of a
       // USER composite, which is the only thing that turns one column into
       // several here. A polymorphic one whose signatures did not answer, and
       // an unrecognised name, are both unknown.
       return this.catalog.isBuiltinFunction(name) && !this.catalog.isPolymorphicBuiltin(name)
-        ? { kind: "scalar" }
-        : { kind: "unknown" };
+        ? { kind: 'scalar' }
+        : { kind: 'unknown' }
     }
 
-    return { kind: "unknown" };
+    return { kind: 'unknown' }
   }
 
   /**
@@ -6972,12 +6985,12 @@ class NullabilityEngine {
    * composite", which a non-array expression satisfies too.
    */
   private isProvablyArrayExpr(expr: Node, scope: Scope | null): boolean {
-    const rec = expr as Record<string, unknown>;
-    if ("A_ArrayExpr" in rec) return true;
-    const tc = rec["TypeCast"] as { typeName?: { arrayBounds?: unknown[] } } | undefined;
-    if (tc?.typeName?.arrayBounds?.length) return true;
-    const rendered = this.renderedTypeOfExpr(expr, scope);
-    return !!rendered && rendered.trim().endsWith("[]");
+    const rec = expr as Record<string, unknown>
+    if ('A_ArrayExpr' in rec) return true
+    const tc = rec['TypeCast'] as { typeName?: { arrayBounds?: unknown[] } } | undefined
+    if (tc?.typeName?.arrayBounds?.length) return true
+    const rendered = this.renderedTypeOfExpr(expr, scope)
+    return !!rendered && rendered.trim().endsWith('[]')
   }
 
   /**
@@ -7007,7 +7020,7 @@ class NullabilityEngine {
     fc: FuncCall,
     scope: Scope | null,
     depth: number,
-  ): { kind: "type"; parts: string[]; provablyComposite: boolean } | { kind: "scalar" } | null {
+  ): { kind: 'type'; parts: string[]; provablyComposite: boolean } | { kind: 'scalar' } | null {
     // `WITHIN GROUP` is the only spelling whose argument list stops lining up
     // with the signature's — `percentile_disc(double precision[],
     // anyelement)` declares two while the call writes one and puts the other
@@ -7019,31 +7032,31 @@ class NullabilityEngine {
     // argument never appears in `args`, so the arity test below rejects every
     // WITHIN GROUP call in PG18's catalog on its own. The guard states the
     // reason rather than relying on that coincidence holding.
-    if (fc.agg_within_group || fc.agg_star || fc.func_variadic) return null;
+    if (fc.agg_within_group || fc.agg_star || fc.func_variadic) return null
     const sigs = this.catalog.resolvePolymorphicArraySignatures(
       this.funcSchema(fc),
       this.funcName(fc),
-    );
-    if (!sigs) return null;
-    const args = fc.args ?? [];
+    )
+    if (!sigs) return null
+    const args = fc.args ?? []
 
-    const answers: ({ kind: "type"; parts: string[] } | { kind: "scalar" })[] = [];
+    const answers: ({ kind: 'type'; parts: string[] } | { kind: 'scalar' })[] = []
     for (const sig of sigs) {
-      if (sig.args.length !== args.length) continue;
-      const answer = this.elementTypeFromSignature(sig.args, args, scope, depth);
-      if (answer) answers.push(answer);
+      if (sig.args.length !== args.length) continue
+      const answer = this.elementTypeFromSignature(sig.args, args, scope, depth)
+      if (answer) answers.push(answer)
     }
-    if (answers.length === 0) return null;
-    const first = answers[0]!;
-    const agree = answers.every(a =>
-      a.kind === "scalar" || first.kind === "scalar"
+    if (answers.length === 0) return null
+    const first = answers[0]!
+    const agree = answers.every((a) =>
+      a.kind === 'scalar' || first.kind === 'scalar'
         ? a.kind === first.kind
         : a.parts.length === first.parts.length && a.parts.every((p, i) => p === first.parts[i]),
-    );
-    if (!agree) return null;
-    return first.kind === "scalar"
-      ? { kind: "scalar" }
-      : { kind: "type", parts: first.parts, provablyComposite: false };
+    )
+    if (!agree) return null
+    return first.kind === 'scalar'
+      ? { kind: 'scalar' }
+      : { kind: 'type', parts: first.parts, provablyComposite: false }
   }
 
   /**
@@ -7056,19 +7069,14 @@ class NullabilityEngine {
     args: Node[],
     scope: Scope | null,
     depth: number,
-  ): { kind: "type"; parts: string[] } | { kind: "scalar" } | null {
-    const ARRAY_POLY = new Set(["anyarray", "anycompatiblearray"]);
-    const ELEMENT_POLY = new Set([
-      "anyelement",
-      "anynonarray",
-      "anycompatible",
-      "anyenum",
-    ]);
+  ): { kind: 'type'; parts: string[] } | { kind: 'scalar' } | null {
+    const ARRAY_POLY = new Set(['anyarray', 'anycompatiblearray'])
+    const ELEMENT_POLY = new Set(['anyelement', 'anynonarray', 'anycompatible', 'anyenum'])
 
     for (let i = 0; i < declared.length; i++) {
-      if (!ARRAY_POLY.has(declared[i]!)) continue;
-      const element = this.unnestElementType(args[i]!, scope, depth);
-      if (element.kind === "type") return { kind: "type", parts: element.parts };
+      if (!ARRAY_POLY.has(declared[i]!)) continue
+      const element = this.unnestElementType(args[i]!, scope, depth)
+      if (element.kind === 'type') return { kind: 'type', parts: element.parts }
       // A scalar array in, a scalar array out: `array_remove(ARRAY[1, 2],
       // NULL)` contributes one column, and the polymorphic name is no reason
       // to refuse what the argument already answered. But `scalar` is also
@@ -7077,21 +7085,21 @@ class NullabilityEngine {
       // `array_agg` declares `(anyarray)` beside `(anynonarray)`, and a
       // composite argument fits only the second. So the scalar answer counts
       // only where the argument is provably an array.
-      return element.kind === "scalar" && this.isProvablyArrayExpr(args[i]!, scope)
-        ? { kind: "scalar" }
-        : null;
+      return element.kind === 'scalar' && this.isProvablyArrayExpr(args[i]!, scope)
+        ? { kind: 'scalar' }
+        : null
     }
     for (let i = 0; i < declared.length; i++) {
-      if (!ELEMENT_POLY.has(declared[i]!)) continue;
-      const rendered = this.renderedTypeOfExpr(args[i]!, scope);
-      if (!rendered) return null;
+      if (!ELEMENT_POLY.has(declared[i]!)) continue
+      const rendered = this.renderedTypeOfExpr(args[i]!, scope)
+      if (!rendered) return null
       // The result is this type with a dimension added and `unnest` takes it
       // straight back off, so an argument that is itself an array answers
       // with its own element type — `unnest` flattens every dimension.
-      const { schema, name } = splitQualifiedName(rendered.replace(/(\[\])+$/, "").trim());
-      return { kind: "type", parts: schema ? [schema, name] : [name] };
+      const { schema, name } = splitQualifiedName(rendered.replace(/(\[\])+$/, '').trim())
+      return { kind: 'type', parts: schema ? [schema, name] : [name] }
     }
-    return null;
+    return null
   }
 
   /**
@@ -7109,32 +7117,31 @@ class NullabilityEngine {
     scope: Scope | null,
     depth: number,
   ): ReturnType<typeof this.unnestElementType> {
-    if (!scope) return { kind: "unknown" };
-    const parts = ((ref as Record<string, unknown>)["ColumnRef"] as ColumnRef).fields ?? [];
-    const names = parts.map(f => this.stringVal(f));
-    const colName = names[names.length - 1];
-    if (!colName) return { kind: "unknown" };
-    let owner: RelationEntry | undefined;
+    if (!scope) return { kind: 'unknown' }
+    const parts = ((ref as Record<string, unknown>)['ColumnRef'] as ColumnRef).fields ?? []
+    const names = parts.map((f) => this.stringVal(f))
+    const colName = names[names.length - 1]
+    if (!colName) return { kind: 'unknown' }
+    let owner: RelationEntry | undefined
     if (names.length >= 2) {
-      owner = this.resolveAlias(names[names.length - 2]!, scope) ?? undefined;
+      owner = this.resolveAlias(names[names.length - 2]!, scope) ?? undefined
     } else {
-      owner = scope.visible.find(v => v.name === colName && v.entry)?.entry ?? undefined;
+      owner = scope.visible.find((v) => v.name === colName && v.entry)?.entry ?? undefined
     }
-    if (!owner || (owner.kind !== "cte" && owner.kind !== "subquery")) return { kind: "unknown" };
-    const select = (owner.ast as Record<string, unknown> | undefined)?.["SelectStmt"] as
-      | SelectStmt
-      | undefined;
-    if (!select || (select.op && select.op !== "SETOP_NONE")) return { kind: "unknown" };
+    if (!owner || (owner.kind !== 'cte' && owner.kind !== 'subquery')) return { kind: 'unknown' }
+    const select = (owner.ast as Record<string, unknown> | undefined)?.['SelectStmt'] as
+      SelectStmt | undefined
+    if (!select || (select.op && select.op !== 'SETOP_NONE')) return { kind: 'unknown' }
 
-    const targets = select.targetList ?? [];
-    const aliases = owner.cteColumns?.length ? owner.cteColumns : null;
+    const targets = select.targetList ?? []
+    const aliases = owner.cteColumns?.length ? owner.cteColumns : null
     for (let i = 0; i < targets.length; i++) {
-      const rt = this.unwrapResTarget(targets[i]!);
-      if (!rt.val || this.isStarColumn(rt.val)) return { kind: "unknown" };
-      const exported = aliases ? aliases[i] : (rt.name ?? this.inferName(rt.val));
-      if (exported === colName) return this.elementTypeInSelect(rt.val, select, scope, depth);
+      const rt = this.unwrapResTarget(targets[i]!)
+      if (!rt.val || this.isStarColumn(rt.val)) return { kind: 'unknown' }
+      const exported = aliases ? aliases[i] : (rt.name ?? this.inferName(rt.val))
+      if (exported === colName) return this.elementTypeInSelect(rt.val, select, scope, depth)
     }
-    return { kind: "unknown" };
+    return { kind: 'unknown' }
   }
 
   /**
@@ -7153,15 +7160,15 @@ class NullabilityEngine {
     outerScope: Scope | null,
     depth: number,
   ): ReturnType<typeof this.unnestElementType> {
-    this.checkDepth(depth);
-    let innerScope: Scope;
+    this.checkDepth(depth)
+    let innerScope: Scope
     try {
-      innerScope = this.buildScope(select, outerScope, depth + 1);
+      innerScope = this.buildScope(select, outerScope, depth + 1)
     } catch (e) {
-      if (e instanceof UnsupportedNodeError) return { kind: "unknown" };
-      throw e;
+      if (e instanceof UnsupportedNodeError) return { kind: 'unknown' }
+      throw e
     }
-    return this.unnestElementType(expr, innerScope, depth + 1);
+    return this.unnestElementType(expr, innerScope, depth + 1)
   }
 
   /**
@@ -7194,69 +7201,66 @@ class NullabilityEngine {
    *  record into every return keeps the readings and what the audit sees
    *  the same thing by construction. */
   private operandTypeSet(expr: Node, scope: Scope | null, depth: number): string[] | null {
-    const set = this.operandTypeSetOf(expr, scope, depth);
-    if (this.typeSetAuditSink) this.typeSetAuditSink.push({ expr, set });
-    return set;
+    const set = this.operandTypeSetOf(expr, scope, depth)
+    if (this.typeSetAuditSink) this.typeSetAuditSink.push({ expr, set })
+    return set
   }
 
   private operandTypeSetOf(expr: Node, scope: Scope | null, depth: number): string[] | null {
-    this.checkDepth(depth);
+    this.checkDepth(depth)
     // Delegation first: `type-delegation.ts` only ever holds an entry for a
     // node the SYMBOLIC reading left unpinned, and it obtained that entry by
     // asking PostgreSQL about the expression with this walk's own readings
     // substituted in. Consulting ahead of the reading rather than after it is
     // what makes the answer exact instead of a union to intersect with.
-    const delegated = this.delegatedTypes?.get(expr);
-    if (delegated !== undefined) return [delegated];
-    const rec = expr as Record<string, unknown>;
-    const ac = rec["A_Const"] as
-      | { ival?: unknown; boolval?: unknown; fval?: { fval?: string } }
-      | undefined;
+    const delegated = this.delegatedTypes?.get(expr)
+    if (delegated !== undefined) return [delegated]
+    const rec = expr as Record<string, unknown>
+    const ac = rec['A_Const'] as
+      { ival?: unknown; boolval?: unknown; fval?: { fval?: string } } | undefined
     if (ac) {
-      if ("ival" in ac) return ["integer"];
-      if ("boolval" in ac) return ["boolean"];
-      if ("fval" in ac) {
-        const digits = ac.fval?.fval ?? "";
+      if ('ival' in ac) return ['integer']
+      if ('boolval' in ac) return ['boolean']
+      if ('fval' in ac) {
+        const digits = ac.fval?.fval ?? ''
         return /^[0-9]+$/.test(digits) &&
-          (digits.length < 19 || (digits.length === 19 && digits <= "9223372036854775807"))
-          ? ["bigint"]
-          : ["numeric"];
+          (digits.length < 19 || (digits.length === 19 && digits <= '9223372036854775807'))
+          ? ['bigint']
+          : ['numeric']
       }
-      return null;
+      return null
     }
-    const pr = rec["ParamRef"] as { number?: number } | undefined;
+    const pr = rec['ParamRef'] as { number?: number } | undefined
     if (pr) {
-      if (pr.number === undefined) return null;
+      if (pr.number === undefined) return null
       // Inside a LANGUAGE sql body `$n` is the FUNCTION's parameter. Reading
       // `paramTypes` there would type it from an unrelated statement binding
       // that happens to share the position, so the body context shadows it
       // outright rather than falling back to it.
-      const t = this.fnCtx
-        ? this.fnCtx.argTypes[pr.number - 1]
-        : this.paramTypes?.[pr.number - 1];
-      return t !== undefined ? [t] : null;
+      const t = this.fnCtx ? this.fnCtx.argTypes[pr.number - 1] : this.paramTypes?.[pr.number - 1]
+      return t !== undefined ? [t] : null
     }
-    const ae = rec["A_Expr"] as AExpr | undefined;
-    if (ae && (ae.kind === undefined || ae.kind === "AEXPR_OP") && ae.lexpr && ae.rexpr) {
-      const opNames = (ae.name ?? []).map(n => this.stringVal(n));
-      const op = opNames[opNames.length - 1] ?? "";
-      const opSchema = opNames.length > 1 ? opNames[opNames.length - 2] : undefined;
+    const ae = rec['A_Expr'] as AExpr | undefined
+    if (ae && (ae.kind === undefined || ae.kind === 'AEXPR_OP') && ae.lexpr && ae.rexpr) {
+      const opNames = (ae.name ?? []).map((n) => this.stringVal(n))
+      const op = opNames[opNames.length - 1] ?? ''
+      const opSchema = opNames.length > 1 ? opNames[opNames.length - 2] : undefined
       const narrowed = this.catalog.resolveOperatorTotality(
         opSchema,
         op,
         this.operandTypeSet(ae.lexpr, scope, depth + 1),
         this.operandTypeSet(ae.rexpr, scope, depth + 1),
-      );
-      return narrowed.kind === "unknown" ? null : narrowed.returns;
+      )
+      return narrowed.kind === 'unknown' ? null : narrowed.returns
     }
-    if (ae && (ae.kind === undefined || ae.kind === "AEXPR_OP") && !ae.lexpr && ae.rexpr) {
-      const opNames = (ae.name ?? []).map(n => this.stringVal(n));
+    if (ae && (ae.kind === undefined || ae.kind === 'AEXPR_OP') && !ae.lexpr && ae.rexpr) {
+      const opNames = (ae.name ?? []).map((n) => this.stringVal(n))
       const narrowed = this.catalog.resolveUnaryOperatorTotality(
         opNames.length > 1 ? opNames[opNames.length - 2] : undefined,
-        opNames[opNames.length - 1] ?? "",
+        opNames[opNames.length - 1] ?? '',
         this.operandTypeSet(ae.rexpr, scope, depth + 1),
-      );
-      return narrowed.kind === "unknown" ? null : narrowed.returns;
+      )
+      return narrowed.kind === 'unknown' ? null : narrowed.returns
     }
     // MEMBER-LIST nodes — a CASE's branches, COALESCE/GREATEST/LEAST's
     // arguments, an array's elements. PostgreSQL unifies them to ONE common
@@ -7274,50 +7278,47 @@ class NullabilityEngine {
     // DateStyle-dependent its output is.
     const memberLists: (Node[] | undefined)[] = [
       (() => {
-        const ce = rec["CaseExpr"] as
-          | { args?: { CaseWhen?: { result?: Node } }[]; defresult?: Node }
-          | undefined;
-        if (!ce) return undefined;
+        const ce = rec['CaseExpr'] as
+          { args?: { CaseWhen?: { result?: Node } }[]; defresult?: Node } | undefined
+        if (!ce) return undefined
         const branches = (ce.args ?? [])
-          .map(a => a.CaseWhen?.result)
-          .filter((n): n is Node => n !== undefined);
-        return ce.defresult ? [...branches, ce.defresult] : branches;
+          .map((a) => a.CaseWhen?.result)
+          .filter((n): n is Node => n !== undefined)
+        return ce.defresult ? [...branches, ce.defresult] : branches
       })(),
-      (rec["CoalesceExpr"] as { args?: Node[] } | undefined)?.args,
-      (rec["MinMaxExpr"] as { args?: Node[] } | undefined)?.args,
-    ];
+      (rec['CoalesceExpr'] as { args?: Node[] } | undefined)?.args,
+      (rec['MinMaxExpr'] as { args?: Node[] } | undefined)?.args,
+    ]
     for (const members of memberLists) {
-      if (members === undefined) continue;
-      const known = this.unifiableMemberTypes(members, scope, depth);
+      if (members === undefined) continue
+      const known = this.unifiableMemberTypes(members, scope, depth)
       // ALL members unknown means the type comes from OUTSIDE this node —
       // `m.d = COALESCE('a','b')` makes it a date — and a node typed from
       // outside cannot be typed from inside. `text` would be a guess, and
       // guessing here eliminates the overload PostgreSQL actually picks.
-      if (known === null || known.length === 0) return null;
-      return [...new Set(known.flat())].sort();
+      if (known === null || known.length === 0) return null
+      return [...new Set(known.flat())].sort()
     }
 
     // An array literal carries its ELEMENT union, one dimension up. Arrays
     // do NOT nest in PostgreSQL: `ARRAY[text[], text[]]` is `text[]`, so an
     // element that is already an array contributes itself (measured).
-    const arr = rec["A_ArrayExpr"] as { elements?: Node[] } | undefined;
+    const arr = rec['A_ArrayExpr'] as { elements?: Node[] } | undefined
     if (arr) {
-      const known = this.unifiableMemberTypes(arr.elements ?? [], scope, depth);
-      if (known === null || known.length === 0) return null;
-      return [
-        ...new Set(known.flat().map(t => (t.endsWith("[]") ? t : `${t}[]`))),
-      ].sort();
+      const known = this.unifiableMemberTypes(arr.elements ?? [], scope, depth)
+      if (known === null || known.length === 0) return null
+      return [...new Set(known.flat().map((t) => (t.endsWith('[]') ? t : `${t}[]`)))].sort()
     }
 
     // A ROW is an anonymous composite whatever its members are, so it types
     // without unifying anything.
-    if ("RowExpr" in rec) return ["record"];
+    if ('RowExpr' in rec) return ['record']
 
     // A function result carries its union too — the resolved user
     // function's declared scalar return, or the builtin survivors' union.
     // Aggregate, window, set-returning, variadic-array and named-notation
     // shapes stay untyped; their semantics live in their own dispatches.
-    const fcn = rec["FuncCall"] as FuncCall | undefined;
+    const fcn = rec['FuncCall'] as FuncCall | undefined
     if (
       fcn &&
       !fcn.over &&
@@ -7326,30 +7327,30 @@ class NullabilityEngine {
       !fcn.agg_distinct &&
       !fcn.agg_filter &&
       !fcn.func_variadic &&
-      !(fcn.args ?? []).some(a => "NamedArgExpr" in (a as Record<string, unknown>))
+      !(fcn.args ?? []).some((a) => 'NamedArgExpr' in (a as Record<string, unknown>))
     ) {
-      const fname = this.funcName(fcn);
-      const fschema = this.funcSchema(fcn);
-      const argSets = (fcn.args ?? []).map(a => this.operandTypeSet(a, scope, depth + 1));
+      const fname = this.funcName(fcn)
+      const fschema = this.funcSchema(fcn)
+      const argSets = (fcn.args ?? []).map((a) => this.operandTypeSet(a, scope, depth + 1))
       const meta =
         this.catalog.resolveFunctionMetadata(fschema, fname) ??
-        this.catalog.resolveUserFunctionTyped(fschema, fname, argSets);
+        this.catalog.resolveUserFunctionTyped(fschema, fname, argSets)
       if (meta) {
-        return !meta.isAggregate && !meta.returnsSet && meta.returnType !== ""
+        return !meta.isAggregate && !meta.returnsSet && meta.returnType !== ''
           ? [meta.returnType]
-          : null;
+          : null
       }
-      const resolved = this.catalog.resolveBuiltinScalarTotality(fschema, fname, argSets);
-      return resolved.kind === "unknown" ? null : resolved.returns;
+      const resolved = this.catalog.resolveBuiltinScalarTotality(fschema, fname, argSets)
+      return resolved.kind === 'unknown' ? null : resolved.returns
     }
-    const rendered = this.renderedTypeOfExpr(expr, scope);
-    if (rendered !== null) return [rendered];
+    const rendered = this.renderedTypeOfExpr(expr, scope)
+    if (rendered !== null) return [rendered]
     // A CTE/subquery column the base-column reading has no word for — a
     // set-op branch or a computed target entry. Second, not first: a
     // pass-through answers from the catalog without building a scope.
-    const reExported = this.reExportedTypeSet(expr, scope, depth + 1);
-    if (reExported !== null) return reExported;
-    return this.bodyParameterTypeByName(expr, scope);
+    const reExported = this.reExportedTypeSet(expr, scope, depth + 1)
+    if (reExported !== null) return reExported
+    return this.bodyParameterTypeByName(expr, scope)
   }
 
   /**
@@ -7374,20 +7375,20 @@ class NullabilityEngine {
    * it is not this site's job to add a second way to be wrong about it.
    */
   private bodyParameterTypeByName(expr: Node, scope: Scope | null): string[] | null {
-    if (!this.fnCtx) return null;
-    const cr = (expr as Record<string, unknown>)["ColumnRef"] as ColumnRef | undefined;
-    if (!cr) return null;
-    const parts = (cr.fields ?? []).map(f => this.stringVal(f));
-    if (parts.length !== 1) return null;
-    const name = parts[0]!;
+    if (!this.fnCtx) return null
+    const cr = (expr as Record<string, unknown>)['ColumnRef'] as ColumnRef | undefined
+    if (!cr) return null
+    const parts = (cr.fields ?? []).map((f) => this.stringVal(f))
+    if (parts.length !== 1) return null
+    const name = parts[0]!
     // Belt to the ordering's braces: a scope entry that IS visible under this
     // name but whose type the reading could not follow (a subquery re-export
     // it refuses, say) also arrives here, and typing THAT from the parameter
     // would be the shadowing mistake by another route.
-    if (scope?.visible.some(v => v.name === name)) return null;
-    const i = this.fnCtx.argNames.indexOf(name);
-    const t = i >= 0 ? this.fnCtx.argTypes[i] : undefined;
-    return t !== undefined ? [t] : null;
+    if (scope?.visible.some((v) => v.name === name)) return null
+    const i = this.fnCtx.argNames.indexOf(name)
+    const t = i >= 0 ? this.fnCtx.argTypes[i] : undefined
+    return t !== undefined ? [t] : null
   }
 
   /**
@@ -7419,16 +7420,16 @@ class NullabilityEngine {
     scope: Scope | null,
     depth: number,
   ): string[][] | null {
-    const known: string[][] = [];
+    const known: string[][] = []
     for (const mem of members) {
-      const set = this.operandTypeSet(mem, scope, depth + 1);
+      const set = this.operandTypeSet(mem, scope, depth + 1)
       if (set !== null) {
-        known.push(set);
-        continue;
+        known.push(set)
+        continue
       }
-      if (!this.isContextTypedNode(mem)) return null;
+      if (!this.isContextTypedNode(mem)) return null
     }
-    return known;
+    return known
   }
 
   /**
@@ -7439,19 +7440,17 @@ class NullabilityEngine {
    * predicate that tells those apart.
    */
   private isContextTypedNode(expr: Node): boolean {
-    const rec = expr as Record<string, unknown>;
-    const ac = rec["A_Const"] as
-      | { ival?: unknown; boolval?: unknown; fval?: unknown }
-      | undefined;
-    if (ac) return !("ival" in ac) && !("boolval" in ac) && !("fval" in ac);
-    const pr = rec["ParamRef"] as { number?: number } | undefined;
+    const rec = expr as Record<string, unknown>
+    const ac = rec['A_Const'] as { ival?: unknown; boolval?: unknown; fval?: unknown } | undefined
+    if (ac) return !('ival' in ac) && !('boolval' in ac) && !('fval' in ac)
+    const pr = rec['ParamRef'] as { number?: number } | undefined
     if (pr) {
-      const n = pr.number;
-      if (n === undefined) return true;
-      const t = this.fnCtx ? this.fnCtx.argTypes[n - 1] : this.paramTypes?.[n - 1];
-      return t === undefined;
+      const n = pr.number
+      if (n === undefined) return true
+      const t = this.fnCtx ? this.fnCtx.argTypes[n - 1] : this.paramTypes?.[n - 1]
+      return t === undefined
     }
-    return false;
+    return false
   }
 
   /**
@@ -7467,41 +7466,40 @@ class NullabilityEngine {
     expr: Node,
     scope: Scope | null,
   ): { owner: RelationEntry; colName: string } | null {
-    const rec = expr as Record<string, unknown>;
-    if (!("ColumnRef" in rec) || !scope) return null;
-    const parts = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
-    let owner: RelationEntry | undefined;
-    let colName: string | undefined;
+    const rec = expr as Record<string, unknown>
+    if (!('ColumnRef' in rec) || !scope) return null
+    const parts = ((rec['ColumnRef'] as ColumnRef).fields ?? []).map((f) => this.stringVal(f))
+    let owner: RelationEntry | undefined
+    let colName: string | undefined
     if (parts.length >= 2) {
-      owner = this.resolveAlias(parts[parts.length - 2]!, scope) ?? undefined;
-      colName = parts[parts.length - 1];
+      owner = this.resolveAlias(parts[parts.length - 2]!, scope) ?? undefined
+      colName = parts[parts.length - 1]
     } else if (parts.length === 1) {
-      colName = parts[0];
+      colName = parts[0]
       for (const v of scope.visible) {
         if (v.name === colName && v.entry) {
-          owner = v.entry;
-          break;
+          owner = v.entry
+          break
         }
       }
     }
-    return owner && colName ? { owner, colName } : null;
+    return owner && colName ? { owner, colName } : null
   }
 
   private renderedTypeOfExpr(expr: Node, scope: Scope | null): string | null {
-    const rec = expr as Record<string, unknown>;
-    const tc = rec["TypeCast"] as
-      | { typeName?: { names?: Node[]; arrayBounds?: unknown[] } }
-      | undefined;
+    const rec = expr as Record<string, unknown>
+    const tc = rec['TypeCast'] as
+      { typeName?: { names?: Node[]; arrayBounds?: unknown[] } } | undefined
     if (tc) {
       const parts = (tc.typeName?.names ?? [])
-        .map(n => this.stringVal(n))
-        .filter(p => !!p && p !== "pg_catalog");
-      if (!parts.length) return null;
-      return parts.join(".") + (tc.typeName?.arrayBounds?.length ? "[]" : "");
+        .map((n) => this.stringVal(n))
+        .filter((p) => !!p && p !== 'pg_catalog')
+      if (!parts.length) return null
+      return parts.join('.') + (tc.typeName?.arrayBounds?.length ? '[]' : '')
     }
-    const resolved = this.columnRefOwner(expr, scope);
-    if (!resolved || !scope) return null;
-    const { owner, colName } = resolved;
+    const resolved = this.columnRefOwner(expr, scope)
+    if (!resolved || !scope) return null
+    const { owner, colName } = resolved
     // A CTE or subquery entry has no catalog columns of its own; follow its
     // target list to the base column it re-exports. That is the shape any
     // query staging a value through a WITH takes, and it was one of
@@ -7516,16 +7514,16 @@ class NullabilityEngine {
     // rename HID is the other half of the same fix — PostgreSQL rejects
     // `s.qty` once `s(k0, k1)` renamed it, so answering from the catalog
     // would be a claim about a column the query cannot reference.
-    let source: { table: ResolvedTable; column: string } | null;
+    let source: { table: ResolvedTable; column: string } | null
     if (owner.table) {
-      const catalogCol = this.entryCatalogColumn(owner, colName);
-      source = catalogCol === undefined ? null : { table: owner.table, column: catalogCol };
+      const catalogCol = this.entryCatalogColumn(owner, colName)
+      source = catalogCol === undefined ? null : { table: owner.table, column: catalogCol }
     } else {
-      source = this.reExportedBaseColumn(owner, colName, scope);
+      source = this.reExportedBaseColumn(owner, colName, scope)
     }
     return source
       ? this.catalog.resolveColumnTypeName(source.table.schema, source.table.name, source.column)
-      : null;
+      : null
   }
 
   /**
@@ -7559,49 +7557,48 @@ class NullabilityEngine {
    * conservative path.
    */
   private reExportedTypeSet(expr: Node, scope: Scope | null, depth: number): string[] | null {
-    const resolved = scope ? this.columnRefOwner(expr, scope) : null;
-    if (!resolved || !scope) return null;
-    const { owner, colName } = resolved;
-    if (owner.table || (owner.kind !== "cte" && owner.kind !== "subquery")) return null;
-    const select = (owner.ast as Record<string, unknown> | undefined)?.["SelectStmt"] as
-      | SelectStmt
-      | undefined;
-    if (!select) return null;
+    const resolved = scope ? this.columnRefOwner(expr, scope) : null
+    if (!resolved || !scope) return null
+    const { owner, colName } = resolved
+    if (owner.table || (owner.kind !== 'cte' && owner.kind !== 'subquery')) return null
+    const select = (owner.ast as Record<string, unknown> | undefined)?.['SelectStmt'] as
+      SelectStmt | undefined
+    if (!select) return null
 
     // The exported NAMES are the entry's own column list where one renames,
     // and otherwise the LEFTMOST branch's target list — which is where
     // PostgreSQL takes a set operation's column names from.
-    const names = owner.cteColumns?.length ? owner.cteColumns : null;
-    let index = -1;
+    const names = owner.cteColumns?.length ? owner.cteColumns : null
+    let index = -1
     if (names) {
-      index = names.indexOf(colName);
+      index = names.indexOf(colName)
     } else {
-      const leftmost = this.leftmostBranch(select);
+      const leftmost = this.leftmostBranch(select)
       for (let i = 0; i < (leftmost?.targetList ?? []).length; i++) {
         const rt = (leftmost!.targetList![i] as { ResTarget?: { name?: string; val?: Node } })
-          .ResTarget;
+          .ResTarget
         // A star entry shifts every later position, so nothing after it can
         // be addressed by index.
-        if (!rt?.val || this.isStarColumn(rt.val)) return null;
+        if (!rt?.val || this.isStarColumn(rt.val)) return null
         if ((rt.name ?? this.inferName(rt.val)) === colName) {
-          index = i;
-          break;
+          index = i
+          break
         }
       }
     }
-    if (index < 0) return null;
-    return this.selectColumnTypeSet(select, index, scope, depth);
+    if (index < 0) return null
+    return this.selectColumnTypeSet(select, index, scope, depth)
   }
 
   /** The leftmost SELECT of a set-operation tree — the branch whose target
    *  list names the result columns. */
   private leftmostBranch(select: SelectStmt): SelectStmt | null {
-    let node: SelectStmt | undefined = select;
+    let node: SelectStmt | undefined = select
     for (let hop = 0; node && hop < MAX_SETOP_DEPTH; hop++) {
-      if (!node.op || node.op === "SETOP_NONE") return node;
-      node = node.larg as SelectStmt | undefined;
+      if (!node.op || node.op === 'SETOP_NONE') return node
+      node = node.larg as SelectStmt | undefined
     }
-    return null;
+    return null
   }
 
   /**
@@ -7621,50 +7618,50 @@ class NullabilityEngine {
     outerScope: Scope,
     depth: number,
   ): string[] | null {
-    this.checkDepth(depth);
-    if (this.reExportsInProgress.has(select)) return null;
-    this.reExportsInProgress.add(select);
+    this.checkDepth(depth)
+    if (this.reExportsInProgress.has(select)) return null
+    this.reExportsInProgress.add(select)
     try {
-      if (select.op && select.op !== "SETOP_NONE") {
-        const branches = [select.larg, select.rarg] as (SelectStmt | undefined)[];
-        const sets: string[][] = [];
+      if (select.op && select.op !== 'SETOP_NONE') {
+        const branches = [select.larg, select.rarg] as (SelectStmt | undefined)[]
+        const sets: string[][] = []
         for (const branch of branches) {
-          if (!branch) return null;
-          const set = this.selectColumnTypeSet(branch, index, outerScope, depth + 1);
+          if (!branch) return null
+          const set = this.selectColumnTypeSet(branch, index, outerScope, depth + 1)
           // A branch nothing could type leaves the UNION unbounded: the
           // members it would have contributed are unknown, so the survivor
           // set they would have kept alive is unknown too. Refuse rather
           // than answer with the branches that did read.
-          if (set === null) return null;
-          sets.push(set);
+          if (set === null) return null
+          sets.push(set)
         }
-        const union = [...new Set(sets.flat())].sort();
-        return union.length > 0 ? union : null;
+        const union = [...new Set(sets.flat())].sort()
+        return union.length > 0 ? union : null
       }
 
       const rt = (select.targetList?.[index] as { ResTarget?: { val?: Node } } | undefined)
-        ?.ResTarget;
-      if (!rt?.val || this.isStarColumn(rt.val)) return null;
+        ?.ResTarget
+      if (!rt?.val || this.isStarColumn(rt.val)) return null
       // The inner statement's own scope: its column references resolve
       // against its FROM, not the caller's. Built with the walk's own
       // builder for the reason `elementTypeInSelect` gives — a derived
       // table may join, alias or stage through a CTE, and a second
       // implementation of that would drift.
-      let innerScope: Scope;
+      let innerScope: Scope
       try {
-        innerScope = this.buildScope(select, outerScope, depth + 1);
+        innerScope = this.buildScope(select, outerScope, depth + 1)
       } catch (e) {
-        if (e instanceof UnsupportedNodeError) return null;
-        throw e;
+        if (e instanceof UnsupportedNodeError) return null
+        throw e
       }
-      const set = this.operandTypeSet(rt.val, innerScope, depth + 1);
+      const set = this.operandTypeSet(rt.val, innerScope, depth + 1)
       // A column whose reading is an UNRESOLVED polymorphic spelling is not
       // typed, it is named. `SELECT unnest(m.arr) AS v` reads `anyelement`
       // from the declared return, and answering that would put a non-type in
       // a set whose whole contract is to contain the real one.
-      return set === null || set.some(t => UNRESOLVED_POLYMORPHIC.has(t)) ? null : set;
+      return set === null || set.some((t) => UNRESOLVED_POLYMORPHIC.has(t)) ? null : set
     } finally {
-      this.reExportsInProgress.delete(select);
+      this.reExportsInProgress.delete(select)
     }
   }
 
@@ -7683,68 +7680,67 @@ class NullabilityEngine {
     scope: Scope,
     seen: ReadonlySet<string> = new Set(),
   ): { table: ResolvedTable; column: string } | null {
-    if (entry.kind !== "cte" && entry.kind !== "subquery") return null;
-    const select = (entry.ast as Record<string, unknown> | undefined)?.["SelectStmt"] as
-      | { targetList?: Node[]; fromClause?: Node[]; op?: string }
-      | undefined;
-    if (!select?.targetList || (select.op && select.op !== "SETOP_NONE")) return null;
+    if (entry.kind !== 'cte' && entry.kind !== 'subquery') return null
+    const select = (entry.ast as Record<string, unknown> | undefined)?.['SelectStmt'] as
+      { targetList?: Node[]; fromClause?: Node[]; op?: string } | undefined
+    if (!select?.targetList || (select.op && select.op !== 'SETOP_NONE')) return null
 
     // Which target entry carries the name, by the entry's own column list so
     // an alias column list renames correctly.
-    const names = entry.cteColumns?.length ? entry.cteColumns : null;
-    let index = -1;
+    const names = entry.cteColumns?.length ? entry.cteColumns : null
+    let index = -1
     for (let i = 0; i < select.targetList.length; i++) {
-      const rt = (select.targetList[i] as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
-      if (!rt?.val) return null; // a star entry shifts every later position
-      if (this.isStarColumn(rt.val)) return null;
-      const exported = names ? names[i] : (rt.name ?? this.inferName(rt.val));
+      const rt = (select.targetList[i] as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+      if (!rt?.val) return null // a star entry shifts every later position
+      if (this.isStarColumn(rt.val)) return null
+      const exported = names ? names[i] : (rt.name ?? this.inferName(rt.val))
       if (exported === colName) {
-        index = i;
-        break;
+        index = i
+        break
       }
     }
-    if (index < 0) return null;
-    const val = (select.targetList[index] as { ResTarget?: { val?: Node } }).ResTarget!.val!;
-    const cr = (val as Record<string, unknown>)["ColumnRef"] as ColumnRef | undefined;
-    if (!cr) return null;
-    const refParts = (cr.fields ?? []).map(f => this.stringVal(f));
-    const innerName = refParts[refParts.length - 1];
-    const innerQualifier = refParts.length >= 2 ? refParts[refParts.length - 2] : undefined;
-    if (!innerName) return null;
+    if (index < 0) return null
+    const val = (select.targetList[index] as { ResTarget?: { val?: Node } }).ResTarget!.val!
+    const cr = (val as Record<string, unknown>)['ColumnRef'] as ColumnRef | undefined
+    if (!cr) return null
+    const refParts = (cr.fields ?? []).map((f) => this.stringVal(f))
+    const innerName = refParts[refParts.length - 1]
+    const innerQualifier = refParts.length >= 2 ? refParts[refParts.length - 2] : undefined
+    if (!innerName) return null
 
     // Relation references anywhere in the inner FROM, joins descended into:
     // a CTE body that joins two tables and re-exports one's array column is
     // the same pass-through as one that selects from a single table.
     const relations: {
-      schemaname?: string;
-      relname?: string;
-      alias?: { aliasname?: string };
-    }[] = [];
+      schemaname?: string
+      relname?: string
+      alias?: { aliasname?: string }
+    }[] = []
     const collectRelations = (item: unknown): void => {
-      const rec = item as Record<string, unknown> | null;
-      if (!rec || typeof rec !== "object") return;
-      const rv = rec["RangeVar"] as (typeof relations)[number] | undefined;
+      const rec = item as Record<string, unknown> | null
+      if (!rec || typeof rec !== 'object') return
+      const rv = rec['RangeVar'] as (typeof relations)[number] | undefined
       if (rv?.relname) {
-        relations.push(rv);
-        return;
+        relations.push(rv)
+        return
       }
-      const je = rec["JoinExpr"] as { larg?: Node; rarg?: Node } | undefined;
+      const je = rec['JoinExpr'] as { larg?: Node; rarg?: Node } | undefined
       if (je) {
-        collectRelations(je.larg);
-        collectRelations(je.rarg);
+        collectRelations(je.larg)
+        collectRelations(je.rarg)
       }
-    };
-    for (const item of select.fromClause ?? []) collectRelations(item);
+    }
+    for (const item of select.fromClause ?? []) collectRelations(item)
 
     for (const rv of relations) {
-      const alias = rv.alias?.aliasname ?? rv.relname!;
-      if (innerQualifier !== undefined && innerQualifier !== alias) continue;
-      const table = this.catalog.resolveTable(rv.schemaname, rv.relname!);
-      if (table?.columns.includes(innerName)) return { table, column: innerName };
+      const alias = rv.alias?.aliasname ?? rv.relname!
+      if (innerQualifier !== undefined && innerQualifier !== alias) continue
+      const table = this.catalog.resolveTable(rv.schemaname, rv.relname!)
+      if (table?.columns.includes(innerName)) return { table, column: innerName }
       // The reference may name ANOTHER CTE rather than a relation — a chain
       // of re-exports is still a re-export. `seen` stops a WITH RECURSIVE
       // self-reference from looping.
-      const cte = rv.schemaname ? undefined : scope.ctes.get(rv.relname!);
+      const cte = rv.schemaname ? undefined : scope.ctes.get(rv.relname!)
       if (cte && !seen.has(rv.relname!)) {
         const inner = this.reExportedBaseColumn(
           {
@@ -7755,16 +7751,16 @@ class NullabilityEngine {
           innerName,
           scope,
           new Set([...seen, rv.relname!]),
-        );
-        if (inner) return inner;
+        )
+        if (inner) return inner
       }
     }
     // An outer-scope reference (a LATERAL body reading its left side) is the
     // one remaining pass-through the inner FROM cannot explain.
-    const outer = this.resolveAlias(innerQualifier ?? "", scope);
+    const outer = this.resolveAlias(innerQualifier ?? '', scope)
     return outer?.table?.columns.includes(innerName)
       ? { table: outer.table, column: innerName }
-      : null;
+      : null
   }
 
   /**
@@ -7778,25 +7774,25 @@ class NullabilityEngine {
     returnType: string,
     fnName: string,
   ): { name: string; notNull: boolean }[] {
-    const type = returnType.replace(/^setof\s+/i, "").trim();
+    const type = returnType.replace(/^setof\s+/i, '').trim()
 
     // RETURNS TABLE(a integer, b text)
-    const tableMatch = /^table\s*\((.*)\)$/is.exec(type);
+    const tableMatch = /^table\s*\((.*)\)$/is.exec(type)
     if (tableMatch) {
-      return splitTopLevel(tableMatch[1]!).flatMap(part => {
-        const def = splitColumnDefinition(part);
-        if (!def) return [];
+      return splitTopLevel(tableMatch[1]!).flatMap((part) => {
+        const def = splitColumnDefinition(part)
+        if (!def) return []
         // A domain's NOT NULL is part of the type, so it IS enforced here.
-        return [{ name: def.name, notNull: this.isNotNullDomainType(def.type) }];
-      });
+        return [{ name: def.name, notNull: this.isNotNullDomainType(def.type) }]
+      })
     }
 
     // RETURNS SETOF <table> / <composite>: the ROW type's columns.
-    const row = this.rowTypeColumns(type);
-    if (row) return row;
+    const row = this.rowTypeColumns(type)
+    if (row) return row
 
     // A scalar return type: one column named after the function.
-    return [{ name: fnName, notNull: this.isNotNullDomainType(type) }];
+    return [{ name: fnName, notNull: this.isNotNullDomainType(type) }]
   }
 
   /**
@@ -7810,29 +7806,29 @@ class NullabilityEngine {
    * An ARRAY of either is not a row type — one column, not N.
    */
   private rowTypeColumns(rendered: string): { name: string; notNull: boolean }[] | null {
-    const type = rendered.trim();
-    if (type.endsWith("[]")) return null;
+    const type = rendered.trim()
+    if (type.endsWith('[]')) return null
     // The snapshot is taken with an empty search_path, so anything outside
     // pg_catalog arrives schema-qualified: `SETOF public.order_items`, not
     // `SETOF order_items`. Resolve against the schema PostgreSQL named rather
     // than re-deriving it from a search path this code cannot see.
-    const { schema: typeSchema, name: typeBase } = splitQualifiedName(type);
+    const { schema: typeSchema, name: typeBase } = splitQualifiedName(type)
 
-    const table = this.catalog.resolveTable(typeSchema, typeBase);
+    const table = this.catalog.resolveTable(typeSchema, typeBase)
     if (table) {
-      return table.columns.map(col => {
-        const oid = this.catalog.resolveColumnTypeOid(table.schema, table.name, col);
-        return { name: col, notNull: oid != null && this.catalog.isNotNullDomain(oid) };
-      });
+      return table.columns.map((col) => {
+        const oid = this.catalog.resolveColumnTypeOid(table.schema, table.name, col)
+        return { name: col, notNull: oid != null && this.catalog.isNotNullDomain(oid) }
+      })
     }
 
-    const composite = this.catalog.resolveCompositeType(typeSchema, typeBase);
+    const composite = this.catalog.resolveCompositeType(typeSchema, typeBase)
     return composite
-      ? composite.fields.map(f => ({
+      ? composite.fields.map((f) => ({
           name: f.name,
           notNull: this.catalog.isNotNullDomain(f.typeOid),
         }))
-      : null;
+      : null
   }
 
   /**
@@ -7868,18 +7864,18 @@ class NullabilityEngine {
     scalarName: string,
   ): { name: string; notNull: boolean }[] {
     const outs = meta.args.filter(
-      a => a.mode === "out" || a.mode === "table" || a.mode === "inout",
-    );
+      (a) => a.mode === 'out' || a.mode === 'table' || a.mode === 'inout',
+    )
     if (outs.length === 0 || (outs.length === 1 && !outs[0]!.name)) {
-      return this.columnsForReturnType(meta.returnType, scalarName);
+      return this.columnsForReturnType(meta.returnType, scalarName)
     }
     if (outs.length === 1) {
-      const only = outs[0]!;
+      const only = outs[0]!
       return (
         this.rowTypeColumns(only.typeName) ?? [
           { name: only.name, notNull: this.catalog.isNotNullDomain(only.typeOid) },
         ]
-      );
+      )
     }
     // Two or more OUT positions are two or more COLUMNS whether or not the
     // author named them — `f(out int, out int)` is PostgreSQL's column1,
@@ -7887,10 +7883,10 @@ class NullabilityEngine {
     // (the pg-regress replay's plpgsql ret_query1 crop: engine 1, PostgreSQL
     // 2). An unnamed position keeps the engine's empty-name convention; the
     // consumer's RowDescription names it, per position, as everywhere else.
-    return outs.map(a => ({
-      name: a.name ?? "",
+    return outs.map((a) => ({
+      name: a.name ?? '',
       notNull: this.catalog.isNotNullDomain(a.typeOid),
-    }));
+    }))
   }
 
   /**
@@ -7909,19 +7905,19 @@ class NullabilityEngine {
     fc: FuncCall,
     scope: Scope | null,
   ): { name: string; notNull: boolean }[] {
-    if (!cols.some(c => c.notNull)) return cols;
-    const candidates = this.catalog.resolveFunctionShapes(this.funcSchema(fc), this.funcName(fc));
-    const shortCircuits = candidates.some(m =>
+    if (!cols.some((c) => c.notNull)) return cols
+    const candidates = this.catalog.resolveFunctionShapes(this.funcSchema(fc), this.funcName(fc))
+    const shortCircuits = candidates.some((m) =>
       this.callCanShortCircuit(m, this.callArgumentResults(m, fc, scope, 0)),
-    );
-    if (!shortCircuits) return cols;
-    return cols.map(c => ({ name: c.name, notNull: false }));
+    )
+    if (!shortCircuits) return cols
+    return cols.map((c) => ({ name: c.name, notNull: false }))
   }
 
   /** Whether a type name as printed by PostgreSQL is a NOT NULL domain. */
   private isNotNullDomainType(typeName: string): boolean {
-    const { schema, name } = splitQualifiedName(typeName.replace(/\[\]$/, "").trim());
-    return this.catalog.isNotNullDomainByName(schema, name);
+    const { schema, name } = splitQualifiedName(typeName.replace(/\[\]$/, '').trim())
+    return this.catalog.isNotNullDomainByName(schema, name)
   }
 
   /**
@@ -7933,15 +7929,15 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): OutputNullability[] {
-    if (!entry.ast) return [];
-    const results = this.analyzeStatement(entry.ast, scope, depth + 1);
-    const all = entry.extraColumns?.length ? [...results, ...entry.extraColumns] : results;
+    if (!entry.ast) return []
+    const results = this.analyzeStatement(entry.ast, scope, depth + 1)
+    const all = entry.extraColumns?.length ? [...results, ...entry.extraColumns] : results
     // An alias column list renames positionally, and PostgreSQL applies it
     // partially: naming fewer columns than exist leaves the rest alone, and
     // only naming more than exist is an error.
-    const names = entry.cteColumns ?? [];
-    if (names.length === 0) return all;
-    return all.map((r, i) => ({ name: names[i] ?? r.name, notNull: r.notNull }));
+    const names = entry.cteColumns ?? []
+    if (names.length === 0) return all
+    return all.map((r, i) => ({ name: names[i] ?? r.name, notNull: r.notNull }))
   }
 
   /**
@@ -7956,32 +7952,32 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): { name: string; notNull: boolean }[] {
-    if (entry.kind === "function") {
-      return this.resolveTableFunctionColumns(entry, scope, depth);
+    if (entry.kind === 'function') {
+      return this.resolveTableFunctionColumns(entry, scope, depth)
     }
-    if (entry.kind === "subquery" || entry.kind === "cte") {
-      return this.innerRelationColumns(entry, scope, depth);
+    if (entry.kind === 'subquery' || entry.kind === 'cte') {
+      return this.innerRelationColumns(entry, scope, depth)
     }
     // A view's catalog columns are all attnotnull=false, so its definition is
     // the only source of truth — the same path a named reference takes.
-    if (entry.kind === "view" && entry.ast && entry.table) {
-      const inner = this.analyzeStatement(entry.ast, scope, depth + 1);
+    if (entry.kind === 'view' && entry.ast && entry.table) {
+      const inner = this.analyzeStatement(entry.ast, scope, depth + 1)
       return this.entryColumnNames(entry).map((col, i) => ({
         name: col,
         notNull: inner[i]?.notNull ?? false,
-      }));
+      }))
     }
     if (entry.table) {
       // The NAME is what the item answers to; the flag is a catalog question,
       // so the two lists are walked together rather than one standing for
       // both.
-      const shown = this.entryColumnNames(entry);
+      const shown = this.entryColumnNames(entry)
       return entry.table.columns.map((col, i) => ({
         name: shown[i] ?? col,
         notNull: this.entryColumnNotNull(entry, col),
-      }));
+      }))
     }
-    return [];
+    return []
   }
 
   /**
@@ -7999,9 +7995,9 @@ class NullabilityEngine {
    * leaves the rest, which is PostgreSQL's rule.
    */
   private entryColumnNames(entry: RelationEntry): string[] {
-    const cols = entry.table?.columns ?? [];
-    const names = entry.columnAliases;
-    return names ? cols.map((c, i) => names[i] ?? c) : cols;
+    const cols = entry.table?.columns ?? []
+    const names = entry.columnAliases
+    return names ? cols.map((c, i) => names[i] ?? c) : cols
   }
 
   /**
@@ -8015,10 +8011,10 @@ class NullabilityEngine {
    * as much of the fix as translating the first.
    */
   private entryCatalogColumn(entry: RelationEntry, used: string): string | undefined {
-    const cols = entry.table?.columns ?? [];
-    if (!entry.columnAliases) return cols.includes(used) ? used : undefined;
-    const i = this.entryColumnNames(entry).indexOf(used);
-    return i >= 0 ? cols[i] : undefined;
+    const cols = entry.table?.columns ?? []
+    if (!entry.columnAliases) return cols.includes(used) ? used : undefined
+    const i = this.entryColumnNames(entry).indexOf(used)
+    return i >= 0 ? cols[i] : undefined
   }
 
   /**
@@ -8061,12 +8057,12 @@ class NullabilityEngine {
    * what it moves.
    */
   private entryNotNullEvidence(entry: RelationEntry, scope: Scope, joinState: JoinState): Node[] {
-    if (joinState === OPTIONAL || !entry.table) return [];
-    const out: Node[] = [];
+    if (joinState === OPTIONAL || !entry.table) return []
+    const out: Node[] = []
     for (const v of scope.visible) {
-      if (v.entry !== entry) continue;
-      const catalogCol = this.entryCatalogColumn(entry, v.name);
-      if (catalogCol === undefined || !this.entryColumnNotNull(entry, catalogCol)) continue;
+      if (v.entry !== entry) continue
+      const catalogCol = this.entryCatalogColumn(entry, v.name)
+      if (catalogCol === undefined || !this.entryColumnNotNull(entry, catalogCol)) continue
       out.push({
         NullTest: {
           arg: {
@@ -8074,18 +8070,18 @@ class NullabilityEngine {
               fields: [{ String: { sval: entry.alias } }, { String: { sval: v.name } }],
             },
           },
-          nulltesttype: "IS_NOT_NULL",
+          nulltesttype: 'IS_NOT_NULL',
         },
-      } as unknown as Node);
+      } as unknown as Node)
     }
-    return out;
+    return out
   }
 
   private entryColumnNotNull(entry: RelationEntry, col: string): boolean {
-    const t = entry.table!;
+    const t = entry.table!
     return entry.scanInh === false
       ? this.catalog.resolveColumnNotNull(t.schema, t.name, col)
-      : this.catalog.resolveColumnNotNullTree(t.schema, t.name, col);
+      : this.catalog.resolveColumnNotNullTree(t.schema, t.name, col)
   }
 
   /**
@@ -8096,10 +8092,10 @@ class NullabilityEngine {
    * dispatch falls back to the (all-false) catalog flag.
    */
   private entryGenerationExpr(entry: RelationEntry, col: string): Node | null {
-    const t = entry.table!;
+    const t = entry.table!
     return entry.scanInh === false
       ? this.catalog.resolveGenerationExpr(t.schema, t.name, col)
-      : this.catalog.resolveGenerationExprTree(t.schema, t.name, col);
+      : this.catalog.resolveGenerationExprTree(t.schema, t.name, col)
   }
 
   /**
@@ -8129,85 +8125,85 @@ class NullabilityEngine {
    * DML scope reaches it only through the wholesale refusal above.
    */
   private guardTruthFromChecks(guard: Node, scope: Scope): boolean | undefined {
-    if (scope.dmlSetColumns) return undefined;
+    if (scope.dmlSetColumns) return undefined
     const core: Node[] = [
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
-    ];
-    const evidence = [...core, ...this.kernelGuardPreds(scope)].map(pred => ({
+    ]
+    const evidence = [...core, ...this.kernelGuardPreds(scope)].map((pred) => ({
       pred,
       applySetMask: false,
-    }));
+    }))
     const shared = {
       evidence,
       isMasked: () => false,
       resolveUnqualified: (col: string) => {
-        let owner: string | null = null;
+        let owner: string | null = null
         for (const v of scope.visible) {
-          if (v.name !== col) continue;
-          if (!v.entry || owner) return null; // merged or ambiguous
-          owner = v.entry.alias;
+          if (v.name !== col) continue
+          if (!v.entry || owner) return null // merged or ambiguous
+          owner = v.entry.alias
         }
-        return owner;
+        return owner
       },
       columnTypeName: (a: string, col: string) => {
-        const e = scope.aliases.get(a);
-        const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+        const e = scope.aliases.get(a)
+        const cat = e ? this.entryCatalogColumn(e, col) : undefined
         return e?.table && cat !== undefined
           ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
-          : null;
+          : null
       },
       comparisonEvaluable: (a: string, col: string, op: string) => {
-        const e = scope.aliases.get(a);
-        const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+        const e = scope.aliases.get(a)
+        const cat = e ? this.entryCatalogColumn(e, col) : undefined
         return e?.table && cat !== undefined
           ? this.comparisonOpEvaluable(e.table.schema, e.table.name, cat, op)
-          : false;
+          : false
       },
       evaluatedComparison: this.comparisonOracle(),
       btreeStrategy: this.btreeStrategySupply(),
       equalityComplement: this.equalityComplementSupply(),
       closedTruth: (expr: Node) => this.closedTruthOf(expr),
       literalDistinctnessSound: (a: string, col: string) => {
-        const e = scope.aliases.get(a);
-        const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+        const e = scope.aliases.get(a)
+        const cat = e ? this.entryCatalogColumn(e, col) : undefined
         return e?.table && cat !== undefined
           ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, cat)
-          : false;
+          : false
       },
-    };
+    }
     // A cost skip, like the `checkExprs.length` one below: with no evidence
     // and no CHECKs the kernel has no fact to derive from and answers
     // `undefined` anyway, so mutating this out changes no claim.
     if (evidence.length > 0) {
       const fromEvidence = checkConstraintsGuardTruth(
-        { ...shared, goal: { alias: "", column: "" }, checkExprs: [] },
+        { ...shared, goal: { alias: '', column: '' }, checkExprs: [] },
         guard,
-      );
-      if (fromEvidence !== undefined) return fromEvidence;
+      )
+      if (fromEvidence !== undefined) return fromEvidence
     }
     for (const [alias, entry] of scope.aliases) {
-      if (!entry.table || entry.joinState === OPTIONAL) continue;
+      if (!entry.table || entry.joinState === OPTIONAL) continue
       const checkExprs =
         entry.scanInh === false
           ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
-          : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name);
+          : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name)
       // Nothing to add to the evidence-only run above, which already asked
       // this guard. A cost skip, not a correctness gate: mutating it out
       // re-derives the same facts per entry and reaches the same answers.
-      if (checkExprs.length === 0) continue;
+      if (checkExprs.length === 0) continue
       const truth = checkConstraintsGuardTruth(
         {
           ...shared,
-          goal: { alias, column: "" },
-          checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, alias, entry)),
+          goal: { alias, column: '' },
+          checkExprs: checkExprs.map((c) => this.qualifyColumnRefs(c, alias, entry)),
         },
         guard,
-      );
-      if (truth !== undefined) return truth;
+      )
+      if (truth !== undefined) return truth
     }
-    return undefined;
+    return undefined
   }
 
   /**
@@ -8219,10 +8215,10 @@ class NullabilityEngine {
    * be NULL.
    */
   private guardTruth(expr: Node | undefined, scope: Scope): boolean | undefined {
-    if (!expr) return undefined;
-    const evaluated = this.evaluatedGuardTruth(expr);
-    if (evaluated !== undefined) return evaluated;
-    return this.guardTruthFromChecks(expr, scope);
+    if (!expr) return undefined
+    const evaluated = this.evaluatedGuardTruth(expr)
+    if (evaluated !== undefined) return evaluated
+    return this.guardTruthFromChecks(expr, scope)
   }
 
   /**
@@ -8233,13 +8229,13 @@ class NullabilityEngine {
    * only map reading besides `isNull`, per the consumption rule.
    */
   private evaluatedGuardTruth(expr: Node | undefined): boolean | undefined {
-    if (!expr) return undefined;
-    const answered = this.evaluation?.get(expr);
-    if (answered === undefined) return undefined;
-    if (answered.isNull) return false;
-    if (answered.value === true) return true;
-    if (answered.value === false) return false;
-    return undefined;
+    if (!expr) return undefined
+    const answered = this.evaluation?.get(expr)
+    if (answered === undefined) return undefined
+    if (answered.isNull) return false
+    if (answered.value === true) return true
+    if (answered.value === false) return false
+    return undefined
   }
 
   // -------------------------------------------------------------------------
@@ -8275,7 +8271,7 @@ class NullabilityEngine {
    * every returned row tests it. No witness has to be constructed.
    */
   private alwaysNullExpr(expr: Node, scope: Scope, depth: number): boolean {
-    if (this.isNullLiteral(expr)) return true;
+    if (this.isNullLiteral(expr)) return true
 
     // The statement map, in the direction the notNull reading does not use.
     // Closure means no row, guard, parameter or session state can move the
@@ -8283,17 +8279,17 @@ class NullabilityEngine {
     // the same argument that lets a non-null answer claim notNull, run the
     // other way. Symmetric, and strictly better verified: a wrong alwaysNull
     // is falsified by any non-NULL value.
-    if (this.evaluation?.get(expr)?.isNull === true) return true;
+    if (this.evaluation?.get(expr)?.isNull === true) return true
 
-    const node = expr as Record<string, unknown>;
+    const node = expr as Record<string, unknown>
 
     // A cast of NULL is NULL for every target type, so the wrapper is
     // transparent here. Needed for real spellings rather than tidiness:
     // `CASE … END::text` presents as a TypeCast, and the shape rules below
     // would never see the CASE at all.
-    if ("TypeCast" in node) {
-      const arg = (node["TypeCast"] as { arg?: Node }).arg;
-      if (arg && this.alwaysNullExpr(arg, scope, depth)) return true;
+    if ('TypeCast' in node) {
+      const arg = (node['TypeCast'] as { arg?: Node }).arg
+      if (arg && this.alwaysNullExpr(arg, scope, depth)) return true
     }
 
     // `NULLIF(c, c)` over the SAME column is NULL whichever way it goes:
@@ -8302,15 +8298,15 @@ class NullabilityEngine {
     // to a bare ColumnRef pair because the argument needs the two operands
     // to hold the same value within the row, which `NULLIF(random(),
     // random())` does not.
-    if ("A_Expr" in node) {
-      const ae = node["A_Expr"] as { kind?: string; lexpr?: Node; rexpr?: Node };
+    if ('A_Expr' in node) {
+      const ae = node['A_Expr'] as { kind?: string; lexpr?: Node; rexpr?: Node }
       if (
-        ae.kind === "AEXPR_NULLIF" &&
+        ae.kind === 'AEXPR_NULLIF' &&
         ae.lexpr &&
         ae.rexpr &&
         this.sameColumnRef(ae.lexpr, ae.rexpr)
       ) {
-        return true;
+        return true
       }
     }
 
@@ -8332,31 +8328,29 @@ class NullabilityEngine {
     // the whole of what the reading site knows. The refuting half landed
     // 2026-08-25; the proving half the same day, one probe after it was
     // filed as unmeasured.
-    if ("CaseExpr" in node) {
-      const ce = node["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node };
+    if ('CaseExpr' in node) {
+      const ce = node['CaseExpr'] as { arg?: Node; args?: Node[]; defresult?: Node }
       // The simple form compares values rather than evaluating predicates,
       // so its WHEN slots are not guards and neither judgment applies — the
       // same split the notNull rule draws. Load-bearing: a bare `false`
       // there is a VALUE, and reading it as a FALSE guard would prune the
       // arm that fires exactly when the column IS false
       // (always-null-simple-case-form.sql).
-      const simpleForm = !!ce.arg;
+      const simpleForm = !!ce.arg
       const arms = (ce.args ?? []).map(
-        a =>
-          (a as Record<string, unknown>)["CaseWhen"] as
-            | { expr?: Node; result?: Node }
-            | undefined,
-      );
-      const truths = arms.map(w => (simpleForm ? undefined : this.guardTruth(w?.expr, scope)));
-      const firstTrue = truths.indexOf(true);
+        (a) =>
+          (a as Record<string, unknown>)['CaseWhen'] as { expr?: Node; result?: Node } | undefined,
+      )
+      const truths = arms.map((w) => (simpleForm ? undefined : this.guardTruth(w?.expr, scope)))
+      const firstTrue = truths.indexOf(true)
       const reachable = (i: number): boolean =>
-        truths[i] !== false && (firstTrue < 0 || i <= firstTrue);
+        truths[i] !== false && (firstTrue < 0 || i <= firstTrue)
       const everyArmNull = arms.every(
         (w, i) => !reachable(i) || (!!w?.result && this.alwaysNullExpr(w.result, scope, depth)),
-      );
+      )
       const elseNull =
-        firstTrue >= 0 || !ce.defresult || this.alwaysNullExpr(ce.defresult, scope, depth);
-      if (arms.length > 0 && everyArmNull && elseNull) return true;
+        firstTrue >= 0 || !ce.defresult || this.alwaysNullExpr(ce.defresult, scope, depth)
+      if (arms.length > 0 && everyArmNull && elseNull) return true
     }
 
     // A scalar subquery that provably returns NO ROWS is NULL. The "no rows"
@@ -8370,14 +8364,14 @@ class NullabilityEngine {
     // false)` is 0, not NULL — so "no rows" does not imply "NULL result"
     // for every target shape, and the column form is the one that cannot
     // manufacture a row.
-    if ("SubLink" in node) {
-      const sl = node["SubLink"] as { subLinkType?: string; subselect?: Node };
-      const sub = (sl.subselect as { SelectStmt?: SelectStmt } | undefined)?.SelectStmt;
-      if (sl.subLinkType === "EXPR_SUBLINK" && sub && !sub.groupClause?.length) {
-        const targets = sub.targetList ?? [];
-        const soleTarget = targets.length === 1 ? this.unwrapResTarget(targets[0]!).val : undefined;
-        const plainColumn = !!soleTarget && "ColumnRef" in (soleTarget as Record<string, unknown>);
-        if (plainColumn && this.predicateNeverTrue(sub.whereClause)) return true;
+    if ('SubLink' in node) {
+      const sl = node['SubLink'] as { subLinkType?: string; subselect?: Node }
+      const sub = (sl.subselect as { SelectStmt?: SelectStmt } | undefined)?.SelectStmt
+      if (sl.subLinkType === 'EXPR_SUBLINK' && sub && !sub.groupClause?.length) {
+        const targets = sub.targetList ?? []
+        const soleTarget = targets.length === 1 ? this.unwrapResTarget(targets[0]!).val : undefined
+        const plainColumn = !!soleTarget && 'ColumnRef' in (soleTarget as Record<string, unknown>)
+        if (plainColumn && this.predicateNeverTrue(sub.whereClause)) return true
       }
     }
 
@@ -8389,29 +8383,29 @@ class NullabilityEngine {
     // The name must be unqualified or pg_catalog's AND unknown to the user
     // catalog — the same guard the builtin dispatch draws at priority 6b. A
     // user aggregate called `max` is somebody else's function.
-    if ("FuncCall" in node) {
-      const fc = node["FuncCall"] as FuncCall & {
-        agg_star?: boolean;
-        agg_within_group?: boolean;
-      };
-      const parts = (fc.funcname ?? []).map(f => this.stringVal(f));
-      const name = parts[parts.length - 1] ?? "";
-      const schema = parts.length > 1 ? parts[parts.length - 2] : undefined;
-      const args = fc.args ?? [];
+    if ('FuncCall' in node) {
+      const fc = node['FuncCall'] as FuncCall & {
+        agg_star?: boolean
+        agg_within_group?: boolean
+      }
+      const parts = (fc.funcname ?? []).map((f) => this.stringVal(f))
+      const name = parts[parts.length - 1] ?? ''
+      const schema = parts.length > 1 ? parts[parts.length - 2] : undefined
+      const args = fc.args ?? []
       const table = fc.over
         ? ALWAYS_NULL_OVER_ALL_NULL_WINDOWS.has(name) ||
           ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES.has(name)
-        : ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES.has(name);
+        : ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES.has(name)
       if (
         table &&
         !fc.agg_star &&
         !fc.agg_within_group &&
-        (schema === undefined || schema === "pg_catalog") &&
+        (schema === undefined || schema === 'pg_catalog') &&
         (this.catalog.resolveFunctionCandidates(schema, name, args.length) ?? []).length === 0 &&
         args.length > 0 &&
         this.alwaysNullExpr(args[0]!, scope, depth)
       ) {
-        return true;
+        return true
       }
     }
 
@@ -8424,9 +8418,9 @@ class NullabilityEngine {
     // notNull rather than riding in on this.
     return this.exprStrictlyForces(
       expr,
-      leaf => this.isNullLiteral(leaf) || this.columnIsAlwaysNull(leaf, scope, depth),
+      (leaf) => this.isNullLiteral(leaf) || this.columnIsAlwaysNull(leaf, scope, depth),
       scope,
-    );
+    )
   }
 
   /**
@@ -8435,20 +8429,20 @@ class NullabilityEngine {
    * than reached across to, so no existing behaviour moves.
    */
   private kernelColumnTypeName(alias: string, col: string, scope: Scope): string | null {
-    const e = scope.aliases.get(alias);
-    const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+    const e = scope.aliases.get(alias)
+    const cat = e ? this.entryCatalogColumn(e, col) : undefined
     return e?.table && cat !== undefined
       ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
-      : null;
+      : null
   }
 
   /** Companion to `kernelColumnTypeName` — the collation-gated relaxation. */
   private kernelLiteralDistinctnessSound(alias: string, col: string, scope: Scope): boolean {
-    const e = scope.aliases.get(alias);
-    const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+    const e = scope.aliases.get(alias)
+    const cat = e ? this.entryCatalogColumn(e, col) : undefined
     return e?.table && cat !== undefined
       ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, cat)
-      : false;
+      : false
   }
 
   /**
@@ -8478,16 +8472,16 @@ class NullabilityEngine {
    * where presence really does imply the match.
    */
   private qualsHoldingWhenPresent(entry: RelationEntry, scope: Scope): Node[] {
-    if (entry.joinState !== OPTIONAL) return [];
-    const out: Node[] = [];
+    if (entry.joinState !== OPTIONAL) return []
+    const out: Node[] = []
     for (const j of scope.joins) {
-      if (!j.quals) continue;
+      if (!j.quals) continue
       const extendsEntry =
-        (j.jointype === "JOIN_LEFT" && j.rightAliases.includes(entry.alias)) ||
-        (j.jointype === "JOIN_RIGHT" && j.leftAliases.includes(entry.alias));
-      if (extendsEntry) out.push(j.quals);
+        (j.jointype === 'JOIN_LEFT' && j.rightAliases.includes(entry.alias)) ||
+        (j.jointype === 'JOIN_RIGHT' && j.leftAliases.includes(entry.alias))
+      if (extendsEntry) out.push(j.quals)
     }
-    return out;
+    return out
   }
 
   /**
@@ -8501,13 +8495,13 @@ class NullabilityEngine {
    * row — so `ON false` and `ON NULL` are the same fact for this question.
    */
   private extendingJoinNeverMatches(entry: RelationEntry, scope: Scope): boolean {
-    if (entry.joinState !== OPTIONAL) return false;
-    return scope.joins.some(j => {
+    if (entry.joinState !== OPTIONAL) return false
+    return scope.joins.some((j) => {
       const extendsEntry =
-        (j.jointype === "JOIN_LEFT" && j.rightAliases.includes(entry.alias)) ||
-        (j.jointype === "JOIN_RIGHT" && j.leftAliases.includes(entry.alias));
-      return extendsEntry && this.predicateNeverTrue(j.quals ?? undefined);
-    });
+        (j.jointype === 'JOIN_LEFT' && j.rightAliases.includes(entry.alias)) ||
+        (j.jointype === 'JOIN_RIGHT' && j.leftAliases.includes(entry.alias))
+      return extendsEntry && this.predicateNeverTrue(j.quals ?? undefined)
+    })
   }
 
   /** The written-NULL map when it describes THIS entry, else undefined. */
@@ -8515,8 +8509,8 @@ class NullabilityEngine {
     entry: RelationEntry,
     scope: Scope,
   ): ReadonlyMap<string, boolean> | undefined {
-    const w = scope.dmlWrittenNullColumns;
-    return w && w.alias === entry.alias ? w.columns : undefined;
+    const w = scope.dmlWrittenNullColumns
+    return w && w.alias === entry.alias ? w.columns : undefined
   }
 
   /**
@@ -8526,14 +8520,14 @@ class NullabilityEngine {
    * `false` for anything else is the right answer for it.
    */
   private sameColumnRef(a: Node, b: Node): boolean {
-    const an = a as Record<string, unknown>;
-    const bn = b as Record<string, unknown>;
-    if (!("ColumnRef" in an) || !("ColumnRef" in bn)) return false;
+    const an = a as Record<string, unknown>
+    const bn = b as Record<string, unknown>
+    if (!('ColumnRef' in an) || !('ColumnRef' in bn)) return false
     const parts = (n: Record<string, unknown>): string[] =>
-      ((n["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f) ?? " ");
-    const ap = parts(an);
-    const bp = parts(bn);
-    return ap.length > 0 && ap.length === bp.length && ap.every((p, i) => p === bp[i]);
+      ((n['ColumnRef'] as ColumnRef).fields ?? []).map((f) => this.stringVal(f) ?? ' ')
+    const ap = parts(an)
+    const bp = parts(bn)
+    return ap.length > 0 && ap.length === bp.length && ap.every((p, i) => p === bp[i])
   }
 
   /**
@@ -8551,27 +8545,27 @@ class NullabilityEngine {
    * row. The map is still consulted first, so anything it does answer wins.
    */
   private predicateNeverTrue(expr: Node | undefined): boolean {
-    if (!expr) return false;
-    if (this.evaluatedGuardTruth(expr) === false) return true;
-    const node = expr as Record<string, unknown>;
-    if ("TypeCast" in node) {
-      return this.predicateNeverTrue((node["TypeCast"] as { arg?: Node }).arg);
+    if (!expr) return false
+    if (this.evaluatedGuardTruth(expr) === false) return true
+    const node = expr as Record<string, unknown>
+    if ('TypeCast' in node) {
+      return this.predicateNeverTrue((node['TypeCast'] as { arg?: Node }).arg)
     }
-    if (!("A_Const" in node)) return false;
-    const ac = node["A_Const"] as { isnull?: boolean; boolval?: { boolval?: boolean } };
-    if (ac.isnull === true) return true;
-    return "boolval" in ac && ac.boolval?.boolval !== true;
+    if (!('A_Const' in node)) return false
+    const ac = node['A_Const'] as { isnull?: boolean; boolval?: { boolval?: boolean } }
+    if (ac.isnull === true) return true
+    return 'boolval' in ac && ac.boolval?.boolval !== true
   }
 
   /** A bare NULL constant, through any number of casts. */
   private isNullLiteral(expr: Node): boolean {
-    const node = expr as Record<string, unknown>;
-    if ("A_Const" in node) return (node["A_Const"] as { isnull?: boolean }).isnull === true;
-    if ("TypeCast" in node) {
-      const arg = (node["TypeCast"] as { arg?: Node }).arg;
-      return arg !== undefined && this.isNullLiteral(arg);
+    const node = expr as Record<string, unknown>
+    if ('A_Const' in node) return (node['A_Const'] as { isnull?: boolean }).isnull === true
+    if ('TypeCast' in node) {
+      const arg = (node['TypeCast'] as { arg?: Node }).arg
+      return arg !== undefined && this.isNullLiteral(arg)
     }
-    return false;
+    return false
   }
 
   /**
@@ -8593,9 +8587,9 @@ class NullabilityEngine {
    * answer for free. That gate is load-bearing in one direction only.
    */
   private columnIsAlwaysNull(leaf: Node, scope: Scope, depth: number): boolean {
-    const target = this.resolveBareColumnTarget(leaf, scope);
-    if (!target) return false;
-    return this.entryColumnAlwaysNull(target.entry, target.column, scope, depth);
+    const target = this.resolveBareColumnTarget(leaf, scope)
+    if (!target) return false
+    return this.entryColumnAlwaysNull(target.entry, target.column, scope, depth)
   }
 
   /**
@@ -8623,22 +8617,22 @@ class NullabilityEngine {
     // an extended row is NULL by extension. Both arms agree, so an OPTIONAL
     // entry weakens nothing. (`LEFT JOIN (SELECT amount FROM inv WHERE
     // status <> 'paid') q ON true` — measured, all NULL.)
-    if (entry.kind === "cte" || entry.kind === "subquery" || entry.kind === "view") {
-      if (!entry.ast) return false;
-      const inner = this.innerRelationColumns(entry, scope, depth);
+    if (entry.kind === 'cte' || entry.kind === 'subquery' || entry.kind === 'view') {
+      if (!entry.ast) return false
+      const inner = this.innerRelationColumns(entry, scope, depth)
       const idx =
         ordinal !== undefined && ordinal >= 0 && ordinal < inner.length
           ? ordinal
-          : this.innerIndexOf(entry, column, inner);
-      if (idx < 0) return false;
-      if (inner[idx]?.alwaysNull) return true;
+          : this.innerIndexOf(entry, column, inner)
+      if (idx < 0) return false
+      if (inner[idx]?.alwaysNull) return true
       // The other half: the evidence is OUT here and the CHECK is IN there.
       // `originCheckEntailment` is what reaches a base table through a
       // rowPath, and it takes the mirror goal now — the same call the
       // notNull side makes, one flag over.
-      const origins = inner[idx]?.origins;
-      if (!origins) return false;
-      const outerNames = inner.map((r, i) => entry.cteColumns?.[i] ?? r.name);
+      const origins = inner[idx]?.origins
+      if (!origins) return false
+      const outerNames = inner.map((r, i) => entry.cteColumns?.[i] ?? r.name)
       return this.originCheckEntailment(
         entry,
         origins,
@@ -8648,27 +8642,27 @@ class NullabilityEngine {
         scope,
         NOOP,
         true,
-      );
+      )
     }
 
     // An entry whose extending join can never match is absent on every
     // emitted row, which nulls EVERY column of it — no CHECK, no evidence,
     // and no dependence on what kind of relation it is, so this sits before
     // the table gate below.
-    if (this.extendingJoinNeverMatches(entry, scope)) return true;
+    if (this.extendingJoinNeverMatches(entry, scope)) return true
 
-    if (entry.kind !== "table" || !entry.table) return false;
+    if (entry.kind !== 'table' || !entry.table) return false
 
     // A RETURNING row reports the row the statement WROTE, so a column
     // written NULL on every producing path is NULL on every returned row —
     // no CHECK and no evidence required. The catalog name is the map's key,
     // matching `dmlWrittenColumns`' own consumer.
-    const writtenCol = this.entryCatalogColumn(entry, column);
+    const writtenCol = this.entryCatalogColumn(entry, column)
     if (
       writtenCol !== undefined &&
       this.dmlWrittenNullColumnsFor(entry, scope)?.get(writtenCol) === true
     ) {
-      return true;
+      return true
     }
 
     // The generation-expression inline, mirroring resolveColumnRef's: a
@@ -8683,17 +8677,17 @@ class NullabilityEngine {
     // NULL by extension, present rows are the stored row the expression
     // describes, and both arms end at NULL.
     if (writtenCol !== undefined) {
-      const genKey = `${entry.table.schema}.${entry.table.name}.${writtenCol}`;
+      const genKey = `${entry.table.schema}.${entry.table.name}.${writtenCol}`
       const genExpr = this.generationInFlight.has(genKey)
         ? null
-        : this.entryGenerationExpr(entry, writtenCol);
+        : this.entryGenerationExpr(entry, writtenCol)
       if (genExpr) {
-        this.generationInFlight.add(genKey);
+        this.generationInFlight.add(genKey)
         try {
-          const qualified = this.qualifyColumnRefs(genExpr, entry.alias, entry);
-          if (this.alwaysNullExpr(qualified, scope, depth + 1)) return true;
+          const qualified = this.qualifyColumnRefs(genExpr, entry.alias, entry)
+          if (this.alwaysNullExpr(qualified, scope, depth + 1)) return true
         } finally {
-          this.generationInFlight.delete(genKey);
+          this.generationInFlight.delete(genKey)
         }
       }
     }
@@ -8701,14 +8695,14 @@ class NullabilityEngine {
     const checkExprs =
       entry.scanInh === false
         ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
-        : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name);
+        : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name)
     const core = [
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
       ...this.qualsHoldingWhenPresent(entry, scope),
-    ];
-    const guards = this.kernelGuardPreds(scope);
+    ]
+    const guards = this.kernelGuardPreds(scope)
     // A DML statement has two stored rows per returned row, and RETURNING
     // reads the NEW one. So this is the non-null path's NEW-row channel and
     // only that: core facts tested the OLD row and transfer through non-SET
@@ -8716,118 +8710,110 @@ class NullabilityEngine {
     // expression reads, which here is NEW (hence not). The OLD-row channel
     // is a second derivation of the same value for non-SET columns; a first
     // cut needs one, and the unmasked one would be unsound.
-    const setCols =
-      scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null;
+    const setCols = scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null
     const evidence =
       !setCols || this.dmlOldRowRead
-        ? [...core, ...guards].map(pred => ({ pred, applySetMask: false }))
+        ? [...core, ...guards].map((pred) => ({ pred, applySetMask: false }))
         : [
-            ...core.map(pred => ({ pred, applySetMask: true })),
-            ...guards.map(pred => ({ pred, applySetMask: false })),
-          ];
-    if (evidence.length === 0) return false;
+            ...core.map((pred) => ({ pred, applySetMask: true })),
+            ...guards.map((pred) => ({ pred, applySetMask: false })),
+          ]
+    if (evidence.length === 0) return false
     return checkConstraintsProveNull({
       evaluatedComparison: this.comparisonOracle(),
       btreeStrategy: this.btreeStrategySupply(),
       equalityComplement: this.equalityComplementSupply(),
-      closedTruth: expr => this.closedTruthOf(expr),
+      closedTruth: (expr) => this.closedTruthOf(expr),
       goal: { alias: entry.alias, column },
-      checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias, entry)),
+      checkExprs: checkExprs.map((c) => this.qualifyColumnRefs(c, entry.alias, entry)),
       evidence,
       isMasked: (alias, col) => !!setCols && alias === entry.alias && setCols.has(col),
-      resolveUnqualified: col => {
-        let owner: string | null = null;
+      resolveUnqualified: (col) => {
+        let owner: string | null = null
         for (const v of scope.visible) {
-          if (v.name !== col) continue;
-          if (!v.entry || owner) return null;
-          owner = v.entry.alias;
+          if (v.name !== col) continue
+          if (!v.entry || owner) return null
+          owner = v.entry.alias
         }
-        return owner;
+        return owner
       },
       columnTypeName: (alias, col) => this.kernelColumnTypeName(alias, col, scope),
       literalDistinctnessSound: (alias, col) =>
         this.kernelLiteralDistinctnessSound(alias, col, scope),
-    });
+    })
   }
 
   private walkExpr(expr: Node, scope: Scope, depth: number): boolean {
-    return this.walkExprTraced(expr, scope, depth, NOOP);
+    return this.walkExprTraced(expr, scope, depth, NOOP)
   }
 
-  private walkExprTraced(
-    expr: Node,
-    scope: Scope,
-    depth: number,
-    trace: ITrace,
-  ): boolean {
-    this.checkDepth(depth);
-    const node = expr as Record<string, unknown>;
+  private walkExprTraced(expr: Node, scope: Scope, depth: number, trace: ITrace): boolean {
+    this.checkDepth(depth)
+    const node = expr as Record<string, unknown>
 
     // --- The statement map: a closed subtree's answer decides it whole ---
     // Closure means no row, guard, parameter or session state can move the
     // value, so the map hit is exact wherever the walk meets the node. Only
     // `isNull` is read: non-null claims notNull, an evaluated NULL keeps
     // today's word (nullable — now exactly true) without walking children.
-    const answered = this.evaluation?.get(expr);
+    const answered = this.evaluation?.get(expr)
     if (answered !== undefined) {
-      trace.addFact("statementMap", answered.isNull ? "NULL" : "non-null");
+      trace.addFact('statementMap', answered.isNull ? 'NULL' : 'non-null')
       trace.conclude(
         !answered.isNull,
-        answered.isNull
-          ? "closed subtree evaluated to NULL"
-          : "closed subtree evaluated non-null",
-      );
-      return !answered.isNull;
+        answered.isNull ? 'closed subtree evaluated to NULL' : 'closed subtree evaluated non-null',
+      )
+      return !answered.isNull
     }
 
     // --- Leaves ---
 
-    if ("A_Const" in node) {
-      const ac = node["A_Const"] as { isnull?: boolean };
-      const isnull = !!ac.isnull;
-      trace.addFact("isnull", String(isnull));
-      const result = !isnull;
-      trace.conclude(result, result ? "literal is not NULL" : "NULL literal");
-      return result;
+    if ('A_Const' in node) {
+      const ac = node['A_Const'] as { isnull?: boolean }
+      const isnull = !!ac.isnull
+      trace.addFact('isnull', String(isnull))
+      const result = !isnull
+      trace.conclude(result, result ? 'literal is not NULL' : 'NULL literal')
+      return result
     }
 
-    if ("ColumnRef" in node) {
-      const cr = node["ColumnRef"] as ColumnRef;
-      const parts = (cr.fields ?? []).map(f => this.stringVal(f));
-      trace.addFact("columnRef", parts.join("."));
-      return this.resolveColumnRefTraced(cr, scope, depth, trace);
+    if ('ColumnRef' in node) {
+      const cr = node['ColumnRef'] as ColumnRef
+      const parts = (cr.fields ?? []).map((f) => this.stringVal(f))
+      trace.addFact('columnRef', parts.join('.'))
+      return this.resolveColumnRefTraced(cr, scope, depth, trace)
     }
 
-    if ("ParamRef" in node) {
-      const num = (node["ParamRef"] as { number?: number }).number ?? 0;
+    if ('ParamRef' in node) {
+      const num = (node['ParamRef'] as { number?: number }).number ?? 0
       if (this.fnCtx) {
-        const argResult = this.fnCtx.argResults[num - 1] ?? false;
-        trace.addFact("param", `$${num}`);
-        trace.addFact("argResult", String(argResult));
-        trace.conclude(argResult, `function arg $${num} → ${argResult ? "notNull" : "nullable"}`);
-        return argResult;
+        const argResult = this.fnCtx.argResults[num - 1] ?? false
+        trace.addFact('param', `$${num}`)
+        trace.addFact('argResult', String(argResult))
+        trace.conclude(argResult, `function arg $${num} → ${argResult ? 'notNull' : 'nullable'}`)
+        return argResult
       }
       if (this.bindRejectedParams.has(num)) {
-        trace.addFact("param", `$${num}`);
-        trace.addFact("bindRejected", "mechanism A: typed as a NOT NULL domain");
-        trace.conclude(
-          true,
-          `$${num} rejects NULL at Bind, so any returned row proves it non-null`,
-        );
-        return true;
+        trace.addFact('param', `$${num}`)
+        trace.addFact('bindRejected', 'mechanism A: typed as a NOT NULL domain')
+        trace.conclude(true, `$${num} rejects NULL at Bind, so any returned row proves it non-null`)
+        return true
       }
       // The execution-time twin: the parameter lands in a rejecting site on
       // EVERY path of this DML statement that can produce a returned row, so
       // the row in hand is itself the proof the binding was not NULL. Scoped
       // to the statement, unlike the Bind fact — see the Scope field.
       if (this.returningRejectsParam(num, scope)) {
-        trace.addFact("param", `$${num}`);
-        trace.addFact("returningRejected", "every row-producing path writes it into a NOT NULL site");
+        trace.addFact('param', `$${num}`)
+        trace.addFact(
+          'returningRejected',
+          'every row-producing path writes it into a NOT NULL site',
+        )
         trace.conclude(
           true,
           `$${num} rejects NULL on every path that returns a row, so this row proves it non-null`,
-        );
-        return true;
+        )
+        return true
       }
       // WHERE-conjunct narrowing: this scope's rows each passed a conjunct
       // that cannot be TRUE with $num NULL. Implied ON quals are the same
@@ -8843,53 +8829,53 @@ class NullabilityEngine {
         ...(scope.rowsImplyWhere && scope.whereClause ? [scope.whereClause] : []),
         ...(scope.rowsImplyWhere ? scope.impliedQuals : []),
         ...(scope.havingClause ? [scope.havingClause] : []),
-      ];
-      if (narrowingPreds.some(p => this.whereImpliesParamNotNull(p, num, scope))) {
-        trace.addFact("param", `$${num}`);
-        trace.addFact("whereGuarantee", "a must-be-TRUE conjunct requires it non-null");
+      ]
+      if (narrowingPreds.some((p) => this.whereImpliesParamNotNull(p, num, scope))) {
+        trace.addFact('param', `$${num}`)
+        trace.addFact('whereGuarantee', 'a must-be-TRUE conjunct requires it non-null')
         trace.conclude(
           true,
           `every returned row passed a WHERE conjunct that is only TRUE with $${num} non-null`,
-        );
-        return true;
+        )
+        return true
       }
-      trace.addFact("param", `$${num}`);
-      trace.addFact("context", "query-level (no PREPARE type info)");
-      trace.conclude(false, "query-level param → conservative nullable");
-      return false;
+      trace.addFact('param', `$${num}`)
+      trace.addFact('context', 'query-level (no PREPARE type info)')
+      trace.conclude(false, 'query-level param → conservative nullable')
+      return false
     }
 
     // --- SubLinks ---
 
-    if ("SubLink" in node) {
-      const sl = node["SubLink"] as SubLink;
-      trace.addFact("subLinkType", sl.subLinkType ?? "unknown");
-      return this.resolveSubLinkTraced(sl, scope, depth, trace);
+    if ('SubLink' in node) {
+      const sl = node['SubLink'] as SubLink
+      trace.addFact('subLinkType', sl.subLinkType ?? 'unknown')
+      return this.resolveSubLinkTraced(sl, scope, depth, trace)
     }
 
     // --- Internal nodes ---
 
-    if ("NullTest" in node) {
-      trace.conclude(true, "IS NULL / IS NOT NULL → always returns bool");
-      return true;
+    if ('NullTest' in node) {
+      trace.conclude(true, 'IS NULL / IS NOT NULL → always returns bool')
+      return true
     }
 
-    if ("GroupingFunc" in node) {
+    if ('GroupingFunc' in node) {
       // GROUPING(...) reports a bitmask saying which of its arguments the
       // current grouping set collapsed. Always an integer, never NULL — even
       // in the super-aggregate rows where the arguments themselves are NULL.
-      trace.conclude(true, "GROUPING() returns a bitmask, never NULL");
-      return true;
+      trace.conclude(true, 'GROUPING() returns a bitmask, never NULL')
+      return true
     }
 
-    if ("BooleanTest" in node) {
+    if ('BooleanTest' in node) {
       // IS [NOT] TRUE / FALSE / UNKNOWN collapse three-valued logic to a plain
       // boolean — NULL in, FALSE or TRUE out, never NULL.
-      trace.conclude(true, "IS [NOT] TRUE/FALSE/UNKNOWN → always returns bool");
-      return true;
+      trace.conclude(true, 'IS [NOT] TRUE/FALSE/UNKNOWN → always returns bool')
+      return true
     }
 
-    if ("SQLValueFunction" in node) {
+    if ('SQLValueFunction' in node) {
       // CURRENT_DATE, CURRENT_TIMESTAMP, SESSION_USER and friends. All are
       // always defined except CURRENT_SCHEMA, which is NULL when the search
       // path names no existing schema.
@@ -8901,41 +8887,43 @@ class NullabilityEngine {
       // when none of them exists — measured, `SET search_path TO nosuch` gives
       // NULL and `nosuch, public` gives `public`, which is why the test is
       // "some schema exists" and not "the first one does".
-      const svf = node["SQLValueFunction"] as { op?: string };
-      const op = svf.op ?? "";
-      trace.addFact("op", op);
-      const notNull =
-        op !== "SVFOP_CURRENT_SCHEMA" || this.catalog.searchPathResolves();
-      trace.conclude(notNull, op !== "SVFOP_CURRENT_SCHEMA"
-        ? "SQL value function is always defined"
-        : notNull
-          ? "a schema on the analysis search path exists → CURRENT_SCHEMA has an answer"
-          : "no schema on the analysis search path exists → CURRENT_SCHEMA is NULL");
-      return notNull;
+      const svf = node['SQLValueFunction'] as { op?: string }
+      const op = svf.op ?? ''
+      trace.addFact('op', op)
+      const notNull = op !== 'SVFOP_CURRENT_SCHEMA' || this.catalog.searchPathResolves()
+      trace.conclude(
+        notNull,
+        op !== 'SVFOP_CURRENT_SCHEMA'
+          ? 'SQL value function is always defined'
+          : notNull
+            ? 'a schema on the analysis search path exists → CURRENT_SCHEMA has an answer'
+            : 'no schema on the analysis search path exists → CURRENT_SCHEMA is NULL',
+      )
+      return notNull
     }
 
-    if ("TypeCast" in node) {
-      const tc = node["TypeCast"] as { arg: Node; typeName?: { names?: Node[] } };
+    if ('TypeCast' in node) {
+      const tc = node['TypeCast'] as { arg: Node; typeName?: { names?: Node[] } }
       if (tc.typeName?.names) {
-        const typeNames = tc.typeName.names.map(n => this.stringVal(n));
+        const typeNames = tc.typeName.names.map((n) => this.stringVal(n))
         if (typeNames.length >= 2) {
-          const schema = typeNames[typeNames.length - 2]!;
-          const name = typeNames[typeNames.length - 1]!;
-          const isNnDomain = this.catalog.isNotNullDomainByName(schema, name);
-          trace.addFact("targetType", `${schema}.${name}`);
-          trace.addFact("isNotNullDomain", String(isNnDomain));
+          const schema = typeNames[typeNames.length - 2]!
+          const name = typeNames[typeNames.length - 1]!
+          const isNnDomain = this.catalog.isNotNullDomainByName(schema, name)
+          trace.addFact('targetType', `${schema}.${name}`)
+          trace.addFact('isNotNullDomain', String(isNnDomain))
           if (isNnDomain) {
-            trace.conclude(true, "cast to NOT NULL domain → never NULL (throws instead)");
-            return true;
+            trace.conclude(true, 'cast to NOT NULL domain → never NULL (throws instead)')
+            return true
           }
         } else if (typeNames.length === 1) {
-          const name = typeNames[0]!;
-          const isNnDomain = this.catalog.isNotNullDomainByName(undefined, name);
-          trace.addFact("targetType", name);
-          trace.addFact("isNotNullDomain", String(isNnDomain));
+          const name = typeNames[0]!
+          const isNnDomain = this.catalog.isNotNullDomainByName(undefined, name)
+          trace.addFact('targetType', name)
+          trace.addFact('isNotNullDomain', String(isNnDomain))
           if (isNnDomain) {
-            trace.conclude(true, "cast to NOT NULL domain → never NULL (throws instead)");
-            return true;
+            trace.conclude(true, 'cast to NOT NULL domain → never NULL (throws instead)')
+            return true
           }
         }
       }
@@ -8950,58 +8938,57 @@ class NullabilityEngine {
       // `unknown` (a pair pg_cast does not carry — a user-defined cast, or a
       // source type the walk cannot name) keeps the old reading: this
       // narrows a wrong claim, it does not withdraw every cast's claim.
-      const childTrace = trace.addChild("TypeCast: arg");
-      const result = this.walkExprTraced(tc.arg, scope, depth + 1, childTrace);
+      const childTrace = trace.addChild('TypeCast: arg')
+      const result = this.walkExprTraced(tc.arg, scope, depth + 1, childTrace)
       if (result && tc.typeName?.names) {
-        const target = this.stringVal(tc.typeName.names[tc.typeName.names.length - 1]!);
-        const sources = this.operandTypeSet(tc.arg, scope, depth + 1);
-        const cast = this.catalog.resolveCastTotality(sources, target);
-        trace.addFact("castSource", sources?.join("|") ?? "unknown");
-        trace.addFact("castTotality", cast);
-        if (cast === "nullable") {
-          trace.conclude(false, `the cast to ${target} can return NULL for non-null input`);
-          return false;
+        const target = this.stringVal(tc.typeName.names[tc.typeName.names.length - 1]!)
+        const sources = this.operandTypeSet(tc.arg, scope, depth + 1)
+        const cast = this.catalog.resolveCastTotality(sources, target)
+        trace.addFact('castSource', sources?.join('|') ?? 'unknown')
+        trace.addFact('castTotality', cast)
+        if (cast === 'nullable') {
+          trace.conclude(false, `the cast to ${target} can return NULL for non-null input`)
+          return false
         }
       }
-      trace.conclude(result, "cast preserves arg nullability");
-      return result;
+      trace.conclude(result, 'cast preserves arg nullability')
+      return result
     }
 
-    if ("CoalesceExpr" in node) {
-      const ce = node["CoalesceExpr"] as { args?: Node[] };
-      trace.addFact("argCount", String(ce.args?.length ?? 0));
-      let i = 0;
+    if ('CoalesceExpr' in node) {
+      const ce = node['CoalesceExpr'] as { args?: Node[] }
+      trace.addFact('argCount', String(ce.args?.length ?? 0))
+      let i = 0
       for (const arg of ce.args ?? []) {
-        const childTrace = trace.addChild(`COALESCE arg[${i}]`);
-        const argResult = this.walkExprTraced(arg, scope, depth + 1, childTrace);
+        const childTrace = trace.addChild(`COALESCE arg[${i}]`)
+        const argResult = this.walkExprTraced(arg, scope, depth + 1, childTrace)
         if (argResult) {
-          trace.conclude(true, `arg[${i}] is non-null → COALESCE is non-null`);
-          return true;
+          trace.conclude(true, `arg[${i}] is non-null → COALESCE is non-null`)
+          return true
         }
-        i++;
+        i++
       }
-      trace.conclude(false, "all args nullable → COALESCE nullable");
-      return false;
+      trace.conclude(false, 'all args nullable → COALESCE nullable')
+      return false
     }
 
-    if ("CaseExpr" in node) {
-      const ce = node["CaseExpr"] as {
+    if ('CaseExpr' in node) {
+      const ce = node['CaseExpr'] as {
         /** Present for the simple form `CASE x WHEN v THEN ...`. */
-        arg?: Node;
-        args?: Node[];
-        defresult?: Node;
-      };
+        arg?: Node
+        args?: Node[]
+        defresult?: Node
+      }
       // The simple form `CASE x WHEN 1 THEN ...` compares values rather than
       // evaluating predicates, so its WHEN expressions are not conditions and
       // contribute no guards — and the statement map cannot prune its arms
       // either (the comparisons are implicit, not AST nodes the map keys).
-      const simpleForm = !!ce.arg;
+      const simpleForm = !!ce.arg
       const whens = (ce.args ?? []).map(
-        arg =>
-          (arg as Record<string, unknown>)["CaseWhen"] as
-            | { expr?: Node; result?: Node }
-            | undefined,
-      );
+        (arg) =>
+          (arg as Record<string, unknown>)['CaseWhen'] as
+            { expr?: Node; result?: Node } | undefined,
+      )
 
       // Arm pruning from two sources, both now speaking in both directions.
       // Statement map: boolean truth of an evaluated guard — FALSE or NULL
@@ -9013,17 +9000,17 @@ class NullabilityEngine {
       // containment — ends the chain exactly as an evaluated TRUE does.
       // That second direction is what makes a generated CASE predicate
       // aware: the WHERE selects the arm the stored value came from.
-      const truths = whens.map(w => (simpleForm ? undefined : this.guardTruth(w?.expr, scope)));
-      const firstTrue = truths.indexOf(true);
+      const truths = whens.map((w) => (simpleForm ? undefined : this.guardTruth(w?.expr, scope)))
+      const firstTrue = truths.indexOf(true)
 
       // Without an ELSE branch, an unmatched CASE evaluates to NULL — unless
       // an evaluated guard proves some arm always matches.
       if (!ce.defresult && firstTrue === -1) {
-        trace.addFact("hasElse", "false");
-        trace.conclude(false, "CASE without ELSE → NULL when no branch matches");
-        return false;
+        trace.addFact('hasElse', 'false')
+        trace.conclude(false, 'CASE without ELSE → NULL when no branch matches')
+        return false
       }
-      trace.addFact("hasElse", String(!!ce.defresult));
+      trace.addFact('hasElse', String(!!ce.defresult))
       // With an ELSE, exactly one branch always produces the value, so the
       // result is non-null iff every branch result is non-null — every branch
       // that can still fire, once the map has spoken.
@@ -9033,178 +9020,173 @@ class NullabilityEngine {
       // and its own condition was TRUE; the ELSE runs when no condition was
       // TRUE. Those guards let a nullable column read as non-null inside a
       // branch that tested it.
-      trace.addFact("caseForm", simpleForm ? "simple (CASE x WHEN v)" : "searched (CASE WHEN cond)");
-      const earlierConditions: Node[] = [];
+      trace.addFact('caseForm', simpleForm ? 'simple (CASE x WHEN v)' : 'searched (CASE WHEN cond)')
+      const earlierConditions: Node[] = []
 
-      let i = 0;
+      let i = 0
       for (const when of whens) {
         if (!when?.result) {
-          trace.conclude(false, "CASE branch with no result → nullable");
-          return false;
+          trace.conclude(false, 'CASE branch with no result → nullable')
+          return false
         }
         if (truths[i] === false) {
           // Never fires; its condition still "was not TRUE" for later arms.
-          trace.addFact(`WHEN[${i}]`, "guard evaluated not-TRUE → arm pruned");
-          if (when.expr) earlierConditions.push(when.expr);
-          i++;
-          continue;
+          trace.addFact(`WHEN[${i}]`, 'guard evaluated not-TRUE → arm pruned')
+          if (when.expr) earlierConditions.push(when.expr)
+          i++
+          continue
         }
-        const childTrace = trace.addChild(`WHEN[${i}] result`);
+        const childTrace = trace.addChild(`WHEN[${i}] result`)
         const branchNotNull = this.withGuards(
           scope,
-          simpleForm ? [] : earlierConditions.map(p => ({ predicate: p, taken: false })),
+          simpleForm ? [] : earlierConditions.map((p) => ({ predicate: p, taken: false })),
           () =>
             this.withGuard(scope, simpleForm ? undefined : when.expr, true, () =>
               this.walkExprTraced(when.result!, scope, depth + 1, childTrace),
             ),
-        );
+        )
         if (!branchNotNull) {
-          trace.conclude(false, `WHEN[${i}] result is nullable → CASE nullable`);
-          return false;
+          trace.conclude(false, `WHEN[${i}] result is nullable → CASE nullable`)
+          return false
         }
         if (i === firstTrue) {
           trace.conclude(
             true,
             `WHEN[${i}] guard evaluated TRUE → later arms and ELSE never run; ` +
-              "every reachable branch non-null → CASE non-null",
-          );
-          return true;
+              'every reachable branch non-null → CASE non-null',
+          )
+          return true
         }
-        if (when.expr) earlierConditions.push(when.expr);
-        i++;
+        if (when.expr) earlierConditions.push(when.expr)
+        i++
       }
 
-      const elseTrace = trace.addChild("ELSE result");
+      const elseTrace = trace.addChild('ELSE result')
       const elseNotNull = this.withGuards(
         scope,
-        simpleForm ? [] : earlierConditions.map(p => ({ predicate: p, taken: false })),
+        simpleForm ? [] : earlierConditions.map((p) => ({ predicate: p, taken: false })),
         () => this.walkExprTraced(ce.defresult!, scope, depth + 1, elseTrace),
-      );
+      )
       trace.conclude(
         elseNotNull,
         elseNotNull
-          ? "every branch and ELSE non-null → CASE non-null"
-          : "ELSE result is nullable → CASE nullable",
-      );
-      return elseNotNull;
+          ? 'every branch and ELSE non-null → CASE non-null'
+          : 'ELSE result is nullable → CASE nullable',
+      )
+      return elseNotNull
     }
 
-    if ("A_Expr" in node) {
-      return this.resolveAExprTraced(
-        node["A_Expr"] as AExpr,
-        scope,
-        depth,
-        trace,
-      );
+    if ('A_Expr' in node) {
+      return this.resolveAExprTraced(node['A_Expr'] as AExpr, scope, depth, trace)
     }
 
-    if ("BoolExpr" in node) {
-      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
-      if (be.boolop === "NOT_EXPR") {
-        const arg = be.args?.[0];
+    if ('BoolExpr' in node) {
+      const be = node['BoolExpr'] as { boolop?: string; args?: Node[] }
+      if (be.boolop === 'NOT_EXPR') {
+        const arg = be.args?.[0]
         if (arg) {
-          const childTrace = trace.addChild("NOT: arg");
-          const result = this.walkExprTraced(arg, scope, depth + 1, childTrace);
-          trace.conclude(result, "NOT → recurse into arg");
-          return result;
+          const childTrace = trace.addChild('NOT: arg')
+          const result = this.walkExprTraced(arg, scope, depth + 1, childTrace)
+          trace.conclude(result, 'NOT → recurse into arg')
+          return result
         }
-        trace.conclude(false, "NOT with no arg → nullable");
-        return false;
+        trace.conclude(false, 'NOT with no arg → nullable')
+        return false
       }
       // AND/OR are three-valued, but NULL can only enter through an operand.
       // With every operand non-null the result is a plain boolean.
-      trace.addFact("boolop", be.boolop ?? "unknown");
-      const allNotNull = this.operandsAllNotNull(be.args ?? [], scope, depth, trace, "operand");
+      trace.addFact('boolop', be.boolop ?? 'unknown')
+      const allNotNull = this.operandsAllNotNull(be.args ?? [], scope, depth, trace, 'operand')
       trace.conclude(
         allNotNull,
         allNotNull
-          ? "all operands non-null → AND/OR yields a non-null boolean"
-          : "an operand is nullable → three-valued logic → nullable",
-      );
-      return allNotNull;
+          ? 'all operands non-null → AND/OR yields a non-null boolean'
+          : 'an operand is nullable → three-valued logic → nullable',
+      )
+      return allNotNull
     }
 
-    if ("FuncCall" in node) {
-      return this.resolveFuncCallTraced(node["FuncCall"] as FuncCall, scope, depth, trace);
+    if ('FuncCall' in node) {
+      return this.resolveFuncCallTraced(node['FuncCall'] as FuncCall, scope, depth, trace)
     }
 
-    if ("RowExpr" in node) {
-      trace.conclude(true, "ROW constructor → never NULL");
-      return true;
+    if ('RowExpr' in node) {
+      trace.conclude(true, 'ROW constructor → never NULL')
+      return true
     }
 
-    if ("A_ArrayExpr" in node) {
-      trace.conclude(true, "ARRAY constructor → never NULL");
-      return true;
+    if ('A_ArrayExpr' in node) {
+      trace.conclude(true, 'ARRAY constructor → never NULL')
+      return true
     }
 
-    if ("MinMaxExpr" in node) {
+    if ('MinMaxExpr' in node) {
       // GREATEST/LEAST are the exception to NULL propagation: PostgreSQL
       // ignores NULL arguments and returns NULL only when *every* argument is
       // NULL. So one non-null argument makes the result non-null.
-      const mm = node["MinMaxExpr"] as { op?: string; args?: Node[] };
-      trace.addFact("op", mm.op ?? "unknown");
-      let i = 0;
+      const mm = node['MinMaxExpr'] as { op?: string; args?: Node[] }
+      trace.addFact('op', mm.op ?? 'unknown')
+      let i = 0
       for (const arg of mm.args ?? []) {
-        const childTrace = trace.addChild(`arg[${i}]`);
+        const childTrace = trace.addChild(`arg[${i}]`)
         if (this.walkExprTraced(arg, scope, depth + 1, childTrace)) {
-          trace.conclude(true, `arg[${i}] is non-null → GREATEST/LEAST skips NULLs → non-null`);
-          return true;
+          trace.conclude(true, `arg[${i}] is non-null → GREATEST/LEAST skips NULLs → non-null`)
+          return true
         }
-        i++;
+        i++
       }
-      trace.conclude(false, "all args nullable → GREATEST/LEAST nullable");
-      return false;
+      trace.conclude(false, 'all args nullable → GREATEST/LEAST nullable')
+      return false
     }
 
-    if ("NamedArgExpr" in node) {
-      const na = node["NamedArgExpr"] as { arg: Node };
-      const childTrace = trace.addChild("NamedArgExpr: arg");
-      const result = this.walkExprTraced(na.arg, scope, depth + 1, childTrace);
-      trace.conclude(result, "NamedArgExpr → recurse into arg");
-      return result;
+    if ('NamedArgExpr' in node) {
+      const na = node['NamedArgExpr'] as { arg: Node }
+      const childTrace = trace.addChild('NamedArgExpr: arg')
+      const result = this.walkExprTraced(na.arg, scope, depth + 1, childTrace)
+      trace.conclude(result, 'NamedArgExpr → recurse into arg')
+      return result
     }
 
-    if ("CollateClause" in node) {
-      const cc = node["CollateClause"] as { arg: Node };
-      const childTrace = trace.addChild("Collate: arg");
-      const result = this.walkExprTraced(cc.arg, scope, depth + 1, childTrace);
-      trace.conclude(result, "COLLATE preserves arg nullability");
-      return result;
+    if ('CollateClause' in node) {
+      const cc = node['CollateClause'] as { arg: Node }
+      const childTrace = trace.addChild('Collate: arg')
+      const result = this.walkExprTraced(cc.arg, scope, depth + 1, childTrace)
+      trace.conclude(result, 'COLLATE preserves arg nullability')
+      return result
     }
 
-    if ("A_Indirection" in node) {
+    if ('A_Indirection' in node) {
       // Measured 2026-08-01: a SLICE never fails by range — it clamps, to an
       // empty array if need be — so it is NULL only when the array or a
       // bound is (strict + total). An ELEMENT subscript really is NULL out
       // of range, a composite FIELD inherits its unconstrained type, and a
       // jsonb subscript is NULL for a missing key: all correctly nullable.
-      const ai = node["A_Indirection"] as { arg?: Node; indirection?: Node[] };
-      const parts = ai.indirection ?? [];
+      const ai = node['A_Indirection'] as { arg?: Node; indirection?: Node[] }
+      const parts = ai.indirection ?? []
       const allSlices =
         parts.length > 0 &&
-        parts.every(p => {
-          const idx = (p as { A_Indices?: { is_slice?: boolean } }).A_Indices;
-          return idx?.is_slice === true;
-        });
+        parts.every((p) => {
+          const idx = (p as { A_Indices?: { is_slice?: boolean } }).A_Indices
+          return idx?.is_slice === true
+        })
       if (allSlices && ai.arg) {
-        const bounds = parts.flatMap(p => {
-          const idx = (p as { A_Indices?: { lidx?: Node; uidx?: Node } }).A_Indices!;
-          return [idx.lidx, idx.uidx].filter((b): b is Node => b !== undefined);
-        });
-        const argTrace = trace.addChild("slice: array");
-        const argNotNull = this.walkExprTraced(ai.arg, scope, depth + 1, argTrace);
+        const bounds = parts.flatMap((p) => {
+          const idx = (p as { A_Indices?: { lidx?: Node; uidx?: Node } }).A_Indices!
+          return [idx.lidx, idx.uidx].filter((b): b is Node => b !== undefined)
+        })
+        const argTrace = trace.addChild('slice: array')
+        const argNotNull = this.walkExprTraced(ai.arg, scope, depth + 1, argTrace)
         const boundsNotNull = bounds.every((b, i) =>
           this.walkExprTraced(b, scope, depth + 1, trace.addChild(`slice: bound[${i}]`)),
-        );
-        const result = argNotNull && boundsNotNull;
+        )
+        const result = argNotNull && boundsNotNull
         trace.conclude(
           result,
           result
-            ? "slice of a non-null array with non-null bounds clamps, never NULLs → notNull"
-            : "a NULL array or bound makes the slice NULL → nullable",
-        );
-        return result;
+            ? 'slice of a non-null array with non-null bounds clamps, never NULLs → notNull'
+            : 'a NULL array or bound makes the slice NULL → nullable',
+        )
+        return result
       }
       // An ELEMENT subscript is NULL out of range, and "out of range" is a
       // SHAPE question that a literal `ARRAY[...]` answers: a constructor's
@@ -9221,43 +9203,48 @@ class NullabilityEngine {
       const lone =
         parts.length === 1
           ? (parts[0] as { A_Indices?: { is_slice?: boolean; lidx?: Node; uidx?: Node } }).A_Indices
-          : undefined;
+          : undefined
       if (lone && lone.is_slice !== true && lone.uidx && !lone.lidx && ai.arg) {
         const elems = (
-          (this.stripCasts(ai.arg) as Record<string, unknown>)["A_ArrayExpr"] as
-            | { elements?: Node[] }
-            | undefined
-        )?.elements;
-        const k = this.constantIntegerValue(lone.uidx);
+          (this.stripCasts(ai.arg) as Record<string, unknown>)['A_ArrayExpr'] as
+            { elements?: Node[] } | undefined
+        )?.elements
+        const k = this.constantIntegerValue(lone.uidx)
         if (elems && k !== null && k >= 1 && k <= elems.length) {
           const result = this.walkExprTraced(
-            elems[k - 1]!, scope, depth + 1, trace.addChild(`subscript: element[${k}]`),
-          );
+            elems[k - 1]!,
+            scope,
+            depth + 1,
+            trace.addChild(`subscript: element[${k}]`),
+          )
           trace.conclude(
             result,
             result
               ? `a constant index inside a literal ARRAY[...] selects element ${k}, which is non-null`
               : `element ${k} of the literal array is itself nullable`,
-          );
-          return result;
+          )
+          return result
         }
       }
-      trace.conclude(false, "element/field/jsonb subscript → correctly nullable (out-of-range and missing-key are NULL)");
-      return false;
+      trace.conclude(
+        false,
+        'element/field/jsonb subscript → correctly nullable (out-of-range and missing-key are NULL)',
+      )
+      return false
     }
 
-    if ("XmlExpr" in node) {
+    if ('XmlExpr' in node) {
       // XMLELEMENT always constructs (measured: a NULL child yields `<e/>`,
       // not NULL). The other ops do return NULL — xmlconcat of NULLs and
       // xmlforest of a NULL field were both measured NULL — so only the
       // element constructor is upgraded.
-      const xe = node["XmlExpr"] as { op?: string };
-      if (xe.op === "IS_XMLELEMENT") {
-        trace.conclude(true, "XMLELEMENT always constructs an element → notNull");
-        return true;
+      const xe = node['XmlExpr'] as { op?: string }
+      if (xe.op === 'IS_XMLELEMENT') {
+        trace.conclude(true, 'XMLELEMENT always constructs an element → notNull')
+        return true
       }
-      trace.conclude(false, "XmlExpr → conservative nullable");
-      return false;
+      trace.conclude(false, 'XmlExpr → conservative nullable')
+      return false
     }
 
     // The SQL/JSON constructor and conversion family (PG16+ dedicated
@@ -9279,35 +9266,35 @@ class NullabilityEngine {
     // combination (neither ON EMPTY nor ON ERROR fires on a successful
     // match), so no clause analysis can ever prove them — correctly
     // conservative, not imprecise.
-    if ("JsonFuncExpr" in node) {
-      const jf = node["JsonFuncExpr"] as {
-        op?: string;
-        context_item?: { raw_expr?: Node };
-        on_error?: { btype?: string };
-      };
+    if ('JsonFuncExpr' in node) {
+      const jf = node['JsonFuncExpr'] as {
+        op?: string
+        context_item?: { raw_expr?: Node }
+        on_error?: { btype?: string }
+      }
       if (
-        jf.op === "JSON_EXISTS_OP" &&
-        (!jf.on_error || jf.on_error.btype !== "JSON_BEHAVIOR_UNKNOWN") &&
+        jf.op === 'JSON_EXISTS_OP' &&
+        (!jf.on_error || jf.on_error.btype !== 'JSON_BEHAVIOR_UNKNOWN') &&
         jf.context_item?.raw_expr
       ) {
-        const childTrace = trace.addChild("JSON_EXISTS: context item");
-        const result = this.walkExprTraced(jf.context_item.raw_expr, scope, depth + 1, childTrace);
+        const childTrace = trace.addChild('JSON_EXISTS: context item')
+        const result = this.walkExprTraced(jf.context_item.raw_expr, scope, depth + 1, childTrace)
         trace.conclude(
           result,
-          "JSON_EXISTS over a non-null context is a plain boolean (ON ERROR defaults FALSE)",
-        );
-        return result;
+          'JSON_EXISTS over a non-null context is a plain boolean (ON ERROR defaults FALSE)',
+        )
+        return result
       }
       trace.conclude(
         false,
-        "JSON_VALUE/JSON_QUERY map a found JSON null to SQL NULL through every handler; UNKNOWN ON ERROR does the same for JSON_EXISTS → nullable",
-      );
-      return false;
+        'JSON_VALUE/JSON_QUERY map a found JSON null to SQL NULL through every handler; UNKNOWN ON ERROR does the same for JSON_EXISTS → nullable',
+      )
+      return false
     }
 
-    if ("JsonObjectConstructor" in node || "JsonArrayConstructor" in node) {
-      trace.conclude(true, "SQL/JSON value-list constructor always produces a container → notNull");
-      return true;
+    if ('JsonObjectConstructor' in node || 'JsonArrayConstructor' in node) {
+      trace.conclude(true, 'SQL/JSON value-list constructor always produces a container → notNull')
+      return true
     }
 
     // `merge_action()` labels the arm that produced the row — 'INSERT',
@@ -9315,48 +9302,48 @@ class NullabilityEngine {
     // the NOT MATCHED BY SOURCE arm (measured, all three). It is legal only
     // in a MERGE's RETURNING list, which PostgreSQL enforces, so there is no
     // context in which it has no arm to name.
-    if ("MergeSupportFunc" in node) {
-      trace.conclude(true, "merge_action() names the arm every returned row came from → notNull");
-      return true;
+    if ('MergeSupportFunc' in node) {
+      trace.conclude(true, 'merge_action() names the arm every returned row came from → notNull')
+      return true
     }
     {
       const strictJson =
-        ("JsonParseExpr" in node && (node["JsonParseExpr"] as JsonUnaryShape)) ||
-        ("JsonScalarExpr" in node && (node["JsonScalarExpr"] as JsonUnaryShape)) ||
-        ("JsonSerializeExpr" in node && (node["JsonSerializeExpr"] as JsonUnaryShape)) ||
-        ("JsonIsPredicate" in node && (node["JsonIsPredicate"] as JsonUnaryShape)) ||
-        ("XmlSerialize" in node && (node["XmlSerialize"] as JsonUnaryShape));
+        ('JsonParseExpr' in node && (node['JsonParseExpr'] as JsonUnaryShape)) ||
+        ('JsonScalarExpr' in node && (node['JsonScalarExpr'] as JsonUnaryShape)) ||
+        ('JsonSerializeExpr' in node && (node['JsonSerializeExpr'] as JsonUnaryShape)) ||
+        ('JsonIsPredicate' in node && (node['JsonIsPredicate'] as JsonUnaryShape)) ||
+        ('XmlSerialize' in node && (node['XmlSerialize'] as JsonUnaryShape))
       if (strictJson) {
         // The operand is either the raw node (JSON_SCALAR, IS JSON,
         // XMLSERIALIZE) or wrapped in an inlined JsonValueExpr (raw_expr).
         const operand =
           (strictJson.expr as { raw_expr?: Node } | undefined)?.raw_expr ??
-          (strictJson.expr as Node | undefined);
+          (strictJson.expr as Node | undefined)
         if (operand) {
-          const childTrace = trace.addChild("strict JSON/XML conversion: arg");
-          const result = this.walkExprTraced(operand, scope, depth + 1, childTrace);
-          trace.conclude(result, "strict conversion: NULL in → NULL out, else a value");
-          return result;
+          const childTrace = trace.addChild('strict JSON/XML conversion: arg')
+          const result = this.walkExprTraced(operand, scope, depth + 1, childTrace)
+          trace.conclude(result, 'strict conversion: NULL in → NULL out, else a value')
+          return result
         }
-        trace.conclude(false, "strict JSON/XML conversion with no operand → conservative");
-        return false;
+        trace.conclude(false, 'strict JSON/XML conversion with no operand → conservative')
+        return false
       }
     }
 
-    if ("SetToDefault" in node) {
-      trace.conclude(false, "SetToDefault → conservative nullable");
-      return false;
+    if ('SetToDefault' in node) {
+      trace.conclude(false, 'SetToDefault → conservative nullable')
+      return false
     }
 
     // Name the node we gave up on. Without this the fallback is invisible:
     // the result is safe (nullable) but there is no way to tell an expression
     // we deliberately treat conservatively from one nobody has considered.
     // The node-census test consults this fact to flag the latter.
-    const unknownTag = this.nodeTag(node);
-    this.onUnhandled?.("expression", unknownTag);
-    trace.addFact("unhandledNodeType", unknownTag);
-    trace.conclude(false, `unhandled node type '${unknownTag}' → conservative nullable`);
-    return false;
+    const unknownTag = this.nodeTag(node)
+    this.onUnhandled?.('expression', unknownTag)
+    trace.addFact('unhandledNodeType', unknownTag)
+    trace.conclude(false, `unhandled node type '${unknownTag}' → conservative nullable`)
+    return false
   }
 
   // -------------------------------------------------------------------------
@@ -9376,45 +9363,40 @@ class NullabilityEngine {
     trace: ITrace,
     label: string,
   ): boolean {
-    let allNotNull = true;
-    let i = 0;
+    let allNotNull = true
+    let i = 0
     for (const n of nodes) {
-      if (!n) continue;
-      const inner = (n as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
+      if (!n) continue
+      const inner = (n as Record<string, unknown>)['List'] as { items?: Node[] } | undefined
       if (inner) {
         if (!this.operandsAllNotNull(inner.items ?? [], scope, depth, trace, label)) {
-          allNotNull = false;
+          allNotNull = false
         }
-        continue;
+        continue
       }
-      const childTrace = trace.addChild(`${label}[${i}]`);
-      if (!this.walkExprTraced(n, scope, depth + 1, childTrace)) allNotNull = false;
-      i++;
+      const childTrace = trace.addChild(`${label}[${i}]`)
+      if (!this.walkExprTraced(n, scope, depth + 1, childTrace)) allNotNull = false
+      i++
     }
-    return allNotNull;
+    return allNotNull
   }
 
-  private resolveAExprTraced(
-    ae: AExpr,
-    scope: Scope,
-    depth: number,
-    trace: ITrace,
-  ): boolean {
-    const kind = ae.kind ?? "AEXPR_OP";
-    trace.addFact("kind", kind);
+  private resolveAExprTraced(ae: AExpr, scope: Scope, depth: number, trace: ITrace): boolean {
+    const kind = ae.kind ?? 'AEXPR_OP'
+    trace.addFact('kind', kind)
 
     switch (kind) {
       // `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` are NULL-aware by
       // definition: they always yield a plain boolean, even for NULL inputs.
-      case "AEXPR_DISTINCT":
-      case "AEXPR_NOT_DISTINCT":
-        trace.conclude(true, "IS [NOT] DISTINCT FROM → always a non-null boolean");
-        return true;
+      case 'AEXPR_DISTINCT':
+      case 'AEXPR_NOT_DISTINCT':
+        trace.conclude(true, 'IS [NOT] DISTINCT FROM → always a non-null boolean')
+        return true
 
       // NULLIF(a, b) returns NULL exactly when a = b — never provably non-null.
-      case "AEXPR_NULLIF":
-        trace.conclude(false, "NULLIF returns NULL when the operands are equal");
-        return false;
+      case 'AEXPR_NULLIF':
+        trace.conclude(false, 'NULLIF returns NULL when the operands are equal')
+        return false
 
       // `= ANY(...)` / `= ALL(...)` over an array is NULL when the left operand
       // is NULL, or when no element matches and some element is NULL. So the
@@ -9427,69 +9409,72 @@ class NullabilityEngine {
       // whether the ARRAY is NULL, which is not the question here. The
       // elements were in hand and thrown away. Anything else (a column, a
       // parameter) hides them and stays conservative.
-      case "AEXPR_OP_ANY":
-      case "AEXPR_OP_ALL": {
-        const arrayExpr = (ae.rexpr as Record<string, unknown> | undefined)?.["A_ArrayExpr"] as
-          | { elements?: Node[] }
-          | undefined;
+      case 'AEXPR_OP_ANY':
+      case 'AEXPR_OP_ALL': {
+        const arrayExpr = (ae.rexpr as Record<string, unknown> | undefined)?.['A_ArrayExpr'] as
+          { elements?: Node[] } | undefined
         const operands = arrayExpr
           ? [ae.lexpr, ...(arrayExpr.elements ?? [])]
           : this.evaluatedArrayHasNoNullElement(ae.rexpr)
             ? [ae.lexpr]
-            : null;
+            : null
         if (!operands) {
-          trace.conclude(false, "ANY/ALL over an opaque array — elements may be NULL → nullable");
-          return false;
+          trace.conclude(false, 'ANY/ALL over an opaque array — elements may be NULL → nullable')
+          return false
         }
-        const allNotNull = this.operandsAllNotNull(operands, scope, depth, trace, "operand");
+        const allNotNull = this.operandsAllNotNull(operands, scope, depth, trace, 'operand')
         trace.conclude(
           allNotNull,
           allNotNull
             ? `${kind} over a literal array with no NULL elements → non-null boolean`
             : `${kind} with a nullable operand or array element → nullable`,
-        );
-        return allNotNull;
+        )
+        return allNotNull
       }
 
       // These all reduce to strict boolean tests: non-null operands in,
       // non-null boolean out.
-      case "AEXPR_IN":
-      case "AEXPR_LIKE":
-      case "AEXPR_ILIKE":
-      case "AEXPR_SIMILAR":
-      case "AEXPR_BETWEEN":
-      case "AEXPR_NOT_BETWEEN":
-      case "AEXPR_BETWEEN_SYM":
-      case "AEXPR_NOT_BETWEEN_SYM": {
+      case 'AEXPR_IN':
+      case 'AEXPR_LIKE':
+      case 'AEXPR_ILIKE':
+      case 'AEXPR_SIMILAR':
+      case 'AEXPR_BETWEEN':
+      case 'AEXPR_NOT_BETWEEN':
+      case 'AEXPR_BETWEEN_SYM':
+      case 'AEXPR_NOT_BETWEEN_SYM': {
         const allNotNull = this.operandsAllNotNull(
-          [ae.lexpr, ae.rexpr], scope, depth, trace, "operand",
-        );
+          [ae.lexpr, ae.rexpr],
+          scope,
+          depth,
+          trace,
+          'operand',
+        )
         trace.conclude(
           allNotNull,
           allNotNull
             ? `${kind} with all operands non-null → non-null boolean`
             : `${kind} with a nullable operand → nullable`,
-        );
-        return allNotNull;
+        )
+        return allNotNull
       }
 
-      case "AEXPR_OP":
+      case 'AEXPR_OP':
       default: {
         // Only a known-total operator lets us propagate. Strictness is not
         // enough: `->` and `->>` are strict yet return NULL for a missing
         // key, so the operator must be on the allowlist of operators that
         // never produce NULL from non-null inputs.
-        const opNames = (ae.name ?? []).map(n => this.stringVal(n));
-        const qualified = opNames.length > 1;
-        const op = opNames[opNames.length - 1] ?? "";
-        trace.addFact("operator", opNames.join("."));
+        const opNames = (ae.name ?? []).map((n) => this.stringVal(n))
+        const qualified = opNames.length > 1
+        const op = opNames[opNames.length - 1] ?? ''
+        trace.addFact('operator', opNames.join('.'))
 
         // Read ONCE, per side. Three branches below want these — the typed
         // narrowing, the prefix form, and the bare-name fallback that now
         // eliminates with them — and each operand is a subtree, so reading
         // per branch would walk `a || b || c` twice at every level.
-        const lset = ae.lexpr ? this.operandTypeSet(ae.lexpr, scope, depth + 1) : null;
-        const rset = ae.rexpr ? this.operandTypeSet(ae.rexpr, scope, depth + 1) : null;
+        const lset = ae.lexpr ? this.operandTypeSet(ae.lexpr, scope, depth + 1) : null
+        const rset = ae.rexpr ? this.operandTypeSet(ae.rexpr, scope, depth + 1) : null
 
         // Type-aware narrowing first: where the operand types are readable, the
         // candidate set — path-visible user operators MERGED with the
@@ -9498,102 +9483,104 @@ class NullabilityEngine {
         // hole. "unknown" falls through to the allowlist path below, whose
         // recorded holes then apply only to the untypeable residue.
         if (ae.lexpr && ae.rexpr) {
-          const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined;
-          const [lt, rt] = [lset, rset];
-          const narrowed = this.catalog.resolveOperatorTotality(opSchema2, op, lt, rt);
-          if (narrowed.kind !== "unknown") {
+          const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined
+          const [lt, rt] = [lset, rset]
+          const narrowed = this.catalog.resolveOperatorTotality(opSchema2, op, lt, rt)
+          if (narrowed.kind !== 'unknown') {
             trace.addFact(
-              "operandTypes",
-              `${lt?.join("|") ?? "unknown"}, ${rt?.join("|") ?? "unknown"}`,
-            );
-            if (narrowed.kind === "user-exact") {
+              'operandTypes',
+              `${lt?.join('|') ?? 'unknown'}, ${rt?.join('|') ?? 'unknown'}`,
+            )
+            if (narrowed.kind === 'user-exact') {
               trace.addFact(
-                "customOperator",
+                'customOperator',
                 `${op} → ${narrowed.functionSchema}.${narrowed.functionName} (type-narrowed)`,
-              );
+              )
               const synthetic = {
                 funcname: [
                   { String: { sval: narrowed.functionSchema } },
                   { String: { sval: narrowed.functionName } },
                 ],
                 args: [ae.lexpr, ae.rexpr],
-              } as unknown as FuncCall;
-              const childTrace = trace.addChild(`operator '${op}' backing function`);
-              const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace);
+              } as unknown as FuncCall
+              const childTrace = trace.addChild(`operator '${op}' backing function`)
+              const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace)
               trace.conclude(
                 result,
-                `type-narrowed operator dispatched through its backing function → ${result ? "notNull" : "nullable"}`,
-              );
-              return result;
+                `type-narrowed operator dispatched through its backing function → ${result ? 'notNull' : 'nullable'}`,
+              )
+              return result
             }
-            if (narrowed.kind === "total") {
-              trace.addFact("totalOperator", "true (signature-narrowed)");
+            if (narrowed.kind === 'total') {
+              trace.addFact('totalOperator', 'true (signature-narrowed)')
               const allNotNull = this.operandsAllNotNull(
-                [ae.lexpr, ae.rexpr], scope, depth, trace, "operand",
-              );
+                [ae.lexpr, ae.rexpr],
+                scope,
+                depth,
+                trace,
+                'operand',
+              )
               trace.conclude(
                 allNotNull,
                 allNotNull
                   ? `every surviving candidate of '${op}' is total and all operands non-null → non-null`
                   : `operand of '${op}' is nullable → nullable`,
-              );
-              return allNotNull;
+              )
+              return allNotNull
             }
-            trace.addFact("totalOperator", "false (signature-narrowed)");
+            trace.addFact('totalOperator', 'false (signature-narrowed)')
             trace.conclude(
               false,
               `operator '${op}' keeps a non-total or unvouched candidate for these operand types → nullable`,
-            );
-            return false;
+            )
+            return false
           }
         }
 
         // The PREFIX form, same machinery over the leftType-null rows.
         if (!ae.lexpr && ae.rexpr) {
-          const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined;
-          const at = rset;
-          const narrowed = this.catalog.resolveUnaryOperatorTotality(opSchema2, op, at);
-          if (narrowed.kind !== "unknown") {
-            trace.addFact("operandTypes", at?.join("|") ?? "unknown");
-            if (narrowed.kind === "user-exact") {
+          const opSchema2 = qualified ? opNames[opNames.length - 2] : undefined
+          const at = rset
+          const narrowed = this.catalog.resolveUnaryOperatorTotality(opSchema2, op, at)
+          if (narrowed.kind !== 'unknown') {
+            trace.addFact('operandTypes', at?.join('|') ?? 'unknown')
+            if (narrowed.kind === 'user-exact') {
               trace.addFact(
-                "customOperator",
+                'customOperator',
                 `${op} → ${narrowed.functionSchema}.${narrowed.functionName} (type-narrowed)`,
-              );
+              )
               const synthetic = {
                 funcname: [
                   { String: { sval: narrowed.functionSchema } },
                   { String: { sval: narrowed.functionName } },
                 ],
                 args: [ae.rexpr],
-              } as unknown as FuncCall;
-              const childTrace = trace.addChild(`operator '${op}' backing function`);
-              const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace);
+              } as unknown as FuncCall
+              const childTrace = trace.addChild(`operator '${op}' backing function`)
+              const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace)
               trace.conclude(
                 result,
-                `type-narrowed operator dispatched through its backing function → ${result ? "notNull" : "nullable"}`,
-              );
-              return result;
+                `type-narrowed operator dispatched through its backing function → ${result ? 'notNull' : 'nullable'}`,
+              )
+              return result
             }
-            if (narrowed.kind === "total") {
-              trace.addFact("totalOperator", "true (signature-narrowed)");
-              const allNotNull = this.operandsAllNotNull(
-                [ae.rexpr], scope, depth, trace, "operand",
-              );
+            if (narrowed.kind === 'total') {
+              trace.addFact('totalOperator', 'true (signature-narrowed)')
+              const allNotNull = this.operandsAllNotNull([ae.rexpr], scope, depth, trace, 'operand')
               trace.conclude(
                 allNotNull,
                 allNotNull
                   ? `every surviving candidate of '${op}' is total and the operand non-null → non-null`
                   : `operand of '${op}' is nullable → nullable`,
-              );
-              return allNotNull;
+              )
+              return allNotNull
             }
-            trace.addFact("totalOperator", "false (signature-narrowed)");
+            trace.addFact('totalOperator', 'false (signature-narrowed)')
             trace.conclude(
               false,
               `operator '${op}' keeps a non-total or unvouched candidate for this operand type → nullable`,
-            );
-            return false;
+            )
+            return false
           }
         }
 
@@ -9614,13 +9601,13 @@ class NullabilityEngine {
         // nothing could type, which is precisely the claim that had no
         // grounds.
         if (!qualified && PARTIAL_OVERLOADS[op] !== undefined) {
-          trace.addFact("partialOverload", PARTIAL_OVERLOADS[op]!);
+          trace.addFact('partialOverload', PARTIAL_OVERLOADS[op]!)
           trace.conclude(
             false,
             `'${op}' carries a recorded non-total signature and the operand ` +
               `types did not narrow it away → nullable`,
-          );
-          return false;
+          )
+          return false
         }
 
         // A schema-qualified operator may be user-defined and shadow a
@@ -9640,43 +9627,47 @@ class NullabilityEngine {
           // to — and dispatching an eliminated row analyses the wrong body
           // and claims notNull for an expression that answers NULL
           // (`bare-name-gates-red.test.ts`).
-          const opSchema = qualified ? opNames[opNames.length - 2] : undefined;
-          const custom = this.catalog.resolveOperatorMetadata(opSchema, op, lset, rset);
+          const opSchema = qualified ? opNames[opNames.length - 2] : undefined
+          const custom = this.catalog.resolveOperatorMetadata(opSchema, op, lset, rset)
           if (custom?.functionSchema && custom.functionName) {
             trace.addFact(
-              "customOperator",
+              'customOperator',
               `${op} → ${custom.functionSchema}.${custom.functionName}`,
-            );
+            )
             const synthetic = {
               funcname: [
                 { String: { sval: custom.functionSchema } },
                 { String: { sval: custom.functionName } },
               ],
               args: [ae.lexpr, ae.rexpr].filter((n): n is Node => n !== undefined),
-            } as unknown as FuncCall;
-            const childTrace = trace.addChild(`operator '${op}' backing function`);
-            const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace);
+            } as unknown as FuncCall
+            const childTrace = trace.addChild(`operator '${op}' backing function`)
+            const result = this.resolveFuncCallTraced(synthetic, scope, depth + 1, childTrace)
             trace.conclude(
               result,
-              `custom operator dispatched through its backing function → ${result ? "notNull" : "nullable"}`,
-            );
-            return result;
+              `custom operator dispatched through its backing function → ${result ? 'notNull' : 'nullable'}`,
+            )
+            return result
           }
-          trace.addFact("totalOperator", "false");
-          trace.conclude(false, `operator '${op}' may return NULL for non-null inputs → nullable`);
-          return false;
+          trace.addFact('totalOperator', 'false')
+          trace.conclude(false, `operator '${op}' may return NULL for non-null inputs → nullable`)
+          return false
         }
-        trace.addFact("totalOperator", "true");
+        trace.addFact('totalOperator', 'true')
         const allNotNull = this.operandsAllNotNull(
-          [ae.lexpr, ae.rexpr], scope, depth, trace, "operand",
-        );
+          [ae.lexpr, ae.rexpr],
+          scope,
+          depth,
+          trace,
+          'operand',
+        )
         trace.conclude(
           allNotNull,
           allNotNull
             ? `total operator '${op}' with non-null operands → non-null`
             : `operand of '${op}' is nullable → nullable`,
-        );
-        return allNotNull;
+        )
+        return allNotNull
       }
     }
   }
@@ -9691,30 +9682,30 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    const fields = (ref.fields ?? []) as Node[];
-    const parts = fields.map(f => {
-      const fNode = f as Record<string, unknown>;
-      if ("String" in fNode) return (fNode["String"] as { sval?: string }).sval ?? "";
-      return "";
-    });
-    if (parts.length === 0) return false;
+    const fields = (ref.fields ?? []) as Node[]
+    const parts = fields.map((f) => {
+      const fNode = f as Record<string, unknown>
+      if ('String' in fNode) return (fNode['String'] as { sval?: string }).sval ?? ''
+      return ''
+    })
+    if (parts.length === 0) return false
 
     // Skip A_Star (shouldn't reach here — handled by expandStar).
-    if (fields.some(f => "A_Star" in (f as Record<string, unknown>))) return false;
+    if (fields.some((f) => 'A_Star' in (f as Record<string, unknown>))) return false
 
     // In a LANGUAGE sql function body context, an unqualified ColumnRef may
     // reference a named parameter (e.g. `SELECT x` where `x` is the param).
     // Check this before normal scope resolution.
     if (this.fnCtx && parts.length === 1) {
-      const paramName = parts[0]!;
-      const argIndex = this.fnParamNames?.indexOf(paramName) ?? -1;
+      const paramName = parts[0]!
+      const argIndex = this.fnParamNames?.indexOf(paramName) ?? -1
       if (argIndex >= 0) {
-        const result = this.fnCtx.argResults[argIndex] ?? false;
-        trace.addFact("fnParam", paramName);
-        trace.addFact("argIndex", String(argIndex));
-        trace.addFact("argResult", String(result));
-        trace.conclude(result, `function param '${paramName}' → ${result ? "notNull" : "nullable"}`);
-        return result;
+        const result = this.fnCtx.argResults[argIndex] ?? false
+        trace.addFact('fnParam', paramName)
+        trace.addFact('argIndex', String(argIndex))
+        trace.addFact('argResult', String(result))
+        trace.conclude(result, `function param '${paramName}' → ${result ? 'notNull' : 'nullable'}`)
+        return result
       }
       // Also try $N positional references inside the body.
       // (Old-style bodies use $1, $2 which are ParamRef nodes, not ColumnRef.)
@@ -9722,7 +9713,7 @@ class NullabilityEngine {
 
     // 1 part: unqualified `col`.
     if (parts.length === 1) {
-      return this.resolveUnqualifiedColumnTraced(parts[0]!, scope, depth, trace);
+      return this.resolveUnqualifiedColumnTraced(parts[0]!, scope, depth, trace)
     }
 
     // 2 parts: `alias.col`.
@@ -9735,30 +9726,29 @@ class NullabilityEngine {
       // is the closer binding, and PostgreSQL would have resolved it that way
       // too.
       if (this.fnCtx && parts[0] === this.fnCtx.fnName && !scope.aliases.has(parts[0]!)) {
-        const argIndex = this.fnParamNames?.indexOf(parts[1]!) ?? -1;
+        const argIndex = this.fnParamNames?.indexOf(parts[1]!) ?? -1
         if (argIndex >= 0) {
-          const result = this.fnCtx.argResults[argIndex] ?? false;
-          trace.addFact("fnParam", `${parts[0]}.${parts[1]}`);
-          trace.addFact("argIndex", String(argIndex));
+          const result = this.fnCtx.argResults[argIndex] ?? false
+          trace.addFact('fnParam', `${parts[0]}.${parts[1]}`)
+          trace.addFact('argIndex', String(argIndex))
           trace.conclude(
             result,
-            `function param '${parts[1]}' (deparsed qualified) → ${result ? "notNull" : "nullable"}`,
-          );
-          return result;
+            `function param '${parts[1]}' (deparsed qualified) → ${result ? 'notNull' : 'nullable'}`,
+          )
+          return result
         }
       }
-      return this.resolveAliasedColumnTraced(parts[0]!, parts[1]!, scope, depth, trace);
+      return this.resolveAliasedColumnTraced(parts[0]!, parts[1]!, scope, depth, trace)
     }
 
     // 3 parts: `schema.alias.col` — treat as alias.col.
     if (parts.length === 3) {
-      return this.resolveAliasedColumnTraced(parts[1]!, parts[2]!, scope, depth, trace);
+      return this.resolveAliasedColumnTraced(parts[1]!, parts[2]!, scope, depth, trace)
     }
 
-    trace.conclude(false, `unresolvable ColumnRef (${parts.length} parts)`);
-    return false;
+    trace.conclude(false, `unresolvable ColumnRef (${parts.length} parts)`)
+    return false
   }
-
 
   private resolveUnqualifiedColumnTraced(
     colName: string,
@@ -9770,20 +9760,25 @@ class NullabilityEngine {
     // same set `SELECT *` expands to. A USING join's merged column is what is
     // visible under that name; the constituents are reachable only when
     // qualified.
-    const here = this.resolveVisible(colName, scope, scope, depth, trace, "inner scope");
-    if (here !== undefined) return here;
+    const here = this.resolveVisible(colName, scope, scope, depth, trace, 'inner scope')
+    if (here !== undefined) return here
 
     // Correlated reference into the enclosing query.
     if (scope.outer) {
       const outer = this.resolveVisible(
-        colName, scope.outer, scope.outer, depth, trace, "outer/correlated scope",
-      );
-      if (outer !== undefined) return outer;
+        colName,
+        scope.outer,
+        scope.outer,
+        depth,
+        trace,
+        'outer/correlated scope',
+      )
+      if (outer !== undefined) return outer
     }
 
-    trace.addFact("resolved", "NOT_FOUND");
-    trace.conclude(false, `column '${colName}' not found in any scope → nullable`);
-    return false;
+    trace.addFact('resolved', 'NOT_FOUND')
+    trace.conclude(false, `column '${colName}' not found in any scope → nullable`)
+    return false
   }
 
   /**
@@ -9803,31 +9798,34 @@ class NullabilityEngine {
     trace: ITrace,
     where: string,
   ): boolean | undefined {
-    const matches = lookupScope.visible.filter(vc => vc.name === colName);
-    if (matches.length === 0) return undefined;
+    const matches = lookupScope.visible.filter((vc) => vc.name === colName)
+    if (matches.length === 0) return undefined
 
     if (matches.length > 1) {
-      const owners = matches.map(m => m.entry?.alias ?? "<merged>").join(", ");
-      trace.addFact("resolved", "AMBIGUOUS");
-      trace.addFact("candidates", owners);
+      const owners = matches.map((m) => m.entry?.alias ?? '<merged>').join(', ')
+      trace.addFact('resolved', 'AMBIGUOUS')
+      trace.addFact('candidates', owners)
       trace.conclude(
         false,
         `column '${colName}' is ambiguous in the ${where} (${matches.length} visible columns: ${owners}) → nullable`,
-      );
-      return false;
+      )
+      return false
     }
 
-    const vc = matches[0]!;
+    const vc = matches[0]!
     if (vc.merged) {
-      const result = this.mergedColumnNotNull(colName, vc.merged, resolveScope, depth);
-      trace.addFact("resolved", `merged join column (${where})`);
-      trace.addFact("jointype", vc.merged.jointype);
-      trace.conclude(result, `merged USING/NATURAL column '${colName}' → ${result ? "notNull" : "nullable"}`);
-      return result;
+      const result = this.mergedColumnNotNull(colName, vc.merged, resolveScope, depth)
+      trace.addFact('resolved', `merged join column (${where})`)
+      trace.addFact('jointype', vc.merged.jointype)
+      trace.conclude(
+        result,
+        `merged USING/NATURAL column '${colName}' → ${result ? 'notNull' : 'nullable'}`,
+      )
+      return result
     }
-    if (!vc.entry) return undefined;
-    trace.addFact("resolved", `alias '${vc.entry.alias}' (${where})`);
-    return this.computeColumnNullabilityTraced(vc.entry, colName, resolveScope, depth, trace);
+    if (!vc.entry) return undefined
+    trace.addFact('resolved', `alias '${vc.entry.alias}' (${where})`)
+    return this.computeColumnNullabilityTraced(vc.entry, colName, resolveScope, depth, trace)
   }
 
   private resolveAliasedColumnTraced(
@@ -9837,23 +9835,23 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    const entry = this.resolveAlias(aliasName, scope);
+    const entry = this.resolveAlias(aliasName, scope)
     if (entry) {
-      trace.addFact("resolved", `alias '${aliasName}'`);
-      return this.computeColumnNullabilityTraced(entry, colName, scope, depth, trace);
+      trace.addFact('resolved', `alias '${aliasName}'`)
+      return this.computeColumnNullabilityTraced(entry, colName, scope, depth, trace)
     }
-    trace.addFact("resolved", `alias '${aliasName}' NOT_FOUND`);
-    trace.conclude(false, `alias '${aliasName}' not found → nullable`);
-    return false;
+    trace.addFact('resolved', `alias '${aliasName}' NOT_FOUND`)
+    trace.conclude(false, `alias '${aliasName}' not found → nullable`)
+    return false
   }
 
   private resolveAlias(aliasName: string, scope: Scope): RelationEntry | null {
-    let s: Scope | null = scope;
+    let s: Scope | null = scope
     while (s) {
-      if (s.aliases.has(aliasName)) return s.aliases.get(aliasName)!;
-      s = s.outer;
+      if (s.aliases.has(aliasName)) return s.aliases.get(aliasName)!
+      s = s.outer
     }
-    return null;
+    return null
   }
 
   private computeColumnNullabilityTraced(
@@ -9879,12 +9877,11 @@ class NullabilityEngine {
      */
     ordinal?: number,
   ): boolean {
-    let joinState =
-      presumePresent || this.presumedPresent.has(entry) ? REQUIRED : entry.joinState;
+    let joinState = presumePresent || this.presumedPresent.has(entry) ? REQUIRED : entry.joinState
 
-    trace.addFact("relation", `${entry.kind} '${entry.alias}'`);
-    trace.addFact("colName", colName);
-    trace.addFact("joinState", joinStateName(joinState));
+    trace.addFact('relation', `${entry.kind} '${entry.alias}'`)
+    trace.addFact('colName', colName)
+    trace.addFact('joinState', joinStateName(joinState))
 
     // ROLLUP / CUBE / GROUPING SETS report NULL for the grouping columns a
     // super-aggregate row collapses, overriding both the catalog flag and any
@@ -9893,47 +9890,50 @@ class NullabilityEngine {
       scope.groupingSetColumns.has(colName) ||
       scope.groupingSetColumns.has(`${entry.alias}.${colName}`)
     ) {
-      trace.addFact("groupingSetColumn", "true");
-      trace.conclude(false, "column is collapsed by ROLLUP/CUBE/GROUPING SETS → NULL in super-aggregate rows");
-      return false;
+      trace.addFact('groupingSetColumn', 'true')
+      trace.conclude(
+        false,
+        'column is collapsed by ROLLUP/CUBE/GROUPING SETS → NULL in super-aggregate rows',
+      )
+      return false
     }
 
     // Check WHERE promotion: if the WHERE clause guarantees this column
     // is non-null, promote OPTIONAL → REQUIRED.
-    const whereGuarantees = this.checkWhereGuarantee(entry.alias, colName, scope);
-    trace.addFact("whereGuarantee", String(whereGuarantees));
+    const whereGuarantees = this.checkWhereGuarantee(entry.alias, colName, scope)
+    trace.addFact('whereGuarantee', String(whereGuarantees))
 
     if (whereGuarantees && joinState === OPTIONAL) {
-      joinState = REQUIRED;
+      joinState = REQUIRED
     }
     // A WHERE guarantee also overrides catalog nullability to non-null.
     if (whereGuarantees) {
-      trace.addFact("joinStateAfterPromotion", joinStateName(joinState));
-      trace.conclude(true, "WHERE guarantee on this column → notNull");
-      return true;
+      trace.addFact('joinStateAfterPromotion', joinStateName(joinState))
+      trace.conclude(true, 'WHERE guarantee on this column → notNull')
+      return true
     }
 
     // A branch guard is the same kind of evidence as a WHERE guarantee, just
     // scoped to the CASE branch being walked rather than the whole SELECT.
     if (this.guardsImplyNotNull(entry.alias, colName, scope)) {
-      trace.addFact("branchGuarantee", "true");
-      trace.conclude(true, "branch condition guarantees this column is non-null → notNull");
-      return true;
+      trace.addFact('branchGuarantee', 'true')
+      trace.conclude(true, 'branch condition guarantees this column is non-null → notNull')
+      return true
     }
 
     // Per-alias promotion: if the WHERE has any predicate on any column of
     // this alias (in an AND-conjunct), the alias is promoted to REQUIRED.
     if (joinState === OPTIONAL && this.checkWhereAliasPromoted(entry.alias, scope)) {
-      joinState = REQUIRED;
-      trace.addFact("whereAliasPromoted", "true (predicate on alias → INNER JOIN)");
-      trace.addFact("joinStateAfterPromotion", joinStateName(joinState));
+      joinState = REQUIRED
+      trace.addFact('whereAliasPromoted', 'true (predicate on alias → INNER JOIN)')
+      trace.addFact('joinStateAfterPromotion', joinStateName(joinState))
     }
 
     // Likewise for a branch guard that proves the alias's row exists.
     if (joinState === OPTIONAL && this.guardsPromoteAlias(entry.alias, scope)) {
-      joinState = REQUIRED;
-      trace.addFact("branchAliasPromoted", "true (branch condition implies the row exists)");
-      trace.addFact("joinStateAfterPromotion", joinStateName(joinState));
+      joinState = REQUIRED
+      trace.addFact('branchAliasPromoted', 'true (branch condition implies the row exists)')
+      trace.addFact('joinStateAfterPromotion', joinStateName(joinState))
     }
 
     // Null-group promotion: relations NULL-extended as a unit stand or fall
@@ -9941,11 +9941,11 @@ class NullabilityEngine {
     // this one too. In `(o JOIN oi) LEFT JOIN p`, `WHERE o.id IS NOT NULL`
     // promotes `oi` as well — `o` and `oi` can never be half-NULL-extended.
     if (joinState === OPTIONAL) {
-      const promoter = this.findNullGroupPromoter(entry, scope);
+      const promoter = this.findNullGroupPromoter(entry, scope)
       if (promoter) {
-        joinState = REQUIRED;
-        trace.addFact("nullGroupPromotedBy", `${promoter} (same null group ${entry.nullGroup})`);
-        trace.addFact("joinStateAfterPromotion", joinStateName(joinState));
+        joinState = REQUIRED
+        trace.addFact('nullGroupPromotedBy', `${promoter} (same null group ${entry.nullGroup})`)
+        trace.addFact('joinStateAfterPromotion', joinStateName(joinState))
       }
     }
 
@@ -9954,69 +9954,86 @@ class NullabilityEngine {
     // conjuncts, speculatively. The three rungs above stay because they are
     // cheap and answer most cases without building a snapshot.
     if (joinState === OPTIONAL && this.guardedPresence(scope).has(entry.alias)) {
-      joinState = REQUIRED;
-      trace.addFact("guardedFixpointPromoted", "true (branch guards prove the row exists)");
-      trace.addFact("joinStateAfterPromotion", joinStateName(joinState));
+      joinState = REQUIRED
+      trace.addFact('guardedFixpointPromoted', 'true (branch guards prove the row exists)')
+      trace.addFact('joinStateAfterPromotion', joinStateName(joinState))
     }
 
     // For views: analyze the stored definition and map its output columns onto
     // the view's column list by position. The catalog's attnotnull is useless
     // here — PostgreSQL reports false for every view column.
-    if (entry.kind === "view" && entry.ast && entry.table) {
-      const innerResults = this.analyzeStatement(entry.ast, scope, depth + 1);
-      const colIndex = ordinal ?? this.entryColumnNames(entry).indexOf(colName);
-      const inner = colIndex >= 0 ? innerResults[colIndex] : undefined;
+    if (entry.kind === 'view' && entry.ast && entry.table) {
+      const innerResults = this.analyzeStatement(entry.ast, scope, depth + 1)
+      const colIndex = ordinal ?? this.entryColumnNames(entry).indexOf(colName)
+      const inner = colIndex >= 0 ? innerResults[colIndex] : undefined
       if (inner) {
-        const result = inner.notNull && joinState !== OPTIONAL;
-        trace.addFact("viewDefinition", `${entry.table.schema}.${entry.table.name}`);
-        trace.addFact("innerResult", `${inner.notNull ? "notNull" : "nullable"} (col[${colIndex}])`);
+        const result = inner.notNull && joinState !== OPTIONAL
+        trace.addFact('viewDefinition', `${entry.table.schema}.${entry.table.name}`)
+        trace.addFact('innerResult', `${inner.notNull ? 'notNull' : 'nullable'} (col[${colIndex}])`)
         if (
           !result &&
           joinState !== OPTIONAL &&
           inner.origins &&
-          this.originCheckEntailment(entry, inner.origins, inner.originNotNull, innerResults, this.entryColumnNames(entry), scope, trace)
+          this.originCheckEntailment(
+            entry,
+            inner.origins,
+            inner.originNotNull,
+            innerResults,
+            this.entryColumnNames(entry),
+            scope,
+            trace,
+          )
         ) {
-          trace.conclude(true, "origin CHECK entailment through the view → notNull");
-          return true;
+          trace.conclude(true, 'origin CHECK entailment through the view → notNull')
+          return true
         }
-        trace.conclude(result, `view column[${colIndex}] ${inner.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
-        return result;
+        trace.conclude(
+          result,
+          `view column[${colIndex}] ${inner.notNull ? 'notNull' : 'nullable'} + join ${joinStateName(joinState)}`,
+        )
+        return result
       }
-      trace.conclude(false, `column '${colName}' not found in view definition output`);
-      return false;
+      trace.conclude(false, `column '${colName}' not found in view definition output`)
+      return false
     }
 
     // Table functions: the resolved return-type columns.
-    if (entry.kind === "function") {
-      const fnCols = this.resolveTableFunctionColumns(entry, scope, depth);
-      const index = fnCols.findIndex(c => c.name === colName);
-      const col = index >= 0 ? fnCols[index]! : undefined;
+    if (entry.kind === 'function') {
+      const fnCols = this.resolveTableFunctionColumns(entry, scope, depth)
+      const index = fnCols.findIndex((c) => c.name === colName)
+      const col = index >= 0 ? fnCols[index]! : undefined
       if (!col) {
-        trace.conclude(false, `column '${colName}' not found in the function's return type`);
-        return false;
+        trace.conclude(false, `column '${colName}' not found in the function's return type`)
+        return false
       }
       // An `unnest` over an array CONSTRUCTOR is its elements, and they are
       // expressions this scope can read. Asked here rather than in the
       // memoized column list because the answer depends on the presence
       // fixpoint, which runs after the names have to exist.
       if (!col.notNull && this.unnestArrayColumnNotNull(entry, index, scope, depth)) {
-        const result = joinState !== OPTIONAL;
-        trace.addFact("unnestArrayElements", "true (every element non-null)");
-        trace.conclude(result, `unnest column '${colName}' follows its array constructor's elements + join ${joinStateName(joinState)}`);
-        return result;
+        const result = joinState !== OPTIONAL
+        trace.addFact('unnestArrayElements', 'true (every element non-null)')
+        trace.conclude(
+          result,
+          `unnest column '${colName}' follows its array constructor's elements + join ${joinStateName(joinState)}`,
+        )
+        return result
       }
-      const result = col.notNull && joinState !== OPTIONAL;
-      trace.addFact("tableFunction", entry.alias);
-      trace.addFact("returnTypeNotNull", String(col.notNull));
-      trace.conclude(result, `table-function column '${colName}' ${col.notNull ? "notNull (domain)" : "nullable (row type carries no constraints)"} + join ${joinStateName(joinState)}`);
-      return result;
+      const result = col.notNull && joinState !== OPTIONAL
+      trace.addFact('tableFunction', entry.alias)
+      trace.addFact('returnTypeNotNull', String(col.notNull))
+      trace.conclude(
+        result,
+        `table-function column '${colName}' ${col.notNull ? 'notNull (domain)' : 'nullable (row type carries no constraints)'} + join ${joinStateName(joinState)}`,
+      )
+      return result
     }
 
     // For subqueries/CTEs: recurse into the inner scope.
-    if (entry.kind === "subquery" || entry.kind === "cte") {
+    if (entry.kind === 'subquery' || entry.kind === 'cte') {
       if (entry.ast) {
-        const innerResults = this.innerRelationColumns(entry, scope, depth);
-        const outerNames = innerResults.map((r, i) => entry.cteColumns?.[i] ?? r.name);
+        const innerResults = this.innerRelationColumns(entry, scope, depth)
+        const outerNames = innerResults.map((r, i) => entry.cteColumns?.[i] ?? r.name)
 
         // Two escapes from a nullable inner verdict, both saying the same
         // kind of thing — the inner analysis exported a fact the boolean
@@ -10032,90 +10049,122 @@ class NullabilityEngine {
         // independent, and the group arm is the only one a table function
         // can reach (see `presenceGroupPins`).
         const escape = (inner: OutputNullability, index: number): string | null => {
-          if (inner.notNull || joinState === OPTIONAL) return null;
+          if (inner.notNull || joinState === OPTIONAL) return null
           if (
             inner.origins &&
-            this.originCheckEntailment(entry, inner.origins, inner.originNotNull, innerResults, outerNames, scope, trace)
+            this.originCheckEntailment(
+              entry,
+              inner.origins,
+              inner.originNotNull,
+              innerResults,
+              outerNames,
+              scope,
+              trace,
+            )
           ) {
-            return "origin CHECK entailment through the CTE/subquery → notNull";
+            return 'origin CHECK entailment through the CTE/subquery → notNull'
           }
-          const pin = this.presenceGroupPins(entry, index, outerNames, scope);
+          const pin = this.presenceGroupPins(entry, index, outerNames, scope)
           return pin === null
             ? null
             : `${pin} is pinned here and shares this column's presence group, ` +
-              `so the inner row is present on every returned row → notNull`;
-        };
+                `so the inner row is present on every returned row → notNull`
+        }
 
         // Star expansion resolves positionally — the only caller that can
         // reach a duplicate-named inner column, where a name lookup would
         // first-match the wrong one.
         if (ordinal !== undefined) {
-          const inner = innerResults[ordinal];
+          const inner = innerResults[ordinal]
           if (inner) {
-            const result = inner.notNull && joinState !== OPTIONAL;
-            trace.addFact("innerResult", `${inner.notNull ? "notNull" : "nullable"} (ordinal ${ordinal})`);
-            const why = result ? null : escape(inner, ordinal);
+            const result = inner.notNull && joinState !== OPTIONAL
+            trace.addFact(
+              'innerResult',
+              `${inner.notNull ? 'notNull' : 'nullable'} (ordinal ${ordinal})`,
+            )
+            const why = result ? null : escape(inner, ordinal)
             if (why) {
-              trace.conclude(true, why);
-              return true;
+              trace.conclude(true, why)
+              return true
             }
-            trace.conclude(result, `CTE/subquery column[${ordinal}] ${inner.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
-            return result;
+            trace.conclude(
+              result,
+              `CTE/subquery column[${ordinal}] ${inner.notNull ? 'notNull' : 'nullable'} + join ${joinStateName(joinState)}`,
+            )
+            return result
           }
-          trace.conclude(false, `ordinal ${ordinal} out of range for CTE/subquery output`);
-          return false;
+          trace.conclude(false, `ordinal ${ordinal} out of range for CTE/subquery output`)
+          return false
         }
 
         // For VALUES subqueries, the inner results have auto-generated names
         // (column1, column2, ...). Map the alias column names to positions.
         if (entry.cteColumns && entry.cteColumns.length > 0) {
-          const colIndex = entry.cteColumns.indexOf(colName);
+          const colIndex = entry.cteColumns.indexOf(colName)
           if (colIndex >= 0 && colIndex < innerResults.length) {
-            const inner = innerResults[colIndex]!;
-            const result = inner.notNull && joinState !== OPTIONAL;
-            trace.addFact("innerResult", `${inner.notNull ? "notNull" : "nullable"} (col[${colIndex}])`);
-            const why = result ? null : escape(inner, colIndex);
+            const inner = innerResults[colIndex]!
+            const result = inner.notNull && joinState !== OPTIONAL
+            trace.addFact(
+              'innerResult',
+              `${inner.notNull ? 'notNull' : 'nullable'} (col[${colIndex}])`,
+            )
+            const why = result ? null : escape(inner, colIndex)
             if (why) {
-              trace.conclude(true, why);
-              return true;
+              trace.conclude(true, why)
+              return true
             }
-            trace.conclude(result, `CTE/subquery column[${colIndex}] ${inner.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
-            return result;
+            trace.conclude(
+              result,
+              `CTE/subquery column[${colIndex}] ${inner.notNull ? 'notNull' : 'nullable'} + join ${joinStateName(joinState)}`,
+            )
+            return result
           }
           // Also try matching by name (for non-VALUES subqueries with alias colnames).
-          const col = innerResults.find(r => r.name === colName);
+          const col = innerResults.find((r) => r.name === colName)
           if (col) {
-            const result = col.notNull && joinState !== OPTIONAL;
-            trace.addFact("innerResult", `${col.notNull ? "notNull" : "nullable"} (by name '${colName}')`);
-            const why = result ? null : escape(col, innerResults.indexOf(col));
+            const result = col.notNull && joinState !== OPTIONAL
+            trace.addFact(
+              'innerResult',
+              `${col.notNull ? 'notNull' : 'nullable'} (by name '${colName}')`,
+            )
+            const why = result ? null : escape(col, innerResults.indexOf(col))
             if (why) {
-              trace.conclude(true, why);
-              return true;
+              trace.conclude(true, why)
+              return true
             }
-            trace.conclude(result, `CTE/subquery col '${colName}' ${col.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
-            return result;
+            trace.conclude(
+              result,
+              `CTE/subquery col '${colName}' ${col.notNull ? 'notNull' : 'nullable'} + join ${joinStateName(joinState)}`,
+            )
+            return result
           }
-          trace.conclude(false, `column '${colName}' not found in CTE/subquery output`);
-          return false;
+          trace.conclude(false, `column '${colName}' not found in CTE/subquery output`)
+          return false
         }
 
-        const col = innerResults.find(r => r.name === colName);
+        const col = innerResults.find((r) => r.name === colName)
         if (col) {
-          const result = col.notNull && joinState !== OPTIONAL;
-          trace.addFact("innerResult", `${col.notNull ? "notNull" : "nullable"} (by name '${colName}')`);
-          const why = result ? null : escape(col, innerResults.indexOf(col));
+          const result = col.notNull && joinState !== OPTIONAL
+          trace.addFact(
+            'innerResult',
+            `${col.notNull ? 'notNull' : 'nullable'} (by name '${colName}')`,
+          )
+          const why = result ? null : escape(col, innerResults.indexOf(col))
           if (why) {
-            trace.conclude(true, why);
-            return true;
+            trace.conclude(true, why)
+            return true
           }
-          trace.conclude(result, `CTE/subquery col '${colName}' ${col.notNull ? "notNull" : "nullable"} + join ${joinStateName(joinState)}`);
-          return result;
+          trace.conclude(
+            result,
+            `CTE/subquery col '${colName}' ${col.notNull ? 'notNull' : 'nullable'} + join ${joinStateName(joinState)}`,
+          )
+          return result
         }
-        trace.conclude(false, `column '${colName}' not found in CTE/subquery output`);
-        return false;
+        trace.conclude(false, `column '${colName}' not found in CTE/subquery output`)
+        return false
       }
-      trace.conclude(false, "CTE/subquery has no AST → nullable");
-      return false;
+      trace.conclude(false, 'CTE/subquery has no AST → nullable')
+      return false
     }
 
     // For tables/views: read catalog notNull + join nullability.
@@ -10126,14 +10175,14 @@ class NullabilityEngine {
       // unknown name here is a column the relation does not answer to, which
       // PostgreSQL rejects outright; nullable is the safe answer to a question
       // that will never be asked.
-      const catalogCol = this.entryCatalogColumn(entry, colName);
+      const catalogCol = this.entryCatalogColumn(entry, colName)
       if (catalogCol === undefined) {
-        trace.conclude(false, `'${colName}' is not a column of ${entry.alias}`);
-        return false;
+        trace.conclude(false, `'${colName}' is not a column of ${entry.alias}`)
+        return false
       }
-      const catalogNotNull = this.entryColumnNotNull(entry, catalogCol);
-      trace.addFact("catalog.notNull", String(catalogNotNull));
-      trace.addFact("table", `${entry.table.schema}.${entry.table.name}`);
+      const catalogNotNull = this.entryColumnNotNull(entry, catalogCol)
+      trace.addFact('catalog.notNull', String(catalogNotNull))
+      trace.addFact('table', `${entry.table.schema}.${entry.table.name}`)
       // DML RETURNING: a column whose WRITTEN value is provably non-null on
       // every path that can produce a returned row (see the analyzers'
       // dmlWrittenColumns construction). Written evidence only ever
@@ -10144,9 +10193,9 @@ class NullabilityEngine {
         scope.dmlWrittenColumns.alias === entry.alias &&
         scope.dmlWrittenColumns.columns.get(catalogCol) === true
       ) {
-        trace.addFact("writtenValue", "provably non-null on every returning path");
-        trace.conclude(true, "the written value is non-null → notNull in RETURNING");
-        return true;
+        trace.addFact('writtenValue', 'provably non-null on every returning path')
+        trace.conclude(true, 'the written value is non-null → notNull in RETURNING')
+        return true
       }
       // A GENERATED column is its expression over THIS row's other columns,
       // so walking the expression with its refs bound to this entry gives
@@ -10159,29 +10208,28 @@ class NullabilityEngine {
       // Cycle-free by PostgreSQL's rules; the in-flight set is insurance
       // against hand-built catalogs, not a reachable state.
       if (!catalogNotNull && joinState !== OPTIONAL) {
-        const genKey = `${entry.table.schema}.${entry.table.name}.${catalogCol}`;
-        const genExpr =
-          this.generationInFlight.has(genKey)
-            ? null
-            : this.entryGenerationExpr(entry, catalogCol);
+        const genKey = `${entry.table.schema}.${entry.table.name}.${catalogCol}`
+        const genExpr = this.generationInFlight.has(genKey)
+          ? null
+          : this.entryGenerationExpr(entry, catalogCol)
         if (genExpr) {
-          this.generationInFlight.add(genKey);
+          this.generationInFlight.add(genKey)
           try {
-            const genTrace = trace.addChild("generation expression");
+            const genTrace = trace.addChild('generation expression')
             const result = this.walkExprTraced(
               this.qualifyColumnRefs(genExpr, entry.alias, entry),
               scope,
               depth + 1,
               genTrace,
-            );
+            )
             if (result) {
-              trace.addFact("generatedColumn", "expression provably non-null");
-              trace.conclude(true, "generation expression over this row's columns → notNull");
-              return true;
+              trace.addFact('generatedColumn', 'expression provably non-null')
+              trace.conclude(true, "generation expression over this row's columns → notNull")
+              return true
             }
-            trace.addFact("generatedColumn", "expression not provably non-null");
+            trace.addFact('generatedColumn', 'expression not provably non-null')
           } finally {
-            this.generationInFlight.delete(genKey);
+            this.generationInFlight.delete(genKey)
           }
         }
         // CHECK-constraint entailment: every row of the table satisfies its
@@ -10211,86 +10259,86 @@ class NullabilityEngine {
         const checkExprs =
           entry.scanInh === false
             ? this.catalog.resolveCheckConstraints(entry.table.schema, entry.table.name)
-            : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name);
+            : this.catalog.resolveCheckConstraintsTree(entry.table.schema, entry.table.name)
         // Generated columns contribute EQUALITY facts (col = expr per stored
         // row, OLD and NEW alike) — the kernel's arm exclusion turns a
         // discriminator filter over a generated CASE back into its selected
         // arm's condition, which can pin the goal with no CHECK at all.
-        const generatedEqualities: { column: string; expr: Node }[] = [];
+        const generatedEqualities: { column: string; expr: Node }[] = []
         for (const col of entry.table.columns) {
           // Same scanInh split: the equality fact `col = expr` is FALSE for
           // a child row computed with a different expression.
-          const colGenExpr = this.entryGenerationExpr(entry, col);
+          const colGenExpr = this.entryGenerationExpr(entry, col)
           if (colGenExpr) {
             generatedEqualities.push({
               column: `${entry.alias}.${this.entryColumnNames(entry)[entry.table.columns.indexOf(col)] ?? col}`,
               expr: this.qualifyColumnRefs(colGenExpr, entry.alias, entry),
-            });
+            })
           }
         }
         if (checkExprs.length > 0 || generatedEqualities.length > 0) {
           const setCols =
-            scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null;
+            scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null
           const core: Node[] = [
             ...(scope.whereClause ? [scope.whereClause] : []),
             ...(scope.havingClause ? [scope.havingClause] : []),
             ...scope.impliedQuals,
             ...this.entryNotNullEvidence(entry, scope, joinState),
-          ];
-          const guardPreds = this.kernelGuardPreds(scope);
+          ]
+          const guardPreds = this.kernelGuardPreds(scope)
           const channels: { label: string; evidence: { pred: Node; applySetMask: boolean }[] }[] =
-            [];
+            []
           if (!setCols || this.dmlOldRowRead) {
             // One row in play: no SET mask exists, or this is a SET
             // expression reading the OLD row, where core and guards alike
             // tested that same row.
             channels.push({
-              label: this.dmlOldRowRead ? "OLD row (SET expression read)" : "row",
-              evidence: [...core, ...guardPreds].map(pred => ({ pred, applySetMask: false })),
-            });
+              label: this.dmlOldRowRead ? 'OLD row (SET expression read)' : 'row',
+              evidence: [...core, ...guardPreds].map((pred) => ({ pred, applySetMask: false })),
+            })
           } else {
             channels.push({
-              label: "NEW row",
+              label: 'NEW row',
               evidence: [
-                ...core.map(pred => ({ pred, applySetMask: true })),
-                ...guardPreds.map(pred => ({ pred, applySetMask: false })),
+                ...core.map((pred) => ({ pred, applySetMask: true })),
+                ...guardPreds.map((pred) => ({ pred, applySetMask: false })),
               ],
-            });
+            })
             if (!setCols.has(catalogCol)) {
               channels.push({
-                label: "OLD row",
+                label: 'OLD row',
                 evidence: [
-                  ...core.map(pred => ({ pred, applySetMask: false })),
-                  ...guardPreds.map(pred => ({ pred, applySetMask: true })),
+                  ...core.map((pred) => ({ pred, applySetMask: false })),
+                  ...guardPreds.map((pred) => ({ pred, applySetMask: true })),
                 ],
-              });
+              })
             }
           }
           for (const channel of channels) {
             const ckTrace = trace.addChild(
               `CHECK entailment (${channel.label}): ${entry.table.schema}.${entry.table.name}`,
-            );
+            )
             const proved = checkConstraintsProveNotNull({
               evaluatedComparison: this.comparisonOracle(),
               btreeStrategy: this.btreeStrategySupply(),
               equalityComplement: this.equalityComplementSupply(),
-              closedTruth: expr => this.closedTruthOf(expr),
+              closedTruth: (expr) => this.closedTruthOf(expr),
               // The shown name, not the catalog one: the CHECKs above were
               // renamed into this scope's vocabulary, and a goal in the other
               // vocabulary matches none of them.
               goal: { alias: entry.alias, column: colName },
-              checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias, entry)),
+              checkExprs: checkExprs.map((c) => this.qualifyColumnRefs(c, entry.alias, entry)),
               evidence: channel.evidence,
               generatedEqualities,
               isMasked: (alias, col) => !!setCols && alias === entry.alias && setCols.has(col),
-              resolveUnqualified: col => {
-                let owner: string | null = null;
+              resolveUnqualified: (col) => {
+                let owner: string | null = null
                 for (const v of scope.visible) {
-                  if (v.name !== col) continue;
-                  if (!v.entry || owner) return null; // merged or ambiguous
-                  owner = v.entry.alias;
+                  if (v.name !== col) continue
+                  if (!v.entry || owner) return null // merged or ambiguous
+                  owner = v.entry.alias
                 }
-                return owner;
+                return owner
               },
               // The kernel asks these with the names the CHECK expressions
               // carry, which are this scope's — so they translate back before
@@ -10298,48 +10346,51 @@ class NullabilityEngine {
               // them, which is why a plain `OR` CHECK survived a rename and
               // one written as a CASE did not.
               columnTypeName: (alias, col) => {
-                const e = scope.aliases.get(alias);
-                const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+                const e = scope.aliases.get(alias)
+                const cat = e ? this.entryCatalogColumn(e, col) : undefined
                 return e?.table && cat !== undefined
                   ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, cat)
-                  : null;
+                  : null
               },
               comparisonEvaluable: (alias, col, op) => {
-                const e = scope.aliases.get(alias);
-                const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+                const e = scope.aliases.get(alias)
+                const cat = e ? this.entryCatalogColumn(e, col) : undefined
                 return e?.table && cat !== undefined
                   ? this.comparisonOpEvaluable(e.table.schema, e.table.name, cat, op)
-                  : false;
+                  : false
               },
               literalDistinctnessSound: (alias, col) => {
-                const e = scope.aliases.get(alias);
-                const cat = e ? this.entryCatalogColumn(e, col) : undefined;
+                const e = scope.aliases.get(alias)
+                const cat = e ? this.entryCatalogColumn(e, col) : undefined
                 return e?.table && cat !== undefined
                   ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, cat)
-                  : false;
+                  : false
               },
               trace: ckTrace,
-            });
+            })
             ckTrace.conclude(
               proved,
               proved
-                ? "a validated CHECK plus row-implied evidence entails `col IS NOT NULL`"
-                : "no derivation reaches `col IS NOT NULL`",
-            );
+                ? 'a validated CHECK plus row-implied evidence entails `col IS NOT NULL`'
+                : 'no derivation reaches `col IS NOT NULL`',
+            )
             if (proved) {
-              trace.conclude(true, `CHECK-constraint entailment (${channel.label}) → notNull`);
-              return true;
+              trace.conclude(true, `CHECK-constraint entailment (${channel.label}) → notNull`)
+              return true
             }
           }
         }
       }
-      const result = catalogNotNull && joinState !== OPTIONAL;
-      trace.conclude(result, `catalog.notNull=${catalogNotNull} && join ${joinStateName(joinState)}${joinState === OPTIONAL ? " (OPTIONAL → nullable)" : ""}`);
-      return result;
+      const result = catalogNotNull && joinState !== OPTIONAL
+      trace.conclude(
+        result,
+        `catalog.notNull=${catalogNotNull} && join ${joinStateName(joinState)}${joinState === OPTIONAL ? ' (OPTIONAL → nullable)' : ''}`,
+      )
+      return result
     }
 
-    trace.conclude(false, "unresolved relation → nullable");
-    return false;
+    trace.conclude(false, 'unresolved relation → nullable')
+    return false
   }
 
   // -------------------------------------------------------------------------
@@ -10369,34 +10420,34 @@ class NullabilityEngine {
    * columns — the catalog flag answers everything else more cheaply — and
    * memoized per column (evidence-free, so the answer never varies).
    */
-  private storedRowNotNullMemo = new Map<string, boolean>();
+  private storedRowNotNullMemo = new Map<string, boolean>()
 
   private storedRowNotNull(schema: string, table: string, column: string): boolean {
     // The tree reading: this is an origin-side fact ("non-null on every
     // stored row"), and the origin row may be a child's — computed with a
     // DIFFERENT expression when the generation diverges, in which case no
     // formula stands for the whole tree.
-    if (!this.catalog.resolveGenerationExprTree(schema, table, column)) return false;
-    const key = `${schema}.${table}.${column}`;
-    const memoized = this.storedRowNotNullMemo.get(key);
-    if (memoized !== undefined) return memoized;
-    const resolved = this.catalog.resolveTable(schema, table);
-    if (!resolved) return false;
-    const synth = this.emptyScope(null);
+    if (!this.catalog.resolveGenerationExprTree(schema, table, column)) return false
+    const key = `${schema}.${table}.${column}`
+    const memoized = this.storedRowNotNullMemo.get(key)
+    if (memoized !== undefined) return memoized
+    const resolved = this.catalog.resolveTable(schema, table)
+    if (!resolved) return false
+    const synth = this.emptyScope(null)
     const entry: RelationEntry = {
       alias: table,
-      kind: "table",
+      kind: 'table',
       table: resolved,
       joinState: REQUIRED,
       nullGroup: this.nextNullGroup(),
       unitChain: [],
       instance: this.nextInstance(),
-    };
-    synth.aliases.set(table, entry);
-    synth.visible.push(...resolved.columns.map(c => ({ name: c, entry, merged: null })));
-    const result = this.computeColumnNullability(entry, column, synth, 0);
-    this.storedRowNotNullMemo.set(key, result);
-    return result;
+    }
+    synth.aliases.set(table, entry)
+    synth.visible.push(...resolved.columns.map((c) => ({ name: c, entry, merged: null })))
+    const result = this.computeColumnNullability(entry, column, synth, 0)
+    this.storedRowNotNullMemo.set(key, result)
+    return result
   }
 
   private originCheckEntailment(
@@ -10421,7 +10472,14 @@ class NullabilityEngine {
       goalOrigins.every((o, k) =>
         o
           ? this.originAlternativeEntailment(
-              entry, o, k, innerResults, outerNames, scope, trace, goalIsNull,
+              entry,
+              o,
+              k,
+              innerResults,
+              outerNames,
+              scope,
+              trace,
+              goalIsNull,
             )
           : // A slot with no origin is a literal or an expression branch.
             // For a non-null goal its own flat verdict settles it; there is
@@ -10429,7 +10487,7 @@ class NullabilityEngine {
             // goal declines rather than guesses.
             !goalIsNull && goalSettled?.[k] === true,
       )
-    );
+    )
   }
 
   /** One origin alternative's entailment run — see originCheckEntailment. */
@@ -10447,12 +10505,9 @@ class NullabilityEngine {
     // tree list is the sound reading: a NO INHERIT constraint is dropped
     // whenever the origin relation has descendants, since the origin row may
     // be a child's.
-    const checkExprs = this.catalog.resolveCheckConstraintsTree(
-      goalOrigin.schema,
-      goalOrigin.table,
-    );
-    const originTable = this.catalog.resolveTable(goalOrigin.schema, goalOrigin.table);
-    const generatedEqualities: { column: string; expr: Node }[] = [];
+    const checkExprs = this.catalog.resolveCheckConstraintsTree(goalOrigin.schema, goalOrigin.table)
+    const originTable = this.catalog.resolveTable(goalOrigin.schema, goalOrigin.table)
+    const generatedEqualities: { column: string; expr: Node }[] = []
     for (const col of originTable?.columns ?? []) {
       // Tree reading, like the CHECK list above: the equality fact is false
       // for a child row computed with a diverging expression.
@@ -10460,12 +10515,12 @@ class NullabilityEngine {
         goalOrigin.schema,
         goalOrigin.table,
         col,
-      );
+      )
       if (genExpr) {
         generatedEqualities.push({
           column: `${entry.alias}.${col}`,
           expr: this.qualifyColumnRefs(genExpr, entry.alias, entry),
-        });
+        })
       }
     }
     // Origins do not carry the producing scan's ONLY bit, so the tree
@@ -10477,7 +10532,7 @@ class NullabilityEngine {
       goalOrigin.schema,
       goalOrigin.table,
       goalOrigin.column,
-    );
+    )
     // Non-null on EVERY stored row: the catalog flag, or — for generated
     // columns, which are never catalog-NOT NULL — the generation
     // expression proven by the walk in a synthetic single-table scope
@@ -10485,7 +10540,7 @@ class NullabilityEngine {
     // COALESCE or arithmetic, but the walk already can).
     const givenPresent =
       catalogNotNull ||
-      this.storedRowNotNull(goalOrigin.schema, goalOrigin.table, goalOrigin.column);
+      this.storedRowNotNull(goalOrigin.schema, goalOrigin.table, goalOrigin.column)
     // A REQUIRED alternative with such a goal is done outright: its row is
     // present by construction and the value is that row's stored value.
     // The flat boolean upstream cannot say this per-branch — a set
@@ -10503,34 +10558,35 @@ class NullabilityEngine {
     // gate on its first run, which is the case for making that gate
     // bidirectional.
     if (!goalIsNull && !goalOrigin.optional && givenPresent) {
-      trace.addChild(`origin ${goalOrigin.schema}.${goalOrigin.table}.${goalOrigin.column}`)
-        .conclude(true, "required alternative + non-null per stored row");
-      return true;
+      trace
+        .addChild(`origin ${goalOrigin.schema}.${goalOrigin.table}.${goalOrigin.column}`)
+        .conclude(true, 'required alternative + non-null per stored row')
+      return true
     }
     // An OPTIONAL chain with such a goal has a derivation even with no
     // CHECKs at all: evidence-proven presence settles it (the
     // presence-consumption closure — the kernel's short-circuit).
-    const goalNotNullGivenPresent = !goalIsNull && goalOrigin.optional && givenPresent;
+    const goalNotNullGivenPresent = !goalIsNull && goalOrigin.optional && givenPresent
     if (checkExprs.length === 0 && generatedEqualities.length === 0 && !goalNotNullGivenPresent) {
-      return false;
+      return false
     }
 
     // outer column name → base column, for same-row siblings. A duplicated
     // outer name is dropped entirely — PostgreSQL rejects references to it,
     // but the walk must not guess.
-    const rename = new Map<string, string>();
-    const dropped = new Set<string>();
+    const rename = new Map<string, string>()
+    const dropped = new Set<string>()
     for (let i = 0; i < innerResults.length; i++) {
-      const name = outerNames[i] ?? innerResults[i]!.name;
-      const o = innerResults[i]!.origins?.[alternative];
-      if (!o || !this.sameRowPath(o.rowPath, goalOrigin.rowPath)) continue;
-      if (dropped.has(name)) continue;
+      const name = outerNames[i] ?? innerResults[i]!.name
+      const o = innerResults[i]!.origins?.[alternative]
+      if (!o || !this.sameRowPath(o.rowPath, goalOrigin.rowPath)) continue
+      if (dropped.has(name)) continue
       if (rename.has(name)) {
-        rename.delete(name);
-        dropped.add(name);
-        continue;
+        rename.delete(name)
+        dropped.add(name)
+        continue
       }
-      rename.set(name, o.column);
+      rename.set(name, o.column)
     }
     // Cross-table presence certifiers (the unit-chain closure, found by the
     // widened generated axis): a column whose origin COVERS the goal's
@@ -10542,28 +10598,25 @@ class NullabilityEngine {
     // their pinned atoms while CHECK derivation never can (no CHECK
     // mentions a sentinel) — cross-row facts must not masquerade as
     // same-row evidence.
-    const goalUnits = goalOrigin.units ?? [];
+    const goalUnits = goalOrigin.units ?? []
     if (goalOrigin.optional && goalUnits.length > 0) {
       for (let i = 0; i < innerResults.length; i++) {
-        const name = outerNames[i] ?? innerResults[i]!.name;
-        const o = innerResults[i]!.origins?.[alternative];
-        if (!o || this.sameRowPath(o.rowPath, goalOrigin.rowPath)) continue;
-        if (dropped.has(name) || rename.has(name)) continue;
-        const covers = goalUnits.every(gc =>
+        const name = outerNames[i] ?? innerResults[i]!.name
+        const o = innerResults[i]!.origins?.[alternative]
+        if (!o || this.sameRowPath(o.rowPath, goalOrigin.rowPath)) continue
+        if (dropped.has(name) || rename.has(name)) continue
+        const covers = goalUnits.every((gc) =>
           (o.units ?? []).some(
-            oc =>
+            (oc) =>
               oc.unit === gc.unit &&
               oc.depth === gc.depth &&
-              this.sameRowPath(
-                o.rowPath.slice(0, gc.depth),
-                goalOrigin.rowPath.slice(0, gc.depth),
-              ),
+              this.sameRowPath(o.rowPath.slice(0, gc.depth), goalOrigin.rowPath.slice(0, gc.depth)),
           ),
-        );
-        if (!covers) continue;
+        )
+        if (!covers) continue
         // NUL cannot occur in a PostgreSQL identifier, so the sentinel
         // can never collide with a real column name in any CHECK.
-        rename.set(name, `\u0000p${i}`);
+        rename.set(name, `\u0000p${i}`)
       }
     }
 
@@ -10572,32 +10625,32 @@ class NullabilityEngine {
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
       ...this.kernelGuardPreds(scope),
-    ].map(pred => ({
+    ].map((pred) => ({
       pred: this.rewriteRefsToOrigin(pred, entry.alias, rename, scope),
       applySetMask: false,
-    }));
+    }))
 
     const ckTrace = trace.addChild(
       `CHECK entailment (origin): ${goalOrigin.schema}.${goalOrigin.table} via '${entry.alias}'`,
-    );
-    ckTrace.addFact("rowPath", goalOrigin.rowPath.join("→"));
-    ckTrace.addFact("sameRowColumns", [...rename.keys()].join(", ") || "(none)");
+    )
+    ckTrace.addFact('rowPath', goalOrigin.rowPath.join('→'))
+    ckTrace.addFact('sameRowColumns', [...rename.keys()].join(', ') || '(none)')
     if (goalOrigin.optional) {
-      ckTrace.addFact("presence", "required — the chain crosses an OPTIONAL slice");
+      ckTrace.addFact('presence', 'required — the chain crosses an OPTIONAL slice')
     }
-    const ask = goalIsNull ? checkConstraintsProveNull : checkConstraintsProveNotNull;
+    const ask = goalIsNull ? checkConstraintsProveNull : checkConstraintsProveNotNull
     const proved = ask({
       evaluatedComparison: this.comparisonOracle(),
       btreeStrategy: this.btreeStrategySupply(),
       equalityComplement: this.equalityComplementSupply(),
-      closedTruth: expr => this.closedTruthOf(expr),
+      closedTruth: (expr) => this.closedTruthOf(expr),
       goal: { alias: entry.alias, column: goalOrigin.column },
       // NOT renamed through `entry`: these CHECKs belong to the BASE table the
       // origin points at, while `entry` is the view or CTE it was reached
       // through. This site resolves unqualified refs through its own
       // outer-name → origin-column map below, so the expressions stay in
       // catalog names and renaming here would apply a second, unrelated one.
-      checkExprs: checkExprs.map(c => this.qualifyColumnRefs(c, entry.alias)),
+      checkExprs: checkExprs.map((c) => this.qualifyColumnRefs(c, entry.alias)),
       evidence,
       generatedEqualities,
       // Promotion-at-distance: an optional chain's base row exists only for
@@ -10611,36 +10664,34 @@ class NullabilityEngine {
       // themselves. Passing it would refuse exactly those.
       presenceColumns:
         goalOrigin.optional && !goalIsNull
-          ? [...rename.values()].map(c => `${entry.alias}.${c}`)
+          ? [...rename.values()].map((c) => `${entry.alias}.${c}`)
           : undefined,
       goalNotNullGivenPresent,
       isMasked: () => false,
-      resolveUnqualified: col => {
-        let owner: string | null = null;
+      resolveUnqualified: (col) => {
+        let owner: string | null = null
         for (const v of scope.visible) {
-          if (v.name !== col) continue;
-          if (!v.entry || owner) return null;
-          owner = v.entry.alias;
+          if (v.name !== col) continue
+          if (!v.entry || owner) return null
+          owner = v.entry.alias
         }
-        return owner;
+        return owner
       },
       columnTypeName: (alias, col) => {
         if (alias === entry.alias) {
-          return this.catalog.resolveColumnTypeName(goalOrigin.schema, goalOrigin.table, col);
+          return this.catalog.resolveColumnTypeName(goalOrigin.schema, goalOrigin.table, col)
         }
-        const e = scope.aliases.get(alias);
+        const e = scope.aliases.get(alias)
         return e?.table
           ? this.catalog.resolveColumnTypeName(e.table.schema, e.table.name, col)
-          : null;
+          : null
       },
       comparisonEvaluable: (alias, col, op) => {
         if (alias === entry.alias) {
-          return this.comparisonOpEvaluable(goalOrigin.schema, goalOrigin.table, col, op);
+          return this.comparisonOpEvaluable(goalOrigin.schema, goalOrigin.table, col, op)
         }
-        const e = scope.aliases.get(alias);
-        return e?.table
-          ? this.comparisonOpEvaluable(e.table.schema, e.table.name, col, op)
-          : false;
+        const e = scope.aliases.get(alias)
+        return e?.table ? this.comparisonOpEvaluable(e.table.schema, e.table.name, col, op) : false
       },
       literalDistinctnessSound: (alias, col) => {
         if (alias === entry.alias) {
@@ -10648,26 +10699,26 @@ class NullabilityEngine {
             goalOrigin.schema,
             goalOrigin.table,
             col,
-          );
+          )
         }
-        const e = scope.aliases.get(alias);
+        const e = scope.aliases.get(alias)
         return e?.table
           ? this.catalog.resolveLiteralDistinctnessSound(e.table.schema, e.table.name, col)
-          : false;
+          : false
       },
       trace: ckTrace,
-    });
+    })
     ckTrace.conclude(
       proved,
       proved
         ? "the origin table's validated CHECK plus this scope's evidence entails non-null"
-        : "no derivation reaches the origin column",
-    );
-    return proved;
+        : 'no derivation reaches the origin column',
+    )
+    return proved
   }
 
   private sameRowPath(a: readonly number[], b: readonly number[]): boolean {
-    return a.length === b.length && a.every((v, i) => v === b[i]);
+    return a.length === b.length && a.every((v, i) => v === b[i])
   }
 
   /**
@@ -10680,16 +10731,16 @@ class NullabilityEngine {
    * De Morgan turn them into FALSE facts.
    */
   private kernelGuardPreds(scope: Scope): Node[] {
-    const preds: Node[] = [];
+    const preds: Node[] = []
     for (const g of this.guards) {
-      if (g.scope !== scope) continue;
+      if (g.scope !== scope) continue
       if (g.taken) {
-        preds.push(g.predicate);
+        preds.push(g.predicate)
       } else if (this.predicateIsTotal(g.predicate, scope)) {
-        preds.push({ BoolExpr: { boolop: "NOT_EXPR", args: [g.predicate] } } as unknown as Node);
+        preds.push({ BoolExpr: { boolop: 'NOT_EXPR', args: [g.predicate] } } as unknown as Node)
       }
     }
-    return preds;
+    return preds
   }
 
   /**
@@ -10705,37 +10756,35 @@ class NullabilityEngine {
    * refused; see the register's Decided-against entry).
    */
   private predicateIsTotal(pred: Node, scope: Scope): boolean {
-    const node = pred as Record<string, unknown>;
-    if ("NullTest" in node) return true;
-    const be = node["BoolExpr"] as { boolop?: string; args?: Node[] } | undefined;
-    if (be && (be.boolop === "AND_EXPR" || be.boolop === "OR_EXPR")) {
-      const args = be.args ?? [];
-      return args.length > 0 && args.every(a => this.predicateIsTotal(a, scope));
+    const node = pred as Record<string, unknown>
+    if ('NullTest' in node) return true
+    const be = node['BoolExpr'] as { boolop?: string; args?: Node[] } | undefined
+    if (be && (be.boolop === 'AND_EXPR' || be.boolop === 'OR_EXPR')) {
+      const args = be.args ?? []
+      return args.length > 0 && args.every((a) => this.predicateIsTotal(a, scope))
     }
-    if ("A_Expr" in node) {
-      const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
-      if (ae.kind !== "AEXPR_OP" || !ae.lexpr || !ae.rexpr) return false;
-      const parts = (ae.name ?? []).map(f => this.stringVal(f));
-      if (parts.length !== 1 || !TOTAL_OPERATOR_NAMES.has(parts[0]!)) return false;
-      return (
-        this.operandNeverNull(ae.lexpr, scope) && this.operandNeverNull(ae.rexpr, scope)
-      );
+    if ('A_Expr' in node) {
+      const ae = node['A_Expr'] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+      if (ae.kind !== 'AEXPR_OP' || !ae.lexpr || !ae.rexpr) return false
+      const parts = (ae.name ?? []).map((f) => this.stringVal(f))
+      if (parts.length !== 1 || !TOTAL_OPERATOR_NAMES.has(parts[0]!)) return false
+      return this.operandNeverNull(ae.lexpr, scope) && this.operandNeverNull(ae.rexpr, scope)
     }
-    return false;
+    return false
   }
 
   /** A bare catalog-NOT NULL column ref, or a non-NULL literal (cast or bare). */
   private operandNeverNull(expr: Node, scope: Scope): boolean {
-    let node = expr as Record<string, unknown>;
-    const tc = node["TypeCast"] as { arg?: Node } | undefined;
-    if (tc?.arg) node = tc.arg as Record<string, unknown>;
-    const ac = node["A_Const"] as { isnull?: boolean } | undefined;
-    if (ac) return ac.isnull !== true;
-    if ("ColumnRef" in node) {
-      const bare = this.resolveBareColumnTarget({ ColumnRef: node["ColumnRef"] } as Node, scope);
-      return !!bare?.entry.table && this.entryColumnNotNull(bare.entry, bare.column);
+    let node = expr as Record<string, unknown>
+    const tc = node['TypeCast'] as { arg?: Node } | undefined
+    if (tc?.arg) node = tc.arg as Record<string, unknown>
+    const ac = node['A_Const'] as { isnull?: boolean } | undefined
+    if (ac) return ac.isnull !== true
+    if ('ColumnRef' in node) {
+      const bare = this.resolveBareColumnTarget({ ColumnRef: node['ColumnRef'] } as Node, scope)
+      return !!bare?.entry.table && this.entryColumnNotNull(bare.entry, bare.column)
     }
-    return false;
+    return false
   }
 
   /**
@@ -10749,67 +10798,63 @@ class NullabilityEngine {
     rename: ReadonlyMap<string, string>,
     scope: Scope,
   ): Node {
-    const clone = structuredClone(pred);
+    const clone = structuredClone(pred)
     const rewrite = (node: unknown): void => {
       if (Array.isArray(node)) {
-        node.forEach(rewrite);
-        return;
+        node.forEach(rewrite)
+        return
       }
-      if (!node || typeof node !== "object") return;
-      const obj = node as Record<string, unknown>;
-      const cr = obj["ColumnRef"] as { fields?: Node[] } | undefined;
+      if (!node || typeof node !== 'object') return
+      const obj = node as Record<string, unknown>
+      const cr = obj['ColumnRef'] as { fields?: Node[] } | undefined
       if (cr?.fields) {
-        const parts: string[] = [];
-        let plain = true;
+        const parts: string[] = []
+        let plain = true
         for (const f of cr.fields) {
-          if (!("String" in (f as Record<string, unknown>))) {
-            plain = false;
-            break;
+          if (!('String' in (f as Record<string, unknown>))) {
+            plain = false
+            break
           }
-          parts.push(this.stringVal(f));
+          parts.push(this.stringVal(f))
         }
         if (plain && parts.length >= 1 && parts.length <= 3) {
-          let owner: string | null = null;
-          let col: string | null = null;
+          let owner: string | null = null
+          let col: string | null = null
           if (parts.length === 1) {
-            col = parts[0]!;
+            col = parts[0]!
             for (const v of scope.visible) {
-              if (v.name !== col) continue;
+              if (v.name !== col) continue
               if (!v.entry || owner) {
-                owner = null;
-                break;
+                owner = null
+                break
               }
-              owner = v.entry.alias;
+              owner = v.entry.alias
             }
           } else {
-            owner = parts.length === 2 ? parts[0]! : parts[1]!;
-            col = parts[parts.length - 1]!;
+            owner = parts.length === 2 ? parts[0]! : parts[1]!
+            col = parts[parts.length - 1]!
           }
           if (owner === alias && col !== null) {
-            const mapped = rename.get(col) ?? "\u0000unmapped";
+            const mapped = rename.get(col) ?? '\u0000unmapped'
             cr.fields = [
               { String: { sval: alias } } as unknown as Node,
               { String: { sval: mapped } } as unknown as Node,
-            ];
+            ]
           }
         }
-        return;
+        return
       }
-      Object.values(obj).forEach(rewrite);
-    };
-    rewrite(clone);
-    return clone;
+      Object.values(obj).forEach(rewrite)
+    }
+    rewrite(clone)
+    return clone
   }
 
   // -------------------------------------------------------------------------
   // WHERE guarantee consultation
   // -------------------------------------------------------------------------
 
-  private checkWhereGuarantee(
-    alias: string,
-    colName: string,
-    scope: Scope,
-  ): boolean {
+  private checkWhereGuarantee(alias: string, colName: string, scope: Scope): boolean {
     // A SET column's WHERE-time value is the OLD row's; RETURNING reports
     // the NEW one, so predicate evidence proves nothing for it.
     if (
@@ -10817,7 +10862,7 @@ class NullabilityEngine {
       scope.dmlSetColumns.alias === alias &&
       scope.dmlSetColumns.columns.has(colName)
     ) {
-      return false;
+      return false
     }
     // Implied ON quals and HAVING are the same evidence as WHERE conjuncts:
     // every row this scope emits satisfied them (see resolveJoinImplications
@@ -10827,9 +10872,9 @@ class NullabilityEngine {
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
     ]) {
-      if (this.whereImpliesNotNull(pred, alias, colName, scope)) return true;
+      if (this.whereImpliesNotNull(pred, alias, colName, scope)) return true
     }
-    return false;
+    return false
   }
 
   // -------------------------------------------------------------------------
@@ -10839,13 +10884,18 @@ class NullabilityEngine {
   /**
    * Run `walk` with `predicate` recorded as having evaluated to `taken`.
    */
-  private withGuard<T>(scope: Scope, predicate: Node | undefined, taken: boolean, walk: () => T): T {
-    if (!predicate) return walk();
-    this.guards.push({ scope, predicate, taken });
+  private withGuard<T>(
+    scope: Scope,
+    predicate: Node | undefined,
+    taken: boolean,
+    walk: () => T,
+  ): T {
+    if (!predicate) return walk()
+    this.guards.push({ scope, predicate, taken })
     try {
-      return walk();
+      return walk()
     } finally {
-      this.guards.pop();
+      this.guards.pop()
     }
   }
 
@@ -10855,24 +10905,24 @@ class NullabilityEngine {
     guards: { predicate: Node; taken: boolean }[],
     walk: () => T,
   ): T {
-    for (const g of guards) this.guards.push({ scope, predicate: g.predicate, taken: g.taken });
+    for (const g of guards) this.guards.push({ scope, predicate: g.predicate, taken: g.taken })
     try {
-      return walk();
+      return walk()
     } finally {
-      this.guards.length -= guards.length;
+      this.guards.length -= guards.length
     }
   }
 
   /** Whether any active guard proves `alias.colName` is non-null here. */
   private guardsImplyNotNull(alias: string, colName: string, scope: Scope): boolean {
     for (const g of this.guards) {
-      if (g.scope !== scope) continue;
+      if (g.scope !== scope) continue
       const implies = g.taken
         ? this.whereImpliesNotNull(g.predicate, alias, colName, scope)
-        : this.falsityImpliesNotNull(g.predicate, alias, colName, scope);
-      if (implies) return true;
+        : this.falsityImpliesNotNull(g.predicate, alias, colName, scope)
+      if (implies) return true
     }
-    return false;
+    return false
   }
 
   /**
@@ -10881,11 +10931,11 @@ class NullabilityEngine {
    */
   private guardsPromoteAlias(alias: string, scope: Scope): boolean {
     for (const g of this.guards) {
-      if (g.scope !== scope) continue;
-      if (g.taken && this.whereImpliesAliasNotNull(g.predicate, alias, scope)) return true;
-      if (!g.taken && this.falsityPromotesAlias(g.predicate, alias)) return true;
+      if (g.scope !== scope) continue
+      if (g.taken && this.whereImpliesAliasNotNull(g.predicate, alias, scope)) return true
+      if (!g.taken && this.falsityPromotesAlias(g.predicate, alias)) return true
     }
-    return false;
+    return false
   }
 
   /**
@@ -10911,33 +10961,33 @@ class NullabilityEngine {
     colName: string,
     scope: Scope,
   ): boolean {
-    const node = predicate as Record<string, unknown>;
+    const node = predicate as Record<string, unknown>
 
-    if ("NullTest" in node) {
-      const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
-      if (nt.nulltesttype === "IS_NULL" && nt.arg) {
+    if ('NullTest' in node) {
+      const nt = node['NullTest'] as { arg?: Node; nulltesttype?: string }
+      if (nt.nulltesttype === 'IS_NULL' && nt.arg) {
         // `expr IS NULL` being FALSE means expr is non-null; if expr is NULL
         // whenever the column is, the contrapositive gives the column.
         return this.exprStrictlyForces(
           nt.arg,
-          leaf => this.columnMatches(leaf, alias, colName, scope),
+          (leaf) => this.columnMatches(leaf, alias, colName, scope),
           scope,
-        );
+        )
       }
-      return false;
+      return false
     }
 
-    if ("BoolExpr" in node) {
-      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
-      if (be.boolop === "OR_EXPR") {
+    if ('BoolExpr' in node) {
+      const be = node['BoolExpr'] as { boolop?: string; args?: Node[] }
+      if (be.boolop === 'OR_EXPR') {
         for (const arg of be.args ?? []) {
-          if (this.falsityImpliesNotNull(arg, alias, colName, scope)) return true;
+          if (this.falsityImpliesNotNull(arg, alias, colName, scope)) return true
         }
       }
-      return false;
+      return false
     }
 
-    return false;
+    return false
   }
 
   /**
@@ -10945,27 +10995,27 @@ class NullabilityEngine {
    * non-null — and therefore that the alias's row exists.
    */
   private falsityPromotesAlias(predicate: Node, alias: string): boolean {
-    const node = predicate as Record<string, unknown>;
+    const node = predicate as Record<string, unknown>
 
-    if ("NullTest" in node) {
-      const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
-      if (nt.nulltesttype === "IS_NULL" && nt.arg) {
-        return this.columnRefMatchesAlias(nt.arg, alias);
+    if ('NullTest' in node) {
+      const nt = node['NullTest'] as { arg?: Node; nulltesttype?: string }
+      if (nt.nulltesttype === 'IS_NULL' && nt.arg) {
+        return this.columnRefMatchesAlias(nt.arg, alias)
       }
-      return false;
+      return false
     }
 
-    if ("BoolExpr" in node) {
-      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
-      if (be.boolop === "OR_EXPR") {
+    if ('BoolExpr' in node) {
+      const be = node['BoolExpr'] as { boolop?: string; args?: Node[] }
+      if (be.boolop === 'OR_EXPR') {
         for (const arg of be.args ?? []) {
-          if (this.falsityPromotesAlias(arg, alias)) return true;
+          if (this.falsityPromotesAlias(arg, alias)) return true
         }
       }
-      return false;
+      return false
     }
 
-    return false;
+    return false
   }
 
   /**
@@ -10985,12 +11035,12 @@ class NullabilityEngine {
    */
   private findNullGroupPromoter(entry: RelationEntry, scope: Scope): string | null {
     for (const other of scope.aliases.values()) {
-      if (other === entry) continue;
-      if (other.nullGroup !== entry.nullGroup) continue;
-      if (this.checkWhereAliasPromoted(other.alias, scope)) return other.alias;
-      if (this.guardsPromoteAlias(other.alias, scope)) return other.alias;
+      if (other === entry) continue
+      if (other.nullGroup !== entry.nullGroup) continue
+      if (this.checkWhereAliasPromoted(other.alias, scope)) return other.alias
+      if (this.guardsPromoteAlias(other.alias, scope)) return other.alias
     }
-    return null;
+    return null
   }
 
   /**
@@ -11042,17 +11092,17 @@ class NullabilityEngine {
   private guardedPresence(scope: Scope): Set<string> {
     // No nesting: the fixpoint's helpers can reach back into the walk, and a
     // speculation started inside one would restore into widened state.
-    if (this.speculating) return new Set();
-    const preds = this.guardPredicates(scope);
-    if (preds.length === 0) return new Set();
+    if (this.speculating) return new Set()
+    const preds = this.guardPredicates(scope)
+    if (preds.length === 0) return new Set()
     return this.withSpeculativeScope(scope, () => {
-      this.resolveJoinImplications(scope, preds);
-      const promoted = new Set<string>();
+      this.resolveJoinImplications(scope, preds)
+      const promoted = new Set<string>()
       for (const [alias, entry] of scope.aliases) {
-        if (entry.joinState === REQUIRED) promoted.add(alias);
+        if (entry.joinState === REQUIRED) promoted.add(alias)
       }
-      return promoted;
-    });
+      return promoted
+    })
   }
 
   /**
@@ -11073,27 +11123,27 @@ class NullabilityEngine {
    * every disjunct's flip holds — they are conjuncts, not a disjunction.
    */
   private guardPredicates(scope: Scope): Node[] {
-    const preds: Node[] = [];
+    const preds: Node[] = []
     const addFalsified = (predicate: Node): void => {
-      const node = predicate as Record<string, unknown>;
-      if ("NullTest" in node) {
-        const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
-        if (nt.nulltesttype === "IS_NULL" && nt.arg) {
-          preds.push({ NullTest: { arg: nt.arg, nulltesttype: "IS_NOT_NULL" } } as Node);
+      const node = predicate as Record<string, unknown>
+      if ('NullTest' in node) {
+        const nt = node['NullTest'] as { arg?: Node; nulltesttype?: string }
+        if (nt.nulltesttype === 'IS_NULL' && nt.arg) {
+          preds.push({ NullTest: { arg: nt.arg, nulltesttype: 'IS_NOT_NULL' } } as Node)
         }
-        return;
+        return
       }
-      if ("BoolExpr" in node) {
-        const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
-        if (be.boolop === "OR_EXPR") for (const arg of be.args ?? []) addFalsified(arg);
+      if ('BoolExpr' in node) {
+        const be = node['BoolExpr'] as { boolop?: string; args?: Node[] }
+        if (be.boolop === 'OR_EXPR') for (const arg of be.args ?? []) addFalsified(arg)
       }
-    };
-    for (const g of this.guards) {
-      if (g.scope !== scope) continue;
-      if (g.taken) preds.push(g.predicate);
-      else addFalsified(g.predicate);
     }
-    return preds;
+    for (const g of this.guards) {
+      if (g.scope !== scope) continue
+      if (g.taken) preds.push(g.predicate)
+      else addFalsified(g.predicate)
+    }
+    return preds
   }
 
   /**
@@ -11113,27 +11163,27 @@ class NullabilityEngine {
    * catch it.
    */
   private withSpeculativeScope<T>(scope: Scope, fn: () => T): T {
-    const entries = [...scope.aliases.values()].map(e => ({
+    const entries = [...scope.aliases.values()].map((e) => ({
       entry: e,
       joinState: e.joinState,
       nullGroup: e.nullGroup,
       unitChain: e.unitChain,
-    }));
-    const joins = scope.joins.map(j => ({ join: j, incomingRequired: j.incomingRequired }));
-    const impliedCount = scope.impliedQuals.length;
-    const wasSpeculating = this.speculating;
-    this.speculating = true;
+    }))
+    const joins = scope.joins.map((j) => ({ join: j, incomingRequired: j.incomingRequired }))
+    const impliedCount = scope.impliedQuals.length
+    const wasSpeculating = this.speculating
+    this.speculating = true
     try {
-      return fn();
+      return fn()
     } finally {
-      this.speculating = wasSpeculating;
+      this.speculating = wasSpeculating
       for (const s of entries) {
-        s.entry.joinState = s.joinState;
-        s.entry.nullGroup = s.nullGroup;
-        s.entry.unitChain = s.unitChain;
+        s.entry.joinState = s.joinState
+        s.entry.nullGroup = s.nullGroup
+        s.entry.unitChain = s.unitChain
       }
-      for (const s of joins) s.join.incomingRequired = s.incomingRequired;
-      scope.impliedQuals.length = impliedCount;
+      for (const s of joins) s.join.incomingRequired = s.incomingRequired
+      scope.impliedQuals.length = impliedCount
     }
   }
 
@@ -11144,8 +11194,8 @@ class NullabilityEngine {
    * becomes INNER).
    */
   private checkWhereAliasPromoted(alias: string, scope: Scope): boolean {
-    if (!scope.whereClause) return false;
-    return this.whereImpliesAliasNotNull(scope.whereClause, alias, scope);
+    if (!scope.whereClause) return false
+    return this.whereImpliesAliasNotNull(scope.whereClause, alias, scope)
   }
 
   /**
@@ -11162,9 +11212,9 @@ class NullabilityEngine {
   ): boolean {
     return this.predicateProvesNonNull(
       whereClause,
-      n => this.exprStrictlyForces(n, leaf => this.columnRefMatchesAlias(leaf, alias), scope),
+      (n) => this.exprStrictlyForces(n, (leaf) => this.columnRefMatchesAlias(leaf, alias), scope),
       scope,
-    );
+    )
   }
 
   /**
@@ -11173,14 +11223,14 @@ class NullabilityEngine {
    * Unqualified ColumnRefs return false (can't determine alias ownership).
    */
   private columnRefMatchesAlias(expr: Node, alias: string): boolean {
-    const node = expr as Record<string, unknown>;
-    if (!("ColumnRef" in node)) return false;
-    const cr = node["ColumnRef"] as ColumnRef;
-    const fields = (cr.fields ?? []) as Node[];
-    const parts = fields.map(f => this.stringVal(f));
-    if (parts.length === 2) return parts[0] === alias;
-    if (parts.length === 3) return parts[1] === alias;
-    return false;
+    const node = expr as Record<string, unknown>
+    if (!('ColumnRef' in node)) return false
+    const cr = node['ColumnRef'] as ColumnRef
+    const fields = (cr.fields ?? []) as Node[]
+    const parts = fields.map((f) => this.stringVal(f))
+    if (parts.length === 2) return parts[0] === alias
+    if (parts.length === 3) return parts[1] === alias
+    return false
   }
 
   /**
@@ -11203,26 +11253,26 @@ class NullabilityEngine {
    * still contain a plain aggregate, so recursion continues through them.
    */
   private selectEmitsRowsWithoutInput(stmt: SelectStmt): boolean {
-    if (stmt.havingClause) return true;
+    if (stmt.havingClause) return true
     const containsAggregate = (node: unknown): boolean => {
-      if (Array.isArray(node)) return node.some(containsAggregate);
-      if (!node || typeof node !== "object") return false;
-      const obj = node as Record<string, unknown>;
-      if ("SubLink" in obj) return false;
-      if ("FuncCall" in obj) {
-        const fc = obj["FuncCall"] as FuncCall & { agg_star?: boolean; agg_within_group?: boolean };
+      if (Array.isArray(node)) return node.some(containsAggregate)
+      if (!node || typeof node !== 'object') return false
+      const obj = node as Record<string, unknown>
+      if ('SubLink' in obj) return false
+      if ('FuncCall' in obj) {
+        const fc = obj['FuncCall'] as FuncCall & { agg_star?: boolean; agg_within_group?: boolean }
         if (!fc.over) {
-          if (fc.agg_star || fc.agg_within_group || fc.agg_filter) return true;
-          const parts = (fc.funcname ?? []).map(f => this.stringVal(f));
-          const name = parts[parts.length - 1] ?? "";
-          const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
-          if (name && this.isAggregateByName(name, schema)) return true;
+          if (fc.agg_star || fc.agg_within_group || fc.agg_filter) return true
+          const parts = (fc.funcname ?? []).map((f) => this.stringVal(f))
+          const name = parts[parts.length - 1] ?? ''
+          const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
+          if (name && this.isAggregateByName(name, schema)) return true
         }
-        return containsAggregate(fc.args);
+        return containsAggregate(fc.args)
       }
-      return Object.values(obj).some(containsAggregate);
-    };
-    return containsAggregate(stmt.targetList);
+      return Object.values(obj).some(containsAggregate)
+    }
+    return containsAggregate(stmt.targetList)
   }
 
   /**
@@ -11241,16 +11291,12 @@ class NullabilityEngine {
    * inherited from one referencing context must not leak into another — the
    * same rule that stops branch guards at statement boundaries.
    */
-  private whereImpliesParamNotNull(
-    clause: Node,
-    num: number,
-    scope: Scope | null = null,
-  ): boolean {
+  private whereImpliesParamNotNull(clause: Node, num: number, scope: Scope | null = null): boolean {
     return this.predicateProvesNonNull(
       clause,
-      n => forcedNullParams(n, this.catalog).has(num),
+      (n) => forcedNullParams(n, this.catalog).has(num),
       scope,
-    );
+    )
   }
 
   private whereImpliesNotNull(
@@ -11261,10 +11307,14 @@ class NullabilityEngine {
   ): boolean {
     return this.predicateProvesNonNull(
       whereClause,
-      n =>
-        this.exprStrictlyForces(n, leaf => this.columnMatches(leaf, alias, colName, scope), scope),
+      (n) =>
+        this.exprStrictlyForces(
+          n,
+          (leaf) => this.columnMatches(leaf, alias, colName, scope),
+          scope,
+        ),
       scope,
-    );
+    )
   }
 
   /**
@@ -11299,15 +11349,15 @@ class NullabilityEngine {
     forces: (expr: Node) => boolean,
     scope: Scope | null = null,
   ): boolean {
-    const node = pred as Record<string, unknown>;
+    const node = pred as Record<string, unknown>
 
-    if ("BoolExpr" in node) {
-      const be = node["BoolExpr"] as { boolop?: string; args?: Node[] };
-      const args = be.args ?? [];
-      if (be.boolop === "AND_EXPR") {
-        return args.some(arg => this.predicateProvesNonNull(arg, forces, scope));
+    if ('BoolExpr' in node) {
+      const be = node['BoolExpr'] as { boolop?: string; args?: Node[] }
+      const args = be.args ?? []
+      if (be.boolop === 'AND_EXPR') {
+        return args.some((arg) => this.predicateProvesNonNull(arg, forces, scope))
       }
-      if (be.boolop === "OR_EXPR") {
+      if (be.boolop === 'OR_EXPR') {
         // A disjunct that is CONSTANTLY FALSE cannot be the arm that made the
         // predicate TRUE, so the intersection is over the arms that CAN fire
         // (closed-truths.ts). Without this the rule is defeated by an arm that
@@ -11315,48 +11365,50 @@ class NullabilityEngine {
         // predicate cannot be TRUE at all — no rows, so any claim would be
         // vacuous — and refusing is the honest reading of a rule with nothing
         // left to apply.
-        const live = args.filter(arg => this.closedTruthOf(arg) !== false);
-        return live.length > 0 && live.every(arg => this.predicateProvesNonNull(arg, forces, scope));
+        const live = args.filter((arg) => this.closedTruthOf(arg) !== false)
+        return (
+          live.length > 0 && live.every((arg) => this.predicateProvesNonNull(arg, forces, scope))
+        )
       }
-      return false;
+      return false
     }
 
-    if ("NullTest" in node) {
-      const nt = node["NullTest"] as { arg?: Node; nulltesttype?: string };
-      return nt.nulltesttype === "IS_NOT_NULL" && !!nt.arg && forces(nt.arg);
+    if ('NullTest' in node) {
+      const nt = node['NullTest'] as { arg?: Node; nulltesttype?: string }
+      return nt.nulltesttype === 'IS_NOT_NULL' && !!nt.arg && forces(nt.arg)
     }
 
-    if ("A_Expr" in node) {
-      const ae = node["A_Expr"] as {
-        kind?: string;
-        name?: Node[];
-        lexpr?: Node;
-        rexpr?: Node;
-      };
-      const forced = (n: Node | undefined): boolean => n !== undefined && forces(n);
+    if ('A_Expr' in node) {
+      const ae = node['A_Expr'] as {
+        kind?: string
+        name?: Node[]
+        lexpr?: Node
+        rexpr?: Node
+      }
+      const forced = (n: Node | undefined): boolean => n !== undefined && forces(n)
 
       switch (ae.kind) {
-        case "AEXPR_OP":
+        case 'AEXPR_OP':
           return (
             this.promotionOperatorIsStrict(ae.name, ae.lexpr, ae.rexpr, scope) &&
             (forced(ae.lexpr) || forced(ae.rexpr))
-          );
-        case "AEXPR_OP_ANY":
-        case "AEXPR_OP_ALL":
+          )
+        case 'AEXPR_OP_ANY':
+        case 'AEXPR_OP_ALL':
           // The right operand is an ARRAY compared element-wise, so its
           // rendered type is NOT the comparison operator's parameter type —
           // no operands are passed, and the name rule answers as before.
-          return this.promotionOperatorIsStrict(ae.name) && (forced(ae.lexpr) || forced(ae.rexpr));
-        case "AEXPR_IN":
-          return forced(ae.lexpr);
-        case "AEXPR_BETWEEN":
-        case "AEXPR_BETWEEN_SYM": {
-          if (forced(ae.lexpr)) return true;
-          const bounds = (ae.rexpr as { List?: { items?: Node[] } } | undefined)?.List?.items;
-          return (bounds ?? []).some(b => forced(b));
+          return this.promotionOperatorIsStrict(ae.name) && (forced(ae.lexpr) || forced(ae.rexpr))
+        case 'AEXPR_IN':
+          return forced(ae.lexpr)
+        case 'AEXPR_BETWEEN':
+        case 'AEXPR_BETWEEN_SYM': {
+          if (forced(ae.lexpr)) return true
+          const bounds = (ae.rexpr as { List?: { items?: Node[] } } | undefined)?.List?.items
+          return (bounds ?? []).some((b) => forced(b))
         }
         default:
-          return false;
+          return false
       }
     }
 
@@ -11365,9 +11417,9 @@ class NullabilityEngine {
     // the enumeration above is what keeps a node the closure misreads from
     // silently proving something, and a boolean column is the one bare shape
     // measured to cost claims (`CASE WHEN t.active THEN u.email`, 2026-08-22).
-    if ("ColumnRef" in node) return forces(pred);
+    if ('ColumnRef' in node) return forces(pred)
 
-    return false;
+    return false
   }
 
   /**
@@ -11389,9 +11441,9 @@ class NullabilityEngine {
     leaf: (columnRef: Node) => boolean,
     scope: Scope | null = null,
   ): boolean {
-    const node = expr as Record<string, unknown>;
+    const node = expr as Record<string, unknown>
 
-    if ("ColumnRef" in node) return leaf(expr);
+    if ('ColumnRef' in node) return leaf(expr)
 
     // A CONSTANT is asked of `leaf` rather than answered here. A NULL
     // constant does satisfy the contract outright — it is NULL whenever
@@ -11401,66 +11453,66 @@ class NullabilityEngine {
     // column-side callers, whose predicates (`columnMatches`,
     // `columnRefMatchesAlias`) reject a non-ColumnRef node outright; the
     // always-null caller is the one that says yes.
-    if ("A_Const" in node) return leaf(expr);
+    if ('A_Const' in node) return leaf(expr)
 
-    if ("TypeCast" in node) {
-      const arg = (node["TypeCast"] as { arg?: Node }).arg;
-      return !!arg && this.exprStrictlyForces(arg, leaf, scope);
+    if ('TypeCast' in node) {
+      const arg = (node['TypeCast'] as { arg?: Node }).arg
+      return !!arg && this.exprStrictlyForces(arg, leaf, scope)
     }
 
-    if ("A_Expr" in node) {
-      const ae = node["A_Expr"] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node };
-      if (ae.kind === "AEXPR_OP") {
+    if ('A_Expr' in node) {
+      const ae = node['A_Expr'] as { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+      if (ae.kind === 'AEXPR_OP') {
         return (
           this.promotionOperatorIsStrict(ae.name, ae.lexpr, ae.rexpr, scope) &&
-          [ae.lexpr, ae.rexpr].some(o => !!o && this.exprStrictlyForces(o, leaf, scope))
-        );
+          [ae.lexpr, ae.rexpr].some((o) => !!o && this.exprStrictlyForces(o, leaf, scope))
+        )
       }
-      if (ae.kind === "AEXPR_NULLIF") {
-        return !!ae.lexpr && this.exprStrictlyForces(ae.lexpr, leaf, scope);
+      if (ae.kind === 'AEXPR_NULLIF') {
+        return !!ae.lexpr && this.exprStrictlyForces(ae.lexpr, leaf, scope)
       }
-      return false;
+      return false
     }
 
-    if ("CoalesceExpr" in node) {
-      const args = (node["CoalesceExpr"] as { args?: Node[] }).args ?? [];
-      return args.length > 0 && args.every(a => this.exprStrictlyForces(a, leaf, scope));
+    if ('CoalesceExpr' in node) {
+      const args = (node['CoalesceExpr'] as { args?: Node[] }).args ?? []
+      return args.length > 0 && args.every((a) => this.exprStrictlyForces(a, leaf, scope))
     }
 
-    if ("FuncCall" in node) {
-      const fc = node["FuncCall"] as FuncCall & {
-        agg_star?: boolean;
-        agg_within_group?: boolean;
-        agg_distinct?: boolean;
-      };
+    if ('FuncCall' in node) {
+      const fc = node['FuncCall'] as FuncCall & {
+        agg_star?: boolean
+        agg_within_group?: boolean
+        agg_distinct?: boolean
+      }
       if (fc.over || fc.agg_star || fc.agg_within_group || fc.agg_distinct || fc.agg_filter) {
-        return false;
+        return false
       }
-      const args = fc.args ?? [];
-      if (args.some(a => "NamedArgExpr" in (a as Record<string, unknown>))) return false;
-      const parts = (fc.funcname ?? []).map(f => this.stringVal(f));
-      const name = parts[parts.length - 1] ?? "";
-      const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
-      if (!name || this.isAggregateByName(name, schema)) return false;
-      const meta = this.catalog.resolveFunctionMetadata(schema, name);
-      let strict: boolean;
+      const args = fc.args ?? []
+      if (args.some((a) => 'NamedArgExpr' in (a as Record<string, unknown>))) return false
+      const parts = (fc.funcname ?? []).map((f) => this.stringVal(f))
+      const name = parts[parts.length - 1] ?? ''
+      const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
+      if (!name || this.isAggregateByName(name, schema)) return false
+      const meta = this.catalog.resolveFunctionMetadata(schema, name)
+      let strict: boolean
       if (meta) {
-        strict = meta.strict && !meta.isAggregate;
+        strict = meta.strict && !meta.isAggregate
       } else {
         // Overload consensus first (every arity-compatible candidate
         // strict), then the pg_catalog strictness capture for names the
         // user catalog does not carry.
-        const candidates = this.catalog.resolveFunctionCandidates(schema, name, args.length);
+        const candidates = this.catalog.resolveFunctionCandidates(schema, name, args.length)
         strict =
           candidates && candidates.length > 0
-            ? candidates.every(c => c.strict && !c.isAggregate)
-            : (schema === undefined || schema === "pg_catalog") &&
-              this.catalog.isStrictBuiltin(name);
+            ? candidates.every((c) => c.strict && !c.isAggregate)
+            : (schema === undefined || schema === 'pg_catalog') &&
+              this.catalog.isStrictBuiltin(name)
       }
-      return strict && args.some(a => this.exprStrictlyForces(a, leaf, scope));
+      return strict && args.some((a) => this.exprStrictlyForces(a, leaf, scope))
     }
 
-    return false;
+    return false
   }
 
   /**
@@ -11482,23 +11534,23 @@ class NullabilityEngine {
     rexpr?: Node,
     scope: Scope | null = null,
   ): boolean {
-    if (!name?.length) return false;
-    const parts = name.map(n => this.stringVal(n));
-    const op = parts[parts.length - 1] ?? "";
+    if (!name?.length) return false
+    const parts = name.map((n) => this.stringVal(n))
+    const op = parts[parts.length - 1] ?? ''
     // Type-aware first, EVERY-quantified — a wrong "strict" here is a
     // wrong notNull. Casts and literals type even without a scope; the
     // name rule below serves only what the narrowing cannot see, and its
     // shadowing hole is guarded inside the accessor (a user operator on a
     // curated name with nothing known answers false).
     if (lexpr && rexpr) {
-      const schema2 = parts.length >= 2 ? parts[parts.length - 2] : undefined;
+      const schema2 = parts.length >= 2 ? parts[parts.length - 2] : undefined
       const verdict = this.catalog.resolveOperatorStrictness(
         schema2,
         op,
         this.operandTypeSet(lexpr, scope, 0),
         this.operandTypeSet(rexpr, scope, 0),
-      );
-      if (verdict !== null) return verdict;
+      )
+      if (verdict !== null) return verdict
     }
     // Builtin names keep the curated set, and only BARE names match it —
     // the documented shadowing blind spot, now reached only when the
@@ -11516,16 +11568,16 @@ class NullabilityEngine {
     //
     // The text meaning survives untouched — `a || b` over text columns
     // narrows to `textcat` above and never reaches this line.
-    if (parts.length === 1 && NON_STRICT_OVERLOADS[op] !== undefined) return false;
-    if (parts.length === 1 && STRICT_OPERATORS.has(op)) return true;
+    if (parts.length === 1 && NON_STRICT_OVERLOADS[op] !== undefined) return false
+    if (parts.length === 1 && STRICT_OPERATORS.has(op)) return true
     // A user operator's backing function carries a declared strictness flag,
     // which is exactly the property this gate needs: a strict comparison
     // cannot be TRUE with a NULL operand. Totality is NOT required here —
     // the conclusion is about the operands, never the result. Single
     // candidate or refuse (the fixture `===` resolves and is non-strict,
     // which is precisely why blanket operator trust was removed).
-    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined;
-    return this.catalog.resolveOperatorMetadata(schema, op)?.strict ?? false;
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
+    return this.catalog.resolveOperatorMetadata(schema, op)?.strict ?? false
   }
 
   /**
@@ -11541,59 +11593,54 @@ class NullabilityEngine {
    * entry and matches nothing.
    */
   private columnMatches(expr: Node, alias: string, colName: string, scope: Scope): boolean {
-    const node = expr as Record<string, unknown>;
-    if (!("ColumnRef" in node)) return false;
-    const cr = node["ColumnRef"] as ColumnRef;
-    const fields = (cr.fields ?? []) as Node[];
-    const parts = fields.map(f => this.stringVal(f));
+    const node = expr as Record<string, unknown>
+    if (!('ColumnRef' in node)) return false
+    const cr = node['ColumnRef'] as ColumnRef
+    const fields = (cr.fields ?? []) as Node[]
+    const parts = fields.map((f) => this.stringVal(f))
     if (parts.length === 2) {
-      return parts[0] === alias && parts[1] === colName;
+      return parts[0] === alias && parts[1] === colName
     }
     if (parts.length === 3) {
-      return parts[1] === alias && parts[2] === colName;
+      return parts[1] === alias && parts[2] === colName
     }
     if (parts.length === 1) {
-      if (parts[0] !== colName) return false;
-      let owner: RelationEntry | null = null;
-      let seen = false;
+      if (parts[0] !== colName) return false
+      let owner: RelationEntry | null = null
+      let seen = false
       for (const v of scope.visible) {
-        if (v.name !== colName) continue;
-        if (seen) return false; // ambiguous — PostgreSQL rejects the query
-        seen = true;
-        owner = v.entry;
+        if (v.name !== colName) continue
+        if (seen) return false // ambiguous — PostgreSQL rejects the query
+        seen = true
+        owner = v.entry
       }
-      return owner !== null && owner.alias === alias;
+      return owner !== null && owner.alias === alias
     }
-    return false;
+    return false
   }
 
   // -------------------------------------------------------------------------
   // SubLink resolution
   // -------------------------------------------------------------------------
 
-  private resolveSubLinkTraced(
-    sl: SubLink,
-    scope: Scope,
-    depth: number,
-    trace: ITrace,
-  ): boolean {
+  private resolveSubLinkTraced(sl: SubLink, scope: Scope, depth: number, trace: ITrace): boolean {
     switch (sl.subLinkType) {
-      case "EXISTS_SUBLINK":
+      case 'EXISTS_SUBLINK':
         // EXISTS only asks whether any row came back — it never inspects a
         // value, so NULLs inside the subquery cannot reach the result.
-        trace.conclude(true, "EXISTS returns bool, never NULL");
-        return true;
-      case "ANY_SUBLINK":
-      case "ALL_SUBLINK":
-        return this.resolveQuantifiedSublinkTraced(sl, scope, depth, trace);
-      case "ARRAY_SUBLINK":
-        trace.conclude(true, "ARRAY subquery constructor, never NULL");
-        return true;
-      case "EXPR_SUBLINK":
-        return this.resolveScalarSublinkTraced(sl, scope, depth, trace);
+        trace.conclude(true, 'EXISTS returns bool, never NULL')
+        return true
+      case 'ANY_SUBLINK':
+      case 'ALL_SUBLINK':
+        return this.resolveQuantifiedSublinkTraced(sl, scope, depth, trace)
+      case 'ARRAY_SUBLINK':
+        trace.conclude(true, 'ARRAY subquery constructor, never NULL')
+        return true
+      case 'EXPR_SUBLINK':
+        return this.resolveScalarSublinkTraced(sl, scope, depth, trace)
       default:
-        trace.conclude(false, `unknown subLinkType '${sl.subLinkType}' -> nullable`);
-        return false;
+        trace.conclude(false, `unknown subLinkType '${sl.subLinkType}' -> nullable`)
+        return false
     }
   }
 
@@ -11619,49 +11666,48 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    const kind = sl.subLinkType === "ALL_SUBLINK" ? "ALL" : "ANY/IN";
+    const kind = sl.subLinkType === 'ALL_SUBLINK' ? 'ALL' : 'ANY/IN'
 
     // Left-hand side. A row constructor compares element-wise, so its members
     // are what matter — not the RowExpr itself, which is never NULL as a value.
-    const testOperands: Node[] = [];
+    const testOperands: Node[] = []
     if (sl.testexpr) {
-      const t = sl.testexpr as Record<string, unknown>;
-      const row = t["RowExpr"] as { args?: Node[] } | undefined;
-      if (row) testOperands.push(...(row.args ?? []));
-      else testOperands.push(sl.testexpr);
+      const t = sl.testexpr as Record<string, unknown>
+      const row = t['RowExpr'] as { args?: Node[] } | undefined
+      if (row) testOperands.push(...(row.args ?? []))
+      else testOperands.push(sl.testexpr)
     }
-    let testNotNull = testOperands.length > 0;
+    let testNotNull = testOperands.length > 0
     testOperands.forEach((operand, i) => {
-      const childTrace = trace.addChild(`testexpr[${i}]`);
-      if (!this.walkExprTraced(operand, scope, depth + 1, childTrace)) testNotNull = false;
-    });
-    trace.addFact("testexprNotNull", String(testNotNull));
+      const childTrace = trace.addChild(`testexpr[${i}]`)
+      if (!this.walkExprTraced(operand, scope, depth + 1, childTrace)) testNotNull = false
+    })
+    trace.addFact('testexprNotNull', String(testNotNull))
     if (!testNotNull) {
-      trace.conclude(false, `${kind} with a nullable left operand → nullable`);
-      return false;
+      trace.conclude(false, `${kind} with a nullable left operand → nullable`)
+      return false
     }
 
     // Right-hand side: every column the subquery yields must be non-null.
     if (!sl.subselect) {
-      trace.conclude(false, `${kind} with no subquery → nullable`);
-      return false;
+      trace.conclude(false, `${kind} with no subquery → nullable`)
+      return false
     }
-    const innerResults = this.analyzeStatement(sl.subselect, scope, depth + 1);
+    const innerResults = this.analyzeStatement(sl.subselect, scope, depth + 1)
     if (innerResults.length === 0) {
-      trace.conclude(false, `${kind} subquery has no output columns → nullable`);
-      return false;
+      trace.conclude(false, `${kind} subquery has no output columns → nullable`)
+      return false
     }
-    const innerNotNull = innerResults.every(r => r.notNull);
-    trace.addFact("subqueryNotNull", String(innerNotNull));
+    const innerNotNull = innerResults.every((r) => r.notNull)
+    trace.addFact('subqueryNotNull', String(innerNotNull))
     trace.conclude(
       innerNotNull,
       innerNotNull
         ? `${kind}: both operands and every subquery column are non-null → non-null boolean`
         : `${kind}: a NULL from the subquery makes the result NULL when nothing matches`,
-    );
-    return innerNotNull;
+    )
+    return innerNotNull
   }
-
 
   private resolveScalarSublinkTraced(
     sl: SubLink,
@@ -11670,49 +11716,52 @@ class NullabilityEngine {
     trace: ITrace,
   ): boolean {
     if (!sl.subselect) {
-      trace.conclude(false, "no subselect -> nullable");
-      return false;
+      trace.conclude(false, 'no subselect -> nullable')
+      return false
     }
-    const innerStmt = sl.subselect;
+    const innerStmt = sl.subselect
 
-    const select = (innerStmt as Record<string, unknown>)["SelectStmt"] as SelectStmt | undefined;
+    const select = (innerStmt as Record<string, unknown>)['SelectStmt'] as SelectStmt | undefined
     if (!select) {
-      trace.conclude(false, "subselect is not a SelectStmt -> nullable");
-      return false;
+      trace.conclude(false, 'subselect is not a SelectStmt -> nullable')
+      return false
     }
 
-    const singleRow = this.guaranteesSingleRow(select);
+    const singleRow = this.guaranteesSingleRow(select)
 
-    trace.addFact("noFrom", String(!select.fromClause || select.fromClause.length === 0));
-    trace.addFact("hasAggregate", String(this.targetListHasAggregate(select.targetList)));
-    trace.addFact("hasGroupBy", String(!!select.groupClause));
-    trace.addFact("hasHaving", String(!!select.havingClause));
-    trace.addFact("hasLimit", String(!!select.limitCount));
-    trace.addFact("hasOffset", String(!!select.limitOffset));
-    trace.addFact("setOp", select.op && select.op !== "SETOP_NONE" ? select.op : "none");
-    trace.addFact("singleRow", String(singleRow));
+    trace.addFact('noFrom', String(!select.fromClause || select.fromClause.length === 0))
+    trace.addFact('hasAggregate', String(this.targetListHasAggregate(select.targetList)))
+    trace.addFact('hasGroupBy', String(!!select.groupClause))
+    trace.addFact('hasHaving', String(!!select.havingClause))
+    trace.addFact('hasLimit', String(!!select.limitCount))
+    trace.addFact('hasOffset', String(!!select.limitOffset))
+    trace.addFact('setOp', select.op && select.op !== 'SETOP_NONE' ? select.op : 'none')
+    trace.addFact('singleRow', String(singleRow))
 
-    const keyed = singleRow ? false : this.subqueryKeyEntailedNonEmpty(select, scope);
-    const unionArm = singleRow || keyed ? false : this.unionArmEntailsNonEmpty(select);
+    const keyed = singleRow ? false : this.subqueryKeyEntailedNonEmpty(select, scope)
+    const unionArm = singleRow || keyed ? false : this.unionArmEntailsNonEmpty(select)
     const existsWitness =
-      singleRow || keyed || unionArm ? false : this.existsWitnessEntailsSubquery(select, scope);
-    trace.addFact("keyEntailedNonEmpty", String(keyed));
-    trace.addFact("unionArmNonEmpty", String(unionArm));
-    trace.addFact("existsWitnessNonEmpty", String(existsWitness));
+      singleRow || keyed || unionArm ? false : this.existsWitnessEntailsSubquery(select, scope)
+    trace.addFact('keyEntailedNonEmpty', String(keyed))
+    trace.addFact('unionArmNonEmpty', String(unionArm))
+    trace.addFact('existsWitnessNonEmpty', String(existsWitness))
     if (!singleRow && !keyed && !unionArm && !existsWitness) {
-      trace.conclude(false, "can return zero rows -> nullable");
-      return false;
+      trace.conclude(false, 'can return zero rows -> nullable')
+      return false
     }
 
-    const innerResults = this.analyzeStatement(innerStmt, scope, depth + 1);
+    const innerResults = this.analyzeStatement(innerStmt, scope, depth + 1)
     if (innerResults.length > 0) {
-      const innerNotNull = innerResults[0]!.notNull;
-      trace.addFact("innerResult", innerNotNull ? "notNull" : "nullable");
-      trace.conclude(innerNotNull, `single-row subquery propagates inner result: ${innerNotNull ? "notNull" : "nullable"}`);
-      return innerNotNull;
+      const innerNotNull = innerResults[0]!.notNull
+      trace.addFact('innerResult', innerNotNull ? 'notNull' : 'nullable')
+      trace.conclude(
+        innerNotNull,
+        `single-row subquery propagates inner result: ${innerNotNull ? 'notNull' : 'nullable'}`,
+      )
+      return innerNotNull
     }
-    trace.conclude(false, "single-row subquery has no output columns -> nullable");
-    return false;
+    trace.conclude(false, 'single-row subquery has no output columns -> nullable')
+    return false
   }
 
   /**
@@ -11742,13 +11791,13 @@ class NullabilityEngine {
    * than inside a branch.
    */
   private unionArmEntailsNonEmpty(select: SelectStmt): boolean {
-    if (select.op !== "SETOP_UNION") return false;
-    if (select.limitCount || select.limitOffset) return false;
+    if (select.op !== 'SETOP_UNION') return false
+    if (select.limitCount || select.limitOffset) return false
     // `A UNION B UNION C` nests to the left, so a branch may be a set
     // operation in its own right and answers for itself.
     return [select.larg, select.rarg].some(
-      arm => !!arm && (this.guaranteesSingleRow(arm) || this.unionArmEntailsNonEmpty(arm)),
-    );
+      (arm) => !!arm && (this.guaranteesSingleRow(arm) || this.unionArmEntailsNonEmpty(arm)),
+    )
   }
 
   /**
@@ -11818,34 +11867,30 @@ class NullabilityEngine {
    * somewhere else in the statement and proves nothing about these rows.
    */
   private existsWitnessEntailsSubquery(select: SelectStmt, scope: Scope): boolean {
-    if (!scope.rowsImplyWhere || !scope.whereClause) return false;
-    const want = this.correlatedScanWitness(select);
-    if (!want) return false;
+    if (!scope.rowsImplyWhere || !scope.whereClause) return false
+    const want = this.correlatedScanWitness(select)
+    if (!want) return false
 
-    const conjuncts: Node[] = [];
+    const conjuncts: Node[] = []
     const flatten = (n: Node | undefined): void => {
-      if (!n) return;
-      const be = (n as Record<string, unknown>)["BoolExpr"] as
-        | { boolop?: string; args?: Node[] }
-        | undefined;
-      if (be?.boolop === "AND_EXPR") {
-        for (const a of be.args ?? []) flatten(a);
-        return;
+      if (!n) return
+      const be = (n as Record<string, unknown>)['BoolExpr'] as
+        { boolop?: string; args?: Node[] } | undefined
+      if (be?.boolop === 'AND_EXPR') {
+        for (const a of be.args ?? []) flatten(a)
+        return
       }
-      conjuncts.push(n);
-    };
-    flatten(scope.whereClause);
+      conjuncts.push(n)
+    }
+    flatten(scope.whereClause)
 
     for (const c of conjuncts) {
-      const sl = (c as Record<string, unknown>)["SubLink"] as
-        | { subLinkType?: string; subselect?: Node }
-        | undefined;
-      if (sl?.subLinkType !== "EXISTS_SUBLINK" || !sl.subselect) continue;
-      const sub = (sl.subselect as Record<string, unknown>)["SelectStmt"] as
-        | SelectStmt
-        | undefined;
-      if (!sub) continue;
-      const got = this.correlatedScanWitness(sub, true);
+      const sl = (c as Record<string, unknown>)['SubLink'] as
+        { subLinkType?: string; subselect?: Node } | undefined
+      if (sl?.subLinkType !== 'EXISTS_SUBLINK' || !sl.subselect) continue
+      const sub = (sl.subselect as Record<string, unknown>)['SelectStmt'] as SelectStmt | undefined
+      if (!sub) continue
+      const got = this.correlatedScanWitness(sub, true)
       if (
         got &&
         got.schema === want.schema &&
@@ -11854,10 +11899,10 @@ class NullabilityEngine {
         got.outerAlias === want.outerAlias &&
         got.outerColumn === want.outerColumn
       ) {
-        return true;
+        return true
       }
     }
-    return false;
+    return false
   }
 
   /**
@@ -11869,95 +11914,93 @@ class NullabilityEngine {
    * the equality need only be one of them.
    */
   private correlatedScanWitness(select: SelectStmt, extraQuals = false): RowWitness | null {
-    if (select.op && select.op !== "SETOP_NONE") return null;
-    if (select.limitCount || select.limitOffset) return null;
-    if (select.havingClause || select.groupClause?.length || select.withClause) return null;
-    if ((select.fromClause?.length ?? 0) !== 1 || !select.whereClause) return null;
-    const rv = (select.fromClause![0] as Record<string, unknown>)["RangeVar"] as
-      | RangeVar
-      | undefined;
-    if (!rv?.relname) return null;
-    const inner = rv.alias?.aliasname ?? rv.relname;
+    if (select.op && select.op !== 'SETOP_NONE') return null
+    if (select.limitCount || select.limitOffset) return null
+    if (select.havingClause || select.groupClause?.length || select.withClause) return null
+    if ((select.fromClause?.length ?? 0) !== 1 || !select.whereClause) return null
+    const rv = (select.fromClause![0] as Record<string, unknown>)['RangeVar'] as
+      RangeVar | undefined
+    if (!rv?.relname) return null
+    const inner = rv.alias?.aliasname ?? rv.relname
 
-    let eq = this.equalityColumnRefs(select.whereClause);
+    let eq = this.equalityColumnRefs(select.whereClause)
     if (!eq && extraQuals) {
-      const be = (select.whereClause as Record<string, unknown>)["BoolExpr"] as
-        | { boolop?: string; args?: Node[] }
-        | undefined;
-      if (be?.boolop === "AND_EXPR") {
+      const be = (select.whereClause as Record<string, unknown>)['BoolExpr'] as
+        { boolop?: string; args?: Node[] } | undefined
+      if (be?.boolop === 'AND_EXPR') {
         for (const a of be.args ?? []) {
-          const candidate = this.equalityColumnRefs(a);
-          if (candidate && candidate.some(r => r.alias === inner)) {
-            eq = candidate;
-            break;
+          const candidate = this.equalityColumnRefs(a)
+          if (candidate && candidate.some((r) => r.alias === inner)) {
+            eq = candidate
+            break
           }
         }
       }
     }
-    if (!eq) return null;
+    if (!eq) return null
 
-    for (const [self, outer] of [[eq[0], eq[1]], [eq[1], eq[0]]] as const) {
-      if (self.alias !== inner || outer.alias === inner) continue;
+    for (const [self, outer] of [
+      [eq[0], eq[1]],
+      [eq[1], eq[0]],
+    ] as const) {
+      if (self.alias !== inner || outer.alias === inner) continue
       return {
         schema: rv.schemaname,
         relation: rv.relname,
         column: self.column,
         outerAlias: outer.alias,
         outerColumn: outer.column,
-      };
+      }
     }
-    return null;
+    return null
   }
 
   private subqueryKeyEntailedNonEmpty(select: SelectStmt, scope: Scope): boolean {
-    if (select.op && select.op !== "SETOP_NONE") return false;
-    if (select.limitCount || select.limitOffset) return false;
-    if (select.havingClause || select.groupClause?.length) return false;
-    if ((select.fromClause?.length ?? 0) !== 1 || !select.whereClause) return false;
+    if (select.op && select.op !== 'SETOP_NONE') return false
+    if (select.limitCount || select.limitOffset) return false
+    if (select.havingClause || select.groupClause?.length) return false
+    if ((select.fromClause?.length ?? 0) !== 1 || !select.whereClause) return false
 
-    const from = this.subqueryFromTree(select.fromClause![0]!);
-    if (!from) return false;
-    const rels: SubqueryRelation[] = [];
+    const from = this.subqueryFromTree(select.fromClause![0]!)
+    if (!from) return false
+    const rels: SubqueryRelation[] = []
     for (const r of from.rels) {
-      const resolved = this.catalog.resolveTable(r.schemaname, r.relname);
-      if (!resolved) return false;
-      rels.push({ ...r, schema: resolved.schema, name: resolved.name, catalogColumns: resolved.columns });
+      const resolved = this.catalog.resolveTable(r.schemaname, r.relname)
+      if (!resolved) return false
+      rels.push({
+        ...r,
+        schema: resolved.schema,
+        name: resolved.name,
+        catalogColumns: resolved.columns,
+      })
     }
 
-    const eq = this.equalityColumnRefs(select.whereClause);
-    if (!eq) return false;
+    const eq = this.equalityColumnRefs(select.whereClause)
+    if (!eq) return false
 
     for (const [innerRef, outerRef] of [
       [eq[0], eq[1]],
       [eq[1], eq[0]],
     ] as const) {
-      const anchor = rels.find(r => r.alias === innerRef.alias);
-      if (!anchor) continue;
-      const outer = scope.aliases.get(outerRef.alias);
-      if (!outer || outer.kind !== "table" || !outer.table) continue;
-      if (outer.joinState !== REQUIRED) continue;
+      const anchor = rels.find((r) => r.alias === innerRef.alias)
+      if (!anchor) continue
+      const outer = scope.aliases.get(outerRef.alias)
+      if (!outer || outer.kind !== 'table' || !outer.table) continue
+      if (outer.joinState !== REQUIRED) continue
 
       // Both sides of the correlation may be renamed by an alias column list,
       // and the outer and inner ones live in different structures — a
       // RelationEntry out here, the reduced SubqueryRelation in there. Every
       // catalog question below is keyed by the catalog's names.
-      const outerCol = this.entryCatalogColumn(outer, outerRef.column);
-      const innerCol = this.subqueryCatalogColumn(anchor, innerRef.column);
-      if (outerCol === undefined || innerCol === undefined) continue;
+      const outerCol = this.entryCatalogColumn(outer, outerRef.column)
+      const innerCol = this.subqueryCatalogColumn(anchor, innerRef.column)
+      if (outerCol === undefined || innerCol === undefined) continue
 
-      const outerScansTree = outer.scanInh !== false;
+      const outerScansTree = outer.scanInh !== false
       const keyNotNull = outerScansTree
-        ? this.catalog.resolveColumnNotNullTree(
-            outer.table.schema,
-            outer.table.name,
-            outerCol,
-          )
-        : this.catalog.resolveColumnNotNull(
-            outer.table.schema,
-            outer.table.name,
-            outerCol,
-          );
-      if (!keyNotNull) continue;
+        ? this.catalog.resolveColumnNotNullTree(outer.table.schema, outer.table.name, outerCol)
+        : this.catalog.resolveColumnNotNull(outer.table.schema, outer.table.name, outerCol)
+      if (!keyNotNull) continue
 
       const selfLookup =
         outer.table.schema === anchor.schema &&
@@ -11967,7 +12010,7 @@ class NullabilityEngine {
         outerCol === innerCol &&
         // A tree-scanning outer may be reading a CHILD row that an `ONLY`
         // subquery cannot see.
-        (anchor.scansTree || !outerScansTree);
+        (anchor.scansTree || !outerScansTree)
       const keyed =
         selfLookup ||
         this.keyEntails(
@@ -11975,11 +12018,11 @@ class NullabilityEngine {
           outerCol,
           anchor,
           innerCol,
-        );
-      if (!keyed) continue;
-      if (this.anchorSurvivesJoins(rels, from.joins, anchor)) return true;
+        )
+      if (!keyed) continue
+      if (this.anchorSurvivesJoins(rels, from.joins, anchor)) return true
     }
-    return false;
+    return false
   }
 
   /**
@@ -12000,24 +12043,24 @@ class NullabilityEngine {
    * and which must not silently read the catalog's column of the same name.
    */
   private subqueryCatalogColumn(r: SubqueryRelation, used: string): string | undefined {
-    const cols = r.catalogColumns ?? [];
-    if (!r.columnAliases) return cols.includes(used) ? used : undefined;
-    const i = cols.map((c, k) => r.columnAliases![k] ?? c).indexOf(used);
-    return i >= 0 ? cols[i] : undefined;
+    const cols = r.catalogColumns ?? []
+    if (!r.columnAliases) return cols.includes(used) ? used : undefined
+    const i = cols.map((c, k) => r.columnAliases![k] ?? c).indexOf(used)
+    return i >= 0 ? cols[i] : undefined
   }
 
   private subqueryFromTree(
     item: Node,
-  ): { rels: Omit<SubqueryRelation, "schema" | "name">[]; joins: SubqueryJoin[] } | null {
-    const node = item as Record<string, unknown>;
-    if ("RangeVar" in node) {
-      const rv = node["RangeVar"] as {
-        schemaname?: string;
-        relname?: string;
-        inh?: boolean;
-        alias?: { aliasname?: string; colnames?: Node[] };
-      };
-      if (!rv.relname) return null;
+  ): { rels: Omit<SubqueryRelation, 'schema' | 'name'>[]; joins: SubqueryJoin[] } | null {
+    const node = item as Record<string, unknown>
+    if ('RangeVar' in node) {
+      const rv = node['RangeVar'] as {
+        schemaname?: string
+        relname?: string
+        inh?: boolean
+        alias?: { aliasname?: string; colnames?: Node[] }
+      }
+      if (!rv.relname) return null
       return {
         rels: [
           {
@@ -12026,34 +12069,34 @@ class NullabilityEngine {
             relname: rv.relname,
             scansTree: rv.inh === true,
             ...(rv.alias?.colnames && rv.alias.colnames.length > 0
-              ? { columnAliases: rv.alias.colnames.map(n => this.stringVal(n)) }
+              ? { columnAliases: rv.alias.colnames.map((n) => this.stringVal(n)) }
               : {}),
           },
         ],
         joins: [],
-      };
+      }
     }
-    if ("JoinExpr" in node) {
-      const j = node["JoinExpr"] as JoinExpr;
-      if (!j.quals || j.usingClause?.length || j.isNatural) return null;
-      const left = j.larg ? this.subqueryFromTree(j.larg) : null;
-      const right = j.rarg ? this.subqueryFromTree(j.rarg) : null;
-      if (!left || !right) return null;
+    if ('JoinExpr' in node) {
+      const j = node['JoinExpr'] as JoinExpr
+      if (!j.quals || j.usingClause?.length || j.isNatural) return null
+      const left = j.larg ? this.subqueryFromTree(j.larg) : null
+      const right = j.rarg ? this.subqueryFromTree(j.rarg) : null
+      if (!left || !right) return null
       return {
         rels: [...left.rels, ...right.rels],
         joins: [
           ...left.joins,
           ...right.joins,
           {
-            jointype: j.jointype ?? "JOIN_INNER",
+            jointype: j.jointype ?? 'JOIN_INNER',
             quals: j.quals,
-            leftAliases: left.rels.map(r => r.alias),
-            rightAliases: right.rels.map(r => r.alias),
+            leftAliases: left.rels.map((r) => r.alias),
+            rightAliases: right.rels.map((r) => r.alias),
           },
         ],
-      };
+      }
     }
-    return null;
+    return null
   }
 
   /**
@@ -12095,21 +12138,21 @@ class NullabilityEngine {
     joins: SubqueryJoin[],
     anchor: SubqueryRelation,
   ): boolean {
-    const settled = new Set([anchor.alias]);
+    const settled = new Set([anchor.alias])
     // Innermost first: the flattening appends a join after both its sides, so
     // a settled relation is available to every join that encloses it.
     for (const j of joins) {
-      const anchorOnLeft = j.leftAliases.includes(anchor.alias);
-      const anchorOnRight = j.rightAliases.includes(anchor.alias);
-      if (!anchorOnLeft && !anchorOnRight) continue;
+      const anchorOnLeft = j.leftAliases.includes(anchor.alias)
+      const anchorOnRight = j.rightAliases.includes(anchor.alias)
+      if (!anchorOnLeft && !anchorOnRight) continue
       const preservesAnchor =
-        j.jointype === "JOIN_FULL" ||
-        (j.jointype === "JOIN_LEFT" && anchorOnLeft) ||
-        (j.jointype === "JOIN_RIGHT" && anchorOnRight);
-      if (preservesAnchor) continue;
-      if (!this.joinMatchesAnchor(j, rels, joins, settled, anchorOnLeft)) return false;
+        j.jointype === 'JOIN_FULL' ||
+        (j.jointype === 'JOIN_LEFT' && anchorOnLeft) ||
+        (j.jointype === 'JOIN_RIGHT' && anchorOnRight)
+      if (preservesAnchor) continue
+      if (!this.joinMatchesAnchor(j, rels, joins, settled, anchorOnLeft)) return false
     }
-    return true;
+    return true
   }
 
   /**
@@ -12124,33 +12167,33 @@ class NullabilityEngine {
     settled: Set<string>,
     anchorOnLeft: boolean,
   ): boolean {
-    const eq = this.equalityColumnRefs(j.quals);
-    if (!eq) return false;
-    const anchorSide = anchorOnLeft ? j.leftAliases : j.rightAliases;
-    const otherSide = anchorOnLeft ? j.rightAliases : j.leftAliases;
+    const eq = this.equalityColumnRefs(j.quals)
+    if (!eq) return false
+    const anchorSide = anchorOnLeft ? j.leftAliases : j.rightAliases
+    const otherSide = anchorOnLeft ? j.rightAliases : j.leftAliases
 
     for (const [refCol, targetCol] of [
       [eq[0], eq[1]],
       [eq[1], eq[0]],
     ] as const) {
-      if (!settled.has(refCol.alias) || !anchorSide.includes(refCol.alias)) continue;
-      if (!otherSide.includes(targetCol.alias)) continue;
-      const referencing = rels.find(r => r.alias === refCol.alias);
-      const referenced = rels.find(r => r.alias === targetCol.alias);
-      if (!referencing || !referenced) continue;
+      if (!settled.has(refCol.alias) || !anchorSide.includes(refCol.alias)) continue
+      if (!otherSide.includes(targetCol.alias)) continue
+      const referencing = rels.find((r) => r.alias === refCol.alias)
+      const referenced = rels.find((r) => r.alias === targetCol.alias)
+      if (!referencing || !referenced) continue
       // Both relations of the subquery's own join may carry an alias column
       // list, so the ON clause is in the query's names and the key is not.
-      const refCat = this.subqueryCatalogColumn(referencing, refCol.column);
-      const tgtCat = this.subqueryCatalogColumn(referenced, targetCol.column);
-      if (refCat === undefined || tgtCat === undefined) continue;
+      const refCat = this.subqueryCatalogColumn(referencing, refCol.column)
+      const tgtCat = this.subqueryCatalogColumn(referenced, targetCol.column)
+      if (refCat === undefined || tgtCat === undefined) continue
       // The key says the row exists in the TABLE; this join finds it only if
       // no join inside the other side has dropped it.
-      if (!this.subtreePreserves(joins, otherSide, targetCol.alias)) continue;
-      if (!this.keyEntails(referencing, refCat, referenced, tgtCat)) continue;
-      settled.add(targetCol.alias);
-      return true;
+      if (!this.subtreePreserves(joins, otherSide, targetCol.alias)) continue
+      if (!this.keyEntails(referencing, refCat, referenced, tgtCat)) continue
+      settled.add(targetCol.alias)
+      return true
     }
-    return false;
+    return false
   }
 
   /**
@@ -12159,18 +12202,18 @@ class NullabilityEngine {
    * ending in common aggregate names) or by agg_star on FuncCall.
    */
   private targetListHasAggregate(targetList?: Node[]): boolean {
-    if (!targetList) return false;
+    if (!targetList) return false
     for (const target of targetList) {
-      const rt = this.unwrapResTarget(target);
-      if (rt.val && this.exprHasAggregate(rt.val)) return true;
+      const rt = this.unwrapResTarget(target)
+      if (rt.val && this.exprHasAggregate(rt.val)) return true
     }
-    return false;
+    return false
   }
 
   private exprHasAggregate(expr: Node): boolean {
-    const node = expr as Record<string, unknown>;
-    if ("FuncCall" in node) {
-      const fc = node["FuncCall"] as FuncCall;
+    const node = expr as Record<string, unknown>
+    if ('FuncCall' in node) {
+      const fc = node['FuncCall'] as FuncCall
       // A call carrying OVER is a WINDOW call, and a window call collapses
       // NOTHING: `sum(x) OVER ()` yields one row per input row, so an empty
       // input yields no rows at all. The sole consumer is
@@ -12191,107 +12234,103 @@ class NullabilityEngine {
       // was the one site that did not.
       if (fc.over) {
         for (const a of fc.args ?? []) {
-          if (this.exprHasAggregate(a)) return true;
+          if (this.exprHasAggregate(a)) return true
         }
-        return false;
+        return false
       }
       // count(*) is always an aggregate.
-      if (fc.agg_star) return true;
+      if (fc.agg_star) return true
       // Check by function name against common built-in aggregates.
-      const name = this.funcName(fc);
+      const name = this.funcName(fc)
       // The user catalog first, then pg_catalog's own aggregate names.
-      const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name);
-      if (meta?.isAggregate) return true;
-      if (!meta && this.catalog.isAggregateBuiltin(name)) return true;
+      const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), name)
+      if (meta?.isAggregate) return true
+      if (!meta && this.catalog.isAggregateBuiltin(name)) return true
     }
     // Recurse into sub-expressions.
-    if ("A_Expr" in node) {
-      const ae = node["A_Expr"] as { lexpr?: Node; rexpr?: Node };
-      if (ae.lexpr && this.exprHasAggregate(ae.lexpr)) return true;
-      if (ae.rexpr && this.exprHasAggregate(ae.rexpr)) return true;
+    if ('A_Expr' in node) {
+      const ae = node['A_Expr'] as { lexpr?: Node; rexpr?: Node }
+      if (ae.lexpr && this.exprHasAggregate(ae.lexpr)) return true
+      if (ae.rexpr && this.exprHasAggregate(ae.rexpr)) return true
     }
-    if ("BoolExpr" in node) {
-      const be = node["BoolExpr"] as { args?: Node[] };
+    if ('BoolExpr' in node) {
+      const be = node['BoolExpr'] as { args?: Node[] }
       for (const a of be.args ?? []) {
-        if (this.exprHasAggregate(a)) return true;
+        if (this.exprHasAggregate(a)) return true
       }
     }
-    if ("CoalesceExpr" in node) {
-      const ce = node["CoalesceExpr"] as { args?: Node[] };
+    if ('CoalesceExpr' in node) {
+      const ce = node['CoalesceExpr'] as { args?: Node[] }
       for (const a of ce.args ?? []) {
-        if (this.exprHasAggregate(a)) return true;
+        if (this.exprHasAggregate(a)) return true
       }
     }
-    if ("TypeCast" in node) {
-      const tc = node["TypeCast"] as { arg: Node };
-      if (this.exprHasAggregate(tc.arg)) return true;
+    if ('TypeCast' in node) {
+      const tc = node['TypeCast'] as { arg: Node }
+      if (this.exprHasAggregate(tc.arg)) return true
     }
-    if ("CaseExpr" in node) {
-      const ce = node["CaseExpr"] as { args?: Node[]; defresult?: Node };
+    if ('CaseExpr' in node) {
+      const ce = node['CaseExpr'] as { args?: Node[]; defresult?: Node }
       for (const a of ce.args ?? []) {
-        const wh = (a as Record<string, unknown>)["CaseWhen"] as { expr?: Node; result?: Node } | undefined;
-        if (wh?.expr && this.exprHasAggregate(wh.expr)) return true;
-        if (wh?.result && this.exprHasAggregate(wh.result)) return true;
+        const wh = (a as Record<string, unknown>)['CaseWhen'] as
+          { expr?: Node; result?: Node } | undefined
+        if (wh?.expr && this.exprHasAggregate(wh.expr)) return true
+        if (wh?.result && this.exprHasAggregate(wh.result)) return true
       }
-      if (ce.defresult && this.exprHasAggregate(ce.defresult)) return true;
+      if (ce.defresult && this.exprHasAggregate(ce.defresult)) return true
     }
-    if ("NamedArgExpr" in node) {
-      const na = node["NamedArgExpr"] as { arg: Node };
-      if (this.exprHasAggregate(na.arg)) return true;
+    if ('NamedArgExpr' in node) {
+      const na = node['NamedArgExpr'] as { arg: Node }
+      if (this.exprHasAggregate(na.arg)) return true
     }
-    if ("RowExpr" in node) {
-      const re = node["RowExpr"] as { args?: Node[] };
+    if ('RowExpr' in node) {
+      const re = node['RowExpr'] as { args?: Node[] }
       for (const a of re.args ?? []) {
-        if (this.exprHasAggregate(a)) return true;
+        if (this.exprHasAggregate(a)) return true
       }
     }
-    if ("A_ArrayExpr" in node) {
-      const ae = node["A_ArrayExpr"] as { elements?: Node[] };
+    if ('A_ArrayExpr' in node) {
+      const ae = node['A_ArrayExpr'] as { elements?: Node[] }
       for (const e of ae.elements ?? []) {
-        if (this.exprHasAggregate(e)) return true;
+        if (this.exprHasAggregate(e)) return true
       }
     }
-    if ("MinMaxExpr" in node) {
-      const mm = node["MinMaxExpr"] as { args?: Node[] };
+    if ('MinMaxExpr' in node) {
+      const mm = node['MinMaxExpr'] as { args?: Node[] }
       for (const a of mm.args ?? []) {
-        if (this.exprHasAggregate(a)) return true;
+        if (this.exprHasAggregate(a)) return true
       }
     }
-    if ("CollateClause" in node) {
-      const cc = node["CollateClause"] as { arg: Node };
-      if (this.exprHasAggregate(cc.arg)) return true;
+    if ('CollateClause' in node) {
+      const cc = node['CollateClause'] as { arg: Node }
+      if (this.exprHasAggregate(cc.arg)) return true
     }
-    return false;
+    return false
   }
 
   // -------------------------------------------------------------------------
   // FuncCall resolution (7-priority dispatch from section 4)
   // -------------------------------------------------------------------------
 
-  private resolveFuncCallTraced(
-    fc: FuncCall,
-    scope: Scope,
-    depth: number,
-    trace: ITrace,
-  ): boolean {
-    const name = this.funcName(fc);
-    const schema = this.funcSchema(fc);
+  private resolveFuncCallTraced(fc: FuncCall, scope: Scope, depth: number, trace: ITrace): boolean {
+    const name = this.funcName(fc)
+    const schema = this.funcSchema(fc)
 
-    trace.addFact("name", schema ? `${schema}.${name}` : name);
-    trace.addFact("agg_star", String(!!fc.agg_star));
+    trace.addFact('name', schema ? `${schema}.${name}` : name)
+    trace.addFact('agg_star', String(!!fc.agg_star))
 
     // Resolve args first (leaf-first).
-    const argResults: boolean[] = [];
+    const argResults: boolean[] = []
     for (let i = 0; i < (fc.args ?? []).length; i++) {
-      const argTrace = trace.addChild(`arg[${i}]`);
-      argResults.push(this.walkExprTraced(fc.args![i]!, scope, depth + 1, argTrace));
+      const argTrace = trace.addChild(`arg[${i}]`)
+      argResults.push(this.walkExprTraced(fc.args![i]!, scope, depth + 1, argTrace))
     }
 
     // Priority 2 (checked early because it's by-name): count
-    if (name === "count" && (fc.agg_star || this.isAggregateByName(name, schema))) {
-      trace.addFact("priority", "2 (count)");
-      trace.conclude(true, "count never returns NULL");
-      return true;
+    if (name === 'count' && (fc.agg_star || this.isAggregateByName(name, schema))) {
+      trace.addFact('priority', '2 (count)')
+      trace.conclude(true, 'count never returns NULL')
+      return true
     }
 
     // Look up function metadata. Where the builtin-name drop rule left it
@@ -12300,24 +12339,30 @@ class NullabilityEngine {
     // the user function: for claim-table names the merged set is decidable,
     // and a user row that certainly wins gets its metadata — domain return,
     // body, strictness — back into play.
-    let meta = this.catalog.resolveFunctionMetadata(schema, name);
-    if (!meta && !(fc.args ?? []).some(a => "NamedArgExpr" in (a as Record<string, unknown>))) {
+    let meta = this.catalog.resolveFunctionMetadata(schema, name)
+    if (!meta && !(fc.args ?? []).some((a) => 'NamedArgExpr' in (a as Record<string, unknown>))) {
       meta = this.catalog.resolveUserFunctionTyped(
         schema,
         name,
-        (fc.args ?? []).map(a => this.operandTypeSet(a, scope, depth + 1)),
-      );
-      if (meta) trace.addFact("typedResolution", `${meta.schema}.${meta.name} (user, type-narrowed)`);
+        (fc.args ?? []).map((a) => this.operandTypeSet(a, scope, depth + 1)),
+      )
+      if (meta)
+        trace.addFact('typedResolution', `${meta.schema}.${meta.name} (user, type-narrowed)`)
     }
-    trace.addFact("catalogMeta", meta ? `${meta.schema}.${meta.name} (lang=${meta.language}, strict=${meta.strict}, agg=${meta.isAggregate})` : "not found");
+    trace.addFact(
+      'catalogMeta',
+      meta
+        ? `${meta.schema}.${meta.name} (lang=${meta.language}, strict=${meta.strict}, agg=${meta.isAggregate})`
+        : 'not found',
+    )
 
     // Reorder named arguments to match function definition order, then fill
     // the positions the call left to their DEFAULTS — what the function
     // actually receives, which is what every rule below reasons about.
-    const reordered = this.maybeReorderNamedArgs(fc.args ?? [], argResults, meta);
+    const reordered = this.maybeReorderNamedArgs(fc.args ?? [], argResults, meta)
     const orderedArgs = meta
       ? this.bindDefaultArguments(meta, reordered.ordered, reordered.supplied, depth, trace)
-      : reordered.ordered;
+      : reordered.ordered
 
     // Priority 1: NOT NULL domain return — for a call that RUNS. Two calls
     // never reach the domain at all, and each returns NULL past it:
@@ -12331,12 +12376,12 @@ class NullabilityEngine {
     //
     // The strict call falls through to priority 4, which concludes nullable
     // for it; the domain is the only rule that would have preempted that.
-    const shortCircuits = !!meta && this.callCanShortCircuit(meta, orderedArgs);
-    if (shortCircuits) trace.addFact("shortCircuits", "true");
+    const shortCircuits = !!meta && this.callCanShortCircuit(meta, orderedArgs)
+    if (shortCircuits) trace.addFact('shortCircuits', 'true')
     if (meta && !meta.isAggregate && !shortCircuits && this.funcReturnsNotNullDomain(meta)) {
-      trace.addFact("priority", "1 (NOT NULL domain return)");
-      trace.conclude(true, "returns NOT NULL domain -> PG enforces at call boundary");
-      return true;
+      trace.addFact('priority', '1 (NOT NULL domain return)')
+      trace.conclude(true, 'returns NOT NULL domain -> PG enforces at call boundary')
+      return true
     }
 
     // Overload consensus: with no single resolution, a property EVERY
@@ -12345,26 +12390,29 @@ class NullabilityEngine {
     // capture rests on. Named notation reorders positions and defeats it;
     // body inlining needs the actual body and stays single-candidate.
     const consensus =
-      !meta && !(fc.args ?? []).some(a => "NamedArgExpr" in (a as Record<string, unknown>))
+      !meta && !(fc.args ?? []).some((a) => 'NamedArgExpr' in (a as Record<string, unknown>))
         ? this.catalog.resolveFunctionCandidates(schema, name, (fc.args ?? []).length)
-        : null;
+        : null
     if (consensus && consensus.length > 0) {
-      trace.addFact("overloadConsensus", `${consensus.length} arity-compatible candidates`);
+      trace.addFact('overloadConsensus', `${consensus.length} arity-compatible candidates`)
       // The domain claim needs the same short-circuit clearance the resolved
       // case needs, and by consensus that means NO candidate may short-circuit
       // — whichever one PostgreSQL picks has to be one that runs.
-      const suppliedPositions = argResults.map(() => true);
+      const suppliedPositions = argResults.map(() => true)
       const noneShortCircuits = consensus.every(
-        c =>
+        (c) =>
           !this.callCanShortCircuit(
             c,
             this.bindDefaultArguments(c, argResults, suppliedPositions, depth, NOOP),
           ),
-      );
-      if (noneShortCircuits && consensus.every(c => !c.isAggregate && this.funcReturnsNotNullDomain(c))) {
-        trace.addFact("priority", "1 (NOT NULL domain return, by consensus)");
-        trace.conclude(true, "every candidate returns a NOT NULL domain → notNull whichever runs");
-        return true;
+      )
+      if (
+        noneShortCircuits &&
+        consensus.every((c) => !c.isAggregate && this.funcReturnsNotNullDomain(c))
+      ) {
+        trace.addFact('priority', '1 (NOT NULL domain return, by consensus)')
+        trace.conclude(true, 'every candidate returns a NOT NULL domain → notNull whichever runs')
+        return true
       }
     }
 
@@ -12372,28 +12420,31 @@ class NullabilityEngine {
     // the ranking functions are BOTH — prokind 'aw' — so they answer yes to
     // the aggregate question too.
     if (fc.over) {
-      trace.addFact("windowFunction", "true");
+      trace.addFact('windowFunction', 'true')
       // Typed dispatch over the kind='w' rows, keyed by SIGNATURE — the
       // re-key that lets `lag(x, 1, 0)` claim what `lag(x)` may not.
       // Named notation breaks the positional lineup and skips it, exactly
       // as on the scalar side.
-      const winArgs = fc.args ?? [];
-      if (!winArgs.some(a => "NamedArgExpr" in (a as Record<string, unknown>))) {
-        const winTypes = winArgs.map(a => this.operandTypeSet(a, scope, depth + 1));
-        const win = this.catalog.resolveBuiltinWindowTotality(schema, name, winTypes);
-        if (win.kind === "always") {
-          trace.addFact("priority", "2b (window row, never NULL, signature-narrowed)");
-          trace.conclude(true, `${name}() assigns a value to every row → never NULL`);
-          return true;
+      const winArgs = fc.args ?? []
+      if (!winArgs.some((a) => 'NamedArgExpr' in (a as Record<string, unknown>))) {
+        const winTypes = winArgs.map((a) => this.operandTypeSet(a, scope, depth + 1))
+        const win = this.catalog.resolveBuiltinWindowTotality(schema, name, winTypes)
+        if (win.kind === 'always') {
+          trace.addFact('priority', '2b (window row, never NULL, signature-narrowed)')
+          trace.conclude(true, `${name}() assigns a value to every row → never NULL`)
+          return true
         }
-        if (win.kind === "strict-total") {
-          trace.addFact("priority", "2b (window row, total over non-null args, signature-narrowed)");
-          trace.addFact("argsNotNull", `[${argResults.map(r => (r ? "T" : "F")).join(", ")}]`);
-          const result = argResults.length > 0 && argResults.every(r => r);
-          trace.conclude(result, result
-            ? `every surviving signature of ${name}() over is total: non-null arguments → non-null result`
-            : `${name}() over has a nullable argument → nullable`);
-          return result;
+        if (win.kind === 'strict-total') {
+          trace.addFact('priority', '2b (window row, total over non-null args, signature-narrowed)')
+          trace.addFact('argsNotNull', `[${argResults.map((r) => (r ? 'T' : 'F')).join(', ')}]`)
+          const result = argResults.length > 0 && argResults.every((r) => r)
+          trace.conclude(
+            result,
+            result
+              ? `every surviving signature of ${name}() over is total: non-null arguments → non-null result`
+              : `${name}() over has a nullable argument → nullable`,
+          )
+          return result
         }
       }
       // Aggregates over a frame that CONTAINS THE CURRENT ROW: the frame is
@@ -12413,34 +12464,40 @@ class NullabilityEngine {
       //
       // A NAMED window still falls through: its frame lives in the WINDOW
       // clause and `over` here carries only the reference.
-      const over = fc.over as { name?: string; refname?: string; frameOptions?: number };
+      const over = fc.over as { name?: string; refname?: string; frameOptions?: number }
       const defaultFrame =
         !over.name &&
         !over.refname &&
         over.frameOptions !== undefined &&
-        frameContainsCurrentRow(over.frameOptions);
+        frameContainsCurrentRow(over.frameOptions)
       const frameNonNull =
         NON_NULL_OVER_NONEMPTY_AGGREGATES.has(name) ||
-        name === "first_value" ||
-        name === "last_value";
+        name === 'first_value' ||
+        name === 'last_value'
       if (
         defaultFrame &&
         frameNonNull &&
         !fc.agg_filter &&
         !fc.agg_distinct &&
         argResults.length > 0 &&
-        argResults.every(r => r)
+        argResults.every((r) => r)
       ) {
-        trace.addFact("priority", "2b (aggregate over the default frame)");
-        trace.conclude(true, `${name}() over the never-empty default frame with non-null input → notNull`);
-        return true;
+        trace.addFact('priority', '2b (aggregate over the default frame)')
+        trace.conclude(
+          true,
+          `${name}() over the never-empty default frame with non-null input → notNull`,
+        )
+        return true
       }
       // Everything else over a window — aggregates included — can see an empty
       // frame (e.g. ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING on the first row)
       // and offset functions can address a row outside the partition.
-      trace.addFact("priority", "2b (other window function)");
-      trace.conclude(false, "window frame may be empty or the offset may fall outside the partition → nullable");
-      return false;
+      trace.addFact('priority', '2b (other window function)')
+      trace.conclude(
+        false,
+        'window frame may be empty or the offset may fall outside the partition → nullable',
+      )
+      return false
     }
 
     // Priority 2c: WITHIN GROUP — ordered-set and hypothetical-set
@@ -12453,56 +12510,58 @@ class NullabilityEngine {
     // follows the plain-aggregate gates, with the WITHIN GROUP sort
     // expressions finally visible as arguments.
     if ((fc as { agg_within_group?: boolean }).agg_within_group) {
-      trace.addFact("withinGroup", "true");
+      trace.addFact('withinGroup', 'true')
       // CLASS claims, keyed on the capture's aggkind rather than the two
       // name tables that mirrored it (retired — they were asserted
       // catalog-equal both ways, so the catalog answers directly). The
       // call SHAPE selects the class: WITHIN GROUP reaches only 'h'/'o'
       // rows, mutually exclusive with the window form (measured, Q2).
-      const aggRows = this.catalog.resolveBuiltinAggregateRows(schema, name);
+      const aggRows = this.catalog.resolveBuiltinAggregateRows(schema, name)
       if (aggRows?.hypothetical) {
-        trace.addFact("priority", "2c (hypothetical-set aggregate)");
-        trace.conclude(true, `${name}() WITHIN GROUP assigns the hypothetical row a position → never NULL`);
-        return true;
+        trace.addFact('priority', '2c (hypothetical-set aggregate)')
+        trace.conclude(
+          true,
+          `${name}() WITHIN GROUP assigns the hypothetical row a position → never NULL`,
+        )
+        return true
       }
       if (aggRows?.orderedSet) {
-        trace.addFact("priority", "2c (ordered-set aggregate)");
-        const sortResults: boolean[] = [];
-        const aggOrder = (fc as { agg_order?: Node[] }).agg_order ?? [];
+        trace.addFact('priority', '2c (ordered-set aggregate)')
+        const sortResults: boolean[] = []
+        const aggOrder = (fc as { agg_order?: Node[] }).agg_order ?? []
         for (const [i, sb] of aggOrder.entries()) {
-          const sortNode = (sb as { SortBy?: { node?: Node } }).SortBy?.node;
+          const sortNode = (sb as { SortBy?: { node?: Node } }).SortBy?.node
           if (!sortNode) {
-            sortResults.push(false);
-            continue;
+            sortResults.push(false)
+            continue
           }
-          const sortTrace = trace.addChild(`sort[${i}]`);
-          sortResults.push(this.walkExprTraced(sortNode, scope, depth + 1, sortTrace));
+          const sortTrace = trace.addChild(`sort[${i}]`)
+          sortResults.push(this.walkExprTraced(sortNode, scope, depth + 1, sortTrace))
         }
-        const directNotNull = argResults.every(r => r); // mode() has none
-        const sortNotNull = sortResults.length > 0 && sortResults.every(r => r);
-        trace.addFact("sortArgsNotNull", `[${sortResults.map(r => (r ? "T" : "F")).join(", ")}]`);
+        const directNotNull = argResults.every((r) => r) // mode() has none
+        const sortNotNull = sortResults.length > 0 && sortResults.every((r) => r)
+        trace.addFact('sortArgsNotNull', `[${sortResults.map((r) => (r ? 'T' : 'F')).join(', ')}]`)
         const result =
-          scope.groupGuaranteesNonEmpty && !fc.agg_filter && directNotNull && sortNotNull;
+          scope.groupGuaranteesNonEmpty && !fc.agg_filter && directNotNull && sortNotNull
         trace.conclude(
           result,
           result
-            ? "non-empty group, non-null sort input and direct args → notNull"
-            : "empty group, NULL sort input or NULL direct arg can yield NULL → nullable",
-        );
-        return result;
+            ? 'non-empty group, non-null sort input and direct args → notNull'
+            : 'empty group, NULL sort input or NULL direct arg can yield NULL → nullable',
+        )
+        return result
       }
-      trace.addFact("priority", "2c (unknown WITHIN GROUP aggregate)");
-      trace.conclude(false, "unknown ordered-set aggregate → conservative nullable");
-      return false;
+      trace.addFact('priority', '2c (unknown WITHIN GROUP aggregate)')
+      trace.conclude(false, 'unknown ordered-set aggregate → conservative nullable')
+      return false
     }
 
     // Priority 3: Aggregate (other than count).
     const isAggregate =
-      !!meta?.isAggregate ||
-      (!meta && this.catalog.isAggregateBuiltin(name) && name !== "count");
+      !!meta?.isAggregate || (!meta && this.catalog.isAggregateBuiltin(name) && name !== 'count')
     if (isAggregate) {
-      trace.addFact("priority", meta ? "3 (aggregate)" : "3 (aggregate by name, not in catalog)");
-      return this.resolveAggregateTraced(fc, name, argResults, meta, scope, depth, trace);
+      trace.addFact('priority', meta ? '3 (aggregate)' : '3 (aggregate by name, not in catalog)')
+      return this.resolveAggregateTraced(fc, name, argResults, meta, scope, depth, trace)
     }
 
     // Priority 4: Strict scalar function — the NULLABLE direction only.
@@ -12516,39 +12575,34 @@ class NullabilityEngine {
     // zero-row gate is what makes lookup_name honest), and to conservative
     // nullable otherwise. The same distinction TOTAL_OPERATORS and
     // STRICT_TOTAL_BUILTINS draw, now drawn here too.
-    if (
-      meta &&
-      meta.strict &&
-      !meta.isAggregate &&
-      !this.allArgumentsNonNull(meta, orderedArgs)
-    ) {
-      trace.addFact("priority", "4 (strict)");
-      trace.addFact("argsNotNull", `[${orderedArgs.map(r => r ? "T" : "F").join(", ")}]`);
-      trace.conclude(false, "strict: at least one arg nullable");
-      return false;
+    if (meta && meta.strict && !meta.isAggregate && !this.allArgumentsNonNull(meta, orderedArgs)) {
+      trace.addFact('priority', '4 (strict)')
+      trace.addFact('argsNotNull', `[${orderedArgs.map((r) => (r ? 'T' : 'F')).join(', ')}]`)
+      trace.conclude(false, 'strict: at least one arg nullable')
+      return false
     }
     if (
       consensus &&
       consensus.length > 0 &&
-      consensus.every(c => c.strict && !c.isAggregate) &&
-      !(argResults.length > 0 && argResults.every(r => r))
+      consensus.every((c) => c.strict && !c.isAggregate) &&
+      !(argResults.length > 0 && argResults.every((r) => r))
     ) {
-      trace.addFact("priority", "4 (strict, by consensus)");
-      trace.conclude(false, "strict by consensus, and an arg is nullable");
-      return false;
+      trace.addFact('priority', '4 (strict, by consensus)')
+      trace.conclude(false, 'strict by consensus, and an arg is nullable')
+      return false
     }
 
     // Priority 5: LANGUAGE sql user function — recurse into body.
-    if (meta && meta.language === "sql" && !meta.isAggregate) {
-      trace.addFact("priority", "5 (LANGUAGE sql body recursion)");
-      return this.resolveSqlFunctionBodyTraced(meta, orderedArgs, scope, depth, trace);
+    if (meta && meta.language === 'sql' && !meta.isAggregate) {
+      trace.addFact('priority', '5 (LANGUAGE sql body recursion)')
+      return this.resolveSqlFunctionBodyTraced(meta, orderedArgs, scope, depth, trace)
     }
 
     // Priority 6b: pg_catalog built-in. Reachable when the user catalog has
     // no candidate the walk may reason from — including a name pg_catalog
     // ALSO carries, which PostgreSQL searches first (adversarial-3 finding
     // 6): a same-signature user function is hidden, not preferred.
-    if (!meta && (schema === undefined || schema === "pg_catalog")) {
+    if (!meta && (schema === undefined || schema === 'pg_catalog')) {
       // The three tables reason about the ELEMENTS of an argument list —
       // "concat ignores NULL arguments", "concat_ws hinges on its first" —
       // and `VARIADIC <array>` changes what "the arguments" means: the
@@ -12581,25 +12635,30 @@ class NullabilityEngine {
       // claim is "non-null in, non-null out", and the elements of a literal
       // array are exactly where a NULL can still be hiding.
       if (fc.func_variadic) {
-        const last = fc.args?.[fc.args.length - 1];
+        const last = fc.args?.[fc.args.length - 1]
         const literalArray =
-          !!last &&
-          "A_ArrayExpr" in (this.stripCasts(last) as Record<string, unknown>);
-        const always = literalArray && ALWAYS_NOT_NULL_BUILTINS.has(name);
-        const firstArg = literalArray && FIRST_ARG_BUILTINS.has(name);
+          !!last && 'A_ArrayExpr' in (this.stripCasts(last) as Record<string, unknown>)
+        const always = literalArray && ALWAYS_NOT_NULL_BUILTINS.has(name)
+        const firstArg = literalArray && FIRST_ARG_BUILTINS.has(name)
         if (!always && !firstArg) {
-          trace.addFact("priority", "6b (built-in, VARIADIC array call)");
-          trace.conclude(false, "VARIADIC passes the parameter as one array, and a NULL array yields NULL → nullable");
-          return false;
+          trace.addFact('priority', '6b (built-in, VARIADIC array call)')
+          trace.conclude(
+            false,
+            'VARIADIC passes the parameter as one array, and a NULL array yields NULL → nullable',
+          )
+          return false
         }
-        trace.addFact("priority", "6b (built-in, VARIADIC literal array)");
-        const result = always || (argResults.length > 0 && argResults[0] === true);
-        trace.conclude(result, !result
-          ? `${name}() with a nullable first argument → nullable`
-          : always
-            ? `ARRAY[...] is never NULL, and ${name}() never returns NULL for any arguments`
-            : `ARRAY[...] is never NULL, and ${name}() is non-null when its first argument is`);
-        return result;
+        trace.addFact('priority', '6b (built-in, VARIADIC literal array)')
+        const result = always || (argResults.length > 0 && argResults[0] === true)
+        trace.conclude(
+          result,
+          !result
+            ? `${name}() with a nullable first argument → nullable`
+            : always
+              ? `ARRAY[...] is never NULL, and ${name}() never returns NULL for any arguments`
+              : `ARRAY[...] is never NULL, and ${name}() is non-null when its first argument is`,
+        )
+        return result
       }
       // `array_length` is excluded from the totality tables because it is NULL
       // for an EMPTY array or a dimension the array does not have. Both causes
@@ -12617,16 +12676,18 @@ class NullabilityEngine {
       // `array_ndims` is the obvious sibling and is deliberately absent — it
       // has no claim in the corpus, and a rule nothing can falsify is not
       // coverage.
-      if (name === "array_length" && (fc.args?.length ?? 0) === 2) {
+      if (name === 'array_length' && (fc.args?.length ?? 0) === 2) {
         const elems = (
-          (this.stripCasts(fc.args![0]!) as Record<string, unknown>)["A_ArrayExpr"] as
-            | { elements?: Node[] }
-            | undefined
-        )?.elements;
+          (this.stripCasts(fc.args![0]!) as Record<string, unknown>)['A_ArrayExpr'] as
+            { elements?: Node[] } | undefined
+        )?.elements
         if (elems && elems.length > 0 && this.constantIntegerValue(fc.args![1]!) === 1) {
-          trace.addFact("priority", "6b (built-in, array_length of a literal array)");
-          trace.conclude(true, "a non-empty ARRAY[...] has a dimension 1 → array_length is non-null");
-          return true;
+          trace.addFact('priority', '6b (built-in, array_length of a literal array)')
+          trace.conclude(
+            true,
+            'a non-empty ARRAY[...] has a dimension 1 → array_length is non-null',
+          )
+          return true
         }
       }
       // `extract` / `date_part` are one function under two names, and the pair
@@ -12643,20 +12704,22 @@ class NullabilityEngine {
       // nothing. Strictness is still the caller's to satisfy — an infinite
       // input manufactures the NULL, a NULL input passes one through, and the
       // second is what `argResults[1]` answers.
-      if ((name === "extract" || name === "date_part") && (fc.args?.length ?? 0) === 2) {
-        const fieldConst = (fc.args![0] as Record<string, unknown>)["A_Const"] as
-          | { sval?: { sval?: string }; isnull?: boolean }
-          | undefined;
-        const field = fieldConst?.isnull ? undefined : fieldConst?.sval?.sval?.toLowerCase();
-        const types = this.operandTypeSet(fc.args![1]!, scope, depth + 1);
+      if ((name === 'extract' || name === 'date_part') && (fc.args?.length ?? 0) === 2) {
+        const fieldConst = (fc.args![0] as Record<string, unknown>)['A_Const'] as
+          { sval?: { sval?: string }; isnull?: boolean } | undefined
+        const field = fieldConst?.isnull ? undefined : fieldConst?.sval?.sval?.toLowerCase()
+        const types = this.operandTypeSet(fc.args![1]!, scope, depth + 1)
         if (field && types?.length === 1 && EXTRACT_TOTAL_FIELDS.get(types[0]!)?.has(field)) {
-          trace.addFact("priority", "6b (built-in, extract field total for its type)");
-          trace.addFact("extractField", `${field} of ${types[0]}`);
-          const result = argResults[1] === true;
-          trace.conclude(result, result
-            ? `${field} is never NULL for a ${types[0]}, infinite input included`
-            : `${field} of a ${types[0]} is total, but the argument is nullable`);
-          return result;
+          trace.addFact('priority', '6b (built-in, extract field total for its type)')
+          trace.addFact('extractField', `${field} of ${types[0]}`)
+          const result = argResults[1] === true
+          trace.conclude(
+            result,
+            result
+              ? `${field} is never NULL for a ${types[0]}, infinite input included`
+              : `${field} of a ${types[0]} is total, but the argument is nullable`,
+          )
+          return result
         }
       }
       // Typed dispatch first: resolve the call over the captured kind='f'
@@ -12665,76 +12728,88 @@ class NullabilityEngine {
       // claim notNull while `lower(<range>)` keeps reading nullable — the
       // name checks below serve only what the resolution cannot see. Named
       // notation breaks the positional lineup, so it skips to them.
-      const args = fc.args ?? [];
-      if (!args.some(a => "NamedArgExpr" in (a as Record<string, unknown>))) {
-        const argTypeSets = args.map(a => this.operandTypeSet(a, scope, depth + 1));
-        const resolved = this.catalog.resolveBuiltinScalarTotality(schema, name, argTypeSets);
-        if (resolved.kind !== "unknown") {
-          trace.addFact(
-            "argTypes",
-            argTypeSets.map(s => s?.join("|") ?? "unknown").join(", "),
-          );
-          if (resolved.kind === "always") {
-            trace.addFact("priority", "6b (built-in, always non-null, signature-narrowed)");
-            trace.conclude(true, `${name}() never returns NULL (every surviving signature)`);
-            return true;
+      const args = fc.args ?? []
+      if (!args.some((a) => 'NamedArgExpr' in (a as Record<string, unknown>))) {
+        const argTypeSets = args.map((a) => this.operandTypeSet(a, scope, depth + 1))
+        const resolved = this.catalog.resolveBuiltinScalarTotality(schema, name, argTypeSets)
+        if (resolved.kind !== 'unknown') {
+          trace.addFact('argTypes', argTypeSets.map((s) => s?.join('|') ?? 'unknown').join(', '))
+          if (resolved.kind === 'always') {
+            trace.addFact('priority', '6b (built-in, always non-null, signature-narrowed)')
+            trace.conclude(true, `${name}() never returns NULL (every surviving signature)`)
+            return true
           }
-          if (resolved.kind === "first-arg") {
-            trace.addFact("priority", "6b (built-in, first arg decides, signature-narrowed)");
-            const result = argResults.length > 0 && argResults[0] === true;
-            trace.conclude(result, result
-              ? `${name}() is non-null when its first argument is`
-              : `${name}() with a nullable first argument → nullable`);
-            return result;
+          if (resolved.kind === 'first-arg') {
+            trace.addFact('priority', '6b (built-in, first arg decides, signature-narrowed)')
+            const result = argResults.length > 0 && argResults[0] === true
+            trace.conclude(
+              result,
+              result
+                ? `${name}() is non-null when its first argument is`
+                : `${name}() with a nullable first argument → nullable`,
+            )
+            return result
           }
-          if (resolved.kind === "strict-total") {
-            trace.addFact("priority", "6b (built-in, total over non-null args, signature-narrowed)");
-            trace.addFact("argsNotNull", `[${argResults.map(r => (r ? "T" : "F")).join(", ")}]`);
-            const srf = this.strictSrfIgnoresArgumentNullness(schema, name);
-            const result = argResults.every(r => r) || srf;
-            trace.conclude(result, !result
-              ? `${name}() has a nullable argument → nullable`
-              : srf && !argResults.every(r => r)
-                ? `${name}() is a strict SRF: a nullable argument subtracts ROWS, not values`
-                : `every surviving signature of ${name}() is total: non-null arguments → non-null result`);
-            return result;
+          if (resolved.kind === 'strict-total') {
+            trace.addFact('priority', '6b (built-in, total over non-null args, signature-narrowed)')
+            trace.addFact('argsNotNull', `[${argResults.map((r) => (r ? 'T' : 'F')).join(', ')}]`)
+            const srf = this.strictSrfIgnoresArgumentNullness(schema, name)
+            const result = argResults.every((r) => r) || srf
+            trace.conclude(
+              result,
+              !result
+                ? `${name}() has a nullable argument → nullable`
+                : srf && !argResults.every((r) => r)
+                  ? `${name}() is a strict SRF: a nullable argument subtracts ROWS, not values`
+                  : `every surviving signature of ${name}() is total: non-null arguments → non-null result`,
+            )
+            return result
           }
-          trace.addFact("priority", "6b (built-in, signature-narrowed)");
-          trace.conclude(false, `a surviving signature of ${name}() carries no totality claim → nullable`);
-          return false;
+          trace.addFact('priority', '6b (built-in, signature-narrowed)')
+          trace.conclude(
+            false,
+            `a surviving signature of ${name}() carries no totality claim → nullable`,
+          )
+          return false
         }
       }
       if (ALWAYS_NOT_NULL_BUILTINS.has(name)) {
-        trace.addFact("priority", "6b (built-in, always non-null)");
-        trace.conclude(true, `${name}() never returns NULL`);
-        return true;
+        trace.addFact('priority', '6b (built-in, always non-null)')
+        trace.conclude(true, `${name}() never returns NULL`)
+        return true
       }
       if (FIRST_ARG_BUILTINS.has(name)) {
-        trace.addFact("priority", "6b (built-in, first arg decides)");
-        const result = argResults.length > 0 && argResults[0] === true;
-        trace.conclude(result, result
-          ? `${name}() is non-null when its first argument is`
-          : `${name}() with a nullable first argument → nullable`);
-        return result;
+        trace.addFact('priority', '6b (built-in, first arg decides)')
+        const result = argResults.length > 0 && argResults[0] === true
+        trace.conclude(
+          result,
+          result
+            ? `${name}() is non-null when its first argument is`
+            : `${name}() with a nullable first argument → nullable`,
+        )
+        return result
       }
       if (STRICT_TOTAL_BUILTINS.has(name)) {
-        trace.addFact("priority", "6b (built-in, total over non-null args)");
-        trace.addFact("argsNotNull", `[${argResults.map(r => (r ? "T" : "F")).join(", ")}]`);
-        const srf = this.strictSrfIgnoresArgumentNullness(schema, name);
-        const result = argResults.every(r => r) || srf;
-        trace.conclude(result, !result
-          ? `${name}() has a nullable argument → nullable`
-          : srf && !argResults.every(r => r)
-            ? `${name}() is a strict SRF: a nullable argument subtracts ROWS, not values`
-            : `${name}() is total: non-null arguments → non-null result`);
-        return result;
+        trace.addFact('priority', '6b (built-in, total over non-null args)')
+        trace.addFact('argsNotNull', `[${argResults.map((r) => (r ? 'T' : 'F')).join(', ')}]`)
+        const srf = this.strictSrfIgnoresArgumentNullness(schema, name)
+        const result = argResults.every((r) => r) || srf
+        trace.conclude(
+          result,
+          !result
+            ? `${name}() has a nullable argument → nullable`
+            : srf && !argResults.every((r) => r)
+              ? `${name}() is a strict SRF: a nullable argument subtracts ROWS, not values`
+              : `${name}() is total: non-null arguments → non-null result`,
+        )
+        return result
       }
     }
 
     // Priority 6 & 7: Non-strict scalar / LANGUAGE plpgsql / unknown.
-    trace.addFact("priority", meta ? "6 (non-strict/plpgsql)" : "7 (unknown function)");
-    trace.conclude(false, "conservative nullable");
-    return false;
+    trace.addFact('priority', meta ? '6 (non-strict/plpgsql)' : '7 (unknown function)')
+    trace.conclude(false, 'conservative nullable')
+    return false
   }
 
   /**
@@ -12782,12 +12857,12 @@ class NullabilityEngine {
    * answer and claims nothing.
    */
   private evaluatedArrayHasNoNullElement(expr: Node | undefined): boolean {
-    if (!expr) return false;
-    const answered = this.evaluation?.get(expr) ?? this.evaluation?.get(this.stripCasts(expr));
-    if (!answered || answered.isNull) return false;
+    if (!expr) return false
+    const answered = this.evaluation?.get(expr) ?? this.evaluation?.get(this.stripCasts(expr))
+    if (!answered || answered.isNull) return false
     const clean = (v: unknown): boolean =>
-      Array.isArray(v) ? v.every(clean) : v !== null && v !== undefined;
-    return Array.isArray(answered.value) && clean(answered.value);
+      Array.isArray(v) ? v.every(clean) : v !== null && v !== undefined
+    return Array.isArray(answered.value) && clean(answered.value)
   }
 
   private resolveAggregateTraced(
@@ -12799,18 +12874,21 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    const hasFilter = !!fc.agg_filter;
-    const preserves = NON_NULL_OVER_NONEMPTY_AGGREGATES.has(name);
-    const argsNotNull = argResults.length > 0 && argResults.every(r => r);
+    const hasFilter = !!fc.agg_filter
+    const preserves = NON_NULL_OVER_NONEMPTY_AGGREGATES.has(name)
+    const argsNotNull = argResults.length > 0 && argResults.every((r) => r)
 
-    trace.addFact("groupGuaranteesNonEmpty", String(scope.groupGuaranteesNonEmpty));
-    trace.addFact("hasFilter", String(hasFilter));
-    trace.addFact("preservesNonNull", String(preserves));
-    trace.addFact("argsNotNull", `[${argResults.map(r => (r ? "T" : "F")).join(", ")}]`);
+    trace.addFact('groupGuaranteesNonEmpty', String(scope.groupGuaranteesNonEmpty))
+    trace.addFact('hasFilter', String(hasFilter))
+    trace.addFact('preservesNonNull', String(preserves))
+    trace.addFact('argsNotNull', `[${argResults.map((r) => (r ? 'T' : 'F')).join(', ')}]`)
 
     if (scope.groupGuaranteesNonEmpty && !hasFilter && preserves && argsNotNull) {
-      trace.conclude(true, `GROUP BY makes the group non-empty and ${name}() over non-null input is non-null`);
-      return true;
+      trace.conclude(
+        true,
+        `GROUP BY makes the group non-empty and ${name}() over non-null input is non-null`,
+      )
+      return true
     }
 
     // A user-defined aggregate has no name to curate, and a body to read
@@ -12823,12 +12901,12 @@ class NullabilityEngine {
       meta &&
       this.aggregateFoldKeepsStateNonNull(meta, scope, depth, trace)
     ) {
-      trace.conclude(true, `${name}()'s INITCOND is non-null and its fold preserves that`);
-      return true;
+      trace.conclude(true, `${name}()'s INITCOND is non-null and its fold preserves that`)
+      return true
     }
 
-    trace.conclude(false, "aggregate returns NULL over zero rows");
-    return false;
+    trace.conclude(false, 'aggregate returns NULL over zero rows')
+    return false
   }
 
   /**
@@ -12872,16 +12950,16 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    if (!meta.isAggregate) return false;
-    trace.addFact("aggInitVal", meta.aggInitVal ?? "none");
-    if (meta.aggInitVal === null) return false;
+    if (!meta.isAggregate) return false
+    trace.addFact('aggInitVal', meta.aggInitVal ?? 'none')
+    if (meta.aggInitVal === null) return false
 
-    if (!meta.aggTransFn) return false;
-    if (!this.aggregateStepKeepsNonNull(meta.aggTransFn, scope, depth, trace)) return false;
+    if (!meta.aggTransFn) return false
+    if (!this.aggregateStepKeepsNonNull(meta.aggTransFn, scope, depth, trace)) return false
 
     // No FINALFUNC means the state is returned as it stands.
-    if (!meta.aggFinalFn) return true;
-    return this.aggregateStepKeepsNonNull(meta.aggFinalFn, scope, depth, trace);
+    if (!meta.aggFinalFn) return true
+    return this.aggregateStepKeepsNonNull(meta.aggFinalFn, scope, depth, trace)
   }
 
   /**
@@ -12917,18 +12995,18 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    const parts = /^([^.()]+)\.([^.()]+)\((.*)\)$/.exec(key);
-    if (!parts) return false;
-    const meta = this.catalog.resolveFunctionMetadata(parts[1]!, parts[2]!);
+    const parts = /^([^.()]+)\.([^.()]+)\((.*)\)$/.exec(key)
+    if (!parts) return false
+    const meta = this.catalog.resolveFunctionMetadata(parts[1]!, parts[2]!)
     if (!meta || `${meta.schema}.${meta.name}(${meta.argTypes})` !== key) {
-      trace.addFact("aggStepUnresolved", key);
-      return false;
+      trace.addFact('aggStepUnresolved', key)
+      return false
     }
     const hypothesis = meta.args
-      .filter(a => a.mode === "in" || a.mode === "inout")
-      .map((_, i) => i === 0);
-    trace.addFact("aggStep", `${key} [${hypothesis.map(h => (h ? "T" : "F")).join(", ")}]`);
-    return this.resolveSqlFunctionBodyTraced(meta, hypothesis, scope, depth + 1, trace);
+      .filter((a) => a.mode === 'in' || a.mode === 'inout')
+      .map((_, i) => i === 0)
+    trace.addFact('aggStep', `${key} [${hypothesis.map((h) => (h ? 'T' : 'F')).join(', ')}]`)
+    return this.resolveSqlFunctionBodyTraced(meta, hypothesis, scope, depth + 1, trace)
   }
 
   /**
@@ -12955,8 +13033,8 @@ class NullabilityEngine {
     argResults: boolean[],
     meta: FunctionInfo | null,
   ): { ordered: boolean[]; supplied: boolean[] } {
-    const positional = (n: number): boolean[] => argResults.map((_, i) => i < n);
-    if (!meta) return { ordered: argResults, supplied: positional(argResults.length) };
+    const positional = (n: number): boolean[] => argResults.map((_, i) => i < n)
+    if (!meta) return { ordered: argResults, supplied: positional(argResults.length) }
 
     // Where each INPUT parameter sits in the full parameter list. An OUT
     // parameter occupies a position in `meta.args` and receives NO argument
@@ -12965,39 +13043,40 @@ class NullabilityEngine {
     // NULL)` called as `mid_out(1, 2)` passes 2 to `b`, at position TWO.
     // Without the map the 2 lands on `x` and `b` reads unbound, which is what
     // made a supplied argument invisible to strictness.
-    const inputAt: number[] = [];
+    const inputAt: number[] = []
     meta.args.forEach((a, i) => {
-      if (a.mode === "in" || a.mode === "inout") inputAt.push(i);
-    });
-    const aligned = inputAt.every((p, k) => p === k);
-    const hasNamed = args.some(a => "NamedArgExpr" in (a as Record<string, unknown>));
-    if (!hasNamed && aligned) return { ordered: argResults, supplied: positional(argResults.length) };
+      if (a.mode === 'in' || a.mode === 'inout') inputAt.push(i)
+    })
+    const aligned = inputAt.every((p, k) => p === k)
+    const hasNamed = args.some((a) => 'NamedArgExpr' in (a as Record<string, unknown>))
+    if (!hasNamed && aligned)
+      return { ordered: argResults, supplied: positional(argResults.length) }
 
-    const paramNames = meta.args.map(a => a.name);
-    const width = Math.max(paramNames.length, argResults.length);
-    const ordered = new Array<boolean>(width).fill(false);
-    const supplied = new Array<boolean>(width).fill(false);
-    let positionalIdx = 0;
+    const paramNames = meta.args.map((a) => a.name)
+    const width = Math.max(paramNames.length, argResults.length)
+    const ordered = new Array<boolean>(width).fill(false)
+    const supplied = new Array<boolean>(width).fill(false)
+    let positionalIdx = 0
     for (let i = 0; i < args.length; i++) {
-      const arg = args[i] as Record<string, unknown>;
-      if ("NamedArgExpr" in arg) {
-        const na = arg["NamedArgExpr"] as { name: string };
-        const defIdx = paramNames.indexOf(na.name);
+      const arg = args[i] as Record<string, unknown>
+      if ('NamedArgExpr' in arg) {
+        const na = arg['NamedArgExpr'] as { name: string }
+        const defIdx = paramNames.indexOf(na.name)
         if (defIdx >= 0) {
-          ordered[defIdx] = argResults[i]!;
-          supplied[defIdx] = true;
+          ordered[defIdx] = argResults[i]!
+          supplied[defIdx] = true
         }
       } else {
         // Past the input list is a VARIADIC call's overflow, which belongs to
         // the last parameter and has no position of its own. It keeps the raw
         // index so `allArgumentsNonNull`'s pass over the array still sees it.
-        const defIdx = inputAt[positionalIdx] ?? positionalIdx;
-        ordered[defIdx] = argResults[i]!;
-        supplied[defIdx] = true;
-        positionalIdx++;
+        const defIdx = inputAt[positionalIdx] ?? positionalIdx
+        ordered[defIdx] = argResults[i]!
+        supplied[defIdx] = true
+        positionalIdx++
       }
     }
-    return { ordered, supplied };
+    return { ordered, supplied }
   }
 
   /**
@@ -13037,43 +13116,43 @@ class NullabilityEngine {
   ): boolean[] {
     const defaults = this.catalog.fnArgDefaultAsts.get(
       `${meta.schema}.${meta.name}(${meta.argTypes})`,
-    );
-    if (!defaults) return ordered;
+    )
+    if (!defaults) return ordered
 
-    let bound: boolean[] | null = null;
+    let bound: boolean[] | null = null
     for (let i = 0; i < meta.args.length; i++) {
-      const arg = meta.args[i]!;
-      if (arg.mode === "out" || arg.mode === "table") continue;
-      if (supplied[i]) continue;
-      const expr = defaults[i];
-      if (!expr) continue;
-      bound ??= ordered.slice();
-      bound[i] = this.walkDefaultExpr(expr, depth, trace.addChild(`default[${arg.name}]`));
+      const arg = meta.args[i]!
+      if (arg.mode === 'out' || arg.mode === 'table') continue
+      if (supplied[i]) continue
+      const expr = defaults[i]
+      if (!expr) continue
+      bound ??= ordered.slice()
+      bound[i] = this.walkDefaultExpr(expr, depth, trace.addChild(`default[${arg.name}]`))
     }
-    return bound ?? ordered;
+    return bound ?? ordered
   }
 
   /** Walk one argument default in the context it is evaluated in: none. */
   private walkDefaultExpr(expr: Node, depth: number, trace: ITrace): boolean {
-    const prevCtx = this.fnCtx;
-    const prevParamNames = this.fnParamNames;
+    const prevCtx = this.fnCtx
+    const prevParamNames = this.fnParamNames
     this.fnCtx = prevCtx
       ? // No names: a default expression is evaluated in no function context,
         // which is why `fnParamNames` goes null just below. `argTypes` stays
         // only because `$n` there is already refused by the empty argResults.
         { argResults: [], analyzing: prevCtx.analyzing, argTypes: prevCtx.argTypes, argNames: [] }
-      : null;
-    this.fnParamNames = null;
+      : null
+    this.fnParamNames = null
     try {
-      return this.walkExprTraced(expr, this.emptyScope(null), depth + 1, trace);
+      return this.walkExprTraced(expr, this.emptyScope(null), depth + 1, trace)
     } catch (e) {
       // A default the walk refuses costs the CALL its precision, not the
       // statement its analysis — the rule the body inliner already follows.
-      if (e instanceof UnsupportedNodeError) return false;
-      throw e;
+      if (e instanceof UnsupportedNodeError) return false
+      throw e
     } finally {
-      this.fnCtx = prevCtx;
-      this.fnParamNames = prevParamNames;
+      this.fnCtx = prevCtx
+      this.fnParamNames = prevParamNames
     }
   }
 
@@ -13095,10 +13174,8 @@ class NullabilityEngine {
   private allArgumentsNonNull(meta: FunctionInfo, bound: boolean[]): boolean {
     return (
       bound.every((r, i) => i < meta.args.length || r) &&
-      meta.args.every(
-        (a, i) => a.mode === "out" || a.mode === "table" || bound[i] === true,
-      )
-    );
+      meta.args.every((a, i) => a.mode === 'out' || a.mode === 'table' || bound[i] === true)
+    )
   }
 
   /**
@@ -13137,20 +13214,17 @@ class NullabilityEngine {
    * nullable, which is a different rule applied elsewhere
    * (rowsfrom-pad-strict-srf.sql pins it).
    */
-  private strictSrfIgnoresArgumentNullness(
-    schema: string | undefined,
-    name: string,
-  ): boolean {
+  private strictSrfIgnoresArgumentNullness(schema: string | undefined, name: string): boolean {
     return (
-      (schema === undefined || schema === "pg_catalog") &&
+      (schema === undefined || schema === 'pg_catalog') &&
       this.catalog.isSetReturningBuiltin(name) &&
       this.catalog.isStrictBuiltin(name)
-    );
+    )
   }
 
   private callCanShortCircuit(meta: FunctionInfo, bound: boolean[]): boolean {
-    if (!meta.strict || meta.isAggregate || meta.returnsSet) return false;
-    return !this.allArgumentsNonNull(meta, bound);
+    if (!meta.strict || meta.isAggregate || meta.returnsSet) return false
+    return !this.allArgumentsNonNull(meta, bound)
   }
 
   /**
@@ -13168,27 +13242,27 @@ class NullabilityEngine {
     scope: Scope | null,
     depth: number,
   ): boolean[] {
-    const argScope = scope ?? this.emptyScope(null);
-    const args = fc.args ?? [];
-    const walked = args.map(a => {
+    const argScope = scope ?? this.emptyScope(null)
+    const args = fc.args ?? []
+    const walked = args.map((a) => {
       try {
-        return this.walkExpr(a, argScope, depth + 1);
+        return this.walkExpr(a, argScope, depth + 1)
       } catch (e) {
-        if (e instanceof UnsupportedNodeError) return false;
-        throw e;
+        if (e instanceof UnsupportedNodeError) return false
+        throw e
       }
-    });
-    const { ordered, supplied } = this.maybeReorderNamedArgs(args, walked, meta);
-    return this.bindDefaultArguments(meta, ordered, supplied, depth, NOOP);
+    })
+    const { ordered, supplied } = this.maybeReorderNamedArgs(args, walked, meta)
+    return this.bindDefaultArguments(meta, ordered, supplied, depth, NOOP)
   }
 
   private isAggregateByName(name: string, schema: string | undefined): boolean {
-    const meta = this.catalog.resolveFunctionMetadata(schema, name);
-    return meta?.isAggregate ?? this.catalog.isAggregateBuiltin(name);
+    const meta = this.catalog.resolveFunctionMetadata(schema, name)
+    return meta?.isAggregate ?? this.catalog.isAggregateBuiltin(name)
   }
 
   private funcReturnsNotNullDomain(meta: FunctionInfo): boolean {
-    return this.catalog.isNotNullDomain(meta.returnTypeOid);
+    return this.catalog.isNotNullDomain(meta.returnTypeOid)
   }
 
   // -------------------------------------------------------------------------
@@ -13202,29 +13276,29 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    this.checkDepth(depth);
+    this.checkDepth(depth)
 
-    const fnKey = `${meta.schema}.${meta.name}(${meta.argTypes})`;
-    trace.addFact("fnKey", fnKey);
+    const fnKey = `${meta.schema}.${meta.name}(${meta.argTypes})`
+    trace.addFact('fnKey', fnKey)
 
     // Cycle detection.
     if (this.fnCtx?.analyzing.has(fnKey)) {
-      trace.addFact("cycle", "detected");
-      trace.conclude(false, "cycle in function body recursion -> nullable");
-      return false;
+      trace.addFact('cycle', 'detected')
+      trace.conclude(false, 'cycle in function body recursion -> nullable')
+      return false
     }
 
     // Look up the pre-parsed body AST from the catalog.
-    const bodyAst = this.catalog.fnBodyAsts.get(fnKey);
-    trace.addFact("bodyAst", bodyAst ? "found" : "not found");
+    const bodyAst = this.catalog.fnBodyAsts.get(fnKey)
+    trace.addFact('bodyAst', bodyAst ? 'found' : 'not found')
     if (!bodyAst) {
-      trace.conclude(false, "no pre-parsed body -> nullable");
-      return false;
+      trace.conclude(false, 'no pre-parsed body -> nullable')
+      return false
     }
 
     // Set up function body context.
-    const prevCtx = this.fnCtx;
-    const prevParamNames = this.fnParamNames;
+    const prevCtx = this.fnCtx
+    const prevParamNames = this.fnParamNames
     this.fnCtx = {
       argResults,
       analyzing: new Set(prevCtx?.analyzing ?? []).add(fnKey),
@@ -13232,13 +13306,11 @@ class NullabilityEngine {
       // Input parameters only: a SQL body numbers `$n` over the INPUTS,
       // so an interleaved OUT parameter must not shift the positions.
       argTypes: meta.args
-        .filter(a => a.mode === "in" || a.mode === "inout")
-        .map(a => a.typeName),
-      argNames: meta.args
-        .filter(a => a.mode === "in" || a.mode === "inout")
-        .map(a => a.name),
-    };
-    this.fnParamNames = meta.args.map(a => a.name);
+        .filter((a) => a.mode === 'in' || a.mode === 'inout')
+        .map((a) => a.typeName),
+      argNames: meta.args.filter((a) => a.mode === 'in' || a.mode === 'inout').map((a) => a.name),
+    }
+    this.fnParamNames = meta.args.map((a) => a.name)
     try {
       return this.analyzeSqlFunctionReturnTraced(
         bodyAst,
@@ -13246,13 +13318,12 @@ class NullabilityEngine {
         depth,
         trace,
         this.catalog.fnBodyPreludeAsts.get(fnKey) ?? [],
-      );
+      )
     } finally {
-      this.fnCtx = prevCtx;
-      this.fnParamNames = prevParamNames;
+      this.fnCtx = prevCtx
+      this.fnParamNames = prevParamNames
     }
   }
-
 
   /**
    * Whether a body's final scan is non-empty because an EARLIER statement of
@@ -13287,55 +13358,54 @@ class NullabilityEngine {
    * would take the row back out.
    */
   private preludeInsertEntailsRow(sel: SelectStmt, prelude: Node[]): boolean {
-    if (prelude.length === 0) return false;
-    if (sel.havingClause || sel.limitOffset) return false;
+    if (prelude.length === 0) return false
+    if (sel.havingClause || sel.limitOffset) return false
     if (sel.limitCount) {
-      const n = this.constantIntegerValue(sel.limitCount);
-      if (n === null || n < 1) return false;
+      const n = this.constantIntegerValue(sel.limitCount)
+      if (n === null || n < 1) return false
     }
-    if ((sel.fromClause ?? []).length !== 1 || !sel.whereClause) return false;
-    const rv = (sel.fromClause![0] as Record<string, unknown>)["RangeVar"] as RangeVar | undefined;
-    if (!rv?.relname) return false;
-    const scanAlias = rv.alias?.aliasname ?? rv.relname;
+    if ((sel.fromClause ?? []).length !== 1 || !sel.whereClause) return false
+    const rv = (sel.fromClause![0] as Record<string, unknown>)['RangeVar'] as RangeVar | undefined
+    if (!rv?.relname) return false
+    const scanAlias = rv.alias?.aliasname ?? rv.relname
 
     // The WHERE must be `<scanned>.col = <expr>`, and `expr` must not be a
     // column of the scanned relation itself — `t.a = t.b` says nothing about
     // what was written.
-    const ae = (sel.whereClause as Record<string, unknown>)["A_Expr"] as
-      | { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
-      | undefined;
-    if (!ae || (ae.kind ?? "AEXPR_OP") !== "AEXPR_OP") return false;
-    if ((ae.name ?? []).length !== 1 || this.stringVal(ae.name![0]!) !== "=") return false;
-    const columns = this.catalog.resolveTable(rv.schemaname, rv.relname)?.columns ?? [];
-    let column: string | null = null;
-    let value: Node | null = null;
+    const ae = (sel.whereClause as Record<string, unknown>)['A_Expr'] as
+      { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node } | undefined
+    if (!ae || (ae.kind ?? 'AEXPR_OP') !== 'AEXPR_OP') return false
+    if ((ae.name ?? []).length !== 1 || this.stringVal(ae.name![0]!) !== '=') return false
+    const columns = this.catalog.resolveTable(rv.schemaname, rv.relname)?.columns ?? []
+    let column: string | null = null
+    let value: Node | null = null
     for (const [a, b] of [
       [ae.lexpr, ae.rexpr],
       [ae.rexpr, ae.lexpr],
     ] as const) {
-      const col = a ? this.scannedColumnName(a, scanAlias, columns) : null;
-      if (!col || !b) continue;
-      if (this.scannedColumnName(b, scanAlias, columns)) continue;
-      column = col;
-      value = b;
-      break;
+      const col = a ? this.scannedColumnName(a, scanAlias, columns) : null
+      if (!col || !b) continue
+      if (this.scannedColumnName(b, scanAlias, columns)) continue
+      column = col
+      value = b
+      break
     }
-    if (!column || !value) return false;
+    if (!column || !value) return false
 
     // The schema qualifier must match as WRITTEN, which refuses a body that
     // spells one statement `public.t` and the other `t`. Conservative: both
     // resolve the same way, and deciding that here would mean resolving a
     // search path at a point where being wrong is unsound.
-    const targeting = prelude.filter(s => {
-      const t = this.statementWriteTarget(s);
-      return t !== null && t.schemaname === rv.schemaname && t.relname === rv.relname;
-    });
-    if (targeting.length !== 1) return false;
+    const targeting = prelude.filter((s) => {
+      const t = this.statementWriteTarget(s)
+      return t !== null && t.schemaname === rv.schemaname && t.relname === rv.relname
+    })
+    if (targeting.length !== 1) return false
 
-    const ins = (targeting[0] as Record<string, unknown>)["InsertStmt"] as InsertStmt | undefined;
-    if (!ins || ins.onConflictClause) return false;
-    const written = this.singleRowInsertValue(ins, columns, column);
-    return written !== null && this.sameExpression(written, value);
+    const ins = (targeting[0] as Record<string, unknown>)['InsertStmt'] as InsertStmt | undefined
+    if (!ins || ins.onConflictClause) return false
+    const written = this.singleRowInsertValue(ins, columns, column)
+    return written !== null && this.sameExpression(written, value)
   }
 
   /**
@@ -13344,16 +13414,16 @@ class NullabilityEngine {
    * wrapped Node, as the DML walk above already reads it.
    */
   private statementWriteTarget(stmt: Node): RangeVar | null {
-    const rec = stmt as Record<string, unknown>;
-    for (const kind of ["InsertStmt", "UpdateStmt", "DeleteStmt", "MergeStmt"]) {
-      if (!(kind in rec)) continue;
-      const s = rec[kind] as { relation?: unknown };
+    const rec = stmt as Record<string, unknown>
+    for (const kind of ['InsertStmt', 'UpdateStmt', 'DeleteStmt', 'MergeStmt']) {
+      if (!(kind in rec)) continue
+      const s = rec[kind] as { relation?: unknown }
       // A write whose target cannot be read is still a write, and a nameless
       // RangeVar keeps it in the count the caller requires to be exactly one —
       // it simply never matches the scanned relation.
-      return (s.relation as RangeVar | undefined) ?? ({} as RangeVar);
+      return (s.relation as RangeVar | undefined) ?? ({} as RangeVar)
     }
-    return null;
+    return null
   }
 
   /**
@@ -13373,16 +13443,16 @@ class NullabilityEngine {
     scanAlias: string,
     columns: readonly string[],
   ): string | null {
-    const fields = ((node as Record<string, unknown>)["ColumnRef"] as { fields?: Node[] })?.fields;
-    if (!fields) return null;
+    const fields = ((node as Record<string, unknown>)['ColumnRef'] as { fields?: Node[] })?.fields
+    if (!fields) return null
     if (fields.length === 2) {
-      return this.stringVal(fields[0]!) === scanAlias ? this.stringVal(fields[1]!) : null;
+      return this.stringVal(fields[0]!) === scanAlias ? this.stringVal(fields[1]!) : null
     }
     if (fields.length === 1) {
-      const name = this.stringVal(fields[0]!);
-      return columns.includes(name) ? name : null;
+      const name = this.stringVal(fields[0]!)
+      return columns.includes(name) ? name : null
     }
-    return null;
+    return null
   }
 
   /**
@@ -13397,23 +13467,22 @@ class NullabilityEngine {
     tableColumns: readonly string[],
     column: string,
   ): Node | null {
-    const sub = (ins.selectStmt as Record<string, unknown> | undefined)?.["SelectStmt"] as
-      | SelectStmt
-      | undefined;
-    const rows = sub?.valuesLists;
-    if (!rows || rows.length !== 1) return null;
-    const values = (rows[0] as Record<string, unknown>)["List"] as { items?: Node[] } | undefined;
-    const items = values?.items;
-    if (!items) return null;
+    const sub = (ins.selectStmt as Record<string, unknown> | undefined)?.['SelectStmt'] as
+      SelectStmt | undefined
+    const rows = sub?.valuesLists
+    if (!rows || rows.length !== 1) return null
+    const values = (rows[0] as Record<string, unknown>)['List'] as { items?: Node[] } | undefined
+    const items = values?.items
+    if (!items) return null
 
     const names = ins.cols
-      ? ins.cols.map(c => {
-          const rt = (c as Record<string, unknown>)["ResTarget"] as { name?: string } | undefined;
-          return rt?.name ?? "";
+      ? ins.cols.map((c) => {
+          const rt = (c as Record<string, unknown>)['ResTarget'] as { name?: string } | undefined
+          return rt?.name ?? ''
         })
-      : tableColumns;
-    const at = names.indexOf(column);
-    return at >= 0 && at < items.length ? items[at]! : null;
+      : tableColumns
+    const at = names.indexOf(column)
+    return at >= 0 && at < items.length ? items[at]! : null
   }
 
   /**
@@ -13423,23 +13492,20 @@ class NullabilityEngine {
    * question here is whether the same value was inserted and then looked for.
    */
   private sameExpression(a: unknown, b: unknown): boolean {
-    if (a === b) return true;
-    if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
-    if (Array.isArray(a) !== Array.isArray(b)) return false;
+    if (a === b) return true
+    if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+    if (Array.isArray(a) !== Array.isArray(b)) return false
     if (Array.isArray(a) && Array.isArray(b)) {
-      return a.length === b.length && a.every((x, i) => this.sameExpression(x, b[i]));
+      return a.length === b.length && a.every((x, i) => this.sameExpression(x, b[i]))
     }
-    const ka = Object.keys(a as object).filter(k => k !== "location");
-    const kb = Object.keys(b as object).filter(k => k !== "location");
-    if (ka.length !== kb.length) return false;
+    const ka = Object.keys(a as object).filter((k) => k !== 'location')
+    const kb = Object.keys(b as object).filter((k) => k !== 'location')
+    if (ka.length !== kb.length) return false
     return ka.every(
-      k =>
+      (k) =>
         kb.includes(k) &&
-        this.sameExpression(
-          (a as Record<string, unknown>)[k],
-          (b as Record<string, unknown>)[k],
-        ),
-    );
+        this.sameExpression((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+    )
   }
 
   private analyzeSqlFunctionReturnTraced(
@@ -13449,63 +13515,62 @@ class NullabilityEngine {
     trace: ITrace,
     prelude: Node[] = [],
   ): boolean {
-    const fnScope = this.emptyScope(scope.outer);
+    const fnScope = this.emptyScope(scope.outer)
 
-    const node = stmt as Record<string, unknown>;
-    if ("SelectStmt" in node) {
-      const sel = node["SelectStmt"] as SelectStmt;
+    const node = stmt as Record<string, unknown>
+    if ('SelectStmt' in node) {
+      const sel = node['SelectStmt'] as SelectStmt
       // VALUES in function body.
       if (sel.valuesLists && sel.valuesLists.length > 0) {
-        trace.addFact("bodyType", "VALUES");
-        const results = this.analyzeValuesSelect(sel.valuesLists, fnScope, depth + 1);
-        const result = results[0]?.notNull ?? false;
-        trace.conclude(result, `VALUES first column: ${result ? "notNull" : "nullable"}`);
-        return result;
+        trace.addFact('bodyType', 'VALUES')
+        const results = this.analyzeValuesSelect(sel.valuesLists, fnScope, depth + 1)
+        const result = results[0]?.notNull ?? false
+        trace.conclude(result, `VALUES first column: ${result ? 'notNull' : 'nullable'}`)
+        return result
       }
       // Normal SELECT — check row-count before analyzing output.
-      trace.addFact("bodyType", "SELECT");
-      const singleRow = this.guaranteesSingleRow(sel);
-      trace.addFact("noFrom", String(!sel.fromClause || sel.fromClause.length === 0));
-      trace.addFact("hasAggregate", String(this.targetListHasAggregate(sel.targetList)));
-      trace.addFact("singleRow", String(singleRow));
-      const preludeInsert = singleRow ? false : this.preludeInsertEntailsRow(sel, prelude);
-      trace.addFact("preludeInsertEntailsRow", String(preludeInsert));
+      trace.addFact('bodyType', 'SELECT')
+      const singleRow = this.guaranteesSingleRow(sel)
+      trace.addFact('noFrom', String(!sel.fromClause || sel.fromClause.length === 0))
+      trace.addFact('hasAggregate', String(this.targetListHasAggregate(sel.targetList)))
+      trace.addFact('singleRow', String(singleRow))
+      const preludeInsert = singleRow ? false : this.preludeInsertEntailsRow(sel, prelude)
+      trace.addFact('preludeInsertEntailsRow', String(preludeInsert))
       if (!singleRow && !preludeInsert) {
-        trace.conclude(false, "body can return zero rows -> nullable");
-        return false;
+        trace.conclude(false, 'body can return zero rows -> nullable')
+        return false
       }
 
-      const results = this.analyzeSelectWithFnScope(sel, fnScope, depth);
-      const result = results[0]?.notNull ?? false;
-      trace.conclude(result, `SELECT first column: ${result ? "notNull" : "nullable"}`);
-      return result;
+      const results = this.analyzeSelectWithFnScope(sel, fnScope, depth)
+      const result = results[0]?.notNull ?? false
+      trace.conclude(result, `SELECT first column: ${result ? 'notNull' : 'nullable'}`)
+      return result
     }
 
     // DML with RETURNING (INSERT/UPDATE/DELETE in function bodies).
-    if ("InsertStmt" in node) {
-      const ins = node["InsertStmt"] as InsertStmt;
-      trace.addFact("bodyType", "INSERT");
+    if ('InsertStmt' in node) {
+      const ins = node['InsertStmt'] as InsertStmt
+      trace.addFact('bodyType', 'INSERT')
       if (!ins.returningClause) {
-        trace.conclude(false, "INSERT without RETURNING -> nullable");
-        return false;
+        trace.conclude(false, 'INSERT without RETURNING -> nullable')
+        return false
       }
       const sel = ins.selectStmt
-        ? (ins.selectStmt as Record<string, unknown>)["SelectStmt"] as SelectStmt | undefined
-        : undefined;
+        ? ((ins.selectStmt as Record<string, unknown>)['SelectStmt'] as SelectStmt | undefined)
+        : undefined
       // ON CONFLICT DO NOTHING suppresses the row on a conflict, and
       // RETURNING reports only rows actually inserted or updated — so the
       // statement can yield nothing however many VALUES rows were supplied.
       if (ins.onConflictClause) {
-        trace.addFact("onConflict", "true");
-        trace.conclude(false, "INSERT ... ON CONFLICT can return zero rows -> nullable");
-        return false;
+        trace.addFact('onConflict', 'true')
+        trace.conclude(false, 'INSERT ... ON CONFLICT can return zero rows -> nullable')
+        return false
       }
-      const singleRowValues =
-        sel?.valuesLists && sel.valuesLists.length === 1;
-      trace.addFact("singleRowValues", String(singleRowValues));
+      const singleRowValues = sel?.valuesLists && sel.valuesLists.length === 1
+      trace.addFact('singleRowValues', String(singleRowValues))
       if (!singleRowValues) {
-        trace.conclude(false, "INSERT...SELECT can return zero rows -> nullable");
-        return false;
+        trace.conclude(false, 'INSERT...SELECT can return zero rows -> nullable')
+        return false
       }
       // Through the SHARED scope builder — the body inliner is the third
       // caller beside the top-level walk and the data-modifying-CTE path,
@@ -13515,34 +13580,34 @@ class NullabilityEngine {
       // refusal is CAUGHT rather than propagated: an inlined body is an
       // optimization, and losing it should cost precision (the caller's
       // conservative nullable), not the statement.
-      let dmlScope: Scope;
+      let dmlScope: Scope
       try {
-        dmlScope = this.buildInsertScope(ins, fnScope, depth);
+        dmlScope = this.buildInsertScope(ins, fnScope, depth)
       } catch (e) {
         if (e instanceof UnsupportedNodeError) {
-          trace.conclude(false, "body's INSERT is refused (DO INSTEAD rule) -> nullable");
-          return false;
+          trace.conclude(false, "body's INSERT is refused (DO INSTEAD rule) -> nullable")
+          return false
         }
-        throw e;
+        throw e
       }
-      const retResults = this.analyzeReturning(ins.returningClause, dmlScope, depth);
-      const result = retResults[0]?.notNull ?? false;
-      trace.conclude(result, `INSERT RETURNING first column: ${result ? "notNull" : "nullable"}`);
-      return result;
+      const retResults = this.analyzeReturning(ins.returningClause, dmlScope, depth)
+      const result = retResults[0]?.notNull ?? false
+      trace.conclude(result, `INSERT RETURNING first column: ${result ? 'notNull' : 'nullable'}`)
+      return result
     }
-    if ("UpdateStmt" in node) {
-      trace.addFact("bodyType", "UPDATE");
-      trace.conclude(false, "UPDATE can match zero rows -> nullable");
-      return false;
+    if ('UpdateStmt' in node) {
+      trace.addFact('bodyType', 'UPDATE')
+      trace.conclude(false, 'UPDATE can match zero rows -> nullable')
+      return false
     }
-    if ("DeleteStmt" in node) {
-      trace.addFact("bodyType", "DELETE");
-      trace.conclude(false, "DELETE can match zero rows -> nullable");
-      return false;
+    if ('DeleteStmt' in node) {
+      trace.addFact('bodyType', 'DELETE')
+      trace.conclude(false, 'DELETE can match zero rows -> nullable')
+      return false
     }
 
-    trace.conclude(false, "unknown body statement type -> nullable");
-    return false;
+    trace.conclude(false, 'unknown body statement type -> nullable')
+    return false
   }
 
   /**
@@ -13596,20 +13661,20 @@ class NullabilityEngine {
     depth: number,
     argNotNull: boolean[] | null = null,
   ): { columns: boolean[]; rowFields: boolean[] | null } | null {
-    if (meta.language !== "sql" || meta.isAggregate) return null;
-    this.checkDepth(depth);
+    if (meta.language !== 'sql' || meta.isAggregate) return null
+    this.checkDepth(depth)
 
-    const fnKey = `${meta.schema}.${meta.name}(${meta.argTypes})`;
-    if (this.fnCtx?.analyzing.has(fnKey)) return null;
-    const bodyAst = this.catalog.fnBodyAsts.get(fnKey);
-    if (!bodyAst) return null;
+    const fnKey = `${meta.schema}.${meta.name}(${meta.argTypes})`
+    if (this.fnCtx?.analyzing.has(fnKey)) return null
+    const bodyAst = this.catalog.fnBodyAsts.get(fnKey)
+    if (!bodyAst) return null
 
-    const node = bodyAst as Record<string, unknown>;
-    if (!("SelectStmt" in node)) return null;
-    const sel = node["SelectStmt"] as SelectStmt;
+    const node = bodyAst as Record<string, unknown>
+    if (!('SelectStmt' in node)) return null
+    const sel = node['SelectStmt'] as SelectStmt
 
-    const prevCtx = this.fnCtx;
-    const prevParamNames = this.fnParamNames;
+    const prevCtx = this.fnCtx
+    const prevParamNames = this.fnParamNames
     // `argNotNull` is the CALL's contribution and is present only when every
     // argument is a literal (`literalArgumentResults`); otherwise it is empty
     // and every parameter reference reads nullable, as it always did. The
@@ -13622,36 +13687,34 @@ class NullabilityEngine {
       // Input parameters only: a SQL body numbers `$n` over the INPUTS,
       // so an interleaved OUT parameter must not shift the positions.
       argTypes: meta.args
-        .filter(a => a.mode === "in" || a.mode === "inout")
-        .map(a => a.typeName),
-      argNames: meta.args
-        .filter(a => a.mode === "in" || a.mode === "inout")
-        .map(a => a.name),
-    };
-    this.fnParamNames = meta.args.map(a => a.name);
+        .filter((a) => a.mode === 'in' || a.mode === 'inout')
+        .map((a) => a.typeName),
+      argNames: meta.args.filter((a) => a.mode === 'in' || a.mode === 'inout').map((a) => a.name),
+    }
+    this.fnParamNames = meta.args.map((a) => a.name)
     try {
-      const fnScope = this.emptyScope(null);
+      const fnScope = this.emptyScope(null)
       if (sel.valuesLists && sel.valuesLists.length > 0) {
-        const results = this.analyzeValuesSelect(sel.valuesLists, fnScope, depth + 1);
-        return { columns: results.map(r => r.notNull), rowFields: null };
+        const results = this.analyzeValuesSelect(sel.valuesLists, fnScope, depth + 1)
+        return { columns: results.map((r) => r.notNull), rowFields: null }
       }
-      if (!meta.returnsSet && !this.guaranteesSingleRow(sel)) return null;
+      if (!meta.returnsSet && !this.guaranteesSingleRow(sel)) return null
 
-      const scope = this.buildScope(sel, fnScope, depth);
-      const results = this.analyzeSelectTargets(sel, scope, depth);
+      const scope = this.buildScope(sel, fnScope, depth)
+      const results = this.analyzeSelectTargets(sel, scope, depth)
       return {
-        columns: results.map(r => r.notNull),
+        columns: results.map((r) => r.notNull),
         rowFields: this.rowConstructorFields(sel, scope, depth),
-      };
+      }
     } catch (e) {
       // An inlined body is an optimization: a body the walk refuses costs the
       // CALL its precision, not the statement its analysis — the rule the
       // INSERT arm of the scalar inliner already follows.
-      if (e instanceof UnsupportedNodeError) return null;
-      throw e;
+      if (e instanceof UnsupportedNodeError) return null
+      throw e
     } finally {
-      this.fnCtx = prevCtx;
-      this.fnParamNames = prevParamNames;
+      this.fnCtx = prevCtx
+      this.fnParamNames = prevParamNames
     }
   }
 
@@ -13661,23 +13724,18 @@ class NullabilityEngine {
    * back a composite VALUE where the function's output is that composite's
    * fields. Null for every other shape.
    */
-  private rowConstructorFields(
-    sel: SelectStmt,
-    scope: Scope,
-    depth: number,
-  ): boolean[] | null {
-    if ((sel.targetList?.length ?? 0) !== 1) return null;
-    let val = this.unwrapResTarget(sel.targetList![0]!).val as Record<string, unknown> | undefined;
+  private rowConstructorFields(sel: SelectStmt, scope: Scope, depth: number): boolean[] | null {
+    if ((sel.targetList?.length ?? 0) !== 1) return null
+    let val = this.unwrapResTarget(sel.targetList![0]!).val as Record<string, unknown> | undefined
     // `ROW(…)::composite` is the shape a body needs to satisfy the declared
     // return type; the cast preserves the constructor's per-field values.
-    while (val && "TypeCast" in val) {
-      val = (val["TypeCast"] as { arg?: Node } | undefined)?.arg as
-        | Record<string, unknown>
-        | undefined;
+    while (val && 'TypeCast' in val) {
+      val = (val['TypeCast'] as { arg?: Node } | undefined)?.arg as
+        Record<string, unknown> | undefined
     }
-    const row = val?.["RowExpr"] as { args?: Node[] } | undefined;
-    if (!row?.args) return null;
-    return row.args.map(a => this.walkExpr(a, scope, depth + 1));
+    const row = val?.['RowExpr'] as { args?: Node[] } | undefined
+    if (!row?.args) return null
+    return row.args.map((a) => this.walkExpr(a, scope, depth + 1))
   }
 
   /**
@@ -13689,15 +13747,15 @@ class NullabilityEngine {
    */
   private functionReturnIsRowType(meta: FunctionInfo): boolean {
     const outs = meta.args.filter(
-      a => a.mode === "out" || a.mode === "table" || a.mode === "inout",
-    );
-    if (outs.length === 0 || outs.some(a => !a.name)) {
-      const type = meta.returnType.replace(/^setof\s+/i, "").trim();
-      if (/^table\s*\(/is.test(type)) return false;
-      return this.rowTypeColumns(type) !== null;
+      (a) => a.mode === 'out' || a.mode === 'table' || a.mode === 'inout',
+    )
+    if (outs.length === 0 || outs.some((a) => !a.name)) {
+      const type = meta.returnType.replace(/^setof\s+/i, '').trim()
+      if (/^table\s*\(/is.test(type)) return false
+      return this.rowTypeColumns(type) !== null
     }
-    if (outs.length === 1) return this.rowTypeColumns(outs[0]!.typeName) !== null;
-    return false;
+    if (outs.length === 1) return this.rowTypeColumns(outs[0]!.typeName) !== null
+    return false
   }
 
   /**
@@ -13757,32 +13815,31 @@ class NullabilityEngine {
    * `LANGUAGE sql` is implied by there being a parsed body to read.
    */
   private constantArrayBodyOf(arg: Node): Node | null {
-    const fc = (arg as Record<string, unknown>)["FuncCall"] as FuncCall | undefined;
-    if (!fc || (fc.args?.length ?? 0) !== 0) return null;
-    const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), this.funcName(fc));
-    if (!meta || meta.volatile !== "immutable" || meta.args.length !== 0) return null;
-    const body = this.catalog.fnBodyAsts.get(`${meta.schema}.${meta.name}(${meta.argTypes})`);
-    const sel = body && ((body as Record<string, unknown>)["SelectStmt"] as SelectStmt | undefined);
-    if (!sel || sel.whereClause || (sel.fromClause ?? []).length > 0) return null;
-    if ((sel.targetList ?? []).length !== 1) return null;
-    const val = this.unwrapResTarget(sel.targetList![0]!).val;
-    if (!val) return null;
-    return "A_ArrayExpr" in (this.stripCasts(val) as Record<string, unknown>) ? val : null;
+    const fc = (arg as Record<string, unknown>)['FuncCall'] as FuncCall | undefined
+    if (!fc || (fc.args?.length ?? 0) !== 0) return null
+    const meta = this.catalog.resolveFunctionMetadata(this.funcSchema(fc), this.funcName(fc))
+    if (!meta || meta.volatile !== 'immutable' || meta.args.length !== 0) return null
+    const body = this.catalog.fnBodyAsts.get(`${meta.schema}.${meta.name}(${meta.argTypes})`)
+    const sel = body && ((body as Record<string, unknown>)['SelectStmt'] as SelectStmt | undefined)
+    if (!sel || sel.whereClause || (sel.fromClause ?? []).length > 0) return null
+    if ((sel.targetList ?? []).length !== 1) return null
+    const val = this.unwrapResTarget(sel.targetList![0]!).val
+    if (!val) return null
+    return 'A_ArrayExpr' in (this.stripCasts(val) as Record<string, unknown>) ? val : null
   }
 
   private literalArgumentResults(fc: FuncCall, meta: FunctionInfo): boolean[] | null {
-    const inputs = meta.args.filter(a => a.mode === "in" || a.mode === "inout");
-    const args = fc.args ?? [];
-    if (args.length !== inputs.length || args.length === 0) return null;
-    const out: boolean[] = [];
+    const inputs = meta.args.filter((a) => a.mode === 'in' || a.mode === 'inout')
+    const args = fc.args ?? []
+    if (args.length !== inputs.length || args.length === 0) return null
+    const out: boolean[] = []
     for (const a of args) {
-      const ac = (this.stripCasts(a) as Record<string, unknown>)["A_Const"] as
-        | { isnull?: boolean }
-        | undefined;
-      if (!ac) return null;
-      out.push(ac.isnull !== true);
+      const ac = (this.stripCasts(a) as Record<string, unknown>)['A_Const'] as
+        { isnull?: boolean } | undefined
+      if (!ac) return null
+      out.push(ac.isnull !== true)
     }
-    return out;
+    return out
   }
 
   private refineColumnsFromBody(
@@ -13791,19 +13848,18 @@ class NullabilityEngine {
     depth: number,
     argNotNull: boolean[] | null = null,
   ): { name: string; notNull: boolean }[] {
-    if (declared.length === 0) return declared;
-    const shape = this.sqlFunctionBodyShape(meta, depth, argNotNull);
-    if (!shape) return declared;
+    if (declared.length === 0) return declared
+    const shape = this.sqlFunctionBodyShape(meta, depth, argNotNull)
+    if (!shape) return declared
 
-    let flags: boolean[] | null = null;
+    let flags: boolean[] | null = null
     if (shape.columns.length === declared.length) {
-      flags =
-        declared.length === 1 && this.functionReturnIsRowType(meta) ? null : shape.columns;
+      flags = declared.length === 1 && this.functionReturnIsRowType(meta) ? null : shape.columns
     } else if (shape.columns.length === 1 && shape.rowFields?.length === declared.length) {
-      flags = shape.rowFields;
+      flags = shape.rowFields
     }
-    if (!flags) return declared;
-    return declared.map((c, i) => ({ name: c.name, notNull: c.notNull || flags![i]! }));
+    if (!flags) return declared
+    return declared.map((c, i) => ({ name: c.name, notNull: c.notNull || flags![i]! }))
   }
 
   private analyzeSelectWithFnScope(
@@ -13812,8 +13868,8 @@ class NullabilityEngine {
     depth: number,
   ): OutputNullability[] {
     // Build a real scope from the SELECT's FROM clause, with fnScope as outer.
-    const scope = this.buildScope(sel, fnScope, depth);
-    return this.analyzeSelectTargets(sel, scope, depth);
+    const scope = this.buildScope(sel, fnScope, depth)
+    return this.analyzeSelectTargets(sel, scope, depth)
   }
 
   /**
@@ -13821,34 +13877,30 @@ class NullabilityEngine {
    * so a caller that needs the SCOPE as well — the body-shape reading, which
    * walks a single ROW constructor's elements — does not build it twice.
    */
-  private analyzeSelectTargets(
-    sel: SelectStmt,
-    scope: Scope,
-    depth: number,
-  ): OutputNullability[] {
-    const results: OutputNullability[] = [];
+  private analyzeSelectTargets(sel: SelectStmt, scope: Scope, depth: number): OutputNullability[] {
+    const results: OutputNullability[] = []
     for (const target of sel.targetList ?? []) {
-      const rt = this.unwrapResTarget(target);
-      const val = rt.val;
-      const name = rt.name;
+      const rt = this.unwrapResTarget(target)
+      const val = rt.val
+      const name = rt.name
       if (!val) {
-        results.push({ name: name ?? "", notNull: false });
-        continue;
+        results.push({ name: name ?? '', notNull: false })
+        continue
       }
       if (this.isStarColumn(val)) {
-        const expanded = this.expandStar(val, scope, depth);
-        for (const e of expanded) results.push(e);
-        continue;
+        const expanded = this.expandStar(val, scope, depth)
+        for (const e of expanded) results.push(e)
+        continue
       }
-      const compositeStar = this.expandCompositeStar(val, scope, depth);
+      const compositeStar = this.expandCompositeStar(val, scope, depth)
       if (compositeStar) {
-        for (const e of compositeStar) results.push(e);
-        continue;
+        for (const e of compositeStar) results.push(e)
+        continue
       }
-      const notNull = this.walkExpr(val, scope, depth + 1);
-      results.push({ name: name ?? this.inferName(val), notNull });
+      const notNull = this.walkExpr(val, scope, depth + 1)
+      results.push({ name: name ?? this.inferName(val), notNull })
     }
-    return results;
+    return results
   }
 
   // -------------------------------------------------------------------------
@@ -13856,65 +13908,65 @@ class NullabilityEngine {
   // -------------------------------------------------------------------------
 
   private unwrapResTarget(target: Node): { val?: Node; name?: string } {
-    const node = target as Record<string, unknown>;
-    const rt = (node["ResTarget"] as Record<string, unknown> | undefined) ?? node;
+    const node = target as Record<string, unknown>
+    const rt = (node['ResTarget'] as Record<string, unknown> | undefined) ?? node
     return {
-      val: rt["val"] as Node | undefined,
-      name: rt["name"] as string | undefined,
-    };
+      val: rt['val'] as Node | undefined,
+      name: rt['name'] as string | undefined,
+    }
   }
 
   private unwrapCTE(cte: Node): {
-    ctename: string;
-    ctequery: Node;
-    aliascolnames?: Node[];
-    search_clause?: { search_seq_column?: string };
-    cycle_clause?: { cycle_mark_column?: string; cycle_path_column?: string };
+    ctename: string
+    ctequery: Node
+    aliascolnames?: Node[]
+    search_clause?: { search_seq_column?: string }
+    cycle_clause?: { cycle_mark_column?: string; cycle_path_column?: string }
   } | null {
-    const node = cte as Record<string, unknown>;
-    const c = node["CommonTableExpr"] as
+    const node = cte as Record<string, unknown>
+    const c = node['CommonTableExpr'] as
       | {
-          ctename: string;
-          ctequery: Node;
-          aliascolnames?: Node[];
-          search_clause?: { search_seq_column?: string };
-          cycle_clause?: { cycle_mark_column?: string; cycle_path_column?: string };
+          ctename: string
+          ctequery: Node
+          aliascolnames?: Node[]
+          search_clause?: { search_seq_column?: string }
+          cycle_clause?: { cycle_mark_column?: string; cycle_path_column?: string }
         }
-      | undefined;
-    return c ?? null;
+      | undefined
+    return c ?? null
   }
 
   private stringVal(node: Node): string {
-    const n = node as Record<string, unknown>;
-    if ("String" in n) return (n["String"] as { sval?: string }).sval ?? "";
-    return "";
+    const n = node as Record<string, unknown>
+    if ('String' in n) return (n['String'] as { sval?: string }).sval ?? ''
+    return ''
   }
 
   private funcName(fc: FuncCall): string {
-    const names = fc.funcname ?? [];
-    const last = names[names.length - 1];
-    return last ? this.stringVal(last) : "";
+    const names = fc.funcname ?? []
+    const last = names[names.length - 1]
+    return last ? this.stringVal(last) : ''
   }
 
   private funcSchema(fc: FuncCall): string | undefined {
-    const names = fc.funcname ?? [];
+    const names = fc.funcname ?? []
     if (names.length >= 2) {
-      return this.stringVal(names[names.length - 2]!);
+      return this.stringVal(names[names.length - 2]!)
     }
-    return undefined;
+    return undefined
   }
 
   private inferName(val: Node): string {
     // Infer a column name from the expression node.
-    const node = val as Record<string, unknown>;
-    if ("ColumnRef" in node) {
-      const cr = node["ColumnRef"] as ColumnRef;
-      const fields = (cr.fields ?? []) as Node[];
-      const last = fields[fields.length - 1];
-      return last ? this.stringVal(last) : "";
+    const node = val as Record<string, unknown>
+    if ('ColumnRef' in node) {
+      const cr = node['ColumnRef'] as ColumnRef
+      const fields = (cr.fields ?? []) as Node[]
+      const last = fields[fields.length - 1]
+      return last ? this.stringVal(last) : ''
     }
-    if ("FuncCall" in node) {
-      return this.funcName(node["FuncCall"] as FuncCall);
+    if ('FuncCall' in node) {
+      return this.funcName(node['FuncCall'] as FuncCall)
     }
     // No name inferred. PostgreSQL would label these "exists", "array",
     // "coalesce", "?column?" and so on (see FigureColname in
@@ -13923,7 +13975,7 @@ class NullabilityEngine {
     // says "we did not infer one", which is honest. Returning the internal
     // subLinkType enum, as this used to, leaked a parser detail that looked
     // like a real column name to anything downstream.
-    return "";
+    return ''
   }
 
   // -------------------------------------------------------------------------
@@ -13934,8 +13986,8 @@ class NullabilityEngine {
     if (depth > MAX_DEPTH) {
       throw new Error(
         `Nullability walk exceeded maximum recursion depth (${MAX_DEPTH}). ` +
-        `This may indicate a cycle in CTE/subquery references or function body recursion.`,
-      );
+          `This may indicate a cycle in CTE/subquery references or function body recursion.`,
+      )
     }
   }
 
@@ -13967,18 +14019,18 @@ class NullabilityEngine {
   private guaranteesSingleRow(select: SelectStmt): boolean {
     // Set operations (UNION/INTERSECT/EXCEPT): row count unconstrained. Checked
     // first — these nodes have no fromClause/targetList of their own.
-    if (select.op && select.op !== "SETOP_NONE") return false;
+    if (select.op && select.op !== 'SETOP_NONE') return false
     // LIMIT / OFFSET can each strip the row away.
-    if (select.limitCount || select.limitOffset) return false;
+    if (select.limitCount || select.limitOffset) return false
     // HAVING filters whole groups, including the single ungrouped-aggregate row.
-    if (select.havingClause) return false;
+    if (select.havingClause) return false
 
-    const noFrom = !select.fromClause || select.fromClause.length === 0;
+    const noFrom = !select.fromClause || select.fromClause.length === 0
     // A FROM-less SELECT is one row only when nothing can filter it out.
-    if (noFrom) return !select.whereClause;
+    if (noFrom) return !select.whereClause
 
     // An aggregate with no GROUP BY collapses to exactly one row.
-    return this.targetListHasAggregate(select.targetList) && !select.groupClause;
+    return this.targetListHasAggregate(select.targetList) && !select.groupClause
   }
 
   /**
@@ -14005,18 +14057,18 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): ReadonlySet<string> {
-    if (!groupClause || groupClause.length === 0) return EMPTY_STRING_SET;
-    if (!groupClause.some(term => "GroupingSet" in (term as Record<string, unknown>))) {
-      return EMPTY_STRING_SET;
+    if (!groupClause || groupClause.length === 0) return EMPTY_STRING_SET
+    if (!groupClause.some((term) => 'GroupingSet' in (term as Record<string, unknown>))) {
+      return EMPTY_STRING_SET
     }
-    const positions = this.groupingOrdinalPositions(targetList ?? [], scope, depth);
-    const out = new Set<string>();
+    const positions = this.groupingOrdinalPositions(targetList ?? [], scope, depth)
+    const out = new Set<string>()
     for (const term of groupClause) {
-      if ("GroupingSet" in (term as Record<string, unknown>)) {
-        this.collectGroupingSetTermKeys(term, out, targetList ?? [], positions);
+      if ('GroupingSet' in (term as Record<string, unknown>)) {
+        this.collectGroupingSetTermKeys(term, out, targetList ?? [], positions)
       }
     }
-    return out.size > 0 ? out : EMPTY_STRING_SET;
+    return out.size > 0 ? out : EMPTY_STRING_SET
   }
 
   /**
@@ -14037,40 +14089,39 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
   ): { keys: string[] | null; val: Node | null }[] {
-    const positions: { keys: string[] | null; val: Node | null }[] = [];
+    const positions: { keys: string[] | null; val: Node | null }[] = []
     for (const t of targetList) {
-      const rt = (t as { ResTarget?: { val?: Node } }).ResTarget;
-      const val = rt?.val;
+      const rt = (t as { ResTarget?: { val?: Node } }).ResTarget
+      const val = rt?.val
       if (!val) {
-        positions.push({ keys: null, val: null });
-        continue;
+        positions.push({ keys: null, val: null })
+        continue
       }
       if (this.isStarColumn(val)) {
-        const fields =
-          (((val as Record<string, unknown>)["ColumnRef"] as ColumnRef).fields ?? []);
-        const qualifier = this.starQualifier(fields);
+        const fields = ((val as Record<string, unknown>)['ColumnRef'] as ColumnRef).fields ?? []
+        const qualifier = this.starQualifier(fields)
         if (qualifier) {
-          const entry = this.resolveStarRelation(qualifier, scope);
+          const entry = this.resolveStarRelation(qualifier, scope)
           for (const col of entry ? this.relationColumnsIntrinsic(entry, scope, depth) : []) {
-            positions.push({ keys: [col.name, `${qualifier.name}.${col.name}`], val: null });
+            positions.push({ keys: [col.name, `${qualifier.name}.${col.name}`], val: null })
           }
         } else {
           for (const v of scope.visible) {
-            const keys = [v.name];
-            if (v.entry) keys.push(`${v.entry.alias}.${v.name}`);
-            positions.push({ keys, val: null });
+            const keys = [v.name]
+            if (v.entry) keys.push(`${v.entry.alias}.${v.name}`)
+            positions.push({ keys, val: null })
           }
         }
-        continue;
+        continue
       }
-      const composite = this.expandCompositeStar(val, scope, depth);
+      const composite = this.expandCompositeStar(val, scope, depth)
       if (composite) {
-        for (let i = 0; i < composite.length; i++) positions.push({ keys: [], val: null });
-        continue;
+        for (let i = 0; i < composite.length; i++) positions.push({ keys: [], val: null })
+        continue
       }
-      positions.push({ keys: null, val });
+      positions.push({ keys: null, val })
     }
-    return positions;
+    return positions
   }
 
   /**
@@ -14086,66 +14137,65 @@ class NullabilityEngine {
     positions: { keys: string[] | null; val: Node | null }[],
   ): void {
     const resTarget = (t: Node | undefined) =>
-      (t as Record<string, unknown> | undefined)?.["ResTarget"] as
-        | { name?: string; val?: Node }
-        | undefined;
-    const rec = node as Record<string, unknown>;
-    if ("ColumnRef" in rec) {
-      const parts = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
-      const col = parts[parts.length - 1];
+      (t as Record<string, unknown> | undefined)?.['ResTarget'] as
+        { name?: string; val?: Node } | undefined
+    const rec = node as Record<string, unknown>
+    if ('ColumnRef' in rec) {
+      const parts = ((rec['ColumnRef'] as ColumnRef).fields ?? []).map((f) => this.stringVal(f))
+      const col = parts[parts.length - 1]
       if (col) {
-        out.add(col);
-        if (parts.length >= 2) out.add(`${parts[parts.length - 2]}.${col}`);
+        out.add(col)
+        if (parts.length >= 2) out.add(`${parts[parts.length - 2]}.${col}`)
         if (parts.length === 1) {
           for (const t of targetList) {
-            const rt = resTarget(t);
-            if (rt?.name === col && rt.val) this.collectColumnRefKeys(rt.val, out);
+            const rt = resTarget(t)
+            if (rt?.name === col && rt.val) this.collectColumnRefKeys(rt.val, out)
           }
         }
       }
-      return;
+      return
     }
-    if ("A_Const" in rec) {
-      const ival = (rec["A_Const"] as { ival?: { ival?: number } }).ival?.ival;
-      if (typeof ival === "number" && ival >= 1) {
-        const pos = positions[ival - 1];
-        if (pos?.keys) for (const k of pos.keys) out.add(k);
-        else if (pos?.val) this.collectColumnRefKeys(pos.val, out);
+    if ('A_Const' in rec) {
+      const ival = (rec['A_Const'] as { ival?: { ival?: number } }).ival?.ival
+      if (typeof ival === 'number' && ival >= 1) {
+        const pos = positions[ival - 1]
+        if (pos?.keys) for (const k of pos.keys) out.add(k)
+        else if (pos?.val) this.collectColumnRefKeys(pos.val, out)
       }
-      return;
+      return
     }
     for (const value of Object.values(rec)) {
       if (Array.isArray(value)) {
         for (const v of value) {
-          if (v && typeof v === "object") {
-            this.collectGroupingSetTermKeys(v as Node, out, targetList, positions);
+          if (v && typeof v === 'object') {
+            this.collectGroupingSetTermKeys(v as Node, out, targetList, positions)
           }
         }
-      } else if (value && typeof value === "object") {
-        this.collectGroupingSetTermKeys(value as Node, out, targetList, positions);
+      } else if (value && typeof value === 'object') {
+        this.collectGroupingSetTermKeys(value as Node, out, targetList, positions)
       }
     }
   }
 
   /** Recursively record every ColumnRef in `node` as `alias.col` and `col`. */
   private collectColumnRefKeys(node: Node, out: Set<string>): void {
-    const rec = node as Record<string, unknown>;
-    if ("ColumnRef" in rec) {
-      const parts = ((rec["ColumnRef"] as ColumnRef).fields ?? []).map(f => this.stringVal(f));
-      const col = parts[parts.length - 1];
+    const rec = node as Record<string, unknown>
+    if ('ColumnRef' in rec) {
+      const parts = ((rec['ColumnRef'] as ColumnRef).fields ?? []).map((f) => this.stringVal(f))
+      const col = parts[parts.length - 1]
       if (col) {
-        out.add(col);
-        if (parts.length >= 2) out.add(`${parts[parts.length - 2]}.${col}`);
+        out.add(col)
+        if (parts.length >= 2) out.add(`${parts[parts.length - 2]}.${col}`)
       }
-      return;
+      return
     }
     for (const value of Object.values(rec)) {
       if (Array.isArray(value)) {
         for (const v of value) {
-          if (v && typeof v === "object") this.collectColumnRefKeys(v as Node, out);
+          if (v && typeof v === 'object') this.collectColumnRefKeys(v as Node, out)
         }
-      } else if (value && typeof value === "object") {
-        this.collectColumnRefKeys(value as Node, out);
+      } else if (value && typeof value === 'object') {
+        this.collectColumnRefKeys(value as Node, out)
       }
     }
   }
@@ -14160,7 +14210,7 @@ class NullabilityEngine {
    * "aggregate over non-null input is non-null" rule.
    */
   private groupingGuaranteesNonEmptyGroups(select: SelectStmt): boolean {
-    if (!select.groupClause || select.groupClause.length === 0) return false;
+    if (!select.groupClause || select.groupClause.length === 0) return false
     // A GroupingSet term does not disqualify the clause — the EMPTY generated
     // set does, and that is what emits a row with no input rows behind it
     // (measured: `GROUP BY GROUPING SETS (())` over zero rows gives one row,
@@ -14170,7 +14220,7 @@ class NullabilityEngine {
     // to decide which columns a super-aggregate row blanks, asked here for the
     // first time (2026-08-22). Sufficient rather than exact: `GROUPING SETS
     // ((a), (b))` generates no empty set either and is refused.
-    return select.groupClause.some(g => !("GroupingSet" in (g as Record<string, unknown>)));
+    return select.groupClause.some((g) => !('GroupingSet' in (g as Record<string, unknown>)))
   }
 }
 
@@ -14242,11 +14292,23 @@ class NullabilityEngine {
  * over an empty group too.
  */
 export const ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES: ReadonlySet<string> = new Set([
-  "sum", "avg", "min", "max",
-  "bit_and", "bit_or", "bool_and", "bool_or", "every",
-  "string_agg",
-  "stddev", "stddev_samp", "stddev_pop", "variance", "var_samp", "var_pop",
-]);
+  'sum',
+  'avg',
+  'min',
+  'max',
+  'bit_and',
+  'bit_or',
+  'bool_and',
+  'bool_or',
+  'every',
+  'string_agg',
+  'stddev',
+  'stddev_samp',
+  'stddev_pop',
+  'variance',
+  'var_samp',
+  'var_pop',
+])
 
 /**
  * Window functions that report ANOTHER ROW's value of their argument, so an
@@ -14259,17 +14321,31 @@ export const ALWAYS_NULL_OVER_ALL_NULL_AGGREGATES: ReadonlySet<string> = new Set
  * above.
  */
 export const ALWAYS_NULL_OVER_ALL_NULL_WINDOWS: ReadonlySet<string> = new Set([
-  "lag", "lead", "first_value", "last_value", "nth_value",
-]);
+  'lag',
+  'lead',
+  'first_value',
+  'last_value',
+  'nth_value',
+])
 
 export const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
   // `regr_count` counts non-null PAIRS and has a zero INITCOND, so it is
   // total even over an empty group — a stronger claim than this table
   // makes, and sound under the weaker one it gets here.
-  "regr_count",
-  "sum", "avg", "min", "max",
-  "bit_and", "bit_or", "bool_and", "bool_or", "every",
-  "array_agg", "string_agg", "json_agg", "jsonb_agg",
+  'regr_count',
+  'sum',
+  'avg',
+  'min',
+  'max',
+  'bit_and',
+  'bit_or',
+  'bool_and',
+  'bool_or',
+  'every',
+  'array_agg',
+  'string_agg',
+  'json_agg',
+  'jsonb_agg',
   // The POPULATION statistics, admitted 2026-08-22 with the whole family
   // measured over a single row. Their sample twins stay out, one line apart
   // in the same table so the pairing is visible: stddev_pop / var_pop against
@@ -14277,9 +14353,15 @@ export const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
   // are population quantities too — sums and means over the non-null pairs —
   // while the three that FIT a line (slope, intercept, r2) need two points
   // and stay out with `corr`.
-  "stddev_pop", "var_pop", "covar_pop",
-  "regr_avgx", "regr_avgy", "regr_sxx", "regr_syy", "regr_sxy",
-]);
+  'stddev_pop',
+  'var_pop',
+  'covar_pop',
+  'regr_avgx',
+  'regr_avgy',
+  'regr_sxx',
+  'regr_syy',
+  'regr_sxy',
+])
 
 /**
  * Window rows that assign a value to EVERY row of the partition, so no frame
@@ -14321,15 +14403,19 @@ export const NON_NULL_OVER_NONEMPTY_AGGREGATES = new Set([
  * a column fails rather than drifts.
  */
 export const NON_NULL_BUILTIN_TABLE_COLUMNS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
-  ["json_each", new Set(["key"])],
-  ["jsonb_each", new Set(["key"])],
-  ["json_each_text", new Set(["key"])],
-  ["jsonb_each_text", new Set(["key"])],
-]);
+  ['json_each', new Set(['key'])],
+  ['jsonb_each', new Set(['key'])],
+  ['json_each_text', new Set(['key'])],
+  ['jsonb_each_text', new Set(['key'])],
+])
 
 export const NEVER_NULL_WINDOW_SIGNATURES: ReadonlySet<string> = new Set([
-  "row_number()", "rank()", "dense_rank()", "percent_rank()", "cume_dist()",
-]);
+  'row_number()',
+  'rank()',
+  'dense_rank()',
+  'percent_rank()',
+  'cume_dist()',
+])
 
 /**
  * Window rows that are non-null for non-null arguments — the window analogue
@@ -14348,10 +14434,10 @@ export const NEVER_NULL_WINDOW_SIGNATURES: ReadonlySet<string> = new Set([
  * is precisely what this table means.
  */
 export const STRICT_TOTAL_WINDOW_SIGNATURES: ReadonlySet<string> = new Set([
-  "lag(anycompatible,integer,anycompatible)",
-  "lead(anycompatible,integer,anycompatible)",
-  "ntile(integer)",
-]);
+  'lag(anycompatible,integer,anycompatible)',
+  'lead(anycompatible,integer,anycompatible)',
+  'ntile(integer)',
+])
 
 /**
  * The `frameOptions` bits, as PostgreSQL's parser sets them.
@@ -14370,7 +14456,7 @@ const FRAMEOPTION = {
   END_OFFSET_FOLLOWING: 0x04000,
   EXCLUDE_CURRENT_ROW: 0x08000,
   EXCLUDE_GROUP: 0x10000,
-} as const;
+} as const
 
 /**
  * Whether a window frame provably CONTAINS THE CURRENT ROW, and so is never
@@ -14402,15 +14488,17 @@ function frameContainsCurrentRow(frameOptions: number): boolean {
     (frameOptions &
       (FRAMEOPTION.START_UNBOUNDED_PRECEDING |
         FRAMEOPTION.START_CURRENT_ROW |
-        FRAMEOPTION.START_OFFSET_PRECEDING)) !== 0;
+        FRAMEOPTION.START_OFFSET_PRECEDING)) !==
+    0
   const endsAtOrAfter =
     (frameOptions &
       (FRAMEOPTION.END_UNBOUNDED_FOLLOWING |
         FRAMEOPTION.END_CURRENT_ROW |
-        FRAMEOPTION.END_OFFSET_FOLLOWING)) !== 0;
+        FRAMEOPTION.END_OFFSET_FOLLOWING)) !==
+    0
   const excludesIt =
-    (frameOptions & (FRAMEOPTION.EXCLUDE_CURRENT_ROW | FRAMEOPTION.EXCLUDE_GROUP)) !== 0;
-  return startsAtOrBefore && endsAtOrAfter && !excludesIt;
+    (frameOptions & (FRAMEOPTION.EXCLUDE_CURRENT_ROW | FRAMEOPTION.EXCLUDE_GROUP)) !== 0
+  return startsAtOrBefore && endsAtOrAfter && !excludesIt
 }
 
 // Two name tables retired here 2026-08-09 — HYPOTHETICAL_SET_AGGREGATES
@@ -14446,7 +14534,10 @@ function frameContainsCurrentRow(frameOptions: number): boolean {
 /** Built-ins that never return NULL, whatever their arguments. */
 export const ALWAYS_NOT_NULL_BUILTINS = new Set([
   // Clock / session. Zero-argument, always defined.
-  "now", "clock_timestamp", "statement_timestamp", "transaction_timestamp",
+  'now',
+  'clock_timestamp',
+  'statement_timestamp',
+  'transaction_timestamp',
   // `current_catalog`, `current_role` and `user` were here and are gone: they
   // are not pg_catalog FUNCTIONS at all, and the parser turns each into a
   // SQLValueFunction node that never reaches this dispatch. (`current_user`
@@ -14458,22 +14549,29 @@ export const ALWAYS_NOT_NULL_BUILTINS = new Set([
   // (measured). Name-level dispatch cannot separate them from the total
   // zero-argument form, which is the `lower`/`upper` shape once more; the cost
   // is that `random()` now reads nullable.
-  "current_database", "current_user",
-  "session_user", "version", "pi", "gen_random_uuid",
-  "txid_current", "pg_backend_pid",
+  'current_database',
+  'current_user',
+  'session_user',
+  'version',
+  'pi',
+  'gen_random_uuid',
+  'txid_current',
+  'pg_backend_pid',
   // concat ignores NULL arguments; all-NULL input yields '' , not NULL.
-  "concat",
+  'concat',
   // JSON constructors always produce a container, even from NULL members.
-  "jsonb_build_object", "json_build_object",
-  "jsonb_build_array", "json_build_array",
+  'jsonb_build_object',
+  'json_build_object',
+  'jsonb_build_array',
+  'json_build_array',
   // array_fill builds a CONTAINER too, and the same distinction applies: a
   // NULL element gives an array OF NULLs, which is not a NULL array
   // (`array_fill(NULL::int, ARRAY[2])` is `{NULL,NULL}`, measured). Its other
   // arguments cannot be NULL at all — a NULL dimension or low-bound array
   // raises, as does a NULL among the dimension VALUES — and a raise is not a
   // NULL. So every input either builds an array or errors: total, not strict.
-  "array_fill",
-]);
+  'array_fill',
+])
 
 /**
  * Built-ins that are non-null exactly when their *first* argument is non-null;
@@ -14482,7 +14580,7 @@ export const ALWAYS_NOT_NULL_BUILTINS = new Set([
  * `concat_ws(NULL, 'a')` is NULL but `concat_ws(',', NULL)` is ''; likewise
  * `format(NULL)` is NULL but `format('%s', NULL)` is ''.
  */
-export const FIRST_ARG_BUILTINS = new Set(["concat_ws", "format"]);
+export const FIRST_ARG_BUILTINS = new Set(['concat_ws', 'format'])
 
 /**
  * The `extract`/`date_part` FIELDS that never yield NULL, per argument type.
@@ -14514,15 +14612,15 @@ export const FIRST_ARG_BUILTINS = new Set(["concat_ws", "format"]);
  * `timestamptz`. Keying on one spelling silently answers half the calls —
  * measured, the interval row worked and the timestamp row did not.
  */
-const DATETIME_TOTAL = ["epoch", "julian", "year", "decade", "century", "millennium", "isoyear"];
+const DATETIME_TOTAL = ['epoch', 'julian', 'year', 'decade', 'century', 'millennium', 'isoyear']
 export const EXTRACT_TOTAL_FIELDS = new Map<string, Set<string>>([
-  ["interval", new Set(["epoch", "year", "decade", "century", "millennium", "day", "hour"])],
-  ["date", new Set(DATETIME_TOTAL)],
-  ["timestamp", new Set(DATETIME_TOTAL)],
-  ["timestamp without time zone", new Set(DATETIME_TOTAL)],
-  ["timestamptz", new Set(DATETIME_TOTAL)],
-  ["timestamp with time zone", new Set(DATETIME_TOTAL)],
-]);
+  ['interval', new Set(['epoch', 'year', 'decade', 'century', 'millennium', 'day', 'hour'])],
+  ['date', new Set(DATETIME_TOTAL)],
+  ['timestamp', new Set(DATETIME_TOTAL)],
+  ['timestamp without time zone', new Set(DATETIME_TOTAL)],
+  ['timestamptz', new Set(DATETIME_TOTAL)],
+  ['timestamp with time zone', new Set(DATETIME_TOTAL)],
+])
 
 // The builtin totality tables moved to ./builtin-totality-tables.ts
 // (2026-08-23) — 1368 lines of pure data. Re-exported here so every import
@@ -14533,8 +14631,8 @@ export {
   STRICT_TOTAL_BUILTINS,
   STRICT_TOTAL_BUILTIN_SIGNATURES,
   SWEPT_TOTAL_SIGNATURES,
-} from "./builtin-totality-tables.js";
-import { STRICT_TOTAL_BUILTINS } from "./builtin-totality-tables.js";
+} from './builtin-totality-tables.js'
+import { STRICT_TOTAL_BUILTINS } from './builtin-totality-tables.js'
 
 /**
  * Nullability of one output column of a set operation.
@@ -14550,12 +14648,12 @@ import { STRICT_TOTAL_BUILTINS } from "./builtin-totality-tables.js";
  */
 function combineSetOpColumn(left: boolean, right: boolean, op: string | undefined): boolean {
   switch (op) {
-    case "SETOP_EXCEPT":
-      return left;
-    case "SETOP_INTERSECT":
-      return left || right;
+    case 'SETOP_EXCEPT':
+      return left
+    case 'SETOP_INTERSECT':
+      return left || right
     default:
-      return left && right;
+      return left && right
   }
 }
 
@@ -14566,7 +14664,7 @@ function combineSetOpColumn(left: boolean, right: boolean, op: string | undefine
  * called.
  */
 function sameNullability(a: OutputNullability[], b: OutputNullability[]): boolean {
-  return a.length === b.length && a.every((c, i) => c.notNull === b[i]!.notNull);
+  return a.length === b.length && a.every((c, i) => c.notNull === b[i]!.notNull)
 }
 
 /**
@@ -14578,27 +14676,27 @@ function sameNullability(a: OutputNullability[], b: OutputNullability[]): boolea
  * commas and brackets inside quotes are text, not structure.
  */
 function splitTopLevel(input: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let start = 0;
-  let quoted = false;
+  const out: string[] = []
+  let depth = 0
+  let start = 0
+  let quoted = false
   for (let i = 0; i < input.length; i++) {
-    const ch = input[i];
+    const ch = input[i]
     if (ch === '"') {
       // `""` is an escaped quote inside a quoted identifier; skipping the
       // pair leaves the state unchanged either way.
-      if (quoted && input[i + 1] === '"') i++;
-      else quoted = !quoted;
-    } else if (quoted) continue;
-    else if (ch === "(" || ch === "[") depth++;
-    else if (ch === ")" || ch === "]") depth--;
-    else if (ch === "," && depth === 0) {
-      out.push(input.slice(start, i));
-      start = i + 1;
+      if (quoted && input[i + 1] === '"') i++
+      else quoted = !quoted
+    } else if (quoted) continue
+    else if (ch === '(' || ch === '[') depth++
+    else if (ch === ')' || ch === ']') depth--
+    else if (ch === ',' && depth === 0) {
+      out.push(input.slice(start, i))
+      start = i + 1
     }
   }
-  out.push(input.slice(start));
-  return out;
+  out.push(input.slice(start))
+  return out
 }
 
 /**
@@ -14613,37 +14711,37 @@ function splitTopLevel(input: string): string[] {
  * text, which the caller drops as it always has.
  */
 function splitColumnDefinition(part: string): { name: string; type: string } | null {
-  const s = part.trim();
+  const s = part.trim()
   if (!s.startsWith('"')) {
-    const gap = s.indexOf(" ");
-    return gap < 0 ? null : { name: s.slice(0, gap), type: s.slice(gap + 1).trim() };
+    const gap = s.indexOf(' ')
+    return gap < 0 ? null : { name: s.slice(0, gap), type: s.slice(gap + 1).trim() }
   }
-  let name = "";
-  let i = 1;
+  let name = ''
+  let i = 1
   for (; i < s.length; i++) {
     if (s[i] !== '"') {
-      name += s[i];
-      continue;
+      name += s[i]
+      continue
     }
     if (s[i + 1] === '"') {
-      name += '"';
-      i++;
-      continue;
+      name += '"'
+      i++
+      continue
     }
-    i++;
-    break;
+    i++
+    break
   }
-  const type = s.slice(i).trim();
-  return type ? { name, type } : null;
+  const type = s.slice(i).trim()
+  return type ? { name, type } : null
 }
 
 /** Shared empty set — most scopes have no grouping-set columns. */
-const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>();
+const EMPTY_STRING_SET: ReadonlySet<string> = new Set<string>()
 
 // Moved to operators.ts so mechanism-C attribution can share the strict half
 // without an import cycle; see the comment there for why the two properties
 // are now two sets.
-const TOTAL_OPERATORS = TOTAL_OPERATOR_NAMES;
+const TOTAL_OPERATORS = TOTAL_OPERATOR_NAMES
 
 // The curated AGGREGATE_NAMES table is gone. `pg_proc.prokind = 'a'` was in
 // the catalog the whole time, and the table had drifted in three directions
@@ -14659,145 +14757,145 @@ const TOTAL_OPERATORS = TOTAL_OPERATOR_NAMES;
 // ---------------------------------------------------------------------------
 
 interface RangeVar {
-  relname: string;
-  schemaname?: string;
+  relname: string
+  schemaname?: string
   /** true for a plain reference; libpg-query omits the field for ONLY. */
-  inh?: boolean;
-  alias?: { aliasname: string; colnames?: Node[] };
+  inh?: boolean
+  alias?: { aliasname: string; colnames?: Node[] }
 }
 
 interface RangeSubselect {
-  subquery?: Node;
-  alias?: { aliasname: string; colnames?: Node[] };
+  subquery?: Node
+  alias?: { aliasname: string; colnames?: Node[] }
 }
 
 interface JoinExpr {
-  jointype?: string;
-  larg?: Node;
-  rarg?: Node;
-  quals?: Node;
+  jointype?: string
+  larg?: Node
+  rarg?: Node
+  quals?: Node
   /** `USING (a, b)` — the columns to merge. */
-  usingClause?: Node[];
+  usingClause?: Node[]
   /** `USING (a, b) AS x` — PG14's alias for exactly the merged columns. */
-  join_using_alias?: { aliasname?: string };
+  join_using_alias?: { aliasname?: string }
   /** `NATURAL` — merge every commonly-named column. */
-  isNatural?: boolean;
+  isNatural?: boolean
 }
 
 interface RangeTableFunc {
-  alias?: { aliasname: string; colnames?: Node[] };
-  columns?: Node[];
+  alias?: { aliasname: string; colnames?: Node[] }
+  columns?: Node[]
 }
 
 interface JsonTable {
-  alias?: { aliasname: string; colnames?: Node[] };
-  columns?: Node[];
+  alias?: { aliasname: string; colnames?: Node[] }
+  columns?: Node[]
 }
 
 interface RangeFunction {
-  alias?: { aliasname: string; colnames?: Node[] };
-  functions?: Node[];
+  alias?: { aliasname: string; colnames?: Node[] }
+  functions?: Node[]
   /** `WITH ORDINALITY` — appends a bigint counter column. */
-  ordinality?: boolean;
+  ordinality?: boolean
   /** `ROWS FROM (f(), g())` — several functions side by side. */
-  is_rowsfrom?: boolean;
+  is_rowsfrom?: boolean
   /** Lone-function column definition list (`AS z(a integer, b text)`). */
-  coldeflist?: Node[];
+  coldeflist?: Node[]
 }
 
 interface SelectStmt {
-  withClause?: WithClause;
-  fromClause?: Node[];
-  targetList?: Node[];
-  whereClause?: Node;
-  groupClause?: Node[];
-  groupDistinct?: boolean;
-  havingClause?: Node;
-  sortClause?: Node[];
-  distinctClause?: Node[];
-  windowClause?: Node[];
-  lockingClause?: Node[];
-  larg?: SelectStmt;
-  rarg?: SelectStmt;
-  valuesLists?: Node[];
-  op?: string;
-  limitCount?: Node;
-  limitOffset?: Node;
-  limitOption?: string;
+  withClause?: WithClause
+  fromClause?: Node[]
+  targetList?: Node[]
+  whereClause?: Node
+  groupClause?: Node[]
+  groupDistinct?: boolean
+  havingClause?: Node
+  sortClause?: Node[]
+  distinctClause?: Node[]
+  windowClause?: Node[]
+  lockingClause?: Node[]
+  larg?: SelectStmt
+  rarg?: SelectStmt
+  valuesLists?: Node[]
+  op?: string
+  limitCount?: Node
+  limitOffset?: Node
+  limitOption?: string
 }
 
 interface InsertStmt {
-  withClause?: WithClause;
-  relation?: Node;
-  cols?: Node[];
-  selectStmt?: Node;
-  returningClause?: Node;
+  withClause?: WithClause
+  relation?: Node
+  cols?: Node[]
+  selectStmt?: Node
+  returningClause?: Node
   /** `ON CONFLICT ...` — DO NOTHING can suppress the row entirely. */
-  onConflictClause?: Node;
+  onConflictClause?: Node
 }
 
 interface UpdateStmt {
-  withClause?: WithClause;
-  relation?: Node;
-  targetList?: Node[];
-  fromClause?: Node[];
-  whereClause?: Node;
-  returningClause?: Node;
+  withClause?: WithClause
+  relation?: Node
+  targetList?: Node[]
+  fromClause?: Node[]
+  whereClause?: Node
+  returningClause?: Node
 }
 
 interface DeleteStmt {
-  withClause?: WithClause;
-  relation?: Node;
-  relations?: Node[];
-  usingClause?: Node[];
-  whereClause?: Node;
-  returningClause?: Node;
+  withClause?: WithClause
+  relation?: Node
+  relations?: Node[]
+  usingClause?: Node[]
+  whereClause?: Node
+  returningClause?: Node
 }
 
 interface MergeStmt {
-  withClause?: WithClause;
-  relation?: Node;
-  sourceRelation?: Node;
-  joinCondition?: Node;
-  mergeWhenClauses?: Node[];
-  returningClause?: Node;
+  withClause?: WithClause
+  relation?: Node
+  sourceRelation?: Node
+  joinCondition?: Node
+  mergeWhenClauses?: Node[]
+  returningClause?: Node
 }
 
 interface WithClause {
-  ctes: Node[];
+  ctes: Node[]
 }
 
 interface ColumnRef {
-  fields: Node[];
+  fields: Node[]
 }
 
 interface AExpr {
-  kind?: string;
-  name?: Node[];
-  lexpr?: Node;
-  rexpr?: Node;
+  kind?: string
+  name?: Node[]
+  lexpr?: Node
+  rexpr?: Node
 }
 
 interface FuncCall {
-  funcname: Node[];
-  args?: Node[];
-  agg_star?: boolean;
-  agg_distinct?: boolean;
+  funcname: Node[]
+  args?: Node[]
+  agg_star?: boolean
+  agg_distinct?: boolean
   /** `FILTER (WHERE ...)` — can exclude every row of a group. */
-  agg_filter?: Node;
-  over?: Node;
+  agg_filter?: Node
+  over?: Node
   /** `f(VARIADIC arr)` — the variadic parameter passed as ONE array. */
-  func_variadic?: boolean;
+  func_variadic?: boolean
   /** `agg(x) WITHIN GROUP (ORDER BY y)` — the ordered-set spelling, whose
    *  direct and aggregated arguments do not line up positionally with the
    *  signature's own list. */
-  agg_within_group?: boolean;
+  agg_within_group?: boolean
   /** The ORDER BY inside an aggregate call, present for the same reason. */
-  agg_order?: Node[];
+  agg_order?: Node[]
 }
 
 interface SubLink {
-  subLinkType?: string;
-  subselect?: Node;
-  testexpr?: Node;
+  subLinkType?: string
+  subselect?: Node
+  testexpr?: Node
 }

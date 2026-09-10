@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import type { Node } from "libpg-query";
-import { parseSql } from "../../../src/ast.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { deparseSync } from "pgsql-deparser";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { PGlite } from '@electric-sql/pglite'
+import type { Node } from 'libpg-query'
+import { parseSql } from '../../../src/ast.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import { deparseSync } from 'pgsql-deparser'
 import {
   collectClosedSubtrees,
   evaluateClosedSubtrees,
   SUBLINK_SRF_ROW_CAP,
   type Evaluate,
   type SubtreeEvaluationCatalog,
-} from "../../../src/query/subtree-evaluator.js";
-import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
+} from '../../../src/query/subtree-evaluator.js'
+import { GRAMMAR_SAMPLER } from './grammar-sampler.js'
 
 // ---------------------------------------------------------------------------
 // The subtree evaluator's pins.
@@ -37,74 +37,74 @@ import { GRAMMAR_SAMPLER } from "./grammar-sampler.js";
 
 type Category =
   /** The gate can prove this kind closed; it appears as a collected root. */
-  | "closed"
+  | 'closed'
   /** Closed as a member, never a root: alone it answers nothing the AST
    *  does not already say syntactically. */
-  | "literal"
+  | 'literal'
   /** Appears inside closed subtrees only as structure a parent consumes. */
-  | "structural";
+  | 'structural'
 
 const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
-  A_Const: { category: "literal", why: "every literal, NULL included" },
+  A_Const: { category: 'literal', why: 'every literal, NULL included' },
   TypeCast: {
-    category: "closed",
+    category: 'closed',
     why: "LITERAL cast to a pg_catalog immutable-I/O base type — a computed argument could carry a stable OUTPUT function through an I/O coercion, and an array target's input function is array_in (stable)",
   },
   A_Expr: {
-    category: "closed",
-    why: "operator kinds that resolve through the operator name the AST carries (OP/ANY/ALL/DISTINCT/NULLIF/IN/LIKE/ILIKE), gated by the survivor consensus over the per-signature volatility capture; BETWEEN desugars through its >=/<= bound comparisons; SIMILAR resolves through a helper function and stays open",
+    category: 'closed',
+    why: 'operator kinds that resolve through the operator name the AST carries (OP/ANY/ALL/DISTINCT/NULLIF/IN/LIKE/ILIKE), gated by the survivor consensus over the per-signature volatility capture; BETWEEN desugars through its >=/<= bound comparisons; SIMILAR resolves through a helper function and stays open',
   },
-  BoolExpr: { category: "closed", why: "AND/OR/NOT over closed operands" },
-  NullTest: { category: "closed", why: "IS [NOT] NULL of a closed operand" },
-  BooleanTest: { category: "closed", why: "IS [NOT] TRUE/FALSE/UNKNOWN of a closed operand" },
+  BoolExpr: { category: 'closed', why: 'AND/OR/NOT over closed operands' },
+  NullTest: { category: 'closed', why: 'IS [NOT] NULL of a closed operand' },
+  BooleanTest: { category: 'closed', why: 'IS [NOT] TRUE/FALSE/UNKNOWN of a closed operand' },
   CaseExpr: {
-    category: "closed",
-    why: "guards, results and the implicit simple-CASE comparisons all closed, with the unification guard on both member lists",
+    category: 'closed',
+    why: 'guards, results and the implicit simple-CASE comparisons all closed, with the unification guard on both member lists',
   },
-  CoalesceExpr: { category: "closed", why: "closed arguments, unification-guarded" },
-  MinMaxExpr: { category: "closed", why: "GREATEST/LEAST: closed arguments, unification-guarded" },
-  RowExpr: { category: "closed", why: "independently-typed closed fields" },
-  A_ArrayExpr: { category: "closed", why: "closed elements, unification-guarded" },
+  CoalesceExpr: { category: 'closed', why: 'closed arguments, unification-guarded' },
+  MinMaxExpr: { category: 'closed', why: 'GREATEST/LEAST: closed arguments, unification-guarded' },
+  RowExpr: { category: 'closed', why: 'independently-typed closed fields' },
+  A_ArrayExpr: { category: 'closed', why: 'closed elements, unification-guarded' },
   A_Indirection: {
-    category: "closed",
+    category: 'closed',
     why: "subscript or slice over a closed argument — array_subscript_handler and jsonb_subscript_handler are both immutable (measured), so the closure question is the argument's and the bounds'. ANY slice in the list yields the ARRAY type, otherwise the ELEMENT type (PostgreSQL's own rule; arrays do not nest). A FIELD step names no type the `record` rendering carries, jsonb admits no slice, and the ARGUMENT KIND is restricted to what pgsql-deparser parenthesises — a rendering constraint, not a closure one",
   },
   CollateClause: {
-    category: "closed",
+    category: 'closed',
     why: "COLLATE names a CATALOG collation and changes no value; the argument's type set threads unchanged. What it changes is how comparisons inside the subtree sort, and the named collation decides that rather than session state — the probe and the execution agree under the analysis-database ≡ execution-database assumption this module already records",
   },
   A_Indices: {
-    category: "structural",
-    why: "one subscript or slice bound, consumed by A_Indirection",
+    category: 'structural',
+    why: 'one subscript or slice bound, consumed by A_Indirection',
   },
   FuncCall: {
-    category: "closed",
+    category: 'closed',
     why: "plain scalar call admitted by the survivor consensus at the call's arity; aggregate, window, VARIADIC-spread and ordered shapes are open — plus the sublink-body exception: a TOP-LEVEL set-returning call closes through closedSetFunctionTypes behind the runtime cardinality pre-probe",
   },
   SubLink: {
-    category: "closed",
+    category: 'closed',
     why: "EXPR/ANY/ALL/EXISTS over a NON-CONTEXTUAL body — a bare projection of closed expressions, no FROM of any kind (a relation is context, a function scan is trap 1's materializing shape); the closed-sublinks rung, 2026-08-16",
   },
   SelectStmt: {
-    category: "structural",
+    category: 'structural',
     why: "a closed sublink's body, consumed by SubLink — set operations, VALUES rows, LIMIT/OFFSET, WHERE, ORDER BY and DISTINCT after the body-clause widening; every other clause still refuses by unknown-field default, FROM of any kind included",
   },
   ResTarget: {
-    category: "structural",
-    why: "one body target, consumed by the sublink-body gate",
+    category: 'structural',
+    why: 'one body target, consumed by the sublink-body gate',
   },
   SortBy: {
-    category: "structural",
-    why: "one ORDER BY key of a closed body, consumed by the sublink-body gate — the key expression is gated closed like any other, and `USING <op>` is refused; the ordering itself can move no admitted answer, which is why a limit may not sit beside it",
+    category: 'structural',
+    why: 'one ORDER BY key of a closed body, consumed by the sublink-body gate — the key expression is gated closed like any other, and `USING <op>` is refused; the ordering itself can move no admitted answer, which is why a limit may not sit beside it',
   },
-  CaseWhen: { category: "structural", why: "one CASE branch, consumed by CaseExpr" },
-  List: { category: "structural", why: "IN-list wrapper inside A_Expr" },
-  String: { category: "structural", why: "operator/function name parts" },
+  CaseWhen: { category: 'structural', why: 'one CASE branch, consumed by CaseExpr' },
+  List: { category: 'structural', why: 'IN-list wrapper inside A_Expr' },
+  String: { category: 'structural', why: 'operator/function name parts' },
   Integer: {
-    category: "structural",
+    category: 'structural',
     why: "an array bound inside a closed array cast's TypeName — type syntax, never a value (first-wave widening)",
   },
-};
+}
 
 /**
  * Kinds the design names as open BY DESIGN, asserted never to appear inside a
@@ -118,34 +118,34 @@ const CLASSIFICATION: Record<string, { category: Category; why: string }> = {
  */
 const OPEN_BY_DESIGN: Record<string, string> = {
   // --- a NAME, or something that stands for one -----------------------------
-  ColumnRef: "any name of any kind opens the subtree",
-  ParamRef: "a bind value is not known at analysis time",
+  ColumnRef: 'any name of any kind opens the subtree',
+  ParamRef: 'a bind value is not known at analysis time',
   A_Star: "`*` is a name list; star expansion is the walk's business",
-  SQLValueFunction: "CURRENT_DATE / CURRENT_SCHEMA are session state",
-  GroupingFunc: "GROUPING() reads the grouping sets of the query around it",
-  MergeSupportFunc: "merge_action() names the arm of the MERGE around it",
+  SQLValueFunction: 'CURRENT_DATE / CURRENT_SCHEMA are session state',
+  GroupingFunc: 'GROUPING() reads the grouping sets of the query around it',
+  MergeSupportFunc: 'merge_action() names the arm of the MERGE around it',
   MultiAssignRef:
-    "the source of `SET (a, b) = (SELECT …)`; the written-value map skips it and it is never dispatched as an expression",
+    'the source of `SET (a, b) = (SELECT …)`; the written-value map skips it and it is never dispatched as an expression',
 
   // --- CONTEXT reached through a sublink body -------------------------------
   // The body gate admits a bare projection and no FROM of any kind; these
   // arrive inside a sublink the corpus writes in a target list, and the gate
   // refuses the body whole rather than these one at a time.
-  RangeVar: "a relation is context — the sublink-body gate admits no FROM",
-  RangeSubselect: "a subquery in FROM is a FROM",
-  JoinExpr: "a join is a FROM",
+  RangeVar: 'a relation is context — the sublink-body gate admits no FROM',
+  RangeSubselect: 'a subquery in FROM is a FROM',
+  JoinExpr: 'a join is a FROM',
   CommonTableExpr: "a WITH clause is refused by the body gate's unknown-field default",
 
   // --- MEASURED refusals ----------------------------------------------------
   NamedArgExpr:
-    "the AST carries the arguments in the order they were WRITTEN with `argnumber` unresolved (-1, measured) — PostgreSQL reorders during analysis, and the survivor consensus matches parameters POSITIONALLY, so admitting one would type operand i against parameter i when PostgreSQL will not",
+    'the AST carries the arguments in the order they were WRITTEN with `argnumber` unresolved (-1, measured) — PostgreSQL reorders during analysis, and the survivor consensus matches parameters POSITIONALLY, so admitting one would type operand i against parameter i when PostgreSQL will not',
   XmlExpr:
-    "`xml_in` is STABLE (measured — it reads xmloption), so xml is outside the immutable-I/O set and an xml-typed operand threads no type",
+    '`xml_in` is STABLE (measured — it reads xmloption), so xml is outside the immutable-I/O set and an xml-typed operand threads no type',
   XmlSerialize:
-    "returns text, but its argument is xml and closes for the same reason XmlExpr does not",
-  JsonObjectAgg: "an aggregate: it needs rows, and closure has none",
-  JsonArrayAgg: "an aggregate, same as JSON_OBJECTAGG",
-  JsonArrayQueryConstructor: "JSON_ARRAY over a SUBQUERY — the body is a query, not an expression",
+    'returns text, but its argument is xml and closes for the same reason XmlExpr does not',
+  JsonObjectAgg: 'an aggregate: it needs rows, and closure has none',
+  JsonArrayAgg: 'an aggregate, same as JSON_OBJECTAGG',
+  JsonArrayQueryConstructor: 'JSON_ARRAY over a SUBQUERY — the body is a query, not an expression',
 
   // --- DEFERRED behind ONE upstream blocker ---------------------------------
   // Every one of these answers a definite value from all-literal arguments,
@@ -158,19 +158,19 @@ const OPEN_BY_DESIGN: Record<string, string> = {
   // what unblocks the group. Recorded here as blocked rather than as
   // designed-open, because "closable, if ever worth it" is the entry shape
   // this project has twice measured to rot fastest.
-  JsonIsPredicate: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
-  JsonObjectConstructor: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
-  JsonArrayConstructor: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
-  JsonScalarExpr: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
-  JsonParseExpr: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
-  JsonSerializeExpr: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
-  JsonFuncExpr: "DEFERRED: pgsql-deparser cannot render any SQL/JSON node",
-  JsonKeyValue: "a JSON_OBJECT member, inside a deferred parent",
-  JsonValueExpr: "a value wrapper inside a deferred parent",
-  JsonArgument: "a PASSING argument inside a deferred parent",
-};
+  JsonIsPredicate: 'DEFERRED: pgsql-deparser cannot render any SQL/JSON node',
+  JsonObjectConstructor: 'DEFERRED: pgsql-deparser cannot render any SQL/JSON node',
+  JsonArrayConstructor: 'DEFERRED: pgsql-deparser cannot render any SQL/JSON node',
+  JsonScalarExpr: 'DEFERRED: pgsql-deparser cannot render any SQL/JSON node',
+  JsonParseExpr: 'DEFERRED: pgsql-deparser cannot render any SQL/JSON node',
+  JsonSerializeExpr: 'DEFERRED: pgsql-deparser cannot render any SQL/JSON node',
+  JsonFuncExpr: 'DEFERRED: pgsql-deparser cannot render any SQL/JSON node',
+  JsonKeyValue: 'a JSON_OBJECT member, inside a deferred parent',
+  JsonValueExpr: 'a value wrapper inside a deferred parent',
+  JsonArgument: 'a PASSING argument inside a deferred parent',
+}
 
-const FIXTURES_DIR = join(__dirname, "fixtures");
+const FIXTURES_DIR = join(__dirname, 'fixtures')
 
 /** Seeds that put every closed-candidate kind in closed position at least
  *  once — the corpus alone leaves some kinds reachable only in open
@@ -179,15 +179,15 @@ const CLOSED_SEEDS = [
   "SELECT CASE WHEN length(trim('  x  ')) = 1 THEN 1 ELSE 0 END",
   "SELECT CASE 'a' WHEN 'b' THEN 1 ELSE 0 END",
   "SELECT COALESCE(NULLIF('a', 'a'), 'b')",
-  "SELECT GREATEST(1, 2) < LEAST(3, 4)",
+  'SELECT GREATEST(1, 2) < LEAST(3, 4)',
   "SELECT ROW(1, 'x') = ROW(1, 'x')",
-  "SELECT ARRAY[1, 2] = ARRAY[1, 3]",
+  'SELECT ARRAY[1, 2] = ARRAY[1, 3]',
   "SELECT 'a'::char(4) <> 'a '::char(4)",
-  "SELECT (5 <= 1 OR NULL::text IS NOT NULL) AND true IS NOT FALSE",
-  "SELECT NULL::text IS NULL",
-  "SELECT true IS NOT FALSE",
+  'SELECT (5 <= 1 OR NULL::text IS NOT NULL) AND true IS NOT FALSE',
+  'SELECT NULL::text IS NULL',
+  'SELECT true IS NOT FALSE',
   "SELECT 'abc' LIKE 'a%' OR 'abc' ILIKE 'A%'",
-  "SELECT 5 IN (1, 2, 3) OR 5 = ANY (ARRAY[1, 2])",
+  'SELECT 5 IN (1, 2, 3) OR 5 = ANY (ARRAY[1, 2])',
   "SELECT 1 IS DISTINCT FROM 2, abs(-5), round(1.5, 0), substr('abc', 2)",
   // A_Indirection and its A_Indices bounds: an element, a slice, a jsonb key.
   // The arguments are a FuncCall and a TypeCast because those are the kinds
@@ -198,17 +198,17 @@ const CLOSED_SEEDS = [
   // A TYPED argument: a bare unknown literal renders no type set, so the
   // COLLATE around it is closed as a member but never rootable.
   `SELECT 'a'::text COLLATE "C"`,
-];
+]
 
 function collectTags(node: unknown, out: Set<string>): void {
   if (Array.isArray(node)) {
-    for (const n of node) collectTags(n, out);
-    return;
+    for (const n of node) collectTags(n, out)
+    return
   }
-  if (!node || typeof node !== "object") return;
+  if (!node || typeof node !== 'object') return
   for (const [k, v] of Object.entries(node)) {
-    if (/^[A-Z]/.test(k)) out.add(k);
-    collectTags(v, out);
+    if (/^[A-Z]/.test(k)) out.add(k)
+    collectTags(v, out)
   }
 }
 
@@ -221,18 +221,18 @@ function collectTags(node: unknown, out: Set<string>): void {
  */
 function targetListVals(node: unknown, out: Node[]): void {
   if (Array.isArray(node)) {
-    for (const n of node) targetListVals(n, out);
-    return;
+    for (const n of node) targetListVals(n, out)
+    return
   }
-  if (!node || typeof node !== "object") return;
-  const rt = (node as Record<string, unknown>)["ResTarget"] as { val?: Node } | undefined;
-  if (rt?.val) out.push(rt.val);
-  for (const v of Object.values(node)) targetListVals(v, out);
+  if (!node || typeof node !== 'object') return
+  const rt = (node as Record<string, unknown>)['ResTarget'] as { val?: Node } | undefined
+  if (rt?.val) out.push(rt.val)
+  for (const v of Object.values(node)) targetListVals(v, out)
 }
 
-let pg: PGlite;
-let catalog: SubtreeEvaluationCatalog;
-let evaluate: Evaluate;
+let pg: PGlite
+let catalog: SubtreeEvaluationCatalog
+let evaluate: Evaluate
 
 const SCHEMA = `
   CREATE TABLE orders (id int NOT NULL, qty int NOT NULL);
@@ -249,124 +249,124 @@ const SCHEMA = `
   CREATE TYPE s2.color AS ENUM ('blue', 'red');
   CREATE DOMAIN ctext AS text COLLATE "C";
   CREATE TABLE coll_probe (a text, b text COLLATE "C", c int, d ctext);
-`;
+`
 
 beforeAll(async () => {
-  pg = new PGlite();
-  await pg.exec(SCHEMA);
-  catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
-  evaluate = async sql => (await pg.query<Record<string, unknown>>(sql)).rows[0];
-}, 60_000);
+  pg = new PGlite()
+  await pg.exec(SCHEMA)
+  catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
+  evaluate = async (sql) => (await pg.query<Record<string, unknown>>(sql)).rows[0]
+}, 60_000)
 
 afterAll(async () => {
-  if (!pg.closed) await pg.close();
-});
+  if (!pg.closed) await pg.close()
+})
 
 async function subtreesOf(sql: string): Promise<{ stmt: Node; roots: Node[] }> {
-  const parsed = await parseSql(sql);
-  const stmt = parsed.stmts![0]!.stmt!;
-  return { stmt, roots: collectClosedSubtrees(stmt, catalog) };
+  const parsed = await parseSql(sql)
+  const stmt = parsed.stmts![0]!.stmt!
+  return { stmt, roots: collectClosedSubtrees(stmt, catalog) }
 }
 
 async function answers(sql: string) {
-  const { stmt } = await subtreesOf(sql);
-  return [...(await evaluateClosedSubtrees(stmt, catalog, evaluate)).values()];
+  const { stmt } = await subtreesOf(sql)
+  return [...(await evaluateClosedSubtrees(stmt, catalog, evaluate)).values()]
 }
 
 // ---------------------------------------------------------------------------
 
-describe("allowlist census", () => {
-  const rootTags = new Set<string>();
-  const insideTags = new Set<string>();
-  const corpusTags = new Set<string>();
-  const expressionTags = new Set<string>();
+describe('allowlist census', () => {
+  const rootTags = new Set<string>()
+  const insideTags = new Set<string>()
+  const corpusTags = new Set<string>()
+  const expressionTags = new Set<string>()
 
   beforeAll(async () => {
     const corpus = [
       ...CLOSED_SEEDS,
       ...GRAMMAR_SAMPLER,
       ...readdirSync(FIXTURES_DIR)
-        .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-        .map(f => readFileSync(join(FIXTURES_DIR, f), "utf8")),
-    ];
+        .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+        .map((f) => readFileSync(join(FIXTURES_DIR, f), 'utf8')),
+    ]
     for (const sql of corpus) {
-      let parsed;
+      let parsed
       try {
-        parsed = await parseSql(sql);
+        parsed = await parseSql(sql)
       } catch {
-        continue; // the corpus is for shapes; a non-parsing probe file is fine
+        continue // the corpus is for shapes; a non-parsing probe file is fine
       }
       for (const raw of parsed.stmts ?? []) {
-        if (!raw.stmt) continue;
-        collectTags(raw.stmt, corpusTags);
-        const vals: Node[] = [];
-        targetListVals(raw.stmt, vals);
-        for (const val of vals) collectTags(val, expressionTags);
+        if (!raw.stmt) continue
+        collectTags(raw.stmt, corpusTags)
+        const vals: Node[] = []
+        targetListVals(raw.stmt, vals)
+        for (const val of vals) collectTags(val, expressionTags)
         for (const root of collectClosedSubtrees(raw.stmt, catalog)) {
-          rootTags.add(Object.keys(root)[0]!);
-          collectTags(root, insideTags);
+          rootTags.add(Object.keys(root)[0]!)
+          collectTags(root, insideTags)
         }
       }
     }
-  }, 120_000);
+  }, 120_000)
 
-  it("every node kind inside a collected subtree is classified", () => {
+  it('every node kind inside a collected subtree is classified', () => {
     // The soundness direction: closure quantifies over everything the
     // subtree contains, so a kind nobody classified reaching the inside of
     // one means the gate admitted a node no one argued about.
-    const unclassified = [...insideTags].filter(t => !CLASSIFICATION[t]).sort();
+    const unclassified = [...insideTags].filter((t) => !CLASSIFICATION[t]).sort()
     expect(
       unclassified,
       `Inside a collected subtree but not classified — argue each kind's ` +
-        `closure (or find the gate that wrongly admits it):\n  ${unclassified.join(", ")}`,
-    ).toEqual([]);
-  });
+        `closure (or find the gate that wrongly admits it):\n  ${unclassified.join(', ')}`,
+    ).toEqual([])
+  })
 
-  it("every `closed` kind is observed as a collected root", () => {
+  it('every `closed` kind is observed as a collected root', () => {
     // The reachability direction: a gate no corpus statement exercises is
     // an untested claim. CLOSED_SEEDS exists exactly to keep this red bar
     // honest — extend it when classifying a new kind.
     const unreached = Object.entries(CLASSIFICATION)
-      .filter(([, c]) => c.category === "closed")
+      .filter(([, c]) => c.category === 'closed')
       .map(([k]) => k)
-      .filter(k => !rootTags.has(k))
-      .sort();
+      .filter((k) => !rootTags.has(k))
+      .sort()
     expect(
       unreached,
       `Classified 'closed' but never collected as a root over the corpus — ` +
-        `add a seed statement that closes it:\n  ${unreached.join(", ")}`,
-    ).toEqual([]);
-  });
+        `add a seed statement that closes it:\n  ${unreached.join(', ')}`,
+    ).toEqual([])
+  })
 
-  it("`literal` and `structural` kinds appear inside subtrees, never as roots", () => {
+  it('`literal` and `structural` kinds appear inside subtrees, never as roots', () => {
     const misplaced = Object.entries(CLASSIFICATION)
-      .filter(([, c]) => c.category !== "closed")
+      .filter(([, c]) => c.category !== 'closed')
       .map(([k]) => k)
-      .filter(k => rootTags.has(k) || !insideTags.has(k))
-      .sort();
+      .filter((k) => rootTags.has(k) || !insideTags.has(k))
+      .sort()
     expect(
       misplaced,
       `Either collected as a root (a bare literal answers nothing) or never ` +
-        `observed inside a subtree (an untested entry):\n  ${misplaced.join(", ")}`,
-    ).toEqual([]);
-  });
+        `observed inside a subtree (an untested entry):\n  ${misplaced.join(', ')}`,
+    ).toEqual([])
+  })
 
   it("the design's open kinds stay outside every collected subtree", () => {
     // OPEN_BY_DESIGN entries are the charter's own exclusions; asserting
     // the corpus PRODUCES them keeps each refusal a tested claim rather
     // than a comment.
-    const open = Object.keys(OPEN_BY_DESIGN);
-    const missing = open.filter(t => !corpusTags.has(t));
-    expect(missing, `Not produced by the corpus at all: ${missing.join(", ")}`).toEqual([]);
-    const leaked = open.filter(t => insideTags.has(t));
+    const open = Object.keys(OPEN_BY_DESIGN)
+    const missing = open.filter((t) => !corpusTags.has(t))
+    expect(missing, `Not produced by the corpus at all: ${missing.join(', ')}`).toEqual([])
+    const leaked = open.filter((t) => insideTags.has(t))
     expect(
       leaked,
       `Open by design, found inside a collected subtree — a closure gate is ` +
-        `admitting names or session state:\n  ${leaked.join(", ")}`,
-    ).toEqual([]);
-  });
+        `admitting names or session state:\n  ${leaked.join(', ')}`,
+    ).toEqual([])
+  })
 
-  it("every expression kind the corpus writes has been CONSIDERED", () => {
+  it('every expression kind the corpus writes has been CONSIDERED', () => {
     // The third direction, added 2026-08-24, and the one whose absence let
     // twelve node kinds sit unexamined.
     //
@@ -382,69 +382,75 @@ describe("allowlist census", () => {
     // Being listed here is not a promise to fold. It is a promise that
     // somebody looked, and wrote down what they found.
     const unconsidered = [...expressionTags]
-      .filter(t => !CLASSIFICATION[t] && !OPEN_BY_DESIGN[t])
-      .sort();
+      .filter((t) => !CLASSIFICATION[t] && !OPEN_BY_DESIGN[t])
+      .sort()
     expect(
       unconsidered,
       `Written in an expression position by the corpus and never considered ` +
         `by the closure gate. Classify each — CLASSIFICATION with a gate, or ` +
         `OPEN_BY_DESIGN with a MEASURED reason (what does PostgreSQL answer ` +
         `for it from all-literal arguments, and why may the engine not use ` +
-        `that answer?):\n  ${unconsidered.join(", ")}`,
-    ).toEqual([]);
-  });
-});
+        `that answer?):\n  ${unconsidered.join(', ')}`,
+    ).toEqual([])
+  })
+})
 
 // ---------------------------------------------------------------------------
 
-describe("closure gates", () => {
-  const open = async (sql: string) => (await subtreesOf(sql)).roots.length === 0;
+describe('closure gates', () => {
+  const open = async (sql: string) => (await subtreesOf(sql)).roots.length === 0
 
   it("closes the doc's canonical folds", async () => {
-    expect(await answers("SELECT 5::integer <= 1 AS g")).toEqual([
-      { isNull: false, value: false, type: "boolean" },
-    ]);
+    expect(await answers('SELECT 5::integer <= 1 AS g')).toEqual([
+      { isNull: false, value: false, type: 'boolean' },
+    ])
     expect(await answers("SELECT 'a'::char(4) <> 'a '::char(4) AS g")).toEqual([
-      { isNull: false, value: false, type: "boolean" },
-    ]);
-    expect(await answers("SELECT NULL::text IS NOT NULL AS g")).toEqual([
-      { isNull: false, value: false, type: "boolean" },
-    ]);
-  });
+      { isNull: false, value: false, type: 'boolean' },
+    ])
+    expect(await answers('SELECT NULL::text IS NOT NULL AS g')).toEqual([
+      { isNull: false, value: false, type: 'boolean' },
+    ])
+  })
 
-  it("volatile and stable calls are open", async () => {
-    expect(await open("SELECT random() < 2 AS g")).toBe(true);
-    expect(await open("SELECT concat('a', 'b') AS g")).toBe(true); // stable
-  });
+  it('volatile and stable calls are open', async () => {
+    expect(await open('SELECT random() < 2 AS g')).toBe(true)
+    expect(await open("SELECT concat('a', 'b') AS g")).toBe(true) // stable
+  })
 
-  it("a stable input function keeps the literal cast open — unless the shape gate answers", async () => {
+  it('a stable input function keeps the literal cast open — unless the shape gate answers', async () => {
     // Design B, for settings-independent datetime literals: 'now' and the
     // interval fail the value-shape test and stay
     // fully open; '2020-01-01'::date CLOSES as a member (the swept ISO
     // shape) but never collects alone — date_out reads DateStyle, and the
     // rendering gate is untouched. The comparison shows the member side:
     // both casts close, the boolean answers, no datetime crosses the wire.
-    expect(await open("SELECT 'now'::timestamptz AS g")).toBe(true);
-    expect(await open("SELECT interval '1 day' AS g")).toBe(true);
-    expect(await open("SELECT '2020-01-01'::date AS g")).toBe(true);
+    expect(await open("SELECT 'now'::timestamptz AS g")).toBe(true)
+    expect(await open("SELECT interval '1 day' AS g")).toBe(true)
+    expect(await open("SELECT '2020-01-01'::date AS g")).toBe(true)
     expect(await answers("SELECT '2020-01-01'::date < '2020-06-01'::date AS g")).toEqual([
-      { isNull: false, value: true, type: "boolean" },
-    ]);
+      { isNull: false, value: true, type: 'boolean' },
+    ])
     // The ambiguous form fails by shape, exactly as 'now' does; a typmod
     // spelling is outside the swept language and stays open too.
-    expect(await open("SELECT '1/2/2020'::date < '2020-06-01'::date AS g")).toBe(true);
-    expect(await open("SELECT '2020-01-01 12:34:56'::timestamp(0) < '2021-01-01'::timestamp AS g")).toBe(true);
+    expect(await open("SELECT '1/2/2020'::date < '2020-06-01'::date AS g")).toBe(true)
+    expect(
+      await open("SELECT '2020-01-01 12:34:56'::timestamp(0) < '2021-01-01'::timestamp AS g"),
+    ).toBe(true)
     // timestamptz closes ONLY with an explicit numeric offset: the
     // offset-less spelling reads TimeZone (measured, param-mechanism).
-    expect(await answers(
-      "SELECT '2020-01-01T12:34:56+00'::timestamptz < '2021-01-01 00:00:00+00'::timestamptz AS g",
-    )).toEqual([{ isNull: false, value: true, type: "boolean" }]);
-    expect(await open(
-      "SELECT '2020-01-01 12:34:56'::timestamptz < '2021-01-01 00:00:00+00'::timestamptz AS g",
-    )).toBe(true);
-  });
+    expect(
+      await answers(
+        "SELECT '2020-01-01T12:34:56+00'::timestamptz < '2021-01-01 00:00:00+00'::timestamptz AS g",
+      ),
+    ).toEqual([{ isNull: false, value: true, type: 'boolean' }])
+    expect(
+      await open(
+        "SELECT '2020-01-01 12:34:56'::timestamptz < '2021-01-01 00:00:00+00'::timestamptz AS g",
+      ),
+    ).toBe(true)
+  })
 
-  it("a computed cast argument is gated on its own TYPE, not on being a literal", async () => {
+  it('a computed cast argument is gated on its own TYPE, not on being a literal', async () => {
     // This was "open even to an immutable-I/O target" until 2026-08-24, and
     // the rule it pinned was syntactic where the hazard is typed.
     //
@@ -454,267 +460,271 @@ describe("closure gates", () => {
     // timestamptz, not about computation — timestamptz is not in the
     // immutable-I/O set, and the set is what the gate now reads. So the leak
     // stays gated by the same rule that lets `(1 + 1)::bigint` close whole.
-    expect(await open("SELECT to_timestamp(0)::text AS g")).toBe(true);
-    expect(await open("SELECT ('2020-01-02'::date)::text AS g")).toBe(true);
-    expect(await answers("SELECT (1 + 1)::bigint AS g")).toEqual([
-      { isNull: false, value: 2, type: "bigint" },
-    ]);
+    expect(await open('SELECT to_timestamp(0)::text AS g')).toBe(true)
+    expect(await open("SELECT ('2020-01-02'::date)::text AS g")).toBe(true)
+    expect(await answers('SELECT (1 + 1)::bigint AS g')).toEqual([
+      { isNull: false, value: 2, type: 'bigint' },
+    ])
     expect(await answers("SELECT ('f'::text)::boolean AS g")).toEqual([
-      { isNull: false, value: false, type: "boolean" },
-    ]);
+      { isNull: false, value: false, type: 'boolean' },
+    ])
     // The cast node is the MAXIMAL subtree now, so the computation inside it
     // is no longer collected on its own — one answer where there were two.
-    expect(await answers("SELECT (1 + 1)::text AS g")).toEqual([
-      { isNull: false, value: "2", type: "text" },
-    ]);
-  });
+    expect(await answers('SELECT (1 + 1)::text AS g')).toEqual([
+      { isNull: false, value: '2', type: 'text' },
+    ])
+  })
 
-  it("array-typed cast targets are gated per ELEMENT (first-wave widening)", async () => {
+  it('array-typed cast targets are gated per ELEMENT (first-wave widening)', async () => {
     // array_in's blanket-stable flag stood for "elements could be
     // datetime"; the element gate answers it per element, so int4[] closes
     // (pinned in the widenings block) and date[] keeps the flag's reason.
-    expect(await open("SELECT '{2020-01-01}'::date[] AS g")).toBe(true);
-    expect(await open("SELECT '{}'::int4[] AS g")).toBe(false);
-  });
+    expect(await open("SELECT '{2020-01-01}'::date[] AS g")).toBe(true)
+    expect(await open("SELECT '{}'::int4[] AS g")).toBe(false)
+  })
 
-  it("a bare unknown literal beside a constructor is open", async () => {
+  it('a bare unknown literal beside a constructor is open', async () => {
     // Measured: the literal coerces through array_in under the
     // constructor's type. The comparison never folds — only the
     // constructor itself answers, as its own maximal subtree — while the
     // same trees with both sides constructed fold whole.
     expect(await answers("SELECT ARRAY[1,2] = '{1,3}' AS g")).toEqual([
-      { isNull: false, value: [1, 2], type: "integer[]" },
-    ]);
-    expect(await open("SELECT 5 = ANY ('{1,3}') AS g")).toBe(true);
+      { isNull: false, value: [1, 2], type: 'integer[]' },
+    ])
+    expect(await open("SELECT 5 = ANY ('{1,3}') AS g")).toBe(true)
     expect(await answers("SELECT COALESCE(ARRAY[1], '{7}') AS g")).toEqual([
-      { isNull: false, value: [1], type: "integer[]" },
-    ]);
-    expect(await answers("SELECT ARRAY[1,2] = ARRAY[1,3] AS g")).toEqual([
-      { isNull: false, value: false, type: "boolean" },
-    ]);
-    expect(await answers("SELECT 5 = ANY (ARRAY[1,3]) AS g")).toEqual([
-      { isNull: false, value: false, type: "boolean" },
-    ]);
-  });
+      { isNull: false, value: [1], type: 'integer[]' },
+    ])
+    expect(await answers('SELECT ARRAY[1,2] = ARRAY[1,3] AS g')).toEqual([
+      { isNull: false, value: false, type: 'boolean' },
+    ])
+    expect(await answers('SELECT 5 = ANY (ARRAY[1,3]) AS g')).toEqual([
+      { isNull: false, value: false, type: 'boolean' },
+    ])
+  })
 
-  it("a unary operator over a bare unknown literal is open", async () => {
+  it('a unary operator over a bare unknown literal is open', async () => {
     // `- 5` is no counterexample: the grammar folds the sign into the
     // literal. `- (1 + 1)` is a real unary A_Expr and closes.
-    expect(await open("SELECT - '5' AS g")).toBe(true);
-    expect(await answers("SELECT - (1 + 1) AS g")).toEqual([
-      { isNull: false, value: -2, type: "integer" },
-    ]);
-  });
+    expect(await open("SELECT - '5' AS g")).toBe(true)
+    expect(await answers('SELECT - (1 + 1) AS g')).toEqual([
+      { isNull: false, value: -2, type: 'integer' },
+    ])
+  })
 
-  it("aggregate, window and VARIADIC shapes are open", async () => {
-    expect(await open("SELECT sum(1) AS g")).toBe(true);
-    expect(await open("SELECT count(*) AS g")).toBe(true);
-    expect(await open("SELECT row_number() OVER () AS g")).toBe(true);
-    expect(await open("SELECT length(VARIADIC 'x') AS g").catch(() => true)).toBe(true);
-  });
+  it('aggregate, window and VARIADIC shapes are open', async () => {
+    expect(await open('SELECT sum(1) AS g')).toBe(true)
+    expect(await open('SELECT count(*) AS g')).toBe(true)
+    expect(await open('SELECT row_number() OVER () AS g')).toBe(true)
+    expect(await open("SELECT length(VARIADIC 'x') AS g").catch(() => true)).toBe(true)
+  })
 
-  it("one known operand types the unknown beside it", async () => {
+  it('one known operand types the unknown beside it', async () => {
     // The landing rule's exact-match face, pinned in
     // param-mechanism.test.ts: '3' assumes integer, int4pl is exact.
     expect(await answers("SELECT 5 + '3' AS g")).toEqual([
-      { isNull: false, value: 8, type: "integer" },
-    ]);
-  });
+      { isNull: false, value: 8, type: 'integer' },
+    ])
+  })
 
-  it("composition crosses no I/O; collection does — the root gate", async () => {
+  it('composition crosses no I/O; collection does — the root gate', async () => {
     // make_date is immutable over integers, so it CLOSES — but its date
     // result renders through date_out (DateStyle), so it never answers
     // alone. Under date_part, the lone row exact at the known date
     // position is PostgreSQL's own selection ("a declared parameter types
     // the literal"), and the double precision answer is immutable-I/O all
     // the way out — no settings assumption anywhere.
-    expect(await open("SELECT make_date(2020, 1, 1) AS g")).toBe(true);
+    expect(await open('SELECT make_date(2020, 1, 1) AS g')).toBe(true)
     expect(await answers("SELECT date_part('day', make_date(2020, 1, 1)) AS g")).toEqual([
-      { isNull: false, value: 1, type: "double precision" },
-    ]);
-    expect(await answers("SELECT make_date(2020, 1, 1) = make_date(2020, 1, 1) AS g")).toEqual([
-      { isNull: false, value: true, type: "boolean" },
-    ]);
-  });
+      { isNull: false, value: 1, type: 'double precision' },
+    ])
+    expect(await answers('SELECT make_date(2020, 1, 1) = make_date(2020, 1, 1) AS g')).toEqual([
+      { isNull: false, value: true, type: 'boolean' },
+    ])
+  })
 
-  it("names of any kind are open — scope-blindness", async () => {
-    expect(await open("SELECT o.id + 0 AS g FROM orders o")).toBe(true);
-    expect(await open("SELECT $1::int AS g")).toBe(true);
+  it('names of any kind are open — scope-blindness', async () => {
+    expect(await open('SELECT o.id + 0 AS g FROM orders o')).toBe(true)
+    expect(await open('SELECT $1::int AS g')).toBe(true)
     // The table-free (SELECT 7) FLIPPED closed when the sublinks rung
     // landed (2026-08-16); the CORRELATED form is what scope-blindness
     // keeps open — the body names a column, whatever it resolves to.
-    expect(await open("SELECT (SELECT o.id) AS g FROM orders o")).toBe(true);
-    expect(await open("SELECT current_schema AS g")).toBe(true);
-  });
+    expect(await open('SELECT (SELECT o.id) AS g FROM orders o')).toBe(true)
+    expect(await open('SELECT current_schema AS g')).toBe(true)
+  })
 
-  it("a table-free sublink closes and answers — the closed-sublinks rung", async () => {
-    expect(await answers("SELECT (SELECT 7) = 7 AS g")).toEqual([
-      { isNull: false, value: true, type: "boolean" },
-    ]);
-    expect(await answers("SELECT 5 IN (SELECT generate_series(1, 8)) AS g")).toEqual([
-      { isNull: false, value: true, type: "boolean" },
-    ]);
-    expect(await answers("SELECT EXISTS (SELECT 1) AS g")).toEqual([
-      { isNull: false, value: true, type: "boolean" },
-    ]);
-  });
-});
+  it('a table-free sublink closes and answers — the closed-sublinks rung', async () => {
+    expect(await answers('SELECT (SELECT 7) = 7 AS g')).toEqual([
+      { isNull: false, value: true, type: 'boolean' },
+    ])
+    expect(await answers('SELECT 5 IN (SELECT generate_series(1, 8)) AS g')).toEqual([
+      { isNull: false, value: true, type: 'boolean' },
+    ])
+    expect(await answers('SELECT EXISTS (SELECT 1) AS g')).toEqual([
+      { isNull: false, value: true, type: 'boolean' },
+    ])
+  })
+})
 
 // ---------------------------------------------------------------------------
 
-describe("evaluation protocol", () => {
+describe('evaluation protocol', () => {
   function countingEvaluate(): { evaluate: Evaluate; calls: string[] } {
-    const calls: string[] = [];
+    const calls: string[] = []
     return {
       calls,
-      evaluate: async sql => {
-        calls.push(sql);
-        return (await pg.query<Record<string, unknown>>(sql)).rows[0];
+      evaluate: async (sql) => {
+        calls.push(sql)
+        return (await pg.query<Record<string, unknown>>(sql)).rows[0]
       },
-    };
+    }
   }
 
-  it("batches every subtree into one SELECT: PREPARE, fetch, DEALLOCATE", async () => {
+  it('batches every subtree into one SELECT: PREPARE, fetch, DEALLOCATE', async () => {
     const { stmt } = await subtreesOf(
-      "SELECT CASE WHEN 2 + 2 = 4 THEN o.id ELSE NULL END AS a," +
+      'SELECT CASE WHEN 2 + 2 = 4 THEN o.id ELSE NULL END AS a,' +
         " CASE WHEN length(trim('  x  ')) = 1 THEN o.id ELSE NULL END AS b FROM orders o",
-    );
-    const { evaluate: counted, calls } = countingEvaluate();
-    const map = await evaluateClosedSubtrees(stmt, catalog, counted);
-    expect(map.size).toBe(2);
-    expect(calls).toHaveLength(3);
-    expect(calls[0]).toMatch(/^PREPARE pgsid_subtree_eval_\d+ AS SELECT/);
-    expect(calls[1]).toContain("result_types");
-    expect(calls[2]).toMatch(/^DEALLOCATE pgsid_subtree_eval_\d+$/);
-  });
+    )
+    const { evaluate: counted, calls } = countingEvaluate()
+    const map = await evaluateClosedSubtrees(stmt, catalog, counted)
+    expect(map.size).toBe(2)
+    expect(calls).toHaveLength(3)
+    expect(calls[0]).toMatch(/^PREPARE pgsid_subtree_eval_\d+ AS SELECT/)
+    expect(calls[1]).toContain('result_types')
+    expect(calls[2]).toMatch(/^DEALLOCATE pgsid_subtree_eval_\d+$/)
+  })
 
   it("answers are keyed by node identity over the caller's AST", async () => {
     const parsed = await parseSql(
       "SELECT CASE WHEN 1 > 2 THEN NULL ELSE 'val' END AS c FROM orders o",
-    );
-    const stmt = parsed.stmts![0]!.stmt!;
-    const caseNode = (stmt as never as {
-      SelectStmt: { targetList: { ResTarget: { val: Node } }[] };
-    }).SelectStmt.targetList[0]!.ResTarget.val;
-    const map = await evaluateClosedSubtrees(stmt, catalog, evaluate);
+    )
+    const stmt = parsed.stmts![0]!.stmt!
+    const caseNode = (
+      stmt as never as {
+        SelectStmt: { targetList: { ResTarget: { val: Node } }[] }
+      }
+    ).SelectStmt.targetList[0]!.ResTarget.val
+    const map = await evaluateClosedSubtrees(stmt, catalog, evaluate)
     // The MAXIMAL subtree is the whole CaseExpr — the very object in the
     // caller's tree, so a consumer holding the node needs no translation.
-    expect(map.size).toBe(1);
-    expect(map.get(caseNode)).toEqual({ isNull: false, value: "val", type: "text" });
-  });
+    expect(map.size).toBe(1)
+    expect(map.get(caseNode)).toEqual({ isNull: false, value: 'val', type: 'text' })
+  })
 
-  it("collects maximal subtrees: nothing nested inside another root", async () => {
+  it('collects maximal subtrees: nothing nested inside another root', async () => {
     const { roots } = await subtreesOf(
       "SELECT CASE WHEN length(trim('  x  ')) = 1" +
-        " THEN CASE WHEN 2 + 2 = 4 THEN o.id ELSE NULL END ELSE NULL END AS c FROM orders o",
-    );
+        ' THEN CASE WHEN 2 + 2 = 4 THEN o.id ELSE NULL END ELSE NULL END AS c FROM orders o',
+    )
     // The two guards are the maximal closed subtrees (the CASEs hold o.id);
     // `2 + 2 = 4` sits INSIDE the second guard's map answer, not beside it.
-    expect(roots).toHaveLength(2);
-    const tags = new Set<string>();
-    for (const r of roots) collectTags(r, tags);
-    expect(tags.has("ColumnRef")).toBe(false);
-  });
+    expect(roots).toHaveLength(2)
+    const tags = new Set<string>()
+    for (const r of roots) collectTags(r, tags)
+    expect(tags.has('ColumnRef')).toBe(false)
+  })
 
-  it("a raising subtree contributes nothing; its neighbours still answer", async () => {
-    const { stmt } = await subtreesOf("SELECT 5 / 0 AS boom, 2 + 2 AS ok");
-    const { roots } = await subtreesOf("SELECT 5 / 0 AS boom, 2 + 2 AS ok");
-    expect(roots).toHaveLength(2);
-    const map = await evaluateClosedSubtrees(stmt, catalog, evaluate);
-    expect([...map.values()]).toEqual([{ isNull: false, value: 4, type: "integer" }]);
-  });
+  it('a raising subtree contributes nothing; its neighbours still answer', async () => {
+    const { stmt } = await subtreesOf('SELECT 5 / 0 AS boom, 2 + 2 AS ok')
+    const { roots } = await subtreesOf('SELECT 5 / 0 AS boom, 2 + 2 AS ok')
+    expect(roots).toHaveLength(2)
+    const map = await evaluateClosedSubtrees(stmt, catalog, evaluate)
+    expect([...map.values()]).toEqual([{ isNull: false, value: 4, type: 'integer' }])
+  })
 
-  it("no closed subtrees → the callback is never invoked", async () => {
-    const { stmt } = await subtreesOf("SELECT o.id FROM orders o WHERE o.qty > o.id");
-    const { evaluate: counted, calls } = countingEvaluate();
-    const map = await evaluateClosedSubtrees(stmt, catalog, counted);
-    expect(map.size).toBe(0);
-    expect(calls).toEqual([]);
-  });
+  it('no closed subtrees → the callback is never invoked', async () => {
+    const { stmt } = await subtreesOf('SELECT o.id FROM orders o WHERE o.qty > o.id')
+    const { evaluate: counted, calls } = countingEvaluate()
+    const map = await evaluateClosedSubtrees(stmt, catalog, counted)
+    expect(map.size).toBe(0)
+    expect(calls).toEqual([])
+  })
 
-  it("a NULL answer is isNull with its resolved type", async () => {
+  it('a NULL answer is isNull with its resolved type', async () => {
     expect(await answers("SELECT NULLIF('a', 'a') AS g")).toEqual([
-      { isNull: true, value: null, type: "text" },
-    ]);
-  });
+      { isNull: true, value: null, type: 'text' },
+    ])
+  })
 
-  it("evaluation reaches closed subtrees inside CTE bodies and set operations", async () => {
+  it('evaluation reaches closed subtrees inside CTE bodies and set operations', async () => {
     expect(
       await answers(
         "WITH flags AS (SELECT CASE WHEN 1 = 1 THEN 'on' ELSE NULL END AS flag)" +
-          " SELECT f.flag FROM flags f",
+          ' SELECT f.flag FROM flags f',
       ),
-    ).toEqual([{ isNull: false, value: "on", type: "text" }]);
+    ).toEqual([{ isNull: false, value: 'on', type: 'text' }])
     expect(
-      await answers("SELECT CASE WHEN 1 > 2 THEN NULL ELSE 'val' END AS c UNION ALL SELECT 'other'"),
-    ).toEqual([{ isNull: false, value: "val", type: "text" }]);
-  });
+      await answers(
+        "SELECT CASE WHEN 1 > 2 THEN NULL ELSE 'val' END AS c UNION ALL SELECT 'other'",
+      ),
+    ).toEqual([{ isNull: false, value: 'val', type: 'text' }])
+  })
 
   // --- Closed sublinks: the pre-probe protocol (the rung's tier 2) ----------
 
-  it("an SRF sublink body pre-probes its cardinality before joining the batch", async () => {
-    const { stmt } = await subtreesOf("SELECT 5 IN (SELECT generate_series(1, 8)) AS g");
-    const { evaluate: counted, calls } = countingEvaluate();
-    const map = await evaluateClosedSubtrees(stmt, catalog, counted);
-    expect([...map.values()]).toEqual([{ isNull: false, value: true, type: "boolean" }]);
-    expect(calls[0]).toMatch(/^SELECT count\(\*\) AS e0 FROM \(SELECT/);
-    expect(calls[0]).toContain(`LIMIT ${SUBLINK_SRF_ROW_CAP + 1}`);
-  });
+  it('an SRF sublink body pre-probes its cardinality before joining the batch', async () => {
+    const { stmt } = await subtreesOf('SELECT 5 IN (SELECT generate_series(1, 8)) AS g')
+    const { evaluate: counted, calls } = countingEvaluate()
+    const map = await evaluateClosedSubtrees(stmt, catalog, counted)
+    expect([...map.values()]).toEqual([{ isNull: false, value: true, type: 'boolean' }])
+    expect(calls[0]).toMatch(/^SELECT count\(\*\) AS e0 FROM \(SELECT/)
+    expect(calls[0]).toContain(`LIMIT ${SUBLINK_SRF_ROW_CAP + 1}`)
+  })
 
-  it("an over-cap SRF body drops its subtree — refusal, never FALSE", async () => {
+  it('an over-cap SRF body drops its subtree — refusal, never FALSE', async () => {
     // The cap is the rung's explicit recorded bound.
-    expect(SUBLINK_SRF_ROW_CAP).toBe(1000);
-    const { stmt } = await subtreesOf("SELECT 5 IN (SELECT generate_series(1, 2000)) AS g");
-    const map = await evaluateClosedSubtrees(stmt, catalog, evaluate);
-    expect(map.size).toBe(0);
-  });
+    expect(SUBLINK_SRF_ROW_CAP).toBe(1000)
+    const { stmt } = await subtreesOf('SELECT 5 IN (SELECT generate_series(1, 2000)) AS g')
+    const map = await evaluateClosedSubtrees(stmt, catalog, evaluate)
+    expect(map.size).toBe(0)
+  })
 
-  it("EXISTS bodies skip the pre-probe — the first row answers, pinned at 10^10", async () => {
-    const { stmt } = await subtreesOf(
-      "SELECT EXISTS (SELECT generate_series(1, 10000000000)) AS g",
-    );
-    const { evaluate: counted, calls } = countingEvaluate();
-    const map = await evaluateClosedSubtrees(stmt, catalog, counted);
-    expect([...map.values()]).toEqual([{ isNull: false, value: true, type: "boolean" }]);
-    expect(calls.some(c => c.includes("count(*)"))).toBe(false);
-  });
+  it('EXISTS bodies skip the pre-probe — the first row answers, pinned at 10^10', async () => {
+    const { stmt } = await subtreesOf('SELECT EXISTS (SELECT generate_series(1, 10000000000)) AS g')
+    const { evaluate: counted, calls } = countingEvaluate()
+    const map = await evaluateClosedSubtrees(stmt, catalog, counted)
+    expect([...map.values()]).toEqual([{ isNull: false, value: true, type: 'boolean' }])
+    expect(calls.some((c) => c.includes('count(*)'))).toBe(false)
+  })
 
-  it("a set-operation body stores its arms UNWRAPPED, and deparses back as written", async () => {
+  it('a set-operation body stores its arms UNWRAPPED, and deparses back as written', async () => {
     // The body-clause widening's parse-shape pin: `larg`/`rarg` hold BARE SelectStmt fields, not
     // tagged nodes, which is why the body gate recurses on fields rather than
     // on nodes. If a libpg_query release ever wrapped them, the gate would
     // refuse every set operation — silently, and back to the pre-rung state.
-    const parsed = await parseSql("SELECT (SELECT 1 UNION ALL SELECT 2) AS a");
+    const parsed = await parseSql('SELECT (SELECT 1 UNION ALL SELECT 2) AS a')
     const body = (
-      (parsed.stmts![0]!.stmt as never as {
-        SelectStmt: { targetList: { ResTarget: { val: { SubLink: { subselect: unknown } } } }[] };
-      }).SelectStmt.targetList[0]!.ResTarget.val.SubLink.subselect as {
-        SelectStmt: Record<string, unknown>;
+      (
+        parsed.stmts![0]!.stmt as never as {
+          SelectStmt: { targetList: { ResTarget: { val: { SubLink: { subselect: unknown } } } }[] }
+        }
+      ).SelectStmt.targetList[0]!.ResTarget.val.SubLink.subselect as {
+        SelectStmt: Record<string, unknown>
       }
-    ).SelectStmt;
-    expect(Object.keys(body).sort()).toEqual(["all", "larg", "limitOption", "op", "rarg"]);
-    expect(body.op).toBe("SETOP_UNION");
-    expect(body.all).toBe(true);
-    expect(Object.keys(body.larg as object)).toContain("targetList");
-    expect(deparseSync(parsed as never)).toContain("UNION");
-  });
+    ).SelectStmt
+    expect(Object.keys(body).sort()).toEqual(['all', 'larg', 'limitOption', 'op', 'rarg'])
+    expect(body.op).toBe('SETOP_UNION')
+    expect(body.all).toBe(true)
+    expect(Object.keys(body.larg as object)).toContain('targetList')
+    expect(deparseSync(parsed as never)).toContain('UNION')
+  })
 
-  it("the deparser renders every admitted sublink type as written", async () => {
+  it('the deparser renders every admitted sublink type as written', async () => {
     // The rung's pre-work pin: batching rests on the deparser rendering
     // sublinks as the scalar expressions they are.
     const renderings: [sql: string, rendered: string][] = [
-      ["SELECT (SELECT 7) = 7 AS r", "((SELECT 7)) = 7 AS r"],
-      ["SELECT 5 IN (SELECT 6) AS r", "5 IN (SELECT 6) AS r"],
-      ["SELECT 5 = ANY (SELECT 6) AS r", "5 = ANY (SELECT 6) AS r"],
-      ["SELECT 5 < ALL (SELECT 6) AS r", "5 < ALL (SELECT 6) AS r"],
-      ["SELECT EXISTS (SELECT 1) AS r", "EXISTS (SELECT 1) AS r"],
-    ];
+      ['SELECT (SELECT 7) = 7 AS r', '((SELECT 7)) = 7 AS r'],
+      ['SELECT 5 IN (SELECT 6) AS r', '5 IN (SELECT 6) AS r'],
+      ['SELECT 5 = ANY (SELECT 6) AS r', '5 = ANY (SELECT 6) AS r'],
+      ['SELECT 5 < ALL (SELECT 6) AS r', '5 < ALL (SELECT 6) AS r'],
+      ['SELECT EXISTS (SELECT 1) AS r', 'EXISTS (SELECT 1) AS r'],
+    ]
     for (const [sql, rendered] of renderings) {
-      const parsed = await parseSql(sql);
-      expect(deparseSync(parsed as never), sql).toContain(rendered);
+      const parsed = await parseSql(sql)
+      expect(deparseSync(parsed as never), sql).toContain(rendered)
     }
-  });
-});
+  })
+})
 
 // ---------------------------------------------------------------------------
 // The acceptance frame for TYPED OPERAND TRACKING. The four targets below were
@@ -734,61 +744,61 @@ describe("evaluation protocol", () => {
 // the general landing-type rule, and they stay.
 // ---------------------------------------------------------------------------
 
-describe("typed operand tracking: the acceptance targets", () => {
-  it("all-unknown || lands on text and folds through textcat", async () => {
+describe('typed operand tracking: the acceptance targets', () => {
+  it('all-unknown || lands on text and folds through textcat', async () => {
     expect(await answers("SELECT 'a' || 'b' AS g")).toEqual([
-      { isNull: false, value: "ab", type: "text" },
-    ]);
-  });
+      { isNull: false, value: 'ab', type: 'text' },
+    ])
+  })
 
-  it("a known text operand types the unknown beside it", async () => {
+  it('a known text operand types the unknown beside it', async () => {
     // Under the name-level gate only the inner call folded (answering
     // 'A'); the target is the WHOLE concatenation: upper's singleton
     // return type meets the one-known landing rule, and text || text is
     // textcat.
     expect(await answers("SELECT upper('a') || 'b' AS g")).toEqual([
-      { isNull: false, value: "Ab", type: "text" },
-    ]);
-  });
+      { isNull: false, value: 'Ab', type: 'text' },
+    ])
+  })
 
-  it("composition: a chained || folds whole", async () => {
+  it('composition: a chained || folds whole', async () => {
     expect(await answers("SELECT 'a' || 'b' || 'c' AS g")).toEqual([
-      { isNull: false, value: "abc", type: "text" },
-    ]);
-  });
+      { isNull: false, value: 'abc', type: 'text' },
+    ])
+  })
 
-  it("BETWEEN folds through its bound comparisons", async () => {
+  it('BETWEEN folds through its bound comparisons', async () => {
     // The AST carries the word BETWEEN instead of an operator name; the
     // desugar gates on <= and >=, which hold per-signature verdicts.
-    expect(await answers("SELECT 5 BETWEEN 1 AND 9 AS g")).toEqual([
-      { isNull: false, value: true, type: "boolean" },
-    ]);
-  });
-});
+    expect(await answers('SELECT 5 BETWEEN 1 AND 9 AS g')).toEqual([
+      { isNull: false, value: true, type: 'boolean' },
+    ])
+  })
+})
 
-describe("GUARD: what no gate refinement may ever fold", () => {
-  const open = async (sql: string) => (await subtreesOf(sql)).roots.length === 0;
+describe('GUARD: what no gate refinement may ever fold', () => {
+  const open = async (sql: string) => (await subtreesOf(sql)).roots.length === 0
 
   it("'a' || 5 stays open: it resolves textanycat, which is STABLE", async () => {
     // The mixed shape renders 5 through session-dependent output
     // machinery. If this ever folds, the survivor gate is consulting the
     // wrong signature's volatility.
-    expect(await answers("SELECT 'a' || 5 AS g")).toEqual([]);
-  });
+    expect(await answers("SELECT 'a' || 5 AS g")).toEqual([])
+  })
 
-  it("a stable-returning call keeps its concatenation open", async () => {
+  it('a stable-returning call keeps its concatenation open', async () => {
     // 'at: ' || to_timestamp(0) — measured moving with TimeZone. Both the
     // call (timestamptz return) and the operator row it forces are outside
     // every capture, on purpose.
-    expect(await answers("SELECT 'at: ' || to_timestamp(0) AS g")).toEqual([]);
-  });
+    expect(await answers("SELECT 'at: ' || to_timestamp(0) AS g")).toEqual([])
+  })
 
-  it("text @@ text stays open: the text row is stable ITSELF", async () => {
+  it('text @@ text stays open: the text row is stable ITSELF', async () => {
     // Unlike ||, no signature split can rescue @@ — ts_match_tt reads
     // default_text_search_config, so the all-unknown landing (text, text)
     // IS the stable row. The counterpart pin holds its pg_proc declaration.
-    expect(await answers("SELECT 'fat cats ate rats' @@ 'fat' AS g")).toEqual([]);
-  });
+    expect(await answers("SELECT 'fat cats ate rats' @@ 'fat' AS g")).toEqual([])
+  })
 
   it("a sublink body's ORDER BY key is READ, on every body shape", async () => {
     // The regression this pins (found and fixed 2026-08-17): `sortClause`
@@ -801,31 +811,31 @@ describe("GUARD: what no gate refinement may ever fold", () => {
     // reaches scope. `VALUES (1),…,(8) ORDER BY random() LIMIT 1` folded a
     // DIFFERENT constant on each of ten analyses (3 2 2 3 2 7 2 3 5 7).
     for (const body of [
-      "VALUES (2),(1) ORDER BY random() LIMIT 1",
-      "VALUES (2),(1) ORDER BY now() LIMIT 1",
-      "VALUES (2),(1) ORDER BY 1 USING > LIMIT 1",
-      "VALUES (2),(1) ORDER BY (SELECT c FROM coll_probe LIMIT 1) LIMIT 1",
-      "SELECT 2 ORDER BY random()",
-      "SELECT 2 UNION SELECT 1 ORDER BY random()",
+      'VALUES (2),(1) ORDER BY random() LIMIT 1',
+      'VALUES (2),(1) ORDER BY now() LIMIT 1',
+      'VALUES (2),(1) ORDER BY 1 USING > LIMIT 1',
+      'VALUES (2),(1) ORDER BY (SELECT c FROM coll_probe LIMIT 1) LIMIT 1',
+      'SELECT 2 ORDER BY random()',
+      'SELECT 2 UNION SELECT 1 ORDER BY random()',
     ]) {
-      expect(await open(`SELECT (${body}) AS g`)).toBe(true);
+      expect(await open(`SELECT (${body}) AS g`)).toBe(true)
     }
-  });
+  })
 
-  it("the no-slice bar reaches a VALUES body too", async () => {
+  it('the no-slice bar reaches a VALUES body too', async () => {
     // A sort makes any body `sliced`, so no limit may take a row from what
     // it leaves — the same bar the plain branch has carried since the free
     // clauses landed. Without the sort the written order stands and the
     // limit is fine (a Values Scan has no deduplication to reorder it),
     // which is the control that keeps this from over-refusing.
-    expect(await open("SELECT (VALUES (2),(1) ORDER BY 1 LIMIT 1) AS g")).toBe(true);
-    expect(await open("SELECT (VALUES (2),(1) ORDER BY 1 OFFSET 1) AS g")).toBe(true);
-    expect(await answers("SELECT (VALUES (2),(1) LIMIT 1) AS g")).toEqual([
-      { isNull: false, value: 2, type: "integer" },
-    ]);
-    expect(await answers("SELECT (VALUES (2),(1) ORDER BY 1) AS g")).toEqual([]);
-  });
-});
+    expect(await open('SELECT (VALUES (2),(1) ORDER BY 1 LIMIT 1) AS g')).toBe(true)
+    expect(await open('SELECT (VALUES (2),(1) ORDER BY 1 OFFSET 1) AS g')).toBe(true)
+    expect(await answers('SELECT (VALUES (2),(1) LIMIT 1) AS g')).toEqual([
+      { isNull: false, value: 2, type: 'integer' },
+    ])
+    expect(await answers('SELECT (VALUES (2),(1) ORDER BY 1) AS g')).toEqual([])
+  })
+})
 
 // ---------------------------------------------------------------------------
 // First-wave widenings, under the corrected dependence model: enums,
@@ -838,100 +848,100 @@ describe("GUARD: what no gate refinement may ever fold", () => {
 // against PGlite before being written down (2026-08-12).
 // ---------------------------------------------------------------------------
 
-describe("first-wave widenings", () => {
-  const open = async (sql: string) => (await subtreesOf(sql)).roots.length === 0;
+describe('first-wave widenings', () => {
+  const open = async (sql: string) => (await subtreesOf(sql)).roots.length === 0
 
   it("a unique enum's cast and comparison fold", async () => {
     expect(await answers("SELECT 'sad'::mood < 'happy'::mood AS g")).toEqual([
-      { isNull: false, value: true, type: "boolean" },
-    ]);
+      { isNull: false, value: true, type: 'boolean' },
+    ])
     expect(await answers("SELECT 'ok'::mood AS g")).toEqual([
-      { isNull: false, value: "ok", type: "mood" },
-    ]);
-  });
+      { isNull: false, value: 'ok', type: 'mood' },
+    ])
+  })
 
   it("a domain threads its canonical base; the chain's CHECKs gate it", async () => {
     // posint threads as integer (operators resolve on the base — measured,
     // pinned in param-mechanism.test.ts); nested runs BOTH chain CHECKs at
     // cast time and still folds, its constraint rendering VALUE pre-cast.
-    expect(await answers("SELECT 5::posint <= 1 AS g")).toEqual([
-      { isNull: false, value: false, type: "boolean" },
-    ]);
-    expect(await answers("SELECT 5::nested <= 1 AS g")).toEqual([
-      { isNull: false, value: false, type: "boolean" },
-    ]);
-  });
+    expect(await answers('SELECT 5::posint <= 1 AS g')).toEqual([
+      { isNull: false, value: false, type: 'boolean' },
+    ])
+    expect(await answers('SELECT 5::nested <= 1 AS g')).toEqual([
+      { isNull: false, value: false, type: 'boolean' },
+    ])
+  })
 
-  it("a CHECK-violating cast raises at evaluation and contributes nothing", async () => {
-    expect(await answers("SELECT 500::nested <= 1 AS g")).toEqual([]);
-  });
+  it('a CHECK-violating cast raises at evaluation and contributes nothing', async () => {
+    expect(await answers('SELECT 500::nested <= 1 AS g')).toEqual([])
+  })
 
-  it("an array-typed literal cast closes on its ELEMENT gate", async () => {
+  it('an array-typed literal cast closes on its ELEMENT gate', async () => {
     // array_in's blanket-stable flag means "elements could be datetime";
     // the element gate answers per element. array_eq is immutable, so the
     // whole comparison folds.
     expect(await answers("SELECT '{1,3}'::int4[] = ARRAY[1,3] AS g")).toEqual([
-      { isNull: false, value: true, type: "boolean" },
-    ]);
-    expect(await open("SELECT '{2020-01-01}'::date[] AS g")).toBe(true);
-  });
+      { isNull: false, value: true, type: 'boolean' },
+    ])
+    expect(await open("SELECT '{2020-01-01}'::date[] AS g")).toBe(true)
+  })
 
-  it("GUARD: a GUC-reading domain CHECK keeps every cast open", async () => {
+  it('GUARD: a GUC-reading domain CHECK keeps every cast open', async () => {
     // gated's CHECK calls current_setting — not immutable, so the recursive
     // gate refuses the domain wholesale; its analysis-time answer would not
     // bind other sessions.
-    expect(await answers("SELECT 5::gated <= 9 AS g")).toEqual([]);
-  });
+    expect(await answers('SELECT 5::gated <= 9 AS g')).toEqual([])
+  })
 
-  it("GUARD: a datetime-based domain stays out with its base", async () => {
-    expect(await answers("SELECT '2020-01-01'::dday AS g")).toEqual([]);
-  });
+  it('GUARD: a datetime-based domain stays out with its base', async () => {
+    expect(await answers("SELECT '2020-01-01'::dday AS g")).toEqual([])
+  })
 
-  it("GUARD: a duplicated enum name stays open — uniqueness, not consensus", async () => {
+  it('GUARD: a duplicated enum name stays open — uniqueness, not consensus', async () => {
     // public.color and s2.color order their labels oppositely: the same
     // spelling answers TRUE or FALSE as search_path moves (measured), so
     // only a name exactly one user type carries may close.
-    expect(await answers("SELECT 'red'::color < 'blue'::color AS g")).toEqual([]);
-  });
+    expect(await answers("SELECT 'red'::color < 'blue'::color AS g")).toEqual([])
+  })
 
-  it("capture shape: the face answers threading renderings", () => {
-    expect(catalog.closedCastTargetType("mood")).toBe("public.mood");
-    expect(catalog.closedCastTargetType("posint")).toBe("integer");
-    expect(catalog.closedCastTargetType("nested")).toBe("integer");
-    expect(catalog.closedCastTargetType("color")).toBeNull();
-    expect(catalog.closedCastTargetType("dday")).toBeNull();
-    expect(catalog.closedCastTargetType("gated")).toBeNull();
-  });
-});
+  it('capture shape: the face answers threading renderings', () => {
+    expect(catalog.closedCastTargetType('mood')).toBe('public.mood')
+    expect(catalog.closedCastTargetType('posint')).toBe('integer')
+    expect(catalog.closedCastTargetType('nested')).toBe('integer')
+    expect(catalog.closedCastTargetType('color')).toBeNull()
+    expect(catalog.closedCastTargetType('dday')).toBeNull()
+    expect(catalog.closedCastTargetType('gated')).toBeNull()
+  })
+})
 
 // ---------------------------------------------------------------------------
 
-describe("catalog face: user names open builtin spellings", () => {
-  let shadowPg: PGlite;
-  let shadowCatalog: SubtreeEvaluationCatalog;
-  let latePathCatalog: SubtreeEvaluationCatalog;
+describe('catalog face: user names open builtin spellings', () => {
+  let shadowPg: PGlite
+  let shadowCatalog: SubtreeEvaluationCatalog
+  let latePathCatalog: SubtreeEvaluationCatalog
 
   beforeAll(async () => {
-    shadowPg = new PGlite();
+    shadowPg = new PGlite()
     await shadowPg.exec(`
       CREATE FUNCTION length(v int) RETURNS int LANGUAGE sql VOLATILE
         AS 'SELECT 1';
       CREATE DOMAIN int4 AS text;
       CREATE OPERATOR = (LEFTARG = point, RIGHTARG = point,
         FUNCTION = point_eq);
-    `);
-    const snapshot = await snapshotCatalog(shadowPg);
-    shadowCatalog = await buildNullabilityCatalog(snapshot);
+    `)
+    const snapshot = await snapshotCatalog(shadowPg)
+    shadowCatalog = await buildNullabilityCatalog(snapshot)
     latePathCatalog = await buildNullabilityCatalog(snapshot, {
-      searchPath: ["public", "pg_catalog"],
-    });
-  }, 60_000);
+      searchPath: ['public', 'pg_catalog'],
+    })
+  }, 60_000)
 
   afterAll(async () => {
-    if (!shadowPg.closed) await shadowPg.close();
-  });
+    if (!shadowPg.closed) await shadowPg.close()
+  })
 
-  it("a user type name does NOT disqualify the builtin — it answers by PATH", () => {
+  it('a user type name does NOT disqualify the builtin — it answers by PATH', () => {
     // This test used to assert the same thing for `isImmutableFunction` and
     // `isImmutableOperator`. Both were deleted 2026-08-20 as dead code: they
     // asked the closure gate's question by bare NAME, the evaluator ended up
@@ -946,43 +956,42 @@ describe("catalog face: user names open builtin spellings", () => {
     // `search_path = public`, PostgreSQL answers `'12'::int4` as INTEGER —
     // measured. The domain only wins the spelling when the path puts
     // pg_catalog after public, and there the face cedes.
-    expect(catalog.isImmutableIoType("int4")).toBe(true);
-    expect(shadowCatalog.isImmutableIoType("int4")).toBe(true);
-    expect(latePathCatalog.isImmutableIoType("int4")).toBe(false);
-  });
+    expect(catalog.isImmutableIoType('int4')).toBe(true)
+    expect(shadowCatalog.isImmutableIoType('int4')).toBe(true)
+    expect(latePathCatalog.isImmutableIoType('int4')).toBe(false)
+  })
 
-  it("the interval faces: strategies by consensus, complement by negator, shadowed names refused", () => {
+  it('the interval faces: strategies by consensus, complement by negator, shadowed names refused', () => {
     // The five canonical shapes come straight off pg_amop; `<>` answers
     // through the equality-negator capture; `||` has no btree membership
     // and never will. The shadow catalog carries a user `=` operator, so
     // the collision rule closes both faces for that name there.
-    expect(catalog.btreeStrategyOf("<")).toBe(1);
-    expect(catalog.btreeStrategyOf("<=")).toBe(2);
-    expect(catalog.btreeStrategyOf("=")).toBe(3);
-    expect(catalog.btreeStrategyOf(">=")).toBe(4);
-    expect(catalog.btreeStrategyOf(">")).toBe(5);
-    expect(catalog.btreeStrategyOf("<>")).toBeNull();
-    expect(catalog.btreeStrategyOf("||")).toBeNull();
-    expect(catalog.isEqualityComplement("<>")).toBe(true);
-    expect(catalog.isEqualityComplement("=")).toBe(false);
-    expect(shadowCatalog.btreeStrategyOf("=")).toBeNull();
-    expect(shadowCatalog.isEqualityComplement("=")).toBe(false);
-  });
+    expect(catalog.btreeStrategyOf('<')).toBe(1)
+    expect(catalog.btreeStrategyOf('<=')).toBe(2)
+    expect(catalog.btreeStrategyOf('=')).toBe(3)
+    expect(catalog.btreeStrategyOf('>=')).toBe(4)
+    expect(catalog.btreeStrategyOf('>')).toBe(5)
+    expect(catalog.btreeStrategyOf('<>')).toBeNull()
+    expect(catalog.btreeStrategyOf('||')).toBeNull()
+    expect(catalog.isEqualityComplement('<>')).toBe(true)
+    expect(catalog.isEqualityComplement('=')).toBe(false)
+    expect(shadowCatalog.btreeStrategyOf('=')).toBeNull()
+    expect(shadowCatalog.isEqualityComplement('=')).toBe(false)
+  })
 
   it("the collation lattice's capture: identity, explicit, non-collatable", () => {
     // The IDENTITY arm rests on this face: a default-collated column's
     // comparisons run under the session's own collation (all ops), an
     // explicit COLLATE keeps deterministic-equality only, and integers
     // read null — the safe arm only a captured column may claim.
-    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "a")).toBe(true);
-    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "b")).toBe(false);
-    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "c")).toBeNull();
-    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "ghost")).toBe(false);
+    expect(catalog.resolveColumnCollationIsDefault('public', 'coll_probe', 'a')).toBe(true)
+    expect(catalog.resolveColumnCollationIsDefault('public', 'coll_probe', 'b')).toBe(false)
+    expect(catalog.resolveColumnCollationIsDefault('public', 'coll_probe', 'c')).toBeNull()
+    expect(catalog.resolveColumnCollationIsDefault('public', 'coll_probe', 'ghost')).toBe(false)
     // A DOMAIN's collation flows into pg_attribute (measured: the ctext
     // column reads the domain's "C", not the default), so domain-collated
     // columns take the explicit arm with no special case in the capture.
-    expect(catalog.resolveColumnCollationIsDefault("public", "coll_probe", "d")).toBe(false);
-    expect(catalog.resolveColumnCollationDeterministic("public", "coll_probe", "d")).toBe(true);
-  });
-
-});
+    expect(catalog.resolveColumnCollationIsDefault('public', 'coll_probe', 'd')).toBe(false)
+    expect(catalog.resolveColumnCollationDeterministic('public', 'coll_probe', 'd')).toBe(true)
+  })
+})

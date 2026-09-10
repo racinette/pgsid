@@ -2,11 +2,7 @@
   "adjudicatedAgainst": "v1.31.1",
   "why": "A NOT NULL column and a non-NULL parameter that equals one of its values.",
   "args": {
-    "GetRestrictedId": [
-      [
-        1
-      ]
-    ]
+    "GetRestrictedId": [[1]]
   },
   "entries": {
     "GetRestrictedId#0 (restricted_id)": {

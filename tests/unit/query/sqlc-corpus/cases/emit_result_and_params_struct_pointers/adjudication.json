@@ -3,14 +3,8 @@
   "why": "Every NULL combination present, plus the all-NULL binding.",
   "args": {
     "GetOne": [
-      [
-        1,
-        2
-      ],
-      [
-        null,
-        null
-      ]
+      [1, 2],
+      [null, null]
     ]
   },
   "entries": {

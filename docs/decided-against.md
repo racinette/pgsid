@@ -14,7 +14,7 @@ because a value was written a certain way requires tracking the VALUE, which
 needs a constant evaluator that must match PostgreSQL exactly or produce
 unsound claims.
 
-*New information arrived:* the premise is dissolved by subtree evaluation —
+_New information arrived:_ the premise is dissolved by subtree evaluation —
 closed trees are answered BY PostgreSQL, so nothing is reimplemented and
 nothing can drift. **The ban's actual object, an engine-internal constant
 evaluator, stays banned.** The rungs become charterable one at a time through
@@ -68,7 +68,7 @@ later flag. What actually produced findings was three older heuristics, each
 with a home now rather than a sweep. A further sweep needs a new argument,
 and "the code has grown again" is not one.
 
-*New argument, and it is not aimed at the code:* the sweep that found
+_New argument, and it is not aimed at the code:_ the sweep that found
 something was aimed at the project's own PROSE — every negative claim written
 down and never executed. Its three findings were one shape: a number or a
 judgment copied out of an instrument that re-derives it, then outliving the
@@ -81,7 +81,7 @@ construction needs, so mutation buys no validity for free — and it is bounded
 by the shapes the corpus already contains, which is the opposite of what a
 generator is for.
 
-*The wrap-invariance suite is not a re-opening.* Its oracle is the engine's
+_The wrap-invariance suite is not a re-opening._ Its oracle is the engine's
 own MONOTONICITY across a representation crossing, not execution: it detects
 precision LOSS, which the execution oracle is one-sided against and which no
 other suite checks. Blind wrapping preserves validity trivially, so the

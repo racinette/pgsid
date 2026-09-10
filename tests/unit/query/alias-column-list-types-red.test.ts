@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import type { NullabilityCatalog } from "../../../src/query/types.js";
-import { readingsFor } from "./type-unions.js";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import type { NullabilityCatalog } from '../../../src/query/types.js'
+import { readingsFor } from './type-unions.js'
 
 // ---------------------------------------------------------------------------
 // A FROM item's alias COLUMN LIST renames the relation's columns for the
@@ -30,77 +30,73 @@ import { readingsFor } from "./type-unions.js";
 const SCHEMA = `
 CREATE TABLE t (x integer NOT NULL, y numeric NOT NULL);
 CREATE TABLE u (p bigint NOT NULL, q text NOT NULL, r date NOT NULL);
-`;
+`
 
-describe("alias column lists translate for TYPES, not only for facts", () => {
-  let pg: PGlite;
-  let catalog: NullabilityCatalog;
+describe('alias column lists translate for TYPES, not only for facts', () => {
+  let pg: PGlite
+  let catalog: NullabilityCatalog
 
   beforeAll(async () => {
-    pg = await PGlite.create();
-    await pg.exec(SCHEMA);
-    catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
-  });
+    pg = await PGlite.create()
+    await pg.exec(SCHEMA)
+    catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
+  })
 
   afterAll(async () => {
-    await pg.close();
-  });
+    await pg.close()
+  })
 
   /** What PostgreSQL resolves each output column of `sql` to. Parse analysis
    *  only — PREPARE never executes and never plans. */
   async function pgTypes(sql: string): Promise<string[]> {
-    await pg.exec(`PREPARE probe AS ${sql}`);
+    await pg.exec(`PREPARE probe AS ${sql}`)
     const r = await pg.query<{ rt: string[] }>(
       "SELECT result_types::text[] AS rt FROM pg_prepared_statements WHERE name = 'probe'",
-    );
-    await pg.exec("DEALLOCATE probe");
-    return r.rows[0]?.rt ?? [];
+    )
+    await pg.exec('DEALLOCATE probe')
+    return r.rows[0]?.rt ?? []
   }
 
   /** The single set the walk read for `expr` while analysing `sql`. */
   async function walkSet(sql: string, expr: string): Promise<string[] | null | undefined> {
-    const byExpr = await readingsFor(sql, catalog);
-    const rec = byExpr.get(expr);
+    const byExpr = await readingsFor(sql, catalog)
+    const rec = byExpr.get(expr)
     // A probe matching nothing must fail loudly rather than pass vacuously.
-    expect(rec, `the walk read no type set for \`${expr}\` in: ${sql}`).toBeDefined();
-    return rec!.sets[0];
+    expect(rec, `the walk read no type set for \`${expr}\` in: ${sql}`).toBeDefined()
+    return rec!.sets[0]
   }
 
   it("reads the renamed column's catalog type", async () => {
-    const sql = "SELECT s.b + 1 AS v FROM t s(a, b) WHERE s.a > 0";
-    expect(await pgTypes("SELECT s.a, s.b FROM t s(a, b)")).toEqual(["integer", "numeric"]);
-    expect(await walkSet(sql, "s.b")).toEqual(["numeric"]);
-    expect(await walkSet(sql, "s.a")).toEqual(["integer"]);
-  });
+    const sql = 'SELECT s.b + 1 AS v FROM t s(a, b) WHERE s.a > 0'
+    expect(await pgTypes('SELECT s.a, s.b FROM t s(a, b)')).toEqual(['integer', 'numeric'])
+    expect(await walkSet(sql, 's.b')).toEqual(['numeric'])
+    expect(await walkSet(sql, 's.a')).toEqual(['integer'])
+  })
 
-  it("follows POSITION, not name, when the list swaps two catalog names", async () => {
+  it('follows POSITION, not name, when the list swaps two catalog names', async () => {
     // The nastiest spelling: the alias list reuses the catalog's own names in
     // the wrong order. `s.y` is the FIRST column — `t.x`, an integer — and a
     // reader that skips the translation, or applies it backwards, answers
     // `numeric` here and looks right everywhere else.
-    const sql = "SELECT s.y + 1 AS v FROM t s(y, x) WHERE s.x > 0";
-    expect(await pgTypes("SELECT s.y, s.x FROM t s(y, x)")).toEqual(["integer", "numeric"]);
-    expect(await walkSet(sql, "s.y")).toEqual(["integer"]);
-    expect(await walkSet(sql, "s.x")).toEqual(["numeric"]);
-  });
+    const sql = 'SELECT s.y + 1 AS v FROM t s(y, x) WHERE s.x > 0'
+    expect(await pgTypes('SELECT s.y, s.x FROM t s(y, x)')).toEqual(['integer', 'numeric'])
+    expect(await walkSet(sql, 's.y')).toEqual(['integer'])
+    expect(await walkSet(sql, 's.x')).toEqual(['numeric'])
+  })
 
-  it("handles a PARTIAL list, where columns past its end keep their own names", async () => {
-    const sql = "SELECT s.a + 1 AS v FROM u s(a, b) WHERE s.r > CURRENT_DATE";
-    expect(await pgTypes("SELECT s.a, s.b, s.r FROM u s(a, b)")).toEqual([
-      "bigint",
-      "text",
-      "date",
-    ]);
-    expect(await walkSet(sql, "s.a")).toEqual(["bigint"]);
-    expect(await walkSet(sql, "s.r")).toEqual(["date"]);
-  });
+  it('handles a PARTIAL list, where columns past its end keep their own names', async () => {
+    const sql = 'SELECT s.a + 1 AS v FROM u s(a, b) WHERE s.r > CURRENT_DATE'
+    expect(await pgTypes('SELECT s.a, s.b, s.r FROM u s(a, b)')).toEqual(['bigint', 'text', 'date'])
+    expect(await walkSet(sql, 's.a')).toEqual(['bigint'])
+    expect(await walkSet(sql, 's.r')).toEqual(['date'])
+  })
 
-  it("refuses a catalog name the rename has HIDDEN", async () => {
+  it('refuses a catalog name the rename has HIDDEN', async () => {
     // PostgreSQL rejects `s.x` once the list renamed that column, so the walk
     // must make no claim rather than answer from the catalog. Refusing this
     // is as much of the translation as resolving the other direction.
-    await expect(pgTypes("SELECT s.x FROM t s(a, b)")).rejects.toThrow(/column s\.x does not exist/);
-    const sql = "SELECT s.b + 1 AS v FROM t s(a, b)";
-    expect(await walkSet(sql, "s.b")).toEqual(["numeric"]);
-  });
-});
+    await expect(pgTypes('SELECT s.x FROM t s(a, b)')).rejects.toThrow(/column s\.x does not exist/)
+    const sql = 'SELECT s.b + 1 AS v FROM t s(a, b)'
+    expect(await walkSet(sql, 's.b')).toEqual(['numeric'])
+  })
+})

@@ -1,22 +1,22 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { uuid_ossp } from "@electric-sql/pglite/contrib/uuid_ossp";
-import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
-import { ltree } from "@electric-sql/pglite/contrib/ltree";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { citext } from "@electric-sql/pglite/contrib/citext";
-import { parseSql } from "../../../src/ast.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { createKillableEvaluator } from "./killable-evaluator.js";
-import { inferNullability, UnsupportedNodeError } from "../../../src/query/nullability-walk.js";
-import type { JoinAudit } from "../../../src/query/types.js";
+import { describe, it, expect, beforeAll } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { uuid_ossp } from '@electric-sql/pglite/contrib/uuid_ossp'
+import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto'
+import { ltree } from '@electric-sql/pglite/contrib/ltree'
+import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm'
+import { citext } from '@electric-sql/pglite/contrib/citext'
+import { parseSql } from '../../../src/ast.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import { createKillableEvaluator } from './killable-evaluator.js'
+import { inferNullability, UnsupportedNodeError } from '../../../src/query/nullability-walk.js'
+import type { JoinAudit } from '../../../src/query/types.js'
 import {
   classifyPlannerStronger,
   countPlanOuterJoins,
   survivingOuterJoins,
-} from "./explain-instrument.js";
-import { delegateTypesVia } from "./delegate-types.js";
+} from './explain-instrument.js'
+import { delegateTypesVia } from './delegate-types.js'
 import {
   loadSqlcCases,
   sqlcExpectedNullability,
@@ -24,7 +24,7 @@ import {
   SQLC_VERSION,
   DISAGREEMENTS,
   ADJUDICATED,
-} from "./sqlc-corpus.js";
+} from './sqlc-corpus.js'
 
 // ---------------------------------------------------------------------------
 // The sqlc borrowed corpus, judged by PostgreSQL. See
@@ -118,14 +118,14 @@ const PINS = {
   // IR arity differs — a lead about sqlc's shape handling, visible in the
   // register.
   minerShapeSkew: 1,
-};
+}
 
 const tally: Record<keyof typeof PINS, number> = Object.fromEntries(
-  Object.keys(PINS).map(k => [k, 0]),
-) as never;
-const hardViolations: string[] = [];
-const refusalKeys = new Map<string, number>();
-const explainFailKeys = new Map<string, number>();
+  Object.keys(PINS).map((k) => [k, 0]),
+) as never
+const hardViolations: string[] = []
+const refusalKeys = new Map<string, number>()
+const explainFailKeys = new Map<string, number>()
 
 /**
  * Every disagreeing column, BY NAME. The census above counts them; this says
@@ -135,7 +135,7 @@ const explainFailKeys = new Map<string, number>();
  * disagreement register heads its entries, so the pin and the register
  * are greppable to each other.
  */
-const disagreements = new Map<string, string>();
+const disagreements = new Map<string, string>()
 /**
  * The same keys, re-derived FROM ROWS under each case's own `data.sql`:
  * `sqlc-convicted` when a column sqlc calls NOT NULL came back NULL,
@@ -144,9 +144,9 @@ const disagreements = new Map<string, string>();
  * verdict at all — it is an unsoundness, and it lands in hardViolations where
  * no pin can absorb it.
  */
-const adjudicated = new Map<string, string>();
+const adjudicated = new Map<string, string>()
 /** Statements a data state made raise — never silently dropped. */
-const adjudicationErrors: string[] = [];
+const adjudicationErrors: string[] = []
 /**
  * Structural problems in OUR half of a case directory: a conclusion drawn
  * against a different sqlc release, an entry key naming a column that no
@@ -154,29 +154,29 @@ const adjudicationErrors: string[] = [];
  * per-case files and the corpus can part without any claim being wrong, which
  * is exactly the drift the layout exists to make loud.
  */
-const adjudicationDrift: string[] = [];
+const adjudicationDrift: string[] = []
 
-describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
+describe('sqlc borrowed corpus (PostgreSQL-judged)', () => {
   beforeAll(async () => {
-    const cases = loadSqlcCases();
-    tally.cases = cases.length;
+    const cases = loadSqlcCases()
+    tally.cases = cases.length
     for (const c of cases) {
       // A conclusion is only about the release it was drawn against.
       if (c.adjudication && c.adjudication.adjudicatedAgainst !== SQLC_VERSION) {
         adjudicationDrift.push(
           `${c.name}: adjudicated against ${c.adjudication.adjudicatedAgainst}, ` +
             `corpus is ${SQLC_VERSION} — re-run the state and re-read the conclusion`,
-        );
+        )
       }
       // data.sql without a conclusion is a state nobody drew anything from.
       if (c.data && !c.adjudication) {
-        adjudicationDrift.push(`${c.name}: data.sql with no adjudication.json`);
+        adjudicationDrift.push(`${c.name}: data.sql with no adjudication.json`)
       }
     }
     const pg = await PGlite.create({
       extensions: { uuid_ossp, pgcrypto, ltree, pg_trgm, citext },
-    });
-    let stmtCounter = 0;
+    })
+    let stmtCounter = 0
     // Probes run on a KILLABLE instance (killable-evaluator.ts). This corpus
     // is EXTERNAL SQL, so it is the most likely place for a probe PGlite
     // will not finish — and on the shared `pg` such a probe blocks the
@@ -186,67 +186,67 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
     // one round trip. It is re-opened after a kill, so a case never
     // silently continues against an empty database.
     const evaluator = await createKillableEvaluator({
-      extensions: ["uuid_ossp", "pgcrypto", "ltree", "pg_trgm", "citext"],
-    });
+      extensions: ['uuid_ossp', 'pgcrypto', 'ltree', 'pg_trgm', 'citext'],
+    })
 
     for (const c of cases) {
-      await pg.exec("BEGIN;");
-      let catalog;
+      await pg.exec('BEGIN;')
+      let catalog
       try {
-        await pg.exec(c.schema);
-        catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
-        await evaluator.beginScope(c.schema);
+        await pg.exec(c.schema)
+        catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
+        await evaluator.beginScope(c.schema)
       } catch {
-        tally.schemaFailed++;
-        await pg.exec("ROLLBACK;");
-        continue;
+        tally.schemaFailed++
+        await pg.exec('ROLLBACK;')
+        continue
       }
 
       // The half sqlc does not ship: `data.sql` beside the vendored files.
       // Applied once per case, inside the case's own transaction, so every
       // query below sees it and the ROLLBACK at the end takes it away again.
-      const caseData = c.adjudication;
+      const caseData = c.adjudication
       /** Entry keys this run actually reached, for the stale-conclusion check. */
-      const usedEntries = new Set<string>();
+      const usedEntries = new Set<string>()
       if (c.data) {
         try {
-          await pg.exec(c.data);
+          await pg.exec(c.data)
         } catch (e) {
-          hardViolations.push(`${c.name}: data.sql failed: ${(e as Error).message}`);
+          hardViolations.push(`${c.name}: data.sql failed: ${(e as Error).message}`)
         }
       }
 
       for (const q of c.queries) {
-        tally.queries++;
+        tally.queries++
         if (SQLC_MACRO_RE.test(q.sql)) {
-          tally.macroSkipped++;
-          continue;
+          tally.macroSkipped++
+          continue
         }
-        const bare = q.sql.replace(/;\s*$/, "");
+        const bare = q.sql.replace(/;\s*$/, '')
 
-        await pg.exec("SAVEPOINT q;");
-        let prepared = false;
+        await pg.exec('SAVEPOINT q;')
+        let prepared = false
         try {
-          await pg.exec(`PREPARE sqlc_probe_${stmtCounter++} AS ${bare}`);
-          prepared = true;
+          await pg.exec(`PREPARE sqlc_probe_${stmtCounter++} AS ${bare}`)
+          prepared = true
         } catch {
-          tally.prepareFailed++;
-          await pg.exec("ROLLBACK TO SAVEPOINT q;");
+          tally.prepareFailed++
+          await pg.exec('ROLLBACK TO SAVEPOINT q;')
         }
-        if (!prepared) continue;
+        if (!prepared) continue
 
-        let stmt;
+        let stmt
         try {
-          stmt = (await parseSql(q.sql)).stmts?.[0]?.stmt;
-          if (!stmt) throw new Error("no statement");
+          stmt = (await parseSql(q.sql)).stmts?.[0]?.stmt
+          if (!stmt) throw new Error('no statement')
         } catch (e) {
-          tally.crashed++;
-          hardViolations.push(`${c.name}/${q.name}: parse: ${(e as Error).message}`);
-          continue;
+          tally.crashed++
+          hardViolations.push(`${c.name}/${q.name}: parse: ${(e as Error).message}`)
+          continue
         }
 
-        const joinAudit: JoinAudit[] = [];
-        let claims;
+        const joinAudit: JoinAudit[] = []
+        let claims
         try {
           claims = await inferNullability(stmt, catalog, {
             joinAudit,
@@ -266,114 +266,114 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
             // the fixture corpus never poses, and the judge here is
             // PostgreSQL — the same one the delegation asks.
             resolveColumnTypes: delegateTypesVia(evaluator.evaluate),
-          });
-          tally.analyzed++;
+          })
+          tally.analyzed++
         } catch (e) {
           if (e instanceof UnsupportedNodeError) {
-            tally.refused++;
-            const key = `${e.site}:${e.nodeType}`;
-            refusalKeys.set(key, (refusalKeys.get(key) ?? 0) + 1);
+            tally.refused++
+            const key = `${e.site}:${e.nodeType}`
+            refusalKeys.set(key, (refusalKeys.get(key) ?? 0) + 1)
           } else {
-            tally.crashed++;
-            hardViolations.push(`${c.name}/${q.name}: ${(e as Error).message.slice(0, 140)}`);
+            tally.crashed++
+            hardViolations.push(`${c.name}/${q.name}: ${(e as Error).message.slice(0, 140)}`)
           }
-          await pg.exec("ROLLBACK TO SAVEPOINT q;");
-          continue;
+          await pg.exec('ROLLBACK TO SAVEPOINT q;')
+          continue
         }
 
         // Shape, against the empty schema; the binding cannot change the
         // column list, so NULL literals stand in for every parameter. Its
         // OWN savepoint: a tolerated execution failure must not poison the
         // transaction the EXPLAIN below still needs.
-        await pg.exec("SAVEPOINT shape;");
+        await pg.exec('SAVEPOINT shape;')
         try {
-          const fields = (await pg.query(bare.replace(/\$\d+/g, "NULL"))).fields;
+          const fields = (await pg.query(bare.replace(/\$\d+/g, 'NULL'))).fields
           if (fields.length !== claims.length) {
-            tally.countMismatch++;
+            tally.countMismatch++
             hardViolations.push(
               `${c.name}/${q.name}: shape: engine=${claims.length} pg=${fields.length}`,
-            );
+            )
           } else {
             for (let i = 0; i < fields.length; i++) {
-              const en = claims[i]!.name;
-              if (en !== "" && en !== fields[i]!.name) tally.nameMismatch++;
+              const en = claims[i]!.name
+              if (en !== '' && en !== fields[i]!.name) tally.nameMismatch++
             }
           }
         } catch {
           /* execution-only failure (a cast NULL cannot satisfy); PREPARE already gated */
         } finally {
-          await pg.exec("ROLLBACK TO SAVEPOINT shape;");
+          await pg.exec('ROLLBACK TO SAVEPOINT shape;')
         }
 
         // EXPLAIN census.
         try {
-          const opts = /\$\d/.test(bare) ? "FORMAT JSON, GENERIC_PLAN" : "FORMAT JSON";
-          const res = await pg.exec(`EXPLAIN (${opts}) ${bare}`);
+          const opts = /\$\d/.test(bare) ? 'FORMAT JSON, GENERIC_PLAN' : 'FORMAT JSON'
+          const res = await pg.exec(`EXPLAIN (${opts}) ${bare}`)
           // A query with a trailing comment after its semicolon makes exec
           // see two statements; the plan sits on the last result WITH rows.
           const planRow = res
-            .flatMap(r => r.rows as Record<string, unknown>[])
-            .filter(r => r && "QUERY PLAN" in r)
-            .pop();
-          const tree = planRow?.["QUERY PLAN"];
-          if (tree === undefined) throw new Error("no QUERY PLAN row");
-          const plan = countPlanOuterJoins(tree);
-          const surviving = survivingOuterJoins(joinAudit, claims);
+            .flatMap((r) => r.rows as Record<string, unknown>[])
+            .filter((r) => r && 'QUERY PLAN' in r)
+            .pop()
+          const tree = planRow?.['QUERY PLAN']
+          if (tree === undefined) throw new Error('no QUERY PLAN row')
+          const plan = countPlanOuterJoins(tree)
+          const surviving = survivingOuterJoins(joinAudit, claims)
           if (surviving > plan) {
-            tally.plannerStronger++;
-            const cause = classifyPlannerStronger(stmt, tree);
+            tally.plannerStronger++
+            const cause = classifyPlannerStronger(stmt, tree)
             if (cause === null) {
               hardViolations.push(
                 `${c.name}/${q.name}: planner-stronger UNEXPLAINED (surviving=${surviving} plan=${plan})`,
-              );
+              )
             }
           }
         } catch (e) {
-          tally.explainFailed++;
-          const key = `${c.name}/${q.name}: ${(e as Error).message.slice(0, 90)}`;
-          explainFailKeys.set(key, (explainFailKeys.get(key) ?? 0) + 1);
+          tally.explainFailed++
+          const key = `${c.name}/${q.name}: ${(e as Error).message.slice(0, 90)}`
+          explainFailKeys.set(key, (explainFailKeys.get(key) ?? 0) + 1)
         }
-        await pg.exec("ROLLBACK TO SAVEPOINT q;");
+        await pg.exec('ROLLBACK TO SAVEPOINT q;')
 
         // The miner census (full register: tests/probe/sqlc-register.ts).
-        const expected = sqlcExpectedNullability(c, q);
-        const disagreeing: number[] = [];
-        if (typeof expected === "string") {
-          tally.minerUndecodable++;
+        const expected = sqlcExpectedNullability(c, q)
+        const disagreeing: number[] = []
+        if (typeof expected === 'string') {
+          tally.minerUndecodable++
         } else if (expected.length !== claims.length) {
-          tally.minerShapeSkew++;
+          tally.minerShapeSkew++
           disagreements.set(
             `${c.name}/${q.name}`,
             `shape-skew: sqlc ${expected.length}, walk ${claims.length}`,
-          );
+          )
           // An arity skew is settled by the shape oracle above, which already
           // compared the walk's column list to a real execution's — there is
           // no column to look for a NULL in, so the conclusion stands alone.
-          usedEntries.add(q.name);
-          const skew = c.adjudication?.entries[q.name];
+          usedEntries.add(q.name)
+          const skew = c.adjudication?.entries[q.name]
           if (!skew) {
-            adjudicationDrift.push(`${c.name}: no adjudication.json entry for "${q.name}"`);
+            adjudicationDrift.push(`${c.name}: no adjudication.json entry for "${q.name}"`)
           }
           adjudicated.set(
             `${c.name}/${q.name}`,
-            `shape-skew · ${skew?.disposition ?? "UNADJUDICATED"}` +
-              (skew?.ticket ? ` (${skew.ticket})` : ""),
-          );
+            `shape-skew · ${skew?.disposition ?? 'UNADJUDICATED'}` +
+              (skew?.ticket ? ` (${skew.ticket})` : ''),
+          )
         } else {
           for (let i = 0; i < expected.length; i++) {
-            const s = expected[i]!.notNull;
-            const p = claims[i]!.notNull;
+            const s = expected[i]!.notNull
+            const p = claims[i]!.notNull
             if (s === p) {
-              tally.minerAgree++;
-              continue;
+              tally.minerAgree++
+              continue
             }
-            if (p && !s) tally.minerPgsidStronger++;
-            else tally.minerSqlcStronger++;
-            disagreeing.push(i);
+            if (p && !s) tally.minerPgsidStronger++
+            else tally.minerSqlcStronger++
+            disagreeing.push(i)
             disagreements.set(
               `${c.name}/${q.name}#${i} (${expected[i]!.column})`,
-              p && !s ? "pgsid-stronger" : "sqlc-stronger",
-            );
+              p && !s ? 'pgsid-stronger' : 'sqlc-stronger',
+            )
           }
         }
 
@@ -383,28 +383,28 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
         // analyzed queries and inventing a binding for one nobody reasoned
         // about would manufacture rows with no argument behind them — the
         // opposite of what this layer is for.
-        if (!caseData || typeof expected === "string") continue;
-        const bindings = caseData.args?.[q.name] ?? (/\$\d/.test(bare) ? null : [[]]);
-        if (!bindings) continue;
+        if (!caseData || typeof expected === 'string') continue
+        const bindings = caseData.args?.[q.name] ?? (/\$\d/.test(bare) ? null : [[]])
+        if (!bindings) continue
 
-        const sawNull = new Set<number>();
-        let rowsSeen = 0;
+        const sawNull = new Set<number>()
+        let rowsSeen = 0
         for (const args of bindings) {
-          await pg.exec("SAVEPOINT adj;");
+          await pg.exec('SAVEPOINT adj;')
           try {
-            const res = await pg.query(bare, args as unknown[], { rowMode: "array" });
-            rowsSeen += res.rows.length;
+            const res = await pg.query(bare, args as unknown[], { rowMode: 'array' })
+            rowsSeen += res.rows.length
             for (const row of res.rows as unknown[][]) {
               row.forEach((v, i) => {
-                if (v === null) sawNull.add(i);
-              });
+                if (v === null) sawNull.add(i)
+              })
             }
           } catch (e) {
             adjudicationErrors.push(
               `${c.name}/${q.name} [${JSON.stringify(args)}]: ${(e as Error).message}`,
-            );
+            )
           } finally {
-            await pg.exec("ROLLBACK TO SAVEPOINT adj;");
+            await pg.exec('ROLLBACK TO SAVEPOINT adj;')
           }
         }
 
@@ -416,34 +416,32 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
             hardViolations.push(
               `PGSID UNSOUNDNESS ${c.name}/${q.name}#${i} (${claims[i]!.name}): ` +
                 `claimed notNull, a row under the recorded state has NULL`,
-            );
+            )
           }
         }
 
         for (const i of disagreeing) {
-          const local = `${q.name}#${i} (${expected[i]!.column})`;
+          const local = `${q.name}#${i} (${expected[i]!.column})`
           const verdict = sawNull.has(i)
             ? claims[i]!.notNull
-              ? "pgsid-convicted"
-              : "sqlc-convicted"
+              ? 'pgsid-convicted'
+              : 'sqlc-convicted'
             : rowsSeen === 0
-              ? "no-rows"
-              : "attempted";
+              ? 'no-rows'
+              : 'attempted'
           // The verdict is what the rows say; the disposition is what it MEANT,
           // and the pair is what the register prints. A disagreement with no
           // conclusion beside it is unfinished work, not a passing test.
-          usedEntries.add(local);
-          const entry = caseData.entries[local];
+          usedEntries.add(local)
+          const entry = caseData.entries[local]
           if (!entry) {
-            adjudicationDrift.push(
-              `${c.name}: no adjudication.json entry for "${local}"`,
-            );
+            adjudicationDrift.push(`${c.name}: no adjudication.json entry for "${local}"`)
           }
           adjudicated.set(
             `${c.name}/${local}`,
-            `${verdict} · ${entry?.disposition ?? "UNADJUDICATED"}` +
-              (entry?.ticket ? ` (${entry.ticket})` : ""),
-          );
+            `${verdict} · ${entry?.disposition ?? 'UNADJUDICATED'}` +
+              (entry?.ticket ? ` (${entry.ticket})` : ''),
+          )
         }
       }
 
@@ -455,57 +453,57 @@ describe("sqlc borrowed corpus (PostgreSQL-judged)", () => {
         if (!usedEntries.has(key)) {
           adjudicationDrift.push(
             `${c.name}: adjudication.json entry "${key}" no longer disagrees — re-read it`,
-          );
+          )
         }
       }
-      await pg.exec("ROLLBACK;");
-      await evaluator.endScope();
+      await pg.exec('ROLLBACK;')
+      await evaluator.endScope()
     }
-    await evaluator.close();
-    await pg.close();
-  }, 600_000);
+    await evaluator.close()
+    await pg.close()
+  }, 600_000)
 
-  it("nothing crashes, shapes match, every planner divergence classifies", () => {
-    expect(hardViolations).toEqual([]);
-  });
+  it('nothing crashes, shapes match, every planner divergence classifies', () => {
+    expect(hardViolations).toEqual([])
+  })
 
-  it("the census holds its pins", () => {
-    expect(tally).toEqual(PINS);
-  });
+  it('the census holds its pins', () => {
+    expect(tally).toEqual(PINS)
+  })
 
-  it("refusals and explain failures are pinned by key", () => {
-    expect([...refusalKeys.entries()].sort()).toEqual([]);
+  it('refusals and explain failures are pinned by key', () => {
+    expect([...refusalKeys.entries()].sort()).toEqual([])
     expect([...explainFailKeys.keys()]).toEqual([
-      "on_duplicate_key_update/UpsertAuthor: there is no unique or exclusion constraint matching the ON CONFLICT specification",
-    ]);
-  });
+      'on_duplicate_key_update/UpsertAuthor: there is no unique or exclusion constraint matching the ON CONFLICT specification',
+    ])
+  })
 
-  it("every disagreement is pinned by name", () => {
-    expect(Object.fromEntries([...disagreements].sort())).toEqual(DISAGREEMENTS);
-  });
+  it('every disagreement is pinned by name', () => {
+    expect(Object.fromEntries([...disagreements].sort())).toEqual(DISAGREEMENTS)
+  })
 
   it("every disagreement's verdict and disposition are pinned by name", () => {
-    expect(Object.fromEntries([...adjudicated].sort())).toEqual(ADJUDICATED);
-  });
+    expect(Object.fromEntries([...adjudicated].sort())).toEqual(ADJUDICATED)
+  })
 
-  it("our half of every case is current", () => {
+  it('our half of every case is current', () => {
     // Four ways the per-case files and the corpus can part without any claim
     // being wrong: a conclusion drawn against another sqlc release, a state
     // with no conclusion, a disagreement with no entry, an entry whose
     // disagreement is gone. Each is the drift a count-only pin absorbed.
-    expect(adjudicationDrift).toEqual([]);
-  });
+    expect(adjudicationDrift).toEqual([])
+  })
 
-  it("no data state raises", () => {
-    expect(adjudicationErrors).toEqual([]);
-  });
+  it('no data state raises', () => {
+    expect(adjudicationErrors).toEqual([])
+  })
 
-  it("corpus report", () => {
+  it('corpus report', () => {
     console.log(
       `sqlc corpus: ${JSON.stringify(tally)}\n  refusals: ${JSON.stringify([...refusalKeys])}` +
         `\n  explain-fail: ${JSON.stringify([...explainFailKeys])}` +
         `\n  disagreements: ${JSON.stringify(Object.fromEntries([...disagreements].sort()), null, 1)}` +
         `\n  adjudicated: ${JSON.stringify(Object.fromEntries([...adjudicated].sort()), null, 1)}`,
-    );
-  });
-});
+    )
+  })
+})

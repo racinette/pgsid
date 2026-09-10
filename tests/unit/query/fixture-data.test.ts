@@ -1,12 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import type { CatalogSnapshot } from "../../../src/catalog/types.js";
-import {
-  generateFixtureData,
-  nullRate,
-  type GeneratorRegistry,
-} from "./fixture-data/generate.js";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import type { CatalogSnapshot } from '../../../src/catalog/types.js'
+import { generateFixtureData, nullRate, type GeneratorRegistry } from './fixture-data/generate.js'
 
 // ---------------------------------------------------------------------------
 // The generation framework's own rules, against a schema built to exercise
@@ -54,125 +50,125 @@ const SCHEMA = `
     b integer NOT NULL REFERENCES parent(id),
     PRIMARY KEY (a, b)
   );
-`;
+`
 
 /** Enough to fill the schema above; individual tests override pieces of it. */
 function baseRegistry(): GeneratorRegistry {
   return {
     byType: {
       public: {
-        integer: rand => rand.int(1, 100),
-        text: rand => `t${rand.int(1, 9)}`,
-        numeric: rand => rand.decimal(0, 1000, 2),
-        pct: rand => rand.decimal(0, 100, 2),
+        integer: (rand) => rand.int(1, 100),
+        text: (rand) => `t${rand.int(1, 9)}`,
+        numeric: (rand) => rand.decimal(0, 1000, 2),
+        pct: (rand) => rand.decimal(0, 100, 2),
       },
     },
     byColumn: {},
     rowCounts: { public: { parent: [4, 4], child: [6, 6], tree: [5, 5], pairing: [12, 12] } },
-  };
+  }
 }
 
 /** Parse the emitted SQL back into per-table column lists and value tuples. */
 function parseInserts(sql: string): Map<string, { columns: string[]; rows: string[][] }> {
-  const out = new Map<string, { columns: string[]; rows: string[][] }>();
-  for (const statement of sql.split(";\n").filter(s => s.trim())) {
-    const head = /INSERT INTO "([^"]+)"\."([^"]+)" \(([^)]*)\) VALUES/.exec(statement);
-    if (!head) continue;
-    const columns = head[3]!.split(", ").map(c => c.replace(/"/g, ""));
-    const rows = [...statement.matchAll(/^ {2}\((.*)\),?$/gm)].map(m =>
+  const out = new Map<string, { columns: string[]; rows: string[][] }>()
+  for (const statement of sql.split(';\n').filter((s) => s.trim())) {
+    const head = /INSERT INTO "([^"]+)"\."([^"]+)" \(([^)]*)\) VALUES/.exec(statement)
+    if (!head) continue
+    const columns = head[3]!.split(', ').map((c) => c.replace(/"/g, ''))
+    const rows = [...statement.matchAll(/^ {2}\((.*)\),?$/gm)].map((m) =>
       // Values never contain a comma inside a literal in this schema.
-      m[1]!.split(", "),
-    );
-    out.set(`${head[1]}.${head[2]}`, { columns, rows });
+      m[1]!.split(', '),
+    )
+    out.set(`${head[1]}.${head[2]}`, { columns, rows })
   }
-  return out;
+  return out
 }
 
-describe("fixture data generation", () => {
-  let pg: PGlite;
-  let snapshot: CatalogSnapshot;
+describe('fixture data generation', () => {
+  let pg: PGlite
+  let snapshot: CatalogSnapshot
 
   beforeAll(async () => {
-    pg = await PGlite.create();
-    await pg.exec(SCHEMA);
-    snapshot = await snapshotCatalog(pg);
-  });
+    pg = await PGlite.create()
+    await pg.exec(SCHEMA)
+    snapshot = await snapshotCatalog(pg)
+  })
 
   afterAll(async () => {
-    if (!pg.closed) await pg.close();
-  });
+    if (!pg.closed) await pg.close()
+  })
 
   // -- what gets a value at all -------------------------------------------
 
-  it("omits generated and ALWAYS-identity columns, fills defaults and BY DEFAULT identity", () => {
+  it('omits generated and ALWAYS-identity columns, fills defaults and BY DEFAULT identity', () => {
     const { columns } = parseInserts(
       generateFixtureData(snapshot, { registry: baseRegistry() }).sql,
-    ).get("public.child")!;
+    ).get('public.child')!
 
     // PostgreSQL computes these; naming them in an INSERT is an error.
-    expect(columns).not.toContain("doubled");
-    expect(columns).not.toContain("seq");
+    expect(columns).not.toContain('doubled')
+    expect(columns).not.toContain('seq')
 
     // A BY DEFAULT identity accepts an explicit value, and a foreign key can
     // only draw from keys that are already known.
-    expect(columns).toContain("soft");
+    expect(columns).toContain('soft')
 
     // A DEFAULT would override the NULL a null policy chose, so the generator
     // says something about the column instead of deferring.
-    expect(columns).toContain("country");
-  });
+    expect(columns).toContain('country')
+  })
 
-  it("never writes NULL into a NOT NULL domain column, constraint or no constraint", () => {
+  it('never writes NULL into a NOT NULL domain column, constraint or no constraint', () => {
     // parent.weight has no attnotnull — its refusal of NULL lives in the pct
     // domain, which the column flag does not reflect. A generated NULL there
     // is not a nullable witness; it makes the whole state fail to load when
     // the domain rejects the coercion.
     const { columns, rows } = parseInserts(
       generateFixtureData(snapshot, { registry: baseRegistry() }).sql,
-    ).get("public.parent")!;
-    const weight = columns.indexOf("weight");
-    expect(weight).toBeGreaterThanOrEqual(0);
+    ).get('public.parent')!
+    const weight = columns.indexOf('weight')
+    expect(weight).toBeGreaterThanOrEqual(0)
     for (const row of rows) {
-      expect(row[weight], "NULL generated into a NOT NULL domain column").not.toBe("NULL");
+      expect(row[weight], 'NULL generated into a NOT NULL domain column').not.toBe('NULL')
     }
-  });
+  })
 
-  it("is accepted by PostgreSQL", async () => {
-    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() });
-    await pg.exec("BEGIN;");
+  it('is accepted by PostgreSQL', async () => {
+    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() })
+    await pg.exec('BEGIN;')
     try {
-      await expect(pg.exec(sql)).resolves.toBeDefined();
+      await expect(pg.exec(sql)).resolves.toBeDefined()
     } finally {
-      await pg.exec("ROLLBACK;");
+      await pg.exec('ROLLBACK;')
     }
-  });
+  })
 
   // -- resolution order ----------------------------------------------------
 
-  it("refuses a column whose type has no generator", () => {
-    const registry = baseRegistry();
-    delete registry.byType.public!.numeric;
-    delete registry.byType.public!.pct;
+  it('refuses a column whose type has no generator', () => {
+    const registry = baseRegistry()
+    delete registry.byType.public!.numeric
+    delete registry.byType.public!.pct
     // The snapshot renders a user-defined type schema-qualified, and the error
     // quotes it as PostgreSQL printed it. parent.weight is the first pct
     // column generation reaches (parent precedes child in FK order).
     expect(() => generateFixtureData(snapshot, { registry })).toThrow(
       /no generator for public\.parent\.weight of type "public\.pct"/,
-    );
-  });
+    )
+  })
 
-  it("resolves a qualified type name against the schema that owns the type", async () => {
+  it('resolves a qualified type name against the schema that owns the type', async () => {
     // Same domain name in two schemas: the registry entry that applies is the
     // one under the type's own schema, not the table's.
-    const other = await PGlite.create();
+    const other = await PGlite.create()
     try {
       await other.exec(`
         CREATE SCHEMA lib;
         CREATE DOMAIN lib.pct AS numeric;
         CREATE DOMAIN pct AS numeric;
         CREATE TABLE mixed (mine pct, theirs lib.pct);
-      `);
-      const s = await snapshotCatalog(other);
+      `)
+      const s = await snapshotCatalog(other)
       const sql = generateFixtureData(s, {
         registry: {
           byType: {
@@ -185,179 +181,179 @@ describe("fixture data generation", () => {
             byColumn: { public: { mixed: { mine: () => false, theirs: () => false } } },
           },
         },
-      }).sql;
-      const { rows, columns } = parseInserts(sql).get("public.mixed")!;
-      expect(rows.map(r => r[columns.indexOf("mine")])).toEqual(["11", "11"]);
-      expect(rows.map(r => r[columns.indexOf("theirs")])).toEqual(["22", "22"]);
+      }).sql
+      const { rows, columns } = parseInserts(sql).get('public.mixed')!
+      expect(rows.map((r) => r[columns.indexOf('mine')])).toEqual(['11', '11'])
+      expect(rows.map((r) => r[columns.indexOf('theirs')])).toEqual(['22', '22'])
     } finally {
-      await other.close();
+      await other.close()
     }
-  });
+  })
 
-  it("falls back from a domain to its base type", () => {
-    const registry = baseRegistry();
-    delete registry.byType.public!.pct;
-    registry.byType.public!.numeric = () => 42;
-    const { rows, columns } = parseInserts(
-      generateFixtureData(snapshot, { registry }).sql,
-    ).get("public.child")!;
-    const share = columns.indexOf("share");
-    expect(rows.map(r => r[share])).toEqual(rows.map(() => "42"));
-  });
+  it('falls back from a domain to its base type', () => {
+    const registry = baseRegistry()
+    delete registry.byType.public!.pct
+    registry.byType.public!.numeric = () => 42
+    const { rows, columns } = parseInserts(generateFixtureData(snapshot, { registry }).sql).get(
+      'public.child',
+    )!
+    const share = columns.indexOf('share')
+    expect(rows.map((r) => r[share])).toEqual(rows.map(() => '42'))
+  })
 
-  it("prefers a column generator over the type generator", () => {
-    const registry = baseRegistry();
-    registry.byColumn = { public: { parent: { label: () => "specific" } } };
-    const { rows, columns } = parseInserts(
-      generateFixtureData(snapshot, { registry }).sql,
-    ).get("public.parent")!;
-    expect(rows.map(r => r[columns.indexOf("label")])).toEqual(rows.map(() => "'specific'"));
-  });
+  it('prefers a column generator over the type generator', () => {
+    const registry = baseRegistry()
+    registry.byColumn = { public: { parent: { label: () => 'specific' } } }
+    const { rows, columns } = parseInserts(generateFixtureData(snapshot, { registry }).sql).get(
+      'public.parent',
+    )!
+    expect(rows.map((r) => r[columns.indexOf('label')])).toEqual(rows.map(() => "'specific'"))
+  })
 
-  it("lets a column generator delegate to the type tier through ctx.ofType", () => {
-    const registry = baseRegistry();
-    registry.byType.public!.text = () => "from-type";
+  it('lets a column generator delegate to the type tier through ctx.ofType', () => {
+    const registry = baseRegistry()
+    registry.byType.public!.text = () => 'from-type'
     registry.byColumn = {
-      public: { parent: { label: (rand, ctx) => (rand.chance(0.5) ? "own" : ctx.ofType()) } },
-    };
-    const { rows, columns } = parseInserts(
-      generateFixtureData(snapshot, { registry }).sql,
-    ).get("public.parent")!;
-    const label = columns.indexOf("label");
-    const values = new Set(rows.map(r => r[label]));
-    expect([...values].every(v => v === "'own'" || v === "'from-type'")).toBe(true);
-    expect(values.size).toBe(2);
-  });
+      public: { parent: { label: (rand, ctx) => (rand.chance(0.5) ? 'own' : ctx.ofType()) } },
+    }
+    const { rows, columns } = parseInserts(generateFixtureData(snapshot, { registry }).sql).get(
+      'public.parent',
+    )!
+    const label = columns.indexOf('label')
+    const values = new Set(rows.map((r) => r[label]))
+    expect([...values].every((v) => v === "'own'" || v === "'from-type'")).toBe(true)
+    expect(values.size).toBe(2)
+  })
 
-  it("resolves ctx.ofType lazily, so a delegating-never column needs no type entry", () => {
-    const registry = baseRegistry();
-    delete registry.byType.public!.text;
+  it('resolves ctx.ofType lazily, so a delegating-never column needs no type entry', () => {
+    const registry = baseRegistry()
+    delete registry.byType.public!.text
     // Every text column now has to generate its own value; none delegates.
     registry.byColumn = {
       public: {
-        parent: { label: () => "own", note: () => "own" },
-        child: { country: () => "own" },
+        parent: { label: () => 'own', note: () => 'own' },
+        child: { country: () => 'own' },
       },
-    };
-    expect(() => generateFixtureData(snapshot, { registry })).not.toThrow();
-  });
+    }
+    expect(() => generateFixtureData(snapshot, { registry })).not.toThrow()
+  })
 
   // -- NULL policy ---------------------------------------------------------
 
-  it("never NULLs a NOT NULL column and honours a per-column policy", () => {
-    const registry = baseRegistry();
-    registry.nullPolicies = { byColumn: { public: { parent: { note: () => true } } } };
-    const { rows, columns } = parseInserts(
-      generateFixtureData(snapshot, { registry }).sql,
-    ).get("public.parent")!;
-    expect(rows.map(r => r[columns.indexOf("note")])).toEqual(rows.map(() => "NULL"));
-    expect(rows.map(r => r[columns.indexOf("label")])).not.toContain("NULL");
-  });
+  it('never NULLs a NOT NULL column and honours a per-column policy', () => {
+    const registry = baseRegistry()
+    registry.nullPolicies = { byColumn: { public: { parent: { note: () => true } } } }
+    const { rows, columns } = parseInserts(generateFixtureData(snapshot, { registry }).sql).get(
+      'public.parent',
+    )!
+    expect(rows.map((r) => r[columns.indexOf('note')])).toEqual(rows.map(() => 'NULL'))
+    expect(rows.map((r) => r[columns.indexOf('label')])).not.toContain('NULL')
+  })
 
   it("leaves other columns byte-identical when one column's policy changes", () => {
-    const before = generateFixtureData(snapshot, { registry: baseRegistry() }).sql;
-    const registry = baseRegistry();
-    registry.nullPolicies = { byColumn: { public: { parent: { note: nullRate(0.9) } } } };
-    const after = generateFixtureData(snapshot, { registry }).sql;
+    const before = generateFixtureData(snapshot, { registry: baseRegistry() }).sql
+    const registry = baseRegistry()
+    registry.nullPolicies = { byColumn: { public: { parent: { note: nullRate(0.9) } } } }
+    const after = generateFixtureData(snapshot, { registry }).sql
 
     const note = (sql: string) => {
-      const { rows, columns } = parseInserts(sql).get("public.parent")!;
-      return rows.map(r => r[columns.indexOf("note")]);
-    };
+      const { rows, columns } = parseInserts(sql).get('public.parent')!
+      return rows.map((r) => r[columns.indexOf('note')])
+    }
     const label = (sql: string) => {
-      const { rows, columns } = parseInserts(sql).get("public.parent")!;
-      return rows.map(r => r[columns.indexOf("label")]);
-    };
-    expect(note(after)).not.toEqual(note(before));
-    expect(label(after)).toEqual(label(before));
-  });
+      const { rows, columns } = parseInserts(sql).get('public.parent')!
+      return rows.map((r) => r[columns.indexOf('label')])
+    }
+    expect(note(after)).not.toEqual(note(before))
+    expect(label(after)).toEqual(label(before))
+  })
 
-  it("rejects a null policy on a NOT NULL column", () => {
-    const registry = baseRegistry();
-    registry.nullPolicies = { byColumn: { public: { parent: { label: () => true } } } };
-    expect(() => generateFixtureData(snapshot, { registry })).toThrow(/NOT NULL/);
-  });
+  it('rejects a null policy on a NOT NULL column', () => {
+    const registry = baseRegistry()
+    registry.nullPolicies = { byColumn: { public: { parent: { label: () => true } } } }
+    expect(() => generateFixtureData(snapshot, { registry })).toThrow(/NOT NULL/)
+  })
 
   // -- registry typos ------------------------------------------------------
 
-  it("rejects a registry entry that names nothing in the schema", () => {
-    const registry = baseRegistry();
-    registry.byColumn = { public: { parent: { lable: () => "typo" } } };
+  it('rejects a registry entry that names nothing in the schema', () => {
+    const registry = baseRegistry()
+    registry.byColumn = { public: { parent: { lable: () => 'typo' } } }
     expect(() => generateFixtureData(snapshot, { registry })).toThrow(
       /public\.parent\.lable is registered in columnSpecificGenerators/,
-    );
-  });
+    )
+  })
 
   // -- keys ----------------------------------------------------------------
 
-  it("orders tables so a foreign key draws from rows that already exist", () => {
-    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() });
-    const tables = [...parseInserts(sql).keys()];
-    expect(tables.indexOf("public.parent")).toBeLessThan(tables.indexOf("public.child"));
+  it('orders tables so a foreign key draws from rows that already exist', () => {
+    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() })
+    const tables = [...parseInserts(sql).keys()]
+    expect(tables.indexOf('public.parent')).toBeLessThan(tables.indexOf('public.child'))
 
-    const parent = parseInserts(sql).get("public.parent")!;
-    const child = parseInserts(sql).get("public.child")!;
-    const ids = new Set(parent.rows.map(r => r[parent.columns.indexOf("id")]));
+    const parent = parseInserts(sql).get('public.parent')!
+    const child = parseInserts(sql).get('public.child')!
+    const ids = new Set(parent.rows.map((r) => r[parent.columns.indexOf('id')]))
     for (const row of child.rows) {
-      expect(ids.has(row[child.columns.indexOf("parent_id")]!)).toBe(true);
+      expect(ids.has(row[child.columns.indexOf('parent_id')]!)).toBe(true)
     }
-  });
+  })
 
-  it("points a self-reference at an earlier row, or at nothing", () => {
-    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() });
-    const { rows, columns } = parseInserts(sql).get("public.tree")!;
-    const id = columns.indexOf("id");
-    const parent = columns.indexOf("parent_id");
+  it('points a self-reference at an earlier row, or at nothing', () => {
+    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() })
+    const { rows, columns } = parseInserts(sql).get('public.tree')!
+    const id = columns.indexOf('id')
+    const parent = columns.indexOf('parent_id')
     rows.forEach((row, i) => {
-      if (row[parent] === "NULL") return;
-      const seen = rows.slice(0, i).map(r => r[id]);
-      expect(seen).toContain(row[parent]);
-    });
-  });
+      if (row[parent] === 'NULL') return
+      const seen = rows.slice(0, i).map((r) => r[id])
+      expect(seen).toContain(row[parent])
+    })
+  })
 
-  it("numbers a single-column integer primary key 1..N", () => {
-    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() });
-    const { rows, columns } = parseInserts(sql).get("public.parent")!;
-    expect(rows.map(r => r[columns.indexOf("id")])).toEqual(["1", "2", "3", "4"]);
-  });
+  it('numbers a single-column integer primary key 1..N', () => {
+    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() })
+    const { rows, columns } = parseInserts(sql).get('public.parent')!
+    expect(rows.map((r) => r[columns.indexOf('id')])).toEqual(['1', '2', '3', '4'])
+  })
 
-  it("drops rows that repeat a composite primary key", () => {
-    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() });
-    const { rows, columns } = parseInserts(sql).get("public.pairing")!;
-    const keys = rows.map(r => `${r[columns.indexOf("a")]}/${r[columns.indexOf("b")]}`);
-    expect(new Set(keys).size).toBe(keys.length);
+  it('drops rows that repeat a composite primary key', () => {
+    const { sql } = generateFixtureData(snapshot, { registry: baseRegistry() })
+    const { rows, columns } = parseInserts(sql).get('public.pairing')!
+    const keys = rows.map((r) => `${r[columns.indexOf('a')]}/${r[columns.indexOf('b')]}`)
+    expect(new Set(keys).size).toBe(keys.length)
     // 12 rows were requested from 4×4 possible pairs, so dedupe had work to do.
-    expect(rows.length).toBeLessThan(12);
-  });
+    expect(rows.length).toBeLessThan(12)
+  })
 
   // -- determinism ---------------------------------------------------------
 
-  it("is a pure function of the schema, registry and seed", () => {
-    const a = generateFixtureData(snapshot, { registry: baseRegistry(), seed: 1234 });
-    const b = generateFixtureData(snapshot, { registry: baseRegistry(), seed: 1234 });
-    const c = generateFixtureData(snapshot, { registry: baseRegistry(), seed: 4321 });
-    expect(a.sql).toEqual(b.sql);
-    expect(a.sql).not.toEqual(c.sql);
-  });
+  it('is a pure function of the schema, registry and seed', () => {
+    const a = generateFixtureData(snapshot, { registry: baseRegistry(), seed: 1234 })
+    const b = generateFixtureData(snapshot, { registry: baseRegistry(), seed: 1234 })
+    const c = generateFixtureData(snapshot, { registry: baseRegistry(), seed: 4321 })
+    expect(a.sql).toEqual(b.sql)
+    expect(a.sql).not.toEqual(c.sql)
+  })
 
-  it("keys nothing on an OID, so a rebuilt schema generates the same data", async () => {
+  it('keys nothing on an OID, so a rebuilt schema generates the same data', async () => {
     // Same DDL in a fresh database: every OID differs, every name does not.
-    const other = await PGlite.create();
+    const other = await PGlite.create()
     try {
-      await other.exec("CREATE TABLE decoy (id integer);");
-      await other.exec("DROP TABLE decoy;");
-      await other.exec(SCHEMA);
-      const rebuilt = await snapshotCatalog(other);
+      await other.exec('CREATE TABLE decoy (id integer);')
+      await other.exec('DROP TABLE decoy;')
+      await other.exec(SCHEMA)
+      const rebuilt = await snapshotCatalog(other)
 
       const oids = (s: CatalogSnapshot) =>
-        s.tables.flatMap(t => t.columns.map(c => c.typeOid)).concat(s.domains.map(d => d.oid));
-      expect(oids(rebuilt)).not.toEqual(oids(snapshot));
+        s.tables.flatMap((t) => t.columns.map((c) => c.typeOid)).concat(s.domains.map((d) => d.oid))
+      expect(oids(rebuilt)).not.toEqual(oids(snapshot))
 
       expect(generateFixtureData(rebuilt, { registry: baseRegistry() }).sql).toEqual(
         generateFixtureData(snapshot, { registry: baseRegistry() }).sql,
-      );
+      )
     } finally {
-      await other.close();
+      await other.close()
     }
-  });
-});
+  })
+})

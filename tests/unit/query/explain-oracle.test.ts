@@ -1,16 +1,20 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join, basename } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
-import { parseSql } from "../../../src/ast.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { catalogCache } from "./fixture-catalog.js";
-import { createKillableEvaluator } from "./killable-evaluator.js";
-import { inferNullability } from "../../../src/query/nullability-walk.js";
-import type { JoinAudit } from "../../../src/query/types.js";
-import { parseFixtureDirectives, DEDUCTION_FAILURE } from "./fixture-args.js";
-import { countPlanOuterJoins, countRawOuterJoins, survivingOuterJoins } from "./explain-instrument.js";
+import { describe, it, expect, beforeAll } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, basename } from 'node:path'
+import { PGlite } from '@electric-sql/pglite'
+import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
+import { parseSql } from '../../../src/ast.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { catalogCache } from './fixture-catalog.js'
+import { createKillableEvaluator } from './killable-evaluator.js'
+import { inferNullability } from '../../../src/query/nullability-walk.js'
+import type { JoinAudit } from '../../../src/query/types.js'
+import { parseFixtureDirectives, DEDUCTION_FAILURE } from './fixture-args.js'
+import {
+  countPlanOuterJoins,
+  countRawOuterJoins,
+  survivingOuterJoins,
+} from './explain-instrument.js'
 
 // ---------------------------------------------------------------------------
 // The EXPLAIN oracle.
@@ -82,124 +86,119 @@ import { countPlanOuterJoins, countRawOuterJoins, survivingOuterJoins } from "./
 // is a hard failure: an unexplainable fixture is new information.
 // ---------------------------------------------------------------------------
 
-const FIXTURES_DIR = join(__dirname, "fixtures");
-const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
+const FIXTURES_DIR = join(__dirname, 'fixtures')
+const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, 'schema.sql'), 'utf8')
 
 const fixtureFiles = readdirSync(FIXTURES_DIR)
-  .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-  .sort();
+  .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+  .sort()
 
 interface Fixture {
-  name: string;
-  sql: string;
-  raisesPattern: string | null;
-  plannerKeeps: { count: number; reason: string } | null;
-  plannerReduces: { count: number; reason: string } | null;
-  searchPath: string[] | null;
+  name: string
+  sql: string
+  raisesPattern: string | null
+  plannerKeeps: { count: number; reason: string } | null
+  plannerReduces: { count: number; reason: string } | null
+  searchPath: string[] | null
 }
 
-const fixtures: Fixture[] = fixtureFiles.map(file => {
-  const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-  const name = basename(file, ".sql");
-  const { raisesPattern, plannerKeeps, plannerReduces, searchPath } =
-    parseFixtureDirectives(sql);
-  return { name, sql, raisesPattern, plannerKeeps, plannerReduces, searchPath };
-});
+const fixtures: Fixture[] = fixtureFiles.map((file) => {
+  const sql = readFileSync(join(FIXTURES_DIR, file), 'utf8')
+  const name = basename(file, '.sql')
+  const { raisesPattern, plannerKeeps, plannerReduces, searchPath } = parseFixtureDirectives(sql)
+  return { name, sql, raisesPattern, plannerKeeps, plannerReduces, searchPath }
+})
 
 type OracleClass =
-  | "agree"
-  | "engine-stronger"
-  | "planner-stronger"
-  | "raises-at-plan"
-  | "untypeable"
-  | "unexplained";
+  'agree' | 'engine-stronger' | 'planner-stronger' | 'raises-at-plan' | 'untypeable' | 'unexplained'
 
 interface OracleResult {
-  name: string;
+  name: string
   /** Outer JoinExpr nodes in the fixture's own text (context only). */
-  syntactic: number;
+  syntactic: number
   /** Outer joins the walk analyzed (audit records, all scopes). */
-  audited: number;
+  audited: number
   /** Audited joins with at least one side still able to NULL-extend. */
-  surviving: number;
-  plan: number | null;
-  cls: OracleClass;
-  error: string | null;
+  surviving: number
+  plan: number | null
+  cls: OracleClass
+  error: string | null
 }
 
-const results: OracleResult[] = [];
-const violations: string[] = [];
-const keepViolations: string[] = [];
+const results: OracleResult[] = []
+const violations: string[] = []
+const keepViolations: string[] = []
 
-describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
+describe('EXPLAIN oracle (planner join reduction vs the corpus)', () => {
   beforeAll(async () => {
-    const pg = await PGlite.create({ extensions: { plpgsql_check } });
-    await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec(SCHEMA_SQL);
-    const snapshot = await snapshotCatalog(pg);
-    const catalogFor = catalogCache(snapshot);
+    const pg = await PGlite.create({ extensions: { plpgsql_check } })
+    await pg.exec('CREATE EXTENSION plpgsql_check;')
+    await pg.exec(SCHEMA_SQL)
+    const snapshot = await snapshotCatalog(pg)
+    const catalogFor = catalogCache(snapshot)
     // Probes run on a KILLABLE instance, never on `pg`: one that PGlite
     // will not finish blocks the thread it runs on, so it would hang this
     // suite rather than fail it (killable-evaluator.ts).
-    const evaluator = await createKillableEvaluator({ schema: SCHEMA_SQL });
+    const evaluator = await createKillableEvaluator({ schema: SCHEMA_SQL })
 
     for (const fixture of fixtures) {
       // `-- @search-path`: the walk's catalog AND the session EXPLAIN runs
       // under must be the fixture's, or the planner is being compared
       // against claims made about a different resolution.
-      const catalog = await catalogFor(fixture.searchPath);
+      const catalog = await catalogFor(fixture.searchPath)
       if (fixture.searchPath) {
-        await pg.exec(`SET search_path = ${fixture.searchPath.join(", ")};`);
+        await pg.exec(`SET search_path = ${fixture.searchPath.join(', ')};`)
       }
       // The evaluator is a separate session, so it needs the path too — not
       // every probe is path-blind.
-      await evaluator.setSearchPath(fixture.searchPath);
-      const parsed = await parseSql(fixture.sql);
-      const syntactic = countRawOuterJoins(parsed.stmts);
+      await evaluator.setSearchPath(fixture.searchPath)
+      const parsed = await parseSql(fixture.sql)
+      const syntactic = countRawOuterJoins(parsed.stmts)
 
       // The walk's verdicts, same analysis mode as the soundness suite.
-      const joinAudit: JoinAudit[] = [];
+      const joinAudit: JoinAudit[] = []
       const claims = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
         evaluate: evaluator.evaluate,
         joinAudit,
         collectUnitCrossings: true,
-      });
-      const audited = joinAudit.length;
-      const surviving = survivingOuterJoins(joinAudit, claims);
+      })
+      const audited = joinAudit.length
+      const surviving = survivingOuterJoins(joinAudit, claims)
 
-      const options = /\$\d/.test(fixture.sql) ? "FORMAT JSON, GENERIC_PLAN" : "FORMAT JSON";
-      await pg.exec("BEGIN;");
-      let plan: number | null = null;
-      let error: string | null = null;
+      const options = /\$\d/.test(fixture.sql) ? 'FORMAT JSON, GENERIC_PLAN' : 'FORMAT JSON'
+      await pg.exec('BEGIN;')
+      let plan: number | null = null
+      let error: string | null = null
       try {
-        const res = await pg.exec(`EXPLAIN (${options}) ${fixture.sql}`);
-        const row = res[res.length - 1]!.rows[0] as Record<string, unknown>;
-        const tree = typeof row["QUERY PLAN"] === "string"
-          ? JSON.parse(row["QUERY PLAN"] as string)
-          : row["QUERY PLAN"];
-        plan = countPlanOuterJoins(tree);
+        const res = await pg.exec(`EXPLAIN (${options}) ${fixture.sql}`)
+        const row = res[res.length - 1]!.rows[0] as Record<string, unknown>
+        const tree =
+          typeof row['QUERY PLAN'] === 'string'
+            ? JSON.parse(row['QUERY PLAN'] as string)
+            : row['QUERY PLAN']
+        plan = countPlanOuterJoins(tree)
       } catch (e) {
-        error = (e as Error).message;
+        error = (e as Error).message
       } finally {
-        await pg.exec("ROLLBACK;");
+        await pg.exec('ROLLBACK;')
       }
 
-      let cls: OracleClass;
+      let cls: OracleClass
       if (error !== null) {
         if (fixture.raisesPattern !== null && error.includes(fixture.raisesPattern)) {
-          cls = "raises-at-plan";
+          cls = 'raises-at-plan'
         } else if (DEDUCTION_FAILURE.test(error)) {
-          cls = "untypeable";
+          cls = 'untypeable'
         } else {
-          cls = "unexplained";
-          violations.push(`${fixture.name}: EXPLAIN failed outside every tolerated class: ${error}`);
+          cls = 'unexplained'
+          violations.push(`${fixture.name}: EXPLAIN failed outside every tolerated class: ${error}`)
         }
       } else if (surviving < plan!) {
-        cls = "engine-stronger";
+        cls = 'engine-stronger'
       } else if (surviving > plan!) {
-        cls = "planner-stronger";
+        cls = 'planner-stronger'
       } else {
-        cls = "agree";
+        cls = 'agree'
       }
 
       // The both-directions bar. `delta` is what EXPLAIN keeps beyond the
@@ -208,80 +207,79 @@ describe("EXPLAIN oracle (planner join reduction vs the corpus)", () => {
       // reasoning, or exactly nothing. A planner-stronger divergence needs
       // an INVESTIGATED reason — one of the classifier's verdicts
       // (explain-instrument.ts) — never a bare excuse.
-      const declared =
-        (fixture.plannerKeeps?.count ?? 0) - (fixture.plannerReduces?.count ?? 0);
+      const declared = (fixture.plannerKeeps?.count ?? 0) - (fixture.plannerReduces?.count ?? 0)
       if (plan === null) {
         if (fixture.plannerKeeps || fixture.plannerReduces) {
           keepViolations.push(
             `${fixture.name}: planner divergence declared but the statement does not plan — stale`,
-          );
+          )
         }
       } else {
-        const delta = plan - surviving;
+        const delta = plan - surviving
         if (delta !== declared) {
           const stated =
             fixture.plannerKeeps || fixture.plannerReduces
               ? `declares net ${declared}`
-              : `declares nothing`;
+              : `declares nothing`
           const direction =
             delta > 0
               ? `EXPLAIN keeps ${delta} outer join(s) the walk settles — @planner-keeps`
               : delta < 0
                 ? `the planner settles or removes ${-delta} join(s) the walk still counts — ` +
                   `@planner-reduces, with the investigated cause`
-                : `planner and walk agree`;
+                : `planner and walk agree`
           keepViolations.push(
             `${fixture.name}: plan=${plan} surviving=${surviving} (${direction}), but the ` +
               `fixture ${stated}`,
-          );
+          )
         }
       }
-      results.push({ name: fixture.name, syntactic, audited, surviving, plan, cls, error });
-      if (fixture.searchPath) await pg.exec("SET search_path = public;");
+      results.push({ name: fixture.name, syntactic, audited, surviving, plan, cls, error })
+      if (fixture.searchPath) await pg.exec('SET search_path = public;')
     }
-    await pg.close();
-    await evaluator.close();
-  }, 180_000);
+    await pg.close()
+    await evaluator.close()
+  }, 180_000)
 
-  it("every fixture EXPLAINs, or raises exactly what it declares", () => {
-    expect(violations).toEqual([]);
-  });
+  it('every fixture EXPLAINs, or raises exactly what it declares', () => {
+    expect(violations).toEqual([])
+  })
 
-  it("the planner keeps exactly what each fixture declares", () => {
-    expect(keepViolations).toEqual([]);
-  });
+  it('the planner keeps exactly what each fixture declares', () => {
+    expect(keepViolations).toEqual([])
+  })
 
-  it("corpus report", () => {
-    const by = (cls: OracleClass) => results.filter(r => r.cls === cls);
-    const lines: string[] = [];
-    lines.push(`EXPLAIN oracle over ${results.length} fixtures:`);
+  it('corpus report', () => {
+    const by = (cls: OracleClass) => results.filter((r) => r.cls === cls)
+    const lines: string[] = []
+    lines.push(`EXPLAIN oracle over ${results.length} fixtures:`)
     lines.push(
-      `  agree=${by("agree").length}` +
-        `  engine-stronger=${by("engine-stronger").length}` +
-        `  planner-stronger=${by("planner-stronger").length}` +
-        `  raises-at-plan=${by("raises-at-plan").length}` +
-        `  untypeable=${by("untypeable").length}` +
-        `  unexplained=${by("unexplained").length}`,
-    );
+      `  agree=${by('agree').length}` +
+        `  engine-stronger=${by('engine-stronger').length}` +
+        `  planner-stronger=${by('planner-stronger').length}` +
+        `  raises-at-plan=${by('raises-at-plan').length}` +
+        `  untypeable=${by('untypeable').length}` +
+        `  unexplained=${by('unexplained').length}`,
+    )
     const detail = (r: OracleResult) =>
-      `syntactic=${r.syntactic} audited=${r.audited} surviving=${r.surviving} plan=${r.plan}`;
-    for (const r of by("planner-stronger")) {
-      lines.push(`  planner-stronger  ${r.name}  ${detail(r)}`);
+      `syntactic=${r.syntactic} audited=${r.audited} surviving=${r.surviving} plan=${r.plan}`
+    for (const r of by('planner-stronger')) {
+      lines.push(`  planner-stronger  ${r.name}  ${detail(r)}`)
     }
-    for (const r of by("engine-stronger")) {
-      lines.push(`  engine-stronger   ${r.name}  ${detail(r)}`);
+    for (const r of by('engine-stronger')) {
+      lines.push(`  engine-stronger   ${r.name}  ${detail(r)}`)
     }
-    console.log(lines.join("\n"));
+    console.log(lines.join('\n'))
 
     // The report holds only its own bookkeeping — every fixture lands in
     // exactly one class; the two tests above are the bar.
     const total =
-      by("agree").length +
-      by("engine-stronger").length +
-      by("planner-stronger").length +
-      by("raises-at-plan").length +
-      by("untypeable").length +
-      by("unexplained").length;
-    expect(total).toBe(results.length);
-  });
-});
+      by('agree').length +
+      by('engine-stronger').length +
+      by('planner-stronger').length +
+      by('raises-at-plan').length +
+      by('untypeable').length +
+      by('unexplained').length
+    expect(total).toBe(results.length)
+  })
+})

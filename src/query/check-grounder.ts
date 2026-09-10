@@ -39,14 +39,14 @@
 // grounds nothing.
 // ---------------------------------------------------------------------------
 
-import type { Node } from "libpg-query";
-import { parseSql } from "../ast.js";
+import type { Node } from 'libpg-query'
+import { parseSql } from '../ast.js'
 import {
   evaluateClosedSubtrees,
   type EvalResult,
   type Evaluate,
   type SubtreeEvaluationCatalog,
-} from "./subtree-evaluator.js";
+} from './subtree-evaluator.js'
 import {
   crossUnion,
   forcedNullImplicantsAnyRow,
@@ -54,49 +54,49 @@ import {
   unionLists,
   type Implicants,
   type MechanismEClaims,
-} from "./param-nullability.js";
-import type { NullabilityCatalog } from "./types.js";
+} from './param-nullability.js'
+import type { NullabilityCatalog } from './types.js'
 
 /** Both faces of the adapter product the grounder reads: write shapes and
  *  declared types from the walk's face, enforced CHECK trees and the
  *  evaluation gates from the evaluation face. */
-export type GrounderCatalog = NullabilityCatalog & SubtreeEvaluationCatalog;
+export type GrounderCatalog = NullabilityCatalog & SubtreeEvaluationCatalog
 
 /** One enforced CHECK grounded with one written row's values. */
 export interface GroundedCheck {
-  body: Node;
+  body: Node
   /** Whether the write event this came from happens on EVERY execution —
    *  see `Write.universal`. Read only by the always-raises fact. */
-  universal: boolean;
+  universal: boolean
 }
 
 // --- AST helpers (single-tag node objects, like the evaluator's) ------------
 
-type Fields = Record<string, unknown>;
+type Fields = Record<string, unknown>
 
 function nodeTag(n: unknown): string | null {
-  if (!n || typeof n !== "object" || Array.isArray(n)) return null;
-  const keys = Object.keys(n);
-  return keys.length === 1 && /^[A-Z]/.test(keys[0]!) ? keys[0]! : null;
+  if (!n || typeof n !== 'object' || Array.isArray(n)) return null
+  const keys = Object.keys(n)
+  return keys.length === 1 && /^[A-Z]/.test(keys[0]!) ? keys[0]! : null
 }
 
 /** The bare column a CHECK body's ColumnRef names — one String field; a
  *  qualified reference stays unmatched (and therefore open, claiming
  *  nothing), which is the sound side of the ambiguity. */
 function bareColumnOf(n: unknown): string | null {
-  const tag = nodeTag(n);
-  if (tag !== "ColumnRef") return null;
-  const fields = ((n as Fields)["ColumnRef"] as { fields?: unknown[] })?.fields;
-  if (!Array.isArray(fields) || fields.length !== 1) return null;
-  return (fields[0] as { String?: { sval?: string } })?.String?.sval ?? null;
+  const tag = nodeTag(n)
+  if (tag !== 'ColumnRef') return null
+  const fields = ((n as Fields)['ColumnRef'] as { fields?: unknown[] })?.fields
+  if (!Array.isArray(fields) || fields.length !== 1) return null
+  return (fields[0] as { String?: { sval?: string } })?.String?.sval ?? null
 }
 
 // --- Write extraction --------------------------------------------------------
 
 interface Write {
-  schema: string;
-  table: string;
-  command: "insert" | "update";
+  schema: string
+  table: string
+  command: 'insert' | 'update'
   /**
    * Whether EVERY execution constructs this row: a VALUES row or a
    * FROM-less `INSERT ... SELECT`. An UPDATE, a MERGE arm and an ON
@@ -110,156 +110,160 @@ interface Write {
    * "raises when a row matches" is exactly what it means. Only the
    * always-raises fact reads this.
    */
-  universal: boolean;
+  universal: boolean
   /** column name → the expression the statement writes there, as written.
    *  DEFAULT (SetToDefault) never enters: it proves nothing. */
-  written: Map<string, Node>;
+  written: Map<string, Node>
 }
 
 function isSetToDefault(n: unknown): boolean {
-  return nodeTag(n) === "SetToDefault";
+  return nodeTag(n) === 'SetToDefault'
 }
 
 /** The write events of one statement, wherever they sit — top level or a
  *  data-modifying CTE. Each VALUES row is its own event: the CHECK fires
  *  per row and one FALSE row rejects the whole statement (pinned). */
 function collectWrites(stmt: Node, catalog: GrounderCatalog): Write[] {
-  const writes: Write[] = [];
+  const writes: Write[] = []
 
   const put = (
     relation: { schemaname?: string; relname?: string } | undefined,
-    command: "insert" | "update",
+    command: 'insert' | 'update',
     entries: Iterable<[string, Node | undefined]>,
     universal = false,
   ): void => {
-    if (!relation?.relname) return;
-    const table = catalog.resolveTable(relation.schemaname, relation.relname);
-    if (!table) return;
+    if (!relation?.relname) return
+    const table = catalog.resolveTable(relation.schemaname, relation.relname)
+    if (!table) return
     // The rewrite hazard, exactly as mechanism B gates it: TREE hooks (a
     // partition's trigger fires for rows routed through the parent), and an
     // UPDATE on a partitioned target can move the row into a partition
     // whose BEFORE INSERT trigger rewrites it (both measured there).
-    const wr = catalog.resolveWriteRewritesTree(table.schema, table.name);
+    const wr = catalog.resolveWriteRewritesTree(table.schema, table.name)
     const commands =
-      command === "update" && catalog.resolveIsPartitioned(table.schema, table.name)
-        ? ["update", "insert"]
-        : [command];
+      command === 'update' && catalog.resolveIsPartitioned(table.schema, table.name)
+        ? ['update', 'insert']
+        : [command]
     if (
-      commands.some(cmd => wr.beforeRow.has(cmd)) ||
+      commands.some((cmd) => wr.beforeRow.has(cmd)) ||
       wr.insteadOf.has(command) ||
       wr.insteadRules.has(command)
     ) {
-      return;
+      return
     }
-    const written = new Map<string, Node>();
+    const written = new Map<string, Node>()
     for (const [column, value] of entries) {
-      if (!column || !value || isSetToDefault(value)) continue;
-      written.set(column, value);
+      if (!column || !value || isSetToDefault(value)) continue
+      written.set(column, value)
     }
-    writes.push({ schema: table.schema, table: table.name, command, universal, written });
-  };
+    writes.push({ schema: table.schema, table: table.name, command, universal, written })
+  }
 
   const insertColumns = (
     relation: { schemaname?: string; relname?: string } | undefined,
     cols: Node[] | undefined,
   ): string[] | null => {
-    if (!relation?.relname) return null;
-    const table = catalog.resolveTable(relation.schemaname, relation.relname);
-    if (!table) return null;
+    if (!relation?.relname) return null
+    const table = catalog.resolveTable(relation.schemaname, relation.relname)
+    if (!table) return null
     return cols
-      ? cols.map(col => (col as { ResTarget?: { name?: string } }).ResTarget?.name ?? "")
-      : table.columns;
-  };
+      ? cols.map((col) => (col as { ResTarget?: { name?: string } }).ResTarget?.name ?? '')
+      : table.columns
+  }
 
   const setEntries = (targetList: Node[] | undefined): [string, Node | undefined][] =>
-    (targetList ?? []).map(item => {
-      const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget;
+    (targetList ?? []).map((item) => {
+      const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
       // A MultiAssignRef routes a shared source by position; grounding it
       // whole would mis-type the value, so the column is treated as
       // unwritten — an open ColumnRef claims nothing either way.
-      const val = rt?.val && nodeTag(rt.val) === "MultiAssignRef" ? undefined : rt?.val;
-      return [rt?.name ?? "", val];
-    });
+      const val = rt?.val && nodeTag(rt.val) === 'MultiAssignRef' ? undefined : rt?.val
+      return [rt?.name ?? '', val]
+    })
 
   const visit = (n: unknown): void => {
     if (Array.isArray(n)) {
-      for (const x of n) visit(x);
-      return;
+      for (const x of n) visit(x)
+      return
     }
-    if (!n || typeof n !== "object") return;
-    const rec = n as Fields;
+    if (!n || typeof n !== 'object') return
+    const rec = n as Fields
 
-    const ins = rec["InsertStmt"] as
+    const ins = rec['InsertStmt'] as
       | {
-          relation?: { schemaname?: string; relname?: string };
-          cols?: Node[];
-          selectStmt?: Node;
-          onConflictClause?: { targetList?: Node[] };
+          relation?: { schemaname?: string; relname?: string }
+          cols?: Node[]
+          selectStmt?: Node
+          onConflictClause?: { targetList?: Node[] }
         }
-      | undefined;
+      | undefined
     if (ins) {
-      const columns = insertColumns(ins.relation, ins.cols);
-      const select = (ins.selectStmt as { SelectStmt?: Fields } | undefined)?.SelectStmt;
+      const columns = insertColumns(ins.relation, ins.cols)
+      const select = (ins.selectStmt as { SelectStmt?: Fields } | undefined)?.SelectStmt
       if (columns && select) {
-        const valuesLists = select["valuesLists"] as Node[] | undefined;
+        const valuesLists = select['valuesLists'] as Node[] | undefined
         for (const row of valuesLists ?? []) {
-          const items = (row as { List?: { items?: Node[] } }).List?.items ?? [];
-          put(ins.relation, "insert", items.map((item, i) => [columns[i] ?? "", item]), true);
+          const items = (row as { List?: { items?: Node[] } }).List?.items ?? []
+          put(
+            ins.relation,
+            'insert',
+            items.map((item, i) => [columns[i] ?? '', item]),
+            true,
+          )
         }
-        if (!valuesLists && select["op"] === "SETOP_NONE" && !select["fromClause"]) {
+        if (!valuesLists && select['op'] === 'SETOP_NONE' && !select['fromClause']) {
           // INSERT ... SELECT with no FROM constructs its one row exactly
           // like a VALUES row (the footing the mechanism-B measurement
           // gave); a sourced SELECT can write zero rows and stays out.
-          const targetList = (select["targetList"] as Node[] | undefined) ?? [];
+          const targetList = (select['targetList'] as Node[] | undefined) ?? []
           put(
             ins.relation,
-            "insert",
+            'insert',
             targetList.map((item, i) => [
-              columns[i] ?? "",
+              columns[i] ?? '',
               (item as { ResTarget?: { val?: Node } }).ResTarget?.val,
             ]),
             true,
-          );
+          )
         }
       }
       if (ins.onConflictClause?.targetList) {
-        put(ins.relation, "update", setEntries(ins.onConflictClause.targetList));
+        put(ins.relation, 'update', setEntries(ins.onConflictClause.targetList))
       }
     }
 
-    const upd = rec["UpdateStmt"] as
-      | { relation?: { schemaname?: string; relname?: string }; targetList?: Node[] }
-      | undefined;
-    if (upd) put(upd.relation, "update", setEntries(upd.targetList));
+    const upd = rec['UpdateStmt'] as
+      { relation?: { schemaname?: string; relname?: string }; targetList?: Node[] } | undefined
+    if (upd) put(upd.relation, 'update', setEntries(upd.targetList))
 
-    const merge = rec["MergeStmt"] as
+    const merge = rec['MergeStmt'] as
       | { relation?: { schemaname?: string; relname?: string }; mergeWhenClauses?: Node[] }
-      | undefined;
+      | undefined
     if (merge) {
       for (const clause of merge.mergeWhenClauses ?? []) {
         const mwc = (clause as { MergeWhenClause?: { targetList?: Node[]; values?: Node[] } })
-          .MergeWhenClause;
-        if (!mwc) continue;
+          .MergeWhenClause
+        if (!mwc) continue
         if (mwc.values) {
           const columns = (mwc.targetList ?? []).map(
-            t => (t as { ResTarget?: { name?: string } }).ResTarget?.name ?? "",
-          );
+            (t) => (t as { ResTarget?: { name?: string } }).ResTarget?.name ?? '',
+          )
           put(
             merge.relation,
-            "insert",
-            mwc.values.map((v, i) => [columns[i] ?? "", v]),
-          );
+            'insert',
+            mwc.values.map((v, i) => [columns[i] ?? '', v]),
+          )
         } else if (mwc.targetList) {
-          put(merge.relation, "update", setEntries(mwc.targetList));
+          put(merge.relation, 'update', setEntries(mwc.targetList))
         }
       }
     }
 
-    for (const value of Object.values(rec)) visit(value);
-  };
+    for (const value of Object.values(rec)) visit(value)
+  }
 
-  visit(stmt);
-  return writes;
+  visit(stmt)
+  return writes
 }
 
 // --- Grounding ----------------------------------------------------------------
@@ -273,22 +277,21 @@ async function typeNameAst(
   rendered: string,
   cache: Map<string, unknown | null>,
 ): Promise<unknown | null> {
-  const hit = cache.get(rendered);
-  if (hit !== undefined) return hit;
-  let ast: unknown | null = null;
+  const hit = cache.get(rendered)
+  if (hit !== undefined) return hit
+  let ast: unknown | null = null
   try {
-    const parsed = await parseSql(`SELECT NULL::${rendered}`);
+    const parsed = await parseSql(`SELECT NULL::${rendered}`)
     const target = (
-      (parsed.stmts?.[0]?.stmt as Fields | undefined)?.["SelectStmt"] as
-        | { targetList?: { ResTarget?: { val?: Fields } }[] }
-        | undefined
-    )?.targetList?.[0]?.ResTarget?.val;
-    ast = (target?.["TypeCast"] as { typeName?: unknown } | undefined)?.typeName ?? null;
+      (parsed.stmts?.[0]?.stmt as Fields | undefined)?.['SelectStmt'] as
+        { targetList?: { ResTarget?: { val?: Fields } }[] } | undefined
+    )?.targetList?.[0]?.ResTarget?.val
+    ast = (target?.['TypeCast'] as { typeName?: unknown } | undefined)?.typeName ?? null
   } catch {
-    ast = null;
+    ast = null
   }
-  cache.set(rendered, ast);
-  return ast;
+  cache.set(rendered, ast)
+  return ast
 }
 
 /** Clone `body` with every bare reference to a written column replaced by
@@ -299,42 +302,42 @@ function substitute(
   body: Node,
   substitutions: Map<string, { value: Node; typeName: unknown }>,
 ): Node {
-  const grounded = structuredClone(body) as Node;
+  const grounded = structuredClone(body) as Node
   const replaced = (n: unknown): unknown => {
-    const column = bareColumnOf(n);
-    if (column === null) return null;
-    const sub = substitutions.get(column);
-    if (!sub) return null;
+    const column = bareColumnOf(n)
+    if (column === null) return null
+    const sub = substitutions.get(column)
+    if (!sub) return null
     return {
       TypeCast: {
         arg: structuredClone(sub.value),
         typeName: structuredClone(sub.typeName),
         location: -1,
       },
-    };
-  };
+    }
+  }
   const walk = (n: unknown): void => {
     if (Array.isArray(n)) {
       n.forEach((child, i) => {
-        const r = replaced(child);
-        if (r !== null) n[i] = r;
-        else walk(child);
-      });
-      return;
+        const r = replaced(child)
+        if (r !== null) n[i] = r
+        else walk(child)
+      })
+      return
     }
-    if (!n || typeof n !== "object") return;
+    if (!n || typeof n !== 'object') return
     for (const [key, child] of Object.entries(n as Fields)) {
-      const r = replaced(child);
-      if (r !== null) (n as Fields)[key] = r;
-      else walk(child);
+      const r = replaced(child)
+      if (r !== null) (n as Fields)[key] = r
+      else walk(child)
     }
-  };
+  }
   // A body that IS a lone written-column reference (CHECK (flag)) has no
   // parent field to rewrite through — replace it whole.
-  const top = replaced(grounded);
-  if (top !== null) return top as Node;
-  walk(grounded);
-  return grounded;
+  const top = replaced(grounded)
+  if (top !== null) return top as Node
+  walk(grounded)
+  return grounded
 }
 
 /**
@@ -346,24 +349,24 @@ export async function groundEnforcedChecks(
   stmt: Node,
   catalog: GrounderCatalog,
 ): Promise<GroundedCheck[]> {
-  const grounded: GroundedCheck[] = [];
-  const typeCache = new Map<string, unknown | null>();
+  const grounded: GroundedCheck[] = []
+  const typeCache = new Map<string, unknown | null>()
   for (const write of collectWrites(stmt, catalog)) {
-    const checks = catalog.resolveEnforcedCheckConstraints(write.schema, write.table);
-    if (checks.length === 0) continue;
-    const substitutions = new Map<string, { value: Node; typeName: unknown }>();
+    const checks = catalog.resolveEnforcedCheckConstraints(write.schema, write.table)
+    if (checks.length === 0) continue
+    const substitutions = new Map<string, { value: Node; typeName: unknown }>()
     for (const [column, value] of write.written) {
-      const rendered = catalog.resolveColumnTypeName(write.schema, write.table, column);
-      if (rendered === null) continue;
-      const typeName = await typeNameAst(rendered, typeCache);
-      if (typeName === null) continue;
-      substitutions.set(column, { value, typeName });
+      const rendered = catalog.resolveColumnTypeName(write.schema, write.table, column)
+      if (rendered === null) continue
+      const typeName = await typeNameAst(rendered, typeCache)
+      if (typeName === null) continue
+      substitutions.set(column, { value, typeName })
     }
     for (const check of checks) {
-      grounded.push({ body: substitute(check, substitutions), universal: write.universal });
+      grounded.push({ body: substitute(check, substitutions), universal: write.universal })
     }
   }
-  return grounded;
+  return grounded
 }
 
 // --- Evaluation ----------------------------------------------------------------
@@ -376,9 +379,9 @@ export async function evaluateGroundedChecks(
   catalog: GrounderCatalog,
   evaluate: Evaluate,
 ): Promise<ReadonlyMap<Node, EvalResult>> {
-  if (checks.length === 0) return new Map();
-  const root = { List: { items: checks.map(c => c.body) } } as unknown as Node;
-  return evaluateClosedSubtrees(root, catalog, evaluate);
+  if (checks.length === 0) return new Map()
+  const root = { List: { items: checks.map((c) => c.body) } } as unknown as Node
+  return evaluateClosedSubtrees(root, catalog, evaluate)
 }
 
 // --- Reduction and residue ------------------------------------------------------
@@ -391,9 +394,9 @@ function nullImplicants(
   answers: ReadonlyMap<Node, EvalResult>,
   catalog: NullabilityCatalog,
 ): Implicants {
-  const a = answers.get(n);
-  if (a !== undefined) return a.isNull ? [[]] : [];
-  return forcedNullImplicantsAnyRow(n, catalog);
+  const a = answers.get(n)
+  if (a !== undefined) return a.isNull ? [[]] : []
+  return forcedNullImplicantsAnyRow(n, catalog)
 }
 
 /** The boolean truth of an evaluated guard: `true` fires the arm, `false`
@@ -403,13 +406,13 @@ function guardTruth(
   n: Node | undefined,
   answers: ReadonlyMap<Node, EvalResult>,
 ): boolean | undefined {
-  if (!n) return undefined;
-  const a = answers.get(n);
-  if (a === undefined) return undefined;
-  if (a.isNull) return false;
-  if (a.value === true) return true;
-  if (a.value === false) return false;
-  return undefined;
+  if (!n) return undefined
+  const a = answers.get(n)
+  if (a === undefined) return undefined
+  if (a.isNull) return false
+  if (a.value === true) return true
+  if (a.value === false) return false
+  return undefined
 }
 
 /** Implicants of "this grounded boolean is FALSE" — the rejection
@@ -421,12 +424,12 @@ function falseImplicants(
   answers: ReadonlyMap<Node, EvalResult>,
   catalog: NullabilityCatalog,
 ): Implicants {
-  const a = answers.get(n);
+  const a = answers.get(n)
   if (a !== undefined) {
-    return !a.isNull && a.value === false ? [[]] : [];
+    return !a.isNull && a.value === false ? [[]] : []
   }
-  const tag = nodeTag(n);
-  if (tag === "CaseExpr") {
+  const tag = nodeTag(n)
+  if (tag === 'CaseExpr') {
     // A CASE-shaped CHECK body (the instrument's first post-landing
     // conviction): the CASE is FALSE exactly when the arm that fires
     // yields FALSE, so an implicant must handle EVERY possibly-firing arm
@@ -439,14 +442,14 @@ function falseImplicants(
     // (the ELSE included) never fires, and a missing ELSE is the implicit
     // NULL arm, which is never FALSE and so annihilates. The simple form's
     // comparisons are not AST nodes; nothing to consult, no claim.
-    const f = (n as Fields)["CaseExpr"] as { arg?: Node; args?: Node[]; defresult?: Node };
-    if (f.arg !== undefined) return [];
-    const reachable: Implicants[] = [];
+    const f = (n as Fields)['CaseExpr'] as { arg?: Node; args?: Node[]; defresult?: Node }
+    if (f.arg !== undefined) return []
+    const reachable: Implicants[] = []
     for (const w of f.args ?? []) {
-      const when = (w as Fields)["CaseWhen"] as { expr?: Node; result?: Node } | undefined;
-      if (!when?.result) return [];
-      const t = guardTruth(when.expr, answers);
-      if (t === false) continue;
+      const when = (w as Fields)['CaseWhen'] as { expr?: Node; result?: Node } | undefined
+      if (!when?.result) return []
+      const t = guardTruth(when.expr, answers)
+      if (t === false) continue
       // Not-TRUE by forcing: a guard driven NULL or FALSE by a NULL
       // binding cannot select its arm — either route neutralizes it.
       const notTrue = when.expr
@@ -454,44 +457,42 @@ function falseImplicants(
             nullImplicants(when.expr, answers, catalog),
             falseImplicants(when.expr, answers, catalog),
           ])
-        : [];
-      reachable.push(
-        unionLists([notTrue, falseImplicants(when.result, answers, catalog)]),
-      );
-      if (t === true) return crossUnion(reachable);
+        : []
+      reachable.push(unionLists([notTrue, falseImplicants(when.result, answers, catalog)]))
+      if (t === true) return crossUnion(reachable)
     }
-    reachable.push(f.defresult ? falseImplicants(f.defresult, answers, catalog) : []);
-    return crossUnion(reachable);
+    reachable.push(f.defresult ? falseImplicants(f.defresult, answers, catalog) : [])
+    return crossUnion(reachable)
   }
-  if (tag === "BoolExpr") {
-    const f = (n as Fields)["BoolExpr"] as { boolop?: string; args?: Node[] };
-    const args = f.args ?? [];
-    if (f.boolop === "AND_EXPR") {
-      return unionLists(args.map(x => falseImplicants(x, answers, catalog)));
+  if (tag === 'BoolExpr') {
+    const f = (n as Fields)['BoolExpr'] as { boolop?: string; args?: Node[] }
+    const args = f.args ?? []
+    if (f.boolop === 'AND_EXPR') {
+      return unionLists(args.map((x) => falseImplicants(x, answers, catalog)))
     }
-    if (f.boolop === "OR_EXPR") {
-      return crossUnion(args.map(x => falseImplicants(x, answers, catalog)));
+    if (f.boolop === 'OR_EXPR') {
+      return crossUnion(args.map((x) => falseImplicants(x, answers, catalog)))
     }
-    if (f.boolop === "NOT_EXPR" && args.length === 1) {
+    if (f.boolop === 'NOT_EXPR' && args.length === 1) {
       // NOT x is FALSE exactly when x is TRUE — a NULL binding makes atoms
       // UNKNOWN, never TRUE, so only an evaluated TRUE answers.
-      const inner = answers.get(args[0]!);
-      return inner !== undefined && !inner.isNull && inner.value === true ? [[]] : [];
+      const inner = answers.get(args[0]!)
+      return inner !== undefined && !inner.isNull && inner.value === true ? [[]] : []
     }
-    return [];
+    return []
   }
-  if (tag === "NullTest") {
-    const f = (n as Fields)["NullTest"] as { arg?: Node; nulltesttype?: string };
-    if (f.arg && f.nulltesttype === "IS_NOT_NULL") {
-      return nullImplicants(f.arg, answers, catalog);
+  if (tag === 'NullTest') {
+    const f = (n as Fields)['NullTest'] as { arg?: Node; nulltesttype?: string }
+    if (f.arg && f.nulltesttype === 'IS_NOT_NULL') {
+      return nullImplicants(f.arg, answers, catalog)
     }
     // IS NULL goes FALSE on a NON-null value; a NULL binding cannot force
     // one, and a closed argument was answered at the parent already.
-    return [];
+    return []
   }
   // Comparison atoms, surviving columns, anything unrecognised: a NULL
   // binding makes them UNKNOWN at worst, which CHECK passes.
-  return [];
+  return []
 }
 
 /**
@@ -508,17 +509,17 @@ export function groundedCheckClaims(
   answers: ReadonlyMap<Node, EvalResult>,
   catalog: NullabilityCatalog,
 ): MechanismEClaims {
-  const all: Implicants = [];
-  let alwaysRaises = false;
+  const all: Implicants = []
+  let alwaysRaises = false
   for (const check of checks) {
-    const implicants = falseImplicants(check.body, answers, catalog);
-    if (check.universal && implicants.some(s => s.length === 0)) alwaysRaises = true;
-    all.push(...implicants);
+    const implicants = falseImplicants(check.body, answers, catalog)
+    if (check.universal && implicants.some((s) => s.length === 0)) alwaysRaises = true
+    all.push(...implicants)
   }
-  const minimized = minimizeImplicants(all);
+  const minimized = minimizeImplicants(all)
   return {
-    rejected: new Set(minimized.filter(s => s.length === 1).map(s => s[0]!)),
-    joint: minimized.filter(s => s.length >= 2),
+    rejected: new Set(minimized.filter((s) => s.length === 1).map((s) => s[0]!)),
+    joint: minimized.filter((s) => s.length >= 2),
     alwaysRaises,
-  };
+  }
 }

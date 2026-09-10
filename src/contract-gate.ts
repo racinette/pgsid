@@ -32,7 +32,7 @@
 // claim, and the point of the gate is that the wrongness stops being silent.
 // ---------------------------------------------------------------------------
 
-import type { QueryContract } from "./query/nullability-walk.js";
+import type { QueryContract } from './query/nullability-walk.js'
 
 /**
  * What PostgreSQL says a statement's shape is, WITHOUT executing it.
@@ -53,12 +53,12 @@ import type { QueryContract } from "./query/nullability-walk.js";
  */
 export interface DescribedShape {
   /** Output column names in order. Duplicates are preserved and meaningful. */
-  columns: readonly string[];
+  columns: readonly string[]
   /** How many `$n` parameters PostgreSQL resolved for the statement. */
-  params: number;
+  params: number
 }
 
-export type DescribeStatement = (sql: string) => Promise<DescribedShape>;
+export type DescribeStatement = (sql: string) => Promise<DescribedShape>
 
 /**
  * Why the gate refused, or that it did not. Every arm carries both sides,
@@ -66,31 +66,31 @@ export type DescribeStatement = (sql: string) => Promise<DescribedShape>;
  * "the shapes differ" is not a diagnostic anyone can act on.
  */
 export type GateOutcome =
-  | { kind: "agreed" }
+  | { kind: 'agreed' }
   | {
-      kind: "column-arity";
-      engine: readonly string[];
-      database: readonly string[];
+      kind: 'column-arity'
+      engine: readonly string[]
+      database: readonly string[]
     }
   | {
-      kind: "column-order";
+      kind: 'column-order'
       /** The first position whose names disagree. */
-      at: number;
-      engine: readonly string[];
-      database: readonly string[];
+      at: number
+      engine: readonly string[]
+      database: readonly string[]
     }
-  | { kind: "param-arity"; engine: number; database: number }
+  | { kind: 'param-arity'; engine: number; database: number }
   /** `describe` threw: PostgreSQL could not plan the statement, or the
    *  consumer's adapter failed. Either way there is nothing to compare
    *  against and no claim may be trusted. */
-  | { kind: "undescribed"; detail: string };
+  | { kind: 'undescribed'; detail: string }
 
 export interface GatedContract extends QueryContract {
-  gate: GateOutcome;
+  gate: GateOutcome
 }
 
 /** Whether the outcome permits the engine's claims to be used as they are. */
-export const gateAgreed = (outcome: GateOutcome): boolean => outcome.kind === "agreed";
+export const gateAgreed = (outcome: GateOutcome): boolean => outcome.kind === 'agreed'
 
 /**
  * Compare the engine's shape against the database's.
@@ -104,21 +104,21 @@ export function compareShapes(
   database: DescribedShape,
 ): GateOutcome {
   if (engine.params !== database.params) {
-    return { kind: "param-arity", engine: engine.params, database: database.params };
+    return { kind: 'param-arity', engine: engine.params, database: database.params }
   }
   if (engine.columns.length !== database.columns.length) {
-    return { kind: "column-arity", engine: engine.columns, database: database.columns };
+    return { kind: 'column-arity', engine: engine.columns, database: database.columns }
   }
   for (let i = 0; i < engine.columns.length; i++) {
     // An empty engine name compares as nothing: see the header — the walk
     // does not implement FigureColname, so an unaliased expression has no
     // name to compare and the position degrades to the arity check above.
-    const name = engine.columns[i]!;
-    if (name !== "" && name !== database.columns[i]) {
-      return { kind: "column-order", at: i, engine: engine.columns, database: database.columns };
+    const name = engine.columns[i]!
+    if (name !== '' && name !== database.columns[i]) {
+      return { kind: 'column-order', at: i, engine: engine.columns, database: database.columns }
     }
   }
-  return { kind: "agreed" };
+  return { kind: 'agreed' }
 }
 
 /**
@@ -134,12 +134,12 @@ export function compareShapes(
  */
 function degraded(contract: QueryContract, names: readonly string[]): QueryContract {
   return {
-    outputs: names.map(name => ({ name, notNull: false })),
-    params: contract.params.map(p => ({ number: p.number, notNull: false })),
+    outputs: names.map((name) => ({ name, notNull: false })),
+    params: contract.params.map((p) => ({ number: p.number, notNull: false })),
     paramRejectionSets: [],
     outputPresenceGroups: [],
     alwaysRaises: false,
-  };
+  }
 }
 
 /**
@@ -156,21 +156,24 @@ export async function gateContract(
   contract: QueryContract,
   describe: DescribeStatement,
 ): Promise<GatedContract> {
-  let database: DescribedShape;
+  let database: DescribedShape
   try {
-    database = await describe(sql);
+    database = await describe(sql)
   } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
+    const detail = e instanceof Error ? e.message : String(e)
     return {
-      ...degraded(contract, contract.outputs.map(o => o.name)),
-      gate: { kind: "undescribed", detail },
-    };
+      ...degraded(
+        contract,
+        contract.outputs.map((o) => o.name),
+      ),
+      gate: { kind: 'undescribed', detail },
+    }
   }
 
   const outcome = compareShapes(
-    { columns: contract.outputs.map(o => o.name), params: contract.params.length },
+    { columns: contract.outputs.map((o) => o.name), params: contract.params.length },
     database,
-  );
-  if (outcome.kind === "agreed") return { ...contract, gate: outcome };
-  return { ...degraded(contract, database.columns), gate: outcome };
+  )
+  if (outcome.kind === 'agreed') return { ...contract, gate: outcome }
+  return { ...degraded(contract, database.columns), gate: outcome }
 }

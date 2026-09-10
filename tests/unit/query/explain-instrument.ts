@@ -1,4 +1,4 @@
-import type { JoinAudit, OutputNullability } from "../../../src/query/types.js";
+import type { JoinAudit, OutputNullability } from '../../../src/query/types.js'
 
 // ---------------------------------------------------------------------------
 // The EXPLAIN oracle's shared instrument, used by both corpora — the
@@ -8,18 +8,18 @@ import type { JoinAudit, OutputNullability } from "../../../src/query/types.js";
 // channel exists there).
 // ---------------------------------------------------------------------------
 
-const RAW_OUTER = new Set(["JOIN_LEFT", "JOIN_RIGHT", "JOIN_FULL"]);
-const PLAN_OUTER = new Set(["Left", "Right", "Full"]);
+const RAW_OUTER = new Set(['JOIN_LEFT', 'JOIN_RIGHT', 'JOIN_FULL'])
+const PLAN_OUTER = new Set(['Left', 'Right', 'Full'])
 
 /** Outer JoinExpr nodes anywhere in a raw AST — subqueries and CTEs included. */
 export function countRawOuterJoins(node: unknown): number {
-  if (Array.isArray(node)) return node.reduce((n: number, c) => n + countRawOuterJoins(c), 0);
-  if (node === null || typeof node !== "object") return 0;
-  const rec = node as Record<string, unknown>;
-  const join = rec["JoinExpr"] as Record<string, unknown> | undefined;
-  let n = join && RAW_OUTER.has(join["jointype"] as string) ? 1 : 0;
-  for (const v of Object.values(rec)) n += countRawOuterJoins(v);
-  return n;
+  if (Array.isArray(node)) return node.reduce((n: number, c) => n + countRawOuterJoins(c), 0)
+  if (node === null || typeof node !== 'object') return 0
+  const rec = node as Record<string, unknown>
+  const join = rec['JoinExpr'] as Record<string, unknown> | undefined
+  let n = join && RAW_OUTER.has(join['jointype'] as string) ? 1 : 0
+  for (const v of Object.values(rec)) n += countRawOuterJoins(v)
+  return n
 }
 
 /**
@@ -28,12 +28,12 @@ export function countRawOuterJoins(node: unknown): number {
  * family the planner synthesizes from sublinks.
  */
 export function countPlanOuterJoins(node: unknown): number {
-  if (Array.isArray(node)) return node.reduce((n: number, c) => n + countPlanOuterJoins(c), 0);
-  if (node === null || typeof node !== "object") return 0;
-  const rec = node as Record<string, unknown>;
-  let n = typeof rec["Join Type"] === "string" && PLAN_OUTER.has(rec["Join Type"] as string) ? 1 : 0;
-  for (const v of Object.values(rec)) n += countPlanOuterJoins(v);
-  return n;
+  if (Array.isArray(node)) return node.reduce((n: number, c) => n + countPlanOuterJoins(c), 0)
+  if (node === null || typeof node !== 'object') return 0
+  const rec = node as Record<string, unknown>
+  let n = typeof rec['Join Type'] === 'string' && PLAN_OUTER.has(rec['Join Type'] as string) ? 1 : 0
+  for (const v of Object.values(rec)) n += countPlanOuterJoins(v)
+  return n
 }
 
 /**
@@ -80,94 +80,94 @@ export function countPlanOuterJoins(node: unknown): number {
 //     classifier stays armed with a pinned count of 0 so a regression
 //     re-opens the class by name.
 
-export type DivergenceCause = "slice-local-strict-qual" | "join-removal" | "srf-unit-blindspot";
+export type DivergenceCause = 'slice-local-strict-qual' | 'join-removal' | 'srf-unit-blindspot'
 
 interface JoinInfo {
-  jointype: string;
-  larg: unknown;
-  rarg: unknown;
-  quals: unknown;
+  jointype: string
+  larg: unknown
+  rarg: unknown
+  quals: unknown
 }
 
 function walkNodes(node: unknown, visit: (rec: Record<string, unknown>) => void): void {
   if (Array.isArray(node)) {
-    for (const c of node) walkNodes(c, visit);
-    return;
+    for (const c of node) walkNodes(c, visit)
+    return
   }
-  if (node === null || typeof node !== "object") return;
-  const rec = node as Record<string, unknown>;
-  visit(rec);
-  for (const v of Object.values(rec)) walkNodes(v, visit);
+  if (node === null || typeof node !== 'object') return
+  const rec = node as Record<string, unknown>
+  visit(rec)
+  for (const v of Object.values(rec)) walkNodes(v, visit)
 }
 
 function collectJoins(node: unknown): JoinInfo[] {
-  const joins: JoinInfo[] = [];
-  walkNodes(node, rec => {
-    const j = rec["JoinExpr"] as Record<string, unknown> | undefined;
+  const joins: JoinInfo[] = []
+  walkNodes(node, (rec) => {
+    const j = rec['JoinExpr'] as Record<string, unknown> | undefined
     if (j) {
       joins.push({
-        jointype: (j["jointype"] as string) ?? "JOIN_INNER",
-        larg: j["larg"],
-        rarg: j["rarg"],
-        quals: j["quals"],
-      });
+        jointype: (j['jointype'] as string) ?? 'JOIN_INNER',
+        larg: j['larg'],
+        rarg: j['rarg'],
+        quals: j['quals'],
+      })
     }
-  });
-  return joins;
+  })
+  return joins
 }
 
 /** FROM-item alias names in a subtree: relations, subselects, functions. */
 function subtreeAliases(node: unknown): Set<string> {
-  const out = new Set<string>();
-  walkNodes(node, rec => {
-    for (const kind of ["RangeVar", "RangeSubselect", "RangeFunction"]) {
-      const item = rec[kind] as Record<string, unknown> | undefined;
-      if (!item) continue;
-      const alias = (item["alias"] as { aliasname?: string } | undefined)?.aliasname;
-      const name = alias ?? (kind === "RangeVar" ? (item["relname"] as string) : undefined);
-      if (name) out.add(name);
+  const out = new Set<string>()
+  walkNodes(node, (rec) => {
+    for (const kind of ['RangeVar', 'RangeSubselect', 'RangeFunction']) {
+      const item = rec[kind] as Record<string, unknown> | undefined
+      if (!item) continue
+      const alias = (item['alias'] as { aliasname?: string } | undefined)?.aliasname
+      const name = alias ?? (kind === 'RangeVar' ? (item['relname'] as string) : undefined)
+      if (name) out.add(name)
     }
-  });
-  return out;
+  })
+  return out
 }
 
 /** Base-relation aliases only — the set a plan's scan nodes must cover. */
 function relationAliases(node: unknown): Set<string> {
-  const out = new Set<string>();
-  walkNodes(node, rec => {
-    const rv = rec["RangeVar"] as Record<string, unknown> | undefined;
-    if (!rv) return;
-    const alias = (rv["alias"] as { aliasname?: string } | undefined)?.aliasname;
-    out.add(alias ?? (rv["relname"] as string));
-  });
-  return out;
+  const out = new Set<string>()
+  walkNodes(node, (rec) => {
+    const rv = rec['RangeVar'] as Record<string, unknown> | undefined
+    if (!rv) return
+    const alias = (rv['alias'] as { aliasname?: string } | undefined)?.aliasname
+    out.add(alias ?? (rv['relname'] as string))
+  })
+  return out
 }
 
 /** Qualifier parts of qualified ColumnRefs in a qual expression. */
 function qualifierRefs(node: unknown): Set<string> {
-  const out = new Set<string>();
-  walkNodes(node, rec => {
-    const cr = rec["ColumnRef"] as { fields?: unknown[] } | undefined;
-    if (!cr?.fields || cr.fields.length < 2) return;
-    const first = cr.fields[0] as { String?: { sval?: string } } | undefined;
-    if (first?.String?.sval) out.add(first.String.sval);
-  });
-  return out;
+  const out = new Set<string>()
+  walkNodes(node, (rec) => {
+    const cr = rec['ColumnRef'] as { fields?: unknown[] } | undefined
+    if (!cr?.fields || cr.fields.length < 2) return
+    const first = cr.fields[0] as { String?: { sval?: string } } | undefined
+    if (first?.String?.sval) out.add(first.String.sval)
+  })
+  return out
 }
 
 function extendedSides(j: JoinInfo): unknown[] {
-  if (j.jointype === "JOIN_LEFT") return [j.rarg];
-  if (j.jointype === "JOIN_RIGHT") return [j.larg];
-  if (j.jointype === "JOIN_FULL") return [j.larg, j.rarg];
-  return [];
+  if (j.jointype === 'JOIN_LEFT') return [j.rarg]
+  if (j.jointype === 'JOIN_RIGHT') return [j.larg]
+  if (j.jointype === 'JOIN_FULL') return [j.larg, j.rarg]
+  return []
 }
 
 function containsRangeFunction(node: unknown): boolean {
-  let found = false;
-  walkNodes(node, rec => {
-    if (rec["RangeFunction"]) found = true;
-  });
-  return found;
+  let found = false
+  walkNodes(node, (rec) => {
+    if (rec['RangeFunction']) found = true
+  })
+  return found
 }
 
 /**
@@ -177,18 +177,18 @@ function containsRangeFunction(node: unknown): boolean {
  * join shape, slice-local reduction off the qual/extension geometry.
  */
 export function classifyPlannerStronger(stmt: unknown, plan: unknown): DivergenceCause | null {
-  const planAliases = new Set<string>();
-  walkNodes(plan, rec => {
-    if (typeof rec["Alias"] === "string") planAliases.add(rec["Alias"] as string);
-  });
+  const planAliases = new Set<string>()
+  walkNodes(plan, (rec) => {
+    if (typeof rec['Alias'] === 'string') planAliases.add(rec['Alias'] as string)
+  })
   for (const alias of relationAliases(stmt)) {
-    if (!planAliases.has(alias) && !planAliases.has(`${alias}_1`)) return "join-removal";
+    if (!planAliases.has(alias) && !planAliases.has(`${alias}_1`)) return 'join-removal'
   }
 
-  const joins = collectJoins(stmt);
-  const outer = joins.filter(j => extendedSides(j).length > 0);
+  const joins = collectJoins(stmt)
+  const outer = joins.filter((j) => extendedSides(j).length > 0)
   for (const j of outer) {
-    if (extendedSides(j).some(containsRangeFunction)) return "srf-unit-blindspot";
+    if (extendedSides(j).some(containsRangeFunction)) return 'srf-unit-blindspot'
   }
 
   // The qual-bearing join may be ANY type, not only outer: `(t LEFT u) JOIN
@@ -199,19 +199,19 @@ export function classifyPlannerStronger(stmt: unknown, plan: unknown): Divergenc
   // A top-level inner qual IS implied globally, so those queries agree and
   // never reach this classifier.
   for (const j of joins) {
-    const refs = qualifierRefs(j.quals);
-    if (refs.size === 0) continue;
+    const refs = qualifierRefs(j.quals)
+    if (refs.size === 0) continue
     for (const arm of [j.larg, j.rarg]) {
       for (const nested of collectJoins(arm)) {
         for (const side of extendedSides(nested)) {
           for (const alias of subtreeAliases(side)) {
-            if (refs.has(alias)) return "slice-local-strict-qual";
+            if (refs.has(alias)) return 'slice-local-strict-qual'
           }
         }
       }
     }
   }
-  return null;
+  return null
 }
 
 export function survivingOuterJoins(
@@ -222,17 +222,17 @@ export function survivingOuterJoins(
   // the analysis ran with `collectUnitCrossings`, and the only channel that
   // covers a set-returning function's pass-through), with origins' units as
   // the anchor-carrying subset behind it.
-  const refiltered = new Set<number>();
+  const refiltered = new Set<number>()
   for (const c of claims) {
-    if (!c.notNull) continue;
-    for (const u of c.unitCrossings ?? []) refiltered.add(u.unit);
+    if (!c.notNull) continue
+    for (const u of c.unitCrossings ?? []) refiltered.add(u.unit)
     for (const o of c.origins ?? []) {
-      for (const u of o?.units ?? []) refiltered.add(u.unit);
+      for (const u of o?.units ?? []) refiltered.add(u.unit)
     }
   }
   return joinAudit.filter(
-    a =>
+    (a) =>
       (a.leftSettled === false && !refiltered.has(a.leftGroup!)) ||
       (a.rightSettled === false && !refiltered.has(a.rightGroup!)),
-  ).length;
+  ).length
 }

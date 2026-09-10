@@ -1,18 +1,18 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { parseSql } from "../../../src/ast.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferNullability, type WalkOptions } from "../../../src/query/nullability-walk.js";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { parseSql } from '../../../src/ast.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import { inferNullability, type WalkOptions } from '../../../src/query/nullability-walk.js'
 import type {
   NullabilityCatalog,
   ResolveColumnTypes,
   TypeSetAudit,
-} from "../../../src/query/types.js";
-import { UNION_SCHEMA } from "./type-union-cases.js";
-import { exprSql, wireRendering } from "./type-unions.js";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+} from '../../../src/query/types.js'
+import { UNION_SCHEMA } from './type-union-cases.js'
+import { exprSql, wireRendering } from './type-unions.js'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 // ---------------------------------------------------------------------------
 // THE RED SUITE for type-resolution delegation, Stage 1.
@@ -38,208 +38,204 @@ import { join } from "node:path";
 // Every expectation carries PostgreSQL's own answer.
 // ---------------------------------------------------------------------------
 
-let pg: PGlite;
-let catalog: NullabilityCatalog;
+let pg: PGlite
+let catalog: NullabilityCatalog
 
 /** The consumer half of the contract: PREPARE, read the resolved output
  *  types, DEALLOCATE. Parse analysis only — nothing runs, nothing is
  *  planned. */
-const resolveColumnTypes: ResolveColumnTypes = async sql => {
+const resolveColumnTypes: ResolveColumnTypes = async (sql) => {
   try {
-    await pg.exec(`PREPARE d AS ${sql}`);
+    await pg.exec(`PREPARE d AS ${sql}`)
   } catch {
-    return []; // a probe PostgreSQL rejects drops to the symbolic path
+    return [] // a probe PostgreSQL rejects drops to the symbolic path
   }
   try {
     const r = await pg.query<{ rt: string[] }>(
       "SELECT result_types::text[] AS rt FROM pg_prepared_statements WHERE name = 'd'",
-    );
-    return r.rows[0]?.rt ?? [];
+    )
+    return r.rows[0]?.rt ?? []
   } finally {
-    await pg.exec("DEALLOCATE d");
+    await pg.exec('DEALLOCATE d')
   }
-};
+}
 
 /** Every type set the walk reads for `sql`, keyed by deparsed expression. */
 async function sets(sql: string, options?: WalkOptions): Promise<Map<string, string[] | null>> {
-  const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
-  const audit: TypeSetAudit[] = [];
-  await inferNullability(stmt, catalog, { ...options, typeSetAudit: audit });
-  const out = new Map<string, string[] | null>();
+  const stmt = (await parseSql(sql)).stmts![0]!.stmt!
+  const audit: TypeSetAudit[] = []
+  await inferNullability(stmt, catalog, { ...options, typeSetAudit: audit })
+  const out = new Map<string, string[] | null>()
   for (const rec of audit) {
-    const key = exprSql(rec.expr);
-    if (key !== null && !out.has(key)) out.set(key, rec.set);
+    const key = exprSql(rec.expr)
+    if (key !== null && !out.has(key)) out.set(key, rec.set)
   }
-  return out;
+  return out
 }
 
 /** The reading for one expression, with delegation ON. */
 async function delegated(sql: string, expr: string): Promise<string[] | null | undefined> {
-  const m = await sets(sql, { resolveColumnTypes });
-  expect(m.has(expr), `the walk read nothing for \`${expr}\` in: ${sql}`).toBe(true);
-  return m.get(expr);
+  const m = await sets(sql, { resolveColumnTypes })
+  expect(m.has(expr), `the walk read nothing for \`${expr}\` in: ${sql}`).toBe(true)
+  return m.get(expr)
 }
 
 /** The reading for one expression, with delegation OFF. */
 async function symbolic(sql: string, expr: string): Promise<string[] | null | undefined> {
-  const m = await sets(sql);
-  expect(m.has(expr), `the walk read nothing for \`${expr}\` in: ${sql}`).toBe(true);
-  return m.get(expr);
+  const m = await sets(sql)
+  expect(m.has(expr), `the walk read nothing for \`${expr}\` in: ${sql}`).toBe(true)
+  return m.get(expr)
 }
 
 /** What PostgreSQL resolves the single output column of `sql` to. */
 async function pgType(sql: string): Promise<string> {
-  const t = await resolveColumnTypes(sql);
-  expect(t.length, `PostgreSQL answered nothing for: ${sql}`).toBe(1);
-  return t[0]!;
+  const t = await resolveColumnTypes(sql)
+  expect(t.length, `PostgreSQL answered nothing for: ${sql}`).toBe(1)
+  return t[0]!
 }
 
 beforeAll(async () => {
-  pg = await PGlite.create();
-  await pg.exec(UNION_SCHEMA);
-  catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
-}, 120_000);
+  pg = await PGlite.create()
+  await pg.exec(UNION_SCHEMA)
+  catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
+}, 120_000)
 
 afterAll(async () => {
-  await pg?.close();
-});
+  await pg?.close()
+})
 
-describe("type-resolution delegation, Stage 1 (Route A)", () => {
-  it("collapses a mixed-numeric union to the type PostgreSQL resolves", async () => {
-    const sql = "SELECT abs(m.i + m.n) AS v FROM m";
-    expect(await pgType("SELECT $1::integer + $2::numeric")).toBe("numeric");
+describe('type-resolution delegation, Stage 1 (Route A)', () => {
+  it('collapses a mixed-numeric union to the type PostgreSQL resolves', async () => {
+    const sql = 'SELECT abs(m.i + m.n) AS v FROM m'
+    expect(await pgType('SELECT $1::integer + $2::numeric')).toBe('numeric')
     // The union the walk reads on its own — wide, sound, and less than the
     // answer. This is also what the containment invariant is measured against.
-    expect(await symbolic(sql, "m.i + m.n")).toEqual([
-      "double precision",
-      "numeric",
-      "real",
-    ]);
-    expect(await delegated(sql, "m.i + m.n")).toEqual(["numeric"]);
-  });
+    expect(await symbolic(sql, 'm.i + m.n')).toEqual(['double precision', 'numeric', 'real'])
+    expect(await delegated(sql, 'm.i + m.n')).toEqual(['numeric'])
+  })
 
-  it("the delegated answer is a MEMBER of the union it replaces", async () => {
-    const sql = "SELECT abs(m.r + m.n) AS v FROM m";
-    const wide = await symbolic(sql, "m.r + m.n");
-    const exact = await delegated(sql, "m.r + m.n");
-    expect(exact).toHaveLength(1);
-    expect(wide).toContain(exact![0]);
-  });
+  it('the delegated answer is a MEMBER of the union it replaces', async () => {
+    const sql = 'SELECT abs(m.r + m.n) AS v FROM m'
+    const wide = await symbolic(sql, 'm.r + m.n')
+    const exact = await delegated(sql, 'm.r + m.n')
+    expect(exact).toHaveLength(1)
+    expect(wide).toContain(exact![0])
+  })
 
-  it("substitutes a DECLARED parameter type, which pins its neighbour", async () => {
+  it('substitutes a DECLARED parameter type, which pins its neighbour', async () => {
     // A parameter is refused as a delegation TARGET and accepted as a
     // delegation SOURCE, and the two are not in tension: this never asks what
     // `$1` is, it uses what the engine declared. The distinction buys the
     // whole mixed-parameter arithmetic surface.
-    expect(await pgType("SELECT $1::numeric + $2::integer")).toBe("numeric");
-    const sql = "SELECT abs($1 + m.i) AS v FROM m";
-    const off = await sets(sql, { paramTypes: ["numeric"] });
-    expect(off.get("$1 + m.i")).toEqual(["double precision", "numeric", "real"]);
-    const on = await sets(sql, { resolveColumnTypes, paramTypes: ["numeric"] });
-    expect(on.get("$1 + m.i")).toEqual(["numeric"]);
-  });
+    expect(await pgType('SELECT $1::numeric + $2::integer')).toBe('numeric')
+    const sql = 'SELECT abs($1 + m.i) AS v FROM m'
+    const off = await sets(sql, { paramTypes: ['numeric'] })
+    expect(off.get('$1 + m.i')).toEqual(['double precision', 'numeric', 'real'])
+    const on = await sets(sql, { resolveColumnTypes, paramTypes: ['numeric'] })
+    expect(on.get('$1 + m.i')).toEqual(['numeric'])
+  })
 
   describe("Route B — splice a probe into the statement's own output list", () => {
-    it("types a derived column the walk cannot follow to a base column", async () => {
+    it('types a derived column the walk cannot follow to a base column', async () => {
       // `unnest(m.arr)` is a function scan; `reExportedBaseColumn` requires a
       // bare ColumnRef target and there is no base column to look up.
-      const sql = "SELECT s.v || 'x' AS r FROM (SELECT unnest(m.arr) AS v FROM m) s";
-      expect(await pgType(sql)).toBe("text");
-      expect(await symbolic(sql, "s.v")).toBeNull();
-      expect(await delegated(sql, "s.v")).toEqual(["text"]);
-    });
+      const sql = "SELECT s.v || 'x' AS r FROM (SELECT unnest(m.arr) AS v FROM m) s"
+      expect(await pgType(sql)).toBe('text')
+      expect(await symbolic(sql, 's.v')).toBeNull()
+      expect(await delegated(sql, 's.v')).toEqual(['text'])
+    })
 
-    it("types a COMPUTED derived column", async () => {
-      const sql = "SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s";
-      expect(await pgType(sql)).toBe("bigint");
-      expect(await symbolic(sql, "s.c")).toBeNull();
-      expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
-    });
+    it('types a COMPUTED derived column', async () => {
+      const sql = 'SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s'
+      expect(await pgType(sql)).toBe('bigint')
+      expect(await symbolic(sql, 's.c')).toBeNull()
+      expect(await delegated(sql, 's.c')).toEqual(['bigint'])
+    })
 
-    it("COMPOSES with Route A: typed columns become typed leaves", async () => {
+    it('COMPOSES with Route A: typed columns become typed leaves', async () => {
       // The whole argument for doing both. Route B types `a.c` and `b.c`;
       // neither the sum nor its operands were typeable before, and with the
       // leaves pinned Route A resolves the operator over them.
       const sql =
-        "SELECT abs(a.c + b.c) AS r FROM (SELECT count(*) AS c FROM m) a, (SELECT count(*) AS c FROM m) b";
-      expect(await pgType(sql)).toBe("bigint");
-      expect(await symbolic(sql, "a.c + b.c")).toBeNull();
-      expect(await delegated(sql, "a.c")).toEqual(["bigint"]);
-      expect(await delegated(sql, "a.c + b.c")).toEqual(["bigint"]);
-    });
+        'SELECT abs(a.c + b.c) AS r FROM (SELECT count(*) AS c FROM m) a, (SELECT count(*) AS c FROM m) b'
+      expect(await pgType(sql)).toBe('bigint')
+      expect(await symbolic(sql, 'a.c + b.c')).toBeNull()
+      expect(await delegated(sql, 'a.c')).toEqual(['bigint'])
+      expect(await delegated(sql, 'a.c + b.c')).toEqual(['bigint'])
+    })
 
-    it("GUARD: refuses an alias bound more than once in the statement", async () => {
+    it('GUARD: refuses an alias bound more than once in the statement', async () => {
       // Two relations answer to `s`. A top-level probe would resolve against
       // whichever one is visible there, and nothing in the probe records
       // which one the walk was asking about.
       const sql =
-        "SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s " +
-        "WHERE EXISTS (SELECT 1 FROM (SELECT count(*) AS c FROM m) s WHERE s.c > 0)";
-      expect(await pgType(sql)).toBe("bigint");
-      expect(await delegated(sql, "s.c")).toBeNull();
-    });
+        'SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s ' +
+        'WHERE EXISTS (SELECT 1 FROM (SELECT count(*) AS c FROM m) s WHERE s.c > 0)'
+      expect(await pgType(sql)).toBe('bigint')
+      expect(await delegated(sql, 's.c')).toBeNull()
+    })
 
-    it("reaches a qualifier bound inside a CTE, which no top-level probe can see", async () => {
+    it('reaches a qualifier bound inside a CTE, which no top-level probe can see', async () => {
       // `z` is bound in the CTE body, so the top-level splice raises. This was
       // written as a Stage 2 GUARD and became a win when hoisting landed: the
       // owning scope is run on its own and answers there.
       const sql =
-        "WITH w AS (SELECT abs(z.c) AS r FROM (SELECT count(*) AS c FROM m) z) SELECT w.r FROM w";
-      expect(await pgType(sql)).toBe("bigint");
-      expect(await symbolic(sql, "z.c")).toBeNull();
-      expect(await delegated(sql, "z.c")).toEqual(["bigint"]);
-    });
-  });
+        'WITH w AS (SELECT abs(z.c) AS r FROM (SELECT count(*) AS c FROM m) z) SELECT w.r FROM w'
+      expect(await pgType(sql)).toBe('bigint')
+      expect(await symbolic(sql, 'z.c')).toBeNull()
+      expect(await delegated(sql, 'z.c')).toEqual(['bigint'])
+    })
+  })
 
-  describe("Route B — giving a statement an output list it did not have", () => {
-    it("splices into the owning arm of a top-level set operation", async () => {
+  describe('Route B — giving a statement an output list it did not have', () => {
+    it('splices into the owning arm of a top-level set operation', async () => {
       const sql =
-        "SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s " +
-        "UNION ALL SELECT abs(m.i) FROM m";
-      expect(await symbolic(sql, "s.c")).toBeNull();
-      expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
-    });
+        'SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s ' +
+        'UNION ALL SELECT abs(m.i) FROM m'
+      expect(await symbolic(sql, 's.c')).toBeNull()
+      expect(await delegated(sql, 's.c')).toEqual(['bigint'])
+    })
 
-    it("finds the owning arm whichever side it is on", async () => {
+    it('finds the owning arm whichever side it is on', async () => {
       // The arms are padded with a bare NULL, which is `unknown` and takes
       // the other arm's type — measured in both positions, so the answer
       // cannot depend on which side the probe landed.
       const sql =
-        "SELECT abs(m.i) FROM m " +
-        "UNION ALL SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s";
-      expect(await symbolic(sql, "s.c")).toBeNull();
-      expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
-    });
+        'SELECT abs(m.i) FROM m ' +
+        'UNION ALL SELECT abs(s.c) AS r FROM (SELECT count(*) AS c FROM m) s'
+      expect(await symbolic(sql, 's.c')).toBeNull()
+      expect(await delegated(sql, 's.c')).toEqual(['bigint'])
+    })
 
-    it("HOISTS the owning scope for a reference bound inside a CTE", async () => {
+    it('HOISTS the owning scope for a reference bound inside a CTE', async () => {
       // `c2` is bound by the recursive arm's own FROM and is invisible to any
       // top-level probe. Rather than thread a new column outward through the
       // set operation and the CTE boundary, the owning SELECT is run as a
       // statement in its own right with the statement's CTEs carried along.
       const sql =
-        "WITH RECURSIVE ct(id, depth) AS (" +
-        "  SELECT m.i AS id, 0 AS depth FROM m" +
-        "  UNION ALL" +
-        "  SELECT c2.id, c2.depth + 1 FROM ct c2 WHERE c2.depth < 3" +
-        ") SELECT abs(ct.id) AS r FROM ct";
-      expect(await symbolic(sql, "c2.depth")).toBeNull();
-      expect(await delegated(sql, "c2.depth")).toEqual(["integer"]);
-    });
+        'WITH RECURSIVE ct(id, depth) AS (' +
+        '  SELECT m.i AS id, 0 AS depth FROM m' +
+        '  UNION ALL' +
+        '  SELECT c2.id, c2.depth + 1 FROM ct c2 WHERE c2.depth < 3' +
+        ') SELECT abs(ct.id) AS r FROM ct'
+      expect(await symbolic(sql, 'c2.depth')).toBeNull()
+      expect(await delegated(sql, 'c2.depth')).toEqual(['integer'])
+    })
 
-    it("GUARD: a correlated owning scope stops resolving when hoisted", async () => {
+    it('GUARD: a correlated owning scope stops resolving when hoisted', async () => {
       // Hoisting cannot change a type, but it CAN break: a reference to the
       // enclosing query has nothing to resolve against once the scope stands
       // alone, and PostgreSQL refusing is the outcome we want.
       const sql =
-        "SELECT abs((SELECT max(s.c + 1) FROM " +
-        "(SELECT count(*) AS c FROM m m3 WHERE m3.i = m.i) s)) AS r FROM m";
+        'SELECT abs((SELECT max(s.c + 1) FROM ' +
+        '(SELECT count(*) AS c FROM m m3 WHERE m3.i = m.i) s)) AS r FROM m'
       // `s`'s body reads `m.i` from the enclosing query, so the hoisted form
       // has nothing to resolve it against.
-      expect(await symbolic(sql, "s.c")).toBeNull();
-      expect(await delegated(sql, "s.c")).toBeNull();
-    });
+      expect(await symbolic(sql, 's.c')).toBeNull()
+      expect(await delegated(sql, 's.c')).toBeNull()
+    })
 
-    it("a DML statement with no RETURNING has nothing to delegate", async () => {
+    it('a DML statement with no RETURNING has nothing to delegate', async () => {
       // Why there is no "synthesize a RETURNING" mechanism, recorded so it is
       // not proposed again. A statement with no output columns gives the walk
       // no expressions to analyse, so it records NO type-set readings at all —
@@ -249,80 +245,79 @@ describe("type-resolution delegation, Stage 1 (Route A)", () => {
       // `outputList` looked for `returningList` where the parser emits
       // `returningClause`, so eight corpus statements that DO have a RETURNING
       // were counted as lacking one.
-      const sql =
-        "UPDATE m SET b = 1 FROM (SELECT count(*) AS c FROM m m2) s WHERE m.b < s.c * 2";
-      expect((await sets(sql, { resolveColumnTypes })).size).toBe(0);
-    });
+      const sql = 'UPDATE m SET b = 1 FROM (SELECT count(*) AS c FROM m m2) s WHERE m.b < s.c * 2'
+      expect((await sets(sql, { resolveColumnTypes })).size).toBe(0)
+    })
 
-    it("delegating over a DML statement executes NOTHING", async () => {
+    it('delegating over a DML statement executes NOTHING', async () => {
       // `PREPARE` stops after parse analysis, which is what makes it safe to
       // probe a statement that would otherwise write rows.
       await pg.exec(
-        "INSERT INTO m (i,j,b,n,f,r,t,v,d,ts,iv,arr,jb) VALUES " +
+        'INSERT INTO m (i,j,b,n,f,r,t,v,d,ts,iv,arr,jb) VALUES ' +
           "(1,1,1,1,1,1,'a','a','2020-01-01','2020-01-01',INTERVAL '1 day',ARRAY['a'],'{}')",
-      );
-      const before = await pg.query("SELECT count(*)::int AS n, sum(b)::int AS s FROM m");
+      )
+      const before = await pg.query('SELECT count(*)::int AS n, sum(b)::int AS s FROM m')
       const sql =
-        "UPDATE m SET b = s.c + 1 FROM (SELECT count(*) AS c FROM m m2) s " +
-        "WHERE m.i = 1 RETURNING abs(s.c) AS out";
-      expect(await delegated(sql, "s.c")).toEqual(["bigint"]);
-      const after = await pg.query("SELECT count(*)::int AS n, sum(b)::int AS s FROM m");
-      expect(after.rows[0]).toEqual(before.rows[0]);
-      await pg.exec("DELETE FROM m");
-    });
-  });
+        'UPDATE m SET b = s.c + 1 FROM (SELECT count(*) AS c FROM m m2) s ' +
+        'WHERE m.i = 1 RETURNING abs(s.c) AS out'
+      expect(await delegated(sql, 's.c')).toEqual(['bigint'])
+      const after = await pg.query('SELECT count(*)::int AS n, sum(b)::int AS s FROM m')
+      expect(after.rows[0]).toEqual(before.rows[0])
+      await pg.exec('DELETE FROM m')
+    })
+  })
 
-  it("without the callback the walk is byte-for-byte what it was", async () => {
-    const sql = "SELECT abs(m.i + m.n) AS v, abs(m.r + m.n) AS w FROM m";
-    const off = await sets(sql);
-    expect(off.get("m.i + m.n")).toEqual(["double precision", "numeric", "real"]);
-    expect(off.get("m.r + m.n")).toEqual(["double precision", "real"]);
-  });
+  it('without the callback the walk is byte-for-byte what it was', async () => {
+    const sql = 'SELECT abs(m.i + m.n) AS v, abs(m.r + m.n) AS w FROM m'
+    const off = await sets(sql)
+    expect(off.get('m.i + m.n')).toEqual(['double precision', 'numeric', 'real'])
+    expect(off.get('m.r + m.n')).toEqual(['double precision', 'real'])
+  })
 
-  describe("the safety rule — nodes PostgreSQL answers and we must refuse", () => {
-    it("a bare string literal stays untyped", async () => {
+  describe('the safety rule — nodes PostgreSQL answers and we must refuse', () => {
+    it('a bare string literal stays untyped', async () => {
       // PostgreSQL says `text`; the walk must not, because the type of an
       // unknown literal comes from whatever consumes it. In
       // `WHERE m.d = '2020-01-01'` that same token is a DATE, and neither
       // answer is a property of the literal — so we claim neither.
-      expect(await pgType("SELECT 'a'")).toBe("text");
-      expect(await pgType("SELECT ($1::date = '2020-01-01')")).toBe("boolean");
-      expect(await delegated("SELECT m.t || 'a' AS v FROM m", "'a'")).toBeNull();
+      expect(await pgType("SELECT 'a'")).toBe('text')
+      expect(await pgType("SELECT ($1::date = '2020-01-01')")).toBe('boolean')
+      expect(await delegated("SELECT m.t || 'a' AS v FROM m", "'a'")).toBeNull()
       expect(
         await delegated("SELECT abs(m.i) AS v FROM m WHERE m.d = '2020-01-01'", "'2020-01-01'"),
-      ).toBeNull();
-    });
+      ).toBeNull()
+    })
 
-    it("an ARRAY of unknown literals stays untyped", async () => {
-      expect(await pgType("SELECT ARRAY['a','b']")).toBe("text[]");
+    it('an ARRAY of unknown literals stays untyped', async () => {
+      expect(await pgType("SELECT ARRAY['a','b']")).toBe('text[]')
       expect(
         await delegated("SELECT m.arr || ARRAY['a','b'] AS v FROM m", "ARRAY['a', 'b']"),
-      ).toBeNull();
-    });
+      ).toBeNull()
+    })
 
-    it("a parameter is typed by its DECLARATION, never by delegation", async () => {
+    it('a parameter is typed by its DECLARATION, never by delegation', async () => {
       // A bare `$1` comes back `text` from PostgreSQL; the engine's declared
       // paramTypes is the contract and wins.
-      expect(await pgType("SELECT $1")).toBe("text");
-      const sql = "SELECT abs($1 + m.i) AS v FROM m";
-      const m = await sets(sql, { resolveColumnTypes, paramTypes: ["numeric"] });
-      expect(m.get("$1")).toEqual(["numeric"]);
-    });
+      expect(await pgType('SELECT $1')).toBe('text')
+      const sql = 'SELECT abs($1 + m.i) AS v FROM m'
+      const m = await sets(sql, { resolveColumnTypes, paramTypes: ['numeric'] })
+      expect(m.get('$1')).toEqual(['numeric'])
+    })
 
     it("refuses to reach inside a SubLink, whose columns are another scope's", async () => {
       // Rewriting `m2.i` here would produce `(SELECT max($1::integer) FROM m
       // AS m2)` — a different expression that PostgreSQL answers confidently.
       // The enclosing union keeps `pg_lsn`, which is the honest cost of the
       // refusal and exactly what Route B is sequenced to fix.
-      const sql = "SELECT abs((SELECT max(m2.i) FROM m m2) + m.n) AS v FROM m";
-      const expr = "((SELECT max(m2.i) FROM m AS m2)) + m.n";
-      const wide = ["double precision", "numeric", "pg_lsn", "real"];
-      expect(await symbolic(sql, expr)).toEqual(wide);
-      expect(await delegated(sql, expr)).toEqual(wide);
-      expect(await delegated(sql, "(SELECT max(m2.i) FROM m AS m2)")).toBeNull();
-    });
-  });
-});
+      const sql = 'SELECT abs((SELECT max(m2.i) FROM m m2) + m.n) AS v FROM m'
+      const expr = '((SELECT max(m2.i) FROM m AS m2)) + m.n'
+      const wide = ['double precision', 'numeric', 'pg_lsn', 'real']
+      expect(await symbolic(sql, expr)).toEqual(wide)
+      expect(await delegated(sql, expr)).toEqual(wide)
+      expect(await delegated(sql, '(SELECT max(m2.i) FROM m AS m2)')).toBeNull()
+    })
+  })
+})
 
 // ---------------------------------------------------------------------------
 // THE SAFETY NET.
@@ -340,97 +335,97 @@ describe("type-resolution delegation, Stage 1 (Route A)", () => {
 // answer returns before recursing, so the sub-operands under it are never
 // read and the two audits have different lengths by construction.
 // ---------------------------------------------------------------------------
-describe("delegation over the fixture corpus", () => {
-  const DIR = join(__dirname, "fixtures");
-  let fpg: PGlite;
-  let fcatalog: NullabilityCatalog;
-  let fresolve: ResolveColumnTypes;
+describe('delegation over the fixture corpus', () => {
+  const DIR = join(__dirname, 'fixtures')
+  let fpg: PGlite
+  let fcatalog: NullabilityCatalog
+  let fresolve: ResolveColumnTypes
 
   beforeAll(async () => {
-    fpg = await PGlite.create();
-    await fpg.exec(readFileSync(join(DIR, "schema.sql"), "utf8"));
-    fcatalog = await buildNullabilityCatalog(await snapshotCatalog(fpg));
-    fresolve = async sql => {
+    fpg = await PGlite.create()
+    await fpg.exec(readFileSync(join(DIR, 'schema.sql'), 'utf8'))
+    fcatalog = await buildNullabilityCatalog(await snapshotCatalog(fpg))
+    fresolve = async (sql) => {
       try {
-        await fpg.exec(`PREPARE c AS ${sql}`);
+        await fpg.exec(`PREPARE c AS ${sql}`)
       } catch {
-        return [];
+        return []
       }
       try {
         const r = await fpg.query<{ rt: string[] }>(
           "SELECT result_types::text[] AS rt FROM pg_prepared_statements WHERE name = 'c'",
-        );
-        return r.rows[0]?.rt ?? [];
+        )
+        return r.rows[0]?.rt ?? []
       } finally {
-        await fpg.exec("DEALLOCATE c");
+        await fpg.exec('DEALLOCATE c')
       }
-    };
-  }, 120_000);
+    }
+  }, 120_000)
 
   afterAll(async () => {
-    await fpg?.close();
-  });
+    await fpg?.close()
+  })
 
-  it("never answers outside the union it replaced", async () => {
+  it('never answers outside the union it replaced', async () => {
     const files = readdirSync(DIR)
-      .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-      .sort();
+      .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+      .sort()
 
-    let compared = 0;
-    let probes = 0;
-    let narrowed = 0;
-    let wideOff = 0;
-    let wideOn = 0;
-    const violations: string[] = [];
-    const counting: ResolveColumnTypes = async sql => {
-      probes++;
-      return fresolve(sql);
-    };
+    let compared = 0
+    let probes = 0
+    let narrowed = 0
+    let wideOff = 0
+    let wideOn = 0
+    const violations: string[] = []
+    const counting: ResolveColumnTypes = async (sql) => {
+      probes++
+      return fresolve(sql)
+    }
 
     for (const file of files) {
-      const sql = readFileSync(join(DIR, file), "utf8");
-      const off: TypeSetAudit[] = [];
-      const on: TypeSetAudit[] = [];
+      const sql = readFileSync(join(DIR, file), 'utf8')
+      const off: TypeSetAudit[] = []
+      const on: TypeSetAudit[] = []
       try {
-        const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
-        await inferNullability(stmt, fcatalog, { typeSetAudit: off });
+        const stmt = (await parseSql(sql)).stmts![0]!.stmt!
+        await inferNullability(stmt, fcatalog, { typeSetAudit: off })
         await inferNullability(stmt, fcatalog, {
           typeSetAudit: on,
           resolveColumnTypes: counting,
-        });
+        })
       } catch {
-        continue; // a statement the walk refuses is not this test's subject
+        continue // a statement the walk refuses is not this test's subject
       }
-      const byNode = new Map<unknown, string[] | null>();
-      for (const r of on) if (!byNode.has(r.expr)) byNode.set(r.expr, r.set);
-      const seen = new Set<unknown>();
+      const byNode = new Map<unknown, string[] | null>()
+      for (const r of on) if (!byNode.has(r.expr)) byNode.set(r.expr, r.set)
+      const seen = new Set<unknown>()
       for (const rec of off) {
-        if (seen.has(rec.expr) || !byNode.has(rec.expr)) continue;
-        seen.add(rec.expr);
-        compared++;
-        const before = rec.set;
-        const after = byNode.get(rec.expr)!;
-        if (before !== null && before.length > 1) wideOff++;
-        if (after !== null && after.length > 1) wideOn++;
-        if (JSON.stringify(before) === JSON.stringify(after)) continue;
-        const text = exprSql(rec.expr) ?? "?";
+        if (seen.has(rec.expr) || !byNode.has(rec.expr)) continue
+        seen.add(rec.expr)
+        compared++
+        const before = rec.set
+        const after = byNode.get(rec.expr)!
+        if (before !== null && before.length > 1) wideOff++
+        if (after !== null && after.length > 1) wideOn++
+        if (JSON.stringify(before) === JSON.stringify(after)) continue
+        const text = exprSql(rec.expr) ?? '?'
         if (after === null || after.length !== 1) {
-          violations.push(`${file}: ${text} WIDENED to ${JSON.stringify(after)}`);
-          continue;
+          violations.push(`${file}: ${text} WIDENED to ${JSON.stringify(after)}`)
+          continue
         }
-        narrowed++;
-        if (before === null) continue; // no union to be a member of
-        const target = await wireRendering(fpg, after[0]!);
-        let member = false;
+        narrowed++
+        if (before === null) continue // no union to be a member of
+        const target = await wireRendering(fpg, after[0]!)
+        let member = false
         for (const m of before) {
-          const rendered = await wireRendering(fpg, m);
-          if (rendered === "*" || (rendered !== null && rendered === target)) {
-            member = true;
-            break;
+          const rendered = await wireRendering(fpg, m)
+          if (rendered === '*' || (rendered !== null && rendered === target)) {
+            member = true
+            break
           }
         }
         if (!member) {
-          violations.push(`${file}: ${text} → ${after[0]} NOT IN ${JSON.stringify(before)}`);
+          violations.push(`${file}: ${text} → ${after[0]} NOT IN ${JSON.stringify(before)}`)
         }
       }
     }
@@ -441,33 +436,36 @@ describe("delegation over the fixture corpus", () => {
     // of the same answers; if they do move, every change needs a look,
     // because a claim that goes notNull on a delegated type is a claim
     // resting on it.
-    let claimsCompared = 0;
-    const claimChanges: string[] = [];
+    let claimsCompared = 0
+    const claimChanges: string[] = []
     for (const file of files) {
-      const sql = readFileSync(join(DIR, file), "utf8");
+      const sql = readFileSync(join(DIR, file), 'utf8')
       try {
-        const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
-        const off = await inferNullability(stmt, fcatalog);
-        const on = await inferNullability(stmt, fcatalog, { resolveColumnTypes: fresolve });
+        const stmt = (await parseSql(sql)).stmts![0]!.stmt!
+        const off = await inferNullability(stmt, fcatalog)
+        const on = await inferNullability(stmt, fcatalog, { resolveColumnTypes: fresolve })
         if (off.length !== on.length) {
-          claimChanges.push(`${file}: column COUNT changed ${off.length} → ${on.length}`);
-          continue;
+          claimChanges.push(`${file}: column COUNT changed ${off.length} → ${on.length}`)
+          continue
         }
         off.forEach((c, i) => {
-          claimsCompared++;
+          claimsCompared++
           if (c.notNull !== on[i]!.notNull) {
-            claimChanges.push(`${file}: ${c.name} ${c.notNull} → ${on[i]!.notNull}`);
+            claimChanges.push(`${file}: ${c.name} ${c.notNull} → ${on[i]!.notNull}`)
           }
-        });
+        })
       } catch {
-        continue;
+        continue
       }
     }
     console.log(
       `  output claims compared: ${claimsCompared}\n` +
         `  claims CHANGED by delegation: ${claimChanges.length}\n` +
-        claimChanges.slice(0, 10).map(c => `     ${c}\n`).join(""),
-    );
+        claimChanges
+          .slice(0, 10)
+          .map((c) => `     ${c}\n`)
+          .join(''),
+    )
     // Not an assertion that they must never move — delegation is meant to
     // improve precision. It IS an assertion that a move is DELIBERATE, and
     // the list stopped being empty on 2026-08-24.
@@ -486,7 +484,7 @@ describe("delegation over the fixture corpus", () => {
     // and the direction matters: a `false → true` is delegation eliminating
     // a non-total candidate, and the soundness suites — which run with
     // delegation ON since the same day — are what adjudicate it against rows.
-    expect(claimChanges).toEqual(["cte-self-join.sql: combined false → true"]);
+    expect(claimChanges).toEqual(['cte-self-join.sql: combined false → true'])
 
     console.log(
       `\ntype-delegation over the fixture corpus\n` +
@@ -495,8 +493,8 @@ describe("delegation over the fixture corpus", () => {
         `  multi-member off→on:   ${wideOff} → ${wideOn}\n` +
         `  narrowed:              ${narrowed}\n` +
         `  CONTAINMENT VIOLATIONS: ${violations.length}\n`,
-    );
-    expect(narrowed, "delegation must actually reach the corpus").toBeGreaterThan(0);
-    expect(violations).toEqual([]);
-  }, 300_000);
-});
+    )
+    expect(narrowed, 'delegation must actually reach the corpus').toBeGreaterThan(0)
+    expect(violations).toEqual([])
+  }, 300_000)
+})

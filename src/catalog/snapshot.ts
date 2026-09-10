@@ -1,4 +1,4 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from '@electric-sql/pglite'
 import type {
   BuiltinFunctionSignature,
   BuiltinFunctionVolatility,
@@ -27,7 +27,7 @@ import type {
   ViewInfo,
   Volatility,
   WriteRewriteInfo,
-} from "./types.js";
+} from './types.js'
 import {
   ALWAYS_NOT_NULL_BUILTINS,
   FIRST_ARG_BUILTINS,
@@ -37,12 +37,8 @@ import {
   NON_NULL_OVER_NONEMPTY_AGGREGATES,
   NEVER_NULL_WINDOW_SIGNATURES,
   STRICT_TOTAL_WINDOW_SIGNATURES,
-} from "../query/nullability-walk.js";
-import {
-  TOTAL_OPERATORS,
-  STRICT_OPERATORS,
-  TOTAL_OPERATOR_SIGNATURES,
-} from "../query/operators.js";
+} from '../query/nullability-walk.js'
+import { TOTAL_OPERATORS, STRICT_OPERATORS, TOTAL_OPERATOR_SIGNATURES } from '../query/operators.js'
 
 // ---------------------------------------------------------------------------
 // The names the engine's curated tables make claims about — the scope of the
@@ -53,30 +49,34 @@ import {
 // type-only or side modules.
 // ---------------------------------------------------------------------------
 
-const CLAIMED_FUNCTION_NAMES = [...new Set([
-  ...ALWAYS_NOT_NULL_BUILTINS,
-  ...FIRST_ARG_BUILTINS,
-  ...STRICT_TOTAL_BUILTINS,
-  ...NON_NULL_OVER_NONEMPTY_AGGREGATES,
-  ...[...NEVER_NULL_WINDOW_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
-  ...[...STRICT_TOTAL_WINDOW_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
-  // The WITHIN GROUP classes scope themselves — the capture's WHERE adds
-  // every aggkind 'h'/'o' row, since those verdicts are class claims.
-  // A SIGNATURE-keyed claim covers a name no table holds — `lower(text)`
-  // after lower's removal — and its rows must be captured for the typed
-  // dispatch to resolve against.
-  ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
-  // The machine-swept rows scope themselves the same way.
-  ...[...SWEPT_TOTAL_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
-])];
-const CLAIMED_OPERATOR_NAMES = [...new Set([
-  ...TOTAL_OPERATORS,
-  ...STRICT_OPERATORS,
-  // A SIGNATURE-keyed operator claim covers a symbol no name table holds —
-  // `tsvector @@ tsquery` under a name `jsonb @@ jsonpath` disqualifies —
-  // and its rows must be captured for the typed dispatch to resolve them.
-  ...[...TOTAL_OPERATOR_SIGNATURES].map(k => k.slice(0, k.indexOf("("))),
-])];
+const CLAIMED_FUNCTION_NAMES = [
+  ...new Set([
+    ...ALWAYS_NOT_NULL_BUILTINS,
+    ...FIRST_ARG_BUILTINS,
+    ...STRICT_TOTAL_BUILTINS,
+    ...NON_NULL_OVER_NONEMPTY_AGGREGATES,
+    ...[...NEVER_NULL_WINDOW_SIGNATURES].map((k) => k.slice(0, k.indexOf('('))),
+    ...[...STRICT_TOTAL_WINDOW_SIGNATURES].map((k) => k.slice(0, k.indexOf('('))),
+    // The WITHIN GROUP classes scope themselves — the capture's WHERE adds
+    // every aggkind 'h'/'o' row, since those verdicts are class claims.
+    // A SIGNATURE-keyed claim covers a name no table holds — `lower(text)`
+    // after lower's removal — and its rows must be captured for the typed
+    // dispatch to resolve against.
+    ...[...STRICT_TOTAL_BUILTIN_SIGNATURES].map((k) => k.slice(0, k.indexOf('('))),
+    // The machine-swept rows scope themselves the same way.
+    ...[...SWEPT_TOTAL_SIGNATURES].map((k) => k.slice(0, k.indexOf('('))),
+  ]),
+]
+const CLAIMED_OPERATOR_NAMES = [
+  ...new Set([
+    ...TOTAL_OPERATORS,
+    ...STRICT_OPERATORS,
+    // A SIGNATURE-keyed operator claim covers a symbol no name table holds —
+    // `tsvector @@ tsquery` under a name `jsonb @@ jsonpath` disqualifies —
+    // and its rows must be captured for the typed dispatch to resolve them.
+    ...[...TOTAL_OPERATOR_SIGNATURES].map((k) => k.slice(0, k.indexOf('('))),
+  ]),
+]
 
 // ---------------------------------------------------------------------------
 // User-schema filter (excludes system + temp schemas).
@@ -84,206 +84,206 @@ const CLAIMED_OPERATOR_NAMES = [...new Set([
 // same set of user entities that the apply/validate pipeline tracks.
 // ---------------------------------------------------------------------------
 
-const USER_SCHEMA_EXCLUDE = `('pg_catalog', 'information_schema', 'pg_toast')`;
-const NOT_TEMP = `n.nspname NOT LIKE 'pg_temp_%' AND n.nspname NOT LIKE 'pg_toast_temp_%'`;
-const USER_NS = `n.nspname NOT IN ${USER_SCHEMA_EXCLUDE} AND ${NOT_TEMP}`;
+const USER_SCHEMA_EXCLUDE = `('pg_catalog', 'information_schema', 'pg_toast')`
+const NOT_TEMP = `n.nspname NOT LIKE 'pg_temp_%' AND n.nspname NOT LIKE 'pg_toast_temp_%'`
+const USER_NS = `n.nspname NOT IN ${USER_SCHEMA_EXCLUDE} AND ${NOT_TEMP}`
 
 // ---------------------------------------------------------------------------
 // Row types (internal — the raw shape returned by each catalog query).
 // ---------------------------------------------------------------------------
 
 interface TableRow {
-  oid: number;
-  schema: string;
-  name: string;
-  relkind: string;
-  reloptions: string[] | null;
+  oid: number
+  schema: string
+  name: string
+  relkind: string
+  reloptions: string[] | null
 }
 
 interface ColumnRow {
-  attrelid: number;
-  name: string;
-  attnum: number;
-  type_oid: number;
-  type_name: string;
-  type_mod: number | null;
-  not_null: boolean;
-  has_default: boolean;
-  default_expr: string | null;
-  generated: string; // 'a' | 's' | ''
-  identity: string;  // 'a' | 'd' | ''
-  collation_deterministic: boolean | null;
-  collation_is_default: boolean | null;
+  attrelid: number
+  name: string
+  attnum: number
+  type_oid: number
+  type_name: string
+  type_mod: number | null
+  not_null: boolean
+  has_default: boolean
+  default_expr: string | null
+  generated: string // 'a' | 's' | ''
+  identity: string // 'a' | 'd' | ''
+  collation_deterministic: boolean | null
+  collation_is_default: boolean | null
 }
 
 interface ConstraintRow {
-  name: string;
-  contype: string; // 'p' | 'u' | 'f' | 'c' | 'x'
-  conrelid: number;
+  name: string
+  contype: string // 'p' | 'u' | 'f' | 'c' | 'x'
+  conrelid: number
   /** The referenced relation for a foreign key; 0 for every other type. */
-  confrelid: number;
-  foreign_schema: string | null;
-  foreign_table: string | null;
-  conkey: number[] | string | null;
-  confkey: number[] | string | null;
-  definition: string;
-  validated: boolean;
-  enforced: boolean;
-  noinherit: boolean;
-  deferrable: boolean;
+  confrelid: number
+  foreign_schema: string | null
+  foreign_table: string | null
+  conkey: number[] | string | null
+  confkey: number[] | string | null
+  definition: string
+  validated: boolean
+  enforced: boolean
+  noinherit: boolean
+  deferrable: boolean
   /** `conparentid <> 0`: a row PostgreSQL cloned, not one the author wrote. */
-  inherited_clone: boolean;
+  inherited_clone: boolean
 }
 
 interface ViewRow {
-  schemaname: string;
-  viewname: string;
-  definition: string;
+  schemaname: string
+  viewname: string
+  definition: string
 }
 
 interface IndexRow {
-  oid: number;
-  schema: string;
-  name: string;
-  table_schema: string;
-  table_name: string;
-  indkey: number[] | string;
-  indisunique: boolean;
-  indisprimary: boolean;
-  partial: string | null;
-  amname: string;
-  definition: string;
+  oid: number
+  schema: string
+  name: string
+  table_schema: string
+  table_name: string
+  indkey: number[] | string
+  indisunique: boolean
+  indisprimary: boolean
+  partial: string | null
+  amname: string
+  definition: string
 }
 
 interface FunctionRow {
-  oid: number;
-  schema: string;
-  name: string;
-  arg_types: string;
+  oid: number
+  schema: string
+  name: string
+  arg_types: string
   /** NULL for a procedure — see the mapping, which renders it empty. */
-  return_type: string | null;
-  return_type_oid: number;
-  language: string;
-  prokind: string;
-  proretset: boolean;
-  prosecdef: boolean;
-  proisstrict: boolean;
-  provolatile: string;
-  procost: number;
-  prorows: number;
-  prosrc: string;
-  definition: string;
+  return_type: string | null
+  return_type_oid: number
+  language: string
+  prokind: string
+  proretset: boolean
+  prosecdef: boolean
+  proisstrict: boolean
+  provolatile: string
+  procost: number
+  prorows: number
+  prosrc: string
+  definition: string
   // Raw argument arrays:
-  proallargtypes: number[] | null;
-  proargtypes: string | null; // oidvector → text
-  proargnames: string[] | null;
-  proargmodes: string[] | null;
-  pronargs: number;
-  pronargdefaults: number;
+  proallargtypes: number[] | null
+  proargtypes: string | null // oidvector → text
+  proargnames: string[] | null
+  proargmodes: string[] | null
+  pronargs: number
+  pronargdefaults: number
   /** One rendered default expression per argument POSITION (null where the
    *  argument has none), aligned with `proallargtypes`/`proargtypes`; null
    *  for a function with no defaults at all. */
-  argdefaults: (string | null)[] | null;
+  argdefaults: (string | null)[] | null
   /** `pg_aggregate.agginitval` for aggregates; null otherwise (and null when
    *  the aggregate has no initial condition). */
-  agg_init_val: string | null;
+  agg_init_val: string | null
   /** `pg_aggregate.aggtransfn` rendered as the key `fnBodyAsts` is keyed by,
    *  `schema.name(identity args)`. Null for non-aggregates. */
-  agg_trans_fn: string | null;
+  agg_trans_fn: string | null
   /** `pg_aggregate.aggfinalfn` in the same rendering. Null for
    *  non-aggregates AND for an aggregate declared without a FINALFUNC, where
    *  the accumulated state IS the result — `aggfinalfn` is oid 0 there, which
    *  the LEFT JOIN drops. The two nulls mean different things and the walk
    *  distinguishes them by `isAggregate`. */
-  agg_final_fn: string | null;
+  agg_final_fn: string | null
 }
 
 interface EnumTypeRow {
-  oid: number;
-  schema: string;
-  name: string;
+  oid: number
+  schema: string
+  name: string
 }
 
 interface EnumValueRow {
-  enumtypid: number;
-  enumlabel: string;
-  enumsortorder: number;
+  enumtypid: number
+  enumlabel: string
+  enumsortorder: number
 }
 
 interface DomainRow {
-  oid: number;
-  schema: string;
-  name: string;
-  base_type_oid: number;
-  base_type_name: string;
-  not_null: boolean;
-  default_expr: string | null;
-  check_exprs: string[] | null;
+  oid: number
+  schema: string
+  name: string
+  base_type_oid: number
+  base_type_name: string
+  not_null: boolean
+  default_expr: string | null
+  check_exprs: string[] | null
 }
 
 interface InheritsRow {
-  inhrelid: number;
-  inhparent: number;
+  inhrelid: number
+  inhparent: number
 }
 
 interface TriggerRow {
-  tgrelid: number;
-  tgtype: number;
+  tgrelid: number
+  tgtype: number
 }
 
 interface RewriteRuleRow {
-  ev_class: number;
-  ev_type: string;
-  is_instead: boolean;
+  ev_class: number
+  ev_type: string
+  is_instead: boolean
 }
 
 interface CompositeTypeRow {
-  oid: number;
-  typrelid: number;
-  schema: string;
-  name: string;
+  oid: number
+  typrelid: number
+  schema: string
+  name: string
 }
 
 interface CompositeAttrRow {
-  typrelid: number;
-  name: string;
-  type_oid: number;
-  type_name: string;
-  attnum: number;
+  typrelid: number
+  name: string
+  type_oid: number
+  type_name: string
+  attnum: number
 }
 
 interface SequenceRow {
-  oid: number;
-  schema: string;
-  name: string;
-  type_oid: number;
-  type_name: string;
+  oid: number
+  schema: string
+  name: string
+  type_oid: number
+  type_name: string
   /** `int8` — PGlite returns number (small values) or bigint (large values). */
-  start: number | bigint;
-  increment: number | bigint;
-  min: number | bigint;
-  max: number | bigint;
-  cache: number | bigint;
-  cycle: boolean;
-  owned_by_schema: string | null;
-  owned_by_table: string | null;
-  owned_by_column: string | null;
+  start: number | bigint
+  increment: number | bigint
+  min: number | bigint
+  max: number | bigint
+  cache: number | bigint
+  cycle: boolean
+  owned_by_schema: string | null
+  owned_by_table: string | null
+  owned_by_column: string | null
 }
 
 interface ExtensionRow {
-  name: string;
-  version: string;
-  schema: string;
+  name: string
+  version: string
+  schema: string
 }
 
 interface SchemaRow {
-  name: string;
-  owner: string;
+  name: string
+  owner: string
 }
 
 interface TypeNameRow {
-  oid: number;
-  name: string;
+  oid: number
+  name: string
 }
 
 // ---------------------------------------------------------------------------
@@ -296,14 +296,14 @@ interface TypeNameRow {
  * OID arrays are 32-bit unsigned → safe to coerce to `number`.
  */
 function toNumArray(v: number[] | string | null | undefined): number[] {
-  if (v == null) return [];
-  if (Array.isArray(v)) return (v as (number | bigint)[]).map(Number);
-  if (typeof v === "string") {
-    const s = v.trim();
-    if (s === "") return [];
-    return s.split(/\s+/).map(n => Number(n));
+  if (v == null) return []
+  if (Array.isArray(v)) return (v as (number | bigint)[]).map(Number)
+  if (typeof v === 'string') {
+    const s = v.trim()
+    if (s === '') return []
+    return s.split(/\s+/).map((n) => Number(n))
   }
-  return [];
+  return []
 }
 
 /**
@@ -312,92 +312,98 @@ function toNumArray(v: number[] | string | null | undefined): number[] {
  * belongs to `attidentity`, and an earlier version of this mapping wrongly
  * borrowed it.
  */
-function mapGenerated(c: string): ColumnInfo["generated"] {
-  if (c === "s") return "stored";
-  if (c === "v") return "virtual";
-  return "none";
+function mapGenerated(c: string): ColumnInfo['generated'] {
+  if (c === 's') return 'stored'
+  if (c === 'v') return 'virtual'
+  return 'none'
 }
 
 /** Map `attidentity` char to the ColumnInfo `identity` enum (or null). */
-function mapIdentity(c: string): ColumnInfo["identity"] {
-  if (c === "a") return "always";
-  if (c === "d") return "byDefault";
-  return null;
+function mapIdentity(c: string): ColumnInfo['identity'] {
+  if (c === 'a') return 'always'
+  if (c === 'd') return 'byDefault'
+  return null
 }
 
 /** Map `contype` char to the ConstraintInfo `type` enum. */
 function mapConstraintType(c: string): ConstraintType {
   switch (c) {
-    case "p": return "primaryKey";
-    case "u": return "unique";
-    case "f": return "foreign";
-    case "c": return "check";
-    case "x": return "exclusion";
-    default: return "check";
+    case 'p':
+      return 'primaryKey'
+    case 'u':
+      return 'unique'
+    case 'f':
+      return 'foreign'
+    case 'c':
+      return 'check'
+    case 'x':
+      return 'exclusion'
+    default:
+      return 'check'
   }
 }
 
 /** Map `proargmodes` char to the ArgMode enum. */
 function mapArgMode(c: string): ArgMode {
   switch (c) {
-    case "i": return "in";
-    case "o": return "out";
-    case "b": return "inout";
-    case "v": return "variadic";
-    case "t": return "table";
-    default: return "in";
+    case 'i':
+      return 'in'
+    case 'o':
+      return 'out'
+    case 'b':
+      return 'inout'
+    case 'v':
+      return 'variadic'
+    case 't':
+      return 'table'
+    default:
+      return 'in'
   }
 }
 
 /** Map `provolatile` char to the Volatility enum. */
 function mapVolatility(c: string): Volatility {
-  if (c === "i") return "immutable";
-  if (c === "s") return "stable";
-  return "volatile";
+  if (c === 'i') return 'immutable'
+  if (c === 's') return 'stable'
+  return 'volatile'
 }
 
 /** Parse `reloptions` (text[] like ["fillfactor=80"]) into a record. */
 function parseStorageParams(reloptions: string[] | null): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!reloptions) return out;
+  const out: Record<string, string> = {}
+  if (!reloptions) return out
   for (const opt of reloptions) {
-    const eq = opt.indexOf("=");
+    const eq = opt.indexOf('=')
     if (eq >= 0) {
-      out[opt.slice(0, eq)] = opt.slice(eq + 1);
+      out[opt.slice(0, eq)] = opt.slice(eq + 1)
     } else {
-      out[opt] = "";
+      out[opt] = ''
     }
   }
-  return out;
+  return out
 }
 
 /**
  * Build a `(relid, attnum) → column-name` map from the column rows. Used to
  * resolve `conkey`/`confkey`/`indkey` integer attnums back to column names.
  */
-function buildAttnumIndex(
-  columnRows: ColumnRow[],
-): Map<string, string> {
-  const m = new Map<string, string>();
+function buildAttnumIndex(columnRows: ColumnRow[]): Map<string, string> {
+  const m = new Map<string, string>()
   for (const c of columnRows) {
-    m.set(`${c.attrelid}:${c.attnum}`, c.name);
+    m.set(`${c.attrelid}:${c.attnum}`, c.name)
   }
-  return m;
+  return m
 }
 
 /** Resolve an array of attnums for a given relid to column names (skip 0s). */
-function resolveAttnums(
-  relid: number,
-  attnums: number[],
-  idx: Map<string, string>,
-): string[] {
-  const out: string[] = [];
+function resolveAttnums(relid: number, attnums: number[], idx: Map<string, string>): string[] {
+  const out: string[] = []
   for (const a of attnums) {
-    if (a === 0) continue; // 0 = expression, not a column reference
-    const name = idx.get(`${relid}:${a}`);
-    if (name) out.push(name);
+    if (a === 0) continue // 0 = expression, not a column reference
+    const name = idx.get(`${relid}:${a}`)
+    if (name) out.push(name)
   }
-  return out;
+  return out
 }
 
 /**
@@ -417,50 +423,54 @@ function resolveAttnums(
  *   legal one-argument call outside the arity window `resolveFunctionCandidates`
  *   computes from these flags.
  */
-function resolveFunctionArgs(
-  row: FunctionRow,
-  typeNames: Map<number, string>,
-): FunctionArgInfo[] {
-  const allTypes = row.proallargtypes;
-  let typeOids: number[];
-  let modes: string[];
+function resolveFunctionArgs(row: FunctionRow, typeNames: Map<number, string>): FunctionArgInfo[] {
+  const allTypes = row.proallargtypes
+  let typeOids: number[]
+  let modes: string[]
 
   if (allTypes && allTypes.length > 0) {
-    typeOids = allTypes;
-    modes = row.proargmodes ?? allTypes.map(() => "i");
+    typeOids = allTypes
+    modes = row.proargmodes ?? allTypes.map(() => 'i')
   } else {
-    typeOids = toNumArray(row.proargtypes);
-    modes = row.proargmodes ?? typeOids.map(() => "i");
+    typeOids = toNumArray(row.proargtypes)
+    modes = row.proargmodes ?? typeOids.map(() => 'i')
   }
 
-  const names = row.proargnames ?? typeOids.map(() => "");
-  const nargs = typeOids.length;
-  const nDefaults = row.pronargdefaults ?? 0;
-  const isInput = (m: ArgMode): boolean => m !== "out" && m !== "table";
-  const inputCount = modes.slice(0, nargs).filter(m => isInput(mapArgMode(m))).length;
-  const firstDefaultInput = inputCount - nDefaults;
+  const names = row.proargnames ?? typeOids.map(() => '')
+  const nargs = typeOids.length
+  const nDefaults = row.pronargdefaults ?? 0
+  const isInput = (m: ArgMode): boolean => m !== 'out' && m !== 'table'
+  const inputCount = modes.slice(0, nargs).filter((m) => isInput(mapArgMode(m))).length
+  const firstDefaultInput = inputCount - nDefaults
 
-  const args: FunctionArgInfo[] = [];
-  let inputIndex = 0;
+  const args: FunctionArgInfo[] = []
+  let inputIndex = 0
   for (let i = 0; i < nargs; i++) {
-    const oid = typeOids[i]!;
-    const mode = mapArgMode(modes[i] ?? "i");
+    const oid = typeOids[i]!
+    const mode = mapArgMode(modes[i] ?? 'i')
     args.push({
-      name: names[i] ?? "",
+      name: names[i] ?? '',
       typeOid: oid,
-      typeName: typeNames.get(oid) ?? "unknown",
+      typeName: typeNames.get(oid) ?? 'unknown',
       mode,
       hasDefault: isInput(mode) && inputIndex++ >= firstDefaultInput,
       defaultExpr: row.argdefaults?.[i] ?? null,
-    });
+    })
   }
-  return args;
+  return args
 }
 
 /** Lexicographic comparator for `[a, b]` string tuples (schema, name). */
 function bySchemaName<T extends { schema: string; name: string }>(a: T, b: T): number {
-  return a.schema < b.schema ? -1 : a.schema > b.schema ? 1
-    : a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  return a.schema < b.schema
+    ? -1
+    : a.schema > b.schema
+      ? 1
+      : a.name < b.name
+        ? -1
+        : a.name > b.name
+          ? 1
+          : 0
 }
 
 // ---------------------------------------------------------------------------
@@ -480,7 +490,7 @@ function bySchemaName<T extends { schema: string; name: string }>(a: T, b: T): n
  * query typechecking, codegen, selective re-typecheck, and future linting.
  */
 export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
-  return withEmptySearchPath(pg, () => readCatalog(pg));
+  return withEmptySearchPath(pg, () => readCatalog(pg))
 }
 
 /**
@@ -503,15 +513,14 @@ export async function snapshotCatalog(pg: PGlite): Promise<CatalogSnapshot> {
  * everything else comes out fully qualified.
  */
 async function withEmptySearchPath<T>(pg: PGlite, read: () => Promise<T>): Promise<T> {
-  const saved = (await pg.query<{ search_path: string }>("SHOW search_path;")).rows[0]
-    ?.search_path;
-  await pg.query("SELECT set_config('search_path', '', false);");
+  const saved = (await pg.query<{ search_path: string }>('SHOW search_path;')).rows[0]?.search_path
+  await pg.query("SELECT set_config('search_path', '', false);")
   try {
-    return await read();
+    return await read()
   } finally {
     // Passing the value as a parameter means a path containing quotes — the
     // default is `"$user", public` — needs no escaping on the way back.
-    await pg.query("SELECT set_config('search_path', $1, false);", [saved ?? ""]);
+    await pg.query("SELECT set_config('search_path', $1, false);", [saved ?? ''])
   }
 }
 
@@ -597,17 +606,17 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryTriggers(pg),
     queryRewriteRules(pg),
     queryPartitionBounds(pg),
-  ]);
+  ])
 
   // Global type-name map (oid → format_type name) for resolving arg OIDs.
-  const typeNames = new Map<number, string>();
-  for (const t of typeRows) typeNames.set(t.oid, t.name);
+  const typeNames = new Map<number, string>()
+  for (const t of typeRows) typeNames.set(t.oid, t.name)
 
   // (relid, attnum) → column-name index for resolving conkey/confkey/indkey.
-  const attnumIdx = buildAttnumIndex(columnRows);
+  const attnumIdx = buildAttnumIndex(columnRows)
 
   // --- Columns grouped by relid (sorted by attnum, which the query does). ---
-  const columnsByRel = new Map<number, ColumnInfo[]>();
+  const columnsByRel = new Map<number, ColumnInfo[]>()
   for (const c of columnRows) {
     const ci: ColumnInfo = {
       name: c.name,
@@ -623,19 +632,19 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       identity: mapIdentity(c.identity),
       collationDeterministic: c.collation_deterministic,
       collationIsDefault: c.collation_is_default,
-    };
-    const arr = columnsByRel.get(c.attrelid);
-    if (arr) arr.push(ci);
-    else columnsByRel.set(c.attrelid, [ci]);
+    }
+    const arr = columnsByRel.get(c.attrelid)
+    if (arr) arr.push(ci)
+    else columnsByRel.set(c.attrelid, [ci])
   }
 
   // --- The inheritance closure, shared by the two relation-SET facts
   // below (notNullTree, writeRewritesTree). ---
-  const childrenOf = new Map<number, number[]>();
+  const childrenOf = new Map<number, number[]>()
   for (const ih of inheritsRows) {
-    const arr = childrenOf.get(ih.inhparent);
-    if (arr) arr.push(ih.inhrelid);
-    else childrenOf.set(ih.inhparent, [ih.inhrelid]);
+    const arr = childrenOf.get(ih.inhparent)
+    if (arr) arr.push(ih.inhrelid)
+    else childrenOf.set(ih.inhparent, [ih.inhrelid])
   }
 
   // --- The inheritance-tree conjunction for attnotnull. ---
@@ -648,15 +657,15 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   // its rows are in the scan and nothing is known about them.
   {
     const descendantNotNull = (relid: number, column: string): boolean => {
-      const kids = childrenOf.get(relid) ?? [];
-      return kids.every(kid => {
-        const col = columnsByRel.get(kid)?.find(c => c.name === column);
-        return (col?.notNull ?? false) && descendantNotNull(kid, column);
-      });
-    };
+      const kids = childrenOf.get(relid) ?? []
+      return kids.every((kid) => {
+        const col = columnsByRel.get(kid)?.find((c) => c.name === column)
+        return (col?.notNull ?? false) && descendantNotNull(kid, column)
+      })
+    }
     for (const parent of childrenOf.keys()) {
       for (const col of columnsByRel.get(parent) ?? []) {
-        col.notNullTree = col.notNull && descendantNotNull(parent, col.name);
+        col.notNullTree = col.notNull && descendantNotNull(parent, col.name)
       }
     }
   }
@@ -671,31 +680,28 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   // get the bit: DEFAULT divergence is legal, common, and never read
   // through a scan.
   {
-    const descendantGenerationAgrees = (
-      relid: number,
-      parentCol: ColumnInfo,
-    ): boolean => {
-      const kids = childrenOf.get(relid) ?? [];
-      return kids.every(kid => {
-        const col = columnsByRel.get(kid)?.find(c => c.name === parentCol.name);
+    const descendantGenerationAgrees = (relid: number, parentCol: ColumnInfo): boolean => {
+      const kids = childrenOf.get(relid) ?? []
+      return kids.every((kid) => {
+        const col = columnsByRel.get(kid)?.find((c) => c.name === parentCol.name)
         return (
           !!col &&
           col.generated === parentCol.generated &&
           col.defaultExpr === parentCol.defaultExpr &&
           descendantGenerationAgrees(kid, parentCol)
-        );
-      });
-    };
+        )
+      })
+    }
     for (const parent of childrenOf.keys()) {
       for (const col of columnsByRel.get(parent) ?? []) {
-        if (col.generated === "none") continue;
-        col.generationDivergesInTree = !descendantGenerationAgrees(parent, col);
+        if (col.generated === 'none') continue
+        col.generationDivergesInTree = !descendantGenerationAgrees(parent, col)
       }
     }
   }
 
   // --- Constraints grouped by conrelid. ---
-  const constraintsByRel = new Map<number, ConstraintInfo[]>();
+  const constraintsByRel = new Map<number, ConstraintInfo[]>()
   for (const con of constraintRows) {
     const ci: ConstraintInfo = {
       name: con.name,
@@ -707,65 +713,66 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       // against `confrelid`. Resolving it against `conrelid` yields the
       // referencing table's column at the same position, which is a plausible
       // name and the wrong one.
-      foreignColumns: con.contype === "f"
-        ? resolveAttnums(con.confrelid, toNumArray(con.confkey), attnumIdx)
-        : null,
+      foreignColumns:
+        con.contype === 'f'
+          ? resolveAttnums(con.confrelid, toNumArray(con.confkey), attnumIdx)
+          : null,
       definition: con.definition,
       validated: con.validated,
       enforced: con.enforced,
       noInherit: con.noinherit,
       deferrable: con.deferrable,
       inheritedClone: con.inherited_clone,
-    };
-    const arr = constraintsByRel.get(con.conrelid);
-    if (arr) arr.push(ci);
-    else constraintsByRel.set(con.conrelid, [ci]);
+    }
+    const arr = constraintsByRel.get(con.conrelid)
+    if (arr) arr.push(ci)
+    else constraintsByRel.set(con.conrelid, [ci])
   }
   // Constraints aren't ordered by the query; sort by name for determinism.
   for (const arr of constraintsByRel.values()) {
-    arr.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    arr.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
   }
 
   // --- Write-path rewriting hooks per relation (finding 2). ---
   // tgtype bits and ev_type encodings are documented on the two queries.
-  const writeRewritesByRel = new Map<number, WriteRewriteInfo>();
+  const writeRewritesByRel = new Map<number, WriteRewriteInfo>()
   const rewritesOf = (relid: number): WriteRewriteInfo => {
-    let wr = writeRewritesByRel.get(relid);
+    let wr = writeRewritesByRel.get(relid)
     if (!wr) {
-      wr = { beforeRow: [], insteadOf: [], insteadRules: [] };
-      writeRewritesByRel.set(relid, wr);
+      wr = { beforeRow: [], insteadOf: [], insteadRules: [] }
+      writeRewritesByRel.set(relid, wr)
     }
-    return wr;
-  };
+    return wr
+  }
   const addSorted = (arr: string[], cmd: string): void => {
     if (!arr.includes(cmd)) {
-      arr.push(cmd);
-      arr.sort();
+      arr.push(cmd)
+      arr.sort()
     }
-  };
+  }
   for (const t of triggerRows) {
-    if (!(t.tgtype & 1)) continue; // statement-level: no row to rewrite
+    if (!(t.tgtype & 1)) continue // statement-level: no row to rewrite
     const commands = [
-      ...(t.tgtype & 4 ? ["insert"] : []),
-      ...(t.tgtype & 8 ? ["delete"] : []),
-      ...(t.tgtype & 16 ? ["update"] : []),
-    ];
-    const wr = rewritesOf(t.tgrelid);
+      ...(t.tgtype & 4 ? ['insert'] : []),
+      ...(t.tgtype & 8 ? ['delete'] : []),
+      ...(t.tgtype & 16 ? ['update'] : []),
+    ]
+    const wr = rewritesOf(t.tgrelid)
     for (const cmd of commands) {
-      if (t.tgtype & 64) addSorted(wr.insteadOf, cmd);
-      else if (t.tgtype & 2) addSorted(wr.beforeRow, cmd);
+      if (t.tgtype & 64) addSorted(wr.insteadOf, cmd)
+      else if (t.tgtype & 2) addSorted(wr.beforeRow, cmd)
     }
   }
-  const RULE_COMMANDS: Record<string, string> = { "2": "update", "3": "insert", "4": "delete" };
+  const RULE_COMMANDS: Record<string, string> = { '2': 'update', '3': 'insert', '4': 'delete' }
   for (const r of rewriteRuleRows) {
-    const cmd = RULE_COMMANDS[r.ev_type];
+    const cmd = RULE_COMMANDS[r.ev_type]
     // DO ALSO leaves the original statement (and its RETURNING) in place.
-    if (!cmd || !r.is_instead) continue;
-    addSorted(rewritesOf(r.ev_class).insteadRules, cmd);
+    if (!cmd || !r.is_instead) continue
+    addSorted(rewritesOf(r.ev_class).insteadRules, cmd)
   }
-  const NO_REWRITES: WriteRewriteInfo = { beforeRow: [], insteadOf: [], insteadRules: [] };
+  const NO_REWRITES: WriteRewriteInfo = { beforeRow: [], insteadOf: [], insteadRules: [] }
   const writeRewritesFor = (relid: number | undefined): WriteRewriteInfo =>
-    (relid !== undefined ? writeRewritesByRel.get(relid) : undefined) ?? NO_REWRITES;
+    (relid !== undefined ? writeRewritesByRel.get(relid) : undefined) ?? NO_REWRITES
 
   // The relation-SET hooks: the trigger that rewrites a row is the trigger
   // of the relation the row LIVES in, so `beforeRow` unions over the
@@ -776,211 +783,240 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
   // triggers live on views, which have no descendants — both stay the
   // relation's own.
   const writeRewritesTreeFor = (relid: number): WriteRewriteInfo => {
-    const own = writeRewritesFor(relid);
-    const beforeRow = new Set(own.beforeRow);
+    const own = writeRewritesFor(relid)
+    const beforeRow = new Set(own.beforeRow)
     const visit = (id: number): void => {
       for (const kid of childrenOf.get(id) ?? []) {
-        for (const cmd of writeRewritesByRel.get(kid)?.beforeRow ?? []) beforeRow.add(cmd);
-        visit(kid);
+        for (const cmd of writeRewritesByRel.get(kid)?.beforeRow ?? []) beforeRow.add(cmd)
+        visit(kid)
       }
-    };
-    visit(relid);
+    }
+    visit(relid)
     return {
       beforeRow: [...beforeRow].sort(),
       insteadOf: own.insteadOf,
       insteadRules: own.insteadRules,
-    };
-  };
+    }
+  }
 
   // --- Tables. ---
-  const PART_STRATEGIES: Record<string, PartitionBoundInfo["strategy"]> = {
-    r: "range",
-    l: "list",
-    h: "hash",
-  };
-  const partitionBoundByRel = new Map<number, PartitionBoundInfo>();
+  const PART_STRATEGIES: Record<string, PartitionBoundInfo['strategy']> = {
+    r: 'range',
+    l: 'list',
+    h: 'hash',
+  }
+  const partitionBoundByRel = new Map<number, PartitionBoundInfo>()
   for (const b of partitionBoundRows) {
-    const strategy = PART_STRATEGIES[b.strategy];
+    const strategy = PART_STRATEGIES[b.strategy]
     // An unknown strategy or a NULL rendering contributes no capture — an
     // uncaptured bound is refused downstream, the safe direction.
-    if (!strategy || b.definition === null) continue;
+    if (!strategy || b.definition === null) continue
     partitionBoundByRel.set(b.oid, {
       strategy,
       isDefault: b.is_default,
       definition: b.definition,
-    });
+    })
   }
-  const tables: TableInfo[] = tableRows.map(t => ({
-    schema: t.schema,
-    name: t.name,
-    relkind: t.relkind as TableInfo["relkind"],
-    columns: columnsByRel.get(t.oid) ?? [],
-    constraints: constraintsByRel.get(t.oid) ?? [],
-    storageParams: parseStorageParams(t.reloptions),
-    writeRewrites: writeRewritesFor(t.oid),
-    writeRewritesTree: writeRewritesTreeFor(t.oid),
-    hasDescendants: childrenOf.has(t.oid),
-    partitionBound: partitionBoundByRel.get(t.oid) ?? null,
-  })).sort(bySchemaName);
+  const tables: TableInfo[] = tableRows
+    .map((t) => ({
+      schema: t.schema,
+      name: t.name,
+      relkind: t.relkind as TableInfo['relkind'],
+      columns: columnsByRel.get(t.oid) ?? [],
+      constraints: constraintsByRel.get(t.oid) ?? [],
+      storageParams: parseStorageParams(t.reloptions),
+      writeRewrites: writeRewritesFor(t.oid),
+      writeRewritesTree: writeRewritesTreeFor(t.oid),
+      hasDescendants: childrenOf.has(t.oid),
+      partitionBound: partitionBoundByRel.get(t.oid) ?? null,
+    }))
+    .sort(bySchemaName)
 
   // For views/matviews we need their column lists. The view-definition
   // queries (pg_views/pg_matviews) don't expose the OID, so look up the
   // relid per (schema, name, relkind) in a single query each.
-  const viewRelIds = await queryRelIdsByKind(pg, "v");
-  const matviewRelIds = await queryRelIdsByKind(pg, "m");
+  const viewRelIds = await queryRelIdsByKind(pg, 'v')
+  const matviewRelIds = await queryRelIdsByKind(pg, 'm')
 
-  const views: ViewInfo[] = viewRows.map(v => {
-    const relid = viewRelIds.get(`${v.schemaname}.${v.viewname}`);
-    return {
-      schema: v.schemaname,
-      name: v.viewname,
-      columns: relid !== undefined ? (columnsByRel.get(relid) ?? []) : [],
-      definition: v.definition,
-      writeRewrites: writeRewritesFor(relid),
-    };
-  }).sort(bySchemaName);
+  const views: ViewInfo[] = viewRows
+    .map((v) => {
+      const relid = viewRelIds.get(`${v.schemaname}.${v.viewname}`)
+      return {
+        schema: v.schemaname,
+        name: v.viewname,
+        columns: relid !== undefined ? (columnsByRel.get(relid) ?? []) : [],
+        definition: v.definition,
+        writeRewrites: writeRewritesFor(relid),
+      }
+    })
+    .sort(bySchemaName)
 
-  const materializedViews: ViewInfo[] = matviewRows.map(v => {
-    const relid = matviewRelIds.get(`${v.schemaname}.${v.viewname}`);
-    return {
-      schema: v.schemaname,
-      name: v.viewname,
-      columns: relid !== undefined ? (columnsByRel.get(relid) ?? []) : [],
-      definition: v.definition,
-      writeRewrites: writeRewritesFor(relid),
-    };
-  }).sort(bySchemaName);
+  const materializedViews: ViewInfo[] = matviewRows
+    .map((v) => {
+      const relid = matviewRelIds.get(`${v.schemaname}.${v.viewname}`)
+      return {
+        schema: v.schemaname,
+        name: v.viewname,
+        columns: relid !== undefined ? (columnsByRel.get(relid) ?? []) : [],
+        definition: v.definition,
+        writeRewrites: writeRewritesFor(relid),
+      }
+    })
+    .sort(bySchemaName)
 
   // --- Indexes. ---
-  const indexes: IndexInfo[] = indexRows.map(ix => ({
-    schema: ix.schema,
-    name: ix.name,
-    tableSchema: ix.table_schema,
-    tableName: ix.table_name,
-    // indkey's attnums are relative to the *table* (indrelid), not the index.
-    // We resolve via the table's columns. For the index we only know the
-    // index relid; the table relid isn't returned, so resolve against the
-    // table columns by matching table name. Simpler: resolve by looking up
-    // the table's relid from tableRows.
-    columns: resolveIndexColumns(ix, tableRows, attnumIdx),
-    unique: ix.indisunique,
-    primary: ix.indisprimary,
-    partial: ix.partial,
-    method: ix.amname,
-    definition: ix.definition,
-  })).sort((a, b) =>
-    a.schema < b.schema ? -1 : a.schema > b.schema ? 1
-      : a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
-  );
+  const indexes: IndexInfo[] = indexRows
+    .map((ix) => ({
+      schema: ix.schema,
+      name: ix.name,
+      tableSchema: ix.table_schema,
+      tableName: ix.table_name,
+      // indkey's attnums are relative to the *table* (indrelid), not the index.
+      // We resolve via the table's columns. For the index we only know the
+      // index relid; the table relid isn't returned, so resolve against the
+      // table columns by matching table name. Simpler: resolve by looking up
+      // the table's relid from tableRows.
+      columns: resolveIndexColumns(ix, tableRows, attnumIdx),
+      unique: ix.indisunique,
+      primary: ix.indisprimary,
+      partial: ix.partial,
+      method: ix.amname,
+      definition: ix.definition,
+    }))
+    .sort((a, b) =>
+      a.schema < b.schema
+        ? -1
+        : a.schema > b.schema
+          ? 1
+          : a.name < b.name
+            ? -1
+            : a.name > b.name
+              ? 1
+              : 0,
+    )
 
   // --- Functions. ---
-  const functions: FunctionInfo[] = functionRows.map(f => ({
-    schema: f.schema,
-    name: f.name,
-    argTypes: f.arg_types,
-    args: resolveFunctionArgs(f, typeNames),
-    // `pg_get_function_result` answers NULL for a PROCEDURE — it returns no
-    // rows, so there is no result to render — while `FunctionInfo.returnType`
-    // is declared `string` and eight readers do prefix or regex work on it.
-    // The empty rendering is the honest one (a procedure's result shape is
-    // nothing) and it matches none of them, where the raw NULL crashed the
-    // first caller to meet a procedure.
-    returnType: f.return_type ?? "",
-    returnTypeOid: f.return_type_oid,
-    returnsSet: f.proretset,
-    language: f.language,
-    isProcedure: f.prokind === "p",
-    isAggregate: f.prokind === "a",
-    aggInitVal: f.agg_init_val ?? null,
-    aggTransFn: f.agg_trans_fn ?? null,
-    aggFinalFn: f.agg_final_fn ?? null,
-    isWindow: f.prokind === "w",
-    securityDefiner: f.prosecdef,
-    strict: f.proisstrict,
-    volatile: mapVolatility(f.provolatile),
-    cost: f.procost,
-    rows: f.prorows,
-    body: f.prosrc,
-    definition: f.definition,
-  })).sort(bySchemaName);
+  const functions: FunctionInfo[] = functionRows
+    .map((f) => ({
+      schema: f.schema,
+      name: f.name,
+      argTypes: f.arg_types,
+      args: resolveFunctionArgs(f, typeNames),
+      // `pg_get_function_result` answers NULL for a PROCEDURE — it returns no
+      // rows, so there is no result to render — while `FunctionInfo.returnType`
+      // is declared `string` and eight readers do prefix or regex work on it.
+      // The empty rendering is the honest one (a procedure's result shape is
+      // nothing) and it matches none of them, where the raw NULL crashed the
+      // first caller to meet a procedure.
+      returnType: f.return_type ?? '',
+      returnTypeOid: f.return_type_oid,
+      returnsSet: f.proretset,
+      language: f.language,
+      isProcedure: f.prokind === 'p',
+      isAggregate: f.prokind === 'a',
+      aggInitVal: f.agg_init_val ?? null,
+      aggTransFn: f.agg_trans_fn ?? null,
+      aggFinalFn: f.agg_final_fn ?? null,
+      isWindow: f.prokind === 'w',
+      securityDefiner: f.prosecdef,
+      strict: f.proisstrict,
+      volatile: mapVolatility(f.provolatile),
+      cost: f.procost,
+      rows: f.prorows,
+      body: f.prosrc,
+      definition: f.definition,
+    }))
+    .sort(bySchemaName)
 
   // --- Enums. ---
-  const enumValuesByType = new Map<number, string[]>();
+  const enumValuesByType = new Map<number, string[]>()
   for (const ev of enumValueRows) {
-    const arr = enumValuesByType.get(ev.enumtypid);
-    if (arr) arr.push(ev.enumlabel);
-    else enumValuesByType.set(ev.enumtypid, [ev.enumlabel]);
+    const arr = enumValuesByType.get(ev.enumtypid)
+    if (arr) arr.push(ev.enumlabel)
+    else enumValuesByType.set(ev.enumtypid, [ev.enumlabel])
   }
-  const enums: EnumInfo[] = enumTypeRows.map(e => ({
-    schema: e.schema,
-    name: e.name,
-    values: enumValuesByType.get(e.oid) ?? [],
-  })).sort(bySchemaName);
+  const enums: EnumInfo[] = enumTypeRows
+    .map((e) => ({
+      schema: e.schema,
+      name: e.name,
+      values: enumValuesByType.get(e.oid) ?? [],
+    }))
+    .sort(bySchemaName)
 
   // --- Domains. ---
-  const domains: DomainInfo[] = domainRows.map(d => ({
-    schema: d.schema,
-    name: d.name,
-    oid: d.oid,
-    baseTypeOid: d.base_type_oid,
-    baseTypeName: d.base_type_name,
-    notNull: d.not_null,
-    default: d.default_expr,
-    checks: d.check_exprs ?? [],
-  })).sort(bySchemaName);
+  const domains: DomainInfo[] = domainRows
+    .map((d) => ({
+      schema: d.schema,
+      name: d.name,
+      oid: d.oid,
+      baseTypeOid: d.base_type_oid,
+      baseTypeName: d.base_type_name,
+      notNull: d.not_null,
+      default: d.default_expr,
+      checks: d.check_exprs ?? [],
+    }))
+    .sort(bySchemaName)
 
   // --- Composite types (user-defined CREATE TYPE AS (...), not table row types). ---
-  const attrsByRel = new Map<number, CompositeTypeAttrInfo[]>();
+  const attrsByRel = new Map<number, CompositeTypeAttrInfo[]>()
   for (const a of compositeAttrRows) {
     const ai: CompositeTypeAttrInfo = {
       name: a.name,
       typeOid: a.type_oid,
       typeName: a.type_name,
-    };
-    const arr = attrsByRel.get(a.typrelid);
-    if (arr) arr.push(ai);
-    else attrsByRel.set(a.typrelid, [ai]);
+    }
+    const arr = attrsByRel.get(a.typrelid)
+    if (arr) arr.push(ai)
+    else attrsByRel.set(a.typrelid, [ai])
   }
-  const compositeTypes: CompositeTypeInfo[] = compositeTypeRows.map(t => ({
-    schema: t.schema,
-    name: t.name,
-    attributes: attrsByRel.get(t.typrelid) ?? [],
-  })).sort(bySchemaName);
+  const compositeTypes: CompositeTypeInfo[] = compositeTypeRows
+    .map((t) => ({
+      schema: t.schema,
+      name: t.name,
+      attributes: attrsByRel.get(t.typrelid) ?? [],
+    }))
+    .sort(bySchemaName)
 
   // --- Sequences. ---
-  const sequences: SequenceInfo[] = sequenceRows.map(s => {
-    const ownedTable = s.owned_by_schema && s.owned_by_table
-      ? `${s.owned_by_schema}.${s.owned_by_table}` : null;
-    return {
-      schema: s.schema,
-      name: s.name,
-      typeOid: s.type_oid,
-      typeName: s.type_name,
-      start: s.start,
-      increment: s.increment,
-      min: s.min,
-      max: s.max,
-      cache: s.cache,
-      cycle: s.cycle,
-      ownedByTable: ownedTable,
-      ownedByColumn: s.owned_by_column,
-    };
-  }).sort(bySchemaName);
+  const sequences: SequenceInfo[] = sequenceRows
+    .map((s) => {
+      const ownedTable =
+        s.owned_by_schema && s.owned_by_table ? `${s.owned_by_schema}.${s.owned_by_table}` : null
+      return {
+        schema: s.schema,
+        name: s.name,
+        typeOid: s.type_oid,
+        typeName: s.type_name,
+        start: s.start,
+        increment: s.increment,
+        min: s.min,
+        max: s.max,
+        cache: s.cache,
+        cycle: s.cycle,
+        ownedByTable: ownedTable,
+        ownedByColumn: s.owned_by_column,
+      }
+    })
+    .sort(bySchemaName)
 
   // --- Extensions. ---
-  const extensions: ExtensionInfo[] = extensionRows.map(e => ({
-    name: e.name,
-    version: e.version,
-    schema: e.schema,
-  })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+  const extensions: ExtensionInfo[] = extensionRows
+    .map((e) => ({
+      name: e.name,
+      version: e.version,
+      schema: e.schema,
+    }))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 
   // --- Schemas. ---
-  const schemas: SchemaInfo[] = schemaRows.map(s => ({
-    name: s.name,
-    owner: s.owner,
-  })).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+  const schemas: SchemaInfo[] = schemaRows
+    .map((s) => ({
+      name: s.name,
+      owner: s.owner,
+    }))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
 
-  const operators = operatorRows.map(o => ({
+  const operators = operatorRows.map((o) => ({
     schema: o.schema,
     name: o.name,
     leftType: o.left_type,
@@ -990,7 +1026,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     strict: o.strict,
     resultType: o.result_type,
     volatility: o.volatility,
-  }));
+  }))
 
   return {
     tables,
@@ -1023,7 +1059,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinOperatorVolatilities,
     builtinBtreeStrategies,
     builtinEqualityNegators,
-  };
+  }
 }
 
 /**
@@ -1037,15 +1073,15 @@ function resolveIndexColumns(
   attnumIdx: Map<string, string>,
 ): string[] {
   // Find the table's relid by matching schema + table name.
-  let tableOid: number | undefined;
+  let tableOid: number | undefined
   for (const t of tableRows) {
     if (t.schema === ix.table_schema && t.name === ix.table_name) {
-      tableOid = t.oid;
-      break;
+      tableOid = t.oid
+      break
     }
   }
-  if (tableOid === undefined) return [];
-  return resolveAttnums(tableOid, toNumArray(ix.indkey), attnumIdx);
+  if (tableOid === undefined) return []
+  return resolveAttnums(tableOid, toNumArray(ix.indkey), attnumIdx)
 }
 
 /**
@@ -1053,20 +1089,17 @@ function resolveIndexColumns(
  * schemas, in a single query. Used to attach the right column list to each
  * view/matview (the view-definition queries don't expose the OID).
  */
-async function queryRelIdsByKind(
-  pg: PGlite,
-  relkind: string,
-): Promise<Map<string, number>> {
+async function queryRelIdsByKind(pg: PGlite, relkind: string): Promise<Map<string, number>> {
   const res = await pg.query<{ oid: number; schema: string; name: string }>(
     `SELECT c.oid, n.nspname AS schema, c.relname AS name
      FROM pg_class c
      JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relkind = $1 AND ${USER_NS};`,
     [relkind],
-  );
-  const out = new Map<string, number>();
-  for (const r of res.rows) out.set(`${r.schema}.${r.name}`, r.oid);
-  return out;
+  )
+  const out = new Map<string, number>()
+  for (const r of res.rows) out.set(`${r.schema}.${r.name}`, r.oid)
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -1078,8 +1111,8 @@ async function queryTypeNames(pg: PGlite): Promise<TypeNameRow[]> {
   const res = await pg.query<TypeNameRow>(
     `SELECT t.oid, COALESCE(format_type(t.oid, null), t.typname) AS name
      FROM pg_type t;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 /**
@@ -1096,15 +1129,15 @@ async function queryTables(pg: PGlite): Promise<TableRow[]> {
      JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relkind IN ('r', 'p', 'f', 'S') AND ${USER_NS}
      ORDER BY n.nspname, c.relname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 interface PartitionBoundRow {
-  oid: number;
-  strategy: string;
-  is_default: boolean;
-  definition: string | null;
+  oid: number
+  strategy: string
+  is_default: boolean
+  definition: string | null
 }
 
 /**
@@ -1126,8 +1159,8 @@ async function queryPartitionBounds(pg: PGlite): Promise<PartitionBoundRow[]> {
      JOIN pg_inherits i ON i.inhrelid = c.oid
      JOIN pg_partitioned_table pt ON pt.partrelid = i.inhparent
      WHERE c.relispartition AND c.relkind IN ('r', 'p', 'f') AND ${USER_NS};`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 /**
@@ -1160,8 +1193,8 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
        AND ${USER_NS}
        AND a.attnum > 0 AND NOT a.attisdropped
      ORDER BY a.attrelid, a.attnum;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 /**
@@ -1171,10 +1204,8 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
  * columns were not captured.
  */
 async function queryInherits(pg: PGlite): Promise<InheritsRow[]> {
-  const res = await pg.query<InheritsRow>(
-    `SELECT inhrelid, inhparent FROM pg_inherits;`,
-  );
-  return res.rows;
+  const res = await pg.query<InheritsRow>(`SELECT inhrelid, inhparent FROM pg_inherits;`)
+  return res.rows
 }
 
 /**
@@ -1193,8 +1224,8 @@ async function queryTriggers(pg: PGlite): Promise<TriggerRow[]> {
     `SELECT t.tgrelid, t.tgtype
      FROM pg_trigger t
      WHERE NOT t.tgisinternal;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 /**
@@ -1209,8 +1240,8 @@ async function queryRewriteRules(pg: PGlite): Promise<RewriteRuleRow[]> {
      JOIN pg_class c ON c.oid = r.ev_class
      JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE r.rulename <> '_RETURN' AND ${USER_NS};`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
@@ -1231,8 +1262,8 @@ async function queryConstraints(pg: PGlite): Promise<ConstraintRow[]> {
      LEFT JOIN pg_class tc ON tc.oid = con.confrelid
      LEFT JOIN pg_namespace tn ON tn.oid = tc.relnamespace
      WHERE ${USER_NS};`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function queryViews(pg: PGlite): Promise<ViewRow[]> {
@@ -1243,8 +1274,8 @@ async function queryViews(pg: PGlite): Promise<ViewRow[]> {
        AND schemaname NOT LIKE 'pg_temp_%'
        AND schemaname NOT LIKE 'pg_toast_temp_%'
      ORDER BY schemaname, viewname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function queryMatViews(pg: PGlite): Promise<ViewRow[]> {
@@ -1255,8 +1286,8 @@ async function queryMatViews(pg: PGlite): Promise<ViewRow[]> {
        AND schemaname NOT LIKE 'pg_temp_%'
        AND schemaname NOT LIKE 'pg_toast_temp_%'
      ORDER BY schemaname, matviewname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 /**
@@ -1290,8 +1321,8 @@ async function queryIndexes(pg: PGlite): Promise<IndexRow[]> {
      JOIN pg_am am ON am.oid = c.relam
      WHERE c.relkind IN ('i', 'I') AND NOT c.relispartition AND ${USER_NS}
      ORDER BY n.nspname, c.relname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 /**
@@ -1366,8 +1397,8 @@ async function queryFunctions(pg: PGlite): Promise<FunctionRow[]> {
      LEFT JOIN pg_namespace fn ON fn.oid = ff.pronamespace
      WHERE ${USER_NS}
      ORDER BY n.nspname, p.proname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 /**
@@ -1426,10 +1457,10 @@ async function queryBuiltinTableFunctions(pg: PGlite): Promise<Record<string, st
      GROUP BY name
      HAVING count(DISTINCT cols) = 1
      ORDER BY name;`,
-  );
-  const out: Record<string, string> = {};
-  for (const row of res.rows) out[row.name] = `TABLE(${row.shape})`;
-  return out;
+  )
+  const out: Record<string, string> = {}
+  for (const row of res.rows) out[row.name] = `TABLE(${row.shape})`
+  return out
 }
 
 /**
@@ -1447,8 +1478,8 @@ async function queryBuiltinSetReturningFunctions(pg: PGlite): Promise<string[]> 
      GROUP BY p.proname
      HAVING bool_or(p.proretset)
      ORDER BY p.proname;`,
-  );
-  return res.rows.map(r => r.name);
+  )
+  return res.rows.map((r) => r.name)
 }
 
 /**
@@ -1463,8 +1494,8 @@ async function queryBuiltinFunctionNames(pg: PGlite): Promise<string[]> {
      JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
      ORDER BY p.proname;`,
-  );
-  return res.rows.map(r => r.name);
+  )
+  return res.rows.map((r) => r.name)
 }
 
 /**
@@ -1491,8 +1522,8 @@ async function queryBuiltinPolymorphicFunctions(pg: PGlite): Promise<string[]> {
      WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f'
        AND rt.typname LIKE 'any%'
      ORDER BY p.proname;`,
-  );
-  return res.rows.map(r => r.name);
+  )
+  return res.rows.map((r) => r.name)
 }
 
 /**
@@ -1505,9 +1536,7 @@ async function queryBuiltinPolymorphicFunctions(pg: PGlite): Promise<string[]> {
  * of these declares an OUT parameter. Aggregates are included — `array_agg`
  * is one, and it is the shape that made this capture necessary.
  */
-async function queryBuiltinPolymorphicArraySignatures(
-  pg: PGlite,
-): Promise<BuiltinSignature[]> {
+async function queryBuiltinPolymorphicArraySignatures(pg: PGlite): Promise<BuiltinSignature[]> {
   const res = await pg.query<{ name: string; args: string[] | null; returns: string }>(
     `SELECT p.proname AS name,
             (SELECT array_agg(format_type(t, null) ORDER BY o)
@@ -1524,8 +1553,8 @@ async function queryBuiltinPolymorphicArraySignatures(
                                         'anynonarray', 'anycompatible', 'anyenum')
        )
      ORDER BY p.proname, 2;`,
-  );
-  return res.rows.map(r => ({ name: r.name, args: r.args ?? [], returns: r.returns }));
+  )
+  return res.rows.map((r) => ({ name: r.name, args: r.args ?? [], returns: r.returns }))
 }
 
 /**
@@ -1540,19 +1569,17 @@ async function queryBuiltinPolymorphicArraySignatures(
  * aggregate it includes the ORDER BY positions, which is exactly what the
  * capture must preserve.
  */
-async function queryBuiltinFunctionSignatures(
-  pg: PGlite,
-): Promise<BuiltinFunctionSignature[]> {
+async function queryBuiltinFunctionSignatures(pg: PGlite): Promise<BuiltinFunctionSignature[]> {
   const res = await pg.query<{
-    name: string;
-    args: string[] | null;
-    returns: string;
-    strict: boolean;
-    kind: string;
-    agg_kind: string | null;
-    num_direct_args: number | null;
-    variadic: string | null;
-    num_arg_defaults: number;
+    name: string
+    args: string[] | null
+    returns: string
+    strict: boolean
+    kind: string
+    agg_kind: string | null
+    num_direct_args: number | null
+    variadic: string | null
+    num_arg_defaults: number
   }>(
     `SELECT p.proname AS name,
             (SELECT array_agg(format_type(t, null) ORDER BY o)
@@ -1578,18 +1605,18 @@ async function queryBuiltinFunctionSignatures(
             OR a.aggkind IN ('h', 'o'))
      ORDER BY p.proname, 2;`,
     [CLAIMED_FUNCTION_NAMES],
-  );
-  return res.rows.map(r => ({
+  )
+  return res.rows.map((r) => ({
     name: r.name,
     args: r.args ?? [],
     returns: r.returns,
     strict: r.strict,
-    kind: r.kind as "f" | "a" | "w",
-    aggKind: r.agg_kind as "n" | "o" | "h" | null,
+    kind: r.kind as 'f' | 'a' | 'w',
+    aggKind: r.agg_kind as 'n' | 'o' | 'h' | null,
     numDirectArgs: r.num_direct_args,
     variadic: r.variadic,
     numArgDefaults: r.num_arg_defaults,
-  }));
+  }))
 }
 
 /**
@@ -1598,15 +1625,13 @@ async function queryBuiltinFunctionSignatures(
  * operators (`oprcode = 0`) — the register's 1a sweep measured they cannot
  * be invoked, so dropping is sound; none exists in pg_catalog anyway.
  */
-async function queryBuiltinOperatorSignatures(
-  pg: PGlite,
-): Promise<BuiltinOperatorSignature[]> {
+async function queryBuiltinOperatorSignatures(pg: PGlite): Promise<BuiltinOperatorSignature[]> {
   const res = await pg.query<{
-    name: string;
-    left_type: string | null;
-    right_type: string | null;
-    returns: string;
-    strict: boolean;
+    name: string
+    left_type: string | null
+    right_type: string | null
+    returns: string
+    strict: boolean
   }>(
     `SELECT o.oprname AS name,
             CASE WHEN o.oprleft <> 0
@@ -1622,14 +1647,14 @@ async function queryBuiltinOperatorSignatures(
        AND o.oprname = ANY($1)
      ORDER BY o.oprname, 2, 3;`,
     [CLAIMED_OPERATOR_NAMES],
-  );
-  return res.rows.map(r => ({
+  )
+  return res.rows.map((r) => ({
     name: r.name,
     leftType: r.left_type,
     rightType: r.right_type,
     returns: r.returns,
     strict: r.strict,
-  }));
+  }))
 }
 
 /**
@@ -1639,10 +1664,10 @@ async function queryBuiltinOperatorSignatures(
  */
 async function queryBuiltinImplicitCasts(pg: PGlite): Promise<ImplicitCastInfo[]> {
   const res = await pg.query<{
-    source: string;
-    target: string;
-    binary: boolean;
-    volatility: "i" | "s" | "v" | null;
+    source: string
+    target: string
+    binary: boolean
+    volatility: 'i' | 's' | 'v' | null
   }>(
     `SELECT format_type(c.castsource, null) AS source,
             format_type(c.casttarget, null) AS target,
@@ -1652,13 +1677,13 @@ async function queryBuiltinImplicitCasts(pg: PGlite): Promise<ImplicitCastInfo[]
      LEFT JOIN pg_proc p ON p.oid = c.castfunc
      WHERE c.castcontext = 'i'
      ORDER BY 1, 2;`,
-  );
-  return res.rows.map(r => ({
+  )
+  return res.rows.map((r) => ({
     source: r.source,
     target: r.target,
     binary: r.binary,
     volatility: r.volatility,
-  }));
+  }))
 }
 
 /**
@@ -1679,8 +1704,8 @@ async function queryBuiltinCasts(pg: PGlite): Promise<BuiltinCast[]> {
      FROM pg_cast c
      LEFT JOIN pg_proc p ON p.oid = c.castfunc
      ORDER BY 1, 2;`,
-  );
-  return res.rows.map(r => ({ source: r.source, target: r.target, func: r.func }));
+  )
+  return res.rows.map((r) => ({ source: r.source, target: r.target, func: r.func }))
 }
 
 /**
@@ -1695,10 +1720,10 @@ async function queryBuiltinTypeKinds(pg: PGlite): Promise<Record<string, string>
      JOIN pg_namespace n ON n.oid = t.typnamespace
      WHERE n.nspname = 'pg_catalog'
      ORDER BY 1;`,
-  );
-  const out: Record<string, string> = {};
-  for (const r of res.rows) out[r.name] = r.kind;
-  return out;
+  )
+  const out: Record<string, string> = {}
+  for (const r of res.rows) out[r.name] = r.kind
+  return out
 }
 
 /**
@@ -1716,10 +1741,10 @@ async function queryBuiltinTypeNameAliases(pg: PGlite): Promise<Record<string, s
        AND t.typname NOT LIKE '\\_%'
        AND t.typname <> format_type(t.oid, null)
      ORDER BY 1;`,
-  );
-  const out: Record<string, string> = {};
-  for (const r of res.rows) out[r.alias] = r.name;
-  return out;
+  )
+  const out: Record<string, string> = {}
+  for (const r of res.rows) out[r.alias] = r.name
+  return out
 }
 
 /**
@@ -1741,7 +1766,7 @@ const IMMUTABLE_IO_TYPES = `
   JOIN pg_proc pi ON pi.oid = t.typinput
   JOIN pg_proc po ON po.oid = t.typoutput
   WHERE pi.provolatile = 'i' AND po.provolatile = 'i'
-    AND t.typnamespace = 'pg_catalog'::regnamespace`;
+    AND t.typnamespace = 'pg_catalog'::regnamespace`
 
 async function queryBuiltinImmutableIoTypes(pg: PGlite): Promise<string[]> {
   const res = await pg.query<{ name: string }>(
@@ -1751,11 +1776,9 @@ async function queryBuiltinImmutableIoTypes(pg: PGlite): Promise<string[]> {
        AND t.typtype = 'b'
        AND NOT (t.typelem <> 0 AND t.typlen = -1)
      ORDER BY t.typname;`,
-  );
-  return res.rows.map(r => r.name);
+  )
+  return res.rows.map((r) => r.name)
 }
-
-
 
 /**
  * EVERY pg_catalog function signature with its provolatile. See
@@ -1763,18 +1786,16 @@ async function queryBuiltinImmutableIoTypes(pg: PGlite): Promise<string[]> {
  * operand tracking eliminates over these rows, so the capture is
  * deliberately unscoped: no curated list enters that rung.
  */
-async function queryBuiltinFunctionVolatilities(
-  pg: PGlite,
-): Promise<BuiltinFunctionVolatility[]> {
+async function queryBuiltinFunctionVolatilities(pg: PGlite): Promise<BuiltinFunctionVolatility[]> {
   const res = await pg.query<{
-    name: string;
-    args: string[] | null;
-    returns: string;
-    volatility: "i" | "s" | "v";
-    kind: "f" | "a" | "w";
-    returns_set: boolean;
-    variadic: string | null;
-    num_arg_defaults: number;
+    name: string
+    args: string[] | null
+    returns: string
+    volatility: 'i' | 's' | 'v'
+    kind: 'f' | 'a' | 'w'
+    returns_set: boolean
+    variadic: string | null
+    num_arg_defaults: number
   }>(
     `SELECT p.proname AS name,
             (SELECT array_agg(format_type(t, null) ORDER BY o)
@@ -1790,8 +1811,8 @@ async function queryBuiltinFunctionVolatilities(
      WHERE p.pronamespace = 'pg_catalog'::regnamespace
        AND p.prokind IN ('f', 'a', 'w')
      ORDER BY p.proname, 2;`,
-  );
-  return res.rows.map(r => ({
+  )
+  return res.rows.map((r) => ({
     name: r.name,
     args: r.args ?? [],
     returns: r.returns,
@@ -1800,7 +1821,7 @@ async function queryBuiltinFunctionVolatilities(
     returnsSet: r.returns_set,
     variadic: r.variadic,
     numArgDefaults: r.num_arg_defaults,
-  }));
+  }))
 }
 
 /**
@@ -1808,15 +1829,13 @@ async function queryBuiltinFunctionVolatilities(
  * See CatalogSnapshot.builtinOperatorVolatilities; the pg_proc JOIN drops
  * shell operators exactly as queryBuiltinOperatorSignatures does.
  */
-async function queryBuiltinOperatorVolatilities(
-  pg: PGlite,
-): Promise<BuiltinOperatorVolatility[]> {
+async function queryBuiltinOperatorVolatilities(pg: PGlite): Promise<BuiltinOperatorVolatility[]> {
   const res = await pg.query<{
-    name: string;
-    left_type: string | null;
-    right_type: string | null;
-    returns: string;
-    volatility: "i" | "s" | "v";
+    name: string
+    left_type: string | null
+    right_type: string | null
+    returns: string
+    volatility: 'i' | 's' | 'v'
   }>(
     `SELECT o.oprname AS name,
             CASE WHEN o.oprleft <> 0
@@ -1829,14 +1848,14 @@ async function queryBuiltinOperatorVolatilities(
      JOIN pg_proc p ON p.oid = o.oprcode
      WHERE o.oprnamespace = 'pg_catalog'::regnamespace
      ORDER BY o.oprname, 2, 3;`,
-  );
-  return res.rows.map(r => ({
+  )
+  return res.rows.map((r) => ({
     name: r.name,
     leftType: r.left_type,
     rightType: r.right_type,
     returns: r.returns,
     volatility: r.volatility,
-  }));
+  }))
 }
 
 /**
@@ -1857,10 +1876,10 @@ async function queryBuiltinBtreeStrategies(pg: PGlite): Promise<Record<string, n
      GROUP BY o.oprname
      HAVING count(DISTINCT a.amopstrategy) = 1
      ORDER BY 1;`,
-  );
-  const out: Record<string, number> = {};
-  for (const r of res.rows) out[r.name] = r.strategy;
-  return out;
+  )
+  const out: Record<string, number> = {}
+  for (const r of res.rows) out[r.name] = r.strategy
+  return out
 }
 
 /**
@@ -1889,8 +1908,8 @@ async function queryBuiltinEqualityNegators(pg: PGlite): Promise<string[]> {
         AND bool_and(negstrat IS NULL OR negstrat = 3)
         AND bool_or(negstrat = 3)
      ORDER BY 1;`,
-  );
-  return res.rows.map(r => r.name);
+  )
+  return res.rows.map((r) => r.name)
 }
 
 /**
@@ -1904,8 +1923,8 @@ async function queryBuiltinAggregateFunctions(pg: PGlite): Promise<string[]> {
      JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'pg_catalog' AND p.prokind = 'a'
      ORDER BY p.proname;`,
-  );
-  return res.rows.map(r => r.name);
+  )
+  return res.rows.map((r) => r.name)
 }
 
 async function queryBuiltinStrictFunctions(pg: PGlite): Promise<string[]> {
@@ -1917,20 +1936,20 @@ async function queryBuiltinStrictFunctions(pg: PGlite): Promise<string[]> {
      GROUP BY p.proname
      HAVING bool_and(p.proisstrict)
      ORDER BY p.proname;`,
-  );
-  return res.rows.map(r => r.name);
+  )
+  return res.rows.map((r) => r.name)
 }
 
 interface OperatorRow {
-  schema: string;
-  name: string;
-  left_type: string | null;
-  right_type: string | null;
-  function_schema: string;
-  function_name: string;
-  strict: boolean;
-  result_type: string;
-  volatility: "i" | "s" | "v";
+  schema: string
+  name: string
+  left_type: string | null
+  right_type: string | null
+  function_schema: string
+  function_name: string
+  strict: boolean
+  result_type: string
+  volatility: 'i' | 's' | 'v'
 }
 
 /**
@@ -1956,8 +1975,8 @@ async function queryOperators(pg: PGlite): Promise<OperatorRow[]> {
      JOIN pg_namespace fn ON fn.oid = p.pronamespace
      WHERE ${USER_NS}
      ORDER BY n.nspname, o.oprname, left_type, right_type;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function queryEnumTypes(pg: PGlite): Promise<EnumTypeRow[]> {
@@ -1967,8 +1986,8 @@ async function queryEnumTypes(pg: PGlite): Promise<EnumTypeRow[]> {
      JOIN pg_namespace n ON n.oid = t.typnamespace
      WHERE t.typtype = 'e' AND ${USER_NS}
      ORDER BY n.nspname, t.typname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function queryEnumValues(pg: PGlite): Promise<EnumValueRow[]> {
@@ -1977,8 +1996,8 @@ async function queryEnumValues(pg: PGlite): Promise<EnumValueRow[]> {
     `SELECT e.enumtypid, e.enumlabel, e.enumsortorder
      FROM pg_enum e
      ORDER BY e.enumtypid, e.enumsortorder;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
@@ -2003,8 +2022,8 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
      JOIN pg_namespace n ON n.oid = t.typnamespace
      WHERE t.typtype = 'd' AND ${USER_NS}
      ORDER BY n.nspname, t.typname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 /** User-defined composite types (CREATE TYPE AS (...)), excluding table row types. */
@@ -2016,8 +2035,8 @@ async function queryCompositeTypes(pg: PGlite): Promise<CompositeTypeRow[]> {
      JOIN pg_class c ON c.oid = t.typrelid
      WHERE t.typtype = 'c' AND c.relkind = 'c' AND ${USER_NS}
      ORDER BY n.nspname, t.typname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function queryCompositeAttrs(pg: PGlite): Promise<CompositeAttrRow[]> {
@@ -2033,8 +2052,8 @@ async function queryCompositeAttrs(pg: PGlite): Promise<CompositeAttrRow[]> {
      WHERE t.typtype = 'c' AND c.relkind = 'c' AND ${USER_NS}
        AND a.attnum > 0 AND NOT a.attisdropped
      ORDER BY a.attrelid, a.attnum;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function querySequences(pg: PGlite): Promise<SequenceRow[]> {
@@ -2058,8 +2077,8 @@ async function querySequences(pg: PGlite): Promise<SequenceRow[]> {
      LEFT JOIN pg_namespace own_ns ON own_ns.oid = own_tbl.relnamespace
      WHERE c.relkind = 'S' AND ${USER_NS}
      ORDER BY n.nspname, c.relname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function queryExtensions(pg: PGlite): Promise<ExtensionRow[]> {
@@ -2068,8 +2087,8 @@ async function queryExtensions(pg: PGlite): Promise<ExtensionRow[]> {
      FROM pg_extension e
      JOIN pg_namespace n ON n.oid = e.extnamespace
      ORDER BY e.extname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }
 
 async function querySchemas(pg: PGlite): Promise<SchemaRow[]> {
@@ -2081,6 +2100,6 @@ async function querySchemas(pg: PGlite): Promise<SchemaRow[]> {
        AND n.nspname NOT LIKE 'pg_temp_%'
        AND n.nspname NOT LIKE 'pg_toast_temp_%'
      ORDER BY n.nspname;`,
-  );
-  return res.rows;
+  )
+  return res.rows
 }

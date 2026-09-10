@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseMigrationFile, diffStatementChains } from "../../src/ast.js";
+import { describe, it, expect } from 'vitest'
+import { parseMigrationFile, diffStatementChains } from '../../src/ast.js'
 
 // A long migration file with diverse statement types.
 const BASE_MIGRATION = `
@@ -47,438 +47,439 @@ BEGIN
     (2, 'bob@example.com', 'Bob');
 END;
 $$;
-`;
+`
 
-describe("statement chain: canonicalized AST hashing", () => {
-  it("parses a migration file into a statement chain with hashes", async () => {
-    const file = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
+describe('statement chain: canonicalized AST hashing', () => {
+  it('parses a migration file into a statement chain with hashes', async () => {
+    const file = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
 
     // Should have 8 statements: CREATE TABLE, CREATE UNIQUE INDEX,
     // CREATE INDEX CONCURRENTLY, CREATE FUNCTION, CREATE FUNCTION,
     // CREATE TRIGGER, DO block. (Some might be combined — check count.)
-    expect(file.statements.length).toBeGreaterThanOrEqual(7);
+    expect(file.statements.length).toBeGreaterThanOrEqual(7)
 
     // Each statement should have a hash.
     for (const stmt of file.statements) {
-      expect(stmt.hash).toMatch(/^[0-9a-f]{64}$/); // sha256 hex
-      expect(stmt.kind).toBeTruthy();
-      expect(stmt.text).toBeTruthy();
-      expect(stmt.bytes.length).toBeGreaterThan(0);
+      expect(stmt.hash).toMatch(/^[0-9a-f]{64}$/) // sha256 hex
+      expect(stmt.kind).toBeTruthy()
+      expect(stmt.text).toBeTruthy()
+      expect(stmt.bytes.length).toBeGreaterThan(0)
     }
-  });
+  })
 
-  it("cosmetic edit (add comment) — all hashes identical", async () => {
-    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
+  it('cosmetic edit (add comment) — all hashes identical', async () => {
+    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
 
     // Add a comment before the first statement.
     const modified = BASE_MIGRATION.replace(
-      "CREATE TABLE public.chain_users",
-      "-- This is a new comment added before the table\nCREATE TABLE public.chain_users",
-    );
-    const modifiedFile = await parseMigrationFile(Buffer.from(modified, "utf8"), 0);
+      'CREATE TABLE public.chain_users',
+      '-- This is a new comment added before the table\nCREATE TABLE public.chain_users',
+    )
+    const modifiedFile = await parseMigrationFile(Buffer.from(modified, 'utf8'), 0)
 
     // All hashes should be identical — the comment doesn't affect the AST.
-    expect(modifiedFile.statements.length).toBe(original.statements.length);
+    expect(modifiedFile.statements.length).toBe(original.statements.length)
     for (let i = 0; i < original.statements.length; i++) {
-      expect(modifiedFile.statements[i]!.hash).toBe(original.statements[i]!.hash);
+      expect(modifiedFile.statements[i]!.hash).toBe(original.statements[i]!.hash)
     }
 
     // diffStatementChains should return null (no difference).
-    expect(diffStatementChains(original.statements, modifiedFile.statements)).toBeNull();
-  });
+    expect(diffStatementChains(original.statements, modifiedFile.statements)).toBeNull()
+  })
 
-  it("cosmetic edit (change whitespace) — all hashes identical", async () => {
-    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
+  it('cosmetic edit (change whitespace) — all hashes identical', async () => {
+    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
 
     // Add extra whitespace and change formatting.
-    const modified = BASE_MIGRATION
-      .replace("email text NOT NULL", "  email   text   NOT   NULL")
-      .replace("display_name text", "\n\tdisplay_name\ttext\n");
+    const modified = BASE_MIGRATION.replace(
+      'email text NOT NULL',
+      '  email   text   NOT   NULL',
+    ).replace('display_name text', '\n\tdisplay_name\ttext\n')
 
-    const modifiedFile = await parseMigrationFile(Buffer.from(modified, "utf8"), 0);
+    const modifiedFile = await parseMigrationFile(Buffer.from(modified, 'utf8'), 0)
 
-    expect(modifiedFile.statements.length).toBe(original.statements.length);
+    expect(modifiedFile.statements.length).toBe(original.statements.length)
     for (let i = 0; i < original.statements.length; i++) {
-      expect(modifiedFile.statements[i]!.hash).toBe(original.statements[i]!.hash);
+      expect(modifiedFile.statements[i]!.hash).toBe(original.statements[i]!.hash)
     }
-    expect(diffStatementChains(original.statements, modifiedFile.statements)).toBeNull();
-  });
+    expect(diffStatementChains(original.statements, modifiedFile.statements)).toBeNull()
+  })
 
-  it("cosmetic edit (change keyword case) — all hashes identical", async () => {
-    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
+  it('cosmetic edit (change keyword case) — all hashes identical', async () => {
+    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
 
     // Change keyword case.
-    const modified = BASE_MIGRATION
-      .replace("CREATE TABLE", "create table")
-      .replace("CREATE UNIQUE INDEX", "create unique index")
-      .replace("CREATE FUNCTION", "create function");
+    const modified = BASE_MIGRATION.replace('CREATE TABLE', 'create table')
+      .replace('CREATE UNIQUE INDEX', 'create unique index')
+      .replace('CREATE FUNCTION', 'create function')
 
-    const modifiedFile = await parseMigrationFile(Buffer.from(modified, "utf8"), 0);
+    const modifiedFile = await parseMigrationFile(Buffer.from(modified, 'utf8'), 0)
 
-    expect(modifiedFile.statements.length).toBe(original.statements.length);
+    expect(modifiedFile.statements.length).toBe(original.statements.length)
     for (let i = 0; i < original.statements.length; i++) {
-      expect(modifiedFile.statements[i]!.hash).toBe(original.statements[i]!.hash);
+      expect(modifiedFile.statements[i]!.hash).toBe(original.statements[i]!.hash)
     }
-    expect(diffStatementChains(original.statements, modifiedFile.statements)).toBeNull();
-  });
+    expect(diffStatementChains(original.statements, modifiedFile.statements)).toBeNull()
+  })
 
   it("semantic edit (change column name) — only that statement's hash differs", async () => {
-    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
+    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
 
     // Change a column name in the CREATE TABLE.
-    const modified = BASE_MIGRATION.replace("email text", "email_address text");
-    const modifiedFile = await parseMigrationFile(Buffer.from(modified, "utf8"), 0);
+    const modified = BASE_MIGRATION.replace('email text', 'email_address text')
+    const modifiedFile = await parseMigrationFile(Buffer.from(modified, 'utf8'), 0)
 
-    const diffIndex = diffStatementChains(original.statements, modifiedFile.statements);
-    expect(diffIndex).not.toBeNull();
+    const diffIndex = diffStatementChains(original.statements, modifiedFile.statements)
+    expect(diffIndex).not.toBeNull()
 
     // The first statement (CREATE TABLE) should differ.
-    expect(diffIndex).toBe(0);
-    expect(modifiedFile.statements[0]!.hash).not.toBe(original.statements[0]!.hash);
+    expect(diffIndex).toBe(0)
+    expect(modifiedFile.statements[0]!.hash).not.toBe(original.statements[0]!.hash)
 
     // The CONCURRENTLY index (doesn't reference email) should be identical.
-    expect(modifiedFile.statements[2]!.hash).toBe(original.statements[2]!.hash);
+    expect(modifiedFile.statements[2]!.hash).toBe(original.statements[2]!.hash)
 
     // The CREATE UNIQUE INDEX references lower(email) — the SQL text is unchanged,
     // so the AST hash is identical. (The index will fail at apply time because
     // the column no longer exists, but that's a runtime error, not a hash change.)
-    expect(modifiedFile.statements[1]!.hash).toBe(original.statements[1]!.hash);
-  });
+    expect(modifiedFile.statements[1]!.hash).toBe(original.statements[1]!.hash)
+  })
 
   it("semantic edit (change function body) — only that function's hash differs", async () => {
-    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
+    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
 
     // Change the body of chain_notify.
     const modified = BASE_MIGRATION.replace(
       "PERFORM pg_notify('user_created', p_user_id::text);",
       "PERFORM pg_notify('user_created_v2', p_user_id::text);",
-    );
-    const modifiedFile = await parseMigrationFile(Buffer.from(modified, "utf8"), 0);
+    )
+    const modifiedFile = await parseMigrationFile(Buffer.from(modified, 'utf8'), 0)
 
-    const diffIndex = diffStatementChains(original.statements, modifiedFile.statements);
-    expect(diffIndex).not.toBeNull();
+    const diffIndex = diffStatementChains(original.statements, modifiedFile.statements)
+    expect(diffIndex).not.toBeNull()
 
     // The chain_notify function statement should differ.
-    const changedStmt = modifiedFile.statements[diffIndex!];
-    expect(changedStmt!.kind).toBe("CreateFunctionStmt");
-    expect(changedStmt!.text).toContain("chain_notify");
+    const changedStmt = modifiedFile.statements[diffIndex!]
+    expect(changedStmt!.kind).toBe('CreateFunctionStmt')
+    expect(changedStmt!.text).toContain('chain_notify')
 
     // Statements before it (CREATE TABLE, indexes) should be identical.
     for (let i = 0; i < diffIndex!; i++) {
-      expect(modifiedFile.statements[i]!.hash).toBe(original.statements[i]!.hash);
+      expect(modifiedFile.statements[i]!.hash).toBe(original.statements[i]!.hash)
     }
 
     // The chain_get_email function (different statement) should be identical.
-    const getEmailStmt = modifiedFile.statements.find(s => s.text.includes("chain_get_email"));
-    const origGetEmailStmt = original.statements.find(s => s.text.includes("chain_get_email"));
-    expect(getEmailStmt!.hash).toBe(origGetEmailStmt!.hash);
-  });
+    const getEmailStmt = modifiedFile.statements.find((s) => s.text.includes('chain_get_email'))
+    const origGetEmailStmt = original.statements.find((s) => s.text.includes('chain_get_email'))
+    expect(getEmailStmt!.hash).toBe(origGetEmailStmt!.hash)
+  })
 
-  it("semantic edit (add a statement) — chain differs at insertion point", async () => {
+  it('semantic edit (add a statement) — chain differs at insertion point', async () => {
     // Build two versions of a small migration: one with 2 statements,
     // one with 3 (an extra CREATE TABLE inserted in the middle).
-    const v1 = [
-      "CREATE TABLE public.a (id int);",
-      "CREATE TABLE public.b (id int);",
-    ].join("\n\n");
+    const v1 = ['CREATE TABLE public.a (id int);', 'CREATE TABLE public.b (id int);'].join('\n\n')
     const v2 = [
-      "CREATE TABLE public.a (id int);",
-      "CREATE TABLE public.audit (id int);",
-      "CREATE TABLE public.b (id int);",
-    ].join("\n\n");
+      'CREATE TABLE public.a (id int);',
+      'CREATE TABLE public.audit (id int);',
+      'CREATE TABLE public.b (id int);',
+    ].join('\n\n')
 
-    const f1 = await parseMigrationFile(Buffer.from(v1, "utf8"), 0);
-    const f2 = await parseMigrationFile(Buffer.from(v2, "utf8"), 0);
+    const f1 = await parseMigrationFile(Buffer.from(v1, 'utf8'), 0)
+    const f2 = await parseMigrationFile(Buffer.from(v2, 'utf8'), 0)
 
-    expect(f2.statements.length).toBe(f1.statements.length + 1);
+    expect(f2.statements.length).toBe(f1.statements.length + 1)
 
     // First statement is identical.
-    expect(f2.statements[0]!.hash).toBe(f1.statements[0]!.hash);
+    expect(f2.statements[0]!.hash).toBe(f1.statements[0]!.hash)
 
     // Chain differs at position 1 (the inserted statement).
-    const diffIndex = diffStatementChains(f1.statements, f2.statements);
-    expect(diffIndex).toBe(1);
-  });
+    const diffIndex = diffStatementChains(f1.statements, f2.statements)
+    expect(diffIndex).toBe(1)
+  })
 
-  it("semantic edit (delete a statement) — chain differs at deletion point", async () => {
-    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
+  it('semantic edit (delete a statement) — chain differs at deletion point', async () => {
+    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
 
     // Remove the CREATE TRIGGER statement.
     const modified = BASE_MIGRATION.replace(
       /CREATE TRIGGER chain_trg[\s\S]*?chain_notify\(id\);/,
-      "",
-    );
-    const modifiedFile = await parseMigrationFile(Buffer.from(modified, "utf8"), 0);
+      '',
+    )
+    const modifiedFile = await parseMigrationFile(Buffer.from(modified, 'utf8'), 0)
 
-    expect(modifiedFile.statements.length).toBe(original.statements.length - 1);
+    expect(modifiedFile.statements.length).toBe(original.statements.length - 1)
 
-    const diffIndex = diffStatementChains(original.statements, modifiedFile.statements);
-    expect(diffIndex).not.toBeNull();
-  });
+    const diffIndex = diffStatementChains(original.statements, modifiedFile.statements)
+    expect(diffIndex).not.toBeNull()
+  })
 
-  it("semantic edit (reorder statements) — chain differs at the swap point", async () => {
+  it('semantic edit (reorder statements) — chain differs at the swap point', async () => {
     // Two versions: tables created in different order.
     const v1 = [
-      "CREATE TABLE public.order_a (id int);",
-      "CREATE TABLE public.order_b (id int);",
-    ].join("\n\n");
+      'CREATE TABLE public.order_a (id int);',
+      'CREATE TABLE public.order_b (id int);',
+    ].join('\n\n')
     const v2 = [
-      "CREATE TABLE public.order_b (id int);",
-      "CREATE TABLE public.order_a (id int);",
-    ].join("\n\n");
+      'CREATE TABLE public.order_b (id int);',
+      'CREATE TABLE public.order_a (id int);',
+    ].join('\n\n')
 
-    const f1 = await parseMigrationFile(Buffer.from(v1, "utf8"), 0);
-    const f2 = await parseMigrationFile(Buffer.from(v2, "utf8"), 0);
+    const f1 = await parseMigrationFile(Buffer.from(v1, 'utf8'), 0)
+    const f2 = await parseMigrationFile(Buffer.from(v2, 'utf8'), 0)
 
-    expect(f2.statements.length).toBe(f1.statements.length);
+    expect(f2.statements.length).toBe(f1.statements.length)
 
     // Same number of statements, same hashes, but in different order.
     // The first hash in v1 is order_a, the first in v2 is order_b → they differ.
-    const diffIndex = diffStatementChains(f1.statements, f2.statements);
-    expect(diffIndex).toBe(0);
+    const diffIndex = diffStatementChains(f1.statements, f2.statements)
+    expect(diffIndex).toBe(0)
 
     // The hash of order_a in v1 should match order_a in v2 (just at a different position).
-    const v1OrderA = f1.statements.find(s => s.text.includes("order_a"))!;
-    const v2OrderA = f2.statements.find(s => s.text.includes("order_a"))!;
-    expect(v1OrderA.hash).toBe(v2OrderA.hash);
+    const v1OrderA = f1.statements.find((s) => s.text.includes('order_a'))!
+    const v2OrderA = f2.statements.find((s) => s.text.includes('order_a'))!
+    expect(v1OrderA.hash).toBe(v2OrderA.hash)
 
     // But they're at different indices.
-    expect(f1.statements.indexOf(v1OrderA)).toBe(0);
-    expect(f2.statements.indexOf(v2OrderA)).toBe(1);
-  });
+    expect(f1.statements.indexOf(v1OrderA)).toBe(0)
+    expect(f2.statements.indexOf(v2OrderA)).toBe(1)
+  })
 
-  it("CONCURRENTLY stripping — hash is the same with or without the keyword", async () => {
+  it('CONCURRENTLY stripping — hash is the same with or without the keyword', async () => {
     // Two versions of the same CREATE INDEX: one with CONCURRENTLY, one without.
     // The CONCURRENTLY keyword is stripped during preprocessing, so both
     // should produce the same statement hash after stripping.
     const withConcurrently = Buffer.from(
-      "CREATE TABLE public.t (id int);\n" +
-      "CREATE INDEX CONCURRENTLY idx ON public.t (id);\n",
-      "utf8",
-    );
+      'CREATE TABLE public.t (id int);\n' + 'CREATE INDEX CONCURRENTLY idx ON public.t (id);\n',
+      'utf8',
+    )
     const withoutConcurrently = Buffer.from(
-      "CREATE TABLE public.t (id int);\n" +
-      "CREATE INDEX idx ON public.t (id);\n",
-      "utf8",
-    );
+      'CREATE TABLE public.t (id int);\n' + 'CREATE INDEX idx ON public.t (id);\n',
+      'utf8',
+    )
 
-    const file1 = await parseMigrationFile(withConcurrently, 0);
-    const file2 = await parseMigrationFile(withoutConcurrently, 0);
+    const file1 = await parseMigrationFile(withConcurrently, 0)
+    const file2 = await parseMigrationFile(withoutConcurrently, 0)
 
-    expect(file1.statements.length).toBe(2);
-    expect(file2.statements.length).toBe(2);
+    expect(file1.statements.length).toBe(2)
+    expect(file2.statements.length).toBe(2)
 
     // The CREATE TABLE hash should be identical.
-    expect(file1.statements[0]!.hash).toBe(file2.statements[0]!.hash);
+    expect(file1.statements[0]!.hash).toBe(file2.statements[0]!.hash)
 
     // The CREATE INDEX hash should also be identical — CONCURRENTLY is
     // stripped before hashing, so both produce the same AST.
-    expect(file1.statements[1]!.hash).toBe(file2.statements[1]!.hash);
-  });
+    expect(file1.statements[1]!.hash).toBe(file2.statements[1]!.hash)
+  })
 
-  it("diffStatementChains — identical chains return null", async () => {
-    const file = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
-    expect(diffStatementChains(file.statements, file.statements)).toBeNull();
-  });
+  it('diffStatementChains — identical chains return null', async () => {
+    const file = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
+    expect(diffStatementChains(file.statements, file.statements)).toBeNull()
+  })
 
-  it("byte offsets update correctly after cosmetic edit", async () => {
-    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, "utf8"), 0);
+  it('byte offsets update correctly after cosmetic edit', async () => {
+    const original = await parseMigrationFile(Buffer.from(BASE_MIGRATION, 'utf8'), 0)
 
     // Add 20 bytes of comments before the first statement.
-    const modified = "-- " + "x".repeat(18) + "\n" + BASE_MIGRATION;
-    const modifiedFile = await parseMigrationFile(Buffer.from(modified, "utf8"), 0);
+    const modified = '-- ' + 'x'.repeat(18) + '\n' + BASE_MIGRATION
+    const modifiedFile = await parseMigrationFile(Buffer.from(modified, 'utf8'), 0)
 
     // Hashes are identical (cosmetic change).
-    expect(diffStatementChains(original.statements, modifiedFile.statements)).toBeNull();
+    expect(diffStatementChains(original.statements, modifiedFile.statements)).toBeNull()
 
     // But byte offsets are different — the first statement shifted by 21 bytes.
-    expect(modifiedFile.statements[0]!.stmtStart).toBeGreaterThan(original.statements[0]!.stmtStart);
+    expect(modifiedFile.statements[0]!.stmtStart).toBeGreaterThan(original.statements[0]!.stmtStart)
 
     // The statement text should be the same.
     for (let i = 0; i < original.statements.length; i++) {
-      expect(modifiedFile.statements[i]!.text).toBe(original.statements[i]!.text);
+      expect(modifiedFile.statements[i]!.text).toBe(original.statements[i]!.text)
     }
-  });
-});
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Subtle semantic changes: DML, type changes, function attributes, column order
 // ---------------------------------------------------------------------------
 
-describe("statement chain: subtle semantic changes", () => {
+describe('statement chain: subtle semantic changes', () => {
   // Helper: compare two SQL strings, return diff index (or null).
   async function diff(sqlBefore: string, sqlAfter: string): Promise<number | null> {
-    const before = await parseMigrationFile(Buffer.from(sqlBefore, "utf8"), 0);
-    const after = await parseMigrationFile(Buffer.from(sqlAfter, "utf8"), 0);
-    return diffStatementChains(before.statements, after.statements);
+    const before = await parseMigrationFile(Buffer.from(sqlBefore, 'utf8'), 0)
+    const after = await parseMigrationFile(Buffer.from(sqlAfter, 'utf8'), 0)
+    return diffStatementChains(before.statements, after.statements)
   }
 
-  it("INSERT: string literal vs NULL — different hashes", async () => {
-    const v1 = "CREATE TABLE t (id int, name text);\nINSERT INTO t VALUES (1, 'alice');";
-    const v2 = "CREATE TABLE t (id int, name text);\nINSERT INTO t VALUES (1, NULL);";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('INSERT: string literal vs NULL — different hashes', async () => {
+    const v1 = "CREATE TABLE t (id int, name text);\nINSERT INTO t VALUES (1, 'alice');"
+    const v2 = 'CREATE TABLE t (id int, name text);\nINSERT INTO t VALUES (1, NULL);'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("INSERT: column order swapped — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int, b text);\nINSERT INTO t (a, b) VALUES (1, 'x');";
-    const v2 = "CREATE TABLE t (a int, b text);\nINSERT INTO t (b, a) VALUES ('x', 1);";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('INSERT: column order swapped — different hashes', async () => {
+    const v1 = "CREATE TABLE t (a int, b text);\nINSERT INTO t (a, b) VALUES (1, 'x');"
+    const v2 = "CREATE TABLE t (a int, b text);\nINSERT INTO t (b, a) VALUES ('x', 1);"
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("UPDATE: column order in SET clause swapped — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int, b int);\nUPDATE t SET a = 1, b = 2 WHERE a = 0;";
-    const v2 = "CREATE TABLE t (a int, b int);\nUPDATE t SET b = 2, a = 1 WHERE a = 0;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('UPDATE: column order in SET clause swapped — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int, b int);\nUPDATE t SET a = 1, b = 2 WHERE a = 0;'
+    const v2 = 'CREATE TABLE t (a int, b int);\nUPDATE t SET b = 2, a = 1 WHERE a = 0;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("UPDATE: value changed — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int);\nUPDATE t SET a = 1;";
-    const v2 = "CREATE TABLE t (a int);\nUPDATE t SET a = 2;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('UPDATE: value changed — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int);\nUPDATE t SET a = 1;'
+    const v2 = 'CREATE TABLE t (a int);\nUPDATE t SET a = 2;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("SELECT: column list changed — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int, b int);\nSELECT a FROM t;";
-    const v2 = "CREATE TABLE t (a int, b int);\nSELECT b FROM t;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('SELECT: column list changed — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int, b int);\nSELECT a FROM t;'
+    const v2 = 'CREATE TABLE t (a int, b int);\nSELECT b FROM t;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("SELECT: WHERE clause changed — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int);\nSELECT * FROM t WHERE a > 0;";
-    const v2 = "CREATE TABLE t (a int);\nSELECT * FROM t WHERE a > 10;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('SELECT: WHERE clause changed — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int);\nSELECT * FROM t WHERE a > 0;'
+    const v2 = 'CREATE TABLE t (a int);\nSELECT * FROM t WHERE a > 10;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("table column type changed — different hashes", async () => {
-    const v1 = "CREATE TABLE t (id int, val text);";
-    const v2 = "CREATE TABLE t (id int, val varchar(50));";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('table column type changed — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (id int, val text);'
+    const v2 = 'CREATE TABLE t (id int, val varchar(50));'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("table column NOT NULL added — different hashes", async () => {
-    const v1 = "CREATE TABLE t (id int, val text);";
-    const v2 = "CREATE TABLE t (id int, val text NOT NULL);";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('table column NOT NULL added — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (id int, val text);'
+    const v2 = 'CREATE TABLE t (id int, val text NOT NULL);'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("table column DEFAULT changed — different hashes", async () => {
-    const v1 = "CREATE TABLE t (id int, val text DEFAULT 'x');";
-    const v2 = "CREATE TABLE t (id int, val text DEFAULT 'y');";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('table column DEFAULT changed — different hashes', async () => {
+    const v1 = "CREATE TABLE t (id int, val text DEFAULT 'x');"
+    const v2 = "CREATE TABLE t (id int, val text DEFAULT 'y');"
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("table column order swapped — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int, b text);";
-    const v2 = "CREATE TABLE t (b text, a int);";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('table column order swapped — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int, b text);'
+    const v2 = 'CREATE TABLE t (b text, a int);'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("function return type changed — different hashes", async () => {
-    const v1 = "CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1; $$;";
-    const v2 = "CREATE FUNCTION f() RETURNS bigint LANGUAGE sql AS $$ SELECT 1; $$;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('function return type changed — different hashes', async () => {
+    const v1 = 'CREATE FUNCTION f() RETURNS int LANGUAGE sql AS $$ SELECT 1; $$;'
+    const v2 = 'CREATE FUNCTION f() RETURNS bigint LANGUAGE sql AS $$ SELECT 1; $$;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("function loses IMMUTABLE — different hashes", async () => {
-    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql IMMUTABLE AS $$ SELECT a; $$;";
-    const v2 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('function loses IMMUTABLE — different hashes', async () => {
+    const v1 = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql IMMUTABLE AS $$ SELECT a; $$;'
+    const v2 = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("function loses STRICT — different hashes", async () => {
-    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql STRICT AS $$ SELECT a; $$;";
-    const v2 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('function loses STRICT — different hashes', async () => {
+    const v1 = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql STRICT AS $$ SELECT a; $$;'
+    const v2 = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("function gains SECURITY DEFINER — different hashes", async () => {
-    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
-    const v2 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql SECURITY DEFINER AS $$ SELECT a; $$;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('function gains SECURITY DEFINER — different hashes', async () => {
+    const v1 = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;'
+    const v2 =
+      'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql SECURITY DEFINER AS $$ SELECT a; $$;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("function LANGUAGE changed — different hashes", async () => {
-    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
-    const v2 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$ BEGIN RETURN a; END; $$;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('function LANGUAGE changed — different hashes', async () => {
+    const v1 = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;'
+    const v2 =
+      'CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$ BEGIN RETURN a; END; $$;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("function argument type changed — different hashes", async () => {
-    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
-    const v2 = "CREATE FUNCTION f(a bigint) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('function argument type changed — different hashes', async () => {
+    const v1 = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;'
+    const v2 = 'CREATE FUNCTION f(a bigint) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("function argument name changed — different hashes", async () => {
-    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;";
-    const v2 = "CREATE FUNCTION f(b int) RETURNS int LANGUAGE sql AS $$ SELECT b; $$;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('function argument name changed — different hashes', async () => {
+    const v1 = 'CREATE FUNCTION f(a int) RETURNS int LANGUAGE sql AS $$ SELECT a; $$;'
+    const v2 = 'CREATE FUNCTION f(b int) RETURNS int LANGUAGE sql AS $$ SELECT b; $$;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("function body whitespace reformatted — same hash (cosmetic)", async () => {
-    const v1 = "CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$\nBEGIN\n  PERFORM 1;\nEND;\n$$;";
-    const v2 = "CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$\n  BEGIN\n    PERFORM 1;\n  END;\n$$;";
+  it('function body whitespace reformatted — same hash (cosmetic)', async () => {
+    const v1 =
+      'CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$\nBEGIN\n  PERFORM 1;\nEND;\n$$;'
+    const v2 =
+      'CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$\n  BEGIN\n    PERFORM 1;\n  END;\n$$;'
     // The body is a literal string — whitespace inside $$ changes prosrc
     // → the AST includes the body as a string literal → different string
     // → different hash. This is correct: body whitespace IS a semantic
     // change (prosrc changes).
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("INSERT with different number of rows — different hashes", async () => {
-    const v1 = "CREATE TABLE t (id int);\nINSERT INTO t VALUES (1);";
-    const v2 = "CREATE TABLE t (id int);\nINSERT INTO t VALUES (1), (2);";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('INSERT with different number of rows — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (id int);\nINSERT INTO t VALUES (1);'
+    const v2 = 'CREATE TABLE t (id int);\nINSERT INTO t VALUES (1), (2);'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("DELETE WHERE clause changed — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int);\nDELETE FROM t WHERE a = 1;";
-    const v2 = "CREATE TABLE t (a int);\nDELETE FROM t WHERE a = 2;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('DELETE WHERE clause changed — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int);\nDELETE FROM t WHERE a = 1;'
+    const v2 = 'CREATE TABLE t (a int);\nDELETE FROM t WHERE a = 2;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("ALTER TABLE ADD COLUMN — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int);";
-    const v2 = "CREATE TABLE t (a int);\nALTER TABLE t ADD COLUMN b text;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('ALTER TABLE ADD COLUMN — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int);'
+    const v2 = 'CREATE TABLE t (a int);\nALTER TABLE t ADD COLUMN b text;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("CREATE INDEX with different WHERE predicate — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int, b int);\nCREATE INDEX ON t (a) WHERE b > 0;";
-    const v2 = "CREATE TABLE t (a int, b int);\nCREATE INDEX ON t (a) WHERE b > 10;";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('CREATE INDEX with different WHERE predicate — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int, b int);\nCREATE INDEX ON t (a) WHERE b > 0;'
+    const v2 = 'CREATE TABLE t (a int, b int);\nCREATE INDEX ON t (a) WHERE b > 10;'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("CREATE TABLE with different constraint name — different hashes", async () => {
-    const v1 = "CREATE TABLE t (a int CONSTRAINT ck1 CHECK (a > 0));";
-    const v2 = "CREATE TABLE t (a int CONSTRAINT ck2 CHECK (a > 0));";
-    expect(await diff(v1, v2)).not.toBeNull();
-  });
+  it('CREATE TABLE with different constraint name — different hashes', async () => {
+    const v1 = 'CREATE TABLE t (a int CONSTRAINT ck1 CHECK (a > 0));'
+    const v2 = 'CREATE TABLE t (a int CONSTRAINT ck2 CHECK (a > 0));'
+    expect(await diff(v1, v2)).not.toBeNull()
+  })
 
-  it("cosmetic: INSERT with extra spaces in VALUES — same hash", async () => {
-    const v1 = "CREATE TABLE t (id int);\nINSERT INTO t VALUES (1);";
-    const v2 = "CREATE TABLE t (id int);\nINSERT  INTO  t  VALUES  (1);";
-    expect(await diff(v1, v2)).toBeNull();
-  });
+  it('cosmetic: INSERT with extra spaces in VALUES — same hash', async () => {
+    const v1 = 'CREATE TABLE t (id int);\nINSERT INTO t VALUES (1);'
+    const v2 = 'CREATE TABLE t (id int);\nINSERT  INTO  t  VALUES  (1);'
+    expect(await diff(v1, v2)).toBeNull()
+  })
 
-  it("cosmetic: SELECT with reformatted whitespace — same hash", async () => {
-    const v1 = "CREATE TABLE t (a int);\nSELECT a FROM t WHERE a > 0;";
-    const v2 = "CREATE TABLE t (a int);\nSELECT a\nFROM t\nWHERE a > 0;";
-    expect(await diff(v1, v2)).toBeNull();
-  });
+  it('cosmetic: SELECT with reformatted whitespace — same hash', async () => {
+    const v1 = 'CREATE TABLE t (a int);\nSELECT a FROM t WHERE a > 0;'
+    const v2 = 'CREATE TABLE t (a int);\nSELECT a\nFROM t\nWHERE a > 0;'
+    expect(await diff(v1, v2)).toBeNull()
+  })
 
-  it("cosmetic: CREATE TABLE with extra newlines between columns — same hash", async () => {
-    const v1 = "CREATE TABLE t (a int, b text);";
-    const v2 = "CREATE TABLE t (\n  a int,\n  b text\n);";
-    expect(await diff(v1, v2)).toBeNull();
-  });
+  it('cosmetic: CREATE TABLE with extra newlines between columns — same hash', async () => {
+    const v1 = 'CREATE TABLE t (a int, b text);'
+    const v2 = 'CREATE TABLE t (\n  a int,\n  b text\n);'
+    expect(await diff(v1, v2)).toBeNull()
+  })
 
-  it("cosmetic: function with extra whitespace in DECLARE — same hash (body unchanged)", async () => {
+  it('cosmetic: function with extra whitespace in DECLARE — same hash (body unchanged)', async () => {
     // Extra whitespace OUTSIDE the body (between args and AS) is cosmetic.
     // The body text between $$ is identical, so the body string in the AST
     // is identical → same hash.
-    const v1 = "CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$\nBEGIN\n  RETURN a;\nEND;\n$$;";
-    const v2 = "CREATE  FUNCTION  f(a  int)  RETURNS  int  LANGUAGE  plpgsql  AS  $$\nBEGIN\n  RETURN a;\nEND;\n$$;";
-    expect(await diff(v1, v2)).toBeNull();
-  });
-});
+    const v1 =
+      'CREATE FUNCTION f(a int) RETURNS int LANGUAGE plpgsql AS $$\nBEGIN\n  RETURN a;\nEND;\n$$;'
+    const v2 =
+      'CREATE  FUNCTION  f(a  int)  RETURNS  int  LANGUAGE  plpgsql  AS  $$\nBEGIN\n  RETURN a;\nEND;\n$$;'
+    expect(await diff(v1, v2)).toBeNull()
+  })
+})

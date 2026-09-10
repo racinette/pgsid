@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
-import { parseSql } from "../../../src/ast.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../src/query/catalog-adapter.js";
-import { inferQueryContract, type QueryContract } from "../../../src/query/nullability-walk.js";
-import type { NullabilityCatalog } from "../../../src/query/types.js";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
+import { parseSql } from '../../../src/ast.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import { inferQueryContract, type QueryContract } from '../../../src/query/nullability-walk.js'
+import type { NullabilityCatalog } from '../../../src/query/types.js'
 
 // ---------------------------------------------------------------------------
 // The RED SUITE for the always-null channel (`OutputNullability.alwaysNull`).
@@ -39,8 +39,8 @@ import type { NullabilityCatalog } from "../../../src/query/types.js";
 // order of work legible.
 // ---------------------------------------------------------------------------
 
-let pg: PGlite;
-let catalog: NullabilityCatalog;
+let pg: PGlite
+let catalog: NullabilityCatalog
 
 const SCHEMA = `
   -- A tagged union declared in SQL: 'paid' rows carry an amount, every
@@ -54,36 +54,36 @@ const SCHEMA = `
                                      ELSE amount IS NULL END)
   );
   CREATE TABLE ord (id integer NOT NULL, inv_id integer);
-`;
+`
 
 const DATA = `
   INSERT INTO inv VALUES (1,'paid',10.0), (2,'draft',NULL), (3,'void',NULL);
   INSERT INTO ord VALUES (1,1),(2,2),(3,99);
-`;
+`
 
 beforeAll(async () => {
-  pg = new PGlite();
-  await pg.exec(SCHEMA);
-  await pg.exec(DATA);
-  catalog = await buildNullabilityCatalog(await snapshotCatalog(pg));
-}, 60_000);
+  pg = new PGlite()
+  await pg.exec(SCHEMA)
+  await pg.exec(DATA)
+  catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
+}, 60_000)
 
 afterAll(async () => {
-  if (!pg.closed) await pg.close();
-});
+  if (!pg.closed) await pg.close()
+})
 
 async function contract(sql: string): Promise<QueryContract> {
-  const parsed = await parseSql(sql);
+  const parsed = await parseSql(sql)
   return inferQueryContract(parsed.stmts![0]!.stmt!, catalog, {
-    evaluate: async s => (await pg.query<Record<string, unknown>>(s)).rows[0],
-  });
+    evaluate: async (s) => (await pg.query<Record<string, unknown>>(s)).rows[0],
+  })
 }
 
 /** The claim under test, as the three-valued fact the contract carries. */
-async function verdict(sql: string): Promise<"notNull" | "alwaysNull" | "nullable"> {
-  const c = await contract(sql);
-  const o = c.outputs[0]!;
-  return o.notNull ? "notNull" : o.alwaysNull ? "alwaysNull" : "nullable";
+async function verdict(sql: string): Promise<'notNull' | 'alwaysNull' | 'nullable'> {
+  const c = await contract(sql)
+  const o = c.outputs[0]!
+  return o.notNull ? 'notNull' : o.alwaysNull ? 'alwaysNull' : 'nullable'
 }
 
 // --- What already works, and must keep working. ----------------------------
@@ -91,23 +91,23 @@ async function verdict(sql: string): Promise<"notNull" | "alwaysNull" | "nullabl
 // reach `alwaysNull`, and the cheapest way to break the channel is to make
 // something claim it that should not. These two are the fixed points.
 
-describe("the landed channel (boundary guards for every mechanism below)", () => {
+describe('the landed channel (boundary guards for every mechanism below)', () => {
   it("the CHECK's ELSE arm is claimed today", async () => {
     // PostgreSQL: [null, null] — the two non-'paid' rows.
-    expect(await verdict("SELECT amount FROM inv WHERE status <> 'paid'")).toBe("alwaysNull");
-  });
+    expect(await verdict("SELECT amount FROM inv WHERE status <> 'paid'")).toBe('alwaysNull')
+  })
 
-  it("a plain nullable column claims nothing", async () => {
+  it('a plain nullable column claims nothing', async () => {
     // PostgreSQL: ["10.0", null, null] — carries values.
-    expect(await verdict("SELECT amount FROM inv")).toBe("nullable");
-  });
+    expect(await verdict('SELECT amount FROM inv')).toBe('nullable')
+  })
 
   it("the CHECK's THEN arm is notNull, not alwaysNull", async () => {
     // The direction control on the same constraint: a mechanism that made
     // this alwaysNull would have inverted the goal, not extended it.
-    expect(await verdict("SELECT amount FROM inv WHERE status = 'paid'")).toBe("notNull");
-  });
-});
+    expect(await verdict("SELECT amount FROM inv WHERE status = 'paid'")).toBe('notNull')
+  })
+})
 
 // --- A: a NULL literal as a strict-closure leaf. ---------------------------
 // `alwaysNullExpr` tests `isNullLiteral` on the WHOLE expression but the leaf
@@ -126,24 +126,24 @@ describe("the landed channel (boundary guards for every mechanism below)", () =>
 // It also took `COALESCE(NULL, NULL)` from B with it — the closure already
 // required every branch to force, and both branches are now leaves that do.
 
-describe("A — NULL literal as a strict-closure leaf", () => {
-  it("a strict operator over a NULL literal", async () => {
+describe('A — NULL literal as a strict-closure leaf', () => {
+  it('a strict operator over a NULL literal', async () => {
     // PostgreSQL: [null, null, null].
-    expect(await verdict("SELECT NULL::numeric + 1 AS c FROM inv")).toBe("alwaysNull");
-  });
+    expect(await verdict('SELECT NULL::numeric + 1 AS c FROM inv')).toBe('alwaysNull')
+  })
 
-  it("a strict function over a NULL literal", async () => {
+  it('a strict function over a NULL literal', async () => {
     // PostgreSQL: [null, null, null]. `upper` is strict.
-    expect(await verdict("SELECT upper(NULL::text) AS c FROM inv")).toBe("alwaysNull");
-  });
+    expect(await verdict('SELECT upper(NULL::text) AS c FROM inv')).toBe('alwaysNull')
+  })
 
-  it("guard: COALESCE over a NULL literal is notNull, not alwaysNull", async () => {
+  it('guard: COALESCE over a NULL literal is notNull, not alwaysNull', async () => {
     // PostgreSQL: ["x","x","x"]. The strict closure requires EVERY branch to
     // force, so this must not ride in on A — it is the shape that proves the
     // leaf change did not become "any NULL anywhere".
-    expect(await verdict("SELECT COALESCE(NULL::text,'x') AS c FROM inv")).toBe("notNull");
-  });
-});
+    expect(await verdict("SELECT COALESCE(NULL::text,'x') AS c FROM inv")).toBe('notNull')
+  })
+})
 
 // --- B: expression shapes the strict closure cannot express. ---------------
 // All three are NULL for STRUCTURAL reasons, not propagated ones, so
@@ -163,40 +163,40 @@ describe("A — NULL literal as a strict-closure leaf", () => {
 // adjudicated spelling is `CASE … END::text`, which presents as a TypeCast,
 // and the shape rules would never have seen the CASE.
 
-describe("B — structural expression shapes", () => {
-  it("NULLIF(x, x) is NULL whichever way it goes", async () => {
+describe('B — structural expression shapes', () => {
+  it('NULLIF(x, x) is NULL whichever way it goes', async () => {
     // PostgreSQL: [null, null, null]. Equal → NULL by definition; a NULL x
     // makes the comparison NULL, so it returns x, which is NULL.
-    expect(await verdict("SELECT NULLIF(status, status) AS c FROM inv")).toBe("alwaysNull");
-  });
+    expect(await verdict('SELECT NULLIF(status, status) AS c FROM inv')).toBe('alwaysNull')
+  })
 
-  it("a CASE whose every reachable arm is NULL", async () => {
+  it('a CASE whose every reachable arm is NULL', async () => {
     // PostgreSQL: [null, null, null].
     expect(
-      await verdict("SELECT CASE WHEN id > 0 THEN NULL ELSE NULL END::text AS c FROM inv"),
-    ).toBe("alwaysNull");
-  });
+      await verdict('SELECT CASE WHEN id > 0 THEN NULL ELSE NULL END::text AS c FROM inv'),
+    ).toBe('alwaysNull')
+  })
 
-  it("a COALESCE whose every argument is NULL", async () => {
+  it('a COALESCE whose every argument is NULL', async () => {
     // PostgreSQL: [null, null, null].
-    expect(await verdict("SELECT COALESCE(NULL::text, NULL::text) AS c FROM inv")).toBe(
-      "alwaysNull",
-    );
-  });
+    expect(await verdict('SELECT COALESCE(NULL::text, NULL::text) AS c FROM inv')).toBe(
+      'alwaysNull',
+    )
+  })
 
-  it("guard: NULLIF against a different operand carries values", async () => {
+  it('guard: NULLIF against a different operand carries values', async () => {
     // PostgreSQL: ["paid","draft","void"]. The identity is the whole claim
     // in the target above; without it there is nothing to conclude.
-    expect(await verdict("SELECT NULLIF(status,'zzz') AS c FROM inv")).toBe("nullable");
-  });
+    expect(await verdict("SELECT NULLIF(status,'zzz') AS c FROM inv")).toBe('nullable')
+  })
 
-  it("guard: a CASE with one non-NULL arm carries values", async () => {
+  it('guard: a CASE with one non-NULL arm carries values', async () => {
     // PostgreSQL: ["x","x",null].
     expect(
       await verdict("SELECT CASE WHEN id > 2 THEN NULL ELSE 'x' END::text AS c FROM inv"),
-    ).toBe("nullable");
-  });
-});
+    ).toBe('nullable')
+  })
+})
 
 // --- C: structural and relational. -----------------------------------------
 // Three shapes. The setop case is a mirror of `combineSetOperation`; the
@@ -218,56 +218,54 @@ describe("B — structural expression shapes", () => {
 //
 // FALSE and NULL are one fact here: neither admits a row.
 
-describe("C — structural and relational", () => {
-  it("a scalar subquery over a provably empty set", async () => {
+describe('C — structural and relational', () => {
+  it('a scalar subquery over a provably empty set', async () => {
     // PostgreSQL: [null, null, null] — an empty scalar subquery is NULL.
-    expect(
-      await verdict("SELECT (SELECT amount FROM inv WHERE false) AS c FROM inv"),
-    ).toBe("alwaysNull");
-  });
+    expect(await verdict('SELECT (SELECT amount FROM inv WHERE false) AS c FROM inv')).toBe(
+      'alwaysNull',
+    )
+  })
 
-  it("a set operation whose every branch is always-null", async () => {
+  it('a set operation whose every branch is always-null', async () => {
     // PostgreSQL: [null, null].
-    expect(await verdict("SELECT NULL::text AS c UNION ALL SELECT NULL::text")).toBe(
-      "alwaysNull",
-    );
-  });
+    expect(await verdict('SELECT NULL::text AS c UNION ALL SELECT NULL::text')).toBe('alwaysNull')
+  })
 
-  it("a join that can never match", async () => {
+  it('a join that can never match', async () => {
     // PostgreSQL: [null, null, null] — ON false extends every row.
-    expect(await verdict("SELECT g.amount AS c FROM ord o LEFT JOIN inv g ON false")).toBe(
-      "alwaysNull",
-    );
-  });
+    expect(await verdict('SELECT g.amount AS c FROM ord o LEFT JOIN inv g ON false')).toBe(
+      'alwaysNull',
+    )
+  })
 
-  it("a scalar subquery emptied by a closed COMPARISON, not a literal", async () => {
+  it('a scalar subquery emptied by a closed COMPARISON, not a literal', async () => {
     // PostgreSQL: [null, null]. Same fact as the literal spelling above; the
     // statement map holds no entry for a qual position, so nothing answers
     // it. Closing this means extending the map's collection, not this file.
-    expect(
-      await verdict("SELECT (SELECT amount FROM inv WHERE 1 = 2) AS c FROM inv"),
-    ).toBe("alwaysNull");
-  });
+    expect(await verdict('SELECT (SELECT amount FROM inv WHERE 1 = 2) AS c FROM inv')).toBe(
+      'alwaysNull',
+    )
+  })
 
-  it("a join whose qual is a closed COMPARISON that is never true", async () => {
+  it('a join whose qual is a closed COMPARISON that is never true', async () => {
     // PostgreSQL: [null, null, null].
-    expect(await verdict("SELECT g.amount AS c FROM ord o LEFT JOIN inv g ON 1 = 2")).toBe(
-      "alwaysNull",
-    );
-  });
+    expect(await verdict('SELECT g.amount AS c FROM ord o LEFT JOIN inv g ON 1 = 2')).toBe(
+      'alwaysNull',
+    )
+  })
 
-  it("guard: a set operation with one non-NULL branch carries values", async () => {
+  it('guard: a set operation with one non-NULL branch carries values', async () => {
     // PostgreSQL: [null, "v"].
-    expect(await verdict("SELECT NULL::text AS c UNION ALL SELECT 'v'::text")).toBe("nullable");
-  });
+    expect(await verdict("SELECT NULL::text AS c UNION ALL SELECT 'v'::text")).toBe('nullable')
+  })
 
-  it("guard: a join that CAN match carries values", async () => {
+  it('guard: a join that CAN match carries values', async () => {
     // PostgreSQL: ["10.0", null, null].
     expect(
-      await verdict("SELECT g.amount AS c FROM ord o LEFT JOIN inv g ON g.id = o.inv_id"),
-    ).toBe("nullable");
-  });
-});
+      await verdict('SELECT g.amount AS c FROM ord o LEFT JOIN inv g ON g.id = o.inv_id'),
+    ).toBe('nullable')
+  })
+})
 
 // --- D: aggregates and windows over an always-null input. ------------------
 // Per-function, NOT a rule: `max(dead)` is NULL and `count(dead)` is 0. So
@@ -286,47 +284,45 @@ describe("C — structural and relational", () => {
 // while `array_agg`/`json_agg`/`jsonb_agg` are present there and absent
 // here because they COLLECT NULLs into a non-null container.
 
-describe("D — aggregates and windows over an always-null input", () => {
-  it("max over an always-null column", async () => {
+describe('D — aggregates and windows over an always-null input', () => {
+  it('max over an always-null column', async () => {
     // PostgreSQL: [null]. NULL over all-NULL input, and NULL over empty.
     expect(await verdict("SELECT max(amount) AS c FROM inv WHERE status <> 'paid'")).toBe(
-      "alwaysNull",
-    );
-  });
+      'alwaysNull',
+    )
+  })
 
-  it("a window function over an always-null column", async () => {
+  it('a window function over an always-null column', async () => {
     // PostgreSQL: [null, null].
     expect(
-      await verdict(
-        "SELECT lag(amount) OVER (ORDER BY id) AS c FROM inv WHERE status <> 'paid'",
-      ),
-    ).toBe("alwaysNull");
-  });
+      await verdict("SELECT lag(amount) OVER (ORDER BY id) AS c FROM inv WHERE status <> 'paid'"),
+    ).toBe('alwaysNull')
+  })
 
-  it("guard: array_agg COLLECTS the NULLs into a non-null array", async () => {
+  it('guard: array_agg COLLECTS the NULLs into a non-null array', async () => {
     // PostgreSQL: [{null,null}] — a non-null array of NULLs. The shape that
     // is easiest to get backwards, and the reason array_agg sits in the
     // NON_NULL table and not in this one.
     expect(await verdict("SELECT array_agg(amount) AS c FROM inv WHERE status <> 'paid'")).toBe(
-      "nullable",
-    );
-  });
+      'nullable',
+    )
+  })
 
-  it("guard: json_agg likewise collects rather than skips", async () => {
+  it('guard: json_agg likewise collects rather than skips', async () => {
     // PostgreSQL: [[null,null]].
     expect(await verdict("SELECT json_agg(amount) AS c FROM inv WHERE status <> 'paid'")).toBe(
-      "nullable",
-    );
-  });
+      'nullable',
+    )
+  })
 
-  it("guard: count over an always-null column is 0, not NULL", async () => {
+  it('guard: count over an always-null column is 0, not NULL', async () => {
     // PostgreSQL: [0]. THE reason D is a curated list — a rule reading
     // "aggregate over always-null is always-null" would be unsound here.
     expect(await verdict("SELECT count(amount) AS c FROM inv WHERE status <> 'paid'")).toBe(
-      "notNull",
-    );
-  });
-});
+      'notNull',
+    )
+  })
+})
 
 // --- E: written values. ----------------------------------------------------
 // The written-value map carries non-nullness and deliberately not nullness;
@@ -346,36 +342,36 @@ describe("D — aggregates and windows over an always-null input", () => {
 // agreement across every producing arm, exactly as its non-null map does,
 // because the walk cannot know which arm fired for a given row.
 
-describe("E — written values", () => {
-  it("INSERT of a NULL literal, read back through RETURNING", async () => {
+describe('E — written values', () => {
+  it('INSERT of a NULL literal, read back through RETURNING', async () => {
     // PostgreSQL: [null].
     expect(
       await verdict(
         "INSERT INTO inv (id,status,amount) VALUES (9,'draft',NULL) RETURNING amount AS c",
       ),
-    ).toBe("alwaysNull");
-  });
+    ).toBe('alwaysNull')
+  })
 
-  it("UPDATE SET the column NULL, read back through RETURNING", async () => {
+  it('UPDATE SET the column NULL, read back through RETURNING', async () => {
     // PostgreSQL: [null, null]. The UPDATE builder has its own written-value
     // map and it is not mirrored — the INSERT one is.
     expect(
       await verdict("UPDATE inv SET status = 'draft', amount = NULL RETURNING amount AS c"),
-    ).toBe("alwaysNull");
-  });
+    ).toBe('alwaysNull')
+  })
 
-  it("MERGE WHEN MATCHED UPDATE SET the column NULL", async () => {
+  it('MERGE WHEN MATCHED UPDATE SET the column NULL', async () => {
     // PostgreSQL: [null, null]. Third builder, same gap.
     expect(
       await verdict(
-        "MERGE INTO inv USING ord o ON o.inv_id = inv.id" +
+        'MERGE INTO inv USING ord o ON o.inv_id = inv.id' +
           " WHEN MATCHED THEN UPDATE SET status = 'draft', amount = NULL" +
-          " RETURNING inv.amount AS c",
+          ' RETURNING inv.amount AS c',
       ),
-    ).toBe("alwaysNull");
-  });
+    ).toBe('alwaysNull')
+  })
 
-  it.fails("a column the CHECK forces NULL because of what the statement WROTE", async () => {
+  it.fails('a column the CHECK forces NULL because of what the statement WROTE', async () => {
     // PostgreSQL: [null, null]. `amount` is not written, so the mirror map
     // says nothing about it; what forces it NULL is the CHECK reading the
     // NEW row's `status`, which the statement DID write. The written value
@@ -383,21 +379,21 @@ describe("E — written values", () => {
     // derivation runs. Same family as the generated corpus's `r_ce`:
     // closing it means letting written values act as evidence, which is
     // value tracking and its own project.
-    expect(
-      await verdict("UPDATE inv SET status = 'draft' RETURNING amount AS c"),
-    ).toBe("alwaysNull");
-  });
+    expect(await verdict("UPDATE inv SET status = 'draft' RETURNING amount AS c")).toBe(
+      'alwaysNull',
+    )
+  })
 
-  it("guard: UPDATE SET a non-NULL value is notNull", async () => {
+  it('guard: UPDATE SET a non-NULL value is notNull', async () => {
     // PostgreSQL: ["3.5","3.5"]. The UPDATE map's existing direction already
     // answers this, which is what makes the two targets above a MIRROR to
     // add rather than a map to build.
     expect(
       await verdict("UPDATE inv SET status = 'paid', amount = 3.5 RETURNING amount AS c"),
-    ).toBe("notNull");
-  });
+    ).toBe('notNull')
+  })
 
-  it("guard: INSERT of a non-NULL literal is notNull", async () => {
+  it('guard: INSERT of a non-NULL literal is notNull', async () => {
     // PostgreSQL: ["7.5"]. Already claimed by the written-value map's
     // existing direction; a mirror that broke this would have replaced the
     // map rather than extended it.
@@ -405,9 +401,9 @@ describe("E — written values", () => {
       await verdict(
         "INSERT INTO inv (id,status,amount) VALUES (8,'paid',7.5) RETURNING amount AS c",
       ),
-    ).toBe("notNull");
-  });
-});
+    ).toBe('notNull')
+  })
+})
 
 // --- The star-expansion crossing (found 2026-08-24 by the wrap-invariance
 // suite, wrapper 1). ---------------------------------------------------------
@@ -422,46 +418,42 @@ describe("E — written values", () => {
 // wrapper and zero notNull claims did — the crossing was one channel in one
 // consumer, the alias-column-list shape one mechanism over.
 
-describe("the star-expansion crossing", () => {
+describe('the star-expansion crossing', () => {
   // Both graduated 2026-08-24, the same day they were captured: expandStar
   // asks entryColumnAlwaysNull positionally now, and the corpus fixture is
   // star-alwaysnull-crossing.sql. wrap-invariance.test.ts holds the class —
   // its wrapper is exactly this shape over every fixture at once.
-  it("unqualified * over a subselect keeps the inner alwaysNull", async () => {
+  it('unqualified * over a subselect keeps the inner alwaysNull', async () => {
     // PostgreSQL: every row NULL (the CHECK's ELSE arm forces it inside).
-    const c = await contract(
-      "SELECT * FROM (SELECT id, amount FROM inv WHERE status <> 'paid') w",
-    );
-    expect(c.outputs[1]!.alwaysNull ?? false).toBe(true);
-  });
+    const c = await contract("SELECT * FROM (SELECT id, amount FROM inv WHERE status <> 'paid') w")
+    expect(c.outputs[1]!.alwaysNull ?? false).toBe(true)
+  })
 
-  it("qualified w.* keeps it too", async () => {
+  it('qualified w.* keeps it too', async () => {
     const c = await contract(
       "SELECT w.* FROM (SELECT id, amount FROM inv WHERE status <> 'paid') w",
-    );
-    expect(c.outputs[1]!.alwaysNull ?? false).toBe(true);
-  });
+    )
+    expect(c.outputs[1]!.alwaysNull ?? false).toBe(true)
+  })
 
-  it("guard: the explicit re-export already carries it", async () => {
+  it('guard: the explicit re-export already carries it', async () => {
     // The fixed point the fix must not disturb: the NAME path was never
     // broken.
     const c = await contract(
       "SELECT w.amount AS a FROM (SELECT amount FROM inv WHERE status <> 'paid') w",
-    );
-    expect(c.outputs[0]!.alwaysNull ?? false).toBe(true);
-  });
+    )
+    expect(c.outputs[0]!.alwaysNull ?? false).toBe(true)
+  })
 
-  it("guard: a value-bearing sibling stays un-flagged through *", async () => {
+  it('guard: a value-bearing sibling stays un-flagged through *', async () => {
     // PostgreSQL: id carries values on every row. An alwaysNull claim is a
     // `null` type in the consumer's output, so an over-claim here is a lie,
     // not eagerness.
-    const c = await contract(
-      "SELECT * FROM (SELECT id, amount FROM inv WHERE status <> 'paid') w",
-    );
-    expect(c.outputs[0]!.alwaysNull ?? false).toBe(false);
-    expect(c.outputs[0]!.notNull).toBe(true);
-  });
-});
+    const c = await contract("SELECT * FROM (SELECT id, amount FROM inv WHERE status <> 'paid') w")
+    expect(c.outputs[0]!.alwaysNull ?? false).toBe(false)
+    expect(c.outputs[0]!.notNull).toBe(true)
+  })
+})
 
 // --- F — a proven-TRUE guard ends the arm chain (GRADUATED 2026-08-25) -----
 // Captured and flipped the same day, which is the whole story: the
@@ -477,17 +469,19 @@ describe("the star-expansion crossing", () => {
 // Adjudicated against PostgreSQL before writing: both targets return NULL
 // on every row, both guards return a non-NULL. Corpus: the
 // check-guard-proven-* family (else, later-arm, earlier-arm).
-describe("F — a proven-TRUE guard ends the arm chain", () => {
-  it("the ELSE beside a proven guard never runs", async () => {
+describe('F — a proven-TRUE guard ends the arm chain', () => {
+  it('the ELSE beside a proven guard never runs', async () => {
     // The WHERE IS the guard, so the first arm always fires and its NULL is
     // the only value. PostgreSQL: 1 row, NULL. The ELSE's non-null 'x' is
     // what the engine currently stops on.
     expect(
-      await verdict("SELECT CASE WHEN status = 'paid' THEN NULL ELSE 'x' END FROM inv WHERE status = 'paid'"),
-    ).toBe("alwaysNull");
-  });
+      await verdict(
+        "SELECT CASE WHEN status = 'paid' THEN NULL ELSE 'x' END FROM inv WHERE status = 'paid'",
+      ),
+    ).toBe('alwaysNull')
+  })
 
-  it("later ARMS beside a proven guard never run either", async () => {
+  it('later ARMS beside a proven guard never run either', async () => {
     // Same fact one arm further: `id > 0` sits between the proven guard and
     // the ELSE and is unreachable for the same reason. PostgreSQL: 1 row,
     // NULL.
@@ -495,17 +489,17 @@ describe("F — a proven-TRUE guard ends the arm chain", () => {
       await verdict(
         "SELECT CASE WHEN status = 'paid' THEN NULL WHEN id > 0 THEN 'y' ELSE 'x' END FROM inv WHERE status = 'paid'",
       ),
-    ).toBe("alwaysNull");
-  });
+    ).toBe('alwaysNull')
+  })
 
-  it("guard: with nothing proving the guard the ELSE is live", async () => {
+  it('guard: with nothing proving the guard the ELSE is live', async () => {
     // Unfiltered, the draft and void rows take the ELSE and carry 'x'.
-    expect(
-      await verdict("SELECT CASE WHEN status = 'paid' THEN NULL ELSE 'x' END FROM inv"),
-    ).toBe("nullable");
-  });
+    expect(await verdict("SELECT CASE WHEN status = 'paid' THEN NULL ELSE 'x' END FROM inv")).toBe(
+      'nullable',
+    )
+  })
 
-  it("guard: an EARLIER arm that can still fire keeps the value alive", async () => {
+  it('guard: an EARLIER arm that can still fire keeps the value alive', async () => {
     // `id > 0` is not refuted, so it may fire before the proven guard is
     // ever reached — and it yields 'z'. PostgreSQL returns 'z', so an
     // alwaysNull claim here would be a lie about a column that carries
@@ -514,6 +508,6 @@ describe("F — a proven-TRUE guard ends the arm chain", () => {
       await verdict(
         "SELECT CASE WHEN id > 0 THEN 'z' WHEN status = 'paid' THEN NULL ELSE 'x' END FROM inv WHERE status = 'paid'",
       ),
-    ).toBe("nullable");
-  });
-});
+    ).toBe('nullable')
+  })
+})

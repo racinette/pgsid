@@ -1,21 +1,18 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join, basename } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
-import { parseSql } from "../../../src/ast.js";
-import { snapshotCatalog } from "../../../src/catalog/snapshot.js";
-import { catalogCache } from "./fixture-catalog.js";
-import { inferNullability, inferPresenceGroups } from "../../../src/query/nullability-walk.js";
-import type {
-  OutputNullability,
-  OutputPresenceGroup,
-} from "../../../src/query/types.js";
-import type { EvalWarning } from "../../../src/query/nullability-walk.js";
-import { createKillableEvaluator } from "./killable-evaluator.js";
-import { delegateTypesVia } from "./delegate-types.js";
-import { bindParams, parseFixtureDirectives, type FixtureBinding } from "./fixture-args.js";
-import { hasStatements, loadDataStates, type DataState } from "./fixture-data/states.js";
+import { describe, it, expect, beforeAll } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join, basename } from 'node:path'
+import { PGlite } from '@electric-sql/pglite'
+import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
+import { parseSql } from '../../../src/ast.js'
+import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
+import { catalogCache } from './fixture-catalog.js'
+import { inferNullability, inferPresenceGroups } from '../../../src/query/nullability-walk.js'
+import type { OutputNullability, OutputPresenceGroup } from '../../../src/query/types.js'
+import type { EvalWarning } from '../../../src/query/nullability-walk.js'
+import { createKillableEvaluator } from './killable-evaluator.js'
+import { delegateTypesVia } from './delegate-types.js'
+import { bindParams, parseFixtureDirectives, type FixtureBinding } from './fixture-args.js'
+import { hasStatements, loadDataStates, type DataState } from './fixture-data/states.js'
 
 // ---------------------------------------------------------------------------
 // Executable soundness check, and the coverage measurement that makes it mean
@@ -71,83 +68,90 @@ import { hasStatements, loadDataStates, type DataState } from "./fixture-data/st
 // which is what rule 6 in the workspace `AGENTS.md` is about.
 // ---------------------------------------------------------------------------
 
-const FIXTURES_DIR = join(__dirname, "fixtures");
-const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, "schema.sql"), "utf8");
+const FIXTURES_DIR = join(__dirname, 'fixtures')
+const SCHEMA_SQL = readFileSync(join(FIXTURES_DIR, 'schema.sql'), 'utf8')
 
 const fixtureFiles = readdirSync(FIXTURES_DIR)
-  .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-  .sort();
+  .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+  .sort()
 
 interface Fixture {
-  name: string;
-  sql: string;
-  bindings: FixtureBinding[];
-  noRowsReason: string | null;
-  raisesPattern: string | null;
-  alwaysRaises: boolean;
-  unwitnessable: Map<number, string>;
+  name: string
+  sql: string
+  bindings: FixtureBinding[]
+  noRowsReason: string | null
+  raisesPattern: string | null
+  alwaysRaises: boolean
+  unwitnessable: Map<number, string>
   /** `-- @search-path`: analysed AND executed under this path (null = the
    *  corpus default). Both halves matter — a claim made under one path and
    *  adjudicated under another is adjudicating a different statement. */
-  searchPath: string[] | null;
+  searchPath: string[] | null
 }
 
 /** What execution observed about one presence group, across every run. */
 interface GroupObservation {
-  claimed: OutputPresenceGroup;
+  claimed: OutputPresenceGroup
   /** Some row had every discriminant NULL — the unit's absent arm. */
-  sawAbsent: boolean;
+  sawAbsent: boolean
   /** Some row had the discriminants non-NULL — the present arm. */
-  sawPresent: boolean;
+  sawPresent: boolean
 }
 
 /** What execution observed about one output column, across every run. */
 interface ColumnObservation {
   /** The column was present in a result set that had at least one row. */
-  sawRow: boolean;
+  sawRow: boolean
   /** The column was actually NULL in some row. */
-  sawNull: boolean;
+  sawNull: boolean
 }
 
 interface FixtureResult {
-  claimed: OutputNullability[];
-  planError: string | null;
-  shapeError: string | null;
-  pgColumns: string[];
-  columns: ColumnObservation[];
-  groups: GroupObservation[];
-  violations: string[];
+  claimed: OutputNullability[]
+  planError: string | null
+  shapeError: string | null
+  pgColumns: string[]
+  columns: ColumnObservation[]
+  groups: GroupObservation[]
+  violations: string[]
   /** Diagnostic only: statements that raised, by state and binding. */
-  errors: string[];
-  sawRows: boolean;
+  errors: string[]
+  sawRows: boolean
 }
 
-const fixtures: Fixture[] = fixtureFiles.map(file => {
-  const sql = readFileSync(join(FIXTURES_DIR, file), "utf8");
-  const name = basename(file, ".sql");
+const fixtures: Fixture[] = fixtureFiles.map((file) => {
+  const sql = readFileSync(join(FIXTURES_DIR, file), 'utf8')
+  const name = basename(file, '.sql')
   try {
     const { bindings, noRowsReason, raisesPattern, alwaysRaises, unwitnessable, searchPath } =
-      parseFixtureDirectives(sql);
+      parseFixtureDirectives(sql)
     return {
-      name, sql, bindings, noRowsReason, raisesPattern, alwaysRaises, unwitnessable, searchPath,
-    };
+      name,
+      sql,
+      bindings,
+      noRowsReason,
+      raisesPattern,
+      alwaysRaises,
+      unwitnessable,
+      searchPath,
+    }
   } catch (e) {
-    throw new Error(`${file}: ${(e as Error).message}`);
+    throw new Error(`${file}: ${(e as Error).message}`)
   }
-});
+})
 
 /** The fixture's path for the duration of its adjudication. Paired calls
  *  rather than a wrapper: the analysis phase spans a PREPARE, a shape probe
  *  and a rollback, and the data-state phase spans every binding. */
 async function pushSearchPath(pg: PGlite, searchPath: string[] | null): Promise<void> {
-  if (searchPath) await pg.exec(`SET search_path = ${searchPath.join(", ")};`);
+  if (searchPath) await pg.exec(`SET search_path = ${searchPath.join(', ')};`)
 }
 async function popSearchPath(pg: PGlite, searchPath: string[] | null): Promise<void> {
-  if (searchPath) await pg.exec("SET search_path = public;");
+  if (searchPath) await pg.exec('SET search_path = public;')
 }
 
-const results = new Map<string, FixtureResult>();
-let dataStates: DataState[] = [];
+const results = new Map<string, FixtureResult>()
+let dataStates: DataState[] = []
 /**
  * Probes that went unanswered, and the subset that went unanswered because
  * the evaluator was KILLED. The two are not the same failure and only the
@@ -164,18 +168,18 @@ let dataStates: DataState[] = [];
  * why the engine's `EvalWarning` records what was said rather than trying to
  * judge it, and the harness reads `killedSql` from its own evaluator.
  */
-const evalWarnings: EvalWarning[] = [];
-let killedProbes: readonly string[] = [];
+const evalWarnings: EvalWarning[] = []
+let killedProbes: readonly string[] = []
 
-describe("nullability soundness (engine vs PostgreSQL)", () => {
+describe('nullability soundness (engine vs PostgreSQL)', () => {
   beforeAll(async () => {
     // --- Catalog, claims, validity and shape, against an empty database. ---
-    const pg = await PGlite.create({ extensions: { plpgsql_check } });
-    await pg.exec("CREATE EXTENSION plpgsql_check;");
-    await pg.exec(SCHEMA_SQL);
-    const snapshot = await snapshotCatalog(pg);
-    const catalogFor = catalogCache(snapshot);
-    dataStates = loadDataStates(snapshot);
+    const pg = await PGlite.create({ extensions: { plpgsql_check } })
+    await pg.exec('CREATE EXTENSION plpgsql_check;')
+    await pg.exec(SCHEMA_SQL)
+    const snapshot = await snapshotCatalog(pg)
+    const catalogFor = catalogCache(snapshot)
+    dataStates = loadDataStates(snapshot)
 
     // Analysis probes run on a KILLABLE instance, never on `pg`. A probe
     // PGlite will not finish blocks the thread it runs on completely — no
@@ -188,23 +192,23 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     //
     // The instance carries the fixture schema and no data: closed subtrees
     // read no table, so the probes need types and IMMUTABLE functions only.
-    const evaluator = await createKillableEvaluator({ schema: SCHEMA_SQL });
+    const evaluator = await createKillableEvaluator({ schema: SCHEMA_SQL })
 
-    let prepareCounter = 0;
+    let prepareCounter = 0
     for (const fixture of fixtures) {
-      const parsed = await parseSql(fixture.sql);
+      const parsed = await parseSql(fixture.sql)
       // `-- @search-path` (fixture-args.ts): the catalog is built on the
       // fixture's path and the SESSION is held on it for the whole
       // adjudication — analysis, PREPARE, shape and every data state. A
       // claim made under one path and witnessed under another is not a
       // witness, and type-name resolution is exactly what the axis moves.
-      const catalog = await catalogFor(fixture.searchPath);
-      await pushSearchPath(pg, fixture.searchPath);
+      const catalog = await catalogFor(fixture.searchPath)
+      await pushSearchPath(pg, fixture.searchPath)
       // The evaluator is a SEPARATE session, so the path has to be held on it
       // too. Not every probe is path-blind — comparison-groundings renders
       // `SELECT NULL::<type>` to resolve a type name, and which type that is
       // moves with the path.
-      await evaluator.setSearchPath(fixture.searchPath);
+      await evaluator.setSearchPath(fixture.searchPath)
       // Same analysis mode as the fixture suite: the statement map runs live,
       // so the claims the oracle adjudicates are the claims the pins assert.
       const claimed = await inferNullability(parsed.stmts![0]!.stmt!, catalog, {
@@ -217,20 +221,20 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         // through the SAME killable evaluator, which is what bounds it in
         // time, and on the same session the search path is held on.
         resolveColumnTypes: delegateTypesVia(evaluator.evaluate),
-      });
-      const claimedGroups = inferPresenceGroups(parsed.stmts![0]!.stmt!, catalog);
+      })
+      const claimedGroups = inferPresenceGroups(parsed.stmts![0]!.stmt!, catalog)
 
       // Validity. PREPARE keeps `$n` as parameters — that is what they are —
       // and PostgreSQL resolves an otherwise unconstrained one to text.
-      const stmtName = `nullability_probe_${prepareCounter++}`;
-      await pg.exec("BEGIN;");
-      let planError: string | null = null;
+      const stmtName = `nullability_probe_${prepareCounter++}`
+      await pg.exec('BEGIN;')
+      let planError: string | null = null
       try {
-        await pg.exec(`PREPARE ${stmtName} AS ${fixture.sql}`);
+        await pg.exec(`PREPARE ${stmtName} AS ${fixture.sql}`)
       } catch (e) {
-        planError = (e as Error).message;
+        planError = (e as Error).message
       } finally {
-        await pg.exec("ROLLBACK;");
+        await pg.exec('ROLLBACK;')
       }
 
       // Shape, against an EMPTY database. With no rows, target-list
@@ -238,16 +242,16 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       // raise (a cast to a NOT NULL domain, a conflicting INSERT) still yields
       // a row description — which is all this step needs. The binding cannot
       // change the column list, so the first one stands for all of them.
-      await pg.exec("BEGIN;");
-      let pgColumns: string[] = [];
-      let shapeError: string | null = null;
+      await pg.exec('BEGIN;')
+      let pgColumns: string[] = []
+      let shapeError: string | null = null
       try {
-        const bound = bindParams(fixture.sql, fixture.bindings[0]!.args);
-        pgColumns = (await pg.query(bound)).fields.map(f => f.name);
+        const bound = bindParams(fixture.sql, fixture.bindings[0]!.args)
+        pgColumns = (await pg.query(bound)).fields.map((f) => f.name)
       } catch (e) {
-        shapeError = (e as Error).message;
+        shapeError = (e as Error).message
       } finally {
-        await pg.exec("ROLLBACK;");
+        await pg.exec('ROLLBACK;')
       }
 
       results.set(fixture.name, {
@@ -256,68 +260,68 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         shapeError,
         pgColumns,
         columns: claimed.map(() => ({ sawRow: false, sawNull: false })),
-        groups: claimedGroups.map(g => ({ claimed: g, sawAbsent: false, sawPresent: false })),
+        groups: claimedGroups.map((g) => ({ claimed: g, sawAbsent: false, sawPresent: false })),
         violations: [],
         errors: [],
         sawRows: false,
-      });
-      await popSearchPath(pg, fixture.searchPath);
+      })
+      await popSearchPath(pg, fixture.searchPath)
     }
-    await pg.close();
+    await pg.close()
     // Probes belong to the analysis step alone; the data states execute
     // fixtures, they do not analyse them.
-    killedProbes = [...evaluator.killedSql];
-    await evaluator.close();
+    killedProbes = [...evaluator.killedSql]
+    await evaluator.close()
 
     // --- Soundness and witnesses, one instance per data state. ---
     for (const state of dataStates) {
-      const statePg = await PGlite.create({ extensions: { plpgsql_check } });
-      await statePg.exec("CREATE EXTENSION plpgsql_check;");
-      await statePg.exec(SCHEMA_SQL);
-      if (hasStatements(state.sql)) await statePg.exec(state.sql);
+      const statePg = await PGlite.create({ extensions: { plpgsql_check } })
+      await statePg.exec('CREATE EXTENSION plpgsql_check;')
+      await statePg.exec(SCHEMA_SQL)
+      if (hasStatements(state.sql)) await statePg.exec(state.sql)
 
       for (const fixture of fixtures) {
-        const result = results.get(fixture.name)!;
-        await pushSearchPath(statePg, fixture.searchPath);
+        const result = results.get(fixture.name)!
+        await pushSearchPath(statePg, fixture.searchPath)
         for (const binding of fixture.bindings) {
-          const where = `${state.name}/${binding.label}`;
-          await statePg.exec("BEGIN;");
+          const where = `${state.name}/${binding.label}`
+          await statePg.exec('BEGIN;')
           try {
-            const bound = bindParams(fixture.sql, binding.args);
+            const bound = bindParams(fixture.sql, binding.args)
             // rowMode 'array' is required, not a preference: column names are
             // not unique (`SELECT a.id, b.id` yields two "id" columns), so the
             // object form silently collapses them and would compare one column
             // against itself. Nullability is positional; read it positionally.
-            const res = await statePg.query(bound, [], { rowMode: "array" });
-            const rows = res.rows as unknown[][];
-            if (rows.length > 0) result.sawRows = true;
+            const res = await statePg.query(bound, [], { rowMode: 'array' })
+            const rows = res.rows as unknown[][]
+            if (rows.length > 0) result.sawRows = true
             res.fields.forEach((f, i) => {
-              const claim = result.claimed[i];
-              const observation = result.columns[i];
-              if (!claim || !observation) return;
-              if (rows.length > 0) observation.sawRow = true;
+              const claim = result.claimed[i]
+              const observation = result.columns[i]
+              if (!claim || !observation) return
+              if (rows.length > 0) observation.sawRow = true
               // `alwaysNull` is falsified by ANY non-NULL value — no witness
               // needs constructing, every returned row is a test. The
               // opposite economics to the claim below it, which needs a NULL
               // to appear and may wait forever for one.
               if (claim.alwaysNull) {
-                const witness = rows.find(r => r[i] !== null);
+                const witness = rows.find((r) => r[i] !== null)
                 if (witness) {
                   result.violations.push(
                     `[${where}] column ${i} "${f.name}": engine claims alwaysNull, ` +
                       `PostgreSQL returned ${JSON.stringify(witness[i])}`,
-                  );
+                  )
                 }
               }
-              if (!rows.some(r => r[i] === null)) return;
-              observation.sawNull = true;
+              if (!rows.some((r) => r[i] === null)) return
+              observation.sawNull = true
               if (claim.notNull) {
                 result.violations.push(
                   `[${where}] column ${i} "${f.name}": engine claims notNull, ` +
                     `PostgreSQL returned NULL`,
-                );
+                )
               }
-            });
+            })
             // Presence groups are ROW-side claims — a per-column sweep cannot
             // see them. Per returned row: the discriminants agree (all NULL =
             // the unit's absent arm, all non-NULL = present); on the absent
@@ -325,44 +329,44 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
             // group.
             for (const g of result.groups) {
               for (const row of rows) {
-                const nullDiscs = g.claimed.discriminants.filter(d => row[d] === null);
+                const nullDiscs = g.claimed.discriminants.filter((d) => row[d] === null)
                 if (nullDiscs.length === 0) {
-                  g.sawPresent = true;
-                  continue;
+                  g.sawPresent = true
+                  continue
                 }
                 if (nullDiscs.length < g.claimed.discriminants.length) {
                   result.violations.push(
-                    `[${where}] presence group {${g.claimed.columns.join(",")}}: ` +
-                      `discriminants disagree in one row (NULL: ${nullDiscs.join(",")}) — ` +
+                    `[${where}] presence group {${g.claimed.columns.join(',')}}: ` +
+                      `discriminants disagree in one row (NULL: ${nullDiscs.join(',')}) — ` +
                       `they are supposed to be NULL only together, as the unit's absence`,
-                  );
-                  continue;
+                  )
+                  continue
                 }
-                g.sawAbsent = true;
-                const survivors = g.claimed.columns.filter(c => row[c] !== null);
+                g.sawAbsent = true
+                const survivors = g.claimed.columns.filter((c) => row[c] !== null)
                 if (survivors.length > 0) {
                   result.violations.push(
-                    `[${where}] presence group {${g.claimed.columns.join(",")}}: ` +
+                    `[${where}] presence group {${g.claimed.columns.join(',')}}: ` +
                       `absent arm (discriminants NULL) but member column(s) ` +
-                      `${survivors.join(",")} are non-NULL — the unit did not extend as one`,
-                  );
+                      `${survivors.join(',')} are non-NULL — the unit did not extend as one`,
+                  )
                 }
               }
             }
           } catch (e) {
             // Raised instead of returning rows — no observation to make.
-            result.errors.push(`[${where}] ${(e as Error).message}`);
+            result.errors.push(`[${where}] ${(e as Error).message}`)
           } finally {
-            await statePg.exec("ROLLBACK;");
+            await statePg.exec('ROLLBACK;')
           }
         }
-        await popSearchPath(statePg, fixture.searchPath);
+        await popSearchPath(statePg, fixture.searchPath)
       }
-      await statePg.close();
+      await statePg.close()
     }
-  }, 900_000);
+  }, 900_000)
 
-  it("no analysis probe had to be killed", () => {
+  it('no analysis probe had to be killed', () => {
     // A probe PGlite will not finish blocks the thread it runs on, so before
     // the evaluator was killable this did not fail — it HUNG, and the run had
     // to be killed from the shell with nothing to show for it. A kill now
@@ -377,15 +381,15 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     // on its own and the evaluator core is designed around it — the corpus has
     // five, all of them a NULL reaching a NOT NULL domain or an untyped empty
     // array, and each correctly contributes nothing.
-    expect(killedProbes, "analysis probes killed on timeout").toEqual([]);
-    expect(evalWarnings.every(w => !/terminated after/.test(w.detail))).toBe(true);
-  });
+    expect(killedProbes, 'analysis probes killed on timeout').toEqual([])
+    expect(evalWarnings.every((w) => !/terminated after/.test(w.detail))).toBe(true)
+  })
 
   for (const fixture of fixtures) {
     it(fixture.name, () => {
-      const r = results.get(fixture.name)!;
+      const r = results.get(fixture.name)!
 
-      expect(r.planError, `PostgreSQL rejected this fixture: ${r.planError}`).toBeNull();
+      expect(r.planError, `PostgreSQL rejected this fixture: ${r.planError}`).toBeNull()
       if (fixture.alwaysRaises) {
         // The shape step EXECUTES against an empty database, which works for
         // every other @no-rows fixture because with no rows the raising
@@ -398,30 +402,30 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
           r.shapeError,
           `fixture is marked @always-raises but describing it succeeded — the ` +
             `statement does not always raise`,
-        ).not.toBeNull();
+        ).not.toBeNull()
         expect(
-          r.claimed.map(c => c.name),
+          r.claimed.map((c) => c.name),
           `an @always-raises fixture must claim no output columns: it never ` +
             `returns a row, so nothing here could be adjudicated`,
-        ).toEqual([]);
+        ).toEqual([])
       } else {
-        expect(r.shapeError, `could not determine output shape: ${r.shapeError}`).toBeNull();
+        expect(r.shapeError, `could not determine output shape: ${r.shapeError}`).toBeNull()
         expect(
-          r.claimed.map(c => c.name),
+          r.claimed.map((c) => c.name),
           `output shape differs from PostgreSQL\n` +
-            `  engine (${r.claimed.length}): ${r.claimed.map(c => c.name).join(", ")}\n` +
-            `  pg     (${r.pgColumns.length}): ${r.pgColumns.join(", ")}`,
-        ).toEqual(r.pgColumns);
+            `  engine (${r.claimed.length}): ${r.claimed.map((c) => c.name).join(', ')}\n` +
+            `  pg     (${r.pgColumns.length}): ${r.pgColumns.join(', ')}`,
+        ).toEqual(r.pgColumns)
       }
 
-      expect(r.violations, `\n${r.violations.join("\n")}\n`).toEqual([]);
+      expect(r.violations, `\n${r.violations.join('\n')}\n`).toEqual([])
 
       if (fixture.noRowsReason) {
         expect(
           r.sawRows,
           `fixture is marked @no-rows but did return rows — remove the marker:\n` +
             `  ${fixture.noRowsReason}`,
-        ).toBe(false);
+        ).toBe(false)
 
         // Returning nothing is not itself evidence. The claim these fixtures
         // make is that PostgreSQL *refuses* to produce the value, so the
@@ -433,15 +437,15 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
           `fixture is marked @no-rows but never raised. Returning no rows is ` +
             `not evidence on its own — if nothing here refuses, the marker is ` +
             `hiding a fixture that asserts nothing:\n  ${fixture.noRowsReason}`,
-        ).toBeGreaterThan(0);
+        ).toBeGreaterThan(0)
 
-        const unexpected = r.errors.filter(e => !e.includes(fixture.raisesPattern!));
+        const unexpected = r.errors.filter((e) => !e.includes(fixture.raisesPattern!))
         expect(
           unexpected,
           `fixture raised something other than its declared @raises text ` +
             `(${fixture.raisesPattern}). An unrelated failure must not be ` +
-            `accepted as the expected refusal:\n  ${unexpected.join("\n  ")}`,
-        ).toEqual([]);
+            `accepted as the expected refusal:\n  ${unexpected.join('\n  ')}`,
+        ).toEqual([])
       } else {
         expect(
           r.sawRows,
@@ -452,10 +456,10 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
             `\`-- @args [...]\` line if a NULL parameter is what makes its ` +
             `WHERE false. If the statement raises for every row it would ` +
             `produce, say so with \`-- @no-rows: <reason>\`.\n` +
-            `Statements that raised:\n  ${r.errors.join("\n  ") || "(none)"}`,
-        ).toBe(true);
+            `Statements that raised:\n  ${r.errors.join('\n  ') || '(none)'}`,
+        ).toBe(true)
       }
-    });
+    })
   }
 
   // -------------------------------------------------------------------------
@@ -486,82 +490,82 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
   //
   // Set WITNESS_REPORT=1 to list every unwitnessed claim with its reason.
   // -------------------------------------------------------------------------
-  it("every nullable claim is witnessed or its unwitnessability is recorded", () => {
-    let notNullTotal = 0;
-    let notNullFalsifiable = 0;
-    let nullableTotal = 0;
-    let nullableWitnessed = 0;
-    const unwitnessed: string[] = [];
+  it('every nullable claim is witnessed or its unwitnessability is recorded', () => {
+    let notNullTotal = 0
+    let notNullFalsifiable = 0
+    let nullableTotal = 0
+    let nullableWitnessed = 0
+    const unwitnessed: string[] = []
     /** Unwitnessed because the fixture returns no rows at all — exempt from
      *  the annotation requirement, and NOT the same fact as a recorded
      *  reason. Kept as its own list so the count below can say which. */
-    const exempt: string[] = [];
-    const guarded: string[] = [];
-    const unverified: string[] = [];
-    const unclassified: string[] = [];
-    const stale: string[] = [];
-    const invalid: string[] = [];
+    const exempt: string[] = []
+    const guarded: string[] = []
+    const unverified: string[] = []
+    const unclassified: string[] = []
+    const stale: string[] = []
+    const invalid: string[] = []
 
     for (const fixture of fixtures) {
-      const r = results.get(fixture.name)!;
+      const r = results.get(fixture.name)!
 
       // Annotation validity is data-independent and always enforced.
       for (const [index, reason] of fixture.unwitnessable) {
-        const claim = r.claimed[index];
+        const claim = r.claimed[index]
         if (fixture.noRowsReason) {
           invalid.push(
             `${fixture.name}: column ${index} — @no-rows fixtures are exempt ` +
               `wholesale; drop the @unwitnessable annotation`,
-          );
+          )
         } else if (!claim) {
-          invalid.push(`${fixture.name}: column ${index} does not exist (${reason})`);
+          invalid.push(`${fixture.name}: column ${index} does not exist (${reason})`)
         } else if (claim.notNull) {
           invalid.push(
             `${fixture.name}: column ${index} "${claim.name}" is claimed notNull — ` +
               `@unwitnessable only applies to nullable claims`,
-          );
+          )
         }
       }
 
       r.claimed.forEach((claim, i) => {
-        const seen = r.columns[i]!;
-        const label = `${fixture.name}: column ${i} "${claim.name}"`;
+        const seen = r.columns[i]!
+        const label = `${fixture.name}: column ${i} "${claim.name}"`
         if (claim.notNull) {
-          notNullTotal++;
+          notNullTotal++
           // Two ways a `notNull` claim can be checked. Either the query
           // returns rows, so a NULL would contradict it — or the statement
           // raises, and the refusal to produce a value at all is the claim.
           // The per-fixture test above asserts that refusal and its message,
           // so these are verified, not merely unfalsified.
-          if (seen.sawRow) notNullFalsifiable++;
-          else if (fixture.noRowsReason) guarded.push(label);
-          else unverified.push(label);
+          if (seen.sawRow) notNullFalsifiable++
+          else if (fixture.noRowsReason) guarded.push(label)
+          else unverified.push(label)
         } else {
-          nullableTotal++;
+          nullableTotal++
           if (seen.sawNull) {
-            nullableWitnessed++;
-            if (fixture.unwitnessable.has(i)) stale.push(label);
+            nullableWitnessed++
+            if (fixture.unwitnessable.has(i)) stale.push(label)
           } else if (!fixture.noRowsReason) {
-            unwitnessed.push(`${label} — ${fixture.unwitnessable.get(i) ?? "UNCLASSIFIED"}`);
-            if (!fixture.unwitnessable.has(i)) unclassified.push(label);
+            unwitnessed.push(`${label} — ${fixture.unwitnessable.get(i) ?? 'UNCLASSIFIED'}`)
+            if (!fixture.unwitnessable.has(i)) unclassified.push(label)
           } else {
-            exempt.push(`${label} — @no-rows: ${fixture.noRowsReason}`);
+            exempt.push(`${label} — @no-rows: ${fixture.noRowsReason}`)
           }
         }
-      });
+      })
     }
 
     expect(
       unverified,
       `notNull claims that nothing checks: the query returned no rows, and the ` +
         `fixture is not marked @no-rows, so no NULL could contradict them and no ` +
-        `refusal stands behind them.\n  ${unverified.join("\n  ")}`,
-    ).toEqual([]);
+        `refusal stands behind them.\n  ${unverified.join('\n  ')}`,
+    ).toEqual([])
 
     expect(
       invalid,
-      `@unwitnessable annotations that name the wrong thing:\n  ${invalid.join("\n  ")}`,
-    ).toEqual([]);
+      `@unwitnessable annotations that name the wrong thing:\n  ${invalid.join('\n  ')}`,
+    ).toEqual([])
 
     // Every unwitnessed claim is accounted for BY NAME, in one of exactly two
     // ways: an `@unwitnessable` reason, or the wholesale `@no-rows` exemption.
@@ -574,13 +578,13 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       unwitnessed.length + exempt.length,
       `unwitnessed claims that neither list accounts for — the summary count ` +
         `and the printed lists have drifted apart`,
-    ).toBe(nullableTotal - nullableWitnessed);
+    ).toBe(nullableTotal - nullableWitnessed)
 
     const pct = (n: number, total: number) =>
-      total === 0 ? "n/a" : `${Math.round((n / total) * 100)}%`;
+      total === 0 ? 'n/a' : `${Math.round((n / total) * 100)}%`
     console.log(
       `\nwitness coverage over ${fixtures.length} fixtures and ` +
-        `${dataStates.length} data states (${dataStates.map(s => s.name).join(", ")}):\n` +
+        `${dataStates.length} data states (${dataStates.map((s) => s.name).join(', ')}):\n` +
         `  notNull claims:  ${notNullTotal} — ${notNullFalsifiable} falsifiable ` +
         `(${pct(notNullFalsifiable, notNullTotal)}), ${guarded.length} guarded by a ` +
         `checked refusal, ${unverified.length} unverified\n` +
@@ -588,27 +592,28 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
         `(${pct(nullableWitnessed, nullableTotal)}), ${unwitnessed.length} ` +
         `unwitnessed with the reason recorded, ${exempt.length} exempt (@no-rows)\n` +
         `  alwaysNull:      ${[...results.values()].reduce(
-          (n, r) => n + r.claimed.filter(c => c.alwaysNull).length,
+          (n, r) => n + r.claimed.filter((c) => c.alwaysNull).length,
           0,
-        )}` + ` — every returned row tests one, 0 falsified`,
-    );
+        )}` +
+        ` — every returned row tests one, 0 falsified`,
+    )
 
     if (process.env.WITNESS_REPORT) {
       console.log(
-        `\nunwitnessed nullable claims (${unwitnessed.length}):\n  ${unwitnessed.join("\n  ")}` +
+        `\nunwitnessed nullable claims (${unwitnessed.length}):\n  ${unwitnessed.join('\n  ')}` +
           `\n\nnullable claims exempt as @no-rows (${exempt.length}):\n  ` +
-          exempt.join("\n  ") +
+          exempt.join('\n  ') +
           `\n\nnotNull claims guarded by a checked refusal (${guarded.length}):\n  ` +
-          guarded.join("\n  "),
-      );
+          guarded.join('\n  '),
+      )
     }
 
     // Witnessing is data-dependent: another seed may reach more or fewer
     // NULLs, so the two data-dependent directions of the invariant hold only
     // at the default seed. Liveness and annotation validity still apply.
     if (process.env.FUZZ_SEED) {
-      console.log(`FUZZ_SEED is overridden, so the witness invariant is not enforced.`);
-      return;
+      console.log(`FUZZ_SEED is overridden, so the witness invariant is not enforced.`)
+      return
     }
 
     expect(
@@ -616,15 +621,15 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
       `Nullable claims that no state or binding witnessed with a NULL, and no ` +
         `\`-- @unwitnessable N: reason\` annotation covers. Each needs a ` +
         `decision: data that reaches the NULL, an engine precision fix, or the ` +
-        `annotation with the reason recorded:\n  ${unclassified.join("\n  ")}\n`,
-    ).toEqual([]);
+        `annotation with the reason recorded:\n  ${unclassified.join('\n  ')}\n`,
+    ).toEqual([])
 
     expect(
       stale,
       `@unwitnessable annotations on claims that ARE witnessed now — the data ` +
         `or the engine moved past the recorded reason; remove the annotation ` +
-        `so the reason stays a current fact:\n  ${stale.join("\n  ")}\n`,
-    ).toEqual([]);
+        `so the reason stays a current fact:\n  ${stale.join('\n  ')}\n`,
+    ).toEqual([])
 
     // Presence groups carry a two-arm claim, and each arm must execute: a
     // group whose absent arm no data reaches never exercised "all NULL
@@ -636,22 +641,22 @@ describe("nullability soundness (engine vs PostgreSQL)", () => {
     // `@unwitnessable N: reason`. The per-column staleness check removes
     // those the moment data witnesses a NULL, which re-arms this assertion
     // automatically; the two layers cannot drift.
-    const groupUnwitnessed: string[] = [];
+    const groupUnwitnessed: string[] = []
     for (const fixture of fixtures) {
-      const r = results.get(fixture.name)!;
+      const r = results.get(fixture.name)!
       for (const g of r.groups) {
-        const label = `${fixture.name}: group {${g.claimed.columns.join(",")}}`;
-        const absentExempt = g.claimed.discriminants.every(d => fixture.unwitnessable.has(d));
+        const label = `${fixture.name}: group {${g.claimed.columns.join(',')}}`
+        const absentExempt = g.claimed.discriminants.every((d) => fixture.unwitnessable.has(d))
         if (!g.sawAbsent && !absentExempt) {
-          groupUnwitnessed.push(`${label} — absent arm never observed`);
+          groupUnwitnessed.push(`${label} — absent arm never observed`)
         }
-        if (!g.sawPresent) groupUnwitnessed.push(`${label} — present arm never observed`);
+        if (!g.sawPresent) groupUnwitnessed.push(`${label} — present arm never observed`)
       }
     }
     expect(
       groupUnwitnessed,
       `presence-group arms that no state or binding reached — give the fixture ` +
-        `data that exercises both sides of the union:\n  ${groupUnwitnessed.join("\n  ")}\n`,
-    ).toEqual([]);
-  });
-});
+        `data that exercises both sides of the union:\n  ${groupUnwitnessed.join('\n  ')}\n`,
+    ).toEqual([])
+  })
+})

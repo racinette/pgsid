@@ -6,7 +6,6 @@
 // Queries need only parse; they are never required to be sensible.
 
 export const GRAMMAR_SAMPLER: string[] = [
-
   // --- target-list expression forms ---
   `SELECT 1, 'a', true, NULL, 1.5, B'101', X'ff'`,
   `SELECT p.id + 1, p.id * 2, -p.id, p.sku || 'x' FROM products p`,
@@ -76,4 +75,4 @@ export const GRAMMAR_SAMPLER: string[] = [
   `SELECT JSON_OBJECTAGG(p.sku: p.id), JSON_ARRAYAGG(p.id) FROM products p`,
   `SELECT JSON_ARRAY(SELECT id FROM products)`,
   `SELECT JSON_VALUE(e.data, '$.a' PASSING 1 AS x) FROM events e`,
-];
+]

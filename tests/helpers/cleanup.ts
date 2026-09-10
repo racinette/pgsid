@@ -1,4 +1,4 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from '@electric-sql/pglite'
 
 /**
  * Reset a PGlite instance to a clean state for test isolation.
@@ -22,8 +22,8 @@ export async function cleanupPg(pg: PGlite): Promise<void> {
   // (non-LOCAL) which persists. If we drop s1 before resetting, search_path
   // points to a non-existent schema and CREATE EXTENSION fails with
   // "no schema has been selected to create in".
-  await pg.exec("RESET search_path;");
-  await pg.exec("RESET check_function_bodies;");
+  await pg.exec('RESET search_path;')
+  await pg.exec('RESET check_function_bodies;')
 
   // Drop all non-system schemas (CASCADE drops everything in them).
   await pg.exec(`
@@ -40,7 +40,7 @@ export async function cleanupPg(pg: PGlite): Promise<void> {
       END LOOP;
     END;
     $$;
-  `);
+  `)
 
   // Drop any remaining extensions (DROP SCHEMA CASCADE drops their functions,
   // but the extension registration in pg_extension persists).
@@ -54,11 +54,11 @@ export async function cleanupPg(pg: PGlite): Promise<void> {
       END LOOP;
     END;
     $$;
-  `);
+  `)
 
   // Recreate public schema.
-  await pg.exec("CREATE SCHEMA public;");
+  await pg.exec('CREATE SCHEMA public;')
 
   // Recreate the plpgsql_check extension.
-  await pg.exec("CREATE EXTENSION plpgsql_check;");
+  await pg.exec('CREATE EXTENSION plpgsql_check;')
 }

@@ -138,8 +138,8 @@ drifts between versions. Each class is a work item with a count.
 
 ## Two fingerprints, because they answer different questions
 
-A run that hits one bug ten thousand times must report *one finding, many
-instances* rather than ten thousand findings.
+A run that hits one bug ten thousand times must report _one finding, many
+instances_ rather than ten thousand findings.
 
 **The finding fingerprint** groups instances of one defect. It is composed
 from the bucket plus the query's shape and the offending column's position, or

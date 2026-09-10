@@ -1,30 +1,30 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import { plpgsql_check } from "@electric-sql/pglite-plpgsql-check";
-import { deparseSync } from "pgsql-deparser";
-import type { Node } from "libpg-query";
-import { parseSql } from "../../../../src/ast.js";
-import { snapshotCatalog } from "../../../../src/catalog/snapshot.js";
-import { buildNullabilityCatalog } from "../../../../src/query/catalog-adapter.js";
-import { inferNullability } from "../../../../src/query/nullability-walk.js";
+import { describe, it, expect, beforeAll } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { PGlite } from '@electric-sql/pglite'
+import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
+import { deparseSync } from 'pgsql-deparser'
+import type { Node } from 'libpg-query'
+import { parseSql } from '../../../../src/ast.js'
+import { snapshotCatalog } from '../../../../src/catalog/snapshot.js'
+import { buildNullabilityCatalog } from '../../../../src/query/catalog-adapter.js'
+import { inferNullability } from '../../../../src/query/nullability-walk.js'
 import {
   DEP_CATALOG_ONLY,
   EVALUATION_CATALOG_ONLY,
   OVERLOAD_CATALOG_ONLY,
   type NullabilityCatalog,
-} from "../../../../src/query/types.js";
-import { spyOnCatalog, catalogMembers } from "../catalog-spy.js";
-import { GRAMMAR_SAMPLER } from "../grammar-sampler.js";
+} from '../../../../src/query/types.js'
+import { spyOnCatalog, catalogMembers } from '../catalog-spy.js'
+import { GRAMMAR_SAMPLER } from '../grammar-sampler.js'
 import {
   generateQueries,
   generateDeepJoinQueries,
   generateDmlQueries,
   generateParamPlacementQueries,
   type GeneratedQuery,
-} from "./generator.js";
-import { BASE_SCHEMA_SQL, SCHEMA_VARIANTS, type SchemaVariant } from "./schema-variants.js";
+} from './generator.js'
+import { BASE_SCHEMA_SQL, SCHEMA_VARIANTS, type SchemaVariant } from './schema-variants.js'
 
 // ---------------------------------------------------------------------------
 // Capability reach.
@@ -83,91 +83,91 @@ import { BASE_SCHEMA_SQL, SCHEMA_VARIANTS, type SchemaVariant } from "./schema-v
  * declared here with the call site that did it.
  */
 const FLOOR: string[] = [
-  "fnArgDefaultAsts",
-  "fnBodyAsts",
+  'fnArgDefaultAsts',
+  'fnBodyAsts',
   // read beside `fnBodyAsts` on every body recursion: the row-count check asks
   // whether an earlier statement of the same body already wrote the row the
   // final scan looks for, so the lookup happens for single-statement bodies
   // too and simply comes back empty
-  "fnBodyPreludeAsts",
-  "functionReturnsSet",
-  "isAggregateBuiltin",
+  'fnBodyPreludeAsts',
+  'functionReturnsSet',
+  'isAggregateBuiltin',
   // the `unnest(...)` structures: unnest of a FuncCall falls to the two
   // builtin predicates once the polymorphic signatures decline to answer
-  "isBuiltinFunction",
-  "isNotNullDomain",
-  "isNotNullDomainByName",
-  "isPolymorphicBuiltin",
-  "isSetReturningBuiltin",
-  "isStrictBuiltin",
+  'isBuiltinFunction',
+  'isNotNullDomain',
+  'isNotNullDomainByName',
+  'isPolymorphicBuiltin',
+  'isSetReturningBuiltin',
+  'isStrictBuiltin',
   // the `unnest(...)` structures' json_each_text item: a pg_catalog SRF in
   // FROM position, whose named output columns the fallback would get wrong
-  "resolveBuiltinFunctionShape",
-  "resolveCheckConstraints",
-  "resolveCheckConstraintsTree",
-  "resolveColumnNotNull",
-  "resolveColumnNotNullTree",
+  'resolveBuiltinFunctionShape',
+  'resolveCheckConstraints',
+  'resolveCheckConstraintsTree',
+  'resolveColumnNotNull',
+  'resolveColumnNotNullTree',
   // the `unnest(ARRAY[t.name])` item: an ARRAY constructor with no cast types
   // itself from its MEMBERS, so the walk asks the catalog for the column's
-  "resolveColumnTypeName",
-  "resolveColumnTypeOid",
-  "resolveCompositeType",
+  'resolveColumnTypeName',
+  'resolveColumnTypeOid',
+  'resolveCompositeType',
   // the `unnest(ARRAY[ROW(...)::gfn_pair])` item: the element type is read
   // from the cast's target name, which must be followed through any domain
-  "resolveDomainBaseTypeName",
+  'resolveDomainBaseTypeName',
   // the `only(...)` structures and the update-only/delete-only DML: `ONLY u`
   // is what puts the key entailment's referencing side on the non-tree accessor
-  "resolveForeignKey",
-  "resolveForeignKeyTree",
-  "resolveFunctionCandidates",
-  "resolveFunctionMetadata",
-  "resolveFunctionShapes",
-  "resolveGenerationExpr",
-  "resolveGenerationExprTree",
-  "resolveIsPartitioned",
+  'resolveForeignKey',
+  'resolveForeignKeyTree',
+  'resolveFunctionCandidates',
+  'resolveFunctionMetadata',
+  'resolveFunctionShapes',
+  'resolveGenerationExpr',
+  'resolveGenerationExprTree',
+  'resolveIsPartitioned',
   // the `check-lit` projection against the `check-entail` variant — the one
   // capability that needed BOTH axes: a literal comparison in the query AND a
   // CHECK constraint carrying one, before litsDistinct has two lits to compare
-  "resolveLiteralDistinctnessSound",
+  'resolveLiteralDistinctnessSound',
   // every binary A_Expr since the operator narrowing landed: the corpus's
   // === and ==== projections resolve their text operands and dispatch as
   // `user-exact` through this member, which also took over the builtin
   // totality question from the bare-name allowlist
-  "resolveOperatorTotality",
+  'resolveOperatorTotality',
   // every WHERE-promotion strictness question since the typed strictness
   // slice: the promotion path asks EVERY-quantified strictness over the
   // same merged candidate set before falling back to the name rule
-  "resolveOperatorStrictness",
+  'resolveOperatorStrictness',
   // every builtin scalar call since the function slice: priority 6b
   // resolves the captured kind='f' rows before the name checks
-  "resolveBuiltinScalarTotality",
+  'resolveBuiltinScalarTotality',
   // every OVER call since the window re-key: priority 2b resolves the
   // captured kind='w' rows against the two signature-keyed window tables,
   // which is what separates `lag(x, 1, 0)` from `lag(x)`. The corpus
   // reaches it through the window-function call sites in generator.ts
-  "resolveBuiltinWindowTotality",
+  'resolveBuiltinWindowTotality',
   // every `x::type` on a non-null argument since the cast fix: the walk
   // resolves the pair through pg_cast to the implementation function's
   // verdict, because a cast does NOT preserve its argument's nullability
   // (`'infinity'::timestamp::time` is NULL). The corpus reaches it through
   // every cast the generator emits
-  "resolveCastTotality",
+  'resolveCastTotality',
   // mechanism C's strictness question since the same slice: the
   // SOME-quantified reading over the typed survivors, asked at every
   // binary operator the param walker descends
-  "resolveOperatorStrictnessSome",
+  'resolveOperatorStrictnessSome',
   // every builtin-named call whose metadata the drop rule nulled: the
   // typed recovery asks whether a user row certainly wins the merged set
-  "resolveUserFunctionTyped",
+  'resolveUserFunctionTyped',
   // the `unnest(string_to_array(...))` item: asked before the two builtin
   // predicates, and it declines — string_to_array's return is concrete
-  "resolvePolymorphicArraySignatures",
-  "resolveTable",
+  'resolvePolymorphicArraySignatures',
+  'resolveTable',
   // `UPDATE ONLY t` / `DELETE FROM ONLY t` — targetWriteRewrites' other arm
-  "resolveWriteRewrites",
-  "resolveWriteRewritesTree",
-  "viewAsts",
-];
+  'resolveWriteRewrites',
+  'resolveWriteRewritesTree',
+  'viewAsts',
+]
 
 /**
  * What each still-cold capability is waiting for, and the fixture that proves
@@ -180,127 +180,127 @@ const COLD_TRIAGE: Record<string, { needs: string; witness: string }> = {
   resolveBuiltinAggregateRows: {
     needs:
       "a WITHIN GROUP call — the generated corpus's aggregate axis produces " +
-      "plain and windowed aggregates only",
-    witness: "aggregate-modifiers.sql",
+      'plain and windowed aggregates only',
+    witness: 'aggregate-modifiers.sql',
   },
   resolveUnaryOperatorTotality: {
     needs:
       "a PREFIX operator expression — the generated corpus's operator axis " +
-      "produces only binary shapes",
-    witness: "operator-path-plus.sql",
+      'produces only binary shapes',
+    witness: 'operator-path-plus.sql',
   },
   resolveOperatorMetadata: {
     needs:
-      "a user operator whose STRICTNESS the WHERE-promotion or mechanism-C " +
-      "path asks about — the expression path now resolves typed operands " +
-      "through resolveOperatorTotality instead, so only the strictness sites " +
-      "(promotionOperatorIsStrict, param-nullability) still consult this",
-    witness: "where-promotion-non-strict-op.sql",
+      'a user operator whose STRICTNESS the WHERE-promotion or mechanism-C ' +
+      'path asks about — the expression path now resolves typed operands ' +
+      'through resolveOperatorTotality instead, so only the strictness sites ' +
+      '(promotionOperatorIsStrict, param-nullability) still consult this',
+    witness: 'where-promotion-non-strict-op.sql',
   },
   searchPathResolves: {
     needs:
       "a CURRENT_SCHEMA expression — the generated corpus's expression axis " +
-      "produces no SQLValueFunction at all, and this is the one op among them " +
-      "whose answer is not unconditional",
-    witness: "current-schema-unresolvable-path.sql",
+      'produces no SQLValueFunction at all, and this is the one op among them ' +
+      'whose answer is not unconditional',
+    witness: 'current-schema-unresolvable-path.sql',
   },
-};
+}
 
-const FIXTURES_DIR = join(__dirname, "..", "fixtures");
+const FIXTURES_DIR = join(__dirname, '..', 'fixtures')
 
 interface Prepared {
-  sql: string;
-  stmt: Node;
+  sql: string
+  stmt: Node
 }
 
 /** Deparse and re-parse each generated query — the pipeline the engine sees. */
 async function prepare(queries: GeneratedQuery[]): Promise<Prepared[]> {
-  const out: Prepared[] = [];
+  const out: Prepared[] = []
   for (const q of queries) {
-    let sql: string;
+    let sql: string
     try {
-      sql = deparseSync(q.ast as never).trim();
+      sql = deparseSync(q.ast as never).trim()
     } catch {
-      continue; // a deparser failure is the base suite's business
+      continue // a deparser failure is the base suite's business
     }
-    let stmt: Node | undefined;
+    let stmt: Node | undefined
     try {
-      stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
+      stmt = (await parseSql(sql)).stmts?.[0]?.stmt
     } catch {
-      continue;
+      continue
     }
-    if (stmt) out.push({ sql, stmt });
+    if (stmt) out.push({ sql, stmt })
   }
-  return out;
+  return out
 }
 
 /** A catalog for the base schema, or for one variant's patched version of it. */
 async function catalogFor(variant: SchemaVariant | null): Promise<NullabilityCatalog> {
-  const pg = await PGlite.create({ extensions: { plpgsql_check } });
-  await pg.exec("CREATE EXTENSION plpgsql_check;");
-  await pg.exec(BASE_SCHEMA_SQL);
-  if (variant) await pg.exec(variant.patch);
-  const snapshot = await snapshotCatalog(pg);
+  const pg = await PGlite.create({ extensions: { plpgsql_check } })
+  await pg.exec('CREATE EXTENSION plpgsql_check;')
+  await pg.exec(BASE_SCHEMA_SQL)
+  if (variant) await pg.exec(variant.patch)
+  const snapshot = await snapshotCatalog(pg)
   const catalog = await buildNullabilityCatalog(snapshot, {
-    searchPath: variant?.searchPath ?? ["public"],
-  });
-  await pg.close();
-  return catalog;
+    searchPath: variant?.searchPath ?? ['public'],
+  })
+  await pg.close()
+  return catalog
 }
 
 /** Every member `prepared` asks of `catalog`. */
 async function reach(catalog: NullabilityCatalog, prepared: Prepared[]): Promise<Set<string>> {
-  const spy = spyOnCatalog(catalog);
+  const spy = spyOnCatalog(catalog)
   for (const p of prepared) {
     try {
-      await inferNullability(p.stmt, spy.catalog);
+      await inferNullability(p.stmt, spy.catalog)
     } catch {
       // A refusal still asked its questions on the way to refusing.
     }
   }
-  return spy.touched;
+  return spy.touched
 }
 
-describe("capability reach of the generated corpus", () => {
+describe('capability reach of the generated corpus', () => {
   /** Every NullabilityCatalog member, minus the ones only extractDeps calls. */
-  let members: string[];
+  let members: string[]
   /** The union over the default entry points and every schema variant. */
-  let touched: Set<string>;
-  let statements = 0;
+  let touched: Set<string>
+  let statements = 0
   /** The same measurement over the HAND corpus — the comparison below. */
-  let handTouched: Set<string>;
-  let handStatements = 0;
+  let handTouched: Set<string>
+  let handStatements = 0
   /** Per-source reach, for the report: which corpus contributed what. */
-  const bySource = new Map<string, Set<string>>();
+  const bySource = new Map<string, Set<string>>()
 
   beforeAll(async () => {
-    const baseCatalog = await catalogFor(null);
+    const baseCatalog = await catalogFor(null)
     const depOnly = new Set<string>([
       ...DEP_CATALOG_ONLY,
       ...OVERLOAD_CATALOG_ONLY,
       ...EVALUATION_CATALOG_ONLY,
-    ]);
-    members = catalogMembers(baseCatalog).filter(m => !depOnly.has(m));
+    ])
+    members = catalogMembers(baseCatalog).filter((m) => !depOnly.has(m))
 
     const prepared = await prepare([
       ...generateQueries(),
       ...generateDeepJoinQueries(),
       ...generateDmlQueries(),
       ...generateParamPlacementQueries(),
-    ]);
-    statements = prepared.length;
+    ])
+    statements = prepared.length
 
-    touched = new Set<string>();
+    touched = new Set<string>()
     const record = (source: string, set: Set<string>): void => {
-      bySource.set(source, set);
-      for (const m of set) touched.add(m);
-    };
-    record("base schema", await reach(baseCatalog, prepared));
+      bySource.set(source, set)
+      for (const m of set) touched.add(m)
+    }
+    record('base schema', await reach(baseCatalog, prepared))
     // The variants add nothing today, measured — but they are the only route
     // to a capability that sits behind a non-trivial catalog ANSWER, so the
     // union is the honest measure of what the generated corpus reaches.
     for (const variant of SCHEMA_VARIANTS) {
-      record(variant.name, await reach(await catalogFor(variant), prepared));
+      record(variant.name, await reach(await catalogFor(variant), prepared))
     }
 
     // The HAND corpus through the same instrument, so the two are comparable
@@ -310,23 +310,23 @@ describe("capability reach of the generated corpus", () => {
     const handSql = [
       ...GRAMMAR_SAMPLER,
       ...readdirSync(FIXTURES_DIR)
-        .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-        .map(f => readFileSync(join(FIXTURES_DIR, f), "utf8")),
-    ];
-    const handPrepared: Prepared[] = [];
+        .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+        .map((f) => readFileSync(join(FIXTURES_DIR, f), 'utf8')),
+    ]
+    const handPrepared: Prepared[] = []
     for (const sql of handSql) {
       try {
-        const stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
-        if (stmt) handPrepared.push({ sql, stmt });
+        const stmt = (await parseSql(sql)).stmts?.[0]?.stmt
+        if (stmt) handPrepared.push({ sql, stmt })
       } catch {
         /* a fixture the parser refuses is the base suite's business */
       }
     }
-    handStatements = handPrepared.length;
-    handTouched = await reach(baseCatalog, handPrepared);
-  }, 600_000);
+    handStatements = handPrepared.length
+    handTouched = await reach(baseCatalog, handPrepared)
+  }, 600_000)
 
-  it("the hand corpus reaches every capability the generated one does", () => {
+  it('the hand corpus reaches every capability the generated one does', () => {
     // Measured 2026-08-23 and pinned here: 14964 generated statements ask the
     // catalog NOTHING that 565 hand fixtures do not already ask, while the
     // hand corpus reaches 13 capabilities the generator never produces a
@@ -335,114 +335,113 @@ describe("capability reach of the generated corpus", () => {
     // The day this fails is the day the generator finally produces a shape no
     // fixture carries — which is a RESULT, not a regression. Read the diff,
     // then either write the fixture or move the assertion.
-    const generatedOnly = [...touched].filter(m => !handTouched.has(m)).sort();
+    const generatedOnly = [...touched].filter((m) => !handTouched.has(m)).sort()
     expect(
       generatedOnly,
       `The generated corpus now reaches capabilities the hand corpus does ` +
         `not. That is new surface — write the fixture that covers it, or ` +
-        `record why the generated shape is the only route:\n  ${generatedOnly.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `record why the generated shape is the only route:\n  ${generatedOnly.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("between them the two corpora leave no capability cold", () => {
+  it('between them the two corpora leave no capability cold', () => {
     // The union bound. Everything outside the three interface partitions is
     // walk-facing, so a member neither corpus asks is a walk branch with no
     // input at all — which is exactly the state this census exists to keep
     // visible.
-    const cold = members.filter(m => !touched.has(m) && !handTouched.has(m)).sort();
+    const cold = members.filter((m) => !touched.has(m) && !handTouched.has(m)).sort()
     expect(
       cold,
       `Walk-facing capabilities NEITHER corpus reaches (${handStatements} hand ` +
         `+ ${statements} generated statements). Either a fixture is owed, or ` +
         `the member belongs on one of the interface-partition lists in ` +
-        `types.ts:\n  ${cold.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `types.ts:\n  ${cold.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every floor member is a real catalog member", () => {
+  it('every floor member is a real catalog member', () => {
     // Guards the floor against a rename: a member that left the interface
     // would otherwise fail the ratchet below as though a call site regressed.
-    const unknown = FLOOR.filter(m => !members.includes(m)).sort();
+    const unknown = FLOOR.filter((m) => !members.includes(m)).sort()
     expect(
       unknown,
       `The floor names members NullabilityCatalog does not have. A rename or a ` +
-        `removal — update the floor, and check the call site went with it:\n  ${unknown.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `removal — update the floor, and check the call site went with it:\n  ${unknown.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("no capability in the floor has gone cold", () => {
+  it('no capability in the floor has gone cold', () => {
     // The regression this suite exists for. A capability the generated corpus
     // could reach and no longer can is a call site that was deleted, or a walk
     // branch that stopped being taken — and either way the oracle behind it
     // went quiet without a single test failing.
-    const cold = FLOOR.filter(m => !touched.has(m)).sort();
+    const cold = FLOOR.filter((m) => !touched.has(m)).sort()
     expect(
       cold,
       `Capabilities the generated corpus used to reach and no longer asks. ` +
         `Some call site in generator.ts or schema-variants.ts stopped ` +
-        `producing the shape that reached them:\n  ${cold.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `producing the shape that reached them:\n  ${cold.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("no capability is reached without being declared", () => {
+  it('no capability is reached without being declared', () => {
     // The floor's other side. Not the all-or-nothing bar the item rejects —
     // it is measured against today's set, and acknowledging a rise costs one
     // line. Without it the floor drifts below the truth and stops being the
     // progress report it is here to be.
-    const undeclared = [...touched].filter(m => members.includes(m) && !FLOOR.includes(m)).sort();
+    const undeclared = [...touched].filter((m) => members.includes(m) && !FLOOR.includes(m)).sort()
     expect(
       undeclared,
       `The corpus now reaches capabilities the floor does not declare. This is ` +
         `progress: add each to FLOOR, remove its COLD_TRIAGE entry, and name ` +
-        `the call site that did it:\n  ${undeclared.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `the call site that did it:\n  ${undeclared.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every cold capability is triaged, and every triage entry is still cold", () => {
+  it('every cold capability is triaged, and every triage entry is still cold', () => {
     // A cold capability with no entry is an unexamined gap; an entry for a
     // capability now warm is a note that reads as open work already done —
     // the drift the node census's converse assertion exists to catch.
-    const cold = members.filter(m => !touched.has(m));
-    const untriaged = cold.filter(m => !COLD_TRIAGE[m]).sort();
+    const cold = members.filter((m) => !touched.has(m))
+    const untriaged = cold.filter((m) => !COLD_TRIAGE[m]).sort()
     expect(
       untriaged,
       `Cold, and nothing says what would reach it. Every cold member has a ` +
         `fixture that reaches it (the fixture corpus is at 34 of 34), so the ` +
-        `triage is a measurement, not a guess:\n  ${untriaged.join("\n  ")}`,
-    ).toEqual([]);
+        `triage is a measurement, not a guess:\n  ${untriaged.join('\n  ')}`,
+    ).toEqual([])
 
-    const stale = Object.keys(COLD_TRIAGE).filter(m => touched.has(m)).sort();
+    const stale = Object.keys(COLD_TRIAGE)
+      .filter((m) => touched.has(m))
+      .sort()
     expect(
       stale,
       `Triaged as cold, but the corpus now reaches them. Drop the entry and ` +
-        `add the member to FLOOR:\n  ${stale.join("\n  ")}`,
-    ).toEqual([]);
-  });
+        `add the member to FLOOR:\n  ${stale.join('\n  ')}`,
+    ).toEqual([])
+  })
 
-  it("every triage entry names a fixture that exists and really reaches it", () => {
+  it('every triage entry names a fixture that exists and really reaches it', () => {
     // The triage's own oracle. A witness naming a fixture that does not reach
     // the capability would send the next call site at the wrong shape, and a
     // deleted fixture would leave the entry pointing at nothing.
-    const wrong: string[] = [];
+    const wrong: string[] = []
     for (const [member, { witness }] of Object.entries(COLD_TRIAGE)) {
-      const path = join(FIXTURES_DIR, witness);
-      let sql: string;
+      const path = join(FIXTURES_DIR, witness)
+      let sql: string
       try {
-        sql = readFileSync(path, "utf8");
+        sql = readFileSync(path, 'utf8')
       } catch {
-        wrong.push(`${member} — ${witness} does not exist`);
-        continue;
+        wrong.push(`${member} — ${witness} does not exist`)
+        continue
       }
-      if (!sql.trim()) wrong.push(`${member} — ${witness} is empty`);
+      if (!sql.trim()) wrong.push(`${member} — ${witness} is empty`)
     }
-    expect(
-      wrong,
-      `A triage entry's witness is missing:\n  ${wrong.join("\n  ")}`,
-    ).toEqual([]);
-  });
+    expect(wrong, `A triage entry's witness is missing:\n  ${wrong.join('\n  ')}`).toEqual([])
+  })
 
-  it("prints the report", async () => {
-    const cold = members.filter(m => !touched.has(m));
+  it('prints the report', async () => {
+    const cold = members.filter((m) => !touched.has(m))
     const lines = [
       `\ncapability reach: ${touched.size} of ${members.length} over ${statements} generated statements`,
       `  × ${SCHEMA_VARIANTS.length + 1} catalogs (base schema + every schema-axis variant)`,
@@ -453,26 +452,30 @@ describe("capability reach of the generated corpus", () => {
       `  — and fk-chain changes only what comes back. Reach is a property of the`,
       `  QUERY SHAPES; item 4 varies the other argument.`,
       ``,
-    ];
+    ]
 
-    const base = bySource.get("base schema") ?? new Set<string>();
+    const base = bySource.get('base schema') ?? new Set<string>()
     const contributing = [...bySource.entries()]
-      .filter(([name, set]) => name !== "base schema" && [...set].some(m => !base.has(m)))
-      .map(([name, set]) => `${name} (+${[...set].filter(m => !base.has(m)).join(", ")})`);
+      .filter(([name, set]) => name !== 'base schema' && [...set].some((m) => !base.has(m)))
+      .map(([name, set]) => `${name} (+${[...set].filter((m) => !base.has(m)).join(', ')})`)
     lines.push(
       `  variants contributing a capability the base schema does not: ` +
-        `${contributing.length ? contributing.join(", ") : "none"}`,
+        `${contributing.length ? contributing.join(', ') : 'none'}`,
       ``,
       `  cold (${cold.length}):`,
-    );
+    )
     for (const m of cold) {
-      const t = COLD_TRIAGE[m];
-      lines.push(`    ${m}`, `      needs   ${t?.needs ?? "?"}`, `      witness ${t?.witness ?? "?"}`);
+      const t = COLD_TRIAGE[m]
+      lines.push(
+        `    ${m}`,
+        `      needs   ${t?.needs ?? '?'}`,
+        `      witness ${t?.witness ?? '?'}`,
+      )
     }
-    console.log(lines.join("\n"));
-    expect(members.length).toBeGreaterThan(0);
-  });
-});
+    console.log(lines.join('\n'))
+    expect(members.length).toBeGreaterThan(0)
+  })
+})
 
 // ---------------------------------------------------------------------------
 // The witness half, kept out of the suite above because it answers a different
@@ -483,50 +486,50 @@ describe("capability reach of the generated corpus", () => {
 //
 //   CAPABILITY_WITNESSES=1 npx vitest run tests/unit/query/generated/capability-reach.test.ts
 // ---------------------------------------------------------------------------
-describe.runIf(process.env.CAPABILITY_WITNESSES)("which fixture reaches each capability", () => {
-  it("prints the witness map", async () => {
-    const catalog = await catalogFor(null);
-    const witnesses = new Map<string, string[]>();
+describe.runIf(process.env.CAPABILITY_WITNESSES)('which fixture reaches each capability', () => {
+  it('prints the witness map', async () => {
+    const catalog = await catalogFor(null)
+    const witnesses = new Map<string, string[]>()
     const corpus: [string, string][] = [
       ...GRAMMAR_SAMPLER.map((sql, i): [string, string] => [`sampler#${i}`, sql]),
       ...readdirSync(FIXTURES_DIR)
-        .filter(f => f.endsWith(".sql") && f !== "schema.sql")
-        .map((f): [string, string] => [f, readFileSync(join(FIXTURES_DIR, f), "utf8")]),
-    ];
+        .filter((f) => f.endsWith('.sql') && f !== 'schema.sql')
+        .map((f): [string, string] => [f, readFileSync(join(FIXTURES_DIR, f), 'utf8')]),
+    ]
     for (const [label, sql] of corpus) {
-      let stmt: Node | undefined;
+      let stmt: Node | undefined
       try {
-        stmt = (await parseSql(sql)).stmts?.[0]?.stmt;
+        stmt = (await parseSql(sql)).stmts?.[0]?.stmt
       } catch {
-        continue;
+        continue
       }
-      if (!stmt) continue;
-      const spy = spyOnCatalog(catalog);
+      if (!stmt) continue
+      const spy = spyOnCatalog(catalog)
       try {
-        await inferNullability(stmt, spy.catalog);
+        await inferNullability(stmt, spy.catalog)
       } catch {
         /* a refusal still asked */
       }
       for (const m of spy.touched) {
-        if (!witnesses.has(m)) witnesses.set(m, []);
-        witnesses.get(m)!.push(label);
+        if (!witnesses.has(m)) witnesses.set(m, [])
+        witnesses.get(m)!.push(label)
       }
     }
     const depOnly = new Set<string>([
       ...DEP_CATALOG_ONLY,
       ...OVERLOAD_CATALOG_ONLY,
       ...EVALUATION_CATALOG_ONLY,
-    ]);
-    const members = catalogMembers(catalog).filter(m => !depOnly.has(m));
+    ])
+    const members = catalogMembers(catalog).filter((m) => !depOnly.has(m))
     console.log(
       `\nfixture witnesses over ${corpus.length} statements:\n` +
         members
-          .map(m => {
-            const w = witnesses.get(m) ?? [];
-            return `  ${m.padEnd(36)} ${w.length.toString().padStart(3)}  ${w.slice(0, 3).join(", ")}`;
+          .map((m) => {
+            const w = witnesses.get(m) ?? []
+            return `  ${m.padEnd(36)} ${w.length.toString().padStart(3)}  ${w.slice(0, 3).join(', ')}`
           })
-          .join("\n"),
-    );
-    expect(witnesses.size).toBeGreaterThan(0);
-  }, 300_000);
-});
+          .join('\n'),
+    )
+    expect(witnesses.size).toBeGreaterThan(0)
+  }, 300_000)
+})

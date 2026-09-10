@@ -17,7 +17,7 @@ the database once, and consume the answers as data. Nothing is reimplemented,
 so nothing can drift.
 
 Everything below is the consequence of taking that seriously. The whole design
-is one question — *which subtrees genuinely cannot be moved?* — and the
+is one question — _which subtrees genuinely cannot be moved?_ — and the
 answers are stricter than they first look.
 
 ## What makes a subtree closed
@@ -100,13 +100,13 @@ identical.
 tree. The walk consults it before descending: a hit answers a whole subtree, a
 guard hit prunes an arm.
 
-*It is a map, not a rewrite,* and that distinction is load-bearing. A pruned
+_It is a map, not a rewrite,_ and that distinction is load-bearing. A pruned
 arm is dead only for EXECUTION — a parameter inside a false-guarded arm is
 still typed when the statement is prepared. The output analysis prunes the
 arm's nullability while the parameter analysis keeps its typing sites, and a
 rewritten tree could not serve both.
 
-*The null answer is read in both directions.* A non-null answer claims the
+_The null answer is read in both directions._ A non-null answer claims the
 subtree never null. A NULL answer claims it ALWAYS null — the same argument run
 the other way, since closure means nothing can move the value. The reverse
 reading was absent rather than declined for a long time, and a fixture comment

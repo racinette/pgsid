@@ -56,7 +56,7 @@ import {
   qualify,
   variadicArgTypes,
   COHERENT_CALLS,
-} from "../unit/query/probe-values.js";
+} from '../unit/query/probe-values.js'
 
 /**
  * Corner values BEYOND the committed corpus, per rendered type name. These
@@ -79,18 +79,18 @@ const ADVERSARIAL: Record<string, string[]> = {
   lseg: ["'[(0,0),(0,0)]'::lseg"],
   line: ["'{1,0,0}'::line", "'{0,1,0}'::line"],
   // Numbers: the boundaries where a C implementation overflows or divides.
-  smallint: ["(-32768)::smallint"],
-  integer: ["(-2147483648)"],
-  bigint: ["(-9223372036854775808)::bigint"],
-  numeric: ["'-Infinity'::numeric", "1e-16383::numeric"],
-  "double precision": ["4.9e-324::float8", "1.7976931348623157e308::float8"],
-  real: ["1.1754944e-38::float4"],
-  money: ["(-92233720368547758.08)::money"],
+  smallint: ['(-32768)::smallint'],
+  integer: ['(-2147483648)'],
+  bigint: ['(-9223372036854775808)::bigint'],
+  numeric: ["'-Infinity'::numeric", '1e-16383::numeric'],
+  'double precision': ['4.9e-324::float8', '1.7976931348623157e308::float8'],
+  real: ['1.1754944e-38::float4'],
+  money: ['(-92233720368547758.08)::money'],
   // Text and containers: the empty and the boundary-shaped.
   text: ["'\\'", "E'\\\\x00'", "'%'", "'_'"],
   bytea: ["'\\xff'::bytea"],
-  "integer[]": ["ARRAY[NULL]::int[]", "'{{1,2},{3,4}}'::int[]"],
-  "text[]": ["ARRAY[NULL]::text[]"],
+  'integer[]': ['ARRAY[NULL]::int[]', "'{{1,2},{3,4}}'::int[]"],
+  'text[]': ['ARRAY[NULL]::text[]'],
   // Time: the boundaries PostgreSQL stores rather than the ones it rejects.
   date: ["'4713-01-01 BC'::date", "'5874897-12-31'::date"],
   interval: ["'178000000 years'::interval"],
@@ -99,21 +99,21 @@ const ADVERSARIAL: Record<string, string[]> = {
   inet: ["'0.0.0.0/0'::inet", "'::/0'::inet"],
   cidr: ["'0.0.0.0/0'::cidr"],
   bit: ["B'0'"],
-  "bit varying": ["B''::varbit"],
-  jsonb: ["'[]'::jsonb", "'{\"\":null}'::jsonb"],
-  json: ["'{\"\":null}'::json"],
-  record: ["ROW(NULL,NULL)::record"],
-};
+  'bit varying': ["B''::varbit"],
+  jsonb: ["'[]'::jsonb", '\'{"":null}\'::jsonb'],
+  json: ['\'{"":null}\'::json'],
+  record: ['ROW(NULL,NULL)::record'],
+}
 
 /** Beyond this many combinations for one row, sample rather than cross. */
-const ROW_COMBO_CAP = 2_000;
+const ROW_COMBO_CAP = 2_000
 
-const roleArg = process.argv.find(a => a.startsWith("--role="))?.slice("--role=".length);
-const pattern = new RegExp(process.argv[2]?.startsWith("--") ? "." : (process.argv[2] ?? "."));
-const wantOperators = process.argv.includes("--operators");
+const roleArg = process.argv.find((a) => a.startsWith('--role='))?.slice('--role='.length)
+const pattern = new RegExp(process.argv[2]?.startsWith('--') ? '.' : (process.argv[2] ?? '.'))
+const wantOperators = process.argv.includes('--operators')
 /** Cut to the volatile rows alone; see the volatility note in the header. */
-const volatileOnly = process.argv.includes("--volatile");
-const volatileFilter = volatileOnly ? "p.provolatile = 'v'" : "true";
+const volatileOnly = process.argv.includes('--volatile')
+const volatileFilter = volatileOnly ? "p.provolatile = 'v'" : 'true'
 
 /**
  * The catalog join behind each role. A function can serve several — a btree
@@ -134,23 +134,23 @@ const ROLE_SQL: Record<string, string> = {
   cast: `EXISTS (SELECT 1 FROM pg_cast c WHERE c.castfunc = p.oid)`,
   rangesupport: `EXISTS (SELECT 1 FROM pg_range r WHERE p.oid IN (r.rngcanonical, r.rngsubdiff))`,
   oprcode: `EXISTS (SELECT 1 FROM pg_operator o WHERE o.oprcode = p.oid)`,
-};
-const ROLE_ORDER = ["amproc", "typio", "aggsupport", "cast", "rangesupport", "oprcode"];
-if (roleArg !== undefined && roleArg !== "standalone" && !(roleArg in ROLE_SQL)) {
-  throw new Error(`unknown role ${roleArg}; roles: ${[...ROLE_ORDER, "standalone"].join(", ")}`);
+}
+const ROLE_ORDER = ['amproc', 'typio', 'aggsupport', 'cast', 'rangesupport', 'oprcode']
+if (roleArg !== undefined && roleArg !== 'standalone' && !(roleArg in ROLE_SQL)) {
+  throw new Error(`unknown role ${roleArg}; roles: ${[...ROLE_ORDER, 'standalone'].join(', ')}`)
 }
 /** SQL true for exactly the rows of the requested role, none double-counted. */
 const roleFilter =
   roleArg === undefined
-    ? "true"
-    : roleArg === "standalone"
-      ? ROLE_ORDER.map(r => `NOT ${ROLE_SQL[r]!}`).join(" AND ")
+    ? 'true'
+    : roleArg === 'standalone'
+      ? ROLE_ORDER.map((r) => `NOT ${ROLE_SQL[r]!}`).join(' AND ')
       : [
           ROLE_SQL[roleArg]!,
-          ...ROLE_ORDER.slice(0, ROLE_ORDER.indexOf(roleArg)).map(r => `NOT ${ROLE_SQL[r]!}`),
-        ].join(" AND ");
+          ...ROLE_ORDER.slice(0, ROLE_ORDER.indexOf(roleArg)).map((r) => `NOT ${ROLE_SQL[r]!}`),
+        ].join(' AND ')
 
-let pg = await createProbeDb();
+let pg = await createProbeDb()
 
 /**
  * A poisoned backend answers plain SELECTs and lies (the register's
@@ -160,30 +160,36 @@ let pg = await createProbeDb();
  */
 const ensureAlive = async (): Promise<void> => {
   try {
-    const r = await pg.query<{ v: string }>(`SELECT probe('1') AS v`);
-    if (r.rows[0]?.v === "value") return;
+    const r = await pg.query<{ v: string }>(`SELECT probe('1') AS v`)
+    if (r.rows[0]?.v === 'value') return
   } catch {
     /* fall through */
   }
   try {
-    await pg.close();
+    await pg.close()
   } catch {
     /* already dead */
   }
-  pg = await createProbeDb();
-};
+  pg = await createProbeDb()
+}
 
 interface Row {
-  name: string;
-  types: string[];
-  kind: "function" | "operator";
-  prefix: boolean;
-  retset: boolean;
-  ncols: number;
+  name: string
+  types: string[]
+  kind: 'function' | 'operator'
+  prefix: boolean
+  retset: boolean
+  ncols: number
 }
 
 const fnRows: Row[] = (
-  await pg.query<{ name: string; types: string[]; retset: boolean; ncols: number; variadic: string | null }>(
+  await pg.query<{
+    name: string
+    types: string[]
+    retset: boolean
+    ncols: number
+    variadic: string | null
+  }>(
     `SELECT p.proname AS name,
             COALESCE((SELECT array_agg(format_type(t, null) ORDER BY o)
                         FROM unnest(p.proargtypes) WITH ORDINALITY AS z(t, o)), '{}') AS types,
@@ -199,15 +205,15 @@ const fnRows: Row[] = (
         AND ${volatileFilter} AND ${roleFilter}
       ORDER BY p.proname, 2;`,
   )
-).rows.map(r => ({
+).rows.map((r) => ({
   // Same VARIADIC correction the surface suite carries: `provariadic` names
   // the ELEMENT type, and passing the declared array positionally is a type
   // error rather than a call.
   ...r,
   types: variadicArgTypes(r.types, r.variadic),
-  kind: "function" as const,
+  kind: 'function' as const,
   prefix: false,
-}));
+}))
 
 const opRows: Row[] = wantOperators
   ? (
@@ -221,140 +227,151 @@ const opRows: Row[] = wantOperators
           WHERE n.nspname = 'pg_catalog' AND ${volatileFilter}
           ORDER BY o.oprname, 2, 3;`,
       )
-    ).rows.map(r => ({
+    ).rows.map((r) => ({
       name: r.name,
       types: [r.left, r.right].filter((t): t is string => t !== null),
-      kind: "operator" as const,
+      kind: 'operator' as const,
       prefix: r.left === null,
       retset: false,
       ncols: 1,
     }))
-  : [];
+  : []
 
-const rows = [...fnRows, ...opRows].filter(r => pattern.test(r.name));
+const rows = [...fnRows, ...opRows].filter((r) => pattern.test(r.name))
 
 /** Values for one parameter: the corpus's, then the staged ones. */
-const valuesFor = (t: string, family: Record<string, string>): { corpus: string[]; staged: string[] } => {
-  if (t in family) return { corpus: [family[t]!], staged: [] };
-  return { corpus: VALUES[t] ?? [], staged: ADVERSARIAL[t] ?? [] };
-};
+const valuesFor = (
+  t: string,
+  family: Record<string, string>,
+): { corpus: string[]; staged: string[] } => {
+  if (t in family) return { corpus: [family[t]!], staged: [] }
+  return { corpus: VALUES[t] ?? [], staged: ADVERSARIAL[t] ?? [] }
+}
 
 const render = (r: Row, combo: string[]): string =>
-  r.kind === "operator"
+  r.kind === 'operator'
     ? r.prefix
       ? `OPERATOR(pg_catalog.${r.name}) ${combo[0]}`
       : `${combo[0]} OPERATOR(pg_catalog.${r.name}) ${combo[1]}`
-    : `${qualify(r.name)}(${combo.join(", ")})`;
+    : `${qualify(r.name)}(${combo.join(', ')})`
 
-const findings: string[] = [];
+const findings: string[] = []
 /**
  * The rows this run convicted: probed, evaluated, and never NULL. Printed by
  * `--list-total` as the promotion list itself, so what lands in the claim
  * table has the sweep as its provenance rather than a hand transcription.
  */
-const convicted: string[] = [];
-const stagedThatMattered = new Set<string>();
-let totals = 0;
-let allRaised = 0;
-let noGenerator = 0;
+const convicted: string[] = []
+const stagedThatMattered = new Set<string>()
+let totals = 0
+let allRaised = 0
+let noGenerator = 0
 
 for (const r of rows) {
-  const families = r.types.some(t => POLYMORPHIC.has(t)) ? POLYMORPHIC_FAMILIES : [{}];
+  const families = r.types.some((t) => POLYMORPHIC.has(t)) ? POLYMORPHIC_FAMILIES : [{}]
   /** expression -> whether it uses a value the corpus does not carry. */
-  const exprs = new Map<string, boolean>();
-  let missingGenerator = false;
-  const sig = `${r.name}(${r.types.join(",")})`;
+  const exprs = new Map<string, boolean>()
+  let missingGenerator = false
+  const sig = `${r.name}(${r.types.join(',')})`
 
   // A refused row is probed by its COHERENT_CALLS entry alone; the generated
   // cross product holds a call that never returns (see probe-values.ts).
   for (const family of sig in REFUSED_CALLS ? [] : families) {
-    const lists = r.types.map(t => valuesFor(t, family));
-    if (lists.some(l => l.corpus.length === 0 && l.staged.length === 0)) {
-      missingGenerator = true;
-      continue;
+    const lists = r.types.map((t) => valuesFor(t, family))
+    if (lists.some((l) => l.corpus.length === 0 && l.staged.length === 0)) {
+      missingGenerator = true
+      continue
     }
     // Cross the corpus values with the staged ones, tracking per combination
     // whether any staged value took part — that is what the parity report
     // needs, and it cannot be recovered after the fact.
-    let combos: { vals: string[]; staged: boolean }[] = [{ vals: [], staged: false }];
+    let combos: { vals: string[]; staged: boolean }[] = [{ vals: [], staged: false }]
     for (const l of lists) {
-      const all = [...l.corpus.map(v => [v, false] as const), ...l.staged.map(v => [v, true] as const)];
-      combos = combos.flatMap(c => all.map(([v, s]) => ({ vals: [...c.vals, v], staged: c.staged || s })));
-      if (combos.length > ROW_COMBO_CAP) combos = combos.slice(0, ROW_COMBO_CAP);
+      const all = [
+        ...l.corpus.map((v) => [v, false] as const),
+        ...l.staged.map((v) => [v, true] as const),
+      ]
+      combos = combos.flatMap((c) =>
+        all.map(([v, s]) => ({ vals: [...c.vals, v], staged: c.staged || s })),
+      )
+      if (combos.length > ROW_COMBO_CAP) combos = combos.slice(0, ROW_COMBO_CAP)
     }
     for (const c of combos) {
-      const e = render(r, c.vals);
-      exprs.set(e, exprs.get(e) === false ? false : c.staged);
+      const e = render(r, c.vals)
+      exprs.set(e, exprs.get(e) === false ? false : c.staged)
     }
-    if (r.types.every(t => !POLYMORPHIC.has(t))) break;
+    if (r.types.every((t) => !POLYMORPHIC.has(t))) break
   }
 
-  const key = sig;
+  const key = sig
   // Calls whose arguments must be valid TOGETHER; see probe-values.ts.
-  for (const c of COHERENT_CALLS[key] ?? []) exprs.set(render(r, [...c]), false);
+  for (const c of COHERENT_CALLS[key] ?? []) exprs.set(render(r, [...c]), false)
   if (exprs.size === 0) {
-    if (missingGenerator) noGenerator++;
-    continue;
+    if (missingGenerator) noGenerator++
+    continue
   }
 
-  const list = [...exprs.keys()];
-  const verdicts = new Map<string, string>();
+  const list = [...exprs.keys()]
+  const verdicts = new Map<string, string>()
   for (let i = 0; i < list.length; i += 500) {
-    const batch = list.slice(i, i + 500);
+    const batch = list.slice(i, i + 500)
     try {
       const res = await pg.query<{ e: string; v: string }>(
         `SELECT e, CASE WHEN srf THEN srfprobe(q) ELSE probe(q) END AS v
            FROM unnest($1::text[], $2::text[], $3::bool[]) AS z(e, q, srf);`,
-        [
-          batch,
-          batch.map(e => (r.retset ? srfQuery(e, r.ncols) : e)),
-          batch.map(() => r.retset),
-        ],
-      );
-      if (res.rows.length !== batch.length) throw new Error("short result");
-      for (const row of res.rows) verdicts.set(row.e, row.v);
+        [batch, batch.map((e) => (r.retset ? srfQuery(e, r.ncols) : e)), batch.map(() => r.retset)],
+      )
+      if (res.rows.length !== batch.length) throw new Error('short result')
+      for (const row of res.rows) verdicts.set(row.e, row.v)
     } catch {
-      await ensureAlive();
-      for (const e of batch) verdicts.set(e, "error");
+      await ensureAlive()
+      for (const e of batch) verdicts.set(e, 'error')
     }
   }
 
-  const nullExprs = list.filter(e => verdicts.get(e) === "NULL");
-  const evaluated = list.filter(e => {
-    const v = verdicts.get(e);
-    return v !== "error" && v !== "empty";
-  });
+  const nullExprs = list.filter((e) => verdicts.get(e) === 'NULL')
+  const evaluated = list.filter((e) => {
+    const v = verdicts.get(e)
+    return v !== 'error' && v !== 'empty'
+  })
   if (nullExprs.length > 0) {
-    const corpusReaches = nullExprs.some(e => exprs.get(e) === false);
+    const corpusReaches = nullExprs.some((e) => exprs.get(e) === false)
     findings.push(
       `NULL  ${key}\n      ${nullExprs[0]}` +
-        (corpusReaches ? "" : `\n      ^ only reachable from a STAGED value — promote it into probe-values.ts`),
-    );
-    if (!corpusReaches) for (const e of nullExprs) if (exprs.get(e)) stagedThatMattered.add(key);
+        (corpusReaches
+          ? ''
+          : `\n      ^ only reachable from a STAGED value — promote it into probe-values.ts`),
+    )
+    if (!corpusReaches) for (const e of nullExprs) if (exprs.get(e)) stagedThatMattered.add(key)
   } else if (evaluated.length === 0) {
-    allRaised++;
-    findings.push(`RAISE ${key} — every combination raised or emitted nothing`);
+    allRaised++
+    findings.push(`RAISE ${key} — every combination raised or emitted nothing`)
   } else {
-    totals++;
-    convicted.push(key);
+    totals++
+    convicted.push(key)
   }
 }
 
-if (process.argv.includes("--list-total")) {
-  console.log(convicted.sort().map(k => `  ${JSON.stringify(k)},`).join("\n"));
+if (process.argv.includes('--list-total')) {
+  console.log(
+    convicted
+      .sort()
+      .map((k) => `  ${JSON.stringify(k)},`)
+      .join('\n'),
+  )
 }
-console.log(findings.join("\n"));
+console.log(findings.join('\n'))
 console.log(
   `\n${rows.length} rows swept (${roleArg ? `role=${roleArg}` : `/${pattern.source}/`}` +
-    `${volatileOnly ? " volatile-only" : ""}${wantOperators ? " +operators" : ""}): ` +
+    `${volatileOnly ? ' volatile-only' : ''}${wantOperators ? ' +operators' : ''}): ` +
     `${totals} total, ${findings.length - allRaised} NULL-capable, ${allRaised} all-raised, ` +
     `${noGenerator} no-generator.`,
-);
+)
 if (stagedThatMattered.size > 0) {
   console.log(
     `\nPARITY: ${stagedThatMattered.size} row(s) were convicted ONLY by a staged value. ` +
       `Those values must join probe-values.ts, or the standing probe cannot re-find ` +
-      `what this sweep found:\n  ${[...stagedThatMattered].sort().join("\n  ")}`,
-  );
+      `what this sweep found:\n  ${[...stagedThatMattered].sort().join('\n  ')}`,
+  )
 }
-await pg.close();
+await pg.close()

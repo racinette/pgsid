@@ -2,12 +2,7 @@
   "adjudicatedAgainst": "v1.31.1",
   "why": "All partial-NULL combinations, so each conjunct has a row it alone removes.",
   "args": {
-    "FooByAandB": [
-      [
-        "x",
-        "y"
-      ]
-    ]
+    "FooByAandB": [["x", "y"]]
   },
   "entries": {
     "FooByAandB#0 (a)": {

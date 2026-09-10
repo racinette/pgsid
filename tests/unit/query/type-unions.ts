@@ -1,8 +1,8 @@
-import { deparseSync } from "pgsql-deparser";
-import type { PGlite } from "@electric-sql/pglite";
-import { parseSql } from "../../../src/ast.js";
-import { inferNullability } from "../../../src/query/nullability-walk.js";
-import type { NullabilityCatalog, TypeSetAudit } from "../../../src/query/types.js";
+import { deparseSync } from 'pgsql-deparser'
+import type { PGlite } from '@electric-sql/pglite'
+import { parseSql } from '../../../src/ast.js'
+import { inferNullability } from '../../../src/query/nullability-walk.js'
+import type { NullabilityCatalog, TypeSetAudit } from '../../../src/query/types.js'
 
 /**
  * Shared machinery for the type-union suite (type-unions.test.ts).
@@ -21,13 +21,13 @@ import type { NullabilityCatalog, TypeSetAudit } from "../../../src/query/types.
 export interface Reading {
   /** Every set read for this expression text, in walk order. A single
    *  expression can be read more than once — see the consistency test. */
-  sets: (string[] | null)[];
+  sets: (string[] | null)[]
   /** The AST node kind (`A_Expr`, `A_Const`, `CoalesceExpr`, …). The census
    *  needs it to separate a node it CANNOT type from a leaf that is
    *  correctly untypeable — a bare string literal is `unknown` in
    *  PostgreSQL too, and counting it as a gap made the census read as if
    *  nothing had improved. */
-  kind: string;
+  kind: string
 }
 
 /** Deparse one expression node back to SQL. */
@@ -36,14 +36,14 @@ export function exprSql(expr: unknown): string | null {
     return deparseSync({
       SelectStmt: {
         targetList: [{ ResTarget: { val: expr as never } }],
-        op: "SETOP_NONE",
+        op: 'SETOP_NONE',
       },
     } as never)
-      .replace(/^SELECT\s+/i, "")
-      .replace(/\s+/g, " ")
-      .trim();
+      .replace(/^SELECT\s+/i, '')
+      .replace(/\s+/g, ' ')
+      .trim()
   } catch {
-    return null;
+    return null
   }
 }
 
@@ -52,19 +52,19 @@ export async function readingsFor(
   sql: string,
   catalog: NullabilityCatalog,
 ): Promise<Map<string, Reading>> {
-  const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
-  const audit: TypeSetAudit[] = [];
-  await inferNullability(stmt, catalog, { typeSetAudit: audit });
-  const out = new Map<string, Reading>();
+  const stmt = (await parseSql(sql)).stmts![0]!.stmt!
+  const audit: TypeSetAudit[] = []
+  await inferNullability(stmt, catalog, { typeSetAudit: audit })
+  const out = new Map<string, Reading>()
   for (const rec of audit) {
-    const key = exprSql(rec.expr);
-    if (key === null) continue;
-    const kind = Object.keys(rec.expr as object)[0] ?? "?";
-    const existing = out.get(key);
-    if (existing) existing.sets.push(rec.set);
-    else out.set(key, { sets: [rec.set], kind });
+    const key = exprSql(rec.expr)
+    if (key === null) continue
+    const kind = Object.keys(rec.expr as object)[0] ?? '?'
+    const existing = out.get(key)
+    if (existing) existing.sets.push(rec.set)
+    else out.set(key, { sets: [rec.set], kind })
   }
-  return out;
+  return out
 }
 
 /**
@@ -81,11 +81,11 @@ export async function readingsFor(
  * them separately, because accepting them is exactly where precision hides.
  */
 export async function wireRendering(pg: PGlite, typeName: string): Promise<string | null> {
-  const bare = typeName.endsWith("[]") ? typeName.slice(0, -2) : typeName;
-  const suffix = typeName.endsWith("[]") ? "[]" : "";
-  let name = bare;
+  const bare = typeName.endsWith('[]') ? typeName.slice(0, -2) : typeName
+  const suffix = typeName.endsWith('[]') ? '[]' : ''
+  let name = bare
   for (let hop = 0; hop < 8; hop++) {
-    let row;
+    let row
     try {
       row = (
         await pg.query<{ typtype: string; base: string | null; rendered: string }>(
@@ -95,19 +95,19 @@ export async function wireRendering(pg: PGlite, typeName: string): Promise<strin
              FROM pg_type t WHERE t.oid = to_regtype($1)`,
           [name],
         )
-      ).rows[0];
+      ).rows[0]
     } catch {
-      return null;
+      return null
     }
-    if (!row) return null;
-    if (row.typtype === "p") return "*";
-    if (row.typtype === "d" && row.base) {
-      name = row.base;
-      continue;
+    if (!row) return null
+    if (row.typtype === 'p') return '*'
+    if (row.typtype === 'd' && row.base) {
+      name = row.base
+      continue
     }
-    return row.rendered + suffix;
+    return row.rendered + suffix
   }
-  return null;
+  return null
 }
 
 /** Does the walk's union CONTAIN what PostgreSQL resolved? The governing
@@ -118,12 +118,12 @@ export async function unionContains(
   set: readonly string[],
   oracle: string,
 ): Promise<boolean> {
-  const target = await wireRendering(pg, oracle);
+  const target = await wireRendering(pg, oracle)
   for (const member of set) {
-    const rendered = await wireRendering(pg, member);
-    if (rendered === "*" || (rendered !== null && rendered === target)) return true;
+    const rendered = await wireRendering(pg, member)
+    if (rendered === '*' || (rendered !== null && rendered === target)) return true
   }
-  return false;
+  return false
 }
 
 /**
@@ -135,42 +135,37 @@ export async function unionContains(
  * occupy (a non-grouped column under GROUP BY). Those are reported by the
  * census rather than silently skipped.
  */
-export async function oracleType(
-  pg: PGlite,
-  sql: string,
-  expr: string,
-): Promise<string | null> {
-  const stmt = (await parseSql(sql)).stmts![0]!.stmt!;
-  const sel = (stmt as Record<string, unknown>)["SelectStmt"] as
-    | { targetList?: unknown[]; whereClause?: unknown }
-    | undefined;
-  if (!sel?.targetList) return null;
-  let probed: string;
+export async function oracleType(pg: PGlite, sql: string, expr: string): Promise<string | null> {
+  const stmt = (await parseSql(sql)).stmts![0]!.stmt!
+  const sel = (stmt as Record<string, unknown>)['SelectStmt'] as
+    { targetList?: unknown[]; whereClause?: unknown } | undefined
+  if (!sel?.targetList) return null
+  let probed: string
   try {
-    const probeExpr = (await parseSql(`SELECT ${expr}`)).stmts![0]!.stmt!;
-    const probeTarget = (probeExpr as Record<string, unknown>)["SelectStmt"] as {
-      targetList?: unknown[];
-    };
+    const probeExpr = (await parseSql(`SELECT ${expr}`)).stmts![0]!.stmt!
+    const probeTarget = (probeExpr as Record<string, unknown>)['SelectStmt'] as {
+      targetList?: unknown[]
+    }
     probed = deparseSync({
       ...(stmt as object),
       SelectStmt: {
         ...sel,
         targetList: [...sel.targetList, ...(probeTarget.targetList ?? [])],
       },
-    } as never);
+    } as never)
   } catch {
-    return null;
+    return null
   }
   try {
-    const r = await pg.query(`SELECT * FROM (${probed}) AS __probe WHERE false`);
-    const fields = r.fields as { dataTypeID: number }[];
-    const oid = fields[fields.length - 1]?.dataTypeID;
-    if (oid === undefined) return null;
+    const r = await pg.query(`SELECT * FROM (${probed}) AS __probe WHERE false`)
+    const fields = r.fields as { dataTypeID: number }[]
+    const oid = fields[fields.length - 1]?.dataTypeID
+    if (oid === undefined) return null
     const nm = await pg.query<{ t: string }>(`SELECT format_type($1::oid, null) AS t`, [
       String(oid),
-    ]);
-    return nm.rows[0]?.t ?? null;
+    ])
+    return nm.rows[0]?.t ?? null
   } catch {
-    return null;
+    return null
   }
 }

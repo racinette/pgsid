@@ -2,11 +2,7 @@
   "adjudicatedAgainst": "v1.31.1",
   "why": "A NULL-named user present to be deleted, which the equality never matches.",
   "args": {
-    "DeleteUserAndReturnUser": [
-      [
-        "bob"
-      ]
-    ]
+    "DeleteUserAndReturnUser": [["bob"]]
   },
   "entries": {
     "DeleteUserAndReturnUser#0 (name)": {

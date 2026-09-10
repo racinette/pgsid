@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { builtinModules } from "node:module";
+import { describe, it, expect } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { builtinModules } from 'node:module'
 
 // ---------------------------------------------------------------------------
 // The package manifest, censused against what `src/` actually imports.
@@ -24,16 +24,16 @@ import { builtinModules } from "node:module";
 // keep, and this repo has five of those.
 // ---------------------------------------------------------------------------
 
-const ROOT = join(__dirname, "..", "..");
+const ROOT = join(__dirname, '..', '..')
 
 interface Manifest {
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
+  dependencies?: Record<string, string>
+  devDependencies?: Record<string, string>
 }
 
-const manifest = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as Manifest;
-const dependencies = manifest.dependencies ?? {};
-const devDependencies = manifest.devDependencies ?? {};
+const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as Manifest
+const dependencies = manifest.dependencies ?? {}
+const devDependencies = manifest.devDependencies ?? {}
 
 /**
  * Runtime dependencies `src/` does not import, each with the reason it is
@@ -47,25 +47,25 @@ const devDependencies = manifest.devDependencies ?? {};
  * decision is visible rather than implied.
  */
 const DECLARED_BUT_UNIMPORTED: Record<string, string> = {
-  chokidar: "file watching for a language server that was never built",
-  "fast-glob": "same, unused",
-  picomatch: "same, unused",
-  "vscode-languageserver": "same, unused",
-  "vscode-languageserver-textdocument": "same, unused",
-  "@electric-sql/pglite-plpgsql-check":
-    "a PGlite extension the TEST harnesses load by name; `src/` never imports it, and it must ship with the runtime that does",
-};
+  chokidar: 'file watching for a language server that was never built',
+  'fast-glob': 'same, unused',
+  picomatch: 'same, unused',
+  'vscode-languageserver': 'same, unused',
+  'vscode-languageserver-textdocument': 'same, unused',
+  '@electric-sql/pglite-plpgsql-check':
+    'a PGlite extension the TEST harnesses load by name; `src/` never imports it, and it must ship with the runtime that does',
+}
 
-const BUILTINS = new Set([...builtinModules, ...builtinModules.map(m => `node:${m}`)]);
+const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)])
 
 /** Every `.ts` file under `src/`, recursively. */
 function sources(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) sources(full, out);
-    else if (entry.name.endsWith(".ts")) out.push(full);
+    const full = join(dir, entry.name)
+    if (entry.isDirectory()) sources(full, out)
+    else if (entry.name.endsWith('.ts')) out.push(full)
   }
-  return out;
+  return out
 }
 
 /**
@@ -78,85 +78,86 @@ function sources(dir: string, out: string[] = []): string[] {
  * consumer type-checking against this package needs it resolvable.
  */
 function importedPackages(file: string): string[] {
-  const out: string[] = [];
-  for (const raw of readFileSync(file, "utf8").split("\n")) {
-    const line = raw.trim();
+  const out: string[] = []
+  for (const raw of readFileSync(file, 'utf8').split('\n')) {
+    const line = raw.trim()
     // Line-anchored on purpose. A bare `from "…"` search matches PROSE — this
     // codebase writes "distinct from 'lit'" and "optional because of a deeper
     // one" inside doc comments, and the first draft of this census reported
     // four of those as undeclared packages.
     const isImportLine =
-      /^import\b/.test(line) || /^export\b/.test(line) || /^\}\s*from\b/.test(line);
-    if (!isImportLine) continue;
-    const m = /(?:^|\bfrom\s*)["']([^"']+)["']\s*;?$/.exec(line);
-    const spec = m?.[1];
-    if (spec === undefined) continue;
-    if (spec.startsWith(".") || spec.startsWith("/")) continue;
-    if (BUILTINS.has(spec)) continue;
-    const parts = spec.split("/");
-    out.push(spec.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]!);
+      /^import\b/.test(line) || /^export\b/.test(line) || /^\}\s*from\b/.test(line)
+    if (!isImportLine) continue
+    const m = /(?:^|\bfrom\s*)["']([^"']+)["']\s*;?$/.exec(line)
+    const spec = m?.[1]
+    if (spec === undefined) continue
+    if (spec.startsWith('.') || spec.startsWith('/')) continue
+    if (BUILTINS.has(spec)) continue
+    const parts = spec.split('/')
+    out.push(spec.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!)
   }
-  return out;
+  return out
 }
 
-describe("runtime dependencies", () => {
-  const bySource = new Map<string, string[]>();
-  for (const file of sources(join(ROOT, "src"))) {
+describe('runtime dependencies', () => {
+  const bySource = new Map<string, string[]>()
+  for (const file of sources(join(ROOT, 'src'))) {
     for (const pkg of importedPackages(file)) {
-      bySource.set(pkg, [...(bySource.get(pkg) ?? []), file.slice(ROOT.length + 1)]);
+      bySource.set(pkg, [...(bySource.get(pkg) ?? []), file.slice(ROOT.length + 1)])
     }
   }
 
-  it("everything `src/` imports is a runtime dependency", () => {
+  it('everything `src/` imports is a runtime dependency', () => {
     const misplaced = [...bySource.entries()]
       .filter(([pkg]) => !dependencies[pkg])
-      .map(([pkg, files]) =>
-        `${pkg} (${devDependencies[pkg] ? "devDependency" : "undeclared"}) — imported by ${files.join(", ")}`,
+      .map(
+        ([pkg, files]) =>
+          `${pkg} (${devDependencies[pkg] ? 'devDependency' : 'undeclared'}) — imported by ${files.join(', ')}`,
       )
-      .sort();
+      .sort()
     expect(
       misplaced,
       `Imported by \`src/\` and not a runtime dependency. A consumer that ` +
         `installs this package gets a missing module; every suite here passes ` +
         `regardless, because the dev tree resolves both alike:\n  ` +
-        misplaced.join("\n  "),
-    ).toEqual([]);
-  });
+        misplaced.join('\n  '),
+    ).toEqual([])
+  })
 
-  it("every runtime dependency is imported, or recorded as not", () => {
+  it('every runtime dependency is imported, or recorded as not', () => {
     const unused = Object.keys(dependencies)
-      .filter(pkg => !bySource.has(pkg) && !DECLARED_BUT_UNIMPORTED[pkg])
-      .sort();
+      .filter((pkg) => !bySource.has(pkg) && !DECLARED_BUT_UNIMPORTED[pkg])
+      .sort()
     expect(
       unused,
       `Declared as a runtime dependency and imported nowhere under \`src/\`. ` +
         `Drop it, or add it to DECLARED_BUT_UNIMPORTED with the reason it ` +
-        `stays:\n  ${unused.join(", ")}`,
-    ).toEqual([]);
-  });
+        `stays:\n  ${unused.join(', ')}`,
+    ).toEqual([])
+  })
 
-  it("the recorded exemptions are still unimported", () => {
+  it('the recorded exemptions are still unimported', () => {
     // The converse, and the one that rots: an exemption whose package HAS
     // acquired an import reads as an open question that is already answered.
     const nowUsed = Object.keys(DECLARED_BUT_UNIMPORTED)
-      .filter(pkg => bySource.has(pkg))
-      .sort();
+      .filter((pkg) => bySource.has(pkg))
+      .sort()
     expect(
       nowUsed,
       `On DECLARED_BUT_UNIMPORTED, and \`src/\` imports it now — drop the ` +
-        `exemption:\n  ${nowUsed.join(", ")}`,
-    ).toEqual([]);
-  });
+        `exemption:\n  ${nowUsed.join(', ')}`,
+    ).toEqual([])
+  })
 
-  it("`pgsql-deparser` in particular, since three modules need it", () => {
+  it('`pgsql-deparser` in particular, since three modules need it', () => {
     // The finding this census was written for, pinned by name so a revert is
     // a named failure rather than a count.
-    expect(bySource.get("pgsql-deparser")?.sort()).toEqual([
-      "src/query/srf-cardinality.ts",
-      "src/query/subtree-evaluator.ts",
-      "src/query/type-delegation.ts",
-    ]);
-    expect(dependencies["pgsql-deparser"]).toBeDefined();
-    expect(devDependencies["pgsql-deparser"]).toBeUndefined();
-  });
-});
+    expect(bySource.get('pgsql-deparser')?.sort()).toEqual([
+      'src/query/srf-cardinality.ts',
+      'src/query/subtree-evaluator.ts',
+      'src/query/type-delegation.ts',
+    ])
+    expect(dependencies['pgsql-deparser']).toBeDefined()
+    expect(devDependencies['pgsql-deparser']).toBeUndefined()
+  })
+})

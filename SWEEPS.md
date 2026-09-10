@@ -60,8 +60,8 @@ run constantly.
 
 **So the world is the axis a sweep exists to move, and the only instrument
 that can move it.** A sweep that only writes queries is working ground that is
-already covered. The question worth asking has the shape *what if I had this
-constraint, and this generated column, and this query over them* — and two
+already covered. The question worth asking has the shape _what if I had this
+constraint, and this generated column, and this query over them_ — and two
 thirds of it is unreachable from any standing corpus.
 
 ## Beginning: count the corpus, then choose
@@ -125,9 +125,9 @@ Those work once. The trouble is that they name a DIFF rather than a QUESTION.
 A diff is exhausted the moment it has been attacked, so the next sweep has to
 wait for more code and finds less each time.
 
-**Aim a sweep at a question about the system, not at a changelog.** *Are the
+**Aim a sweep at a question about the system, not at a changelog.** _Are the
 enumerated lists complete? Does this resolver answer for the same universe
-PostgreSQL does? Which claims here have never been executed by anything?*
+PostgreSQL does? Which claims here have never been executed by anything?_
 Questions like these stay open after the sweep, and they aim at properties
 rather than at authors.
 

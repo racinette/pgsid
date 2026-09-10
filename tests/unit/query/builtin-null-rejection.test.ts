@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { PGlite } from "@electric-sql/pglite";
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { PGlite } from '@electric-sql/pglite'
 import {
   BUILTIN_NULL_REJECTING_ARGS,
   BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS,
-} from "../../../src/query/param-nullability.js";
-import { NULL_REJECTION, CONSTRAINT_REJECTION } from "./fixture-args.js";
+} from '../../../src/query/param-nullability.js'
+import { NULL_REJECTION, CONSTRAINT_REJECTION } from './fixture-args.js'
 
 // ---------------------------------------------------------------------------
 // Mechanism D's table, DERIVED by execution rather than checked.
@@ -41,21 +41,40 @@ import { NULL_REJECTION, CONSTRAINT_REJECTION } from "./fixture-args.js";
 
 /** Families that are not called: catalog mutators, handlers, GUC writes. */
 const EXCLUDED =
-  /^(binary_upgrade_|pg_|plpgsql_call_handler|tsvector_update_trigger|satisfies_hash_partition|set_config|current_query|inet_(client|server)_)/;
+  /^(binary_upgrade_|pg_|plpgsql_call_handler|tsvector_update_trigger|satisfies_hash_partition|set_config|current_query|inet_(client|server)_)/
 
 /** A literal for each declared argument type the probe can produce. */
 const LITERALS: Record<string, string> = {
-  text: `'a'`, integer: `1`, bigint: `1`, smallint: `1`, numeric: `1`,
-  "double precision": `1`, real: `1`, boolean: `true`, oid: `1`,
-  date: `'2020-01-01'::date`, "timestamp without time zone": `'2020-01-01'::timestamp`,
-  "timestamp with time zone": `'2020-01-01'::timestamptz`,
-  "time without time zone": `'01:00'::time`, "time with time zone": `'01:00'::timetz`,
-  interval: `'1 day'::interval`, json: `'{}'::json`, jsonb: `'{}'::jsonb`,
-  xml: `'<a/>'::xml`, "integer[]": `ARRAY[1]`, "text[]": `ARRAY['a']`,
-  "oid[]": `ARRAY[1]::oid[]`, "char": `'a'::"char"`, pg_lsn: `'0/0'::pg_lsn`,
-  anyelement: `1`, anyarray: `ARRAY[1]`, anycompatible: `1`,
-  anycompatiblearray: `ARRAY[1]`, anynonarray: `1`, '"any"': `1`,
-};
+  text: `'a'`,
+  integer: `1`,
+  bigint: `1`,
+  smallint: `1`,
+  numeric: `1`,
+  'double precision': `1`,
+  real: `1`,
+  boolean: `true`,
+  oid: `1`,
+  date: `'2020-01-01'::date`,
+  'timestamp without time zone': `'2020-01-01'::timestamp`,
+  'timestamp with time zone': `'2020-01-01'::timestamptz`,
+  'time without time zone': `'01:00'::time`,
+  'time with time zone': `'01:00'::timetz`,
+  interval: `'1 day'::interval`,
+  json: `'{}'::json`,
+  jsonb: `'{}'::jsonb`,
+  xml: `'<a/>'::xml`,
+  'integer[]': `ARRAY[1]`,
+  'text[]': `ARRAY['a']`,
+  'oid[]': `ARRAY[1]::oid[]`,
+  char: `'a'::"char"`,
+  pg_lsn: `'0/0'::pg_lsn`,
+  anyelement: `1`,
+  anyarray: `ARRAY[1]`,
+  anycompatible: `1`,
+  anycompatiblearray: `ARRAY[1]`,
+  anynonarray: `1`,
+  '"any"': `1`,
+}
 
 /**
  * The NULL-ELEMENT spelling for each array-typed declared position — the
@@ -65,10 +84,12 @@ const LITERALS: Record<string, string> = {
  * ELEMENT.
  */
 const NULL_ELEMENT: Record<string, string> = {
-  "integer[]": `ARRAY[NULL::integer]`, "text[]": `ARRAY[NULL::text]`,
-  "oid[]": `ARRAY[NULL::oid]`, anyarray: `ARRAY[NULL::integer]`,
+  'integer[]': `ARRAY[NULL::integer]`,
+  'text[]': `ARRAY[NULL::text]`,
+  'oid[]': `ARRAY[NULL::oid]`,
+  anyarray: `ARRAY[NULL::integer]`,
   anycompatiblearray: `ARRAY[NULL::integer]`,
-};
+}
 
 /**
  * A NULL cannot be spelled at a PSEUDO-type — `NULL::anycompatiblearray` is
@@ -76,9 +97,13 @@ const NULL_ELEMENT: Record<string, string> = {
  * which is what a real call at that position would carry.
  */
 const CONCRETE: Record<string, string> = {
-  '"any"': "text", anyelement: "integer", anynonarray: "integer",
-  anyarray: "integer[]", anycompatible: "integer", anycompatiblearray: "integer[]",
-};
+  '"any"': 'text',
+  anyelement: 'integer',
+  anynonarray: 'integer',
+  anyarray: 'integer[]',
+  anycompatible: 'integer',
+  anycompatiblearray: 'integer[]',
+}
 
 /**
  * Positions whose legal values are a CLOSED vocabulary, where the generic
@@ -87,32 +112,36 @@ const CONCRETE: Record<string, string> = {
  * exactly that way.
  */
 const OVERRIDE: Record<string, Record<number, string>> = {
-  daterange: { 3: `'[]'` }, int4range: { 3: `'[]'` }, int8range: { 3: `'[]'` },
-  numrange: { 3: `'[]'` }, tsrange: { 3: `'[]'` }, tstzrange: { 3: `'[]'` },
+  daterange: { 3: `'[]'` },
+  int4range: { 3: `'[]'` },
+  int8range: { 3: `'[]'` },
+  numrange: { 3: `'[]'` },
+  tsrange: { 3: `'[]'` },
+  tstzrange: { 3: `'[]'` },
   jsonb_set_lax: { 5: `'use_json_null'` },
-};
-
-interface Signature {
-  proname: string;
-  argtypes: string[];
 }
 
-let pg: PGlite;
+interface Signature {
+  proname: string
+  argtypes: string[]
+}
+
+let pg: PGlite
 /** name → arity → rejecting 1-based positions, derived by execution. */
-const derived = new Map<string, Map<number, number[]>>();
+const derived = new Map<string, Map<number, number[]>>()
 /** The same for a NULL ELEMENT at an array-typed position. */
-const derivedElements = new Map<string, Map<number, number[]>>();
-let probed = 0;
-let controlled = 0;
-let uncontrolled = 0;
-let untypable = 0;
-let elementPositions = 0;
-let elementUncontrolled = 0;
+const derivedElements = new Map<string, Map<number, number[]>>()
+let probed = 0
+let controlled = 0
+let uncontrolled = 0
+let untypable = 0
+let elementPositions = 0
+let elementUncontrolled = 0
 /** Every distinct rejection message the derivation observed. */
-const messages = new Set<string>();
+const messages = new Set<string>()
 
 beforeAll(async () => {
-  pg = await PGlite.create();
+  pg = await PGlite.create()
 
   const rows = (
     await pg.query<{ proname: string; argtypes: string }>(`
@@ -124,76 +153,74 @@ beforeAll(async () => {
       WHERE n.nspname = 'pg_catalog' AND p.prokind = 'f' AND NOT p.proisstrict
         AND p.pronargs > 0
       ORDER BY p.proname`)
-  ).rows;
+  ).rows
 
-  const signatures: Signature[] = [];
+  const signatures: Signature[] = []
   for (const r of rows) {
-    if (EXCLUDED.test(r.proname)) continue;
-    const argtypes = r.argtypes.split("|");
-    if (!argtypes.every(t => t in LITERALS)) {
-      untypable++;
-      continue;
+    if (EXCLUDED.test(r.proname)) continue
+    const argtypes = r.argtypes.split('|')
+    if (!argtypes.every((t) => t in LITERALS)) {
+      untypable++
+      continue
     }
-    signatures.push({ proname: r.proname, argtypes });
+    signatures.push({ proname: r.proname, argtypes })
   }
-  probed = signatures.length;
+  probed = signatures.length
 
   const run = async (sql: string): Promise<string | null> => {
-    await pg.exec("BEGIN");
+    await pg.exec('BEGIN')
     try {
-      await pg.query(sql);
-      return null;
+      await pg.query(sql)
+      return null
     } catch (e) {
-      return (e as Error).message;
+      return (e as Error).message
     } finally {
-      await pg.exec("ROLLBACK");
+      await pg.exec('ROLLBACK')
     }
-  };
+  }
 
   for (const s of signatures) {
     for (let i = 0; i < s.argtypes.length; i++) {
-      const lit = (t: string, j: number): string =>
-        OVERRIDE[s.proname]?.[j + 1] ?? LITERALS[t]!;
-      const at = (t: string): string => CONCRETE[t] ?? t;
+      const lit = (t: string, j: number): string => OVERRIDE[s.proname]?.[j + 1] ?? LITERALS[t]!
+      const at = (t: string): string => CONCRETE[t] ?? t
       const args = (nullAt: number): string[] =>
-        s.argtypes.map((t, j) => (j === nullAt ? `NULL::${at(t)}` : lit(t, j)));
+        s.argtypes.map((t, j) => (j === nullAt ? `NULL::${at(t)}` : lit(t, j)))
 
-      const err = await run(`SELECT ${s.proname}(${args(i).join(", ")})`);
+      const err = await run(`SELECT ${s.proname}(${args(i).join(', ')})`)
       if (err === null) {
-        controlled++;
-        continue;
+        controlled++
+        continue
       }
-      const control = await run(`SELECT ${s.proname}(${args(-1).join(", ")})`);
+      const control = await run(`SELECT ${s.proname}(${args(-1).join(', ')})`)
       if (control !== null) {
-        uncontrolled++;
-        continue;
+        uncontrolled++
+        continue
       }
-      controlled++;
-      messages.add(err);
-      record(derived, s.proname, s.argtypes.length, i + 1);
+      controlled++
+      messages.add(err)
+      record(derived, s.proname, s.argtypes.length, i + 1)
     }
 
     // The element class, over the array-typed positions only.
     for (let i = 0; i < s.argtypes.length; i++) {
-      const spelling = NULL_ELEMENT[s.argtypes[i]!];
-      if (!spelling) continue;
-      elementPositions++;
-      const lit = (t: string, j: number): string =>
-        OVERRIDE[s.proname]?.[j + 1] ?? LITERALS[t]!;
+      const spelling = NULL_ELEMENT[s.argtypes[i]!]
+      if (!spelling) continue
+      elementPositions++
+      const lit = (t: string, j: number): string => OVERRIDE[s.proname]?.[j + 1] ?? LITERALS[t]!
       const args = (nullAt: number): string[] =>
-        s.argtypes.map((t, j) => (j === nullAt ? spelling : lit(t, j)));
-      const err = await run(`SELECT ${s.proname}(${args(i).join(", ")})`);
-      if (err === null) continue;
-      const control = await run(`SELECT ${s.proname}(${args(-1).join(", ")})`);
+        s.argtypes.map((t, j) => (j === nullAt ? spelling : lit(t, j)))
+      const err = await run(`SELECT ${s.proname}(${args(i).join(', ')})`)
+      if (err === null) continue
+      const control = await run(`SELECT ${s.proname}(${args(-1).join(', ')})`)
       if (control !== null) {
-        elementUncontrolled++;
-        continue;
+        elementUncontrolled++
+        continue
       }
-      messages.add(err);
-      record(derivedElements, s.proname, s.argtypes.length, i + 1);
+      messages.add(err)
+      record(derivedElements, s.proname, s.argtypes.length, i + 1)
     }
   }
-}, 300_000);
+}, 300_000)
 
 function record(
   into: Map<string, Map<number, number[]>>,
@@ -201,89 +228,89 @@ function record(
   arity: number,
   position: number,
 ): void {
-  let byArity = into.get(name);
+  let byArity = into.get(name)
   if (!byArity) {
-    byArity = new Map();
-    into.set(name, byArity);
+    byArity = new Map()
+    into.set(name, byArity)
   }
-  byArity.set(arity, [...(byArity.get(arity) ?? []), position]);
+  byArity.set(arity, [...(byArity.get(arity) ?? []), position])
 }
 
 afterAll(async () => {
-  if (pg && !pg.closed) await pg.close();
-});
+  if (pg && !pg.closed) await pg.close()
+})
 
 /** Both sides rendered the same way, so a failure prints a readable diff. */
 function render(t: ReadonlyMap<string, ReadonlyMap<number, readonly number[]>>): string[] {
-  const out: string[] = [];
+  const out: string[] = []
   for (const [name, byArity] of [...t].sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
     for (const [arity, positions] of [...byArity].sort((a, b) => a[0] - b[0])) {
-      out.push(`${name}/${arity}: ${[...positions].sort((a, b) => a - b).join(",")}`);
+      out.push(`${name}/${arity}: ${[...positions].sort((a, b) => a - b).join(',')}`)
     }
   }
-  return out;
+  return out
 }
 
-describe("builtin NULL-rejecting argument positions", () => {
-  it("the table equals the class derived from pg_catalog by execution", () => {
+describe('builtin NULL-rejecting argument positions', () => {
+  it('the table equals the class derived from pg_catalog by execution', () => {
     expect(
       render(derived),
-      "BUILTIN_NULL_REJECTING_ARGS and PostgreSQL disagree. This table is a " +
-        "CACHE of this measurement, not a curated list: if PostgreSQL added, " +
-        "removed or moved a rejection, update the table to match and add a " +
-        "fixture for anything new. If a line appeared that is a probe " +
-        "artefact, its CONTROL succeeded — check the literal for that " +
-        "position in OVERRIDE before believing it.",
-    ).toEqual(render(BUILTIN_NULL_REJECTING_ARGS));
-  });
+      'BUILTIN_NULL_REJECTING_ARGS and PostgreSQL disagree. This table is a ' +
+        'CACHE of this measurement, not a curated list: if PostgreSQL added, ' +
+        'removed or moved a rejection, update the table to match and add a ' +
+        'fixture for anything new. If a line appeared that is a probe ' +
+        'artefact, its CONTROL succeeded — check the literal for that ' +
+        'position in OVERRIDE before believing it.',
+    ).toEqual(render(BUILTIN_NULL_REJECTING_ARGS))
+  })
 
-  it("the ELEMENT table equals the class derived the same way", () => {
+  it('the ELEMENT table equals the class derived the same way', () => {
     expect(
       render(derivedElements),
-      "BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS and PostgreSQL disagree. Same " +
-        "rule as its sibling: this is a cache of the measurement below it.",
-    ).toEqual(render(BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS));
-  });
+      'BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS and PostgreSQL disagree. Same ' +
+        'rule as its sibling: this is a cache of the measurement below it.',
+    ).toEqual(render(BUILTIN_NULL_REJECTING_ARRAY_ELEMENTS))
+  })
 
-  it("every derived rejection message is one the soundness oracle recognises", () => {
+  it('every derived rejection message is one the soundness oracle recognises', () => {
     // The tie that keeps the shared NULL_REJECTION list (fixture-args.ts) from
     // going stale. A claim mechanism D makes is only WITNESSED if the binding
     // oracles recognise the raise as a null-rejection; an unmatched message would
     // silently turn a notNull claim into an unwitnessed one, which is a
     // different failure and a confusing one. So the messages travel with the
     // table they came from.
-    expect([...messages].filter(m => !NULL_REJECTION.test(m)).sort()).toEqual([]);
-  });
+    expect([...messages].filter((m) => !NULL_REJECTION.test(m)).sort()).toEqual([])
+  })
 
-  it("the constraint class stays disjoint from this one — two meanings, two lists", () => {
+  it('the constraint class stays disjoint from this one — two meanings, two lists', () => {
     // The widened witness class for constraint-shaped raises counts constraint
     // violations as evidence about a NULL only beside a passing control.
     // NULL_REJECTION means something stronger and unconditional — "only a
     // NULL produces this" — which is exactly what the tie above rests on.
     // Merging the two would let a raise caused by another value in the row
     // witness a claim here, so they are asserted apart in both directions.
-    expect([...messages].filter(m => CONSTRAINT_REJECTION.test(m)).sort()).toEqual([]);
+    expect([...messages].filter((m) => CONSTRAINT_REJECTION.test(m)).sort()).toEqual([])
     for (const m of [
       'new row for relation "t" violates check constraint "t_check"',
       'new row for relation "p1" violates partition constraint',
     ]) {
-      expect(NULL_REJECTION.test(m), m).toBe(false);
-      expect(CONSTRAINT_REJECTION.test(m), m).toBe(true);
+      expect(NULL_REJECTION.test(m), m).toBe(false)
+      expect(CONSTRAINT_REJECTION.test(m), m).toBe(true)
     }
-  });
+  })
 
-  it("the probe reached enough of pg_catalog to mean something", () => {
+  it('the probe reached enough of pg_catalog to mean something', () => {
     // Silent non-coverage is the failure mode: a probe that typed nothing
     // would agree with an EMPTY table. These are the bounds, asserted rather
     // than printed, so shrinking coverage fails instead of passing quietly.
-    expect(probed).toBeGreaterThanOrEqual(60);
-    expect(controlled).toBeGreaterThanOrEqual(120);
-    expect(derived.size).toBeGreaterThan(0);
-    expect(elementPositions).toBeGreaterThanOrEqual(12);
-    expect(derivedElements.size).toBeGreaterThan(0);
-  });
+    expect(probed).toBeGreaterThanOrEqual(60)
+    expect(controlled).toBeGreaterThanOrEqual(120)
+    expect(derived.size).toBeGreaterThan(0)
+    expect(elementPositions).toBeGreaterThanOrEqual(12)
+    expect(derivedElements.size).toBeGreaterThan(0)
+  })
 
-  it("prints the coverage bounds", () => {
+  it('prints the coverage bounds', () => {
     console.log(
       `\nbuiltin NULL-rejection derivation:\n` +
         `  non-strict pg_catalog signatures probed: ${probed}` +
@@ -291,11 +318,15 @@ describe("builtin NULL-rejecting argument positions", () => {
         `  calls with a passing control:            ${controlled}` +
         ` (+${uncontrolled} whose control also failed — the probe's fault, not NULL's)\n` +
         `  rejecting signatures:                    ${render(derived).length}` +
-        `, in ${[...derived.values()].flatMap(m => [...m.values()]).flat().length} argument positions\n` +
-        render(derived).map(l => `    ${l}`).join("\n") +
+        `, in ${[...derived.values()].flatMap((m) => [...m.values()]).flat().length} argument positions\n` +
+        render(derived)
+          .map((l) => `    ${l}`)
+          .join('\n') +
         `\n  array-typed positions probed for a NULL ELEMENT: ${elementPositions}` +
         ` (+${elementUncontrolled} uncontrolled)\n` +
-        render(derivedElements).map(l => `    ${l}`).join("\n"),
-    );
-  });
-});
+        render(derivedElements)
+          .map((l) => `    ${l}`)
+          .join('\n'),
+    )
+  })
+})

@@ -1,5 +1,5 @@
-import type { PGlite } from "@electric-sql/pglite";
-import type { Node } from "libpg-query";
+import type { PGlite } from '@electric-sql/pglite'
+import type { Node } from 'libpg-query'
 import {
   parseSql,
   parseMigrationFile,
@@ -11,7 +11,7 @@ import {
   getBodyOffsetFromAst,
   type MigrationFile,
   type ParsedStatement,
-} from "./ast.js";
+} from './ast.js'
 import {
   type SqlDiagnostic,
   type PlpgsqlCheckRow,
@@ -20,7 +20,7 @@ import {
   extractExecDiagnostic,
   extractPlpgsqlCheckDiagnostic,
   normalizeSeverity,
-} from "./errors.js";
+} from './errors.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,17 +40,17 @@ import {
  */
 interface FunctionProvenance {
   /** pg_proc OID of the function. */
-  oid: number;
+  oid: number
   /** Which migration file (index into `migrations` map). */
-  migrationIndex: number;
+  migrationIndex: number
   /** Canonicalized AST hash of the statement that last defined the body. */
-  statementHash: string;
+  statementHash: string
   /** The function body text (= pg_proc.prosrc). Always matches current prosrc. */
-  bodyText: string;
+  bodyText: string
   /** Language name: "plpgsql" or "sql". */
-  language: string;
+  language: string
   /** Regprocedure signature, e.g. `"public"."my_func"(int4)`. Updated on any change. */
-  signature: string;
+  signature: string
 }
 
 /**
@@ -61,17 +61,17 @@ interface FunctionProvenance {
  */
 interface TriggerProvenance {
   /** pg_trigger OID. */
-  oid: number;
+  oid: number
   /** Which migration file. */
-  migrationIndex: number;
+  migrationIndex: number
   /** Canonicalized AST hash of the statement that created this trigger. */
-  statementHash: string;
+  statementHash: string
   /** The relation (table/view) the trigger is on. */
-  relation: string;
+  relation: string
   /** NEW TABLE transition table name, or null. */
-  newTable: string | null;
+  newTable: string | null
   /** OLD TABLE transition table name, or null. */
-  oldTable: string | null;
+  oldTable: string | null
 }
 
 /**
@@ -82,15 +82,15 @@ interface TriggerProvenance {
  * NOT stored in provenance.
  */
 interface StmtContext {
-  pg: PGlite;
-  migration: MigrationFile;
-  stmt: Node;
-  kind: string;
-  statementHash: string;
-  stmtStart: number;
-  stmtEnd: number;
-  stmtText: string;
-  stmtBytes: Buffer;
+  pg: PGlite
+  migration: MigrationFile
+  stmt: Node
+  kind: string
+  statementHash: string
+  stmtStart: number
+  stmtEnd: number
+  stmtText: string
+  stmtBytes: Buffer
 }
 
 /**
@@ -99,28 +99,28 @@ interface StmtContext {
  * function was touched by a statement.
  */
 interface PgProcRowState {
-  xmin: string;
-  ctid: string;
+  xmin: string
+  ctid: string
 }
 
 /**
  * A snapshot of a pg_trigger row.
  */
 interface PgTriggerRowState {
-  relation: string;
-  tgfoid: number;
-  tgnewtable: string | null;
-  tgoldtable: string | null;
-  xmin: string;
-  ctid: string;
+  relation: string
+  tgfoid: number
+  tgnewtable: string | null
+  tgoldtable: string | null
+  xmin: string
+  ctid: string
 }
 
 /**
  * Before-state returned by `onBeforeStatementApplied`.
  */
 interface BeforeState {
-  pg_proc?: Map<number, PgProcRowState>;
-  pg_trigger?: Map<number, PgTriggerRowState>;
+  pg_proc?: Map<number, PgProcRowState>
+  pg_trigger?: Map<number, PgTriggerRowState>
 }
 
 /**
@@ -130,8 +130,8 @@ interface BeforeState {
  */
 class StmtDiagnosticsError extends Error {
   constructor(public diagnostics: SqlDiagnostic[]) {
-    super(diagnostics.map(d => d.message).join("; "));
-    this.name = "StmtDiagnosticsError";
+    super(diagnostics.map((d) => d.message).join('; '))
+    this.name = 'StmtDiagnosticsError'
   }
 }
 
@@ -158,41 +158,49 @@ class StmtDiagnosticsError extends Error {
  */
 export class SchemaBuilder {
   // oid → function provenance. Updated during apply; read during validate.
-  private provenance = new Map<number, FunctionProvenance>();
+  private provenance = new Map<number, FunctionProvenance>()
 
   // oid → trigger provenance. Updated during apply; read during validate.
-  private triggerProvenance = new Map<number, TriggerProvenance>();
+  private triggerProvenance = new Map<number, TriggerProvenance>()
 
   // Per-migration files (mutable — re-parsed on edit). Keyed by migration index.
-  private migrations = new Map<number, MigrationFile>();
+  private migrations = new Map<number, MigrationFile>()
 
   // OIDs of functions that existed before any migration was applied.
   // Populated by `snapshotBeforeMigrations()`. At validate() time,
   // functions in this set are "pre-existing" — skipped (not our responsibility).
   // Functions NOT in this set and NOT in provenance → engine error.
-  private preExistingOids = new Set<number>();
+  private preExistingOids = new Set<number>()
 
   // Counter for temp functions created during DO block pre-checks.
-  private doBlockCounter = 0;
+  private doBlockCounter = 0
 
   /**
    * @internal — for testing only. Returns a snapshot of the provenance map
    * with plain data (no internal references).
    */
-  getProvenanceForTesting(): Map<number, {
-    migrationIndex: number;
-    statementHash: string;
-    bodyText: string;
-    language: string;
-    signature: string;
-  }> {
-    return new Map([...this.provenance.entries()].map(([oid, prov]) => [oid, {
-      migrationIndex: prov.migrationIndex,
-      statementHash: prov.statementHash,
-      bodyText: prov.bodyText,
-      language: prov.language,
-      signature: prov.signature,
-    }]));
+  getProvenanceForTesting(): Map<
+    number,
+    {
+      migrationIndex: number
+      statementHash: string
+      bodyText: string
+      language: string
+      signature: string
+    }
+  > {
+    return new Map(
+      [...this.provenance.entries()].map(([oid, prov]) => [
+        oid,
+        {
+          migrationIndex: prov.migrationIndex,
+          statementHash: prov.statementHash,
+          bodyText: prov.bodyText,
+          language: prov.language,
+          signature: prov.signature,
+        },
+      ]),
+    )
   }
 
   /**
@@ -205,8 +213,8 @@ export class SchemaBuilder {
    * engine error (the diff should have caught them).
    */
   async snapshotBeforeMigrations(pg: PGlite): Promise<void> {
-    const snapshot = await this.snapshotPgProc(pg);
-    this.preExistingOids = new Set(snapshot.keys());
+    const snapshot = await this.snapshotPgProc(pg)
+    this.preExistingOids = new Set(snapshot.keys())
   }
 
   // -------------------------------------------------------------------------
@@ -227,21 +235,21 @@ export class SchemaBuilder {
     migrationIndex: number,
   ): Promise<{ success: boolean; diagnostics: SqlDiagnostic[] }> {
     // 1. Parse the migration file into a statement chain with hashes.
-    let migration: MigrationFile;
+    let migration: MigrationFile
     try {
-      migration = await parseMigrationFile(source, migrationIndex);
+      migration = await parseMigrationFile(source, migrationIndex)
     } catch (err) {
       // Parse error — could be in the original source or the stripped content.
-      const diag = extractParseDiagnostic(err, 0, source);
-      return { success: false, diagnostics: [diag] };
+      const diag = extractParseDiagnostic(err, 0, source)
+      return { success: false, diagnostics: [diag] }
     }
 
     // 2. Store the migration file (mutable — re-parsed on edit).
-    this.migrations.set(migrationIndex, migration);
+    this.migrations.set(migrationIndex, migration)
 
     // 3. Begin transaction. Disable function body validation for the whole txn.
-    await pg.query("BEGIN");
-    await pg.query("SET LOCAL check_function_bodies TO off");
+    await pg.query('BEGIN')
+    await pg.query('SET LOCAL check_function_bodies TO off')
 
     try {
       for (const stmt of migration.statements) {
@@ -255,56 +263,62 @@ export class SchemaBuilder {
           stmtEnd: stmt.stmtEnd,
           stmtText: stmt.text,
           stmtBytes: stmt.bytes,
-        };
+        }
 
         // --- Before: pre-checks, snapshots ---
-        let before: BeforeState;
+        let before: BeforeState
         try {
-          before = await this.onBeforeStatementApplied(ctx);
+          before = await this.onBeforeStatementApplied(ctx)
         } catch (err) {
           if (err instanceof StmtDiagnosticsError) {
-            await pg.query("ROLLBACK");
-            return { success: false, diagnostics: err.diagnostics };
+            await pg.query('ROLLBACK')
+            return { success: false, diagnostics: err.diagnostics }
           }
-          throw err;
+          throw err
         }
 
         // --- Execute ---
         try {
-          await pg.exec(stmt.text);
+          await pg.exec(stmt.text)
         } catch (err) {
           // Exec failed — wrap into StmtDiagnosticsError (always throws).
-          try { await this.onStatementApplicationFailed(ctx, err); } catch (e) {
+          try {
+            await this.onStatementApplicationFailed(ctx, err)
+          } catch (e) {
             if (e instanceof StmtDiagnosticsError) {
-              await pg.query("ROLLBACK");
-              return { success: false, diagnostics: e.diagnostics };
+              await pg.query('ROLLBACK')
+              return { success: false, diagnostics: e.diagnostics }
             }
-            throw e;
+            throw e
           }
         }
 
         // --- After: diff pg_proc, record provenance ---
-        await this.onAfterStatementApplied(ctx, before);
+        await this.onAfterStatementApplied(ctx, before)
       }
 
-      await pg.query("COMMIT");
-      return { success: true, diagnostics: [] };
+      await pg.query('COMMIT')
+      return { success: true, diagnostics: [] }
     } catch (err) {
-      try { await pg.query("ROLLBACK"); } catch { /* ignore */ }
+      try {
+        await pg.query('ROLLBACK')
+      } catch {
+        /* ignore */
+      }
       if (err instanceof StmtDiagnosticsError) {
-        return { success: false, diagnostics: err.diagnostics };
+        return { success: false, diagnostics: err.diagnostics }
       }
       // Unexpected error — wrap as a single diagnostic.
       const diag: SqlDiagnostic = {
         message: err instanceof Error ? err.message : String(err),
         code: undefined,
-        severity: "error",
+        severity: 'error',
         hint: undefined,
         detail: undefined,
         range: null,
-        original: { source: "pglite", error: err as any },
-      };
-      return { success: false, diagnostics: [diag] };
+        original: { source: 'pglite', error: err as any },
+      }
+      return { success: false, diagnostics: [diag] }
     }
   }
 
@@ -332,21 +346,22 @@ export class SchemaBuilder {
    * the snapshot is broad (all user functions).
    */
   async onBeforeStatementApplied(ctx: StmtContext): Promise<BeforeState> {
-    if (ctx.kind === "DoStmt") {
-      await this.validateDoBlock(ctx);
+    if (ctx.kind === 'DoStmt') {
+      await this.validateDoBlock(ctx)
     }
 
     // Snapshot pg_proc around every statement. For CreateFunctionStmt/
     // DropFunctionStmt, filter by proname (targeted). For everything else,
     // snapshot broadly — any statement could indirectly touch pg_proc.
-    const proname = (ctx.kind === "CreateFunctionStmt" || ctx.kind === "DropFunctionStmt")
-      ? getFunctionName(ctx.stmt)?.name
-      : undefined;
+    const proname =
+      ctx.kind === 'CreateFunctionStmt' || ctx.kind === 'DropFunctionStmt'
+        ? getFunctionName(ctx.stmt)?.name
+        : undefined
 
     return {
       pg_proc: await this.snapshotPgProc(ctx.pg, proname),
       pg_trigger: await this.snapshotPgTrigger(ctx.pg),
-    };
+    }
   }
 
   /**
@@ -365,58 +380,53 @@ export class SchemaBuilder {
   async onAfterStatementApplied(ctx: StmtContext, before: BeforeState): Promise<void> {
     if (before.pg_proc) {
       // Re-query with the same filter as the before snapshot.
-      const proname = (ctx.kind === "CreateFunctionStmt" || ctx.kind === "DropFunctionStmt")
-        ? getFunctionName(ctx.stmt)?.name
-        : undefined;
-      const after = await this.snapshotPgProc(ctx.pg, proname);
+      const proname =
+        ctx.kind === 'CreateFunctionStmt' || ctx.kind === 'DropFunctionStmt'
+          ? getFunctionName(ctx.stmt)?.name
+          : undefined
+      const after = await this.snapshotPgProc(ctx.pg, proname)
 
       // Diff: new + changed.
       for (const [oid, afterState] of after) {
-        const beforeState = before.pg_proc.get(oid);
+        const beforeState = before.pg_proc.get(oid)
         if (beforeState === undefined) {
           // New function — fetch prosrc, record body provenance.
-          const prosrc = await this.fetchProsrc(ctx.pg, oid);
-          await this.recordProvenance(ctx, oid, prosrc, true);
-        } else if (
-          beforeState.xmin !== afterState.xmin ||
-          beforeState.ctid !== afterState.ctid
-        ) {
+          const prosrc = await this.fetchProsrc(ctx.pg, oid)
+          await this.recordProvenance(ctx, oid, prosrc, true)
+        } else if (beforeState.xmin !== afterState.xmin || beforeState.ctid !== afterState.ctid) {
           // Row touched — fetch prosrc, compare with stored bodyText.
-          const prosrc = await this.fetchProsrc(ctx.pg, oid);
-          const existing = this.provenance.get(oid);
-          const isBodyChange = !existing || existing.bodyText !== prosrc;
-          await this.recordProvenance(ctx, oid, prosrc, isBodyChange);
+          const prosrc = await this.fetchProsrc(ctx.pg, oid)
+          const existing = this.provenance.get(oid)
+          const isBodyChange = !existing || existing.bodyText !== prosrc
+          await this.recordProvenance(ctx, oid, prosrc, isBodyChange)
         }
       }
 
       // Diff: dropped.
       for (const oid of before.pg_proc.keys()) {
         if (!after.has(oid)) {
-          this.provenance.delete(oid);
+          this.provenance.delete(oid)
         }
       }
     }
 
     if (before.pg_trigger) {
-      const after = await this.snapshotPgTrigger(ctx.pg);
+      const after = await this.snapshotPgTrigger(ctx.pg)
 
       // Diff: new + changed.
       for (const [oid, afterState] of after) {
-        const beforeState = before.pg_trigger.get(oid);
+        const beforeState = before.pg_trigger.get(oid)
         if (beforeState === undefined) {
-          this.recordTriggerProvenance(ctx, oid, afterState);
-        } else if (
-          beforeState.xmin !== afterState.xmin ||
-          beforeState.ctid !== afterState.ctid
-        ) {
-          this.recordTriggerProvenance(ctx, oid, afterState);
+          this.recordTriggerProvenance(ctx, oid, afterState)
+        } else if (beforeState.xmin !== afterState.xmin || beforeState.ctid !== afterState.ctid) {
+          this.recordTriggerProvenance(ctx, oid, afterState)
         }
       }
 
       // Diff: dropped.
       for (const oid of before.pg_trigger.keys()) {
         if (!after.has(oid)) {
-          this.triggerProvenance.delete(oid);
+          this.triggerProvenance.delete(oid)
         }
       }
     }
@@ -428,21 +438,21 @@ export class SchemaBuilder {
    * file space, and fills the statement range as fallback.
    */
   async onStatementApplicationFailed(ctx: StmtContext, err: unknown): Promise<never> {
-    const { removals, source } = ctx.migration;
+    const { removals, source } = ctx.migration
     const diag = extractExecDiagnostic(err, 0, {
       stmtStrippedOffset: ctx.stmtStart,
       removals,
       mapStrippedToOriginal,
       source,
-    });
+    })
     // Fill statement range if the diagnostic has no precise range.
     if (diag.range === null) {
       diag.range = {
         start: mapStrippedToOriginal(removals, ctx.stmtStart),
         end: mapStrippedToOriginal(removals, ctx.stmtEnd),
-      };
+      }
     }
-    throw new StmtDiagnosticsError([diag]);
+    throw new StmtDiagnosticsError([diag])
   }
 
   // -------------------------------------------------------------------------
@@ -465,7 +475,7 @@ export class SchemaBuilder {
    * Returns all diagnostics (collect-all, no halt).
    */
   async validate(pg: PGlite): Promise<SqlDiagnostic[]> {
-    const cascaded = await this.discardTemporaryObjects(pg);
+    const cascaded = await this.discardTemporaryObjects(pg)
     // Wrap in a transaction: validateSqlFunction uses SAVEPOINT for
     // isolation, which requires a transaction block.
     // Don't override search_path — a migration may have done
@@ -473,20 +483,20 @@ export class SchemaBuilder {
     // The function bodies may reference unqualified tables that need that
     // search_path to resolve. Instead, we qualify plpgsql_check_function_tb
     // with its schema (public) in the query strings.
-    await pg.query("BEGIN");
+    await pg.query('BEGIN')
     try {
       // Query surviving user functions (exclude aggregates — no body to validate).
       // Also query the schema name for constructing a fully-qualified signature
       // (prov.signature may be unqualified if the function was created via
       // SET search_path + unqualified CREATE FUNCTION).
       const surviving = await pg.query<{
-        oid: number;
-        proname: string;
-        nspname: string;
-        lanname: string;
-        prosrc: string;
-        def: string;
-        is_trigger: boolean;
+        oid: number
+        proname: string
+        nspname: string
+        lanname: string
+        prosrc: string
+        def: string
+        is_trigger: boolean
       }>(`
         SELECT p.oid, p.proname, n.nspname, l.lanname AS lanname, p.prosrc,
                pg_get_functiondef(p.oid) AS def,
@@ -502,17 +512,17 @@ export class SchemaBuilder {
             SELECT 1 FROM pg_depend d
             WHERE d.objid = p.oid AND d.deptype = 'e'
           );
-      `);
+      `)
 
-      const allDiagnostics: SqlDiagnostic[] = [...cascaded];
+      const allDiagnostics: SqlDiagnostic[] = [...cascaded]
 
       for (const row of surviving.rows) {
-        const prov = this.provenance.get(row.oid);
+        const prov = this.provenance.get(row.oid)
         if (!prov) {
           // No provenance. Check if it's pre-existing (before our migrations).
           if (this.preExistingOids.has(row.oid)) {
             // Pre-existing — not our responsibility. Skip.
-            continue;
+            continue
           }
           // Unknown origin — this should never happen with universal
           // snapshotting. The diff should have caught it. Emit an
@@ -520,35 +530,41 @@ export class SchemaBuilder {
           allDiagnostics.push({
             message: `function "${row.nspname}"."${row.proname}" has no provenance — this may indicate a bug in the migration tracking pipeline`,
             code: undefined,
-            severity: "warning" as const,
+            severity: 'warning' as const,
             hint: undefined,
             detail: undefined,
             range: null,
-            original: { source: "internal" as const, error: new Error("missing provenance") },
-          });
-          continue;
+            original: { source: 'internal' as const, error: new Error('missing provenance') },
+          })
+          continue
         }
 
         // Construct a fully-qualified signature for plpgsql_check_function_tb.
         // prov.signature may be unqualified (from formatFunctionRef on an
         // unqualified CREATE FUNCTION). Use the pg_proc row's schema + name
         // + identity arguments to build a qualified regprocedure text.
-        const qualifiedSignature = `"${row.nspname}"."${row.proname}"(${prov.signature.match(/\(([^)]*)\)/)?.[1] ?? ""})`;
+        const qualifiedSignature = `"${row.nspname}"."${row.proname}"(${prov.signature.match(/\(([^)]*)\)/)?.[1] ?? ''})`
 
-        if (row.lanname === "plpgsql") {
+        if (row.lanname === 'plpgsql') {
           const diags = await this.validatePlpgsqlFunction(
-            pg, row.oid, { ...prov, signature: qualifiedSignature }, row.is_trigger,
-          );
-          allDiagnostics.push(...diags);
-        } else if (row.lanname === "sql") {
-          const diags = await this.validateSqlFunction(pg, row.oid, { ...prov, signature: qualifiedSignature });
-          allDiagnostics.push(...diags);
+            pg,
+            row.oid,
+            { ...prov, signature: qualifiedSignature },
+            row.is_trigger,
+          )
+          allDiagnostics.push(...diags)
+        } else if (row.lanname === 'sql') {
+          const diags = await this.validateSqlFunction(pg, row.oid, {
+            ...prov,
+            signature: qualifiedSignature,
+          })
+          allDiagnostics.push(...diags)
         }
       }
 
-      return allDiagnostics;
+      return allDiagnostics
     } finally {
-      await pg.query("ROLLBACK");
+      await pg.query('ROLLBACK')
     }
   }
 
@@ -598,45 +614,45 @@ export class SchemaBuilder {
    * between the last `applyMigration` and `snapshotCatalog`.
    */
   async discardTemporaryObjects(pg: PGlite): Promise<SqlDiagnostic[]> {
-    const before = await this.snapshotPgProc(pg);
-    await pg.query("DISCARD TEMP");
-    const after = await this.snapshotPgProc(pg);
+    const before = await this.snapshotPgProc(pg)
+    await pg.query('DISCARD TEMP')
+    const after = await this.snapshotPgProc(pg)
 
-    const diagnostics: SqlDiagnostic[] = [];
+    const diagnostics: SqlDiagnostic[] = []
     for (const oid of before.keys()) {
-      if (after.has(oid)) continue;
+      if (after.has(oid)) continue
       // Untracked casualties are not ours to report: a function with no
       // provenance is either pre-existing or something a DO block created,
       // and in neither case did one of our migration statements promise it.
-      const prov = this.provenance.get(oid);
-      if (!prov) continue;
+      const prov = this.provenance.get(oid)
+      if (!prov) continue
 
-      const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash);
+      const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash)
       const range = resolved
         ? {
             start: mapStrippedToOriginal(resolved.file.removals, resolved.stmt.stmtStart),
             end: mapStrippedToOriginal(resolved.file.removals, resolved.stmt.stmtEnd),
           }
-        : null;
+        : null
       diagnostics.push({
         message:
           `function ${prov.signature} did not survive the migration: it depends on a ` +
           `temporary relation, and PostgreSQL drops the temporary schema — with everything ` +
           `depending on it — when the session ends`,
         code: undefined,
-        severity: "warning" as const,
+        severity: 'warning' as const,
         hint:
-          "A temporary table exists only for the connection that created it. Give the " +
-          "function a permanent type to depend on, or create the table permanently.",
+          'A temporary table exists only for the connection that created it. Give the ' +
+          'function a permanent type to depend on, or create the table permanently.',
         detail: undefined,
         range,
         original: {
-          source: "internal" as const,
-          error: new Error("dropped by temporary-schema cascade"),
+          source: 'internal' as const,
+          error: new Error('dropped by temporary-schema cascade'),
         },
-      });
+      })
     }
-    return diagnostics;
+    return diagnostics
   }
 
   // -------------------------------------------------------------------------
@@ -655,10 +671,7 @@ export class SchemaBuilder {
    *   for `CreateFunctionStmt`/`DropFunctionStmt`). If omitted, snapshot all
    *   user functions (broader, for `DoStmt` which may create functions dynamically).
    */
-  private async snapshotPgProc(
-    pg: PGlite,
-    proname?: string,
-  ): Promise<Map<number, PgProcRowState>> {
+  private async snapshotPgProc(pg: PGlite, proname?: string): Promise<Map<number, PgProcRowState>> {
     const baseWhere = `
       n.nspname NOT IN ('pg_catalog', 'information_schema')
       AND n.nspname NOT LIKE 'pg_temp_%'
@@ -667,8 +680,8 @@ export class SchemaBuilder {
         SELECT 1 FROM pg_depend d
         WHERE d.objid = p.oid AND d.deptype = 'e'
       )
-    `;
-    const select = "p.oid, p.prosrc, p.xmin::text AS xmin, p.ctid::text AS ctid";
+    `
+    const select = 'p.oid, p.prosrc, p.xmin::text AS xmin, p.ctid::text AS ctid'
     const query = proname
       ? `SELECT ${select} FROM pg_proc p
          JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -677,13 +690,18 @@ export class SchemaBuilder {
       : `SELECT ${select} FROM pg_proc p
          JOIN pg_namespace n ON n.oid = p.pronamespace
          JOIN pg_language l  ON l.oid  = p.prolang
-         WHERE ${baseWhere};`;
-    const params = proname ? [proname] : [];
-    const res = await pg.query<{ oid: number; xmin: string; ctid: string }>(query, params);
-    return new Map(res.rows.map(r => [r.oid, {
-      xmin: r.xmin,
-      ctid: r.ctid,
-    }]));
+         WHERE ${baseWhere};`
+    const params = proname ? [proname] : []
+    const res = await pg.query<{ oid: number; xmin: string; ctid: string }>(query, params)
+    return new Map(
+      res.rows.map((r) => [
+        r.oid,
+        {
+          xmin: r.xmin,
+          ctid: r.ctid,
+        },
+      ]),
+    )
   }
 
   /**
@@ -691,24 +709,25 @@ export class SchemaBuilder {
    * Called only when the lightweight snapshot detects a change.
    */
   private async fetchProsrc(pg: PGlite, oid: number): Promise<string> {
-    const res = await pg.query<{ prosrc: string }>(
-      "SELECT prosrc FROM pg_proc WHERE oid = $1",
-      [oid],
-    );
-    return res.rows[0]?.prosrc ?? "";
+    const res = await pg.query<{ prosrc: string }>('SELECT prosrc FROM pg_proc WHERE oid = $1', [
+      oid,
+    ])
+    return res.rows[0]?.prosrc ?? ''
   }
 
   /**
    * Snapshot `pg_trigger` as `oid → row state` for user triggers.
    * Only non-internal triggers (user-created, not system-generated constraints).
    */
-  private async snapshotPgTrigger(
-    pg: PGlite,
-  ): Promise<Map<number, PgTriggerRowState>> {
+  private async snapshotPgTrigger(pg: PGlite): Promise<Map<number, PgTriggerRowState>> {
     const res = await pg.query<{
-      oid: number; relation: string; tgfoid: number;
-      tgnewtable: string | null; tgoldtable: string | null;
-      xmin: string; ctid: string;
+      oid: number
+      relation: string
+      tgfoid: number
+      tgnewtable: string | null
+      tgoldtable: string | null
+      xmin: string
+      ctid: string
     }>(`
       SELECT t.oid,
              t.tgrelid::regclass::text AS relation,
@@ -723,15 +742,20 @@ export class SchemaBuilder {
       WHERE NOT t.tgisinternal
         AND n.nspname NOT IN ('pg_catalog', 'information_schema')
         AND n.nspname NOT LIKE 'pg_temp_%';
-    `);
-    return new Map(res.rows.map(r => [r.oid, {
-      relation: r.relation,
-      tgfoid: r.tgfoid,
-      tgnewtable: r.tgnewtable,
-      tgoldtable: r.tgoldtable,
-      xmin: r.xmin,
-      ctid: r.ctid,
-    }]));
+    `)
+    return new Map(
+      res.rows.map((r) => [
+        r.oid,
+        {
+          relation: r.relation,
+          tgfoid: r.tgfoid,
+          tgnewtable: r.tgnewtable,
+          tgoldtable: r.tgoldtable,
+          xmin: r.xmin,
+          ctid: r.ctid,
+        },
+      ]),
+    )
   }
 
   // -------------------------------------------------------------------------
@@ -762,15 +786,15 @@ export class SchemaBuilder {
     prosrc: string,
     isBodyChange: boolean,
   ): Promise<void> {
-    const existing = this.provenance.get(oid);
+    const existing = this.provenance.get(oid)
 
     // Always fetch metadata for the signature (name may have changed via RENAME).
-    let language: string;
-    let signature: string;
+    let language: string
+    let signature: string
 
-    if (ctx.kind === "CreateFunctionStmt") {
-      language = getFunctionLanguage(ctx.stmt) ?? "sql";
-      signature = formatFunctionRef(ctx.stmt) ?? "";
+    if (ctx.kind === 'CreateFunctionStmt') {
+      language = getFunctionLanguage(ctx.stmt) ?? 'sql'
+      signature = formatFunctionRef(ctx.stmt) ?? ''
     } else {
       // Dynamic creation or metadata-only change — query pg_proc.
       const meta = await ctx.pg.query<{ lanname: string; def: string }>(
@@ -778,15 +802,15 @@ export class SchemaBuilder {
          FROM pg_proc p JOIN pg_language l ON l.oid = p.prolang
          WHERE p.oid = $1`,
         [oid],
-      );
+      )
       if (meta.rows.length > 0) {
-        language = meta.rows[0]!.lanname;
-        const defParsed = await parseSql(meta.rows[0]!.def);
-        const defStmt = defParsed.stmts![0]!.stmt!;
-        signature = formatFunctionRef(defStmt) ?? "";
+        language = meta.rows[0]!.lanname
+        const defParsed = await parseSql(meta.rows[0]!.def)
+        const defStmt = defParsed.stmts![0]!.stmt!
+        signature = formatFunctionRef(defStmt) ?? ''
       } else {
-        language = existing?.language ?? "sql";
-        signature = existing?.signature ?? "";
+        language = existing?.language ?? 'sql'
+        signature = existing?.signature ?? ''
       }
     }
 
@@ -799,25 +823,21 @@ export class SchemaBuilder {
         bodyText: prosrc,
         language,
         signature,
-      });
+      })
     } else {
       // Metadata-only change — preserve body provenance, update metadata.
       this.provenance.set(oid, {
         ...existing,
         language,
         signature,
-      });
+      })
     }
   }
 
   /**
    * Record or update provenance for a trigger OID.
    */
-  private recordTriggerProvenance(
-    ctx: StmtContext,
-    oid: number,
-    state: PgTriggerRowState,
-  ): void {
+  private recordTriggerProvenance(ctx: StmtContext, oid: number, state: PgTriggerRowState): void {
     this.triggerProvenance.set(oid, {
       oid,
       migrationIndex: ctx.migration.index,
@@ -825,7 +845,7 @@ export class SchemaBuilder {
       relation: state.relation,
       newTable: state.tgnewtable,
       oldTable: state.tgoldtable,
-    });
+    })
   }
 
   /**
@@ -837,14 +857,14 @@ export class SchemaBuilder {
    */
   private findBodyOffsetInStatement(stmtBytes: Buffer, bodyText: string): number {
     if (bodyText) {
-      const idx = stmtBytes.indexOf(bodyText, 0, "utf8");
-      if (idx !== -1) return idx;
+      const idx = stmtBytes.indexOf(bodyText, 0, 'utf8')
+      if (idx !== -1) return idx
     }
     // Fallback: find the first dollar-quote delimiter.
-    const stmtText = stmtBytes.toString("latin1");
-    const m = /\$[\w]*\$/.exec(stmtText);
-    if (m) return m.index + m[0].length;
-    return -1;
+    const stmtText = stmtBytes.toString('latin1')
+    const m = /\$[\w]*\$/.exec(stmtText)
+    if (m) return m.index + m[0].length
+    return -1
   }
 
   /**
@@ -860,11 +880,11 @@ export class SchemaBuilder {
     migrationIndex: number,
     stmtHash: string,
   ): { file: MigrationFile; stmt: ParsedStatement } | null {
-    const file = this.migrations.get(migrationIndex);
-    if (!file) return null;
-    const stmt = file.statements.find(s => s.hash === stmtHash);
-    if (!stmt) return null;
-    return { file, stmt };
+    const file = this.migrations.get(migrationIndex)
+    if (!file) return null
+    const stmt = file.statements.find((s) => s.hash === stmtHash)
+    if (!stmt) return null
+    return { file, stmt }
   }
 
   // -------------------------------------------------------------------------
@@ -883,48 +903,57 @@ export class SchemaBuilder {
    * report the same syntax error with a position.
    */
   private async validateDoBlock(ctx: StmtContext): Promise<void> {
-    const { removals, source } = ctx.migration;
-    const bodyText = getDoBlockBody(ctx.stmt) ?? "";
-    const tempName = `pg_temp.pgsid_do_check_${this.doBlockCounter++}`;
+    const { removals, source } = ctx.migration
+    const bodyText = getDoBlockBody(ctx.stmt) ?? ''
+    const tempName = `pg_temp.pgsid_do_check_${this.doBlockCounter++}`
 
     // Create temp function with the same body.
     try {
       await ctx.pg.exec(
         `CREATE FUNCTION ${tempName}() RETURNS void LANGUAGE plpgsql AS $$${bodyText}$$;`,
-      );
+      )
     } catch {
       // Temp CREATE failed — body has a syntax error. Let the executor
       // run the DO block; PG will report the error with a position.
-      return;
+      return
     }
 
     // Run plpgsql_check on the temp function.
-    let checkRows: PlpgsqlCheckRow[];
+    let checkRows: PlpgsqlCheckRow[]
     try {
       const res = await ctx.pg.query<PlpgsqlCheckRow>(
         `SELECT * FROM public.plpgsql_check_function_tb('${tempName}()');`,
-      );
-      checkRows = res.rows;
+      )
+      checkRows = res.rows
     } catch {
       // plpgsql_check itself failed — drop temp and let executor run.
-      try { await ctx.pg.exec(`DROP FUNCTION ${tempName}();`); } catch { /* ignore */ }
-      return;
+      try {
+        await ctx.pg.exec(`DROP FUNCTION ${tempName}();`)
+      } catch {
+        /* ignore */
+      }
+      return
     }
 
     // Drop temp function.
-    try { await ctx.pg.exec(`DROP FUNCTION ${tempName}();`); } catch { /* ignore */ }
+    try {
+      await ctx.pg.exec(`DROP FUNCTION ${tempName}();`)
+    } catch {
+      /* ignore */
+    }
 
-    if (checkRows.length === 0) return; // clean — let executor run the DO block.
+    if (checkRows.length === 0) return // clean — let executor run the DO block.
 
     // plpgsql_check found errors — extract diagnostics and throw to halt.
-    const bodyOffsetInStripped = this.findBodyOffsetInStatement(ctx.stmtBytes, bodyText);
-    const bodyOffsetInFile = bodyOffsetInStripped !== -1
-      ? mapStrippedToOriginal(removals, ctx.stmtStart + bodyOffsetInStripped)
-      : mapStrippedToOriginal(removals, ctx.stmtStart);
+    const bodyOffsetInStripped = this.findBodyOffsetInStatement(ctx.stmtBytes, bodyText)
+    const bodyOffsetInFile =
+      bodyOffsetInStripped !== -1
+        ? mapStrippedToOriginal(removals, ctx.stmtStart + bodyOffsetInStripped)
+        : mapStrippedToOriginal(removals, ctx.stmtStart)
 
-    const diagnostics: SqlDiagnostic[] = checkRows.map(row =>
+    const diagnostics: SqlDiagnostic[] = checkRows.map((row) =>
       extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, bodyText, source),
-    );
+    )
 
     // Fill statement range for diagnostics without a precise range.
     for (const diag of diagnostics) {
@@ -932,11 +961,11 @@ export class SchemaBuilder {
         diag.range = {
           start: mapStrippedToOriginal(removals, ctx.stmtStart),
           end: mapStrippedToOriginal(removals, ctx.stmtEnd),
-        };
+        }
       }
     }
 
-    throw new StmtDiagnosticsError(diagnostics);
+    throw new StmtDiagnosticsError(diagnostics)
   }
 
   // -------------------------------------------------------------------------
@@ -965,103 +994,121 @@ export class SchemaBuilder {
     isTrigger: boolean,
   ): Promise<SqlDiagnostic[]> {
     // Resolve statement hash to current byte offsets.
-    const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash);
+    const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash)
     if (!resolved) {
       // This should never happen in a single apply→validate session: the
       // statementHash was computed from the same ParsedStatement array that
       // resolveStatement searches. If it fires, it's a bug in the pipeline
       // (e.g. MigrationFile was replaced between apply and validate, which
       // only happens when file-modified event handling is implemented).
-      return [{
-        message: `internal error: function provenance references a statement (hash ${prov.statementHash.slice(0, 12)}…) that does not exist in migration ${prov.migrationIndex}. This indicates a bug in the migration tracking pipeline.`,
-        code: undefined,
-        severity: "error" as const,
-        hint: undefined,
-        detail: undefined,
-        range: null,
-        original: { source: "internal" as const, error: new Error("unresolvable provenance") },
-      }];
+      return [
+        {
+          message: `internal error: function provenance references a statement (hash ${prov.statementHash.slice(0, 12)}…) that does not exist in migration ${prov.migrationIndex}. This indicates a bug in the migration tracking pipeline.`,
+          code: undefined,
+          severity: 'error' as const,
+          hint: undefined,
+          detail: undefined,
+          range: null,
+          original: { source: 'internal' as const, error: new Error('unresolvable provenance') },
+        },
+      ]
     }
-    const { file: migration, stmt } = resolved;
-    const { removals, source } = migration;
+    const { file: migration, stmt } = resolved
+    const { removals, source } = migration
 
     // Compute body offset within the statement.
-    let bodyOffset: number;
-    if (stmt.kind === "CreateFunctionStmt") {
-      bodyOffset = getBodyOffsetFromAst(stmt.stmt, stmt.bytes, stmt.stmtStart);
+    let bodyOffset: number
+    if (stmt.kind === 'CreateFunctionStmt') {
+      bodyOffset = getBodyOffsetFromAst(stmt.stmt, stmt.bytes, stmt.stmtStart)
       if (bodyOffset < 0) {
-        bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText);
+        bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText)
       }
-    } else if (stmt.kind === "DoStmt") {
-      bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText);
+    } else if (stmt.kind === 'DoStmt') {
+      bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText)
     } else {
-      bodyOffset = -1;
+      bodyOffset = -1
     }
 
     // For trigger functions, query pg_trigger for all trigger bindings.
-    let triggerBindings: { relation: string; newTable: string | null; oldTable: string | null; triggerOid: number }[] = [];
+    let triggerBindings: {
+      relation: string
+      newTable: string | null
+      oldTable: string | null
+      triggerOid: number
+    }[] = []
     if (isTrigger) {
       const trgRes = await pg.query<{
-        oid: number; relation: string; tgnewtable: string | null; tgoldtable: string | null;
-      }>(`
+        oid: number
+        relation: string
+        tgnewtable: string | null
+        tgoldtable: string | null
+      }>(
+        `
         SELECT t.oid, t.tgrelid::regclass::text AS relation,
                t.tgnewtable, t.tgoldtable
         FROM pg_trigger t
         WHERE t.tgfoid = $1 AND NOT t.tgisinternal;
-      `, [oid]);
-      triggerBindings = trgRes.rows.map(r => ({
+      `,
+        [oid],
+      )
+      triggerBindings = trgRes.rows.map((r) => ({
         relation: r.relation,
         newTable: r.tgnewtable,
         oldTable: r.tgoldtable,
         triggerOid: r.oid,
-      }));
-      if (triggerBindings.length === 0) return []; // orphan — can't validate
+      }))
+      if (triggerBindings.length === 0) return [] // orphan — can't validate
     }
 
-    const allDiagnostics: SqlDiagnostic[] = [];
+    const allDiagnostics: SqlDiagnostic[] = []
 
     const checkCalls = isTrigger
-      ? triggerBindings.map(b => ({
-          query: `SELECT * FROM public.plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}', '${b.relation.replace(/'/g, "''")}'${b.newTable ? `, newtable := '${b.newTable.replace(/'/g, "''")}'` : ""}${b.oldTable ? `, oldtable := '${b.oldTable.replace(/'/g, "''")}'` : ""});`,
+      ? triggerBindings.map((b) => ({
+          query: `SELECT * FROM public.plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}', '${b.relation.replace(/'/g, "''")}'${b.newTable ? `, newtable := '${b.newTable.replace(/'/g, "''")}'` : ''}${b.oldTable ? `, oldtable := '${b.oldTable.replace(/'/g, "''")}'` : ''});`,
           triggerOid: b.triggerOid,
         }))
-      : [{
-          query: `SELECT * FROM public.plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}');`,
-          triggerOid: null as number | null,
-        }];
+      : [
+          {
+            query: `SELECT * FROM public.plpgsql_check_function_tb('${prov.signature.replace(/'/g, "''")}');`,
+            triggerOid: null as number | null,
+          },
+        ]
 
     for (const { query, triggerOid } of checkCalls) {
-      let checkRows: PlpgsqlCheckRow[];
+      let checkRows: PlpgsqlCheckRow[]
       try {
-        const res = await pg.query<PlpgsqlCheckRow>(query);
-        checkRows = res.rows;
+        const res = await pg.query<PlpgsqlCheckRow>(query)
+        checkRows = res.rows
       } catch (err) {
         // plpgsql_check itself failed for this function/binding.
         // Emit a warning diagnostic so the user knows validation was skipped.
         // This is an engine-level warning, not a migration file diagnostic.
-        const errmsg = err instanceof Error ? err.message : String(err);
-        const stmtStartOriginal = mapStrippedToOriginal(migration.removals, stmt.stmtStart);
-        const stmtEndOriginal = mapStrippedToOriginal(migration.removals, stmt.stmtEnd);
+        const errmsg = err instanceof Error ? err.message : String(err)
+        const stmtStartOriginal = mapStrippedToOriginal(migration.removals, stmt.stmtStart)
+        const stmtEndOriginal = mapStrippedToOriginal(migration.removals, stmt.stmtEnd)
         allDiagnostics.push({
           message: `plpgsql_check failed: ${errmsg}`,
           code: undefined,
-          severity: "warning" as const,
+          severity: 'warning' as const,
           hint: undefined,
           detail: undefined,
           range: { start: stmtStartOriginal, end: stmtEndOriginal },
-          original: { source: "internal" as const, error: err instanceof Error ? err : new Error(String(err)) },
-        });
-        continue;
+          original: {
+            source: 'internal' as const,
+            error: err instanceof Error ? err : new Error(String(err)),
+          },
+        })
+        continue
       }
 
-      if (checkRows.length === 0) continue;
+      if (checkRows.length === 0) continue
 
-      const canMapPosition = bodyOffset >= 0;
+      const canMapPosition = bodyOffset >= 0
       const bodyOffsetInFile = canMapPosition
         ? mapStrippedToOriginal(removals, stmt.stmtStart + bodyOffset)
-        : -1;
+        : -1
 
-      const diagnostics: SqlDiagnostic[] = checkRows.map(row =>
+      const diagnostics: SqlDiagnostic[] = checkRows.map((row) =>
         canMapPosition
           ? extractPlpgsqlCheckDiagnostic(row, bodyOffsetInFile, prov.bodyText, source)
           : {
@@ -1071,38 +1118,40 @@ export class SchemaBuilder {
               hint: row.hint ?? undefined,
               detail: row.detail ?? undefined,
               range: null,
-              original: { source: "plpgsql-check" as const, row },
+              original: { source: 'plpgsql-check' as const, row },
             },
-      );
+      )
 
-      const stmtStartOriginal = mapStrippedToOriginal(removals, stmt.stmtStart);
-      const stmtEndOriginal = mapStrippedToOriginal(removals, stmt.stmtEnd);
+      const stmtStartOriginal = mapStrippedToOriginal(removals, stmt.stmtStart)
+      const stmtEndOriginal = mapStrippedToOriginal(removals, stmt.stmtEnd)
       for (const diag of diagnostics) {
         if (diag.range === null) {
-          diag.range = { start: stmtStartOriginal, end: stmtEndOriginal };
+          diag.range = { start: stmtStartOriginal, end: stmtEndOriginal }
         }
 
         if (triggerOid !== null) {
-          const trgProv = this.triggerProvenance.get(triggerOid);
+          const trgProv = this.triggerProvenance.get(triggerOid)
           if (trgProv) {
-            const trgResolved = this.resolveStatement(trgProv.migrationIndex, trgProv.statementHash);
+            const trgResolved = this.resolveStatement(trgProv.migrationIndex, trgProv.statementHash)
             if (trgResolved) {
-              const { file: trgFile, stmt: trgStmt } = trgResolved;
-              const trgStart = mapStrippedToOriginal(trgFile.removals, trgStmt.stmtStart);
-              const trgEnd = mapStrippedToOriginal(trgFile.removals, trgStmt.stmtEnd);
-              diag.relatedLocations = [{
-                range: { start: trgStart, end: trgEnd },
-                message: `trigger on table "${trgProv.relation}"`,
-              }];
+              const { file: trgFile, stmt: trgStmt } = trgResolved
+              const trgStart = mapStrippedToOriginal(trgFile.removals, trgStmt.stmtStart)
+              const trgEnd = mapStrippedToOriginal(trgFile.removals, trgStmt.stmtEnd)
+              diag.relatedLocations = [
+                {
+                  range: { start: trgStart, end: trgEnd },
+                  message: `trigger on table "${trgProv.relation}"`,
+                },
+              ]
             }
           }
         }
       }
 
-      allDiagnostics.push(...diagnostics);
+      allDiagnostics.push(...diagnostics)
     }
 
-    return allDiagnostics;
+    return allDiagnostics
   }
 
   /**
@@ -1129,58 +1178,57 @@ export class SchemaBuilder {
     prov: FunctionProvenance,
   ): Promise<SqlDiagnostic[]> {
     // Resolve statement hash to current byte offsets.
-    const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash);
+    const resolved = this.resolveStatement(prov.migrationIndex, prov.statementHash)
     if (!resolved) {
-      return [{
-        message: `internal error: function provenance references a statement (hash ${prov.statementHash.slice(0, 12)}…) that does not exist in migration ${prov.migrationIndex}. This indicates a bug in the migration tracking pipeline.`,
-        code: undefined,
-        severity: "error" as const,
-        hint: undefined,
-        detail: undefined,
-        range: null,
-        original: { source: "internal" as const, error: new Error("unresolvable provenance") },
-      }];
+      return [
+        {
+          message: `internal error: function provenance references a statement (hash ${prov.statementHash.slice(0, 12)}…) that does not exist in migration ${prov.migrationIndex}. This indicates a bug in the migration tracking pipeline.`,
+          code: undefined,
+          severity: 'error' as const,
+          hint: undefined,
+          detail: undefined,
+          range: null,
+          original: { source: 'internal' as const, error: new Error('unresolvable provenance') },
+        },
+      ]
     }
-    const { file: migration, stmt } = resolved;
-    const { removals, source } = migration;
+    const { file: migration, stmt } = resolved
+    const { removals, source } = migration
 
     // Compute body offset within the statement.
-    let bodyOffset: number;
-    if (stmt.kind === "CreateFunctionStmt") {
-      bodyOffset = getBodyOffsetFromAst(stmt.stmt, stmt.bytes, stmt.stmtStart);
+    let bodyOffset: number
+    if (stmt.kind === 'CreateFunctionStmt') {
+      bodyOffset = getBodyOffsetFromAst(stmt.stmt, stmt.bytes, stmt.stmtStart)
       if (bodyOffset < 0) {
-        bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText);
+        bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText)
       }
     } else {
-      bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText);
+      bodyOffset = this.findBodyOffsetInStatement(stmt.bytes, prov.bodyText)
     }
 
     // Get the function definition (re-runnable CREATE OR REPLACE).
-    const res = await pg.query<{ def: string }>(
-      `SELECT pg_get_functiondef($1) AS def;`,
-      [prov.oid],
-    );
-    const defText = res.rows[0]!.def;
+    const res = await pg.query<{ def: string }>(`SELECT pg_get_functiondef($1) AS def;`, [prov.oid])
+    const defText = res.rows[0]!.def
 
-    await pg.query("SAVEPOINT pgsid_sql_validate");
+    await pg.query('SAVEPOINT pgsid_sql_validate')
     try {
-      await pg.query("SET LOCAL check_function_bodies TO on");
-      await pg.exec(defText);
-      await pg.query("ROLLBACK TO SAVEPOINT pgsid_sql_validate");
-      await pg.query("SET LOCAL check_function_bodies TO off");
-      return [];
+      await pg.query('SET LOCAL check_function_bodies TO on')
+      await pg.exec(defText)
+      await pg.query('ROLLBACK TO SAVEPOINT pgsid_sql_validate')
+      await pg.query('SET LOCAL check_function_bodies TO off')
+      return []
     } catch (err) {
-      await pg.query("ROLLBACK TO SAVEPOINT pgsid_sql_validate");
-      await pg.query("SET LOCAL check_function_bodies TO off");
+      await pg.query('ROLLBACK TO SAVEPOINT pgsid_sql_validate')
+      await pg.query('SET LOCAL check_function_bodies TO off')
 
       const defBodyOffset = this.findBodyOffsetInStatement(
-        Buffer.from(defText, "utf8"), prov.bodyText,
-      );
+        Buffer.from(defText, 'utf8'),
+        prov.bodyText,
+      )
 
-      const pos1 = err instanceof DatabaseError && err.position
-        ? parseInt(err.position, 10) : NaN;
+      const pos1 = err instanceof DatabaseError && err.position ? parseInt(err.position, 10) : NaN
 
-      let diag: SqlDiagnostic;
+      let diag: SqlDiagnostic
 
       if (defBodyOffset >= 0 && !Number.isNaN(pos1) && pos1 > defBodyOffset && bodyOffset >= 0) {
         diag = extractExecDiagnostic(err, 0, {
@@ -1188,24 +1236,24 @@ export class SchemaBuilder {
           removals,
           mapStrippedToOriginal,
           source,
-        });
+        })
       } else {
         diag = extractExecDiagnostic(err, 0, {
           stmtStrippedOffset: 0,
           removals: [],
           mapStrippedToOriginal,
           source: undefined,
-        });
+        })
       }
 
       if (diag.range === null) {
         diag.range = {
           start: mapStrippedToOriginal(removals, stmt.stmtStart),
           end: mapStrippedToOriginal(removals, stmt.stmtEnd),
-        };
+        }
       }
 
-      return [diag];
+      return [diag]
     }
   }
 }

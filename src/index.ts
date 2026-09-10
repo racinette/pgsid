@@ -35,7 +35,7 @@ export {
   type DescribedShape,
   type GateOutcome,
   type GatedContract,
-} from "./contract-gate.js";
+} from './contract-gate.js'
 
 export {
   inferNullability,
@@ -46,7 +46,7 @@ export {
   type ParamNullability,
   type QueryContract,
   type WalkOptions,
-} from "./query/nullability-walk.js";
+} from './query/nullability-walk.js'
 
 export type {
   ColumnOrigin,
@@ -54,19 +54,19 @@ export type {
   OutputNullability,
   OutputPresenceGroup,
   ResolveColumnTypes,
-} from "./query/types.js";
+} from './query/types.js'
 
-export type { Evaluate, EvaluateRow } from "./query/subtree-evaluator.js";
+export type { Evaluate, EvaluateRow } from './query/subtree-evaluator.js'
 
 // --- Getting a catalog and a statement --------------------------------------
-export { buildNullabilityCatalog } from "./query/catalog-adapter.js";
-export { snapshotCatalog } from "./catalog/snapshot.js";
-export type { CatalogSnapshot } from "./catalog/types.js";
-export { parseSql } from "./ast.js";
+export { buildNullabilityCatalog } from './query/catalog-adapter.js'
+export { snapshotCatalog } from './catalog/snapshot.js'
+export type { CatalogSnapshot } from './catalog/types.js'
+export { parseSql } from './ast.js'
 
 // --- Building the schema a catalog is captured from -------------------------
-export { SchemaBuilder } from "./schema-builder.js";
+export { SchemaBuilder } from './schema-builder.js'
 
 // --- Configuration ----------------------------------------------------------
-export { ConfigError, findConfigPath, loadConfig, parseConfigString } from "./config/loader.js";
-export type { Config } from "./config/schema.js";
+export { ConfigError, findConfigPath, loadConfig, parseConfigString } from './config/loader.js'
+export type { Config } from './config/schema.js'
