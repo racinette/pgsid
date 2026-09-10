@@ -75,6 +75,9 @@ whether a file may be authored by hand are directory-local facts.
     ├─ rung-cooccurrence.json         the monotonic baseline for query-analysis
     │                                 interaction reach (required)
     │
+    ├─ rung-cooccurrence.ts           the shared query-rung interaction
+    │                                 measurement harness (required)
+    │
     ├─ rung-extractor.ts              the source-derived trace-decision
     │                                 inventory parser (required)
     │

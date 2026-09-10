@@ -40,13 +40,17 @@ async function sharedCodes(source: string) {
 
 describe('Espalier query-fixture rule', () => {
   it('accepts the complete governed query test tree', async () => {
-    await expect(
-      check({
-        cwd: process.cwd(),
-        config: 'tests/unit/query/espalier.config.yaml',
-        cache: false,
-      }),
-    ).resolves.toEqual([])
+    const issues = await check({
+      cwd: process.cwd(),
+      config: 'tests/unit/query/espalier.config.yaml',
+      cache: false,
+    })
+
+    expect(issues.filter((issue) => issue.severity !== 'info')).toEqual([])
+    expect(issues.map((issue) => issue.code)).toEqual([
+      'world_rung_reach',
+      'world_rung_reach_detail',
+    ])
   })
 
   it('accepts a fully declared grouped contract', async () => {
