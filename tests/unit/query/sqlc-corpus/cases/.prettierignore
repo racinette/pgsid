@@ -1,0 +1,7 @@
+# Pinned sqlc inputs and verdicts retain their upstream/generated form. The
+# pgsid-owned data.sql and adjudication.json files beside them remain in scope.
+**/schema.sql
+**/query.sql
+**/sqlc.json
+**/sqlc.yaml
+**/expected.json
