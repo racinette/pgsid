@@ -8,6 +8,8 @@ import * as fixtureRule from './espalier/worlds/[world]/[fixture].sql.mjs'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
 import * as healthRule from './espalier/worlds/[...world]/world-health.sql.mjs'
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
+import * as rungReachRule from './espalier/worlds/[...world]/rung-reach.sql.mjs'
+// @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
 import * as sharedFixtureRule from './espalier/fixtures/[fixture].sql.mjs'
 
 const PATH = 'worlds/example/contract.sql'
@@ -36,6 +38,22 @@ async function sharedCodes(source: string) {
     tree: { [path]: source },
   })
   return issues.map((issue) => issue.code)
+}
+
+function shippingCorpus(world = 'shipping') {
+  const directory = join(__dirname, 'worlds', 'shipping')
+  const sourcePaths = readdirSync(directory)
+    .filter((name) => name.endsWith('.sql'))
+    .sort()
+  const paths = sourcePaths.map((name) => `worlds/${world}/${name}`)
+  const tree = Object.fromEntries(
+    sourcePaths.map((name) => [
+      `worlds/${world}/${name}`,
+      readFileSync(join(directory, name), 'utf8'),
+    ]),
+  )
+  const matches = paths.map((path) => ({ path, captures: { world: [world] } }))
+  return { matches, paths, tree }
 }
 
 describe('Espalier query-fixture rule', () => {
@@ -187,18 +205,11 @@ describe('Espalier world-health aggregate', () => {
   })
 
   it('rejects a world whose schema loses its required shape', async () => {
-    const directory = join(__dirname, 'worlds', 'shipping')
-    const paths = readdirSync(directory)
-      .filter((name) => name.endsWith('.sql'))
-      .sort()
-      .map((name) => `worlds/shipping/${name}`)
-    const tree = Object.fromEntries(
-      paths.map((path) => [path, readFileSync(join(__dirname, path), 'utf8')]),
-    )
+    const { matches, tree } = shippingCorpus()
     tree['worlds/shipping/schema.sql'] = 'SELECT 1;\n'
 
     const issues = await runAggregate(healthRule, {
-      matches: paths.map((path) => ({ path, captures: { world: ['shipping'] } })),
+      matches,
       pattern: 'worlds/**/*.sql',
       at: 'worlds/',
       tree,
@@ -216,5 +227,50 @@ describe('Espalier world-health aggregate', () => {
         message: 'additivity: 2 → 0',
       }),
     )
+  })
+})
+
+describe('Espalier world rung-reach aggregate', () => {
+  it('rejects a world that does not reach its individual floors', async () => {
+    const { matches, paths, tree } = shippingCorpus()
+    for (const path of paths) {
+      if (!path.endsWith('/schema.sql') && !path.endsWith('/data.sql')) tree[path] = 'SELECT 1;\n'
+    }
+
+    const issues = await runAggregate(rungReachRule, {
+      matches,
+      pattern: 'worlds/**/*.sql',
+      at: 'worlds/',
+      tree,
+    })
+
+    expect(issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        'world_rung_reach_below_floor',
+        'world_pair_reach_below_floor',
+        'world_pair_diversity_below_floor',
+      ]),
+    )
+  })
+
+  it('rejects a new world that merely repeats existing pair reach', async () => {
+    const shipping = shippingCorpus()
+    const duplicate = shippingCorpus('shipping-copy')
+
+    const issues = await runAggregate(rungReachRule, {
+      matches: [...shipping.matches, ...duplicate.matches],
+      pattern: 'worlds/**/*.sql',
+      at: 'worlds/',
+      tree: { ...shipping.tree, ...duplicate.tree },
+    })
+
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: 'world_pair_diversity_below_floor',
+        message: '18 distinct rung pairs across 2 worlds; 22 required',
+      }),
+    )
+    expect(issues.map((issue) => issue.code)).not.toContain('world_rung_reach_below_floor')
+    expect(issues.map((issue) => issue.code)).not.toContain('world_pair_reach_below_floor')
   })
 })

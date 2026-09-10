@@ -9,11 +9,20 @@ export const aggregate = true
 export const targets = ['*/*.sql']
 export const unobservedImplementationDependencies = ['killable-evaluator.worker.mjs']
 
-export const rule = `Report how many query-analysis decision rungs and rung
-pairs each isolated world exercises, how much each adds beyond the shared
-corpus, and the averages across worlds. This is an advisory census until its
-measurements establish meaningful floors. Presence-group and joint-parameter
-mechanisms do not emit column-trace conclusions and are outside this census.`
+export const rule = `Require every isolated world to exercise at least nine
+query-analysis decision rungs and eighteen rung pairs. Across the worlds, the
+distinct pair union must contain at least eighteen pairs plus four for every
+world after the first. Presence-group and joint-parameter mechanisms do not
+emit column-trace conclusions and are outside this constraint.`
+
+// These are historical floors established by the first admitted world. Raise
+// them when the corpus improves; lower one only for a deliberate loss.
+const RATCHET = {
+  rungsPerWorld: 9,
+  pairsPerWorld: 18,
+  initialPairUnion: 18,
+  pairUnionGrowth: 4,
+}
 
 const difference = (left, right) => [...left].filter((value) => !right.has(value)).sort()
 
@@ -31,24 +40,19 @@ function worldInputs(matches) {
     .map(([name, paths]) => ({ name, paths: paths.sort() }))
 }
 
-function pairMetadata(pairs) {
-  return pairs.map((pair) => pairMembers(pair))
-}
-
 function plural(count, singular, pluralForm = `${singular}s`) {
   return count === 1 ? singular : pluralForm
 }
 
-export async function lint({ matches, files, read, emit }) {
+export async function lint({ matches, read, emit }) {
   const measured = await measureRungReach({
     read,
-    sharedPaths: await files('fixtures/*.sql'),
     worlds: worldInputs(matches),
   })
   const worlds = combineRungSources('worlds', measured.worlds)
   const worldCount = measured.worlds.length
-  const marginalRungs = difference(worlds.rungs, measured.shared.rungs)
-  const marginalPairs = difference(worlds.pairs, measured.shared.pairs)
+  const pairUnionFloor =
+    worldCount === 0 ? 0 : RATCHET.initialPairUnion + RATCHET.pairUnionGrowth * (worldCount - 1)
   const averageRungs =
     worldCount === 0
       ? 0
@@ -66,15 +70,9 @@ export async function lint({ matches, files, read, emit }) {
       `${worlds.rungs.size} rungs and ` +
       `${worlds.pairs.size} pairs over ${worlds.statements} statements; averages are ` +
       `${averageRungs.toFixed(2)} rungs and ${averagePairs.toFixed(2)} pairs per world. ` +
-      `Their union adds ${marginalRungs.length} rungs and ${marginalPairs.length} pairs beyond ` +
-      `the shared corpus (${measured.shared.rungs.size} rungs, ${measured.shared.pairs.size} pairs).`,
+      `The distinct pair-union floor is ${pairUnionFloor}.`,
     metadata: {
       sourceRungs: measured.patterns.length,
-      shared: {
-        statements: measured.shared.statements,
-        rungs: measured.shared.rungs.size,
-        pairs: measured.shared.pairs.size,
-      },
       worlds: {
         count: worldCount,
         statements: worlds.statements,
@@ -82,25 +80,45 @@ export async function lint({ matches, files, read, emit }) {
         pairs: worlds.pairs.size,
         averageRungs,
         averagePairs,
-        marginalRungs,
-        marginalPairs: pairMetadata(marginalPairs),
+        pairUnionFloor,
       },
     },
   })
+
+  if (worlds.pairs.size < pairUnionFloor) {
+    emit({
+      code: 'world_pair_diversity_below_floor',
+      message:
+        `${worlds.pairs.size} distinct rung pairs across ${worldCount} ` +
+        `${plural(worldCount, 'world')}; ${pairUnionFloor} required`,
+    })
+  }
 
   for (const world of measured.worlds) {
     const otherWorlds = combineRungSources(
       'other worlds',
       measured.worlds.filter((candidate) => candidate !== world),
     )
-    const alreadyReached = new Set([...measured.shared.pairs, ...otherWorlds.pairs])
-    const newRungs = difference(world.rungs, measured.shared.rungs)
-    const newPairs = difference(world.pairs, measured.shared.pairs)
-    const exclusivePairs = difference(world.pairs, alreadyReached)
-    const preview = newPairs
+    const exclusivePairs = difference(world.pairs, otherWorlds.pairs)
+    const preview = exclusivePairs
       .slice(0, 6)
       .map((pair) => pairMembers(pair).join(' + '))
       .join('; ')
+
+    if (world.rungs.size < RATCHET.rungsPerWorld) {
+      emit({
+        code: 'world_rung_reach_below_floor',
+        path: `worlds/${world.label}/schema.sql`,
+        message: `${world.label}: ${world.rungs.size} rungs; ${RATCHET.rungsPerWorld} required`,
+      })
+    }
+    if (world.pairs.size < RATCHET.pairsPerWorld) {
+      emit({
+        code: 'world_pair_reach_below_floor',
+        path: `worlds/${world.label}/schema.sql`,
+        message: `${world.label}: ${world.pairs.size} rung pairs; ${RATCHET.pairsPerWorld} required`,
+      })
+    }
 
     emit({
       code: 'world_rung_reach_detail',
@@ -108,16 +126,13 @@ export async function lint({ matches, files, read, emit }) {
       path: `worlds/${world.label}/schema.sql`,
       message:
         `${world.label}: ${world.statements} statements exercise ${world.rungs.size} rungs and ` +
-        `${world.pairs.size} pairs; ${newRungs.length} rungs and ${newPairs.length} pairs are ` +
-        `absent from the shared corpus, and ${exclusivePairs.length} pairs are exclusive to this ` +
-        `world${preview === '' ? '.' : `. New-pair sample: ${preview}.`}`,
+        `${world.pairs.size} pairs; ${exclusivePairs.length} pairs are exclusive to this world` +
+        `${preview === '' ? '.' : `. Exclusive-pair sample: ${preview}.`}`,
       metadata: {
         statements: world.statements,
         rungs: world.rungs.size,
         pairs: world.pairs.size,
-        marginalRungs: newRungs,
-        marginalPairs: pairMetadata(newPairs),
-        exclusivePairs: pairMetadata(exclusivePairs),
+        exclusivePairs: exclusivePairs.map((pair) => pairMembers(pair)),
       },
     })
   }
