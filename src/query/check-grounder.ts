@@ -415,6 +415,73 @@ function guardTruth(
   return undefined
 }
 
+/** A string literal through casts, or null when the node is not one. */
+function stringLiteral(n: Node | undefined): string | null {
+  if (!n) return null
+  const tag = nodeTag(n)
+  if (tag === 'TypeCast') {
+    return stringLiteral(((n as Fields)['TypeCast'] as { arg?: Node }).arg)
+  }
+  if (tag !== 'A_Const') return null
+  return ((n as Fields)['A_Const'] as { sval?: { sval?: string } }).sval?.sval ?? null
+}
+
+/** A pg_catalog call, excluding any user-catalog candidate with the name. */
+function builtinArgs(
+  n: Node | undefined,
+  names: ReadonlySet<string>,
+  catalog: NullabilityCatalog,
+): Node[] | null {
+  if (!n || nodeTag(n) !== 'FuncCall') return null
+  const call = (n as Fields)['FuncCall'] as { funcname?: Node[]; args?: Node[] }
+  const parts = (call.funcname ?? []).map(
+    (part) => ((part as Fields)['String'] as { sval?: string } | undefined)?.sval ?? '',
+  )
+  const name = parts[parts.length - 1]
+  const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
+  if (!name || !names.has(name) || (schema !== undefined && schema !== 'pg_catalog')) return null
+  if (catalog.resolveFunctionMetadata(schema, name)) return null
+  if (
+    (catalog.resolveFunctionCandidates(schema, name, (call.args ?? []).length) ?? []).length > 0
+  ) {
+    return null
+  }
+  return call.args ?? []
+}
+
+/**
+ * Parameter sets whose joint NULL binding forces a text expression to the
+ * empty string. This is deliberately the small pg_catalog closure needed by
+ * constructed labels: trim preserves empty, while concat_ws produces empty
+ * exactly when its non-separator inputs are all NULL or empty.
+ */
+function emptyStringImplicants(n: Node | undefined, catalog: NullabilityCatalog): Implicants {
+  if (!n) return []
+  if (stringLiteral(n) === '') return [[]]
+  const tag = nodeTag(n)
+  if (tag === 'TypeCast') {
+    const cast = (n as Fields)['TypeCast'] as { arg?: Node; typeName?: { names?: Node[] } }
+    const names = (cast.typeName?.names ?? []).map(
+      (part) => ((part as Fields)['String'] as { sval?: string } | undefined)?.sval ?? '',
+    )
+    const target = names[names.length - 1]
+    return target === 'text' || target === 'varchar' ? emptyStringImplicants(cast.arg, catalog) : []
+  }
+
+  const trimArgs = builtinArgs(n, new Set(['btrim', 'ltrim', 'rtrim']), catalog)
+  if (trimArgs?.[0]) return emptyStringImplicants(trimArgs[0], catalog)
+
+  const concatArgs = builtinArgs(n, new Set(['concat_ws']), catalog)
+  if (!concatArgs || concatArgs.length === 0 || stringLiteral(concatArgs[0]) === null) return []
+  return crossUnion(
+    concatArgs
+      .slice(1)
+      .map((arg) =>
+        unionLists([forcedNullImplicantsAnyRow(arg, catalog), emptyStringImplicants(arg, catalog)]),
+      ),
+  )
+}
+
 /** Implicants of "this grounded boolean is FALSE" — the rejection
  *  condition. CHECK passes TRUE and UNKNOWN alike, so only shapes that
  *  convert a NULL binding to FALSE contribute; each recursion step
@@ -489,6 +556,27 @@ function falseImplicants(
     // IS NULL goes FALSE on a NON-null value; a NULL binding cannot force
     // one, and a closed argument was answered at the parent already.
     return []
+  }
+  if (tag === 'A_Expr') {
+    const f = (n as Fields)['A_Expr'] as {
+      kind?: string
+      name?: Node[]
+      lexpr?: Node
+      rexpr?: Node
+    }
+    const parts = (f.name ?? []).map(
+      (part) => ((part as Fields)['String'] as { sval?: string } | undefined)?.sval ?? '',
+    )
+    const op = parts[parts.length - 1]
+    const schema = parts.length >= 2 ? parts[parts.length - 2] : undefined
+    if (
+      (f.kind === undefined || f.kind === 'AEXPR_OP') &&
+      (op === '<>' || op === '!=') &&
+      (schema === undefined || schema === 'pg_catalog')
+    ) {
+      if (stringLiteral(f.rexpr) === '') return emptyStringImplicants(f.lexpr, catalog)
+      if (stringLiteral(f.lexpr) === '') return emptyStringImplicants(f.rexpr, catalog)
+    }
   }
   // Comparison atoms, surviving columns, anything unrecognised: a NULL
   // binding makes them UNKNOWN at worst, which CHECK passes.
