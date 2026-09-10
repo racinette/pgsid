@@ -1,0 +1,2 @@
+# Formatter policy is configuration, not part of the borrowed case layout.
+.prettierignore

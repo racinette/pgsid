@@ -69,6 +69,8 @@ These paths are part of the repository but serve specific purposes outside the p
 
 | Paths | Purpose |
 | --- | --- |
+| `.prettierignore` | Formatter policy is configuration, not part of the borrowed case layout. |
+| `.espalierignore` | Sources used to generate and check this repository guidance. |
 | `AGENTS.md` | Generated repository guidance; edits here will be overwritten. Modify [`ESPALIER.MD`](../../espalier/sqlc-corpus/cases/ESPALIER.MD) to change this document's persistent guidance. |
 
 Every path under sqlc-corpus/cases/ must fit the project layout or a documented
