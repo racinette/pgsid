@@ -2,7 +2,7 @@ import { parse } from 'libpg-query'
 
 export const description = 'a hand-authored query with an independently stated contract'
 
-export const example = 'worlds/shipping/legs-outer.sql'
+export const example = 'worlds/001_shipping/legs-outer.sql'
 
 export const rule = `Contain exactly one SQL statement and state all four
 nullable contract channels for it:

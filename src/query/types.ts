@@ -536,11 +536,12 @@ export interface NullabilityCatalog {
 
   /**
    * Whether unequal literal TOKENS provably denote unequal VALUES for
-   * comparisons against `schema.table.column` — the collation-gated
-   * relaxation of the distinctness ban. True only for builtin text-family
-   * columns (by OID whitelist; citext's case-folding lives in its operator
-   * and never qualifies) whose collation the snapshot proved deterministic.
-   * Numerics never qualify: 75 and 75.0 are distinct tokens, equal values.
+   * comparisons against `schema.table.column` — the catalog-gated
+   * relaxation of the distinctness ban. True for enum columns, whose labels
+   * are unique and non-collatable, and for builtin text-family columns whose
+   * collation the snapshot proved deterministic. Citext and bpchar do not
+   * qualify; numerics do not either, because 75 and 75.0 are distinct tokens
+   * for one value.
    */
   resolveLiteralDistinctnessSound(schema: string, table: string, column: string): boolean
 

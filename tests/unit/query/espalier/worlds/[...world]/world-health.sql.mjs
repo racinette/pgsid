@@ -9,7 +9,8 @@ export const rule = `Keep the isolated-world corpus structurally healthy as a
 whole. Each world must meet the table, constraint, key, and live-schema floors;
 the complete corpus must keep its query-shape proportions and composition
 ratchets, with one surplus composition unit per additional world. Report every
-current measure even when the corpus passes. These are collective constraints:
+current measure even when the corpus passes. Each later world must itself add
+one composition unit beyond its predecessors. These are collective constraints:
 no individual fixture is required to carry every shape.`
 
 // This fixed baseline makes corpus growth a function of world count. The
@@ -25,7 +26,13 @@ const COMPOSITION_BASELINE = {
 // These are historical floors, not observations recomputed from the engine.
 // Raise them when the corpus improves. Lower one only when the corresponding
 // loss is deliberate and explained in the commit that changes this rule.
-const RATCHET = { ...COMPOSITION_BASELINE }
+const RATCHET = {
+  additivity: 8,
+  chaining: 12,
+  generatedOverConstrained: 2,
+  joinChains: 5,
+  maxJoinDepth: 3,
+}
 
 const COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD = 1
 
@@ -253,14 +260,18 @@ function emptyStats(name, schemaPath) {
     parametrized: 0,
     paramTotal: 0,
     dmlKinds: new Map(),
+    joinChains: new Set(),
+    maxJoinDepth: 0,
     violations: [],
   }
 }
 
-async function measureWorld(name, paths, read, chains, depth) {
+async function measureWorld(name, paths, read) {
   const schemaPath = paths.find((path) => path.endsWith('/schema.sql'))
   const stats = emptyStats(name, schemaPath ?? `worlds/${name}/`)
   const violation = (message, path = stats.schemaPath) => stats.violations.push({ path, message })
+  const chains = new Set()
+  const depth = { max: 0 }
 
   if (schemaPath === undefined) {
     violation('has no schema.sql — a world owns its schema')
@@ -441,6 +452,8 @@ async function measureWorld(name, paths, read, chains, depth) {
       parametrized,
       paramTotal,
       dmlKinds,
+      joinChains: chains,
+      maxJoinDepth: depth.max,
     }
   } finally {
     if (!pg.closed) await pg.close()
@@ -556,6 +569,25 @@ function compositionSurplus(current) {
   )
 }
 
+function compositionFor(worlds) {
+  const chains = new Set(worlds.flatMap((world) => [...world.joinChains]))
+  const sum = (pick) => worlds.reduce((total, world) => total + pick(world), 0)
+  return {
+    additivity: sum((world) => world.additivity),
+    chaining: sum((world) => world.chaining),
+    generatedOverConstrained: sum((world) => world.generatedOverConstrained),
+    joinChains: chains.size,
+    maxJoinDepth: worlds.reduce((maximum, world) => Math.max(maximum, world.maxJoinDepth), 0),
+  }
+}
+
+function compositionGain(current, predecessor) {
+  return Object.keys(COMPOSITION_BASELINE).reduce(
+    (total, name) => total + Math.max(0, current[name] - predecessor[name]),
+    0,
+  )
+}
+
 export async function inspectWorlds(matches, read) {
   const pathsByWorld = new Map()
   for (const { path } of matches) {
@@ -566,27 +598,19 @@ export async function inspectWorlds(matches, read) {
     pathsByWorld.set(parts[1], paths)
   }
 
-  const chains = new Set()
-  const depth = { max: 0 }
   const worlds = []
   for (const [name, paths] of [...pathsByWorld].sort(([left], [right]) =>
     left.localeCompare(right),
   )) {
-    worlds.push(await measureWorld(name, paths.sort(), read, chains, depth))
+    worlds.push(await measureWorld(name, paths.sort(), read))
   }
 
-  const sum = (pick) => worlds.reduce((total, world) => total + pick(world), 0)
+  const chains = new Set(worlds.flatMap((world) => [...world.joinChains]))
   return {
     worlds,
     ratios: ratiosFor(worlds),
     chains,
-    current: {
-      additivity: sum((world) => world.additivity),
-      chaining: sum((world) => world.chaining),
-      generatedOverConstrained: sum((world) => world.generatedOverConstrained),
-      joinChains: chains.size,
-      maxJoinDepth: depth.max,
-    },
+    current: compositionFor(worlds),
   }
 }
 
@@ -611,6 +635,11 @@ export async function lint({ matches, read, emit }) {
   const surplus = compositionSurplus(measured.current)
   const requiredSurplus =
     COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD * Math.max(0, measured.worlds.length - 1)
+  const marginalComposition = measured.worlds.map((_world, index) => {
+    const predecessor = compositionFor(measured.worlds.slice(0, index))
+    const current = compositionFor(measured.worlds.slice(0, index + 1))
+    return compositionGain(current, predecessor)
+  })
 
   emit({
     code: 'world_health',
@@ -655,7 +684,7 @@ export async function lint({ matches, read, emit }) {
     },
   })
 
-  for (const world of measured.worlds) {
+  for (const [index, world] of measured.worlds.entries()) {
     emit({
       code: 'world_health_detail',
       severity: 'info',
@@ -669,7 +698,8 @@ export async function lint({ matches, read, emit }) {
         `(${world.fkNotNull} NOT NULL); ${world.statements} statements, ${world.modifying} ` +
         `modifying, ${world.parametrized} parametrized with ${world.paramTotal} live parameters; ` +
         `additivity=${world.additivity}, chaining=${world.chaining}, ` +
-        `generatedOverConstrained=${world.generatedOverConstrained}.`,
+        `generatedOverConstrained=${world.generatedOverConstrained}, ` +
+        `marginalComposition=${marginalComposition[index]}.`,
       metadata: {
         tables: world.tables,
         nonKeyColumns: world.nonKeyCols,
@@ -690,8 +720,21 @@ export async function lint({ matches, read, emit }) {
         additivity: world.additivity,
         chaining: world.chaining,
         generatedOverConstrained: world.generatedOverConstrained,
+        joinChains: [...world.joinChains],
+        maxJoinDepth: world.maxJoinDepth,
+        marginalComposition: marginalComposition[index],
       },
     })
+
+    if (index > 0 && marginalComposition[index] < COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD) {
+      emit({
+        code: 'world_composition_marginal_below_floor',
+        path: world.schemaPath,
+        message:
+          `${world.name}: adds ${marginalComposition[index]} composition units beyond its ` +
+          `predecessors; ${COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD} required`,
+      })
+    }
 
     for (const { path, message } of world.violations) {
       emit({

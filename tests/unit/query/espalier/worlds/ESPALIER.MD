@@ -25,6 +25,26 @@ the schema that hundreds of fixtures depend on would be a large, risky change
 to a suite that has already earned its keep. Exclude it from every count;
 do not "fix" it.
 
+### Purpose: expose the engine boundary
+
+An isolated world is an adversarial experiment over a readable domain. Its
+purpose is to stretch the nullability walk until PostgreSQL and the inferred
+contract diverge, then preserve that divergence for review. A focused red
+contract with a PostgreSQL witness is a successful discovery, not an authoring
+failure that must be made green.
+
+Derive the contract before running the engine. When PostgreSQL confirms a
+declaration that the engine misses, keep the query, schema, witness data, and
+declaration semantically intact. Do not add an explicit null predicate,
+simplify an expression, change a type or join, or weaken an annotation merely
+to make the engine agree. Report the smallest failing fixture, both contracts,
+the PostgreSQL witness, and the suspected inference boundary; then wait for a
+decision to fix the engine, accept the red fixture, or change the experiment.
+
+Structural and ratio findings still describe the world and should be fixed.
+They never override a PostgreSQL-adjudicated contract. A world need not make
+the full suite green before it has produced a useful result.
+
 ### 0. The checker, and when to run it
 
 The structural and composition rules through "No dead schema" are enforced by
@@ -77,11 +97,11 @@ pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \
   --rule 'worlds/[...world]/rung-reach.sql.mjs' --no-cache
 ```
 
-Every world must exercise at least nine rungs and eighteen pairs. The distinct
-pair union across this directory must hold eighteen pairs for the first world
-and grow by four for every additional world. Repeating an existing world's
-engine paths therefore cannot admit another world merely by satisfying the
-schema-health rules.
+Every world must exercise at least nine rungs and eighteen pairs. The first
+world establishes the pair union; each later world must add at least four pairs
+absent from all its predecessors. The corpus-wide union ratchet remains a
+backstop. Repeating existing engine paths therefore cannot admit another world
+merely by satisfying the schema-health rules or by banking earlier surplus.
 
 The shared fixture corpus is excluded completely. It is frozen input and does
 not participate in either the measurement or its ratchets.
@@ -97,6 +117,11 @@ pnpm exec vitest run tests/unit/query/worlds-contract.test.ts
 ```
 
 ### 1. A world is a directory
+
+Directory names are `NNN_name`, with a unique three-digit ordinal contiguous
+from `001`. The ordinal is admission order: it makes every later world's
+marginal contribution stable without a hand-maintained ordering list. Naming
+is enforced by the aggregate because Espalier has no general filename grammar.
 
 One directory holds a schema, the data that populates it, and the fixtures
 that ask questions of it. Everything needed to understand a fixture is in one
@@ -208,11 +233,11 @@ failure names the change rather than blaming whoever came last.
   the ORDERED sequence of join types from outermost inward, because an outer
   join under an inner one is a different question from the reverse.
 
-The first world establishes the composition baseline. The corpus must carry at
-least one surplus composition unit for every additional world; one unit is one
-step above an established ratchet in any of these measures. A world that
-satisfies every shape rule and is then queried with flat SELECTs cannot grow
-the collection without improving the corpus somewhere.
+The first world establishes the composition baseline. Each later world must
+add at least one composition unit beyond the union and sums of its predecessors;
+one unit is one positive step in any measure above. The corpus-wide surplus
+ratchet remains a backstop. A world queried only with shapes already present
+cannot enter by banking an earlier world's composition gains.
 
 ### 7. Data is written by hand, beside the world
 
