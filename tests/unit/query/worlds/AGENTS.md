@@ -27,19 +27,19 @@ do not "fix" it.
 
 ### Purpose: expose the engine boundary
 
-An isolated world is an adversarial experiment over a readable domain. Its
-purpose is to stretch the nullability walk until PostgreSQL and the inferred
-contract diverge, then preserve that divergence for review. A focused red
-contract with a PostgreSQL witness is a successful discovery, not an authoring
-failure that must be made green.
+An isolated world attacks the nullability walk until PostgreSQL and its inferred
+contract diverge. A red contract backed by a database counterexample or semantic
+proof is a discovery, not a failure to make green.
 
-Derive the contract before running the engine. When PostgreSQL confirms a
-declaration that the engine misses, keep the query, schema, witness data, and
-declaration semantically intact. Do not add an explicit null predicate,
-simplify an expression, change a type or join, or weaken an annotation merely
-to make the engine agree. Report the smallest failing fixture, both contracts,
-the PostgreSQL witness, and the suspected inference boundary; then wait for a
-decision to fix the engine, accept the red fixture, or change the experiment.
+Derive the contract before running the engine. Adjudication is directional: a
+stronger engine claim needs a PostgreSQL counterexample, while a conservative
+engine claim needs a semantic proof from the schema and query. Finite non-NULL
+results do not prove a universal not-null claim. When evidence supports the
+declaration, preserve the query, schema, data, and declaration. Do not add a
+null predicate, simplify an expression, change a type or join, or weaken an
+annotation merely to make the engine agree. Report the smallest failing fixture,
+both contracts, evidence, and suspected boundary; then wait for a decision to
+fix the engine, accept the red fixture, or change the experiment.
 
 Structural and ratio findings still describe the world and should be fixed.
 They never override a PostgreSQL-adjudicated contract. A world need not make
