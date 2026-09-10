@@ -94,8 +94,10 @@ for (const world of worldDirs()) {
       it(basename(file, '.sql'), async () => {
         const sql = readFileSync(join(dir, file), 'utf8')
         const directives = parseFixtureDirectives(sql)
-        const stmt = (await parseSql(sql)).stmts?.[0]?.stmt
-        expect(stmt, 'fixture must contain one statement').toBeDefined()
+        const parsed = await parseSql(sql)
+        expect(parsed.stmts, 'fixture must contain exactly one statement').toHaveLength(1)
+        const stmt = parsed.stmts?.[0]?.stmt
+        expect(stmt, 'the fixture statement must parse').toBeDefined()
 
         const catalog = await catalogFor(directives.searchPath)
         await evaluator.setSearchPath(directives.searchPath)

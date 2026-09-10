@@ -8,19 +8,26 @@ export const targets = ['*/*.sql']
 export const rule = `Keep the isolated-world corpus structurally healthy as a
 whole. Each world must meet the table, constraint, key, and live-schema floors;
 the complete corpus must keep its query-shape proportions and composition
-ratchets. These are collective constraints: no individual fixture is required
-to carry every shape.`
+ratchets, with one surplus composition unit per additional world. Report every
+current measure even when the corpus passes. These are collective constraints:
+no individual fixture is required to carry every shape.`
 
-// These are historical floors, not observations recomputed from the engine.
-// Raise them when the corpus improves. Lower one only when the corresponding
-// loss is deliberate and explained in the commit that changes this rule.
-const RATCHET = {
+// This fixed baseline makes corpus growth a function of world count. The
+// monotonic floors below move when the corpus improves; this baseline does not.
+const COMPOSITION_BASELINE = {
   additivity: 2,
   chaining: 2,
   generatedOverConstrained: 1,
   joinChains: 3,
   maxJoinDepth: 3,
 }
+
+// These are historical floors, not observations recomputed from the engine.
+// Raise them when the corpus improves. Lower one only when the corresponding
+// loss is deliberate and explained in the commit that changes this rule.
+const RATCHET = { ...COMPOSITION_BASELINE }
+
+const COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD = 1
 
 const MODIFYING = new Set(['InsertStmt', 'UpdateStmt', 'DeleteStmt', 'MergeStmt'])
 
@@ -449,6 +456,7 @@ function ratiosFor(worlds) {
   const kind = (name) => sum((world) => world.dmlKinds.get(name) ?? 0)
   return [
     {
+      key: 'modifying',
       label: 'statements that modify (root or in a CTE)',
       n: modifying,
       d: statements,
@@ -456,6 +464,7 @@ function ratiosFor(worlds) {
       floor: 0.2,
     },
     {
+      key: 'parameters',
       label: 'statements with a qualifying parameter',
       n: sum((world) => world.parametrized),
       d: statements,
@@ -464,6 +473,7 @@ function ratiosFor(worlds) {
       ceiling: 0.7,
     },
     {
+      key: 'INSERT',
       label: 'modifying statements that INSERT',
       n: kind('InsertStmt'),
       d: modifying,
@@ -471,6 +481,7 @@ function ratiosFor(worlds) {
       floor: 0.2,
     },
     {
+      key: 'UPDATE',
       label: 'modifying statements that UPDATE',
       n: kind('UpdateStmt'),
       d: modifying,
@@ -478,6 +489,7 @@ function ratiosFor(worlds) {
       floor: 0.2,
     },
     {
+      key: 'MERGE',
       label: 'modifying statements that MERGE',
       n: kind('MergeStmt'),
       d: modifying,
@@ -485,6 +497,7 @@ function ratiosFor(worlds) {
       floor: 0.2,
     },
     {
+      key: 'DELETE',
       label: 'modifying statements that DELETE',
       n: kind('DeleteStmt'),
       d: modifying,
@@ -492,6 +505,7 @@ function ratiosFor(worlds) {
       floor: 0.05,
     },
     {
+      key: 'CHECK-null-test',
       label: 'CHECKs carrying a null test',
       n: sum((world) => world.checkNullTest),
       d: checks,
@@ -499,6 +513,7 @@ function ratiosFor(worlds) {
       floor: 0.5,
     },
     {
+      key: 'CHECK-literal-NULL',
       label: 'CHECKs carrying a literal NULL',
       n: sum((world) => world.checkNullLiteral),
       d: checks,
@@ -506,6 +521,7 @@ function ratiosFor(worlds) {
       floor: 0.1,
     },
     {
+      key: 'generated-literal-NULL',
       label: 'generation expressions carrying a literal NULL',
       n: sum((world) => world.generatedNullLiteral),
       d: generated,
@@ -521,6 +537,23 @@ function bindsAt(floor) {
 
 function percent(value) {
   return `${(100 * value).toFixed(0)}%`
+}
+
+function ratioReport(ratio) {
+  const share = ratio.d === 0 ? 'n/a' : percent(ratio.n / ratio.d)
+  const bounds =
+    ratio.ceiling === undefined
+      ? `floor ${percent(ratio.floor)}`
+      : `band ${percent(ratio.floor)}–${percent(ratio.ceiling)}`
+  const status = ratio.d < bindsAt(ratio.floor) ? `dormant until ${bindsAt(ratio.floor)}` : bounds
+  return `${ratio.key} ${ratio.n}/${ratio.d}=${share} (${status})`
+}
+
+function compositionSurplus(current) {
+  return Object.entries(COMPOSITION_BASELINE).reduce(
+    (total, [name, baseline]) => total + Math.max(0, current[name] - baseline),
+    0,
+  )
 }
 
 export async function inspectWorlds(matches, read) {
@@ -568,7 +601,98 @@ export async function lint({ matches, read, emit }) {
     return
   }
 
+  const total = (pick) => measured.worlds.reduce((sum, world) => sum + pick(world), 0)
+  const parametrized = total((world) => world.parametrized)
+  const parameterTotal = total((world) => world.paramTotal)
+  const parameterAverage = parametrized === 0 ? 0 : parameterTotal / parametrized
+  const tables = total((world) => world.tables)
+  const generated = total((world) => world.generated)
+  const requiredGenerated = Math.floor(tables / 5)
+  const surplus = compositionSurplus(measured.current)
+  const requiredSurplus =
+    COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD * Math.max(0, measured.worlds.length - 1)
+
+  emit({
+    code: 'world_health',
+    severity: 'info',
+    message:
+      `${measured.worlds.length} ${measured.worlds.length === 1 ? 'world' : 'worlds'}, ` +
+      `${tables} tables, ${total((world) => world.statements)} statements. ` +
+      `Parameters average ${parameterAverage.toFixed(2)} over ${parametrized} parametrized ` +
+      `statements. Generated columns: ${generated}/${tables} tables, ${requiredGenerated} ` +
+      `required.`,
+    metadata: {
+      worlds: measured.worlds.length,
+      tables,
+      statements: total((world) => world.statements),
+      parameterAverage,
+      parametrized,
+      parameterTotal,
+      generated,
+      requiredGenerated,
+    },
+  })
+
+  emit({
+    code: 'world_health_ratios',
+    severity: 'info',
+    message: measured.ratios.map(ratioReport).join('; '),
+    metadata: { ratios: measured.ratios },
+  })
+
+  emit({
+    code: 'world_health_composition',
+    severity: 'info',
+    message: `${Object.entries(measured.current)
+      .map(([name, value]) => `${name}=${value} (floor ${RATCHET[name]})`)
+      .join(', ')}; growth surplus ${surplus}/${requiredSurplus} required.`,
+    metadata: {
+      composition: measured.current,
+      compositionBaseline: COMPOSITION_BASELINE,
+      compositionFloors: RATCHET,
+      compositionSurplus: surplus,
+      requiredCompositionSurplus: requiredSurplus,
+    },
+  })
+
   for (const world of measured.worlds) {
+    emit({
+      code: 'world_health_detail',
+      severity: 'info',
+      path: world.schemaPath,
+      message:
+        `${world.name}: ${world.tables} tables, ${world.nonKeyCols} non-key columns ` +
+        `(${world.nonKeyNotNull} NOT NULL), ${world.checks} CHECKs over ` +
+        `${world.checkArityTotal} column references (${world.checkNullTest} with null tests, ` +
+        `${world.checkNullLiteral} with literal NULL), ${world.generated} generated columns ` +
+        `(${world.generatedNullLiteral} with literal NULL), ${world.fks} foreign keys ` +
+        `(${world.fkNotNull} NOT NULL); ${world.statements} statements, ${world.modifying} ` +
+        `modifying, ${world.parametrized} parametrized with ${world.paramTotal} live parameters; ` +
+        `additivity=${world.additivity}, chaining=${world.chaining}, ` +
+        `generatedOverConstrained=${world.generatedOverConstrained}.`,
+      metadata: {
+        tables: world.tables,
+        nonKeyColumns: world.nonKeyCols,
+        nonKeyNotNull: world.nonKeyNotNull,
+        checks: world.checks,
+        checkArityTotal: world.checkArityTotal,
+        checkNullTest: world.checkNullTest,
+        checkNullLiteral: world.checkNullLiteral,
+        generated: world.generated,
+        generatedNullLiteral: world.generatedNullLiteral,
+        foreignKeys: world.fks,
+        foreignKeysNotNull: world.fkNotNull,
+        statements: world.statements,
+        modifying: world.modifying,
+        parametrized: world.parametrized,
+        parameterTotal: world.paramTotal,
+        dmlKinds: Object.fromEntries(world.dmlKinds),
+        additivity: world.additivity,
+        chaining: world.chaining,
+        generatedOverConstrained: world.generatedOverConstrained,
+      },
+    })
+
     for (const { path, message } of world.violations) {
       emit({
         code: 'world_health_violation',
@@ -594,9 +718,7 @@ export async function lint({ matches, read, emit }) {
     }
   }
 
-  const parametrized = measured.worlds.reduce((total, world) => total + world.parametrized, 0)
   if (parametrized >= 2) {
-    const parameterTotal = measured.worlds.reduce((total, world) => total + world.paramTotal, 0)
     const average = parameterTotal / parametrized
     if (average < 1.5) {
       emit({
@@ -608,9 +730,6 @@ export async function lint({ matches, read, emit }) {
     }
   }
 
-  const tables = measured.worlds.reduce((total, world) => total + world.tables, 0)
-  const generated = measured.worlds.reduce((total, world) => total + world.generated, 0)
-  const requiredGenerated = Math.floor(tables / 5)
   if (generated < requiredGenerated) {
     emit({
       code: 'world_generated_column_density_below_floor',
@@ -625,5 +744,14 @@ export async function lint({ matches, read, emit }) {
         message: `${name}: ${floor} → ${measured.current[name]}`,
       })
     }
+  }
+
+  if (surplus < requiredSurplus) {
+    emit({
+      code: 'world_composition_growth_below_floor',
+      message:
+        `composition growth surplus is ${surplus} across ${measured.worlds.length} worlds; ` +
+        `${requiredSurplus} required`,
+    })
   }
 }
