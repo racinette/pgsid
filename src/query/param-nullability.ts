@@ -663,7 +663,7 @@ type AliasContext = Map<string, Map<string, Node[]>>
  * relation in order to ask `columnRejection` anything, so the type is one
  * catalog call away — no FROM analysis, no join tree, no search-path work.
  */
-interface WriteTarget {
+export interface WriteTarget {
   schema: string
   table: string
   /** The relation's alias if it carries one, else its own name. */
@@ -804,7 +804,7 @@ function rowQualContains(rowQual: Node | undefined, predicate: Node): boolean {
  * a repeated volatile predicate is not a row fact.
  */
 function repeatableExistsPredicate(
-  c: Collector,
+  catalog: NullabilityCatalog,
   predicate: Node,
   target: WriteTarget | undefined,
 ): boolean {
@@ -831,7 +831,7 @@ function repeatableExistsPredicate(
       | undefined
   )?.RangeVar
   if (from?.length !== 1 || !range?.relname) return false
-  const table = c.catalog.resolveTable(range.schemaname, range.relname)
+  const table = catalog.resolveTable(range.schemaname, range.relname)
   if (!table) return false
   const innerAlias = range.alias?.aliasname ?? range.relname
 
@@ -841,10 +841,10 @@ function repeatableExistsPredicate(
     ).map(stringVal)
     if (fields.length !== 2) return null
     if (fields[0] === innerAlias) {
-      return c.catalog.resolveColumnTypeName(table.schema, table.name, fields[1]!)
+      return catalog.resolveColumnTypeName(table.schema, table.name, fields[1]!)
     }
     if (fields[0] === target.alias) {
-      return c.catalog.resolveColumnTypeName(target.schema, target.table, fields[1]!)
+      return catalog.resolveColumnTypeName(target.schema, target.table, fields[1]!)
     }
     return null
   }
@@ -876,7 +876,7 @@ function repeatableExistsPredicate(
       rightColumn ??
       (leftColumn && (operator.rexpr as { A_Const?: unknown }).A_Const ? leftColumn : null)
     if (!left || !right) return false
-    return c.catalog.resolveOperatorMetadata(undefined, '=', [left], [right]) === null
+    return catalog.resolveOperatorMetadata(undefined, '=', [left], [right]) === null
   }
 
   return safe(select['whereClause'] as Node | undefined)
@@ -884,7 +884,7 @@ function repeatableExistsPredicate(
 
 /** Whether a target-row predicate is immutable under one write evaluation. */
 function repeatableTargetPredicate(
-  c: Collector,
+  catalog: NullabilityCatalog,
   predicate: Node,
   target: WriteTarget | undefined,
 ): boolean {
@@ -900,7 +900,7 @@ function repeatableTargetPredicate(
         : fields.length === 2 && fields[0] === target.alias
           ? fields[1]
           : undefined
-    return column ? c.catalog.resolveColumnTypeName(target.schema, target.table, column) : null
+    return column ? catalog.resolveColumnTypeName(target.schema, target.table, column) : null
   }
 
   const nullTest = (predicate as { NullTest?: { arg?: Node } }).NullTest
@@ -926,17 +926,17 @@ function repeatableTargetPredicate(
     rightColumn ??
     (leftColumn && (operator.rexpr as { A_Const?: unknown }).A_Const ? leftColumn : null)
   if (!left || !right) return false
-  return c.catalog.resolveOperatorMetadata(undefined, '=', [left], [right]) === null
+  return catalog.resolveOperatorMetadata(undefined, '=', [left], [right]) === null
 }
 
 /**
  * A searched CASE's first arm is selected when the write-arm filter repeats
  * its stable condition. Later arms cannot run on a row that reached the write.
  */
-function rowSelectedSetValue(
-  c: Collector,
+export function rowSelectedSetValue(
   expr: Node,
   rowQual: Node | undefined,
+  catalog: NullabilityCatalog,
   target: WriteTarget | undefined,
 ): Node {
   const caseExpr = (expr as { CaseExpr?: { arg?: Node; args?: Node[] } }).CaseExpr
@@ -946,8 +946,8 @@ function rowSelectedSetValue(
     !first?.expr ||
     !first.result ||
     !rowQualContains(rowQual, first.expr) ||
-    (!repeatableExistsPredicate(c, first.expr, target) &&
-      !repeatableTargetPredicate(c, first.expr, target))
+    (!repeatableExistsPredicate(catalog, first.expr, target) &&
+      !repeatableTargetPredicate(catalog, first.expr, target))
   ) {
     return expr
   }
@@ -1223,7 +1223,7 @@ function checkSetClause(
     if (!rt?.name || !rt.val) continue
     const mechanism = columnRejection(c, schema, table, rt.name, 'update')
     if (!mechanism) continue
-    const selected = rowSelectedSetValue(c, rt.val, rowQual, target)
+    const selected = rowSelectedSetValue(rt.val, rowQual, c.catalog, target)
     const def = multiAssignDefinition(selected)
     if (def) {
       // Through a multi-assignment the parameter is typed by its own use
