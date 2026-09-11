@@ -770,9 +770,9 @@ export const FEATURES: Record<string, Feature> = {
     detect: (s) => anyConstraint(s, (c, t) => c.type === 'foreign' && c.foreignTable === t.name),
   },
   'composite-foreign-key': {
-    category: 'gated',
+    category: 'handled',
     reads: 'resolveForeignKey',
-    why: 'dropped — the entailment reasons about ONE column matching, and a multi-column key under MATCH SIMPLE matches nothing when any part is NULL',
+    why: "the scalar correlation path requires every key pair to be equated and every referencing column to be NOT NULL, closing MATCH SIMPLE's partial-NULL hole",
     detect: (s) => anyConstraint(s, (c) => c.type === 'foreign' && c.columns.length > 1),
   },
   'not-enforced-foreign-key': {

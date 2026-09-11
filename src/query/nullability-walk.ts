@@ -3646,6 +3646,16 @@ class NullabilityEngine {
     referenced: KeyedRelation,
     referencedColumn: string,
   ): boolean {
+    return this.keyEntailsColumns(referencing, referenced, [[referencingColumn, referencedColumn]])
+  }
+
+  /** Whether the query equates every column of one enforced foreign key. */
+  private keyEntailsColumns(
+    referencing: KeyedRelation,
+    referenced: KeyedRelation,
+    pairs: readonly (readonly [string, string])[],
+  ): boolean {
+    if (pairs.length === 0) return false
     // The scan mode of the REFERENCED relation, which nothing read until the
     // partition-clone capture was fixed and made it matter (sweep-4 finding 4).
     // A PARTITIONED table holds none of its own rows — they all live in the
@@ -3663,24 +3673,37 @@ class NullabilityEngine {
     ) {
       return false
     }
+    const firstReferencingColumn = pairs[0]![0]
     const fk = referencing.scansTree
-      ? this.catalog.resolveForeignKeyTree(referencing.schema, referencing.name, referencingColumn)
-      : this.catalog.resolveForeignKey(referencing.schema, referencing.name, referencingColumn)
+      ? this.catalog.resolveForeignKeyTree(
+          referencing.schema,
+          referencing.name,
+          firstReferencingColumn,
+        )
+      : this.catalog.resolveForeignKey(referencing.schema, referencing.name, firstReferencingColumn)
     if (!fk) return false
+    if (fk.schema !== referenced.schema || fk.table !== referenced.name) return false
+    const referencingColumns = fk.columns ?? [firstReferencingColumn]
+    const referencedColumns = fk.foreignColumns ?? [fk.column]
     if (
-      fk.schema !== referenced.schema ||
-      fk.table !== referenced.name ||
-      fk.column !== referencedColumn
+      referencingColumns.length !== referencedColumns.length ||
+      pairs.length !== referencingColumns.length
     ) {
       return false
     }
-    return referencing.scansTree
-      ? this.catalog.resolveColumnNotNullTree(
-          referencing.schema,
-          referencing.name,
-          referencingColumn,
-        )
-      : this.catalog.resolveColumnNotNull(referencing.schema, referencing.name, referencingColumn)
+    const matched = new Set(pairs.map(([source, target]) => `${source}\u0000${target}`))
+    if (
+      !referencingColumns.every((source, index) =>
+        matched.has(`${source}\u0000${referencedColumns[index]}`),
+      )
+    ) {
+      return false
+    }
+    return referencingColumns.every((column) =>
+      referencing.scansTree
+        ? this.catalog.resolveColumnNotNullTree(referencing.schema, referencing.name, column)
+        : this.catalog.resolveColumnNotNull(referencing.schema, referencing.name, column),
+    )
   }
 
   /**
@@ -3830,6 +3853,27 @@ class NullabilityEngine {
     const left = ae.lexpr ? this.qualifiedColumnRef(ae.lexpr) : null
     const right = ae.rexpr ? this.qualifiedColumnRef(ae.rexpr) : null
     return left && right ? [left, right] : null
+  }
+
+  /** Every term of an exact AND-of-column-equalities predicate. */
+  private equalityColumnRefConjuncts(
+    qual: Node | null | undefined,
+  ): [{ alias: string; column: string }, { alias: string; column: string }][] | null {
+    if (!qual) return null
+    const bool = (qual as Record<string, unknown>)['BoolExpr'] as
+      { boolop?: string; args?: Node[] } | undefined
+    if (bool) {
+      if (bool.boolop !== 'AND_EXPR' || !bool.args?.length) return null
+      const out: [{ alias: string; column: string }, { alias: string; column: string }][] = []
+      for (const arg of bool.args) {
+        const terms = this.equalityColumnRefConjuncts(arg)
+        if (!terms) return null
+        out.push(...terms)
+      }
+      return out
+    }
+    const equality = this.equalityColumnRefs(qual)
+    return equality ? [equality] : null
   }
 
   /** A two-part `alias.column` reference, or null. */
@@ -8244,7 +8288,16 @@ class NullabilityEngine {
         (scope.groupingSetColumns.has(ref.colName) ||
           scope.groupingSetColumns.has(`${ref.owner.alias}.${ref.colName}`))
       if (groupedAway) return undefined
-      if (ref && this.checkWhereGuarantee(ref.owner.alias, ref.colName, scope)) {
+      const catalogColumn = ref ? this.entryCatalogColumn(ref.owner, ref.colName) : undefined
+      const writtenNotNull =
+        ref &&
+        catalogColumn !== undefined &&
+        scope.dmlWrittenColumns?.alias === ref.owner.alias &&
+        scope.dmlWrittenColumns.columns.get(catalogColumn) === true
+      if (
+        ref &&
+        (writtenNotNull || this.checkWhereGuarantee(ref.owner.alias, ref.colName, scope))
+      ) {
         if (nullTest.nulltesttype === 'IS_NULL') return false
         if (nullTest.nulltesttype === 'IS_NOT_NULL') return true
       }
@@ -12038,52 +12091,63 @@ class NullabilityEngine {
       })
     }
 
-    const eq = this.equalityColumnRefs(select.whereClause)
-    if (!eq) return false
+    const equalities = this.equalityColumnRefConjuncts(select.whereClause)
+    if (!equalities) return false
 
-    for (const [innerRef, outerRef] of [
-      [eq[0], eq[1]],
-      [eq[1], eq[0]],
-    ] as const) {
-      const anchor = rels.find((r) => r.alias === innerRef.alias)
-      if (!anchor) continue
-      const outer = scope.aliases.get(outerRef.alias)
-      if (!outer || outer.kind !== 'table' || !outer.table) continue
-      if (outer.joinState !== REQUIRED) continue
+    for (const anchor of rels) {
+      for (const [outerAlias, outer] of scope.aliases) {
+        if (outer.kind !== 'table' || !outer.table) continue
+        if (outer.joinState !== REQUIRED) continue
+        const oriented = equalities.map((eq) => {
+          if (eq[0].alias === anchor.alias && eq[1].alias === outerAlias) {
+            return { inner: eq[0], outer: eq[1] }
+          }
+          if (eq[1].alias === anchor.alias && eq[0].alias === outerAlias) {
+            return { inner: eq[1], outer: eq[0] }
+          }
+          return null
+        })
+        if (oriented.some((pair) => pair === null)) continue
 
-      // Both sides of the correlation may be renamed by an alias column list,
-      // and the outer and inner ones live in different structures — a
-      // RelationEntry out here, the reduced SubqueryRelation in there. Every
-      // catalog question below is keyed by the catalog's names.
-      const outerCol = this.entryCatalogColumn(outer, outerRef.column)
-      const innerCol = this.subqueryCatalogColumn(anchor, innerRef.column)
-      if (outerCol === undefined || innerCol === undefined) continue
+        // Both sides of the correlation may be renamed by an alias column list,
+        // and the outer and inner ones live in different structures — a
+        // RelationEntry out here, the reduced SubqueryRelation in there. Every
+        // catalog question below is keyed by the catalog's names.
+        const columns = oriented.map((pair) => {
+          const outerCol = this.entryCatalogColumn(outer, pair!.outer.column)
+          const innerCol = this.subqueryCatalogColumn(anchor, pair!.inner.column)
+          return outerCol === undefined || innerCol === undefined
+            ? null
+            : ([outerCol, innerCol] as const)
+        })
+        if (columns.some((pair) => pair === null)) continue
+        const resolvedColumns = columns as readonly (readonly [string, string])[]
 
-      const outerScansTree = outer.scanInh !== false
-      const keyNotNull = outerScansTree
-        ? this.catalog.resolveColumnNotNullTree(outer.table.schema, outer.table.name, outerCol)
-        : this.catalog.resolveColumnNotNull(outer.table.schema, outer.table.name, outerCol)
-      if (!keyNotNull) continue
-
-      const selfLookup =
-        outer.table.schema === anchor.schema &&
-        outer.table.name === anchor.name &&
-        // Compared as CATALOG names: two sides renamed differently still key
-        // on the same column, and two sides renamed to the SAME name need not.
-        outerCol === innerCol &&
-        // A tree-scanning outer may be reading a CHILD row that an `ONLY`
-        // subquery cannot see.
-        (anchor.scansTree || !outerScansTree)
-      const keyed =
-        selfLookup ||
-        this.keyEntails(
-          { schema: outer.table.schema, name: outer.table.name, scansTree: outerScansTree },
-          outerCol,
-          anchor,
-          innerCol,
-        )
-      if (!keyed) continue
-      if (this.anchorSurvivesJoins(rels, from.joins, anchor)) return true
+        const outerScansTree = outer.scanInh !== false
+        const selfLookup =
+          outer.table.schema === anchor.schema &&
+          outer.table.name === anchor.name &&
+          resolvedColumns.every(([outerCol, innerCol]) => outerCol === innerCol) &&
+          (anchor.scansTree || !outerScansTree) &&
+          resolvedColumns.every(([outerCol]) =>
+            outerScansTree
+              ? this.catalog.resolveColumnNotNullTree(
+                  outer.table!.schema,
+                  outer.table!.name,
+                  outerCol,
+                )
+              : this.catalog.resolveColumnNotNull(outer.table!.schema, outer.table!.name, outerCol),
+          )
+        const keyed =
+          selfLookup ||
+          this.keyEntailsColumns(
+            { schema: outer.table.schema, name: outer.table.name, scansTree: outerScansTree },
+            anchor,
+            resolvedColumns,
+          )
+        if (!keyed) continue
+        if (this.anchorSurvivesJoins(rels, from.joins, anchor)) return true
+      }
     }
     return false
   }
