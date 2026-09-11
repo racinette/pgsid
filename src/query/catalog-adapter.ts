@@ -437,12 +437,19 @@ export async function buildNullabilityCatalog(
   //     and removes the first in one move.
   //
   // The remaining hazards are not catalog-visible and are not gated here:
-  // the referencing column must be NOT NULL and the join must equate exactly
-  // the key, which are the walk's questions. MATCH SIMPLE's partial-NULL hole
-  // closes with the NOT NULL one. A referenced column is always unique —
-  // PostgreSQL refuses the constraint otherwise (measured).
-  const fkByColumn = new Map<string, { schema: string; table: string; column: string }>()
-  const fkTreeByColumn = new Map<string, { schema: string; table: string; column: string }>()
+  // every referencing column must be NOT NULL and the query must equate the
+  // complete key, which are the walk's questions. MATCH SIMPLE's partial-NULL
+  // hole closes with the NOT NULL requirement. A referenced column set is
+  // always unique — PostgreSQL refuses the constraint otherwise (measured).
+  interface ForeignKeyTarget {
+    schema: string
+    table: string
+    column: string
+    columns: readonly string[]
+    foreignColumns: readonly string[]
+  }
+  const fkByColumn = new Map<string, ForeignKeyTarget>()
+  const fkTreeByColumn = new Map<string, ForeignKeyTarget>()
   // PostgreSQL clones a foreign key for TWO different reasons, and only one of
   // them produces a row that must not be read:
   //
@@ -468,21 +475,24 @@ export async function buildNullabilityCatalog(
       for (const con of t.constraints) {
         if (con.type !== 'foreign' || !con.validated || con.deferrable) continue
         if (con.inheritedClone !== (pass === 'clone')) continue
-        // Single-column keys only. A composite key is sound under the same
-        // reasoning once every pair is equated in the ON clause, and matching a
-        // conjunction against a column list is work with no fixture behind it.
-        if (con.columns.length !== 1 || con.foreignColumns?.length !== 1) continue
-        if (!con.foreignSchema || !con.foreignTable) continue
-        const key = `${t.schema}.${t.name}.${con.columns[0]}`
-        if (pass === 'declared') declared.add(key)
-        else if (declared.has(key)) continue
-        const target = {
-          schema: con.foreignSchema,
-          table: con.foreignTable,
-          column: con.foreignColumns[0]!,
+        if (con.columns.length === 0 || con.columns.length !== con.foreignColumns?.length) {
+          continue
         }
-        fkByColumn.set(key, target)
-        if (!t.hasDescendants || t.relkind === 'p') fkTreeByColumn.set(key, target)
+        if (!con.foreignSchema || !con.foreignTable) continue
+        const keys = con.columns.map((column) => `${t.schema}.${t.name}.${column}`)
+        if (pass === 'declared') keys.forEach((key) => declared.add(key))
+        else if (keys.some((key) => declared.has(key))) continue
+        con.columns.forEach((_column, index) => {
+          const target = {
+            schema: con.foreignSchema!,
+            table: con.foreignTable!,
+            column: con.foreignColumns![index]!,
+            columns: con.columns,
+            foreignColumns: con.foreignColumns!,
+          }
+          fkByColumn.set(keys[index]!, target)
+          if (!t.hasDescendants || t.relkind === 'p') fkTreeByColumn.set(keys[index]!, target)
+        })
       }
     }
   }

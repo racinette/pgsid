@@ -768,6 +768,192 @@ function rejectFlow(
   }
 }
 
+/** Structural equality for a predicate repeated at two statement sites. */
+function sameExpression(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((value, index) => sameExpression(value, b[index]))
+  }
+  const left = Object.keys(a as object).filter((key) => key !== 'location')
+  const right = Object.keys(b as object).filter((key) => key !== 'location')
+  return (
+    left.length === right.length &&
+    left.every(
+      (key) =>
+        right.includes(key) &&
+        sameExpression((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+    )
+  )
+}
+
+/** Whether every row reaching a write passed this exact top-level conjunct. */
+function rowQualContains(rowQual: Node | undefined, predicate: Node): boolean {
+  if (!rowQual) return false
+  const bool = (rowQual as { BoolExpr?: { boolop?: string; args?: Node[] } }).BoolExpr
+  if (bool?.boolop === 'AND_EXPR') {
+    return (bool.args ?? []).some((arg) => rowQualContains(arg, predicate))
+  }
+  return sameExpression(rowQual, predicate)
+}
+
+/**
+ * Whether an EXISTS can be evaluated twice without changing its answer. The
+ * deliberately small grammar excludes function calls and custom operators;
+ * a repeated volatile predicate is not a row fact.
+ */
+function repeatableExistsPredicate(
+  c: Collector,
+  predicate: Node,
+  target: WriteTarget | undefined,
+): boolean {
+  if (!target) return false
+  const sublink = (predicate as { SubLink?: { subLinkType?: string; subselect?: Node } }).SubLink
+  if (sublink?.subLinkType !== 'EXISTS_SUBLINK' || !sublink.subselect) return false
+  const select = (sublink.subselect as { SelectStmt?: Record<string, unknown> }).SelectStmt
+  if (!select || select['op'] !== 'SETOP_NONE' || select['withClause']) return false
+  if (
+    select['groupClause'] ||
+    select['havingClause'] ||
+    select['windowClause'] ||
+    select['sortClause'] ||
+    select['limitOffset'] ||
+    select['limitCount']
+  ) {
+    return false
+  }
+
+  const from = select['fromClause'] as Node[] | undefined
+  const range = (
+    from?.[0] as
+      | { RangeVar?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } } }
+      | undefined
+  )?.RangeVar
+  if (from?.length !== 1 || !range?.relname) return false
+  const table = c.catalog.resolveTable(range.schemaname, range.relname)
+  if (!table) return false
+  const innerAlias = range.alias?.aliasname ?? range.relname
+
+  const columnType = (node: Node | undefined): string | null => {
+    const fields = (
+      (node as { ColumnRef?: { fields?: Node[] } } | undefined)?.ColumnRef?.fields ?? []
+    ).map(stringVal)
+    if (fields.length !== 2) return null
+    if (fields[0] === innerAlias) {
+      return c.catalog.resolveColumnTypeName(table.schema, table.name, fields[1]!)
+    }
+    if (fields[0] === target.alias) {
+      return c.catalog.resolveColumnTypeName(target.schema, target.table, fields[1]!)
+    }
+    return null
+  }
+
+  const safe = (node: Node | undefined): boolean => {
+    if (!node) return false
+    const bool = (node as { BoolExpr?: { boolop?: string; args?: Node[] } }).BoolExpr
+    if (bool) {
+      return bool.boolop === 'AND_EXPR' && (bool.args ?? []).every(safe)
+    }
+    const nullTest = (node as { NullTest?: { arg?: Node } }).NullTest
+    if (nullTest) return columnType(nullTest.arg) !== null
+    if ((node as { ColumnRef?: unknown }).ColumnRef) return columnType(node) === 'boolean'
+
+    const operator = (
+      node as {
+        A_Expr?: { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+      }
+    ).A_Expr
+    if (!operator || (operator.kind ?? 'AEXPR_OP') !== 'AEXPR_OP') return false
+    const names = (operator.name ?? []).map(stringVal)
+    if (names.length !== 1 || names[0] !== '=' || !operator.lexpr || !operator.rexpr) return false
+    const leftColumn = columnType(operator.lexpr)
+    const rightColumn = columnType(operator.rexpr)
+    const left =
+      leftColumn ??
+      (rightColumn && (operator.lexpr as { A_Const?: unknown }).A_Const ? rightColumn : null)
+    const right =
+      rightColumn ??
+      (leftColumn && (operator.rexpr as { A_Const?: unknown }).A_Const ? leftColumn : null)
+    if (!left || !right) return false
+    return c.catalog.resolveOperatorMetadata(undefined, '=', [left], [right]) === null
+  }
+
+  return safe(select['whereClause'] as Node | undefined)
+}
+
+/** Whether a target-row predicate is immutable under one write evaluation. */
+function repeatableTargetPredicate(
+  c: Collector,
+  predicate: Node,
+  target: WriteTarget | undefined,
+): boolean {
+  if (!target) return false
+
+  const columnType = (node: Node | undefined): string | null => {
+    const fields = (
+      (node as { ColumnRef?: { fields?: Node[] } } | undefined)?.ColumnRef?.fields ?? []
+    ).map(stringVal)
+    const column =
+      fields.length === 1
+        ? fields[0]
+        : fields.length === 2 && fields[0] === target.alias
+          ? fields[1]
+          : undefined
+    return column ? c.catalog.resolveColumnTypeName(target.schema, target.table, column) : null
+  }
+
+  const nullTest = (predicate as { NullTest?: { arg?: Node } }).NullTest
+  if (nullTest) return columnType(nullTest.arg) !== null
+  if ((predicate as { ColumnRef?: unknown }).ColumnRef) {
+    return columnType(predicate) === 'boolean'
+  }
+
+  const operator = (
+    predicate as {
+      A_Expr?: { kind?: string; name?: Node[]; lexpr?: Node; rexpr?: Node }
+    }
+  ).A_Expr
+  if (!operator || (operator.kind ?? 'AEXPR_OP') !== 'AEXPR_OP') return false
+  const names = (operator.name ?? []).map(stringVal)
+  if (names.length !== 1 || names[0] !== '=' || !operator.lexpr || !operator.rexpr) return false
+  const leftColumn = columnType(operator.lexpr)
+  const rightColumn = columnType(operator.rexpr)
+  const left =
+    leftColumn ??
+    (rightColumn && (operator.lexpr as { A_Const?: unknown }).A_Const ? rightColumn : null)
+  const right =
+    rightColumn ??
+    (leftColumn && (operator.rexpr as { A_Const?: unknown }).A_Const ? leftColumn : null)
+  if (!left || !right) return false
+  return c.catalog.resolveOperatorMetadata(undefined, '=', [left], [right]) === null
+}
+
+/**
+ * A searched CASE's first arm is selected when the write-arm filter repeats
+ * its stable condition. Later arms cannot run on a row that reached the write.
+ */
+function rowSelectedSetValue(
+  c: Collector,
+  expr: Node,
+  rowQual: Node | undefined,
+  target: WriteTarget | undefined,
+): Node {
+  const caseExpr = (expr as { CaseExpr?: { arg?: Node; args?: Node[] } }).CaseExpr
+  if (caseExpr?.arg || !caseExpr?.args?.length) return expr
+  const first = (caseExpr.args[0] as { CaseWhen?: { expr?: Node; result?: Node } }).CaseWhen
+  if (
+    !first?.expr ||
+    !first.result ||
+    !rowQualContains(rowQual, first.expr) ||
+    (!repeatableExistsPredicate(c, first.expr, target) &&
+      !repeatableTargetPredicate(c, first.expr, target))
+  ) {
+    return expr
+  }
+  return first.result
+}
+
 function checkTypeCast(c: Collector, tc: { arg?: Node; typeName?: unknown }): void {
   if (!castTargetIsNotNullDomain(c, tc.typeName)) return
   const num = paramNumberOf(tc.arg)
@@ -1030,13 +1216,15 @@ function checkSetClause(
   table: string,
   ctx?: AliasContext,
   target?: WriteTarget,
+  rowQual?: Node,
 ): void {
   for (const item of targetList ?? []) {
     const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
     if (!rt?.name || !rt.val) continue
     const mechanism = columnRejection(c, schema, table, rt.name, 'update')
     if (!mechanism) continue
-    const def = multiAssignDefinition(rt.val)
+    const selected = rowSelectedSetValue(c, rt.val, rowQual, target)
+    const def = multiAssignDefinition(selected)
     if (def) {
       // Through a multi-assignment the parameter is typed by its own use
       // inside the source (a cast, usually), NOT by the target column — so
@@ -1052,9 +1240,9 @@ function checkSetClause(
       else rejectFlow(c, def, ctx, target)
       continue
     }
-    const num = paramNumberOf(rt.val)
+    const num = paramNumberOf(selected)
     if (num !== null) reject(c, num, mechanism)
-    else rejectFlow(c, rt.val, ctx, target)
+    else rejectFlow(c, selected, ctx, target)
   }
 }
 
@@ -1099,7 +1287,7 @@ function checkInsert(
     relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } }
     cols?: Node[]
     selectStmt?: Node
-    onConflictClause?: { targetList?: Node[] }
+    onConflictClause?: { targetList?: Node[]; whereClause?: Node }
   },
 ): void {
   const target = insertTargetColumns(c, stmt.relation, stmt.cols)
@@ -1153,6 +1341,7 @@ function checkInsert(
         table: target.table,
         alias: stmt.relation?.alias?.aliasname ?? stmt.relation?.relname ?? target.table,
       },
+      stmt.onConflictClause.whereClause,
     )
   }
 }
@@ -1163,16 +1352,25 @@ function checkUpdate(
     relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } }
     targetList?: Node[]
     fromClause?: Node[]
+    whereClause?: Node
   },
 ): void {
   if (!stmt.relation?.relname) return
   const table = c.catalog.resolveTable(stmt.relation.schemaname, stmt.relation.relname)
   if (!table) return
-  checkSetClause(c, stmt.targetList, table.schema, table.name, aliasContextOf(stmt.fromClause), {
-    schema: table.schema,
-    table: table.name,
-    alias: stmt.relation.alias?.aliasname ?? stmt.relation.relname,
-  })
+  checkSetClause(
+    c,
+    stmt.targetList,
+    table.schema,
+    table.name,
+    aliasContextOf(stmt.fromClause),
+    {
+      schema: table.schema,
+      table: table.name,
+      alias: stmt.relation.alias?.aliasname ?? stmt.relation.relname,
+    },
+    stmt.whereClause,
+  )
 }
 
 function checkMerge(
@@ -1188,8 +1386,11 @@ function checkMerge(
   if (!table) return
   const ctx = aliasContextOf(stmt.sourceRelation ? [stmt.sourceRelation] : undefined)
   for (const clause of stmt.mergeWhenClauses ?? []) {
-    const mwc = (clause as { MergeWhenClause?: { targetList?: Node[]; values?: Node[] } })
-      .MergeWhenClause
+    const mwc = (
+      clause as {
+        MergeWhenClause?: { targetList?: Node[]; values?: Node[]; condition?: Node }
+      }
+    ).MergeWhenClause
     if (!mwc) continue
     if (mwc.values) {
       // The insert arm: targetList names columns, values maps positionally.
@@ -1209,11 +1410,19 @@ function checkMerge(
       // The update arm: SET col = value pairs.
       // A MERGE update arm's unqualified columns are the TARGET's; the
       // source carries its own alias and declines on the alias check.
-      checkSetClause(c, mwc.targetList, table.schema, table.name, ctx, {
-        schema: table.schema,
-        table: table.name,
-        alias: stmt.relation.alias?.aliasname ?? stmt.relation.relname,
-      })
+      checkSetClause(
+        c,
+        mwc.targetList,
+        table.schema,
+        table.name,
+        ctx,
+        {
+          schema: table.schema,
+          table: table.name,
+          alias: stmt.relation.alias?.aliasname ?? stmt.relation.relname,
+        },
+        mwc.condition,
+      )
     }
   }
 }

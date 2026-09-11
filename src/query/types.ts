@@ -836,26 +836,38 @@ export interface NullabilityCatalog {
   resolveCheckConstraintsTree(schema: string, table: string): Node[]
 
   /**
-   * The single-column FOREIGN KEY on `column`, as {schema, table, column} of
-   * what it references — or null when there is none the engine may reason
-   * from. "A join on a NOT NULL foreign key always matches" needs a key
-   * PostgreSQL enforces over every row the scan reads, so the adapter drops
-   * NOT VALID and NOT ENFORCED keys (both leave `convalidated` false),
-   * DEFERRABLE ones (violable and observable mid-transaction), and composite
-   * ones. The Tree variant additionally drops a key whose relation has
-   * DESCENDANTS: a parent's FK is not copied to a child, so a tree scan reads
-   * rows nothing checked. All measured; see the adapter for the probes.
+   * The FOREIGN KEY containing `column`, with its complete local and remote
+   * column lists when it is composite — or null when there is none the engine
+   * may reason from. "A join on a NOT NULL foreign key always matches" needs a
+   * key PostgreSQL enforces over every row the scan reads, so the adapter drops
+   * NOT VALID and NOT ENFORCED keys (both leave `convalidated` false) and
+   * DEFERRABLE ones (violable and observable mid-transaction). The Tree
+   * variant additionally drops a key whose relation has DESCENDANTS: a
+   * parent's FK is not copied to a child, so a tree scan reads rows nothing
+   * checked. All measured; see the adapter for the probes.
    */
   resolveForeignKey(
     schema: string,
     table: string,
     column: string,
-  ): { schema: string; table: string; column: string } | null
+  ): {
+    schema: string
+    table: string
+    column: string
+    columns?: readonly string[]
+    foreignColumns?: readonly string[]
+  } | null
   resolveForeignKeyTree(
     schema: string,
     table: string,
     column: string,
-  ): { schema: string; table: string; column: string } | null
+  ): {
+    schema: string
+    table: string
+    column: string
+    columns?: readonly string[]
+    foreignColumns?: readonly string[]
+  } | null
 
   /**
    * Whether `schema.table` is a partitioned table (relkind 'p'). What makes
