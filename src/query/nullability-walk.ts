@@ -28,6 +28,7 @@ import {
 import {
   collectParamFacts,
   forcedNullParams,
+  rowSelectedSetValue,
   returningRejectedParams,
   type MechanismEClaims,
   type ParamNullability,
@@ -4668,9 +4669,15 @@ class NullabilityEngine {
       return
     }
 
-    const conflict = stmt.onConflictClause as { action?: string; targetList?: Node[] } | undefined
+    const conflict = stmt.onConflictClause as
+      { action?: string; targetList?: Node[]; whereClause?: Node } | undefined
     if (conflict?.action === 'ONCONFLICT_UPDATE') {
       const setNotNull = new Map<string, boolean>()
+      const target = {
+        schema: entry.table.schema,
+        table: entry.table.name,
+        alias: entry.alias,
+      }
       this.dmlOldRowRead = true
       try {
         for (const item of conflict.targetList ?? []) {
@@ -4678,11 +4685,12 @@ class NullabilityEngine {
           if (!rt?.name || !rt.val) continue
           if ('MultiAssignRef' in (rt.val as Record<string, unknown>)) continue
           const excluded = this.qualifiedColumnRef(rt.val)
+          const selected = rowSelectedSetValue(rt.val, conflict.whereClause, this.catalog, target)
           setNotNull.set(
             rt.name,
             excluded?.alias === 'excluded'
               ? written.get(excluded.column) === true
-              : this.walkExpr(rt.val, scope, depth + 1),
+              : this.walkExpr(selected, scope, depth + 1),
           )
         }
       } finally {
@@ -4760,6 +4768,14 @@ class NullabilityEngine {
     }
     const targetAlias = [...scope.aliases.keys()][0]
     const targetEntry = targetAlias !== undefined ? scope.aliases.get(targetAlias) : undefined
+    const target =
+      targetEntry?.table && targetAlias !== undefined
+        ? {
+            schema: targetEntry.table.schema,
+            table: targetEntry.table.name,
+            alias: targetAlias,
+          }
+        : undefined
     if (targetAlias !== undefined) {
       const setColumns = new Set<string>()
       if (rewriting) {
@@ -4788,12 +4804,13 @@ class NullabilityEngine {
           const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
           if (!rt?.name || !rt.val) continue
           if ('MultiAssignRef' in (rt.val as Record<string, unknown>)) continue
-          written.set(rt.name, this.walkExpr(rt.val, scope, depth + 1))
+          const selected = rowSelectedSetValue(rt.val, stmt.whereClause, this.catalog, target)
+          written.set(rt.name, this.walkExpr(selected, scope, depth + 1))
           // The mirror: an UPDATE has ONE producing path, so a SET
           // expression that is always NULL is the returned value outright —
           // simpler than the INSERT case, which has to intersect over VALUES
           // rows and give up entirely on an ON CONFLICT second path.
-          writtenNull.set(rt.name, this.alwaysNullExpr(rt.val, scope, depth + 1))
+          writtenNull.set(rt.name, this.alwaysNullExpr(selected, scope, depth + 1))
         }
       } finally {
         this.dmlOldRowRead = false
@@ -5039,6 +5056,15 @@ class NullabilityEngine {
     // the whole map; DO NOTHING produces no row and is excluded — by the
     // `producing` filter above, which this reading is where it started.
     const targetAliasW = [...scope.aliases.keys()][0]
+    const targetEntryW = targetAliasW !== undefined ? scope.aliases.get(targetAliasW) : undefined
+    const targetW =
+      targetEntryW?.table && targetAliasW !== undefined
+        ? {
+            schema: targetEntryW.table.schema,
+            table: targetEntryW.table.name,
+            alias: targetAliasW,
+          }
+        : undefined
     if (
       targetAliasW !== undefined &&
       !targetRewriting &&
@@ -5060,8 +5086,9 @@ class NullabilityEngine {
                 const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
                 if (!rt?.name || !rt.val) continue
                 if ('MultiAssignRef' in (rt.val as Record<string, unknown>)) continue
-                nn.set(rt.name, this.walkExpr(rt.val, scope, depth + 1))
-                an.set(rt.name, this.alwaysNullExpr(rt.val, scope, depth + 1))
+                const selected = rowSelectedSetValue(rt.val, a.condition, this.catalog, targetW)
+                nn.set(rt.name, this.walkExpr(selected, scope, depth + 1))
+                an.set(rt.name, this.alwaysNullExpr(selected, scope, depth + 1))
               }
             } finally {
               this.dmlOldRowRead = false
