@@ -4633,7 +4633,13 @@ class NullabilityEngine {
           const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
           if (!rt?.name || !rt.val) continue
           if ('MultiAssignRef' in (rt.val as Record<string, unknown>)) continue
-          setNotNull.set(rt.name, this.walkExpr(rt.val, scope, depth + 1))
+          const excluded = this.qualifiedColumnRef(rt.val)
+          setNotNull.set(
+            rt.name,
+            excluded?.alias === 'excluded'
+              ? written.get(excluded.column) === true
+              : this.walkExpr(rt.val, scope, depth + 1),
+          )
         }
       } finally {
         this.dmlOldRowRead = false
@@ -8229,6 +8235,20 @@ class NullabilityEngine {
     if (!expr) return undefined
     const evaluated = this.evaluatedGuardTruth(expr)
     if (evaluated !== undefined) return evaluated
+    const nullTest = (expr as Record<string, unknown>)['NullTest'] as
+      { arg?: Node; nulltesttype?: string } | undefined
+    if (nullTest?.arg) {
+      const ref = this.columnRefOwner(nullTest.arg, scope)
+      const groupedAway =
+        !!ref &&
+        (scope.groupingSetColumns.has(ref.colName) ||
+          scope.groupingSetColumns.has(`${ref.owner.alias}.${ref.colName}`))
+      if (groupedAway) return undefined
+      if (ref && this.checkWhereGuarantee(ref.owner.alias, ref.colName, scope)) {
+        if (nullTest.nulltesttype === 'IS_NULL') return false
+        if (nullTest.nulltesttype === 'IS_NOT_NULL') return true
+      }
+    }
     return this.guardTruthFromChecks(expr, scope)
   }
 

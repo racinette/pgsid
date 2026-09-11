@@ -494,6 +494,29 @@ function forcedNullBy(
     return none
   }
 
+  const subLink = n['SubLink'] as { subLinkType?: string; subselect?: Node } | undefined
+  if (subLink?.subLinkType === 'EXPR_SUBLINK') {
+    const select = (subLink.subselect as { SelectStmt?: Record<string, unknown> } | undefined)
+      ?.SelectStmt
+    const targets = (select?.['targetList'] as Node[] | undefined) ?? []
+    const sole = (targets[0] as { ResTarget?: { val?: Node } } | undefined)?.ResTarget?.val
+    if (
+      select?.['op'] === 'SETOP_NONE' &&
+      targets.length === 1 &&
+      sole &&
+      'ColumnRef' in (sole as Record<string, unknown>) &&
+      !select['groupClause'] &&
+      select['whereClause']
+    ) {
+      return predicateCannotBeTrueBy(
+        select['whereClause'] as Node,
+        catalog,
+        aliasContextOf(select['fromClause'] as Node[] | undefined),
+        target,
+      )
+    }
+  }
+
   if (n['TypeCast']) {
     return forcedNullBy((n['TypeCast'] as { arg?: Node }).arg, catalog, ctx, anyRow, target)
   }
@@ -595,6 +618,27 @@ function forcedNullBy(
   }
 
   return none
+}
+
+function predicateCannotBeTrueBy(
+  node: Node,
+  catalog: NullabilityCatalog,
+  ctx: AliasContext | undefined,
+  target?: WriteTarget,
+): Implicants {
+  const bool = (node as Record<string, unknown>)['BoolExpr'] as
+    { boolop?: string; args?: Node[] } | undefined
+  if (bool?.boolop === 'AND_EXPR') {
+    return unionLists(
+      (bool.args ?? []).map((arg) => predicateCannotBeTrueBy(arg, catalog, ctx, target)),
+    )
+  }
+  if (bool?.boolop === 'OR_EXPR') {
+    return crossUnion(
+      (bool.args ?? []).map((arg) => predicateCannotBeTrueBy(arg, catalog, ctx, target)),
+    )
+  }
+  return forcedNullBy(node, catalog, ctx, false, target)
 }
 
 /**
