@@ -92,6 +92,10 @@ const FLOOR: string[] = [
   'fnBodyPreludeAsts',
   'functionReturnsSet',
   'isAggregateBuiltin',
+  // the catalog-dispatch projection's percentile_disc/rank WITHIN GROUP
+  // pair: ordered/hypothetical aggregate rows are selected by call shape
+  // before their direct and ORDER BY arguments are resolved
+  'resolveBuiltinAggregateRows',
   // the `unnest(...)` structures: unnest of a FuncCall falls to the two
   // builtin predicates once the polymorphic signatures decline to answer
   'isBuiltinFunction',
@@ -134,6 +138,14 @@ const FLOOR: string[] = [
   // `user-exact` through this member, which also took over the builtin
   // totality question from the bare-name allowlist
   'resolveOperatorTotality',
+  // the catalog-dispatch projection's WHERE predicate deliberately compares
+  // two scalar sublinks: both operand type sets are unreadable, so typed
+  // strictness cedes and the user-operator metadata fallback answers
+  'resolveOperatorMetadata',
+  // the catalog-dispatch projection orders both WITHIN GROUP calls by -id;
+  // a prefix A_Expr resolves on its right operand, independently of the
+  // binary operator path above
+  'resolveUnaryOperatorTotality',
   // every WHERE-promotion strictness question since the typed strictness
   // slice: the promotion path asks EVERY-quantified strictness over the
   // same merged candidate set before falling back to the name rule
@@ -163,6 +175,10 @@ const FLOOR: string[] = [
   // predicates, and it declines — string_to_array's return is concrete
   'resolvePolymorphicArraySignatures',
   'resolveTable',
+  // max(CURRENT_SCHEMA::text) in the catalog-dispatch projection: unlike
+  // the other SQLValueFunction operations, its nullability asks whether any
+  // schema on the configured analysis path exists
+  'searchPathResolves',
   // `UPDATE ONLY t` / `DELETE FROM ONLY t` — targetWriteRewrites' other arm
   'resolveWriteRewrites',
   'resolveWriteRewritesTree',
@@ -170,41 +186,11 @@ const FLOOR: string[] = [
 ]
 
 /**
- * What each still-cold capability is waiting for, and the fixture that proves
- * the shape exists. Measured one spy per fixture, not reasoned: for every cold
- * member there IS a statement that reaches it, so closing the gap is
- * transcription. Asserted from both sides — an entry that goes warm has to
- * leave, and a cold member nobody triaged fails.
+ * Outstanding generated-corpus gaps. Empty since the catalog-dispatch axis
+ * closed the last four; the converse assertions below keep it honest if a new
+ * catalog member lands cold or a future query shape makes an entry stale.
  */
-const COLD_TRIAGE: Record<string, { needs: string; witness: string }> = {
-  resolveBuiltinAggregateRows: {
-    needs:
-      "a WITHIN GROUP call — the generated corpus's aggregate axis produces " +
-      'plain and windowed aggregates only',
-    witness: 'aggregate-modifiers.sql',
-  },
-  resolveUnaryOperatorTotality: {
-    needs:
-      "a PREFIX operator expression — the generated corpus's operator axis " +
-      'produces only binary shapes',
-    witness: 'operator-path-plus.sql',
-  },
-  resolveOperatorMetadata: {
-    needs:
-      'a user operator whose STRICTNESS the WHERE-promotion or mechanism-C ' +
-      'path asks about — the expression path now resolves typed operands ' +
-      'through resolveOperatorTotality instead, so only the strictness sites ' +
-      '(promotionOperatorIsStrict, param-nullability) still consult this',
-    witness: 'where-promotion-non-strict-op.sql',
-  },
-  searchPathResolves: {
-    needs:
-      "a CURRENT_SCHEMA expression — the generated corpus's expression axis " +
-      'produces no SQLValueFunction at all, and this is the one op among them ' +
-      'whose answer is not unconditional',
-    witness: 'current-schema-unresolvable-path.sql',
-  },
-}
+const COLD_TRIAGE: Record<string, { needs: string; witness: string }> = {}
 
 const FIXTURES_DIR = join(__dirname, '..', 'fixtures')
 
@@ -327,14 +313,14 @@ describe('capability reach of the generated corpus', () => {
   }, 600_000)
 
   it('holds the generated corpus size ratchet', () => {
-    expect(statements).toBe(15_188)
+    expect(statements).toBe(16_064)
   })
 
   it('the hand corpus reaches every capability the generated one does', () => {
-    // Measured after the DML-CTE consumer axis landed: 15188 generated
-    // statements ask the catalog NOTHING that 593 hand fixtures do not
-    // already ask, while the hand corpus reaches 13 capabilities the
-    // generator never produces a shape for. Volume is not what buys reach.
+    // Measured after the catalog-dispatch axis landed: 16064 generated
+    // statements reach all 45 walk-facing capabilities, while still asking
+    // the catalog NOTHING that 593 hand fixtures do not already ask. Volume
+    // alone did not buy reach; four deliberate query shapes closed the gap.
     //
     // The day this fails is the day the generator finally produces a shape no
     // fixture carries — which is a RESULT, not a regression. Read the diff,

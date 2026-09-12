@@ -276,7 +276,7 @@ describe('Espalier world-health aggregate', () => {
     expect(issues).toContainEqual(
       expect.objectContaining({
         code: 'world_composition_regression',
-        message: 'additivity: 88 → 0',
+        message: 'additivity: 99 → 0',
       }),
     )
   })
