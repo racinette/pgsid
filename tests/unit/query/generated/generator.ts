@@ -156,6 +156,10 @@ const concatOp = (l: Ast, r: Ast): Ast => ({
 const opExpr = (name: string, l: Ast, r: Ast): Ast => ({
   A_Expr: { kind: 'AEXPR_OP', name: [str(name)], lexpr: l, rexpr: r },
 })
+/** A prefix operator by NAME — represented by the absent `lexpr`. */
+const prefixOp = (name: string, r: Ast): Ast => ({
+  A_Expr: { kind: 'AEXPR_OP', name: [str(name)], rexpr: r },
+})
 const arrayExpr = (elements: Ast[]): Ast => ({ A_ArrayExpr: { elements } })
 const isNull = (arg: Ast): Ast => ({ NullTest: { arg, nulltesttype: 'IS_NULL' } })
 const orExpr = (...args: Ast[]): Ast => ({ BoolExpr: { boolop: 'OR_EXPR', args } })
@@ -243,10 +247,36 @@ const winCall = (name: string, args: Ast[], over: Ast): Ast => ({
 const winCountStar = (over: Ast): Ast => ({
   FuncCall: { funcname: [str('count')], agg_star: true, over, funcformat: 'COERCE_EXPLICIT_CALL' },
 })
+const withinGroupCall = (name: string, args: Ast[], orderBy: Ast): Ast => ({
+  FuncCall: {
+    funcname: [str(name)],
+    args,
+    agg_order: [
+      {
+        SortBy: {
+          node: orderBy,
+          sortby_dir: 'SORTBY_DEFAULT',
+          sortby_nulls: 'SORTBY_NULLS_DEFAULT',
+        },
+      },
+    ],
+    agg_within_group: true,
+    funcformat: 'COERCE_EXPLICIT_CALL',
+  },
+})
+const currentSchema = (): Ast => ({
+  SQLValueFunction: { op: 'SVFOP_CURRENT_SCHEMA', typmod: -1 },
+})
 const bareSelect = (fields: Ast): Ast => ({
   limitOption: 'LIMIT_OPTION_DEFAULT',
   op: 'SETOP_NONE',
   ...fields,
+})
+const scalarSubquery = (expr: Ast): Ast => ({
+  SubLink: {
+    subLinkType: 'EXPR_SUBLINK',
+    subselect: { SelectStmt: bareSelect({ targetList: [target(expr)] }) },
+  },
 })
 
 // --- Walking the re-parsed AST for expectations ----------------------------
@@ -468,6 +498,54 @@ const expectOperator = (op: string): Expectation => ({
     return false
   },
 })
+
+const expectPrefixOperator = (op: string): Expectation => ({
+  label: `prefix ${op} operator`,
+  present: (root) => {
+    for (const n of walk(root)) {
+      const ae = n.A_Expr as
+        { kind?: string; name?: unknown[]; lexpr?: unknown; rexpr?: unknown } | undefined
+      if (
+        ae?.kind === 'AEXPR_OP' &&
+        ae.lexpr === undefined &&
+        ae.rexpr !== undefined &&
+        (ae.name ?? []).some((f) => (f as { String?: { sval?: string } }).String?.sval === op)
+      ) {
+        return true
+      }
+    }
+    return false
+  },
+})
+
+const expectWithinGroup = (fn: string): Expectation => ({
+  label: `${fn}() WITHIN GROUP`,
+  present: (root) => {
+    for (const n of walk(root)) {
+      const fc = n.FuncCall as
+        { funcname?: unknown[]; agg_order?: unknown[]; agg_within_group?: boolean } | undefined
+      if (
+        fc?.agg_within_group === true &&
+        (fc.agg_order?.length ?? 0) > 0 &&
+        (fc.funcname ?? []).some((f) => (f as { String?: { sval?: string } }).String?.sval === fn)
+      ) {
+        return true
+      }
+    }
+    return false
+  },
+})
+
+const expectCurrentSchema: Expectation = {
+  label: 'CURRENT_SCHEMA',
+  present: (root) => {
+    for (const n of walk(root)) {
+      const svf = n.SQLValueFunction as { op?: string } | undefined
+      if (svf?.op === 'SVFOP_CURRENT_SCHEMA') return true
+    }
+    return false
+  },
+}
 
 /** A call of `fn` carrying an OVER clause in the re-parsed AST. */
 const expectWindow = (fn: string): Expectation => ({
@@ -1429,6 +1507,49 @@ const PROJECTIONS: Projection[] = [
       matchLiterals: [boolConst(true), nullConst(), intConst(1)],
     }),
     expectations: [expectOperator('==='), expectOperator('====')],
+  },
+  {
+    // The bounded CATALOG-DISPATCH axis. These four syntactic shapes were the
+    // last generated-corpus gaps in capability-reach.test.ts, and they share
+    // one aggregate projection so closing them does not multiply the whole
+    // structural Cartesian product four times.
+    //
+    // The ordered-set and hypothetical-set calls sort a prefix-normalized
+    // integer, which reaches both aggregate-row selection and unary-operator
+    // totality. percentile_disc is NULL over empty input; rank still returns
+    // 1 there. max(CURRENT_SCHEMA::text) makes the session expression legal
+    // beside those aggregates while preserving its empty-input NULL witness.
+    //
+    // `===` is the fixture schema's non-strict, always-TRUE text operator.
+    // Scalar sublinks keep both operand type sets intentionally unreadable to
+    // WHERE promotion, forcing its single-candidate metadata fallback; the
+    // operator still filters no rows, including when either correlated value
+    // is NULL. textA/textB remain text-compatible in every schema variant.
+    key: 'catalog-dispatch',
+    build: (s) => {
+      const normalizedKey = prefixOp('-', s.slots.intKey)
+      return {
+        targets: [
+          target(withinGroupCall('percentile_disc', [numConst('0.5')], normalizedKey), 'a_pct'),
+          target(withinGroupCall('rank', [prefixOp('-', intConst(1))], normalizedKey), 'a_hr'),
+          target(funcCall('max', [castTo(currentSchema(), 'text')]), 'a_cs'),
+        ],
+        where: opExpr('===', scalarSubquery(s.slots.textA), scalarSubquery(s.slots.textB)),
+        colNames: ['a_pct', 'a_hr', 'a_cs'],
+        literals: [intConst(81), intConst(82), textConst('schema-x')],
+        // sparse has one matched row with t.id=1, and the default analysis
+        // path resolves to public. Both WITHIN GROUP calls therefore return
+        // their first ordered value/rank.
+        matchLiterals: [prefixOp('-', intConst(1)), intConst(1), textConst('public')],
+      }
+    },
+    expectations: [
+      expectWithinGroup('percentile_disc'),
+      expectWithinGroup('rank'),
+      expectPrefixOperator('-'),
+      expectOperator('==='),
+      expectCurrentSchema,
+    ],
   },
   {
     // The CHECK-ENTAILMENT axis, and the one place items 4 and 5 COMPOSE.

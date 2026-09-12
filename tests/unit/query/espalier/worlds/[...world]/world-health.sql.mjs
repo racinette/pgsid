@@ -27,10 +27,10 @@ const COMPOSITION_BASELINE = {
 // Raise them when the corpus improves. Lower one only when the corresponding
 // loss is deliberate and explained in the commit that changes this rule.
 const RATCHET = {
-  additivity: 88,
-  chaining: 107,
-  generatedOverConstrained: 32,
-  joinChains: 10,
+  additivity: 99,
+  chaining: 118,
+  generatedOverConstrained: 38,
+  joinChains: 13,
   maxJoinDepth: 5,
 }
 
