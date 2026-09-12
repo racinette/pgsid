@@ -46,6 +46,14 @@ describe('conditional write-path inference', () => {
         FOREIGN KEY (merchant_id, account_code)
           REFERENCES accounts (merchant_id, account_code)
       );
+      CREATE TABLE staged_lots (
+        id int PRIMARY KEY,
+        note text
+      );
+      CREATE TABLE staged_movements (
+        id int PRIMARY KEY,
+        note text NOT NULL
+      );
       INSERT INTO accounts VALUES
         (1, 'main', '2026-01-01 00:00+00'),
         (1, 'reserve', '2026-01-02 00:00+00');
@@ -56,6 +64,7 @@ describe('conditional write-path inference', () => {
         (1, 1, 'main', 'disputed', 'disputed', 10, 10,
          '2026-01-03 00:00+00', '2026-01-03 00:00+00', NULL);
       INSERT INTO optional_charges VALUES (1, NULL, NULL);
+      INSERT INTO staged_lots VALUES (1, NULL);
     `)
     catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
   })
@@ -153,5 +162,24 @@ describe('conditional write-path inference', () => {
       WHERE lower(charges.state) = 'disputed'
       RETURNING state`
     expect((await contract(sql)).paramRejectionSets).toEqual([])
+  })
+
+  it('attributes joint rejection through an UPDATE new image and its CTE consumer', async () => {
+    const sql = `WITH changed AS (
+      UPDATE staged_lots AS l
+      SET note = coalesce($1::text, $2::text)
+      WHERE l.id = $3
+      RETURNING WITH (NEW AS after) after.id, after.note
+    )
+    INSERT INTO staged_movements (id, note)
+    SELECT 10 + c.id, c.note FROM changed AS c
+    RETURNING note`
+
+    const inferred = await contract(sql)
+    expect(inferred.paramRejectionSets).toEqual([[1, 2]])
+    await expect(execute(sql, ['counted', null, 1])).resolves.toEqual([{ note: 'counted' }])
+    await expect(execute(sql, [null, 'fallback', 1])).resolves.toEqual([{ note: 'fallback' }])
+    await expect(execute(sql, [null, null, 1])).rejects.toThrow(/null value|not-null constraint/i)
+    await expect(execute(sql, [null, null, 999])).resolves.toEqual([])
   })
 })

@@ -180,19 +180,31 @@ function writtenConstants(
   if (shape.kind === 'insert') {
     const select = (shape.stmt['selectStmt'] as { SelectStmt?: Fields } | undefined)?.SelectStmt
     const valuesLists = select?.['valuesLists'] as Node[] | undefined
-    // Only the VALUES spelling carries constants; an INSERT … SELECT's values
-    // are the select's business and its rows can differ.
-    if (!valuesLists?.length) return empty
     const cols = (shape.stmt['cols'] as Node[] | undefined)
       ? (shape.stmt['cols'] as Node[]).map(
           (c) => (c as { ResTarget?: { name?: string } }).ResTarget?.name,
         )
       : [...targetColumns]
     let acc: Map<string, Node> | null = null
-    for (const row of valuesLists) {
-      const items = (row as { List?: { items?: Node[] } }).List?.items ?? []
-      const here = pathConstants(items.map((val, i) => [cols[i], val] as const))
-      acc = acc === null ? here : agree(acc, here)
+    if (valuesLists?.length) {
+      for (const row of valuesLists) {
+        const items = (row as { List?: { items?: Node[] } }).List?.items ?? []
+        const here = pathConstants(items.map((val, i) => [cols[i], val] as const))
+        acc = acc === null ? here : agree(acc, here)
+      }
+    } else if (select?.['op'] === 'SETOP_NONE') {
+      // A literal in a plain INSERT … SELECT target is the same value for
+      // every source row. Source cardinality decides whether a row is
+      // written, not what that literal becomes on one that is returned.
+      const targets = (select['targetList'] as Node[] | undefined) ?? []
+      acc = pathConstants(
+        targets.map((item, i) => [
+          cols[i],
+          (item as { ResTarget?: { val?: Node } }).ResTarget?.val,
+        ]),
+      )
+    } else {
+      return empty
     }
     const insertPath = acc ?? empty
     const conflict = shape.stmt['onConflictClause'] as

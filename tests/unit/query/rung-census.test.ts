@@ -341,7 +341,6 @@ const FLOOR: Record<string, Outcome> = {
   'a surviving signature of ⟨*⟩() carries no totality claim → nullable': 'false',
   'a validated CHECK plus row-implied evidence entails `col IS NOT NULL`': 'true',
   'aggregate returns NULL over zero rows': 'false',
-  "alias '⟨*⟩' not found → nullable": 'false',
   'all args nullable → COALESCE nullable': 'false',
   'all args nullable → GREATEST/LEAST nullable': 'false',
   'all operands non-null → AND/OR yields a non-null boolean': 'true',
@@ -469,6 +468,13 @@ const FLOOR: Record<string, Outcome> = {
  * name-table twins, with the measurement).
  */
 const DARK_RUNGS: Record<string, string> = {
+  "alias '⟨*⟩' not found → nullable":
+    'DEFENSIVE — PostgreSQL rejects a qualified reference whose alias is absent; ' +
+    'the formerly unresolved old/new pseudo-aliases are now modeled directly.',
+  '⟨*⟩ image can be absent on a returned row → nullable':
+    'WORLD/FOCUSED — world 008 and returning-row-images-inference.test.ts exercise ' +
+    'action-specific old/new absence; the shared fixture corpus currently carries ' +
+    'only the wholly absent star forms, which conclude alwaysNull instead.',
   'function arg $⟨*⟩ → notNull':
     'INSTRUMENT-BLIND — every $n-bodied sql function reaches it untraced.',
   'function arg $⟨*⟩ → nullable': 'INSTRUMENT-BLIND — as above, nullable direction.',

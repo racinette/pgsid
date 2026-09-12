@@ -41,7 +41,7 @@
 -- undoes every fixpoint mutation, and a leak is invisible to any single
 -- fixture — it would widen queries with no CASE in them at all. The
 -- generated corpus is what holds it: the rung moved notNull by exactly +60,
--- the size of the bucket it targeted, over 14964 executed queries.
+-- the size of the bucket it targeted, over the generated corpus.
 SELECT
   CASE WHEN t.active THEN u.email ELSE 'e' END AS implied_qual,      -- @notNull
   CASE WHEN t2.active THEN u2.email ELSE 'e' END AS dissolution,     -- @notNull

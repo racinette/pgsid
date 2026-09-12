@@ -9,7 +9,7 @@
 -- expansion context.
 DELETE FROM ck WHERE id = 1
 RETURNING new.*
-  -- @nullable
-  -- @nullable
-  -- @nullable
-  -- @nullable
+  -- @alwaysNull
+  -- @alwaysNull
+  -- @alwaysNull
+  -- @alwaysNull

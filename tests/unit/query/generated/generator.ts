@@ -10,9 +10,9 @@
 // identical string to both the engine and PostgreSQL. PostgreSQL is the
 // answer key, so no query carries a hand-written expectation.
 //
-// Every generated query is a pure SELECT over the fixture schema's small
-// tables (`t`, `u`, `v`) — no writes, so execution needs no transaction
-// wrapping.
+// Most generated queries are pure SELECTs over the fixture schema's small
+// tables. The bounded DML axes mark their queries with `writes`, so the
+// oracle wraps each execution in BEGIN/ROLLBACK.
 //
 // Each query also carries `expectations`: predicates over the RE-PARSED AST
 // asserting that the constructs its axis tuple requested actually survived
@@ -59,12 +59,22 @@ export interface GeneratedQuery {
    * PostgreSQL as the answer key in both directions.
    */
   params: { number: number; valid: unknown }[]
+  /** Present only for the bounded PG18 RETURNING old/new Cartesian axis. */
+  rowImageAxes?: {
+    action: 'insert' | 'upsert' | 'update' | 'delete' | 'merge'
+    image: 'old' | 'new'
+    aliases: 'default' | 'renamed'
+    projection: 'scalar' | 'star'
+  }
 }
 
 // --- AST vocabulary --------------------------------------------------------
 
 const str = (sval: string): Ast => ({ String: { sval } })
 const colRef = (...parts: string[]): Ast => ({ ColumnRef: { fields: parts.map(str) } })
+const qualifiedStar = (alias: string): Ast => ({
+  ColumnRef: { fields: [str(alias), { A_Star: {} }] },
+})
 // libpg-query omits zero-valued fields: integer 0 is `{ival: {}}`.
 const intConst = (n: number): Ast => ({ A_Const: { ival: n === 0 ? {} : { ival: n } } })
 const textConst = (s: string): Ast => ({ A_Const: { sval: { sval: s } } })
@@ -145,11 +155,18 @@ const plus = (l: Ast, r: Ast): Ast => ({
 // DML pieces. A DML statement's relation is an INLINED RangeVar (no tag),
 // and RETURNING is a ReturningClause struct: `{ exprs: [ResTarget...] }`.
 const relation = (relname: string): Ast => ({ relname, inh: true, relpersistence: 'p' })
+const relationAs = (relname: string, aliasname: string): Ast => ({
+  ...relation(relname),
+  alias: { aliasname },
+})
 /** A DML target spelled `ONLY rel` — see `onlyVar` for why `inh` is absent. */
 const onlyRelation = (relname: string): Ast => ({ relname, relpersistence: 'p' })
 const insertCols = (...names: string[]): Ast[] => names.map((n) => ({ ResTarget: { name: n } }))
 const setItem = (name: string, val: Ast): Ast => ({ ResTarget: { name, val } })
 const valuesRow = (...items: Ast[]): Ast => ({ List: { items } })
+const returningOption = (side: 'OLD' | 'NEW', value: string): Ast => ({
+  ReturningOption: { option: `RETURNING_OPTION_${side}`, value },
+})
 // ON CONFLICT — the clause is an INLINED OnConflictClause struct; the
 // conflict target (`infer`) names index columns via IndexElem.
 const onConflictUpdate = (keyCol: string, ...setItems: Ast[]): Ast => ({
@@ -317,6 +334,41 @@ const expectReturning: Expectation = {
     return false
   },
 }
+
+const expectReturningAliases = (aliases: 'default' | 'renamed'): Expectation => ({
+  label: aliases === 'default' ? 'default OLD/NEW names' : 'renamed OLD/NEW aliases',
+  present: (root) => {
+    const found: string[] = []
+    for (const n of walk(root)) {
+      const option = n.ReturningOption as { option?: string; value?: string } | undefined
+      if (option?.option && option.value) found.push(`${option.option}:${option.value}`)
+    }
+    const expected =
+      aliases === 'default' ? [] : ['RETURNING_OPTION_OLD:before', 'RETURNING_OPTION_NEW:after']
+    return JSON.stringify(found.sort()) === JSON.stringify(expected.sort())
+  },
+})
+
+const expectReturningImageProjection = (
+  qualifier: string,
+  projection: 'scalar' | 'star',
+): Expectation => ({
+  label: `${qualifier}.${projection === 'star' ? '*' : '{id,name}'}`,
+  present: (root) => {
+    const refs: string[] = []
+    for (const n of walk(root)) {
+      const fields = (n.ColumnRef as { fields?: unknown[] } | undefined)?.fields
+      if (!fields || fields.length !== 2) continue
+      const first = (fields[0] as { String?: { sval?: string } }).String?.sval
+      if (first !== qualifier) continue
+      const second = fields[1] as { String?: { sval?: string }; A_Star?: unknown }
+      if (second.A_Star) refs.push('*')
+      else if (second.String?.sval) refs.push(second.String.sval)
+    }
+    const expected = projection === 'star' ? ['*'] : ['id', 'name']
+    return JSON.stringify(refs.sort()) === JSON.stringify(expected.sort())
+  },
+})
 
 /** The exact multiset of (matchKind, commandType) arms in the re-parsed AST. */
 const expectMergeArms = (...arms: string[]): Expectation => ({
@@ -1496,8 +1548,8 @@ const WRAPPER_EXPECTATIONS: Record<WrapperKey, Expectation[]> = {
 
 // --- Generated DML ---------------------------------------------------------
 //
-// The argument contract's write side. Four kinds, each pure-rollback
-// (the suite wraps every execution in BEGIN/ROLLBACK via `writes`):
+// The argument contract's write side. Every case is pure-rollback (the suite
+// wraps every execution in BEGIN/ROLLBACK via `writes`). Core families include:
 //
 //   insert-values  — INSERT ... VALUES ($1, $2, ...) RETURNING: parameters
 //                    as written values through both rejection channels, and
@@ -1512,6 +1564,9 @@ const WRAPPER_EXPECTATIONS: Record<WrapperKey, Expectation[]> = {
 //                    ins ⟨k⟩ u: DML output recombined with the join axis,
 //                    which is exactly the "combinations nobody writes by
 //                    hand" this generator exists for.
+//   returning-image — PG18 OLD/NEW rows crossed with five write actions,
+//                     alias modes and scalar/star projections; fixture states
+//                     supply zero, one and many returned rows per cell.
 //
 // t and v carry no unique or foreign-key constraints, so explicit ids (800+)
 // can never collide with a data state, and every write is rolled back anyway.
@@ -1525,6 +1580,7 @@ export function generateDmlQueries(): GeneratedQuery[] {
     ast: Ast,
     params: GeneratedQuery['params'],
     expectations: Expectation[],
+    rowImageAxes?: GeneratedQuery['rowImageAxes'],
   ): void => {
     const axes: AxisTuple = { structure, projection, setop: 'none', wrapper: kind }
     out.push({
@@ -1534,6 +1590,7 @@ export function generateDmlQueries(): GeneratedQuery[] {
       params,
       writes: true,
       expectations,
+      ...(rowImageAxes ? { rowImageAxes } : {}),
     })
   }
 
@@ -1576,6 +1633,201 @@ export function generateDmlQueries(): GeneratedQuery[] {
       ],
       [expect('INSERT', 'InsertStmt'), expectReturning, expectParams(1, 2)],
     )
+  }
+
+  // --- PG18 RETURNING row images: a bounded Cartesian axis. ----------------
+  //
+  // Each statement reads the current data state as its source, so the SAME
+  // query affects zero rows under `empty`, one under `sparse`, and many under
+  // the soundness suite's `unmatched` state. That crosses cardinality without
+  // emitting permanently empty queries whose output claims could never be
+  // tested. The other axes are exhaustive: statement action, old/new image,
+  // default/renamed image names, and qualified scalar/star projection.
+  //
+  // MERGE deliberately has UPDATE, INSERT, and BY SOURCE DELETE arms. Its
+  // sparse run returns UPDATE; its unmatched run returns all three actions,
+  // so each selected image's optional presence unit exposes both arms.
+  const rowImageSource = (withName: boolean): Ast =>
+    bareSelect({
+      targetList: [
+        target(colRef('t', 'id'), 'sid'),
+        ...(withName ? [target(funcCall('max', [colRef('t', 'name')]), 'snm')] : []),
+      ],
+      fromClause: [rangeVar('t')],
+      groupClause: [colRef('t', 'id')],
+    })
+
+  const rowImageReturning = (
+    image: 'old' | 'new',
+    aliases: 'default' | 'renamed',
+    projection: 'scalar' | 'star',
+    includeAction: boolean,
+  ): { clause: Ast; qualifier: string } => {
+    const qualifier = aliases === 'renamed' ? (image === 'old' ? 'before' : 'after') : image
+    const exprs =
+      projection === 'star'
+        ? [target(qualifiedStar(qualifier))]
+        : [
+            target(colRef(qualifier, 'id'), `r_${image}_id`),
+            target(colRef(qualifier, 'name'), `r_${image}_name`),
+          ]
+    return {
+      qualifier,
+      clause: {
+        exprs: [...(includeAction ? [target(mergeAction(), 'action')] : []), ...exprs],
+        ...(aliases === 'renamed'
+          ? {
+              options: [returningOption('OLD', 'before'), returningOption('NEW', 'after')],
+            }
+          : {}),
+      },
+    }
+  }
+
+  const rowImageStatement = (
+    action: 'insert' | 'upsert' | 'update' | 'delete' | 'merge',
+    ret: Ast,
+  ): Ast => {
+    if (action === 'insert') {
+      return {
+        InsertStmt: {
+          relation: relation('t'),
+          cols: insertCols('id', 'name', 'val', 'active'),
+          selectStmt: {
+            SelectStmt: bareSelect({
+              targetList: [
+                target(plus(colRef('t', 'id'), intConst(900))),
+                target(coalesce(colRef('t', 'name'), textConst('inserted'))),
+                target(colRef('t', 'val')),
+                target(colRef('t', 'active')),
+              ],
+              fromClause: [rangeVar('t')],
+            }),
+          },
+          returningClause: ret,
+          override: 'OVERRIDING_NOT_SET',
+        },
+      }
+    }
+
+    if (action === 'upsert') {
+      return {
+        InsertStmt: {
+          relation: relation('ck'),
+          cols: insertCols('id', 'name', 'val'),
+          selectStmt: {
+            SelectStmt: bareSelect({
+              targetList: [
+                target(colRef('t', 'id')),
+                target(coalesce(colRef('t', 'name'), textConst('upserted'))),
+                target(textConst('upserted')),
+              ],
+              fromClause: [rangeVar('t')],
+            }),
+          },
+          onConflictClause: onConflictUpdate(
+            'id',
+            setItem('name', colRef('excluded', 'name')),
+            setItem('val', colRef('excluded', 'val')),
+          ),
+          returningClause: ret,
+          override: 'OVERRIDING_NOT_SET',
+        },
+      }
+    }
+
+    if (action === 'update') {
+      return {
+        UpdateStmt: {
+          relation: relationAs('t', 'dst'),
+          targetList: [setItem('name', coalesce(colRef('dst', 'name'), textConst('updated')))],
+          fromClause: [mergeSource(rowImageSource(false), ['sid'])],
+          whereClause: eq(colRef('dst', 'id'), colRef('s', 'sid')),
+          returningClause: ret,
+        },
+      }
+    }
+
+    if (action === 'delete') {
+      return {
+        DeleteStmt: {
+          relation: relationAs('t', 'dst'),
+          usingClause: [mergeSource(rowImageSource(false), ['sid'])],
+          whereClause: eq(colRef('dst', 'id'), colRef('s', 'sid')),
+          returningClause: ret,
+        },
+      }
+    }
+
+    return {
+      MergeStmt: {
+        relation: relationAs('ck', 'dst'),
+        sourceRelation: mergeSource(rowImageSource(true), ['sid', 'snm']),
+        joinCondition: eq(colRef('dst', 'id'), colRef('s', 'sid')),
+        mergeWhenClauses: [
+          mergeWhen('MERGE_WHEN_MATCHED', 'CMD_UPDATE', {
+            targetList: [
+              setItem('name', coalesce(colRef('s', 'snm'), textConst('updated'))),
+              setItem('val', textConst('merged')),
+            ],
+          }),
+          mergeWhen('MERGE_WHEN_NOT_MATCHED_BY_TARGET', 'CMD_INSERT', {
+            targetList: insertCols('id', 'name', 'val'),
+            values: [
+              colRef('s', 'sid'),
+              coalesce(colRef('s', 'snm'), textConst('inserted')),
+              textConst('merged'),
+            ],
+          }),
+          mergeWhen('MERGE_WHEN_NOT_MATCHED_BY_SOURCE', 'CMD_DELETE'),
+        ],
+        returningClause: ret,
+      },
+    }
+  }
+
+  const rowImageActions = ['insert', 'upsert', 'update', 'delete', 'merge'] as const
+  const rowImages = ['old', 'new'] as const
+  const rowImageAliases = ['default', 'renamed'] as const
+  const rowImageProjections = ['scalar', 'star'] as const
+  for (const action of rowImageActions) {
+    for (const image of rowImages) {
+      for (const aliases of rowImageAliases) {
+        for (const projection of rowImageProjections) {
+          const ret = rowImageReturning(image, aliases, projection, action === 'merge')
+          const axes = { action, image, aliases, projection }
+          dml(
+            `returning-image-${action}`,
+            'state-cardinality(0,1,many)',
+            `${image}-${aliases}-${projection}`,
+            rowImageStatement(action, ret.clause),
+            [],
+            [
+              expect(
+                action.toUpperCase(),
+                action === 'upsert'
+                  ? 'InsertStmt'
+                  : `${action[0]!.toUpperCase()}${action.slice(1)}Stmt`,
+              ),
+              expectReturning,
+              expectReturningAliases(aliases),
+              expectReturningImageProjection(ret.qualifier, projection),
+              ...(action === 'upsert' ? [expectOnConflict('ONCONFLICT_UPDATE')] : []),
+              ...(action === 'merge'
+                ? [
+                    expectMergeArms(
+                      'MERGE_WHEN_MATCHED/CMD_UPDATE',
+                      'MERGE_WHEN_NOT_MATCHED_BY_TARGET/CMD_INSERT',
+                      'MERGE_WHEN_NOT_MATCHED_BY_SOURCE/CMD_DELETE',
+                    ),
+                  ]
+                : []),
+            ],
+            axes,
+          )
+        }
+      }
+    }
   }
 
   // --- update-from: the single-join structures against target v. -----------
