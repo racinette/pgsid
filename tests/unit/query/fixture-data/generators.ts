@@ -319,6 +319,16 @@ const columnSpecificGenerators: Record<string, Record<string, Record<string, Col
       status: (_rand, ctx) => ['started', 'pending', 'done'][ctx.row % 3]!,
       event_duration: (rand) => rand.pick(['1 hour', '2 hours', '45 minutes']),
     },
+    written_state: {
+      id: sequential,
+      state: (_rand, ctx) => ['ready', 'vacant', 'ready', 'empty'][ctx.row % 4]!,
+      source_value: (_rand, ctx) => `source-${ctx.row + 1}`,
+    },
+    written_state_hook: {
+      id: sequential,
+      state: () => 'full',
+      source_value: (_rand, ctx) => `before-${ctx.row + 1}`,
+    },
     // gpc's `a` rotates through one value per BAND of the generated CASE,
     // FIRST the equality fixture's own 7 (the sparsest state seeds one row
     // and that fixture has no other way to return one), then the first
@@ -776,6 +786,10 @@ const nullPolicies: {
       evb: {
         started_at: (_rand, ctx) => ctx.current('status') === 'pending',
       },
+      written_state: {
+        source_value: (_rand, ctx) => ['empty', 'vacant'].includes(String(ctx.current('state'))),
+      },
+      written_state_hook: { source_value: () => false },
       gcase_shared: { payload: (_rand, ctx) => ctx.row % 3 !== 0 },
       caiow: {
         a: (_rand, ctx) => ctx.row % 3 === 2,

@@ -353,15 +353,14 @@ describe('E — written values', () => {
   })
 
   it('UPDATE SET the column NULL, read back through RETURNING', async () => {
-    // PostgreSQL: [null, null]. The UPDATE builder has its own written-value
-    // map and it is not mirrored — the INSERT one is.
+    // PostgreSQL: [null, null].
     expect(
       await verdict("UPDATE inv SET status = 'draft', amount = NULL RETURNING amount AS c"),
     ).toBe('alwaysNull')
   })
 
   it('MERGE WHEN MATCHED UPDATE SET the column NULL', async () => {
-    // PostgreSQL: [null, null]. Third builder, same gap.
+    // PostgreSQL: [null, null].
     expect(
       await verdict(
         'MERGE INTO inv USING ord o ON o.inv_id = inv.id' +
@@ -371,32 +370,55 @@ describe('E — written values', () => {
     ).toBe('alwaysNull')
   })
 
-  it.fails('a column the CHECK forces NULL because of what the statement WROTE', async () => {
-    // PostgreSQL: [null, null]. `amount` is not written, so the mirror map
-    // says nothing about it; what forces it NULL is the CHECK reading the
-    // NEW row's `status`, which the statement DID write. The written value
-    // reaches the kernel as a written-value fact, not as evidence, so no
-    // derivation runs. Same family as the generated corpus's `r_ce`:
-    // closing it means letting written values act as evidence, which is
-    // value tracking and its own project.
-    expect(await verdict("UPDATE inv SET status = 'draft' RETURNING amount AS c")).toBe(
-      'alwaysNull',
+  it('a column the CHECK forces NULL because of what the statement WROTE', async () => {
+    // PostgreSQL: [null]. `amount` is not written; the returned NEW row's
+    // CHECK and its written status together force the result NULL.
+    expect(
+      await verdict("UPDATE inv SET status = 'draft' WHERE id = 3 RETURNING amount AS c"),
+    ).toBe('alwaysNull')
+  })
+
+  it('the same written discriminator can force the sibling column non-null', async () => {
+    // PostgreSQL: ["10.0"]. Writing the CHECK's other arm is the mirror
+    // question: every returned NEW row with status = 'paid' has a non-null
+    // amount, even though amount itself was not written.
+    expect(await verdict("UPDATE inv SET status = 'paid' WHERE id = 1 RETURNING amount AS c")).toBe(
+      'notNull',
     )
   })
 
+  it('MERGE written constants reach the same CHECK entailment', async () => {
+    // PostgreSQL: [null]. The one producing arm changes void to draft while
+    // preserving the NULL amount required by both states.
+    expect(
+      await verdict(
+        'MERGE INTO inv USING (VALUES (3)) s(id) ON s.id = inv.id' +
+          " WHEN MATCHED THEN UPDATE SET status = 'draft'" +
+          ' RETURNING inv.amount AS c',
+      ),
+    ).toBe('alwaysNull')
+  })
+
+  it('MERGE written constants also prove the non-null CHECK arm', async () => {
+    // PostgreSQL: ["10.0"].
+    expect(
+      await verdict(
+        'MERGE INTO inv USING (VALUES (1)) s(id) ON s.id = inv.id' +
+          " WHEN MATCHED THEN UPDATE SET status = 'paid'" +
+          ' RETURNING inv.amount AS c',
+      ),
+    ).toBe('notNull')
+  })
+
   it('guard: UPDATE SET a non-NULL value is notNull', async () => {
-    // PostgreSQL: ["3.5","3.5"]. The UPDATE map's existing direction already
-    // answers this, which is what makes the two targets above a MIRROR to
-    // add rather than a map to build.
+    // PostgreSQL: ["3.5","3.5"].
     expect(
       await verdict("UPDATE inv SET status = 'paid', amount = 3.5 RETURNING amount AS c"),
     ).toBe('notNull')
   })
 
   it('guard: INSERT of a non-NULL literal is notNull', async () => {
-    // PostgreSQL: ["7.5"]. Already claimed by the written-value map's
-    // existing direction; a mirror that broke this would have replaced the
-    // map rather than extended it.
+    // PostgreSQL: ["7.5"].
     expect(
       await verdict(
         "INSERT INTO inv (id,status,amount) VALUES (8,'paid',7.5) RETURNING amount AS c",

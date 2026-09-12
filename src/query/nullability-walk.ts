@@ -1103,9 +1103,9 @@ interface Scope {
    */
   dmlWrittenNullColumns?: { alias: string; columns: ReadonlyMap<string, boolean> }
   /**
-   * INSERT RETURNING only: target columns written as one identical literal
-   * on every row-producing path. These are NEW-row facts used by CHECK and
-   * generated-expression inference after the rewrite/trigger gate passes.
+   * DML RETURNING: target columns written as one identical literal on every
+   * row-producing path. These are NEW-row facts used by CHECK, generated-
+   * expression and CASE-guard inference after the rewrite/trigger gate passes.
    */
   dmlWrittenConstants?: { alias: string; columns: ReadonlyMap<string, Node> }
   /**
@@ -4999,8 +4999,14 @@ class NullabilityEngine {
       }
       scope.dmlWrittenColumns = { alias: targetAlias, columns: written }
       scope.dmlWrittenNullColumns = { alias: targetAlias, columns: writtenNull }
+      const constants = writtenColumnConstants(
+        { UpdateStmt: stmt } as unknown as Node,
+        this.catalog,
+      )
+      if (constants.size > 0) {
+        scope.dmlWrittenConstants = { alias: targetAlias, columns: constants }
+      }
     }
-
     return scope
   }
 
@@ -5303,6 +5309,12 @@ class NullabilityEngine {
       }
       scope.dmlWrittenColumns = { alias: targetAliasW, columns: written }
       scope.dmlWrittenNullColumns = { alias: targetAliasW, columns: writtenNull }
+    }
+    if (targetAliasW !== undefined && !targetRewriting) {
+      const constants = writtenColumnConstants({ MergeStmt: stmt } as unknown as Node, this.catalog)
+      if (constants.size > 0) {
+        scope.dmlWrittenConstants = { alias: targetAliasW, columns: constants }
+      }
     }
     // A join written directly as the MERGE source with a BY SOURCE arm is
     // walked OPTIONAL, so the fixpoint's incoming-presence condition keeps
@@ -8392,11 +8404,8 @@ class NullabilityEngine {
    * A DML scope uses the same OLD/NEW split as column entailment. While a SET
    * expression is walked, its guard and WHERE facts both describe OLD and
    * need no mask. RETURNING guards describe NEW: WHERE/implied facts transfer
-   * only through non-SET columns, while enclosing branch guards already
-   * describe NEW and stay unmasked. This is what lets `UPDATE ... SET note =
-   * ... WHERE active RETURNING CASE WHEN active ...` use the unchanged
-   * `active`, while dml-returning-case-guard-old-row.sql still kills any
-   * attempt to transfer a predicate through a column the UPDATE changes.
+   * only through non-SET columns, while written constants and enclosing branch
+   * guards already describe NEW and stay unmasked.
    *
    * NULL-extendable entries remain refused per-entry, because their extended
    * rows satisfy no CHECK — and on those rows a guard like `a IS NULL` IS
@@ -8409,12 +8418,13 @@ class NullabilityEngine {
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
-      ...this.dmlWrittenConstantEvidence(scope),
     ]
+    const written = this.dmlWrittenConstantEvidence(scope)
     const setColumns = scope.dmlSetColumns
     const returningNewRow = !!setColumns && !this.dmlOldRowRead
     const evidence = [
       ...core.map((pred) => ({ pred, applySetMask: returningNewRow })),
+      ...written.map((pred) => ({ pred, applySetMask: false })),
       ...this.kernelGuardPreds(scope).map((pred) => ({ pred, applySetMask: false })),
     ]
     const shared = {
@@ -8833,7 +8843,7 @@ class NullabilityEngine {
     return w && w.alias === entry.alias ? w.columns : undefined
   }
 
-  /** Written INSERT constants rendered as ordinary NEW-row equality facts. */
+  /** Written DML constants rendered as ordinary NEW-row equality facts. */
   private dmlWrittenConstantEvidence(scope: Scope): Node[] {
     const written = scope.dmlWrittenConstants
     if (!written) return []
@@ -9050,11 +9060,16 @@ class NullabilityEngine {
           const qualified = this.qualifyColumnRefs(genExpr, entry.alias, entry)
           const setCols =
             scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null
-          const generationScope =
+          // If no dependency was replaced, OLD and NEW compute the same
+          // generated value. Either row may prove it: OLD keeps selection
+          // facts, while NEW carries facts established by the write itself.
+          const generationScopes =
             setCols && !this.expressionReadsColumns(qualified, entry.alias, setCols)
-              ? this.oldImageScope(scope)
-              : scope
-          if (this.alwaysNullExpr(qualified, generationScope, depth + 1)) return true
+              ? [scope, this.oldImageScope(scope)]
+              : [scope]
+          if (generationScopes.some((s) => this.alwaysNullExpr(qualified, s, depth + 1))) {
+            return true
+          }
         } finally {
           this.generationInFlight.delete(genKey)
         }
@@ -9070,22 +9085,20 @@ class NullabilityEngine {
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
       ...this.qualsHoldingWhenPresent(entry, scope),
-      ...this.dmlWrittenConstantEvidence(scope),
     ]
+    const written = this.dmlWrittenConstantEvidence(scope)
     const guards = this.kernelGuardPreds(scope)
     // A DML statement has two stored rows per returned row, and RETURNING
-    // reads the NEW one. So this is the non-null path's NEW-row channel and
-    // only that: core facts tested the OLD row and transfer through non-SET
-    // columns (hence the mask), guard facts describe the row the guarded
-    // expression reads, which here is NEW (hence not). The OLD-row channel
-    // is a second derivation of the same value for non-SET columns; a first
-    // cut needs one, and the unmasked one would be unsound.
+    // reads the NEW one. Core facts tested the OLD row and transfer through
+    // non-SET columns (hence the mask); written facts and guard facts describe
+    // the NEW row (hence no mask).
     const setCols = scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null
     const evidence =
       !setCols || this.dmlOldRowRead
-        ? [...core, ...guards].map((pred) => ({ pred, applySetMask: false }))
+        ? [...core, ...written, ...guards].map((pred) => ({ pred, applySetMask: false }))
         : [
             ...core.map((pred) => ({ pred, applySetMask: true })),
+            ...written.map((pred) => ({ pred, applySetMask: false })),
             ...guards.map((pred) => ({ pred, applySetMask: false })),
           ]
     if (evidence.length === 0) return false
@@ -10606,15 +10619,16 @@ class NullabilityEngine {
             const qualified = this.qualifyColumnRefs(genExpr, entry.alias, entry)
             const setCols =
               scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null
-            // A stored generated value is recomputed on UPDATE, but when its
-            // expression reads no SET column it necessarily recomputes the
-            // old value. In that case the unmasked old-row facts are the
-            // precise channel for its dependencies.
-            const generationScope =
+            // If no dependency was replaced, OLD and NEW compute the same
+            // generated value. Either row may prove it: OLD keeps selection
+            // facts, while NEW carries facts established by the write itself.
+            const generationScopes =
               setCols && !this.expressionReadsColumns(qualified, entry.alias, setCols)
-                ? this.oldImageScope(scope)
-                : scope
-            const result = this.walkExprTraced(qualified, generationScope, depth + 1, genTrace)
+                ? [scope, this.oldImageScope(scope)]
+                : [scope]
+            const result = generationScopes.some((generationScope) =>
+              this.walkExprTraced(qualified, generationScope, depth + 1, genTrace),
+            )
             if (result) {
               trace.addFact('generatedColumn', 'expression provably non-null')
               trace.conclude(true, "generation expression over this row's columns → notNull")
@@ -10637,12 +10651,12 @@ class NullabilityEngine {
         // NEW, both CHECK-satisfying), and soundness is row-consistency:
         // every fact must hold on the row the derivation runs against, and
         // the goal must equal its value there. WHERE-side facts tested the
-        // OLD row and transfer to NEW only through non-SET columns; guard
-        // facts describe the row the guarded expression reads — NEW in
-        // RETURNING, OLD in a SET expression (dmlOldRowRead). Hence up to
-        // two runs: the NEW row (core masked, guards free, any goal) and
-        // the OLD row (core free, guards masked, goal restricted to
-        // non-SET columns, whose OLD value IS the returned one).
+        // OLD row and transfer to NEW only through non-SET columns; written
+        // facts describe NEW; guard facts describe the row the guarded
+        // expression reads — NEW in RETURNING, OLD in a SET expression.
+        // Hence up to two runs: the NEW row (core masked, written and guards
+        // free, any goal) and the OLD row (core free, guards masked, goal
+        // restricted to non-SET columns, whose OLD value IS the returned one).
         // See src/query/check-entailment.ts.
         // Which CHECK list depends on what the scan can return, exactly
         // like entryColumnNotNull's flag choice: a tree scan can return
@@ -10677,8 +10691,8 @@ class NullabilityEngine {
             ...(scope.havingClause ? [scope.havingClause] : []),
             ...scope.impliedQuals,
             ...this.entryNotNullEvidence(entry, scope, joinState),
-            ...this.dmlWrittenConstantEvidence(scope),
           ]
+          const written = this.dmlWrittenConstantEvidence(scope)
           const guardPreds = this.kernelGuardPreds(scope)
           const channels: { label: string; evidence: { pred: Node; applySetMask: boolean }[] }[] =
             []
@@ -10688,13 +10702,17 @@ class NullabilityEngine {
             // tested that same row.
             channels.push({
               label: this.dmlOldRowRead ? 'OLD row (SET expression read)' : 'row',
-              evidence: [...core, ...guardPreds].map((pred) => ({ pred, applySetMask: false })),
+              evidence: [...core, ...written, ...guardPreds].map((pred) => ({
+                pred,
+                applySetMask: false,
+              })),
             })
           } else {
             channels.push({
               label: 'NEW row',
               evidence: [
                 ...core.map((pred) => ({ pred, applySetMask: true })),
+                ...written.map((pred) => ({ pred, applySetMask: false })),
                 ...guardPreds.map((pred) => ({ pred, applySetMask: false })),
               ],
             })
