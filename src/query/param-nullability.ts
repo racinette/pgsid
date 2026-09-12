@@ -818,6 +818,7 @@ function rejectFlow(
   expr: Node | undefined,
   ctx?: AliasContext,
   target?: WriteTarget,
+  deadParams?: ReadonlySet<number>,
 ): void {
   // Value flow is evaluated, so a never-executed subtree flows nothing.
   if (c.bindOnly) return
@@ -827,9 +828,80 @@ function rejectFlow(
     // static always-raise, not a parameter fact: no binding avoids it, so
     // there is nothing to claim about any parameter.
     if (implicant.length === 0) continue
+    if (implicant.some((number) => deadParams?.has(number))) continue
     if (implicant.length === 1) reject(c, implicant[0]!, 'flow')
     else c.jointRejected.push(implicant)
   }
+}
+
+/**
+ * Parameters whose NULL binding makes an INSERT ... SELECT source empty.
+ *
+ * This deliberately recognizes only the narrow, structural case needed for
+ * sound attribution: the SELECT reads one data-modifying CTE, and that CTE is
+ * an UPDATE or DELETE whose row predicate cannot be true with the parameter
+ * NULL. A required consumer column cannot reject a value on a binding that
+ * provably supplies no consumer row.
+ */
+function insertSelectDeadParams(
+  c: Collector,
+  withClause: unknown,
+  select: Record<string, unknown> | undefined,
+): Set<number> {
+  const out = new Set<number>()
+  if (!select || select['op'] !== 'SETOP_NONE') return out
+  if (
+    select['groupClause'] ||
+    select['havingClause'] ||
+    select['windowClause'] ||
+    select['distinctClause']
+  ) {
+    return out
+  }
+  const containsFunction = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(containsFunction)
+    if (!value || typeof value !== 'object') return false
+    const object = value as Record<string, unknown>
+    return 'FuncCall' in object || Object.values(object).some(containsFunction)
+  }
+  if (containsFunction(select['targetList'])) return out
+  const from = select['fromClause'] as Node[] | undefined
+  const range = (from?.[0] as { RangeVar?: { relname?: string } } | undefined)?.RangeVar
+  if (from?.length !== 1 || !range?.relname) return out
+
+  const ctes = (withClause as { ctes?: unknown[] } | undefined)?.ctes ?? []
+  const wrapped = ctes.find((node) => {
+    const cte = (node as { CommonTableExpr?: { ctename?: string } }).CommonTableExpr
+    return cte?.ctename === range.relname
+  })
+  const query = (
+    wrapped as { CommonTableExpr?: { ctequery?: Record<string, unknown> } } | undefined
+  )?.CommonTableExpr?.ctequery
+  if (!query) return out
+
+  const dml = (query['UpdateStmt'] ?? query['DeleteStmt']) as
+    | {
+        relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } }
+        fromClause?: Node[]
+        usingClause?: Node[]
+        whereClause?: Node
+      }
+    | undefined
+  if (!dml?.relation?.relname || !dml.whereClause) return out
+  const table = c.catalog.resolveTable(dml.relation.schemaname, dml.relation.relname)
+  if (!table) return out
+  const target: WriteTarget = {
+    schema: table.schema,
+    table: table.name,
+    alias: dml.relation.alias?.aliasname ?? dml.relation.relname,
+  }
+  const ctx = aliasContextOf(dml.fromClause ?? dml.usingClause)
+  for (const number of singletonsOf(
+    predicateCannotBeTrueBy(dml.whereClause, c.catalog, ctx, target),
+  )) {
+    out.add(number)
+  }
+  return out
 }
 
 /** Structural equality for a predicate repeated at two statement sites. */
@@ -1366,6 +1438,7 @@ function checkInsert(
     select?.['fromClause'] as Node[] | undefined,
     modifyingCteColumns(stmt.withClause),
   )
+  const deadParams = insertSelectDeadParams(c, stmt.withClause, select)
 
   const rejectAt = (position: number, val: Node | undefined): void => {
     const column = target.columns[position]
@@ -1373,8 +1446,9 @@ function checkInsert(
     const mechanism = columnRejection(c, target.schema, target.table, column, 'insert')
     if (!mechanism) return
     const num = paramNumberOf(val)
-    if (num !== null) reject(c, num, mechanism)
-    else rejectFlow(c, val, sourceCtx)
+    if (num !== null) {
+      if (!deadParams.has(num)) reject(c, num, mechanism)
+    } else rejectFlow(c, val, sourceCtx, undefined, deadParams)
   }
 
   if (select) {

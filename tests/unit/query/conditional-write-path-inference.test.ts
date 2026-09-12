@@ -182,4 +182,32 @@ describe('conditional write-path inference', () => {
     await expect(execute(sql, [null, null, 1])).rejects.toThrow(/null value|not-null constraint/i)
     await expect(execute(sql, [null, null, 999])).resolves.toEqual([])
   })
+
+  it('does not push a consumer rejection behind a parameter-empty modifying CTE', async () => {
+    const sql = `WITH changed AS (
+      UPDATE staged_lots AS l
+      SET note = 'moved'
+      WHERE l.id = $1
+      RETURNING l.id
+    )
+    INSERT INTO staged_movements (id, note)
+    SELECT $1, 'written' FROM changed AS c
+    RETURNING note`
+
+    expect((await contract(sql)).params).toEqual([{ number: 1, notNull: false }])
+    await expect(execute(sql, [1])).resolves.toEqual([{ note: 'written' }])
+    await expect(execute(sql, [null])).resolves.toEqual([])
+
+    const aggregate = `WITH changed AS (
+      UPDATE staged_lots AS l
+      SET note = 'moved'
+      WHERE l.id = $1
+      RETURNING l.id
+    )
+    INSERT INTO staged_movements (id, note)
+    SELECT $1, count(*)::text FROM changed AS c
+    RETURNING note`
+    expect((await contract(aggregate)).params).toEqual([{ number: 1, notNull: true }])
+    await expect(execute(aggregate, [null])).rejects.toThrow(/null value|not-null constraint/i)
+  })
 })
