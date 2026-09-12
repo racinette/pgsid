@@ -183,31 +183,43 @@ describe('conditional write-path inference', () => {
     await expect(execute(sql, [null, null, 999])).resolves.toEqual([])
   })
 
-  it('does not push a consumer rejection behind a parameter-empty modifying CTE', async () => {
-    const sql = `WITH changed AS (
-      UPDATE staged_lots AS l
-      SET note = 'moved'
-      WHERE l.id = $1
-      RETURNING l.id
-    )
-    INSERT INTO staged_movements (id, note)
-    SELECT $1, 'written' FROM changed AS c
-    RETURNING note`
+  it('mutation-tests consumer rejection against modifying-CTE liveness', async () => {
+    for (const action of ['update', 'delete'] as const) {
+      for (const flow of ['$1', '10 + $1']) {
+        const modifying =
+          action === 'update'
+            ? `UPDATE staged_lots AS l SET note = 'moved'`
+            : `DELETE FROM staged_lots AS l`
+        const source = (predicate: string) => `WITH changed AS (
+          ${modifying}
+          WHERE ${predicate}
+          RETURNING l.id
+        )`
 
-    expect((await contract(sql)).params).toEqual([{ number: 1, notNull: false }])
-    await expect(execute(sql, [1])).resolves.toEqual([{ note: 'written' }])
-    await expect(execute(sql, [null])).resolves.toEqual([])
+        const emptySource = `${source('l.id = $1')}
+          INSERT INTO staged_movements (id, note)
+          SELECT ${flow}, 'written' FROM changed AS c
+          RETURNING note`
+        expect((await contract(emptySource)).params).toEqual([{ number: 1, notNull: false }])
+        await expect(execute(emptySource, [1])).resolves.toEqual([{ note: 'written' }])
+        await expect(execute(emptySource, [null])).resolves.toEqual([])
 
-    const aggregate = `WITH changed AS (
-      UPDATE staged_lots AS l
-      SET note = 'moved'
-      WHERE l.id = $1
-      RETURNING l.id
-    )
-    INSERT INTO staged_movements (id, note)
-    SELECT $1, count(*)::text FROM changed AS c
-    RETURNING note`
-    expect((await contract(aggregate)).params).toEqual([{ number: 1, notNull: true }])
-    await expect(execute(aggregate, [null])).rejects.toThrow(/null value|not-null constraint/i)
+        const liveSource = `${source('l.id = $1 OR l.id = 1')}
+          INSERT INTO staged_movements (id, note)
+          SELECT ${flow}, 'written' FROM changed AS c
+          RETURNING note`
+        expect((await contract(liveSource)).params).toEqual([{ number: 1, notNull: true }])
+        await expect(execute(liveSource, [null])).rejects.toThrow(/null value|not-null constraint/i)
+
+        const aggregateSource = `${source('l.id = $1')}
+          INSERT INTO staged_movements (id, note)
+          SELECT ${flow}, count(*)::text FROM changed AS c
+          RETURNING note`
+        expect((await contract(aggregateSource)).params).toEqual([{ number: 1, notNull: true }])
+        await expect(execute(aggregateSource, [null])).rejects.toThrow(
+          /null value|not-null constraint/i,
+        )
+      }
+    }
   })
 })
