@@ -996,10 +996,11 @@ class EntailmentKernel {
    * For each TRUE fact `gencol = 'lit'` over a generated column, decide
    * which CASE arm produced the value. An arm is EXCLUDED when its result
    * is a literal provably distinct from 'lit', a NULL (the equality being
-   * TRUE rules it out), or its condition is already FALSE; the implicit or
-   * explicit NULL/literal ELSE is treated the same way. If exactly one arm
-   * survives and it is a real WHEN arm, its condition evaluated TRUE for
-   * this row and its conjuncts join the facts.
+   * TRUE rules it out), or its condition is already not-TRUE; the implicit
+   * or explicit NULL/literal ELSE is treated the same way. CASE skips FALSE
+   * and NULL guards alike, so not-TRUE is the exact execution judgment here.
+   * If exactly one arm survives and it is a real WHEN arm, its condition
+   * evaluated TRUE for this row and its conjuncts join the facts.
    *
    * An ELSE survivor derives nothing FROM ITSELF — ELSE runs when the
    * conditions were FALSE *or NULL*, and 3VL grants no facts from "not
@@ -1116,7 +1117,7 @@ class EntailmentKernel {
         { expr?: Node; result?: Node } | undefined
       const cond = this.armCondition(ce, when)
       if (!cond) return null
-      if (this.isFalse(cond) || resultExcluded(when?.result)) continue
+      if (this.isNotTrue(cond) || resultExcluded(when?.result)) continue
       if (survivor) return null // two candidates — no single arm
       survivor = { cond }
     }
