@@ -25,6 +25,9 @@
 // ---------------------------------------------------------------------------
 
 type Ast = Record<string, unknown>
+type RowImageAliasMode = 'default' | 'old-renamed' | 'new-renamed' | 'renamed'
+type RowImageProjection = 'scalar' | 'star' | 'expression' | 'whole'
+type MergeActionSet = 'I' | 'U' | 'D' | 'IU' | 'ID' | 'UD' | 'IUD'
 
 export interface Expectation {
   label: string
@@ -63,8 +66,9 @@ export interface GeneratedQuery {
   rowImageAxes?: {
     action: 'insert' | 'upsert' | 'update' | 'delete' | 'merge'
     image: 'old' | 'new'
-    aliases: 'default' | 'renamed'
-    projection: 'scalar' | 'star'
+    aliases: RowImageAliasMode
+    projection: RowImageProjection
+    mergeActions?: MergeActionSet
   }
 }
 
@@ -335,37 +339,67 @@ const expectReturning: Expectation = {
   },
 }
 
-const expectReturningAliases = (aliases: 'default' | 'renamed'): Expectation => ({
-  label: aliases === 'default' ? 'default OLD/NEW names' : 'renamed OLD/NEW aliases',
+const returningImageNames = (
+  aliases: RowImageAliasMode,
+): { old: string; new: string; options: Ast[] } => ({
+  old: aliases === 'old-renamed' || aliases === 'renamed' ? 'before' : 'old',
+  new: aliases === 'new-renamed' || aliases === 'renamed' ? 'after' : 'new',
+  options: [
+    ...(aliases === 'old-renamed' || aliases === 'renamed'
+      ? [returningOption('OLD', 'before')]
+      : []),
+    ...(aliases === 'new-renamed' || aliases === 'renamed'
+      ? [returningOption('NEW', 'after')]
+      : []),
+  ],
+})
+
+const expectReturningAliases = (aliases: RowImageAliasMode): Expectation => ({
+  label: `${aliases} OLD/NEW names`,
   present: (root) => {
     const found: string[] = []
     for (const n of walk(root)) {
       const option = n.ReturningOption as { option?: string; value?: string } | undefined
       if (option?.option && option.value) found.push(`${option.option}:${option.value}`)
     }
-    const expected =
-      aliases === 'default' ? [] : ['RETURNING_OPTION_OLD:before', 'RETURNING_OPTION_NEW:after']
+    const names = returningImageNames(aliases)
+    const expected = names.options.map((option) => {
+      const value = option.ReturningOption as { option: string; value: string }
+      return `${value.option}:${value.value}`
+    })
     return JSON.stringify(found.sort()) === JSON.stringify(expected.sort())
   },
 })
 
 const expectReturningImageProjection = (
   qualifier: string,
-  projection: 'scalar' | 'star',
+  projection: RowImageProjection,
 ): Expectation => ({
-  label: `${qualifier}.${projection === 'star' ? '*' : '{id,name}'}`,
+  label: `${qualifier}.${projection}`,
   present: (root) => {
     const refs: string[] = []
     for (const n of walk(root)) {
       const fields = (n.ColumnRef as { fields?: unknown[] } | undefined)?.fields
-      if (!fields || fields.length !== 2) continue
+      if (!fields) continue
       const first = (fields[0] as { String?: { sval?: string } }).String?.sval
       if (first !== qualifier) continue
+      if (fields.length === 1) {
+        refs.push('<whole>')
+        continue
+      }
+      if (fields.length !== 2) continue
       const second = fields[1] as { String?: { sval?: string }; A_Star?: unknown }
       if (second.A_Star) refs.push('*')
       else if (second.String?.sval) refs.push(second.String.sval)
     }
-    const expected = projection === 'star' ? ['*'] : ['id', 'name']
+    const expected =
+      projection === 'star'
+        ? ['*']
+        : projection === 'scalar'
+          ? ['id', 'name']
+          : projection === 'expression'
+            ? ['id', 'name']
+            : ['<whole>']
     return JSON.stringify(refs.sort()) === JSON.stringify(expected.sort())
   },
 })
@@ -1565,8 +1599,10 @@ const WRAPPER_EXPECTATIONS: Record<WrapperKey, Expectation[]> = {
 //                    which is exactly the "combinations nobody writes by
 //                    hand" this generator exists for.
 //   returning-image — PG18 OLD/NEW rows crossed with five write actions,
-//                     alias modes and scalar/star projections; fixture states
-//                     supply zero, one and many returned rows per cell.
+//                     four alias modes and scalar/star/expression/whole-row
+//                     projections; all seven MERGE action subsets are covered
+//                     on a smaller cross-product, and fixture states supply
+//                     zero, one and many returned rows per cell.
 //
 // t and v carry no unique or foreign-key constraints, so explicit ids (800+)
 // can never collide with a data state, and every write is rolled back anyway.
@@ -1642,44 +1678,59 @@ export function generateDmlQueries(): GeneratedQuery[] {
   // the soundness suite's `unmatched` state. That crosses cardinality without
   // emitting permanently empty queries whose output claims could never be
   // tested. The other axes are exhaustive: statement action, old/new image,
-  // default/renamed image names, and qualified scalar/star projection.
+  // default/partial/fully renamed image names, and scalar, star, expression,
+  // or whole-row projection.
   //
   // MERGE deliberately has UPDATE, INSERT, and BY SOURCE DELETE arms. Its
   // sparse run returns UPDATE; its unmatched run returns all three actions,
   // so each selected image's optional presence unit exposes both arms.
-  const rowImageSource = (withName: boolean): Ast =>
+  const rowImageSource = (
+    withName: boolean,
+    profile: 'identity' | 'shifted' | 'without-one' = 'identity',
+  ): Ast =>
     bareSelect({
       targetList: [
-        target(colRef('t', 'id'), 'sid'),
+        target(
+          profile === 'shifted' ? plus(colRef('t', 'id'), intConst(900)) : colRef('t', 'id'),
+          'sid',
+        ),
         ...(withName ? [target(funcCall('max', [colRef('t', 'name')]), 'snm')] : []),
       ],
       fromClause: [rangeVar('t')],
+      ...(profile === 'without-one' ? { whereClause: neq(colRef('t', 'id'), intConst(1)) } : {}),
       groupClause: [colRef('t', 'id')],
     })
 
   const rowImageReturning = (
     image: 'old' | 'new',
-    aliases: 'default' | 'renamed',
-    projection: 'scalar' | 'star',
+    aliases: RowImageAliasMode,
+    projection: RowImageProjection,
     includeAction: boolean,
   ): { clause: Ast; qualifier: string } => {
-    const qualifier = aliases === 'renamed' ? (image === 'old' ? 'before' : 'after') : image
+    const names = returningImageNames(aliases)
+    const qualifier = names[image]
     const exprs =
       projection === 'star'
         ? [target(qualifiedStar(qualifier))]
-        : [
-            target(colRef(qualifier, 'id'), `r_${image}_id`),
-            target(colRef(qualifier, 'name'), `r_${image}_name`),
-          ]
+        : projection === 'scalar'
+          ? [
+              target(colRef(qualifier, 'id'), `r_${image}_id`),
+              target(colRef(qualifier, 'name'), `r_${image}_name`),
+            ]
+          : projection === 'expression'
+            ? [
+                target(funcCall('abs', [colRef(qualifier, 'id')]), `r_${image}_strict`),
+                target(
+                  coalesce(colRef(qualifier, 'name'), textConst('fallback')),
+                  `r_${image}_safe`,
+                ),
+              ]
+            : [target(colRef(qualifier), `r_${image}_row`)]
     return {
       qualifier,
       clause: {
         exprs: [...(includeAction ? [target(mergeAction(), 'action')] : []), ...exprs],
-        ...(aliases === 'renamed'
-          ? {
-              options: [returningOption('OLD', 'before'), returningOption('NEW', 'after')],
-            }
-          : {}),
+        ...(names.options.length ? { options: names.options } : {}),
       },
     }
   }
@@ -1687,6 +1738,7 @@ export function generateDmlQueries(): GeneratedQuery[] {
   const rowImageStatement = (
     action: 'insert' | 'upsert' | 'update' | 'delete' | 'merge',
     ret: Ast,
+    mergeActions: MergeActionSet = 'IUD',
   ): Ast => {
     if (action === 'insert') {
       return {
@@ -1759,28 +1811,45 @@ export function generateDmlQueries(): GeneratedQuery[] {
       }
     }
 
+    const sourceProfile =
+      mergeActions === 'I'
+        ? 'shifted'
+        : mergeActions === 'D' || mergeActions === 'ID'
+          ? 'without-one'
+          : 'identity'
+    const mergeArms = [
+      ...(mergeActions.includes('U')
+        ? [
+            mergeWhen('MERGE_WHEN_MATCHED', 'CMD_UPDATE', {
+              targetList: [
+                setItem('name', coalesce(colRef('s', 'snm'), textConst('updated'))),
+                setItem('val', textConst('merged')),
+              ],
+            }),
+          ]
+        : []),
+      ...(mergeActions.includes('I')
+        ? [
+            mergeWhen('MERGE_WHEN_NOT_MATCHED_BY_TARGET', 'CMD_INSERT', {
+              targetList: insertCols('id', 'name', 'val'),
+              values: [
+                colRef('s', 'sid'),
+                coalesce(colRef('s', 'snm'), textConst('inserted')),
+                textConst('merged'),
+              ],
+            }),
+          ]
+        : []),
+      ...(mergeActions.includes('D')
+        ? [mergeWhen('MERGE_WHEN_NOT_MATCHED_BY_SOURCE', 'CMD_DELETE')]
+        : []),
+    ]
     return {
       MergeStmt: {
         relation: relationAs('ck', 'dst'),
-        sourceRelation: mergeSource(rowImageSource(true), ['sid', 'snm']),
+        sourceRelation: mergeSource(rowImageSource(true, sourceProfile), ['sid', 'snm']),
         joinCondition: eq(colRef('dst', 'id'), colRef('s', 'sid')),
-        mergeWhenClauses: [
-          mergeWhen('MERGE_WHEN_MATCHED', 'CMD_UPDATE', {
-            targetList: [
-              setItem('name', coalesce(colRef('s', 'snm'), textConst('updated'))),
-              setItem('val', textConst('merged')),
-            ],
-          }),
-          mergeWhen('MERGE_WHEN_NOT_MATCHED_BY_TARGET', 'CMD_INSERT', {
-            targetList: insertCols('id', 'name', 'val'),
-            values: [
-              colRef('s', 'sid'),
-              coalesce(colRef('s', 'snm'), textConst('inserted')),
-              textConst('merged'),
-            ],
-          }),
-          mergeWhen('MERGE_WHEN_NOT_MATCHED_BY_SOURCE', 'CMD_DELETE'),
-        ],
+        mergeWhenClauses: mergeArms,
         returningClause: ret,
       },
     }
@@ -1788,43 +1857,59 @@ export function generateDmlQueries(): GeneratedQuery[] {
 
   const rowImageActions = ['insert', 'upsert', 'update', 'delete', 'merge'] as const
   const rowImages = ['old', 'new'] as const
-  const rowImageAliases = ['default', 'renamed'] as const
-  const rowImageProjections = ['scalar', 'star'] as const
+  const rowImageAliases = ['default', 'old-renamed', 'new-renamed', 'renamed'] as const
+  const rowImageProjections = ['scalar', 'star', 'expression', 'whole'] as const
+  const mergeActionSets = ['I', 'U', 'D', 'IU', 'ID', 'UD', 'IUD'] as const
   for (const action of rowImageActions) {
     for (const image of rowImages) {
       for (const aliases of rowImageAliases) {
         for (const projection of rowImageProjections) {
-          const ret = rowImageReturning(image, aliases, projection, action === 'merge')
-          const axes = { action, image, aliases, projection }
-          dml(
-            `returning-image-${action}`,
-            'state-cardinality(0,1,many)',
-            `${image}-${aliases}-${projection}`,
-            rowImageStatement(action, ret.clause),
-            [],
-            [
-              expect(
-                action.toUpperCase(),
-                action === 'upsert'
-                  ? 'InsertStmt'
-                  : `${action[0]!.toUpperCase()}${action.slice(1)}Stmt`,
-              ),
-              expectReturning,
-              expectReturningAliases(aliases),
-              expectReturningImageProjection(ret.qualifier, projection),
-              ...(action === 'upsert' ? [expectOnConflict('ONCONFLICT_UPDATE')] : []),
-              ...(action === 'merge'
-                ? [
-                    expectMergeArms(
-                      'MERGE_WHEN_MATCHED/CMD_UPDATE',
-                      'MERGE_WHEN_NOT_MATCHED_BY_TARGET/CMD_INSERT',
-                      'MERGE_WHEN_NOT_MATCHED_BY_SOURCE/CMD_DELETE',
-                    ),
-                  ]
+          const subsets =
+            action === 'merge' &&
+            (aliases === 'default' || aliases === 'renamed') &&
+            (projection === 'scalar' || projection === 'star')
+              ? mergeActionSets
+              : (['IUD'] as const)
+          for (const mergeActions of subsets) {
+            const ret = rowImageReturning(image, aliases, projection, action === 'merge')
+            const axes = {
+              action,
+              image,
+              aliases,
+              projection,
+              ...(action === 'merge' ? { mergeActions } : {}),
+            }
+            const arms = [
+              ...(mergeActions.includes('U') ? ['MERGE_WHEN_MATCHED/CMD_UPDATE'] : []),
+              ...(mergeActions.includes('I')
+                ? ['MERGE_WHEN_NOT_MATCHED_BY_TARGET/CMD_INSERT']
                 : []),
-            ],
-            axes,
-          )
+              ...(mergeActions.includes('D')
+                ? ['MERGE_WHEN_NOT_MATCHED_BY_SOURCE/CMD_DELETE']
+                : []),
+            ]
+            dml(
+              `returning-image-${action}`,
+              'state-cardinality(0,1,many)',
+              `${image}-${aliases}-${projection}${action === 'merge' ? `-${mergeActions}` : ''}`,
+              rowImageStatement(action, ret.clause, mergeActions),
+              [],
+              [
+                expect(
+                  action.toUpperCase(),
+                  action === 'upsert'
+                    ? 'InsertStmt'
+                    : `${action[0]!.toUpperCase()}${action.slice(1)}Stmt`,
+                ),
+                expectReturning,
+                expectReturningAliases(aliases),
+                expectReturningImageProjection(ret.qualifier, projection),
+                ...(action === 'upsert' ? [expectOnConflict('ONCONFLICT_UPDATE')] : []),
+                ...(action === 'merge' ? [expectMergeArms(...arms)] : []),
+              ],
+              axes,
+            )
+          }
         }
       }
     }

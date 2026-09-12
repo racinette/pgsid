@@ -264,6 +264,8 @@ interface QueryRecord {
   sawRows: boolean
   /** Distinct result cardinalities observed across states and bindings. */
   rowCounts: Set<number>
+  /** MERGE actions observed in the leading merge_action() output column. */
+  mergeActionsSeen: Set<string>
   /**
    * Per output column: a NULL was actually observed there, under some state
    * and binding. For nullable claims this is the witness — the only
@@ -325,6 +327,7 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
         violations: [],
         sawRows: false,
         rowCounts: new Set(),
+        mergeActionsSeen: new Set(),
         nullWitnessed: [],
       }
       records.push(record)
@@ -421,6 +424,9 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
         // NULL-variant executions feed the same row scan as the control.
         const scanRows = (rows: unknown[][], binding: string): void => {
           record.rowCounts.add(rows.length)
+          if (record.query.rowImageAxes?.action === 'merge') {
+            for (const row of rows) record.mergeActionsSeen.add(String(row[0]).toUpperCase())
+          }
           if (!record.claimed || record.shapeMismatch) return
           if (rows.length > 0) record.sawRows = true
           record.claimed.forEach((claim, i) => {
@@ -590,9 +596,25 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
     const expected: string[] = []
     for (const action of ['insert', 'upsert', 'update', 'delete', 'merge'] as const) {
       for (const image of ['old', 'new'] as const) {
-        for (const aliases of ['default', 'renamed'] as const) {
-          for (const projection of ['scalar', 'star'] as const) {
-            expected.push(JSON.stringify({ action, image, aliases, projection }))
+        for (const aliases of ['default', 'old-renamed', 'new-renamed', 'renamed'] as const) {
+          for (const projection of ['scalar', 'star', 'expression', 'whole'] as const) {
+            const subsets =
+              action === 'merge' &&
+              (aliases === 'default' || aliases === 'renamed') &&
+              (projection === 'scalar' || projection === 'star')
+                ? (['I', 'U', 'D', 'IU', 'ID', 'UD', 'IUD'] as const)
+                : (['IUD'] as const)
+            for (const mergeActions of subsets) {
+              expected.push(
+                JSON.stringify({
+                  action,
+                  image,
+                  aliases,
+                  projection,
+                  ...(action === 'merge' ? { mergeActions } : {}),
+                }),
+              )
+            }
           }
         }
       }
@@ -619,6 +641,27 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
     ).toEqual([])
   })
 
+  it('executes every selected MERGE action in every subset cell', () => {
+    const names = { I: 'INSERT', U: 'UPDATE', D: 'DELETE' } as const
+    const missing = records
+      .filter((r) => r.query.rowImageAxes?.action === 'merge')
+      .filter((r) => {
+        const selected = r.query.rowImageAxes!.mergeActions ?? 'IUD'
+        return [...selected].some(
+          (action) => !r.mergeActionsSeen.has(names[action as keyof typeof names]),
+        )
+      })
+      .map((r) =>
+        describeFailure(
+          r,
+          `selected ${r.query.rowImageAxes!.mergeActions}; observed ${[...r.mergeActionsSeen].join(
+            ', ',
+          )}`,
+        ),
+      )
+    expect(missing, `Every selected MERGE arm must execute:\n${missing.join('\n')}\n`).toEqual([])
+  })
+
   it('exposes the generated absent-image alwaysNull claims to PostgreSQL rows', () => {
     const rowImages = records.filter((r) => r.query.rowImageAxes)
     const claims = rowImages.flatMap((r) => r.claimed?.filter((c) => c.alwaysNull) ?? [])
@@ -626,8 +669,10 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
       r.sawRows ? (r.claimed?.filter((c) => c.alwaysNull) ?? []) : [],
     )
     // INSERT-old and DELETE-new each contribute, per alias mode, two scalar
-    // fields plus t's four star-expanded fields: 2 × (2 + 4) = 12 apiece.
-    expect(claims).toHaveLength(24)
+    // fields, t's four star fields, one strict expression, and one whole row:
+    // 2 absent directions × 4 alias modes × (2 + 4 + 1 + 1) = 64.
+    // Singleton MERGE I-old and D-new add 2 × 2 aliases × (2 + 4) = 24.
+    expect(claims).toHaveLength(88)
     expect(exposed).toHaveLength(claims.length)
   })
 
@@ -1058,8 +1103,8 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
         `${records.reduce((n, r) => n + r.groupEvidence.filter((g) => g.sawAbsent && g.sawPresent).length, 0)} ` +
         `both arms observed, ` +
         `${count((r) => r.groupViolations.length > 0)} falsified\n` +
-        `  row-image axis bound:       5 actions × 2 images × 2 alias modes × ` +
-        `2 projections; every cell observed at 0/1/many rows\n` +
+        `  row-image axis bound:       5 actions × 2 images × 4 alias modes × ` +
+        `4 projections, plus all 7 MERGE action subsets; every cell observed at 0/1/many rows\n` +
         `  deep-join axis bound:       5 shapes × 4³ kinds, plain projection only ` +
         `(setops/wrappers not crossed)\n` +
         `  widened-axis gates:         refilter wrappers skip tuples without a_tc and all ` +

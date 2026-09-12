@@ -1267,8 +1267,6 @@ export interface TraceNode {
  * decision. The trace is present when `inferNullabilityTraced` is used;
  * absent (or `trace` is undefined) for the plain `inferNullability` call.
  */
-export interface OutputNullabilityTraced {
-  name: string
-  notNull: boolean
+export interface OutputNullabilityTraced extends OutputNullability {
   trace?: TraceNode
 }

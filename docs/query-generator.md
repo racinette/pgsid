@@ -213,12 +213,16 @@ from its own generator.
 
 **Row-image axes need cardinality states, not dead statements.** PostgreSQL 18
 `RETURNING old`/`new` coverage crosses statement action, selected image,
-default versus renamed image aliases, and qualified scalar versus star
-projection. Each generated statement reads the fixture state, so the same
-shape returns zero, one, and many rows across `empty`, `sparse`, and
-`unmatched`. A permanently empty source would preserve syntax but leave every
-output claim untested. The oracle therefore ratchets both the full Cartesian
-matrix and the three observed cardinalities per cell.
+default, partial, or fully renamed image aliases, and scalar, star, expression,
+or whole-row projection. Each generated statement reads the fixture state, so
+the same shape returns zero, one, and many rows across `empty`, `sparse`, and
+`unmatched`. MERGE additionally enumerates every non-empty subset of INSERT,
+UPDATE, and DELETE actions over a smaller alias/projection cross-product, with
+source geometry chosen so every selected action executes. A permanently empty
+source would preserve syntax but leave every output claim untested. The oracle
+therefore ratchets the exact matrix, the three observed cardinalities per
+cell, the selected MERGE actions, and the exposed absent-image `alwaysNull`
+claims.
 
 **Some relations are frozen and must stay so.** A schema the fixtures depend
 on cannot be reshaped to suit the generator, and relations that look unused
