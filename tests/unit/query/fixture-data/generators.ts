@@ -319,6 +319,13 @@ const columnSpecificGenerators: Record<string, Record<string, Record<string, Col
       status: (_rand, ctx) => ['started', 'pending', 'done'][ctx.row % 3]!,
       event_duration: (rand) => rand.pick(['1 hour', '2 hours', '45 minutes']),
     },
+    written_coercion: {
+      id: sequential,
+      state: (_rand, ctx) => (ctx.row % 2 === 0 ? 'a' : 'b'),
+      amount: (_rand, ctx) => `amount-${ctx.row + 1}`,
+    },
+    written_integer: { id: sequential, state: () => 1 },
+    written_numeric: { id: sequential, state: () => '9007199254740993', amount: () => 'present' },
     written_state: {
       id: sequential,
       state: (_rand, ctx) => ['ready', 'vacant', 'ready', 'empty'][ctx.row % 4]!,
@@ -786,6 +793,8 @@ const nullPolicies: {
       evb: {
         started_at: (_rand, ctx) => ctx.current('status') === 'pending',
       },
+      written_coercion: { amount: (_rand, ctx) => ctx.current('state') === 'a' },
+      written_numeric: { amount: () => true },
       written_state: {
         source_value: (_rand, ctx) => ['empty', 'vacant'].includes(String(ctx.current('state'))),
       },

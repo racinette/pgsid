@@ -16,6 +16,9 @@
 -- (`(SELECT id FROM t)`) raises on two rows and returns nothing on none, so a
 -- one-row table is the only state under which it can be observed at all.
 INSERT INTO t (id, name, val, active) VALUES (1, NULL, 'x', true);
+INSERT INTO written_coercion (id, state, amount) VALUES (1, 'a', NULL), (2, 'b', 'present');
+INSERT INTO written_integer (id, state) VALUES (1, 1);
+INSERT INTO written_numeric (id, state, amount) VALUES (1, 9007199254740993, NULL);
 -- The one `u` row carries the status the promotion fixtures filter on, so
 -- their liveness does not depend on a random draw producing that value.
 INSERT INTO u (id, t_id, email, val, status) VALUES (1, 1, 'u1@b.c', NULL, 'active');

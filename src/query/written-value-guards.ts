@@ -45,7 +45,7 @@
 // pass runs before the scope that enforces it exists.
 // ---------------------------------------------------------------------------
 
-import type { Node } from 'libpg-query'
+import { parseSync, type Node, type TypeName } from 'libpg-query'
 import {
   evaluateClosedSubtrees,
   type EvalResult,
@@ -93,9 +93,7 @@ function shapeOf(stmt: Node): DmlShape | null {
   return null
 }
 
-/** A literal, through any chain of casts. Casts are kept in the substituted
- *  tree — the value written is the coerced one, and the evaluator resolves
- *  the coercion the same way PostgreSQL did. */
+/** A source literal through casts; assignment coercion is still required. */
 function constantOf(expr: Node | undefined): Node | null {
   if (!expr) return null
   const rec = expr as Fields
@@ -251,17 +249,131 @@ function writtenConstants(
 
 /**
  * Target columns written as one identical literal on every row-producing
- * path. The caller owns the rewrite/trigger gate; this function only answers
- * the statement-shape question.
+ * path, with destination coercion retained or already evaluated. The caller
+ * owns the rewrite/trigger gate.
  */
 export function writtenColumnConstants(
   stmt: Node,
   catalog: NullabilityCatalog,
+  evaluated?: WrittenConstantMaps,
 ): ReadonlyMap<string, Node> {
   const shape = shapeOf(stmt)
   if (!shape) return new Map()
+  const prepared = evaluated?.get(shape.stmt)
+  if (prepared) return prepared
   const table = catalog.resolveTable(shape.relation.schemaname, shape.relation.relname ?? '')
-  return table ? writtenConstants(shape, catalog, table.columns) : new Map()
+  const out = new Map<string, Node>()
+  if (!table) return out
+  for (const [column, value] of writtenConstants(shape, catalog, table.columns)) {
+    const rendered = catalog.resolveColumnTypeName(table.schema, table.name, column)
+    if (!rendered) continue
+    try {
+      const parsed = parseSync(`SELECT NULL::${rendered}`)
+      let typeName = parsed.stmts[0].stmt.SelectStmt.targetList[0].ResTarget.val.TypeCast
+        .typeName as TypeName
+      const string = (value as { A_Const?: { sval?: { sval?: string } } }).A_Const?.sval?.sval
+      const limit = (typeName.typmods?.[0] as { A_Const?: { ival?: { ival?: number } } })?.A_Const
+        ?.ival?.ival
+      const typeParts = typeName.names?.map(
+        (n) => (n as { String?: { sval?: string } }).String?.sval,
+      )
+      // A varchar bound that already contains the literal cannot change it.
+      // Count PostgreSQL characters, not UTF-16 code units; bpchar pads and
+      // every other modifier remains part of the unevaluated expression.
+      if (
+        typeParts?.length === 2 &&
+        typeParts[0] === 'pg_catalog' &&
+        typeParts[1] === 'varchar' &&
+        typeof string === 'string' &&
+        typeof limit === 'number' &&
+        [...string].length <= limit
+      ) {
+        typeName = { ...typeName, typmods: undefined }
+      }
+      out.set(column, { TypeCast: { arg: value, typeName } } as Node)
+    } catch {
+      // An unreadable destination type cannot license a stored-value fact.
+    }
+  }
+  return out
+}
+
+export type WrittenConstantMaps = ReadonlyMap<object, ReadonlyMap<string, Node>>
+
+/** Coerced literals for the synchronous entailment consumer, keyed by DML body. */
+export async function evaluateWrittenConstants(
+  stmt: Node,
+  catalog: NullabilityCatalog & SubtreeEvaluationCatalog,
+  evaluate: Evaluate,
+): Promise<WrittenConstantMaps> {
+  const maps = new Map<object, Map<string, Node>>()
+  const questions: {
+    columns: Map<string, Node>
+    column: string
+    typeName: TypeName
+    tree: Node
+  }[] = []
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      node.forEach(visit)
+      return
+    }
+    const shape = shapeOf(node as Node)
+    if (shape) {
+      const columns = new Map(writtenColumnConstants(node as Node, catalog))
+      maps.set(shape.stmt, columns)
+      for (const [column, assigned] of columns) {
+        const typeName = (assigned as { TypeCast: { typeName: TypeName } }).TypeCast.typeName
+        // Text transport preserves PostgreSQL's exact numeric rendering even
+        // when the driver's numeric decoder would round it to a JS number.
+        const tree = {
+          TypeCast: {
+            arg: assigned,
+            typeName: { names: [{ String: { sval: 'pg_catalog' } }, { String: { sval: 'text' } }] },
+          },
+        } as Node
+        questions.push({ columns, column, typeName, tree })
+      }
+    }
+    Object.values(node).forEach(visit)
+  }
+  visit(stmt)
+  if (questions.length === 0) return maps
+  const answers = await evaluateClosedSubtrees(
+    { List: { items: questions.map((q) => q.tree) } } as Node,
+    catalog,
+    evaluate,
+  )
+  for (const q of questions) {
+    const answer = answers.get(q.tree)
+    if (!answer || (!answer.isNull && typeof answer.value !== 'string')) continue
+    let literal: Node = answer.isNull
+      ? { A_Const: { isnull: true } }
+      : { A_Const: { sval: { sval: answer.value as string } } }
+    const name = (q.typeName.names?.at(-1) as { String?: { sval?: string } })?.String?.sval
+    if (
+      !answer.isNull &&
+      !q.typeName.arrayBounds?.length &&
+      ['int2', 'int4', 'int8', 'numeric', 'float4', 'float8', 'bool'].includes(name ?? '')
+    ) {
+      try {
+        // Reparse PostgreSQL's scalar spelling; no arithmetic is performed here.
+        const parsed = parseSync(`SELECT ${answer.value}`)
+        const value = parsed.stmts[0].stmt.SelectStmt.targetList[0].ResTarget.val as Node
+        if ('A_Const' in value) literal = value
+      } catch {
+        // Non-token spellings such as NaN remain typed string literals.
+      }
+    }
+    // Unbounded varchar and numeric preserve their already-coerced values.
+    // Other declarations keep the modifier: bare bit defaults to one bit,
+    // so removing its bound would change the value again.
+    const typeName =
+      name === 'varchar' || name === 'numeric' ? { ...q.typeName, typmods: undefined } : q.typeName
+    q.columns.set(q.column, { TypeCast: { arg: literal, typeName } } as Node)
+  }
+  return maps
 }
 
 /** Every searched-CASE guard anywhere in the RETURNING list. The simple form
@@ -363,7 +475,7 @@ export async function writtenGuardTruths(
     if (rewrites.beforeRow.has(cmd) || rewrites.insteadOf.has(cmd)) return out
   }
 
-  const constants = writtenConstants(shape, catalog, table.columns)
+  const constants = writtenColumnConstants(stmt, catalog)
   if (constants.size === 0) return out
 
   const targetNames = new Set<string>([table.name])
@@ -379,26 +491,6 @@ export async function writtenGuardTruths(
   for (const guard of guardsIn(shape.returningList)) {
     const tree = substitute(guard, constants, targetNames, !shape.hasOtherRelations)
     if (!tree) continue
-    // A guard that IS the written constant — `CASE WHEN active` over a
-    // written `true` — reduces to a bare A_Const, and the evaluator collects
-    // nothing from one: a literal is closed but there is nothing to compute,
-    // so it is not a collectable ROOT. Reading the parser's own decoded
-    // payload is not evaluating an expression, and it is the shape the
-    // original bucket was made of.
-    const bare = (tree as Fields)['A_Const'] as
-      { boolval?: { boolval?: boolean }; isnull?: boolean } | undefined
-    if (bare) {
-      if (bare.isnull) out.set(guard, { isNull: true, value: null, type: 'boolean' })
-      else if (bare.boolval)
-        out.set(guard, {
-          isNull: false,
-          // `{ boolval: {} }` is how the parser spells FALSE — the key is
-          // present and its payload omitted, exactly as `ival: {}` is 0.
-          value: bare.boolval.boolval === true,
-          type: 'boolean',
-        })
-      continue
-    }
     questions.push({ original: guard, tree })
   }
   if (questions.length === 0) return out

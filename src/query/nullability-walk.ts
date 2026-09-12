@@ -17,7 +17,12 @@ import {
   type SubtreeEvaluationCatalog,
 } from './subtree-evaluator.js'
 import { collectSrfCardinalityQuestions, evaluateSrfCardinalities } from './srf-cardinality.js'
-import { writtenColumnConstants, writtenGuardTruths } from './written-value-guards.js'
+import {
+  writtenColumnConstants,
+  writtenGuardTruths,
+  evaluateWrittenConstants,
+  type WrittenConstantMaps,
+} from './written-value-guards.js'
 import { resolveDelegatedTypes } from './type-delegation.js'
 import {
   NON_STRICT_OVERLOADS,
@@ -218,12 +223,17 @@ function evalWith(round: EvalWarning['round'], options?: WalkOptions): Evaluate 
     : undefined
 }
 
+interface StatementEvaluation {
+  expressions: ReadonlyMap<Node, EvalResult>
+  written: WrittenConstantMaps
+}
+
 /** The pre-walk evaluation round: one async step, answers in, sync walk. */
 async function statementEvaluation(
   stmt: Node,
   catalog: NullabilityCatalog,
   evaluate: Evaluate | undefined,
-): Promise<Map<Node, EvalResult> | undefined> {
+): Promise<StatementEvaluation | undefined> {
   if (!evaluate) return undefined
   // Every adapter product carries the face (WalkOptions documents the
   // requirement); a catalog without it belongs to a caller that never
@@ -238,7 +248,7 @@ async function statementEvaluation(
   for (const [node, result] of await writtenGuardTruths(stmt, face, evaluate)) {
     if (!map.has(node)) map.set(node, result)
   }
-  return map
+  return { expressions: map, written: await evaluateWrittenConstants(stmt, face, evaluate) }
 }
 
 /** The padding bound's pre-walk round (srf-cardinality.ts): how many rows
@@ -262,10 +272,29 @@ async function comparisonGroundings(
   stmt: Node,
   catalog: NullabilityCatalog,
   evaluate: Evaluate | undefined,
+  written?: WrittenConstantMaps,
 ): Promise<ReadonlyMap<string, boolean> | undefined> {
   if (!evaluate) return undefined
   const face = catalog as NullabilityCatalog & SubtreeEvaluationCatalog
-  const questions = await collectComparisonQuestions(stmt, face)
+  // Coerced constants can have different tokens from the source literal.
+  // Include their comparison questions; the row-image walk still decides
+  // which equalities are evidence on a returned row.
+  const items: Node[] = [stmt]
+  for (const [body, columns] of written ?? []) {
+    // A DML target stores an untagged RangeVar, unlike a FROM item.
+    items.push({ RangeVar: (body as { relation: unknown }).relation } as Node)
+    for (const [column, value] of columns) {
+      items.push({
+        A_Expr: {
+          kind: 'AEXPR_OP',
+          name: [{ String: { sval: '=' } }],
+          lexpr: { ColumnRef: { fields: [{ String: { sval: column } }] } },
+          rexpr: value,
+        },
+      } as Node)
+    }
+  }
+  const questions = await collectComparisonQuestions({ List: { items } } as Node, face)
   if (questions.length === 0) return undefined
   return evaluateComparisonQuestions(questions, face, evaluate)
 }
@@ -349,10 +378,16 @@ export async function inferNullability(
     stmt,
     catalog,
     evalWith('comparison-groundings', options),
+    evaluation?.written,
   )
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith('srf-cardinality', options))
   const delegated = await delegatedTypes(stmt, catalog, options)
-  const truths = await closedTruths(stmt, catalog, evalWith('closed-truths', options), evaluation)
+  const truths = await closedTruths(
+    stmt,
+    catalog,
+    evalWith('closed-truths', options),
+    evaluation?.expressions,
+  )
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -452,10 +487,16 @@ export async function inferQueryContract(
     stmt,
     catalog,
     evalWith('comparison-groundings', options),
+    evaluation?.written,
   )
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith('srf-cardinality', options))
   const delegated = await delegatedTypes(stmt, catalog, options)
-  const truths = await closedTruths(stmt, catalog, evalWith('closed-truths', options), evaluation)
+  const truths = await closedTruths(
+    stmt,
+    catalog,
+    evalWith('closed-truths', options),
+    evaluation?.expressions,
+  )
   const engine = new NullabilityEngine(
     catalog,
     false,
@@ -510,10 +551,16 @@ export async function inferNullabilityTraced(
     stmt,
     catalog,
     evalWith('comparison-groundings', options),
+    evaluation?.written,
   )
   const cardinalities = await srfCardinalities(stmt, catalog, evalWith('srf-cardinality', options))
   const delegated = await delegatedTypes(stmt, catalog, options)
-  const truths = await closedTruths(stmt, catalog, evalWith('closed-truths', options), evaluation)
+  const truths = await closedTruths(
+    stmt,
+    catalog,
+    evalWith('closed-truths', options),
+    evaluation?.expressions,
+  )
   const engine = new NullabilityEngine(
     catalog,
     true,
@@ -1374,6 +1421,7 @@ class NullabilityEngine {
    * everything else identical.
    */
   private readonly evaluation: ReadonlyMap<Node, EvalResult> | undefined
+  private readonly writtenConstants: WrittenConstantMaps | undefined
 
   /**
    * The entailment consumer's answers (comparison-groundings.ts): the
@@ -1415,7 +1463,7 @@ class NullabilityEngine {
     tracing = false,
     onUnhandled?: UnhandledNodeObserver,
     paramTypes?: readonly string[],
-    evaluation?: ReadonlyMap<Node, EvalResult>,
+    evaluation?: StatementEvaluation,
     comparisons?: ReadonlyMap<string, boolean>,
     cardinalities?: ReadonlyMap<object, number>,
     delegatedTypes?: ReadonlyMap<unknown, string>,
@@ -1425,7 +1473,8 @@ class NullabilityEngine {
     this.tracing = tracing
     this.onUnhandled = onUnhandled
     this.paramTypes = paramTypes
-    this.evaluation = evaluation
+    this.evaluation = evaluation?.expressions
+    this.writtenConstants = evaluation?.written
     this.comparisons = comparisons
     this.cardinalities = cardinalities
     this.delegatedTypes = delegatedTypes
@@ -4889,7 +4938,11 @@ class NullabilityEngine {
 
     scope.dmlWrittenColumns = { alias: entry.alias, columns: written }
     scope.dmlWrittenNullColumns = { alias: entry.alias, columns: writtenNull }
-    const constants = writtenColumnConstants({ InsertStmt: stmt } as unknown as Node, this.catalog)
+    const constants = writtenColumnConstants(
+      { InsertStmt: stmt } as unknown as Node,
+      this.catalog,
+      this.writtenConstants,
+    )
     if (constants.size > 0) {
       scope.dmlWrittenConstants = { alias: entry.alias, columns: constants }
     }
@@ -5002,6 +5055,7 @@ class NullabilityEngine {
       const constants = writtenColumnConstants(
         { UpdateStmt: stmt } as unknown as Node,
         this.catalog,
+        this.writtenConstants,
       )
       if (constants.size > 0) {
         scope.dmlWrittenConstants = { alias: targetAlias, columns: constants }
@@ -5311,7 +5365,11 @@ class NullabilityEngine {
       scope.dmlWrittenNullColumns = { alias: targetAliasW, columns: writtenNull }
     }
     if (targetAliasW !== undefined && !targetRewriting) {
-      const constants = writtenColumnConstants({ MergeStmt: stmt } as unknown as Node, this.catalog)
+      const constants = writtenColumnConstants(
+        { MergeStmt: stmt } as unknown as Node,
+        this.catalog,
+        this.writtenConstants,
+      )
       if (constants.size > 0) {
         scope.dmlWrittenConstants = { alias: targetAliasW, columns: constants }
       }
@@ -9121,6 +9179,13 @@ class NullabilityEngine {
         return owner
       },
       columnTypeName: (alias, col) => this.kernelColumnTypeName(alias, col, scope),
+      comparisonEvaluable: (alias, col, op) => {
+        const e = scope.aliases.get(alias)
+        const cat = e ? this.entryCatalogColumn(e, col) : undefined
+        return e?.table && cat !== undefined
+          ? this.comparisonOpEvaluable(e.table.schema, e.table.name, cat, op)
+          : false
+      },
       literalDistinctnessSound: (alias, col) =>
         this.kernelLiteralDistinctnessSound(alias, col, scope),
     })

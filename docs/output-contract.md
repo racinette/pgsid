@@ -121,9 +121,12 @@ the null side; only the final question was single-polarity.
 RETURNING keeps facts about the OLD and NEW rows separate. Predicates that
 selected the OLD row transfer only through columns the statement did not
 replace. A literal written by every row-producing path is instead an equality
-fact about NEW, so it can select a validated constraint arm for a different
-returned column. Such written facts are withheld when a row trigger or rewrite
-can replace NEW, and paths that disagree on the literal contribute no fact.
+fact about NEW after coercion to the destination's declared type, so it can
+select a validated constraint arm for a different returned column. Length and
+precision modifiers belong to that coercion: the source token alone need not
+describe the stored value. Such written facts are withheld when a row trigger
+or rewrite can replace NEW, and paths that disagree on the literal contribute
+no fact.
 When a stored generated expression reads none of the columns replaced by the
 statement, OLD and NEW compute the same value, so a proof from either row image
 is valid: OLD retains selection facts, while NEW carries facts established by

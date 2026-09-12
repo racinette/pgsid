@@ -1,13 +1,10 @@
 -- @null-groups none
 -- @param-rejections none
--- The same padding hazard through the multi-WHEN CASE consumer: reaching
--- the CHECK's second arm (k = 'a ' → x IS NOT NULL) requires the FIRST
--- arm's k = 'a' provably FALSE, which for bpchar it never is — the stored
--- 'a   ' row satisfies BOTH tokens' comparisons and took the first arm
--- (x IS NULL). The engine refuses the arm step, so x stays nullable,
--- witnessed by exactly that row.
+-- bpchar equality ignores trailing blanks, so the WHERE selects the first
+-- CHECK arm, which requires x to be NULL. The second arm never supplies a
+-- non-NULL value for these rows.
 SELECT
-  b.x,  -- @nullable
+  b.x,  -- @alwaysNull
   b.k   -- @notNull
 FROM bp2 b
 WHERE b.k = 'a '
