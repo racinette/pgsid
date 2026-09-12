@@ -327,11 +327,11 @@ describe('capability reach of the generated corpus', () => {
   }, 600_000)
 
   it('holds the generated corpus size ratchet', () => {
-    expect(statements).toBe(15_172)
+    expect(statements).toBe(15_188)
   })
 
   it('the hand corpus reaches every capability the generated one does', () => {
-    // Measured after the expanded RETURNING row-image axis landed: 15172 generated
+    // Measured after the DML-CTE consumer axis landed: 15188 generated
     // statements ask the catalog NOTHING that 593 hand fixtures do not
     // already ask, while the hand corpus reaches 13 capabilities the
     // generator never produces a shape for. Volume is not what buys reach.

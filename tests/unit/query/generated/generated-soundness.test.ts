@@ -622,6 +622,24 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
     expect(cells).toEqual(expected.sort())
   })
 
+  it('covers every modifying-CTE consumer liveness cell', () => {
+    const cells = records
+      .flatMap((record) => record.query.dmlCteConsumerAxes ?? [])
+      .map((axes) => JSON.stringify(axes))
+      .sort()
+    const expected: string[] = []
+    for (const action of ['update', 'delete'] as const) {
+      for (const nullSource of ['empty', 'live'] as const) {
+        for (const consumer of ['plain', 'aggregate'] as const) {
+          for (const flow of ['direct', 'expression'] as const) {
+            expected.push(JSON.stringify({ action, nullSource, consumer, flow }))
+          }
+        }
+      }
+    }
+    expect(cells).toEqual(expected.sort())
+  })
+
   it('exercises zero, one, and many returned rows for every row-image cell', () => {
     const missing = records
       .filter((r) => r.query.rowImageAxes)
@@ -1105,6 +1123,8 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
         `${count((r) => r.groupViolations.length > 0)} falsified\n` +
         `  row-image axis bound:       5 actions × 2 images × 4 alias modes × ` +
         `4 projections, plus all 7 MERGE action subsets; every cell observed at 0/1/many rows\n` +
+        `  DML-CTE consumer bound:     2 actions × 2 NULL-source states × 2 consumer ` +
+        `cardinalities × 2 value-flow shapes\n` +
         `  deep-join axis bound:       5 shapes × 4³ kinds, plain projection only ` +
         `(setops/wrappers not crossed)\n` +
         `  widened-axis gates:         refilter wrappers skip tuples without a_tc and all ` +

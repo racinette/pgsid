@@ -70,6 +70,13 @@ export interface GeneratedQuery {
     projection: RowImageProjection
     mergeActions?: MergeActionSet
   }
+  /** Present only for the bounded modifying-CTE consumer liveness axis. */
+  dmlCteConsumerAxes?: {
+    action: 'update' | 'delete'
+    nullSource: 'empty' | 'live'
+    consumer: 'plain' | 'aggregate'
+    flow: 'direct' | 'expression'
+  }
 }
 
 // --- AST vocabulary --------------------------------------------------------
@@ -1598,6 +1605,9 @@ const WRAPPER_EXPECTATIONS: Record<WrapperKey, Expectation[]> = {
 //                    ins ⟨k⟩ u: DML output recombined with the join axis,
 //                    which is exactly the "combinations nobody writes by
 //                    hand" this generator exists for.
+//   dml-cte-consumer — UPDATE/DELETE CTE → INSERT ... SELECT, crossing
+//                    source and consumer liveness with direct/expression
+//                    parameter flow into a required target column.
 //   returning-image — PG18 OLD/NEW rows crossed with five write actions,
 //                     four alias modes and scalar/star/expression/whole-row
 //                     projections; all seven MERGE action subsets are covered
@@ -1617,6 +1627,7 @@ export function generateDmlQueries(): GeneratedQuery[] {
     params: GeneratedQuery['params'],
     expectations: Expectation[],
     rowImageAxes?: GeneratedQuery['rowImageAxes'],
+    dmlCteConsumerAxes?: GeneratedQuery['dmlCteConsumerAxes'],
   ): void => {
     const axes: AxisTuple = { structure, projection, setop: 'none', wrapper: kind }
     out.push({
@@ -1627,6 +1638,7 @@ export function generateDmlQueries(): GeneratedQuery[] {
       writes: true,
       expectations,
       ...(rowImageAxes ? { rowImageAxes } : {}),
+      ...(dmlCteConsumerAxes ? { dmlCteConsumerAxes } : {}),
     })
   }
 
@@ -2102,6 +2114,99 @@ export function generateDmlQueries(): GeneratedQuery[] {
       [{ number: 1, valid: 820 }],
       [expect('INSERT', 'InsertStmt'), expectReturning, ...structure.expectations, expectParams(1)],
     )
+  }
+
+  // --- dml-cte-consumer: source/consumer liveness under NULL. -------------
+  //
+  // A NULL parameter either empties the modifying CTE (`s.id = $1`) or
+  // leaves its seeded row live through the second OR arm. The outer INSERT
+  // source is either row-preserving or an ungrouped aggregate, which emits
+  // one row even when the CTE is empty. Crossing direct `$1` with `900 + $1`
+  // exercises both direct rejection and mechanism-C value flow.
+  for (const action of ['update', 'delete'] as const) {
+    for (const nullSource of ['empty', 'live'] as const) {
+      const sourcePredicate =
+        nullSource === 'empty'
+          ? eq(colRef('s', 'id'), paramRef(1))
+          : orExpr(eq(colRef('s', 'id'), paramRef(1)), eq(colRef('s', 'id'), intConst(1)))
+      const ctequery: Ast =
+        action === 'update'
+          ? {
+              UpdateStmt: {
+                relation: relationAs('t', 's'),
+                targetList: [setItem('val', textConst('changed'))],
+                whereClause: sourcePredicate,
+                returningClause: { exprs: [target(colRef('s', 'name'))] },
+              },
+            }
+          : {
+              DeleteStmt: {
+                relation: relationAs('t', 's'),
+                whereClause: sourcePredicate,
+                returningClause: { exprs: [target(colRef('s', 'name'))] },
+              },
+            }
+
+      for (const consumer of ['plain', 'aggregate'] as const) {
+        for (const flow of ['direct', 'expression'] as const) {
+          const id = flow === 'direct' ? paramRef(1) : plus(intConst(900), paramRef(1))
+          const name =
+            consumer === 'aggregate' ? castTo(countStar(), 'text') : colRef('changed', 'name')
+          const axes: NonNullable<GeneratedQuery['dmlCteConsumerAxes']> = {
+            action,
+            nullSource,
+            consumer,
+            flow,
+          }
+          dml(
+            'dml-cte-consumer',
+            `${action}-cte-null-${nullSource}`,
+            `${consumer}-${flow}`,
+            {
+              InsertStmt: {
+                relation: relation('t'),
+                cols: insertCols('id', 'name', 'active'),
+                selectStmt: {
+                  SelectStmt: bareSelect({
+                    targetList: [target(id), target(name), target(boolConst(true))],
+                    fromClause: [rangeVar('changed')],
+                  }),
+                },
+                returningClause: {
+                  exprs: [target(colRef('id'), 'r_id'), target(colRef('name'), 'r_name')],
+                },
+                withClause: {
+                  ctes: [
+                    {
+                      CommonTableExpr: {
+                        ctename: 'changed',
+                        ctematerialized: 'CTEMaterializeDefault',
+                        ctequery,
+                      },
+                    },
+                  ],
+                  recursive: false,
+                },
+                override: 'OVERRIDING_NOT_SET',
+              },
+            },
+            [{ number: 1, valid: 1 }],
+            [
+              expect('INSERT', 'InsertStmt'),
+              expect(action.toUpperCase(), action === 'update' ? 'UpdateStmt' : 'DeleteStmt'),
+              expect('CTE', 'CommonTableExpr'),
+              expectReturning,
+              ...(nullSource === 'live' ? [expect('NULL-live OR', 'BoolExpr')] : []),
+              ...(consumer === 'aggregate' ? [expectCountStar] : []),
+              ...(flow === 'expression' ? [expectOperator('+')] : []),
+              expectParams(1),
+            ],
+            undefined,
+            axes,
+          )
+        }
+      }
+    }
   }
 
   // --- ON CONFLICT: the conditional rejection sites, executed both ways. ---
