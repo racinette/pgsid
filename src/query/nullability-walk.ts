@@ -8389,33 +8389,38 @@ class NullabilityEngine {
    * table at a time because the kernel matches facts by alias, so a wrong
    * entry simply proves nothing.
    *
-   * Refused wholesale for a DML scope (the OLD/NEW channel split is not
-   * built for guards) and per-entry for NULL-extendable entries, whose
-   * extended rows satisfy no CHECK — and on those rows a guard like `a IS
-   * NULL` IS true. Both refusals were unkillable by the corpus until the
-   * TRUE direction landed and gave them something to hold back; each now
-   * has a fixture that kills it with `PostgreSQL returned NULL`
-   * (dml-returning-case-guard-old-row.sql, check-guard-optional-entry.sql).
+   * A DML scope uses the same OLD/NEW split as column entailment. While a SET
+   * expression is walked, its guard and WHERE facts both describe OLD and
+   * need no mask. RETURNING guards describe NEW: WHERE/implied facts transfer
+   * only through non-SET columns, while enclosing branch guards already
+   * describe NEW and stay unmasked. This is what lets `UPDATE ... SET note =
+   * ... WHERE active RETURNING CASE WHEN active ...` use the unchanged
+   * `active`, while dml-returning-case-guard-old-row.sql still kills any
+   * attempt to transfer a predicate through a column the UPDATE changes.
    *
-   * The evidence-only run keeps neither gate and needs neither: it derives
-   * from predicates that held on the emitted row, extended or not, and a
-   * DML scope reaches it only through the wholesale refusal above.
+   * NULL-extendable entries remain refused per-entry, because their extended
+   * rows satisfy no CHECK — and on those rows a guard like `a IS NULL` IS
+   * true. check-guard-optional-entry.sql kills that gate with a PostgreSQL
+   * NULL witness. The evidence-only run needs no presence gate: its facts
+   * held on the emitted row, extended or not.
    */
   private guardTruthFromChecks(guard: Node, scope: Scope): boolean | undefined {
-    if (scope.dmlSetColumns) return undefined
     const core: Node[] = [
       ...(scope.whereClause ? [scope.whereClause] : []),
       ...(scope.havingClause ? [scope.havingClause] : []),
       ...scope.impliedQuals,
       ...this.dmlWrittenConstantEvidence(scope),
     ]
-    const evidence = [...core, ...this.kernelGuardPreds(scope)].map((pred) => ({
-      pred,
-      applySetMask: false,
-    }))
+    const setColumns = scope.dmlSetColumns
+    const returningNewRow = !!setColumns && !this.dmlOldRowRead
+    const evidence = [
+      ...core.map((pred) => ({ pred, applySetMask: returningNewRow })),
+      ...this.kernelGuardPreds(scope).map((pred) => ({ pred, applySetMask: false })),
+    ]
     const shared = {
       evidence,
-      isMasked: () => false,
+      isMasked: (alias: string, col: string) =>
+        !!setColumns && alias === setColumns.alias && setColumns.columns.has(col),
       resolveUnqualified: (col: string) => {
         let owner: string | null = null
         for (const v of scope.visible) {

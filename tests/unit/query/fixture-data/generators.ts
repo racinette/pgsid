@@ -326,6 +326,10 @@ const columnSpecificGenerators: Record<string, Record<string, Record<string, Col
     // fixtures need AND the row the alwaysNull fixture is tested on — then
     // a second middle-band 6 so `>= 5 AND <= 10` is not carried by 7 alone.
     gpc: { a: (_rand, ctx) => [7, 2, 12, 6][ctx.row % 4]! },
+    // Shared-result generated CASE: row 0 is the claiming fixture's live
+    // second-arm row; row 1 is the overlap control's first-arm NULL witness;
+    // row 2 reaches the ELSE. payload's NULL placement is below.
+    gcase_shared: { a: (_rand, ctx) => [2, 6, 2][ctx.row % 3]! },
     caiow: {
       a: (_rand, ctx) => [4, 3][ctx.row % 2]!,
       b: (_rand, ctx) => [1, 2][ctx.row % 2]!,
@@ -772,6 +776,7 @@ const nullPolicies: {
       evb: {
         started_at: (_rand, ctx) => ctx.current('status') === 'pending',
       },
+      gcase_shared: { payload: (_rand, ctx) => ctx.row % 3 !== 0 },
       caiow: {
         a: (_rand, ctx) => ctx.row % 3 === 2,
         o: (_rand, ctx) => ctx.row % 3 === 2,

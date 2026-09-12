@@ -937,6 +937,22 @@ CREATE TABLE gpc (
     CASE WHEN a <= 3 THEN 'yes' WHEN a <= 10 THEN 'maybe' ELSE NULL END
   ) STORED
 );
+-- Generated-arm exclusion's shared-result adversary. `verdict = 'same'`
+-- alone admits either WHEN arm, but pairing it with `a <= 3` makes the first
+-- guard not-TRUE and leaves `payload IS NOT NULL` as the only producer. The
+-- two arms deliberately return the SAME literal so result distinctness cannot
+-- do the exclusion first.
+CREATE TABLE gcase_shared (
+  a integer NOT NULL,
+  payload text,
+  verdict text GENERATED ALWAYS AS (
+    CASE
+      WHEN a > 5 THEN 'same'
+      WHEN payload IS NOT NULL THEN 'same'
+      ELSE 'other'
+    END
+  ) STORED
+);
 CREATE TABLE caiow (a integer, b integer NOT NULL, o text,
   CHECK (a >= 4 OR a = 3),
   CHECK (CASE WHEN a >= 3 THEN o IS NOT NULL ELSE o IS NULL END));

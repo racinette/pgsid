@@ -146,44 +146,6 @@ the one item in this register where filing a report unblocks the engine.
 upstream. For the deparser report, whenever the closed grammar's SQL/JSON
 group is worth having.
 
-### Generated-CASE arm exclusion still steps by FALSE
-
-The CHECK harvest's CASE descent steps past an arm on notTRUE — a NULL guard
-skips its arm exactly as a FALSE one does. The generated-column twin did not
-move: it excludes an arm only on a provably FALSE guard or on result
-distinctness. The same soundness argument transfers verbatim, since an arm
-whose guard is notTRUE did not produce the value.
-
-Why it sits here rather than in a red suite: no measured imprecision reaches
-it. Exclusion by RESULT distinctness fires first on every shape tried. The
-guard-side judgment only matters when two arms share a result literal AND the
-shared-result arm's guard is refutable but not provably FALSE, and no
-corpus-shaped query has produced that conjunction.
-
-**Trigger.** A query that produces the conjunction. The fix is then the same
-one-word widening the harvest got, and the red case comes first.
-
-### The guard consumer refuses DML scopes wholesale
-
-The refusal is real and fixture-killed: the kernel reads the filter unmasked,
-so an old-row fact would answer a guard evaluated on the new row. The notNull
-question solved this by running up to two channels — new row with core
-masked, old row with guards masked — and the guard question could take the
-same split.
-
-What it needs first is a case where the split would CLAIM something. The
-corpus's DML CASE guards are all answered by the written-value pass before
-the kernel is asked, which is why the refusal was unkillable until the
-predicate-aware pass landed.
-
-**A caution this entry earned.** It opened with a second half — "the
-alwaysNull side does not read a proven guard" — filed as reaching no measured
-imprecision. One probe falsified it within the hour. "No measured imprecision
-reaches it" is a claim about a MEASUREMENT, and writing one without taking it
-is how a gap gets a permanent home. Take the probe before filing.
-
-**Trigger.** A DML CASE guard the written-value pass does not already answer.
-
 ### A set-returning unnest over an operand nothing can type
 
 A lone-argument unnest contributes ONE output column, which is a recorded
