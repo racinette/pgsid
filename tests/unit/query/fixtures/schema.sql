@@ -927,6 +927,52 @@ CREATE TABLE evb (
   CHECK ((status <> 'pending' AND started_at IS NOT NULL)
       OR (status =  'pending' AND started_at IS NULL))
 );
+
+-- A write changes `state`, while RETURNING asks about a generated column over
+-- the unchanged `source_value`. The CHECK is the bridge between them, with two
+-- spellings per nullness arm so fixtures can change the discriminator without
+-- changing the dependent value.
+CREATE TABLE written_state (
+  id integer PRIMARY KEY,
+  state text NOT NULL,
+  source_value text,
+  display_value text GENERATED ALWAYS AS (
+    CASE WHEN source_value IS NULL THEN NULL ELSE upper(source_value) END
+  ) STORED,
+  CHECK (CASE WHEN state IN ('empty', 'vacant')
+              THEN source_value IS NULL
+              ELSE source_value IS NOT NULL END)
+);
+
+-- The rewrite control for the same inference route. The trigger replaces NEW
+-- with both constraint-valid arms, so no value named by the UPDATE describes
+-- every returned row.
+CREATE TABLE written_state_hook (
+  id integer PRIMARY KEY,
+  state text NOT NULL,
+  source_value text,
+  display_value text GENERATED ALWAYS AS (
+    CASE WHEN source_value IS NULL THEN NULL ELSE upper(source_value) END
+  ) STORED,
+  CHECK (CASE WHEN state = 'empty'
+              THEN source_value IS NULL
+              ELSE source_value IS NOT NULL END)
+);
+CREATE FUNCTION rewrite_written_state() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.id % 2 = 1 THEN
+    NEW.state := 'full';
+    NEW.source_value := 'hook';
+  ELSE
+    NEW.state := 'empty';
+    NEW.source_value := NULL;
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER written_state_before
+  BEFORE UPDATE ON written_state_hook
+  FOR EACH ROW EXECUTE FUNCTION rewrite_written_state();
+
 -- The same subject with NO CHECK at all: the generated CASE is the only
 -- thing on the table that mentions `a`, so a predicate over `a` reaches
 -- its arms through the evidence-only kernel run and through the

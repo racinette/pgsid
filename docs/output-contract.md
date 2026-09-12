@@ -118,6 +118,17 @@ already recorded a null test of either polarity as a true fact, because a null
 test is total, so "not false" means true. The fact set had always contained
 the null side; only the final question was single-polarity.
 
+RETURNING keeps facts about the OLD and NEW rows separate. Predicates that
+selected the OLD row transfer only through columns the statement did not
+replace. A literal written by every row-producing path is instead an equality
+fact about NEW, so it can select a validated constraint arm for a different
+returned column. Such written facts are withheld when a row trigger or rewrite
+can replace NEW, and paths that disagree on the literal contribute no fact.
+When a stored generated expression reads none of the columns replaced by the
+statement, OLD and NEW compute the same value, so a proof from either row image
+is valid: OLD retains selection facts, while NEW carries facts established by
+the write.
+
 ### Verification is the inverse of the nullable side, and far stronger
 
 A wrong always-null claim is falsified by ANY non-null value, so every returned
@@ -148,11 +159,3 @@ null produced a wrong always-null claim. Both are gated on the goal now.
 **The annotation gate is what surfaced that last one**, on its first run — an
 engine claim with no marker fails, so a new claim cannot appear unannounced.
 That is the argument for bidirectional coverage in one sentence.
-
-### What is left
-
-One shape, and it is value tracking rather than a gap in this channel: a write
-that forces a column null through a constraint reading a DIFFERENT column the
-statement did write. A written value reaches the kernel as a written-value
-fact rather than as evidence, which is a different channel. It lives as the
-one open case in the red suite rather than as a paragraph here.

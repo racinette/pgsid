@@ -50,6 +50,15 @@ INSERT INTO guest (id, status, arrived_at, room, note, vip_reason, badge) VALUES
   (3, 'arrived',     now(), NULL,    'early arrival', 'repeat visitor', 'b-3'),
   (4, 'checked-out', NULL,  NULL,    'left on time', NULL, 'b-4');
 
+INSERT INTO written_state (id, state, source_value) VALUES
+  (1, 'ready',  'alpha'),
+  (2, 'vacant', NULL),
+  (3, 'ready',  'beta');
+
+INSERT INTO written_state_hook (id, state, source_value) VALUES
+  (1, 'full', 'before-1'),
+  (2, 'full', 'before-2');
+
 -- Wave 9 rows: one txn per verdict arm (id 4's NULL fraud_score witnesses
 -- the manual-check ambiguity) and one audit_log row per CHECK arm pair.
 -- nd gets the ('a', NULL) row a REAL case-insensitive collation would
