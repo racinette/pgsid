@@ -651,6 +651,60 @@ function predicateCannotBeTrueBy(
  */
 type AliasContext = Map<string, Map<string, Node[]>>
 
+/** Value definitions exported by data-modifying CTE RETURNING lists. */
+function modifyingCteColumns(withClause: unknown): Map<string, Map<string, Node[]>> {
+  const out = new Map<string, Map<string, Node[]>>()
+  const ctes = (withClause as { ctes?: unknown[] } | undefined)?.ctes ?? []
+  for (const wrapped of ctes) {
+    const cte = (
+      wrapped as { CommonTableExpr?: { ctename?: string; ctequery?: Record<string, unknown> } }
+    ).CommonTableExpr
+    if (!cte?.ctename || !cte.ctequery) continue
+    const update = cte.ctequery['UpdateStmt'] as
+      | {
+          relation?: { relname?: string; alias?: { aliasname?: string } }
+          targetList?: Node[]
+          returningClause?: { exprs?: Node[]; options?: Node[] }
+        }
+      | undefined
+    if (!update?.returningClause) continue
+
+    const targetAlias = update.relation?.alias?.aliasname ?? update.relation?.relname ?? ''
+    const setValues = new Map<string, Node>()
+    for (const item of update.targetList ?? []) {
+      const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+      if (rt?.name && rt.val) setValues.set(rt.name, rt.val)
+    }
+    let newName = 'new'
+    for (const option of update.returningClause.options ?? []) {
+      const value = (
+        option as {
+          ReturningOption?: { option?: string; value?: string }
+        }
+      ).ReturningOption
+      if (value?.option === 'RETURNING_OPTION_NEW' && value.value) newName = value.value
+    }
+
+    const columns = new Map<string, Node[]>()
+    for (const item of update.returningClause.exprs ?? []) {
+      const rt = (item as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+      if (!rt?.val) continue
+      const fields = ((rt.val as { ColumnRef?: { fields?: Node[] } }).ColumnRef?.fields ?? []).map(
+        stringVal,
+      )
+      const name = rt.name ?? fields[fields.length - 1]
+      if (!name) continue
+      const written =
+        fields.length === 2 && (fields[0] === newName || fields[0] === targetAlias)
+          ? setValues.get(fields[1]!)
+          : undefined
+      columns.set(name, [written ?? rt.val])
+    }
+    if (columns.size > 0) out.set(cte.ctename, columns)
+  }
+  return out
+}
+
 /**
  * The statement's own write target, for TYPING a column operand.
  *
@@ -726,12 +780,22 @@ function derivedTableCols(node: unknown): { alias: string; cols: Map<string, Nod
 }
 
 /** Every derived table among a list of from-items (including inside joins). */
-function aliasContextOf(items: Node[] | undefined): AliasContext | undefined {
+function aliasContextOf(
+  items: Node[] | undefined,
+  ctes?: ReadonlyMap<string, Map<string, Node[]>>,
+): AliasContext | undefined {
   if (!items?.length) return undefined
   const ctx: AliasContext = new Map()
   const scan = (node: unknown): void => {
     if (Array.isArray(node)) return node.forEach(scan)
     if (!node || typeof node !== 'object') return
+    const range = (node as { RangeVar?: { relname?: string; alias?: { aliasname?: string } } })
+      .RangeVar
+    const cte = range?.relname ? ctes?.get(range.relname) : undefined
+    if (range?.relname && cte) {
+      ctx.set(range.alias?.aliasname ?? range.relname, cte)
+      return
+    }
     const derived = derivedTableCols(node)
     if (derived) {
       ctx.set(derived.alias, derived.cols)
@@ -1287,6 +1351,7 @@ function checkInsert(
     relation?: { schemaname?: string; relname?: string; alias?: { aliasname?: string } }
     cols?: Node[]
     selectStmt?: Node
+    withClause?: unknown
     onConflictClause?: { targetList?: Node[]; whereClause?: Node }
   },
 ): void {
@@ -1297,7 +1362,10 @@ function checkInsert(
     ?.SelectStmt
   // INSERT ... SELECT: source columns from derived tables in the select's
   // FROM attribute through to the target positions.
-  const sourceCtx = aliasContextOf(select?.['fromClause'] as Node[] | undefined)
+  const sourceCtx = aliasContextOf(
+    select?.['fromClause'] as Node[] | undefined,
+    modifyingCteColumns(stmt.withClause),
+  )
 
   const rejectAt = (position: number, val: Node | undefined): void => {
     const column = target.columns[position]
@@ -1676,13 +1744,17 @@ export function returningRejectedParams(stmt: Node, catalog: NullabilityCatalog)
       relation?: { schemaname?: string; relname?: string }
       cols?: Node[]
       selectStmt?: Node
+      withClause?: unknown
       onConflictClause?: { action?: string; targetList?: Node[] }
     }
     const target = insertTargetColumns(c, ins.relation, ins.cols)
     const select = (ins.selectStmt as { SelectStmt?: Record<string, unknown> } | undefined)
       ?.SelectStmt
     if (!target || !select) return new Set()
-    const sourceCtx = aliasContextOf(select['fromClause'] as Node[] | undefined)
+    const sourceCtx = aliasContextOf(
+      select['fromClause'] as Node[] | undefined,
+      modifyingCteColumns(ins.withClause),
+    )
     const positional = (
       items: readonly (Node | undefined)[],
     ): readonly (readonly [string | undefined, Node | undefined])[] =>

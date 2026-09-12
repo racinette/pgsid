@@ -9,7 +9,7 @@
 -- @param 4 nullable
 -- @param 5 nullable
 -- @param 6 notNull
--- @null-group 1*,2*,3*,4
+-- @null-group 1*,2*,3*,4*
 -- @param-reject 4,5
 WITH removed AS (
   DELETE FROM role_grants AS g

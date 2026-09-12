@@ -326,11 +326,15 @@ describe('capability reach of the generated corpus', () => {
     handTouched = await reach(baseCatalog, handPrepared)
   }, 600_000)
 
+  it('holds the generated corpus size ratchet', () => {
+    expect(statements).toBe(15_004)
+  })
+
   it('the hand corpus reaches every capability the generated one does', () => {
-    // Measured 2026-08-23 and pinned here: 14964 generated statements ask the
-    // catalog NOTHING that 565 hand fixtures do not already ask, while the
-    // hand corpus reaches 13 capabilities the generator never produces a
-    // shape for. Volume is not what buys reach.
+    // Measured after the RETURNING row-image axis landed: 15004 generated
+    // statements ask the catalog NOTHING that 565 hand fixtures do not
+    // already ask, while the hand corpus reaches 13 capabilities the
+    // generator never produces a shape for. Volume is not what buys reach.
     //
     // The day this fails is the day the generator finally produces a shape no
     // fixture carries — which is a RESULT, not a regression. Read the diff,

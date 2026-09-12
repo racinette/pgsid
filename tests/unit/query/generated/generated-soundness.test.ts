@@ -262,6 +262,8 @@ interface QueryRecord {
   shapeMismatch: boolean
   violations: string[]
   sawRows: boolean
+  /** Distinct result cardinalities observed across states and bindings. */
+  rowCounts: Set<number>
   /**
    * Per output column: a NULL was actually observed there, under some state
    * and binding. For nullable claims this is the witness — the only
@@ -322,6 +324,7 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
         shapeMismatch: false,
         violations: [],
         sawRows: false,
+        rowCounts: new Set(),
         nullWitnessed: [],
       }
       records.push(record)
@@ -417,6 +420,7 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
         // Output claims must hold under every binding, so successful
         // NULL-variant executions feed the same row scan as the control.
         const scanRows = (rows: unknown[][], binding: string): void => {
+          record.rowCounts.add(rows.length)
           if (!record.claimed || record.shapeMismatch) return
           if (rows.length > 0) record.sawRows = true
           record.claimed.forEach((claim, i) => {
@@ -578,6 +582,53 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
         `regenerated SQL no longer contains, so these queries test less than ` +
         `they claim to:\n${dropped.join('\n')}\n`,
     ).toEqual([])
+  })
+
+  it('covers every cell in the bounded RETURNING row-image matrix', () => {
+    const rowImages = records.filter((r) => r.query.rowImageAxes)
+    const cells = rowImages.map((r) => JSON.stringify(r.query.rowImageAxes)).sort()
+    const expected: string[] = []
+    for (const action of ['insert', 'upsert', 'update', 'delete', 'merge'] as const) {
+      for (const image of ['old', 'new'] as const) {
+        for (const aliases of ['default', 'renamed'] as const) {
+          for (const projection of ['scalar', 'star'] as const) {
+            expected.push(JSON.stringify({ action, image, aliases, projection }))
+          }
+        }
+      }
+    }
+    expect(cells).toEqual(expected.sort())
+  })
+
+  it('exercises zero, one, and many returned rows for every row-image cell', () => {
+    const missing = records
+      .filter((r) => r.query.rowImageAxes)
+      .filter(
+        (r) => !r.rowCounts.has(0) || !r.rowCounts.has(1) || ![...r.rowCounts].some((n) => n > 1),
+      )
+      .map((r) =>
+        describeFailure(
+          r,
+          `observed row counts: ${[...r.rowCounts].sort((a, b) => a - b).join(', ')}`,
+        ),
+      )
+    expect(
+      missing,
+      `Every row-image query must exercise zero, one, and many returned rows ` +
+        `across the default states:\n${missing.join('\n')}\n`,
+    ).toEqual([])
+  })
+
+  it('exposes the generated absent-image alwaysNull claims to PostgreSQL rows', () => {
+    const rowImages = records.filter((r) => r.query.rowImageAxes)
+    const claims = rowImages.flatMap((r) => r.claimed?.filter((c) => c.alwaysNull) ?? [])
+    const exposed = rowImages.flatMap((r) =>
+      r.sawRows ? (r.claimed?.filter((c) => c.alwaysNull) ?? []) : [],
+    )
+    // INSERT-old and DELETE-new each contribute, per alias mode, two scalar
+    // fields plus t's four star-expanded fields: 2 × (2 + 4) = 12 apiece.
+    expect(claims).toHaveLength(24)
+    expect(exposed).toHaveLength(claims.length)
   })
 
   it('PostgreSQL accepts every generated query', () => {
@@ -869,7 +920,7 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
   // schema only, no data) and turned the last bucket witnessed.
   //
   // THE LIST IS EMPTY, and that is the point of leaving all this above it: an
-  // empty list means every one of the 32,293 nullable claims in the corpus is
+  // empty list means every nullable claim in the corpus is
   // witnessed by an actual NULL, so nothing is excused and nothing can rot.
   // The next entry to be added should be argued for, not assumed — three of
   // the four that lived here were WRONG about their own cause by the time
@@ -1007,6 +1058,8 @@ describe('generated-query soundness (engine vs PostgreSQL)', () => {
         `${records.reduce((n, r) => n + r.groupEvidence.filter((g) => g.sawAbsent && g.sawPresent).length, 0)} ` +
         `both arms observed, ` +
         `${count((r) => r.groupViolations.length > 0)} falsified\n` +
+        `  row-image axis bound:       5 actions × 2 images × 2 alias modes × ` +
+        `2 projections; every cell observed at 0/1/many rows\n` +
         `  deep-join axis bound:       5 shapes × 4³ kinds, plain projection only ` +
         `(setops/wrappers not crossed)\n` +
         `  widened-axis gates:         refilter wrappers skip tuples without a_tc and all ` +

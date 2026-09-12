@@ -57,32 +57,66 @@ function worldCorpus(sourceWorld = '001_shipping', targetWorld = sourceWorld) {
 }
 
 describe('Espalier query-fixture rule', () => {
-  it('accepts the complete governed query test tree', async () => {
+  const checkOptions = {
+    cwd: process.cwd(),
+    config: 'tests/unit/query/espalier.config.yaml',
+    cache: false,
+  } as const
+
+  it('accepts the complete governed non-world query test tree', async () => {
+    const paths = readdirSync(__dirname)
+      .filter((name) => name !== 'worlds')
+      .map((name) => `tests/unit/query/${name}`)
     const issues = await check({
-      cwd: process.cwd(),
-      config: 'tests/unit/query/espalier.config.yaml',
-      cache: false,
+      ...checkOptions,
+      paths,
     })
 
     expect(issues.filter((issue) => issue.severity !== 'info')).toEqual([])
+  })
+
+  it('accepts every governed world declaration', async () => {
+    const rules = [
+      'worlds/[world]/[fixture].sql.mjs',
+      'worlds/[world]/data.sql.mjs',
+      'worlds/[world]/schema.sql.mjs',
+    ]
+    const checks = await Promise.all(
+      rules.map((rule) => check({ ...checkOptions, paths: ['tests/unit/query/worlds'], rule })),
+    )
+    expect(checks.flat().filter((issue) => issue.severity !== 'info')).toEqual([])
+  })
+
+  it('accepts the complete world health aggregate', async () => {
+    const issues = await check({
+      ...checkOptions,
+      paths: ['tests/unit/query/worlds'],
+      rule: 'worlds/[...world]/world-health.sql.mjs',
+    })
+    expect(issues.filter((issue) => issue.severity !== 'info')).toEqual([])
     const foundCodes = issues.map((issue) => issue.code)
-    expect([...new Set(foundCodes)]).toEqual([
-      'world_rung_reach',
-      'world_rung_reach_detail',
-      'world_health',
-      'world_health_ratios',
-      'world_health_composition',
-      'world_health_detail',
-    ])
+    const worldCount = readdirSync(join(__dirname, 'worlds')).filter((name) =>
+      statSync(join(__dirname, 'worlds', name)).isDirectory(),
+    ).length
+    expect(foundCodes.filter((code) => code === 'world_health')).toHaveLength(1)
+    expect(foundCodes.filter((code) => code === 'world_health_ratios')).toHaveLength(1)
+    expect(foundCodes.filter((code) => code === 'world_health_composition')).toHaveLength(1)
+    expect(foundCodes.filter((code) => code === 'world_health_detail')).toHaveLength(worldCount)
+  })
+
+  it('accepts the complete world rung-reach aggregate', async () => {
+    const issues = await check({
+      ...checkOptions,
+      paths: ['tests/unit/query/worlds'],
+      rule: 'worlds/[...world]/rung-reach.sql.mjs',
+    })
+    expect(issues.filter((issue) => issue.severity !== 'info')).toEqual([])
+    const foundCodes = issues.map((issue) => issue.code)
     const worldCount = readdirSync(join(__dirname, 'worlds')).filter((name) =>
       statSync(join(__dirname, 'worlds', name)).isDirectory(),
     ).length
     expect(foundCodes.filter((code) => code === 'world_rung_reach')).toHaveLength(1)
-    expect(foundCodes.filter((code) => code === 'world_health')).toHaveLength(1)
-    expect(foundCodes.filter((code) => code === 'world_health_ratios')).toHaveLength(1)
-    expect(foundCodes.filter((code) => code === 'world_health_composition')).toHaveLength(1)
     expect(foundCodes.filter((code) => code === 'world_rung_reach_detail')).toHaveLength(worldCount)
-    expect(foundCodes.filter((code) => code === 'world_health_detail')).toHaveLength(worldCount)
   })
 
   it('accepts a fully declared grouped contract', async () => {
@@ -242,7 +276,7 @@ describe('Espalier world-health aggregate', () => {
     expect(issues).toContainEqual(
       expect.objectContaining({
         code: 'world_composition_regression',
-        message: 'additivity: 57 → 0',
+        message: 'additivity: 72 → 0',
       }),
     )
   })

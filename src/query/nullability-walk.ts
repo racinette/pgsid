@@ -815,6 +815,8 @@ interface RelationEntry {
    * unit present.
    */
   unitChain: number[]
+  /** Synthetic producer used only for PG18 RETURNING old/new presence groups. */
+  returningImage?: 'old' | 'new'
 }
 
 /**
@@ -1282,7 +1284,14 @@ class NullabilityEngine {
    * later flag (the pg-regress replay's updatable_views crop). Saved and
    * restored around each RETURNING walk, like fnCtx.
    */
-  private retOldNew: { targetAlias: string; oldName: string; newName: string } | null = null
+  private retOldNew: {
+    targetAlias: string
+    oldName: string
+    newName: string
+    target: RelationEntry
+    old: { canPresent: boolean; canBeAbsent: boolean; entry: RelationEntry | null }
+    new: { canPresent: boolean; canBeAbsent: boolean; entry: RelationEntry | null }
+  } | null = null
   /** Current function parameter names (for resolving named ColumnRefs in body). */
   private fnParamNames: string[] | null = null
 
@@ -2515,25 +2524,25 @@ class NullabilityEngine {
       const ins = node['InsertStmt'] as InsertStmt
       if (!ins.returningClause) return []
       const scope = this.buildInsertScope(ins, outerScope, depth)
-      return this.analyzeReturningTraced(ins.returningClause, scope, depth, ins)
+      return this.analyzeReturningTraced(ins.returningClause, scope, depth, ins, 'insert')
     }
     if ('UpdateStmt' in node) {
       const upd = node['UpdateStmt'] as UpdateStmt
       if (!upd.returningClause) return []
       const scope = this.buildUpdateScope(upd, outerScope, depth)
-      return this.analyzeReturningTraced(upd.returningClause, scope, depth, upd)
+      return this.analyzeReturningTraced(upd.returningClause, scope, depth, upd, 'update')
     }
     if ('MergeStmt' in node) {
       const mrg = node['MergeStmt'] as MergeStmt
       if (!mrg.returningClause) return []
       const scope = this.buildMergeScope(mrg, outerScope, depth)
-      return this.analyzeReturningTraced(mrg.returningClause, scope, depth, mrg)
+      return this.analyzeReturningTraced(mrg.returningClause, scope, depth, mrg, 'merge')
     }
     if ('DeleteStmt' in node) {
       const del = node['DeleteStmt'] as DeleteStmt
       if (!del.returningClause) return []
       const scope = this.buildDeleteScope(del, outerScope, depth)
-      return this.analyzeReturningTraced(del.returningClause, scope, depth, del)
+      return this.analyzeReturningTraced(del.returningClause, scope, depth, del, 'delete')
     }
 
     // Fallback: untraced.
@@ -2563,12 +2572,13 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
     stmtKey?: object,
+    command?: 'insert' | 'update' | 'delete' | 'merge',
   ): OutputNullabilityTraced[] {
     const ret = returningClause as { exprs?: Node[] }
     const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = []
     const results: OutputNullabilityTraced[] = []
     const prevRetOldNew = this.retOldNew
-    this.retOldNew = this.returningOldNewContext(returningClause, stmtKey)
+    this.retOldNew = this.returningOldNewContext(returningClause, scope, stmtKey, command)
     try {
       for (const target of ret.exprs ?? []) {
         const rt = this.unwrapResTarget(target)
@@ -2621,8 +2631,10 @@ class NullabilityEngine {
    */
   private returningOldNewContext(
     returningClause: Node,
+    scope: Scope,
     stmtKey?: object,
-  ): { targetAlias: string; oldName: string; newName: string } | null {
+    command?: 'insert' | 'update' | 'delete' | 'merge',
+  ): NullabilityEngine['retOldNew'] {
     const rv = (stmtKey as { relation?: RangeVar } | undefined)?.relation
     if (!rv?.relname) return null
     let oldName = 'old'
@@ -2636,11 +2648,160 @@ class NullabilityEngine {
       if (opt.option === 'RETURNING_OPTION_OLD') oldName = opt.value
       if (opt.option === 'RETURNING_OPTION_NEW') newName = opt.value
     }
+    const targetAlias = rv.alias?.aliasname ?? rv.relname
+    const target = scope.aliases.get(targetAlias)
+    if (!target || !command) return null
+
+    let oldCanPresent = command === 'update' || command === 'delete'
+    let newCanPresent = command === 'insert' || command === 'update'
+    let oldCanBeAbsent = !oldCanPresent
+    let newCanBeAbsent = !newCanPresent
+    // INSERT ... ON CONFLICT DO UPDATE has two RETURNING paths: a plain
+    // insert has no OLD row, while a conflicting row exposes the stored row
+    // before the conflict UPDATE. DO NOTHING contributes no returned row.
+    if (
+      command === 'insert' &&
+      (stmtKey as { onConflictClause?: { action?: string } } | undefined)?.onConflictClause
+        ?.action === 'ONCONFLICT_UPDATE'
+    ) {
+      oldCanPresent = true
+      oldCanBeAbsent = true
+    }
+    if (command === 'merge') {
+      const producing = ((stmtKey as { mergeWhenClauses?: Node[] }).mergeWhenClauses ?? [])
+        .map(
+          (clause) =>
+            (clause as { MergeWhenClause?: { commandType?: string } }).MergeWhenClause?.commandType,
+        )
+        .filter((kind) => kind && kind !== 'CMD_NOTHING')
+      oldCanPresent = producing.some((kind) => kind === 'CMD_UPDATE' || kind === 'CMD_DELETE')
+      newCanPresent = producing.some((kind) => kind === 'CMD_UPDATE' || kind === 'CMD_INSERT')
+      oldCanBeAbsent = producing.some((kind) => kind === 'CMD_INSERT')
+      newCanBeAbsent = producing.some((kind) => kind === 'CMD_DELETE')
+    }
+
+    const imageEntry = (
+      side: 'old' | 'new',
+      name: string,
+      canPresent: boolean,
+      canBeAbsent: boolean,
+    ): RelationEntry | null => {
+      if (!canPresent) return null
+      const nullGroup = this.nextNullGroup()
+      return {
+        ...target,
+        alias: name,
+        joinState: canBeAbsent ? OPTIONAL : REQUIRED,
+        instance: this.nextInstance(),
+        nullGroup,
+        unitChain: canBeAbsent ? [nullGroup] : [],
+        returningImage: side,
+      }
+    }
+
     return {
-      targetAlias: rv.alias?.aliasname ?? rv.relname,
+      targetAlias,
       oldName,
       newName,
+      target,
+      old: {
+        canPresent: oldCanPresent,
+        canBeAbsent: oldCanBeAbsent,
+        entry: imageEntry('old', oldName, oldCanPresent, oldCanBeAbsent),
+      },
+      new: {
+        canPresent: newCanPresent,
+        canBeAbsent: newCanBeAbsent,
+        entry: imageEntry('new', newName, newCanPresent, newCanBeAbsent),
+      },
     }
+  }
+
+  private returningImage(alias: string): {
+    side: 'old' | 'new'
+    canPresent: boolean
+    canBeAbsent: boolean
+    entry: RelationEntry | null
+  } | null {
+    if (!this.retOldNew) return null
+    if (alias === this.retOldNew.oldName) return { side: 'old', ...this.retOldNew.old }
+    if (alias === this.retOldNew.newName) return { side: 'new', ...this.retOldNew.new }
+    return null
+  }
+
+  /** Scope whose row facts describe the stored row before a rewrite. */
+  private oldImageScope(scope: Scope): Scope {
+    return {
+      ...scope,
+      dmlSetColumns: undefined,
+      dmlWrittenColumns: undefined,
+      dmlWrittenNullColumns: undefined,
+      dmlWrittenConstants: undefined,
+    }
+  }
+
+  private expressionReadsColumns(expr: Node, alias: string, columns: ReadonlySet<string>): boolean {
+    let reads = false
+    const visit = (value: unknown): void => {
+      if (reads || !value) return
+      if (Array.isArray(value)) {
+        for (const item of value) visit(item)
+        return
+      }
+      if (typeof value !== 'object') return
+      const ref = (value as { ColumnRef?: { fields?: Node[] } }).ColumnRef
+      if (ref) {
+        const parts = (ref.fields ?? []).map((field) => this.stringVal(field))
+        const column = parts.length === 1 ? parts[0] : parts.length === 2 ? parts[1] : undefined
+        if (column && (parts.length === 1 || parts[0] === alias) && columns.has(column)) {
+          reads = true
+          return
+        }
+      }
+      for (const child of Object.values(value as Record<string, unknown>)) visit(child)
+    }
+    visit(expr)
+    return reads
+  }
+
+  private returningImageColumnNotNull(
+    image: NonNullable<ReturnType<NullabilityEngine['returningImage']>>,
+    colName: string,
+    scope: Scope,
+    depth: number,
+    trace: ITrace,
+  ): boolean {
+    if (!this.retOldNew || !image.canPresent || image.canBeAbsent) {
+      trace.addFact('returningImage', `${image.side} can be absent`)
+      trace.conclude(false, `${image.side} image can be absent on a returned row → nullable`)
+      return false
+    }
+    const imageScope = image.side === 'old' ? this.oldImageScope(scope) : scope
+    trace.addFact('returningImage', `${image.side} is present`)
+    return this.computeColumnNullabilityTraced(
+      this.retOldNew.target,
+      colName,
+      imageScope,
+      depth,
+      trace,
+    )
+  }
+
+  private returningImageColumnAlwaysNull(
+    image: NonNullable<ReturnType<NullabilityEngine['returningImage']>>,
+    colName: string,
+    scope: Scope,
+    depth: number,
+  ): boolean {
+    if (!this.retOldNew) return false
+    if (!image.canPresent) return true
+    if (image.canBeAbsent) return false
+    return this.entryColumnAlwaysNull(
+      this.retOldNew.target,
+      colName,
+      image.side === 'old' ? this.oldImageScope(scope) : scope,
+      depth,
+    )
   }
 
   // -------------------------------------------------------------------------
@@ -2756,7 +2917,10 @@ class NullabilityEngine {
         const alwaysNull = notNull ? false : this.alwaysNullExpr(val, scope, depth + 1)
         const bare = this.originTarget(val, stmt, scope, originMode)
         producers.push(bare)
-        const og = bare ? this.originOf(bare.entry, bare.column, scope, depth) : undefined
+        const og =
+          bare && !bare.entry.returningImage
+            ? this.originOf(bare.entry, bare.column, scope, depth)
+            : undefined
         results.push(
           og
             ? {
@@ -4547,7 +4711,7 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!stmt.returningClause) return []
     const scope = this.buildInsertScope(stmt, outerScope, depth)
-    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt)
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt, 'insert')
   }
 
   /**
@@ -4720,7 +4884,7 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!stmt.returningClause) return []
     const scope = this.buildUpdateScope(stmt, outerScope, depth)
-    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt)
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt, 'update')
   }
 
   /** The complete RETURNING scope for an UPDATE — see buildInsertScope. */
@@ -4829,7 +4993,7 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!stmt.returningClause) return []
     const scope = this.buildDeleteScope(stmt, outerScope, depth)
-    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt)
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt, 'delete')
   }
 
   /** The complete RETURNING scope for a DELETE — see buildInsertScope. */
@@ -4876,7 +5040,7 @@ class NullabilityEngine {
   ): OutputNullability[] {
     if (!stmt.returningClause) return []
     const scope = this.buildMergeScope(stmt, outerScope, depth)
-    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt)
+    return this.analyzeReturning(stmt.returningClause, scope, depth, stmt, 'merge')
   }
 
   private buildMergeScope(stmt: MergeStmt, outerScope: Scope | null, depth: number): Scope {
@@ -5163,6 +5327,7 @@ class NullabilityEngine {
     scope: Scope,
     depth: number,
     stmtKey?: object,
+    command?: 'insert' | 'update' | 'delete' | 'merge',
   ): OutputNullability[] {
     const ret = returningClause as { exprs?: Node[] }
     // A DML statement's FROM/USING/source can outer-join (UPDATE … FROM a
@@ -5175,7 +5340,7 @@ class NullabilityEngine {
     const producers: ({ entry: RelationEntry; column: string; ordinal?: number } | null)[] = []
     const results: OutputNullability[] = []
     const prevRetOldNew = this.retOldNew
-    this.retOldNew = this.returningOldNewContext(returningClause, stmtKey)
+    this.retOldNew = this.returningOldNewContext(returningClause, scope, stmtKey, command)
     try {
       for (const target of ret.exprs ?? []) {
         const rt = this.unwrapResTarget(target)
@@ -5872,22 +6037,26 @@ class NullabilityEngine {
       const entry = this.resolveStarRelation(qualifier, scope)
       if (!entry) {
         // PG18's RETURNING old/new rows (`RETURNING old.*, new.*`, or the
-        // WITH (OLD AS o, …) aliases): both expand to the TARGET's columns.
-        // Conservative on every flag — an INSERT's old row and a DELETE's
-        // new row are wholly absent, and an UPDATE's either side deserves
-        // more thought than a star pass — but the SHAPE is the contract, and
-        // zero columns here misaligned every later flag (the pg-regress
-        // replay's updatable_views crop).
+        // WITH (OLD AS o, …) aliases) expand to the target's columns. Each
+        // field is then resolved through the same directional image rule as
+        // a scalar reference; an absent image is always NULL, while a MERGE
+        // image that is absent on only some actions remains nullable and
+        // contributes its own presence unit.
         if (qualifier.schema === undefined && this.retOldNew) {
-          const { targetAlias, oldName, newName } = this.retOldNew
-          if (qualifier.name === oldName || qualifier.name === newName) {
-            const target = scope.aliases.get(targetAlias)
-            if (target) {
-              return this.relationColumnsIntrinsic(target, scope, depth).map((col) => {
-                producers?.push(null)
-                return { name: col.name, notNull: false }
-              })
-            }
+          const image = this.returningImage(qualifier.name)
+          if (image) {
+            return this.relationColumnsIntrinsic(this.retOldNew.target, scope, depth).map((col) => {
+              const trace = this.newTrace('RETURNING image star')
+              const notNull = this.returningImageColumnNotNull(image, col.name, scope, depth, trace)
+              const alwaysNull =
+                !notNull && this.returningImageColumnAlwaysNull(image, col.name, scope, depth)
+              producers?.push(image.entry ? { entry: image.entry, column: col.name } : null)
+              return {
+                name: col.name,
+                notNull,
+                ...(alwaysNull ? { alwaysNull: true } : {}),
+              }
+            })
           }
         }
         return []
@@ -6003,6 +6172,8 @@ class NullabilityEngine {
     }
     const alias = parts.length === 2 ? parts[0] : parts.length === 3 ? parts[1] : undefined
     if (alias === undefined) return null
+    const image = this.returningImage(alias)
+    if (image?.entry) return { entry: image.entry, column: parts[parts.length - 1]! }
     const entry = scope.aliases.get(alias)
     return entry ? { entry, column: parts[parts.length - 1]! } : null
   }
@@ -8394,6 +8565,12 @@ class NullabilityEngine {
 
     const node = expr as Record<string, unknown>
 
+    const qualified = this.qualifiedColumnRef(expr)
+    const image = qualified ? this.returningImage(qualified.alias) : null
+    if (image && this.returningImageColumnAlwaysNull(image, qualified!.column, scope, depth)) {
+      return true
+    }
+
     // A cast of NULL is NULL for every target type, so the wrapper is
     // transparent here. Needed for real spellings rather than tidiness:
     // `CASE … END::text` presents as a TypeCast, and the shape rules below
@@ -8826,7 +9003,13 @@ class NullabilityEngine {
         this.generationInFlight.add(genKey)
         try {
           const qualified = this.qualifyColumnRefs(genExpr, entry.alias, entry)
-          if (this.alwaysNullExpr(qualified, scope, depth + 1)) return true
+          const setCols =
+            scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null
+          const generationScope =
+            setCols && !this.expressionReadsColumns(qualified, entry.alias, setCols)
+              ? this.oldImageScope(scope)
+              : scope
+          if (this.alwaysNullExpr(qualified, generationScope, depth + 1)) return true
         } finally {
           this.generationInFlight.delete(genKey)
         }
@@ -9977,6 +10160,10 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
+    const image = this.returningImage(aliasName)
+    if (image) {
+      return this.returningImageColumnNotNull(image, colName, scope, depth, trace)
+    }
     const entry = this.resolveAlias(aliasName, scope)
     if (entry) {
       trace.addFact('resolved', `alias '${aliasName}'`)
@@ -10358,12 +10545,18 @@ class NullabilityEngine {
           this.generationInFlight.add(genKey)
           try {
             const genTrace = trace.addChild('generation expression')
-            const result = this.walkExprTraced(
-              this.qualifyColumnRefs(genExpr, entry.alias, entry),
-              scope,
-              depth + 1,
-              genTrace,
-            )
+            const qualified = this.qualifyColumnRefs(genExpr, entry.alias, entry)
+            const setCols =
+              scope.dmlSetColumns?.alias === entry.alias ? scope.dmlSetColumns.columns : null
+            // A stored generated value is recomputed on UPDATE, but when its
+            // expression reads no SET column it necessarily recomputes the
+            // old value. In that case the unmasked old-row facts are the
+            // precise channel for its dependencies.
+            const generationScope =
+              setCols && !this.expressionReadsColumns(qualified, entry.alias, setCols)
+                ? this.oldImageScope(scope)
+                : scope
+            const result = this.walkExprTraced(qualified, generationScope, depth + 1, genTrace)
             if (result) {
               trace.addFact('generatedColumn', 'expression provably non-null')
               trace.conclude(true, "generation expression over this row's columns → notNull")

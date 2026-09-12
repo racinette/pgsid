@@ -7,12 +7,12 @@
 -- aliases, found nothing, and emitted NOTHING — the misalignment class, on a
 -- PG18 feature no fixture spelled. Expansion now reads the RETURNING
 -- context (target alias plus the WITH (OLD AS …) renames) and emits the
--- target's columns, every flag conservative: a plain INSERT has no old row,
--- so all four columns are NULL on every returned row — which is what makes
--- every claim here witnessed rather than excused.
+-- target's columns. A plain INSERT has no old row, so all four columns are
+-- always NULL on every returned row — which is what makes every claim here
+-- witnessed rather than excused.
 INSERT INTO ck (id, val) VALUES (904, 'x')
 RETURNING old.*
-  -- @nullable
-  -- @nullable
-  -- @nullable
-  -- @nullable
+  -- @alwaysNull
+  -- @alwaysNull
+  -- @alwaysNull
+  -- @alwaysNull

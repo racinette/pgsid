@@ -30,6 +30,10 @@ engine is wrong. The converse proves nothing: a nullable claim that never
 produces a null might be engine imprecision or might be data that never
 reached the case, and execution cannot tell them apart.
 
+**Always-null claims are falsifiable in the opposite direction.** Any non-null
+value refutes one. Generated absent row images therefore require returned rows
+that expose the claim; a zero-row execution alone proves nothing.
+
 So this system finds UNSOUNDNESS — wrong "never null" claims, the ones that
 make a consumer skip a check it needs. It does not find imprecision. That is
 measured separately and is not this system's job.
@@ -206,6 +210,15 @@ reference, or fails a constraint, so the statement raises and the budget is
 gone. Values must be drawn from what the schema admits — a referencing column
 from the parent's seeded values, a surrogate key freshly, a constrained column
 from its own generator.
+
+**Row-image axes need cardinality states, not dead statements.** PostgreSQL 18
+`RETURNING old`/`new` coverage crosses statement action, selected image,
+default versus renamed image aliases, and qualified scalar versus star
+projection. Each generated statement reads the fixture state, so the same
+shape returns zero, one, and many rows across `empty`, `sparse`, and
+`unmatched`. A permanently empty source would preserve syntax but leave every
+output claim untested. The oracle therefore ratchets both the full Cartesian
+matrix and the three observed cardinalities per cell.
 
 **Some relations are frozen and must stay so.** A schema the fixtures depend
 on cannot be reshaped to suit the generator, and relations that look unused
