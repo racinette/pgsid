@@ -34,6 +34,7 @@ export const VALUES: Record<string, string[]> = {
   // three-argument range constructors raised everywhere.
   text: [
     "'abc'",
+    "'a '",
     "''",
     "'  '",
     "'NaN'",
@@ -72,7 +73,7 @@ export const VALUES: Record<string, string[]> = {
     "'search_path'",
     "'default'",
   ],
-  'character varying': ["''::varchar", "'abc'::varchar"],
+  'character varying': ["''::varchar", "'abc'::varchar", "'a '::varchar"],
   character: ["''::char", "'a'::char"],
   // `'r'` is an object-type abbreviation `acldefault` accepts; `'a'` is not
   // one, and alone it left that signature raising on every combination.
@@ -111,7 +112,14 @@ export const VALUES: Record<string, string[]> = {
   // code point for `chr`.
   integer: ['1', '0', '(-1)', '65', '2147483647'],
   bigint: ['1::bigint', '0::bigint', '(-1)::bigint', '9223372036854775807::bigint'],
-  numeric: ['0::numeric', '(-1.5)::numeric', "'NaN'::numeric", "'Infinity'::numeric"],
+  numeric: [
+    '0::numeric',
+    '(-1.5)::numeric',
+    '1.4::numeric',
+    '9007199254740993.4::numeric',
+    "'NaN'::numeric",
+    "'Infinity'::numeric",
+  ],
   'double precision': [
     '1::float8',
     '0::float8',

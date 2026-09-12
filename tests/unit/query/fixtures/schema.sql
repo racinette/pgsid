@@ -928,6 +928,27 @@ CREATE TABLE evb (
       OR (status =  'pending' AND started_at IS NULL))
 );
 
+CREATE TABLE written_coercion (
+  id integer PRIMARY KEY,
+  state varchar(1) NOT NULL,
+  amount text,
+  display_value text GENERATED ALWAYS AS (upper(amount)) STORED,
+  CHECK (CASE WHEN state = 'a' THEN amount IS NULL ELSE amount IS NOT NULL END)
+);
+
+CREATE TABLE written_integer (
+  id integer PRIMARY KEY,
+  state integer NOT NULL
+);
+
+CREATE TABLE written_numeric (
+  id integer PRIMARY KEY,
+  state numeric(20,0) NOT NULL,
+  amount text,
+  CHECK (CASE WHEN state = 9007199254740993.0
+              THEN amount IS NULL ELSE amount IS NOT NULL END)
+);
+
 -- A write changes `state`, while RETURNING asks about a generated column over
 -- the unchanged `source_value`. The CHECK is the bridge between them, with two
 -- spellings per nullness arm so fixtures can change the discriminator without
