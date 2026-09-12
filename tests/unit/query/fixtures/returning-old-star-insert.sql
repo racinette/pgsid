@@ -11,8 +11,9 @@
 -- always NULL on every returned row — which is what makes every claim here
 -- witnessed rather than excused.
 INSERT INTO ck (id, val) VALUES (904, 'x')
-RETURNING old.*
+RETURNING old.*,
   -- @alwaysNull
   -- @alwaysNull
   -- @alwaysNull
   -- @alwaysNull
+  new AS inserted_row -- @notNull

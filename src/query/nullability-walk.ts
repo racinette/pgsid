@@ -2729,6 +2729,24 @@ class NullabilityEngine {
     return null
   }
 
+  /** Resolve a one-part OLD/NEW reference to its whole composite row. */
+  private returningWholeRowImage(
+    ref: ColumnRef,
+    scope: Scope,
+  ): NonNullable<ReturnType<NullabilityEngine['returningImage']>> | null {
+    const fields = ref.fields ?? []
+    if (fields.length !== 1) return null
+    const name = this.stringVal(fields[0]!)
+    if (!name) return null
+    // PostgreSQL gives ordinary columns and range-table aliases the closer
+    // binding. The pseudo image is only the fallback meaning of this name.
+    for (let current: Scope | null = scope; current; current = current.outer) {
+      if (current.visible.some((column) => column.name === name)) return null
+    }
+    if (this.resolveAlias(name, scope)) return null
+    return this.returningImage(name)
+  }
+
   /** Scope whose row facts describe the stored row before a rewrite. */
   private oldImageScope(scope: Scope): Scope {
     return {
@@ -6172,10 +6190,11 @@ class NullabilityEngine {
     }
     const alias = parts.length === 2 ? parts[0] : parts.length === 3 ? parts[1] : undefined
     if (alias === undefined) return null
+    const entry = this.resolveAlias(alias, scope)
+    if (entry) return { entry, column: parts[parts.length - 1]! }
     const image = this.returningImage(alias)
     if (image?.entry) return { entry: image.entry, column: parts[parts.length - 1]! }
-    const entry = scope.aliases.get(alias)
-    return entry ? { entry, column: parts[parts.length - 1]! } : null
+    return null
   }
 
   /**
@@ -8195,7 +8214,7 @@ class NullabilityEngine {
     // only naming more than exist is an error.
     const names = entry.cteColumns ?? []
     if (names.length === 0) return all
-    return all.map((r, i) => ({ name: names[i] ?? r.name, notNull: r.notNull }))
+    return all.map((r, i) => ({ ...r, name: names[i] ?? r.name }))
   }
 
   /**
@@ -8565,8 +8584,16 @@ class NullabilityEngine {
 
     const node = expr as Record<string, unknown>
 
+    const wholeImage = node['ColumnRef']
+      ? this.returningWholeRowImage(node['ColumnRef'] as ColumnRef, scope)
+      : null
+    if (wholeImage && !wholeImage.canPresent) return true
+
     const qualified = this.qualifiedColumnRef(expr)
-    const image = qualified ? this.returningImage(qualified.alias) : null
+    const image =
+      qualified && !this.resolveAlias(qualified.alias, scope)
+        ? this.returningImage(qualified.alias)
+        : null
     if (image && this.returningImageColumnAlwaysNull(image, qualified!.column, scope, depth)) {
       return true
     }
@@ -8905,6 +8932,19 @@ class NullabilityEngine {
    * answer for free. That gate is load-bearing in one direction only.
    */
   private columnIsAlwaysNull(leaf: Node, scope: Scope, depth: number): boolean {
+    const node = leaf as Record<string, unknown>
+    const wholeImage = node['ColumnRef']
+      ? this.returningWholeRowImage(node['ColumnRef'] as ColumnRef, scope)
+      : null
+    if (wholeImage && !wholeImage.canPresent) return true
+    const qualified = this.qualifiedColumnRef(leaf)
+    const image =
+      qualified && !this.resolveAlias(qualified.alias, scope)
+        ? this.returningImage(qualified.alias)
+        : null
+    if (image) {
+      return this.returningImageColumnAlwaysNull(image, qualified!.column, scope, depth)
+    }
     const target = this.resolveBareColumnTarget(leaf, scope)
     if (!target) return false
     return this.entryColumnAlwaysNull(target.entry, target.column, scope, depth)
@@ -10101,6 +10141,19 @@ class NullabilityEngine {
       if (outer !== undefined) return outer
     }
 
+    const image = this.resolveAlias(colName, scope) ? null : this.returningImage(colName)
+    if (image) {
+      const result = image.canPresent && !image.canBeAbsent
+      trace.addFact('returningImage', `${image.side} whole row`)
+      trace.conclude(
+        result,
+        result
+          ? `${image.side} image is present on every returned row → notNull`
+          : `${image.side} image can be absent on a returned row → nullable`,
+      )
+      return result
+    }
+
     trace.addFact('resolved', 'NOT_FOUND')
     trace.conclude(false, `column '${colName}' not found in any scope → nullable`)
     return false
@@ -10160,14 +10213,14 @@ class NullabilityEngine {
     depth: number,
     trace: ITrace,
   ): boolean {
-    const image = this.returningImage(aliasName)
-    if (image) {
-      return this.returningImageColumnNotNull(image, colName, scope, depth, trace)
-    }
     const entry = this.resolveAlias(aliasName, scope)
     if (entry) {
       trace.addFact('resolved', `alias '${aliasName}'`)
       return this.computeColumnNullabilityTraced(entry, colName, scope, depth, trace)
+    }
+    const image = this.returningImage(aliasName)
+    if (image) {
+      return this.returningImageColumnNotNull(image, colName, scope, depth, trace)
     }
     trace.addFact('resolved', `alias '${aliasName}' NOT_FOUND`)
     trace.conclude(false, `alias '${aliasName}' not found → nullable`)

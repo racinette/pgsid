@@ -414,6 +414,7 @@ const FLOOR: Record<string, Outcome> = {
   'view column[⟨*⟩] notNull + join ⟨*⟩': 'true',
   'view column[⟨*⟩] nullable + join ⟨*⟩': 'false',
   'window frame may be empty or the offset may fall outside the partition → nullable': 'false',
+  '⟨*⟩ image is present on every returned row → notNull': 'true',
   '⟨*⟩ is never NULL for a ⟨*⟩, infinite input included': 'true',
   "⟨*⟩ is pinned here and shares this column's presence group, so the inner row is present on every returned row → notNull":
     'true',
