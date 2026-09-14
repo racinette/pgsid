@@ -3,8 +3,11 @@
   "private": true,
   "type": "module",
   "version": "0.0.0",
+  "bin": {
+    "pgsid": "dist/bin.js"
+  },
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "tsx src/bin.ts",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && pnpm espalier:check",
