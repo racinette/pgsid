@@ -6,9 +6,15 @@ Each fixture isolates one transformation or composition rule. Keep the schema
 small and stable so fixture changes describe lineage behavior rather than
 unrelated catalog differences.
 
+The `dml/` tier composes transformations across write assignments, row images,
+and data-modifying CTEs. Its fixtures may deliberately combine several syntax
+features when their interaction is the contract under test.
+
 ## Project layout
 
     value-lineage/
+    ├─ dml/           hand-authored DML value-lineage shape contracts
+    │
     ├─ schema.sql     the shared schema for value-lineage fixtures (required)
     │
     └─ [fixture].sql  a focused value-lineage query contract (zero or more, any
