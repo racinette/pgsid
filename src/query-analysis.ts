@@ -158,7 +158,7 @@ const analyzeQuery = async (
     if (gated.gate.kind !== 'agreed' && gated.gate.kind !== 'undescribed') {
       diagnostics.push({
         code: 'contract-shape',
-        severity: 'warning',
+        severity: 'error',
         message: gateMessage('Nullability contract', gated.gate),
       })
     }

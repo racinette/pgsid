@@ -171,3 +171,15 @@ export {
   type TypescriptQueryDiagnostic,
   type TypescriptQueryDiagnosticCode,
 } from './codegen/typescript-query.js'
+export {
+  EMPTY_PROJECT_BUILD_STATE,
+  reconcileProjectBuild,
+  type ProjectArtifact,
+  type ProjectBuildEvent,
+  type ProjectBuildState,
+  type ProjectBuildStats,
+  type ProjectBuildUpdate,
+  type ProjectDiagnostic,
+  type ProjectRenderCacheEntry,
+  type ReconcileProjectBuildOptions,
+} from './project-build.js'
