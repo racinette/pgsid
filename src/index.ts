@@ -101,6 +101,7 @@ export {
   type DiscoverQueryFilesOptions,
   type QueryOutputPaths,
 } from './query-discovery.js'
+export { loadQuerySources } from './query-source-loader.js'
 export {
   EMPTY_QUERY_BATCH_STATE,
   QueryBatchError,
@@ -193,3 +194,4 @@ export {
   type ProjectBuildCoordinatorOptions,
   type ProjectBuildRequest,
 } from './project-coordinator.js'
+export { ProjectBuildWatcher, type ProjectBuildWatcherOptions } from './project-watcher.js'

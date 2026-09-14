@@ -35,21 +35,10 @@ const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as
 const dependencies = manifest.dependencies ?? {}
 const devDependencies = manifest.devDependencies ?? {}
 
-/**
- * Runtime dependencies `src/` does not import, each with the reason it is
- * declared anyway. Every entry here is a promise the package makes and does
- * not use; listing them is what keeps the second assertion below a live check
- * rather than a permanent failure.
- *
- * All five were measured unimported across `src/` AND `tests/` on 2026-08-24 —
- * they are the remains of a language-server and file-watcher surface that was
- * never built. Nothing decides whether they stay; they are recorded so that
- * decision is visible rather than implied.
- */
+/** Runtime dependencies exempted from the source-import census. */
 const DECLARED_BUT_UNIMPORTED: Record<string, string> = {
-  chokidar: 'file watching for a language server that was never built',
-  'vscode-languageserver': 'same, unused',
-  'vscode-languageserver-textdocument': 'same, unused',
+  'vscode-languageserver': 'reserved for the language-server boundary',
+  'vscode-languageserver-textdocument': 'reserved for the language-server boundary',
   '@electric-sql/pglite-plpgsql-check':
     'a PGlite extension the TEST harnesses load by name; `src/` never imports it, and it must ship with the runtime that does',
 }
