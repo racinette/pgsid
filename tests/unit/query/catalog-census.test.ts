@@ -15,6 +15,7 @@ import {
   OVERLOAD_CATALOG_ONLY,
 } from '../../../src/query/types.js'
 import { GRAMMAR_SAMPLER } from './grammar-sampler.js'
+import { VALUE_LINEAGE_CATALOG_ONLY } from '../../../src/query/value-lineage.js'
 
 // ---------------------------------------------------------------------------
 // Catalog-feature census.
@@ -375,16 +376,22 @@ describe('catalog-feature census', () => {
     // A member nothing calls is either a branch no query reaches or a capture
     // nobody needs, and neither is visible from outside the walk. The
     // exemptions name where a member IS covered, so the two stay apart.
-    // The adapter's product wears two faces; only the walk's is in scope here.
+    // The adapter's product has several consumers; only the walk's face is in scope here.
     // `DEP_CATALOG_ONLY` lives beside the interfaces and is type-checked
     // against `keyof DepCatalog`, so this is a type boundary rather than a
     // list of excuses.
     const depOnly = new Set<string>(DEP_CATALOG_ONLY)
     const overloadOnly = new Set<string>(OVERLOAD_CATALOG_ONLY)
     const evaluationOnly = new Set<string>(EVALUATION_CATALOG_ONLY)
+    const valueLineageOnly = new Set<string>(VALUE_LINEAGE_CATALOG_ONLY)
     const cold = catalogMemberNames
       .filter(
-        (m) => !touched.has(m) && !depOnly.has(m) && !overloadOnly.has(m) && !evaluationOnly.has(m),
+        (m) =>
+          !touched.has(m) &&
+          !depOnly.has(m) &&
+          !overloadOnly.has(m) &&
+          !evaluationOnly.has(m) &&
+          !valueLineageOnly.has(m),
       )
       .sort()
     expect(
@@ -394,12 +401,12 @@ describe('catalog-feature census', () => {
         `at all — move it off NullabilityCatalog:\n  ${cold.join('\n  ')}`,
     ).toEqual([])
 
-    const askedAnyway = [...depOnly, ...overloadOnly, ...evaluationOnly]
+    const askedAnyway = [...depOnly, ...overloadOnly, ...evaluationOnly, ...valueLineageOnly]
       .filter((m) => touched.has(m))
       .sort()
     expect(
       askedAnyway,
-      `Declared DepCatalog-, OverloadCatalog- or SubtreeEvaluationCatalog-only, but the walk asked them — ` +
+      `Declared for a non-walk catalog face, but the walk asked them — ` +
         `the member belongs on NullabilityCatalog now, with its exemption ` +
         `removed and a fixture reaching it:\n  ` +
         askedAnyway.join('\n  '),

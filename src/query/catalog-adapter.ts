@@ -16,6 +16,7 @@ import type {
   ResolvedTable,
   ResolvedFunction,
 } from './types.js'
+import type { ResolvedOperatorIdentity, ValueLineageCatalog } from './value-lineage.js'
 import { parseSql } from '../ast.js'
 import { splitQualifiedName } from '../catalog/qualified-name.js'
 import { collectClosedSubtrees } from './subtree-evaluator.js'
@@ -53,7 +54,9 @@ import {
 export async function buildNullabilityCatalog(
   snapshot: CatalogSnapshot,
   options?: { searchPath?: readonly string[] },
-): Promise<NullabilityCatalog & DepCatalog & OverloadCatalog & SubtreeEvaluationCatalog> {
+): Promise<
+  NullabilityCatalog & DepCatalog & OverloadCatalog & SubtreeEvaluationCatalog & ValueLineageCatalog
+> {
   // The search path an UNQUALIFIED name resolves under — the contract the
   // interface has documented all along, now actually true (adversarial-2
   // finding 5: the adapter hardcoded "public", so under a real search path
@@ -1061,6 +1064,62 @@ export async function buildNullabilityCatalog(
     name: string,
   ): BuiltinOperatorSignature[] =>
     schema === undefined || schema === 'pg_catalog' ? (builtinOpSigsByName.get(name) ?? []) : []
+
+  const valueOpSigsByName = new Map<string, BuiltinOperatorSignature[]>()
+  for (const sig of [
+    ...(snapshot.builtinOperatorSignatures ?? []),
+    ...(snapshot.builtinValueOperatorSignatures ?? []),
+  ]) {
+    const existing = valueOpSigsByName.get(sig.name)
+    if (existing) existing.push(sig)
+    else valueOpSigsByName.set(sig.name, [sig])
+  }
+
+  const resolveOperatorIdentity = (
+    schema: string | undefined,
+    name: string,
+    leftType: string | null,
+    rightType: string,
+  ): ResolvedOperatorIdentity | null => {
+    const builtin = (): ResolvedOperatorIdentity | null => {
+      const row = (valueOpSigsByName.get(name) ?? []).find(
+        (candidate) => candidate.leftType === leftType && candidate.rightType === rightType,
+      )
+      return row
+        ? {
+            schema: 'pg_catalog',
+            name,
+            leftType,
+            rightType,
+            resultType: row.returns,
+          }
+        : null
+    }
+    const user = (candidateSchema: string): ResolvedOperatorIdentity | null => {
+      const row = (opBySchemaName.get(`${candidateSchema}.${name}`) ?? []).find(
+        (candidate) => candidate.leftType === leftType && candidate.rightType === rightType,
+      )
+      return row
+        ? {
+            schema: row.schema,
+            name,
+            leftType,
+            rightType,
+            resultType: row.resultType,
+          }
+        : null
+    }
+
+    if (schema === 'pg_catalog') return builtin()
+    if (schema !== undefined) return user(schema)
+
+    const path = searchPath.includes('pg_catalog') ? searchPath : ['pg_catalog', ...searchPath]
+    for (const candidateSchema of path) {
+      const found = candidateSchema === 'pg_catalog' ? builtin() : user(candidateSchema)
+      if (found) return found
+    }
+    return null
+  }
 
   const builtinTypeKinds = snapshot.builtinTypeKinds ?? {}
   const implicitCasts = new Set<string>()
@@ -2645,6 +2704,7 @@ export async function buildNullabilityCatalog(
     resolveUserFunctionTyped,
     resolveBuiltinFunctionSignatures,
     resolveBuiltinOperatorSignatures,
+    resolveOperatorIdentity,
     resolveCanonicalTypeName,
     mayCoerceImplicitly,
     resolveBinaryCoercionTargets,

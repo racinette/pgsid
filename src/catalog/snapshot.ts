@@ -77,6 +77,7 @@ const CLAIMED_OPERATOR_NAMES = [
     ...[...TOTAL_OPERATOR_SIGNATURES].map((k) => k.slice(0, k.indexOf('('))),
   ]),
 ]
+const VALUE_LINEAGE_OPERATOR_NAMES = ['->', '->>', '#>', '#>>']
 
 // ---------------------------------------------------------------------------
 // User-schema filter (excludes system + temp schemas).
@@ -553,6 +554,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinPolymorphicArraySignatures,
     builtinFunctionSignatures,
     builtinOperatorSignatures,
+    builtinValueOperatorSignatures,
     builtinImplicitCasts,
     builtinCasts,
     builtinTypeKinds,
@@ -592,7 +594,8 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinPolymorphicFunctions(pg),
     queryBuiltinPolymorphicArraySignatures(pg),
     queryBuiltinFunctionSignatures(pg),
-    queryBuiltinOperatorSignatures(pg),
+    queryBuiltinOperatorSignatures(pg, CLAIMED_OPERATOR_NAMES),
+    queryBuiltinOperatorSignatures(pg, VALUE_LINEAGE_OPERATOR_NAMES),
     queryBuiltinImplicitCasts(pg),
     queryBuiltinCasts(pg),
     queryBuiltinTypeKinds(pg),
@@ -1050,6 +1053,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     builtinPolymorphicArraySignatures,
     builtinFunctionSignatures,
     builtinOperatorSignatures,
+    builtinValueOperatorSignatures,
     builtinImplicitCasts,
     builtinCasts,
     builtinTypeKinds,
@@ -1625,7 +1629,10 @@ async function queryBuiltinFunctionSignatures(pg: PGlite): Promise<BuiltinFuncti
  * operators (`oprcode = 0`) — the register's 1a sweep measured they cannot
  * be invoked, so dropping is sound; none exists in pg_catalog anyway.
  */
-async function queryBuiltinOperatorSignatures(pg: PGlite): Promise<BuiltinOperatorSignature[]> {
+async function queryBuiltinOperatorSignatures(
+  pg: PGlite,
+  names: readonly string[],
+): Promise<BuiltinOperatorSignature[]> {
   const res = await pg.query<{
     name: string
     left_type: string | null
@@ -1646,7 +1653,7 @@ async function queryBuiltinOperatorSignatures(pg: PGlite): Promise<BuiltinOperat
      WHERE n.nspname = 'pg_catalog'
        AND o.oprname = ANY($1)
      ORDER BY o.oprname, 2, 3;`,
-    [CLAIMED_OPERATOR_NAMES],
+    [names],
   )
   return res.rows.map((r) => ({
     name: r.name,
