@@ -103,6 +103,12 @@ export {
 } from './query-discovery.js'
 export { loadQuerySources } from './query-source-loader.js'
 export {
+  discoverMigrationFiles,
+  MigrationDiscoveryError,
+  type DiscoveredMigrationFile,
+  type DiscoverMigrationFilesOptions,
+} from './migration-discovery.js'
+export {
   EMPTY_QUERY_BATCH_STATE,
   QueryBatchError,
   reconcileQueryBatch,
@@ -182,6 +188,7 @@ export {
   type ProjectBuildUpdate,
   type ProjectDiagnostic,
   type ProjectRenderCacheEntry,
+  type ProjectSchemaDiagnostic,
   type ReconcileProjectBuildOptions,
 } from './project-build.js'
 export {
@@ -195,3 +202,12 @@ export {
   type ProjectBuildRequest,
 } from './project-coordinator.js'
 export { ProjectBuildWatcher, type ProjectBuildWatcherOptions } from './project-watcher.js'
+export {
+  buildProject,
+  ProjectRuntime,
+  ProjectSchemaError,
+  watchProject,
+  type ProjectRuntimeOptions,
+  type ProjectRuntimeWatchOptions,
+  type WatchProjectOptions,
+} from './project-runtime.js'

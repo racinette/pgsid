@@ -157,6 +157,12 @@ class StmtDiagnosticsError extends Error {
  * `validate()` via the stored `removals` per migration.
  */
 export class SchemaBuilder {
+  private readonly checkPlpgsql: boolean
+
+  constructor(options: { checkPlpgsql?: boolean } = {}) {
+    this.checkPlpgsql = options.checkPlpgsql ?? true
+  }
+
   // oid → function provenance. Updated during apply; read during validate.
   private provenance = new Map<number, FunctionProvenance>()
 
@@ -346,7 +352,7 @@ export class SchemaBuilder {
    * the snapshot is broad (all user functions).
    */
   async onBeforeStatementApplied(ctx: StmtContext): Promise<BeforeState> {
-    if (ctx.kind === 'DoStmt') {
+    if (ctx.kind === 'DoStmt' && this.checkPlpgsql) {
       await this.validateDoBlock(ctx)
     }
 
@@ -545,20 +551,30 @@ export class SchemaBuilder {
         // + identity arguments to build a qualified regprocedure text.
         const qualifiedSignature = `"${row.nspname}"."${row.proname}"(${prov.signature.match(/\(([^)]*)\)/)?.[1] ?? ''})`
 
-        if (row.lanname === 'plpgsql') {
+        if (row.lanname === 'plpgsql' && this.checkPlpgsql) {
           const diags = await this.validatePlpgsqlFunction(
             pg,
             row.oid,
             { ...prov, signature: qualifiedSignature },
             row.is_trigger,
           )
-          allDiagnostics.push(...diags)
+          allDiagnostics.push(
+            ...diags.map((diagnostic) => ({
+              ...diagnostic,
+              migrationIndex: prov.migrationIndex,
+            })),
+          )
         } else if (row.lanname === 'sql') {
           const diags = await this.validateSqlFunction(pg, row.oid, {
             ...prov,
             signature: qualifiedSignature,
           })
-          allDiagnostics.push(...diags)
+          allDiagnostics.push(
+            ...diags.map((diagnostic) => ({
+              ...diagnostic,
+              migrationIndex: prov.migrationIndex,
+            })),
+          )
         }
       }
 
@@ -635,6 +651,7 @@ export class SchemaBuilder {
           }
         : null
       diagnostics.push({
+        migrationIndex: prov.migrationIndex,
         message:
           `function ${prov.signature} did not survive the migration: it depends on a ` +
           `temporary relation, and PostgreSQL drops the temporary schema — with everything ` +

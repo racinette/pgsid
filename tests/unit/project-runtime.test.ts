@@ -1,0 +1,215 @@
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  buildProject,
+  ProjectRuntime,
+  ProjectSchemaError,
+  watchProject,
+} from '../../src/project-runtime.js'
+
+const roots: string[] = []
+
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
+
+const project = async (options: { jsonSchema?: boolean } = {}) => {
+  const root = await mkdtemp(join(tmpdir(), 'pgsid-runtime-'))
+  roots.push(root)
+  await Promise.all([
+    mkdir(join(root, 'migrations'), { recursive: true }),
+    mkdir(join(root, 'queries'), { recursive: true }),
+    mkdir(join(root, 'schemas'), { recursive: true }),
+  ])
+  await writeFile(
+    join(root, 'pgsid.yaml'),
+    `
+      schema: migrations/*.sql
+      ${
+        options.jsonSchema
+          ? `types:
+        jsonSchemas:
+          Payload: { file: schemas/payload.json }`
+          : ''
+      }
+      sql:
+        paths: [queries/*.sql]
+        typecheck: { plpgsql: false }
+        codegen:
+          typescript:
+            ${
+              options.jsonSchema
+                ? `mappings:
+              column:
+                public.events.payload: { jsonSchema: Payload }`
+                : ''
+            }
+            queries:
+              out:
+                queries:
+                  types: generated/types
+                  wrappers: generated/wrappers
+    `,
+  )
+  return root
+}
+
+describe('ProjectRuntime', () => {
+  it('builds a configured project and reuses every query cache', async () => {
+    const root = await project({ jsonSchema: true })
+    await Promise.all([
+      writeFile(
+        join(root, 'migrations/001.sql'),
+        'CREATE TABLE events (id bigint PRIMARY KEY, payload jsonb NOT NULL);',
+      ),
+      writeFile(
+        join(root, 'queries/events.sql'),
+        '-- name: GetEvent :one\nSELECT id, payload FROM events WHERE id = @id;',
+      ),
+      writeFile(
+        join(root, 'schemas/payload.json'),
+        JSON.stringify({ type: 'object', properties: { actor: { type: 'integer' } } }),
+      ),
+    ])
+    const runtime = new ProjectRuntime({ baseDirectory: root })
+    try {
+      const first = await runtime.build()
+      const second = await runtime.build()
+      const typesPath = join(root, 'generated/types/events.ts')
+
+      expect(first.state.diagnostics).toEqual([])
+      expect(await readFile(typesPath, 'utf8')).toContain(
+        '"payload": { "actor"?: number; [key: string]: unknown }',
+      )
+      expect(second.events).toEqual([])
+      expect(second.stats).toMatchObject({
+        parseCacheHits: 1,
+        analysisCacheHits: 1,
+        renderCacheHits: 1,
+      })
+
+      await writeFile(
+        join(root, 'schemas/payload.json'),
+        JSON.stringify({ type: 'object', properties: { actor: { type: 'string' } } }),
+      )
+      const schemaChanged = await runtime.build()
+      expect(schemaChanged.stats).toMatchObject({ analysisCacheHits: 1, renderCacheMisses: 1 })
+      expect(await readFile(typesPath, 'utf8')).toContain(
+        '"payload": { "actor"?: string; [key: string]: unknown }',
+      )
+
+      await writeFile(join(root, 'migrations/001.sql'), 'CREATE TABLE events (')
+      await expect(runtime.build()).rejects.toBeInstanceOf(ProjectSchemaError)
+      expect(await readFile(typesPath, 'utf8')).toContain('"actor"?: string')
+    } finally {
+      await runtime.close()
+    }
+  })
+
+  it('reports deferred schema diagnostics with their migration path', async () => {
+    const root = await project()
+    await writeFile(
+      join(root, 'migrations/001.sql'),
+      `CREATE FUNCTION broken() RETURNS integer
+       LANGUAGE sql AS 'SELECT missing FROM absent';`,
+    )
+
+    const update = await buildProject({ baseDirectory: root })
+
+    expect(update.state.diagnostics).toHaveLength(1)
+    expect(update.state.diagnostics[0]).toMatchObject({
+      source: 'schema',
+      path: 'migrations/001.sql',
+      diagnostic: { severity: 'error' },
+    })
+  })
+
+  it('resolves project paths from an explicit config and enables PL/pgSQL checks by default', async () => {
+    const root = await project()
+    const configPath = join(root, 'pgsid.yaml')
+    await Promise.all([
+      writeFile(
+        configPath,
+        (await readFile(configPath, 'utf8')).replace('        typecheck: { plpgsql: false }\n', ''),
+      ),
+      writeFile(
+        join(root, 'migrations/001.sql'),
+        `CREATE TABLE events (id integer PRIMARY KEY);
+         CREATE FUNCTION event_id(value integer) RETURNS integer
+         LANGUAGE plpgsql AS $$ BEGIN RETURN value; END $$;`,
+      ),
+      writeFile(
+        join(root, 'queries/events.sql'),
+        '-- name: ListEvents :many\nSELECT event_id(id) AS id FROM events;',
+      ),
+    ])
+
+    const update = await buildProject({ configPath })
+
+    expect(update.state.diagnostics).toEqual([])
+    await expect(readFile(join(root, 'generated/types/events.ts'), 'utf8')).resolves.toContain(
+      '"id": number',
+    )
+  })
+
+  it('skips PL/pgSQL validation when it is disabled', async () => {
+    const root = await project()
+    await Promise.all([
+      writeFile(
+        join(root, 'migrations/001.sql'),
+        `CREATE FUNCTION broken() RETURNS integer
+         LANGUAGE plpgsql AS $$ BEGIN RETURN missing FROM absent; END $$;`,
+      ),
+      writeFile(join(root, 'queries/empty.sql'), '-- name: Empty :one\nSELECT 1 AS value;'),
+    ])
+
+    const update = await buildProject({ baseDirectory: root })
+
+    expect(update.state.diagnostics).toEqual([])
+  })
+
+  it('watches migrations, preserves the live generation on failure, and recovers', async () => {
+    const root = await project()
+    const migrationPath = join(root, 'migrations/001.sql')
+    const typesPath = join(root, 'generated/types/events.ts')
+    await Promise.all([
+      writeFile(migrationPath, 'CREATE TABLE events (id integer PRIMARY KEY);'),
+      writeFile(
+        join(root, 'queries/events.sql'),
+        '-- name: ListEvents :many\nSELECT id FROM events;',
+      ),
+    ])
+    const errors: unknown[] = []
+    const runtime = await watchProject({
+      baseDirectory: root,
+      debounceMs: 10,
+      onError: (error) => errors.push(error),
+    })
+    try {
+      await expect(readFile(typesPath, 'utf8')).resolves.toContain('"id": number')
+
+      await writeFile(migrationPath, 'CREATE TABLE events (')
+      await vi.waitFor(
+        () => {
+          expect(errors.at(-1)).toBeInstanceOf(ProjectSchemaError)
+        },
+        { timeout: 5_000, interval: 20 },
+      )
+      await expect(readFile(typesPath, 'utf8')).resolves.toContain('"id": number')
+
+      await writeFile(migrationPath, 'CREATE TABLE events (id boolean PRIMARY KEY);')
+      await vi.waitFor(
+        async () => {
+          await expect(readFile(typesPath, 'utf8')).resolves.toContain('"id": boolean')
+        },
+        { timeout: 5_000, interval: 20 },
+      )
+      expect(runtime.state.diagnostics).toEqual([])
+      await expect(access(typesPath)).resolves.toBeUndefined()
+    } finally {
+      await runtime.close()
+    }
+  })
+})

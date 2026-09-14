@@ -39,8 +39,6 @@ const devDependencies = manifest.devDependencies ?? {}
 const DECLARED_BUT_UNIMPORTED: Record<string, string> = {
   'vscode-languageserver': 'reserved for the language-server boundary',
   'vscode-languageserver-textdocument': 'reserved for the language-server boundary',
-  '@electric-sql/pglite-plpgsql-check':
-    'a PGlite extension the TEST harnesses load by name; `src/` never imports it, and it must ship with the runtime that does',
 }
 
 const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)])

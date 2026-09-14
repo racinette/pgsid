@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { dirname, extname, relative, sep } from 'node:path'
 import type { JsonSchemaDocument, Config } from './config/schema.js'
+import type { SqlDiagnostic } from './errors.js'
 import {
   renderTypescriptQueryArtifacts,
   type TypescriptQueryDiagnostic,
@@ -29,6 +30,7 @@ export interface ProjectArtifact {
 }
 
 export type ProjectDiagnostic =
+  | { source: 'schema'; path: string | null; diagnostic: SqlDiagnostic }
   | { source: 'query'; path: string; diagnostic: QueryBatchDiagnostic }
   | { source: 'analysis'; queryId: string; diagnostic: QueryAnalysisDiagnostic }
   | { source: 'codegen'; queryId: string; diagnostic: TypescriptQueryDiagnostic }
@@ -77,6 +79,12 @@ export interface ReconcileProjectBuildOptions {
   schemas: Readonly<Record<string, JsonSchemaDocument>>
   codegenKey: string
   analysis: ReconcileQueryAnalysisOptions
+  schemaDiagnostics?: readonly ProjectSchemaDiagnostic[]
+}
+
+export interface ProjectSchemaDiagnostic {
+  path: string | null
+  diagnostic: SqlDiagnostic
 }
 
 export const EMPTY_PROJECT_BUILD_STATE: ProjectBuildState = {
@@ -98,7 +106,11 @@ export async function reconcileProjectBuild(
     options.analysis,
     previous.queryAnalysis,
   )
-  const diagnostics = collectDiagnostics(batch.state, analysis.state)
+  const diagnostics = collectDiagnostics(
+    batch.state,
+    analysis.state,
+    options.schemaDiagnostics ?? [],
+  )
   const artifacts: Record<string, ProjectArtifact> = {}
   const renderCache: Record<string, ProjectRenderCacheEntry> = {}
   let renderCacheHits = 0
@@ -178,7 +190,9 @@ export async function reconcileProjectBuild(
 const collectDiagnostics = (
   batch: QueryBatchState,
   analysis: QueryAnalysisState,
+  schema: readonly ProjectSchemaDiagnostic[],
 ): ProjectDiagnostic[] => [
+  ...schema.map(({ path, diagnostic }) => ({ source: 'schema' as const, path, diagnostic })),
   ...Object.values(batch.files).flatMap((file) =>
     file.diagnostics.map((diagnostic) => ({
       source: 'query' as const,
@@ -246,8 +260,8 @@ const eventKey = (event: ProjectBuildEvent): string =>
     : `${event.artifact.path}\u0000${event.kind}`
 
 const diagnosticKey = (diagnostic: ProjectDiagnostic): string =>
-  diagnostic.source === 'query'
-    ? `${diagnostic.path}\u0000query\u0000${diagnostic.diagnostic.code}`
+  diagnostic.source === 'query' || diagnostic.source === 'schema'
+    ? `${diagnostic.path ?? ''}\u0000${diagnostic.source}\u0000${diagnostic.diagnostic.code ?? ''}`
     : `${diagnostic.queryId}\u0000${diagnostic.source}\u0000${diagnostic.diagnostic.code}`
 
 const hash = (content: string): string => createHash('sha256').update(content).digest('hex')
