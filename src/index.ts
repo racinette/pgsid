@@ -106,3 +106,9 @@ export {
   type RenderTypescriptJsonSchemaLineageOptions,
   type RenderTypescriptJsonSchemaOptions,
 } from './codegen/typescript-json-schema.js'
+export {
+  generateTypescriptJsonSchemaLineageValidator,
+  generateTypescriptJsonSchemaValidator,
+  UnsupportedJsonSchemaError,
+  type GenerateTypescriptJsonSchemaValidatorOptions,
+} from './codegen/typescript-json-schema-validator.js'

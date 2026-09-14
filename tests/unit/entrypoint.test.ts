@@ -20,6 +20,7 @@ import * as pgsid from '../../src/index.js'
 const SURFACE = [
   'ConfigError',
   'SchemaBuilder',
+  'UnsupportedJsonSchemaError',
   'UnsupportedNodeError',
   'UnsupportedValueLineageError',
   'analyzeValueLineage',
@@ -28,6 +29,8 @@ const SURFACE = [
   'findConfigPath',
   'gateAgreed',
   'gateContract',
+  'generateTypescriptJsonSchemaLineageValidator',
+  'generateTypescriptJsonSchemaValidator',
   'inferNullability',
   'inferPresenceGroups',
   'inferQueryContract',
