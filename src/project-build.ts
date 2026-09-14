@@ -108,6 +108,7 @@ export async function reconcileProjectBuild(
     const fileAnalyses = file.queries
       .map((query) => analysis.state.analyses[query.id]!)
       .filter(Boolean)
+    if (!file.output) continue
     const hasErrors =
       file.diagnostics.length > 0 ||
       fileAnalyses.some((item) =>

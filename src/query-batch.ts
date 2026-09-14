@@ -11,7 +11,7 @@ import {
 export interface QuerySourceInput {
   path: string
   content: string | Buffer
-  output: QueryOutputPaths
+  output?: QueryOutputPaths
 }
 
 export interface QueryBatchDiagnostic {
@@ -26,14 +26,15 @@ export interface QueryBatchItem {
   path: string
   name: string
   definition: QueryDefinition
-  output: QueryOutputPaths
+  output?: QueryOutputPaths
+  analysisHash: string
   semanticHash: string
 }
 
 export interface QueryBatchFileState {
   path: string
   contentHash: string
-  output: QueryOutputPaths
+  output?: QueryOutputPaths
   queries: readonly QueryBatchItem[]
   diagnostics: readonly QueryBatchDiagnostic[]
 }
@@ -137,7 +138,7 @@ const parseSource = async (content: string): Promise<QueryParseCacheEntry> => {
 
 const fileState = (
   path: string,
-  output: QueryOutputPaths,
+  output: QueryOutputPaths | undefined,
   contentHash: string,
   parsed: QueryParseCacheEntry,
 ): QueryBatchFileState => {
@@ -155,20 +156,19 @@ const fileState = (
 
 const queryItem = (
   path: string,
-  output: QueryOutputPaths,
+  output: QueryOutputPaths | undefined,
   definition: QueryDefinition,
 ): QueryBatchItem => {
   const id = `${path}#${definition.name}`
-  const semanticHash = hash(
+  const analysisHash = hash(
     JSON.stringify([
       definition.hash,
       definition.command,
       definition.parameters.map(({ name, index }) => [name, index]),
-      output.types,
-      output.wrappers ?? null,
     ]),
   )
-  return { id, path, name: definition.name, definition, output, semanticHash }
+  const semanticHash = hash(JSON.stringify([analysisHash, output ?? null]))
+  return { id, path, name: definition.name, definition, output, analysisHash, semanticHash }
 }
 
 const diffQueryBatch = (previous: QueryBatchState, current: QueryBatchState): QueryBatchEvent[] => {

@@ -301,7 +301,7 @@ const withoutGate = <T extends QueryContract & { gate: GateOutcome }>({
 const analysisCacheKey = (query: QueryBatchItem, options: ReconcileQueryAnalysisOptions): string =>
   hash(
     JSON.stringify([
-      query.semanticHash,
+      query.analysisHash,
       options.schemaKey,
       options.analysisKey,
       options.searchPath,

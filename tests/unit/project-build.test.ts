@@ -110,4 +110,22 @@ describe('reconcileProjectBuild', () => {
     ])
     expect(removed.state.artifacts).toEqual({})
   })
+
+  it('analyzes check-only files without rendering artifacts', async () => {
+    const update = await reconcileProjectBuild(
+      [
+        {
+          path: 'queries/check.sql',
+          content: '-- name: CheckEvent :one\nSELECT id FROM events WHERE id = @id;',
+        },
+      ],
+      options,
+    )
+
+    expect(Object.keys(update.state.queryAnalysis.analyses)).toEqual([
+      'queries/check.sql#CheckEvent',
+    ])
+    expect(update.state.artifacts).toEqual({})
+    expect(update.stats).toMatchObject({ analysisCacheMisses: 1, renderCacheMisses: 0 })
+  })
 })

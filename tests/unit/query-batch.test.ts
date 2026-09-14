@@ -68,6 +68,20 @@ describe('reconcileQueryBatch', () => {
       const update = await reconcileQueryBatch([variant], first.state)
       expect(update.events.map((event) => event.kind)).toEqual(['query-changed'])
     }
+    const rerouted = await reconcileQueryBatch([variants[3]!], first.state)
+    expect(rerouted.state.files['query.sql']!.queries[0]!.analysisHash).toBe(
+      first.state.files['query.sql']!.queries[0]!.analysisHash,
+    )
+  })
+
+  it('accepts files that are checked without an output route', async () => {
+    const update = await reconcileQueryBatch([
+      { path: 'check-only.sql', content: '-- name: Check :one\nSELECT 1;' },
+    ])
+
+    expect(update.state.files['check-only.sql']).toMatchObject({ output: undefined })
+    expect(update.state.files['check-only.sql']!.queries[0]).toMatchObject({ output: undefined })
+    expect(update.events.map((event) => event.kind)).toEqual(['query-added'])
   })
 
   it('models renames and deletion against the previous state', async () => {
