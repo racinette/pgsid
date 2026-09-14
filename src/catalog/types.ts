@@ -814,6 +814,12 @@ export interface CatalogSnapshot {
    */
   builtinOperatorSignatures: BuiltinOperatorSignature[]
   /**
+   * The pg_catalog JSON access signatures used to classify normalized value
+   * transformations. Kept separate from the nullability claim-table capture
+   * because capturing a signature there changes that engine's candidate set.
+   */
+  builtinValueOperatorSignatures: BuiltinOperatorSignature[]
+  /**
    * The `pg_cast` implicit rows (117 in PG18), with the binary-coercible
    * flag that marks the canonicalisation edges. See `ImplicitCastInfo`.
    *

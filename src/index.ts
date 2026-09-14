@@ -19,6 +19,7 @@
 //     buildNullabilityCatalog(snapshot)      →  the engine's view of it
 //     parseSql(sql)                          →  one statement
 //     inferQueryContract(stmt, catalog, …)   →  positional claims
+//     analyzeValueLineage(stmt, catalog)     →  positional value transformations
 //     gateContract(sql, contract, describe)  →  the same claims, or none
 //
 // The last step is not optional in spirit. A contract that has not been
@@ -57,6 +58,19 @@ export type {
 } from './query/types.js'
 
 export type { Evaluate, EvaluateRow } from './query/subtree-evaluator.js'
+
+export {
+  analyzeValueLineage,
+  UnsupportedValueLineageError,
+  type DatabaseColumn,
+  type DatabaseType,
+  type OutputValueLineage,
+  type QualifiedName,
+  type ResolvedOperatorIdentity,
+  type ValueLineage,
+  type ValueLineageCatalog,
+  type ValueOperation,
+} from './query/value-lineage.js'
 
 // --- Getting a catalog and a statement --------------------------------------
 export { buildNullabilityCatalog } from './query/catalog-adapter.js'

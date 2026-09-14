@@ -13,6 +13,8 @@ generated query, and an upstream corpus do not have the same authoring rules.
 - `sqlc-corpus/` is a pinned borrowed corpus with separately recorded pgsid
   adjudications.
 - `fixture-data/` builds the shared data states used to witness claims.
+- `value-lineage/` is the hand-authored corpus for positional value provenance
+  and transformation contracts.
 
 TypeScript harnesses at this level orchestrate and compare those corpora. Read
 the nearest generated `AGENTS.md` before changing a corpus: provenance and
@@ -35,6 +37,9 @@ whether a file may be authored by hand are directory-local facts.
     │
     ├─ sqlc-corpus/                   a pinned sqlc corpus with pgsid-owned
     │                                 witness adjudications
+    │
+    ├─ value-lineage/                 hand-authored value-lineage contracts over
+    │                                 one focused schema
     │
     ├─ worlds/                        hand-authored database worlds and their
     │                                 query contracts

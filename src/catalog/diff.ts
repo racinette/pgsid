@@ -432,6 +432,7 @@ export function emptyCatalogSnapshot(): CatalogSnapshot {
     builtinPolymorphicArraySignatures: [],
     builtinFunctionSignatures: [],
     builtinOperatorSignatures: [],
+    builtinValueOperatorSignatures: [],
     builtinImplicitCasts: [],
     builtinCasts: [],
     builtinTypeKinds: {},

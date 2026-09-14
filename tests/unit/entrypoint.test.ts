@@ -21,6 +21,8 @@ const SURFACE = [
   'ConfigError',
   'SchemaBuilder',
   'UnsupportedNodeError',
+  'UnsupportedValueLineageError',
+  'analyzeValueLineage',
   'buildNullabilityCatalog',
   'compareShapes',
   'findConfigPath',
@@ -44,7 +46,7 @@ describe('the package entry point', () => {
   })
 
   it('runs the documented pipeline end to end', async () => {
-    // The five steps from `src/index.ts`'s header, in order, against a real
+    // The public steps from `src/index.ts`'s header, in order, against a real
     // schema. If this reads like a usage example that is deliberate: it is the
     // only usage of the package that exists.
     const pg = await PGlite.create()
@@ -63,6 +65,7 @@ describe('the package entry point', () => {
       const sql = 'SELECT a.id, a.email, a.nickname FROM account a WHERE a.id = $1'
       const stmt = (await pgsid.parseSql(sql)).stmts![0]!.stmt!
       const contract = await pgsid.inferQueryContract(stmt, catalog)
+      const lineage = pgsid.analyzeValueLineage(stmt, catalog)
 
       const describe: pgsid.DescribeStatement = async (text) => {
         const d = await pg.describeQuery(text)
@@ -83,6 +86,32 @@ describe('the package entry point', () => {
       // and a consumer that confused them would demand arguments PostgreSQL
       // is happy to take as NULL.
       expect(gated.params).toEqual([{ number: 1, notNull: false }])
+      expect(lineage).toEqual([
+        {
+          name: 'id',
+          value: {
+            kind: 'column',
+            column: { schema: 'public', relation: 'account', column: 'id' },
+            resolvedType: 'integer',
+          },
+        },
+        {
+          name: 'email',
+          value: {
+            kind: 'column',
+            column: { schema: 'public', relation: 'account', column: 'email' },
+            resolvedType: 'text',
+          },
+        },
+        {
+          name: 'nickname',
+          value: {
+            kind: 'column',
+            column: { schema: 'public', relation: 'account', column: 'nickname' },
+            resolvedType: 'text',
+          },
+        },
+      ])
     } finally {
       if (!pg.closed) await pg.close()
     }

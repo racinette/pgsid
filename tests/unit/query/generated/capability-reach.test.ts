@@ -16,6 +16,7 @@ import {
   type NullabilityCatalog,
 } from '../../../../src/query/types.js'
 import { spyOnCatalog, catalogMembers } from '../catalog-spy.js'
+import { VALUE_LINEAGE_CATALOG_ONLY } from '../../../../src/query/value-lineage.js'
 import { GRAMMAR_SAMPLER } from '../grammar-sampler.js'
 import {
   generateQueries,
@@ -265,6 +266,7 @@ describe('capability reach of the generated corpus', () => {
       ...DEP_CATALOG_ONLY,
       ...OVERLOAD_CATALOG_ONLY,
       ...EVALUATION_CATALOG_ONLY,
+      ...VALUE_LINEAGE_CATALOG_ONLY,
     ])
     members = catalogMembers(baseCatalog).filter((m) => !depOnly.has(m))
 
@@ -291,8 +293,8 @@ describe('capability reach of the generated corpus', () => {
 
     // The HAND corpus through the same instrument, so the two are comparable
     // like for like: same `reach()`, same entry point, no evaluator on either
-    // side (which is why EVALUATION_CATALOG_ONLY is excluded from `members`
-    // for both).
+    // side (which is why the evaluator and value-lineage catalog faces are
+    // excluded from `members` for both).
     const handSql = [
       ...GRAMMAR_SAMPLER,
       ...readdirSync(FIXTURES_DIR)
@@ -509,6 +511,7 @@ describe.runIf(process.env.CAPABILITY_WITNESSES)('which fixture reaches each cap
       ...DEP_CATALOG_ONLY,
       ...OVERLOAD_CATALOG_ONLY,
       ...EVALUATION_CATALOG_ONLY,
+      ...VALUE_LINEAGE_CATALOG_ONLY,
     ])
     const members = catalogMembers(catalog).filter((m) => !depOnly.has(m))
     console.log(
