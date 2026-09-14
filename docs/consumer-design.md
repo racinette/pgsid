@@ -1,8 +1,7 @@
 # Consumer design — query files to shipped TypeScript
 
-The design for the first consumer of the engine. Nothing here is built. The
-architectural ground rules were settled and are restated as constraints rather
-than proposals.
+The design for the first consumer of the engine. The architectural ground rules
+are restated as constraints rather than proposals.
 
 ## Six decisions
 
