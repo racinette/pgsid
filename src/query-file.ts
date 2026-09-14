@@ -1,6 +1,6 @@
 import { hasSqlDetails, type Node } from 'libpg-query'
 import type { ScanToken } from 'libpg-query-scanner'
-import { parseSql } from './ast.js'
+import { parseSql, statementHash } from './ast.js'
 
 export type QueryCommand = 'one' | 'many' | 'exec' | 'execrows'
 
@@ -47,6 +47,7 @@ export interface NamedParameterRewrite {
 export interface QueryDefinition {
   name: string
   command: QueryCommand
+  hash: string
   sql: string
   stmt: Node
   parameters: readonly QueryParameter[]
@@ -250,6 +251,7 @@ export async function parseQueryFile(sourceText: string | Buffer): Promise<Parse
     queries.push({
       name: annotation.name,
       command: annotation.command,
+      hash: statementHash(raw.stmt!),
       sql: rewritten.sql,
       stmt: raw.stmt!,
       parameters: rewritten.parameters,

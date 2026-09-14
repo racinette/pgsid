@@ -100,6 +100,22 @@ export {
   type DiscoverQueryFilesOptions,
   type QueryOutputPaths,
 } from './query-discovery.js'
+export {
+  EMPTY_QUERY_BATCH_STATE,
+  QueryBatchError,
+  reconcileQueryBatch,
+  type QueryBatchDiagnostic,
+  type QueryBatchEvent,
+  type QueryBatchFileState,
+  type QueryBatchItem,
+  type QueryParseCacheEntry,
+  type QueryParseFailure,
+  type QueryParseSuccess,
+  type QueryBatchState,
+  type QueryBatchStats,
+  type QueryBatchUpdate,
+  type QuerySourceInput,
+} from './query-batch.js'
 
 // --- Building the schema a catalog is captured from -------------------------
 export { SchemaBuilder } from './schema-builder.js'
