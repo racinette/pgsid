@@ -89,14 +89,15 @@ export async function rewriteNamedParameters(sql: string): Promise<NamedParamete
   for (let index = 0; index + 1 < tokens.length; index++) {
     const at = tokens[index]!
     const identifier = tokens[index + 1]!
-    if (at.text !== '@' || at.end !== identifier.start || !isIdentifier(identifier)) continue
+    const atStart = namedParameterStart(at)
+    if (atStart === null || at.end !== identifier.start || !isIdentifier(identifier)) continue
     const name = identifierName(identifier.text)
     const parameterIndex = indexes.get(name) ?? indexes.size + 1
     indexes.set(name, parameterIndex)
     replacements.push({
       name,
       index: parameterIndex,
-      sourceStart: at.start,
+      sourceStart: atStart,
       sourceEnd: identifier.end,
     })
   }
@@ -142,6 +143,9 @@ export async function rewriteNamedParameters(sql: string): Promise<NamedParamete
   }))
   return { sql: Buffer.concat(chunks).toString('utf8'), parameters, replacements: rewritten }
 }
+
+const namedParameterStart = (token: ScanToken): number | null =>
+  token.text.endsWith('@') ? token.end - 1 : null
 
 export function mapRewrittenOffset(
   rewrite: Pick<NamedParameterRewrite, 'replacements'>,
