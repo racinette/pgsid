@@ -80,6 +80,19 @@ export { buildNullabilityCatalog } from './query/catalog-adapter.js'
 export { snapshotCatalog } from './catalog/snapshot.js'
 export type { CatalogSnapshot } from './catalog/types.js'
 export { parseSql } from './ast.js'
+export {
+  mapRewrittenOffset,
+  parseQueryFile,
+  QueryFileError,
+  rewriteNamedParameters,
+  type NamedParameterRewrite,
+  type ParsedQueryFile,
+  type QueryCommand,
+  type QueryDefinition,
+  type QueryFileErrorCode,
+  type QueryParameter,
+  type QueryParameterOccurrence,
+} from './query-file.js'
 
 // --- Building the schema a catalog is captured from -------------------------
 export { SchemaBuilder } from './schema-builder.js'

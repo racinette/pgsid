@@ -22,6 +22,7 @@
     "chokidar": "^5.0.0",
     "fast-glob": "^3.3.3",
     "libpg-query": "18.0.1",
+    "libpg-query-scanner": "npm:libpg-query@18.1.4",
     "pgsql-deparser": "18.1.1",
     "picomatch": "^4.0.5",
     "vscode-languageserver": "^10.1.0",

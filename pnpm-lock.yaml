@@ -23,6 +23,9 @@ importers:
       libpg-query:
         specifier: 18.0.1
         version: 18.0.1
+      libpg-query-scanner:
+        specifier: npm:libpg-query@18.1.4
+        version: libpg-query@18.1.4
       pgsql-deparser:
         specifier: 18.1.1
         version: 18.1.1
@@ -1060,6 +1063,9 @@ packages:
 
   libpg-query@18.0.1:
     resolution: {integrity: sha512-iCfaELghi+XvfuOMjqRM+wzdWge29hQS2Z/tdYgb8JrwETnedDunIK0OS1tIRAlCFij4zvyOeGjZAlBBI8etqw==}
+
+  libpg-query@18.1.4:
+    resolution: {integrity: sha512-6jF9qn9ln4yLnmSF+bS/DBvAfNcPhGI05+pkQy+n3cRd3p9aO8LWjquEin8SLO0k7zYk745ZGBXYUiL9AUI7gA==}
 
   lilconfig@3.1.3:
     resolution: {integrity: sha512-/vlFKAoH5Cgt3Ie+JLhRbwOsCQePABiU3tJ1egGvyQ+33R/vcwM2Zl2QR/LzjsBeItPt3oSVXapn+m4nQDvpzw==}
@@ -2334,6 +2340,10 @@ snapshots:
       type-check: 0.4.0
 
   libpg-query@18.0.1:
+    dependencies:
+      '@pgsql/types': 18.0.0
+
+  libpg-query@18.1.4:
     dependencies:
       '@pgsql/types': 18.0.0
 

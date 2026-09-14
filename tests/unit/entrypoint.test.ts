@@ -19,6 +19,7 @@ import * as pgsid from '../../src/index.js'
  *  and cannot be enumerated at runtime. */
 const SURFACE = [
   'ConfigError',
+  'QueryFileError',
   'SchemaBuilder',
   'UnsupportedJsonSchemaError',
   'UnsupportedNodeError',
@@ -36,11 +37,14 @@ const SURFACE = [
   'inferQueryContract',
   'loadConfig',
   'loadJsonSchemaDocuments',
+  'mapRewrittenOffset',
   'parseConfigString',
+  'parseQueryFile',
   'parseSql',
   'renderTypescriptJsonSchema',
   'renderTypescriptJsonSchemaLineage',
   'resolveJsonSchemaLineage',
+  'rewriteNamedParameters',
   'snapshotCatalog',
   'traceValueLineage',
   'typescriptJsonSchemaBindings',
