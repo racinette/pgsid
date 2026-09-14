@@ -61,7 +61,7 @@ describe('reconcileProjectBuild', () => {
     if (!pg.closed) await pg.close()
   })
 
-  it('caches artifacts, retains them through errors, and removes them with their source', async () => {
+  it('caches artifacts and removes them through errors or source removal', async () => {
     const source = (content: string) => ({
       path: 'queries/events.sql',
       content,
@@ -99,15 +99,15 @@ describe('reconcileProjectBuild', () => {
       options,
       unchanged.state,
     )
-    expect(broken.state.artifacts).toEqual(unchanged.state.artifacts)
-    expect(broken.events.map((event) => event.kind)).toEqual(['project-diagnostics-changed'])
-
-    const removed = await reconcileProjectBuild([], options, broken.state)
-    expect(removed.events.map((event) => event.kind)).toEqual([
+    expect(broken.state.artifacts).toEqual({})
+    expect(broken.events.map((event) => event.kind)).toEqual([
       'artifact-removed',
       'artifact-removed',
       'project-diagnostics-changed',
     ])
+
+    const removed = await reconcileProjectBuild([], options, broken.state)
+    expect(removed.events.map((event) => event.kind)).toEqual(['project-diagnostics-changed'])
     expect(removed.state.artifacts).toEqual({})
   })
 

@@ -114,10 +114,7 @@ export async function reconcileProjectBuild(
       fileAnalyses.some((item) =>
         item.diagnostics.some((diagnostic) => diagnostic.severity === 'error'),
       )
-    if (hasErrors) {
-      retainArtifacts(previous.artifacts, artifacts, file.path)
-      continue
-    }
+    if (hasErrors) continue
 
     const renderKey = hash(
       JSON.stringify([
@@ -149,10 +146,7 @@ export async function reconcileProjectBuild(
         diagnostic,
       })),
     )
-    if (rendered.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
-      retainArtifacts(previous.artifacts, artifacts, file.path)
-      continue
-    }
+    if (rendered.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) continue
     addArtifact(artifacts, file.output.types, file.path, 'types', rendered.types)
     if (file.output.wrappers) {
       addArtifact(artifacts, file.output.wrappers, file.path, 'wrappers', rendered.wrappers)
@@ -200,16 +194,6 @@ const collectDiagnostics = (
     })),
   ),
 ]
-
-const retainArtifacts = (
-  previous: Readonly<Record<string, ProjectArtifact>>,
-  artifacts: Record<string, ProjectArtifact>,
-  sourcePath: string,
-): void => {
-  for (const artifact of Object.values(previous)) {
-    if (artifact.sourcePath === sourcePath) artifacts[artifact.path] = artifact
-  }
-}
 
 const addArtifact = (
   artifacts: Record<string, ProjectArtifact>,
