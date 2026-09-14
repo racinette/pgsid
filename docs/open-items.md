@@ -186,47 +186,10 @@ published distribution.
 
 ### Semantic re-founding — standing TODO, parallel track
 
-Re-found the engine on a semantic core instead of the grown rule system:
-lower the parsed tree once into a small relational algebra with predicates in
-one normalized three-valued language, model a relation as rows carrying a
-refinement, and let operators transform refinements compositionally. A scan
-emits the catalog's non-null facts, validated constraints, and generated
-columns as equalities — one uniform refinement where today those are separate
-paths. A filter ADDS true facts, so filter promotion, implied qualifications,
-group filters and branch guards become the same operation at different sites.
-A join contributes presence derived from the operator instead of hand-threaded.
-Column nullability becomes the single question "does the row's refinement
-entail that this column is not null?" — the entailment kernel promoted from
-leaf-level consultation to THE engine. Origin tracking becomes provenance
-proper, under which the extensions that are architecturally heavy today
-compose naturally.
-
-**Why believe it.** Most of the current rule surface is tree-shape
-normalization — accidental, and it collapses into the lowering, once. A
-smaller part is measured PostgreSQL facts, which are irreducible and become
-the model's axioms. The actual inference is ALREADY the abstract thing: the
-kernel is a small sound proof system, and the waves added fact sources rather
-than special cases. The tell is features that are hard here but natural in
-the cleaner model, which means the architecture is fighting its
-representation.
-
-**Why it is low-risk.** Not a rewrite. The current engine stays as it is; the
-prototype is a parallel implementation differentially tested against it and
-against the execution oracle over the same corpus. The fixtures, witness
-discipline and generated axes are representation-independent, so parity is a
-number that goes up and the prototype cannot drift silently. Cut over only at
-full parity, and the contract boundary means the consumer never notices.
-
-**What it must not change.** The measured-pin culture — PostgreSQL is not its
-spec, the axioms come from a live database — the contract surface, and the
-witness invariant.
-
-**What it no longer has.** An executable target list of pinned conservative
-answers, so that an engine which starts narrowing fails in the "you improved,
-update the claims" direction. Every entry inside the rule engine was closed,
-so the cut-over test of whether the abstraction earned its keep is gone with
-it. The payoff argument now rests on uniformity and maintainability rather
-than pending precision.
+Optional architecture research, not a prerequisite for consumer delivery.
+Scheduling this work requires a concrete composition problem and a bounded
+experiment; a preference for a different representation is not a delivery
+requirement.
 
 **Trigger.** Entries arriving from consumer corpora, or a feature that is
 hard for the current architecture and natural for this one.
