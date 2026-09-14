@@ -56,6 +56,8 @@ export interface DescribedShape {
   columns: readonly string[]
   /** How many `$n` parameters PostgreSQL resolved for the statement. */
   params: number
+  /** Canonical PostgreSQL output type names, positional against `columns`. */
+  columnTypes?: readonly string[]
   /** Canonical PostgreSQL parameter type names, when the adapter provides them. */
   parameterTypes?: readonly string[]
 }
@@ -134,10 +136,14 @@ export function compareShapes(
  * set is a claim about POSITIONS, and positions are exactly what the gate
  * just refused to vouch for.
  */
-function degraded(contract: QueryContract, names: readonly string[]): QueryContract {
+function degraded(
+  contract: QueryContract,
+  names: readonly string[],
+  params = contract.params.length,
+): QueryContract {
   return {
     outputs: names.map((name) => ({ name, notNull: false })),
-    params: contract.params.map((p) => ({ number: p.number, notNull: false })),
+    params: Array.from({ length: params }, (_, index) => ({ number: index + 1, notNull: false })),
     paramRejectionSets: [],
     outputPresenceGroups: [],
     alwaysRaises: false,
@@ -177,5 +183,5 @@ export async function gateContract(
     database,
   )
   if (outcome.kind === 'agreed') return { ...contract, gate: outcome }
-  return { ...degraded(contract, database.columns), gate: outcome }
+  return { ...degraded(contract, database.columns, database.params), gate: outcome }
 }

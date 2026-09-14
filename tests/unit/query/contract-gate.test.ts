@@ -173,6 +173,7 @@ describe('the gate, against injected divergence', () => {
       describe_,
     )
     expect(result.gate).toEqual({ kind: 'param-arity', engine: 0, database: 1 })
+    expect(result.params).toEqual([{ number: 1, notNull: false }])
   })
 })
 
