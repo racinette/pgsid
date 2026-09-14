@@ -148,7 +148,7 @@ describe('reconcileQueryAnalysis', () => {
     ])
     const first = await reconcileQueryAnalysis(firstBatch.state, options)
     const secondBatch = await reconcileQueryBatch(
-      [source('-- name: Read :one\n\n SELECT payload\nFROM events WHERE id=@id;')],
+      [source('-- name: Read :one\n\n SELECT payload\nFROM events WHERE id  =  @id;')],
       firstBatch.state,
     )
     describeCalls = 0

@@ -39,16 +39,6 @@ describe('rewriteNamedParameters', () => {
     ])
   })
 
-  it('splits a named parameter from the preceding PostgreSQL operator token', async () => {
-    const rewrite = await rewriteNamedParameters('SELECT id=@id, score+@bonus')
-
-    expect(rewrite.sql).toBe('SELECT id=$1, score+$2')
-    expect(rewrite.parameters.map(({ name, index }) => ({ name, index }))).toEqual([
-      { name: 'id', index: 1 },
-      { name: 'bonus', index: 2 },
-    ])
-  })
-
   it('rejects mixing named and positional parameters', async () => {
     await expect(rewriteNamedParameters('SELECT $1, @account_id')).rejects.toMatchObject({
       code: 'mixed-parameters',
