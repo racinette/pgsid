@@ -3,8 +3,10 @@ import { PGlite } from '@electric-sql/pglite'
 import { basename, join } from 'node:path'
 import { readdirSync, readFileSync } from 'node:fs'
 import { parseSql } from '../../../src/ast.js'
+import type { JsonSchemaDocument } from '../../../src/config/schema.js'
 import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
 import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
+import { resolveJsonSchemaLineage } from '../../../src/codegen/json-schema-lineage.js'
 import {
   analyzeValueLineage,
   traceValueLineage,
@@ -619,6 +621,64 @@ describe('value-lineage DML fixture contracts', () => {
           ],
         },
       ],
+    })
+  })
+
+  it('carries a configured JSON Schema through assignments, choices, and a DML CTE', async () => {
+    const schema: JsonSchemaDocument = {
+      type: 'object',
+      properties: {
+        actor: {
+          type: 'object',
+          properties: { id: { type: 'string' } },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: false,
+    }
+    const bindings = {
+      schemas: { EventPayload: schema },
+      columns: {
+        'public.events.payload': {
+          schemaName: 'EventPayload',
+          runtimeValidation: true,
+        },
+        'public.events.fallback_payload': {
+          schemaName: 'EventPayload',
+          runtimeValidation: false,
+        },
+      },
+    }
+    const upsert = await lineage('upsert-returning')
+    expect(resolveJsonSchemaLineage(output(upsert.semantic, 'current_actor_id'), bindings)).toEqual(
+      {
+        alternatives: [
+          {
+            schemaName: 'EventPayload',
+            root: { schema: 'public', relation: 'events', column: 'payload' },
+            path: ['actor', 'id'],
+            document: schema,
+            schema: { type: 'string' },
+            representation: 'text',
+            runtimeValidation: true,
+          },
+        ],
+        complete: true,
+      },
+    )
+
+    const cte = await lineage('dml-cte-chain')
+    expect(
+      resolveJsonSchemaLineage(output(cte.semantic, 'current_actor_id'), bindings),
+    ).toMatchObject({
+      alternatives: [
+        {
+          root: { relation: 'events', column: 'payload' },
+          path: ['actor', 'id'],
+          schema: { type: 'string' },
+        },
+      ],
+      complete: true,
     })
   })
 })

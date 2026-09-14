@@ -173,6 +173,7 @@ export const configSchema = z
 export type Config = z.infer<typeof configSchema>
 export type TypesConfig = z.infer<typeof typesSchema>
 export type JsonSchemaDefinition = z.infer<typeof jsonSchemaDefinitionSchema>
+export type JsonSchemaDocument = z.infer<typeof jsonSchemaDocumentSchema>
 export type EngineConfig = z.infer<typeof engineSchema>
 export type TypecheckConfig = z.infer<typeof typecheckSchema>
 export type TypeImport = z.infer<typeof typeImportSchema>
