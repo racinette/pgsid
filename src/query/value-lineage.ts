@@ -1451,7 +1451,7 @@ const JSON_FUNCTION_RESULTS: Readonly<Record<string, 'json' | 'text'>> = {
   jsonb_object_field_text: 'text',
 }
 
-function interpretValueLineage(value: ValueLineage): ValueLineage {
+export function interpretValueLineage(value: ValueLineage): ValueLineage {
   if (value.kind === 'row-absence') {
     return { ...value, origin: interpretValueLineage(value.origin) }
   }

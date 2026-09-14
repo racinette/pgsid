@@ -61,6 +61,7 @@ export type { Evaluate, EvaluateRow } from './query/subtree-evaluator.js'
 
 export {
   analyzeValueLineage,
+  interpretValueLineage,
   traceValueLineage,
   UnsupportedValueLineageError,
   type DatabaseColumn,
@@ -163,3 +164,10 @@ export {
   UnsupportedJsonSchemaError,
   type GenerateTypescriptJsonSchemaValidatorOptions,
 } from './codegen/typescript-json-schema-validator.js'
+export {
+  renderTypescriptQueryArtifacts,
+  type RenderTypescriptQueryArtifactsOptions,
+  type TypescriptQueryArtifacts,
+  type TypescriptQueryDiagnostic,
+  type TypescriptQueryDiagnosticCode,
+} from './codegen/typescript-query.js'
