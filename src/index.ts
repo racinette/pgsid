@@ -96,3 +96,7 @@ export {
   type JsonSchemaBindings,
   type JsonSchemaLineage,
 } from './codegen/json-schema-lineage.js'
+export {
+  loadJsonSchemaDocuments,
+  type LoadJsonSchemaDocumentsOptions,
+} from './codegen/json-schema-loader.js'

@@ -32,6 +32,7 @@ const SURFACE = [
   'inferPresenceGroups',
   'inferQueryContract',
   'loadConfig',
+  'loadJsonSchemaDocuments',
   'parseConfigString',
   'parseSql',
   'resolveJsonSchemaLineage',
