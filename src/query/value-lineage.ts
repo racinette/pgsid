@@ -189,11 +189,11 @@ class ValueLineageAnalyzer {
     outer: Scope | null,
   ): OutputValueLineage[] {
     const operation = select['op'] as string | undefined
-    const left = select['larg'] as Node | undefined
-    const right = select['rarg'] as Node | undefined
+    const left = select['larg'] as Record<string, unknown> | undefined
+    const right = select['rarg'] as Record<string, unknown> | undefined
     if (operation && operation !== 'SETOP_NONE' && left && right) {
-      const leftOutputs = this.analyzeStatement(left, outer)
-      const rightOutputs = this.analyzeStatement(right, outer)
+      const leftOutputs = this.analyzeSelect(left, outer)
+      const rightOutputs = this.analyzeSelect(right, outer)
       if (leftOutputs.length !== rightOutputs.length) {
         throw new UnsupportedValueLineageError('set-operation-column-count')
       }
@@ -272,7 +272,7 @@ class ValueLineageAnalyzer {
       | undefined
     if (rangeVar?.relname) {
       const alias = rangeVar.alias?.aliasname ?? rangeVar.relname
-      const cte = rangeVar.schemaname ? undefined : scope.ctes.get(rangeVar.relname)
+      const cte = rangeVar.schemaname ? undefined : this.resolveCte(scope, rangeVar.relname)
       const relation = cte
         ? undefined
         : this.catalog.resolveTable(rangeVar.schemaname, rangeVar.relname)
@@ -446,6 +446,18 @@ class ValueLineageAnalyzer {
           resolvedType: null,
         },
       }
+    }
+
+    const subLink = record['SubLink'] as { subLinkType?: string; subselect?: Node } | undefined
+    if (subLink?.subselect) {
+      const outputs = this.analyzeStatement(subLink.subselect, scope)
+      if (subLink.subLinkType === 'EXPR_SUBLINK' && outputs.length === 1) {
+        return { value: outputs[0]!.value }
+      }
+      return this.opaque(
+        'SubLink',
+        outputs.map((output) => output.value),
+      )
     }
 
     const indirection = record['A_Indirection'] as { arg?: Node; indirection?: Node[] } | undefined
@@ -656,6 +668,14 @@ class ValueLineageAnalyzer {
       }
     }
     return unknown()
+  }
+
+  private resolveCte(scope: Scope, name: string): BoundColumn[] | undefined {
+    for (let current: Scope | null = scope; current; current = current.outer) {
+      const columns = current.ctes.get(name)
+      if (columns) return columns
+    }
+    return undefined
   }
 
   private opaque(nodeType: string, inputs: ValueLineage[]): ExpressionResult {
