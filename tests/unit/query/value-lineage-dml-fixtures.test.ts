@@ -12,6 +12,7 @@ interface FixtureContract {
   output: string[]
   contains: string[]
   containsFields?: string[]
+  params?: string[]
 }
 
 const contracts: Record<string, FixtureContract> = {
@@ -51,6 +52,19 @@ const contracts: Record<string, FixtureContract> = {
     ],
     contains: ['InsertStmt', 'ReturningOption', 'A_Star'],
     containsFields: ['valuesLists', 'returningClause', 'options'],
+  },
+  'insert-defaults-generated-returning': {
+    root: 'InsertStmt',
+    output: ['id', 'kind', 'derived_id', 'label'],
+    contains: ['InsertStmt', 'SetToDefault'],
+    containsFields: ['valuesLists', 'returningClause'],
+  },
+  'insert-parameters-returning': {
+    root: 'InsertStmt',
+    output: ['id', 'actor_id', 'key'],
+    contains: ['InsertStmt', 'ParamRef', 'ReturningOption'],
+    containsFields: ['valuesLists', 'returningClause', 'options'],
+    params: ['bigint', 'jsonb', 'text'],
   },
   'insert-values-returning': {
     root: 'InsertStmt',
@@ -98,6 +112,13 @@ const contracts: Record<string, FixtureContract> = {
     ],
     contains: ['UpdateStmt', 'MultiAssignRef', 'ReturningOption'],
     containsFields: ['targetList', 'returningClause', 'options'],
+  },
+  'update-parameters-returning': {
+    root: 'UpdateStmt',
+    output: ['previous_actor_id', 'current_actor_id', 'fallback_actor_id', 'key'],
+    contains: ['UpdateStmt', 'ParamRef', 'ReturningOption'],
+    containsFields: ['targetList', 'whereClause', 'returningClause', 'options'],
+    params: ['jsonb', 'jsonb', 'text', 'bigint'],
   },
   'upsert-returning': {
     root: 'InsertStmt',
@@ -164,6 +185,16 @@ describe('value-lineage DML fixture contracts', () => {
 
       expect(Object.keys(statement ?? {})).toEqual([contract.root])
       expect(described.resultFields.map((field) => field.name)).toEqual(contract.output)
+      const parameterTypes = await Promise.all(
+        described.queryParams.map(async (parameter) => {
+          const result = await pg.query<{ name: string }>(
+            'SELECT format_type($1::oid, NULL) AS name',
+            [parameter.dataTypeID],
+          )
+          return result.rows[0]!.name
+        }),
+      )
+      expect(parameterTypes).toEqual(contract.params ?? [])
       expect([...contract.contains].filter((tag) => !tags.has(tag))).toEqual([])
       expect((contract.containsFields ?? []).filter((field) => !fields.has(field))).toEqual([])
     })
