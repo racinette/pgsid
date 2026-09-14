@@ -26,3 +26,15 @@ LANGUAGE sql
 IMMUTABLE
 STRICT
 RETURN document;
+
+CREATE FUNCTION public.length(document jsonb)
+RETURNS integer
+LANGUAGE sql
+IMMUTABLE
+STRICT
+RETURN 0;
+
+CREATE TABLE public.event_copies (
+  copy_id bigint PRIMARY KEY,
+  payload jsonb NOT NULL
+);

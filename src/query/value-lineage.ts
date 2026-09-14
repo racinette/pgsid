@@ -341,7 +341,14 @@ class ValueLineageAnalyzer {
     }
 
     const join = record['JoinExpr'] as
-      { larg?: Node; rarg?: Node; usingClause?: Node[]; isNatural?: boolean } | undefined
+      | {
+          larg?: Node
+          rarg?: Node
+          jointype?: string
+          usingClause?: Node[]
+          isNatural?: boolean
+        }
+      | undefined
     if (join?.larg && join.rarg) {
       const left = this.bindFromItem(join.larg, scope)
       const right = this.bindFromItem(join.rarg, scope)
@@ -358,6 +365,14 @@ class ValueLineageAnalyzer {
         const leftColumn = left.find((column) => column.name === name)
         const rightColumn = right.find((column) => column.name === name)
         if (!leftColumn || !rightColumn) continue
+        if (join.jointype === 'JOIN_RIGHT') {
+          merged.push({ name, value: rightColumn.value })
+          continue
+        }
+        if (join.jointype !== 'JOIN_FULL') {
+          merged.push({ name, value: leftColumn.value })
+          continue
+        }
         const inputs = [leftColumn.value, rightColumn.value]
         merged.push({
           name,
