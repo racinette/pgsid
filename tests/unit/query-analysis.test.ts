@@ -159,6 +159,22 @@ describe('reconcileQueryAnalysis', () => {
     expect(describeCalls).toBe(0)
   })
 
+  it('reuses semantic analysis when only the output route changes', async () => {
+    const content = '-- name: Read :one\nSELECT payload FROM events WHERE id = @id;'
+    const firstBatch = await reconcileQueryBatch([source(content)])
+    const first = await reconcileQueryAnalysis(firstBatch.state, options)
+    const reroutedBatch = await reconcileQueryBatch(
+      [{ ...source(content), output: { types: '/generated/elsewhere.ts' } }],
+      firstBatch.state,
+    )
+    describeCalls = 0
+    const rerouted = await reconcileQueryAnalysis(reroutedBatch.state, options, first.state)
+
+    expect(reroutedBatch.events.map((event) => event.kind)).toEqual(['query-changed'])
+    expect(rerouted.stats).toEqual({ cacheHits: 1, cacheMisses: 0 })
+    expect(describeCalls).toBe(0)
+  })
+
   it('shares one cache entry between equivalent queries', async () => {
     const batch = await reconcileQueryBatch([
       source(`
