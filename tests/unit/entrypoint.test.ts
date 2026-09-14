@@ -22,6 +22,7 @@ const SURFACE = [
   'EMPTY_PROJECT_BUILD_STATE',
   'EMPTY_QUERY_ANALYSIS_STATE',
   'EMPTY_QUERY_BATCH_STATE',
+  'ProjectBuildCoordinator',
   'QueryBatchError',
   'QueryDiscoveryError',
   'QueryFileError',

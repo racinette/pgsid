@@ -188,3 +188,8 @@ export {
   type ArtifactWriteResult,
   type ArtifactWriteUpdate,
 } from './artifact-writer.js'
+export {
+  ProjectBuildCoordinator,
+  type ProjectBuildCoordinatorOptions,
+  type ProjectBuildRequest,
+} from './project-coordinator.js'
