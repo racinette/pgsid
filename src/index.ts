@@ -86,4 +86,13 @@ export { SchemaBuilder } from './schema-builder.js'
 
 // --- Configuration ----------------------------------------------------------
 export { ConfigError, findConfigPath, loadConfig, parseConfigString } from './config/loader.js'
-export type { Config } from './config/schema.js'
+export type { Config, JsonSchemaDocument } from './config/schema.js'
+
+export {
+  resolveJsonSchemaLineage,
+  typescriptJsonSchemaBindings,
+  type ColumnJsonSchemaBinding,
+  type JsonSchemaAlternative,
+  type JsonSchemaBindings,
+  type JsonSchemaLineage,
+} from './codegen/json-schema-lineage.js'

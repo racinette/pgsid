@@ -34,8 +34,10 @@ const SURFACE = [
   'loadConfig',
   'parseConfigString',
   'parseSql',
+  'resolveJsonSchemaLineage',
   'snapshotCatalog',
   'traceValueLineage',
+  'typescriptJsonSchemaBindings',
 ] as const
 
 describe('the package entry point', () => {
