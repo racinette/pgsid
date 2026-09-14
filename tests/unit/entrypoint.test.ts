@@ -22,8 +22,11 @@ const SURFACE = [
   'EMPTY_PROJECT_BUILD_STATE',
   'EMPTY_QUERY_ANALYSIS_STATE',
   'EMPTY_QUERY_BATCH_STATE',
+  'MigrationDiscoveryError',
   'ProjectBuildCoordinator',
   'ProjectBuildWatcher',
+  'ProjectRuntime',
+  'ProjectSchemaError',
   'QueryBatchError',
   'QueryDiscoveryError',
   'QueryFileError',
@@ -34,7 +37,9 @@ const SURFACE = [
   'analyzeValueLineage',
   'applyProjectBuildEvents',
   'buildNullabilityCatalog',
+  'buildProject',
   'compareShapes',
+  'discoverMigrationFiles',
   'discoverQueryFiles',
   'findConfigPath',
   'gateAgreed',
@@ -63,6 +68,7 @@ const SURFACE = [
   'snapshotCatalog',
   'traceValueLineage',
   'typescriptJsonSchemaBindings',
+  'watchProject',
 ] as const
 
 describe('the package entry point', () => {

@@ -54,6 +54,8 @@ export interface PlpgsqlCheckRow {
  * just underline `range` (or the whole statement if null).
  */
 export interface SqlDiagnostic {
+  /** Ordered migration index when the diagnostic has migration provenance. */
+  migrationIndex?: number
   /** Primary error message, e.g. `column "emial" does not exist`. */
   message: string
   /** SQLSTATE code, e.g. `42703`. `undefined` for libpg-query parse errors (no SQLSTATE). */
