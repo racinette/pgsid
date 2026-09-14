@@ -100,3 +100,9 @@ export {
   loadJsonSchemaDocuments,
   type LoadJsonSchemaDocumentsOptions,
 } from './codegen/json-schema-loader.js'
+export {
+  renderTypescriptJsonSchema,
+  renderTypescriptJsonSchemaLineage,
+  type RenderTypescriptJsonSchemaLineageOptions,
+  type RenderTypescriptJsonSchemaOptions,
+} from './codegen/typescript-json-schema.js'

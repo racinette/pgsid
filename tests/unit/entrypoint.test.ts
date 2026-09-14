@@ -35,6 +35,8 @@ const SURFACE = [
   'loadJsonSchemaDocuments',
   'parseConfigString',
   'parseSql',
+  'renderTypescriptJsonSchema',
+  'renderTypescriptJsonSchemaLineage',
   'resolveJsonSchemaLineage',
   'snapshotCatalog',
   'traceValueLineage',
