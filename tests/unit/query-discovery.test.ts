@@ -50,16 +50,16 @@ describe('discoverQueryFiles', () => {
 
     expect(files.map((file) => file.path)).toEqual([
       'sql/accounts/admin/list.sql',
-      'sql/accounts/get_test.sql',
       'sql/accounts/get.sql',
+      'sql/accounts/get_test.sql',
       'sql/reporting/report.sql',
     ])
     expect(files[0]!.output).toEqual({ types: join(root, 'generated/admin/list.ts') })
-    expect(files[1]!.output).toBeUndefined()
-    expect(files[2]!.output).toEqual({
+    expect(files[1]!.output).toEqual({
       types: join(root, 'generated/account-types/get.ts'),
       wrappers: join(root, 'generated/account-wrappers/get.ts'),
     })
+    expect(files[2]!.output).toBeUndefined()
     expect(files[3]!.output).toEqual({
       types: join(root, 'generated/all/reporting/report.ts'),
     })
