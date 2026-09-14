@@ -116,6 +116,21 @@ export {
   type QueryBatchUpdate,
   type QuerySourceInput,
 } from './query-batch.js'
+export {
+  EMPTY_QUERY_ANALYSIS_STATE,
+  reconcileQueryAnalysis,
+  type QueryAnalysisCacheEntry,
+  type QueryAnalysisCatalog,
+  type QueryAnalysisDiagnostic,
+  type QueryAnalysisDiagnosticCode,
+  type QueryAnalysisEvent,
+  type QueryAnalysisItem,
+  type QueryAnalysisResult,
+  type QueryAnalysisState,
+  type QueryAnalysisStats,
+  type QueryAnalysisUpdate,
+  type ReconcileQueryAnalysisOptions,
+} from './query-analysis.js'
 
 // --- Building the schema a catalog is captured from -------------------------
 export { SchemaBuilder } from './schema-builder.js'

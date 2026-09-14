@@ -56,6 +56,8 @@ export interface DescribedShape {
   columns: readonly string[]
   /** How many `$n` parameters PostgreSQL resolved for the statement. */
   params: number
+  /** Canonical PostgreSQL parameter type names, when the adapter provides them. */
+  parameterTypes?: readonly string[]
 }
 
 export type DescribeStatement = (sql: string) => Promise<DescribedShape>

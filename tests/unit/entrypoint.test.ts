@@ -19,6 +19,7 @@ import * as pgsid from '../../src/index.js'
  *  and cannot be enumerated at runtime. */
 const SURFACE = [
   'ConfigError',
+  'EMPTY_QUERY_ANALYSIS_STATE',
   'EMPTY_QUERY_BATCH_STATE',
   'QueryBatchError',
   'QueryDiscoveryError',
@@ -45,6 +46,7 @@ const SURFACE = [
   'parseConfigString',
   'parseQueryFile',
   'parseSql',
+  'reconcileQueryAnalysis',
   'reconcileQueryBatch',
   'renderTypescriptJsonSchema',
   'renderTypescriptJsonSchemaLineage',
