@@ -61,11 +61,13 @@ export type { Evaluate, EvaluateRow } from './query/subtree-evaluator.js'
 
 export {
   analyzeValueLineage,
+  traceValueLineage,
   UnsupportedValueLineageError,
   type DatabaseColumn,
   type DatabaseType,
   type OutputValueLineage,
   type QualifiedName,
+  type ResolvedFunctionIdentity,
   type ResolvedOperatorIdentity,
   type ValueLineage,
   type ValueLineageCatalog,

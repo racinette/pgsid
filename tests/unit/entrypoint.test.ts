@@ -35,6 +35,7 @@ const SURFACE = [
   'parseConfigString',
   'parseSql',
   'snapshotCatalog',
+  'traceValueLineage',
 ] as const
 
 describe('the package entry point', () => {

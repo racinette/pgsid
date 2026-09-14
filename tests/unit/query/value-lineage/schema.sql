@@ -19,3 +19,10 @@ CREATE OPERATOR public.-> (
   RIGHTARG = text,
   FUNCTION = public.shadow_json_get
 );
+
+CREATE FUNCTION public.jsonb_extract_path(document jsonb, VARIADIC path_elems text[])
+RETURNS jsonb
+LANGUAGE sql
+IMMUTABLE
+STRICT
+RETURN document;

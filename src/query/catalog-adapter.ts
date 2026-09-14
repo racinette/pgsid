@@ -16,7 +16,11 @@ import type {
   ResolvedTable,
   ResolvedFunction,
 } from './types.js'
-import type { ResolvedOperatorIdentity, ValueLineageCatalog } from './value-lineage.js'
+import type {
+  ResolvedFunctionIdentity,
+  ResolvedOperatorIdentity,
+  ValueLineageCatalog,
+} from './value-lineage.js'
 import { parseSql } from '../ast.js'
 import { splitQualifiedName } from '../catalog/qualified-name.js'
 import { collectClosedSubtrees } from './subtree-evaluator.js'
@@ -1113,6 +1117,98 @@ export async function buildNullabilityCatalog(
     if (schema === 'pg_catalog') return builtin()
     if (schema !== undefined) return user(schema)
 
+    const path = searchPath.includes('pg_catalog') ? searchPath : ['pg_catalog', ...searchPath]
+    for (const candidateSchema of path) {
+      const found = candidateSchema === 'pg_catalog' ? builtin() : user(candidateSchema)
+      if (found) return found
+    }
+    return null
+  }
+
+  const builtinValueFnsByName = new Map<
+    string,
+    (typeof snapshot.builtinFunctionVolatilities)[number][]
+  >()
+  for (const fn of snapshot.builtinFunctionVolatilities ?? []) {
+    if (fn.kind !== 'f' || fn.returnsSet) continue
+    const existing = builtinValueFnsByName.get(fn.name)
+    if (existing) existing.push(fn)
+    else builtinValueFnsByName.set(fn.name, [fn])
+  }
+
+  const resolveFunctionIdentity = (
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (string | null)[],
+  ): ResolvedFunctionIdentity | null => {
+    const builtin = (): ResolvedFunctionIdentity | null => {
+      const matches = (builtinValueFnsByName.get(name) ?? []).filter((candidate) => {
+        const fixed =
+          candidate.variadic === null ? candidate.args.length : candidate.args.length - 1
+        const required =
+          candidate.variadic === null ? candidate.args.length - candidate.numArgDefaults : fixed
+        if (argTypes.length < required) return false
+        if (candidate.variadic === null && argTypes.length > candidate.args.length) return false
+        return argTypes.every((type, index) => {
+          if (type === null) return true
+          const parameter = index < fixed ? candidate.args[index] : candidate.variadic
+          return parameter === type
+        })
+      })
+      if (matches.length !== 1) return null
+      const match = matches[0]!
+      return {
+        schema: 'pg_catalog',
+        name,
+        argTypes: match.args,
+        resultType: match.returns,
+        variadic: match.variadic !== null,
+      }
+    }
+    const user = (candidateSchema: string): ResolvedFunctionIdentity | null => {
+      const matches = (fnMap.get(`${candidateSchema}.${name}`) ?? []).filter((candidate) => {
+        if (
+          candidate.isProcedure ||
+          candidate.isAggregate ||
+          candidate.isWindow ||
+          candidate.returnsSet
+        ) {
+          return false
+        }
+        const parameters = candidate.args.filter(
+          (arg) => arg.mode === 'in' || arg.mode === 'inout' || arg.mode === 'variadic',
+        )
+        const variadic = parameters.at(-1)?.mode === 'variadic' ? parameters.at(-1)! : null
+        const fixed = variadic ? parameters.length - 1 : parameters.length
+        const required = parameters.slice(0, fixed).filter((arg) => !arg.hasDefault).length
+        if (argTypes.length < required) return false
+        if (!variadic && argTypes.length > parameters.length) return false
+        return argTypes.every((type, index) => {
+          if (type === null) return true
+          const parameter = index < fixed ? parameters[index]?.typeName : variadic?.typeName
+          const expected =
+            variadic && index >= fixed && parameter?.endsWith('[]')
+              ? parameter.slice(0, -2)
+              : parameter
+          return expected === type
+        })
+      })
+      if (matches.length !== 1) return null
+      const match = matches[0]!
+      const parameters = match.args.filter(
+        (arg) => arg.mode === 'in' || arg.mode === 'inout' || arg.mode === 'variadic',
+      )
+      return {
+        schema: match.schema,
+        name,
+        argTypes: parameters.map((arg) => arg.typeName),
+        resultType: match.returnType,
+        variadic: parameters.at(-1)?.mode === 'variadic',
+      }
+    }
+
+    if (schema === 'pg_catalog') return builtin()
+    if (schema !== undefined) return user(schema)
     const path = searchPath.includes('pg_catalog') ? searchPath : ['pg_catalog', ...searchPath]
     for (const candidateSchema of path) {
       const found = candidateSchema === 'pg_catalog' ? builtin() : user(candidateSchema)
@@ -2704,6 +2800,7 @@ export async function buildNullabilityCatalog(
     resolveUserFunctionTyped,
     resolveBuiltinFunctionSignatures,
     resolveBuiltinOperatorSignatures,
+    resolveFunctionIdentity,
     resolveOperatorIdentity,
     resolveCanonicalTypeName,
     mayCoerceImplicitly,

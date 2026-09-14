@@ -25,13 +25,21 @@ export interface ResolvedOperatorIdentity {
   resultType: string
 }
 
+export interface ResolvedFunctionIdentity {
+  schema: string
+  name: string
+  argTypes: readonly string[]
+  resultType: string
+  variadic: boolean
+}
+
 export type ValueOperation =
   | {
       kind: 'json-access'
       path: readonly (string | number)[]
       result: 'json' | 'text'
       operator?: ResolvedOperatorIdentity
-      syntax: 'operator' | 'subscript'
+      syntax: 'operator' | 'function' | 'subscript'
     }
   | {
       kind: 'cast'
@@ -45,6 +53,10 @@ export type ValueOperation =
   | {
       kind: 'function'
       function: QualifiedName
+      resolution: ResolvedFunctionIdentity | null
+    }
+  | {
+      kind: 'subscript'
     }
   | {
       kind: 'choice'
@@ -66,6 +78,7 @@ export type ValueLineage =
     })
   | (LineageBase & {
       kind: 'literal'
+      value: string | number | boolean | null
     })
   | (LineageBase & {
       kind: 'transform'
@@ -91,9 +104,15 @@ export interface ValueLineageCatalog {
     leftType: string | null,
     rightType: string,
   ): ResolvedOperatorIdentity | null
+  resolveFunctionIdentity(
+    schema: string | undefined,
+    name: string,
+    argTypes: readonly (string | null)[],
+  ): ResolvedFunctionIdentity | null
 }
 
 export const VALUE_LINEAGE_CATALOG_ONLY = [
+  'resolveFunctionIdentity',
   'resolveOperatorIdentity',
 ] as const satisfies readonly (keyof ValueLineageCatalog)[]
 
@@ -169,6 +188,17 @@ const BUILTIN_TYPE_ALIASES: Readonly<Record<string, string>> = {
 }
 
 export function analyzeValueLineage(
+  statement: Node,
+  catalog: ValueLineageCatalog,
+): OutputValueLineage[] {
+  return traceValueLineage(statement, catalog).map((output) => ({
+    name: output.name,
+    value: interpretValueLineage(output.value),
+  }))
+}
+
+/** Preserve the expression calls exactly as the parsed query composed them. */
+export function traceValueLineage(
   statement: Node,
   catalog: ValueLineageCatalog,
 ): OutputValueLineage[] {
@@ -435,15 +465,20 @@ class ValueLineageAnalyzer {
 
     const call = record['FuncCall'] as { funcname?: Node[]; args?: Node[] } | undefined
     if (call) {
-      const inputs = (call.args ?? []).map(
-        (argument) => this.analyzeExpression(argument, scope).value,
+      const args = call.args ?? []
+      const inputs = args.map((argument) => this.analyzeExpression(argument, scope).value)
+      const name = qualifiedName(call.funcname)
+      const resolution = this.catalog.resolveFunctionIdentity(
+        name.schema,
+        name.name,
+        inputs.map((input) => input.resolvedType),
       )
       return {
         value: {
           kind: 'transform',
-          operation: { kind: 'function', function: qualifiedName(call.funcname) },
+          operation: { kind: 'function', function: name, resolution },
           inputs,
-          resolvedType: null,
+          resolvedType: resolution?.resultType ?? null,
         },
       }
     }
@@ -494,19 +529,6 @@ class ValueLineageAnalyzer {
         : null
     const inputs = [...(left ? [left.value] : []), right.value]
 
-    if (
-      left &&
-      staticPath &&
-      resolution?.schema === 'pg_catalog' &&
-      ['->', '->>', '#>', '#>>'].includes(resolution.name) &&
-      (resolution.leftType === 'json' || resolution.leftType === 'jsonb')
-    ) {
-      const result = resolution.name.endsWith('>>') || resolution.name === '->>' ? 'text' : 'json'
-      return {
-        value: this.jsonAccess(left.value, staticPath.path, result, 'operator', resolution),
-      }
-    }
-
     return {
       value: {
         kind: 'transform',
@@ -523,53 +545,19 @@ class ValueLineageAnalyzer {
   ): ExpressionResult {
     const input = this.analyzeExpression(indirection.arg, scope).value
     if (input.resolvedType !== 'jsonb') return this.opaque('A_Indirection', [input])
-    const path: (string | number)[] = []
+    const indices: ValueLineage[] = []
     for (const item of indirection.indirection ?? []) {
       const index = (item as { A_Indices?: { uidx?: Node; lidx?: Node } }).A_Indices
       if (!index?.uidx || index.lidx) return this.opaque('A_Indirection', [input])
-      const segment = this.staticSegment(index.uidx)
-      if (segment === null) return this.opaque('A_Indirection', [input])
-      path.push(segment)
-    }
-    return { value: this.jsonAccess(input, path, 'json', 'subscript') }
-  }
-
-  private jsonAccess(
-    input: ValueLineage,
-    path: (string | number)[],
-    result: 'json' | 'text',
-    syntax: 'operator' | 'subscript',
-    operator?: ResolvedOperatorIdentity,
-  ): ValueLineage {
-    if (
-      input.kind === 'transform' &&
-      input.operation.kind === 'json-access' &&
-      input.operation.result === 'json'
-    ) {
-      return {
-        kind: 'transform',
-        operation: {
-          kind: 'json-access',
-          path: [...input.operation.path, ...path],
-          result,
-          syntax,
-          ...(operator ? { operator } : {}),
-        },
-        inputs: input.inputs,
-        resolvedType: result === 'text' ? 'text' : input.resolvedType,
-      }
+      indices.push(this.analyzeExpression(index.uidx, scope).value)
     }
     return {
-      kind: 'transform',
-      operation: {
-        kind: 'json-access',
-        path,
-        result,
-        syntax,
-        ...(operator ? { operator } : {}),
+      value: {
+        kind: 'transform',
+        operation: { kind: 'subscript' },
+        inputs: [input, ...indices],
+        resolvedType: 'jsonb',
       },
-      inputs: [input],
-      resolvedType: result === 'text' ? 'text' : input.resolvedType,
     }
   }
 
@@ -603,7 +591,21 @@ class ValueLineageAnalyzer {
     else if (constant.sval) {
       staticPath = { path: [constant.sval.sval ?? ''], operandType: 'text' }
     }
-    return { value: { kind: 'literal', resolvedType }, ...(staticPath ? { staticPath } : {}) }
+    const value = constant.isnull
+      ? null
+      : constant.ival
+        ? (constant.ival.ival ?? 0)
+        : constant.fval
+          ? Number(constant.fval.fval)
+          : constant.boolval
+            ? (constant.boolval.boolval ?? false)
+            : constant.sval
+              ? (constant.sval.sval ?? '')
+              : null
+    return {
+      value: { kind: 'literal', value, resolvedType },
+      ...(staticPath ? { staticPath } : {}),
+    }
   }
 
   private staticSegment(node: Node): string | number | null {
@@ -732,4 +734,115 @@ class ValueLineageAnalyzer {
     if (call) return qualifiedName(call.funcname).name
     return '?column?'
   }
+}
+
+const staticLineagePath = (value: ValueLineage): (string | number)[] | null => {
+  if (value.kind === 'literal') {
+    return typeof value.value === 'string' || typeof value.value === 'number' ? [value.value] : null
+  }
+  if (
+    value.kind !== 'transform' ||
+    value.operation.kind !== 'opaque' ||
+    value.operation.nodeType !== 'A_ArrayExpr'
+  ) {
+    return null
+  }
+  const path = value.inputs.flatMap((input) => staticLineagePath(input) ?? [])
+  return path.length === value.inputs.length ? path : null
+}
+
+const interpretedJsonAccess = (
+  input: ValueLineage,
+  path: readonly (string | number)[],
+  result: 'json' | 'text',
+  syntax: 'operator' | 'function' | 'subscript',
+  operator?: ResolvedOperatorIdentity,
+): ValueLineage => {
+  if (
+    input.kind === 'transform' &&
+    input.operation.kind === 'json-access' &&
+    input.operation.result === 'json'
+  ) {
+    return {
+      kind: 'transform',
+      operation: {
+        kind: 'json-access',
+        path: [...input.operation.path, ...path],
+        result,
+        syntax,
+        ...(operator ? { operator } : {}),
+      },
+      inputs: input.inputs,
+      resolvedType: result === 'text' ? 'text' : input.resolvedType,
+    }
+  }
+  return {
+    kind: 'transform',
+    operation: {
+      kind: 'json-access',
+      path,
+      result,
+      syntax,
+      ...(operator ? { operator } : {}),
+    },
+    inputs: [input],
+    resolvedType: result === 'text' ? 'text' : input.resolvedType,
+  }
+}
+
+// These functions select a statically named field or array position. JSONPath
+// functions deliberately stay as generic function calls: interpreting their
+// path language belongs to PostgreSQL, not this pass.
+const JSON_FUNCTION_RESULTS: Readonly<Record<string, 'json' | 'text'>> = {
+  json_array_element: 'json',
+  json_array_element_text: 'text',
+  json_extract_path: 'json',
+  json_extract_path_text: 'text',
+  json_object_field: 'json',
+  json_object_field_text: 'text',
+  jsonb_array_element: 'json',
+  jsonb_array_element_text: 'text',
+  jsonb_extract_path: 'json',
+  jsonb_extract_path_text: 'text',
+  jsonb_object_field: 'json',
+  jsonb_object_field_text: 'text',
+}
+
+function interpretValueLineage(value: ValueLineage): ValueLineage {
+  if (value.kind !== 'transform') return value
+  const inputs = value.inputs.map(interpretValueLineage)
+
+  if (value.operation.kind === 'operator') {
+    const resolution = value.operation.resolution
+    const path = inputs[1] ? staticLineagePath(inputs[1]) : null
+    if (
+      inputs[0] &&
+      path &&
+      resolution?.schema === 'pg_catalog' &&
+      ['->', '->>', '#>', '#>>'].includes(resolution.name) &&
+      (resolution.leftType === 'json' || resolution.leftType === 'jsonb')
+    ) {
+      const result = resolution.name.endsWith('>>') || resolution.name === '->>' ? 'text' : 'json'
+      return interpretedJsonAccess(inputs[0], path, result, 'operator', resolution)
+    }
+  }
+
+  if (value.operation.kind === 'function') {
+    const resolution = value.operation.resolution
+    const result =
+      resolution?.schema === 'pg_catalog' ? JSON_FUNCTION_RESULTS[resolution.name] : undefined
+    const path = inputs.slice(1).flatMap((input) => staticLineagePath(input) ?? [])
+    if (inputs[0] && result && path.length === inputs.length - 1) {
+      return interpretedJsonAccess(inputs[0], path, result, 'function')
+    }
+  }
+
+  if (value.operation.kind === 'subscript') {
+    const path = inputs.slice(1).flatMap((input) => staticLineagePath(input) ?? [])
+    if (inputs[0] && path.length === inputs.length - 1) {
+      return interpretedJsonAccess(inputs[0], path, 'json', 'subscript')
+    }
+  }
+
+  return { ...value, inputs }
 }
