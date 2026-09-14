@@ -93,6 +93,13 @@ export {
   type QueryParameter,
   type QueryParameterOccurrence,
 } from './query-file.js'
+export {
+  discoverQueryFiles,
+  QueryDiscoveryError,
+  type DiscoveredQueryFile,
+  type DiscoverQueryFilesOptions,
+  type QueryOutputPaths,
+} from './query-discovery.js'
 
 // --- Building the schema a catalog is captured from -------------------------
 export { SchemaBuilder } from './schema-builder.js'

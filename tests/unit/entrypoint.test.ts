@@ -19,6 +19,7 @@ import * as pgsid from '../../src/index.js'
  *  and cannot be enumerated at runtime. */
 const SURFACE = [
   'ConfigError',
+  'QueryDiscoveryError',
   'QueryFileError',
   'SchemaBuilder',
   'UnsupportedJsonSchemaError',
@@ -27,6 +28,7 @@ const SURFACE = [
   'analyzeValueLineage',
   'buildNullabilityCatalog',
   'compareShapes',
+  'discoverQueryFiles',
   'findConfigPath',
   'gateAgreed',
   'gateContract',

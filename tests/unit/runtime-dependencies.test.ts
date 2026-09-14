@@ -48,8 +48,6 @@ const devDependencies = manifest.devDependencies ?? {}
  */
 const DECLARED_BUT_UNIMPORTED: Record<string, string> = {
   chokidar: 'file watching for a language server that was never built',
-  'fast-glob': 'same, unused',
-  picomatch: 'same, unused',
   'vscode-languageserver': 'same, unused',
   'vscode-languageserver-textdocument': 'same, unused',
   '@electric-sql/pglite-plpgsql-check':
