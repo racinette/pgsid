@@ -45,7 +45,7 @@
 // pass runs before the scope that enforces it exists.
 // ---------------------------------------------------------------------------
 
-import { parseSync, type Node, type TypeName } from 'libpg-query'
+import { parseSync, type Node, type ParseResult, type TypeName } from 'libpg-query'
 import {
   evaluateClosedSubtrees,
   type EvalResult,
@@ -269,8 +269,10 @@ export function writtenColumnConstants(
     if (!rendered) continue
     try {
       const parsed = parseSync(`SELECT NULL::${rendered}`)
-      let typeName = parsed.stmts[0].stmt.SelectStmt.targetList[0].ResTarget.val.TypeCast
-        .typeName as TypeName
+      const cast = (firstSelectTargetValue(parsed) as { TypeCast?: { typeName?: TypeName } })
+        .TypeCast
+      if (!cast?.typeName) continue
+      let typeName = cast.typeName
       const string = (value as { A_Const?: { sval?: { sval?: string } } }).A_Const?.sval?.sval
       const limit = (typeName.typmods?.[0] as { A_Const?: { ival?: { ival?: number } } })?.A_Const
         ?.ival?.ival
@@ -360,8 +362,8 @@ export async function evaluateWrittenConstants(
       try {
         // Reparse PostgreSQL's scalar spelling; no arithmetic is performed here.
         const parsed = parseSync(`SELECT ${answer.value}`)
-        const value = parsed.stmts[0].stmt.SelectStmt.targetList[0].ResTarget.val as Node
-        if ('A_Const' in value) literal = value
+        const value = firstSelectTargetValue(parsed)
+        if (value && 'A_Const' in value) literal = value
       } catch {
         // Non-token spellings such as NaN remain typed string literals.
       }
@@ -374,6 +376,14 @@ export async function evaluateWrittenConstants(
     q.columns.set(q.column, { TypeCast: { arg: literal, typeName } } as Node)
   }
   return maps
+}
+
+function firstSelectTargetValue(parsed: ParseResult): Node | undefined {
+  const statement = parsed.stmts?.[0]?.stmt as Fields | undefined
+  const select = statement?.['SelectStmt'] as Fields | undefined
+  const target = (select?.['targetList'] as Node[] | undefined)?.[0] as Fields | undefined
+  const result = target?.['ResTarget'] as Fields | undefined
+  return result?.['val'] as Node | undefined
 }
 
 /** Every searched-CASE guard anywhere in the RETURNING list. The simple form
