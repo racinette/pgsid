@@ -152,6 +152,119 @@ const expected: Record<string, OutputValueLineage[]> = {
       value: operation('->', [column('payload', 'jsonb'), column('key', 'text')], 'jsonb'),
     },
   ],
+  'deep-cte-chain': [
+    {
+      name: 'actor_id',
+      value: {
+        kind: 'transform',
+        operation: { kind: 'cast', target: { schema: 'pg_catalog', name: 'int8' } },
+        inputs: [
+          jsonAccess(
+            ['actor', 'id'],
+            'text',
+            'operator',
+            column('payload', 'jsonb'),
+            identity('->>', 'jsonb', 'text', 'text'),
+          ),
+        ],
+        resolvedType: 'bigint',
+      },
+    },
+  ],
+  'nested-derived-tables': [
+    {
+      name: 'actor_id',
+      value: jsonAccess(
+        ['actor', 'id'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'nested-with-scope': [
+    {
+      name: 'actor_name',
+      value: jsonAccess(
+        ['actor', 'profile', 'name'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'cte-alias-choice': [
+    {
+      name: 'actor_id',
+      value: jsonAccess(
+        ['actor', 'id'],
+        'text',
+        'operator',
+        {
+          kind: 'transform',
+          operation: { kind: 'choice', form: 'coalesce' },
+          inputs: [column('payload', 'jsonb'), column('fallback_payload', 'jsonb')],
+          resolvedType: 'jsonb',
+        },
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'cte-shadowing': [
+    {
+      name: 'actor_id',
+      value: jsonAccess(
+        ['id'],
+        'text',
+        'operator',
+        column('fallback_payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'cte-set-operation': [
+    {
+      name: 'actor_id',
+      value: jsonAccess(
+        ['actor', 'id'],
+        'text',
+        'operator',
+        {
+          kind: 'transform',
+          operation: { kind: 'choice', form: 'union' },
+          inputs: [column('payload', 'jsonb'), column('fallback_payload', 'jsonb')],
+          resolvedType: 'jsonb',
+        },
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'lateral-correlated': [
+    {
+      name: 'actor_id',
+      value: jsonAccess(
+        ['actor', 'id'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'scalar-subquery': [
+    {
+      name: 'actor_id',
+      value: jsonAccess(
+        ['actor', 'id'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
   'function-wrapper': [
     {
       name: 'actor_name',
@@ -215,9 +328,13 @@ describe('value lineage', () => {
   for (const name of fixtureNames) {
     it(`preserves ${name}`, async () => {
       const sql = readFileSync(join(fixtureDir, `${name}.sql`), 'utf8')
+      const described = await pg.describeQuery(sql)
       const parsed = await parseSql(sql)
       const statement = parsed.stmts?.[0]?.stmt
       expect(statement).toBeDefined()
+      expect(described.resultFields.map((field) => field.name)).toEqual(
+        expected[name]!.map((output) => output.name),
+      )
       expect(analyzeValueLineage(statement!, catalog)).toEqual(expected[name])
     })
   }
