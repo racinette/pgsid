@@ -71,6 +71,7 @@ export {
   type ResolvedOperatorIdentity,
   type ValueLineage,
   type ValueLineageCatalog,
+  type ValueLineageOptions,
   type ValueOperation,
 } from './query/value-lineage.js'
 
