@@ -30,6 +30,7 @@ const SURFACE = [
   'UnsupportedNodeError',
   'UnsupportedValueLineageError',
   'analyzeValueLineage',
+  'applyProjectBuildEvents',
   'buildNullabilityCatalog',
   'compareShapes',
   'discoverQueryFiles',
