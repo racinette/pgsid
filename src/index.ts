@@ -183,3 +183,8 @@ export {
   type ProjectRenderCacheEntry,
   type ReconcileProjectBuildOptions,
 } from './project-build.js'
+export {
+  applyProjectBuildEvents,
+  type ArtifactWriteResult,
+  type ArtifactWriteUpdate,
+} from './artifact-writer.js'
