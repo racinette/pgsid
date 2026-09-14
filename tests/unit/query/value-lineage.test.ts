@@ -8,6 +8,7 @@ import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
 import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
 import {
   analyzeValueLineage,
+  traceValueLineage,
   type OutputValueLineage,
   type ResolvedOperatorIdentity,
   type ValueLineage,
@@ -21,7 +22,10 @@ const column = (name: string, resolvedType: string): ValueLineage => ({
   resolvedType,
 })
 
-const literal = (resolvedType: string | null): ValueLineage => ({ kind: 'literal', resolvedType })
+const literal = (
+  value: string | number | boolean | null,
+  resolvedType: string | null,
+): ValueLineage => ({ kind: 'literal', value, resolvedType })
 
 const identity = (
   name: string,
@@ -50,7 +54,7 @@ const operation = (name: string, inputs: ValueLineage[], resolvedType: string): 
 const jsonAccess = (
   path: (string | number)[],
   result: 'json' | 'text',
-  syntax: 'operator' | 'subscript',
+  syntax: 'operator' | 'function' | 'subscript',
   input: ValueLineage = column('payload', 'jsonb'),
   operator?: ResolvedOperatorIdentity,
 ): ValueLineage => ({
@@ -72,7 +76,10 @@ const expected: Record<string, OutputValueLineage[]> = {
       name: 'value',
       value: operation(
         '+',
-        [literal('integer'), operation('*', [literal('integer'), literal('integer')], 'integer')],
+        [
+          literal(2, 'integer'),
+          operation('*', [literal(2, 'integer'), literal(2, 'integer')], 'integer'),
+        ],
         'integer',
       ),
     },
@@ -112,6 +119,66 @@ const expected: Record<string, OutputValueLineage[]> = {
     {
       name: 'actor_id',
       value: jsonAccess(['actor', 'id'], 'json', 'subscript'),
+    },
+  ],
+  'json-extract-functions': [
+    {
+      name: 'actor_id',
+      value: jsonAccess(
+        ['actor', 'profile', 'id'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+    {
+      name: 'numeric_actor_id',
+      value: {
+        kind: 'transform',
+        operation: { kind: 'cast', target: { schema: 'pg_catalog', name: 'int8' } },
+        inputs: [jsonAccess(['actor', 'id'], 'text', 'function', column('payload', 'jsonb'))],
+        resolvedType: 'bigint',
+      },
+    },
+    {
+      name: 'field_actor_id',
+      value: jsonAccess(['actor', 'id'], 'text', 'function', column('payload', 'jsonb')),
+    },
+    {
+      name: 'first_sku',
+      value: jsonAccess(
+        ['items', 0, 'sku'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+    {
+      name: 'first_item_text',
+      value: jsonAccess(['items', 0], 'text', 'function', column('payload', 'jsonb')),
+    },
+  ],
+  'jsonpath-uninterpreted': [
+    {
+      name: 'actor_id',
+      value: {
+        kind: 'transform',
+        operation: {
+          kind: 'function',
+          function: { name: 'jsonb_path_query_first' },
+          resolution: {
+            schema: 'pg_catalog',
+            name: 'jsonb_path_query_first',
+            argTypes: ['jsonb', 'jsonpath', 'jsonb', 'boolean'],
+            resultType: 'jsonb',
+            variadic: false,
+          },
+        },
+        inputs: [column('payload', 'jsonb'), literal('$.actor.id', null)],
+        resolvedType: 'jsonb',
+      },
     },
   ],
   'cte-reexport': [
@@ -270,7 +337,17 @@ const expected: Record<string, OutputValueLineage[]> = {
       name: 'actor_name',
       value: {
         kind: 'transform',
-        operation: { kind: 'function', function: { name: 'lower' } },
+        operation: {
+          kind: 'function',
+          function: { name: 'lower' },
+          resolution: {
+            schema: 'pg_catalog',
+            name: 'lower',
+            argTypes: ['text'],
+            resultType: 'text',
+            variadic: false,
+          },
+        },
         inputs: [
           jsonAccess(
             ['actor', 'name'],
@@ -280,7 +357,7 @@ const expected: Record<string, OutputValueLineage[]> = {
             identity('#>>', 'jsonb', 'text[]', 'text'),
           ),
         ],
-        resolvedType: null,
+        resolvedType: 'text',
       },
     },
   ],
@@ -352,7 +429,82 @@ describe('value lineage', () => {
             kind: 'operator',
             resolution: { schema: 'public', name: '->', resultType: 'jsonb' },
           },
-          inputs: [column('payload', 'jsonb'), literal(null)],
+          inputs: [column('payload', 'jsonb'), literal('actor', null)],
+        },
+      ],
+    })
+  })
+
+  it('traces nested JSON operators as the calls that were written', async () => {
+    const sql = readFileSync(join(fixtureDir, 'nested-json-access.sql'), 'utf8')
+    const statement = (await parseSql(sql)).stmts![0]!.stmt!
+
+    expect(traceValueLineage(statement, catalog)[0]!.value).toMatchObject({
+      operation: {
+        kind: 'operator',
+        operator: { name: '->>' },
+        resolution: { schema: 'pg_catalog', name: '->>' },
+      },
+      inputs: [
+        {
+          operation: {
+            kind: 'operator',
+            operator: { name: '->' },
+            resolution: { schema: 'pg_catalog', name: '->' },
+          },
+          inputs: [column('payload', 'jsonb'), literal('actor', null)],
+        },
+        literal('id', null),
+      ],
+    })
+  })
+
+  it('traces extraction functions before interpreting their paths', async () => {
+    const sql = readFileSync(join(fixtureDir, 'json-extract-functions.sql'), 'utf8')
+    const statement = (await parseSql(sql)).stmts![0]!.stmt!
+    const outputs = traceValueLineage(statement, catalog)
+
+    expect(outputs[0]!.value).toMatchObject({
+      operation: { kind: 'operator', operator: { name: '->>' } },
+      inputs: [
+        {
+          operation: {
+            kind: 'function',
+            function: { name: 'jsonb_extract_path' },
+            resolution: { schema: 'pg_catalog', name: 'jsonb_extract_path', variadic: true },
+          },
+          inputs: [column('payload', 'jsonb'), literal('actor', null), literal('profile', null)],
+        },
+        literal('id', null),
+      ],
+    })
+  })
+
+  it('traces JSON subscripts and their individual index expressions', async () => {
+    const sql = readFileSync(join(fixtureDir, 'json-subscripting.sql'), 'utf8')
+    const statement = (await parseSql(sql)).stmts![0]!.stmt!
+
+    expect(traceValueLineage(statement, catalog)[0]!.value).toEqual({
+      kind: 'transform',
+      operation: { kind: 'subscript' },
+      inputs: [column('payload', 'jsonb'), literal('actor', null), literal('id', null)],
+      resolvedType: 'jsonb',
+    })
+  })
+
+  it('does not interpret a shadowing extraction function as pg_catalog JSON access', async () => {
+    const sql = readFileSync(join(fixtureDir, 'json-extract-functions.sql'), 'utf8')
+    const statement = (await parseSql(sql)).stmts![0]!.stmt!
+    const value = analyzeValueLineage(statement, shadowingCatalog)[0]!.value
+
+    expect(value).toMatchObject({
+      operation: { kind: 'json-access', path: ['id'], result: 'text' },
+      inputs: [
+        {
+          operation: {
+            kind: 'function',
+            resolution: { schema: 'public', name: 'jsonb_extract_path' },
+          },
         },
       ],
     })
