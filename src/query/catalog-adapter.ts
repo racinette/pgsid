@@ -238,13 +238,14 @@ export async function buildNullabilityCatalog(
     fnArgDefaultAsts.set(`${f.schema}.${f.name}(${f.argTypes})`, parsed)
   }
 
-  // Pre-parse GENERATED column expressions (pg_get_expr renders them into
-  // ColumnInfo.defaultExpr for generated columns). The expression is over
-  // the table's OWN columns — PostgreSQL forbids referencing another
-  // generated column, so no cycles — and must be immutable, so no volatile
-  // surprises. Wrapped in a SELECT to parse, then unwrapped to the bare
-  // expression node. Keyed `schema.table.column`.
+  // Pre-parse column DEFAULT and GENERATED expressions (pg_get_expr renders
+  // both into ColumnInfo.defaultExpr). Generated expressions are over the
+  // table's OWN columns — PostgreSQL forbids referencing another generated
+  // column, so no cycles — and must be immutable. Every expression is wrapped
+  // in a SELECT to parse, then unwrapped to the bare expression node. Keyed
+  // `schema.table.column`.
   const generationExprAsts = new Map<string, Node>()
+  const columnDefaultExprAsts = new Map<string, Node>()
   // The tree reading drops columns whose generation DIVERGES somewhere in
   // the subtree (a child may redefine an inherited column's expression —
   // measured), so a tree scan never evaluates a formula the row it reads
@@ -252,9 +253,13 @@ export async function buildNullabilityCatalog(
   const generationExprTreeAsts = new Map<string, Node>()
   for (const t of snapshot.tables) {
     for (const col of t.columns) {
-      if (col.generated === 'none' || !col.defaultExpr) continue
+      if (!col.defaultExpr) continue
       // Unparseable → the column falls back to the catalog flag.
       const expr = await parseExprAst(col.defaultExpr)
+      if (col.generated === 'none') {
+        if (expr) columnDefaultExprAsts.set(`${t.schema}.${t.name}.${col.name}`, expr)
+        continue
+      }
       if (expr) {
         generationExprAsts.set(`${t.schema}.${t.name}.${col.name}`, expr)
         if (!col.generationDivergesInTree) {
@@ -265,6 +270,8 @@ export async function buildNullabilityCatalog(
   }
   const resolveGenerationExpr = (schema: string, table: string, column: string): Node | null =>
     generationExprAsts.get(`${schema}.${table}.${column}`) ?? null
+  const resolveColumnDefaultExpr = (schema: string, table: string, column: string): Node | null =>
+    columnDefaultExprAsts.get(`${schema}.${table}.${column}`) ?? null
   const resolveGenerationExprTree = (schema: string, table: string, column: string): Node | null =>
     generationExprTreeAsts.get(`${schema}.${table}.${column}`) ?? null
 
@@ -1142,7 +1149,7 @@ export async function buildNullabilityCatalog(
     argTypes: readonly (string | null)[],
   ): ResolvedFunctionIdentity | null => {
     interface Candidate {
-      identity: ResolvedFunctionIdentity
+      resolved: ResolvedFunctionIdentity
       required: number
       maximum: number | null
       parameterAt(index: number): string | undefined
@@ -1152,7 +1159,7 @@ export async function buildNullabilityCatalog(
         const fixed =
           candidate.variadic === null ? candidate.args.length : candidate.args.length - 1
         return {
-          identity: {
+          resolved: {
             schema: 'pg_catalog',
             name,
             argTypes: candidate.args,
@@ -1183,7 +1190,7 @@ export async function buildNullabilityCatalog(
         const fixed = variadic ? parameters.length - 1 : parameters.length
         return [
           {
-            identity: {
+            resolved: {
               schema: candidate.schema,
               name,
               argTypes: parameters.map((arg) => arg.typeName),
@@ -1213,7 +1220,7 @@ export async function buildNullabilityCatalog(
     for (const candidateSchema of path) {
       const rows = candidateSchema === 'pg_catalog' ? builtin() : user(candidateSchema)
       for (const row of rows) {
-        const signature = row.identity.argTypes.join('\u0000')
+        const signature = row.resolved.argTypes.join('\u0000')
         if (!candidates.has(signature)) candidates.set(signature, row)
       }
     }
@@ -1225,7 +1232,7 @@ export async function buildNullabilityCatalog(
         return type === null || parameter === type
       })
     })
-    return matches.length === 1 ? matches[0]!.identity : null
+    return matches.length === 1 ? matches[0]!.resolved : null
   }
 
   const builtinTypeKinds = snapshot.builtinTypeKinds ?? {}
@@ -2817,6 +2824,7 @@ export async function buildNullabilityCatalog(
     mayCoerceImplicitly,
     resolveBinaryCoercionTargets,
     resolveGenerationExpr,
+    resolveColumnDefaultExpr,
     resolveGenerationExprTree,
     fnArgDefaultAsts,
     resolveCheckConstraints,
