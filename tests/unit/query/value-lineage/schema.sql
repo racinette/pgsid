@@ -38,3 +38,18 @@ CREATE TABLE public.event_copies (
   copy_id bigint PRIMARY KEY,
   payload jsonb NOT NULL
 );
+
+CREATE TABLE public.event_patches (
+  patch_id bigint PRIMARY KEY,
+  event_id bigint NOT NULL,
+  payload jsonb NOT NULL,
+  key text,
+  should_delete boolean NOT NULL DEFAULT false
+);
+
+CREATE TABLE public.event_archive (
+  archive_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event_id bigint NOT NULL,
+  before_payload jsonb,
+  after_payload jsonb NOT NULL
+);
