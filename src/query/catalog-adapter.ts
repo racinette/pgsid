@@ -1141,80 +1141,91 @@ export async function buildNullabilityCatalog(
     name: string,
     argTypes: readonly (string | null)[],
   ): ResolvedFunctionIdentity | null => {
-    const builtin = (): ResolvedFunctionIdentity | null => {
-      const matches = (builtinValueFnsByName.get(name) ?? []).filter((candidate) => {
+    interface Candidate {
+      identity: ResolvedFunctionIdentity
+      required: number
+      maximum: number | null
+      parameterAt(index: number): string | undefined
+    }
+    const builtin = (): Candidate[] =>
+      (builtinValueFnsByName.get(name) ?? []).map((candidate) => {
         const fixed =
           candidate.variadic === null ? candidate.args.length : candidate.args.length - 1
-        const required =
-          candidate.variadic === null ? candidate.args.length - candidate.numArgDefaults : fixed
-        if (argTypes.length < required) return false
-        if (candidate.variadic === null && argTypes.length > candidate.args.length) return false
-        return argTypes.every((type, index) => {
-          if (type === null) return true
-          const parameter = index < fixed ? candidate.args[index] : candidate.variadic
-          return parameter === type
-        })
+        return {
+          identity: {
+            schema: 'pg_catalog',
+            name,
+            argTypes: candidate.args,
+            resultType: candidate.returns,
+            variadic: candidate.variadic !== null,
+          },
+          required:
+            candidate.variadic === null ? candidate.args.length - candidate.numArgDefaults : fixed,
+          maximum: candidate.variadic === null ? candidate.args.length : null,
+          parameterAt: (index) =>
+            index < fixed ? candidate.args[index] : (candidate.variadic ?? undefined),
+        }
       })
-      if (matches.length !== 1) return null
-      const match = matches[0]!
-      return {
-        schema: 'pg_catalog',
-        name,
-        argTypes: match.args,
-        resultType: match.returns,
-        variadic: match.variadic !== null,
-      }
-    }
-    const user = (candidateSchema: string): ResolvedFunctionIdentity | null => {
-      const matches = (fnMap.get(`${candidateSchema}.${name}`) ?? []).filter((candidate) => {
+    const user = (candidateSchema: string): Candidate[] =>
+      (fnMap.get(`${candidateSchema}.${name}`) ?? []).flatMap((candidate) => {
         if (
           candidate.isProcedure ||
           candidate.isAggregate ||
           candidate.isWindow ||
           candidate.returnsSet
         ) {
-          return false
+          return []
         }
         const parameters = candidate.args.filter(
           (arg) => arg.mode === 'in' || arg.mode === 'inout' || arg.mode === 'variadic',
         )
         const variadic = parameters.at(-1)?.mode === 'variadic' ? parameters.at(-1)! : null
         const fixed = variadic ? parameters.length - 1 : parameters.length
-        const required = parameters.slice(0, fixed).filter((arg) => !arg.hasDefault).length
-        if (argTypes.length < required) return false
-        if (!variadic && argTypes.length > parameters.length) return false
-        return argTypes.every((type, index) => {
-          if (type === null) return true
-          const parameter = index < fixed ? parameters[index]?.typeName : variadic?.typeName
-          const expected =
-            variadic && index >= fixed && parameter?.endsWith('[]')
-              ? parameter.slice(0, -2)
-              : parameter
-          return expected === type
-        })
+        return [
+          {
+            identity: {
+              schema: candidate.schema,
+              name,
+              argTypes: parameters.map((arg) => arg.typeName),
+              resultType: candidate.returnType,
+              variadic: variadic !== null,
+            },
+            required: parameters.slice(0, fixed).filter((arg) => !arg.hasDefault).length,
+            maximum: variadic ? null : parameters.length,
+            parameterAt: (index: number) => {
+              const parameter = index < fixed ? parameters[index]?.typeName : variadic?.typeName
+              return variadic && index >= fixed && parameter?.endsWith('[]')
+                ? parameter.slice(0, -2)
+                : parameter
+            },
+          },
+        ]
       })
-      if (matches.length !== 1) return null
-      const match = matches[0]!
-      const parameters = match.args.filter(
-        (arg) => arg.mode === 'in' || arg.mode === 'inout' || arg.mode === 'variadic',
-      )
-      return {
-        schema: match.schema,
-        name,
-        argTypes: parameters.map((arg) => arg.typeName),
-        resultType: match.returnType,
-        variadic: parameters.at(-1)?.mode === 'variadic',
+
+    // PostgreSQL gathers overloads across the whole path. Only an identical
+    // signature in a later schema is hidden by the earlier one.
+    const path = schema
+      ? [schema]
+      : searchPath.includes('pg_catalog')
+        ? searchPath
+        : ['pg_catalog', ...searchPath]
+    const candidates = new Map<string, Candidate>()
+    for (const candidateSchema of path) {
+      const rows = candidateSchema === 'pg_catalog' ? builtin() : user(candidateSchema)
+      for (const row of rows) {
+        const signature = row.identity.argTypes.join('\u0000')
+        if (!candidates.has(signature)) candidates.set(signature, row)
       }
     }
-
-    if (schema === 'pg_catalog') return builtin()
-    if (schema !== undefined) return user(schema)
-    const path = searchPath.includes('pg_catalog') ? searchPath : ['pg_catalog', ...searchPath]
-    for (const candidateSchema of path) {
-      const found = candidateSchema === 'pg_catalog' ? builtin() : user(candidateSchema)
-      if (found) return found
-    }
-    return null
+    const matches = [...candidates.values()].filter((candidate) => {
+      if (argTypes.length < candidate.required) return false
+      if (candidate.maximum !== null && argTypes.length > candidate.maximum) return false
+      return argTypes.every((type, index) => {
+        const parameter = candidate.parameterAt(index)
+        return type === null || parameter === type
+      })
+    })
+    return matches.length === 1 ? matches[0]!.identity : null
   }
 
   const builtinTypeKinds = snapshot.builtinTypeKinds ?? {}

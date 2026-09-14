@@ -16,9 +16,9 @@ import {
 
 const fixtureDir = fileURLToPath(new URL('value-lineage', import.meta.url))
 
-const column = (name: string, resolvedType: string): ValueLineage => ({
+const column = (name: string, resolvedType: string, relation = 'events'): ValueLineage => ({
   kind: 'column',
-  column: { schema: 'public', relation: 'events', column: name },
+  column: { schema: 'public', relation, column: name },
   resolvedType,
 })
 
@@ -92,6 +92,59 @@ const expected: Record<string, OutputValueLineage[]> = {
         'text',
         'operator',
         column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'join-using-inner': [
+    {
+      name: 'value',
+      value: jsonAccess(
+        ['id'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'join-using-left': [
+    {
+      name: 'value',
+      value: jsonAccess(
+        ['id'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'join-using-right': [
+    {
+      name: 'value',
+      value: jsonAccess(
+        ['id'],
+        'text',
+        'operator',
+        column('payload', 'jsonb', 'event_copies'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'join-using-full': [
+    {
+      name: 'value',
+      value: jsonAccess(
+        ['id'],
+        'text',
+        'operator',
+        {
+          kind: 'transform',
+          operation: { kind: 'choice', form: 'coalesce' },
+          inputs: [column('payload', 'jsonb'), column('payload', 'jsonb', 'event_copies')],
+          resolvedType: 'jsonb',
+        },
         identity('->>', 'jsonb', 'text', 'text'),
       ),
     },
@@ -507,6 +560,17 @@ describe('value lineage', () => {
           },
         },
       ],
+    })
+  })
+
+  it('leaves an unknown-literal call unresolved when several path overloads survive', async () => {
+    const statement = (await parseSql("SELECT length('x') AS value")).stmts![0]!.stmt!
+
+    expect(traceValueLineage(statement, catalog)[0]!.value).toEqual({
+      kind: 'transform',
+      operation: { kind: 'function', function: { name: 'length' }, resolution: null },
+      inputs: [literal('x', null)],
+      resolvedType: null,
     })
   })
 })
