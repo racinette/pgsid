@@ -32,7 +32,7 @@ export interface ProjectArtifact {
 }
 
 export type ProjectDiagnostic =
-  | { source: 'schema'; path: string | null; diagnostic: SqlDiagnostic }
+  | { source: 'schema'; path: string | null; content?: Buffer; diagnostic: SqlDiagnostic }
   | { source: 'query'; path: string; diagnostic: QueryBatchDiagnostic }
   | { source: 'analysis'; queryId: string; diagnostic: QueryAnalysisDiagnostic }
   | {
@@ -101,6 +101,7 @@ export interface ReconcileProjectBuildOptions {
 
 export interface ProjectSchemaDiagnostic {
   path: string | null
+  content?: Buffer
   diagnostic: SqlDiagnostic
 }
 
@@ -239,7 +240,12 @@ const collectDiagnostics = (
   analysis: QueryAnalysisState,
   schema: readonly ProjectSchemaDiagnostic[],
 ): ProjectDiagnostic[] => [
-  ...schema.map(({ path, diagnostic }) => ({ source: 'schema' as const, path, diagnostic })),
+  ...schema.map(({ path, content, diagnostic }) => ({
+    source: 'schema' as const,
+    path,
+    ...(content ? { content } : {}),
+    diagnostic,
+  })),
   ...Object.values(batch.files).flatMap((file) =>
     file.diagnostics.map((diagnostic) => ({
       source: 'query' as const,

@@ -33,6 +33,7 @@ export interface QueryBatchItem {
 
 export interface QueryBatchFileState {
   path: string
+  content: string
   contentHash: string
   routes: readonly QueryCodegenRoute[]
   queries: readonly QueryBatchItem[]
@@ -109,7 +110,7 @@ export async function reconcileQueryBatch(
       stats.cacheMisses++
     }
     parseCache[contentHash] = parsed
-    files[input.path] = fileState(input.path, input.routes ?? [], contentHash, parsed)
+    files[input.path] = fileState(input.path, content, input.routes ?? [], contentHash, parsed)
   }
 
   const state = { files, parseCache }
@@ -138,15 +139,17 @@ const parseSource = async (content: string): Promise<QueryParseCacheEntry> => {
 
 const fileState = (
   path: string,
+  content: string,
   routes: readonly QueryCodegenRoute[],
   contentHash: string,
   parsed: QueryParseCacheEntry,
 ): QueryBatchFileState => {
   if (parsed.status === 'failure') {
-    return { path, routes, contentHash, queries: [], diagnostics: parsed.diagnostics }
+    return { path, content, routes, contentHash, queries: [], diagnostics: parsed.diagnostics }
   }
   return {
     path,
+    content,
     routes,
     contentHash,
     queries: parsed.parsed.queries.map((definition) => queryItem(path, routes, definition)),

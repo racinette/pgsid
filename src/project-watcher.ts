@@ -15,6 +15,7 @@ export interface ProjectBuildWatcherOptions {
   watchOptions?: Omit<ChokidarOptions, 'ignoreInitial'>
   onUpdate?: (update: ProjectBuildUpdate) => void
   onError?: (error: unknown) => void
+  allowInitialError?: boolean
 }
 
 export class ProjectBuildWatcher {
@@ -56,7 +57,7 @@ export class ProjectBuildWatcher {
       project.#started = true
       project.#dirty = true
       await project.#flush()
-      if (project.#lastError !== undefined) throw project.#lastError
+      if (project.#lastError !== undefined && !options.allowInitialError) throw project.#lastError
       return project
     } catch (error) {
       await project.close()

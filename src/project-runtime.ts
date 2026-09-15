@@ -33,6 +33,7 @@ export interface ProjectRuntimeWatchOptions {
   debounceMs?: number
   onUpdate?: ProjectBuildWatcherOptions['onUpdate']
   onError?: ProjectBuildWatcherOptions['onError']
+  allowInitialError?: boolean
 }
 
 export interface WatchProjectOptions extends ProjectRuntimeOptions, ProjectRuntimeWatchOptions {}
@@ -41,6 +42,7 @@ export class ProjectSchemaError extends Error {
   constructor(
     public readonly path: string,
     public readonly diagnostics: readonly SqlDiagnostic[],
+    public readonly content?: Buffer,
   ) {
     super(
       `Could not apply migration ${JSON.stringify(path)}: ${diagnostics.map((item) => item.message).join('; ')}`,
@@ -71,6 +73,7 @@ export class ProjectRuntime {
   readonly baseDirectory: string
   readonly configPath: string
   readonly #coordinator = new ProjectBuildCoordinator()
+  readonly #fileOverlays = new Map<string, Buffer>()
   #generation: SchemaGeneration | undefined
   #watcher: ProjectBuildWatcher | undefined
   #ignoredRoots: readonly string[] = []
@@ -112,6 +115,7 @@ export class ProjectRuntime {
       debounceMs: options.debounceMs,
       onUpdate: options.onUpdate,
       onError: options.onError,
+      allowInitialError: options.allowInitialError,
       watchOptions: { ignored: (path) => this.#ignore(path) },
     })
     this.#watcher = watcher
@@ -120,6 +124,17 @@ export class ProjectRuntime {
 
   invalidate(): void {
     this.#watcher?.invalidate()
+  }
+
+  setFileOverlay(path: string, content: string | Buffer | undefined): void {
+    const absolutePath = resolve(this.baseDirectory, path)
+    if (content === undefined) this.#fileOverlays.delete(absolutePath)
+    else
+      this.#fileOverlays.set(
+        absolutePath,
+        Buffer.isBuffer(content) ? Buffer.from(content) : Buffer.from(content, 'utf8'),
+      )
+    this.invalidate()
   }
 
   async drain(): Promise<void> {
@@ -136,7 +151,7 @@ export class ProjectRuntime {
 
   async #acquire(): Promise<ProjectBuildRequest> {
     const config = loadConfig({ configPath: this.configPath })
-    const migrations = await loadMigrations(config, this.baseDirectory)
+    const migrations = await loadMigrations(config, this.baseDirectory, (path) => this.#read(path))
     const schemaKey = hash(
       stableJson([
         config.sql.typecheck.plpgsql,
@@ -187,6 +202,7 @@ export class ProjectRuntime {
     const sources = await loadQuerySources(config, {
       baseDirectory: this.baseDirectory,
       targets,
+      readFile: (path) => this.#read(path),
     })
     return {
       sources,
@@ -219,6 +235,11 @@ export class ProjectRuntime {
     if (local === '.git' || local.startsWith('.git/')) return true
     if (local === 'node_modules' || local.startsWith('node_modules/')) return true
     return this.#ignoredRoots.some((root) => within(root, absolutePath))
+  }
+
+  #read(path: string): Promise<Buffer> {
+    const content = this.#fileOverlays.get(resolve(path))
+    return content ? Promise.resolve(Buffer.from(content)) : readFile(path)
   }
 }
 
@@ -271,11 +292,12 @@ export async function watchProject(options: WatchProjectOptions = {}): Promise<P
 const loadMigrations = async (
   config: Config,
   baseDirectory: string,
+  read: (path: string) => Promise<Buffer> = readFile,
 ): Promise<readonly LoadedMigration[]> => {
   const discovered = await discoverMigrationFiles(config, { baseDirectory })
   return Promise.all(
     discovered.map(async (migration) => {
-      const content = await readFile(migration.absolutePath)
+      const content = await read(migration.absolutePath)
       return { ...migration, content, hash: hash(content) }
     }),
   )
@@ -303,13 +325,19 @@ const buildGeneration = async (
             ...diagnostic,
             migrationIndex: migration.index,
           })),
+          migration.content,
         )
       }
     }
-    const diagnostics = (await builder.validate(pg)).map((diagnostic) => ({
-      path: migrationPath(migrations, diagnostic.migrationIndex),
-      diagnostic,
-    }))
+    const diagnostics = (await builder.validate(pg)).map((diagnostic) => {
+      const migration =
+        diagnostic.migrationIndex === undefined ? undefined : migrations[diagnostic.migrationIndex]
+      return {
+        path: migration?.path ?? null,
+        ...(migration ? { content: migration.content } : {}),
+        diagnostic,
+      }
+    })
     return {
       key,
       pg,
@@ -374,11 +402,6 @@ const setSearchPath = async (pg: PGlite, searchPath: readonly string[]): Promise
   const value = searchPath.map((name) => `"${name.replaceAll('"', '""')}"`).join(', ')
   await pg.query("SELECT set_config('search_path', $1, false)", [value])
 }
-
-const migrationPath = (
-  migrations: readonly LoadedMigration[],
-  index: number | undefined,
-): string | null => (index === undefined ? null : (migrations[index]?.path ?? null))
 
 const within = (root: string, path: string): boolean => {
   const local = relative(root, path)
