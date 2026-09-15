@@ -146,7 +146,7 @@ sql:
     expect(exitCode).toBe(0)
     expect(io.stdout()).toBe('pgsid: check passed\n')
     await expect(readFile(join(root, 'generated/account.ts'), 'utf8')).resolves.toContain(
-      'export type ListAccountsRow = { "id": string | null }',
+      '"id": string | null;',
     )
   })
 

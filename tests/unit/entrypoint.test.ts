@@ -63,6 +63,7 @@ const SURFACE = [
   'renderTypescriptJsonSchema',
   'renderTypescriptJsonSchemaLineage',
   'renderTypescriptQueryArtifacts',
+  'renderTypescriptSchemaArtifacts',
   'resolveJsonSchemaLineage',
   'rewriteNamedParameters',
   'snapshotCatalog',

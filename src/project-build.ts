@@ -2,10 +2,16 @@ import { createHash } from 'node:crypto'
 import { dirname, extname, relative, sep } from 'node:path'
 import type { JsonSchemaDocument, Config } from './config/schema.js'
 import type { SqlDiagnostic } from './errors.js'
+import type { CatalogSnapshot } from './catalog/types.js'
+import {
+  renderTypescriptSchemaArtifacts,
+  type TypescriptSchemaArtifact,
+  type TypescriptSchemaDiagnostic,
+} from './codegen/typescript/schema.js'
 import {
   renderTypescriptQueryArtifacts,
   type TypescriptQueryDiagnostic,
-} from './codegen/typescript-query.js'
+} from './codegen/typescript/query.js'
 import {
   EMPTY_QUERY_ANALYSIS_STATE,
   reconcileQueryAnalysis,
@@ -24,7 +30,7 @@ import {
 export interface ProjectArtifact {
   path: string
   sourcePath: string
-  kind: 'types' | 'wrappers'
+  kind: 'schema' | 'types' | 'wrappers'
   content: string
   hash: string
 }
@@ -33,7 +39,11 @@ export type ProjectDiagnostic =
   | { source: 'schema'; path: string | null; diagnostic: SqlDiagnostic }
   | { source: 'query'; path: string; diagnostic: QueryBatchDiagnostic }
   | { source: 'analysis'; queryId: string; diagnostic: QueryAnalysisDiagnostic }
-  | { source: 'codegen'; queryId: string; diagnostic: TypescriptQueryDiagnostic }
+  | {
+      source: 'codegen'
+      queryId: string
+      diagnostic: TypescriptQueryDiagnostic | TypescriptSchemaDiagnostic
+    }
 
 export interface ProjectRenderCacheEntry {
   types: string
@@ -41,11 +51,18 @@ export interface ProjectRenderCacheEntry {
   diagnostics: readonly TypescriptQueryDiagnostic[]
 }
 
+export interface ProjectSchemaRenderCacheEntry {
+  key: string
+  artifacts: readonly TypescriptSchemaArtifact[]
+  diagnostics: readonly TypescriptSchemaDiagnostic[]
+}
+
 export interface ProjectBuildState {
   queryBatch: QueryBatchState
   queryAnalysis: QueryAnalysisState
   artifacts: Readonly<Record<string, ProjectArtifact>>
   renderCache: Readonly<Record<string, ProjectRenderCacheEntry>>
+  schemaRenderCache: ProjectSchemaRenderCacheEntry | null
   diagnostics: readonly ProjectDiagnostic[]
 }
 
@@ -80,6 +97,12 @@ export interface ReconcileProjectBuildOptions {
   codegenKey: string
   analysis: ReconcileQueryAnalysisOptions
   schemaDiagnostics?: readonly ProjectSchemaDiagnostic[]
+  schema?: {
+    catalog: CatalogSnapshot
+    key: string
+    outDir: string
+    sourcePath: string
+  }
 }
 
 export interface ProjectSchemaDiagnostic {
@@ -92,6 +115,7 @@ export const EMPTY_PROJECT_BUILD_STATE: ProjectBuildState = {
   queryAnalysis: EMPTY_QUERY_ANALYSIS_STATE,
   artifacts: {},
   renderCache: {},
+  schemaRenderCache: null,
   diagnostics: [],
 }
 
@@ -115,6 +139,38 @@ export async function reconcileProjectBuild(
   const renderCache: Record<string, ProjectRenderCacheEntry> = {}
   let renderCacheHits = 0
   let renderCacheMisses = 0
+  let schemaRenderCache = previous.schemaRenderCache
+
+  if (options.schema) {
+    const renderKey = hash(
+      JSON.stringify([options.codegenKey, options.schema.key, options.schema.outDir]),
+    )
+    if (schemaRenderCache?.key === renderKey) renderCacheHits++
+    else {
+      const result = renderTypescriptSchemaArtifacts(
+        options.schema.catalog,
+        options.config,
+        options.schemas,
+        options.schema.outDir,
+      )
+      schemaRenderCache = { key: renderKey, ...result }
+      renderCacheMisses++
+    }
+    diagnostics.push(
+      ...schemaRenderCache.diagnostics.map((diagnostic) => ({
+        source: 'codegen' as const,
+        queryId: '<schema>',
+        diagnostic,
+      })),
+    )
+    if (schemaRenderCache.diagnostics.length === 0) {
+      for (const artifact of schemaRenderCache.artifacts) {
+        addArtifact(artifacts, artifact.path, options.schema.sourcePath, 'schema', artifact.content)
+      }
+    }
+  } else {
+    schemaRenderCache = null
+  }
 
   for (const file of Object.values(batch.state.files).sort((a, b) => compareText(a.path, b.path))) {
     const fileAnalyses = file.queries
@@ -171,6 +227,7 @@ export async function reconcileProjectBuild(
     queryAnalysis: analysis.state,
     artifacts,
     renderCache,
+    schemaRenderCache,
     diagnostics,
   }
   return {

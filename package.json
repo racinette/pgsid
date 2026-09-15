@@ -28,6 +28,7 @@
     "libpg-query-scanner": "npm:libpg-query@18.1.4",
     "pgsql-deparser": "18.1.1",
     "picomatch": "^4.0.5",
+    "typescript": "^5.7.0",
     "vscode-languageserver": "^10.1.0",
     "vscode-languageserver-textdocument": "^1.0.12",
     "yaml": "^2.9.0",
@@ -43,7 +44,6 @@
     "prettier": "^3.4.0",
     "tsup": "^8.4.0",
     "tsx": "^4.20.3",
-    "typescript": "^5.7.0",
     "typescript-eslint": "^8.67.0",
     "vitest": "^3.0.0"
   },

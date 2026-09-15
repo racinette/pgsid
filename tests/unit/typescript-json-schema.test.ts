@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   renderTypescriptJsonSchema,
   renderTypescriptJsonSchemaLineage,
-} from '../../src/codegen/typescript-json-schema.js'
-import type { JsonSchemaLineage } from '../../src/codegen/json-schema-lineage.js'
+} from '../../src/codegen/typescript/json-schema.js'
+import type { JsonSchemaLineage } from '../../src/codegen/shared/json-schema-lineage.js'
 import type { JsonSchemaDocument } from '../../src/config/schema.js'
 import ts from 'typescript'
 
@@ -29,13 +29,15 @@ describe('TypeScript JSON Schema rendering', () => {
         },
         additionalProperties: false,
       }),
-    ).toBe('{ "id": number; "label"?: string }')
+    ).toSatisfy((source: string) => compact(source) === '{ "id": number; "label"?: string; }')
     expect(
       renderTypescriptJsonSchema({
         type: 'object',
         properties: { id: { type: 'integer' } },
       }),
-    ).toBe('{ "id"?: number; [key: string]: unknown }')
+    ).toSatisfy(
+      (source: string) => compact(source) === '{ "id"?: number; [key: string]: unknown; }',
+    )
     expect(renderTypescriptJsonSchema({ type: 'object', additionalProperties: false })).toBe(
       'Record<string, never>',
     )
@@ -52,7 +54,7 @@ describe('TypeScript JSON Schema rendering', () => {
         minItems: 1,
         items: false,
       }),
-    ).toBe('[number, string?]')
+    ).toSatisfy((source: string) => compact(source) === '[ number, string? ]')
     expect(
       renderTypescriptJsonSchema({
         type: 'array',
@@ -67,7 +69,7 @@ describe('TypeScript JSON Schema rendering', () => {
         prefixItems: [{ type: ['string', 'null'] }],
         items: false,
       }),
-    ).toBe('[(string | null)?]')
+    ).toSatisfy((source: string) => compact(source) === '[ (string | null)? ]')
   })
 
   it('renders local references and schema composition', () => {
@@ -130,3 +132,5 @@ describe('TypeScript JSON Schema rendering', () => {
     }
   })
 })
+
+const compact = (source: string): string => source.replace(/\s+/gu, ' ').trim()

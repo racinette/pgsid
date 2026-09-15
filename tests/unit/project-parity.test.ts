@@ -164,9 +164,7 @@ describe('project build parity', () => {
     const batch = (await reconcileProjectBuild(finalSources, finalOptions)).state
 
     expect(observed(incremental)).toEqual(observed(batch))
-    expect(batch.artifacts['/generated/v2/events.ts']?.content).toContain(
-      '"payload": { "actor"?: string; [key: string]: unknown }',
-    )
+    expect(batch.artifacts['/generated/v2/events.ts']?.content).toContain('"actor"?: string;')
     expect(batch.diagnostics.map((diagnostic) => diagnostic.source)).toEqual([
       'analysis',
       'analysis',

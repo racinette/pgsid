@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { loadJsonSchemaDocuments } from '../../src/codegen/json-schema-loader.js'
+import { loadJsonSchemaDocuments } from '../../src/codegen/shared/json-schema-loader.js'
 import { parseConfigString } from '../../src/config/loader.js'
 
 describe('JSON Schema document loading', () => {

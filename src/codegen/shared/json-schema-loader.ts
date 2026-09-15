@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { ConfigError } from '../config/loader.js'
-import { jsonSchemaDocumentSchema, type Config, type JsonSchemaDocument } from '../config/schema.js'
+import { ConfigError } from '../../config/loader.js'
+import {
+  jsonSchemaDocumentSchema,
+  type Config,
+  type JsonSchemaDocument,
+} from '../../config/schema.js'
 
 export interface LoadJsonSchemaDocumentsOptions {
   /** Directory used to resolve file-backed definitions. Defaults to the process cwd. */
