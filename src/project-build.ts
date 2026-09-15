@@ -1,17 +1,11 @@
 import { createHash } from 'node:crypto'
-import { dirname, extname, relative, sep } from 'node:path'
-import type { JsonSchemaDocument, Config } from './config/schema.js'
 import type { SqlDiagnostic } from './errors.js'
 import type { CatalogSnapshot } from './catalog/types.js'
 import {
-  renderTypescriptSchemaArtifacts,
-  type TypescriptSchemaArtifact,
-  type TypescriptSchemaDiagnostic,
-} from './codegen/typescript/schema.js'
-import {
-  renderTypescriptQueryArtifacts,
-  type TypescriptQueryDiagnostic,
-} from './codegen/typescript/query.js'
+  type CodegenArtifact,
+  type CodegenDiagnostic,
+  type CodegenTarget,
+} from './codegen/target.js'
 import {
   EMPTY_QUERY_ANALYSIS_STATE,
   reconcileQueryAnalysis,
@@ -30,7 +24,8 @@ import {
 export interface ProjectArtifact {
   path: string
   sourcePath: string
-  kind: 'schema' | 'types' | 'wrappers'
+  target: string
+  kind: string
   content: string
   hash: string
 }
@@ -41,20 +36,20 @@ export type ProjectDiagnostic =
   | { source: 'analysis'; queryId: string; diagnostic: QueryAnalysisDiagnostic }
   | {
       source: 'codegen'
+      target: string
       queryId: string
-      diagnostic: TypescriptQueryDiagnostic | TypescriptSchemaDiagnostic
+      diagnostic: CodegenDiagnostic
     }
 
 export interface ProjectRenderCacheEntry {
-  types: string
-  wrappers: string
-  diagnostics: readonly TypescriptQueryDiagnostic[]
+  artifacts: readonly CodegenArtifact[]
+  diagnostics: readonly CodegenDiagnostic[]
 }
 
 export interface ProjectSchemaRenderCacheEntry {
   key: string
-  artifacts: readonly TypescriptSchemaArtifact[]
-  diagnostics: readonly TypescriptSchemaDiagnostic[]
+  artifacts: readonly CodegenArtifact[]
+  diagnostics: readonly CodegenDiagnostic[]
 }
 
 export interface ProjectBuildState {
@@ -62,7 +57,7 @@ export interface ProjectBuildState {
   queryAnalysis: QueryAnalysisState
   artifacts: Readonly<Record<string, ProjectArtifact>>
   renderCache: Readonly<Record<string, ProjectRenderCacheEntry>>
-  schemaRenderCache: ProjectSchemaRenderCacheEntry | null
+  schemaRenderCache: Readonly<Record<string, ProjectSchemaRenderCacheEntry>>
   diagnostics: readonly ProjectDiagnostic[]
 }
 
@@ -92,15 +87,12 @@ export interface ProjectBuildUpdate {
 }
 
 export interface ReconcileProjectBuildOptions {
-  config: Config
-  schemas: Readonly<Record<string, JsonSchemaDocument>>
-  codegenKey: string
+  targets: readonly CodegenTarget[]
   analysis: ReconcileQueryAnalysisOptions
   schemaDiagnostics?: readonly ProjectSchemaDiagnostic[]
   schema?: {
     catalog: CatalogSnapshot
     key: string
-    outDir: string
     sourcePath: string
   }
 }
@@ -115,7 +107,7 @@ export const EMPTY_PROJECT_BUILD_STATE: ProjectBuildState = {
   queryAnalysis: EMPTY_QUERY_ANALYSIS_STATE,
   artifacts: {},
   renderCache: {},
-  schemaRenderCache: null,
+  schemaRenderCache: {},
   diagnostics: [],
 }
 
@@ -139,44 +131,39 @@ export async function reconcileProjectBuild(
   const renderCache: Record<string, ProjectRenderCacheEntry> = {}
   let renderCacheHits = 0
   let renderCacheMisses = 0
-  let schemaRenderCache = previous.schemaRenderCache
+  const schemaRenderCache: Record<string, ProjectSchemaRenderCacheEntry> = {}
+  const targets = targetIndex(options.targets)
 
   if (options.schema) {
-    const renderKey = hash(
-      JSON.stringify([options.codegenKey, options.schema.key, options.schema.outDir]),
-    )
-    if (schemaRenderCache?.key === renderKey) renderCacheHits++
-    else {
-      const result = renderTypescriptSchemaArtifacts(
-        options.schema.catalog,
-        options.config,
-        options.schemas,
-        options.schema.outDir,
+    for (const target of options.targets) {
+      if (!target.renderSchema) continue
+      const renderKey = hash(JSON.stringify([target.key, options.schema.key]))
+      let rendered = previous.schemaRenderCache[target.id]
+      if (rendered?.key === renderKey) renderCacheHits++
+      else {
+        rendered = { key: renderKey, ...target.renderSchema(options.schema.catalog) }
+        renderCacheMisses++
+      }
+      schemaRenderCache[target.id] = rendered
+      diagnostics.push(
+        ...rendered.diagnostics.map((diagnostic) => ({
+          source: 'codegen' as const,
+          target: target.id,
+          queryId: diagnostic.queryId,
+          diagnostic,
+        })),
       )
-      schemaRenderCache = { key: renderKey, ...result }
-      renderCacheMisses++
-    }
-    diagnostics.push(
-      ...schemaRenderCache.diagnostics.map((diagnostic) => ({
-        source: 'codegen' as const,
-        queryId: '<schema>',
-        diagnostic,
-      })),
-    )
-    if (schemaRenderCache.diagnostics.length === 0) {
-      for (const artifact of schemaRenderCache.artifacts) {
-        addArtifact(artifacts, artifact.path, options.schema.sourcePath, 'schema', artifact.content)
+      if (rendered.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) continue
+      for (const artifact of rendered.artifacts) {
+        addArtifact(artifacts, artifact, options.schema.sourcePath, target.id)
       }
     }
-  } else {
-    schemaRenderCache = null
   }
 
   for (const file of Object.values(batch.state.files).sort((a, b) => compareText(a.path, b.path))) {
     const fileAnalyses = file.queries
       .map((query) => analysis.state.analyses[query.id]!)
       .filter(Boolean)
-    if (!file.output) continue
     const hasErrors =
       file.diagnostics.length > 0 ||
       fileAnalyses.some((item) =>
@@ -184,40 +171,35 @@ export async function reconcileProjectBuild(
       )
     if (hasErrors) continue
 
-    const renderKey = hash(
-      JSON.stringify([
-        options.codegenKey,
-        file.output,
-        fileAnalyses.map((item) => [item.query.semanticHash, item.resultHash]),
-      ]),
-    )
-    let rendered = renderCache[renderKey] ?? previous.renderCache[renderKey]
-    if (rendered) renderCacheHits++
-    else {
-      const result = renderTypescriptQueryArtifacts(fileAnalyses, options.config, options.schemas, {
-        typesModuleSpecifier: file.output.wrappers
-          ? moduleSpecifier(file.output.wrappers, file.output.types)
-          : undefined,
-      })
-      rendered = {
-        types: result.types ?? '',
-        wrappers: result.wrappers ?? '',
-        diagnostics: result.diagnostics,
+    for (const route of file.routes) {
+      const target = targets[route.target]
+      if (!target) throw new Error(`Unknown codegen target ${JSON.stringify(route.target)}`)
+      const renderKey = hash(
+        JSON.stringify([
+          target.key,
+          route,
+          fileAnalyses.map((item) => [item.query.analysisHash, item.resultHash]),
+        ]),
+      )
+      let rendered = renderCache[renderKey] ?? previous.renderCache[renderKey]
+      if (rendered) renderCacheHits++
+      else {
+        rendered = target.renderQueries(fileAnalyses, route)
+        renderCacheMisses++
       }
-      renderCacheMisses++
-    }
-    renderCache[renderKey] = rendered
-    diagnostics.push(
-      ...rendered.diagnostics.map((diagnostic) => ({
-        source: 'codegen' as const,
-        queryId: diagnostic.queryId,
-        diagnostic,
-      })),
-    )
-    if (rendered.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) continue
-    addArtifact(artifacts, file.output.types, file.path, 'types', rendered.types)
-    if (file.output.wrappers) {
-      addArtifact(artifacts, file.output.wrappers, file.path, 'wrappers', rendered.wrappers)
+      renderCache[renderKey] = rendered
+      diagnostics.push(
+        ...rendered.diagnostics.map((diagnostic) => ({
+          source: 'codegen' as const,
+          target: target.id,
+          queryId: diagnostic.queryId,
+          diagnostic,
+        })),
+      )
+      if (rendered.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) continue
+      for (const artifact of rendered.artifacts) {
+        addArtifact(artifacts, artifact, file.path, target.id)
+      }
     }
   }
 
@@ -268,20 +250,31 @@ const collectDiagnostics = (
 
 const addArtifact = (
   artifacts: Record<string, ProjectArtifact>,
-  path: string,
+  artifact: CodegenArtifact,
   sourcePath: string,
-  kind: ProjectArtifact['kind'],
-  content: string,
+  target: string,
 ): void => {
-  artifacts[path] = { path, sourcePath, kind, content, hash: hash(content) }
+  const owner = artifacts[artifact.path]
+  if (owner) {
+    throw new Error(
+      `Codegen targets ${JSON.stringify(owner.target)} and ${JSON.stringify(target)} both emit ${JSON.stringify(artifact.path)}`,
+    )
+  }
+  artifacts[artifact.path] = {
+    ...artifact,
+    sourcePath,
+    target,
+    hash: hash(artifact.content),
+  }
 }
 
-const moduleSpecifier = (wrapperPath: string, typesPath: string): string => {
-  let path = relative(dirname(wrapperPath), typesPath).split(sep).join('/')
-  const extension = extname(path)
-  if (extension) path = `${path.slice(0, -extension.length)}.js`
-  if (!path.startsWith('.')) path = `./${path}`
-  return path
+const targetIndex = (targets: readonly CodegenTarget[]): Record<string, CodegenTarget> => {
+  const result: Record<string, CodegenTarget> = {}
+  for (const target of targets) {
+    if (result[target.id]) throw new Error(`Duplicate codegen target ${JSON.stringify(target.id)}`)
+    result[target.id] = target
+  }
+  return result
 }
 
 const diffProject = (
@@ -319,7 +312,7 @@ const eventKey = (event: ProjectBuildEvent): string =>
 const diagnosticKey = (diagnostic: ProjectDiagnostic): string =>
   diagnostic.source === 'query' || diagnostic.source === 'schema'
     ? `${diagnostic.path ?? ''}\u0000${diagnostic.source}\u0000${diagnostic.diagnostic.code ?? ''}`
-    : `${diagnostic.queryId}\u0000${diagnostic.source}\u0000${diagnostic.diagnostic.code}`
+    : `${diagnostic.queryId}\u0000${diagnostic.source}\u0000${diagnostic.source === 'codegen' ? diagnostic.target : ''}\u0000${diagnostic.diagnostic.code}`
 
 const hash = (content: string): string => createHash('sha256').update(content).digest('hex')
 const compareText = (left: string, right: string): number =>

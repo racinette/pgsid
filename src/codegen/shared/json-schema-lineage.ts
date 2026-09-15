@@ -1,4 +1,4 @@
-import type { Config, JsonSchemaDocument, JsonValue } from '../../config/schema.js'
+import type { JsonSchemaDocument, JsonValue } from '../../config/schema.js'
 import type { DatabaseColumn, ValueLineage } from '../../query/value-lineage.js'
 
 export interface ColumnJsonSchemaBinding {
@@ -29,23 +29,6 @@ export interface JsonSchemaLineage {
 
 const columnKey = (column: DatabaseColumn): string =>
   `${column.schema}.${column.relation}.${column.column}`
-
-export function typescriptJsonSchemaBindings(
-  config: Config,
-  schemas: Readonly<Record<string, JsonSchemaDocument>>,
-): JsonSchemaBindings {
-  const target = config.sql.codegen?.typescript
-  const columns: Record<string, ColumnJsonSchemaBinding> = {}
-  for (const [column, mapping] of Object.entries(target?.mappings.column ?? {})) {
-    if (typeof mapping === 'string' || !('jsonSchema' in mapping)) continue
-    columns[column] = {
-      schemaName: mapping.jsonSchema,
-      runtimeValidation:
-        mapping.runtimeValidation ?? target?.jsonSchemas.runtimeValidation ?? false,
-    }
-  }
-  return { schemas, columns }
-}
 
 export function resolveJsonSchemaLineage(
   value: ValueLineage,

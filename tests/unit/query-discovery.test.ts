@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
+import { createCodegenTargets } from '../../src/codegen/registry.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { discoverQueryFiles, QueryDiscoveryError } from '../../src/query-discovery.js'
 
@@ -54,15 +55,17 @@ describe('discoverQueryFiles', () => {
       'sql/accounts/get_test.sql',
       'sql/reporting/report.sql',
     ])
-    expect(files[0]!.output).toEqual({ types: join(root, 'generated/admin/list.ts') })
-    expect(files[1]!.output).toEqual({
-      types: join(root, 'generated/account-types/get.ts'),
-      wrappers: join(root, 'generated/account-wrappers/get.ts'),
-    })
-    expect(files[2]!.output).toBeUndefined()
-    expect(files[3]!.output).toEqual({
-      types: join(root, 'generated/all/reporting/report.ts'),
-    })
+    expect(files[0]!.routes[0]!.outputs).toEqual([
+      { kind: 'types', path: join(root, 'generated/admin/list.ts') },
+    ])
+    expect(files[1]!.routes[0]!.outputs).toEqual([
+      { kind: 'types', path: join(root, 'generated/account-types/get.ts') },
+      { kind: 'wrappers', path: join(root, 'generated/account-wrappers/get.ts') },
+    ])
+    expect(files[2]!.routes).toEqual([])
+    expect(files[3]!.routes[0]!.outputs).toEqual([
+      { kind: 'types', path: join(root, 'generated/all/reporting/report.ts') },
+    ])
   })
 
   it('honors negative discovery globs and leaves unmapped files available for checking', async () => {
@@ -77,11 +80,12 @@ describe('discoverQueryFiles', () => {
               out:
                 other: generated
     `)
-    const files = await discoverQueryFiles(config, { baseDirectory: root })
+    const targets = createCodegenTargets(config, {}, { baseDirectory: root })
+    const files = await discoverQueryFiles(config, { baseDirectory: root, targets })
 
     expect(files).toHaveLength(1)
     expect(files[0]!.path).toBe('sql/reporting/report.sql')
-    expect(files[0]!.output).toBeUndefined()
+    expect(files[0]!.routes).toEqual([])
   })
 
   it('rejects two source routes that resolve to one output file', async () => {
@@ -99,9 +103,10 @@ describe('discoverQueryFiles', () => {
                 sql/reporting: generated
     `)
 
-    await expect(discoverQueryFiles(config, { baseDirectory: root })).rejects.toBeInstanceOf(
-      QueryDiscoveryError,
-    )
+    const targets = createCodegenTargets(config, {}, { baseDirectory: root })
+    await expect(
+      discoverQueryFiles(config, { baseDirectory: root, targets }),
+    ).rejects.toBeInstanceOf(QueryDiscoveryError)
   })
 
   it('returns no files for an empty path set', async () => {

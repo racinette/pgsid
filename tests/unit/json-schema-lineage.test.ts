@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   resolveJsonSchemaLineage,
-  typescriptJsonSchemaBindings,
   type JsonSchemaBindings,
 } from '../../src/codegen/shared/json-schema-lineage.js'
+import { typescriptJsonSchemaBindings } from '../../src/codegen/typescript/json-schema-bindings.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import type { JsonSchemaDocument } from '../../src/config/schema.js'
 import type { DatabaseColumn, ValueLineage, ValueOperation } from '../../src/query/value-lineage.js'

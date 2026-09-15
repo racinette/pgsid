@@ -12,7 +12,12 @@ import { reconcileQueryBatch, type QuerySourceInput } from '../../src/query-batc
 const source = (content: string, path = 'queries.sql'): QuerySourceInput => ({
   path,
   content,
-  output: { types: '/generated/queries.ts' },
+  routes: [
+    {
+      target: 'test',
+      outputs: [{ kind: 'types', path: '/generated/queries.ts' }],
+    },
+  ],
 })
 
 describe('reconcileQueryAnalysis', () => {
@@ -164,7 +169,17 @@ describe('reconcileQueryAnalysis', () => {
     const firstBatch = await reconcileQueryBatch([source(content)])
     const first = await reconcileQueryAnalysis(firstBatch.state, options)
     const reroutedBatch = await reconcileQueryBatch(
-      [{ ...source(content), output: { types: '/generated/elsewhere.ts' } }],
+      [
+        {
+          ...source(content),
+          routes: [
+            {
+              target: 'test',
+              outputs: [{ kind: 'types', path: '/generated/elsewhere.ts' }],
+            },
+          ],
+        },
+      ],
       firstBatch.state,
     )
     describeCalls = 0

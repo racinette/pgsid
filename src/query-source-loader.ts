@@ -21,7 +21,7 @@ const loadSource = async (file: DiscoveredQueryFile): Promise<QuerySourceInput |
     return {
       path: file.path,
       content: await readFile(file.absolutePath),
-      ...(file.output ? { output: file.output } : {}),
+      routes: file.routes,
     }
   } catch (error) {
     if (isMissing(error)) return undefined

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import { createCodegenTargets } from '../../src/codegen/registry.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { ProjectBuildCoordinator } from '../../src/project-coordinator.js'
 import {
@@ -14,7 +15,12 @@ import type { QuerySourceInput } from '../../src/query-batch.js'
 const source = (value: number): QuerySourceInput => ({
   path: 'query.sql',
   content: `-- name: Value :one\nSELECT ${value} AS value;`,
-  output: { types: '/virtual/query.ts' },
+  routes: [
+    {
+      target: 'typescript',
+      outputs: [{ kind: 'types', path: '/virtual/query.ts' }],
+    },
+  ],
 })
 
 describe('ProjectBuildCoordinator', () => {
@@ -24,15 +30,14 @@ describe('ProjectBuildCoordinator', () => {
   beforeAll(async () => {
     pg = await PGlite.create()
     const catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
-    options = {
-      config: parseConfigString(`
+    const config = parseConfigString(`
         schema: migrations/*.sql
         sql:
           codegen:
             typescript: {}
-      `),
-      schemas: {},
-      codegenKey: 'codegen-1',
+      `)
+    options = {
+      targets: createCodegenTargets(config, {}, { baseDirectory: '/' }),
       analysis: {
         schemaKey: 'schema-1',
         analysisKey: 'analysis-1',

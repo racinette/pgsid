@@ -39,6 +39,7 @@ const SURFACE = [
   'buildNullabilityCatalog',
   'buildProject',
   'compareShapes',
+  'createCodegenTargets',
   'discoverMigrationFiles',
   'discoverQueryFiles',
   'findConfigPath',

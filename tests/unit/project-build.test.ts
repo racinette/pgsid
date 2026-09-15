@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import { createCodegenTargets } from '../../src/codegen/registry.js'
+import type { CodegenTarget } from '../../src/codegen/target.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import {
   reconcileProjectBuild,
@@ -22,12 +24,13 @@ describe('reconcileProjectBuild', () => {
         codegen:
           typescript:
             queries:
-              out: {}
+              out:
+                queries:
+                  types: /generated
+                  wrappers: /app
     `)
     options = {
-      config,
-      schemas: {},
-      codegenKey: 'codegen-1',
+      targets: createCodegenTargets(config, {}, { baseDirectory: '/' }),
       analysis: {
         schemaKey: 'schema-1',
         analysisKey: 'analysis-1',
@@ -65,10 +68,7 @@ describe('reconcileProjectBuild', () => {
     const source = (content: string) => ({
       path: 'queries/events.sql',
       content,
-      output: {
-        types: '/generated/events.ts',
-        wrappers: '/app/events.ts',
-      },
+      routes: [options.targets[0]!.routeQuery('queries/events.sql')!],
     })
     const initial = await reconcileProjectBuild(
       [source('-- name: GetEvent :one\nSELECT id, note FROM events WHERE id = @id;')],
@@ -128,5 +128,48 @@ describe('reconcileProjectBuild', () => {
     ])
     expect(update.state.artifacts).toEqual({})
     expect(update.stats).toMatchObject({ analysisCacheMisses: 1, renderCacheMisses: 0 })
+  })
+
+  it('renders multiple registered targets without language-specific build logic', async () => {
+    const target: CodegenTarget = {
+      id: 'go',
+      key: 'go-1',
+      outputRoots: ['/generated'],
+      routeQuery: () => undefined,
+      renderQueries: (analyses, route) => ({
+        artifacts: [
+          {
+            ...route.outputs[0]!,
+            content: `package queries\n// ${analyses[0]!.query.name}\n`,
+          },
+        ],
+        diagnostics: [],
+      }),
+    }
+    const route = {
+      target: 'go',
+      outputs: [{ kind: 'queries', path: '/generated/events.go' }],
+    }
+    const update = await reconcileProjectBuild(
+      [
+        {
+          path: 'queries/events.sql',
+          content: '-- name: GetEvent :one\nSELECT id FROM events;',
+          routes: [options.targets[0]!.routeQuery('queries/events.sql')!, route],
+        },
+      ],
+      { ...options, targets: [...options.targets, target] },
+    )
+
+    expect(update.state.artifacts['/generated/events.ts']).toMatchObject({
+      target: 'typescript',
+      kind: 'types',
+    })
+    expect(update.state.artifacts['/generated/events.go']).toMatchObject({
+      target: 'go',
+      kind: 'queries',
+      content: 'package queries\n// GetEvent\n',
+    })
+    expect(update.stats.renderCacheMisses).toBe(2)
   })
 })

@@ -6,11 +6,7 @@ import {
   type DatabaseColumn,
   type ValueLineage,
 } from '../../query/value-lineage.js'
-import {
-  resolveJsonSchemaLineage,
-  typescriptJsonSchemaBindings,
-  type JsonSchemaLineage,
-} from '../shared/json-schema-lineage.js'
+import { resolveJsonSchemaLineage, type JsonSchemaLineage } from '../shared/json-schema-lineage.js'
 import {
   asyncModifier,
   exportModifier,
@@ -24,6 +20,7 @@ import {
   unionType,
 } from './ast.js'
 import { typescriptTypeFromJsonSchemaLineage } from './json-schema.js'
+import { typescriptJsonSchemaBindings } from './json-schema-bindings.js'
 import { typescriptJsonSchemaLineageValidatorDeclaration } from './json-schema-validator.js'
 import { resolveTypescriptPgType } from './type-mapping.js'
 
