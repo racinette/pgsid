@@ -5,10 +5,10 @@ import {
   DiagnosticSeverity,
   type Diagnostic,
   type DiagnosticRelatedInformation,
-  type Range,
 } from 'vscode-languageserver'
 import type { SqlDiagnostic } from '../errors.js'
 import type { ProjectBuildState, ProjectDiagnostic } from '../project-build.js'
+import { byteRangeToRange } from './positions.js'
 
 export interface LanguageServerDiagnosticDocument {
   uri: string
@@ -144,7 +144,7 @@ const convertLocated = async (
         return {
           uri,
           diagnostics: items.map((item) => ({
-            range: byteRange(content, item.start, item.end),
+            range: byteRangeToRange(content, item.start, item.end),
             severity: diagnosticSeverity(item.severity),
             code: item.code,
             source: 'pgsid',
@@ -164,27 +164,9 @@ const relatedInformation = (
   related: readonly { start: number; end: number; message: string }[],
 ): DiagnosticRelatedInformation[] =>
   related.map((item) => ({
-    location: { uri, range: byteRange(content, item.start, item.end) },
+    location: { uri, range: byteRangeToRange(content, item.start, item.end) },
     message: item.message,
   }))
-
-const byteRange = (content: Buffer, start: number, end: number): Range => ({
-  start: bytePosition(content, start),
-  end: bytePosition(content, end),
-})
-
-const bytePosition = (content: Buffer, offset: number): { line: number; character: number } => {
-  const clamped = Math.max(
-    0,
-    Math.min(Number.isFinite(offset) ? offset : content.length, content.length),
-  )
-  const prefix = content.subarray(0, clamped).toString('utf8')
-  const lastNewline = prefix.lastIndexOf('\n')
-  return {
-    line: prefix.match(/\n/gu)?.length ?? 0,
-    character: prefix.slice(lastNewline + 1).length,
-  }
-}
 
 const diagnosticSeverity = (severity: LocatedDiagnostic['severity']): DiagnosticSeverity =>
   severity === 'error'

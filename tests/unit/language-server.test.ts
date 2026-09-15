@@ -54,7 +54,7 @@ describe('PgsidLanguageServer', () => {
     })
     const initialized = await peer.waitFor((message) => message.id === 1)
     expect(initialized.result).toMatchObject({
-      capabilities: { positionEncoding: 'utf-16', textDocumentSync: 2 },
+      capabilities: { hoverProvider: true, positionEncoding: 'utf-16', textDocumentSync: 2 },
       serverInfo: { name: 'pgsid' },
     })
     peer.send({ jsonrpc: '2.0', method: 'initialized', params: {} })
@@ -96,6 +96,16 @@ describe('PgsidLanguageServer', () => {
 
     peer.send({
       jsonrpc: '2.0',
+      id: 2,
+      method: 'textDocument/hover',
+      params: { textDocument: { uri: queryUri }, position: { line: 1, character: 12 } },
+    })
+    const hovered = await peer.waitFor((message) => message.id === 2)
+    expect(hoverMarkdown(hovered)).toContain('**Fixed** `one`')
+    expect(hoverMarkdown(hovered)).toContain('value: integer — nullable — public.values_.value')
+
+    peer.send({
+      jsonrpc: '2.0',
       method: 'textDocument/didClose',
       params: { textDocument: { uri: queryUri } },
     })
@@ -116,8 +126,8 @@ describe('PgsidLanguageServer', () => {
       10_000,
     )
 
-    peer.send({ jsonrpc: '2.0', id: 2, method: 'shutdown', params: null })
-    await peer.waitFor((message) => message.id === 2)
+    peer.send({ jsonrpc: '2.0', id: 3, method: 'shutdown', params: null })
+    await peer.waitFor((message) => message.id === 3)
     peer.send({ jsonrpc: '2.0', method: 'exit', params: null })
     await server.close()
   }, 20_000)
@@ -196,3 +206,8 @@ const diagnosticParams = (
   message: JsonRpcMessage,
 ): { uri: string; diagnostics: readonly unknown[] } =>
   message.params as { uri: string; diagnostics: readonly unknown[] }
+
+const hoverMarkdown = (message: JsonRpcMessage): string => {
+  const result = message.result as { contents?: { value?: unknown } } | undefined
+  return typeof result?.contents?.value === 'string' ? result.contents.value : ''
+}
