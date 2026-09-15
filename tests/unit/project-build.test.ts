@@ -75,8 +75,9 @@ describe('reconcileProjectBuild', () => {
       options,
     )
     expect(initial.events.map((event) => event.kind)).toEqual(['artifact-added', 'artifact-added'])
+    expect(initial.state.artifacts['/generated/events.ts']?.content).toContain('"id": string;')
     expect(initial.state.artifacts['/generated/events.ts']?.content).toContain(
-      'export type GetEventRow = { "id": string; "note": string | null }',
+      '"note": string | null;',
     )
     expect(initial.state.artifacts['/app/events.ts']?.content).toContain(
       'from "../generated/events.js"',

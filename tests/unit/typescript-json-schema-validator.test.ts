@@ -4,8 +4,8 @@ import {
   generateTypescriptJsonSchemaLineageValidator,
   generateTypescriptJsonSchemaValidator,
   UnsupportedJsonSchemaError,
-} from '../../src/codegen/typescript-json-schema-validator.js'
-import type { JsonSchemaLineage } from '../../src/codegen/json-schema-lineage.js'
+} from '../../src/codegen/typescript/json-schema-validator.js'
+import type { JsonSchemaLineage } from '../../src/codegen/shared/json-schema-lineage.js'
 
 const evaluateValidator = (source: string, name: string): ((value: unknown) => boolean) => {
   const executable = `${source.replace('export function', 'function')}\nreturn ${name}`

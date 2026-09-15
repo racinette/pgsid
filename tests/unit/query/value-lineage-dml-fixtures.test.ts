@@ -6,7 +6,7 @@ import { parseSql } from '../../../src/ast.js'
 import type { JsonSchemaDocument } from '../../../src/config/schema.js'
 import { snapshotCatalog } from '../../../src/catalog/snapshot.js'
 import { buildNullabilityCatalog } from '../../../src/query/catalog-adapter.js'
-import { resolveJsonSchemaLineage } from '../../../src/codegen/json-schema-lineage.js'
+import { resolveJsonSchemaLineage } from '../../../src/codegen/shared/json-schema-lineage.js'
 import {
   analyzeValueLineage,
   traceValueLineage,

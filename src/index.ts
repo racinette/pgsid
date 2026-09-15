@@ -154,30 +154,30 @@ export {
   type JsonSchemaAlternative,
   type JsonSchemaBindings,
   type JsonSchemaLineage,
-} from './codegen/json-schema-lineage.js'
+} from './codegen/shared/json-schema-lineage.js'
 export {
   loadJsonSchemaDocuments,
   type LoadJsonSchemaDocumentsOptions,
-} from './codegen/json-schema-loader.js'
+} from './codegen/shared/json-schema-loader.js'
 export {
   renderTypescriptJsonSchema,
   renderTypescriptJsonSchemaLineage,
   type RenderTypescriptJsonSchemaLineageOptions,
   type RenderTypescriptJsonSchemaOptions,
-} from './codegen/typescript-json-schema.js'
+} from './codegen/typescript/json-schema.js'
 export {
   generateTypescriptJsonSchemaLineageValidator,
   generateTypescriptJsonSchemaValidator,
   UnsupportedJsonSchemaError,
   type GenerateTypescriptJsonSchemaValidatorOptions,
-} from './codegen/typescript-json-schema-validator.js'
+} from './codegen/typescript/json-schema-validator.js'
 export {
   renderTypescriptQueryArtifacts,
   type RenderTypescriptQueryArtifactsOptions,
   type TypescriptQueryArtifacts,
   type TypescriptQueryDiagnostic,
   type TypescriptQueryDiagnosticCode,
-} from './codegen/typescript-query.js'
+} from './codegen/typescript/query.js'
 export {
   EMPTY_PROJECT_BUILD_STATE,
   reconcileProjectBuild,
@@ -188,9 +188,16 @@ export {
   type ProjectBuildUpdate,
   type ProjectDiagnostic,
   type ProjectRenderCacheEntry,
+  type ProjectSchemaRenderCacheEntry,
   type ProjectSchemaDiagnostic,
   type ReconcileProjectBuildOptions,
 } from './project-build.js'
+export {
+  renderTypescriptSchemaArtifacts,
+  type TypescriptSchemaArtifact,
+  type TypescriptSchemaArtifacts,
+  type TypescriptSchemaDiagnostic,
+} from './codegen/typescript/schema.js'
 export {
   applyProjectBuildEvents,
   type ArtifactWriteResult,

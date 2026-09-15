@@ -1,5 +1,5 @@
-import type { Config, JsonSchemaDocument, JsonValue } from '../config/schema.js'
-import type { DatabaseColumn, ValueLineage } from '../query/value-lineage.js'
+import type { Config, JsonSchemaDocument, JsonValue } from '../../config/schema.js'
+import type { DatabaseColumn, ValueLineage } from '../../query/value-lineage.js'
 
 export interface ColumnJsonSchemaBinding {
   schemaName: string

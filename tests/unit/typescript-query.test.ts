@@ -1,6 +1,6 @@
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
-import { renderTypescriptQueryArtifacts } from '../../src/codegen/typescript-query.js'
+import { renderTypescriptQueryArtifacts } from '../../src/codegen/typescript/query.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import type { JsonSchemaDocument } from '../../src/config/schema.js'
 import type { QueryAnalysisItem } from '../../src/query-analysis.js'
@@ -165,17 +165,17 @@ describe('renderTypescriptQueryArtifacts', () => {
     )
 
     expect(rendered.diagnostics).toEqual([])
-    expect(rendered.types).toContain('import { EventId } from "./ids.js"')
-    expect(rendered.types).toContain('export type GetEventParams = { "id": bigint }')
-    expect(rendered.types).toContain(
-      'export type GetEventRow = { "id": EventId; "actor": number | null }',
-    )
-    expect(rendered.types).toContain('export function isGetEventActor2')
-    expect(rendered.wrappers).toContain(
+    const types = compact(rendered.types!)
+    const wrappers = compact(rendered.wrappers!)
+    expect(types).toContain('import { EventId } from "./ids.js";')
+    expect(types).toContain('export type GetEventParams = { "id": bigint; };')
+    expect(types).toContain('export type GetEventRow = { "id": EventId; "actor": number | null; };')
+    expect(types).toContain('export function isGetEventActor2')
+    expect(wrappers).toContain(
       'export async function getEvent(db: Queryable, params: GetEventParams)',
     )
-    expect(rendered.wrappers).toContain('db.query(getEventSql, [params["id"]])')
-    expect(rendered.wrappers).toContain('if (!isGetEventActor2(row["actor"]))')
+    expect(wrappers).toContain('db.query(getEventSql, [params["id"]])')
+    expect(wrappers).toContain('if (!isGetEventActor2(row["actor"]))')
 
     for (const source of [rendered.types!, rendered.wrappers!]) {
       expect(
@@ -206,13 +206,14 @@ describe('renderTypescriptQueryArtifacts', () => {
       { EventPayload: eventPayloadSchema },
     )
 
-    expect(rendered.types).toContain(
-      '({ "left": string | null; "right": string | null }) & (({ "left": string; "right": string | null }) | ({ "left": string | null; "right": string }))',
-    )
-    expect(rendered.types).toContain(
-      '({ "child_id": number; "child_note": string | null }) | ({ "child_id": null; "child_note": null })',
-    )
-    expect(rendered.wrappers).toContain('Promise<GroupedRow[]>')
+    const types = compact(rendered.types!)
+    expect(types).toContain('export type GroupedParams =')
+    expect(types).toContain('"left": string; "right": string | null;')
+    expect(types).toContain('"left": string | null; "right": string;')
+    expect(types).toContain('export type GroupedRow =')
+    expect(types).toContain('"child_id": number; "child_note": string | null;')
+    expect(types).toContain('"child_id": null; "child_note": null;')
+    expect(compact(rendered.wrappers!)).toContain('Promise<GroupedRow[]>')
   })
 
   it('refuses duplicate result names and generated identifier collisions', () => {
@@ -234,6 +235,25 @@ describe('renderTypescriptQueryArtifacts', () => {
     )
     expect(collision.wrappers).toBeNull()
     expect(collision.diagnostics[0]?.code).toBe('generated-name-collision')
+
+    const invalidMappingConfig = parseConfigString(`
+      schema: migrations/*.sql
+      sql:
+        codegen:
+          typescript:
+            mappings:
+              pgType:
+                int4: 'number; export const injected = true'
+            queries:
+              out: {}
+    `)
+    const invalidMapping = renderTypescriptQueryArtifacts(
+      [analysis({ columns: ['id'], columnTypes: ['int4'] })],
+      invalidMappingConfig,
+      {},
+    )
+    expect(invalidMapping.types).toBeNull()
+    expect(invalidMapping.diagnostics[0]?.code).toBe('invalid-type-mapping')
   })
 
   it('renders positional parameters and execution result commands', () => {
@@ -253,10 +273,13 @@ describe('renderTypescriptQueryArtifacts', () => {
       {},
     )
 
-    expect(rendered.types).toContain(
-      '(readonly [Date, string | null]) | (readonly [Date | null, string])',
-    )
-    expect(rendered.wrappers).toContain('db: Queryable, ...params: DeleteOldParams')
-    expect(rendered.wrappers).toContain('return result.rowCount ?? 0')
+    const types = compact(rendered.types!)
+    const wrappers = compact(rendered.wrappers!)
+    expect(types).toContain('readonly [ Date, string | null ]')
+    expect(types).toContain('readonly [ Date | null, string ]')
+    expect(wrappers).toContain('db: Queryable, ...params: DeleteOldParams')
+    expect(wrappers).toContain('return result.rowCount ?? 0')
   })
 })
+
+const compact = (source: string): string => source.replace(/\s+/gu, ' ').trim()

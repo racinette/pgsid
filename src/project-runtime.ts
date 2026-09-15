@@ -5,7 +5,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
 import { snapshotCatalog } from './catalog/snapshot.js'
 import type { CatalogSnapshot } from './catalog/types.js'
-import { loadJsonSchemaDocuments } from './codegen/json-schema-loader.js'
+import { loadJsonSchemaDocuments } from './codegen/shared/json-schema-loader.js'
 import { findConfigPath, loadConfig } from './config/loader.js'
 import type { Config } from './config/schema.js'
 import type { SqlDiagnostic } from './errors.js'
@@ -166,6 +166,14 @@ export class ProjectRuntime {
         schemas,
         codegenKey: hash(stableJson([config.sql.codegen ?? null, schemas])),
         schemaDiagnostics: generation.diagnostics,
+        schema: config.sql.codegen?.typescript?.schema
+          ? {
+              catalog: generation.snapshot,
+              key: schemaKey,
+              outDir: resolve(this.baseDirectory, config.sql.codegen.typescript.schema.outDir),
+              sourcePath: this.configPath,
+            }
+          : undefined,
         analysis: {
           schemaKey,
           analysisKey: 'query-analysis-v1',

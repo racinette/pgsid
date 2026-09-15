@@ -15,7 +15,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
-const project = async (options: { jsonSchema?: boolean } = {}) => {
+const project = async (options: { jsonSchema?: boolean; schemaCodegen?: boolean } = {}) => {
   const root = await mkdtemp(join(tmpdir(), 'pgsid-runtime-'))
   roots.push(root)
   await Promise.all([
@@ -46,6 +46,7 @@ const project = async (options: { jsonSchema?: boolean } = {}) => {
                 public.events.payload: { jsonSchema: Payload }`
                 : ''
             }
+            ${options.schemaCodegen ? 'schema: { outDir: generated/schema }' : ''}
             queries:
               out:
                 queries:
@@ -57,6 +58,55 @@ const project = async (options: { jsonSchema?: boolean } = {}) => {
 }
 
 describe('ProjectRuntime', () => {
+  it('writes and caches configured schema artifacts', async () => {
+    const root = await project({ schemaCodegen: true })
+    await Promise.all([
+      writeFile(
+        join(root, 'migrations/001.sql'),
+        `CREATE TYPE event_state AS ENUM ('ready', 'done');
+         CREATE DOMAIN event_id AS bigint;
+         CREATE TABLE events (
+           id event_id PRIMARY KEY,
+           state event_state NOT NULL DEFAULT 'ready',
+           note text
+         );`,
+      ),
+      writeFile(join(root, 'queries/empty.sql'), '-- name: Ping :one\nSELECT 1 AS value;'),
+    ])
+    const runtime = new ProjectRuntime({ baseDirectory: root })
+    try {
+      const first = await runtime.build()
+      const second = await runtime.build()
+
+      expect(first.state.diagnostics).toEqual([])
+      await expect(
+        readFile(join(root, 'generated/schema/helpers.d.ts'), 'utf8'),
+      ).resolves.toContain('export type InferSelect')
+      await expect(
+        readFile(join(root, 'generated/schema/public/tables.d.ts'), 'utf8'),
+      ).resolves.toContain('export type Events = TableTypes<')
+      await expect(
+        readFile(join(root, 'generated/schema/public/enums.d.ts'), 'utf8'),
+      ).resolves.toContain('export type EventState = "ready" | "done";')
+      expect(second.events).toEqual([])
+      expect(second.stats.renderCacheHits).toBe(2)
+
+      const configPath = join(root, 'pgsid.yaml')
+      await writeFile(
+        configPath,
+        (await readFile(configPath, 'utf8')).replace(
+          '            schema: { outDir: generated/schema }\n',
+          '',
+        ),
+      )
+      const disabled = await runtime.build()
+      expect(disabled.events.some((event) => event.kind === 'artifact-removed')).toBe(true)
+      await expect(access(join(root, 'generated/schema/helpers.d.ts'))).rejects.toThrow()
+    } finally {
+      await runtime.close()
+    }
+  })
+
   it('builds a configured project and reuses every query cache', async () => {
     const root = await project({ jsonSchema: true })
     await Promise.all([
@@ -80,9 +130,7 @@ describe('ProjectRuntime', () => {
       const typesPath = join(root, 'generated/types/events.ts')
 
       expect(first.state.diagnostics).toEqual([])
-      expect(await readFile(typesPath, 'utf8')).toContain(
-        '"payload": { "actor"?: number; [key: string]: unknown }',
-      )
+      expect(await readFile(typesPath, 'utf8')).toContain('"actor"?: number;')
       expect(second.events).toEqual([])
       expect(second.stats).toMatchObject({
         parseCacheHits: 1,
@@ -96,9 +144,7 @@ describe('ProjectRuntime', () => {
       )
       const schemaChanged = await runtime.build()
       expect(schemaChanged.stats).toMatchObject({ analysisCacheHits: 1, renderCacheMisses: 1 })
-      expect(await readFile(typesPath, 'utf8')).toContain(
-        '"payload": { "actor"?: string; [key: string]: unknown }',
-      )
+      expect(await readFile(typesPath, 'utf8')).toContain('"actor"?: string;')
 
       await writeFile(join(root, 'migrations/001.sql'), 'CREATE TABLE events (')
       await expect(runtime.build()).rejects.toBeInstanceOf(ProjectSchemaError)

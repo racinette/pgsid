@@ -3,7 +3,7 @@ import {
   resolveJsonSchemaLineage,
   typescriptJsonSchemaBindings,
   type JsonSchemaBindings,
-} from '../../src/codegen/json-schema-lineage.js'
+} from '../../src/codegen/shared/json-schema-lineage.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import type { JsonSchemaDocument } from '../../src/config/schema.js'
 import type { DatabaseColumn, ValueLineage, ValueOperation } from '../../src/query/value-lineage.js'
