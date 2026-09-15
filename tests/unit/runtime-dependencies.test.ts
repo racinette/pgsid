@@ -36,10 +36,7 @@ const dependencies = manifest.dependencies ?? {}
 const devDependencies = manifest.devDependencies ?? {}
 
 /** Runtime dependencies exempted from the source-import census. */
-const DECLARED_BUT_UNIMPORTED: Record<string, string> = {
-  'vscode-languageserver': 'reserved for the language-server boundary',
-  'vscode-languageserver-textdocument': 'reserved for the language-server boundary',
-}
+const DECLARED_BUT_UNIMPORTED: Record<string, string> = {}
 
 const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:${m}`)])
 

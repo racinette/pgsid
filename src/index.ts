@@ -102,7 +102,7 @@ export {
   type DiscoveredQueryFile,
   type DiscoverQueryFilesOptions,
 } from './query-discovery.js'
-export { loadQuerySources } from './query-source-loader.js'
+export { loadQuerySources, type LoadQuerySourcesOptions } from './query-source-loader.js'
 export {
   discoverMigrationFiles,
   MigrationDiscoveryError,

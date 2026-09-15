@@ -186,4 +186,31 @@ describe('ProjectBuildWatcher', () => {
     expect(updates).toHaveLength(2)
     await watcher.close()
   })
+
+  it('can remain active after its initial acquisition fails', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pgsid-project-watch-'))
+    roots.push(root)
+    let fail = true
+    const updates: unknown[] = []
+    const errors: unknown[] = []
+    const watcher = await ProjectBuildWatcher.start({
+      paths: root,
+      allowInitialError: true,
+      coordinatorOptions: { apply: async () => {} },
+      acquire: async () => {
+        if (fail) throw new Error('project is initially broken')
+        return { sources: [], options }
+      },
+      onUpdate: (update) => updates.push(update),
+      onError: (error) => errors.push(error),
+    })
+
+    expect(errors).toHaveLength(1)
+    fail = false
+    watcher.invalidate()
+    await watcher.drain()
+    expect(updates).toHaveLength(1)
+    expect(watcher.lastError).toBeUndefined()
+    await watcher.close()
+  })
 })

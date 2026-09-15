@@ -4,10 +4,12 @@
   "type": "module",
   "version": "0.0.0",
   "bin": {
-    "pgsid": "dist/bin.js"
+    "pgsid": "dist/bin.js",
+    "pgsid-language-server": "dist/language-server-bin.js"
   },
   "scripts": {
     "dev": "tsx src/bin.ts",
+    "language-server": "tsx src/language-server-bin.ts",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && pnpm espalier:check",
