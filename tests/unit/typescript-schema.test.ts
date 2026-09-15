@@ -5,6 +5,8 @@ import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import { loadJsonSchemaDocuments } from '../../src/codegen/shared/json-schema-loader.js'
 import { renderTypescriptSchemaArtifacts } from '../../src/codegen/typescript/schema.js'
 import { parseConfigString } from '../../src/config/loader.js'
+import { buildNullabilityCatalog } from '../../src/query/catalog-adapter.js'
+import { analyzeSchemaRelations } from '../../src/schema-analysis.js'
 
 describe('renderTypescriptSchemaArtifacts', () => {
   let pg: PGlite
@@ -28,6 +30,9 @@ describe('renderTypescriptSchemaArtifacts', () => {
         invoice_ids billing.invoice_id[]
       );
       CREATE VIEW public.event_labels AS SELECT id, label FROM public.events;
+      CREATE VIEW public.event_kinds AS SELECT payload->'kind' AS kind FROM public.events;
+      CREATE VIEW public.event_nothings AS SELECT NULL::text AS nothing;
+      CREATE MATERIALIZED VIEW public.event_snapshot AS SELECT label FROM public.events;
     `)
   })
 
@@ -48,6 +53,10 @@ describe('renderTypescriptSchemaArtifacts', () => {
                 kind: { type: string }
               additionalProperties: false
       sql:
+        analysis:
+          nullability:
+            materializedViews:
+              default: conservative
         codegen:
           typescript:
             brands: [__brand, __pgType]
@@ -60,7 +69,13 @@ describe('renderTypescriptSchemaArtifacts', () => {
     `)
     const catalog = await snapshotCatalog(pg)
     const schemas = loadJsonSchemaDocuments(config)
-    const result = renderTypescriptSchemaArtifacts(catalog, config, schemas, '/generated')
+    const analysisCatalog = await buildNullabilityCatalog(catalog)
+    const relations = await analyzeSchemaRelations(catalog, analysisCatalog, {
+      materializedViews: config.sql.analysis.nullability.materializedViews,
+    })
+    const result = renderTypescriptSchemaArtifacts(catalog, config, schemas, '/generated', {
+      relations,
+    })
 
     expect(result.diagnostics).toEqual([])
     const artifacts = Object.fromEntries(
@@ -99,6 +114,18 @@ describe('renderTypescriptSchemaArtifacts', () => {
     expect(tables.match(/"normalized"/gu)).toHaveLength(1)
     expect(tables.match(/"id"/gu)).toHaveLength(2)
     expect(tables).toContain('export type EventLabels = TableTypes<')
+    expect(tables.replace(/\s+/gu, ' ')).toContain(
+      'export type EventLabels = TableTypes<{ "id": string; "label": string; }, never, never>;',
+    )
+    expect(tables.replace(/\s+/gu, ' ')).toContain(
+      'export type EventKinds = TableTypes<{ "kind": string | null; }, never, never>;',
+    )
+    expect(tables.replace(/\s+/gu, ' ')).toContain(
+      'export type EventSnapshot = TableTypes<{ "label": string | null; }, never, never>;',
+    )
+    expect(tables.replace(/\s+/gu, ' ')).toContain(
+      'export type EventNothings = TableTypes<{ "nothing": null; }, never, never>;',
+    )
     expect(tables.replace(/\s+/gu, ' ')).toContain('}, never, never>;')
     for (const source of Object.values(artifacts)) expectSyntax(source)
   })

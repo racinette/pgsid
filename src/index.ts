@@ -162,9 +162,16 @@ export type {
   CodegenDiagnostic,
   CodegenOutput,
   CodegenRenderResult,
+  CodegenSchemaInput,
   CodegenTarget,
   QueryCodegenRoute,
 } from './codegen/target.js'
+export {
+  analyzeSchemaRelations,
+  type SchemaColumnAnalysis,
+  type SchemaRelationAnalyses,
+  type SchemaRelationAnalysis,
+} from './schema-analysis.js'
 export {
   loadJsonSchemaDocuments,
   type LoadJsonSchemaDocumentsOptions,

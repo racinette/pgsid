@@ -1,12 +1,7 @@
 import ts from 'typescript'
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import type { QueryAnalysisItem } from '../../query-analysis.js'
-import {
-  interpretValueLineage,
-  type DatabaseColumn,
-  type ValueLineage,
-} from '../../query/value-lineage.js'
-import { resolveJsonSchemaLineage, type JsonSchemaLineage } from '../shared/json-schema-lineage.js'
+import { interpretValueLineage } from '../../query/value-lineage.js'
 import {
   asyncModifier,
   exportModifier,
@@ -14,15 +9,14 @@ import {
   importDeclarations,
   intersectionType,
   nullableType,
-  parseType,
   printFile,
   propertyName,
   unionType,
 } from './ast.js'
-import { typescriptTypeFromJsonSchemaLineage } from './json-schema.js'
 import { typescriptJsonSchemaBindings } from './json-schema-bindings.js'
 import { typescriptJsonSchemaLineageValidatorDeclaration } from './json-schema-validator.js'
 import { resolveTypescriptPgType } from './type-mapping.js'
+import { resolveTypescriptValueType, type ResolvedTypescriptValueType } from './value-type.js'
 
 export type TypescriptQueryDiagnosticCode =
   | 'duplicate-output-name'
@@ -54,12 +48,6 @@ interface RenderedQuery {
   wrapper: ts.FunctionDeclaration
   imports: TypeImport[]
   wrapperImports: string[]
-}
-
-interface ResolvedType {
-  type: ts.TypeNode
-  imports: TypeImport[]
-  lineage?: JsonSchemaLineage
 }
 
 interface RenderedValidator {
@@ -165,12 +153,9 @@ const renderQuery = (
   const imports: TypeImport[] = []
   const validators: RenderedValidator[] = []
   const rowTypes = outputNames.map((name, index) => {
-    const resolved = resolveOutputType(
-      outputTypes[index] ?? 'unknown',
-      semanticLineage?.[index],
-      config,
-      bindings,
-    )
+    const resolved: ResolvedTypescriptValueType =
+      resolveTypescriptValueType(semanticLineage?.[index], config, bindings) ??
+      resolveTypescriptPgType(outputTypes[index] ?? 'unknown', config)
     imports.push(...resolved.imports)
     const claim = analysis.contract.outputs[index]
     const type = claim?.alwaysNull
@@ -258,40 +243,6 @@ const positionalTypes = (
   })
   return Array.from({ length }, () => 'unknown')
 }
-
-const resolveOutputType = (
-  pgType: string,
-  value: ValueLineage | undefined,
-  config: Config,
-  bindings: ReturnType<typeof typescriptJsonSchemaBindings>,
-): ResolvedType => {
-  if (value) {
-    const lineage = resolveJsonSchemaLineage(value, bindings)
-    if (lineage.alternatives.length || lineage.complete) {
-      return { type: typescriptTypeFromJsonSchemaLineage(lineage), imports: [], lineage }
-    }
-    const column = directColumn(value)
-    if (column) {
-      const mapping = config.sql.codegen?.typescript?.mappings.column[columnKey(column)]
-      if (mapping && (typeof mapping === 'string' || 'type' in mapping)) {
-        return typeof mapping === 'string'
-          ? { type: parseType(mapping), imports: [] }
-          : { type: parseType(mapping.type), imports: [...(mapping.imports ?? [])] }
-      }
-    }
-  }
-  return resolveTypescriptPgType(pgType, config)
-}
-
-const directColumn = (value: ValueLineage): DatabaseColumn | null =>
-  value.kind === 'column'
-    ? value.column
-    : value.kind === 'row-absence'
-      ? directColumn(value.origin)
-      : null
-
-const columnKey = (column: DatabaseColumn): string =>
-  `${column.schema}.${column.relation}.${column.column}`
 
 const renderParams = (
   queryName: string,
