@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import { createCodegenTargets } from '../../src/codegen/registry.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import type { JsonSchemaDocument } from '../../src/config/schema.js'
 import {
@@ -23,10 +24,18 @@ const generated = (
 ): QuerySourceInput => ({
   path,
   content,
-  output: {
-    types: `${directory}/${path.replace(/\.sql$/u, '.ts')}`,
-    wrappers: `${directory}/wrappers/${path.replace(/\.sql$/u, '.ts')}`,
-  },
+  routes: [
+    {
+      target: 'typescript',
+      outputs: [
+        { kind: 'types', path: `${directory}/${path.replace(/\.sql$/u, '.ts')}` },
+        {
+          kind: 'wrappers',
+          path: `${directory}/wrappers/${path.replace(/\.sql$/u, '.ts')}`,
+        },
+      ],
+    },
+  ],
 })
 
 const observed = (state: ProjectBuildState) => ({
@@ -35,6 +44,7 @@ const observed = (state: ProjectBuildState) => ({
       path,
       {
         sourcePath: artifact.sourcePath,
+        target: artifact.target,
         kind: artifact.kind,
         content: artifact.content,
         hash: artifact.hash,
@@ -89,14 +99,8 @@ describe('project build parity', () => {
     if (!pg.closed) await pg.close()
   })
 
-  const options = (
-    codegenKey: string,
-    payload: JsonSchemaDocument,
-  ): ReconcileProjectBuildOptions => ({
-    analysis,
-    codegenKey,
-    schemas: { Payload: payload },
-    config: parseConfigString(`
+  const options = (payload: JsonSchemaDocument): ReconcileProjectBuildOptions => {
+    const config = parseConfigString(`
       schema: migrations/*.sql
       types:
         jsonSchemas:
@@ -113,8 +117,12 @@ describe('project build parity', () => {
                   jsonSchema: Payload
             jsonSchemas:
               runtimeValidation: true
-    `),
-  })
+    `)
+    return {
+      analysis,
+      targets: createCodegenTargets(config, { Payload: payload }, { baseDirectory: '/' }),
+    }
+  }
 
   const replay = async (steps: readonly BuildInput[]): Promise<ProjectBuildState> => {
     let state: ProjectBuildState | undefined
@@ -127,8 +135,8 @@ describe('project build parity', () => {
   it('converges after edits, failures, removals, rerouting, and schema rotation', async () => {
     const integerPayload = { type: 'object', properties: { actor: { type: 'integer' } } }
     const stringPayload = { type: 'object', properties: { actor: { type: 'string' } } }
-    const firstOptions = options('codegen-1', integerPayload)
-    const finalOptions = options('codegen-2', stringPayload)
+    const firstOptions = options(integerPayload)
+    const finalOptions = options(stringPayload)
     const initialSources = [
       generated(
         'events.sql',
@@ -172,7 +180,7 @@ describe('project build parity', () => {
   })
 
   it('converges when the final edit is invalid', async () => {
-    const buildOptions = options('codegen-1', true)
+    const buildOptions = options(true)
     const valid = [generated('events.sql', '-- name: GetEvent :one\nSELECT id FROM events;')]
     const invalid = [generated('events.sql', '-- name: GetEvent :one\nSELECT +;')]
     const incremental = await replay([
@@ -185,7 +193,7 @@ describe('project build parity', () => {
   })
 
   it('is deterministic for repeated one-shot builds', async () => {
-    const buildOptions = options('codegen-1', true)
+    const buildOptions = options(true)
     const sources = [generated('events.sql', '-- name: GetEvent :one\nSELECT id FROM events;')]
     const first = await reconcileProjectBuild(sources, buildOptions)
     const second = await reconcileProjectBuild([...sources].reverse(), buildOptions)

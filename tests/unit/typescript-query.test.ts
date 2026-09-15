@@ -34,7 +34,7 @@ const analysis = (options: {
       id: `queries.sql#${name}`,
       path: 'queries.sql',
       name,
-      output: { types: '/generated/queries.ts', wrappers: '/generated/wrappers.ts' },
+      routes: [],
       analysisHash: name,
       semanticHash: name,
       definition: {

@@ -13,7 +13,12 @@ const source = (
 ): QuerySourceInput => ({
   path,
   content,
-  output: { types: output },
+  routes: [
+    {
+      target: 'test',
+      outputs: [{ kind: 'types', path: output }],
+    },
+  ],
 })
 
 describe('reconcileQueryBatch', () => {
@@ -79,8 +84,8 @@ describe('reconcileQueryBatch', () => {
       { path: 'check-only.sql', content: '-- name: Check :one\nSELECT 1;' },
     ])
 
-    expect(update.state.files['check-only.sql']).toMatchObject({ output: undefined })
-    expect(update.state.files['check-only.sql']!.queries[0]).toMatchObject({ output: undefined })
+    expect(update.state.files['check-only.sql']).toMatchObject({ routes: [] })
+    expect(update.state.files['check-only.sql']!.queries[0]).toMatchObject({ routes: [] })
     expect(update.events.map((event) => event.kind)).toEqual(['query-added'])
   })
 

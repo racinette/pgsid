@@ -36,7 +36,9 @@ describe('loadQuerySources', () => {
 
     expect(sources.map((source) => source.path)).toEqual(['sql/check.sql', 'sql/generated.sql'])
     expect(sources[0]!.content.toString()).toContain('SELECT 2')
-    expect(sources[0]!.output).toBeUndefined()
-    expect(sources[1]!.output).toEqual({ types: join(root, 'generated/generated.ts') })
+    expect(sources[0]!.routes).toEqual([])
+    expect(sources[1]!.routes?.[0]!.outputs).toEqual([
+      { kind: 'types', path: join(root, 'generated/generated.ts') },
+    ])
   })
 })

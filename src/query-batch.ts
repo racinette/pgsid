@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { QueryOutputPaths } from './query-discovery.js'
+import type { QueryCodegenRoute } from './codegen/target.js'
 import {
   parseQueryFile,
   QueryFileError,
@@ -11,7 +11,7 @@ import {
 export interface QuerySourceInput {
   path: string
   content: string | Buffer
-  output?: QueryOutputPaths
+  routes?: readonly QueryCodegenRoute[]
 }
 
 export interface QueryBatchDiagnostic {
@@ -26,7 +26,7 @@ export interface QueryBatchItem {
   path: string
   name: string
   definition: QueryDefinition
-  output?: QueryOutputPaths
+  routes: readonly QueryCodegenRoute[]
   analysisHash: string
   semanticHash: string
 }
@@ -34,7 +34,7 @@ export interface QueryBatchItem {
 export interface QueryBatchFileState {
   path: string
   contentHash: string
-  output?: QueryOutputPaths
+  routes: readonly QueryCodegenRoute[]
   queries: readonly QueryBatchItem[]
   diagnostics: readonly QueryBatchDiagnostic[]
 }
@@ -109,7 +109,7 @@ export async function reconcileQueryBatch(
       stats.cacheMisses++
     }
     parseCache[contentHash] = parsed
-    files[input.path] = fileState(input.path, input.output, contentHash, parsed)
+    files[input.path] = fileState(input.path, input.routes ?? [], contentHash, parsed)
   }
 
   const state = { files, parseCache }
@@ -138,25 +138,25 @@ const parseSource = async (content: string): Promise<QueryParseCacheEntry> => {
 
 const fileState = (
   path: string,
-  output: QueryOutputPaths | undefined,
+  routes: readonly QueryCodegenRoute[],
   contentHash: string,
   parsed: QueryParseCacheEntry,
 ): QueryBatchFileState => {
   if (parsed.status === 'failure') {
-    return { path, output, contentHash, queries: [], diagnostics: parsed.diagnostics }
+    return { path, routes, contentHash, queries: [], diagnostics: parsed.diagnostics }
   }
   return {
     path,
-    output,
+    routes,
     contentHash,
-    queries: parsed.parsed.queries.map((definition) => queryItem(path, output, definition)),
+    queries: parsed.parsed.queries.map((definition) => queryItem(path, routes, definition)),
     diagnostics: [],
   }
 }
 
 const queryItem = (
   path: string,
-  output: QueryOutputPaths | undefined,
+  routes: readonly QueryCodegenRoute[],
   definition: QueryDefinition,
 ): QueryBatchItem => {
   const id = `${path}#${definition.name}`
@@ -167,8 +167,8 @@ const queryItem = (
       definition.parameters.map(({ name, index }) => [name, index]),
     ]),
   )
-  const semanticHash = hash(JSON.stringify([analysisHash, output ?? null]))
-  return { id, path, name: definition.name, definition, output, analysisHash, semanticHash }
+  const semanticHash = hash(JSON.stringify([analysisHash, routes]))
+  return { id, path, name: definition.name, definition, routes, analysisHash, semanticHash }
 }
 
 const diffQueryBatch = (previous: QueryBatchState, current: QueryBatchState): QueryBatchEvent[] => {

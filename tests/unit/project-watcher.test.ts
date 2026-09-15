@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import { createCodegenTargets } from '../../src/codegen/registry.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { ProjectBuildWatcher } from '../../src/project-watcher.js'
 import {
@@ -26,15 +27,14 @@ describe('ProjectBuildWatcher', () => {
   beforeAll(async () => {
     pg = await PGlite.create()
     const catalog = await buildNullabilityCatalog(await snapshotCatalog(pg))
-    options = {
-      config: parseConfigString(`
+    const config = parseConfigString(`
         schema: migrations/*.sql
         sql:
           codegen:
             typescript: {}
-      `),
-      schemas: {},
-      codegenKey: 'codegen-1',
+      `)
+    options = {
+      targets: createCodegenTargets(config, {}, { baseDirectory: '/' }),
       analysis: {
         schemaKey: 'schema-1',
         analysisKey: 'analysis-1',
@@ -87,14 +87,15 @@ describe('ProjectBuildWatcher', () => {
                   types: generated/types
                   wrappers: generated/wrappers
     `)
+    const targets = createCodegenTargets(config, {}, { baseDirectory: root })
     const updates: string[][] = []
     const errors: unknown[] = []
     const watcher = await ProjectBuildWatcher.start({
       paths: sqlDirectory,
       debounceMs: 10,
       acquire: async () => ({
-        sources: await loadQuerySources(config, { baseDirectory: root }),
-        options: { ...options, config },
+        sources: await loadQuerySources(config, { baseDirectory: root, targets }),
+        options: { ...options, targets },
       }),
       onUpdate: (update) => updates.push(update.events.map((event) => event.kind)),
       onError: (error) => errors.push(error),
@@ -122,7 +123,7 @@ describe('ProjectBuildWatcher', () => {
       { timeout: 5_000, interval: 20 },
     )
     await watcher.drain()
-    const batch = await reconcileProjectBuild([], { ...options, config })
+    const batch = await reconcileProjectBuild([], { ...options, targets })
 
     expect(watcher.state.artifacts).toEqual(batch.state.artifacts)
     expect(watcher.state.diagnostics).toEqual(batch.state.diagnostics)

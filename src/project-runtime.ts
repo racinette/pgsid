@@ -5,6 +5,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
 import { snapshotCatalog } from './catalog/snapshot.js'
 import type { CatalogSnapshot } from './catalog/types.js'
+import { createCodegenTargets } from './codegen/registry.js'
 import { loadJsonSchemaDocuments } from './codegen/shared/json-schema-loader.js'
 import { ConfigError, findConfigPath, loadConfig } from './config/loader.js'
 import type { Config } from './config/schema.js'
@@ -132,7 +133,6 @@ export class ProjectRuntime {
 
   async #acquire(): Promise<ProjectBuildRequest> {
     const config = loadConfig({ configPath: this.configPath })
-    this.#ignoredRoots = outputRoots(config, this.baseDirectory)
     const migrations = await loadMigrations(config, this.baseDirectory)
     const schemaKey = hash(
       stableJson([
@@ -156,22 +156,22 @@ export class ProjectRuntime {
       generation.catalogKey = catalogKey
     }
     await setSearchPath(generation.pg, config.sql.searchPath)
-    const [sources, schemas] = await Promise.all([
-      loadQuerySources(config, { baseDirectory: this.baseDirectory }),
-      Promise.resolve(loadJsonSchemaDocuments(config, { baseDirectory: this.baseDirectory })),
-    ])
+    const schemas = loadJsonSchemaDocuments(config, { baseDirectory: this.baseDirectory })
+    const targets = createCodegenTargets(config, schemas, { baseDirectory: this.baseDirectory })
+    this.#ignoredRoots = targets.flatMap((target) => target.outputRoots)
+    const sources = await loadQuerySources(config, {
+      baseDirectory: this.baseDirectory,
+      targets,
+    })
     return {
       sources,
       options: {
-        config,
-        schemas,
-        codegenKey: hash(stableJson([config.sql.codegen ?? null, schemas])),
+        targets,
         schemaDiagnostics: generation.diagnostics,
-        schema: config.sql.codegen?.typescript?.schema
+        schema: targets.some((target) => target.renderSchema)
           ? {
               catalog: generation.snapshot,
               key: schemaKey,
-              outDir: resolve(this.baseDirectory, config.sql.codegen.typescript.schema.outDir),
               sourcePath: this.configPath,
             }
           : undefined,
@@ -356,19 +356,6 @@ const migrationPath = (
   migrations: readonly LoadedMigration[],
   index: number | undefined,
 ): string | null => (index === undefined ? null : (migrations[index]?.path ?? null))
-
-const outputRoots = (config: Config, baseDirectory: string): readonly string[] => {
-  const roots = new Set<string>()
-  const target = config.sql.codegen?.typescript
-  if (target?.schema) roots.add(resolve(baseDirectory, target.schema.outDir))
-  for (const output of Object.values(target?.queries.out ?? {})) {
-    roots.add(resolve(baseDirectory, typeof output === 'string' ? output : output.types))
-    if (typeof output !== 'string' && output.wrappers) {
-      roots.add(resolve(baseDirectory, output.wrappers))
-    }
-  }
-  return [...roots]
-}
 
 const within = (root: string, path: string): boolean => {
   const local = relative(root, path)

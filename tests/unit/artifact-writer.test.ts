@@ -14,6 +14,7 @@ afterEach(async () => {
 const artifact = (path: string, content: string): ProjectArtifact => ({
   path,
   sourcePath: 'queries/example.sql',
+  target: 'typescript',
   kind: 'types',
   content,
   hash: content,

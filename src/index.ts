@@ -101,7 +101,6 @@ export {
   QueryDiscoveryError,
   type DiscoveredQueryFile,
   type DiscoverQueryFilesOptions,
-  type QueryOutputPaths,
 } from './query-discovery.js'
 export { loadQuerySources } from './query-source-loader.js'
 export {
@@ -151,12 +150,21 @@ export type { Config, JsonSchemaDocument } from './config/schema.js'
 
 export {
   resolveJsonSchemaLineage,
-  typescriptJsonSchemaBindings,
   type ColumnJsonSchemaBinding,
   type JsonSchemaAlternative,
   type JsonSchemaBindings,
   type JsonSchemaLineage,
 } from './codegen/shared/json-schema-lineage.js'
+export { typescriptJsonSchemaBindings } from './codegen/typescript/json-schema-bindings.js'
+export { createCodegenTargets, type CreateCodegenTargetsOptions } from './codegen/registry.js'
+export type {
+  CodegenArtifact,
+  CodegenDiagnostic,
+  CodegenOutput,
+  CodegenRenderResult,
+  CodegenTarget,
+  QueryCodegenRoute,
+} from './codegen/target.js'
 export {
   loadJsonSchemaDocuments,
   type LoadJsonSchemaDocumentsOptions,
