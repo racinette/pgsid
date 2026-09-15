@@ -31,7 +31,12 @@ import type { DepCatalog, ResolvedTable, ResolvedFunction } from '../../../src/q
 function mockCatalog(tables: { schema: string; name: string; columns: string[] }[]): DepCatalog {
   const tableMap = new Map<string, ResolvedTable>()
   for (const t of tables) {
-    tableMap.set(`${t.schema}.${t.name}`, { schema: t.schema, name: t.name, columns: t.columns })
+    tableMap.set(`${t.schema}.${t.name}`, {
+      kind: 'table',
+      schema: t.schema,
+      name: t.name,
+      columns: t.columns,
+    })
   }
   return {
     resolveTable(schema: string | undefined, name: string): ResolvedTable | null {

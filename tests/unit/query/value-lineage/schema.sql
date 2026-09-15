@@ -7,6 +7,18 @@ CREATE TABLE public.events (
   key text NOT NULL
 );
 
+CREATE VIEW public.event_actors AS
+SELECT payload -> 'actor' AS actor
+FROM public.events;
+
+CREATE VIEW public.event_actor_ids AS
+SELECT actor ->> 'id' AS actor_id
+FROM public.event_actors;
+
+CREATE MATERIALIZED VIEW public.materialized_event_actors AS
+SELECT payload -> 'actor' AS actor
+FROM public.events;
+
 CREATE FUNCTION public.shadow_json_get(document jsonb, key text)
 RETURNS jsonb
 LANGUAGE sql

@@ -135,6 +135,7 @@ export interface EvalWarning {
 export interface WalkOptions {
   paramTypes?: readonly string[]
   evaluate?: Evaluate
+  materializedViews?: MaterializedViewNullabilityPolicy
   /**
    * Sink for probes the evaluator could not answer (see `EvalWarning`) — the
    * same opt-in shape as `joinAudit` and `typeSetAudit`, so the consumer
@@ -179,6 +180,13 @@ export interface WalkOptions {
    * narrows a union the walk could already state.
    */
   resolveColumnTypes?: ResolveColumnTypes
+}
+
+export type MaterializedViewNullabilityMode = 'definition' | 'conservative'
+
+export interface MaterializedViewNullabilityPolicy {
+  default?: MaterializedViewNullabilityMode
+  overrides?: Readonly<Record<string, MaterializedViewNullabilityMode>>
 }
 
 /**
@@ -354,7 +362,18 @@ async function delegatedTypes(
 ): Promise<ReadonlyMap<unknown, string> | undefined> {
   if (!options?.resolveColumnTypes) return undefined
   const readings: TypeSetAudit[] = []
-  const probe = new NullabilityEngine(catalog, false, undefined, options.paramTypes)
+  const probe = new NullabilityEngine(
+    catalog,
+    false,
+    undefined,
+    options.paramTypes,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    options.materializedViews,
+  )
   probe.typeSetAuditSink = readings
   try {
     probe.run(stmt)
@@ -398,6 +417,7 @@ export async function inferNullability(
     cardinalities,
     delegated,
     truths,
+    options?.materializedViews,
   )
   if (options?.joinAudit) engine.joinAuditSink = options.joinAudit
   if (options?.collectUnitCrossings) engine.collectUnitCrossings = true
@@ -507,6 +527,7 @@ export async function inferQueryContract(
     cardinalities,
     delegated,
     truths,
+    options?.materializedViews,
   )
   return {
     outputs: engine.run(stmt),
@@ -527,8 +548,20 @@ export function inferPresenceGroups(
   stmt: Node,
   catalog: NullabilityCatalog,
   traced = false,
+  options?: Pick<WalkOptions, 'materializedViews'>,
 ): OutputPresenceGroup[] {
-  const engine = new NullabilityEngine(catalog, traced)
+  const engine = new NullabilityEngine(
+    catalog,
+    traced,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    options?.materializedViews,
+  )
   if (traced) engine.runTraced(stmt)
   else engine.run(stmt)
   return engine.presenceGroups()
@@ -571,6 +604,7 @@ export async function inferNullabilityTraced(
     cardinalities,
     delegated,
     truths,
+    options?.materializedViews,
   )
   return engine.runTraced(stmt)
 }
@@ -752,7 +786,8 @@ interface RowWitness {
 // Address book entry for a relation in a scope.
 // ---------------------------------------------------------------------------
 
-type RelationKind = 'table' | 'view' | 'subquery' | 'cte' | 'values' | 'function'
+type RelationKind =
+  'table' | 'view' | 'materialized-view' | 'subquery' | 'cte' | 'values' | 'function'
 
 interface RelationEntry {
   alias: string
@@ -1458,6 +1493,8 @@ class NullabilityEngine {
    */
   private readonly closedTruths: ReadonlyMap<string, boolean> | undefined
 
+  private readonly materializedViews: MaterializedViewNullabilityPolicy | undefined
+
   constructor(
     catalog: NullabilityCatalog,
     tracing = false,
@@ -1468,6 +1505,7 @@ class NullabilityEngine {
     cardinalities?: ReadonlyMap<object, number>,
     delegatedTypes?: ReadonlyMap<unknown, string>,
     closedTruths?: ReadonlyMap<string, boolean>,
+    materializedViews?: MaterializedViewNullabilityPolicy,
   ) {
     this.catalog = catalog
     this.tracing = tracing
@@ -1479,6 +1517,14 @@ class NullabilityEngine {
     this.cardinalities = cardinalities
     this.delegatedTypes = delegatedTypes
     this.closedTruths = closedTruths
+    this.materializedViews = materializedViews
+  }
+
+  private materializedViewMode(table: ResolvedTable): MaterializedViewNullabilityMode {
+    const key = `${table.schema}.${table.name}`
+    return (
+      this.materializedViews?.overrides?.[key] ?? this.materializedViews?.default ?? 'definition'
+    )
   }
 
   /**
@@ -2190,9 +2236,16 @@ class NullabilityEngine {
       const p = producers[i]
       if (!p) continue
       const e = p.entry
-      if ((e.kind !== 'subquery' && e.kind !== 'cte' && e.kind !== 'view') || !e.ast) continue
+      if (
+        (e.kind !== 'subquery' &&
+          e.kind !== 'cte' &&
+          e.kind !== 'view' &&
+          e.kind !== 'materialized-view') ||
+        !e.ast
+      )
+        continue
       const innerResults =
-        e.kind === 'view'
+        e.kind === 'view' || e.kind === 'materialized-view'
           ? this.analyzeStatement(e.ast, scope, depth + 1)
           : this.innerRelationColumns(e, scope, depth)
       // Star-expanded producers carry their position; a name lookup would
@@ -2345,7 +2398,9 @@ class NullabilityEngine {
     colName: string,
     innerResults: { name: string }[],
   ): number {
-    if (entry.kind === 'view' && entry.table) return this.entryColumnNames(entry).indexOf(colName)
+    if ((entry.kind === 'view' || entry.kind === 'materialized-view') && entry.table) {
+      return this.entryColumnNames(entry).indexOf(colName)
+    }
     if (entry.cteColumns && entry.cteColumns.length > 0) {
       const idx = entry.cteColumns.indexOf(colName)
       if (idx >= 0 && idx < innerResults.length) return idx
@@ -4664,15 +4719,19 @@ class NullabilityEngine {
     if (table) {
       // A view's own catalog columns are always attnotnull=false, so prefer
       // its parsed definition when we have one and analyze it as a subquery.
-      const viewAst = this.catalog.viewAsts.get(`${table.schema}.${table.name}`)
+      const definitionAst = this.catalog.viewAsts.get(`${table.schema}.${table.name}`)
+      const ast =
+        table.kind !== 'materialized-view' || this.materializedViewMode(table) === 'definition'
+          ? definitionAst
+          : undefined
       const entry: RelationEntry = {
         alias: aliasName,
-        kind: table.schema === '' ? 'cte' : viewAst ? 'view' : 'table',
+        kind: table.schema === '' ? 'cte' : table.kind,
         table,
         ...(rv.alias?.colnames && rv.alias.colnames.length > 0
           ? { columnAliases: rv.alias.colnames.map((n: Node) => this.stringVal(n)) }
           : {}),
-        ast: viewAst,
+        ast,
         // libpg-query emits `inh: true` for a plain reference and omits the
         // field for ONLY (measured).
         scanInh: rv.inh === true,
@@ -6169,7 +6228,12 @@ class NullabilityEngine {
     const nameLists = new Map<RelationEntry, string[]>()
     const seen = new Map<RelationEntry, Map<string, number>>()
     const ordinalOf = (entry: RelationEntry, colName: string): number | undefined => {
-      if (entry.kind !== 'view' && entry.kind !== 'cte' && entry.kind !== 'subquery') {
+      if (
+        entry.kind !== 'view' &&
+        entry.kind !== 'materialized-view' &&
+        entry.kind !== 'cte' &&
+        entry.kind !== 'subquery'
+      ) {
         return undefined
       }
       let list = nameLists.get(entry)
@@ -6225,7 +6289,9 @@ class NullabilityEngine {
 
   /** The ordered output column names of a view/CTE/subquery entry. */
   private innerColumnNames(entry: RelationEntry, scope: Scope, depth: number): string[] {
-    if (entry.kind === 'view' && entry.table) return this.entryColumnNames(entry)
+    if ((entry.kind === 'view' || entry.kind === 'materialized-view') && entry.table) {
+      return this.entryColumnNames(entry)
+    }
     if (entry.cteColumns && entry.cteColumns.length > 0) return entry.cteColumns
     return this.innerRelationColumns(entry, scope, depth).map((r) => r.name)
   }
@@ -6377,7 +6443,7 @@ class NullabilityEngine {
       }
     }
 
-    if (entry.kind === 'view' && entry.ast && entry.table) {
+    if ((entry.kind === 'view' || entry.kind === 'materialized-view') && entry.ast && entry.table) {
       const idx = ordinal ?? this.entryColumnNames(entry).indexOf(colName)
       if (idx < 0) return undefined
       return lift(this.analyzeStatement(entry.ast, scope, depth + 1)[idx])
@@ -8307,7 +8373,7 @@ class NullabilityEngine {
     }
     // A view's catalog columns are all attnotnull=false, so its definition is
     // the only source of truth — the same path a named reference takes.
-    if (entry.kind === 'view' && entry.ast && entry.table) {
+    if ((entry.kind === 'view' || entry.kind === 'materialized-view') && entry.ast && entry.table) {
       const inner = this.analyzeStatement(entry.ast, scope, depth + 1)
       return this.entryColumnNames(entry).map((col, i) => ({
         name: col,
@@ -9048,7 +9114,12 @@ class NullabilityEngine {
     // an extended row is NULL by extension. Both arms agree, so an OPTIONAL
     // entry weakens nothing. (`LEFT JOIN (SELECT amount FROM inv WHERE
     // status <> 'paid') q ON true` — measured, all NULL.)
-    if (entry.kind === 'cte' || entry.kind === 'subquery' || entry.kind === 'view') {
+    if (
+      entry.kind === 'cte' ||
+      entry.kind === 'subquery' ||
+      entry.kind === 'view' ||
+      entry.kind === 'materialized-view'
+    ) {
       if (!entry.ast) return false
       const inner = this.innerRelationColumns(entry, scope, depth)
       const idx =
@@ -10427,7 +10498,7 @@ class NullabilityEngine {
     // For views: analyze the stored definition and map its output columns onto
     // the view's column list by position. The catalog's attnotnull is useless
     // here — PostgreSQL reports false for every view column.
-    if (entry.kind === 'view' && entry.ast && entry.table) {
+    if ((entry.kind === 'view' || entry.kind === 'materialized-view') && entry.ast && entry.table) {
       const innerResults = this.analyzeStatement(entry.ast, scope, depth + 1)
       const colIndex = ordinal ?? this.entryColumnNames(entry).indexOf(colName)
       const inner = colIndex >= 0 ? innerResults[colIndex] : undefined

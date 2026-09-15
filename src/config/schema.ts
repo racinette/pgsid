@@ -45,6 +45,30 @@ export const typecheckSchema = z
   .strict()
   .default({})
 
+export const materializedViewNullabilityModeSchema = z.enum(['definition', 'conservative'])
+
+export const materializedViewsNullabilitySchema = z
+  .object({
+    default: materializedViewNullabilityModeSchema.default('definition'),
+    overrides: z.record(z.string().min(1), materializedViewNullabilityModeSchema).default({}),
+  })
+  .strict()
+  .default({})
+
+export const nullabilityAnalysisSchema = z
+  .object({
+    materializedViews: materializedViewsNullabilitySchema,
+  })
+  .strict()
+  .default({})
+
+export const analysisSchema = z
+  .object({
+    nullability: nullabilityAnalysisSchema,
+  })
+  .strict()
+  .default({})
+
 export const typeImportSchema = z.union([
   z.object({ from: z.string().min(1), default: z.string().min(1) }).strict(),
   z
@@ -140,6 +164,7 @@ export const sqlSchema = z
     paths: z.array(z.string()).default([]),
     searchPath: z.array(z.string()).default(['public']),
     typecheck: typecheckSchema,
+    analysis: analysisSchema,
     codegen: codegenSchema.optional(),
   })
   .strict()
@@ -176,6 +201,10 @@ export type JsonSchemaDefinition = z.infer<typeof jsonSchemaDefinitionSchema>
 export type JsonSchemaDocument = z.infer<typeof jsonSchemaDocumentSchema>
 export type EngineConfig = z.infer<typeof engineSchema>
 export type TypecheckConfig = z.infer<typeof typecheckSchema>
+export type MaterializedViewNullabilityMode = z.infer<typeof materializedViewNullabilityModeSchema>
+export type MaterializedViewsNullabilityConfig = z.infer<typeof materializedViewsNullabilitySchema>
+export type NullabilityAnalysisConfig = z.infer<typeof nullabilityAnalysisSchema>
+export type AnalysisConfig = z.infer<typeof analysisSchema>
 export type TypeImport = z.infer<typeof typeImportSchema>
 export type TargetTypeMapping = z.infer<typeof targetTypeMappingSchema>
 export type ColumnMapping = z.infer<typeof columnMappingSchema>

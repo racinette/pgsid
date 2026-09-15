@@ -14,6 +14,7 @@ function mockCatalog(
   const tableMap = new Map<string, ResolvedTable>()
   for (const t of tables) {
     tableMap.set(`${t.schema}.${t.name}`, {
+      kind: 'table',
       schema: t.schema,
       name: t.name,
       columns: t.columns,
