@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   PositionEncodingKind,
   TextDocumentSyncKind,
@@ -36,17 +36,26 @@ export class PgsidLanguageServer {
   #runtime: ProjectRuntime | undefined
   #hoverState: ProjectBuildState | undefined
   #conversionOptions: ProjectDiagnosticConversionOptions | undefined
+  readonly #documentVersions = new Map<string, { content: string; version: number }>()
   #published = new Set<string>()
   #publishing = Promise.resolve()
   #startPromise: Promise<void> | undefined
+  readonly #initialized: Promise<void>
+  readonly #resolveInitialized: () => void
   #closed = false
 
   constructor(connection: Connection, environment: LanguageServerEnvironment = {}) {
     this.#connection = connection
     this.#environment = environment
+    let resolveInitialized!: () => void
+    this.#initialized = new Promise<void>((resolve) => {
+      resolveInitialized = resolve
+    })
+    this.#resolveInitialized = resolveInitialized
     connection.onInitialize((params) => this.#initialize(params))
     connection.onInitialized(() => {
       this.#startPromise = this.#start()
+      this.#resolveInitialized()
       void this.#startPromise.catch((error) => this.#logError(error))
     })
     connection.onShutdown(() => this.close())
@@ -65,12 +74,14 @@ export class PgsidLanguageServer {
     this.#documents.onDidChangeContent(({ document }) => {
       const path = filePath(document.uri)
       if (path && isSqlDocument(path, document.languageId)) {
+        this.#recordDocumentVersion(path, document.getText(), document.version)
         this.#runtime?.setFileOverlay(path, document.getText())
       }
     })
     this.#documents.onDidClose(({ document }) => {
       const path = filePath(document.uri)
       if (path && isSqlDocument(path, document.languageId)) {
+        this.#documentVersions.delete(resolve(path))
         this.#runtime?.setFileOverlay(path, undefined)
       }
     })
@@ -86,6 +97,13 @@ export class PgsidLanguageServer {
     this.#closed = true
     await this.#startPromise?.catch(() => undefined)
     await this.#runtime?.close()
+    await this.#publishing
+  }
+
+  async drain(): Promise<void> {
+    await this.#initialized
+    await this.#startPromise
+    await this.#runtime?.drain()
     await this.#publishing
   }
 
@@ -114,6 +132,7 @@ export class PgsidLanguageServer {
     for (const document of this.#documents.all()) {
       const path = filePath(document.uri)
       if (path && isSqlDocument(path, document.languageId)) {
+        this.#recordDocumentVersion(path, document.getText(), document.version)
         this.#runtime.setFileOverlay(path, document.getText())
       }
     }
@@ -128,14 +147,20 @@ export class PgsidLanguageServer {
     const options = this.#conversionOptions
     if (!options) return
     this.#hoverState = state
-    this.#queue(async () => this.#publish(await projectDiagnosticsToLanguageServer(state, options)))
+    const versions = this.#versionsForState(state)
+    this.#queue(async () =>
+      this.#publish(await projectDiagnosticsToLanguageServer(state, options), versions),
+    )
   }
 
   #queueFailure(error: unknown): void {
     const options = this.#conversionOptions
     if (!options) return
     this.#hoverState = undefined
-    this.#queue(async () => this.#publish(await projectFailureToLanguageServer(error, options)))
+    const versions = this.#versionsForFailure(error)
+    this.#queue(async () =>
+      this.#publish(await projectFailureToLanguageServer(error, options), versions),
+    )
   }
 
   #queue(task: () => Promise<void>): void {
@@ -144,13 +169,60 @@ export class PgsidLanguageServer {
     })
   }
 
-  async #publish(documents: readonly LanguageServerDiagnosticDocument[]): Promise<void> {
+  async #publish(
+    documents: readonly LanguageServerDiagnosticDocument[],
+    versions: ReadonlyMap<string, number>,
+  ): Promise<void> {
     const next = new Map(documents.map((document) => [document.uri, document.diagnostics]))
     const uris = [...new Set([...this.#published, ...next.keys()])].sort(compareText)
     for (const uri of uris) {
-      await this.#connection.sendDiagnostics({ uri, diagnostics: [...(next.get(uri) ?? [])] })
+      const version = versions.get(uri)
+      await this.#connection.sendDiagnostics({
+        uri,
+        diagnostics: [...(next.get(uri) ?? [])],
+        ...(version === undefined ? {} : { version }),
+      })
     }
     this.#published = new Set(next.keys())
+  }
+
+  #recordDocumentVersion(path: string, content: string, version: number): void {
+    this.#documentVersions.set(resolve(path), { content, version })
+  }
+
+  #versionsForState(state: ProjectBuildState): Map<string, number> {
+    const versions = new Map<string, number>()
+    for (const file of Object.values(state.queryBatch.files)) {
+      const path = absolutePath(this.#conversionOptions?.baseDirectory ?? process.cwd(), file.path)
+      const document = this.#documentVersions.get(resolve(path))
+      if (document?.content === file.content) versions.set(pathToUri(path), document.version)
+    }
+    return versions
+  }
+
+  #versionsForFailure(error: unknown): Map<string, number> {
+    const versions = new Map<string, number>()
+    let failureUri: string | undefined
+    if (hasFailureContent(error)) {
+      const path = absolutePath(this.#conversionOptions?.baseDirectory ?? process.cwd(), error.path)
+      failureUri = pathToUri(path)
+      const document = this.#documentVersions.get(resolve(path))
+      if (document?.content === error.content.toString('utf8')) {
+        versions.set(failureUri, document.version)
+      }
+    }
+    for (const document of this.#documents.all()) {
+      const path = filePath(document.uri)
+      if (
+        path &&
+        isSqlDocument(path, document.languageId) &&
+        document.uri !== failureUri &&
+        !versions.has(document.uri)
+      ) {
+        versions.set(document.uri, document.version)
+      }
+    }
+    return versions
   }
 
   #logError(error: unknown): void {
@@ -181,6 +253,17 @@ const filePath = (uri: string): string | undefined => {
     return undefined
   }
 }
+
+const pathToUri = (path: string): string => pathToFileURL(path).href
+
+const absolutePath = (baseDirectory: string, path: string): string => resolve(baseDirectory, path)
+
+const hasFailureContent = (error: unknown): error is { path: string; content: Buffer } =>
+  error instanceof Error &&
+  'path' in error &&
+  typeof error.path === 'string' &&
+  'content' in error &&
+  Buffer.isBuffer(error.content)
 
 const isSqlDocument = (path: string, languageId: string): boolean =>
   path.toLowerCase().endsWith('.sql') ||

@@ -84,11 +84,13 @@ export class ProjectBuildWatcher {
   }
 
   async drain(): Promise<void> {
-    if (this.#timer) {
-      clearTimeout(this.#timer)
-      this.#timer = undefined
+    while (this.#timer || this.#running || this.#dirty) {
+      if (this.#timer) {
+        clearTimeout(this.#timer)
+        this.#timer = undefined
+      }
+      await this.#flush()
     }
-    await this.#flush()
     await this.#coordinator.drain()
   }
 
