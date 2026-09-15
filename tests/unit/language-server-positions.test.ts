@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  byteOffsetToPosition,
-  positionToByteOffset,
-} from '../../src/language-server/positions.js'
+import { byteOffsetToPosition, positionToByteOffset } from '../../src/language-server/positions.js'
 
 describe('language-server positions', () => {
   it('converts between UTF-8 bytes and UTF-16 cursor positions', () => {

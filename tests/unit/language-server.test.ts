@@ -1,213 +1,297 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
-import { PassThrough } from 'node:stream'
+import { mkdtemp, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createConnection } from 'vscode-languageserver/node'
-import { PgsidLanguageServer } from '../../src/language-server/server.js'
+import {
+  diagnosticParams,
+  hoverResult,
+  startLanguageServer,
+  type TestLanguageServer,
+  writeProject,
+} from './language-server-harness.js'
 
 const roots: string[] = []
+const servers: TestLanguageServer[] = []
 
 afterEach(async () => {
+  await Promise.all(servers.splice(0).map((server) => server.close()))
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
 describe('PgsidLanguageServer', () => {
   it('publishes project diagnostics over JSON-RPC and clears them after recovery', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'pgsid-language-server-'))
-    roots.push(root)
-    await Promise.all([
-      mkdir(join(root, 'migrations'), { recursive: true }),
-      mkdir(join(root, 'queries'), { recursive: true }),
-    ])
-    const queryPath = join(root, 'queries/broken.sql')
-    await Promise.all([
-      writeFile(
-        join(root, 'pgsid.yaml'),
-        `
-          schema: migrations/*.sql
-          sql:
-            paths: [queries/*.sql]
-            typecheck: { plpgsql: false }
-        `,
-      ),
-      writeFile(join(root, 'migrations/001.sql'), 'CREATE TABLE values_ (value integer);'),
-      writeFile(queryPath, '-- name: Broken :one\nSELECT +;'),
-    ])
-
-    const input = new PassThrough()
-    const output = new PassThrough()
-    const peer = new JsonRpcPeer(input, output)
-    const server = new PgsidLanguageServer(createConnection(input, output))
-    server.listen()
-
-    peer.send({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        processId: null,
-        rootUri: pathToFileURL(root).href,
-        capabilities: {},
-      },
+    const root = await project({
+      'pgsid.yaml': config('queries/*.sql'),
+      'migrations/001.sql': 'CREATE TABLE values_ (value integer);',
+      'queries/broken.sql': '-- name: Broken :one\nSELECT +;',
     })
-    const initialized = await peer.waitFor((message) => message.id === 1)
-    expect(initialized.result).toMatchObject({
+    const queryPath = join(root, 'queries/broken.sql')
+    const queryUri = pathToFileURL(queryPath).href
+    const languageServer = await start(root)
+
+    expect(languageServer.initialize.result).toMatchObject({
       capabilities: { hoverProvider: true, positionEncoding: 'utf-16', textDocumentSync: 2 },
       serverInfo: { name: 'pgsid' },
     })
-    peer.send({ jsonrpc: '2.0', method: 'initialized', params: {} })
 
-    const queryUri = pathToFileURL(queryPath).href
-    const broken = await peer.waitFor(
-      (message) =>
-        message.method === 'textDocument/publishDiagnostics' &&
-        diagnosticParams(message).uri === queryUri &&
-        diagnosticParams(message).diagnostics.length > 0,
-      10_000,
+    const broken = await languageServer.client.waitForDiagnostics(
+      queryUri,
+      ({ diagnostics }) => diagnostics.length > 0,
     )
-    expect(diagnosticParams(broken).diagnostics[0]).toMatchObject({
-      range: { start: { line: 1 }, end: { line: 1 } },
-      severity: 1,
-      source: 'pgsid',
-    })
-
-    peer.send({
-      jsonrpc: '2.0',
-      method: 'textDocument/didOpen',
-      params: {
-        textDocument: {
-          uri: queryUri,
-          languageId: 'sql',
-          version: 1,
-          text: '-- name: Fixed :one\nSELECT value FROM values_;',
+    expect(diagnosticParams(broken)).toMatchObject({
+      uri: queryUri,
+      diagnostics: [
+        {
+          range: { start: { line: 1 }, end: { line: 1 } },
+          severity: 1,
+          source: 'pgsid',
         },
+      ],
+    })
+    expect(diagnosticParams(broken)).not.toHaveProperty('version')
+
+    languageServer.client.notify('textDocument/didOpen', {
+      textDocument: {
+        uri: queryUri,
+        languageId: 'sql',
+        version: 1,
+        text: '-- name: Fixed :one\nSELECT value FROM values_;',
       },
     })
-    const recovered = await peer.waitFor(
-      (message) =>
-        message.method === 'textDocument/publishDiagnostics' &&
-        diagnosticParams(message).uri === queryUri &&
-        diagnosticParams(message).diagnostics.length === 0,
-      10_000,
+    const recovered = await languageServer.client.waitForDiagnostics(
+      queryUri,
+      ({ diagnostics, version }) => diagnostics.length === 0 && version === 1,
     )
-    expect(diagnosticParams(recovered).diagnostics).toEqual([])
+    expect(diagnosticParams(recovered)).toMatchObject({ diagnostics: [], version: 1 })
 
-    peer.send({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'textDocument/hover',
-      params: { textDocument: { uri: queryUri }, position: { line: 1, character: 12 } },
+    const hovered = await languageServer.client.request('textDocument/hover', {
+      textDocument: { uri: queryUri },
+      position: { line: 1, character: 12 },
     })
-    const hovered = await peer.waitFor((message) => message.id === 2)
-    expect(hoverMarkdown(hovered)).toContain('**Fixed** `one`')
-    expect(hoverMarkdown(hovered)).toContain('value: integer — nullable — public.values_.value')
-
-    peer.send({
-      jsonrpc: '2.0',
-      method: 'textDocument/didClose',
-      params: { textDocument: { uri: queryUri } },
-    })
-    await peer.waitFor(
-      (message) =>
-        message.method === 'textDocument/publishDiagnostics' &&
-        diagnosticParams(message).uri === queryUri &&
-        diagnosticParams(message).diagnostics.length > 0,
-      10_000,
+    expect(hoverResult(hovered)?.contents.value).toContain('**Fixed** `one`')
+    expect(hoverResult(hovered)?.contents.value).toContain(
+      'value: integer — nullable — public.values_.value',
     )
+
+    languageServer.client.notify('textDocument/didClose', {
+      textDocument: { uri: queryUri },
+    })
+    const restored = await languageServer.client.waitForDiagnostics(
+      queryUri,
+      ({ diagnostics }) => diagnostics.length > 0,
+    )
+    expect(diagnosticParams(restored)).not.toHaveProperty('version')
 
     await writeFile(queryPath, '-- name: Fixed :one\nSELECT value FROM values_;')
-    await peer.waitFor(
-      (message) =>
-        message.method === 'textDocument/publishDiagnostics' &&
-        diagnosticParams(message).uri === queryUri &&
-        diagnosticParams(message).diagnostics.length === 0,
-      10_000,
+    await languageServer.client.waitForDiagnostics(
+      queryUri,
+      ({ diagnostics }) => diagnostics.length === 0,
+    )
+  }, 20_000)
+
+  it('applies incremental UTF-16 edits and versions diagnostics from the analyzed buffer', async () => {
+    const root = await project({
+      'pgsid.yaml': config('queries/*.sql'),
+      'migrations/001.sql': '',
+      'queries/value.sql': "-- name: Value :one\r\nSELECT 'é🙂' AS value;\r\n",
+    })
+    const queryPath = join(root, 'queries/value.sql')
+    const queryUri = pathToFileURL(queryPath).href
+    const languageServer = await start(root)
+    await languageServer.server.drain()
+
+    languageServer.client.notify('textDocument/didOpen', {
+      textDocument: {
+        uri: queryUri,
+        languageId: 'sql',
+        version: 1,
+        text: "-- name: Value :one\r\nSELECT 'é🙂' AS value;\r\n",
+      },
+    })
+    await languageServer.server.drain()
+    languageServer.client.notify('textDocument/didChange', {
+      textDocument: { uri: queryUri, version: 2 },
+      contentChanges: [
+        {
+          range: {
+            start: { line: 1, character: 7 },
+            end: { line: 1, character: 12 },
+          },
+          text: '+',
+        },
+      ],
+    })
+
+    const broken = await languageServer.client.waitForDiagnostics(
+      queryUri,
+      ({ diagnostics, version }) => diagnostics.length > 0 && version === 2,
+    )
+    expect(diagnosticParams(broken)).toMatchObject({
+      version: 2,
+      diagnostics: [{ code: 'parse-error', range: { start: { line: 1 } } }],
+    })
+
+    languageServer.client.notify('textDocument/didChange', {
+      textDocument: { uri: queryUri, version: 3 },
+      contentChanges: [
+        {
+          range: {
+            start: { line: 1, character: 0 },
+            end: { line: 1, character: 18 },
+          },
+          text: 'SELECT 42 AS value;',
+        },
+      ],
+    })
+    const fixed = await languageServer.client.waitForDiagnostics(
+      queryUri,
+      ({ diagnostics, version }) => diagnostics.length === 0 && version === 3,
+    )
+    expect(diagnosticParams(fixed)).toMatchObject({ diagnostics: [], version: 3 })
+
+    const hovered = await languageServer.client.request('textDocument/hover', {
+      textDocument: { uri: queryUri },
+      position: { line: 1, character: 10 },
+    })
+    expect(hoverResult(hovered)?.contents.value).toContain('value: integer — not null — 42')
+  }, 20_000)
+
+  it('serves the newest rapid edit and never labels an older result with its version', async () => {
+    const root = await project({
+      'pgsid.yaml': config('queries/*.sql'),
+      'migrations/001.sql': '',
+      'queries/value.sql': '-- name: Initial :one\nSELECT 0 AS value;',
+    })
+    const queryPath = join(root, 'queries/value.sql')
+    const queryUri = pathToFileURL(queryPath).href
+    const languageServer = await start(root)
+    await languageServer.server.drain()
+
+    languageServer.client.notify('textDocument/didOpen', {
+      textDocument: {
+        uri: queryUri,
+        languageId: 'sql',
+        version: 1,
+        text: '-- name: Initial :one\nSELECT 0 AS value;',
+      },
+    })
+    await protocolTurn()
+    const initialHover = await languageServer.client.request('textDocument/hover', {
+      textDocument: { uri: queryUri },
+      position: { line: 1, character: 10 },
+    })
+    expect(hoverResult(initialHover)?.contents.value).toContain('**Initial** `one`')
+    languageServer.client.notify('textDocument/didChange', {
+      textDocument: { uri: queryUri, version: 2 },
+      contentChanges: [{ text: '-- name: Superseded :one\nSELECT +;' }],
+    })
+    languageServer.client.notify('textDocument/didChange', {
+      textDocument: { uri: queryUri, version: 3 },
+      contentChanges: [{ text: '-- name: Final :one\nSELECT 3 AS value;' }],
+    })
+    await protocolTurn()
+
+    const hovered = await languageServer.client.request('textDocument/hover', {
+      textDocument: { uri: queryUri },
+      position: { line: 1, character: 10 },
+    })
+    expect(hoverResult(hovered)?.contents.value).toContain('**Final** `one`')
+    expect(hoverResult(hovered)?.contents.value).toContain('value: integer — not null — 3')
+
+    languageServer.client.notify('textDocument/didChange', {
+      textDocument: { uri: queryUri, version: 4 },
+      contentChanges: [{ text: '-- name: OldFailure :one\nSELECT * +;' }],
+    })
+    languageServer.client.notify('textDocument/didChange', {
+      textDocument: { uri: queryUri, version: 5 },
+      contentChanges: [{ text: '-- name: FinalFailure :one\nSELECT +;' }],
+    })
+    const failure = await languageServer.client.waitForDiagnostics(
+      queryUri,
+      ({ diagnostics, version }) => diagnostics.length > 0 && version === 5,
+    )
+    expect(diagnosticParams(failure)).toMatchObject({
+      version: 5,
+      diagnostics: [{ range: { start: { line: 1, character: 8 } } }],
+    })
+
+    const unavailable = await languageServer.client.request('textDocument/hover', {
+      textDocument: { uri: queryUri },
+      position: { line: 1, character: 4 },
+    })
+    expect(unavailable.result).toBeNull()
+  }, 20_000)
+
+  it('clears stale documents when overlays close, files disappear, and paths exclude them', async () => {
+    const root = await project({
+      'pgsid.yaml': config('queries/*.sql'),
+      'migrations/001.sql': '',
+      'queries/a.sql': '-- name: A :one\nSELECT +;',
+      'queries/b.sql': '-- name: B :one\nSELECT +;',
+    })
+    const aPath = join(root, 'queries/a.sql')
+    const bPath = join(root, 'queries/b.sql')
+    const aUri = pathToFileURL(aPath).href
+    const bUri = pathToFileURL(bPath).href
+    const languageServer = await start(root)
+
+    await Promise.all([
+      languageServer.client.waitForDiagnostics(aUri, ({ diagnostics }) => diagnostics.length > 0),
+      languageServer.client.waitForDiagnostics(bUri, ({ diagnostics }) => diagnostics.length > 0),
+    ])
+
+    languageServer.client.notify('textDocument/didOpen', {
+      textDocument: {
+        uri: aUri,
+        languageId: 'sql',
+        version: 1,
+        text: '-- name: A :one\nSELECT 1 AS value;',
+      },
+    })
+    await languageServer.client.waitForDiagnostics(
+      aUri,
+      ({ diagnostics, version }) => diagnostics.length === 0 && version === 1,
     )
 
-    peer.send({ jsonrpc: '2.0', id: 3, method: 'shutdown', params: null })
-    await peer.waitFor((message) => message.id === 3)
-    peer.send({ jsonrpc: '2.0', method: 'exit', params: null })
-    await server.close()
+    languageServer.client.notify('textDocument/didClose', { textDocument: { uri: aUri } })
+    await languageServer.client.waitForDiagnostics(
+      aUri,
+      ({ diagnostics }) => diagnostics.length > 0,
+    )
+
+    await unlink(bPath)
+    await languageServer.client.waitForDiagnostics(
+      bUri,
+      ({ diagnostics }) => diagnostics.length === 0,
+    )
+
+    await writeFile(join(root, 'pgsid.yaml'), config('queries/elsewhere/*.sql'))
+    await languageServer.client.waitForDiagnostics(
+      aUri,
+      ({ diagnostics }) => diagnostics.length === 0,
+    )
   }, 20_000)
 })
 
-interface JsonRpcMessage {
-  id?: number
-  method?: string
-  result?: unknown
-  params?: unknown
+const project = async (files: Readonly<Record<string, string>>): Promise<string> => {
+  const root = await mkdtemp(join(tmpdir(), 'pgsid-language-server-'))
+  roots.push(root)
+  await writeProject(root, files)
+  return root
 }
 
-class JsonRpcPeer {
-  readonly #input: PassThrough
-  #buffer = Buffer.alloc(0)
-  #messages: JsonRpcMessage[] = []
-  #waiters: (() => void)[] = []
-
-  constructor(input: PassThrough, output: PassThrough) {
-    this.#input = input
-    output.on('data', (chunk: Buffer) => {
-      this.#buffer = Buffer.concat([this.#buffer, chunk])
-      this.#parse()
-    })
-  }
-
-  send(message: JsonRpcMessage & { jsonrpc: '2.0' }): void {
-    const body = Buffer.from(JSON.stringify(message))
-    this.#input.write(`Content-Length: ${body.length}\r\n\r\n`)
-    this.#input.write(body)
-  }
-
-  async waitFor(
-    predicate: (message: JsonRpcMessage) => boolean,
-    timeout = 2_000,
-  ): Promise<JsonRpcMessage> {
-    const deadline = Date.now() + timeout
-    while (true) {
-      const index = this.#messages.findIndex(predicate)
-      if (index >= 0) return this.#messages.splice(index, 1)[0]!
-      const remaining = deadline - Date.now()
-      if (remaining <= 0) throw new Error('Timed out waiting for JSON-RPC message')
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(
-          () => reject(new Error('Timed out waiting for JSON-RPC message')),
-          remaining,
-        )
-        this.#waiters.push(() => {
-          clearTimeout(timer)
-          resolve()
-        })
-      })
-    }
-  }
-
-  #parse(): void {
-    while (true) {
-      const headerEnd = this.#buffer.indexOf('\r\n\r\n')
-      if (headerEnd < 0) return
-      const header = this.#buffer.subarray(0, headerEnd).toString('ascii')
-      const length = /Content-Length:\s*(\d+)/iu.exec(header)?.[1]
-      if (!length) throw new Error('JSON-RPC message has no content length')
-      const bodyStart = headerEnd + 4
-      const bodyEnd = bodyStart + Number(length)
-      if (this.#buffer.length < bodyEnd) return
-      this.#messages.push(
-        JSON.parse(this.#buffer.subarray(bodyStart, bodyEnd).toString('utf8')) as JsonRpcMessage,
-      )
-      this.#buffer = this.#buffer.subarray(bodyEnd)
-      for (const resolve of this.#waiters.splice(0)) resolve()
-    }
-  }
+const start = async (root: string): Promise<TestLanguageServer> => {
+  const server = await startLanguageServer(root)
+  servers.push(server)
+  return server
 }
 
-const diagnosticParams = (
-  message: JsonRpcMessage,
-): { uri: string; diagnostics: readonly unknown[] } =>
-  message.params as { uri: string; diagnostics: readonly unknown[] }
+const config = (paths: string): string => `
+schema: migrations/*.sql
+sql:
+  paths: [${paths}]
+  typecheck: { plpgsql: false }
+`
 
-const hoverMarkdown = (message: JsonRpcMessage): string => {
-  const result = message.result as { contents?: { value?: unknown } } | undefined
-  return typeof result?.contents?.value === 'string' ? result.contents.value : ''
-}
+const protocolTurn = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))

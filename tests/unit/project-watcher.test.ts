@@ -154,6 +154,31 @@ describe('ProjectBuildWatcher', () => {
     await watcher.close()
   })
 
+  it('does not finish draining while an update schedules another invalidation', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'pgsid-project-watch-'))
+    roots.push(root)
+    let acquisitions = 0
+    let watcher: ProjectBuildWatcher
+    watcher = await ProjectBuildWatcher.start({
+      paths: root,
+      debounceMs: 50,
+      coordinatorOptions: { apply: async () => {} },
+      acquire: async () => {
+        acquisitions++
+        return { sources: [], options }
+      },
+      onUpdate: () => {
+        if (acquisitions === 2) queueMicrotask(() => watcher.invalidate())
+      },
+    })
+
+    watcher.invalidate()
+    await watcher.drain()
+
+    expect(acquisitions).toBe(3)
+    await watcher.close()
+  })
+
   it('reports an acquisition failure and recovers on a later invalidation', async () => {
     const root = await mkdtemp(join(tmpdir(), 'pgsid-project-watch-'))
     roots.push(root)
