@@ -30,6 +30,7 @@ import type { Node } from 'libpg-query'
  * names (for ColumnRef resolution and SELECT * expansion).
  */
 export interface ResolvedTable {
+  kind: 'table' | 'view' | 'materialized-view'
   schema: string
   name: string
   /** Column names of the table/view. Used to resolve unqualified ColumnRefs

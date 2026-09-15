@@ -111,6 +111,7 @@ export interface OutputValueLineage {
 
 export interface ValueLineageCatalog {
   resolveTable(schema: string | undefined, name: string): ResolvedTable | null
+  viewAsts: ReadonlyMap<string, Node>
   resolveColumnTypeName(schema: string, table: string, column: string): string | null
   resolveCanonicalTypeName(typeName: string): string
   resolveOperatorIdentity(
@@ -909,7 +910,7 @@ class ValueLineageAnalyzer {
         ? undefined
         : this.catalog.resolveTable(rangeVar.schemaname, rangeVar.relname)
       if (!cte && !relation) throw new UnsupportedValueLineageError(`relation:${rangeVar.relname}`)
-      const sourceColumns = cte ?? this.relationColumns(relation!)
+      const sourceColumns = cte ?? this.readRelationColumns(relation!)
       const columnAliases = (rangeVar.alias?.colnames ?? []).map(stringNode)
       const columns = sourceColumns.map((column, index) => ({
         name: columnAliases[index] ?? column.name,
@@ -1006,6 +1007,20 @@ class ValueLineageAnalyzer {
         column: { schema: relation.schema, relation: relation.name, column },
         resolvedType: this.catalog.resolveColumnTypeName(relation.schema, relation.name, column),
       },
+    }))
+  }
+
+  private readRelationColumns(relation: ResolvedTable): BoundColumn[] {
+    if (relation.kind !== 'view' && relation.kind !== 'materialized-view') {
+      return this.relationColumns(relation)
+    }
+    const definition = this.catalog.viewAsts.get(`${relation.schema}.${relation.name}`)
+    if (!definition) return this.relationColumns(relation)
+    const outputs = this.analyzeStatement(definition, null)
+    const stored = this.relationColumns(relation)
+    return relation.columns.map((name, index) => ({
+      name,
+      value: outputs[index]?.value ?? stored[index]!.value,
     }))
   }
 

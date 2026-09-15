@@ -423,7 +423,12 @@ class ExtractContext {
           const aliasName = sub.alias.aliasname
           this.aliases = new Map(savedAliases)
           this.tables = savedTables
-          this.aliases.set(aliasName, { schema: '', name: aliasName, columns: [] })
+          this.aliases.set(aliasName, {
+            kind: 'table',
+            schema: '',
+            name: aliasName,
+            columns: [],
+          })
         } else {
           this.aliases = savedAliases
           this.tables = savedTables
@@ -480,6 +485,7 @@ class ExtractContext {
     // CTEs take priority over catalog tables.
     if (this.ctes.has(rv.relname)) {
       return {
+        kind: 'table',
         schema: '',
         name: rv.relname,
         columns: this.ctes.get(rv.relname) ?? [],

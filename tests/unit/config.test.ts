@@ -11,6 +11,10 @@ describe('config schema', () => {
     expect(cfg.engine.poolSize).toBe(2)
     expect(cfg.sql.searchPath).toEqual(['public'])
     expect(cfg.sql.typecheck.plpgsql).toBe(true)
+    expect(cfg.sql.analysis.nullability.materializedViews).toEqual({
+      default: 'definition',
+      overrides: {},
+    })
   })
 
   it('parses every supported config section', () => {
@@ -45,6 +49,13 @@ describe('config schema', () => {
           - app
         typecheck:
           plpgsql: false
+        analysis:
+          nullability:
+            materializedViews:
+              default: conservative
+              overrides:
+                public.current_rollup: definition
+                reporting.stale_rollup: conservative
 
         codegen:
           typescript:
@@ -101,6 +112,13 @@ describe('config schema', () => {
     expect(cfg.sql.paths).toEqual(['sql/queries/**/*.sql'])
     expect(cfg.sql.searchPath).toEqual(['public', 'app'])
     expect(cfg.sql.typecheck.plpgsql).toBe(false)
+    expect(cfg.sql.analysis.nullability.materializedViews).toEqual({
+      default: 'conservative',
+      overrides: {
+        'public.current_rollup': 'definition',
+        'reporting.stale_rollup': 'conservative',
+      },
+    })
     expect(cfg.sql.codegen?.typescript?.driver).toBe('pg')
     expect(cfg.sql.codegen?.typescript?.mappings.pgType['pg_catalog.numeric']).toEqual({
       type: 'Decimal',

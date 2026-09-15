@@ -44,6 +44,8 @@ export {
   inferQueryContract,
   UnsupportedNodeError,
   type EvalWarning,
+  type MaterializedViewNullabilityMode,
+  type MaterializedViewNullabilityPolicy,
   type ParamNullability,
   type QueryContract,
   type WalkOptions,

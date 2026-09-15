@@ -246,6 +246,30 @@ const expected: Record<string, OutputValueLineage[]> = {
       ),
     },
   ],
+  'view-chain': [
+    {
+      name: 'actor_id',
+      value: jsonAccess(
+        ['actor', 'id'],
+        'text',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->>', 'jsonb', 'text', 'text'),
+      ),
+    },
+  ],
+  'materialized-view': [
+    {
+      name: 'actor',
+      value: jsonAccess(
+        ['actor'],
+        'json',
+        'operator',
+        column('payload', 'jsonb'),
+        identity('->', 'jsonb', 'text', 'jsonb'),
+      ),
+    },
+  ],
   choices: [
     {
       name: 'available_payload',
@@ -510,6 +534,24 @@ describe('value lineage', () => {
         literal('id', null),
       ],
     })
+  })
+
+  it('traces calls through nested view definitions before interpreting their paths', async () => {
+    const statement = (await parseSql('SELECT actor_id FROM event_actor_ids')).stmts![0]!.stmt!
+    const outer = traceValueLineage(statement, catalog)[0]!.value
+
+    expect(outer).toMatchObject({
+      kind: 'transform',
+      operation: { kind: 'operator', operator: { name: '->>' } },
+    })
+    if (outer.kind !== 'transform') throw new Error('expected the outer view operation')
+    expect(outer.inputs[0]).toMatchObject({
+      kind: 'transform',
+      operation: { kind: 'operator', operator: { name: '->' } },
+    })
+    const inner = outer.inputs[0]!
+    if (inner.kind !== 'transform') throw new Error('expected the inner view operation')
+    expect(inner.inputs[0]).toEqual(column('payload', 'jsonb'))
   })
 
   it('traces extraction functions before interpreting their paths', async () => {

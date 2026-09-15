@@ -81,6 +81,7 @@ export async function buildNullabilityCatalog(
   const tableMap = new Map<
     string,
     {
+      kind: ResolvedTable['kind']
       schema: string
       name: string
       columns: string[]
@@ -150,6 +151,7 @@ export async function buildNullabilityCatalog(
       t.columns.filter((c) => c.notNull || domainForcedNotNull(c)).map((c) => c.name),
     )
     tableMap.set(`${t.schema}.${t.name}`, {
+      kind: 'table',
       schema: t.schema,
       name: t.name,
       columns,
@@ -164,19 +166,25 @@ export async function buildNullabilityCatalog(
   }
   // Views have columns too — treat them like tables for resolution. A view
   // has no inheritance children, so its tree flags are its plain flags.
-  for (const v of [...snapshot.views, ...snapshot.materializedViews]) {
-    const columns = v.columns.map((c) => c.name)
-    const notNullCols = new Set(v.columns.filter((c) => c.notNull).map((c) => c.name))
-    tableMap.set(`${v.schema}.${v.name}`, {
-      schema: v.schema,
-      name: v.name,
-      columns,
-      notNullCols,
-      notNullTreeCols: notNullCols,
-      colTypeOids: new Map(v.columns.map((c) => [c.name, c.typeOid])),
-      colTypeNames: new Map(v.columns.map((c) => [c.name, c.typeName])),
-      colDistinctnessSound: distinctnessSound(v.schema, v.columns),
-    })
+  for (const [kind, relations] of [
+    ['view', snapshot.views],
+    ['materialized-view', snapshot.materializedViews],
+  ] as const) {
+    for (const v of relations) {
+      const columns = v.columns.map((c) => c.name)
+      const notNullCols = new Set(v.columns.filter((c) => c.notNull).map((c) => c.name))
+      tableMap.set(`${v.schema}.${v.name}`, {
+        kind,
+        schema: v.schema,
+        name: v.name,
+        columns,
+        notNullCols,
+        notNullTreeCols: notNullCols,
+        colTypeOids: new Map(v.columns.map((c) => [c.name, c.typeOid])),
+        colTypeNames: new Map(v.columns.map((c) => [c.name, c.typeName])),
+        colDistinctnessSound: distinctnessSound(v.schema, v.columns),
+      })
+    }
   }
 
   // Group functions by (schema, name) to detect overloads.
@@ -532,7 +540,7 @@ export async function buildNullabilityCatalog(
 
   const resolveTable = (schema: string | undefined, name: string): ResolvedTable | null => {
     const t = schema ? tableMap.get(`${schema}.${name}`) : inPath(tableMap, name)
-    return t ? { schema: t.schema, name: t.name, columns: t.columns } : null
+    return t ? { kind: t.kind, schema: t.schema, name: t.name, columns: t.columns } : null
   }
 
   // A function is identified by name AND argument types, so `inPath`'s

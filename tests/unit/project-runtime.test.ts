@@ -154,6 +154,98 @@ describe('ProjectRuntime', () => {
     }
   })
 
+  it('applies materialized-view nullability defaults and exact overrides', async () => {
+    const root = await project()
+    const configPath = join(root, 'pgsid.yaml')
+    await Promise.all([
+      writeFile(
+        configPath,
+        (await readFile(configPath, 'utf8')).replace(
+          '        typecheck: { plpgsql: false }\n',
+          `        typecheck: { plpgsql: false }
+        analysis:
+          nullability:
+            materializedViews:
+              default: conservative
+              overrides:
+                public.stale_two: definition
+`,
+        ),
+      ),
+      writeFile(
+        join(root, 'migrations/001.sql'),
+        `CREATE TABLE source_rows (payload jsonb);
+         INSERT INTO source_rows VALUES (NULL);
+         CREATE MATERIALIZED VIEW stale_one AS SELECT payload FROM source_rows;
+         CREATE MATERIALIZED VIEW stale_two AS SELECT payload FROM source_rows;
+         DELETE FROM source_rows;
+         ALTER TABLE source_rows ALTER COLUMN payload SET NOT NULL;`,
+      ),
+      writeFile(
+        join(root, 'queries/materialized.sql'),
+        `-- name: ReadSnapshots :many
+         SELECT a.payload AS stale_payload, b.payload AS current_payload
+         FROM stale_one a, stale_two b;`,
+      ),
+    ])
+    const runtime = new ProjectRuntime({ baseDirectory: root })
+    try {
+      const first = await runtime.build()
+      const queryId = 'queries/materialized.sql#ReadSnapshots'
+      expect(
+        first.state.queryAnalysis.analyses[queryId]?.contract.outputs.map(
+          (output) => output.notNull,
+        ),
+      ).toEqual([false, true])
+
+      await writeFile(
+        configPath,
+        (await readFile(configPath, 'utf8')).replace(
+          '              default: conservative',
+          '              default: definition',
+        ),
+      )
+      const changed = await runtime.build()
+      expect(changed.stats.analysisCacheMisses).toBe(1)
+      expect(
+        changed.state.queryAnalysis.analyses[queryId]?.contract.outputs.map(
+          (output) => output.notNull,
+        ),
+      ).toEqual([true, true])
+    } finally {
+      await runtime.close()
+    }
+  })
+
+  it('rejects a materialized-view override that names another relation kind', async () => {
+    const root = await project()
+    const configPath = join(root, 'pgsid.yaml')
+    await Promise.all([
+      writeFile(
+        configPath,
+        (await readFile(configPath, 'utf8')).replace(
+          '        typecheck: { plpgsql: false }\n',
+          `        typecheck: { plpgsql: false }
+        analysis:
+          nullability:
+            materializedViews:
+              overrides:
+                public.events: conservative
+`,
+        ),
+      ),
+      writeFile(join(root, 'migrations/001.sql'), 'CREATE TABLE events (id bigint PRIMARY KEY);'),
+      writeFile(
+        join(root, 'queries/events.sql'),
+        '-- name: ReadEvents :many\nSELECT id FROM events;',
+      ),
+    ])
+
+    await expect(buildProject({ baseDirectory: root })).rejects.toThrow(
+      'Materialized-view nullability override "public.events" names a table',
+    )
+  })
+
   it('reports deferred schema diagnostics with their migration path', async () => {
     const root = await project()
     await writeFile(

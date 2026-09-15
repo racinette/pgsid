@@ -6,7 +6,7 @@ import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
 import { snapshotCatalog } from './catalog/snapshot.js'
 import type { CatalogSnapshot } from './catalog/types.js'
 import { loadJsonSchemaDocuments } from './codegen/shared/json-schema-loader.js'
-import { findConfigPath, loadConfig } from './config/loader.js'
+import { ConfigError, findConfigPath, loadConfig } from './config/loader.js'
 import type { Config } from './config/schema.js'
 import type { SqlDiagnostic } from './errors.js'
 import { discoverMigrationFiles, type DiscoveredMigrationFile } from './migration-discovery.js'
@@ -147,6 +147,7 @@ export class ProjectRuntime {
       if (previous && !previous.pg.closed) await previous.pg.close()
     }
     const generation = this.#generation!
+    validateMaterializedViewOverrides(config, generation.snapshot)
     const catalogKey = hash(stableJson([schemaKey, config.sql.searchPath]))
     if (generation.catalogKey !== catalogKey) {
       generation.catalog = await buildNullabilityCatalog(generation.snapshot, {
@@ -176,11 +177,14 @@ export class ProjectRuntime {
           : undefined,
         analysis: {
           schemaKey,
-          analysisKey: 'query-analysis-v1',
+          analysisKey: 'query-analysis-v2',
           catalog: generation.catalog!,
           searchPath: config.sql.searchPath,
           describe: (sql) => describe(generation, sql),
-          walkOptions: { resolveColumnTypes: (sql) => resolveColumnTypes(generation, sql) },
+          walkOptions: {
+            materializedViews: config.sql.analysis.nullability.materializedViews,
+            resolveColumnTypes: (sql) => resolveColumnTypes(generation, sql),
+          },
         },
       },
     }
@@ -192,6 +196,30 @@ export class ProjectRuntime {
     if (local === '.git' || local.startsWith('.git/')) return true
     if (local === 'node_modules' || local.startsWith('node_modules/')) return true
     return this.#ignoredRoots.some((root) => within(root, absolutePath))
+  }
+}
+
+const validateMaterializedViewOverrides = (config: Config, snapshot: CatalogSnapshot): void => {
+  const overrides = config.sql.analysis.nullability.materializedViews.overrides
+  if (Object.keys(overrides).length === 0) return
+  const materializedViews = new Set(
+    snapshot.materializedViews.map((relation) => `${relation.schema}.${relation.name}`),
+  )
+  const ordinaryRelations = new Map<string, string>()
+  for (const relation of snapshot.tables) {
+    ordinaryRelations.set(`${relation.schema}.${relation.name}`, 'a table')
+  }
+  for (const relation of snapshot.views) {
+    ordinaryRelations.set(`${relation.schema}.${relation.name}`, 'an ordinary view')
+  }
+  for (const name of Object.keys(overrides)) {
+    if (materializedViews.has(name)) continue
+    const kind = ordinaryRelations.get(name)
+    throw new ConfigError(
+      kind
+        ? `Materialized-view nullability override ${JSON.stringify(name)} names ${kind}`
+        : `Materialized-view nullability override ${JSON.stringify(name)} names no materialized view`,
+    )
   }
 }
 

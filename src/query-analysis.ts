@@ -98,7 +98,7 @@ export interface ReconcileQueryAnalysisOptions {
   catalog: QueryAnalysisCatalog
   searchPath: readonly string[]
   describe: DescribeStatement
-  walkOptions?: Pick<WalkOptions, 'evaluate' | 'resolveColumnTypes'>
+  walkOptions?: Pick<WalkOptions, 'evaluate' | 'materializedViews' | 'resolveColumnTypes'>
 }
 
 export const EMPTY_QUERY_ANALYSIS_STATE: QueryAnalysisState = { analyses: {}, cache: {} }
@@ -305,6 +305,7 @@ const analysisCacheKey = (query: QueryBatchItem, options: ReconcileQueryAnalysis
       options.schemaKey,
       options.analysisKey,
       options.searchPath,
+      options.walkOptions?.materializedViews ?? null,
     ]),
   )
 
