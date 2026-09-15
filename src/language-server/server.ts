@@ -18,6 +18,7 @@ import {
   type LanguageServerDiagnosticDocument,
   type ProjectDiagnosticConversionOptions,
 } from './diagnostics.js'
+import { projectHover } from './hover.js'
 
 export interface LanguageServerEnvironment {
   cwd?: string
@@ -33,6 +34,7 @@ export class PgsidLanguageServer {
   readonly #environment: LanguageServerEnvironment
   readonly #documents = new TextDocuments(TextDocument)
   #runtime: ProjectRuntime | undefined
+  #hoverState: ProjectBuildState | undefined
   #conversionOptions: ProjectDiagnosticConversionOptions | undefined
   #published = new Set<string>()
   #publishing = Promise.resolve()
@@ -49,6 +51,17 @@ export class PgsidLanguageServer {
     })
     connection.onShutdown(() => this.close())
     connection.onExit(() => void this.close())
+    connection.onHover(async ({ textDocument, position }) => {
+      const path = filePath(textDocument.uri)
+      if (!path || !this.#runtime || !this.#conversionOptions) return null
+      await this.#runtime.drain()
+      if (!this.#hoverState) return null
+      return projectHover(this.#hoverState, {
+        baseDirectory: this.#conversionOptions.baseDirectory,
+        path,
+        position,
+      })
+    })
     this.#documents.onDidChangeContent(({ document }) => {
       const path = filePath(document.uri)
       if (path && isSqlDocument(path, document.languageId)) {
@@ -86,6 +99,7 @@ export class PgsidLanguageServer {
     return {
       capabilities: {
         positionEncoding: PositionEncodingKind.UTF16,
+        hoverProvider: true,
         textDocumentSync: TextDocumentSyncKind.Incremental,
       },
       serverInfo: { name: 'pgsid' },
@@ -113,12 +127,14 @@ export class PgsidLanguageServer {
   #queueState(state: ProjectBuildState): void {
     const options = this.#conversionOptions
     if (!options) return
+    this.#hoverState = state
     this.#queue(async () => this.#publish(await projectDiagnosticsToLanguageServer(state, options)))
   }
 
   #queueFailure(error: unknown): void {
     const options = this.#conversionOptions
     if (!options) return
+    this.#hoverState = undefined
     this.#queue(async () => this.#publish(await projectFailureToLanguageServer(error, options)))
   }
 
