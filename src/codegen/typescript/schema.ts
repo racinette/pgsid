@@ -2,20 +2,26 @@ import { join } from 'node:path'
 import ts from 'typescript'
 import type { CatalogSnapshot, ColumnInfo, TableInfo, ViewInfo } from '../../catalog/types.js'
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
+import { interpretValueLineage } from '../../query/value-lineage.js'
+import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
 import {
   exportModifier,
   factory,
   importDeclarations,
+  intersectionType,
   nullableType,
   printFile,
   propertyName,
+  unionType,
 } from './ast.js'
+import { typescriptJsonSchemaBindings } from './json-schema-bindings.js'
 import {
   resolveTypescriptColumnType,
   resolveTypescriptDomainBase,
   typeName,
   type ResolvedTypescriptType,
 } from './type-mapping.js'
+import { resolveTypescriptValueType } from './value-type.js'
 
 export interface TypescriptSchemaArtifact {
   path: string
@@ -33,11 +39,16 @@ export interface TypescriptSchemaArtifacts {
   diagnostics: readonly TypescriptSchemaDiagnostic[]
 }
 
+export interface RenderTypescriptSchemaArtifactsOptions {
+  relations?: SchemaRelationAnalyses
+}
+
 export function renderTypescriptSchemaArtifacts(
   catalog: CatalogSnapshot,
   config: Config,
   schemas: Readonly<Record<string, JsonSchemaDocument>>,
   outDir: string,
+  options: RenderTypescriptSchemaArtifactsOptions = {},
 ): TypescriptSchemaArtifacts {
   const target = config.sql.codegen?.typescript
   if (!target?.schema) return { artifacts: [], diagnostics: [] }
@@ -64,7 +75,15 @@ export function renderTypescriptSchemaArtifacts(
       assertUniqueNames(enums, schema, 'enum')
       assertUniqueNames(domains, schema, 'domain')
 
-      const tableFile = renderRelations(schema, tables, views, catalog, config, schemas)
+      const tableFile = renderRelations(
+        schema,
+        tables,
+        views,
+        catalog,
+        config,
+        schemas,
+        options.relations ?? {},
+      )
       const enumFile = printFile(
         enums
           .sort(byName)
@@ -141,6 +160,7 @@ const renderRelations = (
   catalog: CatalogSnapshot,
   config: Config,
   schemas: Readonly<Record<string, JsonSchemaDocument>>,
+  analyses: SchemaRelationAnalyses,
 ): string => {
   const imports: TypeImport[] = []
   const references = new Map<string, Set<string>>()
@@ -156,6 +176,7 @@ const renderRelations = (
         config,
         schemas,
       ),
+      alwaysNull: false,
       ...storedColumnSemantics(column, catalog),
     }))
     collectTypeDependencies(
@@ -177,20 +198,33 @@ const renderRelations = (
       ),
     )
   }
+  const bindings = typescriptJsonSchemaBindings(config, schemas)
   for (const relation of [...views].sort(byName)) {
-    const columns = relation.columns.map((column) => ({
-      column,
-      resolved: resolveTypescriptColumnType(
+    const analysis = analyses[`${schema}.${relation.name}`]
+    const columns = relation.columns.map((column, index) => {
+      const mapped =
+        config.sql.codegen?.typescript?.mappings.column[`${schema}.${relation.name}.${column.name}`]
+      const catalogType = resolveTypescriptColumnType(
         schema,
         relation.name,
         column,
         catalog,
         config,
         schemas,
-      ),
-      notNull: column.notNull,
-      hasDefault: column.hasDefault,
-    }))
+      )
+      const analyzed = analysis?.columns[index]
+      const inferred =
+        mapped === undefined && analyzed?.value
+          ? resolveTypescriptValueType(interpretValueLineage(analyzed.value), config, bindings)
+          : null
+      return {
+        column,
+        resolved: inferred ?? catalogType,
+        notNull: analyzed?.notNull ?? column.notNull,
+        alwaysNull: analyzed?.alwaysNull ?? false,
+        hasDefault: column.hasDefault,
+      }
+    })
     collectTypeDependencies(
       schema,
       columns.map((item) => item.resolved),
@@ -203,7 +237,7 @@ const renderRelations = (
         typeName(relation.name),
         undefined,
         factory.createTypeReferenceNode('TableTypes', [
-          rowType(columns, 'select'),
+          viewRowType(columns, analysis?.outputPresenceGroups ?? []),
           factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword),
           factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword),
         ]),
@@ -235,12 +269,13 @@ const rowType = (
     column: ColumnInfo
     resolved: ResolvedTypescriptType
     notNull: boolean
+    alwaysNull: boolean
     hasDefault: boolean
   }[],
   operation: 'select' | 'insert' | 'update',
 ): ts.TypeNode => {
   const members: ts.TypeElement[] = []
-  for (const { column, resolved, notNull, hasDefault } of columns) {
+  for (const { column, resolved, notNull, alwaysNull, hasDefault } of columns) {
     const excluded =
       operation !== 'select' && (column.generated !== 'none' || column.identity === 'always')
     if (excluded) continue
@@ -252,11 +287,70 @@ const rowType = (
         undefined,
         propertyName(column.name),
         optional ? factory.createToken(ts.SyntaxKind.QuestionToken) : undefined,
-        nullableType(resolved.type, notNull),
+        selectedColumnType({ resolved, notNull, alwaysNull }),
       ),
     )
   }
   return factory.createTypeLiteralNode(members)
+}
+
+const viewRowType = (
+  columns: readonly {
+    column: ColumnInfo
+    resolved: ResolvedTypescriptType
+    notNull: boolean
+    alwaysNull: boolean
+    hasDefault: boolean
+  }[],
+  groups: readonly { columns: number[]; discriminants: number[] }[],
+): ts.TypeNode => {
+  const flat = rowType(columns, 'select')
+  const refinements = groups.map((group) => {
+    const present = factory.createTypeLiteralNode(
+      group.columns.map((index) => {
+        const column = columns[index]!
+        const type = selectedColumnType(column)
+        return factory.createPropertySignature(
+          undefined,
+          propertyName(column.column.name),
+          undefined,
+          group.discriminants.includes(index) ? withoutNull(type) : type,
+        )
+      }),
+    )
+    const absent = factory.createTypeLiteralNode(
+      group.columns.map((index) =>
+        factory.createPropertySignature(
+          undefined,
+          propertyName(columns[index]!.column.name),
+          undefined,
+          factory.createLiteralTypeNode(factory.createNull()),
+        ),
+      ),
+    )
+    return unionType([present, absent])
+  })
+  return intersectionType([flat, ...refinements])
+}
+
+const selectedColumnType = (column: {
+  resolved: ResolvedTypescriptType
+  notNull: boolean
+  alwaysNull: boolean
+}): ts.TypeNode =>
+  column.alwaysNull
+    ? factory.createLiteralTypeNode(factory.createNull())
+    : nullableType(column.resolved.type, column.notNull)
+
+const withoutNull = (type: ts.TypeNode): ts.TypeNode => {
+  if (!ts.isUnionTypeNode(type)) return type
+  const members = type.types.filter(
+    (member) =>
+      !(ts.isLiteralTypeNode(member) && member.literal.kind === ts.SyntaxKind.NullKeyword),
+  )
+  return members.length
+    ? unionType(members)
+    : factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword)
 }
 
 const collectTypeDependencies = (

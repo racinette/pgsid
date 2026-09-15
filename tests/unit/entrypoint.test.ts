@@ -34,6 +34,7 @@ const SURFACE = [
   'UnsupportedJsonSchemaError',
   'UnsupportedNodeError',
   'UnsupportedValueLineageError',
+  'analyzeSchemaRelations',
   'analyzeValueLineage',
   'applyProjectBuildEvents',
   'buildNullabilityCatalog',

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { SqlDiagnostic } from './errors.js'
 import type { CatalogSnapshot } from './catalog/types.js'
+import type { SchemaRelationAnalyses } from './schema-analysis.js'
 import {
   type CodegenArtifact,
   type CodegenDiagnostic,
@@ -92,6 +93,7 @@ export interface ReconcileProjectBuildOptions {
   schemaDiagnostics?: readonly ProjectSchemaDiagnostic[]
   schema?: {
     catalog: CatalogSnapshot
+    relations: SchemaRelationAnalyses
     key: string
     sourcePath: string
   }
@@ -141,7 +143,13 @@ export async function reconcileProjectBuild(
       let rendered = previous.schemaRenderCache[target.id]
       if (rendered?.key === renderKey) renderCacheHits++
       else {
-        rendered = { key: renderKey, ...target.renderSchema(options.schema.catalog) }
+        rendered = {
+          key: renderKey,
+          ...target.renderSchema({
+            catalog: options.schema.catalog,
+            relations: options.schema.relations,
+          }),
+        }
         renderCacheMisses++
       }
       schemaRenderCache[target.id] = rendered

@@ -61,8 +61,14 @@ export function createTypescriptCodegenTarget(
     },
     ...(schemaOutDir
       ? {
-          renderSchema(catalog): CodegenRenderResult {
-            const rendered = renderTypescriptSchemaArtifacts(catalog, config, schemas, schemaOutDir)
+          renderSchema(input): CodegenRenderResult {
+            const rendered = renderTypescriptSchemaArtifacts(
+              input.catalog,
+              config,
+              schemas,
+              schemaOutDir,
+              { relations: input.relations },
+            )
             return {
               artifacts: rendered.artifacts.map((artifact) => ({
                 ...artifact,

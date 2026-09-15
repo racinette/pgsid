@@ -21,6 +21,7 @@ import { ProjectBuildWatcher, type ProjectBuildWatcherOptions } from './project-
 import { buildNullabilityCatalog } from './query/catalog-adapter.js'
 import type { QueryAnalysisCatalog } from './query-analysis.js'
 import { loadQuerySources } from './query-source-loader.js'
+import { analyzeSchemaRelations, type SchemaRelationAnalyses } from './schema-analysis.js'
 import { SchemaBuilder } from './schema-builder.js'
 
 export interface ProjectRuntimeOptions {
@@ -60,6 +61,8 @@ interface SchemaGeneration {
   diagnostics: readonly ProjectSchemaDiagnostic[]
   catalogKey?: string
   catalog?: QueryAnalysisCatalog
+  relationAnalysisKey?: string
+  relationAnalyses?: SchemaRelationAnalyses
   typeNames: Map<number, string>
   delegateCounter: number
 }
@@ -159,6 +162,28 @@ export class ProjectRuntime {
     const schemas = loadJsonSchemaDocuments(config, { baseDirectory: this.baseDirectory })
     const targets = createCodegenTargets(config, schemas, { baseDirectory: this.baseDirectory })
     this.#ignoredRoots = targets.flatMap((target) => target.outputRoots)
+    const walkOptions = {
+      materializedViews: config.sql.analysis.nullability.materializedViews,
+      resolveColumnTypes: (sql: string) => resolveColumnTypes(generation, sql),
+    }
+    const relationAnalysisKey = hash(
+      stableJson([
+        catalogKey,
+        config.sql.analysis.nullability.materializedViews,
+        targets.some((target) => target.renderSchema),
+      ]),
+    )
+    if (
+      targets.some((target) => target.renderSchema) &&
+      generation.relationAnalysisKey !== relationAnalysisKey
+    ) {
+      generation.relationAnalyses = await analyzeSchemaRelations(
+        generation.snapshot,
+        generation.catalog!,
+        walkOptions,
+      )
+      generation.relationAnalysisKey = relationAnalysisKey
+    }
     const sources = await loadQuerySources(config, {
       baseDirectory: this.baseDirectory,
       targets,
@@ -171,7 +196,8 @@ export class ProjectRuntime {
         schema: targets.some((target) => target.renderSchema)
           ? {
               catalog: generation.snapshot,
-              key: schemaKey,
+              relations: generation.relationAnalyses!,
+              key: relationAnalysisKey,
               sourcePath: this.configPath,
             }
           : undefined,
@@ -181,10 +207,7 @@ export class ProjectRuntime {
           catalog: generation.catalog!,
           searchPath: config.sql.searchPath,
           describe: (sql) => describe(generation, sql),
-          walkOptions: {
-            materializedViews: config.sql.analysis.nullability.materializedViews,
-            resolveColumnTypes: (sql) => resolveColumnTypes(generation, sql),
-          },
+          walkOptions,
         },
       },
     }
