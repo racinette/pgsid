@@ -11,6 +11,7 @@ tests/unit/query/espalier/.cache/
 # Tool output. Regenerated on demand by the command each file names; never a
 # hand-maintained claim, so nothing here is reviewed and nothing is committed.
 artifacts/
+src/codegen/go/wasm/go-ast.wasm
 
 vendor/*
 !vendor/README.MD

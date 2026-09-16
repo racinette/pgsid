@@ -105,7 +105,7 @@ const config = parseConfigString(`
             public.events.payload:
               jsonSchema: EventPayload
         jsonSchemas:
-          runtimeValidation: true
+          runtime: {outDir: generated/validation, validate: true}
 `)
 
 const eventPayloadSchema: JsonSchemaDocument = {
@@ -166,18 +166,25 @@ describe('renderTypescriptQueryArtifacts', () => {
 
     expect(rendered.diagnostics).toEqual([])
     const types = compact(rendered.types!)
-    const wrappers = compact(rendered.wrappers!)
-    expect(types).toContain('import { EventId } from "./ids.js";')
+    const runtime = compact(rendered.runtime!)
+    expect(types).toContain('import type { EventId } from "./ids.js";')
     expect(types).toContain('export type GetEventParams = { "id": bigint; };')
     expect(types).toContain('export type GetEventRow = { "id": EventId; "actor": number | null; };')
-    expect(types).toContain('export function isGetEventActor2')
-    expect(wrappers).toContain(
+    expect(runtime).toContain('export function isGetEventActor(')
+    expect(runtime).toContain('export function validateGetEventActor(')
+    expect(types).not.toContain('SELECT')
+    expect(types).not.toContain('export function')
+    expect(types).not.toContain('export const')
+    expect(runtime).toContain(
       'export async function getEvent(db: Queryable, params: GetEventParams)',
     )
-    expect(wrappers).toContain('db.query(getEventSql, [params["id"]])')
-    expect(wrappers).toContain('if (!isGetEventActor2(row["actor"]))')
+    expect(runtime).toContain('db.query(getEventSql, [params["id"]])')
+    expect(runtime).toContain('if (!isGetEventActor(row["actor"]))')
+    expect(runtime).toContain(
+      'new QueryValidationError("GetEvent", "actor", validateGetEventActor(row["actor"]).issues)',
+    )
 
-    for (const source of [rendered.types!, rendered.wrappers!]) {
+    for (const source of [rendered.types!, rendered.runtime!]) {
       expect(
         ts.transpileModule(source, {
           compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
@@ -185,6 +192,67 @@ describe('renderTypescriptQueryArtifacts', () => {
         }).diagnostics,
       ).toEqual([])
     }
+  })
+
+  it('disambiguates actual normalized-column and cross-query validator collisions', () => {
+    const columns = ['actor_id', 'actorId', 'actorId2']
+    const rendered = renderTypescriptQueryArtifacts(
+      [
+        analysis({
+          columns,
+          columnTypes: columns.map(() => 'jsonb'),
+          lineage: columns.map((name) => ({ name, value: column('payload', 'jsonb') })),
+        }),
+        analysis({
+          name: 'GetEventActor',
+          columns: ['id'],
+          columnTypes: ['jsonb'],
+          lineage: [{ name: 'id', value: column('payload', 'jsonb') }],
+        }),
+        analysis({ name: 'ValidateGetEventActorId', columns: ['id'], columnTypes: ['integer'] }),
+      ],
+      config,
+      { EventPayload: eventPayloadSchema },
+    )
+    expect(rendered.diagnostics).toEqual([])
+    const file = ts.createSourceFile(
+      'queries.ts',
+      rendered.runtime!,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    )
+    const names = file.statements
+      .filter(ts.isFunctionDeclaration)
+      .map((declaration) => declaration.name!.text)
+    expect(new Set(names).size).toBe(names.length)
+    expect(names).toContain('isGetEventActorId2')
+    expect(names).toContain('validateGetEventActorId2')
+    const reordered = renderTypescriptQueryArtifacts(
+      [
+        analysis({
+          columns: ['state', 'payload'],
+          columnTypes: ['text', 'jsonb'],
+          lineage: [
+            { name: 'state', value: column('state', 'text') },
+            { name: 'payload', value: column('payload', 'jsonb') },
+          ],
+        }),
+        analysis({
+          name: 'Other',
+          columns: ['payload', 'state'],
+          columnTypes: ['jsonb', 'text'],
+          lineage: [
+            { name: 'payload', value: column('payload', 'jsonb') },
+            { name: 'state', value: column('state', 'text') },
+          ],
+        }),
+      ],
+      config,
+      { EventPayload: eventPayloadSchema },
+    )
+    expect(reordered.runtime).toContain('function isGetEventPayload(')
+    expect(reordered.runtime).toContain('function isOtherPayload(')
   })
 
   it('factors parameter rejection sets and optional output groups', () => {
@@ -213,7 +281,7 @@ describe('renderTypescriptQueryArtifacts', () => {
     expect(types).toContain('export type GroupedRow =')
     expect(types).toContain('"child_id": number; "child_note": string | null;')
     expect(types).toContain('"child_id": null; "child_note": null;')
-    expect(compact(rendered.wrappers!)).toContain('Promise<GroupedRow[]>')
+    expect(compact(rendered.runtime!)).toContain('Promise<GroupedRow[]>')
   })
 
   it('refuses duplicate result names and generated identifier collisions', () => {
@@ -233,7 +301,7 @@ describe('renderTypescriptQueryArtifacts', () => {
       config,
       {},
     )
-    expect(collision.wrappers).toBeNull()
+    expect(collision.runtime).toBeNull()
     expect(collision.diagnostics[0]?.code).toBe('generated-name-collision')
 
     const invalidMappingConfig = parseConfigString(`
@@ -274,11 +342,11 @@ describe('renderTypescriptQueryArtifacts', () => {
     )
 
     const types = compact(rendered.types!)
-    const wrappers = compact(rendered.wrappers!)
+    const runtime = compact(rendered.runtime!)
     expect(types).toContain('readonly [ Date, string | null ]')
     expect(types).toContain('readonly [ Date | null, string ]')
-    expect(wrappers).toContain('db: Queryable, ...params: DeleteOldParams')
-    expect(wrappers).toContain('return result.rowCount ?? 0')
+    expect(runtime).toContain('db: Queryable, ...params: DeleteOldParams')
+    expect(runtime).toContain('return result.rowCount ?? 0')
   })
 })
 

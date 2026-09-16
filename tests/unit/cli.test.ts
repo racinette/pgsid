@@ -145,9 +145,9 @@ sql:
 
     expect(exitCode).toBe(0)
     expect(io.stdout()).toBe('pgsid: check passed\n')
-    await expect(readFile(join(root, 'generated/account.ts'), 'utf8')).resolves.toContain(
-      '"id": string | null;',
-    )
+    await expect(
+      readFile(join(root, 'generated/account/ListAccounts.d.ts'), 'utf8'),
+    ).resolves.toContain('"id": string | null;')
   })
 
   it('runs watch updates until shutdown and closes the runtime', async () => {

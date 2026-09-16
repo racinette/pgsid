@@ -137,6 +137,29 @@ export async function reconcileProjectBuild(
   const schemaRenderCache: Record<string, ProjectSchemaRenderCacheEntry> = {}
   const targets = targetIndex(options.targets)
 
+  for (const target of options.targets) {
+    if (!target.renderSupport) continue
+    const cacheKey = `${target.id}:support`
+    let rendered = previous.schemaRenderCache[cacheKey]
+    if (rendered?.key === target.key) renderCacheHits++
+    else {
+      rendered = { key: target.key, ...target.renderSupport() }
+      renderCacheMisses++
+    }
+    schemaRenderCache[cacheKey] = rendered
+    diagnostics.push(
+      ...rendered.diagnostics.map((diagnostic) => ({
+        source: 'codegen' as const,
+        target: target.id,
+        queryId: diagnostic.queryId,
+        diagnostic,
+      })),
+    )
+    if (rendered.diagnostics.some((diagnostic) => diagnostic.severity === 'error')) continue
+    for (const artifact of rendered.artifacts)
+      addArtifact(artifacts, artifact, options.schema?.sourcePath ?? '<codegen>', target.id)
+  }
+
   if (options.schema) {
     for (const target of options.targets) {
       if (!target.renderSchema) continue
@@ -187,7 +210,7 @@ export async function reconcileProjectBuild(
         JSON.stringify([
           target.key,
           route,
-          fileAnalyses.map((item) => [item.query.analysisHash, item.resultHash]),
+          fileAnalyses.map((item) => [item.query.name, item.query.analysisHash, item.resultHash]),
         ]),
       )
       let rendered = renderCache[renderKey] ?? previous.renderCache[renderKey]

@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto'
 import type { Config, JsonSchemaDocument } from '../config/schema.js'
+import type { CatalogSnapshot } from '../catalog/types.js'
 import type { CodegenTarget } from './target.js'
+import { createGoCodegenTarget } from './go/target.js'
 import { createTypescriptCodegenTarget } from './typescript/target.js'
 
 export interface CreateCodegenTargetsOptions {
   baseDirectory?: string
+  catalog?: CatalogSnapshot
 }
 
 export function createCodegenTargets(
@@ -15,7 +18,43 @@ export function createCodegenTargets(
   const targets = [
     createTypescriptCodegenTarget(config, schemas, {
       baseDirectory: options.baseDirectory ?? process.cwd(),
-      key: hash(stableJson([config.sql.codegen?.typescript ?? null, schemas])),
+      key: hash(
+        stableJson([
+          config.sql.codegen?.typescript ?? null,
+          schemas,
+          options.catalog?.domains ?? null,
+          options.catalog?.enums ?? null,
+          options.catalog
+            ? [
+                ...options.catalog.tables,
+                ...options.catalog.views,
+                ...options.catalog.materializedViews,
+              ].map(({ schema, name, columns }) => ({
+                schema,
+                name,
+                columns: columns.map(({ name, typeOid, typeName }) => ({
+                  name,
+                  typeOid,
+                  typeName,
+                })),
+              }))
+            : null,
+        ]),
+      ),
+      catalog: options.catalog,
+    }),
+    createGoCodegenTarget(config, schemas, {
+      baseDirectory: options.baseDirectory ?? process.cwd(),
+      key: hash(
+        stableJson([
+          config.sql.codegen?.go ?? null,
+          schemas,
+          options.catalog?.domains ?? null,
+          options.catalog?.enums ?? null,
+          options.catalog?.compositeTypes ?? null,
+        ]),
+      ),
+      catalog: options.catalog,
     }),
   ].filter((target): target is CodegenTarget => target !== undefined)
   assertUniqueTargetIds(targets)

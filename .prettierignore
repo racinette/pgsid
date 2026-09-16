@@ -1,2 +1,5 @@
 # Package-manager output has its own canonical serializer.
 pnpm-lock.yaml
+
+# Generated code is compared byte-for-byte against the printers' output.
+tests/fixtures/codegen/expected/

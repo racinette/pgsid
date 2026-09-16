@@ -6,6 +6,8 @@ export type QueryCommand = 'one' | 'many' | 'exec' | 'execrows'
 
 export type QueryFileErrorCode =
   | 'duplicate-name'
+  | 'reserved-name'
+  | 'invalid-name'
   | 'empty-query'
   | 'mixed-parameters'
   | 'multiple-statements'
@@ -157,6 +159,9 @@ export function mapRewrittenOffset(
   return offset + adjustment
 }
 
+export const normalizeQueryName = (name: string): string =>
+  name.replace(/[^A-Za-z0-9]/gu, '').toLowerCase()
+
 export async function parseQueryFile(sourceText: string | Buffer): Promise<ParsedQueryFile> {
   const source = typeof sourceText === 'string' ? Buffer.from(sourceText) : sourceText
   const text = source.toString('utf8')
@@ -183,16 +188,33 @@ export async function parseQueryFile(sourceText: string | Buffer): Promise<Parse
   const queries: QueryDefinition[] = []
   for (let index = 0; index < annotations.length; index++) {
     const annotation = annotations[index]!
-    const duplicate = names.get(annotation.name)
-    if (duplicate) {
+    const normalizedName = normalizeQueryName(annotation.name)
+    if (!normalizedName) {
       throw new QueryFileError(
-        'duplicate-name',
-        `Duplicate query name ${JSON.stringify(annotation.name)}`,
+        'invalid-name',
+        `Query name ${JSON.stringify(annotation.name)} must contain a letter or digit`,
         annotation.start,
         annotation.end,
       )
     }
-    names.set(annotation.name, annotation)
+    if (normalizedName === 'queries' || normalizedName === 'pgsid') {
+      throw new QueryFileError(
+        'reserved-name',
+        `Query name ${JSON.stringify(annotation.name)} normalizes to reserved name ${JSON.stringify(normalizedName)}`,
+        annotation.start,
+        annotation.end,
+      )
+    }
+    const duplicate = names.get(normalizedName)
+    if (duplicate) {
+      throw new QueryFileError(
+        'duplicate-name',
+        `Query names ${JSON.stringify(duplicate.name)} and ${JSON.stringify(annotation.name)} are not unique after removing symbols and lowercasing (${JSON.stringify(normalizedName)})`,
+        annotation.start,
+        annotation.end,
+      )
+    }
+    names.set(normalizedName, annotation)
 
     const next = annotations[index + 1]
     const range = trimSqlRange(

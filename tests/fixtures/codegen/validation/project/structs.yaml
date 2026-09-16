@@ -1,0 +1,52 @@
+schema: migrations/*.sql
+types:
+  jsonSchemas:
+    Document:
+      schema:
+        $id: https://example.com/documents.json
+        type: object
+        required: [id, name, flags, node, mode]
+        properties:
+          id: { type: integer, minimum: 1, maximum: 9007199254740992 }
+          name: { type: string, pattern: '^(?=.{3,}$)[a-z]+$' }
+          flags:
+            { type: array, items: { type: string }, uniqueItems: true, contains: { const: active } }
+          node: { $ref: '#/$defs/Node' }
+          mode: { enum: [a, b], type: string }
+          extra: { type: string }
+          count: { type: integer, default: 7 }
+        if: { properties: { mode: { const: a } } }
+        then: { required: [extra] }
+        additionalProperties: false
+        $defs:
+          Node:
+            type: object
+            required: [id]
+            properties:
+              id: { type: integer, minimum: 1 }
+              next: { $ref: '#/$defs/Node' }
+            additionalProperties: false
+    MaybeDocument:
+      schema:
+        type: [object, 'null']
+        properties:
+          value: { type: integer }
+        additionalProperties: false
+sql:
+  paths: [queries/**/*.sql]
+  typecheck: { plpgsql: false }
+  codegen:
+    go:
+      nulls: structs
+      jsonSchemas: { runtime: { validate: true } }
+      mappings:
+        column:
+          public.documents.payload: { jsonSchema: Document }
+          public.documents.unchecked: { jsonSchema: Document, runtime: { validate: false } }
+          public.documents.forced: { jsonSchema: Document, runtime: { validate: true } }
+          public.documents.maybe: { jsonSchema: MaybeDocument }
+          public.documents.strict: { jsonSchema: Document }
+      schema: { outDir: generated/schema }
+      queries:
+        out:
+          queries: generated/queries

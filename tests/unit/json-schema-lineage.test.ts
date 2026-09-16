@@ -286,9 +286,9 @@ describe('JSON Schema lineage', () => {
                   jsonSchema: EventPayload
                 public.events.fallback_payload:
                   jsonSchema: EventPayload
-                  runtimeValidation: false
+                  runtime: {validate: false}
             jsonSchemas:
-              runtimeValidation: true
+              runtime: {outDir: generated/validation, validate: true}
     `)
     expect(typescriptJsonSchemaBindings(config, { EventPayload: true }).columns).toEqual({
       'public.events.payload': { schemaName: 'EventPayload', runtimeValidation: true },

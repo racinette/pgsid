@@ -83,12 +83,14 @@ describe('renderTypescriptSchemaArtifacts', () => {
     )
     expect(Object.keys(artifacts)).toEqual([
       '/generated/helpers.d.ts',
+      '/jsonschemas/EventPayload.d.ts',
+      '/jsonschemas/index.d.ts',
       '/generated/billing/domains.d.ts',
-      '/generated/billing/index.ts',
+      '/generated/billing/index.d.ts',
       '/generated/public/tables.d.ts',
       '/generated/public/enums.d.ts',
       '/generated/public/domains.d.ts',
-      '/generated/public/index.ts',
+      '/generated/public/index.d.ts',
     ])
     expect(artifacts['/generated/helpers.d.ts']).toContain('export type InferInsert')
     expect(artifacts['/generated/public/enums.d.ts']).toContain(
@@ -101,16 +103,20 @@ describe('renderTypescriptSchemaArtifacts', () => {
       'readonly "__pgType": "public.event_id";',
     )
     expect(artifacts['/generated/public/domains.d.ts']).toContain(
-      'export type DefaultEventId = EventId &',
+      'export type DefaultEventId = string &',
     )
     const tables = artifacts['/generated/public/tables.d.ts']!
     expect(tables).toContain('export type Events = TableTypes<')
-    expect(tables).toContain('"payload"?: {')
+    expect(tables).toContain(
+      '"payload"?: import("../../jsonschemas/index.js").EventPayload | null;',
+    )
     expect(tables).toContain('"label": string;')
-    expect(tables.match(/"external_id": EventId;/gu)).toHaveLength(2)
-    expect(tables).toContain('"default_id"?: DefaultEventId;')
-    expect(tables).toContain('"state"?: EventState;')
-    expect(tables).toContain('"invoice_ids"?: InvoiceId[] | null;')
+    expect(tables.match(/"external_id": import\("\.\/domains\.js"\)\.EventId;/gu)).toHaveLength(2)
+    expect(tables).toContain('"default_id"?: import("./domains.js").DefaultEventId;')
+    expect(tables).toContain('"state"?: import("./enums.js").EventState;')
+    expect(tables).toContain(
+      '"invoice_ids"?: (import("../billing/domains.js").InvoiceId | null)[] | null;',
+    )
     expect(tables.match(/"normalized"/gu)).toHaveLength(1)
     expect(tables.match(/"id"/gu)).toHaveLength(2)
     expect(tables).toContain('export type EventLabels = TableTypes<')

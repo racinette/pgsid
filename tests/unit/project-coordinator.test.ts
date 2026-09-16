@@ -18,7 +18,7 @@ const source = (value: number): QuerySourceInput => ({
   routes: [
     {
       target: 'typescript',
-      outputs: [{ kind: 'types', path: '/virtual/query.ts' }],
+      outputs: [{ kind: 'types', path: '/virtual/query' }],
     },
   ],
 })
@@ -80,7 +80,7 @@ describe('ProjectBuildCoordinator', () => {
     const update = await submitted
 
     expect(coordinator.state).toBe(update.state)
-    expect(Object.keys(coordinator.state.artifacts)).toEqual(['/virtual/query.ts'])
+    expect(Object.keys(coordinator.state.artifacts)).toEqual(['/virtual/query/Value.d.ts'])
   })
 
   it('coalesces queued snapshots and converges with a one-shot build', async () => {

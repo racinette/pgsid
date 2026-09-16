@@ -42,5 +42,6 @@ export interface CodegenTarget {
     analyses: readonly QueryAnalysisItem[],
     route: QueryCodegenRoute,
   ): CodegenRenderResult
+  renderSupport?(): CodegenRenderResult
   renderSchema?(input: CodegenSchemaInput): CodegenRenderResult
 }

@@ -51,7 +51,7 @@ const project = async (options: { jsonSchema?: boolean; schemaCodegen?: boolean 
               out:
                 queries:
                   types: generated/types
-                  wrappers: generated/wrappers
+                  runtime: generated/runtime
     `,
   )
   return root
@@ -127,10 +127,14 @@ describe('ProjectRuntime', () => {
     try {
       const first = await runtime.build()
       const second = await runtime.build()
-      const typesPath = join(root, 'generated/types/events.ts')
+      const typesPath = join(root, 'generated/types/events/GetEvent.d.ts')
+      const schemaPath = join(root, 'generated/types/jsonschemas/Payload.d.ts')
 
       expect(first.state.diagnostics).toEqual([])
-      expect(await readFile(typesPath, 'utf8')).toContain('"actor"?: number;')
+      expect(await readFile(typesPath, 'utf8')).toContain(
+        'import("../jsonschemas/index.js").Payload',
+      )
+      expect(await readFile(schemaPath, 'utf8')).toContain('"actor"?: number;')
       expect(second.events).toEqual([])
       expect(second.stats).toMatchObject({
         parseCacheHits: 1,
@@ -144,11 +148,11 @@ describe('ProjectRuntime', () => {
       )
       const schemaChanged = await runtime.build()
       expect(schemaChanged.stats).toMatchObject({ analysisCacheHits: 1, renderCacheMisses: 1 })
-      expect(await readFile(typesPath, 'utf8')).toContain('"actor"?: string;')
+      expect(await readFile(schemaPath, 'utf8')).toContain('"actor"?: string;')
 
       await writeFile(join(root, 'migrations/001.sql'), 'CREATE TABLE events (')
       await expect(runtime.build()).rejects.toBeInstanceOf(ProjectSchemaError)
-      expect(await readFile(typesPath, 'utf8')).toContain('"actor"?: string')
+      expect(await readFile(schemaPath, 'utf8')).toContain('"actor"?: string')
     } finally {
       await runtime.close()
     }
@@ -287,9 +291,9 @@ describe('ProjectRuntime', () => {
     const update = await buildProject({ configPath })
 
     expect(update.state.diagnostics).toEqual([])
-    await expect(readFile(join(root, 'generated/types/events.ts'), 'utf8')).resolves.toContain(
-      '"id": number',
-    )
+    await expect(
+      readFile(join(root, 'generated/types/events/ListEvents.d.ts'), 'utf8'),
+    ).resolves.toContain('"id": number')
   })
 
   it('skips PL/pgSQL validation when it is disabled', async () => {
@@ -311,7 +315,7 @@ describe('ProjectRuntime', () => {
   it('watches migrations, preserves the live generation on failure, and recovers', async () => {
     const root = await project()
     const migrationPath = join(root, 'migrations/001.sql')
-    const typesPath = join(root, 'generated/types/events.ts')
+    const typesPath = join(root, 'generated/types/events/ListEvents.d.ts')
     await Promise.all([
       writeFile(migrationPath, 'CREATE TABLE events (id integer PRIMARY KEY);'),
       writeFile(

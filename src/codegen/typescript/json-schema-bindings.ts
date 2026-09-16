@@ -12,7 +12,7 @@ export function typescriptJsonSchemaBindings(
     columns[column] = {
       schemaName: mapping.jsonSchema,
       runtimeValidation:
-        mapping.runtimeValidation ?? target?.jsonSchemas.runtimeValidation ?? false,
+        mapping.runtime?.validate ?? target?.jsonSchemas.runtime?.validate ?? false,
     }
   }
   return { schemas, columns }

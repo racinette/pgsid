@@ -71,8 +71,8 @@ describe('ProjectBuildWatcher', () => {
     roots.push(root)
     const sqlDirectory = join(root, 'sql')
     const queryPath = join(sqlDirectory, 'value.sql')
-    const typesPath = join(root, 'generated/types/value.ts')
-    const wrappersPath = join(root, 'generated/wrappers/value.ts')
+    const typesPath = join(root, 'generated/types/value/ReadValue.d.ts')
+    const runtimePath = join(root, 'generated/runtime/value/ReadValue.ts')
     await mkdir(sqlDirectory, { recursive: true })
     await writeFile(queryPath, '-- name: ReadValue :one\nSELECT 1 AS value;')
     const config = parseConfigString(`
@@ -85,7 +85,7 @@ describe('ProjectBuildWatcher', () => {
               out:
                 sql:
                   types: generated/types
-                  wrappers: generated/wrappers
+                  runtime: generated/runtime
     `)
     const targets = createCodegenTargets(config, {}, { baseDirectory: root })
     const updates: string[][] = []
@@ -102,7 +102,7 @@ describe('ProjectBuildWatcher', () => {
     })
 
     await expect(readFile(typesPath, 'utf8')).resolves.toContain('"value": number')
-    await expect(readFile(wrappersPath, 'utf8')).resolves.toContain('readValue')
+    await expect(readFile(runtimePath, 'utf8')).resolves.toContain('readValue')
     expect(updates).toHaveLength(1)
 
     await writeFile(queryPath, '-- name: ReadValue :one\nSELECT +;')
@@ -118,7 +118,7 @@ describe('ProjectBuildWatcher', () => {
     await vi.waitFor(
       async () => {
         await expect(access(typesPath)).rejects.toMatchObject({ code: 'ENOENT' })
-        await expect(access(wrappersPath)).rejects.toMatchObject({ code: 'ENOENT' })
+        await expect(access(runtimePath)).rejects.toMatchObject({ code: 'ENOENT' })
       },
       { timeout: 5_000, interval: 20 },
     )

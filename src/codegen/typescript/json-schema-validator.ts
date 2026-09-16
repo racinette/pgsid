@@ -1,11 +1,21 @@
 import ts from 'typescript'
 import type { JsonSchemaDocument, JsonValue } from '../../config/schema.js'
-import type { JsonSchemaLineage } from '../shared/json-schema-lineage.js'
+import type { JsonSchemaLineage, JsonSchemaAlternative } from '../shared/json-schema-lineage.js'
 import { exportModifier, factory, identifier, parseType, printNode } from './ast.js'
+import { diagnosticHelperDeclarations, validationResultType } from './validation-diagnostics.js'
 
 export interface GenerateTypescriptJsonSchemaValidatorOptions {
   document?: JsonSchemaDocument
   nullable?: boolean
+  diagnostic?: boolean
+  predicate?: (
+    alternative: JsonSchemaAlternative,
+    value: ts.Expression,
+  ) => ts.Expression | undefined
+  validation?: (
+    alternative: JsonSchemaAlternative,
+    value: ts.Expression,
+  ) => ts.Expression | undefined
 }
 
 export class UnsupportedJsonSchemaError extends Error {
@@ -15,18 +25,35 @@ export class UnsupportedJsonSchemaError extends Error {
   }
 }
 
+interface ValidatorReference {
+  name: string
+  predicate: ts.Expression
+}
+interface ValidatorContext {
+  documents: Map<JsonSchemaDocument, Map<string, ValidatorReference>>
+  references: ValidatorReference[]
+  diagnostic: boolean
+}
+const validatorContext = (diagnostic = false): ValidatorContext => ({
+  documents: new Map(),
+  references: [],
+  diagnostic,
+})
+
 export function typescriptJsonSchemaValidatorDeclaration(
   name: string,
   type: ts.TypeNode | string,
   schema: JsonSchemaDocument,
   options: GenerateTypescriptJsonSchemaValidatorOptions = {},
 ): ts.FunctionDeclaration {
+  const context = validatorContext(options.diagnostic)
   const value = identifier('value')
-  const predicate = compile(schema, value, options.document ?? schema, new Set())
+  const predicate = compile(schema, value, options.document ?? schema, new Set(), context)
   return validatorDeclaration(
     name,
     typeof type === 'string' ? parseType(type) : type,
     options.nullable ? or([equal(value, factory.createNull()), predicate]) : predicate,
+    context,
   )
 }
 
@@ -34,7 +61,10 @@ export function typescriptJsonSchemaLineageValidatorDeclaration(
   name: string,
   type: ts.TypeNode | string,
   lineage: JsonSchemaLineage,
-  options: Pick<GenerateTypescriptJsonSchemaValidatorOptions, 'nullable'> = {},
+  options: Pick<
+    GenerateTypescriptJsonSchemaValidatorOptions,
+    'nullable' | 'predicate' | 'diagnostic' | 'validation'
+  > = {},
 ): ts.FunctionDeclaration | null {
   if (
     !lineage.complete ||
@@ -43,16 +73,27 @@ export function typescriptJsonSchemaLineageValidatorDeclaration(
   ) {
     return null
   }
+  const context = validatorContext(options.diagnostic)
   const value = identifier('value')
-  const predicates = lineage.alternatives.map((alternative) =>
-    alternative.representation === 'text'
-      ? equal(factory.createTypeOfExpression(value), factory.createStringLiteral('string'))
-      : compile(alternative.schema, value, alternative.document, new Set()),
-  )
+  const path = factory.createArrayLiteralExpression()
+  const predicates = lineage.alternatives.map((alternative) => {
+    if (alternative.representation === 'text')
+      return assertion(context, value, path, 'type', 'string', typePredicate(value, 'string'))
+    if (context.diagnostic) {
+      const result = options.validation?.(alternative, value)
+      if (result) return call(identifier('_include'), [result, path])
+    } else {
+      const predicate = options.predicate?.(alternative, value)
+      if (predicate) return predicate
+    }
+    return compile(alternative.schema, value, alternative.document, new Set(), context)
+  })
+  const predicate = alternatives(context, value, path, 'anyOf', predicates)
   return validatorDeclaration(
     name,
     typeof type === 'string' ? parseType(type) : type,
-    options.nullable ? or([equal(value, factory.createNull()), or(predicates)]) : or(predicates),
+    options.nullable ? or([equal(value, factory.createNull()), predicate]) : predicate,
+    context,
   )
 }
 
@@ -69,7 +110,10 @@ export function generateTypescriptJsonSchemaLineageValidator(
   name: string,
   type: string,
   lineage: JsonSchemaLineage,
-  options: Pick<GenerateTypescriptJsonSchemaValidatorOptions, 'nullable'> = {},
+  options: Pick<
+    GenerateTypescriptJsonSchemaValidatorOptions,
+    'nullable' | 'predicate' | 'diagnostic' | 'validation'
+  > = {},
 ): string | null {
   const declaration = typescriptJsonSchemaLineageValidatorDeclaration(name, type, lineage, options)
   return declaration ? printNode(declaration) : null
@@ -79,8 +123,39 @@ const validatorDeclaration = (
   name: string,
   type: ts.TypeNode,
   predicate: ts.Expression,
-): ts.FunctionDeclaration =>
-  factory.createFunctionDeclaration(
+  context: ValidatorContext,
+): ts.FunctionDeclaration => {
+  const includedResult = (expression: ts.Expression): ts.Expression | undefined =>
+    ts.isCallExpression(expression) &&
+    ts.isIdentifier(expression.expression) &&
+    expression.expression.text === '_include'
+      ? expression.arguments[0]
+      : undefined
+  const delegated = context.diagnostic
+    ? (includedResult(predicate) ??
+      (ts.isBinaryExpression(predicate) &&
+      predicate.operatorToken.kind === ts.SyntaxKind.BarBarToken &&
+      includedResult(predicate.right)
+        ? factory.createConditionalExpression(
+            predicate.left,
+            factory.createToken(ts.SyntaxKind.QuestionToken),
+            factory.createObjectLiteralExpression([
+              factory.createPropertyAssignment('valid', factory.createTrue()),
+              factory.createPropertyAssignment('issues', factory.createArrayLiteralExpression()),
+            ]),
+            factory.createToken(ts.SyntaxKind.ColonToken),
+            includedResult(predicate.right)!,
+          )
+        : undefined))
+    : undefined
+  const expressions = [predicate, ...context.references.map((reference) => reference.predicate)]
+  const uses = (name: string): boolean => {
+    const visit = (node: ts.Node): boolean =>
+      (ts.isIdentifier(node) && node.text === name) || (ts.forEachChild(node, visit) ?? false)
+    return expressions.some(visit)
+  }
+  const deepEqual = uses('_deepEqual')
+  return factory.createFunctionDeclaration(
     [exportModifier],
     undefined,
     identifier(name),
@@ -94,12 +169,116 @@ const validatorDeclaration = (
         factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
       ),
     ],
-    factory.createTypePredicateNode(undefined, 'value', type),
+    context.diagnostic
+      ? validationResultType()
+      : factory.createTypePredicateNode(undefined, 'value', type),
     factory.createBlock(
-      [hasOwnDeclaration(), deepEqualDeclaration(), factory.createReturnStatement(predicate)],
+      delegated
+        ? [factory.createReturnStatement(delegated)]
+        : [
+            ...(context.diagnostic
+              ? diagnosticHelperDeclarations().filter((statement) => {
+                  const name = ts.isFunctionDeclaration(statement)
+                    ? statement.name?.text
+                    : '_issues'
+                  return (
+                    name === '_issues' ||
+                    (name === '_check' && (uses('_union') || context.references.length > 0)) ||
+                    (name !== undefined && uses(name))
+                  )
+                })
+              : []),
+            ...(deepEqual || uses('_hasOwn') ? [hasOwnDeclaration()] : []),
+            ...(deepEqual ? [deepEqualDeclaration()] : []),
+            ...context.references.flatMap((reference) => referenceDeclarations(reference, context)),
+            ...(context.diagnostic
+              ? [
+                  constant('valid', predicate),
+                  factory.createReturnStatement(
+                    factory.createObjectLiteralExpression([
+                      factory.createShorthandPropertyAssignment('valid'),
+                      factory.createPropertyAssignment('issues', identifier('_issues')),
+                    ]),
+                  ),
+                ]
+              : [factory.createReturnStatement(predicate)]),
+          ],
       true,
     ),
   )
+}
+
+const referenceDeclarations = (
+  reference: ValidatorReference,
+  context: ValidatorContext,
+): ts.Statement[] => {
+  const active = identifier(`${reference.name}Active`)
+  const value = identifier('value')
+  return [
+    constant(
+      active.text,
+      factory.createNewExpression(
+        identifier('Set'),
+        [factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)],
+        [],
+      ),
+    ),
+    factory.createFunctionDeclaration(
+      undefined,
+      undefined,
+      reference.name,
+      undefined,
+      [
+        factory.createParameterDeclaration(
+          undefined,
+          undefined,
+          'value',
+          undefined,
+          factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+        ),
+        ...(context.diagnostic
+          ? [
+              factory.createParameterDeclaration(
+                undefined,
+                undefined,
+                'path',
+                undefined,
+                parseType('readonly (string | number)[]'),
+              ),
+            ]
+          : []),
+      ],
+      factory.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword),
+      factory.createBlock(
+        [
+          factory.createIfStatement(
+            call(property(active, 'has'), [value]),
+            factory.createReturnStatement(
+              assertion(
+                context,
+                value,
+                identifier('path'),
+                '$ref',
+                'acyclic value',
+                factory.createFalse(),
+              ),
+            ),
+          ),
+          factory.createExpressionStatement(call(property(active, 'add'), [value])),
+          factory.createTryStatement(
+            factory.createBlock([factory.createReturnStatement(reference.predicate)], true),
+            undefined,
+            factory.createBlock(
+              [factory.createExpressionStatement(call(property(active, 'delete'), [value]))],
+              true,
+            ),
+          ),
+        ],
+        true,
+      ),
+    ),
+  ]
+}
 
 const hasOwnDeclaration = (): ts.VariableStatement =>
   constant(
@@ -212,9 +391,13 @@ const compile = (
   value: ts.Expression,
   document: JsonSchemaDocument,
   seen: ReadonlySet<string>,
+  context: ValidatorContext,
+  path: ts.Expression = factory.createArrayLiteralExpression(),
+  failureKeyword = 'falseSchema',
 ): ts.Expression => {
   if (schema === true) return factory.createTrue()
-  if (schema === false) return factory.createFalse()
+  if (schema === false)
+    return assertion(context, value, path, failureKeyword, false, factory.createFalse())
   assertKeywords(schema)
   const predicates: ts.Expression[] = []
 
@@ -223,50 +406,111 @@ const compile = (
     if (seen.has(reference)) throw new UnsupportedJsonSchemaError(`recursive ${reference}`)
     const target = localReference(reference, document)
     if (target === null) throw new UnsupportedJsonSchemaError(`$ref ${reference}`)
-    predicates.push(compile(target, value, document, new Set([...seen, reference])))
+    const references = context.documents.get(document) ?? new Map<string, ValidatorReference>()
+    context.documents.set(document, references)
+    let helper = references.get(reference)
+    if (!helper) {
+      helper = { name: `_ref${context.references.length + 1}`, predicate: factory.createFalse() }
+      references.set(reference, helper)
+      context.references.push(helper)
+      helper.predicate = compile(
+        target,
+        identifier('value'),
+        document,
+        new Set([...seen, reference]),
+        context,
+        identifier('path'),
+      )
+    }
+    predicates.push(call(identifier(helper.name), context.diagnostic ? [value, path] : [value]))
   }
-  if (schema['const'] !== undefined) predicates.push(constantPredicate(value, schema['const']))
+  if (schema['const'] !== undefined)
+    predicates.push(
+      assertion(
+        context,
+        value,
+        path,
+        'const',
+        schema['const'],
+        constantPredicate(value, schema['const']),
+      ),
+    )
   if (Array.isArray(schema['enum'])) {
-    predicates.push(or(schema['enum'].map((candidate) => constantPredicate(value, candidate))))
+    predicates.push(
+      assertion(
+        context,
+        value,
+        path,
+        'enum',
+        schema['enum'],
+        or(schema['enum'].map((candidate) => constantPredicate(value, candidate))),
+      ),
+    )
   }
   const declared = schema['type']
-  if (typeof declared === 'string') predicates.push(typePredicate(value, declared))
+  const typeChecks: ts.Expression[] = []
+  if (typeof declared === 'string')
+    typeChecks.push(
+      assertion(context, value, path, 'type', declared, typePredicate(value, declared)),
+    )
   else if (Array.isArray(declared)) {
-    predicates.push(
-      or(
-        declared
-          .filter((type): type is string => typeof type === 'string')
-          .map((type) => typePredicate(value, type)),
+    typeChecks.push(
+      assertion(
+        context,
+        value,
+        path,
+        'type',
+        declared,
+        or(
+          declared
+            .filter((type): type is string => typeof type === 'string')
+            .map((type) => typePredicate(value, type)),
+        ),
       ),
     )
   }
 
   predicates.push(
     ...schemaArray(schema['allOf']).map((candidate) =>
-      compile(candidate, value, document, new Set(seen)),
+      compile(candidate, value, document, new Set(seen), context, path),
     ),
   )
   const anyOf = schemaArray(schema['anyOf'])
   if (anyOf.length) {
     predicates.push(
-      or(anyOf.map((candidate) => compile(candidate, value, document, new Set(seen)))),
+      alternatives(
+        context,
+        value,
+        path,
+        'anyOf',
+        anyOf.map((candidate) => compile(candidate, value, document, new Set(seen), context, path)),
+      ),
     )
   }
   const oneOf = schemaArray(schema['oneOf'])
   if (oneOf.length) {
-    const matches = oneOf.map((candidate) =>
-      call(identifier('Number'), [compile(candidate, value, document, new Set(seen))]),
-    )
     predicates.push(
-      equal(
-        matches.slice(1).reduce<ts.Expression>(add, matches[0]!),
-        factory.createNumericLiteral(1),
+      alternatives(
+        context,
+        value,
+        path,
+        'oneOf',
+        oneOf.map((candidate) => compile(candidate, value, document, new Set(seen), context, path)),
       ),
     )
   }
   const negated = schema['not']
   if (typeof negated === 'boolean' || isRecord(negated)) {
-    predicates.push(not(compile(negated, value, document, new Set(seen))))
+    predicates.push(
+      assertion(
+        context,
+        value,
+        path,
+        'not',
+        'no matching value',
+        not(probe(context, compile(negated, value, document, new Set(seen), context, path))),
+      ),
+    )
   }
   const condition = schema['if']
   if (typeof condition === 'boolean' || isRecord(condition)) {
@@ -274,30 +518,36 @@ const compile = (
     const elseSchema = schema['else']
     predicates.push(
       factory.createConditionalExpression(
-        compile(condition, value, document, new Set(seen)),
+        probe(context, compile(condition, value, document, new Set(seen), context, path)),
         factory.createToken(ts.SyntaxKind.QuestionToken),
         typeof thenSchema === 'boolean' || isRecord(thenSchema)
-          ? compile(thenSchema, value, document, new Set(seen))
+          ? compile(thenSchema, value, document, new Set(seen), context, path)
           : factory.createTrue(),
         factory.createToken(ts.SyntaxKind.ColonToken),
         typeof elseSchema === 'boolean' || isRecord(elseSchema)
-          ? compile(elseSchema, value, document, new Set(seen))
+          ? compile(elseSchema, value, document, new Set(seen), context, path)
           : factory.createTrue(),
       ),
     )
   }
-  predicates.push(...compileNumber(schema, value))
-  predicates.push(...compileString(schema, value))
-  predicates.push(...compileArray(schema, value, document, seen))
-  predicates.push(...compileObject(schema, value, document, seen))
-  return and(predicates)
+  predicates.push(...compileNumber(schema, value, context, path))
+  predicates.push(...compileString(schema, value, context, path))
+  predicates.push(...compileArray(schema, value, document, context, path))
+  predicates.push(...compileObject(schema, value, document, seen, context, path))
+  return and([...typeChecks, all(context, predicates)])
 }
 
 const compileNumber = (
   schema: { [key: string]: JsonValue },
   value: ts.Expression,
+  context: ValidatorContext,
+  path: ts.Expression,
 ): ts.Expression[] => {
   const checks: ts.Expression[] = []
+  const numeric = factory.createAsExpression(
+    value,
+    factory.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword),
+  )
   for (const [keyword, operator] of [
     ['minimum', ts.SyntaxKind.GreaterThanEqualsToken],
     ['maximum', ts.SyntaxKind.LessThanEqualsToken],
@@ -305,21 +555,31 @@ const compileNumber = (
     ['exclusiveMaximum', ts.SyntaxKind.LessThanToken],
   ] as const) {
     const limit = schema[keyword]
-    if (typeof limit === 'number') checks.push(binary(value, operator, number(limit)))
+    if (typeof limit === 'number')
+      checks.push(
+        assertion(context, value, path, keyword, limit, binary(numeric, operator, number(limit))),
+      )
   }
   const multiple = schema['multipleOf']
   if (typeof multiple === 'number') {
     checks.push(
-      call(property(identifier('Number'), 'isInteger'), [
-        binary(value, ts.SyntaxKind.SlashToken, number(multiple)),
-      ]),
+      assertion(
+        context,
+        value,
+        path,
+        'multipleOf',
+        multiple,
+        call(property(identifier('Number'), 'isInteger'), [
+          binary(numeric, ts.SyntaxKind.SlashToken, number(multiple)),
+        ]),
+      ),
     )
   }
   return checks.length
     ? [
         or([
           notEqual(factory.createTypeOfExpression(value), factory.createStringLiteral('number')),
-          and(checks),
+          all(context, checks),
         ]),
       ]
     : []
@@ -328,28 +588,61 @@ const compileNumber = (
 const compileString = (
   schema: { [key: string]: JsonValue },
   value: ts.Expression,
+  context: ValidatorContext,
+  path: ts.Expression,
 ): ts.Expression[] => {
   const checks: ts.Expression[] = []
+  const text = factory.createAsExpression(
+    value,
+    factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+  )
   const length = property(
-    factory.createArrayLiteralExpression([factory.createSpreadElement(value)]),
+    factory.createArrayLiteralExpression([factory.createSpreadElement(text)]),
     'length',
   )
   if (typeof schema['minLength'] === 'number') {
-    checks.push(binary(length, ts.SyntaxKind.GreaterThanEqualsToken, number(schema['minLength'])))
+    checks.push(
+      assertion(
+        context,
+        value,
+        path,
+        'minLength',
+        schema['minLength'],
+        binary(length, ts.SyntaxKind.GreaterThanEqualsToken, number(schema['minLength'])),
+      ),
+    )
   }
   if (typeof schema['maxLength'] === 'number') {
-    checks.push(binary(length, ts.SyntaxKind.LessThanEqualsToken, number(schema['maxLength'])))
+    checks.push(
+      assertion(
+        context,
+        value,
+        path,
+        'maxLength',
+        schema['maxLength'],
+        binary(length, ts.SyntaxKind.LessThanEqualsToken, number(schema['maxLength'])),
+      ),
+    )
   }
   const pattern = schema['pattern']
   if (typeof pattern === 'string') {
     validatePattern(pattern, 'pattern')
-    checks.push(call(property(regexp(pattern), 'test'), [value]))
+    checks.push(
+      assertion(
+        context,
+        value,
+        path,
+        'pattern',
+        pattern,
+        call(property(regexp(pattern), 'test'), [text]),
+      ),
+    )
   }
   return checks.length
     ? [
         or([
           notEqual(factory.createTypeOfExpression(value), factory.createStringLiteral('string')),
-          and(checks),
+          all(context, checks),
         ]),
       ]
     : []
@@ -359,7 +652,8 @@ const compileArray = (
   schema: { [key: string]: JsonValue },
   value: ts.Expression,
   document: JsonSchemaDocument,
-  seen: ReadonlySet<string>,
+  context: ValidatorContext,
+  path: ts.Expression,
 ): ts.Expression[] => {
   const hasKeywords = [
     'prefixItems',
@@ -376,38 +670,59 @@ const compileArray = (
   const checks: ts.Expression[] = []
   if (typeof schema['minItems'] === 'number') {
     checks.push(
-      binary(
-        property(array, 'length'),
-        ts.SyntaxKind.GreaterThanEqualsToken,
-        number(schema['minItems']),
+      assertion(
+        context,
+        value,
+        path,
+        'minItems',
+        schema['minItems'],
+        binary(
+          property(array, 'length'),
+          ts.SyntaxKind.GreaterThanEqualsToken,
+          number(schema['minItems']),
+        ),
       ),
     )
   }
   if (typeof schema['maxItems'] === 'number') {
     checks.push(
-      binary(
-        property(array, 'length'),
-        ts.SyntaxKind.LessThanEqualsToken,
-        number(schema['maxItems']),
+      assertion(
+        context,
+        value,
+        path,
+        'maxItems',
+        schema['maxItems'],
+        binary(
+          property(array, 'length'),
+          ts.SyntaxKind.LessThanEqualsToken,
+          number(schema['maxItems']),
+        ),
       ),
     )
   }
   if (schema['uniqueItems'] === true) {
     checks.push(
-      call(property(array, 'every'), [
-        arrow(
-          ['item', 'index', 'all'],
-          equal(
-            call(property(identifier('all'), 'findIndex'), [
-              arrow(
-                ['candidate'],
-                call(identifier('_deepEqual'), [identifier('item'), identifier('candidate')]),
-              ),
-            ]),
-            identifier('index'),
+      assertion(
+        context,
+        value,
+        path,
+        'uniqueItems',
+        true,
+        call(property(array, 'every'), [
+          arrow(
+            ['item', 'index', 'all'],
+            equal(
+              call(property(identifier('all'), 'findIndex'), [
+                arrow(
+                  ['candidate'],
+                  call(identifier('_deepEqual'), [identifier('item'), identifier('candidate')]),
+                ),
+              ]),
+              identifier('index'),
+            ),
           ),
-        ),
-      ]),
+        ]),
+      ),
     )
   }
   const prefix = schemaArray(schema['prefixItems'])
@@ -415,33 +730,78 @@ const compileArray = (
     checks.push(
       or([
         binary(property(array, 'length'), ts.SyntaxKind.LessThanEqualsToken, number(index)),
-        compile(candidate, element(array, index), document, new Set(seen)),
+        compile(
+          candidate,
+          element(array, index),
+          document,
+          new Set(),
+          context,
+          childPath(path, number(index)),
+          'prefixItems',
+        ),
       ]),
     )
   })
   const items = schema['items']
   if (typeof items === 'boolean' || isRecord(items)) {
     checks.push(
-      call(property(call(property(array, 'slice'), [number(prefix.length)]), 'every'), [
-        arrow(['item'], compile(items, identifier('item'), document, new Set(seen))),
-      ]),
+      every(
+        context,
+        call(property(array, 'slice'), [number(prefix.length)]),
+        arrow(
+          context.diagnostic ? ['item', 'index'] : ['item'],
+          compile(
+            items,
+            identifier('item'),
+            document,
+            new Set(),
+            context,
+            childPath(
+              path,
+              prefix.length ? add(identifier('index'), number(prefix.length)) : identifier('index'),
+            ),
+            'items',
+          ),
+        ),
+      ),
     )
   }
   const contains = schema['contains']
   if (typeof contains === 'boolean' || isRecord(contains)) {
     const count = property(
       call(property(array, 'filter'), [
-        arrow(['item'], compile(contains, identifier('item'), document, new Set(seen))),
+        arrow(
+          ['item'],
+          probe(context, compile(contains, identifier('item'), document, new Set(), context, path)),
+        ),
       ]),
       'length',
     )
     const minimum = typeof schema['minContains'] === 'number' ? schema['minContains'] : 1
-    checks.push(binary(count, ts.SyntaxKind.GreaterThanEqualsToken, number(minimum)))
+    checks.push(
+      assertion(
+        context,
+        value,
+        path,
+        typeof schema['minContains'] === 'number' ? 'minContains' : 'contains',
+        minimum,
+        binary(count, ts.SyntaxKind.GreaterThanEqualsToken, number(minimum)),
+      ),
+    )
     if (typeof schema['maxContains'] === 'number') {
-      checks.push(binary(count, ts.SyntaxKind.LessThanEqualsToken, number(schema['maxContains'])))
+      checks.push(
+        assertion(
+          context,
+          value,
+          path,
+          'maxContains',
+          schema['maxContains'],
+          binary(count, ts.SyntaxKind.LessThanEqualsToken, number(schema['maxContains'])),
+        ),
+      )
     }
   }
-  return [or([not(arrayIsArray(value)), and(checks)])]
+  return [or([not(arrayIsArray(value)), all(context, checks)])]
 }
 
 const compileObject = (
@@ -449,6 +809,8 @@ const compileObject = (
   value: ts.Expression,
   document: JsonSchemaDocument,
   seen: ReadonlySet<string>,
+  context: ValidatorContext,
+  path: ts.Expression,
 ): ts.Expression[] => {
   const hasKeywords = [
     'properties',
@@ -467,14 +829,32 @@ const compileObject = (
   const required = Array.isArray(schema['required'])
     ? schema['required'].filter((name): name is string => typeof name === 'string')
     : []
-  checks.push(...required.map((name) => hasOwn(object, name)))
+  checks.push(
+    ...required.map((name) =>
+      assertion(
+        context,
+        element(object, name),
+        childPath(path, factory.createStringLiteral(name)),
+        'required',
+        'present property',
+        hasOwn(object, name),
+      ),
+    ),
+  )
   const properties = isRecord(schema['properties']) ? schema['properties'] : {}
   for (const [name, schemaValue] of Object.entries(properties)) {
     if (typeof schemaValue !== 'boolean' && !isRecord(schemaValue)) continue
     checks.push(
       or([
         not(hasOwn(object, name)),
-        compile(schemaValue, element(object, name), document, new Set(seen)),
+        compile(
+          schemaValue,
+          element(object, name),
+          document,
+          new Set(),
+          context,
+          childPath(path, factory.createStringLiteral(name)),
+        ),
       ]),
     )
   }
@@ -489,14 +869,23 @@ const compileObject = (
     checks.push(
       entriesEvery(
         object,
-        and(
+        all(
+          context,
           patterns.map(([pattern, candidate]) =>
             or([
               not(call(property(regexp(pattern), 'test'), [identifier('key')])),
-              compile(candidate, identifier('item'), document, new Set(seen)),
+              compile(
+                candidate,
+                identifier('item'),
+                document,
+                new Set(),
+                context,
+                childPath(path, identifier('key')),
+              ),
             ]),
           ),
         ),
+        context,
       ),
     )
   }
@@ -514,17 +903,39 @@ const compileObject = (
         or([
           call(property(known, 'includes'), [identifier('key')]),
           matched,
-          compile(additional, identifier('item'), document, new Set(seen)),
+          compile(
+            additional,
+            identifier('item'),
+            document,
+            new Set(),
+            context,
+            childPath(path, identifier('key')),
+            'additionalProperties',
+          ),
         ]),
+        context,
       ),
     )
   }
   const propertyNames = schema['propertyNames']
   if (typeof propertyNames === 'boolean' || isRecord(propertyNames)) {
     checks.push(
-      call(property(objectKeys(object), 'every'), [
-        arrow(['key'], compile(propertyNames, identifier('key'), document, new Set(seen))),
-      ]),
+      every(
+        context,
+        objectKeys(object),
+        arrow(
+          ['key'],
+          compile(
+            propertyNames,
+            identifier('key'),
+            document,
+            new Set(),
+            context,
+            childPath(path, identifier('key')),
+            'propertyNames',
+          ),
+        ),
+      ),
     )
   }
   const dependentRequired = isRecord(schema['dependentRequired']) ? schema['dependentRequired'] : {}
@@ -533,10 +944,20 @@ const compileObject = (
     checks.push(
       or([
         not(hasOwn(object, name)),
-        and(
+        all(
+          context,
           dependencies
             .filter((dependency): dependency is string => typeof dependency === 'string')
-            .map((dependency) => hasOwn(object, dependency)),
+            .map((dependency) =>
+              assertion(
+                context,
+                element(object, dependency),
+                childPath(path, factory.createStringLiteral(dependency)),
+                'dependentRequired',
+                name,
+                hasOwn(object, dependency),
+              ),
+            ),
         ),
       ]),
     )
@@ -544,23 +965,42 @@ const compileObject = (
   const dependentSchemas = isRecord(schema['dependentSchemas']) ? schema['dependentSchemas'] : {}
   for (const [name, dependent] of Object.entries(dependentSchemas)) {
     if (typeof dependent !== 'boolean' && !isRecord(dependent)) continue
-    checks.push(or([not(hasOwn(object, name)), compile(dependent, value, document, new Set(seen))]))
+    checks.push(
+      or([
+        not(hasOwn(object, name)),
+        compile(dependent, value, document, new Set(seen), context, path),
+      ]),
+    )
   }
   if (typeof schema['minProperties'] === 'number') {
     checks.push(
-      binary(
-        property(objectKeys(object), 'length'),
-        ts.SyntaxKind.GreaterThanEqualsToken,
-        number(schema['minProperties']),
+      assertion(
+        context,
+        value,
+        path,
+        'minProperties',
+        schema['minProperties'],
+        binary(
+          property(objectKeys(object), 'length'),
+          ts.SyntaxKind.GreaterThanEqualsToken,
+          number(schema['minProperties']),
+        ),
       ),
     )
   }
   if (typeof schema['maxProperties'] === 'number') {
     checks.push(
-      binary(
-        property(objectKeys(object), 'length'),
-        ts.SyntaxKind.LessThanEqualsToken,
-        number(schema['maxProperties']),
+      assertion(
+        context,
+        value,
+        path,
+        'maxProperties',
+        schema['maxProperties'],
+        binary(
+          property(objectKeys(object), 'length'),
+          ts.SyntaxKind.LessThanEqualsToken,
+          number(schema['maxProperties']),
+        ),
       ),
     )
   }
@@ -568,7 +1008,7 @@ const compileObject = (
     factory.createConditionalExpression(
       typePredicate(value, 'object'),
       factory.createToken(ts.SyntaxKind.QuestionToken),
-      and(checks),
+      all(context, checks),
       factory.createToken(ts.SyntaxKind.ColonToken),
       factory.createTrue(),
     ),
@@ -619,6 +1059,71 @@ const jsonExpression = (value: JsonValue): ts.Expression => {
       factory.createPropertyAssignment(factory.createStringLiteral(name), jsonExpression(item)),
     ),
   )
+}
+
+const assertion = (
+  context: ValidatorContext,
+  value: ts.Expression,
+  path: ts.Expression,
+  keyword: string,
+  expected: JsonValue,
+  predicate: ts.Expression,
+): ts.Expression =>
+  context.diagnostic
+    ? call(identifier('_check'), [
+        predicate,
+        value,
+        path,
+        factory.createStringLiteral(keyword),
+        jsonExpression(expected),
+      ])
+    : predicate
+
+const childPath = (path: ts.Expression, key: ts.Expression): ts.Expression =>
+  factory.createArrayLiteralExpression(
+    ts.isArrayLiteralExpression(path)
+      ? [...path.elements, key]
+      : [factory.createSpreadElement(path), key],
+  )
+
+const probe = (context: ValidatorContext, predicate: ts.Expression): ts.Expression =>
+  context.diagnostic ? call(identifier('_probe'), [arrow([], predicate)]) : predicate
+
+const all = (context: ValidatorContext, predicates: readonly ts.Expression[]): ts.Expression =>
+  context.diagnostic && predicates.length > 1
+    ? call(property(factory.createArrayLiteralExpression(predicates), 'every'), [
+        arrow(['valid'], identifier('valid')),
+      ])
+    : and(predicates)
+
+const every = (
+  context: ValidatorContext,
+  array: ts.Expression,
+  predicate: ts.ArrowFunction,
+): ts.Expression =>
+  context.diagnostic
+    ? call(property(call(property(array, 'map'), [predicate]), 'every'), [
+        arrow(['valid'], identifier('valid')),
+      ])
+    : call(property(array, 'every'), [predicate])
+
+const alternatives = (
+  context: ValidatorContext,
+  value: ts.Expression,
+  path: ts.Expression,
+  keyword: 'anyOf' | 'oneOf',
+  predicates: readonly ts.Expression[],
+): ts.Expression => {
+  if (context.diagnostic && (predicates.length > 1 || keyword === 'oneOf'))
+    return call(identifier('_union'), [
+      factory.createArrayLiteralExpression(predicates.map((predicate) => arrow([], predicate))),
+      value,
+      path,
+      factory.createStringLiteral(keyword),
+    ])
+  if (keyword === 'anyOf') return or(predicates)
+  const matches = predicates.map((predicate) => call(identifier('Number'), [predicate]))
+  return equal(matches.slice(1).reduce<ts.Expression>(add, matches[0]!), number(1))
 }
 
 const and = (values: readonly ts.Expression[]): ts.Expression => {
@@ -694,8 +1199,14 @@ const arrow = (parameters: readonly string[], body: ts.ConciseBody): ts.ArrowFun
     factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
     body,
   )
-const entriesEvery = (object: ts.Expression, predicate: ts.Expression): ts.Expression =>
-  call(property(call(property(identifier('Object'), 'entries'), [object]), 'every'), [
+const entriesEvery = (
+  object: ts.Expression,
+  predicate: ts.Expression,
+  context: ValidatorContext,
+): ts.Expression =>
+  every(
+    context,
+    call(property(identifier('Object'), 'entries'), [object]),
     factory.createArrowFunction(
       undefined,
       undefined,
@@ -713,7 +1224,7 @@ const entriesEvery = (object: ts.Expression, predicate: ts.Expression): ts.Expre
       factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
       predicate,
     ),
-  ])
+  )
 const constant = (name: string, initializer: ts.Expression): ts.VariableStatement =>
   factory.createVariableStatement(
     undefined,

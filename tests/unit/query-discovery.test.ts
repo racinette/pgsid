@@ -44,7 +44,7 @@ describe('discoverQueryFiles', () => {
                 sql: generated/all
                 sql/accounts:
                   types: generated/account-types
-                  wrappers: generated/account-wrappers
+                  runtime: generated/account-runtime
                 sql/accounts/admin: generated/admin
     `)
     const files = await discoverQueryFiles(config, { baseDirectory: root })
@@ -56,15 +56,15 @@ describe('discoverQueryFiles', () => {
       'sql/reporting/report.sql',
     ])
     expect(files[0]!.routes[0]!.outputs).toEqual([
-      { kind: 'types', path: join(root, 'generated/admin/list.ts') },
+      { kind: 'types', path: join(root, 'generated/admin/list') },
     ])
     expect(files[1]!.routes[0]!.outputs).toEqual([
-      { kind: 'types', path: join(root, 'generated/account-types/get.ts') },
-      { kind: 'wrappers', path: join(root, 'generated/account-wrappers/get.ts') },
+      { kind: 'types', path: join(root, 'generated/account-types/get') },
+      { kind: 'runtime', path: join(root, 'generated/account-runtime/get') },
     ])
     expect(files[2]!.routes).toEqual([])
     expect(files[3]!.routes[0]!.outputs).toEqual([
-      { kind: 'types', path: join(root, 'generated/all/reporting/report.ts') },
+      { kind: 'types', path: join(root, 'generated/all/reporting/report') },
     ])
   })
 

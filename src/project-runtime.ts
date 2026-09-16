@@ -175,7 +175,10 @@ export class ProjectRuntime {
     }
     await setSearchPath(generation.pg, config.sql.searchPath)
     const schemas = loadJsonSchemaDocuments(config, { baseDirectory: this.baseDirectory })
-    const targets = createCodegenTargets(config, schemas, { baseDirectory: this.baseDirectory })
+    const targets = createCodegenTargets(config, schemas, {
+      baseDirectory: this.baseDirectory,
+      catalog: generation.snapshot,
+    })
     this.#ignoredRoots = targets.flatMap((target) => target.outputRoots)
     const walkOptions = {
       materializedViews: config.sql.analysis.nullability.materializedViews,

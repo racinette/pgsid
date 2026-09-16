@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import ts from 'typescript'
 import type { CatalogSnapshot, ColumnInfo, TableInfo, ViewInfo } from '../../catalog/types.js'
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
@@ -21,6 +21,12 @@ import {
   typeName,
   type ResolvedTypescriptType,
 } from './type-mapping.js'
+import {
+  createTypescriptJsonSchemaGraphs,
+  renderTypescriptJsonSchemaArtifacts,
+} from './jsonschemas.js'
+import { importedTypescriptType, type TypescriptTypeContext } from './type-mapping.js'
+import { typescriptModuleSpecifier } from './paths.js'
 import { resolveTypescriptValueType } from './value-type.js'
 
 export interface TypescriptSchemaArtifact {
@@ -41,6 +47,8 @@ export interface TypescriptSchemaArtifacts {
 
 export interface RenderTypescriptSchemaArtifactsOptions {
   relations?: SchemaRelationAnalyses
+  jsonSchemasDirectory?: string
+  emitJsonSchemaTypes?: boolean
 }
 
 export function renderTypescriptSchemaArtifacts(
@@ -56,6 +64,42 @@ export function renderTypescriptSchemaArtifacts(
   const artifacts: TypescriptSchemaArtifact[] = [
     { path: join(outDir, 'helpers.d.ts'), content: printFile(helperDeclarations()) },
   ]
+  let context: TypescriptTypeContext
+  try {
+    context = {
+      jsonSchemaReference: (name) =>
+        importedTypescriptType(
+          typescriptModuleSpecifier(
+            join(outDir, 'public', 'tables.d.ts'),
+            join(
+              options.jsonSchemasDirectory ?? join(dirname(outDir), 'jsonschemas'),
+              'index.d.ts',
+            ),
+          ),
+          name,
+        ),
+      jsonSchemaTypes: createTypescriptJsonSchemaGraphs(config, schemas),
+    }
+    if (options.emitJsonSchemaTypes !== false)
+      artifacts.push(
+        ...renderTypescriptJsonSchemaArtifacts(
+          config,
+          schemas,
+          options.jsonSchemasDirectory ?? join(dirname(outDir), 'jsonschemas'),
+        ),
+      )
+  } catch (error) {
+    return {
+      artifacts: [],
+      diagnostics: [
+        {
+          code: 'invalid-type-mapping',
+          severity: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ],
+    }
+  }
   const schemaNames = new Set([
     ...catalog.tables.filter((item) => item.relkind !== 'S').map((item) => item.schema),
     ...catalog.views.map((item) => item.schema),
@@ -83,6 +127,13 @@ export function renderTypescriptSchemaArtifacts(
         config,
         schemas,
         options.relations ?? {},
+        {
+          ...context,
+          nativeModuleSpecifier: (sourceSchema, kind) =>
+            sourceSchema === schema
+              ? `./${kind === 'domain' ? 'domains' : 'enums'}.js`
+              : `../${schemaDirectory(sourceSchema)}/${kind === 'domain' ? 'domains' : 'enums'}.js`,
+        },
       )
       const enumFile = printFile(
         enums
@@ -103,7 +154,12 @@ export function renderTypescriptSchemaArtifacts(
       const domainImports: TypeImport[] = []
       const domainReferences = new Map<string, Set<string>>()
       const domainDeclarations = domains.sort(byName).map((item) => {
-        const resolved = resolveTypescriptDomainBase(item, catalog, config)
+        const resolved = resolveTypescriptDomainBase(item, catalog, config, {
+          nativeModuleSpecifier: (sourceSchema, kind) =>
+            sourceSchema === schema
+              ? `./${kind === 'domain' ? 'domains' : 'enums'}.js`
+              : `../${schemaDirectory(sourceSchema)}/${kind === 'domain' ? 'domains' : 'enums'}.js`,
+        })
         collectTypeDependencies(schema, [resolved], domainImports, domainReferences, 'domain')
         return factory.createTypeAliasDeclaration(
           [exportModifier],
@@ -127,7 +183,7 @@ export function renderTypescriptSchemaArtifacts(
         artifacts.push({ path: join(outDir, schemaDirectory(schema), name), content })
       }
       artifacts.push({
-        path: join(outDir, schemaDirectory(schema), 'index.ts'),
+        path: join(outDir, schemaDirectory(schema), 'index.d.ts'),
         content: printFile(
           exported.map(([name]) =>
             factory.createExportDeclaration(
@@ -161,6 +217,7 @@ const renderRelations = (
   config: Config,
   schemas: Readonly<Record<string, JsonSchemaDocument>>,
   analyses: SchemaRelationAnalyses,
+  context: TypescriptTypeContext,
 ): string => {
   const imports: TypeImport[] = []
   const references = new Map<string, Set<string>>()
@@ -175,6 +232,7 @@ const renderRelations = (
         catalog,
         config,
         schemas,
+        context,
       ),
       alwaysNull: false,
       ...storedColumnSemantics(column, catalog),
@@ -211,11 +269,18 @@ const renderRelations = (
         catalog,
         config,
         schemas,
+        context,
       )
       const analyzed = analysis?.columns[index]
       const inferred =
         mapped === undefined && analyzed?.value
-          ? resolveTypescriptValueType(interpretValueLineage(analyzed.value), config, bindings)
+          ? resolveTypescriptValueType(
+              interpretValueLineage(analyzed.value),
+              config,
+              bindings,
+              catalog,
+              context,
+            )
           : null
       return {
         column,

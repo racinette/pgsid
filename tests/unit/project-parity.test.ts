@@ -28,10 +28,10 @@ const generated = (
     {
       target: 'typescript',
       outputs: [
-        { kind: 'types', path: `${directory}/${path.replace(/\.sql$/u, '.ts')}` },
+        { kind: 'types', path: `${directory}/${path.replace(/\.sql$/u, '')}` },
         {
-          kind: 'wrappers',
-          path: `${directory}/wrappers/${path.replace(/\.sql$/u, '.ts')}`,
+          kind: 'runtime',
+          path: `${directory}/runtime/${path.replace(/\.sql$/u, '')}`,
         },
       ],
     },
@@ -116,7 +116,8 @@ describe('project build parity', () => {
                 public.events.payload:
                   jsonSchema: Payload
             jsonSchemas:
-              runtimeValidation: true
+              types: /generated/shared/jsonschemas
+              runtime: {outDir: generated/validation, validate: true}
     `)
     return {
       analysis,
@@ -172,7 +173,9 @@ describe('project build parity', () => {
     const batch = (await reconcileProjectBuild(finalSources, finalOptions)).state
 
     expect(observed(incremental)).toEqual(observed(batch))
-    expect(batch.artifacts['/generated/v2/events.ts']?.content).toContain('"actor"?: string;')
+    expect(batch.artifacts['/generated/shared/jsonschemas/Payload.d.ts']?.content).toContain(
+      '"actor"?: string;',
+    )
     expect(batch.diagnostics.map((diagnostic) => diagnostic.source)).toEqual([
       'analysis',
       'analysis',
