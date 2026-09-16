@@ -62,6 +62,8 @@ const SURFACE = [
   'reconcileProjectBuild',
   'reconcileQueryAnalysis',
   'reconcileQueryBatch',
+  'renderGoQueryArtifacts',
+  'renderGoSchemaArtifacts',
   'renderTypescriptJsonSchema',
   'renderTypescriptJsonSchemaLineage',
   'renderTypescriptQueryArtifacts',

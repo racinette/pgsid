@@ -1,0 +1,52 @@
+[
+  {
+    "name": "unicode collides with literal encoded name",
+    "diagnostics": [
+      {
+        "code": "generated-name-collision",
+        "severity": "error",
+        "message": "Database schemas \"schema_e695b0e68dae\" and \"数据\" both generate Go directory \"schema_e695b0e68dae\"; set distinct sql.codegen.go.schema.names overrides"
+      }
+    ]
+  },
+  {
+    "name": "uppercase collides with literal encoded name",
+    "diagnostics": [
+      {
+        "code": "generated-name-collision",
+        "severity": "error",
+        "message": "Database schemas \"Billing\" and \"schema_42696c6c696e67\" both generate Go directory \"schema_42696c6c696e67\"; set distinct sql.codegen.go.schema.names overrides"
+      }
+    ]
+  },
+  {
+    "name": "hidden name collides with literal encoded name",
+    "diagnostics": [
+      {
+        "code": "generated-name-collision",
+        "severity": "error",
+        "message": "Database schemas \"_hidden\" and \"schema_5f68696464656e\" both generate Go directory \"schema_5f68696464656e\"; set distinct sql.codegen.go.schema.names overrides"
+      }
+    ]
+  },
+  {
+    "name": "explicit overrides collide",
+    "diagnostics": [
+      {
+        "code": "generated-name-collision",
+        "severity": "error",
+        "message": "Database schemas \"left\" and \"right\" both generate Go directory \"same\"; set distinct sql.codegen.go.schema.names overrides"
+      }
+    ]
+  },
+  {
+    "name": "override collides with default name",
+    "diagnostics": [
+      {
+        "code": "generated-name-collision",
+        "severity": "error",
+        "message": "Database schemas \"public\" and \"数据\" both generate Go directory \"public\"; set distinct sql.codegen.go.schema.names overrides"
+      }
+    ]
+  }
+]

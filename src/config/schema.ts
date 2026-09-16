@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isPortableGoSchemaDirectory } from '../codegen/go/names.js'
 
 export type JsonValue =
   null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
@@ -96,7 +97,7 @@ export const columnMappingSchema = z.union([
   z
     .object({
       jsonSchema: z.string().min(1),
-      runtimeValidation: z.boolean().optional(),
+      runtime: z.object({ validate: z.boolean().optional() }).strict().optional(),
     })
     .strict(),
 ])
@@ -111,7 +112,16 @@ export const mappingsSchema = z
 
 export const typescriptJsonSchemasSchema = z
   .object({
-    runtimeValidation: z.boolean().default(false),
+    types: z.string().min(1).optional(),
+    runtime: z
+      .union([
+        z
+          .string()
+          .min(1)
+          .transform((outDir) => ({ outDir, validate: true })),
+        z.object({ outDir: z.string().min(1), validate: z.boolean().default(true) }).strict(),
+      ])
+      .optional(),
   })
   .strict()
   .default({})
@@ -127,7 +137,7 @@ export const queryOutEntrySchema = z.union([
   z
     .object({
       types: z.string(),
-      wrappers: z.string().optional(),
+      runtime: z.string().optional(),
     })
     .strict(),
 ])
@@ -153,9 +163,132 @@ export const typescriptCodegenSchema = z
   .strict()
   .default({})
 
+export const goTypeImportSchema = z
+  .object({
+    path: z.string().min(1),
+    as: z.string().min(1).optional(),
+  })
+  .strict()
+
+export const goTargetTypeMappingSchema = z.union([
+  z.string().min(1),
+  z
+    .object({
+      type: z.string().min(1),
+      imports: z.array(goTypeImportSchema).min(1).optional(),
+    })
+    .strict(),
+])
+
+export const goColumnMappingSchema = z.union([
+  goTargetTypeMappingSchema,
+  z
+    .object({
+      jsonSchema: z.string().min(1),
+      runtime: z.object({ validate: z.boolean().optional() }).strict().optional(),
+    })
+    .strict(),
+])
+
+export const goMappingsSchema = z
+  .object({
+    pgType: z.record(z.string(), goTargetTypeMappingSchema).default({}),
+    column: z.record(z.string(), goColumnMappingSchema).default({}),
+  })
+  .strict()
+  .default({})
+
+export const goQueriesCodegenSchema = z
+  .object({
+    exclude: z.array(z.string()).default([]),
+    out: z
+      .record(
+        z.string(),
+        z.union([
+          z.string(),
+          z.object({ outDir: z.string(), importPath: z.string().min(1).optional() }).strict(),
+        ]),
+      )
+      .default({}),
+  })
+  .strict()
+  .default({})
+
+const goKeywords = new Set([
+  'break',
+  'case',
+  'chan',
+  'const',
+  'continue',
+  'default',
+  'defer',
+  'else',
+  'fallthrough',
+  'for',
+  'func',
+  'go',
+  'goto',
+  'if',
+  'import',
+  'interface',
+  'map',
+  'package',
+  'range',
+  'return',
+  'select',
+  'struct',
+  'switch',
+  'type',
+  'var',
+])
+
+const goPackageSchema = z
+  .string()
+  .regex(/^[A-Za-z_][A-Za-z0-9_]*$/u)
+  .refine((name) => !goKeywords.has(name), 'Go package name cannot be a keyword')
+
+export const goCodegenSchema = z
+  .object({
+    package: goPackageSchema.optional(),
+    domains: z.boolean().default(true),
+    driver: z.enum(['pgx']).default('pgx'),
+    nulls: z.enum(['pointers', 'structs']).default('pointers'),
+    jsonSchemas: z
+      .object({
+        nulls: z.enum(['pointers', 'structs']).optional(),
+        runtime: z
+          .object({ validate: z.boolean().default(true) })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .default({}),
+    mappings: goMappingsSchema,
+    schema: schemaCodegenSchema
+      .extend({
+        importPath: z.string().min(1).optional(),
+        names: z
+          .record(
+            z.string(),
+            z
+              .string()
+              .refine(
+                isPortableGoSchemaDirectory,
+                'Go schema directory must be a portable lowercase ASCII path segment',
+              ),
+          )
+          .default({}),
+      })
+      .optional(),
+    queries: goQueriesCodegenSchema,
+  })
+  .strict()
+  .default({})
+
 export const codegenSchema = z
   .object({
     typescript: typescriptCodegenSchema.optional(),
+    go: goCodegenSchema.optional(),
   })
   .strict()
 
@@ -180,18 +313,49 @@ export const configSchema = z
   })
   .strict()
   .superRefine((config, context) => {
-    const columns = config.sql.codegen?.typescript?.mappings.column ?? {}
+    const typescript = config.sql.codegen?.typescript
+    if (
+      typescript &&
+      !typescript.jsonSchemas.runtime &&
+      Object.values(typescript.queries.out).some(
+        (output) => typeof output === 'object' && output.runtime !== undefined,
+      )
+    ) {
+      for (const [column, mapping] of Object.entries(typescript.mappings.column)) {
+        if (
+          typeof mapping === 'object' &&
+          'jsonSchema' in mapping &&
+          mapping.runtime?.validate === true
+        )
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Automatic JSON Schema validation requires jsonSchemas.runtime output',
+            path: [
+              'sql',
+              'codegen',
+              'typescript',
+              'mappings',
+              'column',
+              column,
+              'runtime',
+              'validate',
+            ],
+          })
+      }
+    }
+    for (const target of ['typescript', 'go'] as const) {
+      const columns = config.sql.codegen?.[target]?.mappings.column ?? {}
+      for (const [column, mapping] of Object.entries(columns)) {
+        if (typeof mapping === 'string' || !('jsonSchema' in mapping)) continue
+        if (Object.prototype.hasOwnProperty.call(config.types.jsonSchemas, mapping.jsonSchema))
+          continue
 
-    for (const [column, mapping] of Object.entries(columns)) {
-      if (typeof mapping === 'string' || !('jsonSchema' in mapping)) continue
-      if (Object.prototype.hasOwnProperty.call(config.types.jsonSchemas, mapping.jsonSchema))
-        continue
-
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Unknown JSON Schema ${JSON.stringify(mapping.jsonSchema)}`,
-        path: ['sql', 'codegen', 'typescript', 'mappings', 'column', column, 'jsonSchema'],
-      })
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Unknown JSON Schema ${JSON.stringify(mapping.jsonSchema)}`,
+          path: ['sql', 'codegen', target, 'mappings', 'column', column, 'jsonSchema'],
+        })
+      }
     }
   })
 
@@ -211,6 +375,11 @@ export type ColumnMapping = z.infer<typeof columnMappingSchema>
 export type MappingsConfig = z.infer<typeof mappingsSchema>
 export type TypescriptJsonSchemasConfig = z.infer<typeof typescriptJsonSchemasSchema>
 export type TypescriptCodegenConfig = z.infer<typeof typescriptCodegenSchema>
+export type GoTypeImport = z.infer<typeof goTypeImportSchema>
+export type GoTargetTypeMapping = z.infer<typeof goTargetTypeMappingSchema>
+export type GoColumnMapping = z.infer<typeof goColumnMappingSchema>
+export type GoMappingsConfig = z.infer<typeof goMappingsSchema>
+export type GoCodegenConfig = z.infer<typeof goCodegenSchema>
 export type CodegenConfig = z.infer<typeof codegenSchema>
 export type SqlConfig = z.infer<typeof sqlSchema>
 export type QueryOutEntry = z.infer<typeof queryOutEntrySchema>

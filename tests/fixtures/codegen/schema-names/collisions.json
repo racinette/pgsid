@@ -1,0 +1,29 @@
+[
+  {
+    "name": "unicode collides with literal encoded name",
+    "schemas": ["数据", "schema_e695b0e68dae"]
+  },
+  {
+    "name": "uppercase collides with literal encoded name",
+    "schemas": ["Billing", "schema_42696c6c696e67"]
+  },
+  {
+    "name": "hidden name collides with literal encoded name",
+    "schemas": ["_hidden", "schema_5f68696464656e"]
+  },
+  {
+    "name": "explicit overrides collide",
+    "schemas": ["left", "right"],
+    "overrides": {
+      "left": "same",
+      "right": "same"
+    }
+  },
+  {
+    "name": "override collides with default name",
+    "schemas": ["数据", "public"],
+    "overrides": {
+      "数据": "public"
+    }
+  }
+]

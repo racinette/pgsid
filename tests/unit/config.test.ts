@@ -1,3 +1,4 @@
+import { goJsonNulls } from '../../src/codegen/go/nulls.js'
 import { describe, it, expect } from 'vitest'
 import { parseConfigString } from '../../src/config/loader.js'
 
@@ -80,11 +81,11 @@ describe('config schema', () => {
                 public.users.external_id: string
                 public.events.payload:
                   jsonSchema: EventPayload
-                  runtimeValidation: false
+                  runtime: {validate: false}
                 public.audit_log.context:
                   jsonSchema: AuditContext
             jsonSchemas:
-              runtimeValidation: true
+              runtime: {outDir: generated/validation, validate: true}
             schema:
               outDir: packages/db-types/src/schema
             queries:
@@ -94,7 +95,26 @@ describe('config schema', () => {
                 sql/queries/reporting: packages/db-types/src/queries/reporting
                 sql/queries/accounts:
                   types: packages/db-types/src/queries/accounts
-                  wrappers: apps/api/src/db/queries/accounts
+                  runtime: apps/api/src/db/queries/accounts
+          go:
+            package: db
+            domains: true
+            mappings:
+              pgType:
+                pg_catalog.numeric:
+                  type: decimal.Decimal
+                  imports:
+                    - path: github.com/shopspring/decimal
+                      as: decimal
+              column:
+                public.events.payload:
+                  jsonSchema: EventPayload
+            schema:
+              outDir: internal/db
+            queries:
+              exclude: ["**/*_test.sql"]
+              out:
+                sql/queries: internal/db
     `)
     expect(cfg.schema).toEqual(['migrations/*.up.sql', '!migrations/*_test.up.sql'])
     expect(cfg.types.jsonSchemas.EventPayload).toEqual({
@@ -126,11 +146,29 @@ describe('config schema', () => {
     })
     expect(cfg.sql.codegen?.typescript?.mappings.column['public.events.payload']).toEqual({
       jsonSchema: 'EventPayload',
-      runtimeValidation: false,
+      runtime: { validate: false },
     })
-    expect(cfg.sql.codegen?.typescript?.jsonSchemas.runtimeValidation).toBe(true)
+    expect(cfg.sql.codegen?.typescript?.jsonSchemas.runtime?.validate).toBe(true)
     expect(cfg.sql.codegen?.typescript?.schema?.outDir).toBe('packages/db-types/src/schema')
     expect(cfg.sql.codegen?.typescript?.queries.exclude).toEqual(['**/*_test.sql'])
+    expect(cfg.sql.codegen?.go).toMatchObject({
+      package: 'db',
+      domains: true,
+      mappings: {
+        pgType: {
+          'pg_catalog.numeric': {
+            type: 'decimal.Decimal',
+            imports: [{ path: 'github.com/shopspring/decimal', as: 'decimal' }],
+          },
+        },
+        column: { 'public.events.payload': { jsonSchema: 'EventPayload' } },
+      },
+      schema: { outDir: 'internal/db' },
+      queries: {
+        exclude: ['**/*_test.sql'],
+        out: { 'sql/queries': 'internal/db' },
+      },
+    })
   })
 
   it('accepts string schema (single file)', () => {
@@ -160,7 +198,100 @@ describe('config schema', () => {
     expect(cfg.sql.codegen?.typescript?.convention).toBe('sqlc')
     expect(cfg.sql.codegen?.typescript?.brands).toEqual(['__brand'])
     expect(cfg.sql.codegen?.typescript?.mappings).toEqual({ pgType: {}, column: {} })
-    expect(cfg.sql.codegen?.typescript?.jsonSchemas.runtimeValidation).toBe(false)
+    expect(cfg.sql.codegen?.typescript?.jsonSchemas.runtime).toBeUndefined()
+  })
+
+  it('enables native Go domain types by default', () => {
+    const cfg = parseConfigString(`
+      schema: schema.sql
+      sql:
+        codegen:
+          go: {}
+    `)
+    expect(cfg.sql.codegen?.go).toEqual({
+      domains: true,
+      driver: 'pgx',
+      nulls: 'pointers',
+      jsonSchemas: {},
+      mappings: { pgType: {}, column: {} },
+      queries: { exclude: [], out: {} },
+    })
+  })
+
+  it.each([
+    ['pointers', undefined, 'pointers'],
+    ['structs', undefined, 'structs'],
+    ['pointers', 'structs', 'structs'],
+    ['structs', 'pointers', 'pointers'],
+  ] as const)('inherits Go nulls %s with JSON override %s', (nulls, override, expected) => {
+    const config = parseConfigString(`
+      schema: schema.sql
+      sql:
+        codegen:
+          go:
+            nulls: ${nulls}
+            ${override ? `jsonSchemas: {nulls: ${override}}` : ''}
+    `)
+    expect(goJsonNulls(config)).toBe(expected)
+  })
+
+  it.each(['nulls: unions', 'jsonSchemas: {nulls: sql.Null}'])(
+    'rejects invalid Go null policy %s',
+    (option) => {
+      expect(() =>
+        parseConfigString(`
+      schema: schema.sql
+      sql:
+        codegen:
+          go:
+            ${option}
+    `),
+      ).toThrow()
+    },
+  )
+
+  it.each(['driver: postgres', 'executor: false'])(
+    'rejects unsupported Go options: %s',
+    (option) => {
+      expect(() =>
+        parseConfigString(`
+        schema: schema.sql
+        sql:
+          codegen:
+            go:
+              ${option}
+      `),
+      ).toThrow()
+    },
+  )
+
+  it.each(['数据', 'Uppercase', '../public', 'nested/path', '_hidden', 'trailing.', 'con'])(
+    'rejects nonportable Go schema override %s',
+    (name) => {
+      expect(() =>
+        parseConfigString(`
+        schema: schema.sql
+        sql:
+          codegen:
+            go:
+              schema:
+                outDir: generated
+                names: {public: ${JSON.stringify(name)}}
+      `),
+      ).toThrow('Go schema directory must be a portable lowercase ASCII path segment')
+    },
+  )
+
+  it('rejects Go keywords as package names', () => {
+    expect(() =>
+      parseConfigString(`
+        schema: schema.sql
+        sql:
+          codegen:
+            go:
+              package: type
+      `),
+    ).toThrow('Go package name cannot be a keyword')
   })
 
   it('rejects invalid driver', () => {
@@ -203,6 +334,21 @@ describe('config schema', () => {
     ).toThrow('Unknown JSON Schema "Missing"')
   })
 
+  it('validates Go JSON Schema references', () => {
+    expect(() =>
+      parseConfigString(`
+        schema: schema.sql
+        sql:
+          codegen:
+            go:
+              mappings:
+                column:
+                  public.events.payload:
+                    jsonSchema: Missing
+      `),
+    ).toThrow('Unknown JSON Schema "Missing"')
+  })
+
   it('only accepts runtime validation on JSON Schema column mappings', () => {
     expect(() =>
       parseConfigString(`
@@ -214,7 +360,7 @@ describe('config schema', () => {
                 column:
                   public.events.payload:
                     type: EventPayload
-                    runtimeValidation: true
+                    runtime: {outDir: generated/validation, validate: true}
       `),
     ).toThrow()
   })

@@ -1,4 +1,7 @@
 import ts from 'typescript'
+import type { CatalogSnapshot } from '../../catalog/types.js'
+import type { JsonSchemaAlternative } from '../shared/json-schema-lineage.js'
+import { createTypescriptJsonSchemaGraphs } from './jsonschemas.js'
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
@@ -15,7 +18,12 @@ import {
 } from './ast.js'
 import { typescriptJsonSchemaBindings } from './json-schema-bindings.js'
 import { typescriptJsonSchemaLineageValidatorDeclaration } from './json-schema-validator.js'
-import { resolveTypescriptPgType } from './type-mapping.js'
+import { queryValidationErrorDeclarations } from './validation-diagnostics.js'
+import {
+  resolveTypescriptPgType,
+  importedTypescriptType,
+  type TypescriptTypeContext,
+} from './type-mapping.js'
 import { resolveTypescriptValueType, type ResolvedTypescriptValueType } from './value-type.js'
 
 export type TypescriptQueryDiagnosticCode =
@@ -34,25 +42,37 @@ export interface TypescriptQueryDiagnostic {
 }
 
 export interface RenderTypescriptQueryArtifactsOptions {
+  emitRuntime?: boolean
   typesModuleSpecifier?: string
+  catalog?: CatalogSnapshot
+  nativeModuleSpecifier?: TypescriptTypeContext['nativeModuleSpecifier']
+  jsonSchemasModuleSpecifier?: string
+  queryableModuleSpecifier?: string
+  jsonSchemaRuntimeModuleSpecifier?: string
+  jsonSchemaValidator?: (alternative: JsonSchemaAlternative) => string | undefined
+  jsonSchemaValidation?: (alternative: JsonSchemaAlternative) => string | undefined
 }
 
 export interface TypescriptQueryArtifacts {
   types: string | null
-  wrappers: string | null
+  runtime: string | null
   diagnostics: readonly TypescriptQueryDiagnostic[]
 }
 
 interface RenderedQuery {
   typeDeclarations: ts.Statement[]
+  runtimeDeclarations: ts.Statement[]
   wrapper: ts.FunctionDeclaration
   imports: TypeImport[]
-  wrapperImports: string[]
+  typeNames: string[]
+  usesJsonSchemaRuntime: boolean
+  hasValidators: boolean
 }
 
 interface RenderedValidator {
-  statement: ts.Statement
+  statements: ts.Statement[]
   name: string
+  validationName: string
   column: string
 }
 
@@ -64,12 +84,36 @@ export function renderTypescriptQueryArtifacts(
 ): TypescriptQueryArtifacts {
   const diagnostics: TypescriptQueryDiagnostic[] = []
   const target = config.sql.codegen?.typescript
-  if (!target) return { types: null, wrappers: null, diagnostics }
+  if (!target) return { types: null, runtime: null, diagnostics }
   const bindings = typescriptJsonSchemaBindings(config, schemas)
+  const context: TypescriptTypeContext = {
+    inlineNative: !options.nativeModuleSpecifier,
+    nativeModuleSpecifier: options.nativeModuleSpecifier,
+    ...(options.jsonSchemasModuleSpecifier
+      ? {
+          jsonSchemaReference: (name: string) =>
+            importedTypescriptType(options.jsonSchemasModuleSpecifier!, name),
+          jsonSchemaTypes: createTypescriptJsonSchemaGraphs(config, schemas),
+        }
+      : {}),
+  }
   const ordered = [...analyses].sort(
     (left, right) => left.query.definition.sourceStart - right.query.definition.sourceStart,
   )
   const names = new Set<string>()
+  const runtimeNames = new Set([
+    'Queryable',
+    'QueryValidationError',
+    'ValidationIssue',
+    'pgsid',
+    '_jsonSchemas',
+    ...ordered.flatMap((analysis) => [
+      `${pascalCase(analysis.query.name)}Params`,
+      `${pascalCase(analysis.query.name)}Row`,
+      camelCase(analysis.query.name),
+      `${camelCase(analysis.query.name)}Sql`,
+    ]),
+  ])
   const rendered: RenderedQuery[] = []
   for (const analysis of ordered) {
     const generatedName = pascalCase(analysis.query.name)
@@ -84,7 +128,15 @@ export function renderTypescriptQueryArtifacts(
     }
     names.add(generatedName)
     try {
-      const query = renderQuery(analysis, config, bindings, diagnostics)
+      const query = renderQuery(
+        analysis,
+        config,
+        bindings,
+        diagnostics,
+        options,
+        context,
+        runtimeNames,
+      )
       if (query) rendered.push(query)
     } catch (error) {
       diagnostics.push({
@@ -96,22 +148,91 @@ export function renderTypescriptQueryArtifacts(
     }
   }
   if (diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
-    return { types: null, wrappers: null, diagnostics }
+    return { types: null, runtime: null, diagnostics }
   }
 
   const types = printFile([
-    ...importDeclarations(rendered.flatMap((query) => query.imports)),
+    ...importDeclarations(rendered.flatMap((query) => query.imports)).map((declaration) =>
+      factory.updateImportDeclaration(
+        declaration,
+        declaration.modifiers,
+        declaration.importClause
+          ? factory.updateImportClause(
+              declaration.importClause,
+              true,
+              declaration.importClause.name,
+              declaration.importClause.namedBindings,
+            )
+          : undefined,
+        declaration.moduleSpecifier,
+        declaration.attributes,
+      ),
+    ),
     ...rendered.flatMap((query) => query.typeDeclarations),
   ])
-  const wrapperNames = [...new Set(rendered.flatMap((query) => query.wrapperImports))]
-  const wrappers = printFile([
-    ...(wrapperNames.length
-      ? [namedImport(wrapperNames, options.typesModuleSpecifier ?? './types.js')]
+  const typeNames = [...new Set(rendered.flatMap((query) => query.typeNames))]
+  const hasValidators = rendered.some((query) => query.hasValidators)
+  const runtime = printFile([
+    ...(typeNames.length
+      ? [namedImport(typeNames, options.typesModuleSpecifier ?? './types.js', true)]
       : []),
-    queryableDeclaration(),
+    ...(typeNames.length
+      ? [
+          factory.createExportDeclaration(
+            undefined,
+            true,
+            factory.createNamedExports(
+              typeNames.map((name) => factory.createExportSpecifier(false, undefined, name)),
+            ),
+            factory.createStringLiteral(options.typesModuleSpecifier ?? './types.js'),
+          ),
+        ]
+      : []),
+    ...(options.queryableModuleSpecifier
+      ? [
+          factory.createImportDeclaration(
+            undefined,
+            factory.createImportClause(
+              !hasValidators,
+              undefined,
+              factory.createNamespaceImport(factory.createIdentifier('pgsid')),
+            ),
+            factory.createStringLiteral(options.queryableModuleSpecifier),
+          ),
+        ]
+      : [queryableDeclaration()]),
+    ...(hasValidators
+      ? options.queryableModuleSpecifier
+        ? [
+            factory.createExportDeclaration(
+              undefined,
+              false,
+              factory.createNamedExports([
+                factory.createExportSpecifier(false, undefined, 'QueryValidationError'),
+              ]),
+              factory.createStringLiteral(options.queryableModuleSpecifier),
+            ),
+          ]
+        : queryValidationErrorDeclarations()
+      : []),
+    ...(options.jsonSchemaRuntimeModuleSpecifier &&
+    rendered.some((query) => query.usesJsonSchemaRuntime)
+      ? [
+          factory.createImportDeclaration(
+            undefined,
+            factory.createImportClause(
+              false,
+              undefined,
+              factory.createNamespaceImport(factory.createIdentifier('_jsonSchemas')),
+            ),
+            factory.createStringLiteral(options.jsonSchemaRuntimeModuleSpecifier),
+          ),
+        ]
+      : []),
+    ...rendered.flatMap((query) => query.runtimeDeclarations),
     ...rendered.map((query) => query.wrapper),
   ])
-  return { types, wrappers, diagnostics }
+  return { types, runtime: options.emitRuntime === false ? null : runtime, diagnostics }
 }
 
 const renderQuery = (
@@ -119,6 +240,9 @@ const renderQuery = (
   config: Config,
   bindings: ReturnType<typeof typescriptJsonSchemaBindings>,
   diagnostics: TypescriptQueryDiagnostic[],
+  options: RenderTypescriptQueryArtifactsOptions,
+  context: TypescriptTypeContext,
+  runtimeNames: Set<string>,
 ): RenderedQuery | null => {
   const queryName = pascalCase(analysis.query.name)
   const functionName = camelCase(analysis.query.name)
@@ -152,18 +276,41 @@ const renderQuery = (
   const semanticLineage = analysis.rawLineage?.map((output) => interpretValueLineage(output.value))
   const imports: TypeImport[] = []
   const validators: RenderedValidator[] = []
+  let usesJsonSchemaRuntime = false
   const rowTypes = outputNames.map((name, index) => {
     const resolved: ResolvedTypescriptValueType =
-      resolveTypescriptValueType(semanticLineage?.[index], config, bindings) ??
-      resolveTypescriptPgType(outputTypes[index] ?? 'unknown', config)
+      resolveTypescriptValueType(
+        semanticLineage?.[index],
+        config,
+        bindings,
+        options.catalog,
+        context,
+      ) ??
+      resolveTypescriptPgType(
+        outputTypes[index] ?? 'unknown',
+        config,
+        options.catalog,
+        undefined,
+        undefined,
+        context,
+      )
     imports.push(...resolved.imports)
     const claim = analysis.contract.outputs[index]
     const type = claim?.alwaysNull
       ? factory.createLiteralTypeNode(factory.createNull())
       : nullableType(resolved.type, claim?.notNull ?? false)
-    if (resolved.lineage) {
+    if (resolved.lineage && options.emitRuntime !== false) {
       try {
-        const validatorName = `is${queryName}${pascalCase(name)}${index + 1}`
+        const stem = `${queryName}${pascalCase(name)}`
+        let suffix = ''
+        let attempt = 1
+        while (
+          runtimeNames.has(`is${stem}${suffix}`) ||
+          runtimeNames.has(`validate${stem}${suffix}`)
+        )
+          suffix = String(++attempt)
+        const validatorName = `is${stem}${suffix}`
+        const validationName = `validate${stem}${suffix}`
         const statement = typescriptJsonSchemaLineageValidatorDeclaration(
           validatorName,
           factory.createIndexedAccessTypeNode(
@@ -171,9 +318,61 @@ const renderQuery = (
             factory.createLiteralTypeNode(factory.createStringLiteral(name)),
           ),
           resolved.lineage,
-          { nullable: !(claim?.notNull ?? false) },
+          {
+            nullable: !(claim?.notNull ?? false),
+            predicate:
+              options.jsonSchemaRuntimeModuleSpecifier && options.jsonSchemaValidator
+                ? (alternative, value) => {
+                    const name = options.jsonSchemaValidator!(alternative)
+                    if (!name) return undefined
+                    usesJsonSchemaRuntime = true
+                    return factory.createCallExpression(
+                      factory.createPropertyAccessExpression(
+                        factory.createIdentifier('_jsonSchemas'),
+                        name,
+                      ),
+                      undefined,
+                      [value],
+                    )
+                  }
+                : undefined,
+          },
         )
-        if (statement) validators.push({ statement, name: validatorName, column: name })
+        if (statement) {
+          const validation = typescriptJsonSchemaLineageValidatorDeclaration(
+            validationName,
+            type,
+            resolved.lineage,
+            {
+              nullable: !(claim?.notNull ?? false),
+              diagnostic: true,
+              validation:
+                options.jsonSchemaRuntimeModuleSpecifier && options.jsonSchemaValidation
+                  ? (alternative, value) => {
+                      const name = options.jsonSchemaValidation!(alternative)
+                      if (!name) return undefined
+                      usesJsonSchemaRuntime = true
+                      return factory.createCallExpression(
+                        factory.createPropertyAccessExpression(
+                          factory.createIdentifier('_jsonSchemas'),
+                          name,
+                        ),
+                        undefined,
+                        [value],
+                      )
+                    }
+                  : undefined,
+            },
+          )!
+          runtimeNames.add(validatorName)
+          runtimeNames.add(validationName)
+          validators.push({
+            statements: [statement, validation],
+            name: validatorName,
+            validationName,
+            column: name,
+          })
+        }
       } catch (error) {
         diagnostics.push({
           code: 'json-schema-validator',
@@ -186,12 +385,23 @@ const renderQuery = (
     return type
   })
   const paramTypes = analysis.contract.params.map((param, index) => {
-    const resolved = resolveTypescriptPgType(parameterTypes[index] ?? 'unknown', config)
+    const resolved = resolveTypescriptPgType(
+      parameterTypes[index] ?? 'unknown',
+      config,
+      options.catalog,
+      undefined,
+      undefined,
+      context,
+    )
     imports.push(...resolved.imports)
     return nullableType(resolved.type, param.notNull)
   })
   const sqlName = `${functionName}Sql`
   const typeDeclarations: ts.Statement[] = [
+    renderParams(queryName, analysis, paramTypes),
+    renderRow(queryName, outputNames, rowTypes, analysis.contract.outputPresenceGroups),
+  ]
+  const runtimeDeclarations: ts.Statement[] = [
     factory.createVariableStatement(
       [exportModifier],
       factory.createVariableDeclarationList(
@@ -206,22 +416,38 @@ const renderQuery = (
         ts.NodeFlags.Const,
       ),
     ),
-    renderParams(queryName, analysis, paramTypes),
-    renderRow(queryName, outputNames, rowTypes, analysis.contract.outputPresenceGroups),
-    ...validators.map((validator) => validator.statement),
+    ...validators.flatMap((validator) => validator.statements),
   ]
   return {
     typeDeclarations,
-    wrapper: renderWrapper(analysis, queryName, functionName, sqlName, validators),
-    imports,
-    wrapperImports: [
+    runtimeDeclarations,
+    usesJsonSchemaRuntime,
+    hasValidators: validators.length > 0,
+    wrapper: renderWrapper(
+      analysis,
+      queryName,
+      functionName,
       sqlName,
+      validators,
+      options.queryableModuleSpecifier
+        ? factory.createTypeReferenceNode(
+            factory.createQualifiedName(factory.createIdentifier('pgsid'), 'Queryable'),
+          )
+        : factory.createTypeReferenceNode('Queryable'),
+      options.queryableModuleSpecifier
+        ? factory.createPropertyAccessExpression(
+            factory.createIdentifier('pgsid'),
+            'QueryValidationError',
+          )
+        : factory.createIdentifier('QueryValidationError'),
+    ),
+    imports,
+    typeNames: [
       `${queryName}Params`,
       ...(analysis.query.definition.command === 'exec' ||
       analysis.query.definition.command === 'execrows'
         ? []
         : [`${queryName}Row`]),
-      ...validators.map((validator) => validator.name),
     ],
   }
 }
@@ -326,16 +552,12 @@ const renderWrapper = (
   functionName: string,
   sqlName: string,
   validators: readonly RenderedValidator[],
+  queryableType: ts.TypeNode,
+  validationError: ts.Expression,
 ): ts.FunctionDeclaration => {
   const named = analysis.query.definition.parameters
   const parameters = [
-    factory.createParameterDeclaration(
-      undefined,
-      undefined,
-      'db',
-      undefined,
-      factory.createTypeReferenceNode('Queryable'),
-    ),
+    factory.createParameterDeclaration(undefined, undefined, 'db', undefined, queryableType),
   ]
   if (named.length) {
     parameters.push(
@@ -427,7 +649,7 @@ const renderWrapper = (
         ),
         factory.createReturnStatement(factory.createIdentifier('undefined')),
       ),
-      ...validatorStatements(validators, analysis.query.name),
+      ...validatorStatements(validators, analysis.query.name, validationError),
       factory.createReturnStatement(
         factory.createAsExpression(factory.createIdentifier('row'), rowType),
       ),
@@ -450,7 +672,7 @@ const renderWrapper = (
           factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
           factory.createBlock(
             [
-              ...validatorStatements(validators, analysis.query.name),
+              ...validatorStatements(validators, analysis.query.name, validationError),
               factory.createReturnStatement(
                 factory.createAsExpression(factory.createIdentifier('row'), rowType),
               ),
@@ -476,6 +698,7 @@ const renderWrapper = (
 const validatorStatements = (
   validators: readonly RenderedValidator[],
   queryName: string,
+  validationError: ts.Expression,
 ): ts.Statement[] =>
   validators.map((validator) =>
     factory.createIfStatement(
@@ -489,8 +712,22 @@ const validatorStatements = (
         ]),
       ),
       factory.createThrowStatement(
-        factory.createNewExpression(factory.createIdentifier('TypeError'), undefined, [
-          factory.createStringLiteral(`Invalid ${queryName}.${validator.column}`),
+        factory.createNewExpression(validationError, undefined, [
+          factory.createStringLiteral(queryName),
+          factory.createStringLiteral(validator.column),
+          factory.createPropertyAccessExpression(
+            factory.createCallExpression(
+              factory.createIdentifier(validator.validationName),
+              undefined,
+              [
+                factory.createElementAccessExpression(
+                  factory.createIdentifier('row'),
+                  factory.createStringLiteral(validator.column),
+                ),
+              ],
+            ),
+            'issues',
+          ),
         ]),
       ),
     ),
@@ -511,6 +748,24 @@ const resultDeclaration = (query: ts.Expression): ts.VariableStatement =>
       ts.NodeFlags.Const,
     ),
   )
+
+export const renderTypescriptQueryHelpers = (validationModuleSpecifier?: string): string =>
+  printFile([
+    queryableDeclaration(),
+    ...(validationModuleSpecifier
+      ? [
+          factory.createExportDeclaration(
+            undefined,
+            false,
+            factory.createNamedExports([
+              factory.createExportSpecifier(false, undefined, 'QueryValidationError'),
+              factory.createExportSpecifier(true, undefined, 'ValidationIssue'),
+            ]),
+            factory.createStringLiteral(validationModuleSpecifier),
+          ),
+        ]
+      : queryValidationErrorDeclarations()),
+  ])
 
 const queryableDeclaration = (): ts.InterfaceDeclaration =>
   factory.createInterfaceDeclaration([exportModifier], 'Queryable', undefined, undefined, [
@@ -562,11 +817,15 @@ const queryableDeclaration = (): ts.InterfaceDeclaration =>
     ),
   ])
 
-const namedImport = (names: readonly string[], module: string): ts.ImportDeclaration =>
+const namedImport = (
+  names: readonly string[],
+  module: string,
+  typeOnly = false,
+): ts.ImportDeclaration =>
   factory.createImportDeclaration(
     undefined,
     factory.createImportClause(
-      false,
+      typeOnly,
       undefined,
       factory.createNamedImports(
         names.map((name) =>

@@ -5,6 +5,13 @@ import { factory, intersectionType, parseType, printNode, unionType } from './as
 
 export interface RenderTypescriptJsonSchemaOptions {
   document?: JsonSchemaDocument
+  rootName?: string
+  referenceType?: (schema: JsonSchemaDocument) => ts.TypeNode | undefined
+  containerType?: (
+    schema: JsonSchemaDocument,
+    kind: 'object' | 'array',
+    build: () => ts.TypeNode,
+  ) => ts.TypeNode
 }
 
 export interface RenderTypescriptJsonSchemaLineageOptions {
@@ -15,7 +22,7 @@ export function typescriptTypeFromJsonSchema(
   schema: JsonSchemaDocument,
   options: RenderTypescriptJsonSchemaOptions = {},
 ): ts.TypeNode {
-  return compile(schema, options.document ?? schema, new Set())
+  return compile(schema, options.document ?? schema, new Set(), options)
 }
 
 export function typescriptTypeFromJsonSchemaLineage(
@@ -49,6 +56,7 @@ const compile = (
   schema: JsonSchemaDocument,
   document: JsonSchemaDocument,
   seen: ReadonlySet<string>,
+  options: RenderTypescriptJsonSchemaOptions,
 ): ts.TypeNode => {
   if (schema === true) return factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
   if (schema === false) return factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword)
@@ -56,28 +64,32 @@ const compile = (
   const constraints: ts.TypeNode[] = []
   const reference = typeof schema['$ref'] === 'string' ? schema['$ref'] : null
   if (reference) {
-    if (seen.has(reference)) {
+    const target = localReference(reference, document)
+    const named = target === null ? undefined : options.referenceType?.(target)
+    if (named) constraints.push(named)
+    else if (seen.has(reference)) {
+      constraints.push(
+        reference === '#' && options.rootName
+          ? factory.createTypeReferenceNode(options.rootName)
+          : factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+      )
+    } else if (target === null)
       constraints.push(factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword))
-    } else {
-      const target = localReference(reference, document)
-      if (target === null)
-        constraints.push(factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword))
-      else constraints.push(compile(target, document, new Set([...seen, reference])))
-    }
+    else constraints.push(compile(target, document, new Set([...seen, reference]), options))
   }
 
   constraints.push(
-    ...schemas(schema['allOf']).map((item) => compile(item, document, new Set(seen))),
+    ...schemas(schema['allOf']).map((item) => compile(item, document, new Set(seen), options)),
   )
   for (const keyword of ['anyOf', 'oneOf'] as const) {
     const alternatives = schemas(schema[keyword])
     if (alternatives.length) {
       constraints.push(
-        unionType(alternatives.map((item) => compile(item, document, new Set(seen)))),
+        unionType(alternatives.map((item) => compile(item, document, new Set(seen), options))),
       )
     }
   }
-  const direct = compileDirect(schema, document, seen)
+  const direct = compileDirect(schema, document, seen, options)
   if (direct) constraints.push(direct)
   return constraints.length
     ? intersectionType(constraints)
@@ -88,6 +100,7 @@ const compileDirect = (
   schema: { [key: string]: JsonValue },
   document: JsonSchemaDocument,
   seen: ReadonlySet<string>,
+  options: RenderTypescriptJsonSchemaOptions,
 ): ts.TypeNode | null => {
   if (schema['const'] !== undefined) return literalType(schema['const'])
   const enumValues = Array.isArray(schema['enum']) ? schema['enum'] : []
@@ -98,20 +111,32 @@ const compileDirect = (
     return unionType(
       declared
         .filter((type): type is string => typeof type === 'string')
-        .map((type) => compileDeclared(type, schema, document, seen)),
+        .map((type) => compileDeclared(type, schema, document, seen, options)),
     )
   }
-  if (typeof declared === 'string') return compileDeclared(declared, schema, document, seen)
-  if (
-    schema['properties'] !== undefined ||
-    schema['additionalProperties'] !== undefined ||
-    schema['patternProperties'] !== undefined
-  ) {
-    return compileObject(schema, document, seen)
-  }
-  if (schema['items'] !== undefined || schema['prefixItems'] !== undefined) {
-    return compileArray(schema, document, seen)
-  }
+  if (typeof declared === 'string')
+    return compileDeclared(declared, schema, document, seen, options)
+  const objectKeywords = [
+    'properties',
+    'required',
+    'additionalProperties',
+    'patternProperties',
+    'unevaluatedProperties',
+  ]
+  const arrayKeywords = ['items', 'prefixItems', 'contains', 'minItems', 'maxItems', 'uniqueItems']
+  const object = objectKeywords.some((keyword) => schema[keyword] !== undefined)
+  const array = arrayKeywords.some((keyword) => schema[keyword] !== undefined)
+  if (object || array)
+    return unionType([
+      compileDeclared('string', schema, document, seen, options),
+      compileDeclared('number', schema, document, seen, options),
+      compileDeclared('boolean', schema, document, seen, options),
+      compileDeclared('null', schema, document, seen, options),
+      object
+        ? compileObject(schema, document, seen, options)
+        : parseType('Record<string, unknown>'),
+      array ? compileArray(schema, document, seen, options) : parseType('unknown[]'),
+    ])
   return null
 }
 
@@ -120,14 +145,15 @@ const compileDeclared = (
   schema: { [key: string]: JsonValue },
   document: JsonSchemaDocument,
   seen: ReadonlySet<string>,
+  options: RenderTypescriptJsonSchemaOptions,
 ): ts.TypeNode => {
   if (type === 'null') return factory.createLiteralTypeNode(factory.createNull())
   if (type === 'boolean') return factory.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword)
   if (type === 'number' || type === 'integer')
     return factory.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword)
   if (type === 'string') return factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
-  if (type === 'object') return compileObject(schema, document, seen)
-  if (type === 'array') return compileArray(schema, document, seen)
+  if (type === 'object') return compileObject(schema, document, seen, options)
+  if (type === 'array') return compileArray(schema, document, seen, options)
   return factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
 }
 
@@ -135,112 +161,120 @@ const compileObject = (
   schema: { [key: string]: JsonValue },
   document: JsonSchemaDocument,
   seen: ReadonlySet<string>,
+  options: RenderTypescriptJsonSchemaOptions,
 ): ts.TypeNode => {
-  const properties = isRecord(schema['properties']) ? schema['properties'] : {}
-  const required = new Set(
-    Array.isArray(schema['required'])
-      ? schema['required'].filter((name): name is string => typeof name === 'string')
-      : [],
-  )
-  const entries = new Map<string, ts.TypeNode>()
-  for (const [name, property] of Object.entries(properties)) {
-    if (typeof property === 'boolean' || isRecord(property)) {
-      entries.set(name, compile(property, document, new Set(seen)))
+  const build = (): ts.TypeNode => {
+    const properties = isRecord(schema['properties']) ? schema['properties'] : {}
+    const required = new Set(
+      Array.isArray(schema['required'])
+        ? schema['required'].filter((name): name is string => typeof name === 'string')
+        : [],
+    )
+    const entries = new Map<string, ts.TypeNode>()
+    for (const [name, property] of Object.entries(properties)) {
+      if (typeof property === 'boolean' || isRecord(property)) {
+        entries.set(name, compile(property, document, new Set(seen), options))
+      }
     }
-  }
-  for (const name of required) {
-    if (!entries.has(name))
-      entries.set(name, factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword))
-  }
+    for (const name of required) {
+      if (!entries.has(name))
+        entries.set(name, factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword))
+    }
 
-  const members: ts.TypeElement[] = [...entries].map(([name, type]) =>
-    factory.createPropertySignature(
-      undefined,
-      factory.createStringLiteral(name),
-      required.has(name) ? undefined : factory.createToken(ts.SyntaxKind.QuestionToken),
-      type,
-    ),
-  )
-  const patternTypes = isRecord(schema['patternProperties'])
-    ? Object.values(schema['patternProperties'])
-        .filter((item): item is JsonSchemaDocument => typeof item === 'boolean' || isRecord(item))
-        .map((item) => compile(item, document, new Set(seen)))
-    : []
-  const additional = schema['additionalProperties'] ?? schema['unevaluatedProperties'] ?? true
-  if (additional !== false || patternTypes.length > 0) {
-    const extraType =
-      additional === false
-        ? factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword)
-        : typeof additional === 'boolean' || isRecord(additional)
-          ? compile(additional, document, new Set(seen))
-          : factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
-    const alternatives = [extraType, ...entries.values(), ...patternTypes]
-    if ([...entries].some(([name]) => !required.has(name))) {
-      alternatives.push(factory.createKeywordTypeNode(ts.SyntaxKind.UndefinedKeyword))
-    }
-    members.push(
-      factory.createIndexSignature(
+    const members: ts.TypeElement[] = [...entries].map(([name, type]) =>
+      factory.createPropertySignature(
         undefined,
-        [
-          factory.createParameterDeclaration(
-            undefined,
-            undefined,
-            'key',
-            undefined,
-            factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
-          ),
-        ],
-        unionType(alternatives),
+        factory.createStringLiteral(name),
+        required.has(name) ? undefined : factory.createToken(ts.SyntaxKind.QuestionToken),
+        type,
       ),
     )
-  } else if (members.length === 0) {
-    return factory.createTypeReferenceNode('Record', [
-      factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
-      factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword),
-    ])
+    const patternTypes = isRecord(schema['patternProperties'])
+      ? Object.values(schema['patternProperties'])
+          .filter((item): item is JsonSchemaDocument => typeof item === 'boolean' || isRecord(item))
+          .map((item) => compile(item, document, new Set(seen), options))
+      : []
+    const additional = schema['additionalProperties'] ?? schema['unevaluatedProperties'] ?? true
+    if (additional !== false || patternTypes.length > 0) {
+      const extraType =
+        additional === false
+          ? factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword)
+          : typeof additional === 'boolean' || isRecord(additional)
+            ? compile(additional, document, new Set(seen), options)
+            : factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
+      const alternatives = [extraType, ...entries.values(), ...patternTypes]
+      if ([...entries].some(([name]) => !required.has(name))) {
+        alternatives.push(factory.createKeywordTypeNode(ts.SyntaxKind.UndefinedKeyword))
+      }
+      members.push(
+        factory.createIndexSignature(
+          undefined,
+          [
+            factory.createParameterDeclaration(
+              undefined,
+              undefined,
+              'key',
+              undefined,
+              factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+            ),
+          ],
+          unionType(alternatives),
+        ),
+      )
+    } else if (members.length === 0) {
+      return factory.createTypeReferenceNode('Record', [
+        factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+        factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword),
+      ])
+    }
+    return factory.createTypeLiteralNode(members)
   }
-  return factory.createTypeLiteralNode(members)
+  return options.containerType?.(schema, 'object', build) ?? build()
 }
 
 const compileArray = (
   schema: { [key: string]: JsonValue },
   document: JsonSchemaDocument,
   seen: ReadonlySet<string>,
+  options: RenderTypescriptJsonSchemaOptions,
 ): ts.TypeNode => {
-  const prefix = schemas(schema['prefixItems'])
-  const items = schema['items']
-  if (prefix.length === 0) {
-    const itemType =
-      typeof items === 'boolean' || isRecord(items)
-        ? compile(items, document, new Set(seen))
-        : factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
-    return factory.createArrayTypeNode(parenthesized(itemType))
-  }
+  const build = (): ts.TypeNode => {
+    const prefix = schemas(schema['prefixItems'])
+    const items = schema['items']
+    if (prefix.length === 0) {
+      const itemType =
+        typeof items === 'boolean' || isRecord(items)
+          ? compile(items, document, new Set(seen), options)
+          : factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
+      return factory.createArrayTypeNode(parenthesized(itemType))
+    }
 
-  const minimum =
-    typeof schema['minItems'] === 'number' && Number.isInteger(schema['minItems'])
-      ? Math.max(0, schema['minItems'])
-      : 0
-  const maximum =
-    typeof schema['maxItems'] === 'number' && Number.isInteger(schema['maxItems'])
-      ? Math.max(0, schema['maxItems'])
-      : null
-  if (items === false && (minimum > prefix.length || (maximum !== null && maximum < minimum))) {
-    return factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword)
+    const minimum =
+      typeof schema['minItems'] === 'number' && Number.isInteger(schema['minItems'])
+        ? Math.max(0, schema['minItems'])
+        : 0
+    const maximum =
+      typeof schema['maxItems'] === 'number' && Number.isInteger(schema['maxItems'])
+        ? Math.max(0, schema['maxItems'])
+        : null
+    if (items === false && (minimum > prefix.length || (maximum !== null && maximum < minimum))) {
+      return factory.createKeywordTypeNode(ts.SyntaxKind.NeverKeyword)
+    }
+    const visible = maximum === null ? prefix : prefix.slice(0, maximum)
+    const members: ts.TypeNode[] = visible.map((item, index) => {
+      const type = compile(item, document, new Set(seen), options)
+      return index < minimum ? type : factory.createOptionalTypeNode(parenthesized(type))
+    })
+    if (items !== false) {
+      const itemType =
+        typeof items === 'boolean' || isRecord(items)
+          ? compile(items, document, new Set(seen), options)
+          : factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
+      members.push(factory.createRestTypeNode(factory.createArrayTypeNode(parenthesized(itemType))))
+    }
+    return factory.createTupleTypeNode(members)
   }
-  const visible = maximum === null ? prefix : prefix.slice(0, maximum)
-  const members: ts.TypeNode[] = visible.map((item, index) => {
-    const type = compile(item, document, new Set(seen))
-    return index < minimum ? type : factory.createOptionalTypeNode(parenthesized(type))
-  })
-  if (items !== false) {
-    const itemType =
-      typeof items === 'boolean' || isRecord(items)
-        ? compile(items, document, new Set(seen))
-        : factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
-    members.push(factory.createRestTypeNode(factory.createArrayTypeNode(parenthesized(itemType))))
-  }
-  return factory.createTupleTypeNode(members)
+  return options.containerType?.(schema, 'array', build) ?? build()
 }
 
 const literalType = (value: JsonValue): ts.TypeNode => {

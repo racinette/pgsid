@@ -8,4 +8,5 @@ export default defineConfig({
   dts: true,
   target: 'es2022',
   platform: 'node',
+  publicDir: 'src/codegen/go/assets',
 })

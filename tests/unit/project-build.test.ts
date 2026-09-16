@@ -27,7 +27,7 @@ describe('reconcileProjectBuild', () => {
               out:
                 queries:
                   types: /generated
-                  wrappers: /app
+                  runtime: /app
     `)
     options = {
       targets: createCodegenTargets(config, {}, { baseDirectory: '/' }),
@@ -74,13 +74,19 @@ describe('reconcileProjectBuild', () => {
       [source('-- name: GetEvent :one\nSELECT id, note FROM events WHERE id = @id;')],
       options,
     )
-    expect(initial.events.map((event) => event.kind)).toEqual(['artifact-added', 'artifact-added'])
-    expect(initial.state.artifacts['/generated/events.ts']?.content).toContain('"id": string;')
-    expect(initial.state.artifacts['/generated/events.ts']?.content).toContain(
+    expect(initial.events.map((event) => event.kind)).toEqual([
+      'artifact-added',
+      'artifact-added',
+      'artifact-added',
+    ])
+    expect(initial.state.artifacts['/generated/events/GetEvent.d.ts']?.content).toContain(
+      '"id": string;',
+    )
+    expect(initial.state.artifacts['/generated/events/GetEvent.d.ts']?.content).toContain(
       '"note": string | null;',
     )
-    expect(initial.state.artifacts['/app/events.ts']?.content).toContain(
-      'from "../generated/events.js"',
+    expect(initial.state.artifacts['/app/events/GetEvent.ts']?.content).toContain(
+      'from "../../generated/events/GetEvent.js"',
     )
 
     const unchanged = await reconcileProjectBuild(
@@ -104,12 +110,135 @@ describe('reconcileProjectBuild', () => {
     expect(broken.events.map((event) => event.kind)).toEqual([
       'artifact-removed',
       'artifact-removed',
+      'artifact-removed',
       'project-diagnostics-changed',
     ])
 
     const removed = await reconcileProjectBuild([], options, broken.state)
     expect(removed.events.map((event) => event.kind)).toEqual(['project-diagnostics-changed'])
     expect(removed.state.artifacts).toEqual({})
+  })
+
+  it('splits bundles for both targets and removes renamed queries without affecting another bundle', async () => {
+    const config = parseConfigString(`
+      schema: schema.sql
+      sql:
+        codegen:
+          typescript:
+            queries:
+              out:
+                queries: /typescript
+          go:
+            queries:
+              out:
+                queries: {outDir: /go, importPath: example.com/app/go}
+    `)
+    const targets = createCodegenTargets(config, {}, { baseDirectory: '/' })
+    const input = (path: string, content: string) => ({
+      path,
+      content,
+      routes: targets.map((target) => target.routeQuery(path)!),
+    })
+    const read = '-- name: GetEvent :one\nSELECT id FROM events;'
+    const other = input('queries/admin/events.sql', read)
+    const first = await reconcileProjectBuild(
+      [
+        input(
+          'queries/events.sql',
+          `${read}\n-- name: UpdateEvent :exec\nUPDATE events SET note = NULL;`,
+        ),
+        other,
+      ],
+      { ...options, targets },
+    )
+    expect(first.state.diagnostics).toEqual([])
+    expect(Object.keys(first.state.artifacts).sort()).toEqual([
+      '/go/admin/events/getevent.go',
+      '/go/admin/events/queries.go',
+      '/go/events/getevent.go',
+      '/go/events/queries.go',
+      '/go/events/updateevent.go',
+      '/go/pgsid/pgx/db.go',
+      '/typescript/admin/events/GetEvent.d.ts',
+      '/typescript/events/GetEvent.d.ts',
+      '/typescript/events/UpdateEvent.d.ts',
+    ])
+    const renamed = await reconcileProjectBuild(
+      [
+        input(
+          'queries/events.sql',
+          `${read}\n-- name: RenameEvent :exec\nUPDATE events SET note = NULL;`,
+        ),
+        other,
+      ],
+      { ...options, targets },
+      first.state,
+    )
+    expect(
+      renamed.events
+        .filter((event) => event.kind === 'artifact-removed')
+        .map((event) => event.artifact.path),
+    ).toEqual(['/go/events/updateevent.go', '/typescript/events/UpdateEvent.d.ts'])
+    expect(
+      renamed.events
+        .filter((event) => event.kind === 'artifact-added')
+        .map((event) => event.artifact.path),
+    ).toEqual(['/go/events/renameevent.go', '/typescript/events/RenameEvent.d.ts'])
+    expect(renamed.state.artifacts['/go/admin/events/getevent.go']).toEqual(
+      first.state.artifacts['/go/admin/events/getevent.go'],
+    )
+    const removed = await reconcileProjectBuild([other], { ...options, targets }, renamed.state)
+    expect(Object.keys(removed.state.artifacts).sort()).toEqual([
+      '/go/admin/events/getevent.go',
+      '/go/admin/events/queries.go',
+      '/go/pgsid/pgx/db.go',
+      '/typescript/admin/events/GetEvent.d.ts',
+    ])
+  })
+
+  it('caches default executor support and removes it when the Go target is removed', async () => {
+    const targets = () =>
+      createCodegenTargets(
+        parseConfigString(`
+      schema: schema.sql
+      sql:
+        codegen:
+          go:
+            queries:
+              out:
+                queries: {outDir: /go, importPath: example.com/app/go}
+    `),
+        {},
+        { baseDirectory: '/' },
+      )
+    const enabled = targets()
+    const sources = [
+      {
+        path: 'queries/events.sql',
+        content: '-- name: GetEvent :one\nSELECT id FROM events;',
+        routes: [enabled[0]!.routeQuery('queries/events.sql')!],
+      },
+    ]
+    const first = await reconcileProjectBuild(sources, { ...options, targets: enabled })
+    const second = await reconcileProjectBuild(
+      sources,
+      { ...options, targets: enabled },
+      first.state,
+    )
+    expect(first.state.diagnostics).toEqual([])
+    expect(second.events).toEqual([])
+    expect(second.stats.renderCacheHits).toBe(2)
+    expect(Object.keys(first.state.artifacts).sort()).toEqual([
+      '/go/events/getevent.go',
+      '/go/events/queries.go',
+      '/go/pgsid/pgx/db.go',
+    ])
+    expect(first.state.artifacts['/go/events/getevent.go']?.content).toContain(
+      'func (q *Queries) GetEvent',
+    )
+    const removed = await reconcileProjectBuild([], { ...options, targets: [] }, second.state)
+    expect(removed.state.artifacts).toEqual({})
+    expect(removed.events.filter((event) => event.kind === 'artifact-removed')).toHaveLength(3)
   })
 
   it('analyzes check-only files without rendering artifacts', async () => {
@@ -161,7 +290,7 @@ describe('reconcileProjectBuild', () => {
       { ...options, targets: [...options.targets, target] },
     )
 
-    expect(update.state.artifacts['/generated/events.ts']).toMatchObject({
+    expect(update.state.artifacts['/generated/events/GetEvent.d.ts']).toMatchObject({
       target: 'typescript',
       kind: 'types',
     })

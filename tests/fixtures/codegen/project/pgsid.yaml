@@ -1,0 +1,64 @@
+schema: migrations/*.sql
+
+types:
+  jsonSchemas:
+    EventPayload:
+      schema:
+        type: object
+        required: [actor, flags]
+        properties:
+          actor:
+            type: object
+            required: [id]
+            properties:
+              id: { type: integer }
+              displayName: { type: string }
+            additionalProperties: false
+          flags:
+            type: array
+            items: { type: string }
+          score: { type: [number, 'null'] }
+          next: { $ref: '#' }
+        additionalProperties: false
+    EventAudit:
+      schema:
+        type: object
+        properties:
+          source: { type: string }
+        additionalProperties: false
+    UnusedDocument:
+      schema:
+        type: object
+        properties:
+          ignored: { type: boolean }
+
+sql:
+  paths: [queries/**/*.sql]
+  typecheck: { plpgsql: false }
+  codegen:
+    typescript:
+      mappings:
+        pgType:
+          pg_catalog.int8: bigint
+        column:
+          public.events.payload: { jsonSchema: EventPayload }
+          public.events.audit: { jsonSchema: EventAudit }
+      jsonSchemas:
+        types: generated/typescript/types/jsonschemas
+        runtime: generated/typescript/runtime/jsonschemas
+      schema: { outDir: generated/typescript/types/schema }
+      queries:
+        out:
+          queries:
+            types: generated/typescript/types/queries
+            runtime: generated/typescript/runtime/queries
+    go:
+      driver: pgx
+      mappings:
+        column:
+          public.events.payload: { jsonSchema: EventPayload }
+          public.events.audit: { jsonSchema: EventAudit }
+      schema: { outDir: generated/go/schema }
+      queries:
+        out:
+          queries: generated/go/queries

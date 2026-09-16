@@ -1,0 +1,64 @@
+schema: migrations/*.sql
+types:
+  jsonSchemas:
+    Document:
+      schema:
+        type: object
+        required: [requiredValue, requiredNullable, nested, values]
+        properties:
+          requiredValue: { type: string }
+          requiredNullable: { type: [string, 'null'] }
+          optionalValue: { type: string }
+          optionalNullable: { type: [number, 'null'] }
+          nested:
+            type: object
+            properties:
+              enabled: { type: boolean }
+              note: { type: [string, 'null'] }
+          values: { type: array, items: { type: [string, 'null'] } }
+          members:
+            type: array
+            items:
+              type: [object, 'null']
+              required: [profile]
+              properties:
+                id: { type: integer }
+                profile:
+                  type: object
+                  properties:
+                    label: { type: string }
+          lookup:
+            type: object
+            additionalProperties:
+              type: object
+              properties:
+                enabled: { type: boolean }
+          node: { $ref: '#/$defs/Node' }
+          optionalArray: { type: array, items: { type: integer } }
+          optionalObject: { type: object, additionalProperties: { type: string } }
+        additionalProperties: false
+        $defs:
+          Node:
+            type: object
+            properties:
+              id: { type: integer }
+              next: { $ref: '#/$defs/Node' }
+    MaybeDocument:
+      schema:
+        type: [object, 'null']
+        properties:
+          value: { type: integer }
+        additionalProperties: false
+sql:
+  paths: [queries/**/*.sql]
+  typecheck: { plpgsql: false }
+  codegen:
+    go:
+      nulls: pointers
+      mappings:
+        column:
+          public.items.payload: { jsonSchema: Document }
+          public.items.maybe_payload: { jsonSchema: MaybeDocument }
+      queries:
+        out:
+          queries: generated/queries

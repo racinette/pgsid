@@ -38,7 +38,7 @@ describe('loadQuerySources', () => {
     expect(sources[0]!.content.toString()).toContain('SELECT 2')
     expect(sources[0]!.routes).toEqual([])
     expect(sources[1]!.routes?.[0]!.outputs).toEqual([
-      { kind: 'types', path: join(root, 'generated/generated.ts') },
+      { kind: 'types', path: join(root, 'generated/generated') },
     ])
   })
 })

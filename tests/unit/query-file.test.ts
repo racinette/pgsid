@@ -113,6 +113,55 @@ describe('parseQueryFile', () => {
     }
   })
 
+  it.each([
+    ['get_users1', 'GetUsers1', 'getusers1'],
+    ['GetUsers', 'getusers', 'getusers'],
+    ['get__users', '_get_users_', 'getusers'],
+    ['Get_Users1', 'GetUsers_1', 'getusers1'],
+  ])('rejects names %s and %s with the same normalized name', async (first, second, normalized) => {
+    const prefix = `-- name: ${first} :one\nSELECT 'é';\n`
+    const annotation = `-- name: ${second} :many`
+    await expect(parseQueryFile(`${prefix}${annotation}\nSELECT 2;`)).rejects.toMatchObject({
+      code: 'duplicate-name',
+      message: `Query names ${JSON.stringify(first)} and ${JSON.stringify(second)} are not unique after removing symbols and lowercasing (${JSON.stringify(normalized)})`,
+      start: Buffer.byteLength(prefix),
+      end: Buffer.byteLength(prefix + annotation),
+    })
+  })
+
+  it.each(['queries', 'Queries', '_quer_ies_', 'pgsid', 'PgSid', '_pg_sid_'])(
+    'rejects reserved normalized query name %s with annotation byte coordinates',
+    async (name) => {
+      const prefix = "-- name: Valid :one\nSELECT 'é';\n"
+      const annotation = `-- name: ${name} :one`
+      await expect(parseQueryFile(`${prefix}${annotation}\nSELECT 1;`)).rejects.toMatchObject({
+        code: 'reserved-name',
+        start: Buffer.byteLength(prefix),
+        end: Buffer.byteLength(prefix + annotation),
+      })
+    },
+  )
+
+  it.each(['_', '__'])('rejects query name %s that normalizes to empty', async (name) => {
+    await expect(parseQueryFile(`-- name: ${name} :one\nSELECT 1;`)).rejects.toMatchObject({
+      code: 'invalid-name',
+    })
+  })
+
+  it('preserves original names and distinguishes digits', async () => {
+    const parsed = await parseQueryFile(
+      '-- name: get_users1 :one\nSELECT 1;\n-- name: GetUsers2 :many\nSELECT 2;',
+    )
+    expect(parsed.queries.map((query) => query.name)).toEqual(['get_users1', 'GetUsers2'])
+  })
+
+  it('scopes normalized name uniqueness to each source file', async () => {
+    const first = await parseQueryFile('-- name: get_users1 :one\nSELECT 1;')
+    const second = await parseQueryFile('-- name: GetUsers1 :many\nSELECT 2;')
+    expect(first.queries[0]!.name).toBe('get_users1')
+    expect(second.queries[0]!.name).toBe('GetUsers1')
+  })
+
   it('reports parse errors in original byte coordinates', async () => {
     const source = "-- name: Broken :one\nSELECT 'é', @long_parameter +;"
     try {

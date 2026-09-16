@@ -215,6 +215,8 @@ export {
   type TypescriptSchemaArtifacts,
   type TypescriptSchemaDiagnostic,
 } from './codegen/typescript/schema.js'
+export { renderGoQueryArtifacts, type GoQueryArtifacts } from './codegen/go/query.js'
+export { renderGoSchemaArtifacts, type GoSchemaArtifacts } from './codegen/go/schema.js'
 export {
   applyProjectBuildEvents,
   type ArtifactWriteResult,

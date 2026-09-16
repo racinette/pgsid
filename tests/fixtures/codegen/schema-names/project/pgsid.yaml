@@ -1,0 +1,14 @@
+schema: migrations/*.sql
+sql:
+  paths: [queries/**/*.sql]
+  typecheck: { plpgsql: false }
+  codegen:
+    go:
+      schema:
+        outDir: generated/schema
+        names:
+          schema_e695b0e68dae: literal_data
+          提供: supplied
+      queries:
+        out:
+          queries: generated/queries

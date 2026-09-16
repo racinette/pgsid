@@ -1,0 +1,6 @@
+package schema_212121
+
+type EventId int64
+type Events struct {
+	Id EventId `db:"id"`
+}
