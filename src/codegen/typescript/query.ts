@@ -5,6 +5,7 @@ import { createTypescriptJsonSchemaGraphs } from './jsonschemas.js'
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
+import { planArrayDimensionInputs } from '../shared/array-dimensions.js'
 import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import {
   asyncModifier,
@@ -421,8 +422,13 @@ const renderQuery = (
     return type
   })
   const inputPlan = planJsonSchemaInputs(analysis.writeLineage ?? [], bindings)
+  const arrayInputs = planArrayDimensionInputs(
+    analysis.writeLineage ?? [],
+    config.sql.codegen?.typescript?.mappings.column ?? {},
+    options.catalog,
+  )
   const paramTypes = analysis.contract.params.map((param, index) => {
-    const destinations = inputPlan.parameters.get(index + 1) ?? []
+    const destinations = inputPlan.parameters.get(index + 1) ?? arrayInputs.get(index + 1) ?? []
     const destinationTypes = destinations.map((destination) =>
       resolveTypescriptValueType(destination, config, bindings, options.catalog, context)!,
     )

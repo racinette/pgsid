@@ -7,6 +7,7 @@ import type { CatalogSnapshot } from '../../catalog/types.js'
 import type { Config, GoTypeImport, JsonSchemaDocument } from '../../config/schema.js'
 import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
+import { planArrayDimensionInputs, resolveArrayDimensions } from '../shared/array-dimensions.js'
 import { go, printGoFile, type GoDeclaration, type GoField } from './ast.js'
 import { normalizeGoImports } from './imports.js'
 import { assertUniqueGoNames, GeneratedGoNameCollisionError, goName } from './names.js'
@@ -147,6 +148,11 @@ const renderQuery = (
   )
   const bindings = goJsonSchemaBindings(config, schemas)
   const inputPlan = planJsonSchemaInputs(analysis.writeLineage ?? [], bindings)
+  const arrayInputs = planArrayDimensionInputs(
+    analysis.writeLineage ?? [],
+    config.sql.codegen?.go?.mappings.column ?? {},
+    catalog,
+  )
   for (const unsupported of inputPlan.unsupported)
     diagnostics.push({
       code: 'json-schema-input-unsupported',
@@ -155,12 +161,12 @@ const renderQuery = (
       message: `Cannot infer JSON Schema inputs for ${unsupported.column} through this write transformation (parameters ${unsupported.parameters.map((number) => `$${number}`).join(', ')})`,
     })
   const parameterFields: GoField[] = analysis.contract.params.map((parameter, index) => {
-    const destinations = inputPlan.parameters.get(index + 1) ?? []
+    const destinations = inputPlan.parameters.get(index + 1) ?? arrayInputs.get(index + 1) ?? []
     const destinationTypes = destinations.map((destination) =>
       resolveGoValueType(destination, config, schemas, catalog, context)!,
     )
     const destinationType = destinationTypes[0]
-    const resolved = destinationType
+    let resolved = destinationType
       ? destinationTypes.every(
           (item) => JSON.stringify(item.type) === JSON.stringify(destinationType.type),
         )
@@ -174,6 +180,30 @@ const renderQuery = (
           undefined,
           context,
         )
+    if (arrayInputs.has(index + 1) && destinations.length > 1) {
+      const constraints = destinations.map(
+        (destination) =>
+          resolveArrayDimensions(destination, config.sql.codegen?.go?.mappings.column ?? {})!
+            .dimensions,
+      )
+      const depths = constraints.map((dimensions) =>
+        typeof dimensions === 'number' ? [dimensions] : dimensions,
+      )
+      const common = [...depths[0]!]
+        .filter((depth) => depths.every((allowed) => allowed.includes(depth)))
+        .sort((a, b) => a - b)
+      if (!common.length)
+        throw new Error(`Conflicting array dimension mappings for parameter $${index + 1}`)
+      resolved = resolveGoPgType(
+        parameterTypes[index] ?? 'unknown',
+        config,
+        catalog,
+        undefined,
+        undefined,
+        context,
+        constraints.some(Array.isArray) || common.length > 1 ? common : common[0]!,
+      )
+    }
     imports.push(...resolved.imports)
     addGoNullImport(
       imports,
@@ -182,14 +212,26 @@ const renderQuery = (
       nullableGoType(resolved.type, parameter.notNull, config),
     )
     const sourceName = named.get(index + 1) ?? `param_${index + 1}`
-    const validations = executor
-      ? destinations.flatMap((destination) => {
-          const validation = goValidationSchema(destination, bindings)
-          if (!validation) return []
-          return [validation.schema]
-        })
-      : []
+    const validations =
+      executor && inputPlan.parameters.has(index + 1)
+        ? destinations.flatMap((destination) => {
+            const validation = goValidationSchema(destination, bindings)
+            if (!validation) return []
+            return [validation.schema]
+          })
+        : []
     return {
+      ...(executor && resolved.dimensionUnion && resolved.arrayDimensions
+        ? {
+            arrayValidation: {
+              dimensions: resolved.arrayDimensions,
+              element: resolved.arrayElementType!,
+              query: analysis.query.name,
+              column: sourceName,
+              nullable: !parameter.notNull,
+            },
+          }
+        : {}),
       ...(validations.length
         ? {
             jsonValidation: {
@@ -204,15 +246,16 @@ const renderQuery = (
       names: [goName(sourceName)],
       sqlNullable: !parameter.notNull && config.sql.codegen?.go?.nulls === 'structs',
       sqlJson:
-        destinations.length > 0 || /(?:^|\.)(?:json|jsonb)$/u.test(parameterTypes[index] ?? ''),
+        inputPlan.parameters.has(index + 1) ||
+        /(?:^|\.)(?:json|jsonb)$/u.test(parameterTypes[index] ?? ''),
       type: nullableGoType(resolved.type, parameter.notNull, config),
       tag: `db:${JSON.stringify(sourceName)}`,
     }
   })
   assertUniqueFields(parameterFields, analysis.query.name, 'parameter')
   declarations.push(go.type(`${queryName}Params`, go.struct(parameterFields)))
-  if (parameterFields.some((field) => field.jsonValidation)) {
-    if (!helperImportPath) throw new Error('Go JSON validation requires a helper import path')
+  if (parameterFields.some((field) => field.jsonValidation || field.arrayValidation)) {
+    if (!helperImportPath) throw new Error('Go input validation requires a helper import path')
     imports.push({ path: helperImportPath, as: 'pgsidpgx' })
   }
 
@@ -270,6 +313,17 @@ const renderQuery = (
     )
     const validation = executor ? goValidationSchema(lineage?.[index], bindings) : undefined
     return {
+      ...(executor && resolved.arrayDimensions
+        ? {
+            arrayValidation: {
+              dimensions: resolved.arrayDimensions,
+              element: resolved.arrayElementType!,
+              query: analysis.query.name,
+              column: name,
+              nullable: !(analysis.contract.outputs[index]?.notNull ?? false),
+            },
+          }
+        : {}),
       ...(validation
         ? {
             jsonValidation: {
@@ -291,8 +345,8 @@ const renderQuery = (
       tag: `db:${JSON.stringify(name)}`,
     }
   })
-  if (outputFields.some((field) => field.jsonValidation)) {
-    if (!helperImportPath) throw new Error('Go JSON validation requires a helper import path')
+  if (outputFields.some((field) => field.jsonValidation || field.arrayValidation)) {
+    if (!helperImportPath) throw new Error('Go output validation requires a helper import path')
     imports.push({ path: helperImportPath, as: 'pgsidpgx' })
   }
   assertUniqueFields(outputFields, analysis.query.name, 'output')

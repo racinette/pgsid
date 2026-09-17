@@ -19,6 +19,11 @@ import { goJsonNulls, nullStruct, goNullsImportPath, hasNullStruct } from './nul
 import { goJsonSchemasImportPath } from './jsonschemas.js'
 import { createGoJsonSchemaTypes } from './json-schema-types.js'
 import { goName, goPackageName, goSchemaDirectory } from './names.js'
+import {
+  arrayDimensionsMapping,
+  assertArrayDimensions,
+  resolveArrayDimensions,
+} from '../shared/array-dimensions.js'
 
 export interface GoTypeContext {
   importPath: string
@@ -31,6 +36,9 @@ export interface GoTypeContext {
 export interface ResolvedGoType {
   type: GoExpression
   imports: GoTypeImport[]
+  arrayDimensions?: readonly number[]
+  arrayElementType?: GoExpression
+  dimensionUnion?: boolean
 }
 
 const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImport[] }>> = {
@@ -88,10 +96,23 @@ export function resolveGoColumnType(
 ): ResolvedGoType {
   const mapping = config.sql.codegen?.go?.mappings.column[`${schema}.${relation}.${column.name}`]
   if (mapping) {
+    const dimensions = arrayDimensionsMapping(mapping)
+    if (dimensions) {
+      assertArrayDimensions(column.typeName, `${schema}.${relation}.${column.name}`)
+      return resolveGoPgType(
+        column.typeName,
+        config,
+        catalog,
+        schema,
+        column.typeOid,
+        context,
+        dimensions.dimensions,
+      )
+    }
     if (typeof mapping === 'object' && 'jsonSchema' in mapping) {
       return namedType(mapping.jsonSchema, undefined, context)
     }
-    return mapped(mapping)
+    return mapped(mapping as GoTargetTypeMapping)
   }
   return resolveGoPgType(column.typeName, config, catalog, schema, column.typeOid, context)
 }
@@ -103,10 +124,15 @@ export function resolveGoPgType(
   defaultSchema?: string,
   typeOid?: number,
   context?: GoTypeContext,
+  dimensions?: number | readonly number[],
 ): ResolvedGoType {
   const array = pgType.endsWith('[]')
   const base = array ? pgType.slice(0, -2) : pgType
   const mappings = config.sql.codegen?.go?.mappings.pgType ?? {}
+  if (array && dimensions !== undefined && mappings[pgType])
+    throw new Error(
+      `Array dimensions cannot accompany a complete ${pgType} type mapping; map the element type instead`,
+    )
   const unmodified = base.replace(/\([^)]*\)$/u, '')
   const unqualified = unmodified.split('.').at(-1)?.replaceAll('"', '') ?? unmodified
   const alias = aliases[unqualified] ?? unqualified
@@ -114,16 +140,7 @@ export function resolveGoPgType(
     mappings[pgType] ?? mappings[base] ?? mappings[unmodified] ?? mappings[`pg_catalog.${alias}`]
   if (mapping) {
     const resolved = mapped(mapping)
-    return array
-      ? {
-          ...resolved,
-          type: go.slice(
-            config.sql.codegen?.go?.nulls === 'structs'
-              ? nullStruct('Null', resolved.type)
-              : resolved.type,
-          ),
-        }
-      : resolved
+    return array ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined) : resolved
   }
   const visibleSchema =
     catalog && !unmodified.includes('.')
@@ -149,16 +166,33 @@ export function resolveGoPgType(
   } else {
     resolved = mapped(defaultTypes[alias] ?? defaultTypes[unmodified] ?? { type: 'any' })
   }
-  return array
-    ? {
-        ...resolved,
-        type: go.slice(
-          config.sql.codegen?.go?.nulls === 'structs'
-            ? nullStruct('Null', resolved.type)
-            : resolved.type,
-        ),
-      }
-    : resolved
+  return array ? arrayType(resolved, config, dimensions ?? 1, dimensions !== undefined) : resolved
+}
+
+function arrayType(
+  resolved: ResolvedGoType,
+  config: Config,
+  dimensions: number | readonly number[],
+  explicit: boolean,
+): ResolvedGoType {
+  const element =
+    config.sql.codegen?.go?.nulls === 'structs' ? nullStruct('Null', resolved.type) : resolved.type
+  if (typeof dimensions !== 'number')
+    return {
+      ...resolved,
+      type: go.index(go.selector(go.ident('pgtype'), 'Array'), element),
+      imports: [...resolved.imports, { path: 'github.com/jackc/pgx/v5/pgtype' }],
+      arrayDimensions: dimensions,
+      arrayElementType: element,
+      dimensionUnion: true,
+    }
+  let type = element
+  for (let index = 0; index < dimensions; index++) type = go.slice(type)
+  return {
+    ...resolved,
+    type,
+    ...(explicit ? { arrayDimensions: [dimensions], arrayElementType: element } : {}),
+  }
 }
 
 export function resolveGoDomainBase(
@@ -191,6 +225,17 @@ export function resolveGoValueType(
   context?: GoTypeContext,
 ): ResolvedGoType | null {
   if (!value) return null
+  const dimensions = resolveArrayDimensions(value, config.sql.codegen?.go?.mappings.column ?? {})
+  if (dimensions && value.resolvedType)
+    return resolveGoPgType(
+      value.resolvedType,
+      config,
+      catalog,
+      undefined,
+      undefined,
+      context,
+      dimensions.dimensions,
+    )
   const bindings = goJsonSchemaBindings(config, schemas)
   const lineage = resolveJsonSchemaLineage(value, bindings)
   const root = lineage.alternatives[0]
@@ -236,7 +281,7 @@ export function resolveGoValueType(
   if (!column) return null
   const mapping = config.sql.codegen?.go?.mappings.column[columnKey(column)]
   if (mapping && !(typeof mapping === 'object' && 'jsonSchema' in mapping)) {
-    return mapped(mapping)
+    if (!(typeof mapping === 'object' && 'dimensions' in mapping)) return mapped(mapping)
   }
   return value.resolvedType
     ? resolveGoPgType(value.resolvedType, config, catalog, column.schema, undefined, context)
@@ -388,6 +433,7 @@ export const createGoTypeContext = (
     'context',
     'pgx',
     'pgconn',
+    'pgtype',
     'pgsid',
     'pgsidpgx',
     ...customImports.map((item) => item.as ?? item.path.split('/').at(-1)!),

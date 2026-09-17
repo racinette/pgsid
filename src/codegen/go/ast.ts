@@ -12,6 +12,13 @@ export interface GoField {
   sqlNullable?: boolean
   sqlJson?: boolean
   jsonValidation?: { contract: string; column: string; query: string }
+  arrayValidation?: {
+    dimensions: readonly number[]
+    element: GoExpression
+    query: string
+    column: string
+    nullable: boolean
+  }
 }
 
 export type GoExpression =

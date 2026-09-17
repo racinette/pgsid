@@ -15,7 +15,9 @@ export const nullStruct = (
   kind: 'Null' | 'Undefined' | 'NullOrUndefined',
   type: GoExpression,
 ): GoExpression => go.index(go.selector(go.ident('pgsid'), kind), type)
-export const runtimeSource = (name: 'null.go' | 'null-pgx.go' | 'validation.go'): string => {
+export const runtimeSource = (
+  name: 'null.go' | 'null-pgx.go' | 'validation.go' | 'array.go',
+): string => {
   const source = new URL(`./assets/${name}`, import.meta.url)
   return readFileSync(existsSync(source) ? source : new URL(`./${name}`, import.meta.url), 'utf8')
 }

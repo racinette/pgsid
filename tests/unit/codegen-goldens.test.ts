@@ -24,7 +24,18 @@ const projects: {
   validationTests?: boolean
   inputTests?: boolean
   standaloneTests?: boolean
+  dimensionTests?: boolean
+  typescriptTests?: boolean
 }[] = [
+  ...[undefined, 'structs.yaml'].map((config) => ({
+    name: `array dimensions ${config ?? 'pointers'}`,
+    source: 'dimensions/project',
+    expected: `dimensions/${config?.replace('.yaml', '') ?? 'pointers'}-expected`,
+    nativeTests: false,
+    config,
+    dimensionTests: true,
+    typescriptTests: true,
+  })),
   {
     name: 'standalone Go validators without executors',
     source: 'inputs/project',
@@ -175,11 +186,26 @@ func TestQueryDeclarations(t *testing.T) {
           join(root, 'generated/jsonschemas'),
           { recursive: true },
         )
+      if (project.dimensionTests)
+        await cp(
+          join(fixtureRoot, 'dimensions/go-tests/arrays'),
+          join(root, 'generated/queries/arrays'),
+          { recursive: true },
+        )
+      if (project.dimensionTests && project.config === 'structs.yaml')
+        await cp(
+          join(fixtureRoot, 'dimensions/go-tests/structs'),
+          join(root, 'generated/queries/arrays'),
+          { recursive: true },
+        )
       const result = await runFile(
         goBinary,
         [
           'test',
-          ...(project.validationTests || project.inputTests || project.standaloneTests
+          ...(project.validationTests ||
+          project.inputTests ||
+          project.standaloneTests ||
+          project.dimensionTests
             ? ['-race']
             : []),
           '-mod=readonly',
@@ -235,7 +261,7 @@ func TestQueryDeclarations(t *testing.T) {
       const update = await buildProject({ baseDirectory: root })
       expect(update.state.diagnostics).toEqual([])
 
-      if (project.nativeTests) {
+      if (project.nativeTests || project.typescriptTests) {
         const sourceFiles = (await walk(join(root, 'generated/typescript'))).filter((path) =>
           path.endsWith('.ts'),
         )
