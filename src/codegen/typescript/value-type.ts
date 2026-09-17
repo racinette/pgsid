@@ -16,6 +16,7 @@ import {
 } from './type-mapping.js'
 import { typescriptTypeFromJsonSchema } from './json-schema.js'
 import ts from 'typescript'
+import { resolveArrayDimensions } from '../shared/array-dimensions.js'
 
 export interface ResolvedTypescriptValueType extends ResolvedTypescriptType {
   lineage?: JsonSchemaLineage
@@ -29,6 +30,20 @@ export function resolveTypescriptValueType(
   context?: TypescriptTypeContext,
 ): ResolvedTypescriptValueType | null {
   if (!value) return null
+  const dimensions = resolveArrayDimensions(
+    value,
+    config.sql.codegen?.typescript?.mappings.column ?? {},
+  )
+  if (dimensions && value.resolvedType)
+    return resolveTypescriptPgType(
+      value.resolvedType,
+      config,
+      catalog,
+      undefined,
+      undefined,
+      context,
+      dimensions.dimensions,
+    )
   const lineage = resolveJsonSchemaLineage(value, bindings)
   if (lineage.alternatives.length || lineage.complete) {
     const type =
@@ -75,6 +90,7 @@ export function resolveTypescriptValueType(
       : null
   }
   if (typeof mapping === 'object' && 'jsonSchema' in mapping) return null
+  if (typeof mapping === 'object' && 'dimensions' in mapping) return null
   return typeof mapping === 'string'
     ? { type: parseType(mapping), imports: [] }
     : { type: parseType(mapping.type), imports: [...(mapping.imports ?? [])] }

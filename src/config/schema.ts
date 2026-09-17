@@ -92,8 +92,24 @@ export const targetTypeMappingSchema = z.union([
     .strict(),
 ])
 
+export const arrayDimensionsMappingSchema = z
+  .object({
+    dimensions: z.union([
+      z.number().int().positive().max(6),
+      z
+        .array(z.number().int().positive().max(6))
+        .min(1)
+        .refine(
+          (values) => new Set(values).size === values.length,
+          'Array dimensions must be unique',
+        ),
+    ]),
+  })
+  .strict()
+
 export const columnMappingSchema = z.union([
   targetTypeMappingSchema,
+  arrayDimensionsMappingSchema,
   z
     .object({
       jsonSchema: z.string().min(1),
@@ -182,6 +198,7 @@ export const goTargetTypeMappingSchema = z.union([
 
 export const goColumnMappingSchema = z.union([
   goTargetTypeMappingSchema,
+  arrayDimensionsMappingSchema,
   z
     .object({
       jsonSchema: z.string().min(1),
@@ -372,6 +389,7 @@ export type AnalysisConfig = z.infer<typeof analysisSchema>
 export type TypeImport = z.infer<typeof typeImportSchema>
 export type TargetTypeMapping = z.infer<typeof targetTypeMappingSchema>
 export type ColumnMapping = z.infer<typeof columnMappingSchema>
+export type ArrayDimensionsMapping = z.infer<typeof arrayDimensionsMappingSchema>
 export type MappingsConfig = z.infer<typeof mappingsSchema>
 export type TypescriptJsonSchemasConfig = z.infer<typeof typescriptJsonSchemasSchema>
 export type TypescriptCodegenConfig = z.infer<typeof typescriptCodegenSchema>

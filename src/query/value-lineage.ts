@@ -59,6 +59,10 @@ export type ValueOperation =
       kind: 'subscript'
     }
   | {
+      kind: 'array-access'
+      slice: boolean
+    }
+  | {
       kind: 'choice'
       form: 'case' | 'coalesce' | 'union' | 'intersect' | 'except' | 'values' | 'write-path'
     }
@@ -1232,6 +1236,31 @@ class ValueLineageAnalyzer {
     scope: Scope,
   ): ExpressionResult {
     const input = this.analyzeExpression(indirection.arg, scope).value
+    if (input.resolvedType?.endsWith('[]')) {
+      const parts = indirection.indirection ?? []
+      const indices = parts.map(
+        (part) =>
+          (part as { A_Indices?: { uidx?: Node; lidx?: Node; is_slice?: boolean } }).A_Indices,
+      )
+      if (!indices.length || indices.some((index) => !index))
+        return this.opaque('A_Indirection', [input])
+      const slice = indices.some((index) => index?.is_slice)
+      return {
+        value: {
+          kind: 'transform',
+          operation: { kind: 'array-access', slice },
+          inputs: [
+            input,
+            ...indices.flatMap((index) =>
+              [index?.lidx, index?.uidx]
+                .filter((node): node is Node => !!node)
+                .map((node) => this.analyzeExpression(node, scope).value),
+            ),
+          ],
+          resolvedType: slice ? input.resolvedType : input.resolvedType.slice(0, -2),
+        },
+      }
+    }
     if (input.resolvedType !== 'jsonb') return this.opaque('A_Indirection', [input])
     const indices: ValueLineage[] = []
     for (const item of indirection.indirection ?? []) {

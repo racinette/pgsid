@@ -146,8 +146,8 @@ export function goExecutorDeclaration(
     id('ctx'),
     id(`${name}SQL`),
     ...parameterFields.map((item, index) =>
-      item.jsonValidation
-        ? id(`jsonInput${index + 1}`)
+      item.jsonValidation || item.arrayValidation
+        ? id(`${item.arrayValidation ? 'array' : 'json'}Input${index + 1}`)
         : item.sqlNullable
           ? go.call(member('pgsidpgx', item.sqlJson ? 'JSONValue' : 'Value'), [
               member('params', item.names![0]!),
@@ -158,6 +158,14 @@ export function goExecutorDeclaration(
   const query = (method: string) => go.call(go.selector(member('q', 'db'), method), args)
   const scanTarget = (item: GoField) => {
     const target = go.address(member('row', item.names![0]!))
+    if (item.arrayValidation)
+      return go.call(go.index(member('pgsidpgx', 'ArrayTarget'), item.arrayValidation.element), [
+        target,
+        go.composite(go.slice(id('int')), item.arrayValidation.dimensions.map(go.number)),
+        go.string(item.arrayValidation.query),
+        go.string(item.arrayValidation.column),
+        id(item.arrayValidation.nullable ? 'true' : 'false'),
+      ])
     if (item.jsonValidation)
       return go.call(member('pgsidpgx', 'ValidatedJSON'), [
         target,
@@ -221,9 +229,11 @@ export function goExecutorDeclaration(
     )
   }
   const inputChecks: GoStatement[] = parameterFields.flatMap((item, index) => {
-    if (!item.jsonValidation) return []
+    if (!item.jsonValidation && !item.arrayValidation) return []
     const value = item.sqlNullable
-      ? go.call(member('pgsidpgx', 'JSONValue'), [member('params', item.names![0]!)])
+      ? go.call(member('pgsidpgx', item.arrayValidation ? 'Value' : 'JSONValue'), [
+          member('params', item.names![0]!),
+        ])
       : member('params', item.names![0]!)
     const failure =
       command === 'exec'
@@ -235,15 +245,26 @@ export function goExecutorDeclaration(
             : [id('nil'), id('err')]
     return [
       go.assign(
-        [id(`jsonInput${index + 1}`), id('err')],
+        [id(`${item.arrayValidation ? 'array' : 'json'}Input${index + 1}`), id('err')],
         [
-          go.call(member('pgsidpgx', 'ValidateJSONInput'), [
-            value,
-            go.string(item.jsonValidation.contract),
-            go.string(item.jsonValidation.query),
-            go.string(item.jsonValidation.column),
-            id(analysis.contract.params[index]?.notNull ? 'false' : 'true'),
-          ]),
+          item.arrayValidation
+            ? go.call(
+                go.index(member('pgsidpgx', 'ValidateArrayInput'), item.arrayValidation.element),
+                [
+                  value,
+                  go.composite(go.slice(id('int')), item.arrayValidation.dimensions.map(go.number)),
+                  go.string(item.arrayValidation.query),
+                  go.string(item.arrayValidation.column),
+                  id(item.arrayValidation.nullable ? 'true' : 'false'),
+                ],
+              )
+            : go.call(member('pgsidpgx', 'ValidateJSONInput'), [
+                value,
+                go.string(item.jsonValidation!.contract),
+                go.string(item.jsonValidation!.query),
+                go.string(item.jsonValidation!.column),
+                id(analysis.contract.params[index]?.notNull ? 'false' : 'true'),
+              ]),
         ],
       ),
       go.if(go.notEqual(id('err'), id('nil')), [go.return(...failure)]),

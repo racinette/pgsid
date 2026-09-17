@@ -15,7 +15,13 @@ import { goJsonSchemaBindings } from './json-schema-bindings.js'
 import { renderGoValidation } from './json-schema-validation.js'
 import { renderGoExecutorBundle, renderGoExecutorInterface } from './executor.js'
 import { renderGoQueryArtifacts } from './query.js'
-import { goNullsOutDir, usesGoNullStructs, renderGoNulls, goJsonNulls } from './nulls.js'
+import {
+  goNullsOutDir,
+  usesGoNullStructs,
+  renderGoNulls,
+  goJsonNulls,
+  runtimeSource,
+} from './nulls.js'
 import {
   goJsonSchemasOutDir,
   referencedGoJsonSchemas,
@@ -93,6 +99,17 @@ export function createGoCodegenTarget(
                     path: helper.path,
                     content: renderGoExecutorInterface(options.catalog, target.nulls === 'structs'),
                   },
+                  ...(Object.values(target.mappings.column).some(
+                    (mapping) => typeof mapping === 'object' && 'dimensions' in mapping,
+                  )
+                    ? [
+                        {
+                          kind: 'helpers' as const,
+                          path: join(dirname(helper.path), 'array.go'),
+                          content: runtimeSource('array.go'),
+                        },
+                      ]
+                    : []),
                   ...(Object.values(goJsonSchemaBindings(config, schemas).columns).some(
                     (binding) => binding.runtimeValidation,
                   )

@@ -1,0 +1,31 @@
+schema: migrations/*.sql
+sql:
+  paths: [queries/**/*.sql]
+  typecheck: { plpgsql: false }
+  codegen:
+    typescript:
+      mappings:
+        column:
+          public.arrays.matrix: { dimensions: 2 }
+          public.arrays.cube: { dimensions: 3 }
+          public.arrays.flexible: { dimensions: [1, 2] }
+          public.arrays.optional_flexible: { dimensions: [1, 2] }
+          public.arrays.owners: { dimensions: 2 }
+      schema: { outDir: generated/typescript/types/schema }
+      queries:
+        out:
+          queries:
+            types: generated/typescript/types/queries
+            runtime: generated/typescript/runtime/queries
+    go:
+      mappings:
+        column:
+          public.arrays.matrix: { dimensions: 2 }
+          public.arrays.cube: { dimensions: 3 }
+          public.arrays.flexible: { dimensions: [1, 2] }
+          public.arrays.optional_flexible: { dimensions: [1, 2] }
+          public.arrays.owners: { dimensions: 2 }
+      schema: { outDir: generated/schema }
+      queries:
+        out:
+          queries: generated/queries

@@ -9,6 +9,7 @@ import type { CatalogSnapshot, ColumnInfo, DomainInfo, EnumInfo } from '../../ca
 import { factory, intersectionType, parseType, nullableType, unionType } from './ast.js'
 import { typescriptTypeFromJsonSchema } from './json-schema.js'
 import type { TypescriptJsonSchemaTypes } from './json-schema-types.js'
+import { arrayDimensionsMapping, assertArrayDimensions } from '../shared/array-dimensions.js'
 
 export interface TypescriptTypeContext {
   inlineNative?: boolean
@@ -93,6 +94,19 @@ export function resolveTypescriptColumnType(
   const mapping =
     config.sql.codegen?.typescript?.mappings.column[`${schema}.${relation}.${column.name}`]
   if (mapping) {
+    const arrayMapping = arrayDimensionsMapping(mapping)
+    if (arrayMapping) {
+      assertArrayDimensions(column.typeName, `${schema}.${relation}.${column.name}`)
+      return resolveTypescriptPgType(
+        column.typeName,
+        config,
+        catalog,
+        schema,
+        column.typeOid,
+        context,
+        arrayMapping.dimensions,
+      )
+    }
     if (typeof mapping === 'object' && 'jsonSchema' in mapping) {
       return {
         type:
@@ -101,7 +115,7 @@ export function resolveTypescriptColumnType(
         imports: [],
       }
     }
-    return mapped(mapping)
+    return mapped(mapping as TargetTypeMapping)
   }
   return resolveTypescriptPgType(column.typeName, config, catalog, schema, column.typeOid, context)
 }
@@ -113,6 +127,7 @@ export function resolveTypescriptPgType(
   defaultSchema?: string,
   typeOid?: number,
   context?: TypescriptTypeContext,
+  dimensions?: number | readonly number[],
 ): ResolvedTypescriptType {
   const mappings = config.sql.codegen?.typescript?.mappings.pgType ?? {}
   const array = pgType.endsWith('[]')
@@ -120,7 +135,13 @@ export function resolveTypescriptPgType(
   const unmodified = base.replace(/\([^)]*\)$/u, '')
   const unqualified = unmodified.split('.').at(-1)?.replaceAll('"', '') ?? unmodified
   const alias = TYPE_ALIASES[unqualified] ?? unqualified
-  if (mappings[pgType]) return mapped(mappings[pgType]!)
+  if (mappings[pgType]) {
+    if (array && dimensions !== undefined)
+      throw new Error(
+        `Array dimensions cannot accompany a complete ${pgType} type mapping; map the element type instead`,
+      )
+    return mapped(mappings[pgType]!)
+  }
   const mapping = mappings[base] ?? mappings[unmodified] ?? mappings[`pg_catalog.${alias}`]
   const sourceSchema =
     defaultSchema ??
@@ -147,7 +168,7 @@ export function resolveTypescriptPgType(
           type: parseType(DEFAULT_TYPES[alias] ?? DEFAULT_TYPES[unmodified] ?? 'unknown'),
           imports: [],
         }
-  return arrayReference(resolved, array)
+  return arrayReference(resolved, array, dimensions ?? 1)
 }
 
 const contextualReference = (
@@ -274,11 +295,19 @@ const enumReference = (enumeration: EnumInfo): ResolvedTypescriptType => ({
 const arrayReference = (
   resolved: ResolvedTypescriptType,
   array: boolean,
+  dimensions: number | readonly number[],
 ): ResolvedTypescriptType =>
   array
     ? {
         ...resolved,
-        type: factory.createArrayTypeNode(parenthesized(nullableType(resolved.type, false))),
+        type: unionType(
+          (typeof dimensions === 'number' ? [dimensions] : dimensions).map((depth) => {
+            let type = nullableType(resolved.type, false)
+            for (let index = 0; index < depth; index++)
+              type = factory.createArrayTypeNode(parenthesized(type))
+            return type
+          }),
+        ),
       }
     : resolved
 
