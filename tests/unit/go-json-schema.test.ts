@@ -170,3 +170,16 @@ describe('goTypeFromJsonSchema', () => {
     ).toBe('package db\n\ntype Value any\n')
   })
 })
+
+describe('Go reusable JSON validators', () => {
+  it('rejects generated validator names colliding with schema types', () => {
+    expect(() =>
+      renderGoJsonSchemaArtifacts(
+        ['Event', 'ValidateEvent'],
+        { Event: { type: 'object' }, ValidateEvent: { type: 'object' } },
+        '/generated/jsonschemas',
+        { validationNames: ['Event'], validationImportPath: 'example.com/app/jsonschemas/pgsid' },
+      ),
+    ).toThrow(/both generate ValidateEvent/u)
+  })
+})

@@ -22,6 +22,8 @@ import {
   goJsonSchemasOutDir,
   referencedGoJsonSchemas,
   renderGoJsonSchemaArtifacts,
+  runtimeGoJsonSchemas,
+  goJsonSchemasImportPath,
 } from './jsonschemas.js'
 import {
   assertUniqueGoNames,
@@ -67,7 +69,12 @@ export function renderGoSchemaArtifacts(
       referencedGoJsonSchemas(config),
       schemas,
       goJsonSchemasOutDir(outDir),
-      { nulls: goJsonNulls(config), nullsImportPath: goNullsImportPath(importPath) },
+      {
+        nulls: goJsonNulls(config),
+        nullsImportPath: goNullsImportPath(importPath),
+        validationNames: runtimeGoJsonSchemas(config),
+        validationImportPath: `${goJsonSchemasImportPath(importPath)}/pgsid`,
+      },
     )
     const artifacts: { path: string; content: string }[] = []
     const dependencies = new Map<string, string[]>()

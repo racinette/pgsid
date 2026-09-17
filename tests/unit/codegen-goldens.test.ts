@@ -22,7 +22,25 @@ const projects: {
   nullTests?: boolean
   jsonTests?: boolean
   validationTests?: boolean
+  inputTests?: boolean
+  standaloneTests?: boolean
 }[] = [
+  {
+    name: 'standalone Go validators without executors',
+    source: 'inputs/project',
+    expected: 'inputs/standalone-expected',
+    nativeTests: false,
+    config: 'standalone.yaml',
+    standaloneTests: true,
+  },
+  ...[undefined, 'structs.yaml'].map((config) => ({
+    name: `JSON write inputs ${config ?? 'pointers'}`,
+    source: 'inputs/project',
+    expected: `inputs/${config?.replace('.yaml', '') ?? 'pointers'}-expected`,
+    nativeTests: false,
+    config,
+    inputTests: true,
+  })),
   ...[undefined, 'structs.yaml', 'overrides.yaml'].map((config) => ({
     name: `Go runtime validation ${config ?? 'pointers'}`,
     source: 'validation/project',
@@ -142,12 +160,31 @@ func TestQueryDeclarations(t *testing.T) {
       if (project.validationTests)
         await cp(
           join(fixtureRoot, 'validation/go-tests/support'),
-          join(root, 'generated/queries/pgsid/pgx'),
+          join(root, 'generated/jsonschemas/pgsid'),
+          { recursive: true },
+        )
+      if (project.inputTests)
+        await cp(
+          join(fixtureRoot, 'inputs/go-tests/items'),
+          join(root, 'generated/queries/items'),
+          { recursive: true },
+        )
+      if (project.inputTests || project.standaloneTests)
+        await cp(
+          join(fixtureRoot, 'inputs/go-tests/jsonschemas'),
+          join(root, 'generated/jsonschemas'),
           { recursive: true },
         )
       const result = await runFile(
         goBinary,
-        ['test', ...(project.validationTests ? ['-race'] : []), '-mod=readonly', './generated/...'],
+        [
+          'test',
+          ...(project.validationTests || project.inputTests || project.standaloneTests
+            ? ['-race']
+            : []),
+          '-mod=readonly',
+          './generated/...',
+        ],
         {
           cwd: root,
           env: {
@@ -167,6 +204,22 @@ func TestQueryDeclarations(t *testing.T) {
         throw error
       })
       expect(result.stderr).toBe('')
+      if (project.inputTests || project.standaloneTests) {
+        const dependencies = await runFile(
+          goBinary,
+          ['list', '-deps', '-mod=readonly', './generated/jsonschemas'],
+          {
+            cwd: root,
+            env: {
+              ...process.env,
+              GOTOOLCHAIN: 'local',
+              GOCACHE: join(tmpdir(), 'pgsid-codegen-go-cache'),
+            },
+            timeout: 60_000,
+          },
+        )
+        expect(dependencies.stdout).not.toContain('github.com/jackc/pgx')
+      }
     },
     65_000,
   )

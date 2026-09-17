@@ -5,6 +5,7 @@ import { createTypescriptJsonSchemaGraphs } from './jsonschemas.js'
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
+import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import {
   asyncModifier,
   exportModifier,
@@ -17,7 +18,10 @@ import {
   unionType,
 } from './ast.js'
 import { typescriptJsonSchemaBindings } from './json-schema-bindings.js'
-import { typescriptJsonSchemaLineageValidatorDeclaration } from './json-schema-validator.js'
+import {
+  typescriptJsonSchemaLineageValidatorDeclaration,
+  type GenerateTypescriptJsonSchemaValidatorOptions,
+} from './json-schema-validator.js'
 import { queryValidationErrorDeclarations } from './validation-diagnostics.js'
 import {
   resolveTypescriptPgType,
@@ -33,6 +37,7 @@ export type TypescriptQueryDiagnosticCode =
   | 'json-schema-validator'
   | 'output-type-shape'
   | 'parameter-type-shape'
+  | 'json-schema-input-unsupported'
 
 export interface TypescriptQueryDiagnostic {
   code: TypescriptQueryDiagnosticCode
@@ -51,6 +56,8 @@ export interface RenderTypescriptQueryArtifactsOptions {
   jsonSchemaRuntimeModuleSpecifier?: string
   jsonSchemaValidator?: (alternative: JsonSchemaAlternative) => string | undefined
   jsonSchemaValidation?: (alternative: JsonSchemaAlternative) => string | undefined
+  jsonSchemaPredicate?: GenerateTypescriptJsonSchemaValidatorOptions['schemaPredicate']
+  jsonSchemaDiagnostic?: GenerateTypescriptJsonSchemaValidatorOptions['schemaValidation']
 }
 
 export interface TypescriptQueryArtifacts {
@@ -74,6 +81,8 @@ interface RenderedValidator {
   name: string
   validationName: string
   column: string
+  value?: ts.Expression
+  parameter?: number
 }
 
 export function renderTypescriptQueryArtifacts(
@@ -320,6 +329,19 @@ const renderQuery = (
           resolved.lineage,
           {
             nullable: !(claim?.notNull ?? false),
+            helpers: options.jsonSchemaRuntimeModuleSpecifier
+              ? factory.createPropertyAccessExpression(
+                  factory.createIdentifier('_jsonSchemas'),
+                  'jsonSchemaHelpers',
+                )
+              : undefined,
+            schemaPredicate: options.jsonSchemaPredicate
+              ? (schema, document, value) => {
+                  const result = options.jsonSchemaPredicate!(schema, document, value)
+                  if (result) usesJsonSchemaRuntime = true
+                  return result
+                }
+              : undefined,
             predicate:
               options.jsonSchemaRuntimeModuleSpecifier && options.jsonSchemaValidator
                 ? (alternative, value) => {
@@ -346,6 +368,19 @@ const renderQuery = (
             {
               nullable: !(claim?.notNull ?? false),
               diagnostic: true,
+              helpers: options.jsonSchemaRuntimeModuleSpecifier
+                ? factory.createPropertyAccessExpression(
+                    factory.createIdentifier('_jsonSchemas'),
+                    'jsonSchemaHelpers',
+                  )
+                : undefined,
+              schemaValidation: options.jsonSchemaDiagnostic
+                ? (schema, document, value) => {
+                    const result = options.jsonSchemaDiagnostic!(schema, document, value)
+                    if (result) usesJsonSchemaRuntime = true
+                    return result
+                  }
+                : undefined,
               validation:
                 options.jsonSchemaRuntimeModuleSpecifier && options.jsonSchemaValidation
                   ? (alternative, value) => {
@@ -372,6 +407,7 @@ const renderQuery = (
             validationName,
             column: name,
           })
+          if (options.jsonSchemaRuntimeModuleSpecifier) usesJsonSchemaRuntime = true
         }
       } catch (error) {
         diagnostics.push({
@@ -384,18 +420,158 @@ const renderQuery = (
     }
     return type
   })
+  const inputPlan = planJsonSchemaInputs(analysis.writeLineage ?? [], bindings)
   const paramTypes = analysis.contract.params.map((param, index) => {
-    const resolved = resolveTypescriptPgType(
-      parameterTypes[index] ?? 'unknown',
-      config,
-      options.catalog,
-      undefined,
-      undefined,
-      context,
+    const destinations = inputPlan.parameters.get(index + 1) ?? []
+    const destinationTypes = destinations.map((destination) =>
+      resolveTypescriptValueType(destination, config, bindings, options.catalog, context)!,
     )
+    const resolved = destinationTypes.length
+      ? {
+          type: intersectionType(destinationTypes.map((item) => item.type)),
+          imports: destinationTypes.flatMap((item) => item.imports),
+        }
+      : resolveTypescriptPgType(
+          parameterTypes[index] ?? 'unknown',
+          config,
+          options.catalog,
+          undefined,
+          undefined,
+          context,
+        )
     imports.push(...resolved.imports)
     return nullableType(resolved.type, param.notNull)
   })
+  const inputValidators: RenderedValidator[] = []
+  for (const unsupported of inputPlan.unsupported)
+    diagnostics.push({
+      code: 'json-schema-input-unsupported',
+      severity: 'warning',
+      queryId: analysis.query.id,
+      message: `Cannot infer JSON Schema inputs for ${unsupported.column} through this write transformation (parameters ${unsupported.parameters.map((number) => `$${number}`).join(', ')})`,
+    })
+  if (options.emitRuntime !== false)
+    for (const [number, destinations] of inputPlan.parameters) {
+      const parameterName = analysis.query.definition.parameters.find(
+        (parameter) => parameter.index === number,
+      )?.name
+      const value = factory.createElementAccessExpression(
+        factory.createIdentifier('params'),
+        parameterName
+          ? factory.createStringLiteral(parameterName)
+          : factory.createNumericLiteral(number - 1),
+      )
+      for (const destination of destinations) {
+        const resolved = resolveTypescriptValueType(
+          destination,
+          config,
+          bindings,
+          options.catalog,
+          context,
+        )!
+        const column =
+          destination.kind === 'column'
+            ? `${destination.column.schema}.${destination.column.relation}.${destination.column.column}`
+            : ''
+        const stem = `${queryName}Params${pascalCase(parameterName ?? `Param${number}`)}${pascalCase(column)}`
+        let suffix = ''
+        let attempt = 1
+        while (
+          runtimeNames.has(`is${stem}${suffix}`) ||
+          runtimeNames.has(`validate${stem}${suffix}`)
+        )
+          suffix = String(++attempt)
+        const name = `is${stem}${suffix}`
+        const validationName = `validate${stem}${suffix}`
+        const validatorOptions = {
+          nullable: false,
+          helpers: options.jsonSchemaRuntimeModuleSpecifier
+            ? factory.createPropertyAccessExpression(
+                factory.createIdentifier('_jsonSchemas'),
+                'jsonSchemaHelpers',
+              )
+            : undefined,
+          schemaPredicate: options.jsonSchemaPredicate
+            ? (schema: JsonSchemaDocument, document: JsonSchemaDocument, value: ts.Expression) => {
+                const result = options.jsonSchemaPredicate!(schema, document, value)
+                if (result) usesJsonSchemaRuntime = true
+                return result
+              }
+            : undefined,
+          schemaValidation: options.jsonSchemaDiagnostic
+            ? (schema: JsonSchemaDocument, document: JsonSchemaDocument, value: ts.Expression) => {
+                const result = options.jsonSchemaDiagnostic!(schema, document, value)
+                if (result) usesJsonSchemaRuntime = true
+                return result
+              }
+            : undefined,
+          predicate:
+            options.jsonSchemaRuntimeModuleSpecifier && options.jsonSchemaValidator
+              ? (alternative: JsonSchemaAlternative, value: ts.Expression) => {
+                  const name = options.jsonSchemaValidator!(alternative)
+                  if (!name) return undefined
+                  usesJsonSchemaRuntime = true
+                  return factory.createCallExpression(
+                    factory.createPropertyAccessExpression(
+                      factory.createIdentifier('_jsonSchemas'),
+                      name,
+                    ),
+                    undefined,
+                    [value],
+                  )
+                }
+              : undefined,
+          validation:
+            options.jsonSchemaRuntimeModuleSpecifier && options.jsonSchemaValidation
+              ? (alternative: JsonSchemaAlternative, value: ts.Expression) => {
+                  const name = options.jsonSchemaValidation!(alternative)
+                  if (!name) return undefined
+                  usesJsonSchemaRuntime = true
+                  return factory.createCallExpression(
+                    factory.createPropertyAccessExpression(
+                      factory.createIdentifier('_jsonSchemas'),
+                      name,
+                    ),
+                    undefined,
+                    [value],
+                  )
+                }
+              : undefined,
+        }
+        const parameterType = factory.createIndexedAccessTypeNode(
+          factory.createTypeReferenceNode(`${queryName}Params`),
+          factory.createLiteralTypeNode(
+            parameterName
+              ? factory.createStringLiteral(parameterName)
+              : factory.createNumericLiteral(number - 1),
+          ),
+        )
+        const statement = typescriptJsonSchemaLineageValidatorDeclaration(
+          name,
+          parameterType,
+          resolved.lineage!,
+          validatorOptions,
+        )
+        if (!statement) continue
+        const validation = typescriptJsonSchemaLineageValidatorDeclaration(
+          validationName,
+          parameterType,
+          resolved.lineage!,
+          { ...validatorOptions, diagnostic: true },
+        )!
+        runtimeNames.add(name)
+        runtimeNames.add(validationName)
+        inputValidators.push({
+          name,
+          validationName,
+          column: parameterName ?? `$${number}`,
+          value,
+          parameter: number,
+          statements: [statement, validation],
+        })
+        if (options.jsonSchemaRuntimeModuleSpecifier) usesJsonSchemaRuntime = true
+      }
+    }
   const sqlName = `${functionName}Sql`
   const typeDeclarations: ts.Statement[] = [
     renderParams(queryName, analysis, paramTypes),
@@ -417,18 +593,21 @@ const renderQuery = (
       ),
     ),
     ...validators.flatMap((validator) => validator.statements),
+    ...inputValidators.flatMap((validator) => validator.statements),
   ]
   return {
     typeDeclarations,
     runtimeDeclarations,
     usesJsonSchemaRuntime,
-    hasValidators: validators.length > 0,
+    hasValidators: validators.length + inputValidators.length > 0,
     wrapper: renderWrapper(
       analysis,
       queryName,
       functionName,
       sqlName,
       validators,
+      inputValidators,
+      [...inputPlan.parameters.keys()],
       options.queryableModuleSpecifier
         ? factory.createTypeReferenceNode(
             factory.createQualifiedName(factory.createIdentifier('pgsid'), 'Queryable'),
@@ -552,6 +731,8 @@ const renderWrapper = (
   functionName: string,
   sqlName: string,
   validators: readonly RenderedValidator[],
+  inputValidators: readonly RenderedValidator[],
+  jsonParameters: readonly number[],
   queryableType: ts.TypeNode,
   validationError: ts.Expression,
 ): ts.FunctionDeclaration => {
@@ -580,22 +761,119 @@ const renderWrapper = (
       ),
     )
   }
-  const values = named.length
-    ? factory.createArrayLiteralExpression(
-        [...named]
-          .sort((left, right) => left.index - right.index)
-          .map((parameter) =>
-            factory.createElementAccessExpression(
-              factory.createIdentifier('params'),
-              factory.createStringLiteral(parameter.name),
+  const inputStatements: ts.Statement[] = []
+  const jsonValue = (number: number) => factory.createIdentifier(`jsonInput${number}Value`)
+  const jsonEncoded = (number: number) => factory.createIdentifier(`jsonInput${number}`)
+  const constant = (name: ts.Identifier, expression: ts.Expression) =>
+    factory.createVariableStatement(
+      undefined,
+      factory.createVariableDeclarationList(
+        [factory.createVariableDeclaration(name, undefined, undefined, expression)],
+        ts.NodeFlags.Const,
+      ),
+    )
+  for (const number of jsonParameters) {
+    const parameter = analysis.contract.params[number - 1]!
+    const parameterName = named.find((item) => item.index === number)?.name
+    const value = factory.createElementAccessExpression(
+      factory.createIdentifier('params'),
+      parameterName
+        ? factory.createStringLiteral(parameterName)
+        : factory.createNumericLiteral(number - 1),
+    )
+    const encoded = factory.createCallExpression(
+      factory.createPropertyAccessExpression(factory.createIdentifier('JSON'), 'stringify'),
+      undefined,
+      [value],
+    )
+    inputStatements.push(
+      constant(
+        jsonEncoded(number),
+        parameter.notNull
+          ? encoded
+          : factory.createConditionalExpression(
+              factory.createBinaryExpression(
+                value,
+                factory.createToken(ts.SyntaxKind.EqualsEqualsEqualsToken),
+                factory.createNull(),
+              ),
+              factory.createToken(ts.SyntaxKind.QuestionToken),
+              factory.createNull(),
+              factory.createToken(ts.SyntaxKind.ColonToken),
+              encoded,
             ),
+      ),
+    )
+    if (!inputValidators.some((validator) => validator.parameter === number)) continue
+    inputStatements.push(
+      factory.createIfStatement(
+        factory.createBinaryExpression(
+          jsonEncoded(number),
+          factory.createToken(ts.SyntaxKind.EqualsEqualsEqualsToken),
+          factory.createIdentifier('undefined'),
+        ),
+        factory.createThrowStatement(
+          factory.createNewExpression(validationError, undefined, [
+            factory.createStringLiteral(analysis.query.name),
+            factory.createStringLiteral(parameterName ?? `$${number}`),
+            factory.createArrayLiteralExpression([
+              factory.createObjectLiteralExpression([
+                factory.createPropertyAssignment('path', factory.createArrayLiteralExpression()),
+                factory.createPropertyAssignment('keyword', factory.createStringLiteral('json')),
+                factory.createPropertyAssignment(
+                  'expected',
+                  factory.createStringLiteral('JSON value'),
+                ),
+                factory.createPropertyAssignment(
+                  'received',
+                  factory.createStringLiteral('undefined'),
+                ),
+                factory.createPropertyAssignment(
+                  'message',
+                  factory.createStringLiteral('Value has no JSON representation'),
+                ),
+              ]),
+            ]),
+          ]),
+        ),
+      ),
+    )
+    inputStatements.push(
+      constant(
+        jsonValue(number),
+        factory.createConditionalExpression(
+          factory.createBinaryExpression(
+            jsonEncoded(number),
+            factory.createToken(ts.SyntaxKind.EqualsEqualsEqualsToken),
+            factory.createNull(),
           ),
-      )
-    : analysis.contract.params.length
+          factory.createToken(ts.SyntaxKind.QuestionToken),
+          factory.createNull(),
+          factory.createToken(ts.SyntaxKind.ColonToken),
+          factory.createCallExpression(
+            factory.createPropertyAccessExpression(factory.createIdentifier('JSON'), 'parse'),
+            undefined,
+            [jsonEncoded(number)],
+          ),
+        ),
+      ),
+    )
+  }
+  const values =
+    !jsonParameters.length && !named.length && analysis.contract.params.length
       ? factory.createArrayLiteralExpression([
           factory.createSpreadElement(factory.createIdentifier('params')),
         ])
-      : factory.createArrayLiteralExpression()
+      : factory.createArrayLiteralExpression(
+          analysis.contract.params.map((_, index) => {
+            const name = named.find((item) => item.index === index + 1)?.name
+            const value = factory.createElementAccessExpression(
+              factory.createIdentifier('params'),
+              name ? factory.createStringLiteral(name) : factory.createNumericLiteral(index),
+            )
+            return jsonParameters.includes(index + 1) ? jsonEncoded(index + 1) : value
+          }),
+        )
   const query = factory.createCallExpression(
     factory.createPropertyAccessExpression(factory.createIdentifier('db'), 'query'),
     undefined,
@@ -691,7 +969,30 @@ const renderWrapper = (
     undefined,
     parameters,
     factory.createTypeReferenceNode('Promise', [returnType]),
-    factory.createBlock(statements, true),
+    factory.createBlock(
+      [
+        ...inputStatements,
+        ...inputValidators.flatMap((validator) => [
+          factory.createIfStatement(
+            factory.createBinaryExpression(
+              jsonEncoded(validator.parameter!),
+              factory.createToken(ts.SyntaxKind.ExclamationEqualsEqualsToken),
+              factory.createNull(),
+            ),
+            factory.createBlock(
+              validatorStatements(
+                [{ ...validator, value: jsonValue(validator.parameter!) }],
+                analysis.query.name,
+                validationError,
+              ),
+              true,
+            ),
+          ),
+        ]),
+        ...statements,
+      ],
+      true,
+    ),
   )
 }
 
@@ -705,10 +1006,11 @@ const validatorStatements = (
       factory.createPrefixUnaryExpression(
         ts.SyntaxKind.ExclamationToken,
         factory.createCallExpression(factory.createIdentifier(validator.name), undefined, [
-          factory.createElementAccessExpression(
-            factory.createIdentifier('row'),
-            factory.createStringLiteral(validator.column),
-          ),
+          validator.value ??
+            factory.createElementAccessExpression(
+              factory.createIdentifier('row'),
+              factory.createStringLiteral(validator.column),
+            ),
         ]),
       ),
       factory.createThrowStatement(
@@ -720,10 +1022,11 @@ const validatorStatements = (
               factory.createIdentifier(validator.validationName),
               undefined,
               [
-                factory.createElementAccessExpression(
-                  factory.createIdentifier('row'),
-                  factory.createStringLiteral(validator.column),
-                ),
+                validator.value ??
+                  factory.createElementAccessExpression(
+                    factory.createIdentifier('row'),
+                    factory.createStringLiteral(validator.column),
+                  ),
               ],
             ),
             'issues',

@@ -79,9 +79,9 @@ sql:
       },
     }
     const result = goValidationSchema(access(['node']), bindings(document))!
-    expect(result.resources['https://pgsid.invalid/jsonschemas/Document.json']).toBe(document)
+    expect(document.$id).toBe('https://example.com/document.json')
     expect(result.schema).toEqual({
-      $ref: 'https://pgsid.invalid/jsonschemas/Document.json#/properties/node',
+      $ref: 'pgsid:///jsonschemas/Document.json#/properties/node',
     })
     expect(document.$defs).toEqual({
       Node: { properties: { next: { $ref: '#/$defs/Node' } }, default: { $ref: 'literal' } },
@@ -107,15 +107,16 @@ sql:
     }
     expect(goValidationSchema(access(['node']), bindings(document))?.schema).toEqual({
       anyOf: [
-        { $ref: 'https://pgsid.invalid/jsonschemas/Document.json#/anyOf/0/properties/node' },
-        { $ref: 'https://pgsid.invalid/jsonschemas/Document.json#/anyOf/1/properties/node' },
+        { $ref: 'pgsid:///jsonschemas/Document.json#/anyOf/0/properties/node' },
+        { $ref: 'pgsid:///jsonschemas/Document.json#/anyOf/1/properties/node' },
       ],
     })
   })
 
-  it('preserves boolean schemas', () => {
-    expect(goValidationSchema(column(), bindings(false))?.schema).toBe(false)
-    expect(goValidationSchema(column(), bindings(true))?.schema).toBe(true)
+  it.each([false, true])('references boolean root schema %s by identity', (schema) => {
+    expect(goValidationSchema(column(), bindings(schema))?.schema).toEqual({
+      $ref: 'pgsid:///jsonschemas/Document.json#',
+    })
   })
 
   it('skips text, missing lineage, unmapped columns, and partially opted-out choices', () => {
@@ -149,8 +150,8 @@ sql:
       })?.schema,
     ).toEqual({
       anyOf: [
-        { $ref: 'https://pgsid.invalid/jsonschemas/Document.json#' },
-        { $ref: 'https://pgsid.invalid/jsonschemas/Document.json#' },
+        { $ref: 'pgsid:///jsonschemas/Document.json#' },
+        { $ref: 'pgsid:///jsonschemas/Document.json#' },
       ],
     })
   })

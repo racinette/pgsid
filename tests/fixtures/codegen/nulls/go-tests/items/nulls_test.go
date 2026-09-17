@@ -3,6 +3,7 @@ package items
 import (
 	"context"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"example.com/pgsid-nulls/generated/pgsid"
 	support "example.com/pgsid-nulls/generated/queries/pgsid/pgx"
@@ -156,7 +157,14 @@ func TestParameters(t *testing.T) {
 		t.Fatalf("zero became NULL: %v", d.args[0])
 	}
 	raw, err := d.args[2].(driver.Valuer).Value()
-	if err != nil || string(raw.([]byte)) != "null" {
-		t.Fatalf("JSON null became SQL NULL: %v %v", raw, err)
+	if err != nil || raw == nil {
+		t.Fatalf("typed JSON value became SQL NULL: %v %v", raw, err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw.([]byte), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["requiredValue"] != "" {
+		t.Fatal(payload)
 	}
 }

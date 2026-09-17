@@ -1,0 +1,63 @@
+schema: migrations/*.sql
+types:
+  jsonSchemas:
+    Event:
+      schema:
+        type: object
+        required: [actor]
+        properties:
+          actor: { type: integer, minimum: 1 }
+          label: { type: string }
+          next: { $ref: '#' }
+        additionalProperties: false
+    Audit:
+      schema:
+        type: object
+        required: [actor, label]
+        properties:
+          actor: { type: integer, maximum: 10 }
+          label: { type: string }
+          next: { $ref: '#' }
+        additionalProperties: false
+    Maybe:
+      schema:
+        type: [object, 'null']
+        properties:
+          actor: { type: integer, minimum: 1 }
+        additionalProperties: false
+    Numbers:
+      schema: { type: array, items: { type: integer, minimum: 1 } }
+sql:
+  paths: [queries/**/*.sql]
+  typecheck: { plpgsql: false }
+  codegen:
+    typescript:
+      jsonSchemas:
+        types: generated/typescript/types/jsonschemas
+        runtime: generated/typescript/runtime/jsonschemas
+      mappings:
+        column:
+          public.items.payload: { jsonSchema: Event }
+          public.items.unchecked: { jsonSchema: Event, runtime: { validate: false } }
+          public.items.maybe: { jsonSchema: Maybe }
+          public.items.literal: { jsonSchema: Maybe }
+          public.items.numbers: { jsonSchema: Numbers }
+          public.items.audit: { jsonSchema: Audit }
+      queries:
+        out:
+          queries:
+            types: generated/typescript/types/queries
+            runtime: generated/typescript/runtime/queries
+    go:
+      nulls: pointers
+      jsonSchemas: { runtime: { validate: false } }
+      mappings:
+        column:
+          public.items.payload: { jsonSchema: Event }
+          public.items.unchecked: { jsonSchema: Event, runtime: { validate: false } }
+          public.items.maybe: { jsonSchema: Maybe }
+          public.items.literal: { jsonSchema: Maybe }
+          public.items.numbers: { jsonSchema: Numbers }
+          public.items.audit: { jsonSchema: Audit }
+      schema: { outDir: generated/schema }
+      queries: { out: {} }

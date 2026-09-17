@@ -222,7 +222,7 @@ export class ProjectRuntime {
           : undefined,
         analysis: {
           schemaKey,
-          analysisKey: 'query-analysis-v2',
+          analysisKey: 'query-analysis-v3',
           catalog: generation.catalog!,
           searchPath: config.sql.searchPath,
           describe: (sql) => describe(generation, sql),

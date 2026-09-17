@@ -1,0 +1,47 @@
+{
+  "valid": [
+    { "actor": { "id": 2 }, "tags": [1, 2], "choice": "ok" },
+    {
+      "actor": { "id": 2, "friend": { "id": 3 } },
+      "backup": { "id": 4 },
+      "tags": [],
+      "next": { "actor": { "id": 5 }, "tags": [1] },
+      "token": "aaa",
+      "sameToken": "a",
+      "nullable": null,
+      "tuple": [1],
+      "unique": [{ "id": 1 }, { "id": 2 }],
+      "constant": { "mode": "ok" },
+      "a/b~#?% 空": 3
+    }
+  ],
+  "invalid": [
+    {
+      "value": { "actor": { "id": 0, "friend": { "id": "bad" } }, "tags": [0] },
+      "issues": [
+        { "path": ["actor", "id"], "keyword": "minimum" },
+        { "path": ["actor", "friend", "id"], "keyword": "type" },
+        { "path": ["tags", 0], "keyword": "minimum" }
+      ]
+    },
+    {
+      "value": { "actor": { "id": 2 }, "tags": [], "tuple": [1, 2] },
+      "issues": [{ "path": ["tuple", 1], "keyword": "items" }]
+    },
+    {
+      "value": { "actor": { "id": 2 }, "tags": [], "choice": false },
+      "issues": [{ "path": ["choice"], "keyword": "anyOf" }]
+    },
+    {
+      "value": { "actor": { "id": 2 }, "tags": [], "a/b~#?% 空": 2, "extra": true },
+      "issues": [
+        { "path": ["a/b~#?% 空"], "keyword": "minimum" },
+        { "path": ["extra"], "keyword": "additionalProperties" }
+      ]
+    },
+    {
+      "value": { "actor": { "id": 2 }, "tags": [], "unique": [{ "id": 1 }, { "id": 1 }] },
+      "issues": [{ "path": ["unique"], "keyword": "uniqueItems" }]
+    }
+  ]
+}

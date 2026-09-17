@@ -999,8 +999,8 @@ function outputColumnNames(stmt: Node | undefined): string[] | null {
 
   // A data-modifying CTE's output is its RETURNING list, under the same rules.
   for (const key of ['InsertStmt', 'UpdateStmt', 'DeleteStmt', 'MergeStmt']) {
-    const dml = node[key] as { returningClause?: Node[] } | undefined
-    if (dml) return dml.returningClause ? namesOfTargetList(dml.returningClause) : null
+    const dml = node[key] as { returningClause?: { exprs?: Node[] } } | undefined
+    if (dml) return dml.returningClause?.exprs ? namesOfTargetList(dml.returningClause.exprs) : null
   }
   return null
 }

@@ -40,7 +40,9 @@ func TestPostgresNullRoundTrips(t *testing.T) {
 		t.Fatalf("wrong decoded flags: %+v", got)
 	}
 	params := SetItemParams{Id: pgsid.Null[int64]{V: 1, Valid: true}, UserId: pgsid.Null[public.UserId]{V: 0, Valid: true}, State: got.State, Numbers: got.Numbers, Metadata: got.Metadata}
-	params.Payload = pgsid.Null[json.RawMessage]{Valid: true, V: json.RawMessage(`{"requiredValue":"next","requiredNullable":null,"optionalNullable":0,"nested":{"enabled":false},"values":[null,""],"members":[{"id":0,"profile":{"label":""}},null],"lookup":{"key":{"enabled":false}},"node":{"id":7,"next":{"id":8}}}`)}
+	if err := json.Unmarshal([]byte(`{"requiredValue":"next","requiredNullable":null,"optionalNullable":0,"nested":{"enabled":false},"values":[null,""],"members":[{"id":0,"profile":{"label":""}},null],"lookup":{"key":{"enabled":false}},"node":{"id":7,"next":{"id":8}}}`), &params.Payload); err != nil {
+		t.Fatal(err)
+	}
 	if err := q.SetItem(ctx, params); err != nil {
 		t.Fatal(err)
 	}

@@ -1,21 +1,63 @@
 import type { JsonSchemaDocument, JsonValue } from '../../config/schema.js'
 import type { ValueLineage } from '../../query/value-lineage.js'
-import { resolveJsonSchemaLineage, type JsonSchemaBindings } from '../shared/json-schema-lineage.js'
-import { printGoFile } from './ast.js'
+import {
+  resolveJsonSchemaLineage,
+  type JsonSchemaBindings,
+  type JsonSchemaLineage,
+} from '../shared/json-schema-lineage.js'
+import { go, printGoFile } from './ast.js'
 import { runtimeSource } from './nulls.js'
 
-export const renderGoValidation = (): string =>
+export const goJsonSchemaResourceUri = (name: string): string =>
+  `pgsid:///jsonschemas/${encodeURIComponent(name)}.json`
+
+export const goValidationContract = (schema: JsonSchemaDocument): string =>
+  typeof schema === 'object' && typeof schema.$ref === 'string' && Object.keys(schema).length === 1
+    ? schema.$ref
+    : JSON.stringify(schema)
+
+export const renderGoValidationRuntime = (
+  schemas: Readonly<Record<string, JsonSchemaDocument>>,
+): string =>
+  printGoFile({
+    package: 'pgsidvalidation',
+    imports: [],
+    declarations: [
+      go.const(
+        'schemaResources',
+        go.string(
+          JSON.stringify(
+            Object.fromEntries(
+              Object.keys(schemas)
+                .sort()
+                .map((name) => [goJsonSchemaResourceUri(name), schemas[name]]),
+            ),
+          ),
+        ),
+      ),
+    ],
+    source: runtimeSource('validation.go').replace('package pgsidpgx', 'package pgsidvalidation'),
+  })
+
+export const renderGoValidation = (importPath: string): string =>
   printGoFile({
     package: 'pgsidpgx',
-    imports: [],
+    imports: [{ path: importPath, alias: 'validation' }],
     declarations: [],
-    source: runtimeSource('validation.go'),
+    source: `package pgsidpgx
+type QueryValidationError = validation.QueryValidationError
+func ValidatedJSON(target any, contract, query, column string, nullable bool) any {
+  return validation.ValidatedJSON(target, contract, query, column, nullable)
+}
+func ValidateJSONInput(value any, contract, query, column string, nullable bool) (any, error) {
+  return validation.ValidateJSONInput(value, contract, query, column, nullable)
+}`,
   })
 
 export function goValidationSchema(
   value: ValueLineage | undefined,
   bindings: JsonSchemaBindings,
-): { resources: Record<string, JsonSchemaDocument>; schema: JsonSchemaDocument } | undefined {
+): { schema: JsonSchemaDocument } | undefined {
   if (!value) return undefined
   const lineage = resolveJsonSchemaLineage(value, bindings)
   if (
@@ -24,10 +66,15 @@ export function goValidationSchema(
     lineage.alternatives.some((item) => !item.runtimeValidation || item.representation !== 'json')
   )
     return undefined
-  const resources: Record<string, JsonSchemaDocument> = {}
+  return goValidationFromLineage(lineage)
+}
+
+export function goValidationFromLineage(lineage: JsonSchemaLineage): {
+  schema: JsonSchemaDocument
+} {
   const alternatives = lineage.alternatives.map((item) => {
-    const url = `https://pgsid.invalid/jsonschemas/${encodeURIComponent(item.schemaName)}.json`
-    resources[url] = item.document
+    const url = goJsonSchemaResourceUri(item.schemaName)
+    if (!item.path.length) return { $ref: `${url}#` }
     const locations = new Map<object, string>()
     const index = (node: JsonValue, pointer: string): void => {
       if (node === null || typeof node !== 'object') return
@@ -55,7 +102,6 @@ export function goValidationSchema(
     return project(item.schema)
   })
   return {
-    resources,
     schema: alternatives.length === 1 ? alternatives[0]! : { anyOf: alternatives },
   }
 }

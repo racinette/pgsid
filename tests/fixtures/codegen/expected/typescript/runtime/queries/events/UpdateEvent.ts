@@ -39,18 +39,34 @@ export function validateUpdateEventScore(value: unknown): {
         received: string;
         message: string;
     }[] = [];
-    function _check(valid: boolean, value: unknown, path: readonly (string | number)[], keyword: string, expected: unknown): boolean {
-        if (valid)
-            return true;
-        const received = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
-        _issues.push({ path: [...path], keyword, expected, received, message: keyword === "type" ? "Expected " + (typeof expected === "string" ? expected : JSON.stringify(expected)) + ", received " + received : ({ required: "Missing required property", dependentRequired: "Missing dependent property", additionalProperties: "Unexpected property", falseSchema: "Value is forbidden by the schema", items: "Additional array item is forbidden", prefixItems: "Array item is forbidden", propertyNames: "Property name is forbidden", uniqueItems: "Array items must be unique", not: "Value matches a forbidden schema", anyOf: "No alternative matches", oneOf: "Expected exactly one matching alternative" } as Record<string, string>)[keyword] ?? keyword + ": expected " + (typeof expected === "string" ? expected : JSON.stringify(expected)) + ", received " + received });
-        return false;
-    }
-    const valid = value === null || _check(typeof value === "string", value, [], "type", "string");
+    const valid = value === null || _jsonSchemas.jsonSchemaHelpers._check(typeof value === "string", value, [], "type", "string", _issues);
     return { valid, issues: _issues };
 }
+export function isUpdateEventParamsPayloadPublicEventsPayload(value: unknown): value is UpdateEventParams["payload"] {
+    return _jsonSchemas.isEventPayload(value);
+}
+export function validateUpdateEventParamsPayloadPublicEventsPayload(value: unknown): {
+    valid: boolean;
+    issues: {
+        path: readonly (string | number)[];
+        keyword: string;
+        expected: unknown;
+        received: string;
+        message: string;
+    }[];
+} {
+    return _jsonSchemas.validateEventPayload(value);
+}
 export async function updateEvent(db: pgsid.Queryable, params: UpdateEventParams): Promise<UpdateEventRow | undefined> {
-    const result = await db.query(updateEventSql, [params["payload"], params["note"], params["id"]]);
+    const jsonInput1 = JSON.stringify(params["payload"]);
+    if (jsonInput1 === undefined)
+        throw new pgsid.QueryValidationError("UpdateEvent", "payload", [{ path: [], keyword: "json", expected: "JSON value", received: "undefined", message: "Value has no JSON representation" }]);
+    const jsonInput1Value = jsonInput1 === null ? null : JSON.parse(jsonInput1);
+    if (jsonInput1 !== null) {
+        if (!isUpdateEventParamsPayloadPublicEventsPayload(jsonInput1Value))
+            throw new pgsid.QueryValidationError("UpdateEvent", "payload", validateUpdateEventParamsPayloadPublicEventsPayload(jsonInput1Value).issues);
+    }
+    const result = await db.query(updateEventSql, [jsonInput1, params["note"], params["id"]]);
     const row = result.rows[0];
     if (row === undefined)
         return undefined;
