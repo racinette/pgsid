@@ -18,9 +18,10 @@ import {
 import { extractDeps } from './query/resolver.js'
 import type { DepCatalog, NullabilityCatalog } from './query/types.js'
 import {
-  traceValueLineage,
+  traceStatementValueLineage,
   UnsupportedValueLineageError,
   type OutputValueLineage,
+  type WriteValueLineage,
   type ValueLineageCatalog,
 } from './query/value-lineage.js'
 
@@ -49,6 +50,7 @@ export interface QueryAnalysisResult {
   contract: QueryContract
   contractGate: GateOutcome | null
   rawLineage: readonly OutputValueLineage[] | null
+  writeLineage?: readonly WriteValueLineage[]
   lineageGate: GateOutcome | null
   dependencies: readonly EntityId[]
   diagnostics: readonly QueryAnalysisDiagnostic[]
@@ -188,11 +190,14 @@ const analyzeQuery = async (
   }
 
   let rawLineage: readonly OutputValueLineage[] | null = null
+  let writeLineage: readonly WriteValueLineage[] = []
   let lineageGate: GateOutcome | null = null
   try {
-    const traced = traceValueLineage(query.definition.stmt, options.catalog, {
+    const statementLineage = traceStatementValueLineage(query.definition.stmt, options.catalog, {
       parameterTypes,
     })
+    const traced = statementLineage.outputs
+    writeLineage = statementLineage.writes
     if (description) {
       lineageGate = compareShapes(
         { columns: traced.map((output) => output.name), params: description.params },
@@ -228,6 +233,7 @@ const analyzeQuery = async (
     contract,
     contractGate,
     rawLineage,
+    ...(writeLineage.length ? { writeLineage } : {}),
     lineageGate,
     dependencies,
     diagnostics,
@@ -314,6 +320,7 @@ const semanticResult = (result: QueryAnalysisResult): unknown => ({
   contract: result.contract,
   contractGate: result.contractGate,
   rawLineage: result.rawLineage,
+  writeLineage: result.writeLineage,
   lineageGate: result.lineageGate,
   dependencies: result.dependencies,
 })

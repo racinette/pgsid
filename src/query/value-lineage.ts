@@ -109,6 +109,13 @@ export interface OutputValueLineage {
   value: ValueLineage
 }
 
+export interface WriteValueLineage {
+  target: DatabaseColumn
+  source: 'insert' | 'update' | 'merge'
+  value: ValueLineage
+  partial: boolean
+}
+
 export interface ValueLineageCatalog {
   resolveTable(schema: string | undefined, name: string): ResolvedTable | null
   viewAsts: ReadonlyMap<string, Node>
@@ -280,12 +287,23 @@ export function traceValueLineage(
   return new ValueLineageAnalyzer(catalog, options).analyzeStatement(statement, null)
 }
 
+export function traceStatementValueLineage(
+  statement: Node,
+  catalog: ValueLineageCatalog,
+  options?: ValueLineageOptions,
+): { outputs: OutputValueLineage[]; writes: WriteValueLineage[] } {
+  const analyzer = new ValueLineageAnalyzer(catalog, options)
+  const outputs = analyzer.analyzeStatement(statement, null)
+  return { outputs, writes: analyzer.writes }
+}
+
 export interface ValueLineageOptions {
   /** Canonical PostgreSQL parameter type names, indexed from `$1`. */
   parameterTypes?: readonly string[]
 }
 
 class ValueLineageAnalyzer {
+  readonly writes: WriteValueLineage[] = []
   constructor(
     private readonly catalog: ValueLineageCatalog,
     private readonly options?: ValueLineageOptions,
@@ -359,7 +377,10 @@ class ValueLineageAnalyzer {
     name: string,
     input: ValueLineage,
     source: Extract<ValueOperation, { kind: 'assignment' }>['source'],
+    partial = false,
   ): ValueLineage {
+    if (source === 'insert' || source === 'update' || source === 'merge')
+      this.writes.push({ target: this.targetColumn(target, name), source, value: input, partial })
     return {
       kind: 'transform',
       operation: { kind: 'assignment', target: this.targetColumn(target, name), source },
@@ -480,7 +501,9 @@ class ValueLineageAnalyzer {
   ): BoundColumn[] {
     const replacements = new Map<string, ValueLineage>()
     for (const targetNode of targets) {
-      const res = (targetNode as { ResTarget?: { name?: string; val?: Node } }).ResTarget
+      const res = (
+        targetNode as { ResTarget?: { name?: string; val?: Node; indirection?: unknown[] } }
+      ).ResTarget
       if (!res?.name || !res.val) continue
       if ((res.val as Record<string, unknown>)['SetToDefault']) {
         replacements.set(res.name, this.defaultValue(target, res.name, scope))
@@ -488,7 +511,13 @@ class ValueLineageAnalyzer {
       }
       replacements.set(
         res.name,
-        this.assigned(target, res.name, this.assignmentExpression(res.val, scope), source),
+        this.assigned(
+          target,
+          res.name,
+          this.assignmentExpression(res.val, scope),
+          source,
+          Boolean(res.indirection?.length),
+        ),
       )
     }
     return base.map((column) => ({
@@ -605,6 +634,12 @@ class ValueLineageAnalyzer {
     scope: Scope,
   ): Map<string, ValueLineage> {
     const names = this.insertColumns(insert, target)
+    const partialColumns = new Set(
+      ((insert['cols'] as Node[] | undefined) ?? []).flatMap((node) => {
+        const res = (node as { ResTarget?: { name?: string; indirection?: unknown[] } }).ResTarget
+        return res?.name && res.indirection?.length ? [res.name] : []
+      }),
+    )
     const selectNode = insert['selectStmt'] as Node | undefined
     const select = (selectNode as { SelectStmt?: Record<string, unknown> } | undefined)?.SelectStmt
     const rows = this.valuesRows(select?.['valuesLists'])
@@ -626,7 +661,16 @@ class ValueLineageAnalyzer {
           }
           return this.analyzeExpression(node, scope).value
         })
-        result.set(name, this.assigned(target, name, this.valuesChoice(inputs), 'insert'))
+        result.set(
+          name,
+          this.assigned(
+            target,
+            name,
+            this.valuesChoice(inputs),
+            'insert',
+            partialColumns.has(name),
+          ),
+        )
       })
       return result
     }
@@ -634,7 +678,7 @@ class ValueLineageAnalyzer {
       const outputs = this.analyzeStatement(selectNode, scope)
       names.forEach((name, index) => {
         const output = outputs[index]?.value ?? unknown()
-        result.set(name, this.assigned(target, name, output, 'insert'))
+        result.set(name, this.assigned(target, name, output, 'insert', partialColumns.has(name)))
       })
     }
     return result

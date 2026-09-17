@@ -264,6 +264,12 @@ export const queryValidationErrorDeclarations = (): ts.Statement[] => {
       undefined,
       validationIssueType(),
     ),
+    factory.createTypeAliasDeclaration(
+      [exportModifier],
+      'ValidationResult',
+      undefined,
+      validationResultType(),
+    ),
     factory.createClassDeclaration(
       [exportModifier],
       'QueryValidationError',

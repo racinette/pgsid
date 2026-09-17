@@ -183,7 +183,11 @@ func TestProjectedAndReturningValidation(t *testing.T) {
 	if _, err := New(&fakeDB{document(`{"id":2,"next":{"id":3}}`)}).GetNode(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	_, err := New(&fakeDB{document(`{}`)}).UpdateDocument(context.Background(), UpdateDocumentParams{})
+	params := UpdateDocumentParams{}
+	if err := json.Unmarshal([]byte(valid), &params.Payload); err != nil {
+		t.Fatal(err)
+	}
+	_, err := New(&fakeDB{document(`{}`)}).UpdateDocument(context.Background(), params)
 	detail(t, err, "UpdateDocument", "payload")
 	r := document("alice")
 	r.oids[0] = pgtype.TextOID
@@ -225,7 +229,7 @@ func TestScannerAtomicAndConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			value := json.RawMessage(`"unchanged"`)
-			scanner := support.ValidatedJSON(&value, getDocumentJSONValidation+" ", "GetDocument", "payload", false).(interface{ Scan(any) error })
+			scanner := support.ValidatedJSON(&value, "pgsid:///jsonschemas/Document.json#", "GetDocument", "payload", false).(interface{ Scan(any) error })
 			if err := scanner.Scan([]byte(`{}`)); err == nil || string(value) != `"unchanged"` {
 				t.Errorf("invalid payload changed destination: %s %v", value, err)
 			}

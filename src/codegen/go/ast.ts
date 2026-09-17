@@ -11,7 +11,7 @@ export interface GoField {
   tag?: string
   sqlNullable?: boolean
   sqlJson?: boolean
-  jsonValidation?: { spec: string; column: string; query: string }
+  jsonValidation?: { contract: string; column: string; query: string }
 }
 
 export type GoExpression =

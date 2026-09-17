@@ -1,11 +1,15 @@
 import { join } from 'node:path'
+import ts from 'typescript'
 import type { Config, JsonSchemaDocument } from '../../config/schema.js'
 import { exportModifier, factory, printFile } from './ast.js'
 import {
   createTypescriptJsonSchemaTypes,
   assertUniqueTypescriptJsonSchemaNames,
 } from './json-schema-types.js'
-import { typescriptJsonSchemaValidatorDeclaration } from './json-schema-validator.js'
+import {
+  typescriptJsonSchemaValidatorGraph,
+  typescriptJsonSchemaValidationHelpers,
+} from './json-schema-validator-graph.js'
 import { typescriptModuleSpecifier } from './paths.js'
 import { importedTypescriptType } from './type-mapping.js'
 import { typeName } from './type-mapping.js'
@@ -83,6 +87,10 @@ export const renderTypescriptJsonSchemaRuntimeArtifacts = (
       path: join(directory, 'pgsid', 'validation.ts'),
       content: printFile(queryValidationErrorDeclarations()),
     },
+    {
+      path: join(directory, 'pgsid', 'json-schema.ts'),
+      content: printFile(typescriptJsonSchemaValidationHelpers()),
+    },
     ...[...graphs].map(([name, graph]) => {
       const path = join(directory, `${typeName(name)}.ts`)
       const typesModule = typescriptModuleSpecifier(
@@ -92,15 +100,8 @@ export const renderTypescriptJsonSchemaRuntimeArtifacts = (
       return {
         path,
         content: printFile(
-          graph.declarations.flatMap((entry) =>
-            [false, true].map((diagnostic) =>
-              typescriptJsonSchemaValidatorDeclaration(
-                `${diagnostic ? 'validate' : 'is'}${entry.name}`,
-                importedTypescriptType(typesModule, entry.name),
-                entry.schema,
-                { document: schemas[name]!, diagnostic },
-              ),
-            ),
+          typescriptJsonSchemaValidatorGraph(schemas[name]!, graph, (name) =>
+            importedTypescriptType(typesModule, name),
           ),
         ),
       }
@@ -108,16 +109,69 @@ export const renderTypescriptJsonSchemaRuntimeArtifacts = (
     {
       path: join(directory, 'index.ts'),
       content: printFile(
-        [...graphs.keys()]
-          .map((name) =>
+        [...graphs]
+          .flatMap<ts.Statement>(([name, graph], index) => [
+            factory.createImportDeclaration(
+              undefined,
+              factory.createImportClause(
+                false,
+                undefined,
+                factory.createNamedImports([
+                  factory.createImportSpecifier(
+                    false,
+                    factory.createIdentifier('schemaValidators'),
+                    factory.createIdentifier(`_schema${index}`),
+                  ),
+                ]),
+              ),
+              factory.createStringLiteral(`./${typeName(name)}.js`),
+            ),
             factory.createExportDeclaration(
               undefined,
               false,
-              undefined,
+              factory.createNamedExports(
+                graph.declarations.flatMap((entry) =>
+                  ['is', 'validate'].map((prefix) =>
+                    factory.createExportSpecifier(
+                      false,
+                      undefined,
+                      factory.createIdentifier(`${prefix}${entry.name}`),
+                    ),
+                  ),
+                ),
+              ),
               factory.createStringLiteral(`./${typeName(name)}.js`),
             ),
-          )
+          ])
           .concat([
+            factory.createExportDeclaration(
+              undefined,
+              false,
+              factory.createNamespaceExport(factory.createIdentifier('jsonSchemaHelpers')),
+              factory.createStringLiteral('./pgsid/json-schema.js'),
+            ),
+            factory.createVariableStatement(
+              [exportModifier],
+              factory.createVariableDeclarationList(
+                [
+                  factory.createVariableDeclaration(
+                    'jsonSchemaValidators',
+                    undefined,
+                    undefined,
+                    factory.createObjectLiteralExpression(
+                      [...graphs.keys()].map((name, index) =>
+                        factory.createPropertyAssignment(
+                          factory.createComputedPropertyName(factory.createStringLiteral(name)),
+                          factory.createIdentifier(`_schema${index}`),
+                        ),
+                      ),
+                      true,
+                    ),
+                  ),
+                ],
+                ts.NodeFlags.Const,
+              ),
+            ),
             factory.createExportDeclaration(
               undefined,
               false,

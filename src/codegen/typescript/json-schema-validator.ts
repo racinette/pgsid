@@ -8,6 +8,13 @@ export interface GenerateTypescriptJsonSchemaValidatorOptions {
   document?: JsonSchemaDocument
   nullable?: boolean
   diagnostic?: boolean
+  helpers?: ts.Expression
+  schemaPredicate?: (
+    schema: JsonSchemaDocument,
+    document: JsonSchemaDocument,
+    value: ts.Expression,
+  ) => ts.Expression | undefined
+  schemaValidation?: GenerateTypescriptJsonSchemaValidatorOptions['schemaPredicate']
   predicate?: (
     alternative: JsonSchemaAlternative,
     value: ts.Expression,
@@ -33,6 +40,13 @@ interface ValidatorContext {
   documents: Map<JsonSchemaDocument, Map<string, ValidatorReference>>
   references: ValidatorReference[]
   diagnostic: boolean
+  sharedHelpers?: ts.Expression
+  delegate?: (
+    schema: JsonSchemaDocument,
+    value: ts.Expression,
+    document: JsonSchemaDocument,
+    path: ts.Expression,
+  ) => ts.Expression | undefined
 }
 const validatorContext = (diagnostic = false): ValidatorContext => ({
   documents: new Map(),
@@ -40,13 +54,50 @@ const validatorContext = (diagnostic = false): ValidatorContext => ({
   diagnostic,
 })
 
+const delegatedContext = (
+  options: Pick<
+    GenerateTypescriptJsonSchemaValidatorOptions,
+    'diagnostic' | 'schemaPredicate' | 'schemaValidation' | 'helpers'
+  >,
+): ValidatorContext => {
+  const context = validatorContext(options.diagnostic)
+  context.sharedHelpers = options.helpers
+  if (options.schemaPredicate || options.schemaValidation)
+    context.delegate = (schema, value, document, path) => {
+      if (context.diagnostic) {
+        const result = options.schemaValidation?.(schema, document, value)
+        return result ? call(identifier('_include'), [result, path]) : undefined
+      }
+      return options.schemaPredicate?.(schema, document, value)
+    }
+  return context
+}
+
+export function typescriptJsonSchemaCheckExpression(
+  schema: JsonSchemaDocument,
+  document: JsonSchemaDocument,
+  diagnostic: boolean,
+  delegate: NonNullable<ValidatorContext['delegate']>,
+): ts.Expression {
+  const context = validatorContext(diagnostic)
+  let root = true
+  context.delegate = (...args) => {
+    if (root) {
+      root = false
+      return undefined
+    }
+    return delegate(...args)
+  }
+  return compile(schema, identifier('value'), document, new Set(), context, identifier('path'))
+}
+
 export function typescriptJsonSchemaValidatorDeclaration(
   name: string,
   type: ts.TypeNode | string,
   schema: JsonSchemaDocument,
   options: GenerateTypescriptJsonSchemaValidatorOptions = {},
 ): ts.FunctionDeclaration {
-  const context = validatorContext(options.diagnostic)
+  const context = delegatedContext(options)
   const value = identifier('value')
   const predicate = compile(schema, value, options.document ?? schema, new Set(), context)
   return validatorDeclaration(
@@ -63,7 +114,13 @@ export function typescriptJsonSchemaLineageValidatorDeclaration(
   lineage: JsonSchemaLineage,
   options: Pick<
     GenerateTypescriptJsonSchemaValidatorOptions,
-    'nullable' | 'predicate' | 'diagnostic' | 'validation'
+    | 'nullable'
+    | 'predicate'
+    | 'diagnostic'
+    | 'validation'
+    | 'schemaPredicate'
+    | 'schemaValidation'
+    | 'helpers'
   > = {},
 ): ts.FunctionDeclaration | null {
   if (
@@ -73,7 +130,7 @@ export function typescriptJsonSchemaLineageValidatorDeclaration(
   ) {
     return null
   }
-  const context = validatorContext(options.diagnostic)
+  const context = delegatedContext(options)
   const value = identifier('value')
   const path = factory.createArrayLiteralExpression()
   const predicates = lineage.alternatives.map((alternative) => {
@@ -112,7 +169,13 @@ export function generateTypescriptJsonSchemaLineageValidator(
   lineage: JsonSchemaLineage,
   options: Pick<
     GenerateTypescriptJsonSchemaValidatorOptions,
-    'nullable' | 'predicate' | 'diagnostic' | 'validation'
+    | 'nullable'
+    | 'predicate'
+    | 'diagnostic'
+    | 'validation'
+    | 'schemaPredicate'
+    | 'schemaValidation'
+    | 'helpers'
   > = {},
 ): string | null {
   const declaration = typescriptJsonSchemaLineageValidatorDeclaration(name, type, lineage, options)
@@ -155,7 +218,7 @@ const validatorDeclaration = (
     return expressions.some(visit)
   }
   const deepEqual = uses('_deepEqual')
-  return factory.createFunctionDeclaration(
+  const declaration = factory.createFunctionDeclaration(
     [exportModifier],
     undefined,
     identifier(name),
@@ -181,6 +244,7 @@ const validatorDeclaration = (
                   const name = ts.isFunctionDeclaration(statement)
                     ? statement.name?.text
                     : '_issues'
+                  if (context.sharedHelpers) return name === '_issues'
                   return (
                     name === '_issues' ||
                     (name === '_check' && (uses('_union') || context.references.length > 0)) ||
@@ -188,8 +252,10 @@ const validatorDeclaration = (
                   )
                 })
               : []),
-            ...(deepEqual || uses('_hasOwn') ? [hasOwnDeclaration()] : []),
-            ...(deepEqual ? [deepEqualDeclaration()] : []),
+            ...(!context.sharedHelpers && (deepEqual || uses('_hasOwn'))
+              ? [hasOwnDeclaration()]
+              : []),
+            ...(!context.sharedHelpers && deepEqual ? [deepEqualDeclaration()] : []),
             ...context.references.flatMap((reference) => referenceDeclarations(reference, context)),
             ...(context.diagnostic
               ? [
@@ -206,6 +272,34 @@ const validatorDeclaration = (
       true,
     ),
   )
+  if (!context.sharedHelpers) return declaration
+  const stateful = new Set(['_check', '_probe', '_union', '_include'])
+  const stateless = new Set(['_hasOwn', '_deepEqual'])
+  const result = ts.transform(declaration, [
+    (transform) => {
+      const visit: ts.Visitor = (node) => {
+        const visited = ts.visitEachChild(node, visit, transform)
+        if (
+          ts.isCallExpression(visited) &&
+          ts.isIdentifier(visited.expression) &&
+          (stateful.has(visited.expression.text) || stateless.has(visited.expression.text))
+        )
+          return factory.updateCallExpression(
+            visited,
+            property(context.sharedHelpers!, visited.expression.text),
+            visited.typeArguments,
+            stateful.has(visited.expression.text)
+              ? [...visited.arguments, identifier('_issues')]
+              : visited.arguments,
+          )
+        return visited
+      }
+      return (node) => ts.visitNode(node, visit) as ts.FunctionDeclaration
+    },
+  ])
+  const transformed = result.transformed[0] as ts.FunctionDeclaration
+  result.dispose()
+  return transformed
 }
 
 const referenceDeclarations = (
@@ -280,7 +374,7 @@ const referenceDeclarations = (
   ]
 }
 
-const hasOwnDeclaration = (): ts.VariableStatement =>
+export const hasOwnDeclaration = (): ts.VariableStatement =>
   constant(
     '_hasOwn',
     factory.createArrowFunction(
@@ -305,7 +399,7 @@ const hasOwnDeclaration = (): ts.VariableStatement =>
     ),
   )
 
-const deepEqualDeclaration = (): ts.VariableStatement => {
+export const deepEqualDeclaration = (): ts.VariableStatement => {
   const left = identifier('left')
   const right = identifier('right')
   const leftRecord = identifier('leftRecord')
@@ -395,6 +489,9 @@ const compile = (
   path: ts.Expression = factory.createArrayLiteralExpression(),
   failureKeyword = 'falseSchema',
 ): ts.Expression => {
+  const delegated =
+    failureKeyword === 'falseSchema' ? context.delegate?.(schema, value, document, path) : undefined
+  if (delegated) return delegated
   if (schema === true) return factory.createTrue()
   if (schema === false)
     return assertion(context, value, path, failureKeyword, false, factory.createFalse())
@@ -406,23 +503,27 @@ const compile = (
     if (seen.has(reference)) throw new UnsupportedJsonSchemaError(`recursive ${reference}`)
     const target = localReference(reference, document)
     if (target === null) throw new UnsupportedJsonSchemaError(`$ref ${reference}`)
-    const references = context.documents.get(document) ?? new Map<string, ValidatorReference>()
-    context.documents.set(document, references)
-    let helper = references.get(reference)
-    if (!helper) {
-      helper = { name: `_ref${context.references.length + 1}`, predicate: factory.createFalse() }
-      references.set(reference, helper)
-      context.references.push(helper)
-      helper.predicate = compile(
-        target,
-        identifier('value'),
-        document,
-        new Set([...seen, reference]),
-        context,
-        identifier('path'),
-      )
+    const delegated = context.delegate?.(target, value, document, path)
+    if (delegated) predicates.push(delegated)
+    else {
+      const references = context.documents.get(document) ?? new Map<string, ValidatorReference>()
+      context.documents.set(document, references)
+      let helper = references.get(reference)
+      if (!helper) {
+        helper = { name: `_ref${context.references.length + 1}`, predicate: factory.createFalse() }
+        references.set(reference, helper)
+        context.references.push(helper)
+        helper.predicate = compile(
+          target,
+          identifier('value'),
+          document,
+          new Set([...seen, reference]),
+          context,
+          identifier('path'),
+        )
+      }
+      predicates.push(call(identifier(helper.name), context.diagnostic ? [value, path] : [value]))
     }
-    predicates.push(call(identifier(helper.name), context.diagnostic ? [value, path] : [value]))
   }
   if (schema['const'] !== undefined)
     predicates.push(

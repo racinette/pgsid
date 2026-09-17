@@ -20,6 +20,8 @@ import {
   goJsonSchemasOutDir,
   referencedGoJsonSchemas,
   renderGoJsonSchemaArtifacts,
+  runtimeGoJsonSchemas,
+  goJsonSchemasImportPath,
 } from './jsonschemas.js'
 import { createGoTypeContext } from './type-mapping.js'
 import { renderGoSchemaArtifacts } from './schema.js'
@@ -98,7 +100,11 @@ export function createGoCodegenTarget(
                         {
                           kind: 'helpers',
                           path: join(dirname(helper.path), 'validation.go'),
-                          content: renderGoValidation(),
+                          content: renderGoValidation(
+                            schemaImportPath
+                              ? `${goJsonSchemasImportPath(schemaImportPath)}/pgsid`
+                              : `${helper.importPath.replace(/\/pgsid\/pgx$/u, '')}/jsonschemas/pgsid`,
+                          ),
                         },
                       ]
                     : []),
@@ -119,6 +125,8 @@ export function createGoCodegenTarget(
                         {
                           nulls: goJsonNulls(config),
                           nullsImportPath: helper.importPath.replace(/\/pgx$/u, ''),
+                          validationNames: runtimeGoJsonSchemas(config),
+                          validationImportPath: `${helper.importPath.replace(/\/pgsid\/pgx$/u, '')}/jsonschemas/pgsid`,
                         },
                       ).map((item) => ({ ...item, kind: 'helpers' }))
                     : []),

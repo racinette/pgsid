@@ -2,6 +2,7 @@ package jsonschemas
 
 import (
 	pgsid "example.com/pgsid-validation/generated/pgsid"
+	validation "example.com/pgsid-validation/generated/jsonschemas/pgsid"
 	json "encoding/json"
 )
 
@@ -27,4 +28,10 @@ func (value *MaybeDocumentValue) UnmarshalJSON(data []byte) error {
 	}
 	*value = MaybeDocumentValue(next)
 	return nil
+}
+func ValidateMaybeDocument(value any) error {
+	return validation.ValidateValue(value, "pgsid:///jsonschemas/MaybeDocument.json#")
+}
+func ValidateMaybeDocumentJSON(data []byte) error {
+	return validation.ValidateJSON(data, "pgsid:///jsonschemas/MaybeDocument.json#")
 }

@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"testing"
@@ -133,7 +134,10 @@ func TestOnePropagatesDriverErrors(t *testing.T) {
 func TestUpdateBindsParametersInSqlOrder(t *testing.T) {
 	ctx := context.Background()
 	id, note := int64(9), "changed"
-	params := UpdateEventParams{Id: &id, Note: &note, Payload: payload("9").value}
+	params := UpdateEventParams{Id: &id, Note: &note}
+	if err := json.Unmarshal(payload("9").value, &params.Payload); err != nil {
+		t.Fatal(err)
+	}
 	db := &stubDB{queryRow: func(actual context.Context, sql string, args ...any) pgx.Row {
 		if actual != ctx || sql != UpdateEventSQL || !reflect.DeepEqual(args, []any{params.Payload, params.Note, params.Id}) {
 			t.Fatalf("wrong request: %q %#v", sql, args)

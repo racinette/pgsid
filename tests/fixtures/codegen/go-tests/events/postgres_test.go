@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	support "example.com/pgsid-fixture/generated/go/queries/pgsid/pgx"
 	admin "example.com/pgsid-fixture/generated/go/queries/admin/events"
+	support "example.com/pgsid-fixture/generated/go/queries/pgsid/pgx"
 	public "example.com/pgsid-fixture/generated/go/schema/public"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -86,7 +86,11 @@ func TestPostgresExecutor(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].Note != nil {
 		t.Fatalf("rollback got %#v, %v", rows, err)
 	}
-	updated, err := queries.UpdateEvent(ctx, UpdateEventParams{Id: &id, Note: &note, Payload: json.RawMessage(`{"actor":{"id":43},"flags":[],"score":2.5}`)})
+	params := UpdateEventParams{Id: &id, Note: &note}
+	if err := json.Unmarshal([]byte(`{"actor":{"id":43},"flags":[],"score":2.5}`), &params.Payload); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := queries.UpdateEvent(ctx, params)
 	if err != nil || updated.Payload.Actor.Id != 43 || updated.Score == nil || *updated.Score != "2.5" {
 		t.Fatalf("got %#v, %v", updated, err)
 	}

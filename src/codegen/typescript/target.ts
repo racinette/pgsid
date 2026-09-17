@@ -1,4 +1,5 @@
 import picomatch from 'picomatch'
+import ts from 'typescript'
 import { dirname, isAbsolute, posix, resolve, sep, join } from 'node:path'
 import type { CatalogSnapshot } from '../../catalog/types.js'
 import type { Config, JsonSchemaDocument } from '../../config/schema.js'
@@ -6,6 +7,7 @@ import type { CodegenOutput, CodegenRenderResult, CodegenTarget } from '../targe
 import type { JsonSchemaAlternative } from '../shared/json-schema-lineage.js'
 import { renderTypescriptQueryArtifacts, renderTypescriptQueryHelpers } from './query.js'
 import { renderTypescriptSchemaArtifacts } from './schema.js'
+import { typescriptJsonSchemaLocations } from './json-schema-validator-graph.js'
 import {
   createTypescriptJsonSchemaGraphs,
   renderTypescriptJsonSchemaArtifacts,
@@ -120,6 +122,49 @@ export function createTypescriptCodegenTarget(
       const helper = runtimeDirectory ? join(runtimeDirectory, 'pgsid', 'queryable.ts') : undefined
       try {
         const graphs = createTypescriptJsonSchemaGraphs(config, schemas)
+        const locations = new Map(
+          [...graphs.keys()].map((name) => [
+            schemas[name]!,
+            {
+              name,
+              pointers: new Map(
+                typescriptJsonSchemaLocations(schemas[name]!).map((entry) => [
+                  entry.schema,
+                  entry.pointer,
+                ]),
+              ),
+            },
+          ]),
+        )
+        const check = (
+          schema: JsonSchemaDocument,
+          document: JsonSchemaDocument,
+          value: ts.Expression,
+          diagnostic: boolean,
+        ) => {
+          if (!jsonRuntime) return undefined
+          const location = locations.get(document)
+          const pointer = location?.pointers.get(schema)
+          if (!location || pointer === undefined) return undefined
+          const factory = ts.factory
+          return factory.createCallExpression(
+            factory.createPropertyAccessExpression(
+              factory.createElementAccessExpression(
+                factory.createElementAccessExpression(
+                  factory.createPropertyAccessExpression(
+                    factory.createIdentifier('_jsonSchemas'),
+                    'jsonSchemaValidators',
+                  ),
+                  factory.createStringLiteral(location.name),
+                ),
+                factory.createStringLiteral(pointer),
+              ),
+              diagnostic ? 'validate' : 'is',
+            ),
+            undefined,
+            [value],
+          )
+        }
         const jsonSchemaName = (alternative: JsonSchemaAlternative) => {
           const graph = graphs.get(alternative.schemaName)
           return graph?.declarations.find(
@@ -168,6 +213,12 @@ export function createTypescriptCodegenTarget(
             jsonSchemaValidation(alternative) {
               const name = jsonSchemaName(alternative)
               return name ? `validate${name}` : undefined
+            },
+            jsonSchemaPredicate(schema, document, value) {
+              return check(schema, document, value, false)
+            },
+            jsonSchemaDiagnostic(schema, document, value) {
+              return check(schema, document, value, true)
             },
           })
           return {

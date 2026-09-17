@@ -1,5 +1,5 @@
 export type UpdateEventParams = {
-    "payload": unknown;
+    "payload": import("../../jsonschemas/index.js").EventPayload;
     "note": string | null;
     "id": bigint | null;
 };

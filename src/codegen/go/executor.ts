@@ -145,12 +145,14 @@ export function goExecutorDeclaration(
   const args = [
     id('ctx'),
     id(`${name}SQL`),
-    ...parameterFields.map((item) =>
-      item.sqlNullable
-        ? go.call(member('pgsidpgx', item.sqlJson ? 'JSONValue' : 'Value'), [
-            member('params', item.names![0]!),
-          ])
-        : member('params', item.names![0]!),
+    ...parameterFields.map((item, index) =>
+      item.jsonValidation
+        ? id(`jsonInput${index + 1}`)
+        : item.sqlNullable
+          ? go.call(member('pgsidpgx', item.sqlJson ? 'JSONValue' : 'Value'), [
+              member('params', item.names![0]!),
+            ])
+          : member('params', item.names![0]!),
     ),
   ]
   const query = (method: string) => go.call(go.selector(member('q', 'db'), method), args)
@@ -159,7 +161,7 @@ export function goExecutorDeclaration(
     if (item.jsonValidation)
       return go.call(member('pgsidpgx', 'ValidatedJSON'), [
         target,
-        id(item.jsonValidation.spec),
+        go.string(item.jsonValidation.contract),
         go.string(item.jsonValidation.query),
         go.string(item.jsonValidation.column),
         id(item.sqlNullable ? 'true' : 'false'),
@@ -218,5 +220,52 @@ export function goExecutorDeclaration(
       go.return(id('items'), id('nil')),
     )
   }
-  return go.function(name, parameters, results, body, [field('q', go.pointer(id('Queries')))])
+  const inputChecks: GoStatement[] = parameterFields.flatMap((item, index) => {
+    if (!item.jsonValidation) return []
+    const value = item.sqlNullable
+      ? go.call(member('pgsidpgx', 'JSONValue'), [member('params', item.names![0]!)])
+      : member('params', item.names![0]!)
+    const failure =
+      command === 'exec'
+        ? [id('err')]
+        : command === 'execrows'
+          ? [go.number(0), id('err')]
+          : command === 'one'
+            ? [go.composite(id(`${name}Row`), []), id('err')]
+            : [id('nil'), id('err')]
+    return [
+      go.assign(
+        [id(`jsonInput${index + 1}`), id('err')],
+        [
+          go.call(member('pgsidpgx', 'ValidateJSONInput'), [
+            value,
+            go.string(item.jsonValidation.contract),
+            go.string(item.jsonValidation.query),
+            go.string(item.jsonValidation.column),
+            id(analysis.contract.params[index]?.notNull ? 'false' : 'true'),
+          ]),
+        ],
+      ),
+      go.if(go.notEqual(id('err'), id('nil')), [go.return(...failure)]),
+    ]
+  })
+  if (inputChecks.length) {
+    for (const statement of body) {
+      if (
+        statement.kind === 'assign' &&
+        statement.operator === ':=' &&
+        statement.targets.every(
+          (target) => target.kind === 'ident' && ['_', 'err'].includes(target.name),
+        )
+      )
+        statement.operator = '='
+    }
+  }
+  return go.function(
+    name,
+    parameters,
+    results,
+    [...inputChecks, ...body],
+    [field('q', go.pointer(id('Queries')))],
+  )
 }

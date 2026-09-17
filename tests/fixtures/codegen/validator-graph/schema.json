@@ -1,0 +1,35 @@
+{
+  "$id": "https://example.com/graph.json",
+  "type": "object",
+  "required": ["actor", "tags"],
+  "properties": {
+    "allowed": true,
+    "forbidden": false,
+    "actor": { "$ref": "#/$defs/Actor" },
+    "backup": { "$ref": "#/$defs/Actor" },
+    "tags": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+    "next": { "$ref": "#" },
+    "token": { "type": "string", "pattern": "^a+$" },
+    "sameToken": { "type": "string", "pattern": "^a+$" },
+    "choice": { "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "string" }] },
+    "a/b~#?% 空": { "type": "integer", "minimum": 3 },
+    "nullable": { "type": ["object", "null"], "properties": { "id": { "type": "integer" } } },
+    "tuple": { "type": "array", "prefixItems": [{ "type": "integer" }], "items": false },
+    "unique": { "type": "array", "uniqueItems": true },
+    "constant": { "const": { "mode": "ok" } },
+    "annotation": { "type": "string", "default": { "$ref": "literal", "pattern": "[" } }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Actor": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "nickname": { "type": "string", "pattern": "^a+$" },
+        "friend": { "$ref": "#/$defs/Actor" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

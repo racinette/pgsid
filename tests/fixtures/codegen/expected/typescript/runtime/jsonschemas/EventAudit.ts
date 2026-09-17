@@ -1,32 +1,55 @@
-export function isEventAudit(value: unknown): value is import("../../types/jsonschemas/EventAudit.js").EventAudit {
-    const _hasOwn = (object: Record<string, unknown>, key: string): boolean => Object.prototype.hasOwnProperty.call(object, key);
-    return typeof value === "object" && value !== null && !Array.isArray(value) && (typeof value === "object" && value !== null && !Array.isArray(value) ? (!_hasOwn(value as Record<string, unknown>, "source") || typeof (value as Record<string, unknown>)["source"] === "string") && Object.entries(value as Record<string, unknown>).every(([key, item]) => ["source"].includes(key)) : true);
+import type { ValidationIssue as _ValidationIssue, ValidationResult as _ValidationResult } from "./pgsid/validation.js";
+import { _check, _hasOwn } from "./pgsid/json-schema.js";
+function _is0(value: unknown, _active: Map<number, Set<unknown>>): boolean {
+    return typeof value === "object" && value !== null && !Array.isArray(value) && (typeof value === "object" && value !== null && !Array.isArray(value) ? (!_hasOwn(value as Record<string, unknown>, "source") || _is1((value as Record<string, unknown>)["source"], _active)) && Object.entries(value as Record<string, unknown>).every(([key, _item]) => ["source"].includes(key)) : true);
 }
-export function validateEventAudit(value: unknown): {
-    valid: boolean;
-    issues: {
-        path: readonly (string | number)[];
-        keyword: string;
-        expected: unknown;
-        received: string;
-        message: string;
-    }[];
-} {
-    const _issues: {
-        path: readonly (string | number)[];
-        keyword: string;
-        expected: unknown;
-        received: string;
-        message: string;
-    }[] = [];
-    function _check(valid: boolean, value: unknown, path: readonly (string | number)[], keyword: string, expected: unknown): boolean {
-        if (valid)
-            return true;
-        const received = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
-        _issues.push({ path: [...path], keyword, expected, received, message: keyword === "type" ? "Expected " + (typeof expected === "string" ? expected : JSON.stringify(expected)) + ", received " + received : ({ required: "Missing required property", dependentRequired: "Missing dependent property", additionalProperties: "Unexpected property", falseSchema: "Value is forbidden by the schema", items: "Additional array item is forbidden", prefixItems: "Array item is forbidden", propertyNames: "Property name is forbidden", uniqueItems: "Array items must be unique", not: "Value matches a forbidden schema", anyOf: "No alternative matches", oneOf: "Expected exactly one matching alternative" } as Record<string, string>)[keyword] ?? keyword + ": expected " + (typeof expected === "string" ? expected : JSON.stringify(expected)) + ", received " + received });
-        return false;
+function _validate0(value: unknown, path: readonly (string | number)[], _active: Map<number, Set<unknown>>, _issues: _ValidationIssue[]): boolean {
+    return _check(typeof value === "object" && value !== null && !Array.isArray(value), value, path, "type", "object", _issues) && (typeof value === "object" && value !== null && !Array.isArray(value) ? [!_hasOwn(value as Record<string, unknown>, "source") || _validate1((value as Record<string, unknown>)["source"], [...path, "source"], _active, _issues), Object.entries(value as Record<string, unknown>).map(([key, item]) => ["source"].includes(key) || _check(false, item, [...path, key], "additionalProperties", false, _issues)).every(valid => valid)].every(valid => valid) : true);
+}
+function _is1(value: unknown, _active: Map<number, Set<unknown>>): boolean {
+    return typeof value === "string";
+}
+function _validate1(value: unknown, path: readonly (string | number)[], _active: Map<number, Set<unknown>>, _issues: _ValidationIssue[]): boolean {
+    return _check(typeof value === "string", value, path, "type", "string", _issues);
+}
+function _is2(_value: unknown, _active: Map<number, Set<unknown>>): boolean {
+    return false;
+}
+function _validate2(value: unknown, path: readonly (string | number)[], _active: Map<number, Set<unknown>>, _issues: _ValidationIssue[]): boolean {
+    return _check(false, value, path, "falseSchema", false, _issues);
+}
+const _schema0 = {
+    is: (value: unknown): boolean => _is0(value, new Map<number, Set<unknown>>()),
+    validate: (value: unknown): _ValidationResult => {
+        const _issues: _ValidationIssue[] = [];
+        const valid = _validate0(value, [], new Map<number, Set<unknown>>(), _issues);
+        return { valid, issues: _issues };
     }
-    const _hasOwn = (object: Record<string, unknown>, key: string): boolean => Object.prototype.hasOwnProperty.call(object, key);
-    const valid = _check(typeof value === "object" && value !== null && !Array.isArray(value), value, [], "type", "object") && (typeof value === "object" && value !== null && !Array.isArray(value) ? [!_hasOwn(value as Record<string, unknown>, "source") || _check(typeof (value as Record<string, unknown>)["source"] === "string", (value as Record<string, unknown>)["source"], ["source"], "type", "string"), Object.entries(value as Record<string, unknown>).map(([key, item]) => ["source"].includes(key) || _check(false, item, [key], "additionalProperties", false)).every(valid => valid)].every(valid => valid) : true);
-    return { valid, issues: _issues };
+};
+const _schema1 = {
+    is: (value: unknown): boolean => _is1(value, new Map<number, Set<unknown>>()),
+    validate: (value: unknown): _ValidationResult => {
+        const _issues: _ValidationIssue[] = [];
+        const valid = _validate1(value, [], new Map<number, Set<unknown>>(), _issues);
+        return { valid, issues: _issues };
+    }
+};
+const _schema2 = {
+    is: (value: unknown): boolean => _is2(value, new Map<number, Set<unknown>>()),
+    validate: (value: unknown): _ValidationResult => {
+        const _issues: _ValidationIssue[] = [];
+        const valid = _validate2(value, [], new Map<number, Set<unknown>>(), _issues);
+        return { valid, issues: _issues };
+    }
+};
+export const schemaValidators = {
+    "": _schema0,
+    "/properties/source": _schema1,
+    "/additionalProperties": _schema2
+};
+export function isEventAudit(value: unknown): value is import("../../types/jsonschemas/EventAudit.js").EventAudit {
+    return _schema0.is(value);
+}
+export function validateEventAudit(value: unknown): _ValidationResult {
+    return _schema0.validate(value);
 }
