@@ -1,0 +1,101 @@
+import ts from 'typescript'
+import { factory, identifier } from '../ast.js'
+import type { CallableMetadata } from '../../../postgres/builtins/catalog.js'
+import type {
+  CallableEmitter,
+  FunctionBindings,
+  OperatorBindings,
+} from '../../../sql-semantics/signatures.js'
+import { PG18_NUMERIC } from '../../../postgres/builtins/numeric.generated.js'
+
+function call<M extends CallableMetadata>(helper: string): CallableEmitter<M, ts.Expression> {
+  return {
+    helpers: [helper],
+    emit: (metadata, operands) => ({
+      type: metadata.result,
+      expression: factory.createCallExpression(
+        identifier(helper),
+        undefined,
+        operands.map((operand) => operand.expression),
+      ),
+    }),
+  }
+}
+
+export const typescriptFloatOperators = {
+  'operator:["pg_catalog","+"](pg_catalog.float4,pg_catalog.float4)': call('float4Add'),
+  'operator:["pg_catalog","+"](pg_catalog.float4,pg_catalog.float8)': call('float8Add'),
+  'operator:["pg_catalog","+"](pg_catalog.float8,pg_catalog.float4)': call('float8Add'),
+  'operator:["pg_catalog","+"](pg_catalog.float8,pg_catalog.float8)': call('float8Add'),
+  'operator:["pg_catalog","-"](pg_catalog.float4,pg_catalog.float4)': call('float4Sub'),
+  'operator:["pg_catalog","-"](pg_catalog.float4,pg_catalog.float8)': call('float8Sub'),
+  'operator:["pg_catalog","-"](pg_catalog.float8,pg_catalog.float4)': call('float8Sub'),
+  'operator:["pg_catalog","-"](pg_catalog.float8,pg_catalog.float8)': call('float8Sub'),
+  'operator:["pg_catalog","*"](pg_catalog.float4,pg_catalog.float4)': call('float4Mul'),
+  'operator:["pg_catalog","*"](pg_catalog.float4,pg_catalog.float8)': call('float8Mul'),
+  'operator:["pg_catalog","*"](pg_catalog.float8,pg_catalog.float4)': call('float8Mul'),
+  'operator:["pg_catalog","*"](pg_catalog.float8,pg_catalog.float8)': call('float8Mul'),
+  'operator:["pg_catalog","/"](pg_catalog.float4,pg_catalog.float4)': call('float4Div'),
+  'operator:["pg_catalog","/"](pg_catalog.float4,pg_catalog.float8)': call('float8Div'),
+  'operator:["pg_catalog","/"](pg_catalog.float8,pg_catalog.float4)': call('float8Div'),
+  'operator:["pg_catalog","/"](pg_catalog.float8,pg_catalog.float8)': call('float8Div'),
+  'operator:["pg_catalog","="](pg_catalog.float4,pg_catalog.float4)': call('floatEq'),
+  'operator:["pg_catalog","="](pg_catalog.float4,pg_catalog.float8)': call('floatEq'),
+  'operator:["pg_catalog","="](pg_catalog.float8,pg_catalog.float4)': call('floatEq'),
+  'operator:["pg_catalog","="](pg_catalog.float8,pg_catalog.float8)': call('floatEq'),
+  'operator:["pg_catalog","<>"](pg_catalog.float4,pg_catalog.float4)': call('floatNe'),
+  'operator:["pg_catalog","<>"](pg_catalog.float4,pg_catalog.float8)': call('floatNe'),
+  'operator:["pg_catalog","<>"](pg_catalog.float8,pg_catalog.float4)': call('floatNe'),
+  'operator:["pg_catalog","<>"](pg_catalog.float8,pg_catalog.float8)': call('floatNe'),
+  'operator:["pg_catalog","<"](pg_catalog.float4,pg_catalog.float4)': call('floatLt'),
+  'operator:["pg_catalog","<"](pg_catalog.float4,pg_catalog.float8)': call('floatLt'),
+  'operator:["pg_catalog","<"](pg_catalog.float8,pg_catalog.float4)': call('floatLt'),
+  'operator:["pg_catalog","<"](pg_catalog.float8,pg_catalog.float8)': call('floatLt'),
+  'operator:["pg_catalog","<="](pg_catalog.float4,pg_catalog.float4)': call('floatLe'),
+  'operator:["pg_catalog","<="](pg_catalog.float4,pg_catalog.float8)': call('floatLe'),
+  'operator:["pg_catalog","<="](pg_catalog.float8,pg_catalog.float4)': call('floatLe'),
+  'operator:["pg_catalog","<="](pg_catalog.float8,pg_catalog.float8)': call('floatLe'),
+  'operator:["pg_catalog",">"](pg_catalog.float4,pg_catalog.float4)': call('floatGt'),
+  'operator:["pg_catalog",">"](pg_catalog.float4,pg_catalog.float8)': call('floatGt'),
+  'operator:["pg_catalog",">"](pg_catalog.float8,pg_catalog.float4)': call('floatGt'),
+  'operator:["pg_catalog",">"](pg_catalog.float8,pg_catalog.float8)': call('floatGt'),
+  'operator:["pg_catalog",">="](pg_catalog.float4,pg_catalog.float4)': call('floatGe'),
+  'operator:["pg_catalog",">="](pg_catalog.float4,pg_catalog.float8)': call('floatGe'),
+  'operator:["pg_catalog",">="](pg_catalog.float8,pg_catalog.float4)': call('floatGe'),
+  'operator:["pg_catalog",">="](pg_catalog.float8,pg_catalog.float8)': call('floatGe'),
+  'operator:["pg_catalog","-"](,pg_catalog.float4)': call('float4Neg'),
+  'operator:["pg_catalog","+"](,pg_catalog.float4)': call('float4Identity'),
+  'operator:["pg_catalog","@"](,pg_catalog.float4)': call('float4Abs'),
+  'operator:["pg_catalog","-"](,pg_catalog.float8)': call('float8Neg'),
+  'operator:["pg_catalog","+"](,pg_catalog.float8)': call('float8Identity'),
+  'operator:["pg_catalog","@"](,pg_catalog.float8)': call('float8Abs'),
+  'operator:["pg_catalog","|/"](,pg_catalog.float8)': call('float8Sqrt'),
+  'operator:["pg_catalog","||/"](,pg_catalog.float8)': call('float8Cbrt'),
+} satisfies OperatorBindings<typeof PG18_NUMERIC, ts.Expression>
+
+export const typescriptFloatFunctions = {
+  'function:["pg_catalog","abs"](pg_catalog.float4)': call('float4Abs'),
+  'function:["pg_catalog","float4"](pg_catalog.float8)': call('float4FromFloat8'),
+  'function:["pg_catalog","float4"](pg_catalog.int2)': call('float4FromInteger'),
+  'function:["pg_catalog","int2"](pg_catalog.float4)': call('int2FromFloat'),
+  'function:["pg_catalog","float4"](pg_catalog.int4)': call('float4FromInteger'),
+  'function:["pg_catalog","int4"](pg_catalog.float4)': call('int4FromFloat'),
+  'function:["pg_catalog","float4"](pg_catalog.int8)': call('float4FromInteger'),
+  'function:["pg_catalog","int8"](pg_catalog.float4)': call('int8FromFloat'),
+  'function:["pg_catalog","abs"](pg_catalog.float8)': call('float8Abs'),
+  'function:["pg_catalog","float8"](pg_catalog.float4)': call('float8FromFloat4'),
+  'function:["pg_catalog","float8"](pg_catalog.int2)': call('float8FromInteger'),
+  'function:["pg_catalog","int2"](pg_catalog.float8)': call('int2FromFloat'),
+  'function:["pg_catalog","float8"](pg_catalog.int4)': call('float8FromInteger'),
+  'function:["pg_catalog","int4"](pg_catalog.float8)': call('int4FromFloat'),
+  'function:["pg_catalog","float8"](pg_catalog.int8)': call('float8FromInteger'),
+  'function:["pg_catalog","int8"](pg_catalog.float8)': call('int8FromFloat'),
+  'function:["pg_catalog","ceil"](pg_catalog.float8)': call('float8Ceil'),
+  'function:["pg_catalog","ceiling"](pg_catalog.float8)': call('float8Ceil'),
+  'function:["pg_catalog","floor"](pg_catalog.float8)': call('float8Floor'),
+  'function:["pg_catalog","round"](pg_catalog.float8)': call('float8Round'),
+  'function:["pg_catalog","trunc"](pg_catalog.float8)': call('float8Trunc'),
+  'function:["pg_catalog","sign"](pg_catalog.float8)': call('float8Sign'),
+  'function:["pg_catalog","sqrt"](pg_catalog.float8)': call('float8Sqrt'),
+  'function:["pg_catalog","cbrt"](pg_catalog.float8)': call('float8Cbrt'),
+} satisfies FunctionBindings<typeof PG18_NUMERIC, ts.Expression>

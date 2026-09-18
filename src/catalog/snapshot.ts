@@ -1,9 +1,6 @@
+import { readBuiltinCatalog } from '../postgres/builtins/catalog.js'
 import type { PGlite } from '@electric-sql/pglite'
 import type {
-  BuiltinFunctionSignature,
-  BuiltinFunctionVolatility,
-  BuiltinOperatorSignature,
-  BuiltinOperatorVolatility,
   BuiltinSignature,
   ImplicitCastInfo,
   BuiltinCast,
@@ -526,6 +523,9 @@ async function withEmptySearchPath<T>(pg: PGlite, read: () => Promise<T>): Promi
 }
 
 async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
+  const builtinCatalog = await readBuiltinCatalog(pg)
+  const functionSignatures = builtinCatalog.functions.map((row) => row.signature)
+  const operatorSignatures = builtinCatalog.operators.map((row) => row.signature)
   // Run all independent catalog queries in parallel.
   const [
     typeRows,
@@ -593,16 +593,42 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
     queryBuiltinFunctionNames(pg),
     queryBuiltinPolymorphicFunctions(pg),
     queryBuiltinPolymorphicArraySignatures(pg),
-    queryBuiltinFunctionSignatures(pg),
-    queryBuiltinOperatorSignatures(pg, CLAIMED_OPERATOR_NAMES),
-    queryBuiltinOperatorSignatures(pg, VALUE_LINEAGE_OPERATOR_NAMES),
+    Promise.resolve(
+      functionSignatures.filter(
+        (row) =>
+          CLAIMED_FUNCTION_NAMES.includes(row.name) || row.aggKind === 'h' || row.aggKind === 'o',
+      ),
+    ),
+    Promise.resolve(operatorSignatures.filter((row) => CLAIMED_OPERATOR_NAMES.includes(row.name))),
+    Promise.resolve(
+      operatorSignatures.filter((row) => VALUE_LINEAGE_OPERATOR_NAMES.includes(row.name)),
+    ),
     queryBuiltinImplicitCasts(pg),
     queryBuiltinCasts(pg),
     queryBuiltinTypeKinds(pg),
     queryBuiltinTypeNameAliases(pg),
     queryBuiltinImmutableIoTypes(pg),
-    queryBuiltinFunctionVolatilities(pg),
-    queryBuiltinOperatorVolatilities(pg),
+    Promise.resolve(
+      builtinCatalog.functions.map(({ signature, metadata }) => ({
+        name: signature.name,
+        args: signature.args,
+        returns: signature.returns,
+        volatility: metadata.volatility,
+        kind: signature.kind,
+        returnsSet: metadata.returnsSet,
+        variadic: signature.variadic,
+        numArgDefaults: signature.numArgDefaults,
+      })),
+    ),
+    Promise.resolve(
+      builtinCatalog.operators.map(({ signature, metadata }) => ({
+        name: signature.name,
+        leftType: signature.leftType,
+        rightType: signature.rightType,
+        returns: signature.returns,
+        volatility: metadata.volatility,
+      })),
+    ),
     queryBuiltinBtreeStrategies(pg),
     queryBuiltinEqualityNegators(pg),
     queryInherits(pg),
@@ -1562,109 +1588,6 @@ async function queryBuiltinPolymorphicArraySignatures(pg: PGlite): Promise<Built
 }
 
 /**
- * The pg_catalog signatures behind the curated claim tables. See
- * CatalogSnapshot.builtinFunctionSignatures for scope; the extra columns are
- * the resolution keys the narrowing measured — prokind for
- * call-shape dispatch, aggnumdirectargs for the WITHIN GROUP split,
- * provariadic for the never-exact `"any"` variadic, per-row strictness.
- *
- * `proargtypes` for the same reason as the polymorphic capture above: it is
- * the INPUT list a call's arguments line up against — and for an ordered-set
- * aggregate it includes the ORDER BY positions, which is exactly what the
- * capture must preserve.
- */
-async function queryBuiltinFunctionSignatures(pg: PGlite): Promise<BuiltinFunctionSignature[]> {
-  const res = await pg.query<{
-    name: string
-    args: string[] | null
-    returns: string
-    strict: boolean
-    kind: string
-    agg_kind: string | null
-    num_direct_args: number | null
-    variadic: string | null
-    num_arg_defaults: number
-  }>(
-    `SELECT p.proname AS name,
-            (SELECT array_agg(format_type(t, null) ORDER BY o)
-               FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, o)) AS args,
-            format_type(p.prorettype, null) AS returns,
-            p.proisstrict AS strict,
-            p.prokind AS kind,
-            a.aggkind AS agg_kind,
-            a.aggnumdirectargs::int AS num_direct_args,
-            CASE WHEN p.provariadic <> 0
-                 THEN format_type(p.provariadic, null) END AS variadic,
-            p.pronargdefaults::int AS num_arg_defaults
-     FROM pg_proc p
-     LEFT JOIN pg_aggregate a ON a.aggfnoid = p.oid
-     JOIN pg_namespace n ON n.oid = p.pronamespace
-     WHERE n.nspname = 'pg_catalog'
-       AND p.prokind IN ('f', 'a', 'w')
-       AND (p.proname = ANY($1)
-            -- The WITHIN GROUP verdicts are CLASS claims — "hypothetical-set
-            -- → never NULL" holds per aggkind, not per curated name — so the
-            -- class scopes itself; the two name tables that mirrored it
-            -- retired (they were asserted catalog-equal both ways).
-            OR a.aggkind IN ('h', 'o'))
-     ORDER BY p.proname, 2;`,
-    [CLAIMED_FUNCTION_NAMES],
-  )
-  return res.rows.map((r) => ({
-    name: r.name,
-    args: r.args ?? [],
-    returns: r.returns,
-    strict: r.strict,
-    kind: r.kind as 'f' | 'a' | 'w',
-    aggKind: r.agg_kind as 'n' | 'o' | 'h' | null,
-    numDirectArgs: r.num_direct_args,
-    variadic: r.variadic,
-    numArgDefaults: r.num_arg_defaults,
-  }))
-}
-
-/**
- * The pg_catalog rows for the curated operator symbols. See
- * CatalogSnapshot.builtinOperatorSignatures. The JOIN on pg_proc drops shell
- * operators (`oprcode = 0`) — the register's 1a sweep measured they cannot
- * be invoked, so dropping is sound; none exists in pg_catalog anyway.
- */
-async function queryBuiltinOperatorSignatures(
-  pg: PGlite,
-  names: readonly string[],
-): Promise<BuiltinOperatorSignature[]> {
-  const res = await pg.query<{
-    name: string
-    left_type: string | null
-    right_type: string | null
-    returns: string
-    strict: boolean
-  }>(
-    `SELECT o.oprname AS name,
-            CASE WHEN o.oprleft <> 0
-                 THEN format_type(o.oprleft, null) END AS left_type,
-            CASE WHEN o.oprright <> 0
-                 THEN format_type(o.oprright, null) END AS right_type,
-            format_type(o.oprresult, null) AS returns,
-            p.proisstrict AS strict
-     FROM pg_operator o
-     JOIN pg_proc p ON p.oid = o.oprcode
-     JOIN pg_namespace n ON n.oid = o.oprnamespace
-     WHERE n.nspname = 'pg_catalog'
-       AND o.oprname = ANY($1)
-     ORDER BY o.oprname, 2, 3;`,
-    [names],
-  )
-  return res.rows.map((r) => ({
-    name: r.name,
-    leftType: r.left_type,
-    rightType: r.right_type,
-    returns: r.returns,
-    strict: r.strict,
-  }))
-}
-
-/**
  * The pg_cast implicit rows. See CatalogSnapshot.builtinImplicitCasts;
  * IMPLICIT only because function arguments never use assignment casts —
  * the elimination rule's fifth clause.
@@ -1785,84 +1708,6 @@ async function queryBuiltinImmutableIoTypes(pg: PGlite): Promise<string[]> {
      ORDER BY t.typname;`,
   )
   return res.rows.map((r) => r.name)
-}
-
-/**
- * EVERY pg_catalog function signature with its provolatile. See
- * CatalogSnapshot.builtinFunctionVolatilities — the survivor gate of typed
- * operand tracking eliminates over these rows, so the capture is
- * deliberately unscoped: no curated list enters that rung.
- */
-async function queryBuiltinFunctionVolatilities(pg: PGlite): Promise<BuiltinFunctionVolatility[]> {
-  const res = await pg.query<{
-    name: string
-    args: string[] | null
-    returns: string
-    volatility: 'i' | 's' | 'v'
-    kind: 'f' | 'a' | 'w'
-    returns_set: boolean
-    variadic: string | null
-    num_arg_defaults: number
-  }>(
-    `SELECT p.proname AS name,
-            (SELECT array_agg(format_type(t, null) ORDER BY o)
-               FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, o)) AS args,
-            format_type(p.prorettype, null) AS returns,
-            p.provolatile AS volatility,
-            p.prokind AS kind,
-            p.proretset AS returns_set,
-            CASE WHEN p.provariadic <> 0
-                 THEN format_type(p.provariadic, null) END AS variadic,
-            p.pronargdefaults::int AS num_arg_defaults
-     FROM pg_proc p
-     WHERE p.pronamespace = 'pg_catalog'::regnamespace
-       AND p.prokind IN ('f', 'a', 'w')
-     ORDER BY p.proname, 2;`,
-  )
-  return res.rows.map((r) => ({
-    name: r.name,
-    args: r.args ?? [],
-    returns: r.returns,
-    volatility: r.volatility,
-    kind: r.kind,
-    returnsSet: r.returns_set,
-    variadic: r.variadic,
-    numArgDefaults: r.num_arg_defaults,
-  }))
-}
-
-/**
- * EVERY pg_catalog operator row with its backing function's provolatile.
- * See CatalogSnapshot.builtinOperatorVolatilities; the pg_proc JOIN drops
- * shell operators exactly as queryBuiltinOperatorSignatures does.
- */
-async function queryBuiltinOperatorVolatilities(pg: PGlite): Promise<BuiltinOperatorVolatility[]> {
-  const res = await pg.query<{
-    name: string
-    left_type: string | null
-    right_type: string | null
-    returns: string
-    volatility: 'i' | 's' | 'v'
-  }>(
-    `SELECT o.oprname AS name,
-            CASE WHEN o.oprleft <> 0
-                 THEN format_type(o.oprleft, null) END AS left_type,
-            CASE WHEN o.oprright <> 0
-                 THEN format_type(o.oprright, null) END AS right_type,
-            format_type(o.oprresult, null) AS returns,
-            p.provolatile AS volatility
-     FROM pg_operator o
-     JOIN pg_proc p ON p.oid = o.oprcode
-     WHERE o.oprnamespace = 'pg_catalog'::regnamespace
-     ORDER BY o.oprname, 2, 3;`,
-  )
-  return res.rows.map((r) => ({
-    name: r.name,
-    leftType: r.left_type,
-    rightType: r.right_type,
-    returns: r.returns,
-    volatility: r.volatility,
-  }))
 }
 
 /**

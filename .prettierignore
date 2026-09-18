@@ -3,3 +3,4 @@ pnpm-lock.yaml
 
 # Generated code is compared byte-for-byte against the printers' output.
 tests/fixtures/codegen/expected/
+tests/fixtures/sql-semantics/projects/

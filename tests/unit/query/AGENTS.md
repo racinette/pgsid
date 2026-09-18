@@ -74,8 +74,9 @@ whether a file may be authored by hand are directory-local facts.
     ├─ killable-evaluator.worker.mjs  the process-isolated PGlite evaluator
     │                                 worker (required)
     │
-    ├─ probe-values.ts                shared adversarial values and database
-    │                                 setup for builtin probes (required)
+    ├─ probe-values.ts                builtin probe setup and compatibility
+    │                                 exports for shared PostgreSQL inputs
+    │                                 (required)
     │
     ├─ rung-cooccurrence.ts           the isolated-world query-rung interaction
     │                                 measurement harness (required)
