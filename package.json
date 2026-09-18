@@ -27,6 +27,7 @@
     "espalier:check": "pnpm espalier:lint && espalier build --check --config tests/unit/query/espalier.config.yaml",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:sql-semantics:stress": "PGSID_SQL_SEMANTICS_STRESS=1 vitest run tests/sql-semantics/operations.test.ts",
     "numeric-observations:generate": "node --import tsx scripts/generate-numeric-observations.ts",
     "numeric-observations:check": "node --import tsx scripts/generate-numeric-observations.ts --check"
   },

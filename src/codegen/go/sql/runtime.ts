@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs'
+import { numericMathCopyright } from '../../../sql-semantics/numeric-math-license.js'
+import { goDecimalMathDependencies } from './decimal-math-runtime.js'
 import { goDecimalDependencies } from './decimal-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
@@ -62,10 +64,11 @@ for (const name of ['Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge'])
   dependencies[`float${name}`] = ['sqlFloatCompare', 'sqlComparisonResult']
 
 Object.assign(dependencies, goDecimalDependencies)
+Object.assign(dependencies, goDecimalMathDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
-    ['integer', 'floating-point', 'decimal']
+    ['integer', 'floating-point', 'decimal', 'decimal-math']
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
           .split(/\n(?=type |func )/)
@@ -89,7 +92,10 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
   }
   for (const name of required) include(name)
   const body = output.join('\n')
-  const imports = ['math', 'strconv', 'strings'].filter((name) => body.includes(`${name}.`))
+  const imports = ['math', 'math/big', 'strconv', 'strings'].filter((name) =>
+    body.includes(`${name.split('/').at(-1)}.`),
+  )
   if (body.includes('decimal.')) imports.push('github.com/shopspring/decimal')
-  return `package ${packageName}\n${imports.length ? `import (${imports.map((name) => `\n"${name}"`).join('')}\n)\n` : ''}${body}`
+  const copyright = included.has('SqlDecimalMath') ? '/*\n' + numericMathCopyright + '\n*/\n' : ''
+  return `${copyright}package ${packageName}\n${imports.length ? `import (${imports.map((name) => `\n"${name}"`).join('')}\n)\n` : ''}${body}`
 }

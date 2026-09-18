@@ -23,6 +23,7 @@ function call<M extends CallableMetadata>(helper: string): CallableEmitter<M, ts
 }
 
 export const typescriptDecimalOperators = {
+  'operator:["pg_catalog","^"](pg_catalog."numeric",pg_catalog."numeric")': call('decimalPower'),
   'operator:["pg_catalog","+"](pg_catalog."numeric",pg_catalog."numeric")': call('decimalAdd'),
   'operator:["pg_catalog","-"](pg_catalog."numeric",pg_catalog."numeric")': call('decimalSub'),
   'operator:["pg_catalog","*"](pg_catalog."numeric",pg_catalog."numeric")': call('decimalMul'),
@@ -40,6 +41,16 @@ export const typescriptDecimalOperators = {
 } satisfies OperatorBindings<typeof PG18_NUMERIC, ts.Expression>
 
 export const typescriptDecimalFunctions = {
+  'function:["pg_catalog","sqrt"](pg_catalog."numeric")': call('decimalSqrt'),
+  'function:["pg_catalog","exp"](pg_catalog."numeric")': call('decimalExp'),
+  'function:["pg_catalog","ln"](pg_catalog."numeric")': call('decimalLn'),
+  'function:["pg_catalog","log"](pg_catalog."numeric")': call('decimalLog10'),
+  'function:["pg_catalog","log10"](pg_catalog."numeric")': call('decimalLog10'),
+  'function:["pg_catalog","pow"](pg_catalog."numeric",pg_catalog."numeric")': call('decimalPower'),
+  'function:["pg_catalog","power"](pg_catalog."numeric",pg_catalog."numeric")':
+    call('decimalPower'),
+  'function:["pg_catalog","log"](pg_catalog."numeric",pg_catalog."numeric")': call('decimalLog'),
+
   'function:["pg_catalog","abs"](pg_catalog."numeric")': call('decimalAbs'),
   'function:["pg_catalog","ceil"](pg_catalog."numeric")': call('decimalCeil'),
   'function:["pg_catalog","ceiling"](pg_catalog."numeric")': call('decimalCeil'),

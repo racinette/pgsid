@@ -1,6 +1,5 @@
-import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import { numericCases } from '../fixtures/sql-semantics/operations/numeric.js'
+import { numericCases, numericStressCases } from '../fixtures/sql-semantics/operations/numeric.js'
 import { observeFloat } from '../support/postgres/observe.js'
 import { sqlSemanticsCoverage } from '../../scripts/report-sql-semantics-coverage.js'
 import { execFile } from 'node:child_process'
@@ -8,7 +7,6 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -29,16 +27,20 @@ import { observeSql } from '../support/postgres/observe.js'
 import type { SqlObservation } from '../support/postgres/observe.js'
 
 const run = promisify(execFile)
-const cases = [
+const standardCases = [
   ...integerAdditionCases,
   ...integerCompositionCases,
   ...integerOperationCases,
   ...numericCases,
 ]
+const cases =
+  process.env.PGSID_SQL_SEMANTICS_STRESS === '1'
+    ? [...standardCases, ...numericStressCases]
+    : standardCases
 let pg: PGlite
 
-function typescriptProject(): string {
-  const emitted = cases.map((fixture) =>
+function typescriptProject(fixtures = cases): string {
+  const emitted = fixtures.map((fixture) =>
     emitSqlExpression(fixture.expression, typescriptSqlBackend),
   )
   const helpers = emitted.flatMap((result) => result.helpers)
@@ -58,8 +60,8 @@ function typescriptProject(): string {
   ])
 }
 
-function goProject(): string {
-  const emitted = cases.map((fixture) => emitSqlExpression(fixture.expression, goSqlBackend))
+function goProject(fixtures = cases): string {
+  const emitted = fixtures.map((fixture) => emitSqlExpression(fixture.expression, goSqlBackend))
   return printGoFile({
     package: 'main',
     imports: [{ path: 'encoding/json' }, { path: 'os' }, { path: 'fmt' }, { path: 'math' }],
@@ -68,7 +70,7 @@ function goProject(): string {
       `
       func main() {
         results := []map[string]string{}
-        types := []string{${cases.map((fixture) => JSON.stringify(fixture.expression.type)).join(',')}}
+        types := []string{${fixtures.map((fixture) => JSON.stringify(fixture.expression.type)).join(',')}}
         for index, raw := range []any{${emitted.map((_, i) => `evaluate${i}()`).join(',')}} {
           result := map[string]string{}
           switch value := raw.(type) {
@@ -136,31 +138,52 @@ describe('generated PostgreSQL numeric evaluation', () => {
     expect(await observeSql(pg, fixture.sql, fixture.expression.type)).toEqual(fixture.expected)
   })
 
-  it('executes the generated TypeScript against the shared cases', () => {
-    const source = typescriptProject()
-    const output = ts.transpileModule(source, {
-      compilerOptions: {
-        target: ts.ScriptTarget.ES2022,
-        module: ts.ModuleKind.CommonJS,
-        esModuleInterop: true,
-      },
-    }).outputText
-    const results: SqlObservation[] = runInNewContext(
-      output +
+  it(
+    'executes the generated TypeScript against the shared cases',
+    { timeout: 120000 },
+    async () => {
+      const source = typescriptProject()
+      const output = ts.transpileModule(source, {
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.CommonJS,
+          esModuleInterop: true,
+        },
+      }).outputText
+      const script =
+        output +
         `\n[${cases.map((_, index) => `evaluate${index}`).join(',')}].map((fn,index) => {
       try { const value = fn(); const type = resultTypes[index]; return value === null ? { kind: 'null' } : type === 'pg_catalog.float4' || type === 'pg_catalog.float8' ? observeFloat(value,type) : { kind: 'value', value: value.toString() } }
       catch (error) { return { kind: 'error', code: error.code } }
-    })`,
-      {
-        require: createRequire(import.meta.url),
-        exports: {},
-        observeFloat,
-        resultTypes: cases.map((fixture) => fixture.expression.type),
-      },
-    )
-    for (const [index, fixture] of cases.entries())
-      expect(results[index], fixture.name).toEqual(fixture.expected)
-  })
+    })`
+      const directory = await mkdtemp(join(tmpdir(), 'pgsid-sql-semantics-typescript-run-'))
+      try {
+        const path = join(directory, 'run.cjs'),
+          resultPath = join(directory, 'results.json')
+        await writeFile(
+          path,
+          `
+        const { runInNewContext } = require('node:vm');
+        const { createRequire } = require('node:module');
+        const { writeFileSync } = require('node:fs');
+        const results = runInNewContext(${JSON.stringify(script)}, {
+          require: createRequire(${JSON.stringify(fileURLToPath(import.meta.url))}),
+          exports: {}, observeFloat: ${observeFloat.toString()},
+          resultTypes: ${JSON.stringify(cases.map((fixture) => fixture.expression.type))}
+        });
+        writeFileSync(${JSON.stringify(resultPath)}, JSON.stringify(results));
+      `,
+        )
+        await run(process.execPath, [path], { timeout: 110000 })
+        const results: SqlObservation[] = JSON.parse(await readFile(resultPath, 'utf8'))
+        expect(results).toHaveLength(cases.length)
+        for (const [index, fixture] of cases.entries())
+          expect(results[index], fixture.name).toEqual(fixture.expected)
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    },
+  )
 
   it('typechecks the complete generated TypeScript project', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-sql-semantics-typescript-'))
@@ -251,6 +274,12 @@ describe('generated PostgreSQL numeric evaluation', () => {
       'pg_catalog.float4 to numeric 0.1',
       'numeric to pg_catalog.float4 7.038531e-26',
       'numeric typmod 3/2 9.995',
+      'numeric math sqrt 2',
+      'numeric math power 2 / 10',
+      'numeric math exp 1',
+      'numeric math ln 2',
+      'numeric math log10 2',
+      'numeric math log 2 / 1.00000000000000000001',
     ]
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-isolated-numerics-'))
     try {
@@ -347,8 +376,8 @@ describe('generated PostgreSQL numeric evaluation', () => {
 
   it('pins complete generated projects', async () => {
     for (const [name, source] of [
-      ['typescript.ts', typescriptProject()],
-      ['main.go', goProject()],
+      ['typescript.ts', typescriptProject(standardCases)],
+      ['main.go', goProject(standardCases)],
     ] as const) {
       const path = new URL(`../fixtures/sql-semantics/projects/${name}`, import.meta.url)
       if (process.env.UPDATE_SQL_SEMANTICS_GOLDENS === '1') await writeFile(path, source)
@@ -368,6 +397,13 @@ describe('generated PostgreSQL numeric evaluation', () => {
         const floats = metadata.args.every((type) => floatTypes.has(type))
         const decimals = metadata.args.some((type) => type === 'pg_catalog."numeric"')
         const decimalFunctions = [
+          'sqrt',
+          'exp',
+          'ln',
+          'log',
+          'log10',
+          'pow',
+          'power',
           'abs',
           'ceil',
           'ceiling',
@@ -392,6 +428,8 @@ describe('generated PostgreSQL numeric evaluation', () => {
         if (metadata.kind === 'operator') {
           return (
             integers ||
+            (metadata.name === '^' &&
+              metadata.args.every((type) => type === 'pg_catalog."numeric"')) ||
             ((floats || metadata.args.every((type) => type === 'pg_catalog."numeric"')) &&
               ['+', '-', '*', '/', '%', '=', '<>', '<', '<=', '>', '>=', '@', '|/', '||/'].includes(
                 metadata.name,
@@ -418,7 +456,7 @@ describe('generated PostgreSQL numeric evaluation', () => {
       .map(([signature]) => signature)
       .sort()
     expect(supported.map((row) => row.signature).sort()).toEqual(expected)
-    expect(supported).toHaveLength(246)
+    expect(supported).toHaveLength(255)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
