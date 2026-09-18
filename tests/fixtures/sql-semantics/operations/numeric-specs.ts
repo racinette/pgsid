@@ -1,3 +1,4 @@
+import { numericUtilitySpecs } from './numeric-utility-specs.js'
 import { decimalMathSpecs } from './decimal-math-specs.js'
 import { decimalSpecs } from './decimal-specs.js'
 import type {
@@ -8,12 +9,9 @@ import type {
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
 import { integer, integerWidths } from './integer-addition.js'
 
-export interface NumericSpec {
-  stress?: boolean
-  name: string
-  sql: string
-  expression: SqlExpression
-}
+export type { ExpressionSpec as NumericSpec } from './expression-spec.js'
+import type { ExpressionSpec as NumericSpec } from './expression-spec.js'
+
 interface Operand {
   sql: string
   expression: SqlExpression
@@ -521,4 +519,9 @@ binary(
   failedDivision,
   sqlInteger('pg_catalog.int8', null),
 )
-export const numericSpecs: readonly NumericSpec[] = [...specs, ...decimalSpecs, ...decimalMathSpecs]
+export const numericSpecs: readonly NumericSpec[] = [
+  ...specs,
+  ...decimalSpecs,
+  ...decimalMathSpecs,
+  ...numericUtilitySpecs,
+]

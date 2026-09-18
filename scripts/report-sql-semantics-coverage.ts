@@ -1,3 +1,4 @@
+import { scalarCases } from '../tests/fixtures/sql-semantics/operations/scalar.js'
 import { numericCases } from '../tests/fixtures/sql-semantics/operations/numeric.js'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
@@ -21,6 +22,7 @@ export function sqlSemanticsCoverage(
     ...integerCompositionCases,
     ...integerOperationCases,
     ...numericCases,
+    ...scalarCases,
   ],
 ) {
   const evidence = new Map<string, string[]>()
@@ -28,9 +30,27 @@ export function sqlSemanticsCoverage(
     if (
       expression.kind === 'integer' ||
       expression.kind === 'float' ||
-      expression.kind === 'decimal'
+      expression.kind === 'decimal' ||
+      expression.kind === 'boolean' ||
+      expression.kind === 'text'
     )
       return
+    if (expression.kind === 'case') {
+      expression.branches.forEach((branch) => {
+        record(branch.when, name)
+        record(branch.then, name)
+      })
+      record(expression.otherwise, name)
+      return
+    }
+    if (expression.kind === 'boolean-logic' || expression.kind === 'coalesce') {
+      expression.operands.forEach((operand) => record(operand, name))
+      return
+    }
+    if (expression.kind === 'null-test') {
+      record(expression.operand, name)
+      return
+    }
     if (expression.signature !== null) {
       evidence.set(expression.signature, [...(evidence.get(expression.signature) ?? []), name])
     }

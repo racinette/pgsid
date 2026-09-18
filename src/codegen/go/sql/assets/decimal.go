@@ -530,3 +530,68 @@ func float4FromDecimal(value SqlDecimal) SqlFloat { return sqlDecimalToFloat(val
 func decimalFromFloat8(value SqlFloat) SqlDecimal { return sqlDecimalFromFloat(value, 15) }
 
 func float8FromDecimal(value SqlDecimal) SqlFloat { return sqlDecimalToFloat(value, 64) }
+
+func decimalScale(value SqlDecimal) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if !value.Valid || value.Special != "" {
+		return SqlInteger{}
+	}
+	return SqlInteger{Value: int64(value.Scale), Valid: true}
+}
+
+func decimalMinScale(value SqlDecimal) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if !value.Valid || value.Special != "" {
+		return SqlInteger{}
+	}
+	text := value.Value.String()
+	scale := 0
+	if index := strings.IndexByte(text, '.'); index >= 0 {
+		scale = len(text) - index - 1
+	}
+	return SqlInteger{Value: int64(scale), Valid: true}
+}
+
+func decimalTrimScale(value SqlDecimal) SqlDecimal {
+	if value.Error != "" || !value.Valid || value.Special != "" {
+		return value
+	}
+	value.Scale = int32(decimalMinScale(value).Value)
+	return value
+}
+
+func decimalWidthBucket(value, lower, upper SqlDecimal, count SqlInteger) SqlInteger {
+	for _, operand := range []SqlDecimal{value, lower, upper} {
+		if operand.Error != "" {
+			return SqlInteger{Error: operand.Error}
+		}
+	}
+	if count.Error != "" {
+		return count
+	}
+	if !value.Valid || !lower.Valid || !upper.Valid || !count.Valid {
+		return SqlInteger{}
+	}
+	if count.Value <= 0 || value.Special == "NaN" || lower.Special != "" || upper.Special != "" || lower.Value.Equal(upper.Value) {
+		return SqlInteger{Error: "2201G"}
+	}
+	ascending := lower.Value.LessThan(upper.Value)
+	below := value.Special == "-Infinity" || (value.Special == "" && value.Value.LessThan(lower.Value))
+	above := value.Special == "Infinity" || (value.Special == "" && value.Value.GreaterThan(lower.Value))
+	if (ascending && below) || (!ascending && above) {
+		return SqlInteger{Value: 0, Valid: true}
+	}
+	beyond := value.Special == "Infinity" || (value.Special == "" && value.Value.GreaterThanOrEqual(upper.Value))
+	reverseBeyond := value.Special == "-Infinity" || (value.Special == "" && value.Value.LessThanOrEqual(upper.Value))
+	if (ascending && beyond) || (!ascending && reverseBeyond) {
+		return sqlIntegerRange(SqlInteger{Value: count.Value + 1, Valid: true}, -2147483648, 2147483647)
+	}
+	numerator := value.Value.Sub(lower.Value).Mul(decimal.NewFromInt(count.Value))
+	denominator := upper.Value.Sub(lower.Value)
+	quotient, _ := numerator.QuoRem(denominator, 0)
+	return SqlInteger{Value: quotient.IntPart() + 1, Valid: true}
+}

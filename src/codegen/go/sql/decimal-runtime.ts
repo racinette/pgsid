@@ -1,4 +1,8 @@
 export const goDecimalDependencies: Record<string, readonly string[]> = {
+  decimalScale: ['SqlDecimal', 'SqlInteger'],
+  decimalMinScale: ['SqlDecimal', 'SqlInteger'],
+  decimalTrimScale: ['decimalMinScale'],
+  decimalWidthBucket: ['SqlDecimal', 'sqlIntegerRange'],
   SqlDecimal: [],
   sqlDecimalResult: ['SqlDecimal'],
   sqlDecimalText: ['SqlDecimal'],

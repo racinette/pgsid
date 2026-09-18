@@ -1,0 +1,17 @@
+export const goFloatMathDependencies: Record<string, readonly string[]> = {
+  sqlFloatMathBits: [],
+  sqlFloatMathNumber: [],
+  sqlFloatExpTable: [],
+  sqlFloatLogTable: ['sqlFloatLogCenters'],
+  sqlFloatPowerTable: [],
+  sqlFloatExpKernel: ['sqlFloatMathBits', 'sqlFloatMathNumber', 'sqlFloatExpTable'],
+  sqlFloatLogKernel: ['sqlFloatMathBits', 'sqlFloatMathNumber', 'sqlFloatLogTable'],
+  sqlFloatLog10Kernel: ['sqlFloatMathBits', 'sqlFloatMathNumber'],
+  sqlFloatPowerLog: ['sqlFloatMathBits', 'sqlFloatMathNumber', 'sqlFloatPowerTable'],
+  sqlFloatPowerKernel: ['sqlFloatPowerLog', 'sqlFloatExpKernel'],
+  float8Exp: ['SqlFloat', 'sqlFloatExpKernel'],
+  float8Ln: ['SqlFloat', 'sqlFloatLogKernel'],
+  float8Log10: ['SqlFloat', 'sqlFloatLog10Kernel'],
+  float8Power: ['SqlFloat', 'sqlFloatPowerKernel'],
+  sqlFloatLogCenters: [],
+}

@@ -349,3 +349,43 @@ func float8Sign(value SqlFloat) SqlFloat {
 	}
 	return SqlFloat{Value: result, Valid: true}
 }
+
+func float8WidthBucket(value, lower, upper SqlFloat, count SqlInteger) SqlInteger {
+	for _, operand := range []SqlFloat{value, lower, upper} {
+		if operand.Error != "" {
+			return SqlInteger{Error: operand.Error}
+		}
+	}
+	if count.Error != "" {
+		return count
+	}
+	if !value.Valid || !lower.Valid || !upper.Valid || !count.Valid {
+		return SqlInteger{}
+	}
+	a, b, c := value.Value, lower.Value, upper.Value
+	if count.Value <= 0 || math.IsNaN(a) || math.IsNaN(b) || math.IsNaN(c) || math.IsInf(b, 0) || math.IsInf(c, 0) || b == c {
+		return SqlInteger{Error: "2201G"}
+	}
+	ascending := b < c
+	if (ascending && a < b) || (!ascending && a > b) {
+		return SqlInteger{Value: 0, Valid: true}
+	}
+	if (ascending && a >= c) || (!ascending && a <= c) {
+		return sqlIntegerRange(SqlInteger{Value: count.Value + 1, Valid: true}, -2147483648, 2147483647)
+	}
+	numerator, denominator := a-b, c-b
+	if !ascending {
+		numerator, denominator = b-a, b-c
+	}
+	if math.IsInf(denominator, 0) {
+		numerator, denominator = a/2-b/2, c/2-b/2
+		if !ascending {
+			numerator, denominator = b/2-a/2, b/2-c/2
+		}
+	}
+	bucket := int64(float64(count.Value) * (numerator / denominator))
+	if bucket >= count.Value {
+		bucket = count.Value - 1
+	}
+	return SqlInteger{Value: bucket + 1, Valid: true}
+}

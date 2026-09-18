@@ -1,9 +1,13 @@
+import { goScalarDependencies } from './scalar-runtime.js'
+import { floatMathCopyright } from '../../../sql-semantics/float-math-license.js'
+import { goFloatMathDependencies } from './float-math-runtime.js'
 import { readFileSync } from 'node:fs'
 import { numericMathCopyright } from '../../../sql-semantics/numeric-math-license.js'
 import { goDecimalMathDependencies } from './decimal-math-runtime.js'
 import { goDecimalDependencies } from './decimal-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
+  float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
   SqlInteger: [],
   SqlBoolean: [],
   SqlFloat: [],
@@ -63,12 +67,14 @@ for (const width of ['int2', 'int4', 'int8'])
 for (const name of ['Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge'])
   dependencies[`float${name}`] = ['sqlFloatCompare', 'sqlComparisonResult']
 
+Object.assign(dependencies, goScalarDependencies)
 Object.assign(dependencies, goDecimalDependencies)
 Object.assign(dependencies, goDecimalMathDependencies)
+Object.assign(dependencies, goFloatMathDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
-    ['integer', 'floating-point', 'decimal', 'decimal-math']
+    ['integer', 'floating-point', 'decimal', 'decimal-math', 'float-math', 'scalar']
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
           .split(/\n(?=type |func )/)
@@ -92,10 +98,12 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
   }
   for (const name of required) include(name)
   const body = output.join('\n')
-  const imports = ['math', 'math/big', 'strconv', 'strings'].filter((name) =>
+  const imports = ['math', 'math/big', 'strconv', 'strings', 'unicode/utf8'].filter((name) =>
     body.includes(`${name.split('/').at(-1)}.`),
   )
   if (body.includes('decimal.')) imports.push('github.com/shopspring/decimal')
-  const copyright = included.has('SqlDecimalMath') ? '/*\n' + numericMathCopyright + '\n*/\n' : ''
+  const copyright =
+    (included.has('SqlDecimalMath') ? '/*\n' + numericMathCopyright + '\n*/\n' : '') +
+    (included.has('sqlFloatMathBits') ? '/*\n' + floatMathCopyright + '\n*/\n' : '')
   return `${copyright}package ${packageName}\n${imports.length ? `import (${imports.map((name) => `\n"${name}"`).join('')}\n)\n` : ''}${body}`
 }

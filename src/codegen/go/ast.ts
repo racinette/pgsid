@@ -33,6 +33,7 @@ export type GoExpression =
   | { kind: 'struct'; fields: GoField[] }
   | { kind: 'interface'; fields?: GoField[] }
   | { kind: 'function-type'; parameters: GoField[]; results: GoField[] }
+  | { kind: 'function-literal'; parameters: GoField[]; results: GoField[]; body: GoStatement[] }
   | { kind: 'ellipsis'; type: GoExpression }
   | { kind: 'number'; value: string }
   | { kind: 'call'; expression: GoExpression; arguments: GoExpression[] }
@@ -201,7 +202,8 @@ export function printGoFile(file: GoFile): string {
       new Uint8Array(runtime.memory.buffer, runtime.output_ptr(), runtime.output_len()),
     ).toString('utf8')
     if (status !== 0) throw new Error(output)
-    return output
+    const notices = file.source?.match(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/)?.[0] ?? ''
+    return notices + output
   } finally {
     runtime.dispose()
   }

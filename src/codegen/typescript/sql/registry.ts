@@ -1,3 +1,6 @@
+import { typescriptSqlSyntax } from './syntax.js'
+import { typescriptBooleanOperators, typescriptBooleanFunctions } from './boolean.js'
+import { typescriptTextOperators, typescriptTextFunctions } from './text.js'
 import { typescriptFloatOperators, typescriptFloatFunctions } from './floating-point.js'
 import { typescriptDecimalOperators, typescriptDecimalFunctions } from './decimal.js'
 import ts from 'typescript'
@@ -7,6 +10,12 @@ import type { ExpressionBackend } from '../../../sql-semantics/expressions.js'
 
 export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
   bindings: [
+    {
+      domain: 'boolean',
+      operators: typescriptBooleanOperators,
+      functions: typescriptBooleanFunctions,
+    },
+    { domain: 'text', operators: typescriptTextOperators, functions: typescriptTextFunctions },
     {
       domain: 'numeric',
       operators: typescriptDecimalOperators,
@@ -19,6 +28,15 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       functions: typescriptNumericFunctions,
     },
   ],
+  syntax: typescriptSqlSyntax,
+  boolean: (value) =>
+    factory.createCallExpression(identifier('booleanInput'), undefined, [
+      value === null ? factory.createNull() : value ? factory.createTrue() : factory.createFalse(),
+    ]),
+  text: (value) =>
+    factory.createCallExpression(identifier('textInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
   decimal: (value) =>
     factory.createCallExpression(identifier('decimalInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),
