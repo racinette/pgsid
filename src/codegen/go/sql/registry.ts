@@ -16,6 +16,24 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     { domain: 'numeric', operators: goFloatOperators, functions: goFloatFunctions },
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
   ],
+  coerceText: (type, length, explicit, operand) => {
+    const helpers: string[] = []
+    let expression = operand.expression
+    if (operand.type === 'pg_catalog.bpchar' && type !== 'pg_catalog.bpchar') {
+      helpers.push('bpcharText')
+      expression = go.call(go.ident('bpcharText'), [expression])
+    }
+    if (length !== null) {
+      const helper = type === 'pg_catalog.bpchar' ? 'bpcharCoerce' : 'varcharCoerce'
+      helpers.push(helper, 'int4Input', 'booleanInput')
+      expression = go.call(go.ident(helper), [
+        expression,
+        go.call(go.ident('int4Input'), [go.string(String(length + 4))]),
+        go.call(go.ident('booleanInput'), [go.ident(explicit ? 'true' : 'false')]),
+      ])
+    }
+    return { expression, helpers }
+  },
   syntax: goSqlSyntax,
   boolean: (value) =>
     value === null

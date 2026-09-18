@@ -28,6 +28,24 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       functions: typescriptNumericFunctions,
     },
   ],
+  coerceText: (type, length, explicit, operand) => {
+    const helpers: string[] = []
+    let expression = operand.expression
+    if (operand.type === 'pg_catalog.bpchar' && type !== 'pg_catalog.bpchar') {
+      helpers.push('bpcharText')
+      expression = factory.createCallExpression(identifier('bpcharText'), undefined, [expression])
+    }
+    if (length !== null) {
+      const helper = type === 'pg_catalog.bpchar' ? 'bpcharCoerce' : 'varcharCoerce'
+      helpers.push(helper)
+      expression = factory.createCallExpression(identifier(helper), undefined, [
+        expression,
+        factory.createBigIntLiteral(String(length + 4) + 'n'),
+        explicit ? factory.createTrue() : factory.createFalse(),
+      ])
+    }
+    return { expression, helpers }
+  },
   syntax: typescriptSqlSyntax,
   boolean: (value) =>
     factory.createCallExpression(identifier('booleanInput'), undefined, [

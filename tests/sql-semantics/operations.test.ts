@@ -3,7 +3,7 @@ import { floatMathCopyright } from '../../src/sql-semantics/float-math-license.j
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
 import { PG18_BOOLEAN } from '../../src/postgres/builtins/boolean.generated.js'
-import { PG18_TEXT } from '../../src/postgres/builtins/text.generated.js'
+import { textSignatures } from '../fixtures/sql-semantics/operations/text-signatures.js'
 import { fileURLToPath } from 'node:url'
 import { numericCases, numericStressCases } from '../fixtures/sql-semantics/operations/numeric.js'
 import { observeFloat } from '../support/postgres/observe.js'
@@ -140,7 +140,9 @@ function goProject(fixtures = cases): string {
                   ? 'SqlFloat'
                   : result.value.type === 'pg_catalog."numeric"'
                     ? 'SqlDecimal'
-                    : result.value.type === 'pg_catalog.text'
+                    : ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
+                          result.value.type,
+                        )
                       ? 'SqlText'
                       : 'SqlInteger',
             ),
@@ -263,6 +265,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
       await writeFile(join(directory, 'main.go'), goProject())
       const { stdout } = await run(process.env.PGSID_GO_BINARY ?? 'go', ['run', '.'], {
         cwd: directory,
+        maxBuffer: 16 * 1024 * 1024,
         timeout: 60000,
         env: {
           ...process.env,
@@ -283,6 +286,9 @@ describe('generated PostgreSQL scalar evaluation', () => {
 
   it('compiles isolated expression programs with only their required helpers and imports', async () => {
     const names = [
+      ...textSignatures.map((signature) => `text utility ${signature} 0`),
+      'text pg_catalog.bpchar CASE padding',
+      'text pg_catalog."varchar" COALESCE padding',
       'boolean literal false',
       'boolean and null/false',
       'boolean or null/true',
@@ -398,7 +404,11 @@ describe('generated PostgreSQL scalar evaluation', () => {
                           ? 'SqlFloat'
                           : emitted.value.type === 'pg_catalog."numeric"'
                             ? 'SqlDecimal'
-                            : emitted.value.type === 'pg_catalog.text'
+                            : [
+                                  'pg_catalog.text',
+                                  'pg_catalog."varchar"',
+                                  'pg_catalog.bpchar',
+                                ].includes(emitted.value.type)
                               ? 'SqlText'
                               : 'SqlInteger',
                     ),
@@ -531,23 +541,12 @@ describe('generated PostgreSQL scalar evaluation', () => {
       .sort()
     const additional = [
       ...Object.keys(PG18_BOOLEAN).filter((signature) => signature.startsWith('operator:')),
-      ...Object.entries(PG18_TEXT)
-        .filter(
-          ([, metadata]) =>
-            metadata.args.every((type) => type === 'pg_catalog.text') &&
-            (metadata.kind === 'operator'
-              ? ['=', '<>', '<', '<=', '>', '>=', '||'].includes(metadata.name)
-              : metadata.kind === 'function' &&
-                ['length', 'char_length', 'character_length', 'octet_length', 'textcat'].includes(
-                  metadata.name,
-                )),
-        )
-        .map(([signature]) => signature),
+      ...textSignatures,
     ]
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(285)
+    expect(supported).toHaveLength(338)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
@@ -591,6 +590,39 @@ describe('generated PostgreSQL scalar evaluation', () => {
         },
         'Invalid CASE',
       ],
+      ...[0, -1, 1.5, 10485761].map(
+        (length) =>
+          [
+            {
+              kind: 'text-coercion',
+              type: 'pg_catalog.bpchar',
+              length,
+              explicit: true,
+              operand: text,
+            },
+            'Invalid text coercion',
+          ] as [SqlExpression, string],
+      ),
+      [
+        {
+          kind: 'text-coercion',
+          type: 'pg_catalog.text',
+          length: 1,
+          explicit: true,
+          operand: text,
+        },
+        'Invalid text coercion',
+      ],
+      [
+        {
+          kind: 'text-coercion',
+          type: 'pg_catalog.bpchar',
+          length: null,
+          explicit: true,
+          operand: integer,
+        },
+        'Invalid text coercion',
+      ],
       [{ kind: 'coalesce', type: 'pg_catalog.int4', operands: [] }, 'Invalid COALESCE'],
       [{ kind: 'coalesce', type: 'pg_catalog.int4', operands: [text] }, 'Invalid COALESCE'],
       ...['a\0b', '\uD800', '\uDC00'].map(
@@ -610,10 +642,25 @@ describe('generated PostgreSQL scalar evaluation', () => {
               operands: [text, text],
               collation,
             },
-            'Unsupported text comparison collation',
+            'Unsupported text collation',
           ] as [SqlExpression, string],
       ),
     ]
+    for (const signature of textSignatures) {
+      const guarded =
+        /(?:"(?:bpchareq|bpcharne|bpcharlt|bpcharle|bpchargt|bpcharge|strpos|replace|split_part|starts_with)"|^operator:.*pg_catalog.bpchar)/.test(
+          signature,
+        )
+      if (!guarded) continue
+      const fixture = standardCases.find(
+        (fixture) => fixture.name === `text utility ${signature} 0`,
+      )!
+      for (const collation of [undefined, 'en-US'])
+        invalid.push([
+          { ...fixture.expression, collation } as SqlExpression,
+          'Unsupported text collation',
+        ])
+    }
     for (const [expression, message] of invalid) {
       expect(() => emitSqlExpression(expression, typescriptSqlBackend)).toThrow(message)
       expect(() => emitSqlExpression(expression, goSqlBackend)).toThrow(message)
@@ -693,7 +740,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
         { kind: 'cast', signature: null, type: 'pg_catalog.int8', operand: literal },
         typescriptSqlBackend,
       ),
-    ).toThrow('Invalid numeric relabel cast')
+    ).toThrow('Invalid relabel cast')
     expect(() =>
       emitSqlExpression(
         {
@@ -704,7 +751,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
         },
         typescriptSqlBackend,
       ),
-    ).toThrow('Invalid numeric cast function')
+    ).toThrow('Invalid cast function')
     for (const bits of ['xyz', '0000000', '000000000']) {
       expect(() =>
         emitSqlExpression({ kind: 'float', type: 'pg_catalog.float4', bits }, typescriptSqlBackend),
